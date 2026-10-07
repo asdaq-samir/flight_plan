@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { slow, settle, sideDrawer, openBriefing, openTab } from "./helpers";
+import { slow, settle, sideDrawer, openBriefing, openTab, grabberTo } from "./helpers";
 
 /**
  * The nav log's checkpoints: selected by a click, by Enter or by a pick
@@ -68,7 +68,7 @@ test("plan page: a checkpoint picked on the map is brought to the middle of the 
   const viewport = page.viewportSize()!;
   await page.setViewportSize({ width: viewport.width, height: 420 });
   await page.waitForTimeout(300);
-  await page.getByTestId("sidebar-trigger-button").click();
+  await grabberTo(page, "full");
   // The drawer opens the nav log's own section itself, for the pick:
   // no title to find and press first.
   const table = page.getByRole("table", { name: /Navigation log from/i });

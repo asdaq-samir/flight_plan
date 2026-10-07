@@ -1,6 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { DEVELOPER, openLinkFor, signInByEmail } from "./emailSignIn";
-import { closeConsole, roleMenu } from "./helpers";
+import { closeConsole, roleMenu, noTips } from "./helpers";
 
 /**
  * Signing in and out on the running stack, from a browser with no
@@ -10,6 +10,7 @@ import { closeConsole, roleMenu } from "./helpers";
  * is mocked -- the link is read from the local inbox (emailSignIn.ts).
  */
 test.use({ storageState: { cookies: [], origins: [] } });
+test.beforeEach(async ({ page }) => { await page.addInitScript(noTips); });
 
 const consoleSheet = (page: Page) => page.getByTestId("console-sheet");
 
@@ -39,13 +40,17 @@ test("signed out, the planner opens on the map, and the sign-in is in the pilot 
   await expect(consoleSheet(page).getByRole("button", { name: "Sign in" })).toBeVisible();
 });
 
-test("signed out, the Library says once what signing in keeps, and the dialog offers only the providers registered", async ({ page }) => {
+test("signed out, Personal says once what signing in keeps, its minimums need none, and the dialog offers only the providers registered", async ({ page }) => {
   await page.goto("/app/plan");
   await page.getByTestId("settings-button").click();
   const sheet = consoleSheet(page);
-  await sheet.getByRole("tab", { name: "Library" }).click();
+  await sheet.getByRole("tab", { name: "Personal" }).click();
   await expect(sheet.getByText("Not Signed In")).toBeVisible();
-  await expect(sheet.getByTestId("library-section")).toHaveCount(0);
+  // The minimums are kept on the device: no sign-in for them.
+  await sheet.getByTestId("library-section").getByRole("radio", { name: "Minimums" }).click();
+  await expect(sheet.getByTestId("minimum-ceilingFt")).toBeVisible();
+  await sheet.getByTestId("library-section").getByRole("radio", { name: "Aircraft" }).click();
+  await expect(sheet.getByText("Not Signed In")).toBeVisible();
   // This stack registers neither Google nor Apple: their buttons opened a blank 401.
   await sheet.getByRole("tabpanel").getByRole("button", { name: "Sign in" }).click();
   const dialog = page.getByRole("dialog", { name: "Sign in to Wingtip Maps" });

@@ -81,11 +81,13 @@ body .leaflet-container {
 }
 
 /* With the phone's sheet all the way up, the map's buttons give way,
-   as Maps' do: only a sliver of them showed past its edge. */
+   as Maps' do: only a sliver of them showed past its edge. The panel's
+   height and shape are on <body> (MapPanel): a :has() there restyled the
+   whole page at every change of the attributes it named. */
 [data-map-controls] {
   transition: opacity 0.2s;
 }
-body:has([data-slot="map-panel"][data-sheet][data-panel="full"]) [data-map-controls] {
+body[data-map-sheet][data-map-panel="full"] [data-map-controls] {
   opacity: 0;
   pointer-events: none;
 }
@@ -293,6 +295,14 @@ body:has([data-slot="map-panel"][data-sheet][data-panel="full"]) [data-map-contr
     font-weight: var(--font-weight-semibold);
   }
 
+  /* The hand over everything that takes a click, as the pilot expected
+     over Favorites' tiles: Tailwind 4 leaves a button the arrow, and only
+     the stock Button asked for the hand, so a plain button -- a tile, a
+     heading's link, a list row -- showed the arrow. Not while disabled. */
+  button:not(:disabled), [role="button"]:not([aria-disabled="true"]), summary {
+    cursor: pointer;
+  }
+
   * {
     @apply border-border outline-ring/50;
   }
@@ -329,8 +339,14 @@ body:has([data-slot="map-panel"][data-sheet][data-panel="full"]) [data-map-contr
    tap on a card that is transparent to the pointer lands on whatever
    the drawer has there: an accordion trigger, which opened a briefing
    section nobody touched. While one is open the cards take their own
-   taps back; the chart loses the wheel under a toast for that long. */
-body:has([data-slot="map-panel"]:not([data-panel="peek"]), [role="dialog"][data-state="open"]:not([data-slot="map-panel"])) [data-sonner-toast] {
+   taps back; the chart loses the wheel under a toast for that long.
+   The panel out is <body>'s data-map-panel (MapPanel), and a dialog open
+   its data-scroll-locked, which the stock dialogs' scroll lock sets
+   (react-remove-scroll-bar), rather than a :has() looking for either: at
+   the top of the page it restyled all of it at every data-state changed
+   anywhere, a quarter of a second of a phone's each time a tab was
+   picked (measured 2026-10-07). */
+body:is([data-map-panel="half"], [data-map-panel="full"], [data-scroll-locked]) [data-sonner-toast] {
   pointer-events: auto;
 }
 
@@ -363,6 +379,21 @@ body:has([data-slot="map-panel"]:not([data-panel="peek"]), [role="dialog"][data-
     button, a[data-slot="button"] {
       position: relative;
     }
+  }
+}
+
+/* A panel tab not up (PanelTabs): skipped, its layout and its charts'
+   sizes kept for its return, where display: none threw them away -- a
+   tab shown again was laid out from nothing, and its charts drawn again.
+   Out of the way of the pointer, the keys and VoiceOver (it is inert as
+   well). Where content-visibility is not known (Safari before 18), out of
+   the layout as before. */
+.tab-away {
+  content-visibility: hidden;
+}
+@supports not (content-visibility: hidden) {
+  .tab-away {
+    display: none;
   }
 }
 

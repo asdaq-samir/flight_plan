@@ -1,9 +1,10 @@
-import { useMemo, useState } from "react";
+import { memo, useMemo, useState } from "react";
 import L from "leaflet";
 import { CircleMarker, Marker, useMap, useMapEvents } from "react-leaflet";
 import { Badge } from "../../../components/ui/badge";
 import { useQuery } from "@tanstack/react-query";
 import { classBQuery } from "../../../lib/queryClient";
+import { pointName } from "../../../lib/identSchema";
 import type { Candidate, ClassBAirport, Course, Leg } from "../../../lib/api/types";
 import type { BriefingState } from "../hooks/usePlan";
 import type { AirportWeather } from "../../../lib/map/AirportCard";
@@ -18,7 +19,7 @@ import {
   CHECKPOINT_LABEL_GAP, CHECKPOINT_LABEL_HEIGHT, airportChipWidth, airportIcon, checkpointLabelIcon, checkpointLabelWidth, dotIcon, legPointIcon,
   waypointIcon,
 } from "../../../lib/map/icons";
-import { FocusOn } from "../../../lib/map/MapEffects";
+import { FitTo, FocusOn } from "../../../lib/map/MapEffects";
 import { MapCard } from "../../../lib/map/MapCard";
 import { MapPopup } from "../../../lib/map/MapPopup";
 import { MapShell } from "../../../lib/map/MapShell";
@@ -48,6 +49,9 @@ interface Props {
   /** The airport whose card is open, and the way to open one from the
    *  chart (AirportsLayer) -- or, with null, to put it away. */
   place: { ident: string; lat: number; lon: number } | null;
+  /** The fields Nearest lists and own ship, with its card up: the map
+   *  fitted to them over the half panel (FitTo). */
+  nearest?: { ident: string; lat: number; lon: number }[] | null;
   onSelectPlace: (ident: string | null) => void;
   /** A VFR waypoint tapped on the chart, put in the route's stops. */
   onAddStop?: (waypoint: { ident: string; lat: number; lon: number }) => void;
@@ -63,6 +67,11 @@ interface Props {
  *  there (AirspaceCard): Leaflet's contextmenu, which it raises for a
  *  long press on a phone as well (TapHold) and keeps the browser's own
  *  menu from. The point wears a pin while its card is open. */
+// Constants, not literals: react-leaflet restyles a path whenever its
+// pathOptions is a new object.
+const HELD_RING: L.PathOptions = { color: "#F2B600", weight: 4, opacity: 0.95, fill: false };
+const HELD_DOT: L.PathOptions = { color: "#ffffff", weight: 2, fillColor: "#0a84ff", fillOpacity: 1 };
+
 function HeldPoint({ point, onHold }: { point: Props["heldPoint"]; onHold: Props["onHoldPoint"] }) {
   // Memoized, not a literal: see AirportsLayer.
   const handlers = useMemo(() => ({
@@ -72,14 +81,8 @@ function HeldPoint({ point, onHold }: { point: Props["heldPoint"]; onHold: Props
   if (!point) return null;
   return (
     <>
-      <CircleMarker
-        center={[point.lat, point.lon]} radius={16} interactive={false}
-        pathOptions={{ color: "#F2B600", weight: 4, opacity: 0.95, fill: false }}
-      />
-      <CircleMarker
-        center={[point.lat, point.lon]} radius={6} interactive={false}
-        pathOptions={{ color: "#ffffff", weight: 2, fillColor: "#0a84ff", fillOpacity: 1 }}
-      />
+      <CircleMarker center={[point.lat, point.lon]} radius={16} interactive={false} pathOptions={HELD_RING} />
+      <CircleMarker center={[point.lat, point.lon]} radius={6} interactive={false} pathOptions={HELD_DOT} />
     </>
   );
 }
@@ -170,13 +173,15 @@ function Endpoints({ course, weather, onSelectPoint, onSelectPlace }: {
     <>
       {routeAirports(course).map(a => {
         // A waypoint flown through: the sectional's magenta, no weather.
+        // A present position, Fly Here's start, by its coordinates in the
+        // same chip (pointName): own ship's arrow is there too, while on.
         if (a.kind === "fix") {
           return (
             <Marker
-              key={a.ident} position={[a.lat, a.lon]} icon={waypointIcon(a.ident)}
+              key={a.ident} position={[a.lat, a.lon]} icon={waypointIcon(pointName(a.ident))}
               eventHandlers={{ click: e => { L.DomEvent.stopPropagation(e); onSelectPoint(a.lat, a.lon); } }}
             >
-              <MapTooltip><span className="font-semibold">{a.ident}</span> · {a.name}</MapTooltip>
+              <MapTooltip><span className="font-semibold">{pointName(a.ident)}</span> · {a.name}</MapTooltip>
             </Marker>
           );
         }
@@ -200,6 +205,31 @@ function Endpoints({ course, weather, onSelectPoint, onSelectPlace }: {
   );
 }
 
+// A candidate's style, one object for each score's colour: react-leaflet
+// restyles a path whenever its pathOptions is a new object.
+const candidateStyles = new Map<string, L.PathOptions>();
+function candidateStyle(fill: string): L.PathOptions {
+  let style = candidateStyles.get(fill);
+  if (!style) candidateStyles.set(fill, style = { color: "#5b6b76", weight: 1, opacity: 0.65, fillColor: fill, fillOpacity: 0.5 });
+  return style;
+}
+
+/** A point the model scored, drawn again only when it changes (memo), as
+ *  the airports' marks are (lib/map/AirportsLayer). */
+const CandidateMark = memo(function CandidateMark({ candidate: c, previewed, events }: {
+  candidate: Candidate;
+  /** Its hover preview, but while its own card is open. */
+  previewed: boolean;
+  events: L.LeafletEventHandlerFnMap;
+}) {
+  return (
+    <CircleMarker center={[c.lat, c.lon]} radius={4} pathOptions={candidateStyle(scoreColor(c.predicted_score))} eventHandlers={events}>
+      {previewed && <MapTooltip><CheckpointCard candidate={c} /></MapTooltip>}
+      <MapPopup><CheckpointCard candidate={c} /></MapPopup>
+    </CircleMarker>
+  );
+});
+
 /** The chosen checkpoints and the candidates they were chosen from, at
  *  every zoom, or neither: the settings' Waypoints. The candidates
  *  started at zoom 7, and a route zoomed out to its region showed its
@@ -220,16 +250,7 @@ function Checkpoints({ candidates, selected, onSelectCandidate, airports }: Pick
           only judgable next to what it was selecting from. */}
       {candidates.filter(c => !c.selected).map(c => {
         const key = `${c.lat},${c.lon}`;
-        return (
-          <CircleMarker
-            key={key} center={[c.lat, c.lon]} radius={4}
-            pathOptions={{ color: "#5b6b76", weight: 1, opacity: 0.65, fillColor: scoreColor(c.predicted_score), fillOpacity: 0.5 }}
-            eventHandlers={cardEvents(key)}
-          >
-            {carded !== key && <MapTooltip><CheckpointCard candidate={c} /></MapTooltip>}
-            <MapPopup><CheckpointCard candidate={c} /></MapPopup>
-          </CircleMarker>
-        );
+        return <CandidateMark key={key} candidate={c} previewed={carded !== key} events={cardEvents(key)} />;
       })}
       {selected.map((c, i) => {
         const key = `${c.lat},${c.lon}`;
@@ -354,7 +375,7 @@ const PLACE_ZOOM = 9;
 
 export default function RouteMap({
   course, candidates, selected, focus, onSelectCandidate, onSelectPoint,
-  airportWeather, place, onSelectPlace, onAddStop, legs, heldPoint, onHoldPoint,
+  airportWeather, place, onSelectPlace, onAddStop, legs, heldPoint, onHoldPoint, nearest = null,
 }: Props) {
   const focusZoom = course?.max_zoom ?? 12;
   // The route's airports, one array while the course is the same answer:
@@ -383,7 +404,7 @@ export default function RouteMap({
   }, [course]);
 
   return (
-    <MapShell course={course} onSelectPlace={onSelectPlace} held={!!focus || !!place || !!heldPoint}>
+    <MapShell course={course} onSelectPlace={onSelectPlace} held={!!focus || !!place || !!heldPoint || !!nearest}>
       {/* The chart's own airports with no route as well: a tap on a field
           opens its card, and Fly Here makes the route. */}
       <AirportsLayer selected={place} onSelect={onSelectPlace} exclude={chipped} route={routeBox} />
@@ -394,12 +415,15 @@ export default function RouteMap({
           picked in Maps does: from the search bar it was wherever the
           map happened to be, a ring over half the country. */}
       <FocusOn point={place} zoom={PLACE_ZOOM} />
+      {/* Nearest's fields, all in sight above its card. Not while one of
+          them has its own card up, which brings that one in. */}
+      {!place && <FitTo points={nearest ?? []} fitKey={nearest?.length ? nearest.map(a => a.ident).join(",") : null} />}
       <HeldPoint point={heldPoint} onHold={onHoldPoint} />
       {course && (
         <>
           <CourseLine
             line={course.course_line as [number, number][]}
-            tooltip={`${routeAirports(course, true).map(a => a.ident).join(" → ")} · ${course.distance_nm} nm`}
+            tooltip={`${routeAirports(course, true).map(a => pointName(a.ident)).join(" → ")} · ${course.distance_nm} nm`}
           />
           {/* A saved flight's flown track over it, from its debrief. */}
           <FlownTrackLayer course={course} />

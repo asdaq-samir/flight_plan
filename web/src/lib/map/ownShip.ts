@@ -168,3 +168,37 @@ export async function locateOnOpen() {
   }
   recentre(OPEN_ZOOM);
 }
+
+/**
+ * Own ship's position now, for Fly Here's Direct-To, without keeping the
+ * pilot waiting: the fix there is at once; with own ship on and its first
+ * fix still coming, that fix for a moment at most. Off, it is turned on
+ * -- quietly, as on opening (locateOnOpen): a refusal leaves it off, with
+ * no error over the map -- for the next Fly Here, and this one goes on
+ * without it. Turned on here, it does not follow: the map is the route's
+ * to fit. It waited six seconds for a first fix, and Fly Here with it.
+ */
+export async function positionNow(waitMs = 1500): Promise<Fix | null> {
+  const ship = useOwnShip.getState();
+  if (ship.enabled && ship.fix) return ship.fix;
+  if (!ownShipAvailable()) return null;
+  if (!ship.enabled) {
+    void navigator.permissions?.query({ name: "geolocation" }).then(status => {
+      if (status.state === "denied" || useOwnShip.getState().enabled) return;
+      quiet = true;
+      ship.setFollow(false);
+      ship.setEnabled(true);
+    }).catch(() => undefined);
+    return null;
+  }
+  return new Promise(resolve => {
+    let stop = () => {};
+    const timer = window.setTimeout(() => { stop(); resolve(null); }, waitMs);
+    stop = useOwnShip.subscribe(s => {
+      if (!s.fix && s.enabled && !s.error) return;
+      window.clearTimeout(timer);
+      stop();
+      resolve(s.enabled ? s.fix : null);
+    });
+  });
+}

@@ -4,7 +4,7 @@ import { useSearchParamsNow } from "../../lib/useSearchParamsNow";
 import DevGuard from "../../components/DevGuard";
 import ConsoleSheet, { type ConsoleDetent } from "../../components/ConsoleSheet";
 import MapPanel from "../../components/MapPanel";
-import { ConsoleButtonContext, ConsoleSettingsContext, ROUND_BUTTON, useConsoleOpen, MapInsetsContext, NO_INSETS, type MapInsets, type PanelState } from "../../components/mapChrome";
+import { ConsoleButtonContext, ConsoleSettingsContext, useConsoleOpen, MapInsetsContext, NO_INSETS, type MapInsets, type PanelState } from "../../components/mapChrome";
 import RouteForm from "../../components/RouteForm";
 import SettingsButton from "../../components/SettingsButton";
 import { Sheet, SheetContent } from "../../components/ui/sheet";
@@ -182,7 +182,6 @@ export default function MapPage({ mode }: { mode: Mode }) {
   const settingsButton = (
     <SettingsButton
       ref={consoleButton} onClick={openConsole} aria-haspopup="dialog" aria-expanded={consoleOpen}
-      variant="secondary" className={ROUND_BUTTON}
     />
   );
   const consoleOf = (pieces: WorkspacePieces) => {
@@ -299,7 +298,7 @@ export default function MapPage({ mode }: { mode: Mode }) {
           <MapPanel
             label={panelLabel} controls={pieces.alone ? undefined : pieces.controls}
             state={panel} onStateChange={setPanel} onInsetsChange={changeInsets}
-            notices={pieces.alone ? undefined : pieces.notices} compact={pieces.compact}
+            compact={pieces.compact}
             top={pieces.alone ? null : pieces.head ?? (
               <>
                 <div className="min-w-0 flex-1">

@@ -306,8 +306,11 @@ export function componentFindings(page: Page): Promise<ComponentFinding[]> {
       const b = button.getBoundingClientRect(), g = svg.getBoundingClientRect();
       const hit = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
       if (!hit || !(hit === button || button.contains(hit))) continue;
-      if (Math.abs(b.width - 36) > 0.5 || Math.abs(b.height - 36) > 0.5 || Math.abs(g.width - 20) > 0.5) {
-        found.push({ rule: "icon button 36, glyph 20", what: name(button), measured: `${Math.round(b.width)}×${Math.round(b.height)}, glyph ${Math.round(g.width)}` });
+      // The close's cross at 24, the one exception (CloseButton): lucide's
+      // spans half its box where the other glyphs span most of theirs.
+      const glyph = button.querySelector("svg.lucide-x") ? 24 : 20;
+      if (Math.abs(b.width - 36) > 0.5 || Math.abs(b.height - 36) > 0.5 || Math.abs(g.width - glyph) > 0.5) {
+        found.push({ rule: `icon button 36, glyph ${glyph}`, what: name(button), measured: `${Math.round(b.width)}×${Math.round(b.height)}, glyph ${Math.round(g.width)}` });
       }
     }
     for (const panel of document.querySelectorAll('[data-slot="map-panel"], [data-slot="drawer-content"], [data-testid="console-sheet"]')) {
@@ -411,6 +414,10 @@ export function contrastFindings(page: Page, scope = "body"): Promise<ContrastFi
       if (box.width < 2 || box.height < 2) continue;
       const cs = getComputedStyle(el);
       if (cs.visibility !== "visible") continue;
+      // Nor a word in a panel tab not up (PanelTabs' tab-away,
+      // content-visibility: hidden): it has a box, measured, but is not
+      // drawn, and its colours read as one -- 1:1, on CI's iPhone.
+      if (!el.checkVisibility()) continue;
       // Up to the first opaque background, every layer on the way, and
       // the opacity the word is drawn at.
       const layers: number[][] = [];
@@ -424,8 +431,11 @@ export function contrastFindings(page: Page, scope = "body"): Promise<ContrastFi
         if (bg[3] > 0) layers.push(bg);
       }
       // A toast fading in or out is between two states, neither of them its
-      // own; at rest it is measured.
-      if (unknown || (opacity < 0.99 && el.closest("[data-sonner-toaster]"))) continue;
+      // own; at rest it is measured. So is a map's tooltip or card: Leaflet
+      // fades one out over 0.2 s before it takes it away, and the course
+      // line's, at no opacity under a pointer the map had moved from, read
+      // 1:1 on CI's phones.
+      if (unknown || (opacity < 0.99 && el.closest("[data-sonner-toaster], .leaflet-tooltip, .leaflet-popup"))) continue;
       let bg = base ?? [255, 255, 255, 1];
       for (const layer of layers.reverse()) bg = over(layer, bg);
       const fill = el instanceof SVGElement && cs.fill.startsWith("rgb") ? cs.fill : cs.color;

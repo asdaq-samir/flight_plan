@@ -1,6 +1,7 @@
 """What every router starts from: the route's idents, the airports
 behind them, and the on-disk paths a corridor's data lives at."""
 import logging
+import re
 from dataclasses import dataclass
 from itertools import pairwise
 
@@ -21,6 +22,10 @@ DEFAULT_AIRCRAFT = "c172"
 #: its own to read the chart along and plan.
 MAX_STOPS = 8
 
+#: Two points of a route closer than this are one place: a tenth of a
+#: mile, inside any airport's own boundary.
+SAME_PLACE_NM = 0.1
+
 
 def route_key(dep: str, dest: str) -> tuple:
     return dep.strip().upper(), dest.strip().upper()
@@ -33,24 +38,54 @@ def stops_of(stops: str | list | None) -> list[str]:
     return [s.strip().upper() for s in items if s and s.strip()]
 
 
+#: A present position as a route's point, "@42.3246,-88.0741": where the
+#: pilot is, for Fly Here's Direct-To, which in the air goes from wherever
+#: the airplane is, any time, not from a field near it (the pilot's ask).
+_POSITION = re.compile(r"^@(-?\d{1,2}(?:\.\d{1,6})?),(-?\d{1,3}(?:\.\d{1,6})?)$")
+
+
+def position_of(ident: str) -> dict | None:
+    """A present position (_POSITION) in the shape a waypoint's is: flown
+    from, not taken off from (Route.takes_off), so its hop has no climb
+    from a field; None for any other ident."""
+    match = _POSITION.match(ident.strip())
+    if match is None:
+        return None
+    lat, lon = float(match[1]), float(match[2])
+    if not (-90 <= lat <= 90 and -180 <= lon <= 180):
+        return None
+    return {"name": "Present position", "lat": lat, "lon": lon, "elevation_ft": None, "fix": True}
+
+
 def resolve(*idents: str) -> tuple:
-    """Every airport, or a 404 naming the one that failed.
+    """Every airport -- or a present position (position_of) -- or a 404
+    naming the one that failed.
 
     Done before anything else so a typo'd ident says so, rather than
     surfacing later as "this corridor has not been collected" -- advice
     whose next step would fail for a different reason.
     """
     try:
-        return tuple(airports.get_airport(ident) for ident in idents)
+        return tuple(position_of(ident) or airports.get_airport(ident) for ident in idents)
     except ValueError as err:
         raise HTTPException(404, str(err)) from err
 
 
 def resolve_stop(ident: str) -> dict:
     """A stop: an airport, landed at, or a named fix -- a VFR waypoint
-    (VPBNG), a GPS waypoint -- flown through (vfr.fixes); a 404 where
-    it is neither. A fix is in the shape an airport is, with no
-    elevation, and `fix` set."""
+    (VPBNG), a GPS waypoint, a navaid (RFD) -- flown through (vfr.fixes);
+    a 404 where it is neither. A fix is in the shape an airport is, with
+    no elevation, and `fix` set. A present position (position_of) too."""
+    position = position_of(ident)
+    if position is not None:
+        return position
+    # A navaid before an airport of the same ident, as a flight plan reads
+    # one: "RFD" is the Rockford DME, flown over, and the airport is KRFD,
+    # written with its K. It was the airport, a hop of no length before
+    # KRFD where the pilot meant the DME 4.9 nm out (2026-10-07).
+    navaid = fixes.find_navaid(ident)
+    if navaid is not None:
+        return _fix_stop(navaid, fixes.title(navaid))
     try:
         return airports.get_airport(ident)
     except ValueError as err:
@@ -60,8 +95,11 @@ def resolve_stop(ident: str) -> dict:
         # Its kind and where it is: "VFR waypoint by Bangs Lake" -- a
         # stand-alone waypoint has no name of its own (vfr.places).
         where = places.describe(fix["lat"], fix["lon"])
-        return {"name": f"{fix['kind']} {where}" if where else fix["kind"], "lat": fix["lat"], "lon": fix["lon"],
-                "elevation_ft": None, "fix": True}
+        return _fix_stop(fix, f"{fix['kind']} {where}" if where else fix["kind"])
+
+
+def _fix_stop(fix: dict, name: str) -> dict:
+    return {"name": name, "lat": fix["lat"], "lon": fix["lon"], "elevation_ft": None, "fix": True}
 
 
 @dataclass(frozen=True)
@@ -176,7 +214,14 @@ def load_route(dep: str, dest: str, stops: str | list | None = None) -> Route:
         if a == b and len(idents) > 2:
             raise HTTPException(422, f"{a} follows itself: a stop is a different airport from the one before it.")
     dep_airport, dest_airport = resolve(idents[0], idents[-1])
-    return Route(tuple(idents), (dep_airport, *(resolve_stop(s) for s in idents[1:-1]), dest_airport))
+    points = (dep_airport, *(resolve_stop(s) for s in idents[1:-1]), dest_airport)
+    # And by where they are, not only by how they are written: RFD is
+    # KRFD's own FAA identifier, and "KUGN, RFD, KRFD" was a hop of no
+    # length, which the altitude plans divided by (2026-10-07).
+    for (a, pa), (b, pb) in pairwise(zip(idents, points)):
+        if len(idents) > 2 and geo.distance_nm(pa["lat"], pa["lon"], pb["lat"], pb["lon"]) < SAME_PLACE_NM:
+            raise HTTPException(422, f"{a} and {b} are the same place: a stop is a different airport from the one before it.")
+    return Route(tuple(idents), points)
 
 
 def line(message: BaseModel) -> str:

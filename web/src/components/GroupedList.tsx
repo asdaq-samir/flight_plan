@@ -4,7 +4,7 @@ import { ChevronRight, ExternalLink } from "lucide-react";
 import { cn } from "cn";
 import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemSeparator, ItemTitle } from "./ui/item";
 import { Label } from "./ui/label";
-import { TEXT } from "../lib/text";
+import { GROUP_HEADING, TEXT } from "../lib/text";
 
 /**
  * The app's grouped lists, the way iOS lays out Settings and a
@@ -33,7 +33,7 @@ export function ListGroup({ title, badge, action, footer, children, className }:
       {title && (
         <div className="flex items-end justify-between gap-2">
           <div className="flex items-center gap-2 px-1 pb-1.5">
-            <h3 id={id} className={cn("font-semibold tracking-wide text-muted-foreground uppercase", TEXT.note)}>{title}</h3>
+            <h3 id={id} className={GROUP_HEADING}>{title}</h3>
             {badge}
           </div>
           {action}

@@ -2,7 +2,7 @@
 tables, the airspace and the weather are stubbed -- these test what the
 router makes of them, not OurAirports or aviationweather.gov."""
 from fastapi.testclient import TestClient
-from vfr import airports, airspace, remarks, weather
+from vfr import airports, airspace, faa_data, remarks, weather
 
 from app.main import app
 
@@ -114,6 +114,20 @@ def test_the_fields_in_view_carry_their_metars_flight_category(monkeypatch):
     assert [a["flight_category"] for a in body["airports"]] == [None, None]
 
 
+def test_a_field_the_armed_services_own_is_marked_military_or_joint_use(monkeypatch):
+    # From the FAA's airport file (vfr.faa_data.military_fields), by the
+    # FAA's ident or the ICAO one: most pilots may not land at the first
+    # without permission, and may at the second.
+    base = {**DULUTH, "kind": "medium"}
+    fields = [{**base, "ident": "KMXF", "source_ident": "KMXF"}, {**base, "ident": "KFHU", "source_ident": "KFHU"}, {**base}]
+    monkeypatch.setattr(airports, "places_in", lambda *args, **kwargs: fields)
+    monkeypatch.setattr(weather, "reporting_idents", lambda: set())
+    monkeypatch.setattr(weather, "metar_for_idents", lambda idents: {})
+    monkeypatch.setattr(faa_data, "military_fields", lambda cache_dir: {"MXF": "military", "KMXF": "military", "KFHU": "joint"})
+    body = client.get("/api/airports/in-view", params={"south": 30, "west": -100, "north": 47, "east": -80}).json()
+    assert [(a["ident"], a["military"]) for a in body["airports"]] == [("KMXF", "military"), ("KFHU", "joint"), ("KDLH", None)]
+
+
 def test_reporting_asks_for_the_fields_with_a_metar_alone(monkeypatch):
     asked = {}
 
@@ -164,4 +178,5 @@ def test_the_nearest_fields_are_the_nearest_first_with_their_way_and_runway(monk
     assert body["airports"][0] == {
         "ident": "C81", "name": "Campbell", "lat": 42.32, "lon": -88.07, "kind": "small", "flight_category": None,
         "municipality": "Grayslake", "elevation_ft": 788.0, "distance_nm": 2.1, "bearing_deg": 45, "longest_runway_ft": 3573,
+        "military": None,
     }

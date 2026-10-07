@@ -1,9 +1,5 @@
-import { useContext, useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { X } from "lucide-react";
 import { cn } from "cn";
-import IconButton from "../../../components/IconButton";
-import { PanelHalfContext } from "../../../components/mapChrome";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
 import { api } from "../../../lib/api/client";
 import type { AirspaceBand } from "../../../lib/api/types";
@@ -11,6 +7,7 @@ import { degreesMinutes, minimumsLine, shortAirspaceName } from "../../../lib/ai
 import type { LatLon } from "../../../lib/geo";
 import { altFt } from "../../../lib/units";
 import { TEXT } from "../../../lib/text";
+import { CardHead, PanelCard } from "../../../components/PanelCard";
 
 /** The class's letter in the chart's own ink: solid blue for B, magenta
  *  for C, dashed blue for D, dashed magenta for E, none for G. */
@@ -75,30 +72,13 @@ export default function AirspaceCard({ point, onClose }: { point: LatLon; onClos
     queryKey: ["airspaceAt", point.lat, point.lon], queryFn: () => api.airspaceAt(point.lat, point.lon),
     staleTime: 10 * 60_000,
   });
-  // The heading whole at the panel's half height (PanelHalfContext), as
-  // the airport's card does.
-  const needs = useContext(PanelHalfContext);
-  const [summary, setSummary] = useState<HTMLDivElement | null>(null);
-  useEffect(() => {
-    if (!summary || !needs) return;
-    const observer = new ResizeObserver(() => needs(summary.offsetTop + summary.offsetHeight + 120));
-    observer.observe(summary);
-    return () => { observer.disconnect(); needs(null); };
-  }, [summary, needs]);
   const ground = data?.ground_ft ?? null;
   return (
-    <div className="relative min-h-0 flex-1 overflow-y-auto px-4 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))] print:hidden" data-testid="airspace-card">
-      <div ref={setSummary} className="flex items-start gap-2">
-        <div className="min-w-0 flex-1">
-          <h2 className="text-[1.375rem] leading-7 font-bold tracking-tight text-foreground">Airspace</h2>
-          <p className={cn("text-muted-foreground tabular-nums", TEXT.note)} data-testid="airspace-where">
-            {degreesMinutes(point)}{ground !== null && ` · ground ${altFt(ground)} ft`}
-          </p>
-        </div>
-        <IconButton label="Close" onClick={onClose} className="-mt-1 -mr-2" data-testid="airspace-close">
-          <X className="size-5" />
-        </IconButton>
-      </div>
+    <PanelCard testId="airspace-card">
+      <CardHead
+        name="Airspace" line={<>{degreesMinutes(point)}{ground !== null && ` · ground ${altFt(ground)} ft`}</>}
+        lineClassName="tabular-nums" lineTestId="airspace-where" onClose={onClose} closeTestId="airspace-close"
+      />
 
       <div className="space-y-5 pt-4">
         {isLoading && <p className={cn("text-muted-foreground", TEXT.prose)}>Reading the airspace here…</p>}
@@ -154,6 +134,6 @@ export default function AirspaceCard({ point, onClose }: { point: LatLon; onClos
           </>
         )}
       </div>
-    </div>
+    </PanelCard>
   );
 }

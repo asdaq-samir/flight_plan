@@ -1,7 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { ChevronDown, XIcon } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import { cn } from "cn";
-import IconButton from "../../components/IconButton";
 import { Button } from "../../components/ui/button";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuRadioGroup, DropdownMenuRadioItem,
@@ -13,6 +12,7 @@ import { pilotQuery } from "../../lib/queryClient";
 import { TEXT } from "../../lib/text";
 import SignInModal from "./SignInModal";
 import { useLogout } from "./useLogout";
+import CloseButton from "../../components/CloseButton";
 
 /**
  * The line both consoles open with, one row: the role as the title, a
@@ -83,7 +83,7 @@ export default function ConsoleHeader({ console }: { console: string }) {
       {isError && <Button variant="outline" size="sm" onClick={() => void refetch()}>Retry sign-in check</Button>}
       {!isLoading && !isError && !pilot && <SignInModal />}
       <SheetClose asChild>
-        <IconButton label="Close"><XIcon className="size-5" /></IconButton>
+        <CloseButton />
       </SheetClose>
     </SheetHeader>
   );

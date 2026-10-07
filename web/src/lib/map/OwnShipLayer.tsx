@@ -1,3 +1,4 @@
+import type { PathOptions } from "leaflet";
 import { useEffect, useMemo, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Circle, Marker, useMap, useMapEvents } from "react-leaflet";
@@ -26,6 +27,11 @@ const LOCAL_ZOOM = 11;
 /** As far out as the map opens (MapShell's COUNTRY_ZOOM), and a little
  *  further in: the country, not a place the pilot is looking at. */
 const COUNTRY_ZOOM = 5;
+
+// Constants, not literals: react-leaflet restyles a path whenever its
+// pathOptions is a new object, and own ship draws at every fix.
+const GLIDE_RING: PathOptions = { color: "#16a34a", weight: 2, dashArray: "8 6", fillOpacity: 0, interactive: false };
+const ACCURACY: PathOptions = { color: "#1d4ed8", weight: 1, opacity: 0.5, fillColor: "#3b82f6", fillOpacity: 0.08, interactive: false };
 
 
 export function OwnShipLayer() {
@@ -87,12 +93,12 @@ export function OwnShipLayer() {
       {glide != null && (
         <Circle
           center={[fix.lat, fix.lon]} radius={glide * 1852}
-          pathOptions={{ color: "#16a34a", weight: 2, dashArray: "8 6", fillOpacity: 0, interactive: false }}
+          pathOptions={GLIDE_RING}
         />
       )}
       <Circle
         center={[fix.lat, fix.lon]} radius={fix.accuracyM}
-        pathOptions={{ color: "#1d4ed8", weight: 1, opacity: 0.5, fillColor: "#3b82f6", fillOpacity: 0.08, interactive: false }}
+        pathOptions={ACCURACY}
       />
       <Marker position={[fix.lat, fix.lon]} icon={ownShipIcon(fix.headingDeg)} interactive={false} zIndexOffset={1000} keyboard={false} />
     </>

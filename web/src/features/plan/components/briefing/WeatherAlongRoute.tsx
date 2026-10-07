@@ -135,7 +135,7 @@ export default function WeatherAlongRoute({ briefing, course, legs, departIso, u
 
   return (
     <AccordionSection title="Along the Route">
-      <div className="space-y-4" data-testid="weather-places">
+      <div className="space-y-4" data-testid="weather-places" data-tip="weather-places">
         {places.map((place, i) => {
           const metar = briefing.metars[place.ident];
           const station = own.get(place.ident);

@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { slow, settle, sideDrawer, expectDrawerClosed, expectDrawerOpen, closeSidebarWithTheStockKey, openedDrawerBox, openBriefing, openTab, openSettings, closeConsole } from "./helpers";
+import { slow, settle, sideDrawer, expectDrawerClosed, expectDrawerOpen, closeSidebarWithTheStockKey, openedDrawerBox, openBriefing, openTab, openSettings, closeConsole, grabberTo } from "./helpers";
 
 /**
  * The flight planning panel: how it opens -- from its grabber, a pasted
@@ -15,7 +15,7 @@ test("plan page: the flight planning drawer opens the way the Model Training dra
   // and how wide it is.
   await page.goto("/app/dev");
   await settle(page);
-  await page.getByTestId("sidebar-trigger-button").click();
+  await grabberTo(page, "full");
   const drawer = sideDrawer(page);
   const devBox = await openedDrawerBox(page);
   expect(devBox).not.toBeNull();
@@ -26,7 +26,7 @@ test("plan page: the flight planning drawer opens the way the Model Training dra
   // Maps' is.
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
-  await page.getByTestId("sidebar-trigger-button").click();
+  await grabberTo(page, "full");
   await expect(page).toHaveURL(/[?&]view=briefing/);
   const box = await openedDrawerBox(page);
   expect(box).not.toBeNull();
@@ -47,7 +47,9 @@ test("plan page: the flight planning drawer opens the way the Model Training dra
   expect(await drawer.locator('[role="tabpanel"] [data-testid="depart-date"]').count()).toBe(0);
   // The panel's tabs, in the pilot's order, the nav log's up: it holds
   // the totals and the descriptions button above the table.
-  await expect(drawer.getByRole("tab")).toHaveText(["Nav Log", "Brief", "Weather", "Performance", "Airports"]);
+  // "Perf" on its tab, its name whole (PanelTabs).
+  await expect(drawer.getByRole("tab")).toHaveText(["Nav Log", "Brief", "Weather", "Perf", "Airports"]);
+  await expect(drawer.getByRole("tab", { name: "Performance" })).toHaveCount(1);
   // All five on the panel's line, none past its edge.
   const tabsBox = (await drawer.getByRole("tablist").boundingBox())!;
   for (const tab of await drawer.getByRole("tab").all()) {
@@ -68,9 +70,11 @@ test("plan page: the flight planning drawer opens the way the Model Training dra
   await expect(drawer.getByRole("table", { name: /Navigation log from/i })).toHaveCount(0);
 
   // The panel's head is still in sight: the route's box, and under the
-  // route's close the console's button.
+  // route's close Nearest, where the console's button was; the console's
+  // is the capsule's, the route lowered.
   expect(await page.locator("header").getByLabel("Departure", { exact: true }).count()).toBe(1);
-  await expect(page.locator("header").getByTestId("settings-button")).toBeVisible();
+  await expect(page.locator("header").getByTestId("nearest-button")).toBeVisible();
+  expect(await page.locator("header").getByTestId("settings-button").count()).toBe(0);
 
   // The panel's actions, Save, Share and Print, round buttons at the end
   // of the airplane's, the altitude's and the time's line under the
@@ -175,29 +179,35 @@ test("plan page: a pasted briefing link opens the panel, and its grabber closes 
   await page.waitForTimeout(300);
   await expect(page).toHaveURL(/[?&]view=briefing/);
 
-  // Closing it: a tap on its grabber. The address drops the parameter.
-  await page.getByTestId("sidebar-trigger-button").click();
-  await page.waitForTimeout(300);
+  // Lowered by taps on its grabber, a height a tap: half, where the
+  // address drops the parameter, and the pill. Two more take it back up.
+  const grabber = page.getByTestId("sidebar-trigger-button");
+  await grabber.click();
+  await expect(drawer).toHaveAttribute("data-panel", "half");
   await expect(page).not.toHaveURL(/[?&]view=briefing/);
+  await grabber.click();
   await expectDrawerClosed(page);
 
-  await page.getByTestId("sidebar-trigger-button").click();
-  await page.waitForTimeout(300);
+  await grabber.click();
+  await expect(drawer).toHaveAttribute("data-panel", "half");
+  await grabber.click();
   await expect(page).toHaveURL(/[?&]view=briefing/);
   await expect(drawer.getByTestId("print-button")).toBeVisible();
 });
 
-test("plan page: the panel's grabber raises and lowers it, a tap on the map beside it leaves it out, and Escape lowers it", async ({ page }) => {
+// A tap on the grabber cycles the panel's heights, small to big and
+// back, at the pilot's ask: the pill, half, all the way up, half, the pill.
+test("plan page: the panel's grabber cycles it up and back down, a tap on the map beside it leaves it out, and Escape lowers it", async ({ page }) => {
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   const viewport = page.viewportSize();
   if (!viewport) throw new Error("no viewport configured");
   const grabber = page.getByTestId("sidebar-trigger-button");
-  await grabber.click();
-  await expectDrawerOpen(page);
-  await grabber.click();
-  await expectDrawerClosed(page);
-  await grabber.click();
+  const panel = sideDrawer(page);
+  for (const height of ["half", "full", "half", "peek", "half"]) {
+    await grabber.click();
+    await expect(panel).toHaveAttribute("data-panel", height);
+  }
   await expectDrawerOpen(page);
   // Not modal: the map beside the card stays live, and a click there is
   // the map's. (On a phone the sheet all the way up leaves no map

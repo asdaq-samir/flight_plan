@@ -1,6 +1,5 @@
 import { Printer } from "lucide-react";
-import IconButton from "../../../../components/IconButton";
-import { ROUND_BUTTON } from "../../../../components/mapChrome";
+import RoundButton from "../../../../components/RoundButton";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../../../../components/ui/dropdown-menu";
 import { printKneeboard } from "../../../../lib/printKneeboard";
 
@@ -12,13 +11,13 @@ import { printKneeboard } from "../../../../lib/printKneeboard";
  * page to fly with. Printed once the menu has gone, so it is not on the
  * paper.
  */
-export default function PrintMenu() {
+export default function PrintMenu({ disabled = false }: { disabled?: boolean }) {
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <IconButton label="Print" variant="secondary" className={`size-9 print:hidden ${ROUND_BUTTON}`} data-testid="print-button">
+      <DropdownMenuTrigger asChild disabled={disabled}>
+        <RoundButton label="Print" className="print:hidden" data-testid="print-button">
           <Printer className="size-5" strokeWidth={2} />
-        </IconButton>
+        </RoundButton>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="print:hidden">
         <DropdownMenuItem onSelect={() => setTimeout(() => window.print(), 150)} data-testid="print-briefing"><Printer />The briefing</DropdownMenuItem>

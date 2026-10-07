@@ -24,13 +24,20 @@ followDynamicType();
 // A new build is taken at once (vite.config.ts, "autoUpdate"): the
 // page reloads itself the moment the new worker has installed. The
 // browser checks for a new worker on its own only on a navigation, so
-// a page kept open -- the phone, all day -- asks every minute; the
-// check is one small request for sw.js. That reload keeps the route on
-// screen; a person's starts clean (lib/freshLoad).
+// a page kept open -- the phone, all day -- asks every minute, and as
+// it comes back to the front: an iPhone stops a page's timers while it
+// is away, and the app brought back showed the build it was left on
+// until a minute after. The check is one small request for sw.js. That
+// reload keeps the route on screen; a person's starts clean
+// (lib/freshLoad).
 registerSW({
   immediate: true,
   onRegisteredSW(_url, registration) {
-    if (registration) window.setInterval(() => void registration.update(), 60_000);
+    if (!registration) return;
+    window.setInterval(() => void registration.update(), 60_000);
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") void registration.update();
+    });
   },
   onNeedReload() {
     keepAddressThroughReload();

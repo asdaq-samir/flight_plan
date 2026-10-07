@@ -50,15 +50,29 @@ export function revealRow(row: HTMLElement | null): () => void {
   return () => cancelAnimationFrame(frame);
 }
 
-/** Whether an animation or transition is running on `el` or an ancestor
- *  of it -- one that will end: a spinner's never would. */
+/** Whether an animation or transition that can move it is running on
+ *  `el` or an ancestor of it -- one that will end: a spinner's never
+ *  would. Asked of each of them, not of the document: the document's are
+ *  the map's tiles' fades and pans too, a hundred and more as the map
+ *  follows a row picked, and going through them every frame took 0.3 s of
+ *  a phone's (measured 2026-10-07). And not a change of colour -- the row's
+ *  own, as it is picked -- which moves nothing and kept this looking for
+ *  ten frames more. */
 function moving(el: HTMLElement): boolean {
-  return document.getAnimations().some(animation => {
-    const effect = animation.effect;
-    const target = effect instanceof KeyframeEffect ? effect.target : null;
-    return animation.playState === "running" && !!target?.contains(el) && effect?.getTiming().iterations !== Infinity;
-  });
+  for (let node: Element | null = el; node; node = node.parentElement) {
+    const running = node.getAnimations().some(animation =>
+      animation.playState === "running" && animation.effect?.getTiming().iterations !== Infinity
+      && !(animation instanceof CSSTransition && COLOURS.has(animation.transitionProperty)));
+    if (running) return true;
+  }
+  return false;
 }
+
+/** What a transition of moves nothing. */
+const COLOURS = new Set([
+  "color", "background-color", "border-color", "border-top-color", "border-right-color", "border-bottom-color",
+  "border-left-color", "outline-color", "fill", "stroke", "opacity", "box-shadow", "text-decoration-color",
+]);
 
 /** The vertical band of the page not clipped away from `el` by any of
  *  its ancestors: where a box has to be to be seen. */

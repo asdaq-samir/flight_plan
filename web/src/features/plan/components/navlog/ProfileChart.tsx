@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { Area, ComposedChart, Line, ReferenceArea, ReferenceDot, XAxis, YAxis } from "recharts";
 import { ChartContainer, type ChartConfig } from "../../../../components/ui/chart";
 import ChartTick from "../../../../components/chartTick";
@@ -26,7 +27,9 @@ const config = {
  * checkpoint, laid onto the straight route the ground is sampled along.
  * Recharts, as the console's charts are, and loaded with the section.
  */
-export default function ProfileChart({ profile, plan }: { profile: RouteProfile; plan: ReturnType<typeof planProfile> }) {
+// Drawn again only when its profile or its plan is new (memo): recharts
+// measures a line's whole length at every draw.
+export default memo(function ProfileChart({ profile, plan }: { profile: RouteProfile; plan: ReturnType<typeof planProfile> }) {
   const scale = plan.length_nm > 0 ? profile.length_nm / plan.length_nm : 1;
   const data = [
     ...profile.terrain.map(t => ({ x: t.along_nm, ground: t.ground_ft })),
@@ -77,4 +80,4 @@ export default function ProfileChart({ profile, plan }: { profile: RouteProfile;
       </ComposedChart>
     </ChartContainer>
   );
-}
+});

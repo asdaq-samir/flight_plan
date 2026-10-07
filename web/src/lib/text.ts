@@ -16,6 +16,10 @@
  * knows each for a font size and keeps it beside a colour.
  */
 export const TEXT = {
+  /** A card's name -- an airport's, the airspace's, Nearest's, a console
+   *  page's -- with font-bold: 22 on 28 (iOS Title 2), the same with a
+   *  mouse. */
+  card: "text-[1.375rem] leading-7",
   /** A drawer's or a sheet's own title, with font-semibold: 17, and 16 with a mouse. */
   title: "text-base pointer-coarse:text-[1.0625rem]",
   /** A section's title in the planning panel's tabs, with font-semibold:
@@ -33,3 +37,9 @@ export const TEXT = {
   /** A section's line of help, a group's heading and its note, a key: 13, 12. */
   note: "text-xs pointer-coarse:text-[0.8125rem]",
 } as const;
+
+/** A group's heading, as iOS's grouped lists set one: a note's size,
+ *  semibold, in capitals, spaced out and grey. Over a list's box
+ *  (ListGroup), the nav log's columns, a popover's parts -- one look,
+ *  where the nav log's were a row's size in black, at the pilot's ask. */
+export const GROUP_HEADING = `font-semibold uppercase tracking-wide text-muted-foreground ${TEXT.note}`;

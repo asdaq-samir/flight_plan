@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { PAGES, consoleSheet, settle, roleMenu, openPanel, closeSidebarWithTheStockKey, expectDrawerClosed } from "./helpers";
+import { PAGES, consoleSheet, settle, roleMenu, openPanel, closeSidebarWithTheStockKey, expectDrawerClosed, noTips } from "./helpers";
 
 /**
  * The two pages and the switch between them: the Dev-mode switch, the
@@ -66,6 +66,7 @@ test("the route form leads the panel's head on both pages, signed in or out", as
   const signedOut = await browser.newContext({
     baseURL: new URL(page.url()).origin, viewport: page.viewportSize(), storageState: { cookies: [], origins: [] },
   });
+  await signedOut.addInitScript(noTips);
   const planner = await signedOut.newPage();
   await planner.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(planner);

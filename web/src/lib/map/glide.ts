@@ -3,7 +3,7 @@ import type { Fix } from "./ownShip";
 /** A light single's still-air glide: the Cessna 172S's maximum glide
  *  chart (POH figure 3-1, 68 KIAS) is about 1.5 nm for every 1,000 ft,
  *  9 to 1. */
-export const GLIDE_NM_PER_1000_FT = 1.5;
+const GLIDE_NM_PER_1000_FT = 1.5;
 /** Below this over the ground, or slower than this, the airplane is on
  *  the ground or about to be, and there is no ring to draw. */
 const AIRBORNE_AGL_FT = 500;

@@ -14,9 +14,6 @@ const CATEGORY_COLOURS: Record<string, string> = {
 };
 const UNKNOWN_COLOUR = "#8fa3b0";
 
-/** Worse is higher: for putting the worst first. */
-export const CATEGORY_RANK: Record<string, number> = { VFR: 0, MVFR: 1, IFR: 2, LIFR: 3 };
-
 /** The category a forecast's ceiling and visibility fall in, by the
  *  FAA's own bounds (the worse of the two decides): LIFR under 500 ft or
  *  1 sm, IFR under 1,000 ft or 3 sm, MVFR up to 3,000 ft or 5 sm, VFR

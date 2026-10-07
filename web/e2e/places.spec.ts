@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { expectDrawerClosed, expectDrawerOpen, settle, sideDrawer, slow, tapTheChart } from "./helpers";
+import { expectDrawerClosed, expectDrawerOpen, grabberTo, settle, sideDrawer, slow, tapTheChart } from "./helpers";
 
 /**
  * Airports as places, as Maps has them: a tap on one on the chart opens
@@ -26,11 +26,13 @@ test("an airport's card names the field, its airspace and tower, how far it is, 
   await expect(sideDrawer(page)).toHaveAttribute("data-panel", "full");
   await expect(card(page).getByText("118.300")).toBeInViewport();
 
-  // Put away: the address forgets it, and the nav log is the panel again.
+  // Put away: the address forgets it, and the route is the panel again,
+  // the layer under the card, at the height the panel was.
   await card(page).getByTestId("place-close").click();
   await expect(card(page)).toHaveCount(0);
   await expect(page).not.toHaveURL(/[?&]place=/);
-  await expectDrawerClosed(page);
+  await expect(sideDrawer(page)).toHaveAttribute("data-panel", "full");
+  await expect(sideDrawer(page).getByTestId("panel-tab-navlog")).toBeVisible();
 });
 
 /** Closer in over the departure, where the chart's airports are drawn big
@@ -214,13 +216,27 @@ test("with no route the panel is a search bar: Home is set from Favorites, an ai
   await expect(page.getByLabel("Departure", { exact: true })).toContainText("C81");
 
   // Lowered, the route is a capsule; the route's close, in the panel,
-  // rests it on the search bar again.
-  await page.getByTestId("sidebar-trigger-button").click();
+  // clears it -- its box, the controls and the tabs left in their places
+  // for another, what needs a route greyed -- and pressed again puts the
+  // route away for the layer under it, as Maps' directions are: the card
+  // it was flown to from. The panel the height it was throughout; the
+  // card's own close, the search.
+  await grabberTo(page, "peek");
   await expect(page.getByTestId("capsule-title")).toHaveText("C81 → KDLH");
   await page.getByTestId("capsule-detail").click();
   await sideDrawer(page).getByTestId("route-clear").click();
-  await expect(search).toBeVisible();
   await expect(page).not.toHaveURL(/dep=/);
+  await expect(sideDrawer(page).getByTestId("route-type")).toBeVisible();
+  await expect(sideDrawer(page).getByTestId("aircraft-select")).toBeEnabled();
+  await expect(sideDrawer(page).getByTestId("print-button")).toBeDisabled();
+  await expect(sideDrawer(page).getByTestId("panel-tab-navlog")).toBeVisible();
+  await expect(sideDrawer(page)).toHaveAttribute("data-panel", "half");
+  await sideDrawer(page).getByTestId("route-clear").click();
+  await expect(card(page).getByTestId("place-name")).toHaveText("Duluth International Airport");
+  await expect(sideDrawer(page)).toHaveAttribute("data-panel", "half");
+  await card(page).getByTestId("place-close").click();
+  await expect(sideDrawer(page)).toHaveAttribute("data-panel", "half");
+  await expect(search).toBeVisible();
 
   // Favorites in full: Edit lets KDLH go.
   await search.click();

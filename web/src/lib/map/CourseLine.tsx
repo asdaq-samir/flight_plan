@@ -19,17 +19,21 @@ interface Props {
  * because an SVG stroke is hoverable only where it is painted, and a
  * 3.5 px dashed line is mostly not painted.
  */
+// Constants, not literals: react-leaflet restyles a path whenever its
+// pathOptions is a new object.
+const CASING: L.PathOptions = { color: "#ffffff", weight: 8, opacity: 0.85, interactive: false };
+const CORE: L.PathOptions = { color: "#ff3b00", weight: 3.5, opacity: 1, dashArray: "11,7", interactive: false };
+const HIT: L.PathOptions = { color: "#000", weight: 18, opacity: 0, lineCap: "butt", bubblingMouseEvents: false };
+const HIT_PASSING: L.PathOptions = { ...HIT, bubblingMouseEvents: true };
+
 export function CourseLine({ line, tooltip, onClick }: Props) {
   return (
     <>
-      <Polyline positions={line} pathOptions={{ color: "#ffffff", weight: 8, opacity: 0.85, interactive: false }} />
+      <Polyline positions={line} pathOptions={CASING} />
+      <Polyline positions={line} pathOptions={CORE} />
       <Polyline
         positions={line}
-        pathOptions={{ color: "#ff3b00", weight: 3.5, opacity: 1, dashArray: "11,7", interactive: false }}
-      />
-      <Polyline
-        positions={line}
-        pathOptions={{ color: "#000", weight: 18, opacity: 0, lineCap: "butt", bubblingMouseEvents: !onClick }}
+        pathOptions={onClick ? HIT : HIT_PASSING}
         eventHandlers={onClick ? { click: e => { L.DomEvent.stopPropagation(e); onClick(e.latlng); } } : undefined}
       >
         {tooltip && <MapTooltip>{tooltip}</MapTooltip>}

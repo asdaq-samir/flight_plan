@@ -6,7 +6,7 @@ import { Input } from "../../../../components/ui/input";
 import { ResponsivePopover, ResponsivePopoverContent, ResponsivePopoverTrigger } from "../../../../components/ResponsivePopover";
 import { CHIP_TEXT, GLASS_BUTTON } from "../../../../components/mapChrome";
 import type { AltitudeChoice, Leg, NavLogAltitude } from "../../../../lib/api/types";
-import { TEXT } from "../../../../lib/text";
+import { GROUP_HEADING, TEXT } from "../../../../lib/text";
 import { flightLevel } from "../../../../lib/units";
 import { describeFuel, describeSteps, describeTime } from "../../format";
 import AltitudeReasoning from "../AltitudeReasoning";
@@ -81,7 +81,7 @@ function CustomAltitude({ alt, onAltChange, onSubmit, pressed }: {
  * open to the pilot's own: before the plans are in, and on a route with
  * no legal altitude (`unflyable`), an altitude typed is flown as typed.
  */
-export default function AltitudeButton({ nav, legs, problem, ownAltitude = true, tight = null, classB = null, onAltitudeChoiceChange, alt, onAltChange, onSubmit }: {
+export default function AltitudeButton({ nav, legs, problem, ownAltitude = true, tight = null, classB = null, onAltitudeChoiceChange, alt, onAltChange, onSubmit, disabled = false }: {
   nav: NavLogAltitude | null;
   legs: Leg[];
   /** No legal altitude on the route: where, why and the ways on
@@ -104,6 +104,9 @@ export default function AltitudeButton({ nav, legs, problem, ownAltitude = true,
   alt: string;
   onAltChange: (v: string) => void;
   onSubmit: () => void;
+  /** No route to fly it on (cleared, or half typed): the chip in its
+   *  place, its dashes greyed. */
+  disabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const cruise = cruiseOf(nav, legs);
@@ -116,7 +119,7 @@ export default function AltitudeButton({ nav, legs, problem, ownAltitude = true,
     <ResponsivePopover open={open} onOpenChange={setOpen}>
       <ResponsivePopoverTrigger asChild>
         <Button
-          variant="outline" size="sm"
+          variant="outline" size="sm" disabled={disabled}
           className={cn(
             "gap-1 rounded-full px-2.5 font-normal tabular-nums pointer-coarse:px-1.5", GLASS_BUTTON, CHIP_TEXT,
             // Red with no legal altitude: the colour says it, where a mark
@@ -126,7 +129,7 @@ export default function AltitudeButton({ nav, legs, problem, ownAltitude = true,
             problem && "text-red-700 hover:text-red-700 dark:text-red-300 dark:hover:text-red-300",
           )}
           aria-label={`Cruising altitude, ${why}${!problem && tight ? ", tight" : ""}${!problem && classB ? ", through Class B" : ""}${!problem && cautions.length ? ", your altitude has a caution" : ""}: how it was chosen`}
-          data-testid="altitude-why"
+          data-testid="altitude-why" data-tip="altitude"
         >
           {flightLevel(problem ? null : cruise)}
           {/* What the altitude was planned within, marked; its popover says. */}
@@ -168,7 +171,7 @@ export default function AltitudeButton({ nav, legs, problem, ownAltitude = true,
             pilot picks one and the log re-plans on it. Then why. */}
         {(nav?.options.length || ownAltitude) && (
         <div className="mb-3 space-y-1.5" role="group" aria-label="Cruise altitude plans">
-          <div className={cn("font-semibold uppercase tracking-wide text-muted-foreground", TEXT.note)}>
+          <div className={GROUP_HEADING}>
             {nav?.options.length ? "Four plans, or your own" : problem ? "Or your own, flown as typed" : "Your own"}
           </div>
           {!nav?.options.length && !problem && (
@@ -205,7 +208,7 @@ export default function AltitudeButton({ nav, legs, problem, ownAltitude = true,
         )}
         {nav && (
           <>
-            <div className={cn("mb-2 font-semibold uppercase tracking-wide text-muted-foreground", TEXT.note)}>How the altitude was chosen</div>
+            <div className={cn("mb-2", GROUP_HEADING)}>How the altitude was chosen</div>
             <AltitudeReasoning nav={nav} legs={legs} />
           </>
         )}

@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { settle, consoleSheet, expectDrawerClosed, expectDrawerOpen, closeSidebarWithTheStockKey, openSettings, beforeTheRoute, library } from "./helpers";
+import { settle, settled, consoleSheet, expectDrawerClosed, expectDrawerOpen, closeSidebarWithTheStockKey, openSettings, library, closeConsole } from "./helpers";
 
 /**
  * The consoles and the settings: fitting the screen, the pilot
@@ -52,12 +52,16 @@ test("plan page: the pilot console holds the account, airplanes and flights, and
   await expect(page.getByRole("menuitem", { name: "Sign out" })).toHaveCount(0);
   // The guide first, where someone new to the planner starts.
   await expect(pilot.getByRole("tab").first()).toHaveText("Guide");
-  // The three that need a sign-in, in one tab: the Library, a segment each.
+  // The pilot's own things in one tab, Personal (it was Library), a
+  // segment each.
   await library(pilot, "Aircraft");
   await expect(pilot.getByRole("region", { name: "Aircraft", exact: true })).toBeVisible();
   await library(pilot, "Flights");
   await expect(pilot.getByRole("region", { name: "Flights", exact: true })).toBeVisible();
-  await expect(pilot.getByRole("tab")).toHaveText(["Guide", "Library", "Settings"]);
+  await expect(pilot.getByRole("tab")).toHaveText(["Guide", "Personal", "Settings"]);
+  // The personal minimums are Personal's, with no sign-in needed.
+  await library(pilot, "Minimums");
+  await expect(pilot.getByTestId("minimum-ceilingFt")).toBeVisible();
 
   // The console is modal: Escape puts it away, and then Escape lowers
   // the panel too, and its grabber opens it again.
@@ -78,13 +82,15 @@ test("the navigation bar's edge is a setting: the panel moves to it, the map's b
   const viewport = page.viewportSize();
   if (!viewport) throw new Error("no viewport configured");
   const phone = viewport.width < 768;
-  await beforeTheRoute(page, () => page.getByTestId("nav-bar-select").getByRole("radio", { name: phone ? "Top" : "Bottom" }).click());
+  await openSettings(page);
+  await page.getByTestId("nav-bar-select").getByRole("radio", { name: phone ? "Top" : "Bottom" }).click();
+  await closeConsole(page);
   await expect(page.locator("[data-slot=drawer-content], [data-slot=popover-content], [data-testid=console-sheet]")).toHaveCount(0);
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   // Once the panel has come to rest: it measures its head and eases to
   // its height after a load, and the reload below is compared with this.
-  await page.locator('[data-slot="map-panel"]').evaluate(el => Promise.all(el.getAnimations({ subtree: true }).map(a => a.finished)));
+  await settled(page.locator('[data-slot="map-panel"]'));
 
   const header = (await page.locator("header").boundingBox())!;
   const buttons = (await page.locator("[data-map-controls] > *").first().boundingBox())!;
@@ -149,7 +155,7 @@ test("the console holds still as its tabs change: up from the bottom of a phone'
   }
   const tabRow = pilot.getByRole("tablist");
   const rowTop = (await tabRow.boundingBox())!.y;
-  for (const name of ["Library", "Settings", "Guide"]) {
+  for (const name of ["Personal", "Settings", "Guide"]) {
     await pilot.getByRole("tab", { name }).click();
     await expect(pilot.getByRole("tab", { name })).toHaveAttribute("aria-selected", "true");
     expect((await tabRow.boundingBox())!.y, `the tab row after ${name}`).toBe(rowTop);

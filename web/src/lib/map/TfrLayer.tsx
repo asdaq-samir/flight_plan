@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Polygon } from "react-leaflet";
-import type { LatLngExpression } from "leaflet";
+import type { LatLngExpression, PathOptions } from "leaflet";
 import { tfrAltitudes, tfrTimes } from "../advisories";
 import type { Tfr } from "../api/types";
 import { usePreferences } from "../preferences";
@@ -11,6 +11,13 @@ import { MapPopup } from "./MapPopup";
 /** The FAA's own TFR red, as tfr.faa.gov and every EFB draw one. */
 const TFR_RED = "#dc2626";
 
+// One style each, in force and not yet, rather than a literal at every
+// render: react-leaflet restyles a path whenever its pathOptions is new.
+// No dash said as undefined, so a TFR coming into force loses its dash
+// (Leaflet merges a new style into the old).
+const IN_FORCE: PathOptions = { color: TFR_RED, weight: 2, dashArray: undefined, fillColor: TFR_RED, fillOpacity: 0.14 };
+const NOT_YET: PathOptions = { color: TFR_RED, weight: 1.5, dashArray: "6 5", fillColor: TFR_RED, fillOpacity: 0.06 };
+
 /** Whether a TFR is in force now: one with no times is taken as so. */
 function inForce(tfr: Tfr, now: number): boolean {
   const from = tfr.effective ? Date.parse(tfr.effective) : -Infinity;
@@ -18,10 +25,20 @@ function inForce(tfr: Tfr, now: number): boolean {
   return from <= now && now <= to;
 }
 
+// Each TFR's rings worked out once, kept with the query's own object for
+// it: new arrays are a new shape to react-leaflet, which redrew every TFR
+// on the map each time the page drew.
+const ringsOf = new WeakMap<Tfr, LatLngExpression[][][]>();
+
 /** A MultiPolygon's rings as Leaflet's [lat, lon] positions. */
 function positions(tfr: Tfr): LatLngExpression[][][] {
-  const coordinates = (tfr.geometry as { coordinates?: number[][][][] }).coordinates ?? [];
-  return coordinates.map(polygon => polygon.map(ring => ring.map(([lon, lat]) => [lat!, lon!] as LatLngExpression)));
+  let rings = ringsOf.get(tfr);
+  if (!rings) {
+    const coordinates = (tfr.geometry as { coordinates?: number[][][][] }).coordinates ?? [];
+    rings = coordinates.map(polygon => polygon.map(ring => ring.map(([lon, lat]) => [lat!, lon!] as LatLngExpression)));
+    ringsOf.set(tfr, rings);
+  }
+  return rings;
 }
 
 /**
@@ -45,10 +62,7 @@ export function TfrLayer() {
           <Polygon
             key={tfr.notam_id}
             positions={positions(tfr)}
-            pathOptions={{
-              color: TFR_RED, weight: active ? 2 : 1.5, dashArray: active ? undefined : "6 5",
-              fillColor: TFR_RED, fillOpacity: active ? 0.14 : 0.06,
-            }}
+            pathOptions={active ? IN_FORCE : NOT_YET}
           >
             <MapPopup>
               <MapCard title={`TFR ${tfr.notam_id}`} subtitle={[tfr.kind, active ? "In force now" : "Not yet in force"].filter(Boolean).join(" · ")}>

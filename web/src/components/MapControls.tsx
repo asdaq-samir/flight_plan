@@ -2,13 +2,13 @@ import { cn } from "cn";
 import FlownTrackButton from "./FlownTrackButton";
 import FullscreenButton from "./FullscreenButton";
 import MyPositionButton from "./MyPositionButton";
-import NearestButton from "./NearestButton";
+import MapSettingsButton from "./MapSettingsButton";
 import { GLASS } from "./mapChrome";
 
 /**
  * The map's buttons, in one group floating over the chart, as Maps
- * stacks its own: the pilot's own position (`position`: the location arrow), and full
- * screen where it works. A zoom toggle, between the whole route and the
+ * stacks its own: the map's settings, the pilot's own position (the
+ * location arrow), and full screen where it works. A zoom toggle, between the whole route and the
  * selected point, went: picking a waypoint brings the map to it. On the edge away from the panel
  * (useNavEdge): at the top right over a panel at the bottom, at the
  * bottom right under one at the top -- clear of it, and of the chart
@@ -19,10 +19,7 @@ import { GLASS } from "./mapChrome";
  * than overlapping it. Only the location arrow in the tint, as Maps'
  * is; the others' glyphs in the text's colour.
  */
-export default function MapControls({ onSelectPlace }: {
-  /** Opens a field's card: on the planner, where Nearest is offered. */
-  onSelectPlace?: (ident: string) => void;
-}) {
+export default function MapControls() {
   return (
     // z-[1000]: over Leaflet's own panes, the level Leaflet gives its
     // controls; still inside the map's own stacking context, under the
@@ -40,9 +37,9 @@ export default function MapControls({ onSelectPlace }: {
           GLASS,
         )}
       >
+        {/* The map's settings first, as Maps' map button is. */}
+        <MapSettingsButton />
         <MyPositionButton />
-        {/* Nearest, while own ship has a position, on the planner. */}
-        {onSelectPlace && <NearestButton onSelectPlace={onSelectPlace} />}
         {/* While a saved flight's flown track is on the chart. */}
         <FlownTrackButton />
         {/* Draws itself only where full screen actually works: a desktop

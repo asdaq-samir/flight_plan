@@ -33,11 +33,22 @@ export function useCardedMarker<Id = string>() {
     };
   }, [map]);
 
-  const cardEvents = useCallback((id: Id) => ({
-    popupopen: (event: L.PopupEvent) => {
-      open.current = event.popup;
-      setCarded(id);
-    },
-  }), []);
+  // The same handlers for a marker every time, kept by its id: a mark
+  // drawn again only when its props change (RouteMap's CandidateMark) is
+  // not drawn again for a new object that says the same.
+  const made = useRef(new Map<Id, L.LeafletEventHandlerFnMap>());
+  const cardEvents = useCallback((id: Id) => {
+    let events = made.current.get(id);
+    if (!events) {
+      events = {
+        popupopen: (event: L.PopupEvent) => {
+          open.current = event.popup;
+          setCarded(id);
+        },
+      };
+      made.current.set(id, events);
+    }
+    return events;
+  }, []);
   return { carded, cardEvents };
 }

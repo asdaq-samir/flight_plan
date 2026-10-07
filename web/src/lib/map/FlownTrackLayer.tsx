@@ -1,3 +1,4 @@
+import type { PathOptions } from "leaflet";
 import { Polyline } from "react-leaflet";
 import type { Course } from "../api/types";
 import { useFlownTrack } from "./flownTrack";
@@ -14,6 +15,12 @@ function runs(line: { lat: number; lon: number; off: boolean }[]): { off: boolea
   return out;
 }
 
+// Constants, not literals: react-leaflet restyles a path whenever its
+// pathOptions is a new object.
+const CASING: PathOptions = { color: "#ffffff", weight: 6, opacity: 0.9, interactive: false };
+const ON: PathOptions = { color: "#1d1d1f", weight: 2.5, opacity: 1, interactive: false };
+const OFF: PathOptions = { color: "#d70015", weight: 3.5, opacity: 1, interactive: false };
+
 /**
  * The flown track over the planned course (lib/map/flownTrack), while the
  * course on the chart is that flight's: a white casing under a solid
@@ -27,12 +34,9 @@ export function FlownTrackLayer({ course }: { course: Course }) {
   const all: [number, number][] = track.line.map(pt => [pt.lat, pt.lon]);
   return (
     <>
-      <Polyline positions={all} pathOptions={{ color: "#ffffff", weight: 6, opacity: 0.9, interactive: false }} />
+      <Polyline positions={all} pathOptions={CASING} />
       {runs(track.line).map((run, i) => (
-        <Polyline
-          key={i} positions={run.points}
-          pathOptions={{ color: run.off ? "#d70015" : "#1d1d1f", weight: run.off ? 3.5 : 2.5, opacity: 1, interactive: false }}
-        />
+        <Polyline key={i} positions={run.points} pathOptions={run.off ? OFF : ON} />
       ))}
     </>
   );

@@ -7,7 +7,13 @@ import L from "leaflet";
  * and anything that moves the map in a script reads them here.
  */
 function insetsOf(map: L.Map): { top: number; bottom: number; left: number } {
-  const style = getComputedStyle(map.getContainer());
+  // From the ancestor's own style attribute, where it set them, rather
+  // than the container's computed style: that brought the whole page's
+  // styles up to date, mid-move, at every pan -- a tenth of a second of
+  // a phone's as a nav log row picked moved the map (measured
+  // 2026-10-07).
+  const holder = map.getContainer().closest<HTMLElement>("[style*='--map-inset-top']");
+  const style = holder?.style ?? getComputedStyle(map.getContainer());
   const px = (name: string) => parseFloat(style.getPropertyValue(name)) || 0;
   return { top: px("--map-inset-top"), bottom: px("--map-inset-bottom"), left: px("--map-inset-left") };
 }

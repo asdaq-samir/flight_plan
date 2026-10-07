@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { PAGES, settle, expectDrawerClosed, expectDrawerOpen, openSidebar, sideDrawer, openSettings, openPanel, closeSidebarWithTheStockKey } from "./helpers";
+import { PAGES, settle, settled, slow, expectDrawerClosed, openSidebar, sideDrawer, openSettings, openPanel, closeSidebarWithTheStockKey } from "./helpers";
 
 /**
  * The regressions this file exists to catch (see playwright.config.ts
@@ -88,6 +88,54 @@ test.describe("/app/plan", () => {
     await closeSidebarWithTheStockKey(page);
     await expectDrawerClosed(page);
     await openSidebar(page);
+  });
+
+  // Three heights to the pilot, at their ask: the pill, all the way up,
+  // and one half way -- the route's to its tabs' bar, and the search's
+  // and an airport's card the same, what comes next under them (the
+  // Recents, the weather) out of sight. The route cleared keeps its
+  // shape and height; its close again shows the search under it.
+  test("half way up is one height: the route down to its tabs, the route cleared, the search and an airport's card", async ({ page }) => {
+    const panel = sideDrawer(page);
+    const height = async () => { await settled(panel); return (await panel.boundingBox())!.height; };
+    await page.goto("/app/plan?dep=C81&dest=KDLH");
+    await settle(page);
+    await openPanel(page);
+    await expect(page.getByTestId("navlog-eta")).toBeVisible({ timeout: slow(60000) });
+    const half = await height();
+    const tabs = (await panel.locator("[data-tip='tabs']").boundingBox())!;
+    const body = (await panel.locator("[data-panel-body]").boundingBox())!;
+    expect(Math.abs(tabs.y + tabs.height - (body.y + body.height))).toBeLessThanOrEqual(2);
+
+    await page.getByTestId("route-clear").click();
+    await expect(page).not.toHaveURL(/[?&]dep=/);
+    await expect(page.getByTestId("altitude-why")).toBeDisabled();
+    expect(Math.abs(await height() - half)).toBeLessThanOrEqual(1);
+
+    await page.getByTestId("route-clear").click();
+    await expect(page.getByTestId("search-airports")).toBeVisible();
+    await expect(panel).toHaveAttribute("data-panel", "half");
+    expect(Math.abs(await height() - half)).toBeLessThanOrEqual(1);
+    await expect(page.getByTestId("favorite-home")).toBeInViewport();
+
+    await page.getByTestId("search-airports").click();
+    await page.getByTestId("search-airports").fill("KDLH");
+    await page.getByTestId("search-result").filter({ hasText: "KDLH" }).first().click();
+    const card = panel.getByTestId("place-card");
+    await expect(card.getByTestId("fly-here")).toBeInViewport({ timeout: slow(15000) });
+    expect(Math.abs(await height() - half)).toBeLessThanOrEqual(1);
+    await expect(card.getByRole("heading", { name: "Weather" })).not.toBeInViewport();
+  });
+
+  // At half the tabs' bar is the panel's last line: a tab tapped takes
+  // the panel all the way up to show it, at the pilot's ask.
+  test("a tab tapped at half takes the panel all the way up", async ({ page }) => {
+    await page.goto("/app/plan?dep=C81&dest=KDLH");
+    await settle(page);
+    await openPanel(page);
+    await page.getByTestId("panel-tab-weather").click();
+    await expect(sideDrawer(page)).toHaveAttribute("data-panel", "full");
+    await expect(page.getByTestId("panel-tab-weather")).toHaveAttribute("aria-selected", "true");
   });
 });
 
@@ -196,11 +244,13 @@ test.describe("/app/plan", () => {
       if (phone) expect(Math.abs(grabber.y - panelBox.y)).toBeLessThan(2);
       else expect(Math.abs(grabber.y + grabber.height - (panelBox.y + panelBox.height))).toBeLessThan(2);
     }).toPass({ timeout: 10_000 });
-    // A tap lowers it from half way, and the next opens it all the way.
-    await page.getByTestId("sidebar-trigger-button").click();
+    // Taps cycle it: on up from half way, opened from the pill, back down
+    // to half, then to the pill.
+    for (const height of ["full", "half", "peek"]) {
+      await page.getByTestId("sidebar-trigger-button").click();
+      await expect(sideDrawer(page)).toHaveAttribute("data-panel", height);
+    }
     await expectDrawerClosed(page);
-    await page.getByTestId("sidebar-trigger-button").click();
-    await expectDrawerOpen(page);
   });
 });
 
@@ -218,8 +268,15 @@ for (const path of PAGES) {
     expect(viewport.width - (firstBox.x + firstBox.width)).toBeLessThan(20);
     if (viewport.width < 768) expect(firstBox.y).toBeLessThan(viewport.height / 2);
     else expect(firstBox.y).toBeGreaterThan(viewport.height / 2);
-    // Never among the map's buttons, on either page.
+    // Never among the map's buttons, on either page: their first is the
+    // map's own, its sheet the map's settings, as Maps' is.
     expect(await page.locator("[data-map-controls]").getByTestId("settings-button").count()).toBe(0);
+    await expect(first).toHaveAttribute("data-testid", "map-settings-button");
+    await first.click();
+    await expect(page.getByTestId("map-settings").getByTestId("base-chart-select")).toBeVisible();
+    await expect(page.getByTestId("map-settings").getByTestId("waypoints-toggle")).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(page.getByTestId("map-settings")).toHaveCount(0);
     if (path === "/app/dev") {
       // At the end of the training page's route capsule, which has no
       // search bar.
@@ -234,10 +291,11 @@ for (const path of PAGES) {
       expect(await page.locator("[data-map-controls]").getByTestId("settings-button").count()).toBe(0);
     }
 
-    // The settings, the console's last tab, hold the chart controls.
+    // The settings, the console's last tab, no longer hold the map's:
+    // they are the map button's.
     await openSettings(page);
-    await expect(page.getByTestId("base-chart-select")).toBeVisible();
-    await expect(page.getByTestId("tac-toggle")).toBeVisible();
+    await expect(page.getByTestId("settings-panel")).toBeVisible();
+    expect(await page.getByTestId("base-chart-select").count()).toBe(0);
     await page.keyboard.press("Escape");
   });
 

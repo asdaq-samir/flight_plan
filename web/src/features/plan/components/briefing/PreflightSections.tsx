@@ -1,7 +1,8 @@
-import { Suspense, lazy, useId } from "react";
+import { lazy, useId } from "react";
 import { cn } from "cn";
 import { OctagonAlert, TriangleAlert } from "lucide-react";
 import AccordionSection from "../../../../components/AccordionSection";
+import AfterPaint from "../../../../components/AfterPaint";
 import { ListGroup, ListRow } from "../../../../components/GroupedList";
 import { Input } from "../../../../components/ui/input";
 import type { AircraftProfile, Briefing, Course } from "../../../../lib/api/types";
@@ -96,9 +97,9 @@ export function WeightBalanceSection({ aircraft, tripFuelGal }: { aircraft: Airc
               <ListRow key={problem} media={<FindingIcon finding="stop" />} title={<span className={FINDING_TONE.stop}>{problem}</span>} />
             ))}
           </ListGroup>
-          <Suspense fallback={<div className="h-56" />}>
+          <AfterPaint fallback={<div className="h-56" />}>
             <EnvelopeChart envelope={loading.envelope as [number, number][]} takeoff={result.takeoff} landing={result.landing} />
-          </Suspense>
+          </AfterPaint>
         </div>
       )}
     </AccordionSection>

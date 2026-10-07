@@ -550,7 +550,11 @@ jobs:
         run: |
           # web/dist: where the page will be built, mounted into the
           # webapp -- made now, so that Docker does not make it, as root.
-          mkdir -p /tmp/e2e-out web/dist
+          # And the chart model's directory, mounted into model-service, for
+          # the same reason: made by Docker as root where model-service
+          # started first, it failed "The planner's data, ready"'s chmod of
+          # data, before a test had run (shards 7 and 4, 2026-10-07).
+          mkdir -p /tmp/e2e-out web/dist data/models/chart/current
           # The caches below are restored into memory, not onto the disk:
           # the planner's data and charts, and the suite's packages, about
           # 1.6 GB. On a runner whose disk writes at most about 230 MB/s

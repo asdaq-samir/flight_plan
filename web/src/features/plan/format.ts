@@ -55,6 +55,14 @@ export function hhmm(minutes: number | null): string {
   return `${Math.floor(whole / 60)}h ${String(whole % 60).padStart(2, "0")}m`;
 }
 
+/** Total time in decimal hours, as a logbook keeps it: "19.9h", where
+ *  the flight's line has no room for "19h 50m" (FlightLine). Up to the
+ *  next tenth, so the time is never said short of what it is; whole
+ *  minutes first, as hhmm's are. */
+export function decimalHours(minutes: number): string {
+  return `${(Math.ceil(Math.round(minutes) / 6) / 10).toFixed(1)}h`;
+}
+
 /** Totals for the nav-log bar. Returns parts rather than markup so the
  *  warning can be styled without parsing a string back apart. */
 export function totalsParts(t: Totals) {

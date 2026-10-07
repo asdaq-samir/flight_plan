@@ -21,7 +21,7 @@ export default function BriefVerdict({ items }: { items: VerdictItem[] }) {
   return (
     <AccordionSection title="Go / No-Go">
       <div className="space-y-3" data-testid="verdict">
-        <p className={cn("flex items-start gap-2 font-semibold", FINDING_TONE[line.finding], TEXT.row)} data-testid="verdict-line" data-finding={line.finding}>
+        <p className={cn("flex items-start gap-2 font-semibold", FINDING_TONE[line.finding], TEXT.row)} data-testid="verdict-line" data-finding={line.finding} data-tip="verdict">
           <FindingIcon finding={line.finding} className="mt-0.5" />
           <span>{line.words}</span>
         </p>

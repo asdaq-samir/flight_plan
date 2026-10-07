@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useContext, useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { Fragment, useCallback, useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { cn } from "cn";
 import { Loader2, WandSparkles } from "lucide-react";
 import {
@@ -19,13 +19,10 @@ import {
 import type { Candidate, Leg, NavLogAltitude, Totals, TopOfClimb, TopOfDescent } from "../../../../lib/api/types";
 import { feet } from "../../../../lib/units";
 import { routeName } from "../../../../lib/identSchema";
-import { textWidth } from "../../../../lib/textWidth";
-import { useRoom } from "../../../../lib/useRoom";
 import { revealRow } from "../../../../lib/revealRow";
-import { TEXT } from "../../../../lib/text";
+import { GROUP_HEADING, TEXT } from "../../../../lib/text";
 import { type Description, descriptionKey } from "../../hooks/useCheckpointNotes";
 import { altFt, clockTime, deg, etaAt, one, signed, totalsParts } from "../../format";
-import { Spinner } from "../../../../components/ui/spinner";
 import type { BriefingPart } from "../briefing/sections";
 import { isLegPoint, legOf, navLogRows, rowPoint, type NavLogRow, type RouteEnds } from "./rows";
 import LegWorkings from "./LegWorkings";
@@ -105,12 +102,6 @@ interface Props {
   /** The drawer's last line, under every section (the planning-aid
    *  reminder). */
   footer?: ReactNode;
-  /** What stops the plan, in a few words, said in red on the flight's line
-   *  in place of its figures (no legal altitude's brief). */
-  problem?: string | null;
-  /** What is being worked on, with the panel out: said on the section's
-   *  line, under its title, in place of the toast over the map. */
-  progress?: string | null;
   /** A local flight, one airport to itself: no legs, so the section is
    *  "Local Flight" -- the time aloft, the time back and the fuel, and
    *  the fuel check -- in place of the nav log. */
@@ -125,9 +116,13 @@ interface Props {
   onSelectPoint: (lat: number, lon: number) => void;
   /** Nothing selected: a tap on the selected row, which closes it. */
   onDeselectPoint: () => void;
-  /** Whether the drawer holding this is open. The view stays mounted
-   *  beside a desktop map whether or not it is. */
+  /** Whether the nav log is in sight: the panel all the way up, where
+   *  half way it ends at the tabs' bar. The view stays mounted whether or
+   *  not it is. */
   drawerOpen: boolean;
+  /** A tab tapped (PanelTabs' `onTap`): the panel up to show it, or the
+   *  one up tapped again, back down. */
+  onTabTap?: (again: boolean) => void;
 }
 
 /**
@@ -288,12 +283,9 @@ function LegLine({ leg, at }: { leg: Leg; at: { name: string; lat: number; lon: 
   );
 }
 
-/** The headings' size: a step above the rows' figures (the table's own
- *  size), 14 over 12, and to a finger 16 over 15 -- iOS's callout over
- *  its subheadline. A row's 17 was a tad big over them, the pilot said. */
-const HEADING = "text-sm pointer-coarse:text-[1rem]";
-/** A heading's unit, under its name: a note's 13 to a finger. */
-const UNIT = "text-[0.6875rem] font-normal pointer-coarse:text-[0.8125rem] pointer-coarse:leading-[1.125rem]";
+/** A heading's unit, under its name, in its own small letters: 11, and
+ *  a note's 13 to a finger. */
+const UNIT = "text-[0.6875rem] font-normal normal-case tracking-normal pointer-coarse:text-[0.8125rem] pointer-coarse:leading-[1.125rem]";
 
 /** A column's heading: its short name over its unit, small, so both
  *  fit a phone's narrow columns ("Alt" over "ft", "MH" over "mag"), and
@@ -301,7 +293,8 @@ const UNIT = "text-[0.6875rem] font-normal pointer-coarse:text-[0.8125rem] point
 function Heading({ name, unit, spoken }: { name: string; unit?: string; spoken: string }) {
   return (
     <>
-      <span aria-hidden className="inline-flex flex-col items-end leading-tight">
+      {/* At a note's own leading (18 over 13), as iOS sets it. */}
+      <span aria-hidden className="inline-flex flex-col items-end leading-[1.125rem]">
         <span>{name}</span>
         {unit && <span className={UNIT}>{unit}</span>}
       </span>
@@ -322,50 +315,11 @@ export default function NavLogView({
   totals, nav, depart,
   legs, dep, dest, ends,
   selected, descriptions, onSaveDescription,
-  onGenerateDescriptions, descriptionsLoading, tabContent, children, marks, notice, footer, local = false, progress = null, problem = null,
+  onGenerateDescriptions, descriptionsLoading, tabContent, children, marks, notice, footer, local = false,
   selectedPoint, onSelectPoint, onDeselectPoint, drawerOpen,
-  aircraftLabel,
+  aircraftLabel, onTabTap,
 }: Props) {
   const parts = totals ? totalsParts(totals) : null;
-  // The nav log's section in one line under its title, folded or open,
-  // as every section's is: the distance, the arrival and the fuel. Inside,
-  // it is not said again; the altitude is the first row there (and the
-  // Cruise Altitude section's line).
-  // Each figure named, in the table's own shorthand, as the pilot
-  // asked: "3h 14m" alone did not say it was the time. On one line, as
-  // they asked too: to a finger at a note's 13, since at a summary's 15
-  // the three ran to 293 points in a phone drawer's 277. Each figure
-  // whole: a longer route breaks the line between them, not inside one.
-  // The time as the arrival, the time en route after it: "ETA 18:24
-  // (3h 22m)", as the pilot asked -- from the departure time picked, or
-  // from now while it is "Now", which is what the plan is flown for then.
-  const arrival = totals?.ete_min != null ? etaAt(depart || new Date().toISOString(), totals.ete_min) : null;
-  // On one line, at the pilot's ask: the figures as they are while they
-  // fit, the distance and the fuel rounded to whole ones where they do not
-  // (a long trip's "2636.8 nm" and "187.9 gal"), and past that cut short.
-  const figures = (whole: boolean) => !parts || !totals ? null : (local ? [
-    ["Aloft", parts.time],
-    ["Back", arrival ?? "—"],
-    ["Fuel", whole && totals.fuel_gal !== null ? `${Math.round(totals.fuel_gal)} gal` : parts.fuel],
-  ] as const : [
-    ["Dist", whole ? `${Math.round(totals.distance_nm)} nm` : parts.distance],
-    ["ETA", arrival ? `${arrival} (${parts.time})` : parts.time],
-    ["Fuel", whole && totals.fuel_gal !== null ? `${Math.round(totals.fuel_gal)} gal` : parts.fuel],
-  ] as const);
-  const [summaryRoom, room] = useRoom<HTMLSpanElement>();
-  const exact = figures(false);
-  const whole = !!exact && !!room && (textWidth(exact.map(([n, f]) => `${n} ${f}`).join(" · "), room.font) ?? 0) > room.width;
-  const foldedSummary = exact && (figures(whole) ?? exact).map(([name, figure], i) => (
-    <Fragment key={name}>{i > 0 && " · "}<span data-testid={name === "ETA" ? "navlog-eta" : undefined}>{name} {figure}</span></Fragment>
-  ));
-  // While something is worked on, the line says what, with a spinner:
-  // the summary once it is done.
-  const progressLine = progress && (
-    <span role="status" data-testid="navlog-progress">
-      <Spinner className="mr-1.5 inline size-3.5 align-[-0.125em]" role="presentation" aria-label={undefined} aria-hidden />
-      {progress}
-    </span>
-  );
   // The other tabs' code fetched while nothing else is, once the log is
   // in, so the first opening of each draws rather than downloads: the
   // weight and balance envelope was 0.4 s of the Performance tab's first.
@@ -382,27 +336,33 @@ export default function NavLogView({
   // A checkpoint picked on the map with the drawer out: the nav log's tab
   // comes up for it (PanelTabs).
   const pick = drawerOpen && selectedPoint ? descriptionKey(selectedPoint.lat, selectedPoint.lon) : null;
-  // At half, the panel just tall enough for the flight's line under the
-  // route (PanelHalfContext, exact), the chart above it, at the pilot's
-  // ask -- the tabs and the rest a drag up. Measured, since the text size
-  // changes it.
-  const halfNeeds = useContext(PanelHalfContext);
+  // At half, the panel down to the tabs, at the pilot's ask: the route,
+  // the controls and the flight's line in its head, and the tabs' bar
+  // under them, so what each tab holds is a tap away (PanelHalfContext).
+  // Measured, since the text size changes it.
+  const tabsAt = useContext(PanelHalfContext);
   const [root, setRoot] = useState<HTMLDivElement | null>(null);
   useEffect(() => {
-    if (!root || !halfNeeds) return;
+    if (!root || !tabsAt) return;
     const measure = () => {
-      // Hidden under an airport's card (PlanWorkspace), the card says.
+      // Hidden under an airport's card (PlanWorkspace): its height is not
+      // the route's.
       if (!root.offsetParent) return;
-      // Down to the flight's line, the tabs and the log a drag up.
-      const line = root.querySelector("[data-half-line]");
-      if (!line) return;
-      halfNeeds(Math.round(line.getBoundingClientRect().bottom - root.getBoundingClientRect().top), true);
+      const tabs = root.querySelector("[data-tip='tabs']");
+      // Up, never down: a bar half a point past the half's foot was half
+      // a point into the home indicator's room.
+      tabsAt(tabs ? Math.ceil(tabs.getBoundingClientRect().bottom - root.getBoundingClientRect().top) : null);
     };
     measure();
+    // The tabs' bar as well as the whole: the bar grows inside a root
+    // whose own size does not change (a bigger text size, its icons'
+    // font), and the half stayed at the bar's old foot.
     const observer = new ResizeObserver(measure);
     observer.observe(root);
-    return () => { observer.disconnect(); halfNeeds(null); };
-  }, [root, halfNeeds]);
+    const bar = root.querySelector("[data-tip='tabs']");
+    if (bar) observer.observe(bar);
+    return () => { observer.disconnect(); tabsAt(null); };
+  }, [root, tabsAt]);
   // For the printer every tab, one after another: the paper is the whole
   // briefing whatever was up on screen (usePrinting).
   const printing = usePrinting();
@@ -410,8 +370,9 @@ export default function NavLogView({
   // legs have streamed in: a row whose leg has not arrived shows a dash
   // in every column that needs one. Column defs are declared here, not
   // at module scope, since they close over this render's `nav` and
-  // `depart`.
-  const data = navLogRows(ends, selected, legs);
+  // `depart`. Kept while they are the same (useMemo): a new list was the
+  // profile chart drawn again at every row picked.
+  const data = useMemo(() => navLogRows(ends, selected, legs), [ends, selected, legs]);
   // Whether the clouds the altitude breakdown found (14 CFR 91.155) can be
   // put on legs at all: its segments run fix to fix, as the rows do, so
   // they line up when there is one segment fewer than rows. When they do
@@ -666,16 +627,18 @@ export default function NavLogView({
       <TableCaption className="sr-only">
         Navigation log from {dep} to {dest}
       </TableCaption>
-      <TableHeader className="sticky top-0 z-10 bg-background print:static print:bg-transparent dark:bg-popover">
+      {/* Over the rows as they scroll, the sheet's own frosted glass
+          rather than a band of white across it. */}
+      <TableHeader className="sticky top-0 z-10 bg-background/75 backdrop-blur-xl print:static print:bg-transparent print:backdrop-blur-none dark:bg-popover/75">
         {table.getHeaderGroups().map(headerGroup => (
           <TableRow key={headerGroup.id}>
             {headerGroup.headers.map(header => (
               // Each heading over its own figures: right-aligned, as they
               // are (the stock heading is left-aligned, and every label
               // sat off its column), the waypoint's left as its names
-              // are; a step above the rows (HEADING), in black over figures
-              // in grey (see SelectableRow), as the pilot asked.
-              <TableHead key={header.id} className={cn("text-right text-foreground", HEADING, header.column.columnDef.meta?.className)}>
+              // are; set as every group's heading is in the app
+              // (GROUP_HEADING), at the pilot's ask.
+              <TableHead key={header.id} className={cn("text-right", GROUP_HEADING, header.column.columnDef.meta?.className)}>
                 {flexRender(header.column.columnDef.header, header.getContext())}
               </TableHead>
             ))}
@@ -845,7 +808,7 @@ export default function NavLogView({
 
   return (
     <PanelTabs
-      rootRef={setRoot} printing={printing} local={local} marks={marks} pick={pick}
+      rootRef={setRoot} printing={printing} local={local} marks={marks} pick={pick} onTap={onTabTap}
       notice={notice} footer={footer}
       before={(
         <>
@@ -864,18 +827,6 @@ export default function NavLogView({
               {aircraftLabel}
               {depart && ` · departing ${new Date(depart).toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" })} ${clockTime(new Date(depart))}`}
             </div>
-          </div>
-          {/* The flight in one line, over the tabs whichever is up, at the
-              pilot's ask: the distance, the arrival and the fuel (rounded to
-              fit, above), or what is being worked on, cut short past the
-              line's end. */}
-          <div className="flex shrink-0 items-center px-[max(1rem,env(safe-area-inset-left))] pb-2" data-half-line="">
-            <span
-              ref={summaryRoom} data-slot="section-summary"
-              className={cn(TEXT.prose, "min-w-0 flex-1 truncate text-muted-foreground pointer-coarse:text-[0.8125rem] pointer-coarse:leading-[1.125rem]")}
-            >
-              {progressLine ?? (problem ? <span className="text-red-700 dark:text-red-300" data-testid="navlog-problem">{problem}</span> : foldedSummary)}
-            </span>
           </div>
         </>
       )}

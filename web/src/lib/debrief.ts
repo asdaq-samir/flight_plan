@@ -55,7 +55,7 @@ function angleOff(a: number, b: number): number {
 
 /** Ground speed at each point, knots: over at least ten seconds round
  *  it, which a one-second GPS's jitter would otherwise make a mess of. */
-export function groundSpeeds(points: TrackPoint[]): number[] {
+function groundSpeeds(points: TrackPoint[]): number[] {
   return points.map((_, i) => {
     let j = i, k = i;
     while ((points[k]!.t - points[j]!.t) < 10_000 && (j > 0 || k < points.length - 1)) {

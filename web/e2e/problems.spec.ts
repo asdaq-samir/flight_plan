@@ -1,4 +1,5 @@
 import { test, expect, type Page, type Route } from "@playwright/test";
+import { settled as settledLocator } from "./helpers";
 
 /**
  * What a pilot meets when things go wrong, and the toasts that are left.
@@ -50,11 +51,11 @@ async function problemTitles(page: Page): Promise<string[]> {
   return page.locator("[data-problem-item]").allTextContents();
 }
 
-/** Come to rest: its moves done, the progress line's spinner, which never
- *  is, left out. */
+/** Come to rest: its moves done (helpers' settled: the progress line's
+ *  spinner, which never is, a move cancelled on the way, and what a tab
+ *  out of sight holds, left out). */
 async function settled(page: Page, selector: string) {
-  await page.locator(selector).first().evaluate(el => Promise.all(el.getAnimations({ subtree: true })
-    .filter(a => a.effect?.getTiming().iterations !== Infinity).map(a => a.finished)));
+  await settledLocator(page.locator(selector).first());
 }
 
 test("a planner that is down says so once, in one line, not once per call", async ({ page }) => {
@@ -111,7 +112,7 @@ test("a problem goes with the route it was about", async ({ page }) => {
   await page.goto("/app/plan?dep=C81&dest=KZZZ");
   await expect(page.getByTestId("problem-banner-title")).toHaveText("unknown airport KZZZ", { timeout: 20000 });
 
-  // The route closed from the panel, where its close is.
+  // The route cleared from the panel, where its close is.
   await page.getByTestId("capsule-detail").click();
   await page.getByTestId("route-clear").click();
   await expect(banner(page)).toHaveCount(0);
@@ -151,8 +152,13 @@ test("the panel all the way out goes over the line, and its grabber still lowers
   const line = banner(page).getByRole("status");
   await expect(line).toBeVisible({ timeout: 20000 });
 
-  await page.getByTestId("sidebar-trigger-button").click();
+  // Up a height a tap (MapPanel's cycle), to all the way up.
   const sheet = page.locator('[data-slot="map-panel"]');
+  for (let taps = 0; taps < 2 && (await sheet.getAttribute("data-panel")) !== "full"; taps++) {
+    const was = await sheet.getAttribute("data-panel");
+    await page.getByTestId("sidebar-trigger-button").click();
+    await expect(sheet).not.toHaveAttribute("data-panel", was!);
+  }
   await expect(sheet).toHaveAttribute("data-panel", "full");
   await settled(page, '[data-slot="map-panel"]');
 
@@ -160,6 +166,9 @@ test("the panel all the way out goes over the line, and its grabber still lowers
   const over = await page.evaluate(([x, y]) => document.elementFromPoint(x, y)?.closest('[data-slot="map-panel"]') !== null,
     [box.x + box.width / 2, box.y + box.height / 2]);
   expect(over).toBe(true);
+  // Down a height a tap: half, then the pill (MapPanel's cycle).
+  await page.getByTestId("sidebar-trigger-button").click();
+  await expect(sheet).toHaveAttribute("data-panel", "half");
   await page.getByTestId("sidebar-trigger-button").click();
   await expect(sheet).toHaveAttribute("data-panel", "peek");
 });
@@ -230,11 +239,12 @@ test("the chart underneath stays draggable while a toast is showing", async ({ p
   expect(beneath).toBe("something under it");
 });
 
-test("with the panel out, the progress is the Nav Log's line, and no toast is over the panel", async ({ page }) => {
-  // From the bottom of a phone the toast came in over the panel's top,
-  // the route's box under it out of reach for as long as the plan took.
+// What the planner is working on is a toast however far out the panel is,
+// at the pilot's ask, and the flight's line keeps its figures; a toast
+// takes no tap but its own controls', so the route's box under it does.
+test("with the panel out, the progress is a toast and the flight's line keeps its figures", async ({ page }) => {
   await holdCourse(page);
   await page.goto(`${PLAN}&view=briefing`);
-  await expect(page.getByTestId("navlog-progress")).toContainText("Plotting the course", { timeout: 20000 });
-  await expect(toasts(page)).toHaveCount(0);
+  await expect(toasts(page).filter({ hasText: "Plotting the course" })).toHaveCount(1, { timeout: 20000 });
+  await expect(page.getByTestId("flight-line")).not.toContainText("Plotting");
 });

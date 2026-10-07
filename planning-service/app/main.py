@@ -38,7 +38,7 @@ from pydantic import TypeAdapter
 from vfr import airspace, altitude, charts, faa_data, fixes, places, publications, remarks, weather
 from vfr import airports as airport_table
 
-from . import chart_refresh, errors, tracing
+from . import chart_model, chart_refresh, errors, tracing
 from .common import PROCESSED_DIR
 from .planning import StillComputing
 from .routers import airports, airspace as airspace_router, briefing, chart, classb, devml, devservices, notes, oral, plan, system
@@ -139,21 +139,28 @@ def _warm_reference_data() -> None:
     # winds product are fetched again every few minutes, inside their
     # own time-to-live, so no pilot's request ever pays for a download
     # -- on a slow aviationweather.gov day the first plan after an
-    # expiry was observed waiting close to a minute. A refresh that
-    # fails is logged and the held copies go on being served. Once an
-    # hour, the chart cycle is checked (app.chart_refresh decides what
-    # that starts).
+    # expiry was observed waiting close to a minute. While the planner is
+    # in use (weather.in_use: asked in the last quarter of an hour), and
+    # each only if it has changed: it downloaded all eight every four
+    # minutes round the clock, nobody planning. A refresh that fails is
+    # logged and the held copies go on being served. Once an hour, the
+    # chart cycle is checked (app.chart_refresh decides what that starts).
     last_cycle_check = time.time()
     while True:
         time.sleep(WEATHER_REFRESH_S)
         try:
-            weather.refresh()
-            log.info("weather refreshed")
+            if weather.in_use():
+                weather.refresh()
+                log.info("weather refreshed")
         except Exception:  # noqa: BLE001 -- the next tick tries again; requests serve what is held
             log.warning("weather refresh failed", exc_info=True)
         if chart_refresh.AUTO_REFRESH and time.time() - last_cycle_check >= chart_refresh.CHECK_EVERY_S:
             last_cycle_check = time.time()
             chart_refresh.maybe_refresh()
+        # The chart reader's processes let go once nobody has read a chart
+        # for a while (app.chart_model.IDLE_S).
+        if chart_model.release_idle():
+            log.info("chart reader's processes let go, idle")
 
 
 @asynccontextmanager

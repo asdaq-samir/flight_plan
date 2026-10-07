@@ -25,9 +25,6 @@ export interface WorkspacePieces {
   submit: () => void;
   /** A load in progress: the form's own button is disabled. */
   loading?: boolean;
-  /** Anything that belongs over the panel's body, in sight with it out
-   *  (a route from an airport to itself). */
-  notices?: ReactNode;
   /** The panel at rest: a capsule with the route in it, or a search bar
    *  while there is none (PanelCapsule). */
   compact?: ReactNode;
@@ -37,14 +34,10 @@ export interface WorkspacePieces {
   /** The panel's top row with it out, in place of the route form and the
    *  actions: the search bar, while there is no route. */
   head?: ReactNode;
-  /** The panel's body alone with it out -- no route form, actions,
-   *  notices or controls over it: an airport's card opened over a route,
+  /** The panel's body alone with it out -- no route form, actions or
+   *  controls over it: an airport's card opened over a route,
    *  as a place in Maps takes the sheet from the directions. */
   alone?: boolean;
-  /** The panel is the search bar (`compact` and `head`): the console's
-   *  button goes on it, as Maps' account does, and the planner's is
-   *  nowhere else (MapPage). */
-  searching?: boolean;
 }
 
 export interface WorkspaceProps {

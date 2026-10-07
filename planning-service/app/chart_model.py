@@ -5,10 +5,19 @@ training page's points, from model-service, which serves it.
 Here rather than in the pipeline because the planner holds the chart
 reader -- the pipeline images have no GDAL -- and has every rated
 route's corridor read already, kept on disk (app.detection)."""
+import logging
+import multiprocessing
+import os
+import threading
+import time
+from concurrent.futures import Future, ProcessPoolExecutor
+from concurrent.futures.process import BrokenProcessPool
+
 import pandas as pd
 from vfr import chartfeatures, chartlabels, chartmodel, model_client
 from vfr.pipeline import _publish
 
+from . import detection
 from .common import load_hop
 from .detection import detect_job, faa_airports
 
@@ -17,6 +26,92 @@ from .detection import detect_job, faa_airports
 # Here, not in app.detection, whose source names its kept reads -- a
 # change there reads every corridor again.
 TRAINING_HALF_WIDTH_NM = 4.0
+
+log = logging.getLogger(__name__)
+
+# A corridor not yet read is read in a process of its own, kept on disk
+# there (app.detection), and loaded here from what it kept: read on one of
+# this process's threads it held the interpreter for seconds at a time,
+# and every other request waited -- an airspace card took 86 s while a
+# route's chart was read (measured 2026-10-07). Two at once at the most.
+# Off where CHART_READS_IN_PROCESS=0 (the tests, which stub the read).
+READS_IN_PROCESS = os.environ.get("CHART_READS_IN_PROCESS", "1") != "0"
+_PROCESSES: ProcessPoolExecutor | None = None
+_READING: dict = {}
+_READING_LOCK = threading.Lock()
+# A pool with nothing to read for this long is let go (release_idle, from
+# the planner's own loop): its processes keep what their last reads grew
+# to -- 215 and 342 MB, seen 2026-10-07, beside a planner of 1 GB, on a
+# machine whose browsers were being killed for memory. The next read
+# starts them again, some 4 s of imports, under its 3 to 6 s of reading.
+IDLE_S = 600
+_LAST_READ = 0.0
+
+
+def _read_in_process(key: tuple, start: tuple, end: tuple, half_width_nm: float) -> str | None:
+    """In a process of the pool: the corridor read and kept on disk, as
+    app.detection reads one; what went wrong, else None."""
+    job = detect_job(key, start, end, half_width_nm)
+    with job["cond"]:
+        job["cond"].wait_for(lambda: job["done"])
+    return job["error"]
+
+
+def _pool() -> ProcessPoolExecutor:
+    # Spawned, not forked: this process runs threads, and a fork copies
+    # their locks held.
+    return ProcessPoolExecutor(max_workers=2, mp_context=multiprocessing.get_context("spawn"))
+
+
+def _reading(key: tuple, start: tuple, end: tuple) -> Future | None:
+    """The read of a corridor neither in this process's memory nor kept on
+    disk, started in the pool once however many ask; None where there is
+    nothing to read (or the pool is not to be used)."""
+    global _PROCESSES, _LAST_READ
+    if not READS_IN_PROCESS or key in detection._DETECT_JOBS or detection._kept_path(key).exists():
+        return None
+    with _READING_LOCK:
+        running = _READING.get(key)
+        if running is not None and not running.done():
+            return running
+        if _PROCESSES is None:
+            _PROCESSES = _pool()
+        try:
+            future = _PROCESSES.submit(_read_in_process, key, start, end, TRAINING_HALF_WIDTH_NM)
+        except BrokenProcessPool:
+            # One of its processes died -- the kernel's out-of-memory killer
+            # took one with the machine short of memory, 2026-10-07, where a
+            # read of 1,457 nm peaks at 364 MB on its own -- and a pool with
+            # a dead process takes no more work, ever: every route's
+            # checkpoints failed after it. A new pool, for this read and the
+            # ones after.
+            log.warning("the chart reader's pool lost a process; starting a new one")
+            _PROCESSES.shutdown(wait=False, cancel_futures=True)
+            _PROCESSES = _pool()
+            future = _PROCESSES.submit(_read_in_process, key, start, end, TRAINING_HALF_WIDTH_NM)
+        _READING[key] = future
+        _LAST_READ = time.time()
+        future.add_done_callback(_read_ended)
+        return future
+
+
+def _read_ended(_future: Future) -> None:
+    global _LAST_READ
+    _LAST_READ = time.time()
+
+
+def release_idle(now: float | None = None) -> bool:
+    """The pool's processes let go where none has read for IDLE_S; whether
+    they were."""
+    global _PROCESSES
+    now = time.time() if now is None else now
+    with _READING_LOCK:
+        if _PROCESSES is None or now - _LAST_READ < IDLE_S or any(not f.done() for f in _READING.values()):
+            return False
+        _PROCESSES.shutdown(wait=False, cancel_futures=True)
+        _PROCESSES = None
+        _READING.clear()
+        return True
 
 
 def corridor(route: str, wait: bool) -> list | None:
@@ -27,7 +122,31 @@ def corridor(route: str, wait: bool) -> list | None:
     page's own, shared, so this starts no second read."""
     dep, dest = route.split("->")
     r = load_hop(dep, dest)
-    job = detect_job((route, TRAINING_HALF_WIDTH_NM), r.start, r.end, TRAINING_HALF_WIDTH_NM)
+    key = (route, TRAINING_HALF_WIDTH_NM)
+    # A read whose process died part way -- or another read's did, which
+    # takes the pool and all its reads down with it -- once more, in the
+    # new pool _reading starts; not here, where a read that ran a process
+    # out of memory would take the planner with it.
+    for tries in (1, 2):
+        elsewhere = _reading(key, r.start, r.end)
+        if elsewhere is None:
+            break
+        if not wait and not elsewhere.done():
+            return None
+        try:
+            error = elsewhere.result()
+        except BrokenProcessPool as err:
+            log.warning("the chart reader stopped part way along %s (try %d)", route, tries)
+            if tries == 2:
+                raise RuntimeError(f"the chart along {route} could not be read: the reader stopped part way") from err
+            continue
+        except Exception as err:  # noqa: BLE001 -- the pool would not take it: read here instead, as before
+            error = None
+            log.warning("the chart along %s was not read in a process of its own: %s", route, err)
+        if error is not None:
+            raise RuntimeError(f"the chart along {route} could not be read: {error}")
+        break
+    job = detect_job(key, r.start, r.end, TRAINING_HALF_WIDTH_NM)
     with job["cond"]:
         if wait:
             job["cond"].wait_for(lambda: job["done"])

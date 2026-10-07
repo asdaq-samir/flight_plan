@@ -9,6 +9,13 @@ import { expect, type Locator, type Page } from "@playwright/test";
 
 export const PAGES = ["/app/plan", "/app/dev"] as const;
 
+/** The first-run tips (lib/tips) marked seen, every one, in the page's
+ *  storage: for page.evaluate, or page.addInitScript where a spec starts
+ *  with none of the suite's saved session. */
+export function noTips() {
+  localStorage.setItem("vfr.tips", JSON.stringify({ state: { seen: ["*"] }, version: 0 }));
+}
+
 /** An explicit wait, doubled in CI: playwright.config.ts doubles the
  *  default waits there, and a wait written out here would otherwise
  *  stay at its local figure -- which on a runner carrying the stack,
@@ -42,6 +49,49 @@ export async function openPanel(page: Page) {
   await expect(panel).toHaveAttribute("data-panel", "half");
 }
 
+/** The panel to a height by taps on its grabber, which cycle the three
+ *  -- the pill, half, all the way up and back down (MapPanel) -- a tap
+ *  at a time, each waited on, three at the most. */
+export async function grabberTo(page: Page, state: "peek" | "half" | "full") {
+  const panel = sideDrawer(page);
+  await panel.waitFor();
+  for (let taps = 0; taps < 3; taps++) {
+    const now = await panel.getAttribute("data-panel");
+    if (now === state) return;
+    await page.getByTestId("sidebar-trigger-button").click();
+    await expect(panel).not.toHaveAttribute("data-panel", now!);
+  }
+  await expect(panel).toHaveAttribute("data-panel", state);
+}
+
+/** The panel all the way out, as a finger takes it: a drag on its
+ *  grabber to the screen's far edge. At half it ends at the tabs' bar;
+ *  from the pill, two taps on the grabber. */
+async function panelFull(page: Page) {
+  const panel = sideDrawer(page);
+  await panel.waitFor();
+  if ((await panel.getAttribute("data-panel")) === "full") return;
+  if ((await panel.getAttribute("data-panel")) === "peek") {
+    await grabberTo(page, "full");
+    return;
+  }
+  await settled(panel);
+  const box = (await panel.boundingBox())!;
+  const grab = (await page.getByTestId("sidebar-trigger-button").boundingBox())!;
+  const x = grab.x + grab.width / 2, y = grab.y + grab.height / 2;
+  // From the bottom of a phone the grabber is the sheet's top: up. From
+  // the top, its foot: down.
+  const up = Math.abs(y - box.y) < Math.abs(y - (box.y + box.height));
+  const viewport = page.viewportSize()!;
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x, up ? y - 40 : y + 40, { steps: 4 });
+  await page.mouse.move(x, up ? 8 : viewport.height - 8, { steps: 10 });
+  await page.mouse.up();
+  await expect(panel).toHaveAttribute("data-panel", "full");
+  await settled(panel);
+}
+
 /** The settings: the console's last tab, the console opened from its
  *  button -- on the planner's search bar, on the training page among the
  *  map's -- and all the way out. Escape closes the console again. */
@@ -52,15 +102,23 @@ export async function openSettings(page: Page) {
   await expandConsole(page);
 }
 
-/** A setting changed on the planner before a route is loaded: its
- *  console's button is on the search bar alone (MapPage), which a route
- *  takes the place of, so a setting a route's map should show is set
- *  first -- remembered per browser -- and the route loaded after. */
+/** The map's settings: the sheet of the map's own button, first among
+ *  the map's buttons (MapSettingsButton), as Maps' map button holds its
+ *  map's. Escape puts it away. */
+export async function openMapSettings(page: Page) {
+  await page.locator("[data-map-controls]").getByTestId("map-settings-button").click();
+  await expect(page.getByTestId("map-settings")).toBeVisible();
+}
+
+/** A map setting changed on the planner before a route is loaded --
+ *  remembered per browser -- and the route loaded after, for a route's
+ *  map that should show it. */
 export async function beforeTheRoute(page: Page, change: () => Promise<void>) {
   await page.goto("/app/plan");
-  await openSettings(page);
+  await openMapSettings(page);
   await change();
-  await closeConsole(page);
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("map-settings")).toHaveCount(0);
 }
 
 /** The console all the way out. On a phone it opens half way, at iOS's
@@ -119,10 +177,10 @@ export async function closeConsole(page: Page) {
  *  the bottom edge on a phone (shadcn's Drawer). */
 export const consoleSheet = (page: Page) => page.getByTestId("console-sheet");
 
-/** The pilot console's Library, on one of its three: the tab, then the
- *  segment. */
-export async function library(scope: Page | Locator, section: "Aircraft" | "Flights" | "Logbook") {
-  await scope.getByRole("tab", { name: "Library" }).click();
+/** The pilot console's Personal tab (it was Library), on one of its
+ *  four: the tab, then the segment. */
+export async function library(scope: Page | Locator, section: "Aircraft" | "Flights" | "Logbook" | "Minimums") {
+  await scope.getByRole("tab", { name: "Personal" }).click();
   await scope.getByTestId("library-section").getByRole("radio", { name: section }).click();
 }
 
@@ -158,10 +216,18 @@ export async function closeSidebarWithTheStockKey(page: Page) {
  *  cancelled on the way is as done as one that ran out: its `finished`
  *  rejects, with an AbortError, and Promise.all used to take that for
  *  the whole wait failing (the Model Training drawer, its table drawn
- *  at once from the planner's kept read, three times running on CI). */
+ *  at once from the planner's kept read, three times running on CI).
+ *  Nor one out of sight in a tab not up (PanelTabs' tab-away,
+ *  content-visibility: hidden): the browser stops updating it there, and
+ *  its `finished` never comes -- the nav log's rows, arriving as the
+ *  Weather tab opened, held this for two minutes on CI. */
 export async function settled(locator: Locator) {
   await locator.evaluate(el => Promise.all(el.getAnimations({ subtree: true })
     .filter(a => a.effect?.getTiming().iterations !== Infinity)
+    .filter(a => {
+      const target = a.effect instanceof KeyframeEffect ? a.effect.target : null;
+      return !target || target.checkVisibility();
+    })
     .map(a => a.finished.catch(() => undefined))));
 }
 
@@ -189,7 +255,7 @@ export async function openSidebar(page: Page) {
 /** The briefing is the flight planning panel: open it from its
  *  toggle, and the URL says so. */
 export async function openBriefing(page: Page) {
-  await page.getByTestId("sidebar-trigger-button").click();
+  await grabberTo(page, "full");
   await expect(page).toHaveURL(/[?&]view=briefing/);
   await expectDrawerOpen(page);
 }
@@ -199,14 +265,20 @@ export async function openBriefing(page: Page) {
  *  narrative as it opens -- a real, billed Claude call -- so here it is
  *  answered with a line of its own. */
 export async function openTab(page: Page, name: "Brief" | "Nav Log" | "Local" | "Weather" | "Performance" | "Airports") {
+  // The tabs are past the half panel's foot, which ends at the flight's
+  // line: all the way out, as a finger drags it, to reach them.
+  await panelFull(page);
   if (name === "Brief") {
     await page.route(url => url.pathname.endsWith("/api/comparison"), route => route.fulfill({
       status: 200, contentType: "application/x-ndjson",
       body: JSON.stringify({ type: "done", briefing: "A test narrative." }) + "\n",
     }));
   }
-  await sideDrawer(page).getByRole("tab", { name, exact: true }).click();
-  await expect(sideDrawer(page).getByRole("tab", { name, exact: true })).toHaveAttribute("aria-selected", "true");
+  // Not the tab up already: tapped again all the way up, it lowers the
+  // panel to half (PanelTabs).
+  const tab = sideDrawer(page).getByRole("tab", { name, exact: true });
+  if ((await tab.getAttribute("aria-selected")) !== "true") await tab.click();
+  await expect(tab).toHaveAttribute("aria-selected", "true");
 }
 
 /** A tap on the chart itself, somewhere nothing else is: not a marker,
@@ -224,11 +296,15 @@ export async function tapTheChart(page: Page) {
   }), { timeout: 10000 }).toBe(true);
   const at = await page.locator(".leaflet-container").evaluate(map => {
     const r = map.getBoundingClientRect();
+    // Clear of every mark by more than a near miss (AirportsLayer's 22),
+    // which a tap there would select.
+    const marks = [...map.querySelectorAll(".leaflet-marker-icon, .leaflet-airport-target")].map(m => m.getBoundingClientRect());
+    const clear = (x: number, y: number) => marks.every(m => x < m.left - 30 || x > m.right + 30 || y < m.top - 30 || y > m.bottom + 30);
     for (let fy = 0.85; fy > 0.1; fy -= 0.1) {
       for (let fx = 0.15; fx < 0.9; fx += 0.1) {
         const x = r.left + r.width * fx, y = r.top + r.height * fy;
         const hit = document.elementFromPoint(x, y);
-        if (hit && map.contains(hit) && (hit.matches("img.leaflet-tile") || hit.matches(".leaflet-container, .leaflet-pane, .leaflet-layer, .leaflet-tile-container"))) return { x, y };
+        if (hit && map.contains(hit) && clear(x, y) && (hit.matches("img.leaflet-tile") || hit.matches(".leaflet-container, .leaflet-pane, .leaflet-layer, .leaflet-tile-container"))) return { x, y };
       }
     }
     return null;

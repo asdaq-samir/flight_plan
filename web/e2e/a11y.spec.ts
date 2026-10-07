@@ -1,6 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { test, expect, type Page } from "@playwright/test";
-import { settle, slow, openTab } from "./helpers";
+import { settle, settled, slow, openTab } from "./helpers";
 
 /**
  * Accessibility by axe-core, beside the iOS audit's measured rules
@@ -15,8 +15,7 @@ import { settle, slow, openTab } from "./helpers";
  *  left out): a sheet sliding in is glass over a moving map, and its
  *  words were read against that. */
 async function atRest(page: Page) {
-  await page.evaluate(() => Promise.all(document.getAnimations()
-    .filter(a => a.effect?.getTiming().iterations !== Infinity).map(a => a.finished.catch(() => undefined))));
+  await settled(page.locator("body"));
   await page.waitForTimeout(300);
 }
 
