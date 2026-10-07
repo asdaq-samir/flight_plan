@@ -47,12 +47,20 @@ export const IOS_TYPE: Record<number, number> = {
  *  three seconds: in WebKit an animation's promise could stay pending
  *  for good, and the wait with it. */
 export async function still(page: Page) {
-  await page.evaluate(() => Promise.race([
-    Promise.all(document.getAnimations()
-      .filter(a => a.effect?.getTiming().iterations !== Infinity)
-      .map(a => a.finished.catch(() => undefined))),
-    new Promise(done => setTimeout(done, 3000)),
-  ]));
+  await page.evaluate(async () => {
+    // Two frames first: a change just made -- the colour scheme switched
+    // for P15's dark pass, a control enabled -- starts its transitions
+    // only when the page's style is next worked out, and a wait begun
+    // before then found none to wait for. CI's landscape phone measured
+    // a row's words at 1.1:1, dark on dark, a frame into a theme change.
+    await new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done)));
+    await Promise.race([
+      Promise.all(document.getAnimations()
+        .filter(a => a.effect?.getTiming().iterations !== Infinity)
+        .map(a => a.finished.catch(() => undefined))),
+      new Promise(done => setTimeout(done, 3000)),
+    ]);
+  });
 }
 
 /** The planner's progress toasts gone ("Scoring checkpoints…"): over
