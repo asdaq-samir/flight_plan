@@ -47,6 +47,12 @@ const iosDevices = [
   iosDevice("ipad-slide-over", 320, 1000, 2),
   iosDevice("ipad-mini", 744, 1133, 2),
   iosDevice("ipad-pro-13", 1032, 1376, 2),
+  // The iPhone Duo (2026), Apple's foldable: closed, its 5.4-inch cover
+  // screen (1398 x 2034 at 3x); open, its 7.6-inch inner one (1878 x
+  // 2670 at 3x) upright and on its side -- Apple's specifications.
+  iosDevice("iphone-duo-folded", 466, 678, 3),
+  iosDevice("iphone-duo-open", 626, 890, 3),
+  iosDevice("iphone-duo-open-landscape", 890, 626, 3),
   // The same specs in WebKit, for Safari's engine (not its chrome).
   { name: "webkit-iphone", testDir: "./e2e/ios", dependencies: ["setup"],
     use: { ...devices["iPhone 15 Pro"], storageState: DEVELOPER_STATE } },
