@@ -9,7 +9,7 @@ import { FILLS_HALF, GLASS_BUTTON } from "../../../components/mapChrome";
 import { CardHead, PanelCard } from "../../../components/PanelCard";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
 import { Button } from "../../../components/ui/button";
-import { api } from "../../../lib/api/client";
+import { ApiError, api } from "../../../lib/api/client";
 import type { AirportPin, AirportPlace, ClassBAirport } from "../../../lib/api/types";
 import { compassPoint } from "../../../lib/compass";
 import { bearingDeg, distanceNm, type LatLon } from "../../../lib/geo";
@@ -102,7 +102,7 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddToRout
   /** The panel all the way up, for a section scrolled to. */
   onExpand: () => void;
 }) {
-  const { data: place, isLoading, isError } = useQuery({
+  const { data: place, isLoading, error } = useQuery({
     queryKey: ["airport", ident], queryFn: () => api.airport(ident), staleTime: 5 * 60_000,
   });
   // What the map knows of it already -- its name and its weather's
@@ -132,7 +132,11 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddToRout
       <div className={cn("min-h-[calc(var(--half-body,0px)_-_var(--corner-inset,0.75rem))]", FILLS_HALF)}>
         <CardHead
           name={place?.name ?? known?.name ?? ident} nameTestId="place-name"
-          line={place ? subtitleOf(place, from) : isError ? `${ident} · not found` : `${ident} · …`}
+          // Not found only where the planner said so: a planner out of
+          // reach for a moment (restarted) read "not found" for KBUR.
+          line={place ? subtitleOf(place, from)
+            : error ? `${ident} · ${error instanceof ApiError && error.status === 404 ? "not found" : "could not be looked up"}`
+              : `${ident} · …`}
           onClose={onClose} closeTestId="place-close"
         >
           {weather && (

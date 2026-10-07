@@ -131,14 +131,21 @@ export const capabilitiesQuery = queryOptions({
  *  `meta` -- a course that fails is the page's first news that the
  *  planner is down. */
 export const courseQuery = (dep: string, dest: string, stops: string[] = []) => queryOptions({
-  queryKey: ["course", dep, dest, stops.join(",")], queryFn: () => api.course(dep, dest, stops), staleTime: Infinity,
+  queryKey: ["course", dep, dest, stops.join(",")], queryFn: ({ signal }) => api.course(dep, dest, stops, signal), staleTime: Infinity,
 });
 
 /** A route's checkpoints off the chart: the planner's, kept until the
  *  chart or the model changes (app.scoring), so never stale here. Asked
- *  for by the plan (usePlan) and ahead of Fly Here (PlanWorkspace). */
+ *  for by the plan (usePlan) and ahead of Fly Here (PlanWorkspace). Given
+ *  up when nothing asks for the route any more (`signal`, which TanStack
+ *  aborts as the last observer leaves): a route typed a stop at a time
+ *  left each stop's request reading the chart for up to 10 s, and over
+ *  HTTP/1.1 a browser's six connections to the page filled with them --
+ *  a card, the next route's course and the tiles waited behind
+ *  (2026-10-07). The planner's read goes on and is kept either way. */
 export const checkpointsQuery = (dep: string, dest: string, stops: string[] = []) => queryOptions({
-  queryKey: ["checkpoints", dep, dest, stops.join(",")], queryFn: () => api.checkpoints(dep, dest, stops), staleTime: Infinity,
+  queryKey: ["checkpoints", dep, dest, stops.join(",")],
+  queryFn: ({ signal }) => api.checkpoints(dep, dest, stops, signal), staleTime: Infinity,
 });
 
 /** The Class B airports and their weather. The airspace never moves and

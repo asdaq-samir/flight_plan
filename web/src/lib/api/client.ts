@@ -184,13 +184,15 @@ const stopsParam = (stops?: string[]) => (stops?.length ? stops.join(",") : unde
 export const api = {
   /** The leg itself, through any stops: sub-second, and enough to draw
    *  before any tile is read. */
-  course: (dep: string, dest: string, stops?: string[]) =>
-    planner.GET("/api/course", { params: { query: { dep, dest, stops: stopsParam(stops) } } }).then(data<Course>),
+  course: (dep: string, dest: string, stops?: string[], signal?: AbortSignal) =>
+    planner.GET("/api/course", { params: { query: { dep, dest, stops: stopsParam(stops) } }, signal }).then(data<Course>),
 
   /** Scored candidates and the subset worth flying, hop by hop. Fast --
-   *  the model is loaded and the features are already built. */
-  checkpoints: (dep: string, dest: string, stops?: string[]) =>
-    planner.GET("/api/checkpoints", { params: { query: { dep, dest, stops: stopsParam(stops) } } }).then(data<Checkpoints>),
+   *  the model is loaded and the features are already built -- once the
+   *  chart is read along the route, which on a new one is seconds: given
+   *  up with `signal` when the route changes (checkpointsQuery). */
+  checkpoints: (dep: string, dest: string, stops?: string[], signal?: AbortSignal) =>
+    planner.GET("/api/checkpoints", { params: { query: { dep, dest, stops: stopsParam(stops) } }, signal }).then(data<Checkpoints>),
 
   /**
    * The slow half: terrain, the obstacle file, the airspace shapefile
@@ -287,9 +289,9 @@ export const api = {
   routeProfile: (dep: string, dest: string, stops?: string[]) =>
     planner.GET("/api/route-profile", { params: { query: { dep, dest, stops: stopsParam(stops) } } }).then(data<RouteProfile>),
 
-  briefing: (dep: string, dest: string, depart?: string, eteMin?: number, stops?: string[]) =>
+  briefing: (dep: string, dest: string, depart?: string, eteMin?: number, stops?: string[], signal?: AbortSignal) =>
     planner.GET("/api/briefing", {
-      params: { query: { dep, dest, stops: stopsParam(stops), depart, ete_min: eteMin } },
+      params: { query: { dep, dest, stops: stopsParam(stops), depart, ete_min: eteMin } }, signal,
     }).then(data<Briefing>),
 
   /** The chart the map draws, for a map with no route on it yet. */
