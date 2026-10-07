@@ -9,7 +9,7 @@ from vfr import airports, fixes, geo, navlog
 from vfr import altitude as altitude_module
 
 from app import planning, scoring
-from app.common import load_route
+from app.common import load_hop, load_route
 from app.main import app
 
 from .conftest import airport, select_cruise_altitude_stub
@@ -138,7 +138,7 @@ RFD_DME = {"ident": "RFD", "lat": 42.2256, "lon": -89.1993, "kind": "DME", "vfr"
 @pytest.fixture
 def the_rockford_dme(monkeypatch):
     """RFD both a navaid and an airport's own identifier, as Rockford's is."""
-    monkeypatch.setattr(fixes, "find_navaid", lambda ident: RFD_DME if ident.upper() == "RFD" else None)
+    monkeypatch.setattr(fixes, "find_navaid", lambda ident, near=(): RFD_DME if ident.upper() == "RFD" else None)
     monkeypatch.setattr(fixes, "search_fixes", lambda q, limit=5: [RFD_DME] if "RFD".startswith(q.upper()) else [])
     monkeypatch.setattr(airports, "get_airport", lambda ident, **kw: airport({"RFD": "KMSN"}.get(ident.upper(), ident.upper())))
 
@@ -148,6 +148,23 @@ def test_a_stop_named_for_a_navaid_flies_over_the_navaid_not_to_the_airport(the_
     stop = course["stops"][0]
     assert (stop["ident"], stop["kind"], stop["name"]) == ("RFD", "fix", "Rockford DME 110.8")
     assert (stop["lat"], stop["lon"]) == (RFD_DME["lat"], RFD_DME["lon"])
+
+
+REAL_FIND_NAVAID = fixes.find_navaid
+
+
+def test_of_two_navaids_by_one_ident_a_route_flies_over_the_one_by_it(monkeypatch):
+    # "AB" a beacon in Wisconsin and another in Georgia, as NASR has some
+    # two-letter idents twice: from C81 to Duluth, Wisconsin's.
+    beacon = {"ident": "AB", "kind": "NDB", "vfr": False, "navaid": True, "name": "Beacon", "freq": "350", "state": None}
+    navaids = {"AB": [{**beacon, "lat": 33.5, "lon": -82.6, "state": "GA"}, {**beacon, "lat": 44.5, "lon": -90.5, "state": "WI"}]}
+    monkeypatch.setattr(fixes, "_TABLE", fixes._Table({}, navaids))
+    monkeypatch.setattr(fixes, "find_navaid", REAL_FIND_NAVAID)
+    stop = client.get("/api/course", params={"dep": "C81", "dest": "KDLH", "stops": "AB"}).json()["stops"][0]
+    assert (stop["lat"], stop["lon"]) == (44.5, -90.5)
+    # And a hop's own ends choose it the same way, for its checkpoints.
+    assert load_route("C81", "KDLH", "AB").hops[1].airports[0]["lat"] == 44.5
+    assert load_hop("AB", "KDLH").airports[0]["lat"] == 44.5
 
 
 def test_a_stops_search_puts_the_navaid_typed_whole_first(the_rockford_dme, monkeypatch):

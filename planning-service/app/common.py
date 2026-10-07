@@ -71,11 +71,13 @@ def resolve(*idents: str) -> tuple:
         raise HTTPException(404, str(err)) from err
 
 
-def resolve_stop(ident: str) -> dict:
+def resolve_stop(ident: str, near: tuple = ()) -> dict:
     """A stop: an airport, landed at, or a named fix -- a VFR waypoint
     (VPBNG), a GPS waypoint, a navaid (RFD) -- flown through (vfr.fixes);
     a 404 where it is neither. A fix is in the shape an airport is, with
-    no elevation, and `fix` set. A present position (position_of) too."""
+    no elevation, and `fix` set. A present position (position_of) too.
+    `near`, the route's other points as (lat, lon): which of the navaids
+    an ident names in more than one place is meant (fixes.find_navaid)."""
     position = position_of(ident)
     if position is not None:
         return position
@@ -83,7 +85,7 @@ def resolve_stop(ident: str) -> dict:
     # one: "RFD" is the Rockford DME, flown over, and the airport is KRFD,
     # written with its K. It was the airport, a hop of no length before
     # KRFD where the pilot meant the DME 4.9 nm out (2026-10-07).
-    navaid = fixes.find_navaid(ident)
+    navaid = fixes.find_navaid(ident, near)
     if navaid is not None:
         return _fix_stop(navaid, fixes.title(navaid))
     try:
@@ -96,6 +98,10 @@ def resolve_stop(ident: str) -> dict:
         # stand-alone waypoint has no name of its own (vfr.places).
         where = places.describe(fix["lat"], fix["lon"])
         return _fix_stop(fix, f"{fix['kind']} {where}" if where else fix["kind"])
+
+
+def _at(point: dict) -> tuple[float, float]:
+    return point["lat"], point["lon"]
 
 
 def _fix_stop(fix: dict, name: str) -> dict:
@@ -197,7 +203,11 @@ def load_hop(dep: str, dest: str) -> Route:
     may be a waypoint flown through (resolve_stop): its chart is read as
     any route's is."""
     dep, dest = route_key(dep, dest)
-    return Route((dep, dest), (resolve_stop(dep), resolve_stop(dest)))
+    # Each end by the other: an ident that names navaids in two places is
+    # the one by the hop's other end, as the route's choice is by its ends.
+    start = resolve_stop(dep)
+    end = resolve_stop(dest, near=(_at(start),))
+    return Route((dep, dest), (resolve_stop(dep, near=(_at(end),)), end))
 
 
 def load_route(dep: str, dest: str, stops: str | list | None = None) -> Route:
@@ -214,7 +224,8 @@ def load_route(dep: str, dest: str, stops: str | list | None = None) -> Route:
         if a == b and len(idents) > 2:
             raise HTTPException(422, f"{a} follows itself: a stop is a different airport from the one before it.")
     dep_airport, dest_airport = resolve(idents[0], idents[-1])
-    points = (dep_airport, *(resolve_stop(s) for s in idents[1:-1]), dest_airport)
+    ends = (_at(dep_airport), _at(dest_airport))
+    points = (dep_airport, *(resolve_stop(s, near=ends) for s in idents[1:-1]), dest_airport)
     # And by where they are, not only by how they are written: RFD is
     # KRFD's own FAA identifier, and "KUGN, RFD, KRFD" was a hop of no
     # length, which the altitude plans divided by (2026-10-07).
