@@ -1,4 +1,5 @@
 import { test, expect, type Page, type Route } from "@playwright/test";
+import { settled as settledLocator } from "./helpers";
 
 /**
  * What a pilot meets when things go wrong, and the toasts that are left.
@@ -50,11 +51,11 @@ async function problemTitles(page: Page): Promise<string[]> {
   return page.locator("[data-problem-item]").allTextContents();
 }
 
-/** Come to rest: its moves done, the progress line's spinner, which never
- *  is, left out. */
+/** Come to rest: its moves done (helpers' settled: the progress line's
+ *  spinner, which never is, a move cancelled on the way, and what a tab
+ *  out of sight holds, left out). */
 async function settled(page: Page, selector: string) {
-  await page.locator(selector).first().evaluate(el => Promise.all(el.getAnimations({ subtree: true })
-    .filter(a => a.effect?.getTiming().iterations !== Infinity).map(a => a.finished)));
+  await settledLocator(page.locator(selector).first());
 }
 
 test("a planner that is down says so once, in one line, not once per call", async ({ page }) => {
