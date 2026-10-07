@@ -2,6 +2,27 @@ import L from "leaflet";
 import { inkOn } from "../scoreScale";
 import { textWidth } from "../textWidth";
 
+/** An icon made once for the same arguments and handed out again after:
+ *  react-leaflet sets a marker's icon again whenever the icon is a new
+ *  object, rebuilding its element, and every redraw of the planner made
+ *  every marker's anew -- a narrative arriving, a tab opening redrew the
+ *  route's chips (leaflet's createIcon, measured on the Brief tab's first
+ *  opening). Plain data in, so the arguments are the key; a few thousand
+ *  kept at most. */
+function made<A extends unknown[]>(make: (...args: A) => L.DivIcon): (...args: A) => L.DivIcon {
+  const kept = new Map<string, L.DivIcon>();
+  return (...args: A) => {
+    const key = JSON.stringify(args);
+    let icon = kept.get(key);
+    if (!icon) {
+      if (kept.size > 4000) kept.clear();
+      icon = make(...args);
+      kept.set(key, icon);
+    }
+    return icon;
+  };
+}
+
 /**
  * Leaflet's div icons take HTML, so these are HTML -- the same Tailwind
  * classes as the rest of the page, in template strings.
@@ -28,7 +49,7 @@ function text(value: string | number): string {
  * paper, and a shadow to lift it off both. One edge is never enough on a
  * chart this busy.
  */
-export function dotIcon(fill: string, label?: string | number) {
+export const dotIcon = made(function dotIcon(fill: string, label?: string | number) {
   const withLabel = label !== undefined;
   // The tap target (iconSize) is bigger than the visual dot on purpose --
   // a 20px dot is well under a comfortable touch target, but making the
@@ -56,7 +77,7 @@ export function dotIcon(fill: string, label?: string | number) {
       `<div class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border-[2.5px] border-background shadow-[0_1px_4px_rgba(0,0,0,.45)] outline outline-1 outline-[rgba(10,20,28,.55)] ${size}"` +
       ` style="background-color:${text(fill)};color:${text(inkOn(fill))}">${withLabel ? text(label) : ""}</div>`,
   });
-}
+});
 
 /** Own ship: an arrow the size of a checkpoint dot, blue with a white
  *  casing so it holds over any chart colour, turned to the GPS heading
@@ -105,14 +126,14 @@ export const airportChipWidth = (ident: string) => Math.max(40, Math.ceil(ident.
  * after (the screen's edge, another name). Not a target: a tap there is
  * the dot's or the chart's.
  */
-export function checkpointLabelIcon(name: string, side: "right" | "left" = "right") {
+export const checkpointLabelIcon = made(function checkpointLabelIcon(name: string, side: "right" | "left" = "right") {
   return L.divIcon({
     className: "",
     iconSize: [0, 0],
     iconAnchor: [side === "right" ? -CHECKPOINT_LABEL_GAP : CHECKPOINT_LABEL_GAP, CHECKPOINT_LABEL_HEIGHT / 2],
     html: `<span data-checkpoint-label="" class="pointer-events-none absolute ${side === "right" ? "left-0" : "right-0"} top-0 whitespace-nowrap rounded-md bg-[#1f2933]/85 px-1.5 text-[12px] font-bold uppercase leading-[20px] tracking-wide text-white shadow-[0_1px_3px_rgba(0,0,0,.4)]">${text(name)}</span>`,
   });
-}
+});
 
 /**
  * An airport: the ident on a chip coloured by what is known of its
@@ -139,7 +160,7 @@ const WAYPOINT_MAGENTA = "#b02e7c";
 
 /** A VFR waypoint on the chart (VPBNG): a magenta diamond and no words,
  *  as small as the chart's own flag, in a finger's 44 points of target. */
-export function diamondIcon() {
+export const diamondIcon = made(function diamondIcon() {
   return L.divIcon({
     className: "",
     iconSize: [44, 44], iconAnchor: [22, 22],
@@ -147,12 +168,12 @@ export function diamondIcon() {
       `<span class="absolute left-1/2 top-1/2 size-3 -translate-x-1/2 -translate-y-1/2 rotate-45 rounded-[2px] border-2 border-white shadow-sm"` +
       ` style="background-color:${WAYPOINT_MAGENTA}"></span>`,
   });
-}
+});
 
 /** A waypoint the route flies through (a VFR or GPS waypoint): a chip in
  *  white with magenta words and the diamond the chart's waypoints wear,
  *  where an airport's chip wears its weather. */
-export function waypointIcon(ident: string) {
+export const waypointIcon = made(function waypointIcon(ident: string) {
   const width = Math.max(40, Math.ceil(ident.length * 7.5) + 30);
   return L.divIcon({
     className: "",
@@ -161,12 +182,12 @@ export function waypointIcon(ident: string) {
       `<span class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded-full border-2 border-[#b02e7c] bg-white px-1.5 py-0.5 text-[11px] font-bold text-[#8a1f5f] shadow-sm"` +
       `>&#9670;&#8202;${text(ident)}</span>`,
   });
-}
+});
 
 /** A top of climb or descent on the course line: "TOC" or "TOD" in a
  *  small white tag edged in the line's orange, under the checkpoints'
  *  dots (it is a point the plan works out, not one to look for). */
-export function legPointIcon(label: "TOC" | "TOD") {
+export const legPointIcon = made(function legPointIcon(label: "TOC" | "TOD") {
   return L.divIcon({
     className: "",
     iconSize: [38, 20], iconAnchor: [19, 10],
@@ -174,9 +195,9 @@ export function legPointIcon(label: "TOC" | "TOD") {
       `<span class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded-sm border-[1.5px] border-[#ff3b00] bg-white px-1 text-[11px] leading-[13px] font-bold text-[#1c1a17] shadow-sm"` +
       `>${text(label)}</span>`,
   });
-}
+});
 
-export function airportIcon(colour: string, ident: string, { classB = false, unchecked = false } = {}) {
+export const airportIcon = made(function airportIcon(colour: string, ident: string, { classB = false, unchecked = false } = {}) {
   const width = airportChipWidth(ident);
   // A Class B field's pill is round-ended and coloured by its flight
   // category (the category in words was tried above the ident and
@@ -196,4 +217,4 @@ export function airportIcon(colour: string, ident: string, { classB = false, unc
       `<span class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap ${shape} border-2 border-white px-1.5 py-0.5 text-[11px] font-bold shadow-sm outline outline-1 outline-[rgba(10,20,28,.45)]"` +
       ` style="${fill}">${text(ident)}</span>`,
   });
-}
+});

@@ -728,7 +728,10 @@ def ceiling_visibility_along_route(
 
     min_lat, min_lon, max_lat, max_lon = corridor_bbox(route_start, route_end, corridor_buffer_nm)
     stations = [
-        s for s in _dataset("tafs", _parse_tafs)
+        # The held copy: a second argument here was `force`, and with the
+        # parser passed as it every call downloaded and parsed the whole
+        # TAF set again -- 0.9 s of every briefing and altitude plan.
+        s for s in _dataset("tafs")
         if min_lat <= s["lat"] <= max_lat and min_lon <= s["lon"] <= max_lon
     ]
 

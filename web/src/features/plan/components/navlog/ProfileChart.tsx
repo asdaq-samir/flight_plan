@@ -1,5 +1,6 @@
 import { Area, ComposedChart, Line, ReferenceArea, ReferenceDot, XAxis, YAxis } from "recharts";
 import { ChartContainer, type ChartConfig } from "../../../../components/ui/chart";
+import ChartTick from "../../../../components/chartTick";
 import type { RouteProfile } from "../../../../lib/api/types";
 import { altFt } from "../../../../lib/units";
 import type { planProfile } from "./profile";
@@ -34,22 +35,23 @@ export default function ProfileChart({ profile, plan }: { profile: RouteProfile;
   const highest = Math.max(0, ...profile.terrain.map(t => t.ground_ft), ...plan.points.map(p => p.plan_ft));
   const top = Math.ceil((highest + 1500) / 1000) * 1000;
   return (
-    // Its axes' figures in the text's colour -- recharts' own #666, which
-    // the stock container's rule no longer reaches (its ticks' class is
-    // recharts 3's), was 2.8:1 on the dark glass -- and its labels on SVG's
-    // own leading.
+    // Its labels on SVG's own leading; its axes' figures are ChartTick's,
+    // in the text's colour (recharts' own #666 was 2.8:1 on dark glass).
     <ChartContainer
       config={config} data-testid="profile-chart"
-      className="aspect-auto h-48 w-full [&_.recharts-cartesian-axis-tick-value]:fill-foreground [&_text]:[line-height:normal]"
+      className="aspect-auto h-48 w-full [&_text]:[line-height:normal]"
     >
       <ComposedChart data={data} margin={{ top: 12, right: 8, left: 0, bottom: 0 }} accessibilityLayer>
+        {/* Every tick drawn, plain and unmeasured, as the weight and balance
+            envelope's (EnvelopeChart, ChartTick): recharts' own measured each
+            in the page. */}
         <XAxis
           type="number" dataKey="x" domain={[0, profile.length_nm]} tickLine={false} axisLine={false}
-          tickFormatter={(nm: number) => `${Math.round(nm)}`} unit=" nm" tickCount={6}
+          tickCount={6} interval={0} tick={props => <ChartTick {...props} format={nm => `${Math.round(nm)} nm`} />}
         />
         <YAxis
           type="number" domain={[0, top]} tickLine={false} axisLine={false} width={44}
-          tickFormatter={(ft: number) => (ft >= 1000 ? `${ft / 1000}k` : `${ft}`)}
+          interval={0} tick={props => <ChartTick {...props} format={ft => (ft >= 1000 ? `${ft / 1000}k` : `${ft}`)} />}
         />
         {profile.airspace.map((a, i) => {
           const look = AIRSPACE[a.class] ?? AIRSPACE.D!;

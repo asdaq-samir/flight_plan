@@ -41,8 +41,14 @@ import { assess, LEVEL_TONE, riskLine, useRisk } from "../../../../lib/frat";
 import type { BriefingPart } from "./sections";
 
 interface Props {
-  /** Which of the panel's tabs this is drawn in: its sections only. */
-  part: BriefingPart;
+  /** Which of the panel's tabs this is drawn in: its sections only; null,
+   *  nothing drawn -- the one kept out of the tabs that `publish`es. */
+  part: BriefingPart | null;
+  /** Publishes the risk assessment (useRisk) for Save and the Brief tab's
+   *  mark. One instance, outside the tabs: each tab's own, hidden and shown
+   *  under Activity, cleared it and set it again on every switch, and the
+   *  whole panel drew again with each. */
+  publish?: boolean;
   nav: NavLogAltitude | null;
   legs: Leg[];
   dep: string;
@@ -352,7 +358,7 @@ function PassNote({ when }: { when: { pass: Date; state: TfrWhen } | null }) {
 }
 
 export default function FlightBriefingView({
-  part, nav, legs, dep, dest, stops = [], course = null, totals = null, depart = "",
+  part, publish = false, nav, legs, dep, dest, stops = [], course = null, totals = null, depart = "",
   briefing: briefingState,
   langgraphNarrative, crewaiNarrative,
 }: Props) {
@@ -413,7 +419,7 @@ export default function FlightBriefingView({
   // logbook's factors, and what the pilot ticks. Published for the Save
   // button, which files it with the flight.
   const { data: pilot } = useQuery(pilotQuery);
-  const { data: currency } = useQuery({ queryKey: ["currency"], queryFn: api.logbook.currency, enabled: !!pilot });
+  const { data: currency } = useQuery({ queryKey: ["currency"], queryFn: api.logbook.currency, enabled: !!pilot, staleTime: 60_000 });
   const ticked = useRisk(s => s.ticked);
   const setAssessment = useRisk(s => s.setAssessment);
   const margins = [totals?.fuel_margin_gal, ...(totals?.hops ?? []).map(h => h.totals.fuel_margin_gal)]
@@ -449,11 +455,11 @@ export default function FlightBriefingView({
   }) : "";
   const assessmentKey = assessment ? `${assessment.level}:${assessment.score}:${assessment.factors.map(f => f.key).join(",")}` : "";
   useEffect(() => {
-    setAssessment(assessment);
+    if (publish) setAssessment(assessment);
     // Keyed on what it says, not the object made each render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [assessmentKey, setAssessment]);
-  useEffect(() => () => setAssessment(null), [setAssessment]);
+  }, [assessmentKey, setAssessment, publish]);
+  useEffect(() => () => { if (publish) setAssessment(null); }, [setAssessment, publish]);
   const destInUse = destFacilities ? runwayInUse(destFacilities.runways) : null;
   const summaries = {
     adverse: !briefing ? undefined
@@ -489,6 +495,7 @@ export default function FlightBriefingView({
           : `${briefing.tfrs.length} TFR${briefing.tfrs.length === 1 ? "" : "s"} near the route · NOTAMs and ATC delays`,
   };
 
+  if (part === null) return null;
   return (
     // No header, title or scroller of its own: the planning panel's tabs
     // (NavLogView) hold the nav log's own and these, one part to a tab --

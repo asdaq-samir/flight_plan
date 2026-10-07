@@ -105,7 +105,9 @@ function retryable(error: unknown): boolean {
 /** Who is signed in, if anyone. Never a toast: the pilot console shows
  *  a failed check in place ("Retry sign-in check"), and the header's
  *  Dev switch, which observes it too, simply stays hidden. */
-export const pilotQuery = queryOptions({ queryKey: ["pilot"], queryFn: () => api.me(), meta: { silent: true } });
+// Fresh for a minute: every tab of the planning panel reads it, and each
+// switch asked again (/api/me, measured on every one).
+export const pilotQuery = queryOptions({ queryKey: ["pilot"], queryFn: () => api.me(), staleTime: 60_000, meta: { silent: true } });
 
 /** The planner's snapshot of the stack, which the Developer console
  *  and the training drawer's Retrain button poll together. Fresh for

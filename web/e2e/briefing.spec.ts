@@ -106,9 +106,10 @@ test("plan page: the briefing ends on its 'planning aid only' reminder, with the
   // Another tab takes its place, and back.
   await openTab(page, "Airports");
   await expect(drawer.getByRole("heading", { name: "Airport Information" })).toBeVisible();
-  await expect(navLog).toHaveCount(0);
+  // Kept, hidden, for the way back (Activity).
+  await expect(navLog).toBeHidden();
   await openTab(page, "Nav Log");
-  await expect(navLog).toHaveCount(1);
+  await expect(navLog).toBeVisible();
 });
 
 test("plan page: the Brief is a tab after the Nav Log, its narrative from LangGraph or CrewAI as the settings say", async ({ page }) => {
