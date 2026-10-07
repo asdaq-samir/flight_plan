@@ -34,7 +34,14 @@ export default function ProfileChart({ profile, plan }: { profile: RouteProfile;
   const highest = Math.max(0, ...profile.terrain.map(t => t.ground_ft), ...plan.points.map(p => p.plan_ft));
   const top = Math.ceil((highest + 1500) / 1000) * 1000;
   return (
-    <ChartContainer config={config} className="aspect-auto h-48 w-full" data-testid="profile-chart">
+    // Its axes' figures in the text's colour -- recharts' own #666, which
+    // the stock container's rule no longer reaches (its ticks' class is
+    // recharts 3's), was 2.8:1 on the dark glass -- and its labels on SVG's
+    // own leading.
+    <ChartContainer
+      config={config} data-testid="profile-chart"
+      className="aspect-auto h-48 w-full [&_.recharts-cartesian-axis-tick-value]:fill-foreground [&_text]:[line-height:normal]"
+    >
       <ComposedChart data={data} margin={{ top: 12, right: 8, left: 0, bottom: 0 }} accessibilityLayer>
         <XAxis
           type="number" dataKey="x" domain={[0, profile.length_nm]} tickLine={false} axisLine={false}

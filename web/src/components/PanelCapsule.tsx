@@ -42,7 +42,10 @@ export function RouteCapsule({ title, detail, tone = "default", warning, onDetai
         <button
           type="button" onClick={onDetail} data-testid="capsule-detail" data-tone={warning ? "destructive" : "default"}
           aria-label={warning ? `${title}, ${warning}` : title}
-          className="flex h-[2.5625rem] min-w-0 flex-1 items-center justify-center gap-1.5 rounded-full px-3 outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          // Over the grabber's hit area (index.css), which reached down
+          // across its top: the route is what a tap there means, the
+          // grabber's own the drag.
+          className="z-10 flex h-[2.5625rem] min-w-0 flex-1 items-center justify-center gap-1.5 rounded-full px-3 outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           {warning && <CircleAlert className="size-4 shrink-0 text-destructive" aria-hidden="true" />}
           <FittedRoute title={title} marked={!!warning} />

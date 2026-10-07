@@ -3,7 +3,7 @@ import { cn } from "cn";
 import { Button } from "../../../../components/ui/button";
 import { Input } from "../../../../components/ui/input";
 import { ResponsivePopover, ResponsivePopoverContent, ResponsivePopoverTrigger } from "../../../../components/ResponsivePopover";
-import { GLASS_BUTTON } from "../../../../components/mapChrome";
+import { CHIP_TEXT, GLASS_BUTTON } from "../../../../components/mapChrome";
 import type { AltitudeChoice, Leg, NavLogAltitude } from "../../../../lib/api/types";
 import { TEXT } from "../../../../lib/text";
 import { flightLevel } from "../../../../lib/units";
@@ -110,10 +110,12 @@ export default function AltitudeButton({ nav, legs, problem, ownAltitude = true,
         <Button
           variant="outline" size="sm"
           className={cn(
-            "rounded-full px-2.5 font-normal tabular-nums pointer-coarse:px-1.5", GLASS_BUTTON, TEXT.note,
+            "rounded-full px-2.5 font-normal tabular-nums pointer-coarse:px-1.5", GLASS_BUTTON, CHIP_TEXT,
             // Red with no legal altitude: the colour says it, where a mark
-            // beside the figure cost the line its room.
-            problem ? "text-destructive hover:text-destructive" : cruise === null && "text-muted-foreground",
+            // beside the figure cost the line its room -- a darker red in
+            // the light and a lighter in the dark, 4.5:1 on the glass either
+            // way. The dashes alone, with none yet.
+            problem && "text-red-700 hover:text-red-700 dark:text-red-300 dark:hover:text-red-300",
           )}
           aria-label={`Cruising altitude, ${why}: how it was chosen`}
           data-testid="altitude-why"

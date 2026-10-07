@@ -28,7 +28,7 @@ import { useSearchParamsNow } from "../../lib/useSearchParamsNow";
 import type { WorkspaceProps } from "../page/workspace";
 import IconButton from "../../components/IconButton";
 import { ConsoleButtonSlot } from "../../components/PanelCapsule";
-import { GLASS_BUTTON, ROUND_BUTTON } from "../../components/mapChrome";
+import { CHIP_TEXT, GLASS_BUTTON, ROUND_BUTTON } from "../../components/mapChrome";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
 import { Button } from "../../components/ui/button";
 import { RouteCapsule, SearchField, SearchResults } from "../../components/PanelCapsule";
@@ -937,7 +937,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
         {s.local ? (
           <>
             <Select value={String(localMin)} onValueChange={v => changeLocalMin(Number(v))}>
-              <SelectTrigger size="sm" aria-label="Time aloft" className={cn("rounded-full pointer-coarse:text-[0.8125rem] [&_svg]:text-foreground", GLASS_BUTTON)} data-testid="local-duration">
+              <SelectTrigger size="sm" aria-label="Time aloft" className={cn("rounded-full [&_svg]:text-foreground", GLASS_BUTTON, CHIP_TEXT)} data-testid="local-duration">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -954,10 +954,10 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
         ) : (
           // At the row's end, as Maps puts a card's actions: round buttons
           // at a fixed 36 with a 20-point glyph -- as iOS's bar buttons stay
-          // their size at any text size -- four apart, their 44-point hit
-          // areas (index.css) sharing the four between them, so the line
-          // holds at the pilot's text size, a step up from iOS's default.
-          <div className="ml-auto flex shrink-0 items-center gap-1 [&_button]:size-[36px] [&_svg]:size-[20px]">{routeActions}</div>
+          // their size at any text size, so the line holds at the pilot's,
+          // a step up from iOS's default -- eight apart, so their 44-point
+          // hit areas (index.css) meet.
+          <div className="ml-auto flex shrink-0 items-center gap-2 [&_button]:size-[36px] [&_svg]:size-[20px]">{routeActions}</div>
         )}
       </div>
     ),

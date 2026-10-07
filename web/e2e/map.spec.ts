@@ -13,7 +13,7 @@ test("plan page: a route from an airport to itself is a local flight: the field'
   await expect(page.getByTestId("capsule-title")).toHaveText("C81 local", { timeout: slow(30000) });
   await openPanel(page);
   // Its tab where the nav log's is, up as the panel opens.
-  await expect(sideDrawer(page).getByRole("tab", { name: "Local Flight" })).toHaveAttribute("aria-selected", "true");
+  await expect(sideDrawer(page).getByRole("tab", { name: "Local" })).toHaveAttribute("aria-selected", "true");
   await expect(sideDrawer(page).locator('[data-slot="section-summary"]').first()).toContainText(/Aloft 1h 00m/, { timeout: slow(30000) });
   await expect(page.getByTestId("fuel-check")).toContainText("Fuel required");
 

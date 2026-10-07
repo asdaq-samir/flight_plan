@@ -2,7 +2,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { shortName } from "../../../../lib/aircraftChoice";
 import type { ReactNode } from "react";
 import { cn } from "cn";
-import { GLASS_BUTTON } from "../../../../components/mapChrome";
+import { CHIP_TEXT, GLASS_BUTTON } from "../../../../components/mapChrome";
 import DepartPicker from "./DepartPicker";
 
 /**
@@ -37,7 +37,7 @@ export default function FlightInputs({ aircraftValue, aircraftOptions, onAircraf
             and the twenty points it took cost the line its room. */}
         <SelectTrigger
           size="sm" aria-label="Aircraft" data-testid="aircraft-select"
-          className={cn("rounded-full pointer-coarse:px-1.5 pointer-coarse:text-[0.8125rem] [&_svg]:text-foreground pointer-coarse:[&_svg]:hidden", GLASS_BUTTON)}
+          className={cn("rounded-full pointer-coarse:px-1.5 [&_svg]:text-foreground pointer-coarse:[&_svg]:hidden", GLASS_BUTTON, CHIP_TEXT)}
         >
           {/* Its short name -- C172, N12345 -- so a departure time picked
               beside it stays on the same line; the list has them whole. */}

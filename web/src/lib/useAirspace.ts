@@ -23,14 +23,17 @@ export const MAGENTA = "#b02e7c";
  * Solid as a fill, dashed as a dashed ring on a wash of the colour --
  * an outline drawn inside the edge, not a border, so a dashed pill is no
  * bigger than a solid one beside it (the route's box had KDLH's dashed
- * pill five points taller than KMDW's).
+ * pill five points taller than KMDW's). The dashed ones' words a shade
+ * darker than their line, and lighter in the dark (index.css's
+ * --airspace-*-ink): the sectional's own blue on its wash, over the glass,
+ * was 4.2:1 in the light and 2:1 in the dark, under WCAG's 4.5.
  */
 export const AIRSPACE: Record<Space, { name: string; style: CSSProperties }> = {
   B: { name: "Class B", style: { backgroundColor: BLUE, color: "#ffffff" } },
   C: { name: "Class C", style: { backgroundColor: MAGENTA, color: "#ffffff" } },
-  D: { name: "Class D", style: { outline: `2.5px dashed ${BLUE}`, outlineOffset: -2.5, backgroundColor: `${BLUE}1f`, color: BLUE } },
-  E: { name: "Class E", style: { outline: `2.5px dashed ${MAGENTA}`, outlineOffset: -2.5, backgroundColor: `${MAGENTA}1f`, color: MAGENTA } },
-  G: { name: "Class G", style: { background: `radial-gradient(circle closest-side, ${MAGENTA}00 58%, ${MAGENTA}70 82%, ${MAGENTA}10 100%)`, color: MAGENTA } },
+  D: { name: "Class D", style: { outline: `2.5px dashed ${BLUE}`, outlineOffset: -2.5, backgroundColor: `${BLUE}1f`, color: "var(--airspace-blue-ink)" } },
+  E: { name: "Class E", style: { outline: `2.5px dashed ${MAGENTA}`, outlineOffset: -2.5, backgroundColor: `${MAGENTA}1f`, color: "var(--airspace-magenta-ink)" } },
+  G: { name: "Class G", style: { background: `radial-gradient(circle closest-side, ${MAGENTA}00 58%, ${MAGENTA}70 82%, ${MAGENTA}10 100%)`, color: "var(--airspace-magenta-ink)" } },
 };
 
 /** A kept airport's airspace class: the one remembered with it, so the

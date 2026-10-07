@@ -915,7 +915,9 @@ export default function NavLogView({
               {t.icon}
               {marks?.[t.value] && <span className="absolute -top-0.5 -right-1 size-2 rounded-full bg-destructive" data-testid={`panel-tab-mark-${t.value}`} />}
             </span>
-            <span className="truncate">{t.value === "navlog" && local ? "Local Flight" : t.label}</span>
+            {/* "Local" for one airport to itself: "Local Flight" came
+                within 16 points of the panel's side. */}
+            <span className="truncate">{t.value === "navlog" && local ? "Local" : t.label}</span>
           </TabsTrigger>
         ))}
       </TabsList>

@@ -523,7 +523,7 @@ export default function FlightBriefingView({
             ) : undefined}
           >
             {!assessment ? (
-              <p className="text-muted-foreground">{briefingPendingMessage}</p>
+              <p className="text-muted-foreground" role="status">{briefingPendingMessage}</p>
             ) : (
               <RiskAssessment assessment={assessment} />
             )}
@@ -635,7 +635,7 @@ export default function FlightBriefingView({
               arrives with the nav log, not with the briefing. */}
           <AccordionSection title="Cruise Altitude" summary={summaries.cruise}>
             {!nav ? (
-              <p className="text-muted-foreground">Waiting on the nav log's altitude…</p>
+              <p className="text-muted-foreground" role="status">Waiting on the nav log's altitude…</p>
             ) : (
               <div className="space-y-3">
                 <ListGroup>
@@ -666,7 +666,7 @@ export default function FlightBriefingView({
         <>
           <AccordionSection title="Adverse Conditions" summary={summaries.adverse}>
             {!briefing ? (
-              <p className="text-muted-foreground">{briefingPendingMessage}</p>
+              <p className="text-muted-foreground" role="status">{briefingPendingMessage}</p>
             ) : unchecked("hazards") && unchecked("gairmets") ? (
               <p className="text-amber-700 dark:text-amber-300">
                 SIGMET and G-AIRMET data could not be checked — aviationweather.gov didn’t respond. Verify separately before flight.
@@ -749,7 +749,7 @@ export default function FlightBriefingView({
               </Alert>
             )}
             {!briefing ? (
-              <p className="text-muted-foreground">{briefingPendingMessage}</p>
+              <p className="text-muted-foreground" role="status">{briefingPendingMessage}</p>
             ) : unchecked("metars") ? (
               <p className="text-amber-700 dark:text-amber-300">
                 Current conditions could not be checked — aviationweather.gov didn’t respond. Verify separately before flight.
@@ -807,7 +807,7 @@ export default function FlightBriefingView({
               one that decides go/no-go on arrival. */}
           <AccordionSection title="Destination Forecast" summary={summaries.destination}>
             {!briefing ? (
-              <p className="text-muted-foreground">{briefingPendingMessage}</p>
+              <p className="text-muted-foreground" role="status">{briefingPendingMessage}</p>
             ) : unchecked("forecast") ? (
               <p className="text-amber-700 dark:text-amber-300">
                 Forecast data could not be checked — aviationweather.gov didn’t respond. Verify separately before flight.
@@ -829,7 +829,7 @@ export default function FlightBriefingView({
               a line of prose per station. */}
           <AccordionSection title="En Route Forecast" summary={summaries.enRoute}>
             {!briefing ? (
-              <p className="text-muted-foreground">{briefingPendingMessage}</p>
+              <p className="text-muted-foreground" role="status">{briefingPendingMessage}</p>
             ) : unchecked("forecast") ? (
               <p className="text-amber-700 dark:text-amber-300">
                 Forecast data could not be checked — aviationweather.gov didn’t respond. Verify separately before flight.
@@ -892,7 +892,7 @@ export default function FlightBriefingView({
               runways, a row each. They were "TWR (TWR): 118.3" lines. */}
           <AccordionSection title="Airport Information" summary={summaries.airports}>
             {!briefing ? (
-              <p className="text-muted-foreground">{briefingPendingMessage}</p>
+              <p className="text-muted-foreground" role="status">{briefingPendingMessage}</p>
             ) : (
               <div className="grid gap-3 sm:grid-cols-2">
                 {landings.map(ident => {
@@ -921,7 +921,7 @@ export default function FlightBriefingView({
               words them. */}
           <AccordionSection title="Pattern & Radio" summary={summaries.pattern}>
             {!briefing ? (
-              <p className="text-muted-foreground">{briefingPendingMessage}</p>
+              <p className="text-muted-foreground" role="status">{briefingPendingMessage}</p>
             ) : (
               <PatternRadio briefing={briefing} landings={landings} legs={legs} callSign={ownCallSign} />
             )}
