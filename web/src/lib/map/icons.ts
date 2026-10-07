@@ -43,6 +43,15 @@ function text(value: string | number): string {
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 }
 
+/** A target a finger's 44 points across (Apple's Human Interface
+ *  Guidelines), for the marks drawn small: a waypoint's diamond. A chip's
+ *  target is the chip, where its neighbours' are close: grown to 44 every
+ *  chip's box lay over the next one's, and a tap on a chip in sight went
+ *  to the one beside it (KORD's, under a neighbour's, 2026-10-07). A tap a
+ *  little off a field's chip is its own all the same (AirportsLayer's
+ *  near miss). */
+const TAP = 44;
+
 /**
  * A marker with three edges: a white casing to separate it from dark
  * linework, a dark hairline outside that so it still separates from pale
@@ -163,7 +172,7 @@ const WAYPOINT_MAGENTA = "#b02e7c";
 export const diamondIcon = made(function diamondIcon() {
   return L.divIcon({
     className: "",
-    iconSize: [44, 44], iconAnchor: [22, 22],
+    iconSize: [TAP, TAP], iconAnchor: [TAP / 2, TAP / 2],
     html:
       `<span class="absolute left-1/2 top-1/2 size-3 -translate-x-1/2 -translate-y-1/2 rotate-45 rounded-[2px] border-2 border-white shadow-sm"` +
       ` style="background-color:${WAYPOINT_MAGENTA}"></span>`,

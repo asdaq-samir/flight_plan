@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { slow, settle, sideDrawer, expectDrawerOpen, openTab, openPanel } from "./helpers";
+import { slow, settle, sideDrawer, expectDrawerOpen, openTab, openPanel, grabberTo } from "./helpers";
 
 /**
  * What the nav log is computed from: the altitude plans and a pilot's
@@ -154,7 +154,8 @@ test("plan page: a departure time gives every checkpoint an ETA, and the nav log
 test("plan page: the nav log is computed for an airplane the pilot picks in its own header", async ({ page }) => {
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
-  await page.getByTestId("sidebar-trigger-button").click();
+  // All the way up, which the address keeps (`view`), for the reload below.
+  await grabberTo(page, "full");
   const picker = page.getByTestId("aircraft-select");
   await expect(picker).toBeVisible();
   await expect(picker).toContainText("C172");
@@ -233,7 +234,7 @@ test("plan page: no legal altitude is the route's own problem: its chip says so 
   // Or a stop: the route's box takes the typing. Once planned again at that
   // altitude: the problem goes and comes back as the plan is made, and a
   // tap while it was gone found nothing -- the tap tried again with it.
-  await expect(page.getByTestId("navlog-progress")).toHaveCount(0, { timeout: slow(30000) });
+  await expect(page.locator("[data-sonner-toast][data-type=loading]")).toHaveCount(0, { timeout: slow(30000) });
   await expect(async () => {
     if (!(await problem.isVisible())) await mark.click();
     await problem.getByTestId("unflyable-add-stop").click({ timeout: 2000 });

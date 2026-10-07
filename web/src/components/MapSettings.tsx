@@ -32,6 +32,8 @@ export default function MapSettings() {
   const setClassB = usePreferences(s => s.setClassB);
   const tfrs = usePreferences(s => s.tfrs);
   const setTfrs = usePreferences(s => s.setTfrs);
+  const military = usePreferences(s => s.military);
+  const setMilitary = usePreferences(s => s.setMilitary);
   const waypoints = usePreferences(s => s.waypoints);
   const setWaypoints = usePreferences(s => s.setWaypoints);
   const keepOffline = usePreferences(s => s.keepOffline);
@@ -78,6 +80,13 @@ export default function MapSettings() {
           turned off, as a pilot must know of every one near the route. */}
       <ListRow title="TFRs">
         <TogglePill pressed={tfrs} onPressedChange={setTfrs} icon={tfrs ? <Eye /> : <EyeOff />} label="Show" testId="tfrs-toggle" />
+      </ListRow>
+      {/* The fields the armed services own and keep to themselves, at the
+          pilot's ask: off by default, as most pilots may not land there
+          without the service's permission. A joint-use field, a civil
+          airport on a military one, is drawn either way. */}
+      <ListRow title="Military">
+        <TogglePill pressed={military} onPressedChange={setMilitary} icon={military ? <Eye /> : <EyeOff />} label="Show" testId="military-toggle" />
       </ListRow>
       {/* The base chart along each route loaded, held for the air
           (useKeepOffline); how a keep goes is its toast. Over plain http

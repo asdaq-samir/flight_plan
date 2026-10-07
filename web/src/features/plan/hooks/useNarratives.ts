@@ -1,5 +1,5 @@
-import { useCallback } from "react";
-import { experimental_streamedQuery as streamedQuery, type UseQueryResult, useQuery } from "@tanstack/react-query";
+import { useCallback, useMemo } from "react";
+import { experimental_streamedQuery as streamedQuery, useQuery } from "@tanstack/react-query";
 import { showError } from "../../../lib/problems";
 import { api, describeError } from "../../../lib/api/client";
 import { ended } from "../../../lib/api/streams";
@@ -58,19 +58,29 @@ export function useNarratives({ dep, dest, planKey, nav, legs, whole }: Narrativ
   });
   const langgraph = useQuery(narrativeQuery("langgraph"));
   const crewai = useQuery(narrativeQuery("crewai"));
+  // The queries' own refetch, which keeps its identity, not the query
+  // results, which are new at every render: so is this, and with it
+  // the Brief, drawn again at every render of the page.
+  const { refetch: refetchLanggraph } = langgraph;
+  const { refetch: refetchCrewai } = crewai;
   const generateNarrative = useCallback((framework: Framework) => {
     // Only a whole log: the request carries its legs, and a narrative of
     // half of them would be kept for this key as if it were the whole.
     if (!whole) { showError("The nav log isn't fully loaded yet", "The narrative is written from the whole nav log: ask again once every leg is in."); return; }
-    void (framework === "langgraph" ? langgraph : crewai).refetch();
-  }, [whole, langgraph, crewai]);
+    void (framework === "langgraph" ? refetchLanggraph : refetchCrewai)();
+  }, [whole, refetchLanggraph, refetchCrewai]);
+  // Each the same object while its stream is, for the same reason.
+  const langgraphNarrative = useMemo(
+    () => narrativeOf(langgraph.data, langgraph.error, langgraph.isFetching), [langgraph.data, langgraph.error, langgraph.isFetching]);
+  const crewaiNarrative = useMemo(
+    () => narrativeOf(crewai.data, crewai.error, crewai.isFetching), [crewai.data, crewai.error, crewai.isFetching]);
 
-  return { langgraphNarrative: narrativeOf(langgraph), crewaiNarrative: narrativeOf(crewai), generateNarrative };
+  return { langgraphNarrative, crewaiNarrative, generateNarrative };
 }
 
-function narrativeOf(query: UseQueryResult<NarrativeMessage[]>): FrameworkNarrative {
-  const chunks = query.data ?? [];
+function narrativeOf(data: NarrativeMessage[] | undefined, error: Error | null, loading: boolean): FrameworkNarrative {
+  const chunks = data ?? [];
   const done = chunks.find(m => m.type === "done");
   const text = done && done.type === "done" ? done.briefing : chunks.map(m => (m.type === "delta" ? m.text : "")).join("");
-  return { text: text || null, error: query.error ? describeError(query.error) : null, loading: query.isFetching };
+  return { text: text || null, error: error ? describeError(error) : null, loading };
 }

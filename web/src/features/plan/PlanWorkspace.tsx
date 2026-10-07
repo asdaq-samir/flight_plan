@@ -1,6 +1,6 @@
-import { lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type ComponentType } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { FileArchive, FileDown, Link2, MapPinned, Printer, Send, Share, X } from "lucide-react";
+import { FileArchive, FileDown, Link2, MapPinned, PlaneLanding, Printer, Send, Share } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../../components/ui/dropdown-menu";
 import { foreflightRoute, fplOf, gpxOf, shareFile, type PlanPoint } from "../../lib/flightPlanFiles";
 import { markPackSent, openInForeFlight, packOrigin, packPath, packSent } from "../../lib/foreflightPack";
@@ -9,14 +9,14 @@ import { toast } from "sonner";
 import { showError } from "../../lib/problems";
 import { cn } from "cn";
 import { api } from "../../lib/api/client";
-import { nearestQuery, pilotQuery, queryClient } from "../../lib/queryClient";
+import { courseQuery, nearestQuery, pilotQuery, queryClient } from "../../lib/queryClient";
 import type { AircraftChoice, AirportPlace, AltitudeChoice, Candidate } from "../../lib/api/types";
 import { aircraftKey, choiceOf } from "../../lib/aircraftChoice";
-import { bestStopIndex, distanceNm } from "../../lib/geo";
+import { bestStopIndex } from "../../lib/geo";
 import { useKeepOffline } from "../../lib/map/keepStatus";
 import { locateOnOpen, positionNow, useOwnShip } from "../../lib/map/ownShip";
 import { pointOf } from "../../lib/airspace";
-import { altitudesOf, altitudesParam, identOf, routeName, routeOf, stopsOf } from "../../lib/identSchema";
+import { altitudesOf, altitudesParam, departureOf, identOf, isPosition, routeName, routeOf, stopsOf } from "../../lib/identSchema";
 import { usePreferences, type RecentAirport } from "../../lib/preferences";
 import { useAirportSearch } from "../../lib/useAirportSearch";
 // Without this Leaflet's tiles, markers and controls have no
@@ -26,30 +26,24 @@ import "leaflet/dist/leaflet.css";
 import { useProgressToast } from "../../lib/useProgressToast";
 import { useSearchParamsNow } from "../../lib/useSearchParamsNow";
 import type { WorkspaceProps } from "../page/workspace";
-import IconButton from "../../components/IconButton";
-import NearestButton from "../../components/NearestButton";
+import RoundButton from "../../components/RoundButton";
 import TipHost from "../../components/TipHost";
-import { CHIP_TEXT, GLASS_BUTTON, ROUND_BUTTON } from "../../components/mapChrome";
+import { CHIP_TEXT, FILLS_HALF, GLASS_BUTTON } from "../../components/mapChrome";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
 import { RouteCapsule, SearchField, SearchResults } from "../../components/PanelCapsule";
 import { chipColourOf } from "../../lib/map/flightCategory";
-import RouteProblem from "./components/RouteProblem";
 import { Favorites, FavoritesList } from "../../components/Favorites";
-import Kneeboard from "./components/Kneeboard";
-import FlightBriefingView, { BriefingNotices, PlanningAidNote, SaveFlightButton } from "./components/briefing/FlightBriefingView";
-import AltitudeButton from "./components/navlog/AltitudeButton";
 import FlightLine from "./components/FlightLine";
-import FlightInputs from "./components/navlog/FlightInputs";
 import AirspaceCard from "./components/AirspaceCard";
 import PlaceCard from "./components/PlaceCard";
-import RouteBox, { type RouteParts } from "./components/RouteBox";
+import NearestCard from "./components/NearestCard";
+import type { RouteParts } from "./components/RouteBox";
 import type { PointAltitude } from "./components/PointAltitudeDialog";
-import PrintMenu from "./components/navlog/PrintMenu";
-import BriefNarrative from "./components/briefing/BriefNarrative";
-import NavLogView from "./components/navlog/NavLogView";
 import RouteMap from "./components/RouteMap";
 import { usePlan } from "./hooks/usePlan";
 import { useVerdict, type VerdictItem } from "../../lib/verdict";
+import CloseButton from "../../components/CloseButton";
+import type { BriefingPart } from "./components/briefing/sections";
 
 /** A local flight's times aloft to choose from, in minutes: a menu, not a
  *  slider. */
@@ -67,6 +61,39 @@ const hoursOf = (minutes: number) => (minutes < 60 ? `${minutes} min` : `${minut
 // opens it at once; MapPage's AfterTheSheet holds its place meanwhile.
 const loadPilotPanel = () => import("../pilot/PilotPanel");
 const PilotPanel = lazy(() => loadPilotPanel().then(m => ({ default: m.PilotPanel })));
+// The route's own panel, a chunk of its own (routePanel), fetched once
+// the page is idle and drawn where a route is. Its parts drawn straight
+// from the chunk once it is in hand, and waited for (lazy) only until
+// then: a part under lazy() alone waits once the first time it is drawn,
+// chunk in hand or not, and the Brief's narrative, first drawn as its tab
+// opened, hid the whole panel -- its tabs, with the focus in them -- while
+// it did.
+type RoutePanel = typeof import("./routePanel");
+type PropsOf<C> = C extends ComponentType<infer P extends object> ? P : never;
+let routePanel: RoutePanel | null = null;
+const loadRoutePanel = () => import("./routePanel").then(m => (routePanel = m));
+function fromRoutePanel<K extends keyof RoutePanel>(name: K) {
+  type Props = PropsOf<RoutePanel[K]>;
+  const Waited = lazy(() => loadRoutePanel().then(m => ({ default: m[name] as ComponentType<Props> })));
+  return function RoutePanelPart(props: Props) {
+    const Part = (routePanel?.[name] ?? Waited) as ComponentType<Props>;
+    return <Part {...props} />;
+  };
+}
+const NavLogView = fromRoutePanel("NavLogView");
+const FlightBriefingView = fromRoutePanel("FlightBriefingView");
+const BriefingNotices = fromRoutePanel("BriefingNotices");
+const PlanningAidNote = fromRoutePanel("PlanningAidNote");
+const SaveFlightButton = fromRoutePanel("SaveFlightButton");
+const RouteBox = fromRoutePanel("RouteBox");
+const Kneeboard = fromRoutePanel("Kneeboard");
+const FlightInputs = fromRoutePanel("FlightInputs");
+const AltitudeButton = fromRoutePanel("AltitudeButton");
+const BriefNarrative = fromRoutePanel("BriefNarrative");
+const RouteProblem = fromRoutePanel("RouteProblem");
+const PrintMenu = fromRoutePanel("PrintMenu");
+/** A round button's room while its code comes (routePanel). */
+const roundRoom = <span className="size-9 shrink-0" aria-hidden="true" />;
 
 function altitudeChoiceOf(value: string | null): AltitudeChoice {
   return value === "lowest" || value === "highest" || value === "economical" ? value : "fastest";
@@ -96,7 +123,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const [searchParams, setSearchParams] = useSearchParamsNow();
   // The route: its two ends, and the airports it lands at on the way.
   const planned = {
-    dep: identOf(searchParams.get("dep")), dest: identOf(searchParams.get("dest")), stops: stopsOf(searchParams.get("stops")),
+    dep: departureOf(searchParams.get("dep")), dest: identOf(searchParams.get("dest")), stops: stopsOf(searchParams.get("stops")),
   };
   const via = planned.stops.join(",");
   const altitudeFt = searchParams.get("altitude_ft") ?? "";
@@ -185,13 +212,21 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // The airport whose card is open in the panel (PlaceCard), as Maps
   // opens a place's: from a tap on the chart, held in the address so a
   // link lands on it. Opening one brings the panel up half way; putting
-  // it away lowers the panel again.
+  // it away leaves the panel where it is, the layer under it in sight.
   const place = identOf(searchParams.get("place")) || null;
   // Or the point a finger was held on, for the airspace over it
   // (AirspaceCard): `?at=42.3172,-88.0905`. One card at a time: either
   // puts the other away, and a tap on the chart puts both away.
   const atParam = searchParams.get("at");
   const heldPoint = useMemo(() => pointOf(atParam), [atParam]);
+  // Or the fields nearest own ship (NearestCard), from the route's
+  // Nearest: `?near=1`, a card of its own in the panel, half way up with
+  // the map fitted to them, at the pilot's ask. An airport opened from it
+  // is a layer over it, its close back to the list.
+  const nearOpen = searchParams.get("near") === "1";
+  // The airport's card under the route, the route flown to from it (Fly
+  // Here): where the route's close goes back to, as Maps' layers are.
+  const [under, setUnder] = useState<string | null>(null);
   const selectPlace = useCallback((ident: string | null) => {
     if ((ident ?? null) === place && !heldPoint) return;
     setSearchParams(prev => {
@@ -199,11 +234,40 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       if (ident) next.set("place", ident);
       else next.delete("place");
       next.delete("at");
-      next.delete("view");
+      // Opened, half way up; put away, the height it was -- all the way
+      // up is the address's (`view`), and dropping it lowered the panel.
+      if (ident) next.delete("view");
       return next;
     }, { replace: true });
-    setPanel(ident ? "half" : "peek");
+    // Put away, the layer under it -- the route, or the search -- at the
+    // height it was, at the pilot's ask: it went down to the pill.
+    if (ident) setPanel("half");
   }, [place, heldPoint, setSearchParams, setPanel]);
+  // From the chart: a tap on an airport opens its card, and a tap on the
+  // chart elsewhere puts the card away and gives the chart back, the
+  // panel at its pill, as in Maps -- where the card's own close leaves the
+  // panel where it is (selectPlace).
+  const showNearest = useCallback((open: boolean) => {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      if (open) next.set("near", "1");
+      else next.delete("near");
+      next.delete("place");
+      next.delete("at");
+      if (open) next.delete("view");
+      return next;
+    }, { replace: true });
+    if (open) setPanel("half");
+  }, [setSearchParams, setPanel]);
+  const selectPlaceOnChart = useCallback((ident: string | null) => {
+    if (!ident && nearOpen && !place) {
+      showNearest(false);
+      setPanel("peek");
+      return;
+    }
+    selectPlace(ident);
+    if (!ident && (place || heldPoint)) setPanel("peek");
+  }, [selectPlace, showNearest, nearOpen, place, heldPoint, setPanel]);
   const holdPoint = useCallback((point: { lat: number; lon: number }) => {
     setSearchParams(prev => {
       const next = new URLSearchParams(prev);
@@ -236,39 +300,86 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // How far it is: from own ship's position when there is one, from the
   // route's departure otherwise.
   const fix = useOwnShip(o => (o.enabled ? o.fix : null));
+  // Nearest's fields and own ship, for the map to fit with its card up
+  // (RouteMap's FitTo): the card's own question, shared.
+  const { data: nearestData } = useQuery({ ...nearestQuery(fix?.lat ?? 0, fix?.lon ?? 0), enabled: nearOpen && !!fix });
+  const nearestPoints = useMemo(
+    () => (fix && nearestData ? [{ ident: "own ship", lat: fix.lat, lon: fix.lon }, ...nearestData] : null),
+    [fix, nearestData],
+  );
   const measuredFrom = fix
     ? { point: { lat: fix.lat, lon: fix.lon }, name: null }
     : course ? { point: course.departure, name: course.departure.ident } : null;
   // Fly Here, as an EFB's Direct-To, at the pilot's ask: the card's
-  // airport as the destination, from where the pilot is now -- the field
-  // nearest own ship's position, at once where there is one (positionNow;
-  // off, it is turned on for the next) -- else from Home (Favorites), else from the route's
-  // departure (or, when that is this airport, its destination), the last
-  // place planned from. A departure is an airport the planner climbs out
-  // of, so present position is the field nearest it. The plan loads at
-  // once, with the card put away and the panel half up on it.
-  const flyHere = useCallback(async (to: AirportPlace) => {
-    let from: string | null = null;
-    const fixNow = await positionNow();
-    if (fixNow) {
-      // The planner's nearest fields round the position (often in hand
-      // already: Nearest asks for the same), nearest first from the
-      // position itself.
-      const near = await queryClient.fetchQuery(nearestQuery(fixNow.lat, fixNow.lon)).catch(() => []);
-      from = near.filter(a => a.ident !== to.ident && a.kind !== "other")
-        .sort((a, b) => distanceNm(fixNow, a) - distanceNm(fixNow, b))[0]?.ident ?? null;
-    }
+  // airport as the destination, from where the pilot is now -- own ship's
+  // position itself, at once where there is one (positionNow; off, it is
+  // turned on for the next) -- else from Home (Favorites), else from the
+  // route's departure (or, when that is this airport, its destination),
+  // the last place planned from. The plan loads at once, with the card put
+  // away and the panel half up on it.
+  const fromFor = useCallback(async (to: string, fixNow: { lat: number; lon: number } | null) => {
+    // From the present position itself, at the pilot's ask: a Direct-To in
+    // the air goes from wherever the airplane is, any time, not from a
+    // field near it (the planner's app.common.position_of, flown from).
+    let from: string | null = fixNow ? `@${fixNow.lat.toFixed(4)},${fixNow.lon.toFixed(4)}` : null;
     const homeIdent = usePreferences.getState().homeAirport?.ident;
-    from ??= homeIdent && homeIdent !== to.ident ? homeIdent : null;
-    from ??= planned.dep && planned.dep !== to.ident ? planned.dep
-      : planned.dest && planned.dest !== to.ident ? planned.dest : null;
+    from ??= homeIdent && homeIdent !== to ? homeIdent : null;
+    from ??= planned.dep && planned.dep !== to ? planned.dep
+      : planned.dest && planned.dest !== to ? planned.dest : null;
+    return from;
+  }, [planned.dep, planned.dest]);
+  // Once the page is idle: the route panel's code (routePanel), so it is
+  // in hand before a route is; and the routes from Home to each Favorite,
+  // the ones flown most, their courses asked for so the planner reads
+  // their charts and ground ahead (app.prefetch) -- at the pilot's ask
+  // for a fast app, a new route's chart read being 3 to 6 s of its nav
+  // log. Six at the most, once a page.
+  useEffect(() => {
+    const idle = window.requestIdleCallback ?? ((go: () => void) => window.setTimeout(go, 2000));
+    const cancel = window.cancelIdleCallback ?? window.clearTimeout;
+    const handle = idle(() => {
+      void loadRoutePanel();
+      const { homeAirport, favoriteAirports } = usePreferences.getState();
+      if (!homeAirport) return;
+      for (const fav of favoriteAirports.filter(f => f.ident !== homeAirport.ident).slice(0, 6)) {
+        void queryClient.prefetchQuery(courseQuery(homeAirport.ident, fav.ident));
+      }
+    });
+    return () => cancel(handle);
+  }, []);
+  // Fly Here read ahead, as an airport's card opens, at the pilot's ask
+  // for a fast route to nav log: its course asked for now from where it
+  // would go from, so the tap lands on it answered -- and the planner,
+  // asked for the course, starts on the chart's read and the ground under
+  // the route (app.prefetch), the two slow parts of a nav log, while the
+  // pilot reads the card. Not the checkpoints themselves: that request
+  // waits on the read, holding one of the planner's request threads for
+  // seconds for a route that may never be flown.
+  useEffect(() => {
+    if (!place) return;
+    let gone = false;
+    void (async () => {
+      const ship = useOwnShip.getState();
+      const from = await fromFor(place, ship.enabled ? ship.fix : null);
+      if (gone || !from) return;
+      void queryClient.prefetchQuery(courseQuery(from, place));
+    })();
+    return () => { gone = true; };
+  }, [place, fromFor]);
+  const flyHere = useCallback(async (to: AirportPlace) => {
+    const from = await fromFor(to.ident, await positionNow());
     const next: Record<string, string> = { dest: to.ident };
     if (from) next.dep = from;
     if (depart) next.depart = depart;
+    // The route a layer over the card, at the height the card was, as
+    // Maps' directions are over a place's card: its close, the route
+    // cleared, goes back to the card (clearRoute).
+    if (panel === "full") next.view = "briefing";
     setSearchParams(next, { replace: true });
     setLoad(n => n + 1);
-    setPanel("half");
-  }, [planned.dep, planned.dest, depart, setSearchParams, setPanel]);
+    setUnder(to.ident);
+    if (panel !== "full") setPanel("half");
+  }, [fromFor, depart, panel, setSearchParams, setPanel]);
 
   const submit = useCallback(() => {
     const route = routeOf(dep, dest, planned.stops);
@@ -309,6 +420,27 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       return next;
     }, { replace: true });
   }, [setSearchParams, setPanel]);
+  // An airport's card's Add to Route, at the pilot's ask: the field on to
+  // the end of the route, its new destination, the old one a stop on the
+  // way; with no route, the first point of one, its box asking for the
+  // destination next (RouteBox). The card put away for the route under it.
+  const addToRoute = useCallback((to: { ident: string }) => {
+    const points = [planned.dep, ...planned.stops, planned.dest].filter(Boolean);
+    if (points.at(-1) === to.ident) return;
+    points.push(to.ident);
+    // One change of the address: two in a row, the second read the first's
+    // address from before it.
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      next.set("dep", points[0]!);
+      if (points.length > 2) next.set("stops", points.slice(1, -1).join(","));
+      else next.delete("stops");
+      if (points.length > 1) next.set("dest", points.at(-1)!);
+      else next.delete("dest");
+      next.delete("place");
+      return next;
+    }, { replace: true });
+  }, [planned.dep, planned.stops, planned.dest, setSearchParams]);
   // A point's own altitude set, or (null) given back to the plan.
   const setPointAltitude = useCallback((ident: string, feet: number | null) => {
     setSearchParams(prev => {
@@ -365,9 +497,13 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const waypointStops = useMemo(() => new Set(planned.stops.filter(stop =>
     course?.stops?.some(a => a.ident === stop && a.kind === "fix") || !identOf(stop))), [planned.stops, course]);
   // A route cleared from its close with the panel out keeps its empty box
-  // to type another in (clearRoute); the panel lowered, the search again.
+  // to type another in (clearRoute); the panel lowered, the search again,
+  // and no card under it any more.
   const [emptied, setEmptied] = useState(false);
-  if (emptied && !panelOpen) setEmptied(false);
+  if (emptied && !panelOpen) {
+    setEmptied(false);
+    setUnder(null);
+  }
   const started = routed || !!planned.dep || !!planned.dest || emptied;
   const [query, setQuery] = useState("");
   const [picking, setPicking] = useState<"place" | "home" | "favorite">("place");
@@ -447,19 +583,31 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   }, [searchParams, setSearchParams]);
 
   // The route's close, at the pilot's ask: first it clears the route --
-  // the address keeps nothing of it, and its box stays out, empty, for
-  // another -- and pressed again, with nothing left to clear, the panel
-  // goes down to its pill, resting on the search bar.
+  // the address keeps nothing of it, and its box, the controls and the
+  // tabs stay out, empty, for another -- and pressed again, with nothing
+  // left to clear, the route is put away for the layer under it, as
+  // Maps' directions are: the airport's card it was flown to from (Fly
+  // Here), or the search. The panel stays the height it was throughout,
+  // at the pilot's ask: all the way up is in the address (`view`), and
+  // clearing that with the route lowered it to its pill.
   const hasPoints = !!planned.dep || !!planned.dest || planned.stops.length > 0;
   const clearRoute = useCallback(() => {
+    const keeping = (prev: URLSearchParams, place?: string) => {
+      const next = new URLSearchParams();
+      const view = prev.get("view");
+      if (view) next.set("view", view);
+      if (place) next.set("place", place);
+      return next;
+    };
     if (hasPoints) {
-      setSearchParams({}, { replace: true });
+      setSearchParams(prev => keeping(prev), { replace: true });
       setEmptied(true);
       return;
     }
     setEmptied(false);
-    setPanel("peek");
-  }, [hasPoints, setSearchParams, setPanel]);
+    if (under) setSearchParams(prev => keeping(prev, under), { replace: true });
+    setUnder(null);
+  }, [hasPoints, under, setSearchParams]);
 
   // The plan's own address, to another device or person: the share
   // sheet where the browser has one (Safari on an iPhone), otherwise
@@ -587,11 +735,22 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     ?? (s.stage === "checkpoints" ? "Scoring checkpoints…" : null)
     ?? (s.briefing.state === "loading" ? "Fetching METARs, forecasts, hazards, runways and frequencies…" : null)
     ?? (s.descriptionProgress ? `Writing descriptions ${s.descriptionProgress.done}/${s.descriptionProgress.total}…` : null);
-  // A toast over the map only while the panel is at rest; with it out,
-  // the Nav Log's own line says it (NavLogView's `progress`). From the
-  // bottom of a phone the toast came in over the panel's top, the route's
-  // box under it out of reach for as long as the plan took.
-  useProgressToast(panelOpen ? null : progress);
+  // The flight's figures before the nav log's, at the pilot's ask for
+  // them as soon as can be (FlightLine's `estimate`): this route's course
+  // distance, and the airplane's book cruise speed and burn -- its own
+  // where the pilot set them, else its profile's.
+  const profile = profiles?.find(p => p.name === aircraft.profile);
+  const estimate = routed && course && course.destination.ident === planned.dest && course.departure.ident === planned.dep
+    ? {
+      distanceNm: course.distance_nm,
+      cruiseTasKt: aircraft.cruiseTasKt ?? profile?.cruise_tas_kt ?? null,
+      fuelBurnGph: aircraft.fuelBurnGph ?? profile?.fuel_burn_gph ?? null,
+    } : null;
+  // A toast however far out the panel is, at the pilot's ask, where the
+  // flight's line said it with the panel out: that line keeps the
+  // figures (FlightLine). A toast takes no tap but its own controls'
+  // (index.css), so the route's box under it from the top still does.
+  useProgressToast(progress);
 
   // The flight planning drawer: the nav log as the first section, the
   // briefing's sections under it, the briefing's own actions in the
@@ -610,7 +769,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       + `${over > 0 ? `${over} ft over` : "right at"} the obstacle minimum.`;
   })() : null;
 
-  const landedStops = (course?.stops ?? []).filter(stop => stop.kind !== "fix").map(stop => stop.ident);
+  const landedStops = useMemo(() => (course?.stops ?? []).filter(stop => stop.kind !== "fix").map(stop => stop.ident), [course]);
   // Each tab's mark: the worst of its findings on the Brief's Go / No-Go
   // (lib/verdict), red for something to fix, amber for something to look at.
   const verdict = useVerdict(v => v.items);
@@ -622,41 +781,54 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     }
     return found;
   }, [verdict]);
+  // Each tab's part of the briefing; the Brief's narrative under its Go /
+  // No-Go. Made once for the same plan (useCallback, useMemo), and each
+  // part drawn again only when its plan changes (FlightBriefingView's
+  // memo): a row picked in the nav log drew all four tabs again, the
+  // hidden ones and their charts too -- half a second of a phone's.
+  const narrative = useMemo(() => !s.local && (
+    <BriefNarrative
+      ready={!!s.totals} onGenerateNarrative={s.generateNarrative}
+      langgraphNarrative={s.langgraphNarrative} crewaiNarrative={s.crewaiNarrative}
+    />
+  ), [s.local, s.totals, s.generateNarrative, s.langgraphNarrative, s.crewaiNarrative]);
+  const unflyableBrief = s.unflyable?.brief;
+  const tabContent = useCallback((part: BriefingPart) => (
+    <FlightBriefingView
+      part={part} nav={s.nav} legs={s.legs}
+      dep={planned.dep} dest={planned.dest}
+      // The airports landed at: a waypoint has no weather of its own.
+      stops={landedStops}
+      briefing={s.briefing} course={course} totals={s.totals} depart={depart}
+      langgraphNarrative={s.langgraphNarrative} crewaiNarrative={s.crewaiNarrative}
+      problem={unflyableBrief}
+      narrative={part === "brief" ? narrative : undefined}
+    />
+  ), [s.nav, s.legs, planned.dep, planned.dest, landedStops, s.briefing, course, s.totals, depart,
+    s.langgraphNarrative, s.crewaiNarrative, unflyableBrief, narrative]);
   const navLog = (
+    <Suspense fallback={<div className="min-h-0 flex-1" />}>
     <NavLogView
       totals={s.totals} nav={s.nav} legs={s.legs}
       depart={depart}
       dep={planned.dep} dest={planned.dest}
       ends={course}
-      selected={selected}
+      selected={s.logSelected}
       descriptions={s.descriptions}
       onSaveDescription={s.saveDescription}
       onGenerateDescriptions={s.generateDescriptions}
       descriptionsLoading={s.descriptionProgress !== null}
       selectedPoint={selectedPoint} onSelectPoint={(lat, lon) => selectPoint({ lat, lon })}
       onDeselectPoint={() => selectPoint(null)}
-      drawerOpen={panelOpen}
+      // In sight all the way up: half way the panel ends at the tabs, so a
+      // checkpoint picked then is brought into view as it comes up.
+      drawerOpen={panel === "full"}
+      // A tab tapped takes the panel all the way up to show it; the tab up
+      // tapped again there takes it back to half, at the pilot's ask.
+      onTabTap={again => setPanel(again && panel === "full" ? "half" : "full")}
       aircraftLabel={aircraft.label}
       marks={marks}
-      // Each tab's part of the briefing; the Brief's narrative under its
-      // Go / No-Go.
-      tabContent={part => (
-        <FlightBriefingView
-          part={part} nav={s.nav} legs={s.legs}
-          dep={planned.dep} dest={planned.dest}
-          // The airports landed at: a waypoint has no weather of its own.
-          stops={landedStops}
-          briefing={s.briefing} course={course} totals={s.totals} depart={depart}
-          langgraphNarrative={s.langgraphNarrative} crewaiNarrative={s.crewaiNarrative}
-          problem={s.unflyable?.brief}
-          narrative={part === "brief" && !s.local && (
-            <BriefNarrative
-              ready={!!s.totals} onGenerateNarrative={s.generateNarrative}
-              langgraphNarrative={s.langgraphNarrative} crewaiNarrative={s.crewaiNarrative}
-            />
-          )}
-        />
-      )}
+      tabContent={tabContent}
       notice={<BriefingNotices briefing={s.briefing} />}
       footer={<PlanningAidNote />}
       local={s.local}
@@ -670,11 +842,12 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       />
       {/* Off screen, for Print's Kneeboard card (a portal to the page's body). */}
       <Kneeboard
-        course={course} selected={selected} legs={s.legs} totals={s.totals} nav={s.nav}
+        course={course} selected={s.logSelected} legs={s.legs} totals={s.totals} nav={s.nav}
         briefing={s.briefing.state === "ready" ? s.briefing.data : null} depart={depart}
         aircraftLabel={aircraft.label} landings={[...new Set([planned.dep, ...landedStops, planned.dest])]}
       />
     </NavLogView>
+    </Suspense>
   );
 
   // Saving the flight, the narrative and Print.
@@ -739,25 +912,31 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // Share, a round button of glass as the route's close and the
   // console's are: at the capsule's start at rest, beside Save and Print
   // with the panel out.
-  const shareMenu = (align: "start" | "end") => (
+  const shareMenu = (align: "start" | "end", disabled = false) => (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <IconButton label="Share this route" variant="secondary" className={`size-9 ${ROUND_BUTTON}`} data-testid="share-route">
+      <DropdownMenuTrigger asChild disabled={disabled}>
+        <RoundButton label="Share this route" data-testid="share-route">
           <Share className="size-5" strokeWidth={2} />
-        </IconButton>
+        </RoundButton>
       </DropdownMenuTrigger>
       <DropdownMenuContent align={align} className="min-w-56">{shareItems}</DropdownMenuContent>
     </DropdownMenu>
   );
 
+  // Greyed in their places with no route (cleared, or half typed), at the
+  // pilot's ask: the panel keeps its shape, not a row that comes and goes.
   const routeActions = (
     <>
+      <Suspense fallback={roundRoom}>
       <SaveFlightButton
-        course={course} totals={s.totals} nav={s.nav} legs={s.legs} selected={selected}
+        // Not a route from a present position: a saved flight is filed
+        // between airports (the webapp's own rule for its idents).
+        course={routed && !isPosition(planned.dep) ? course : null} totals={s.totals} nav={s.nav} legs={s.legs} selected={s.logSelected}
         aircraftId={aircraft.aircraftId ?? null} depart={depart} altitudes={altitudes}
       />
-      {shareMenu("end")}
-      <PrintMenu />
+      {shareMenu("end", !routed)}
+      </Suspense>
+      <Suspense fallback={roundRoom}><PrintMenu disabled={!routed} /></Suspense>
     </>
   );
 
@@ -775,7 +954,8 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           onSelectPoint={(lat, lon) => selectPoint({ lat, lon })}
           airportWeather={s.briefing}
           place={placePin}
-          onSelectPlace={selectPlace}
+          nearest={nearOpen ? nearestPoints : null}
+          onSelectPlace={selectPlaceOnChart}
           onAddStop={addStopAt}
           legs={s.legs}
           heldPoint={heldPoint}
@@ -793,9 +973,12 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
         <PlaceCard
           key={place} ident={place} from={measuredFrom}
           onClose={() => selectPlace(null)} onFlyHere={to => void flyHere(to)} onExpand={() => setPanel("full")}
+          onAddToRoute={addToRoute}
         />
       ) : heldPoint ? (
         <AirspaceCard key={atParam} point={heldPoint} onClose={() => selectPlace(null)} />
+      ) : nearOpen ? (
+        <NearestCard onOpen={selectPlace} onClose={() => showNearest(false)} />
       ) : favoritesOpen ? (
         <div className="min-h-0 flex-1 overflow-y-auto px-4 pt-2 pb-4">
           <FavoritesList
@@ -810,12 +993,16 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           <SearchResults
             query={query} onPick={airport => void pickPlace(airport)}
             places={picking === "place" && (
-              <Favorites
-                home={home} favorites={favorites} from={fix ? { lat: fix.lat, lon: fix.lon } : null}
-                onOpen={airport => selectPlace(airport.ident)}
-                onAddHome={() => askFor("home")} onAddFavorite={() => askFor("favorite")}
-                onShowAll={() => { setFavoritesOpen(true); setPanel("full"); }}
-              />
+              // Favorites the panel's half, less the list's own top: the
+              // Recents start under it, out of sight there (FILLS_HALF).
+              <div className={cn("min-h-[calc(var(--half-body,0px)_-_0.5rem)]", FILLS_HALF)}>
+                <Favorites
+                  home={home} favorites={favorites} from={fix ? { lat: fix.lat, lon: fix.lon } : null}
+                  onOpen={airport => selectPlace(airport.ident)}
+                  onAddHome={() => askFor("home")} onAddFavorite={() => askFor("favorite")}
+                  onShowAll={() => { setFavoritesOpen(true); setPanel("full"); }}
+                />
+              </div>
             )}
           />
         </div>
@@ -826,38 +1013,39 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           <PlaceCard
             key={place} ident={place} from={measuredFrom}
             onClose={() => selectPlace(null)} onFlyHere={to => void flyHere(to)} onExpand={() => setPanel("full")}
-            onAddStop={routed && course && ![course.departure, ...(course.stops ?? []), course.destination].some(p => p.ident === place)
-              ? to => { addStopAt(to); selectPlace(null); } : undefined}
+            onAddToRoute={planned.dest === place ? undefined : addToRoute}
           />
         )}
         {!place && heldPoint && <AirspaceCard key={atParam} point={heldPoint} onClose={() => selectPlace(null)} />}
-        <div className={cn("flex min-h-0 flex-1 flex-col print:flex", (place || heldPoint) && "hidden")}>{navLog}</div>
+        {!place && !heldPoint && nearOpen && <NearestCard onOpen={selectPlace} onClose={() => showNearest(false)} />}
+        <div className={cn("flex min-h-0 flex-1 flex-col print:flex", (place || heldPoint || nearOpen) && "hidden")}>{navLog}</div>
       </>
     ),
     head: started ? undefined : searchField,
     // An airport tapped: its card alone -- with a route, the route under
     // it again when it is closed; without, the search bar and the gear
     // over it gone while it is open, at the pilot's ask.
-    alone: !!place || !!heldPoint,
-    searching: !started,
+    alone: !!place || !!heldPoint || nearOpen,
     // At rest, Maps' capsule: the route with share and close either side
     // and the airplane and time under it, which opens the panel to them;
     // with no route, the search bar.
-    // Half a route, or one from an airport to itself, rests on its form
-    // and the notice saying so: something is asked of the pilot there.
-    compact: routed ? (
+    // Half a route rests there too, the end it lacks a red mark and a tap
+    // on it the form, so that to the pilot the panel has three heights,
+    // at their ask -- the pill, the half and all the way up: it rested on
+    // its form, a height of its own. A route cleared rests on the search.
+    compact: hasPoints ? (
       <RouteCapsule
-        title={routeName(planned.dep, planned.dest, planned.stops)}
+        title={routeName(planned.dep || "?", planned.dest || "?", planned.stops)}
         // One line, as the search bar is, at the pilot's ask: Share at its
         // start, as it was, the route, a tap on it the panel, and the
         // console's button at its end. What is wrong with it is a red mark
         // beside it (the cruising altitude's chip says what); the airplane
         // and the time are in the panel, the sharing too, under More.
-        warning={s.unflyable ? "No legal altitude" : undefined}
+        warning={!routed ? (planned.dep ? "No destination yet" : "No departure yet") : s.unflyable ? "No legal altitude" : undefined}
         onDetail={() => setPanel("half")}
-        leading={shareMenu("start")}
+        leading={routed ? shareMenu("start") : undefined}
       />
-    ) : started ? undefined : searchField,
+    ) : searchField,
     // The route as one box of pills, in place of the two airport fields.
     // An airport twice (a round trip with its stop taken out) keeps the
     // box, its notice saying what to change.
@@ -867,6 +1055,8 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     route: started ? (
       <div className="flex items-start gap-2">
         <div className="min-w-0 flex-1">
+          {/* Its room while its code comes: the box's own two lines. */}
+          <Suspense fallback={<div className="min-h-[5.25rem] rounded-[20.5px] bg-foreground/8" />}>
           <RouteBox
             dep={planned.dep} stops={planned.stops} dest={planned.dest} waypoints={waypointStops} airspaceOf={airspaceOf} metarColourOf={metarColour}
             altitudeAt={altitudeAt} onAltitudeChange={setPointAltitude}
@@ -874,21 +1064,25 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
             adding={!!addingStop} onAddingChange={open => setAddingStop(open ? "stop" : false)}
             via={addingStop === "via" ? s.unflyable?.detours : undefined}
           />
+          </Suspense>
         </div>
-        {/* The route's close, and under it Nearest: the box's two lines
-            tall, the two alike, 40 points with a finger's 44 round them
-            (index.css), as iOS's round buttons over content (ROUND_BUTTON). */}
-        <div className="flex shrink-0 flex-col gap-1 [&_button]:size-10 [&_svg]:size-5">
-          <IconButton label={hasPoints ? "Clear the route" : "Close"} variant="secondary" onClick={clearRoute} data-testid="route-clear" className={ROUND_BUTTON}>
-            {/* Drawn large: lucide's cross spans half its box where the
-                glyph under it spans most of its, so at their size it read as
-                a small mark; its line as bold as theirs. */}
-            <X className="size-7!" strokeWidth={1.5} />
-          </IconButton>
+        {/* The route's close, and under it Nearest: round glass buttons
+            (RoundButton) the size of Save, Share and Print under them, at
+            the pilot's ask -- 36 points, 20-point glyphs, one line weight,
+            a finger's 44 round each (index.css) -- the box's two lines tall.
+            The close where every panel's top-right button is, the search's
+            gear and a card's close (MapPanel's --corner-line), so it does not
+            move under the pilot's finger from one panel to the next; eight
+            apart at the least, so the two's hit areas meet. */}
+        <div className="flex shrink-0 flex-col gap-[max(8px,calc(0.75rem-var(--corner-line)))] pt-[var(--corner-line)]">
+          <CloseButton label={hasPoints ? "Clear the route" : "Close"} onClick={clearRoute} data-testid="route-clear" />
           {/* Nearest under it, where the console's button was, at the
               pilot's ask: the console's is at the capsule's end, the route
-              lowered, and on the search bar. */}
-          <NearestButton onSelectPlace={ident => selectPlace(ident)} className={ROUND_BUTTON} />
+              lowered, and on the search bar. Its list is a card of the
+              panel's (NearestCard). */}
+          <RoundButton label="Nearest airports" onClick={() => showNearest(true)} data-testid="nearest-button">
+            <PlaneLanding className="size-5" strokeWidth={2} />
+          </RoundButton>
         </div>
       </div>
     ) : undefined,
@@ -902,9 +1096,12 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     // and Save, Share and Print at the end -- at the reader's own text
     // size, which on the pilot's phone is a step up from iOS's default.
     // Narrower than that, the actions take a line of their own rather than
-    // run off the screen.
-    controls: routed && (
+    // run off the screen. With the route cleared or half typed, all of it
+    // still, what needs a route greyed (routeActions).
+    controls: started && (
       <div className="flex w-full min-w-0 flex-wrap items-center gap-x-1 gap-y-3">
+        {/* The chips' room while their code comes (routePanel). */}
+        <Suspense fallback={<span className="h-9 w-48" aria-hidden="true" />}>
         <FlightInputs
           aircraftValue={aircraftKey(aircraft)}
           aircraftOptions={aircraftOptions.map(o => ({ value: aircraftKey(o), label: o.label }))}
@@ -924,11 +1121,12 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
               // the flight's line, where "Class B" took a line of its own.
               tight={s.unflyable ? null : tightLeg}
               classB={!s.unflyable && classBClearance ? () => acceptClassB(false) : null}
-              alt={alt} onAltChange={setAlt} onSubmit={submit}
+              alt={alt} onAltChange={setAlt} onSubmit={submit} disabled={!routed}
             />
           )}
           depart={depart} onDepartChange={changeDepart}
         />
+        </Suspense>
         {s.local ? (
           <>
             <Select value={String(localMin)} onValueChange={v => changeLocalMin(Number(v))}>
@@ -939,12 +1137,9 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
                 {LOCAL_MINUTES.map(m => <SelectItem key={m} value={String(m)}>{hoursOf(m)}</SelectItem>)}
               </SelectContent>
             </Select>
-            <IconButton
-              label="Print the briefing" variant="secondary" onClick={() => window.print()}
-              className={`ml-auto size-9 print:hidden ${ROUND_BUTTON}`} data-testid="print-button"
-            >
+            <RoundButton label="Print the briefing" onClick={() => window.print()} className="ml-auto print:hidden" data-testid="print-button">
               <Printer className="size-5" strokeWidth={2} />
-            </IconButton>
+            </RoundButton>
           </>
         ) : (
           // At the row's end, as Maps puts a card's actions: round buttons
@@ -952,15 +1147,14 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           // their size at any text size, so the line holds at the pilot's,
           // a step up from iOS's default -- eight apart, so their 44-point
           // hit areas (index.css) meet.
-          <div className="ml-auto flex shrink-0 items-center gap-2 [&_button]:size-[36px] [&_svg]:size-[20px]">{routeActions}</div>
+          <div className="ml-auto flex shrink-0 items-center gap-2">{routeActions}</div>
         )}
         {/* The flight in one line, the last of the route's panel, just over
             the separator and the tabs, at the pilot's ask: the quick figures
             read with the route, the detail under the tabs. */}
         <div className="w-full basis-full px-1" data-testid="flight-line">
           <FlightLine
-            totals={s.totals} depart={depart} local={s.local}
-            progress={panelOpen ? progress : null} problem={s.unflyable?.brief}
+            totals={s.totals} estimate={estimate} depart={depart} local={s.local} problem={s.unflyable?.brief}
           />
         </div>
       </div>
@@ -968,6 +1162,5 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     console: <PilotPanel />,
     submit,
     loading: s.stage !== null,
-    notices: null,
   });
 }

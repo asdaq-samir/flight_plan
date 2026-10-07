@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { consoleSheet, library, openPanel, openMapSettings } from "./helpers";
+import { consoleSheet, library, openPanel, openMapSettings, grabberTo } from "./helpers";
 
 /**
  * "Save this flight", at the head of the briefing drawer's sections, for
@@ -81,7 +81,7 @@ test("opening a saved flight puts its route in the header, and Load plans that r
   await expect(page.getByLabel("Departure", { exact: true })).toContainText("C81", { timeout: 15_000 });
 
   // The console's button is at the end of the route's capsule, lowered.
-  await page.getByTestId("sidebar-trigger-button").click();
+  await grabberTo(page, "peek");
   await page.getByTestId("settings-button").click();
   await library(page, "Flights");
   // The row opens the flight's page; Open on the map is the way in, and

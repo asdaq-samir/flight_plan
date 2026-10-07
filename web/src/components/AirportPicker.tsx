@@ -1,10 +1,9 @@
 import { useRef, useState, type ReactNode } from "react";
 import { Command as CommandPrimitive } from "cmdk";
-import { ChevronsUpDown, Diamond, History, Search, X } from "lucide-react";
+import { ChevronsUpDown, Diamond, History, Search } from "lucide-react";
 import { cn } from "cn";
 import { TEXT } from "../lib/text";
 import { Button } from "./ui/button";
-import IconButton from "./IconButton";
 import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from "./ui/command";
 import { FavoriteTiles } from "./Favorites";
 import { usePreferences, type RecentAirport } from "../lib/preferences";
@@ -13,6 +12,7 @@ import { ResponsivePopover, ResponsivePopoverContent, ResponsivePopoverTrigger }
 import { useAirportSearch, type AirportSearchRow } from "../lib/useAirportSearch";
 import { useIsMobile } from "../hooks/use-mobile";
 import { useKeyboardInset } from "../hooks/use-viewport";
+import CloseButton from "./CloseButton";
 
 interface Props {
   value: string;
@@ -149,9 +149,7 @@ export default function AirportPicker({
                 }}
               />
             </div>
-            <IconButton label="Close" variant="secondary" className="rounded-full" onClick={() => { setOpen(false); setQuery(""); }} data-testid="picker-close">
-              <X />
-            </IconButton>
+            <CloseButton onClick={() => { setOpen(false); setQuery(""); }} data-testid="picker-close" />
           </div>
           {/* Its own height, not shrunk: with the keyboard up the sheet is
               short, and the tiles were squeezed to a sliver of their tops. */}

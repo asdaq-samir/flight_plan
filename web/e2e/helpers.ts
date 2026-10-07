@@ -49,16 +49,30 @@ export async function openPanel(page: Page) {
   await expect(panel).toHaveAttribute("data-panel", "half");
 }
 
+/** The panel to a height by taps on its grabber, which cycle the three
+ *  -- the pill, half, all the way up and back down (MapPanel) -- a tap
+ *  at a time, each waited on, three at the most. */
+export async function grabberTo(page: Page, state: "peek" | "half" | "full") {
+  const panel = sideDrawer(page);
+  await panel.waitFor();
+  for (let taps = 0; taps < 3; taps++) {
+    const now = await panel.getAttribute("data-panel");
+    if (now === state) return;
+    await page.getByTestId("sidebar-trigger-button").click();
+    await expect(panel).not.toHaveAttribute("data-panel", now!);
+  }
+  await expect(panel).toHaveAttribute("data-panel", state);
+}
+
 /** The panel all the way out, as a finger takes it: a drag on its
- *  grabber to the screen's far edge. At half it ends at the flight's
- *  line, the tabs past it; a tap on the grabber there lowers it. */
+ *  grabber to the screen's far edge. At half it ends at the tabs' bar;
+ *  from the pill, two taps on the grabber. */
 async function panelFull(page: Page) {
   const panel = sideDrawer(page);
   await panel.waitFor();
   if ((await panel.getAttribute("data-panel")) === "full") return;
   if ((await panel.getAttribute("data-panel")) === "peek") {
-    await page.getByTestId("sidebar-trigger-button").click();
-    await expect(panel).toHaveAttribute("data-panel", "full");
+    await grabberTo(page, "full");
     return;
   }
   await settled(panel);
@@ -233,7 +247,7 @@ export async function openSidebar(page: Page) {
 /** The briefing is the flight planning panel: open it from its
  *  toggle, and the URL says so. */
 export async function openBriefing(page: Page) {
-  await page.getByTestId("sidebar-trigger-button").click();
+  await grabberTo(page, "full");
   await expect(page).toHaveURL(/[?&]view=briefing/);
   await expectDrawerOpen(page);
 }
@@ -252,8 +266,11 @@ export async function openTab(page: Page, name: "Brief" | "Nav Log" | "Local" | 
       body: JSON.stringify({ type: "done", briefing: "A test narrative." }) + "\n",
     }));
   }
-  await sideDrawer(page).getByRole("tab", { name, exact: true }).click();
-  await expect(sideDrawer(page).getByRole("tab", { name, exact: true })).toHaveAttribute("aria-selected", "true");
+  // Not the tab up already: tapped again all the way up, it lowers the
+  // panel to half (PanelTabs).
+  const tab = sideDrawer(page).getByRole("tab", { name, exact: true });
+  if ((await tab.getAttribute("aria-selected")) !== "true") await tab.click();
+  await expect(tab).toHaveAttribute("aria-selected", "true");
 }
 
 /** A tap on the chart itself, somewhere nothing else is: not a marker,
@@ -271,11 +288,15 @@ export async function tapTheChart(page: Page) {
   }), { timeout: 10000 }).toBe(true);
   const at = await page.locator(".leaflet-container").evaluate(map => {
     const r = map.getBoundingClientRect();
+    // Clear of every mark by more than a near miss (AirportsLayer's 22),
+    // which a tap there would select.
+    const marks = [...map.querySelectorAll(".leaflet-marker-icon, .leaflet-airport-target")].map(m => m.getBoundingClientRect());
+    const clear = (x: number, y: number) => marks.every(m => x < m.left - 30 || x > m.right + 30 || y < m.top - 30 || y > m.bottom + 30);
     for (let fy = 0.85; fy > 0.1; fy -= 0.1) {
       for (let fx = 0.15; fx < 0.9; fx += 0.1) {
         const x = r.left + r.width * fx, y = r.top + r.height * fy;
         const hit = document.elementFromPoint(x, y);
-        if (hit && map.contains(hit) && (hit.matches("img.leaflet-tile") || hit.matches(".leaflet-container, .leaflet-pane, .leaflet-layer, .leaflet-tile-container"))) return { x, y };
+        if (hit && map.contains(hit) && clear(x, y) && (hit.matches("img.leaflet-tile") || hit.matches(".leaflet-container, .leaflet-pane, .leaflet-layer, .leaflet-tile-container"))) return { x, y };
       }
     }
     return null;

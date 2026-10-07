@@ -1,7 +1,7 @@
 import * as React from "react"
 import { cn } from "cn"
 import { Dialog as DialogPrimitive } from "radix-ui"
-import { XIcon } from "lucide-react"
+import CloseButton from "../CloseButton"
 
 function Dialog({
   ...props
@@ -70,13 +70,11 @@ function DialogContent({
         {...props}
       >
         {children}
+        {/* The app's one close (CloseButton), as every panel's is, at the
+            pilot's ask: the stock one was a faint 16-point cross. */}
         {showCloseButton && (
-          <DialogPrimitive.Close
-            data-slot="dialog-close"
-            className="absolute top-4 right-4 rounded-xs cursor-pointer opacity-70 transition-opacity hover:opacity-100 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:ring-ring disabled:pointer-events-none"
-          >
-            <XIcon className="size-4" />
-            <span className="sr-only">Close</span>
+          <DialogPrimitive.Close data-slot="dialog-close" asChild>
+            <CloseButton className="absolute top-3 right-3" />
           </DialogPrimitive.Close>
         )}
       </DialogPrimitive.Content>

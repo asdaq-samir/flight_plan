@@ -26,7 +26,8 @@ import { useTips } from "../lib/tips";
  * The waypoints were the planner's group of their own, a menu of four
  * zoom levels and a switch for the landmarks they were chosen from. It
  * all replaced a column of headings, checkboxes, dropdowns and a
- * paragraph under nearly every control, twice the height.
+ * paragraph under nearly every control, twice the height; the last two
+ * lines under a group went too, at the pilot's ask: no descriptions.
  */
 export default function SettingsPanel() {
   return (
@@ -64,7 +65,7 @@ function TipsGroup() {
   const reset = useTips(s => s.reset);
   const [asked, setAsked] = useState(false);
   return (
-    <ListGroup title="Tips" footer="Tips point out what to look for as you plan, each once, beside the control it is about.">
+    <ListGroup title="Tips">
       <ListRow
         title={asked ? "Tips will show again" : "Show tips again"} disabled={asked}
         onClick={() => { reset(); setAsked(true); }} data-testid="tips-reset"
@@ -79,7 +80,7 @@ function BriefGroup() {
   const narrative = usePreferences(s => s.narrative);
   const setNarrative = usePreferences(s => s.setNarrative);
   return (
-    <ListGroup title="Brief" footer="Each narrative is a Claude call, made when the Brief tab opens.">
+    <ListGroup title="Brief">
       <ListRow title="Narrative">
         <Segmented
           label="Narrative from" value={narrative} onChange={v => setNarrative(v as NarrativeFramework)}

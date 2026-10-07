@@ -9,7 +9,7 @@ import type { Leg } from "./api/types";
 
 /** The minutes either side of a pass time a TFR's window is widened by:
  *  an ETA is an estimate, and a few minutes early is still inside. */
-export const PASS_MARGIN_MIN = 30;
+const PASS_MARGIN_MIN = 30;
 
 /** When the flight is `alongNm` along its route: the departure plus the
  *  legs' times to there, the leg it is in taken pro rata. Null where a

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Leg, Totals } from "../../lib/api/types";
 import { inkOn, SCORE_STEPS } from "../../lib/scoreScale";
-import { cruiseByAltitude, deg, elapsed, hhmm, one, runwayWind, scoreColor, signed, totalsParts } from "./format";
+import { cruiseByAltitude, decimalHours, deg, elapsed, hhmm, one, runwayWind, scoreColor, signed, totalsParts } from "./format";
 
 describe("scoreColor", () => {
   it("bands on the boundary, not just inside it", () => {
@@ -58,6 +58,15 @@ describe("hhmm", () => {
     expect(hhmm(59.6)).toBe("1h 00m");
   });
   it("says so when there is no time", () => expect(hhmm(null)).toBe("ETE n/a"));
+});
+
+describe("decimalHours", () => {
+  it("rounds up to the next tenth, never short", () => {
+    expect(decimalHours(1190)).toBe("19.9h");
+    expect(decimalHours(61)).toBe("1.1h");
+  });
+  it("keeps a whole tenth as it is", () => expect(decimalHours(90)).toBe("1.5h"));
+  it("rounds to whole minutes first", () => expect(decimalHours(179.6)).toBe("3.0h"));
 });
 
 describe("totalsParts", () => {

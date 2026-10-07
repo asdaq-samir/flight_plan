@@ -120,6 +120,22 @@ export default defineConfig({
             handler: "NetworkOnly",
           },
           {
+            // What does not change with the weather or the hour -- a
+            // route's course and checkpoints (the chart's, kept for its
+            // cycle), the VFR waypoints in view, the airplanes' book
+            // figures, the chart's edition -- from the cache at once and
+            // asked again behind it, at the pilot's ask for a fast app:
+            // a route opened again draws before the network answers.
+            urlPattern: ({ url, request }) =>
+              request.method === "GET" && /^\/api\/planner\/(course|checkpoints|waypoints\/in-view|aircraft-profiles|chart)$/.test(url.pathname),
+            handler: "StaleWhileRevalidate",
+            options: {
+              cacheName: "planner-steady",
+              expiration: { maxEntries: 300, maxAgeSeconds: 60 * 24 * 3600 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+          {
             // The planner's answers: the network when there is one
             // (the winds change), the last answer when there is not.
             urlPattern: ({ url, request }) =>

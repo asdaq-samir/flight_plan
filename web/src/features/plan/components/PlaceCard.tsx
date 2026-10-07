@@ -1,10 +1,12 @@
-import { useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
 import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
-import { CloudSun, Lightbulb, MapPinPlus, Navigation, Radio, Star, X } from "lucide-react";
+import { CloudSun, Lightbulb, Radio, RouteIcon, Star } from "lucide-react";
+import DirectToIcon from "../../../components/DirectToIcon";
 import { cn } from "cn";
 import { usePreferences } from "../../../lib/preferences";
-import IconButton from "../../../components/IconButton";
-import { GLASS_BUTTON, PanelHalfContext, ROUND_BUTTON } from "../../../components/mapChrome";
+import RoundButton from "../../../components/RoundButton";
+import { FILLS_HALF, GLASS_BUTTON } from "../../../components/mapChrome";
+import { CardHead, PanelCard } from "../../../components/PanelCard";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
 import { Button } from "../../../components/ui/button";
 import { api } from "../../../lib/api/client";
@@ -12,6 +14,7 @@ import type { AirportPin, AirportPlace, ClassBAirport } from "../../../lib/api/t
 import { compassPoint } from "../../../lib/compass";
 import { bearingDeg, distanceNm, type LatLon } from "../../../lib/geo";
 import { chipColourOf } from "../../../lib/map/flightCategory";
+import { inkOn } from "../../../lib/scoreScale";
 import { feet, miles } from "../../../lib/units";
 import { RunwayRow } from "./RunwayRow";
 import { PublicationRows } from "./PublicationRows";
@@ -29,6 +32,10 @@ function subtitleOf(place: AirportPlace, from: { point: LatLon; name: string | n
   const ctaf = place.frequencies.find(f => f.type === "CTAF" || f.type === "UNIC");
   return [
     place.ident,
+    // A field the armed services own (the FAA's airport file): one most
+    // pilots may not land at without the service's permission, or a civil
+    // airport sharing it.
+    place.military === "military" ? "Military, permission required" : place.military === "joint" ? "Joint use" : null,
     place.airspace_class ? `Class ${place.airspace_class}` : null,
     place.towered ? "Towered" : ctaf?.frequency_mhz ? `CTAF ${ctaf.frequency_mhz.toFixed(3).replace(/0+$/, "").replace(/\.$/, "")}` : "Non-towered",
     from ? (from.name ? `${away(from.point, place)} of ${from.name}` : away(from.point, place)) : null,
@@ -50,15 +57,22 @@ function knownOf(queryClient: QueryClient, ident: string): { name: string; categ
 /** A tile of the card's action row: its glyph over its word, as Maps
  *  draws its own -- Fly Here filled in the tint, the rest panes of glass
  *  in the text's colour, as the gear and the route's close are, at the
- *  pilot's ask (they were the tint on grey). */
-function Action({ icon, label, filled, onClick, testId }: { icon: ReactNode; label: string; filled?: boolean; onClick: () => void; testId: string }) {
+ *  pilot's ask (they were the tint on grey). Maps' size, a 24-point glyph
+ *  in a tile 70 tall: the card fills more of the panel's one half height. */
+function Action({ icon, label, spoken, filled, onClick, testId }: {
+  icon: ReactNode; label: string; filled?: boolean; onClick: () => void; testId: string;
+  /** The whole word, where the tile shows it cut short. */
+  spoken?: string;
+}) {
   return (
     <Button
-      type="button" variant={filled ? "default" : "secondary"} onClick={onClick} data-testid={testId}
-      className={cn("h-auto flex-col gap-1 rounded-xl py-2 [&_svg:not([class*='size-'])]:size-5", !filled && GLASS_BUTTON)}
+      type="button" variant={filled ? "default" : "secondary"} onClick={onClick} data-testid={testId} aria-label={spoken}
+      className={cn("h-auto flex-col gap-1 rounded-xl py-3 whitespace-normal [&_svg:not([class*='size-'])]:size-6", !filled && GLASS_BUTTON)}
     >
       {icon}
-      <span className={cn("font-semibold", TEXT.note)}>{label}</span>
+      {/* On two lines where it needs them ("Add to / Route"), at the
+          pilot's ask, rather than past the tile's edge. */}
+      <span className={cn("text-center leading-tight font-semibold", TEXT.note)}>{label}</span>
     </Button>
   );
 }
@@ -75,14 +89,16 @@ function Action({ icon, label, filled, onClick, testId }: { icon: ReactNode; lab
  * How far it is is from the pilot's own position when it is known, and
  * from the route's departure otherwise.
  */
-export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, onExpand }: {
+export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddToRoute, onExpand }: {
   ident: string;
   /** What the distance is measured from: own ship, or the departure. */
   from: { point: LatLon; name: string | null } | null;
   onClose: () => void;
   onFlyHere: (place: AirportPlace) => void;
   /** With a route open, the field landed at on the way: Add Stop. */
-  onAddStop?: (place: AirportPlace) => void;
+  /** The field on to the end of the route, the new destination (or the
+   *  first of a new one); none where it is the destination already. */
+  onAddToRoute?: (place: AirportPlace) => void;
   /** The panel all the way up, for a section scrolled to. */
   onExpand: () => void;
 }) {
@@ -95,64 +111,55 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
   // answer came, a second or more on a phone while the chart's tiles
   // loaded.
   const known = knownOf(useQueryClient(), ident);
-  // The name and the actions whole at the panel's half height, however
-  // many lines the name and the line under it take (PanelHalfContext):
-  // measured from the card's top, its own padding with it, and a
-  // little under the actions so they do not sit on the panel's edge.
-  const needs = useContext(PanelHalfContext);
-  const [summary, setSummary] = useState<HTMLDivElement | null>(null);
-  useEffect(() => {
-    if (!summary || !needs) return;
-    const observer = new ResizeObserver(() => needs(summary.offsetTop + summary.offsetHeight + 16));
-    observer.observe(summary);
-    return () => { observer.disconnect(); needs(null); };
-  }, [summary, needs]);
   const weatherRef = useRef<HTMLDivElement>(null);
   const radioRef = useRef<HTMLDivElement>(null);
   const show = (section: HTMLElement | null) => {
+    // From half, once the panel is up and the name and actions have
+    // closed up to their own height (below), so the section is scrolled
+    // to where it ends up; all the way up already, after a frame.
+    const up = section?.closest("[data-panel]")?.getAttribute("data-panel") === "full";
     onExpand();
-    // After the panel has started up, so the section is scrolled to in
-    // the room it will have.
-    window.setTimeout(() => section?.scrollIntoView({ block: "start", behavior: "smooth" }), 50);
+    window.setTimeout(() => section?.scrollIntoView({ block: "start", behavior: "smooth" }), up ? 50 : 520);
   };
   const metar = place?.metar ?? null;
   const weather = place
     ? { status: place.weather_unavailable ? "unavailable" : metar ? "reported" : "no-report", category: metar?.flight_category ?? null }
     : known && { status: known.category ? "reported" : "no-report", category: known.category };
   return (
-    <div className="relative min-h-0 flex-1 overflow-y-auto px-4 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))] print:hidden" data-testid="place-card">
-      <div ref={setSummary}>
-        <div className="flex items-start gap-2">
-          <div className="min-w-0 flex-1">
-            <h2 className="text-[1.375rem] leading-7 font-bold tracking-tight text-foreground" data-testid="place-name">
-              {place?.name ?? known?.name ?? ident}
-            </h2>
-            {/* A note's 13 in grey under the name, as the line under a
-                place's name is in Maps: what it is, not text to read. */}
-            <p className={cn("text-muted-foreground", TEXT.note)}>
-              {place ? subtitleOf(place, from) : isError ? `${ident} · not found` : `${ident} · …`}
-            </p>
-          </div>
+    <PanelCard testId="place-card">
+      {/* The name and the actions the panel's half, less the card's own
+          top: the weather starts under it, out of sight there (FILLS_HALF). */}
+      <div className={cn("min-h-[calc(var(--half-body,0px)_-_var(--corner-inset,0.75rem))]", FILLS_HALF)}>
+        <CardHead
+          name={place?.name ?? known?.name ?? ident} nameTestId="place-name"
+          line={place ? subtitleOf(place, from) : isError ? `${ident} · not found` : `${ident} · …`}
+          onClose={onClose} closeTestId="place-close"
+        >
           {weather && (
             <span
-              className="mt-1 shrink-0 rounded-md px-2 py-0.5 text-xs font-bold tracking-wide text-white"
-              style={{ backgroundColor: chipColourOf(weather) }}
+              // The words in whichever ink reads on the colour (inkOn), as
+              // the map's chips are: white on a field's no-report grey was
+              // 2.6:1.
+              className="mt-1 shrink-0 rounded-md px-2 py-0.5 text-xs font-bold tracking-wide"
+              style={{ backgroundColor: chipColourOf(weather), color: inkOn(chipColourOf(weather)) }}
               data-testid="place-category"
             >
               {weather.category ?? (place?.weather_unavailable ? "Unavailable" : "No report")}
             </span>
           )}
           {place && <FavoriteButton place={place} />}
-          <IconButton label="Close" variant="secondary" onClick={onClose} className={cn("-mt-1 shrink-0", ROUND_BUTTON)} data-testid="place-close">
-            <X className="size-5" strokeWidth={2} />
-          </IconButton>
-        </div>
+        </CardHead>
         {place && (
-          <div className={cn("mt-3 grid gap-2", onAddStop ? "grid-cols-4" : "grid-cols-3")}>
-            <Action icon={<Navigation />} label="Fly Here" filled onClick={() => onFlyHere(place)} testId="fly-here" />
-            {onAddStop && <Action icon={<MapPinPlus />} label="Add Stop" onClick={() => onAddStop(place)} testId="place-add-stop" />}
+          <div className={cn("mt-3 grid gap-2", onAddToRoute ? "grid-cols-4" : "grid-cols-3")}>
+            {/* Fly Here is the Direct-To, and wears its symbol; Add to
+                Route beside it, at the pilot's ask, puts the field on the
+                end of the route. */}
+            <Action icon={<DirectToIcon />} label="Fly Here" filled onClick={() => onFlyHere(place)} testId="fly-here" />
+            {onAddToRoute && <Action icon={<RouteIcon />} label="Add to Route" onClick={() => onAddToRoute(place)} testId="place-add-to-route" />}
             <Action icon={<CloudSun />} label="Weather" onClick={() => show(weatherRef.current)} testId="place-weather" />
-            <Action icon={<Radio />} label="Frequencies" onClick={() => show(radioRef.current)} testId="place-frequencies" />
+            {/* "Freq." on the tile, at the pilot's ask: the whole word ran
+                past a quarter of a phone's card with Add Stop beside it. */}
+            <Action icon={<Radio />} label="Freq." spoken="Frequencies" onClick={() => show(radioRef.current)} testId="place-frequencies" />
           </div>
         )}
       </div>
@@ -238,7 +245,7 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
         </>
       )}
       {isLoading && !known && <p className={cn("pt-4 text-muted-foreground", TEXT.prose)}>Looking the airport up…</p>}
-    </div>
+    </PanelCard>
   );
 }
 
@@ -250,13 +257,13 @@ function FavoriteButton({ place }: { place: AirportPlace }) {
   return (
     // A round pane of glass, as the gear is; the star filled in the tint
     // while the airport is a favorite.
-    <IconButton
-      label={kept ? "Remove from Favorites" : "Add to Favorites"} aria-pressed={kept} variant="secondary"
-      className={cn("-mt-1 shrink-0", ROUND_BUTTON, kept && "text-tint hover:text-tint")}
+    <RoundButton
+      label={kept ? "Remove from Favorites" : "Add to Favorites"} aria-pressed={kept}
+      className={cn(kept && "text-tint hover:text-tint")}
       onClick={() => toggle({ ident: place.ident, name: place.name, municipality: place.municipality, lat: place.lat, lon: place.lon })}
       data-testid="place-favorite"
     >
       <Star className={cn("size-5", kept && "fill-current")} strokeWidth={2} />
-    </IconButton>
+    </RoundButton>
   );
 }

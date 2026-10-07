@@ -43,7 +43,7 @@ export const TIPS: TipSpec[] = [
 ];
 
 /** Seen, every one: what a device that has turned them off keeps. */
-export const ALL_SEEN = "*";
+const ALL_SEEN = "*";
 
 export const useTips = create<{
   seen: string[];

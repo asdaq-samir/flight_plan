@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { ChevronLeft } from "lucide-react";
 import { cn } from "cn";
+import { TEXT } from "../lib/text";
 import { Button } from "./ui/button";
 import { ListRow } from "./GroupedList";
 
@@ -45,7 +46,7 @@ export function ConsolePages({ back, pages, children }: {
             <ChevronLeft className="size-5" />
             {back}
           </Button>
-          <h3 ref={title} tabIndex={-1} className="text-[1.375rem] leading-7 font-bold tracking-tight outline-none">{page.title}</h3>
+          <h3 ref={title} tabIndex={-1} className={cn("font-bold tracking-tight outline-none", TEXT.card)}>{page.title}</h3>
           {page.content}
         </div>
       ) : (

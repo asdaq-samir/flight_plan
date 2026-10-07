@@ -1,6 +1,7 @@
-import { Suspense, lazy, useEffect, useState } from "react";
+import { lazy, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import AccordionSection from "../../../../components/AccordionSection";
+import AfterPaint from "../../../../components/AfterPaint";
 import { ListGroup, ListRow } from "../../../../components/GroupedList";
 import { api } from "../../../../lib/api/client";
 import { altFt } from "../../../../lib/units";
@@ -42,7 +43,10 @@ export default function RouteProfileSection({ ends, rows, wanted, eager = false 
     queryFn: () => api.routeProfile(dep, dest, stops),
     enabled: wanted && (near || eager), staleTime: Infinity, meta: { silent: true },
   });
-  const plan = planProfile(rows);
+  // The same plan while the rows are: recharts measures its line's whole
+  // length at every draw, and a new plan drew the chart again at every
+  // row picked in the nav log.
+  const plan = useMemo(() => planProfile(rows), [rows]);
   const highest = profile ? Math.max(...profile.terrain.map(t => t.ground_ft)) : null;
   const classes = profile ? [...new Set(profile.airspace.map(a => a.class))].sort() : [];
   const summary = !profile ? (isError ? "Could not be drawn" : "The ground, the airspace and the plan from the side")
@@ -60,9 +64,9 @@ export default function RouteProfileSection({ ends, rows, wanted, eager = false 
       <div ref={setSpot} />
       {profile && (
         <>
-          <Suspense fallback={<div className="h-48" />}>
+          <AfterPaint fallback={<div className="h-48" />}>
             <ProfileChart profile={profile} plan={plan} />
-          </Suspense>
+          </AfterPaint>
           {crossed.length > 0 && (
             <div className="pt-3">
               <ListGroup title="Airspace on the route">

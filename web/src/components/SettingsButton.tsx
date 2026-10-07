@@ -1,6 +1,6 @@
 import type { ComponentProps } from "react";
 import { Settings } from "lucide-react";
-import IconButton from "./IconButton";
+import RoundButton from "./RoundButton";
 
 /**
  * The map's button that opens the console, the same on both pages: a
@@ -11,10 +11,10 @@ import IconButton from "./IconButton";
  * on Maps' round buttons are. A trigger's child, so the
  * sheet's own open state, click and `aria-expanded` arrive as props.
  */
-export default function SettingsButton(props: Omit<ComponentProps<typeof IconButton>, "label" | "children">) {
+export default function SettingsButton(props: Omit<ComponentProps<typeof RoundButton>, "label" | "children">) {
   return (
-    <IconButton label="Settings" data-testid="settings-button" {...props}>
+    <RoundButton label="Settings" data-testid="settings-button" {...props}>
       <Settings className="size-5" strokeWidth={2} />
-    </IconButton>
+    </RoundButton>
   );
 }

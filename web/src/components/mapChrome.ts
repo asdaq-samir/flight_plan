@@ -44,13 +44,10 @@ export const ConsoleButtonContext = createContext<ReactNode>(null);
  *  own (MapPage), the same in either console. */
 export const ConsoleSettingsContext = createContext<ReactNode>(null);
 
-/** What the map panel's body must show whole at the half height, in
- *  pixels from the body's top -- a place card's name and its actions,
- *  as Maps' medium detent always shows them -- or null: the half detent
- *  grows to fit it, as far as the whole height (MapPanel). `exact`: the
- *  half is that and no more, even under half the screen -- the route's
- *  panel, its tabs and the nav log's line, at the pilot's ask. */
-export const PanelHalfContext = createContext<((px: number | null, exact?: boolean) => void) | null>(null);
+/** Where the route's tabs' bar ends, in pixels from the map panel's
+ *  body's top, or null with no tabs in sight: the panel's half height,
+ *  every panel's, is the route's head and that bar (MapPanel). */
+export const PanelHalfContext = createContext<((px: number | null) => void) | null>(null);
 
 /** Whether the console is out, the app's rather than a page's: the two
  *  pages are drawn anew as a developer's Pilot and Developer in its
@@ -131,6 +128,14 @@ export const GLASS_BUTTON =
  *  with the reader's text size only to 14, so the row stays one line at
  *  the pilot's, a step up from iOS's default. */
 export const CHIP_TEXT = "text-xs pointer-coarse:text-[min(0.8125rem,14px)]";
+
+/** What a panel's body shows first -- the search's Favorites, an airport's
+ *  name and actions -- closing up to its own height all the way up, on
+ *  the sheet's curve (SHEET_CURVE): half way it is as tall as the body
+ *  there (MapPanel's --half-body, less what is over it, at the call:
+ *  `min-h-[calc(var(--half-body,0px)_-_…)]`), so what comes next starts
+ *  out of sight, every panel one height at the pilot's ask. */
+export const FILLS_HALF = "transition-[min-height] duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] in-data-[panel=full]:min-h-0";
 
 /** A round button on the panel -- the console's, the route's close -- as
  *  Maps' are on iOS 26: a circle of that glass, its glyph bold in the

@@ -20,17 +20,14 @@ import { ConsoleButtonContext } from "./mapChrome";
  * progress), as Maps' Options does, and a button either side. Drag it or
  * its grabber and it opens into the sheet.
  */
-export function RouteCapsule({ title, detail, tone = "default", warning, onDetail, leading, trailing }: {
+export function RouteCapsule({ title, detail, warning, onDetail, leading }: {
   title: string;
   /** A chip's words under the route, and what a tap on it does. */
   detail?: string;
-  /** Destructive: the chip says what is wrong with the route, in red. */
-  tone?: "default" | "destructive";
   /** One line's: what is wrong with the route, a red mark beside it. */
   warning?: string;
   onDetail?: () => void;
   leading?: ReactNode;
-  trailing?: ReactNode;
 }) {
   const consoleButton = useContext(ConsoleButtonContext);
   if (!detail) {
@@ -50,7 +47,7 @@ export function RouteCapsule({ title, detail, tone = "default", warning, onDetai
           {warning && <CircleAlert className="size-4 shrink-0 text-destructive" aria-hidden="true" />}
           <FittedRoute title={title} marked={!!warning} />
         </button>
-        <div className="flex shrink-0 justify-end">{trailing ?? consoleButton}</div>
+        <div className="flex shrink-0 justify-end">{consoleButton}</div>
       </div>
     );
   }
@@ -68,13 +65,13 @@ export function RouteCapsule({ title, detail, tone = "default", warning, onDetai
         </div>
         {/* The tint's own words on a wash of it, as Maps' Options chip. */}
         <button
-          type="button" onClick={onDetail} data-testid="capsule-detail" data-tone={tone}
+          type="button" onClick={onDetail} data-testid="capsule-detail"
           className={cn(
             // A note's size, the capsule a line thinner, as Maps' Options;
             // over the title, so its 44-point hit area (index.css) is its
             // own where it reaches up across the route's line.
             "relative z-10 max-w-full rounded-full px-2.5 py-px font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring", TEXT.note,
-            tone === "destructive" ? "bg-destructive/12 text-destructive" : "bg-tint/12 text-tint",
+            "bg-tint/12 text-tint",
           )}
         >
           {/* Cut short inside, not on the button: its overflow hidden
@@ -82,7 +79,7 @@ export function RouteCapsule({ title, detail, tone = "default", warning, onDetai
           <span className="block truncate">{detail}</span>
         </button>
       </div>
-      <div className="flex w-9 shrink-0 justify-end">{trailing ?? consoleButton}</div>
+      <div className="flex w-9 shrink-0 justify-end">{consoleButton}</div>
     </div>
   );
 }

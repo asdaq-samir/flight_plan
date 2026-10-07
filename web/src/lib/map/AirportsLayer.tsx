@@ -1,8 +1,9 @@
 import L from "leaflet";
-import { useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { CircleMarker, Marker, Pane, useMap, useMapEvents } from "react-leaflet";
 import { api } from "../api/client";
+import { usePreferences } from "../preferences";
 import type { AirportPin } from "../api/types";
 import { colourOf } from "./flightCategory";
 import { airportIcon } from "./icons";
@@ -27,6 +28,43 @@ const NO_REPORT_FROM_ZOOM = 10;
 
 /** A finger's width round each airport symbol, 44 points across. */
 const TARGET_RADIUS = 22;
+/** How far off a field's mark a tap on the chart is still the field's:
+ *  half a finger's 44 points. */
+const NEAR_MISS_PX = 22;
+
+// Each style one object for good: react-leaflet restyles a path whenever
+// its pathOptions is a new object, and a literal is one at every render.
+const TARGET_STYLE: L.PathOptions = { stroke: false, fill: true, fillOpacity: 0 };
+const SELECTED_RING: L.PathOptions = { color: "#F2B600", weight: 4, opacity: 0.95, fill: false };
+
+/** One field on the chart, its chip or its invisible target, drawn again
+ *  only when it changes (memo): react-leaflet moves a mark whose position
+ *  is a new array, as a literal is at every render, and restyles one whose
+ *  style is -- every field on the map was moved and restyled each time the
+ *  page drew, 0.4 s of a phone's as the Brief first opened (measured at a
+ *  quarter of a laptop's speed, 2026-10-07). */
+const AirportMark = memo(function AirportMark({ airport: a, chip, onSelect }: {
+  airport: AirportPin;
+  chip: boolean;
+  onSelect: (ident: string) => void;
+}) {
+  const events = { click: (e: L.LeafletMouseEvent) => { L.DomEvent.stopPropagation(e); onSelect(a.ident); } };
+  return chip ? (
+    <Marker position={[a.lat, a.lon]} icon={airportIcon(colourOf(a.flight_category), a.ident)} eventHandlers={events}>
+      {hovers && <MapTooltip>{a.ident} · {a.name} · {a.flight_category ?? "no report"}</MapTooltip>}
+    </Marker>
+  ) : (
+    <CircleMarker
+      center={[a.lat, a.lon]} radius={TARGET_RADIUS}
+      // The class at creation (Leaflet takes it only then), the rest as style.
+      className="leaflet-airport-target"
+      pathOptions={TARGET_STYLE}
+      eventHandlers={events}
+    >
+      {hovers && <MapTooltip>{a.ident} · {a.name}</MapTooltip>}
+    </CircleMarker>
+  );
+});
 
 /**
  * The chart's own airports, made tappable, from zoom 8 in -- the ones
@@ -52,6 +90,10 @@ export function AirportsLayer({ selected, onSelect, exclude, route }: {
   /** The route's box: its reporting fields asked for once, ahead. */
   route: { south: number; west: number; north: number; east: number } | null;
 }) {
+  // The fields the armed services keep to themselves, only when asked
+  // for (the map's Military setting): a civil airplane lands there only
+  // with the service's permission.
+  const showMilitary = usePreferences(s => s.military);
   const map = useMap();
   const [view, setView] = useState(() => boxOf(map));
   // The zoom a zoom is going to, as it starts: the route's chips draw
@@ -63,10 +105,23 @@ export function AirportsLayer({ selected, onSelect, exclude, route }: {
   // render detaches the listener and re-attaches it on every commit --
   // and an event fired inside that same commit, by an earlier sibling's
   // effect (a `FocusOn` zoom), lands in the gap with nothing listening.
+  // A tap on the chart a little off a field's chip -- within a finger's
+  // half-width of it, the 44 points Apple asks for -- is that field's, the
+  // nearest's where there are two, at the pilot's ask for a kinder map: a
+  // chip is only 24 tall, and its box grown to 44 covered its neighbours'.
+  // Anywhere else, the card is put away.
+  const drawn = useRef<AirportPin[]>([]);
   const handlers = useMemo(() => ({
     zoomanim: (e: L.ZoomAnimEvent) => setEasingTo(e.zoom),
     moveend: () => { setView(boxOf(map)); setEasingTo(null); },
-    click: () => onSelect(null),
+    click: (e: L.LeafletMouseEvent) => {
+      let best: { ident: string; px: number } | null = null;
+      for (const a of drawn.current) {
+        const px = map.latLngToContainerPoint([a.lat, a.lon]).distanceTo(e.containerPoint);
+        if (px <= NEAR_MISS_PX && (!best || px < best.px)) best = { ident: a.ident, px };
+      }
+      onSelect(best?.ident ?? null);
+    },
   }), [map, onSelect]);
   useMapEvents(handlers);
   const zoom = easingTo ?? view.zoom;
@@ -104,31 +159,22 @@ export function AirportsLayer({ selected, onSelect, exclude, route }: {
     for (const a of inView ?? []) byIdent.set(a.ident, a);
     return [...byIdent.values()];
   }, [alongRoute, inView, view.box]);
+  const shown = useMemo(() => (reports
+    ? data.filter(a => !exclude.has(a.ident) && (near || a.flight_category) && (showMilitary || a.military !== "military"))
+    : []), [reports, data, exclude, near, showMilitary]);
+  useEffect(() => { drawn.current = shown; }, [shown]);
+  // One callback for every mark, so a new onSelect -- the page's, made
+  // again as its state changes -- draws none of them again.
+  const latest = useRef(onSelect);
+  useEffect(() => { latest.current = onSelect; }, [onSelect]);
+  const pick = useCallback((ident: string) => latest.current(ident), []);
   return (
     <Pane name="airports" style={{ zIndex: 450 }}>
-      {reports && data.filter(a => !exclude.has(a.ident) && (near || a.flight_category)).map((a: AirportPin) => (a.flight_category || zoom >= NO_REPORT_FROM_ZOOM ? (
-        <Marker
-          key={a.ident} position={[a.lat, a.lon]} icon={airportIcon(colourOf(a.flight_category), a.ident)}
-          eventHandlers={{ click: e => { L.DomEvent.stopPropagation(e); onSelect(a.ident); } }}
-        >
-          {hovers && <MapTooltip>{a.ident} · {a.name} · {a.flight_category ?? "no report"}</MapTooltip>}
-        </Marker>
-      ) : (
-        <CircleMarker
-          key={a.ident} center={[a.lat, a.lon]} radius={TARGET_RADIUS}
-          // The class at creation (Leaflet takes it only then), the rest as style.
-          className="leaflet-airport-target"
-          pathOptions={{ stroke: false, fill: true, fillOpacity: 0 }}
-          eventHandlers={{ click: e => { L.DomEvent.stopPropagation(e); onSelect(a.ident); } }}
-        >
-          {hovers && <MapTooltip>{a.ident} · {a.name}</MapTooltip>}
-        </CircleMarker>
-      )))}
+      {shown.map((a: AirportPin) => (
+        <AirportMark key={a.ident} airport={a} chip={!!a.flight_category || zoom >= NO_REPORT_FROM_ZOOM} onSelect={pick} />
+      ))}
       {selected && (
-        <CircleMarker
-          center={[selected.lat, selected.lon]} radius={16} interactive={false}
-          pathOptions={{ color: "#F2B600", weight: 4, opacity: 0.95, fill: false }}
-        />
+        <CircleMarker center={[selected.lat, selected.lon]} radius={16} interactive={false} pathOptions={SELECTED_RING} />
       )}
     </Pane>
   );

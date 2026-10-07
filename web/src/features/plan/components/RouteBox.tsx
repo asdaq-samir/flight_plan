@@ -13,7 +13,7 @@ import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuShortcut, 
 import { InputGroup } from "../../../components/ui/input-group";
 import { Popover, PopoverAnchor, PopoverContent } from "../../../components/ui/popover";
 import type { Detour } from "../../../lib/api/types";
-import { MAX_STOPS, identOf, stopOf } from "../../../lib/identSchema";
+import { MAX_STOPS, identOf, isPosition, pointName, stopOf } from "../../../lib/identSchema";
 import { usePreferences, type AirspaceClass, type RecentAirport } from "../../../lib/preferences";
 import { useAirportSearch } from "../../../lib/useAirportSearch";
 import { AIRSPACE, useAirspace } from "../../../lib/useAirspace";
@@ -73,6 +73,8 @@ export default function RouteBox({
   const points = [...(hasDep ? [dep] : []), ...stops, ...(hasDest ? [dest] : [])];
   const roleOf = (i: number) => (i === 0 && hasDep ? "dep" : i === points.length - 1 && hasDest ? "dest" : "stop");
   const [typed, setTyped] = useState("");
+  // The field taken, for the arrow on from the destination (below).
+  const [focused, setFocused] = useState(false);
   const typedNow = useRef(typed);
   useEffect(() => { typedNow.current = typed; }, [typed]);
   const field = useRef<HTMLInputElement>(null);
@@ -101,7 +103,7 @@ export default function RouteBox({
     useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 6 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
-  const isEnd = (ident: string) => !!identOf(ident) && !waypoints.has(ident);
+  const isEnd = (ident: string) => (!!identOf(ident) && !waypoints.has(ident)) || isPosition(ident);
   const full = stops.length >= MAX_STOPS;
 
   // A list of points back into the route's parts, the ends kept where they
@@ -134,9 +136,16 @@ export default function RouteBox({
   // destination and anything typed before it stops on the way (a
   // waypoint typed there is a stop before the destination: a flight does
   // not end at one).
+  // Into an empty box -- the route cleared -- the first airport typed is
+  // the departure, and the field asks for the destination next, at the
+  // pilot's ask; more than one typed at once, on to the last.
   const put = (idents: string[]) => {
     const fresh = idents.map(stopOf).filter(Boolean);
     if (!fresh.length) return;
+    if (!points.length) {
+      change(fresh, isEnd(fresh[0]!), fresh.length > 1 && isEnd(fresh.at(-1)!));
+      return;
+    }
     const where = atNow.current;
     if (where !== null) {
       const departure = where === 0 && !hasDep && isEnd(fresh[0]!);
@@ -221,19 +230,24 @@ export default function RouteBox({
       // What was typed goes in when the box is left -- unless a suggestion
       // took the tap, which empties it first -- and an arrow's field is
       // put away.
+      onFocus={() => setFocused(true)}
       onBlur={() => window.setTimeout(() => {
+        setFocused(false);
         if (document.activeElement === field.current) return;
         if (typedNow.current.trim()) commitTyped();
         if (atNow.current !== null) { setAt(null); onAddingChange(false); }
       }, 200)}
-      placeholder={at === null && !hasDest ? "Destination" : at === 0 && !hasDep ? "Departure" : ""}
-      aria-label={at === null ? (hasDest ? "Change the destination" : "The destination") : at === 0 && !hasDep ? "The departure" : "A stop here"}
+      // Empty, the route, from its departure (put); then each end it lacks.
+      placeholder={!points.length ? "Route" : at === null && !hasDest ? "Destination" : at === 0 && !hasDep ? "Departure" : ""}
+      aria-label={!points.length ? "The route, from its departure" : at === null ? (hasDest ? "Change the destination" : "The destination") : at === 0 && !hasDep ? "The departure" : "A stop here"}
       enterKeyHint="done" autoCapitalize="characters" autoCorrect="off" spellCheck={false}
       // 16 at the least, as every field is: under 16 iOS zooms the page
       // in on it.
       className={cn(
         "h-8 bg-transparent font-mono text-base uppercase outline-none placeholder:font-sans placeholder:normal-case placeholder:text-muted-foreground md:text-sm pointer-coarse:text-[1.0625rem]",
-        at === null ? "min-w-12 flex-1" : "w-20 shrink-0 rounded-full bg-background/60 px-2",
+        // The departure's field wide enough for its word: at a stop's width
+        // it read "Departu".
+        at === null ? "min-w-12 flex-1" : cn("shrink-0 rounded-full bg-background/60 px-2", at === 0 && !hasDep ? "w-28" : "w-20"),
       )}
       data-testid="route-type"
     />
@@ -320,10 +334,14 @@ export default function RouteBox({
                 </SortableContext>
               </DndContext>
               {/* After the last point: the destination typed, or changed.
-                  With none yet, an arrow on to it. */}
+                  With none yet, an arrow on to it; with one, an arrow on from
+                  it while the field is taken, at the pilot's ask -- what is
+                  typed there is the new destination, the old one a stop. */}
               {at === null && (
                 <>
-                  {!hasDest && points.length > 0 && <ArrowRight className="size-3 shrink-0 text-muted-foreground" aria-hidden="true" />}
+                  {points.length > 0 && (!hasDest || focused || !!typed) && (
+                    <ArrowRight className="size-3 shrink-0 text-muted-foreground" aria-hidden="true" data-testid="route-arrow-on" />
+                  )}
                   {typing}
                 </>
               )}
@@ -450,7 +468,7 @@ function Pill({ id, ident, waypoint, index, role, stopNumber, airspaceOf, metarC
       data-testid={role === "stop" ? "stop" : `route-${role}`}
     >
       <AirportPicker
-        value={ident} placeholder={label} ariaLabel={waypoint ? `${label}, a waypoint` : label} look="pill" fixes={role === "stop"}
+        value={pointName(ident)} placeholder={label} ariaLabel={waypoint ? `${label}, a waypoint` : label} look="pill" fixes={role === "stop"}
         className={cn("h-8 rounded-full px-1.5", look && "text-current", waypoint && "text-[#b02e7c] dark:text-[#ec8cc4]")} onChange={onChange}
       />
     </span>

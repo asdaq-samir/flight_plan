@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
-import { identOf, routeOf } from "../../lib/identSchema";
+import { identOf, routeOf, routeName } from "../../lib/identSchema";
 import { statusQuery } from "../../lib/queryClient";
 // Without this Leaflet's tiles, markers and controls have no
 // positioning at all -- this is the library's own stylesheet, not
@@ -264,7 +264,7 @@ export default function TrainWorkspace({ dep, dest, setPanel, children }: Worksp
     // far its rating has got, which opens the panel to the list.
     compact: dep && dest ? (
       <RouteCapsule
-        title={`${dep} → ${dest}`}
+        title={routeName(dep, dest)}
         detail={`${picks.length} of ${store.detections.length + store.added.length} rated`}
         onDetail={() => setPanel("half")}
       />

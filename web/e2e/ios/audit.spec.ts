@@ -49,14 +49,16 @@ for (const screen of SCREENS) {
     const greyed = await roleFindings(page);
     const components = await componentFindings(page);
     // P15 in both schemes: the app follows the system's (Settings,
-    // Appearance), and dark is a palette of its own to pass or fail.
-    const contrast = await contrastFindings(page);
-    // The scheme switched with no colour transitions: a section laid out
-    // only near the screen (content-visibility) pauses its rows' colour
-    // transitions while it is off it, so their words kept the light
-    // scheme's colour on the dark one's background -- 1.1:1 in no
-    // pilot's view, since a row's transition runs as it scrolls in.
+    // Appearance), and dark is a palette of its own to pass or fail --
+    // each with no transitions: a section laid out only near the screen
+    // (content-visibility) pauses its transitions while it is off it, so a
+    // row's words kept the light scheme's colour on the dark one's
+    // background (1.1:1), and a button enabled off screen stayed half
+    // faded (the mock oral's Ask, 2:1 to 4:1 on CI's iPad) -- in no
+    // pilot's view, since a transition runs as its section scrolls in.
     const instant = await page.addStyleTag({ content: "*, *::before, *::after { transition: none !important; }" });
+    await still(page);
+    const contrast = await contrastFindings(page);
     await page.emulateMedia({ colorScheme: "dark" });
     await still(page);
     const contrastDark = await contrastFindings(page);

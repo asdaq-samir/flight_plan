@@ -1,14 +1,13 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { memo, useEffect, useMemo, useState, type ReactNode } from "react";
 import { format } from "date-fns";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { cn } from "cn";
 import { Check, CloudOff, Loader2, OctagonAlert, Save, TriangleAlert } from "lucide-react";
-import IconButton from "../../../../components/IconButton";
-import { ROUND_BUTTON } from "../../../../components/mapChrome";
+import RoundButton from "../../../../components/RoundButton";
 import { Alert, AlertDescription, AlertTitle } from "../../../../components/ui/alert";
 import AccordionSection from "../../../../components/AccordionSection";
 import { ListGroup, ListRow } from "../../../../components/GroupedList";
-import { TEXT } from "../../../../lib/text";
+import { GROUP_HEADING, TEXT } from "../../../../lib/text";
 import { api } from "../../../../lib/api/client";
 import { pilotQuery } from "../../../../lib/queryClient";
 import AltitudeReasoning from "../AltitudeReasoning";
@@ -98,13 +97,13 @@ function BriefingNarrativePrintBlock({ langgraph, crewai }: { langgraph: string 
     <div className="hidden break-inside-avoid-page border-b border-border px-4 py-3 print:block print:break-inside-avoid">
       {langgraph && (
         <>
-          <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">LangGraph Narrative</h2>
+          <h2 className={GROUP_HEADING}>LangGraph Narrative</h2>
           <p className="mt-2 text-sm text-muted-foreground">{langgraph}</p>
         </>
       )}
       {crewai && (
         <>
-          <h2 className={cn("text-xs font-semibold uppercase tracking-wide text-muted-foreground", langgraph && "mt-3")}>
+          <h2 className={cn(GROUP_HEADING, langgraph && "mt-3")}>
             CrewAI Narrative
           </h2>
           <p className="mt-2 text-sm text-muted-foreground">{crewai}</p>
@@ -270,15 +269,14 @@ export function SaveFlightButton({
   // A round button of glass, as Share and Print beside it and the route's
   // close are: its state its glyph and its name -- Save, Saving…, Saved.
   return (
-    <IconButton
+    <RoundButton
       label={save.isPending ? "Saving…" : saved ? "Saved" : "Save this flight"}
-      variant="secondary" className={`size-9 ${ROUND_BUTTON}`}
       onClick={() => request && save.mutate(request)}
       disabled={!request || save.isPending || saved}
       data-testid="save-flight-button"
     >
       {save.isPending ? <Loader2 className="size-5 animate-spin" /> : saved ? <Check className="size-5" strokeWidth={2} /> : <Save className="size-5" strokeWidth={2} />}
-    </IconButton>
+    </RoundButton>
   );
 }
 
@@ -354,8 +352,12 @@ function Pending({ children }: { children: ReactNode }) {
  * narrative, the one element of a standard briefing not here, needs a
  * meteorologist's analysis, not a data fetch.
  */
-export default function FlightBriefingView({
-  part, publish = false, nav, legs, dep, dest, stops = [], course = null, totals = null, depart = "",
+const NO_STOPS: string[] = [];
+
+// Drawn again only when its plan changes (memo): every tab is one of
+// these, and the page draws again at every row picked in the nav log.
+export default memo(function FlightBriefingView({
+  part, publish = false, nav, legs, dep, dest, stops = NO_STOPS, course = null, totals = null, depart = "",
   briefing: briefingState,
   langgraphNarrative, crewaiNarrative, narrative, problem = null,
 }: Props) {
@@ -668,7 +670,7 @@ export default function FlightBriefingView({
                 />
               </ListGroup>
               <div>
-                <h3 className={cn("px-1 pb-1.5 font-semibold tracking-wide text-muted-foreground uppercase", TEXT.note)}>How it was chosen</h3>
+                <h3 className={cn("px-1 pb-1.5", GROUP_HEADING)}>How it was chosen</h3>
                 <AltitudeReasoning nav={nav} legs={legs} />
               </div>
             </div>
@@ -796,7 +798,7 @@ export default function FlightBriefingView({
       )}
     </>
   );
-}
+});
 
 /**
  * Which weather sources the briefing could not check, above every

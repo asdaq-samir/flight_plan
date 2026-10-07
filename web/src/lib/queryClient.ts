@@ -134,6 +134,13 @@ export const courseQuery = (dep: string, dest: string, stops: string[] = []) => 
   queryKey: ["course", dep, dest, stops.join(",")], queryFn: () => api.course(dep, dest, stops), staleTime: Infinity,
 });
 
+/** A route's checkpoints off the chart: the planner's, kept until the
+ *  chart or the model changes (app.scoring), so never stale here. Asked
+ *  for by the plan (usePlan) and ahead of Fly Here (PlanWorkspace). */
+export const checkpointsQuery = (dep: string, dest: string, stops: string[] = []) => queryOptions({
+  queryKey: ["checkpoints", dep, dest, stops.join(",")], queryFn: () => api.checkpoints(dep, dest, stops), staleTime: Infinity,
+});
+
 /** The Class B airports and their weather. The airspace never moves and
  *  the planner holds the weather for minutes, so refetching per pan
  *  would ask the same cache the same question; and quiet, because the

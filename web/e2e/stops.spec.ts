@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { test, expect, type Locator, type Page } from "@playwright/test";
-import { openPanel, settle, sideDrawer, slow, openTab, openSettings, closeConsole } from "./helpers";
+import { openPanel, settle, sideDrawer, slow, openTab, openSettings, closeConsole, grabberTo } from "./helpers";
 
 /**
  * A route that lands on the way, as Maps' Add Stop: a stop added in the
@@ -58,7 +58,7 @@ test("a stop added in the panel lands the route there: the capsule, the nav log 
   await expect(fuel).toContainText("KMSN → KDLH");
 
   // Lowered, the capsule names the route through it.
-  await page.getByTestId("sidebar-trigger-button").click();
+  await grabberTo(page, "peek");
   await expect(page.getByTestId("capsule-title")).toHaveText("C81 → KMSN → KDLH");
 
   // Taken off again from its menu -- a right-click with a mouse, a press
@@ -193,6 +193,29 @@ test.describe("on a touch screen", () => {
     await expect(menu).toHaveCount(0);
     await expect(page).toHaveURL(stopsAre("KMSN,KRYV"));
   });
+});
+
+// The route cleared, its box asks for the route, at the pilot's ask: the
+// first airport typed is the departure, and then it asks for the
+// destination.
+test("a cleared route's box takes the departure first, then asks for the destination", async ({ page }) => {
+  await page.goto("/app/plan?dep=C81&dest=KDLH");
+  await settle(page);
+  await openPanel(page);
+  // Taken after the destination, the field has an arrow on from it: what
+  // is typed there is the new destination.
+  await expect(sideDrawer(page).getByTestId("route-arrow-on")).toHaveCount(0);
+  await sideDrawer(page).getByTestId("route-type").click();
+  await expect(sideDrawer(page).getByTestId("route-arrow-on")).toBeVisible();
+  await sideDrawer(page).getByTestId("route-clear").click();
+  await expect(page).not.toHaveURL(/[?&]dep=/);
+  const field = sideDrawer(page).getByTestId("route-type");
+  await expect(field).toHaveAttribute("placeholder", "Route");
+  await field.fill("KMSN");
+  await field.press("Enter");
+  await expect(page).toHaveURL(/[?&]dep=KMSN(&|$)/);
+  await expect(page).not.toHaveURL(/[?&]dest=/);
+  await expect(field).toHaveAttribute("placeholder", "Destination");
 });
 
 test("a link with a stop opens on the route through it", async ({ page }) => {
@@ -355,25 +378,29 @@ test("a point's menu has its altitude before Remove: an airport's pattern in fee
   await expect(page).not.toHaveURL(/[?&]altitudes=/);
 });
 
-test("an airport's card adds it as a stop, where it bends the route least; the route's own airports have no Add Stop", async ({ page }) => {
-  await recordedStops(page);
-  await page.goto("/app/plan?dep=C81&dest=KDLH&place=KDLH");
+// Add to Route, beside Fly Here, at the pilot's ask: the field on to the
+// end of the route, the old destination a stop on the way; none on the
+// destination's own card; with no route, the first point of one.
+test("an airport's card adds it to the end of the route, the old destination a stop; the destination's own card has none", async ({ page }) => {
+  await page.goto("/app/plan?dep=C81&dest=KMSN&place=KMSN");
   await expect(page.getByTestId("place-card")).toBeVisible({ timeout: slow(30000) });
   await expect(page.getByTestId("fly-here")).toBeVisible();
-  await expect(page.getByTestId("place-add-stop")).toHaveCount(0);
+  await expect(page.getByTestId("place-add-to-route")).toHaveCount(0);
 
-  await page.goto("/app/plan?dep=C81&dest=KDLH&place=KMSN");
-  const add = page.getByTestId("place-add-stop");
+  await page.goto("/app/plan?dep=C81&dest=KMSN&place=KDLH");
+  const add = page.getByTestId("place-add-to-route");
   await expect(add).toBeVisible({ timeout: slow(30000) });
-  const drawn = page.waitForResponse(r => r.url().includes("/course") && r.url().includes("stops=KMSN"));
   await add.click();
+  await expect(page).toHaveURL(/[?&]dest=KDLH/);
   await expect(page).toHaveURL(/[?&]stops=KMSN/);
+  await expect(page).toHaveURL(/[?&]dep=C81/);
   await expect(page.getByTestId("place-card")).toHaveCount(0);
-  // The route through it, once it is drawn: in the capsule at rest, or
-  // the panel's stops.
-  await drawn;
-  await expect(page.getByTestId("capsule-title").or(sideDrawer(page).getByTestId("stop")).first())
-    .toContainText("KMSN", { timeout: slow(30000) });
+
+  await page.goto("/app/plan?place=KDLH");
+  await page.getByTestId("place-add-to-route").click();
+  await expect(page).toHaveURL(/[?&]dep=KDLH/);
+  await expect(page).not.toHaveURL(/[?&]dest=/);
+  await expect(sideDrawer(page).getByTestId("route-type")).toHaveAttribute("placeholder", "Destination");
 });
 
 test("a VFR waypoint on the chart is a diamond, and its card adds it as a stop", async ({ page }) => {
