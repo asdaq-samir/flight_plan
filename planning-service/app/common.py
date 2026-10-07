@@ -1,6 +1,7 @@
 """What every router starts from: the route's idents, the airports
 behind them, and the on-disk paths a corridor's data lives at."""
 import logging
+import re
 from dataclasses import dataclass
 from itertools import pairwise
 
@@ -33,15 +34,35 @@ def stops_of(stops: str | list | None) -> list[str]:
     return [s.strip().upper() for s in items if s and s.strip()]
 
 
+#: A present position as a route's point, "@42.3246,-88.0741": where the
+#: pilot is, for Fly Here's Direct-To, which in the air goes from wherever
+#: the airplane is, any time, not from a field near it (the pilot's ask).
+_POSITION = re.compile(r"^@(-?\d{1,2}(?:\.\d{1,6})?),(-?\d{1,3}(?:\.\d{1,6})?)$")
+
+
+def position_of(ident: str) -> dict | None:
+    """A present position (_POSITION) in the shape a waypoint's is: flown
+    from, not taken off from (Route.takes_off), so its hop has no climb
+    from a field; None for any other ident."""
+    match = _POSITION.match(ident.strip())
+    if match is None:
+        return None
+    lat, lon = float(match[1]), float(match[2])
+    if not (-90 <= lat <= 90 and -180 <= lon <= 180):
+        return None
+    return {"name": "Present position", "lat": lat, "lon": lon, "elevation_ft": None, "fix": True}
+
+
 def resolve(*idents: str) -> tuple:
-    """Every airport, or a 404 naming the one that failed.
+    """Every airport -- or a present position (position_of) -- or a 404
+    naming the one that failed.
 
     Done before anything else so a typo'd ident says so, rather than
     surfacing later as "this corridor has not been collected" -- advice
     whose next step would fail for a different reason.
     """
     try:
-        return tuple(airports.get_airport(ident) for ident in idents)
+        return tuple(position_of(ident) or airports.get_airport(ident) for ident in idents)
     except ValueError as err:
         raise HTTPException(404, str(err)) from err
 
@@ -50,7 +71,10 @@ def resolve_stop(ident: str) -> dict:
     """A stop: an airport, landed at, or a named fix -- a VFR waypoint
     (VPBNG), a GPS waypoint -- flown through (vfr.fixes); a 404 where
     it is neither. A fix is in the shape an airport is, with no
-    elevation, and `fix` set."""
+    elevation, and `fix` set. A present position (position_of) too."""
+    position = position_of(ident)
+    if position is not None:
+        return position
     try:
         return airports.get_airport(ident)
     except ValueError as err:

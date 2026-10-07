@@ -250,3 +250,24 @@ def test_a_waypoints_own_altitude_under_the_floor_is_flown_and_warned(a_vfr_wayp
     }]
     # The planner's own plans: nothing to say.
     assert client.get("/api/plan", params={"dep": "C81", "dest": "KDLH", "stops": "VPBNG"}).json()["altitude_cautions"] == []
+
+
+def test_a_route_may_start_at_the_present_position_flown_from_not_taken_off_from():
+    """Fly Here's Direct-To in the air: from wherever the airplane is."""
+    from app.common import load_route
+
+    r = load_route("@42.3246,-88.0741", "KDLH")
+    assert r.departure["kind"] == "fix" and r.departure["name"] == "Present position"
+    assert (r.departure["lat"], r.departure["lon"]) == (42.3246, -88.0741)
+    assert not r.takes_off and r.lands
+    body = client.get("/api/course", params={"dep": "@42.3246,-88.0741", "dest": "KDLH"}).json()
+    assert body["departure"]["ident"] == "@42.3246,-88.0741"
+    assert body["destination"]["ident"] == "KDLH"
+
+
+def test_a_position_off_the_globe_is_no_position():
+    from app.common import position_of
+
+    assert position_of("@91.0,-88.0") is None
+    assert position_of("KDLH") is None
+    assert position_of("@42.3,-88.1") == {"name": "Present position", "lat": 42.3, "lon": -88.1, "elevation_ft": None, "fix": True}

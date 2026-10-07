@@ -7,6 +7,7 @@ unhandled until this pass, so a mocked network failure is worth a test
 of its own, not just the pure decoding helpers.
 """
 import gzip
+import time
 from datetime import datetime, timezone
 from unittest.mock import Mock, patch
 
@@ -580,3 +581,37 @@ def test_a_station_is_read_for_when_the_flight_is_there(mock_get):
     # One with no TAF held is left out; asked for none, nothing is read.
     assert weather.tafs_over({"KXXX": (_at(0), _at(2))}) == {}
     assert weather.tafs_over({}) == {} and mock_get.call_count == 1
+
+
+def test_an_unchanged_product_is_not_downloaded_or_parsed_again(monkeypatch):
+    """The held copy's ETag asks whether it has changed: a 304 keeps it."""
+    from unittest.mock import MagicMock
+
+    monkeypatch.setattr(weather, "_DATASETS", {})
+    first = MagicMock(status_code=200, content=b"", headers={"ETag": '"abc"', "Last-Modified": "Wed, 07 Oct 2026 16:11:35 GMT"})
+    unchanged = MagicMock(status_code=304, content=b"", headers={"ETag": '"abc"'})
+    asked = []
+
+    def get(url, params=None, headers=None, timeout=None):
+        asked.append(headers)
+        return first if len(asked) == 1 else unchanged
+
+    parsed = []
+    monkeypatch.setattr(weather.requests, "get", get)
+    def parse(resp):
+        parsed.append(1)
+        return ["held"]
+
+    monkeypatch.setitem(weather._SOURCES, "airsigmets", ("https://example/airsigmets", {}, parse, 300, 3 * 3600))
+    assert weather._dataset("airsigmets", force=True) == ["held"]
+    assert weather._dataset("airsigmets", force=True) == ["held"]
+    assert parsed == [1]
+    assert asked[1]["If-None-Match"] == '"abc"' and asked[1]["If-Modified-Since"] == "Wed, 07 Oct 2026 16:11:35 GMT"
+
+
+def test_the_weather_is_in_use_once_a_request_asks_for_it(monkeypatch):
+    monkeypatch.setattr(weather, "_LAST_ASKED", 0.0)
+    assert not weather.in_use()
+    monkeypatch.setitem(weather._DATASETS, "metars", weather._Record(at=time.time(), data={}, attempted=time.time(), error=None))
+    weather._dataset("metars")
+    assert weather.in_use()

@@ -10,11 +10,18 @@ national cache vfr.weather keeps for minutes at a time. A card costs a
 few table lookups and a point-in-polygon test.
 """
 from fastapi import APIRouter, HTTPException, Query
-from vfr import airports, airspace, altitude, fixes, pattern, places, publications, remarks, runway_wind, weather
+from vfr import airports, airspace, altitude, faa_data, fixes, pattern, places, publications, remarks, runway_wind, weather
 
 from ..schemas import AirportPlace, AirportsInView, NearestAirports, WaypointsInView
 
 router = APIRouter()
+
+
+def _military(place: dict) -> str | None:
+    """Whether the armed services own the field (vfr.faa_data), by the
+    ident pilots use or OurAirports' own (KDLH, C81, KC81)."""
+    owned = faa_data.military_fields(altitude.DEFAULT_FAA_CACHE_DIR)
+    return owned.get(place["ident"].upper()) or owned.get(place.get("source_ident", "").upper())
 
 
 @router.get("/api/airports/in-view", response_model=AirportsInView)
@@ -50,7 +57,8 @@ def airports_in_view(
     except weather.WeatherServiceError:
         metars = {}
     return {"airports": [
-        {**p, "flight_category": (metars.get(p["source_ident"]) or {}).get("flight_category")} for p in places
+        {**p, "flight_category": (metars.get(p["source_ident"]) or {}).get("flight_category"), "military": _military(p)}
+        for p in places
     ]}
 
 
@@ -72,7 +80,7 @@ def nearest_airports(
         lengths = [r["length_ft"] for r in airports.get_runways(p["source_ident"]) if not r["closed"] and r["length_ft"]]
         out.append({
             **p, "longest_runway_ft": max(lengths) if lengths else None,
-            "flight_category": (metars.get(p["source_ident"]) or {}).get("flight_category"),
+            "flight_category": (metars.get(p["source_ident"]) or {}).get("flight_category"), "military": _military(p),
         })
     return {"airports": out}
 
@@ -139,6 +147,7 @@ def airport_place(ident: str) -> AirportPlace:
     return {
         **{key: value for key, value in place.items() if key != "source_ident"},
         "airspace_class": airspace.surface_class_at(place["lat"], place["lon"], shp_path),
+        "military": _military(place),
         "towered": any(f["type"] == "TWR" for f in frequencies),
         **_notes(place["ident"]),
         "pattern": pattern.pattern_at(place["ident"], place["elevation_ft"]),

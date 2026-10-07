@@ -5,7 +5,7 @@ import json
 import pytest
 from vfr import airports, airspace, faa_data, model_client, pattern, publications, tfr, weather
 
-from app import detection, planning, scoring
+from app import chart_model, detection, planning, prefetch, scoring
 
 
 @pytest.fixture(autouse=True)
@@ -22,6 +22,22 @@ def airport(ident: str) -> dict:
     coords = {"C81": (42.3172, -88.0905), "KDLH": (46.8421, -92.1936), "KMSN": (43.1399, -89.3375)}[ident]
     return {"ident": ident, "name": ident, "lat": coords[0], "lon": coords[1], "elevation_ft": 900.0,
             "municipality": "", "region": ""}
+
+
+@pytest.fixture(autouse=True)
+def chart_read_here(monkeypatch):
+    """The corridor read on this process's own thread, as the tests stub
+    it, not in the pool's processes (app.chart_model.READS_IN_PROCESS),
+    which would not see the stubs."""
+    monkeypatch.setattr(chart_model, "READS_IN_PROCESS", False)
+
+
+@pytest.fixture(autouse=True)
+def no_reads_ahead(monkeypatch):
+    """No route read ahead as its course is asked for (app.prefetch): a
+    test is about the answer, and the reads would reach the chart reader
+    and USGS from a thread that outlives it. test_prefetch has its own."""
+    monkeypatch.setattr(prefetch, "route", lambda dep, dest, stops="": None)
 
 
 @pytest.fixture(autouse=True)
@@ -44,6 +60,9 @@ def known_patterns(monkeypatch):
     without the FAA's airport files -- which a fresh checkout does not
     have, and would download."""
     monkeypatch.setattr(faa_data, "published_pattern_agl_ft", lambda ident, cache_dir: None)
+    # No field the armed services own, without the FAA's airport file: a
+    # test about one stubs it again itself.
+    monkeypatch.setattr(faa_data, "military_fields", lambda cache_dir: {})
     monkeypatch.setattr(pattern, "right_traffic_ends", lambda ident, cache_dir=None: set())
 
 

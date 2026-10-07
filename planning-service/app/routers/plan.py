@@ -25,7 +25,7 @@ from vfr.profile import route_profile as side_view
 from vfr.config import DATA_DIR, VFR_SECTIONAL_MAX_ZOOM, VFR_SECTIONAL_MIN_ZOOM
 from vfr.weather import WeatherServiceError
 
-from .. import foreflight
+from .. import foreflight, prefetch
 from ..common import DEFAULT_AIRCRAFT, Route, line, load_route, ndjson
 from ..planning import (
     COMPUTE_LIMIT_S, StillComputing, aircraft_profile, altitude_plans, altitude_waiting_on, class_b_detours,
@@ -486,8 +486,14 @@ def course(dep: str, dest: str, stops: str = "") -> Course:
     idents are entered. Reading tiles takes seconds even on the fast
     path, and there is no reason a pilot should watch an empty map for
     them.
+
+    And the route's slow parts are started here, the first thing the web
+    app asks for a route: the chart's read and the ground under it, on
+    threads of their own (app.prefetch), so the nav log asked for beside
+    this finds them under way or done.
     """
     r = load_route(dep, dest, stops)
+    prefetch.route(dep, dest, stops)
     first = r.hops[0]
     shp = airspace.ensure_class_airspace_shapefile(altitude.DEFAULT_FAA_CACHE_DIR)
 

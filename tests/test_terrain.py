@@ -98,3 +98,37 @@ def test_an_obstacle_just_behind_the_start_counts_for_the_first_leg(ground, tmp_
 def test_min_safe_altitude_is_the_highest_floor(ground, tmp_path):
     ground(_dof_line(*_at(20.0), amsl_ft=2350))
     assert terrain.min_safe_altitude_msl(START, END, faa_cache_dir=tmp_path) == 2500
+
+
+def test_two_reads_of_the_same_ground_at_once_ask_usgs_once(monkeypatch):
+    """The planner reads a route's ground ahead (app.prefetch) and its
+    altitude selection may ask while that is still going: the second
+    waits for the first and is answered from the cache it filled."""
+    import threading
+
+    started, release = threading.Event(), threading.Event()
+    fetched = []
+    cache: dict = {}
+
+    def get_elevations_m(points):
+        missing = [p for p in points if p not in cache]
+        if missing:
+            fetched.append(len(missing))
+            started.set()
+            release.wait(5)
+            cache.update({p: GROUND_M for p in missing})
+        return {p: cache[p] for p in points}
+
+    monkeypatch.setattr(elevation, "get_elevations_m", get_elevations_m)
+    points = [START, END]
+    results = []
+    first = threading.Thread(target=lambda: results.append(terrain._elevations_m(points)))
+    first.start()
+    assert started.wait(5)
+    second = threading.Thread(target=lambda: results.append(terrain._elevations_m(points)))
+    second.start()
+    release.set()
+    first.join(5)
+    second.join(5)
+    assert fetched == [2]
+    assert results == [{START: GROUND_M, END: GROUND_M}] * 2

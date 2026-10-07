@@ -21,6 +21,7 @@ SAMPLE_INTERVAL_NM), not gridded to a fixed 30-minute quadrangle, so it
 doesn't dilute a single tall feature across a whole quadrangle the way
 the printed chart figure does.
 """
+import threading
 from pathlib import Path
 from typing import NamedTuple
 
@@ -52,6 +53,35 @@ def _route_sample_points(route_start: tuple, route_end: tuple, interval_nm: floa
         geo.destination_point(route_start[0], route_start[1], bearing, d)
         for d in (i * total_nm / (n_samples - 1) for i in range(n_samples))
     ]
+
+
+# The route's ground, read once however many ask for it at the same time:
+# the planner reads it ahead as a route is entered (app.prefetch) and its
+# altitude selection may ask while that read is still going -- each one
+# reading every point from USGS's EPQS, a few seconds a point, was two
+# full reads at once. A second caller waits for the first and is answered
+# from the disk cache it filled (vfr.elevation).
+_READING: dict[tuple, threading.Event] = {}
+_READING_LOCK = threading.Lock()
+# Longer than any one read takes, so a stuck one is not waited on forever.
+_READ_WAIT_S = 120
+
+
+def _elevations_m(points: list) -> dict:
+    key = tuple((round(lat, 5), round(lon, 5)) for lat, lon in points)
+    with _READING_LOCK:
+        running = _READING.get(key)
+        if running is None:
+            done = _READING[key] = threading.Event()
+    if running is not None:
+        running.wait(_READ_WAIT_S)
+        return elevation.get_elevations_m(points)
+    try:
+        return elevation.get_elevations_m(points)
+    finally:
+        with _READING_LOCK:
+            del _READING[key]
+        done.set()
 
 
 class SegmentFloor(NamedTuple):
@@ -116,7 +146,7 @@ def floor_profile(
     total_nm = geo.distance_nm(*route_start, *route_end)
     sample_points = _route_sample_points(route_start, route_end, sample_interval_nm)
     spacing_nm = total_nm / (len(sample_points) - 1)
-    elevations_m = elevation.get_elevations_m(sample_points)
+    elevations_m = _elevations_m(sample_points)
     sample_along = np.arange(len(sample_points)) * spacing_nm
     terrain_ft = np.array([elevations_m[p] for p in sample_points]) * M_TO_FT
 

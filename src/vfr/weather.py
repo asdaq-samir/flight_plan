@@ -56,12 +56,16 @@ class WeatherServiceError(RuntimeError):
     """
 
 
-def _get(url: str, params: dict, retries: int = 3) -> requests.Response:
+def _get(url: str, params: dict, retries: int = 3, validators: dict | None = None) -> requests.Response:
     """A transient blip (a slow bbox query 504ing, seen 2026-09-18) used
     to raise WeatherServiceError on the first and only attempt instead of
-    quietly succeeding on a retry a few seconds later."""
+    quietly succeeding on a retry a few seconds later. `validators`, the
+    held copy's ETag and Last-Modified, ask for it only if it has changed
+    (a 304 otherwise)."""
+    headers = {**HEADERS, **(validators or {})}
+
     def attempt() -> requests.Response:
-        resp = requests.get(url, params=params, headers=HEADERS, timeout=30)
+        resp = requests.get(url, params=params, headers=headers, timeout=30)
         resp.raise_for_status()
         return resp
 
@@ -364,11 +368,41 @@ class _Record(NamedTuple):
     """What is known about one source, replaced whole and never changed
     in place, so a reader needs no lock to look at it. `at` is when the
     held copy was fetched (None when there is none); `error`, the last
-    attempt's failure, None once one succeeds."""
+    attempt's failure, None once one succeeds; `validators`, the held
+    copy's ETag and Last-Modified, for the next fetch to ask whether it
+    has changed."""
     at: float | None
     data: object
     attempted: float
     error: WeatherServiceError | None
+    validators: dict | None = None
+
+
+def _validators_of(resp) -> dict | None:
+    """What to ask the next fetch with: If-None-Match and If-Modified-Since
+    from the answer's ETag and Last-Modified, where it gave them."""
+    headers = getattr(resp, "headers", None)
+    if headers is None:
+        return None
+    asked = {}
+    etag, modified = headers.get("ETag"), headers.get("Last-Modified")
+    if isinstance(etag, str):
+        asked["If-None-Match"] = etag
+    if isinstance(modified, str):
+        asked["If-Modified-Since"] = modified
+    return asked or None
+
+
+# When a request last asked for any source: the server's periodic refresh
+# (refresh(), from the planner's warm-up loop) downloads them only while
+# the planner is in use -- it fetched all eight every four minutes round
+# the clock, nobody planning, about 300 MB a day.
+_LAST_ASKED = 0.0
+
+
+def in_use(within_s: float = 900) -> bool:
+    """Whether a request has asked for weather in the last `within_s`."""
+    return time.time() - _LAST_ASKED < within_s
 
 
 _DATASETS: dict[str, _Record] = {}
@@ -415,6 +449,8 @@ def _dataset(name: str, force: bool = False):
     periodic refresh."""
     url, params, parse, ttl_s, stale_max_s = _SOURCES[name]
     if not force:
+        global _LAST_ASKED
+        _LAST_ASKED = time.time()
         served = _serve(_DATASETS.get(name), time.time(), ttl_s, stale_max_s)
         if served is not _DUE:
             return served
@@ -438,13 +474,21 @@ def _dataset(name: str, force: bool = False):
         # Someone else's download just ended: serve what it left.
         force = False
 
+    # Asked only if it has changed since the copy held: an unchanged one
+    # (the SIGMETs and G-AIRMETs most of the time, the winds between
+    # issues) is a 304, neither downloaded nor parsed again.
+    held = record if record is not None and record.at is not None else None
     try:
-        data = parse(_get(url, params=params))
+        resp = _get(url, params=params, validators=held.validators if held else None)
+        unchanged = held is not None and getattr(resp, "status_code", None) == 304
+        data = held.data if unchanged else parse(resp)
+        validators = held.validators if unchanged else _validators_of(resp)
     except (WeatherServiceError, OSError, ET.ParseError) as err:
         error = WeatherServiceError(f"aviationweather.gov {name} unavailable: {err}")
         with _DATASET_LOCKS[name]:
             _DATASETS[name] = _Record(
                 at=record.at if record else None, data=record.data if record else None, attempted=now, error=error,
+                validators=record.validators if record else None,
             )
             _DATASET_FETCHING.pop(name, None)
         done.set()
@@ -454,7 +498,7 @@ def _dataset(name: str, force: bool = False):
             return record.data
         raise error from err
     with _DATASET_LOCKS[name]:
-        _DATASETS[name] = _Record(at=now, data=data, attempted=now, error=None)
+        _DATASETS[name] = _Record(at=now, data=data, attempted=now, error=None, validators=validators)
         _DATASET_FETCHING.pop(name, None)
     done.set()
     return data

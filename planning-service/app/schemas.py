@@ -1166,7 +1166,10 @@ class AirportPin(BaseModel):
     view holds more than the map asks for. `flight_category` is the
     field's METAR's (VFR, MVFR, IFR, LIFR), for the map's weather chip:
     None where it has no reporting station, or the weather could not be
-    asked."""
+    asked. `military` is a field the armed services own (the FAA's
+    airport file, vfr.faa_data.military_fields): "military" where a civil
+    airplane lands only with the service's permission, "joint" where a
+    civil airport shares it; None for every other field."""
 
     ident: str
     name: str
@@ -1174,6 +1177,7 @@ class AirportPin(BaseModel):
     lon: float
     kind: Literal["large", "medium", "small", "other"]
     flight_category: str | None = None
+    military: Literal["military", "joint"] | None = None
 
 
 class NearestAirport(AirportPin):
@@ -1228,6 +1232,8 @@ class AirportPlace(BaseModel):
     elevation_ft: float | None = None
     kind: Literal["large", "medium", "small", "other"]
     airspace_class: Literal["B", "C", "D", "E", "G"] | None = None
+    #: A field the armed services own, as AirportPin's.
+    military: Literal["military", "joint"] | None = None
     towered: bool
     # Its remarks a pilot acts on from the cockpit, in plain English
     # (vfr.remarks): the lighting schedule -- lights turned on by keying

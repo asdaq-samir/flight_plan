@@ -396,7 +396,7 @@
         "type": "object"
       },
       "AirportPin": {
-        "description": "A landing field the map can open a card for: the ident pilots use,\nwhere it is, and its size -- the bigger ones are kept when a wide\nview holds more than the map asks for. `flight_category` is the\nfield's METAR's (VFR, MVFR, IFR, LIFR), for the map's weather chip:\nNone where it has no reporting station, or the weather could not be\nasked.",
+        "description": "A landing field the map can open a card for: the ident pilots use,\nwhere it is, and its size -- the bigger ones are kept when a wide\nview holds more than the map asks for. `flight_category` is the\nfield's METAR's (VFR, MVFR, IFR, LIFR), for the map's weather chip:\nNone where it has no reporting station, or the weather could not be\nasked. `military` is a field the armed services own (the FAA's\nairport file, vfr.faa_data.military_fields): \"military\" where a civil\nairplane lands only with the service's permission, \"joint\" where a\ncivil airport shares it; None for every other field.",
         "properties": {
           "flight_category": {
             "anyOf": [
@@ -430,6 +430,21 @@
           "lon": {
             "title": "Lon",
             "type": "number"
+          },
+          "military": {
+            "anyOf": [
+              {
+                "enum": [
+                  "military",
+                  "joint"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Military"
           },
           "name": {
             "title": "Name",
@@ -546,6 +561,21 @@
                 "type": "null"
               }
             ]
+          },
+          "military": {
+            "anyOf": [
+              {
+                "enum": [
+                  "military",
+                  "joint"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Military"
           },
           "municipality": {
             "anyOf": [
@@ -4521,6 +4551,21 @@
             ],
             "title": "Longest Runway Ft"
           },
+          "military": {
+            "anyOf": [
+              {
+                "enum": [
+                  "military",
+                  "joint"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Military"
+          },
           "municipality": {
             "anyOf": [
               {
@@ -8179,7 +8224,7 @@
     },
     "/api/course": {
       "get": {
-        "description": "Just the course line and its endpoints, through any stops.\n\nSeparate from detection so the chart can draw a line the instant two\nidents are entered. Reading tiles takes seconds even on the fast\npath, and there is no reason a pilot should watch an empty map for\nthem.",
+        "description": "Just the course line and its endpoints, through any stops.\n\nSeparate from detection so the chart can draw a line the instant two\nidents are entered. Reading tiles takes seconds even on the fast\npath, and there is no reason a pilot should watch an empty map for\nthem.\n\nAnd the route's slow parts are started here, the first thing the web\napp asks for a route: the chart's read and the ground under it, on\nthreads of their own (app.prefetch), so the nav log asked for beside\nthis finds them under way or done.",
         "operationId": "course_api_course_get",
         "parameters": [
           {
