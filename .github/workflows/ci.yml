@@ -851,8 +851,14 @@ jobs:
       - name: The page, built from this commit
         if: github.event_name == 'pull_request'
         working-directory: web
+        # node_modules is always there, a tmpfs mounted above, so whether
+        # the packages are is told by npm's own record of an install: a
+        # change to the lock file (every Dependabot update) misses the
+        # cache, and testing for the folder skipped the install, then
+        # failed on openapi-typescript "not found". npm install, not ci,
+        # which would remove the folder -- a mount point it cannot.
         run: |
-          [ -d node_modules ] || npm ci --no-audit --no-fund
+          [ -f node_modules/.package-lock.json ] || npm install --no-audit --no-fund
           npm run types
           npx vite build --outDir dist --emptyOutDir
           echo "$(($(date +%s) - T0)) the page built" >> /tmp/e2e-out/timeline
