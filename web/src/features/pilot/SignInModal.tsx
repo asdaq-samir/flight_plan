@@ -134,6 +134,7 @@ export default function SignInModal() {
         {/* One row of links, not links in a sentence: each gets its 44-point
             area from a pseudo-element, and a wrapped sentence would put
             those areas on top of each other. */}
+        <p className={`text-center text-muted-foreground ${TEXT.note}`} data-testid="sign-in-accept">By signing in you accept the</p>
         <nav aria-label="Legal" className={`flex justify-center gap-2 text-tint ${TEXT.note}`} data-testid="sign-in-legal">
           {[LEGAL_PAGES[1], LEGAL_PAGES[0], LEGAL_PAGES[2]].map(p => (
             <a key={p.key} className="relative after:absolute after:-inset-x-1 after:-inset-y-3.5" href={p.href} target="_blank" rel="noreferrer">{p.title}</a>

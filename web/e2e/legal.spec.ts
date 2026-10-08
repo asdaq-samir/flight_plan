@@ -45,6 +45,7 @@ test.describe("signed out", () => {
     await page.getByTestId("console-sheet").getByRole("tab", { name: "Personal" }).click();
     await page.getByTestId("console-sheet").getByRole("tabpanel").getByRole("button", { name: "Sign in" }).click();
     const legal = page.getByRole("dialog", { name: "Sign in to Wingtip Maps" }).getByTestId("sign-in-legal");
+    await expect(page.getByTestId("sign-in-accept")).toHaveText("By signing in you accept the");
     await expect(legal.getByRole("link", { name: "Terms of use" })).toHaveAttribute("href", "/app/terms.html");
     await expect(legal.getByRole("link", { name: "Privacy policy" })).toHaveAttribute("href", "/app/privacy.html");
     await expect(legal.getByRole("link", { name: "Support" })).toHaveAttribute("href", "/app/support.html");
