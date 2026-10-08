@@ -1,0 +1,70 @@
+# The production stack, rehearsed on this machine before anything goes to
+# AWS: docker-compose.prod.yml as the server runs it -- the images CI
+# would push, no source mounted, Caddy demanding CloudFront's secret
+# header -- with stand-ins for the three things only AWS has:
+#
+# - cdn: CloudFront. Serves /tiles/* from a local chart pyramid, as the
+#   S3 bucket would, and sends everything else to the origin Caddy over
+#   HTTPS with the secret header and the origin's own name, as CloudFront
+#   does (infra/cloudformation/template.yaml). Its HTTPS is Caddy's own
+#   local certificate authority, so a browser is told to accept it.
+# - mailpit: Amazon SES, for the sign-in links.
+# - the server's /srv/flight_plan/data: REHEARSAL_DIR/data, a folder of
+#   its own, empty at first but for deploy.sh's seeds, so the planner
+#   fetches its FAA data the way a new server does.
+#
+# infra/rehearsal/run.sh builds the images, writes the .env and starts it
+# (docs/README-AWS.md, "Rehearse it locally").
+
+services:
+  caddy:
+    # Only the CDN reaches it, over this stack's own network.
+    ports: !reset []
+
+  db:
+    # A volume, as in the development stack, rather than a folder of
+    # this machine's.
+    volumes: !override
+      - postgres:/var/lib/postgresql
+
+  model-service:
+    volumes: !override
+      - ${REHEARSAL_DIR:?}/data/models/chart/current:/opt/ml/chart-model:ro
+
+  planning-service:
+    volumes: !override
+      - ${REHEARSAL_DIR:?}/data:/workspace/data
+      - ./data/aircraft:/workspace/data/aircraft:ro
+
+  webapp:
+    environment:
+      # The browser suite signs in and asks for notes more often in a run
+      # than a pilot does in an hour (docker-compose.yml loosens the same).
+      APP_MAGIC_LINK_PER_ADDRESS_PER_HOUR: "60"
+      APP_MAGIC_LINK_PER_CLIENT_PER_HOUR: "200"
+      APP_PAID_CALLS_PER_DAY: "500"
+
+  cdn:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    ports: ["127.0.0.1:9443:9443"]
+    environment:
+      ORIGIN_HOST: ${ORIGIN_HOST}
+      ORIGIN_SECRET: ${ORIGIN_SECRET:?}
+    volumes:
+      - ./infra/rehearsal/Caddyfile.cdn:/etc/caddy/Caddyfile:ro
+      - ${TILES_DIR:?}:/srv/tiles:ro
+      - cdn-data:/data
+    depends_on: [caddy]
+
+  mailpit:
+    image: axllent/mailpit:v1.31.3
+    restart: unless-stopped
+    ports: ["127.0.0.1:9025:8025"]
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: "true"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "true"
+
+volumes:
+  cdn-data:
+  postgres:

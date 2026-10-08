@@ -135,7 +135,8 @@ test("on the training map, which has no card, a tap goes to the field at its ter
   await expect(ord).toBeVisible({ timeout: 20000 });
 
   const tileZoom = () => page.evaluate(() => {
-    const tile = document.querySelector('img.leaflet-tile[src*="/chart-tile/sec/"]') as HTMLImageElement | null;
+    // The sectional's tiles, from the planner or the CDN (tiles.spec.ts).
+    const tile = document.querySelector('img.leaflet-tile[src*="/sec/"]') as HTMLImageElement | null;
     const m = tile?.src.match(/\/sec\/(\d+)\//);
     return m ? Number(m[1]) : null;
   });
@@ -150,7 +151,7 @@ test("on an IFR base, the settings' TAC draws the IFR area chart at a Class B fi
   // The terminal sheet over an IFR chart is the IFR area chart: the
   // Class B row's chart segment says Area there, and that is what draws.
   const areaTiles: string[] = [];
-  page.on("request", r => { if (r.url().includes("/chart-tile/ifr_area/")) areaTiles.push(r.url()); });
+  page.on("request", r => { if (r.url().includes("/ifr_area/")) areaTiles.push(r.url()); });
   await mockClassB(page);
   await page.goto("/app/dev?dep=C81&dest=KDLH");
   await openMapSettings(page);

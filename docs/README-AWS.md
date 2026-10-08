@@ -4,6 +4,7 @@
 
 - **[The design](#the-design)** — [What runs where](#what-runs-where) · [What is left out](#what-is-left-out)
 - **[What it costs](#what-it-costs)**
+- **[Rehearse it locally](#rehearse-it-locally)**
 - **[The first deploy](#the-first-deploy)** — [Before anything (the owner)](#before-anything-the-owner) · [The stack](#the-stack) · [The images and the server](#the-images-and-the-server) · [Mail](#mail) · [The first chart cycle](#the-first-chart-cycle) · [The chart model](#the-chart-model)
 - **[Running it](#running-it)** — [Deploys](#deploys) · [On the server](#on-the-server) · [Chart cycles](#chart-cycles) · [Backups and restore](#backups-and-restore) · [A replaced server](#a-replaced-server) · [Teardown](#teardown)
 - **[Gotchas](#gotchas)**
@@ -125,6 +126,43 @@ PMTiles archive per chart kind in place of 1.5 million files would take
 it to cents, at the cost of a PMTiles reader in the map.
 
 The template's `BudgetEmail` sets an alarm at 80% of $50 a month.
+
+## Rehearse it locally
+
+[`infra/rehearsal/run.sh`](../infra/rehearsal/run.sh) runs the production stack on this machine before anything goes to AWS. It is
+`docker-compose.prod.yml` as the server runs it: the four images built
+from this checkout, no source mounted, and Caddy demanding CloudFront's
+secret header. Stand-ins replace what only AWS has:
+
+- **CloudFront** is a Caddy (`cdn`) on https://localhost:9443. It serves
+  `/tiles/*` from a local chart pyramid laid out as the S3 bucket is,
+  and sends everything else to the origin with the secret header.
+- **SES** is a Mailpit on http://localhost:9025, where the sign-in links
+  arrive.
+- **The data disk** is a folder of its own, empty at first, so the
+  planner fetches its FAA data as a new server does: about four minutes
+  before it is warm. The first nav log in an area takes longer still,
+  while its terrain downloads.
+
+```bash
+docker compose stop        # the development stack: both do not fit in Docker's 6 GB
+infra/rehearsal/run.sh     # TILES_DIR=<a chart pyramid> if this checkout has none
+```
+
+Then the browser suite runs against it as it runs against the
+development stack, on the rehearsal's own network with Caddy's local
+certificate accepted (`ignoreHTTPSErrors`):
+
+```bash
+docker run --rm --network wingtip-prod_default -v "$PWD/web:/w" -w /w \
+  -e BASE_URL=https://cdn:9443 -e MAILPIT_URL=http://mailpit:8025 \
+  mcr.microsoft.com/playwright:v1.55.1-noble \
+  npx playwright test --config playwright.rehearsal.config.ts --workers=2
+```
+
+Not rehearsed here, since they need AWS itself: `deploy.sh` and
+`backup.sh`, CloudFront's caching, the Spot group and its data disk,
+and the chart refresh's publish to S3 (its bucket check has a test).
 
 ## The first deploy
 

@@ -8,6 +8,11 @@ import { slow, settle, openMapSettings } from "./helpers";
  * planner's map is the same (MapShell), and its settings are on the
  * search bar, which a route takes the place of (classb.spec.ts sets
  * them there before one is loaded).
+ *
+ * A chart's tiles are told apart by its kind in their path, wherever they
+ * come from: the planner's /api/planner/chart-tile/<kind>/... locally,
+ * the CDN's /tiles/<cycle>/<kind>/... once a cycle is published (the
+ * production rehearsal, infra/rehearsal).
  */
 
 for (const path of ["/app/dev"] as const) {
@@ -26,8 +31,8 @@ for (const path of ["/app/dev"] as const) {
     test.setTimeout(slow(90000));
     await page.goto(`${path}?dep=C81&dest=KDLH`);
     await settle(page);
-    const tacTiles = page.locator('img.leaflet-tile[src*="/api/planner/chart-tile/tac/"]');
-    const sectionalTiles = page.locator('img.leaflet-tile[src*="/api/planner/chart-tile/sec/"]');
+    const tacTiles = page.locator('img.leaflet-tile[src*="/tac/"]');
+    const sectionalTiles = page.locator('img.leaflet-tile[src*="/sec/"]');
     await expect(page.locator("img.leaflet-tile").first()).toBeAttached({ timeout: slow(15000) });
     expect(await tacTiles.count()).toBe(0);
 
@@ -55,7 +60,7 @@ for (const path of ["/app/dev"] as const) {
     await expect(tacTiles.first()).toBeAttached({ timeout: slow(10000) });
     await expect.poll(
       () => page.evaluate(() =>
-        [...document.querySelectorAll<HTMLImageElement>('img.leaflet-tile[src*="/api/planner/chart-tile/tac/"]')]
+        [...document.querySelectorAll<HTMLImageElement>('img.leaflet-tile[src*="/tac/"]')]
           .some(img => img.complete && img.naturalWidth > 0)),
       { timeout: slow(45000) },
     ).toBe(true);
@@ -81,8 +86,8 @@ for (const path of ["/app/dev"] as const) {
     test.setTimeout(slow(90000));
     await page.goto(`${path}?dep=C81&dest=KDLH`);
     await settle(page);
-    const ifrTiles = page.locator('img.leaflet-tile[src*="/api/planner/chart-tile/ifr_low/"]');
-    const sectionalTiles = page.locator('img.leaflet-tile[src*="/api/planner/chart-tile/sec/"]');
+    const ifrTiles = page.locator('img.leaflet-tile[src*="/ifr_low/"]');
+    const sectionalTiles = page.locator('img.leaflet-tile[src*="/sec/"]');
     await expect(sectionalTiles.first()).toBeAttached({ timeout: slow(15000) });
     expect(await ifrTiles.count()).toBe(0);
 
@@ -93,7 +98,7 @@ for (const path of ["/app/dev"] as const) {
     await expect(ifrTiles.first()).toBeAttached({ timeout: slow(10000) });
     await expect.poll(
       () => page.evaluate(() =>
-        [...document.querySelectorAll<HTMLImageElement>('img.leaflet-tile[src*="/api/planner/chart-tile/ifr_low/"]')]
+        [...document.querySelectorAll<HTMLImageElement>('img.leaflet-tile[src*="/ifr_low/"]')]
           .some(img => img.complete && img.naturalWidth > 0)),
       { timeout: slow(45000) },
     ).toBe(true);
