@@ -122,7 +122,10 @@ jobs:
           # Claude's own pull requests are opened and pushed by the Claude app, a
           # bot, and the action refuses a bot unless it is named here. Without
           # it, Claude's pull requests got no review, no fixes and no autofix.
-          allowed_bots: claude
+          # github-actions too: a fix pushed from a workflow starts the
+          # next review as that bot, and the action refused it ("non-human
+          # actor"), so a branch's second review never ran.
+          allowed_bots: claude,github-actions
           additional_permissions: |
             actions: read
           prompt: |
