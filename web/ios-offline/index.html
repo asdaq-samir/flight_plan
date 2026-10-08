@@ -9,7 +9,7 @@
          color: #1c1c1e; background: #fff; text-align: center; padding: 0 24px; }
   @media (prefers-color-scheme: dark) { body { color: #f2f2f7; background: #000; } }
   h1 { font-size: 22px; margin: 0 0 8px; }
-  p { color: #8e8e93; margin: 0 0 20px; }
+  p { color: #6c6c70; margin: 0 0 20px; }
   button { font: inherit; color: #fff; background: #007aff; border: 0; border-radius: 12px; padding: 12px 20px; }
 </style>
 </head>
@@ -19,7 +19,15 @@
 <main>
   <h1>No connection</h1>
   <p>Wingtip Maps needs the internet the first time it opens. After that, the charts you have looked at work without it.</p>
-  <button onclick="location.reload()">Try again</button>
+  <button id="again">Try again</button>
 </main>
+<script src="site.js"></script>
+<script>
+  // location.reload() would only reload this bundled page, so go to the
+  // site itself (site.js is written from WINGTIP_URL by capacitor.config.ts).
+  document.getElementById("again").onclick = function () {
+    location.replace(window.WINGTIP_URL || "https://wingtipmaps.app/app/plan");
+  };
+</script>
 </body>
 </html>

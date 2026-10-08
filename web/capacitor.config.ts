@@ -1,3 +1,4 @@
+import { writeFileSync } from "node:fs";
 import type { CapacitorConfig } from "@capacitor/cli";
 
 /**
@@ -14,6 +15,15 @@ import type { CapacitorConfig } from "@capacitor/cli";
  */
 const url = process.env.WINGTIP_URL ?? "https://wingtipmaps.app/app/plan";
 
+// The offline page is served from the app bundle, so its Try again cannot
+// reload itself: it has to go to the site, whose address is WINGTIP_URL.
+// `cap sync` reads this file before it copies webDir, so the page is
+// given the address there (ios-offline/site.js, not committed).
+writeFileSync(
+  new URL("./ios-offline/site.js", import.meta.url),
+  `window.WINGTIP_URL = ${JSON.stringify(url)};\n`,
+);
+
 const config: CapacitorConfig = {
   appId: process.env.WINGTIP_BUNDLE_ID ?? "app.wingtipmaps.ios",
   appName: "Wingtip Maps",
@@ -23,7 +33,7 @@ const config: CapacitorConfig = {
     // Navigation stays on the site; anything else opens in Safari.
     allowNavigation: [new URL(url).host],
     // The site cannot be reached on the very first open: webDir's page
-    // says so, with a Try again.
+    // says so, with a Try again that goes to the site.
     errorPath: "index.html",
   },
   ios: {
