@@ -45,6 +45,10 @@ jobs:
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # Claude's own pull requests are opened and pushed by the Claude app, a
+          # bot, and the action refuses a bot unless it is named here. Without
+          # it, Claude's pull requests got no review, no fixes and no autofix.
+          allowed_bots: claude
           use_sticky_comment: true
           prompt: |
             REPO: ${{ github.repository }}
@@ -149,6 +153,10 @@ jobs:
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # Claude's own pull requests are opened and pushed by the Claude app, a
+          # bot, and the action refuses a bot unless it is named here. Without
+          # it, Claude's pull requests got no review, no fixes and no autofix.
+          allowed_bots: claude
           prompt: |
             REPO: ${{ github.repository }}
             PR NUMBER: ${{ github.event.pull_request.number }}
