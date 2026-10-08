@@ -46,6 +46,11 @@ public class Pilot {
     @Column(unique = true)
     private String appleSubject;
 
+    /** Apple's refresh token for this pilot (V18), kept only to be revoked
+     *  when the account is deleted. Never sent to a browser. */
+    @Column(length = 2000)
+    private String appleRefreshToken;
+
     /** Defaults to PILOT for every row, including every row that
      *  existed before the column did (V7). A developer is granted, not
      *  inherited. */
@@ -95,6 +100,11 @@ public class Pilot {
      *  signed in through it. */
     public void linkAppleSubject(String subject) {
         this.appleSubject = subject;
+    }
+
+    /** What Apple handed over at the latest Sign in with Apple. */
+    public void keepAppleRefreshToken(String token) {
+        this.appleRefreshToken = token;
     }
 
     /** The address the provider now vouches for, when it changed there. */

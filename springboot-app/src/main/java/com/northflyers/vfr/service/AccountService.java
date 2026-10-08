@@ -25,7 +25,8 @@ import org.springframework.transaction.support.TransactionTemplate;
  *
  * <p>In this order: first the checkpoint notes the pilot wrote for
  * themselves, which the planner keeps (its routers/notes.py), since the
- * planner may not answer; then, in one transaction, the pilot's row --
+ * planner may not answer; then Apple's grant is revoked (AppleRevocation,
+ * best effort, so Apple being down never keeps an account); then, in one transaction, the pilot's row --
  * the database cascades it to their aircraft, flights, logbook and
  * endorsements -- and the sign-in links ever sent to their address; last
  * every session they hold, on any device, under any of the names they
@@ -46,16 +47,19 @@ public class AccountService {
     private final MagicLinkRepository magicLinks;
     private final FindByIndexNameSessionRepository<? extends Session> sessions;
     private final TransactionTemplate transaction;
+    private final AppleRevocation apple;
     private final String plannerBaseUrl;
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
 
     public AccountService(PilotRepository pilots, MagicLinkRepository magicLinks,
             FindByIndexNameSessionRepository<? extends Session> sessions, TransactionTemplate transaction,
+            AppleRevocation apple,
             @Value("${planner-service.base-url:http://planning-service:8000}") String plannerBaseUrl) {
         this.pilots = pilots;
         this.magicLinks = magicLinks;
         this.sessions = sessions;
         this.transaction = transaction;
+        this.apple = apple;
         this.plannerBaseUrl = plannerBaseUrl.replaceAll("/+$", "");
     }
 
@@ -67,6 +71,7 @@ public class AccountService {
      */
     public void delete(Pilot pilot) {
         forgetNotes(pilot);
+        apple.revoke(pilot.getAppleRefreshToken());
         transaction.executeWithoutResult(status -> {
             magicLinks.deleteByEmail(pilot.getEmail());
             pilots.deleteNow(pilot.getId());

@@ -155,6 +155,16 @@ public class PilotService {
         return withListedRole(pilots.findByEmail(email).orElseGet(() -> pilots.save(new Pilot(email, email, null))));
     }
 
+    /** Keeps the refresh token Apple issued at this sign-in, for revoking
+     *  it when the account is deleted (AppleRevocation). */
+    @Transactional
+    public void keepAppleRefreshToken(Authentication authentication, String refreshToken) {
+        current(authentication).ifPresent(pilot -> {
+            pilot.keepAppleRefreshToken(refreshToken);
+            pilots.save(pilot);
+        });
+    }
+
     /**
      * The pilot for the current request, or empty when nobody is signed
      * in or the principal is a kind this app never issues.

@@ -14,6 +14,10 @@ import org.springframework.security.authorization.AuthorizationDecision;
 import org.springframework.security.authorization.AuthorizationManager;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.oauth2.client.OAuth2AuthorizedClient;
+import org.springframework.security.oauth2.client.OAuth2AuthorizedClientService;
+import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.security.oauth2.client.registration.InMemoryClientRegistrationRepository;
 import org.springframework.security.web.SecurityFilterChain;
@@ -113,7 +117,8 @@ public class SecurityConfig {
     }
 
     @Bean
-    SecurityFilterChain securityFilterChain(HttpSecurity http, PilotService pilots) throws Exception {
+    SecurityFilterChain securityFilterChain(HttpSecurity http, PilotService pilots,
+            Optional<OAuth2AuthorizedClientService> authorizedClients) throws Exception {
         http
                 .authorizeHttpRequests(auth -> {
                     auth
@@ -301,10 +306,26 @@ public class SecurityConfig {
             // /login?error is a page this app does not have.
             http.oauth2Login(login -> login
                     .userInfoEndpoint(userInfo -> userInfo.oidcUserService(new PilotOidcUserService(pilots)))
-                    .successHandler((request, response, authentication) -> response.sendRedirect(
-                            pilots.current(authentication).map(SignInLanding::after).orElse("/app/plan")))
+                    .successHandler((request, response, authentication) -> {
+                        keepAppleRefreshToken(pilots, authorizedClients, authentication);
+                        response.sendRedirect(
+                                pilots.current(authentication).map(SignInLanding::after).orElse("/app/plan"));
+                    })
                     .failureUrl("/app/plan?signin=refused"));
         }
         return http.build();
+    }
+
+    /** Apple issues a refresh token at every sign-in; it is kept so that
+     *  deleting the account can revoke it (App Review 5.1.1(v)). */
+    private static void keepAppleRefreshToken(PilotService pilots,
+            Optional<OAuth2AuthorizedClientService> authorizedClients, Authentication authentication) {
+        if (authentication instanceof OAuth2AuthenticationToken oauth
+                && "apple".equals(oauth.getAuthorizedClientRegistrationId())) {
+            authorizedClients
+                    .map(clients -> clients.<OAuth2AuthorizedClient>loadAuthorizedClient("apple", oauth.getName()))
+                    .map(OAuth2AuthorizedClient::getRefreshToken)
+                    .ifPresent(token -> pilots.keepAppleRefreshToken(authentication, token.getTokenValue()));
+        }
     }
 }
