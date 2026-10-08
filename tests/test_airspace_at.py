@@ -30,6 +30,19 @@ def test_under_a_class_b_shelf_with_a_700_ft_class_e_floor():
     assert b["name"] == "CHICAGO CLASS B" and "clearance" in b["entry"]
 
 
+def test_a_class_d_inside_the_mode_c_veil_needs_the_transponder_too():
+    # 14 CFR 91.215(b)(2): a transponder with altitude reporting in "all
+    # airspace within 30 nautical miles of an airport listed in appendix D,
+    # section 1 ... from the surface upward to 10,000 feet MSL"; 91.225(d)
+    # asks ADS-B Out in the same airspace. A Class D is not an exception.
+    volumes = [_volume("D", 0, "SFC", 3000.0, "ADDISON CLASS D")]
+    inside = airspace_at.column(32.97, -96.84, 640.0, volumes, in_veil=True)[0]
+    outside = airspace_at.column(32.97, -96.84, 640.0, volumes, in_veil=False)[0]
+    assert inside["class"] == outside["class"] == "D"
+    assert "transponder" in inside["equipment"] and "ADS-B Out" in inside["equipment"]
+    assert outside["equipment"] == "A two-way radio."
+
+
 def test_class_g_minimums_change_at_1200_ft_above_the_ground_and_at_10000_ft():
     # Nothing drawn: G to 14,500 ft, E above it.
     bands = airspace_at.column(39.6, -106.5, 8650.0, [])
