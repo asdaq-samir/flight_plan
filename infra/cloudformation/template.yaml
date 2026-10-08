@@ -3,9 +3,9 @@ Description: >
   Wingtip Maps on AWS, built for low cost: one EC2 server (webapp, planner,
   briefing agent, Postgres) behind CloudFront, FAA chart tiles drawn once
   per 56-day cycle by a Fargate Spot task into S3, and the web app's
-  fingerprinted files cached at the edge. About $43 a month on demand,
-  $33 with a one-year Savings Plan on the server (docs/README-AWS.md has
-  the itemised cost and the runbook). Deploy in
+  fingerprinted files cached at the edge. About $27 a month with the
+  server on Spot capacity, the default (docs/README-AWS.md has the
+  itemised cost and the runbook). Deploy in
   us-east-1: CloudFront's certificate must be there.
 
 Metadata:
@@ -14,7 +14,7 @@ Metadata:
       - Label: { default: Domain }
         Parameters: [PublicHost, HostedZoneId, MailDomain]
       - Label: { default: Server }
-        Parameters: [ServerImageId, InstanceType, RootVolumeGb, ImageTag, CloudFrontPrefixListId]
+        Parameters: [ServerPricing, ServerImageId, InstanceType, SpareInstanceType, DataVolumeGb, ImageTag, CloudFrontPrefixListId]
       - Label: { default: Deploys from GitHub }
         Parameters: [GitHubRepo, CreateGitHubOidcProvider]
       - Label: { default: Spending }
@@ -35,28 +35,45 @@ Parameters:
     Type: AWS::EC2::Image::Id
     Description: >
       The server's Amazon Linux 2023 image (x86_64), named here rather
-      than looked up, so a stack update never replaces the server -- and
-      its database -- because Amazon published a newer one. The current
-      one: aws ssm get-parameter --region us-east-1 --name
+      than looked up, so the server changes only when this does (a new
+      one replaces the server; the data disk moves to the next). The
+      current one: aws ssm get-parameter --region us-east-1 --name
       /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64
       --query Parameter.Value --output text
+  ServerPricing:
+    Type: String
+    Default: spot
+    AllowedValues: [spot, on-demand]
+    Description: >
+      spot: AWS's spare capacity, about a third of the price; a few times a
+      year AWS takes it back, and a new server starts on the same data disk
+      within minutes. on-demand: never taken back. Changing it replaces the
+      server, keeping the data disk.
   InstanceType:
     Type: String
     Default: t3a.medium
-    AllowedValues: [t3a.medium, t3a.large, t3.medium, t3.large]
+    AllowedValues: [t3a.medium, t3a.large, t3.medium, t3.large, m6a.large, m7a.large]
     Description: >
       2 cores and 4 GB run the stack once the planner no longer draws tiles
-      (its five services held 1.8 GB at rest on the development stack,
-      2026-10-08). x86, so CI's images run as built; t3a.large (8 GB) if
-      it ever runs short.
-  RootVolumeGb:
-    Type: Number
-    Default: 40
-    MinValue: 30
+      (the production stack held 1.8 GB at rest in the local rehearsal,
+      2026-10-08). x86, so CI's images run as built; a large (8 GB) if it
+      ever runs short.
+  SpareInstanceType:
+    Type: String
+    Default: t3.medium
+    AllowedValues: [t3a.medium, t3a.large, t3.medium, t3.large, m6a.large, m7a.large]
     Description: >
-      The server's disk: the images (about 5 GB), the FAA data and the
-      chart sheets the planner reads checkpoints off (6 GB for the whole
-      country), Postgres and 2 GB of swap. gp3 grows in place if it fills.
+      A second type of the same size, for when Spot has none of the first:
+      two pools are interrupted less often than one.
+  DataVolumeGb:
+    Type: Number
+    Default: 30
+    MinValue: 20
+    Description: >
+      The data disk, which outlives any one server: Postgres, the FAA data
+      and the chart sheets the planner reads checkpoints off (6 GB for the
+      whole country), the checkpoint notes. gp3 grows in place if it fills.
+      The server's own 20 GB disk holds the system, the images and swap.
   ImageTag:
     Type: String
     Default: latest
@@ -87,6 +104,7 @@ Conditions:
   HasBudget: !Not [!Equals [!Ref BudgetEmail, ""]]
   CreateOidc: !Equals [!Ref CreateGitHubOidcProvider, "true"]
   HasMailDomain: !Not [!Equals [!Ref MailDomain, ""]]
+  SpotServer: !Equals [!Ref ServerPricing, spot]
 
 Resources:
   # ---------------------------------------------------------------------
@@ -299,85 +317,149 @@ Resources:
                 - HasBudget
                 - { Effect: Allow, Action: "sns:Publish", Resource: !Ref BackupAlertTopic }
                 - !Ref AWS::NoValue
+              # Each new server takes over the stack's address and data disk.
+              - Effect: Allow
+                Action: [ec2:AttachVolume, ec2:AssociateAddress]
+                Resource:
+                  - !Sub "arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:volume/${DataVolume}"
+                  - !Sub "arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:elastic-ip/${ServerAddress.AllocationId}"
+                  - !Sub "arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/*"
+                  - !Sub "arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:network-interface/*"
 
   ServerInstanceProfile:
     Type: AWS::IAM::InstanceProfile
     Properties:
       Roles: [!Ref ServerRole]
 
-  ServerInstance:
-    Type: AWS::EC2::Instance
-    DependsOn: PublicDefaultRoute
+  # The data disk: everything the server keeps -- Postgres, the planner's
+  # data folder and checkpoint notes, the repository -- on a disk of its
+  # own that outlives any one server. Each new server attaches it on its
+  # first boot (the launch template's UserData); a snapshot is taken if
+  # the stack is ever deleted, and SnapshotPolicy takes one daily.
+  DataVolume:
+    Type: AWS::EC2::Volume
+    DeletionPolicy: Snapshot
+    UpdateReplacePolicy: Snapshot
     Properties:
-      ImageId: !Ref ServerImageId
-      InstanceType: !Ref InstanceType
-      SubnetId: !Ref PublicSubnet
-      SecurityGroupIds: [!Ref ServerSecurityGroup]
-      IamInstanceProfile: !Ref ServerInstanceProfile
-      MetadataOptions: { HttpTokens: required, HttpEndpoint: enabled }
-      # The disk outlives the server: it holds Postgres, and a server
-      # replaced by mistake should leave the pilots' accounts behind to be
-      # copied back, not take them with it (delete the old volume once
-      # they are; docs/README-AWS.md). SnapshotPolicy snapshots it daily.
-      BlockDeviceMappings:
-        - DeviceName: /dev/xvda
-          Ebs: { VolumeType: gp3, VolumeSize: !Ref RootVolumeGb, Encrypted: true, DeleteOnTermination: false }
+      AvailabilityZone: !GetAtt PublicSubnet.AvailabilityZone
+      Size: !Ref DataVolumeGb
+      VolumeType: gp3
+      Encrypted: true
       Tags:
-        - { Key: Name, Value: !Sub "${AWS::StackName}-server" }
+        - { Key: Name, Value: !Sub "${AWS::StackName}-data" }
         - { Key: Snapshot, Value: !Sub "${AWS::StackName}-daily" }
-      UserData:
-        Fn::Base64: !Sub
-          - |
-            #!/bin/bash
-            # First boot: Docker, the repo's production files, the
-            # settings deploy.sh reads, and the nightly backup.
-            set -euxo pipefail
-            dnf install -y docker git cronie
-            systemctl enable --now docker crond
-            mkdir -p /usr/local/lib/docker/cli-plugins
-            # A pinned release, checked against the checksum published
-            # beside it, so a rebuild gets the plugin the first boot did.
-            compose_url=https://github.com/docker/compose/releases/download/v2.40.3/docker-compose-linux-x86_64
-            curl -fsSL "$compose_url" -o /usr/local/lib/docker/cli-plugins/docker-compose
-            echo "$(curl -fsSL "$compose_url.sha256" | cut -d' ' -f1)  /usr/local/lib/docker/cli-plugins/docker-compose" | sha256sum -c -
-            chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
-            # 2 GB of swap: headroom for a JVM, a planner and an agent on 4 GB.
-            if [ ! -f /swapfile ]; then
-              fallocate -l 2G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
-              echo '/swapfile none swap sw 0 0' >> /etc/fstab
-            fi
-            cat > /etc/flight_plan.conf <<'CONF'
-            AWS_REGION=${AWS::Region}
-            IMAGE_REGISTRY=${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/vfr-route
-            IMAGE_TAG=${ImageTag}
-            PUBLIC_HOST=${PublicHost}
-            ORIGIN_HOST=origin.${PublicHost}
-            SERVER_BUCKET=${ServerBucket}
-            APP_SECRET_ARN=${AppSecret}
-            DB_SECRET_ARN=${DbPasswordSecret}
-            AGENT_SECRET_ARN=${AgentKeySecret}
-            ORIGIN_SECRET_ARN=${OriginSecret}
-            BACKUP_TOPIC_ARN=${BackupTopicArn}
-            MAIL_HOST=email-smtp.${AWS::Region}.amazonaws.com
-            MAIL_FROM=no-reply@${MailFrom}
-            CONF
-            mkdir -p /srv/flight_plan/data /srv/flight_plan/postgres
-            chown 1000:1000 /srv/flight_plan/data
-            [ -d /srv/flight_plan/repo ] || git clone --depth 1 https://github.com/${GitHubRepo}.git /srv/flight_plan/repo
-            echo '17 7 * * * root /srv/flight_plan/repo/infra/server/backup.sh >> /var/log/flight_plan-backup.log 2>&1' \
-              > /etc/cron.d/flight_plan-backup
-            # The images arrive with the first promote.yml push to ECR; until
-            # then this fails, and deploy.sh is run again after that push.
-            /srv/flight_plan/repo/infra/server/deploy.sh || echo "no images yet: run deploy.sh after the first push"
-          - MailFrom: !If [HasMailDomain, !Ref MailDomain, !Ref PublicHost]
-            BackupTopicArn: !If [HasBudget, !Ref BackupAlertTopic, ""]
 
-  # Daily snapshots of the server's disk, 7 kept (cents a month): a lost
+  ServerLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateData:
+        ImageId: !Ref ServerImageId
+        IamInstanceProfile: { Arn: !GetAtt ServerInstanceProfile.Arn }
+        SecurityGroupIds: [!Ref ServerSecurityGroup]
+        MetadataOptions: { HttpTokens: required, HttpEndpoint: enabled }
+        BlockDeviceMappings:
+          - DeviceName: /dev/xvda
+            Ebs: { VolumeType: gp3, VolumeSize: 20, Encrypted: true, DeleteOnTermination: true }
+        TagSpecifications:
+          - ResourceType: instance
+            Tags: [{ Key: Name, Value: !Sub "${AWS::StackName}-server" }]
+        UserData:
+          Fn::Base64: !Sub
+            - |
+              #!/bin/bash
+              # Each server's first boot: the stack's address and data disk,
+              # Docker, the repo's production files, the settings deploy.sh
+              # reads, and the nightly backup. A Spot interruption, or a change
+              # that replaces the server, starts a new one, which runs this
+              # again and finds the data disk as the last one left it.
+              set -euxo pipefail
+              token=$(curl -fsS -X PUT http://169.254.169.254/latest/api/token -H "X-aws-ec2-metadata-token-ttl-seconds: 600")
+              iid=$(curl -fsS -H "X-aws-ec2-metadata-token: $token" http://169.254.169.254/latest/meta-data/instance-id)
+              aws ec2 associate-address --region ${AWS::Region} --allocation-id ${ServerAddress.AllocationId} --instance-id "$iid" --allow-reassociation
+              # The disk is free once the last server has gone; until then, wait.
+              until aws ec2 attach-volume --region ${AWS::Region} --volume-id ${DataVolume} --instance-id "$iid" --device /dev/sdf; do sleep 10; done
+              disk=/dev/disk/by-id/nvme-Amazon_Elastic_Block_Store_$(echo ${DataVolume} | tr -d -)
+              until [ -e "$disk" ]; do sleep 2; done
+              # Formatted the first time only; after that, mounted as it is.
+              blkid "$disk" || mkfs.xfs "$disk"
+              mkdir -p /srv/flight_plan
+              echo "UUID=$(blkid -s UUID -o value "$disk") /srv/flight_plan xfs defaults,nofail 0 2" >> /etc/fstab
+              mount /srv/flight_plan
+              dnf install -y docker git cronie
+              systemctl enable --now docker crond
+              mkdir -p /usr/local/lib/docker/cli-plugins
+              # A pinned release, checked against the checksum published
+              # beside it, so a rebuild gets the plugin the first boot did.
+              compose_url=https://github.com/docker/compose/releases/download/v2.40.3/docker-compose-linux-x86_64
+              curl -fsSL "$compose_url" -o /usr/local/lib/docker/cli-plugins/docker-compose
+              echo "$(curl -fsSL "$compose_url.sha256" | cut -d' ' -f1)  /usr/local/lib/docker/cli-plugins/docker-compose" | sha256sum -c -
+              chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+              # 2 GB of swap: headroom for a JVM, a planner and an agent on 4 GB.
+              if [ ! -f /swapfile ]; then
+                fallocate -l 2G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
+                echo '/swapfile none swap sw 0 0' >> /etc/fstab
+              fi
+              cat > /etc/flight_plan.conf <<'CONF'
+              AWS_REGION=${AWS::Region}
+              IMAGE_REGISTRY=${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/vfr-route
+              IMAGE_TAG=${ImageTag}
+              PUBLIC_HOST=${PublicHost}
+              ORIGIN_HOST=origin.${PublicHost}
+              SERVER_BUCKET=${ServerBucket}
+              APP_SECRET_ARN=${AppSecret}
+              DB_SECRET_ARN=${DbPasswordSecret}
+              AGENT_SECRET_ARN=${AgentKeySecret}
+              ORIGIN_SECRET_ARN=${OriginSecret}
+              BACKUP_TOPIC_ARN=${BackupTopicArn}
+              MAIL_HOST=email-smtp.${AWS::Region}.amazonaws.com
+              MAIL_FROM=no-reply@${MailFrom}
+              CONF
+              mkdir -p /srv/flight_plan/data /srv/flight_plan/postgres
+              chown 1000:1000 /srv/flight_plan/data
+              [ -d /srv/flight_plan/repo ] || git clone --depth 1 https://github.com/${GitHubRepo}.git /srv/flight_plan/repo
+              echo '17 7 * * * root /srv/flight_plan/repo/infra/server/backup.sh >> /var/log/flight_plan-backup.log 2>&1' \
+                > /etc/cron.d/flight_plan-backup
+              # The images arrive with the first promote.yml push to ECR; until
+              # then this fails, and deploy.sh is run again after that push.
+              /srv/flight_plan/repo/infra/server/deploy.sh || echo "no images yet: run deploy.sh after the first push"
+            - MailFrom: !If [HasMailDomain, !Ref MailDomain, !Ref PublicHost]
+              BackupTopicArn: !If [HasBudget, !Ref BackupAlertTopic, ""]
+
+  # One server at a time, kept running: if AWS takes a Spot server back,
+  # or it fails its checks, the group starts another, which takes over
+  # the address and the data disk. Spot from whichever of the two types
+  # has the most spare capacity at the price (price-capacity-optimized);
+  # on-demand when ServerPricing says so. A new launch template (a new
+  # image, say) replaces the server the same way.
+  ServerGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    DependsOn: PublicDefaultRoute
+    UpdatePolicy:
+      AutoScalingRollingUpdate: { MinInstancesInService: 0, MaxBatchSize: 1, PauseTime: PT0S }
+    Properties:
+      MinSize: "1"
+      MaxSize: "1"
+      DesiredCapacity: "1"
+      VPCZoneIdentifier: [!Ref PublicSubnet]
+      MixedInstancesPolicy:
+        InstancesDistribution:
+          OnDemandBaseCapacity: !If [SpotServer, 0, 1]
+          OnDemandPercentageAboveBaseCapacity: !If [SpotServer, 0, 100]
+          SpotAllocationStrategy: price-capacity-optimized
+        LaunchTemplate:
+          LaunchTemplateSpecification:
+            LaunchTemplateId: !Ref ServerLaunchTemplate
+            Version: !GetAtt ServerLaunchTemplate.LatestVersionNumber
+          Overrides:
+            - InstanceType: !Ref InstanceType
+            - InstanceType: !Ref SpareInstanceType
+
+  # Daily snapshots of the data disk, 7 kept (about $1 a month): a lost
   # disk does not mean restoring from a nightly dump alone.
   SnapshotRole:
     Type: AWS::IAM::Role
     Properties:
-      Description: Lets Data Lifecycle Manager snapshot the server's disk.
+      Description: Lets Data Lifecycle Manager snapshot the server's data disk.
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -388,11 +470,11 @@ Resources:
   SnapshotPolicy:
     Type: AWS::DLM::LifecyclePolicy
     Properties:
-      Description: Daily snapshots of the Wingtip Maps server
+      Description: Daily snapshots of the Wingtip Maps data disk
       State: ENABLED
       ExecutionRoleArn: !GetAtt SnapshotRole.Arn
       PolicyDetails:
-        ResourceTypes: [INSTANCE]
+        ResourceTypes: [VOLUME]
         TargetTags: [{ Key: Snapshot, Value: !Sub "${AWS::StackName}-daily" }]
         Schedules:
           - Name: daily
@@ -400,11 +482,11 @@ Resources:
             RetainRule: { Count: 7 }
             CopyTags: true
 
+  # The server's fixed address, taken over by each new server on boot.
   ServerAddress:
     Type: AWS::EC2::EIP
     Properties:
       Domain: vpc
-      InstanceId: !Ref ServerInstance
 
   # ---------------------------------------------------------------------
   # Domain: the certificate (CloudFront's, so in us-east-1), the public
@@ -821,11 +903,20 @@ Resources:
                   - !GetAtt PlanningServiceRepository.Arn
                   - !GetAtt NavLogAgentRepository.Arn
                   - !GetAtt ModelServiceRepository.Arn
+              # The server changes with each Spot interruption, so deploys
+              # find it by its Name tag and may run only on that.
+              - Effect: Allow
+                Action: ec2:DescribeInstances
+                Resource: "*"
               - Effect: Allow
                 Action: ssm:SendCommand
-                Resource:
-                  - !Sub "arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/${ServerInstance}"
-                  - !Sub "arn:aws:ssm:${AWS::Region}::document/AWS-RunShellScript"
+                Resource: !Sub "arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/*"
+                Condition:
+                  StringEquals:
+                    ssm:resourceTag/Name: !Sub "${AWS::StackName}-server"
+              - Effect: Allow
+                Action: ssm:SendCommand
+                Resource: !Sub "arn:aws:ssm:${AWS::Region}::document/AWS-RunShellScript"
               - Effect: Allow
                 Action: [ssm:GetCommandInvocation, ssm:ListCommandInvocations]
                 Resource: "*"
@@ -859,9 +950,11 @@ Outputs:
   DistributionId:
     Description: For cache invalidations.
     Value: !Ref Distribution
-  ServerInstanceId:
-    Description: The repo variable AWS_INSTANCE_ID, for promote.yml's deploy.
-    Value: !Ref ServerInstance
+  ServerName:
+    Description: The repo variable AWS_SERVER_NAME, for promote.yml's deploy -- the running server's Name tag.
+    Value: !Sub "${AWS::StackName}-server"
+  DataVolumeId:
+    Value: !Ref DataVolume
   ServerAddress:
     Value: !Ref ServerAddress
   DeployRoleArn:

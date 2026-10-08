@@ -31,10 +31,12 @@ pilot ──HTTPS──▶ CloudFront  (app.example.com, ACM certificate)
                    └─ everything else ──▶ the server            not cached: pages, /api, sign-in
                                             │ origin.app.example.com:443, with X-Origin-Secret
                                             ▼
-                        EC2 t3a.medium (Amazon Linux 2023, docker-compose.prod.yml)
+                        EC2 t3a.medium on Spot, a group of one (Amazon Linux 2023,
+                        docker-compose.prod.yml), its fixed address and data disk
+                        taken over by whichever server is running
                           caddy ─▶ webapp ─▶ planning-service ─▶ model-service
                                      │            └──────────▶ nav-log-agent ─▶ Anthropic
-                                     └──▶ db (Postgres 18 + pgvector, on the server's disk)
+                                     └──▶ db (Postgres 18 + pgvector, on the data disk)
                           nightly pg_dump ─▶ S3 server bucket (14 days)
 
 EventBridge, daily 08:30 UTC ─▶ Fargate Spot task: python -m vfr.charts refresh
@@ -68,6 +70,14 @@ EventBridge, daily 08:30 UTC ─▶ Fargate Spot task: python -m vfr.charts refr
   `CHART_TILES_URL`). It still reads the chart for checkpoints, from the
   sheets under each route, fetched the first time a route needs them
   and kept on the server's disk.
+- **The server is Spot capacity, and replaceable.** It runs at about a
+  third of the on-demand price, in an Auto Scaling group of one. When
+  AWS takes it back (a few times a year) or it fails its checks, the
+  group starts another, of either of two types for more spare capacity;
+  the new server takes over the fixed address and the data disk, which
+  holds everything it keeps, and is serving again within minutes, its
+  database as the last one left it. `ServerPricing=on-demand` makes it
+  a server AWS never takes back, the same way.
 - **Images are x86** (t3a), so CI's images run as built. A Graviton
   server (t4g) would save about $3 a month and need every image built
   for both architectures.
@@ -92,24 +102,25 @@ offers one.
 
 ## What it costs
 
-On-demand prices in us-east-1, October 2026, at today's traffic:
+Prices in us-east-1, October 2026, at today's traffic:
 
 | Item | A month |
 |---|---|
-| EC2 t3a.medium, all month | $27.45 |
+| EC2 t3a.medium on Spot, all month (on demand: $27.45) | ~$10, as Spot's price moves |
 | Its public IPv4 address | $3.65 |
-| 40 GB gp3 disk | $3.20 |
+| 20 GB system disk and 30 GB data disk, gp3 | $4.00 |
 | S3 tiles: 1.5 million uploads a cycle ($7.50 per 56 days) and up to three cycles stored | ~$4.50 |
 | Secrets Manager, four secrets | $1.60 |
 | Route 53 hosted zone | $0.50 |
-| Daily snapshots of the server's disk, seven kept | ~$1 |
+| Daily snapshots of the data disk, seven kept | ~$1 |
 | ECR, CloudWatch logs, backups, the Fargate Spot refresh (under $1 a cycle) | ~$1.50 |
 | CloudFront | $0 within the always-free 1 TB and 10 million requests |
 | SES | $0.10 per 1,000 sign-in emails |
-| **Total** | **about $43** |
+| **Total** | **about $27** |
 
-A one-year Savings Plan on the server takes about $10 off (**about
-$33**). The next saving after that is the tiles' upload bill: one
+With `ServerPricing=on-demand`, for a server AWS never takes back, it
+is about $44, or about $34 with a one-year Savings Plan. The next
+saving after Spot is the tiles' upload bill: one
 PMTiles archive per chart kind in place of 1.5 million files would take
 it to cents, at the cost of a PMTiles reader in the map.
 
@@ -166,7 +177,7 @@ its settings, but has no images to run until the first push to ECR.
 
 1. In GitHub, Settings → Secrets and variables → Actions → Variables,
    add `AWS_ROLE_ARN` (the `DeployRoleArn` output), `AWS_REGION`
-   (`us-east-1`) and `AWS_INSTANCE_ID` (the `ServerInstanceId` output).
+   (`us-east-1`) and `AWS_SERVER_NAME` (the `ServerName` output).
 2. Fill in the owner's values in the `AppSecret` output's secret, as
    [`infra/server/env.example`](../infra/server/env.example) lists them:
 
@@ -182,7 +193,7 @@ its settings, but has no images to run until the first push to ECR.
    (`deploy`). To deploy without waiting for one:
 
    ```bash
-   aws ssm send-command --region us-east-1 --instance-ids <ServerInstanceId> \
+   aws ssm send-command --region us-east-1 --targets Key=tag:Name,Values=<ServerName> \
      --document-name AWS-RunShellScript \
      --parameters 'commands=["/srv/flight_plan/repo/infra/server/deploy.sh"]'
    ```
@@ -242,15 +253,19 @@ server's copy of the repository follows `main` too (`git pull` in
 ### On the server
 
 ```bash
-aws ssm start-session --region us-east-1 --target <ServerInstanceId>
+SERVER=$(aws ec2 describe-instances --region us-east-1 \
+  --filters Name=tag:Name,Values=<ServerName> Name=instance-state-name,Values=running \
+  --query 'Reservations[0].Instances[0].InstanceId' --output text)
+aws ssm start-session --region us-east-1 --target "$SERVER"
 sudo -i
 cd /srv/flight_plan/repo
 docker compose --env-file /srv/flight_plan/.env -f docker-compose.prod.yml ps
 docker compose --env-file /srv/flight_plan/.env -f docker-compose.prod.yml logs -f --tail 100 webapp
 ```
 
-`/srv/flight_plan/data` is the planner's data folder, `/srv/flight_plan/postgres`
-the database. Never edit `/srv/flight_plan/.env`; `deploy.sh` writes it.
+`/srv/flight_plan` is the data disk: `data` the planner's data folder,
+`postgres` the database, `repo` this repository. Never edit
+`/srv/flight_plan/.env`; `deploy.sh` writes it.
 
 ### Chart cycles
 
@@ -270,7 +285,7 @@ checkpoint notes pilots and Claude have written). The bucket keeps 14
 days. The dump is written to a file and checked with `pg_restore --list`
 before it is uploaded, so a truncated one never replaces a good day, and a
 failed backup emails `BudgetEmail` (confirm the SNS subscription mail once).
-The server's disk is also snapshotted daily at 05:00 UTC, seven kept. To
+The data disk is also snapshotted daily at 05:00 UTC, seven kept. To
 restore one, on the server:
 
 ```bash
@@ -286,14 +301,17 @@ docker compose --env-file /srv/flight_plan/.env -f docker-compose.prod.yml resta
 Everything else in the data folder (the FAA's files, the chart sheets)
 is downloaded again by the planner as it is needed.
 
-### A replaced server
+### A new server
 
-A new `ServerImageId`, or any other change CloudFormation can make only
-by replacing the server (its subnet, say), gives a new server. It
-deploys itself on its first boot, with an empty database; restore last
-night's dump as above. The old server's
-disk is kept (it is not deleted with its server): delete it in the EC2
-console under Volumes once the restore is checked.
+A Spot interruption, a failed health check, a new `ServerImageId` or a
+change of `ServerPricing` all end the same way: the group stops the old
+server and starts another, which takes over the address and the data
+disk on its first boot, pulls the images and starts the stack -- a few
+minutes without the app, and nothing lost. Nothing to do by hand.
+
+Only a lost data disk means restoring: from its newest daily snapshot
+(EC2 → Snapshots, create a volume in the same zone, then update the
+stack's `DataVolume`), or from the nightly dump as above.
 
 ### Teardown
 
@@ -302,8 +320,8 @@ aws cloudformation delete-stack --region us-east-1 --stack-name wingtip
 ```
 
 Empty the tiles bucket first (or the delete fails on it). The server
-bucket, with the backups, and the server's disk are kept on purpose:
-delete them by hand when they are no longer wanted.
+bucket, with the backups, is kept on purpose, and the data disk leaves
+a final snapshot: delete them by hand when they are no longer wanted.
 
 ## Gotchas
 
@@ -317,6 +335,9 @@ delete them by hand when they are no longer wanted.
   storage holds the sheets and the pyramid.
 - **The refresh task's empty disk would read as a cycle never drawn;**
   it asks the bucket's `serving.json` first (`vfr.charts.refresh`).
+- **A new server waits for the data disk.** Its first boot attaches the
+  disk only once the last server has let it go, so a replacement that
+  starts before the old server has stopped waits, then carries on.
 - **`AppSecret` is written once.** The stack leaves the values filled in
   by the owner alone unless its `SecretString` in the template changes,
   so leave that as it is.
