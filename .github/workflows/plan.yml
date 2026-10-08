@@ -1,0 +1,87 @@
+name: Plan
+
+# Product management, once a week, before the week's audits: Claude reads
+# what is open (issues, pull requests), what shipped (main's commits since
+# the last plan), and the docs, and keeps two things for the owner.
+#
+# - The Roadmap issue (labelled "roadmap", one, kept open and pinned):
+#   Now, Next and Later, each a list of issue numbers with one line on
+#   why it sits there -- what matters most to a pilot first, safety
+#   before features, the planner's lead over other apps before parity.
+#   Build (build.yml) takes its next work from Now.
+# - A weekly digest issue (labelled "digest"): what shipped, what is in
+#   progress, what CI and the audits found, and the decisions waiting on
+#   the owner, each with the options and a recommendation.
+#
+# It also triages: an issue with no "ready" or "owner" label gets one,
+# by the same rule the audits use, and duplicates are closed in favour of
+# the older one. It changes no code. Started by hand from the Actions tab
+# too. Needs what claude.yml needs; without a key it says so and stops.
+
+on:
+  schedule:
+    - cron: "11 9 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: read
+  id-token: write
+  actions: read
+
+jobs:
+  plan:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 60
+    env:
+      HAS_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' || secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
+    steps:
+      - name: No key, no plan
+        if: env.HAS_KEY != 'true'
+        run: echo "::notice::No ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN secret, so no plan."
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
+        if: env.HAS_KEY == 'true'
+        with:
+          fetch-depth: 200
+      - uses: anthropics/claude-code-action@86d88e619d8e6caf07b5c3944dd14f441c533718  # v1.0.243
+        if: env.HAS_KEY == 'true'
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            REPO: ${{ github.repository }}
+
+            You are the product manager for Wingtip Maps, a VFR flight
+            planner for pilots headed for an iPhone app. CLAUDE.md has the
+            project's rules and README.md what it is. Change no code.
+
+            1. Read every open issue and pull request (gh issue list, gh pr
+               list, with --json and their labels), main's commits since the
+               last digest issue (git log), and the last digest.
+            2. Triage: each open issue without "ready" or "owner" gets one.
+               "ready" is work that needs no decision from the owner and
+               fits one pull request (a bug, a wrong or uncited figure,
+               duplicated code, a measured slowness, a missing test);
+               "owner" is anything the owner must decide (moving a panel or
+               a control, a new feature or idea, launch, marketing,
+               pricing, anything bigger). Close an exact duplicate in favour
+               of the older issue, with a comment saying so. Never take
+               "owner" off an issue: only the owner does that.
+            3. The Roadmap: one open issue labelled "roadmap", titled
+               "Roadmap" (create it, and the labels, if missing; pin it
+               with gh issue pin). Rewrite its body as three sections,
+               "## Now" (at most five ready issues, in the order to build
+               them), "## Next" and "## Later", each line an issue number
+               and one line on why it sits there. Order by what matters
+               most to a pilot: safety and correctness first, then what
+               only this planner does (the market-gap skill), then the
+               launch, then the rest.
+            4. The digest: a new issue labelled "digest", titled "Week of
+               <Monday's date>": what shipped (merged pull requests, one
+               line each), what is in progress, what CI and the audits
+               found, and "Waiting on you": each decision the owner must
+               make, with the options and your recommendation, linked to
+               its issue. Close last week's digest.
+          claude_args: |
+            --allowedTools "Skill,WebSearch,WebFetch,Read,Glob,Grep,LS,Bash(git log:*),Bash(gh:*)"

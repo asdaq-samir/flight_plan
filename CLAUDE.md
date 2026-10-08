@@ -13,9 +13,17 @@ It is headed for an iOS app. README.md has the services and the layout.
   moves, Sync merges it back into maps-layout.
 - Never push to `main`. Never force-push. Pull before pushing to
   maps-layout: Sync may have added a merge.
-- Every week the Audit workflow checks design, code and speed. It opens
-  `claude/audit-*` pull requests, plus issues labelled "audit" for what
-  the owner must decide.
+- Every week the Audit workflow checks design, code, speed and aviation,
+  and once a month the market, the launch and the marketing. It opens
+  `claude/audit-*` pull requests, and issues labelled "audit".
+- An issue is "ready" (no decision left for the owner; Build, build.yml,
+  takes one a day) or "owner" (the owner decides, then labels it
+  "ready"). Only the owner takes "owner" off. Plan (plan.yml) keeps the
+  Roadmap issue, whose Now list Build follows, and a weekly digest.
+- On a `claude/` pull request, Claude's review is put right on the branch
+  ("Address review:" commits) and a CI failure is fixed ("Fix CI:"), each
+  at most twice.
+- How to check, ship, review and audit: the skills in `.claude/skills`.
 
 ## Never
 
