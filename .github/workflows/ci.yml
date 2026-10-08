@@ -555,10 +555,15 @@ jobs:
       # 2.6, zstd rather than gzip), under the image's own name, or the
       # image itself until there is one. It is the largest thing a shard
       # fetches, and often the last in before the tests, which alone
-      # want it -- so it is waited for just before them.
+      # want it -- so it is waited for just before them. The nightly run
+      # (and "standards" by hand) takes the image itself (FULL_BROWSERS):
+      # the slim copy has no WebKit for the whole iOS audit's webkit-iphone
+      # and no full Chrome for Lighthouse, and the first such run failed
+      # on both ("Executable doesn't exist at /ms-playwright/webkit-2203").
       - name: The public images, in the background
         env:
           REGISTRY: ghcr.io/${{ github.repository }}
+          FULL_BROWSERS: ${{ (github.event_name == 'schedule' || inputs.standards) && '1' || '' }}
         run: |
           # web/dist: where the page will be built, mounted into the
           # webapp -- made now, so that Docker does not make it, as root.
@@ -595,7 +600,7 @@ jobs:
           cat > /tmp/e2e-out/playwright.sh <<'EOF'
           digest=$(docker buildx imagetools inspect --raw "$PLAYWRIGHT_IMAGE" | sha256sum | cut -c1-16)
           until [ -f /tmp/e2e-out/small.pulled ]; do sleep 0.5; done
-          if docker pull -q "$REGISTRY/e2e-playwright:$digest" > /dev/null 2>&1; then
+          if [ -z "$FULL_BROWSERS" ] && docker pull -q "$REGISTRY/e2e-playwright:$digest" > /dev/null 2>&1; then
             docker tag "$REGISTRY/e2e-playwright:$digest" "$PLAYWRIGHT_IMAGE" && echo "its slim copy"
           else
             docker pull -q "$PLAYWRIGHT_IMAGE" > /dev/null && echo "the image itself"
