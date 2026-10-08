@@ -17,6 +17,13 @@ import { openPanel, settle, sideDrawer, slow, openTab, openSettings, closeConsol
 
 const fixture = (name: string) => readFileSync(new URL(`./fixtures/${name}`, import.meta.url), "utf8");
 
+// A recorded route's course is asked for as soon as the route goes in
+// (PlanWorkspace's setRoute), and a test that has what it came for can
+// end with its live half still on the way: it is let go, not failed on.
+test.afterEach(async ({ page }) => {
+  await page.unrouteAll({ behavior: "ignoreErrors" });
+});
+
 async function recordedStops(page: Page) {
   const course = JSON.parse(fixture("stops-course.json"));
   await page.route(url => url.pathname.endsWith("/course") && url.searchParams.get("stops") === "KMSN", async route => {
@@ -133,9 +140,19 @@ async function touchHold(page: Page, from: Locator, to: Locator) {
   const middle = async (pill: Locator) => {
     // The box the poll found, not a second measure after it: the pill
     // drawn again between the two (the address just changed) measured
-    // null the second time, now and then.
-    let box: { x: number; y: number; width: number; height: number } | null = null;
-    await expect.poll(async () => (box = await pill.boundingBox())).not.toBeNull();
+    // null the second time, now and then. And the same twice a tenth of
+    // a second apart: the course coming in restyles the pills -- their
+    // airspace's colour and width -- and a drag measured before it was
+    // let go beside its target (CI, 2026-10-07).
+    type Box = { x: number; y: number; width: number; height: number };
+    let box: Box | null = null;
+    let last: Box | null = null;
+    await expect.poll(async () => {
+      box = await pill.boundingBox();
+      const still = !!box && !!last && box.x === last.x && box.y === last.y && box.width === last.width;
+      last = box;
+      return still;
+    }, { intervals: [100] }).toBe(true);
     const { x, y, width, height } = box!;
     return { x: x + width / 2, y: y + height / 2 };
   };

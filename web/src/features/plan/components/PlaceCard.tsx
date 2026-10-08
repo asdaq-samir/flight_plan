@@ -102,7 +102,7 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddToRout
   /** The panel all the way up, for a section scrolled to. */
   onExpand: () => void;
 }) {
-  const { data: place, isLoading, error } = useQuery({
+  const { data: place, isLoading, error, refetch, isFetching } = useQuery({
     queryKey: ["airport", ident], queryFn: () => api.airport(ident), staleTime: 5 * 60_000,
   });
   // What the map knows of it already -- its name and its weather's
@@ -249,6 +249,19 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddToRout
         </>
       )}
       {isLoading && !known && <p className={cn("pt-4 text-muted-foreground", TEXT.prose)}>Looking the airport up…</p>}
+      {/* Where the planner could not be reached, the way to ask again, in
+          the card that could not be had (lib/problems: errors where they
+          happen); an airport not found has nothing to ask again. */}
+      {error && !place && !(error instanceof ApiError && error.status === 404) && (
+        <div className="pt-4">
+          <ListGroup>
+            <ListRow
+              title={<span className="text-tint">{isFetching ? "Trying again…" : "Try again"}</span>}
+              onClick={isFetching ? undefined : () => void refetch()} data-testid="place-retry"
+            />
+          </ListGroup>
+        </div>
+      )}
     </PanelCard>
   );
 }

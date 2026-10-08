@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Polygon } from "react-leaflet";
 import type { LatLngExpression, PathOptions } from "leaflet";
@@ -48,7 +49,7 @@ function positions(tfr: Tfr): LatLngExpression[][][] {
  * and why, and the FAA's own page for it. On by default -- the settings'
  * TFRs -- as a pilot must know of every one near the route.
  */
-export function TfrLayer() {
+export const TfrLayer = memo(function TfrLayer() {
   const show = usePreferences(s => s.tfrs);
   // In force as of when they were fetched, ten minutes apart at most
   // (tfrsQuery): the render itself reads no clock.
@@ -56,29 +57,37 @@ export function TfrLayer() {
   if (!show || !data) return null;
   return (
     <>
-      {data.map(tfr => {
-        const active = inForce(tfr, now);
-        return (
-          <Polygon
-            key={tfr.notam_id}
-            positions={positions(tfr)}
-            pathOptions={active ? IN_FORCE : NOT_YET}
-          >
-            <MapPopup>
-              <MapCard title={`TFR ${tfr.notam_id}`} subtitle={[tfr.kind, active ? "In force now" : "Not yet in force"].filter(Boolean).join(" · ")}>
-                <div className="space-y-1 text-left" data-testid="tfr-card">
-                  {tfrAltitudes(tfr) && <p>{tfrAltitudes(tfr)}</p>}
-                  {tfrTimes(tfr) && <p>{tfrTimes(tfr)}</p>}
-                  {(tfr.purpose ?? tfr.rule) && <p className="text-muted-foreground">{tfr.purpose ?? tfr.rule}</p>}
-                  <a className="text-tint" href={`https://tfr.faa.gov/tfr3/?page=detail_${tfr.notam_id.replace("/", "_")}`} target="_blank" rel="noreferrer">
-                    The NOTAM on tfr.faa.gov
-                  </a>
-                </div>
-              </MapCard>
-            </MapPopup>
-          </Polygon>
-        );
-      })}
+      {data.map(tfr => <TfrShape key={tfr.notam_id} tfr={tfr} active={inForce(tfr, now)} />)}
     </>
+  );
+});
+
+/** One TFR, drawn again only when it changes (memo), and its card made
+ *  only once it is opened (TfrCard, inside the popup): every TFR in the
+ *  country, its times written out with date-fns, was drawn again with
+ *  each render of the map -- 0.15 to 0.4 s of a phone's as a route
+ *  loaded (measured 2026-10-07). */
+const TfrShape = memo(function TfrShape({ tfr, active }: { tfr: Tfr; active: boolean }) {
+  return (
+    <Polygon positions={positions(tfr)} pathOptions={active ? IN_FORCE : NOT_YET}>
+      <MapPopup>
+        <TfrCard tfr={tfr} active={active} />
+      </MapPopup>
+    </Polygon>
+  );
+});
+
+function TfrCard({ tfr, active }: { tfr: Tfr; active: boolean }) {
+  return (
+    <MapCard title={`TFR ${tfr.notam_id}`} subtitle={[tfr.kind, active ? "In force now" : "Not yet in force"].filter(Boolean).join(" · ")}>
+      <div className="space-y-1 text-left" data-testid="tfr-card">
+        {tfrAltitudes(tfr) && <p>{tfrAltitudes(tfr)}</p>}
+        {tfrTimes(tfr) && <p>{tfrTimes(tfr)}</p>}
+        {(tfr.purpose ?? tfr.rule) && <p className="text-muted-foreground">{tfr.purpose ?? tfr.rule}</p>}
+        <a className="text-tint" href={`https://tfr.faa.gov/tfr3/?page=detail_${tfr.notam_id.replace("/", "_")}`} target="_blank" rel="noreferrer">
+          The NOTAM on tfr.faa.gov
+        </a>
+      </div>
+    </MapCard>
   );
 }

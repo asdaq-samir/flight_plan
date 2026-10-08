@@ -16,9 +16,9 @@ import { bestStopIndex } from "../../lib/geo";
 import { useKeepOffline } from "../../lib/map/keepStatus";
 import { locateOnOpen, positionNow, useOwnShip } from "../../lib/map/ownShip";
 import { pointOf } from "../../lib/airspace";
-import { altitudesOf, altitudesParam, departureOf, identOf, routeName, routeOf, stopsOf } from "../../lib/identSchema";
+import { altitudesOf, altitudesParam, departureOf, identOf, positionIdent, routeName, routeOf, stopsOf } from "../../lib/identSchema";
 import { usePreferences, type RecentAirport } from "../../lib/preferences";
-import { useAirportSearch } from "../../lib/useAirportSearch";
+import { SearchNear, useAirportSearch } from "../../lib/useAirportSearch";
 // Without this Leaflet's tiles, markers and controls have no
 // positioning at all -- this is the library's own stylesheet, not
 // app styling.
@@ -317,11 +317,12 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // route's departure (or, when that is this airport, its destination),
   // the last place planned from. The plan loads at once, with the card put
   // away and the panel half up on it.
-  const fromFor = useCallback(async (to: string, fixNow: { lat: number; lon: number } | null) => {
+  const fromFor = useCallback(async (to: string, fixNow: { lat: number; lon: number; altitudeFt?: number | null } | null) => {
     // From the present position itself, at the pilot's ask: a Direct-To in
     // the air goes from wherever the airplane is, any time, not from a
-    // field near it (the planner's app.common.position_of, flown from).
-    let from: string | null = fixNow ? `@${fixNow.lat.toFixed(4)},${fixNow.lon.toFixed(4)}` : null;
+    // field near it (the planner's app.common.position_of, flown from),
+    // and climbs from the GPS's altitude where it gives one.
+    let from: string | null = fixNow ? positionIdent(fixNow) : null;
     const homeIdent = usePreferences.getState().homeAirport?.ident;
     from ??= homeIdent && homeIdent !== to ? homeIdent : null;
     from ??= planned.dep && planned.dep !== to ? planned.dep
@@ -409,6 +410,13 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       setPanel("peek");
       return;
     }
+    // The course asked for now, as the route goes in, not once the page
+    // has drawn it: the draw is half a second of a phone's before the
+    // plan's own requests went (measured 2026-10-07), and the course's
+    // answer starts the planner's chart read and ground (app.prefetch).
+    const via = stopsOf(stops.join(","));
+    const whole = routeOf(dep, dest, via);
+    if (whole) void queryClient.prefetchQuery(courseQuery(whole.dep, whole.dest, via));
     setSearchParams(prev => {
       const next = new URLSearchParams(prev);
       // A point's own altitude goes with it out of the route.
@@ -770,6 +778,10 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   })() : null;
 
   const landedStops = useMemo(() => (course?.stops ?? []).filter(stop => stop.kind !== "fix").map(stop => stop.ident), [course]);
+  // The route's ends, for a stop's search (SearchNear).
+  const searchNear = course
+    ? [course.departure, course.destination].map(end => `${end.lat.toFixed(3)},${end.lon.toFixed(3)}`).join(";")
+    : "";
   // Each tab's mark: the worst of its findings on the Brief's Go / No-Go
   // (lib/verdict), red for something to fix, amber for something to look at.
   const verdict = useVerdict(v => v.items);
@@ -1057,6 +1069,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
         <div className="min-w-0 flex-1">
           {/* Its room while its code comes: the box's own two lines. */}
           <Suspense fallback={<div className="min-h-[5.25rem] rounded-[20.5px] bg-foreground/8" />}>
+          <SearchNear.Provider value={searchNear}>
           <RouteBox
             dep={planned.dep} stops={planned.stops} dest={planned.dest} waypoints={waypointStops} airspaceOf={airspaceOf} metarColourOf={metarColour}
             altitudeAt={altitudeAt} onAltitudeChange={setPointAltitude}
@@ -1064,6 +1077,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
             adding={!!addingStop} onAddingChange={open => setAddingStop(open ? "stop" : false)}
             via={addingStop === "via" ? s.unflyable?.detours : undefined}
           />
+          </SearchNear.Provider>
           </Suspense>
         </div>
         {/* The route's close, and under it Nearest: round glass buttons

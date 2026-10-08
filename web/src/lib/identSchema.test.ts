@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { altitudesOf, altitudesParam, identOf, routeNameWithin, routeOf, stopsOf } from "./identSchema";
+import { altitudesOf, altitudesParam, departureOf, identOf, positionIdent, routeNameWithin, routeOf, stopsOf, withoutAltitude } from "./identSchema";
 
 describe("identOf and stopsOf", () => {
   test("an airport's ident trimmed and uppercased, else empty", () => {
@@ -53,5 +53,23 @@ describe("altitudesOf", () => {
   test("back to the address", () => {
     expect(altitudesParam({ VPBNG: 4500, KMSN: 1900 })).toBe("VPBNG:4500,KMSN:1900");
     expect(altitudesParam({})).toBe("");
+  });
+});
+
+
+describe("a present position", () => {
+  test("is written with the GPS's altitude, to the hundred, where it has one", () => {
+    expect(positionIdent({ lat: 42.32461, lon: -88.07412, altitudeFt: 3487 })).toBe("@42.3246,-88.0741,3500");
+    expect(positionIdent({ lat: 42.32461, lon: -88.07412, altitudeFt: null })).toBe("@42.3246,-88.0741");
+    expect(positionIdent({ lat: 42.32461, lon: -88.07412 })).toBe("@42.3246,-88.0741");
+  });
+  test("is a departure with its altitude or without", () => {
+    expect(departureOf("@42.3246,-88.0741,3500")).toBe("@42.3246,-88.0741,3500");
+    expect(departureOf("@42.3246,-88.0741")).toBe("@42.3246,-88.0741");
+    expect(departureOf("@42.3246,-88.0741,3500,1")).toBe("");
+  });
+  test("is saved without the moment's altitude", () => {
+    expect(withoutAltitude("@42.3246,-88.0741,3500")).toBe("@42.3246,-88.0741");
+    expect(withoutAltitude("KDLH")).toBe("KDLH");
   });
 });

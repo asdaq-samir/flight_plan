@@ -28,8 +28,22 @@ export function stopOf(value: string | null | undefined): string {
  *  airplane is; or "". */
 export function positionOf(value: string | null | undefined): string {
   const point = (value ?? "").trim();
-  return /^@-?\d{1,2}(\.\d{1,6})?,-?\d{1,3}(\.\d{1,6})?$/.test(point) ? point : "";
+  return /^@-?\d{1,2}(\.\d{1,6})?,-?\d{1,3}(\.\d{1,6})?(,\d{1,5})?$/.test(point) ? point : "";
 }
+
+/** A present position as a route's departure, for Fly Here's Direct-To:
+ *  "@42.3246,-88.0741", and the GPS's altitude where it gives one --
+ *  ",3500", feet MSL, to the hundred, so the planner climbs from where
+ *  the airplane is (its app.common.position_of) and a few feet of drift
+ *  are not a new route to plan. */
+export function positionIdent(fix: { lat: number; lon: number; altitudeFt?: number | null }): string {
+  const at = `@${fix.lat.toFixed(4)},${fix.lon.toFixed(4)}`;
+  return fix.altitudeFt == null || fix.altitudeFt < 0 ? at : `${at},${Math.round(fix.altitudeFt / 100) * 100}`;
+}
+
+/** A present position without its altitude: where a flight saved from
+ *  one starts (the webapp keeps the place, not a moment's altitude). */
+export const withoutAltitude = (ident: string) => (isPosition(ident) ? ident.split(",").slice(0, 2).join(",") : ident);
 
 /** Whether a route's point is a present position (positionOf). */
 export const isPosition = (ident: string) => ident.startsWith("@");
