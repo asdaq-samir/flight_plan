@@ -1,6 +1,6 @@
 # What serves the chart model.
-fastapi==0.141.1
-uvicorn[standard]==0.52.4
+fastapi==0.142.2
+uvicorn[standard]==0.54.0
 pydantic==2.13.5
 
 # The model's own runtime, pinned exactly as the image that writes the
@@ -14,5 +14,5 @@ pydantic==2.13.5
 # together" note; tests/test_requirements.py now fails if the two differ.
 scikit-learn==1.9.1
 numpy==2.5.3
-pandas==3.0.5
+pandas==3.0.6
 joblib==1.6.0
