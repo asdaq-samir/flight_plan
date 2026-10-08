@@ -47,9 +47,11 @@ Out of scope: the accuracy of anything this project computes. Bad
 navigation output is a correctness bug, not a vulnerability — open an
 issue for it.
 
-## Not for real flight
+## A planning aid, not a replacement
 
-This software is a portfolio and learning project. It is not an approved
-source of aeronautical information and must not be used to plan or
-conduct an actual flight. Use official FAA charts and publications and a
-current, approved planning tool.
+Wingtip Maps is a planning aid for VFR flight. It does not replace an
+official weather briefing (1800wxbrief.com or 1-800-WX-BRIEF), current FAA
+charts and publications, or the pilot in command's judgement and final
+authority (14 CFR 91.3, 91.103). Its checkpoints are a model's
+suggestions: check them against the chart. The app says so on first
+launch and under Settings, About & limits.

@@ -97,8 +97,8 @@ test("plan page: the briefing ends on its 'planning aid only' reminder, with the
   await openBriefing(page);
   // At the foot of the drawer, not a toast: as a toast it covered the
   // nav log's last rows and hid the route's own warnings behind it.
-  await expect(sideDrawer(page).getByTestId("planning-aid-note")).toContainText("Planning aid only");
-  await expect(page.locator("[data-sonner-toast]", { hasText: "Planning aid only" })).toHaveCount(0);
+  await expect(sideDrawer(page).getByTestId("planning-aid-note")).toContainText("planning aid for VFR flight");
+  await expect(page.locator("[data-sonner-toast]", { hasText: "planning aid for VFR flight" })).toHaveCount(0);
 
   // One nav log, its tab up as the panel opens, and the briefing in the
   // other tabs. No "Flight Plan Summary": the nav log's line carries the
