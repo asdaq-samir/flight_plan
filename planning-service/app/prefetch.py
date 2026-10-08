@@ -53,7 +53,7 @@ def _read(dep: str, dest: str, stops: str) -> None:
     for hop in hops:
         # The chart's read is a job of its own: started here, not waited on.
         try:
-            chart_model.corridor(chartlabels.route_key(hop.dep_ident, hop.dest_ident), wait=False)
+            chart_model.corridor(chartlabels.route_key(hop.dep_ident, hop.dest_ident), wait=False, ahead=True)
         except Exception:  # noqa: BLE001 -- the checkpoints' own request reports a failed read
             log.warning("prefetch: the chart along %s -> %s", hop.dep_ident, hop.dest_ident, exc_info=True)
     for hop in hops:

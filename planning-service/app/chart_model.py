@@ -10,6 +10,7 @@ import multiprocessing
 import os
 import threading
 import time
+from collections import deque
 from concurrent.futures import Future, ProcessPoolExecutor
 from concurrent.futures.process import BrokenProcessPool
 
@@ -38,7 +39,7 @@ log = logging.getLogger(__name__)
 READS_IN_PROCESS = os.environ.get("CHART_READS_IN_PROCESS", "1") != "0"
 _PROCESSES: ProcessPoolExecutor | None = None
 _READING: dict = {}
-_READING_LOCK = threading.Lock()
+_READING_LOCK = threading.RLock()  # re-entered: a read already done calls back as it is queued
 # A pool with nothing to read for this long is let go (release_idle, from
 # the planner's own loop): its processes keep what their last reads grew
 # to -- 215 and 342 MB, seen 2026-10-07, beside a planner of 1 GB, on a
@@ -53,24 +54,78 @@ _LAST_READ = 0.0
 def _pool() -> ProcessPoolExecutor:
     # Spawned, not forked: this process runs threads, and a fork copies
     # their locks held.
-    return ProcessPoolExecutor(max_workers=2, mp_context=multiprocessing.get_context("spawn"))
+    return ProcessPoolExecutor(max_workers=READERS, mp_context=multiprocessing.get_context("spawn"))
 
 
-def _reading(key: tuple, start: tuple, end: tuple) -> Future | None:
+# The reads the pool's processes are given, two at a time, from the
+# planner's own queue rather than the pool's: the pool takes reads first
+# come, first served, and the course read every route ahead -- each stop
+# typed in, each hop of it (app.prefetch) -- so a route the pilot had
+# moved on from was read before the one whose checkpoints were waited on:
+# 22 s of "Scoring checkpoints" for a route of two short hops (C81, KJVL,
+# KMSN, 2026-10-08), where alone it is a second or two. A read someone
+# waits on goes before every read ahead; the reads ahead go newest first,
+# the route as it is now before the ones typed on the way to it, one at a
+# time, and past AHEAD_KEPT the oldest are dropped (read when a route asks
+# for them).
+READERS = 2
+AHEAD_KEPT = 4
+_WANTED: deque = deque()   # (key, start, end), first asked first read
+_AHEAD: deque = deque()    # (key, start, end), the newest at the left
+_RUNNING = 0
+# And one process kept for the reads waited on: a read can't be stopped
+# once it is going, and with both processes on reads ahead, a route's
+# checkpoints waited for one of them to end.
+_RUNNING_AHEAD = 0
+
+
+def _reading(key: tuple, start: tuple, end: tuple, ahead: bool = False) -> Future | None:
     """The read of a corridor neither in this process's memory nor kept on
-    disk, started in the pool once however many ask; None where there is
-    nothing to read (or the pool is not to be used)."""
-    global _PROCESSES, _LAST_READ
+    disk, started once however many ask -- queued, a read `ahead` behind
+    any that is waited on -- and None where there is nothing to read (or
+    the pool is not to be used)."""
+    global _LAST_READ
     if not READS_IN_PROCESS or key in detection._DETECT_JOBS or detection._kept_path(key).exists():
         return None
     with _READING_LOCK:
         running = _READING.get(key)
         if running is not None and not running.done():
+            # Read ahead and waited on now: ahead of the reads ahead.
+            if not ahead:
+                for queued in list(_AHEAD):
+                    if queued[0] == key:
+                        _AHEAD.remove(queued)
+                        _WANTED.append(queued)
+                _dispatch()
             return running
+        future: Future = Future()
+        _READING[key] = future
+        _LAST_READ = time.time()
+        if ahead:
+            _AHEAD.appendleft((key, start, end))
+            while len(_AHEAD) > AHEAD_KEPT:
+                dropped = _AHEAD.pop()
+                _READING.pop(dropped[0]).cancel()
+        else:
+            _WANTED.append((key, start, end))
+        _dispatch()
+        return future
+
+
+def _dispatch() -> None:
+    """The next queued reads into the pool's free processes, the waited-on
+    first. Under _READING_LOCK."""
+    global _PROCESSES, _RUNNING, _RUNNING_AHEAD
+    while _RUNNING < READERS and (_WANTED or (_AHEAD and _RUNNING_AHEAD < READERS - 1)):
+        ahead = not _WANTED
+        key, start, end = _AHEAD.popleft() if ahead else _WANTED.popleft()
+        future = _READING.get(key)
+        if future is None or future.done():
+            continue
         if _PROCESSES is None:
             _PROCESSES = _pool()
         try:
-            future = _PROCESSES.submit(chart_reader.read_corridor, key, start, end, TRAINING_HALF_WIDTH_NM)
+            read = _PROCESSES.submit(chart_reader.read_corridor, key, start, end, TRAINING_HALF_WIDTH_NM)
         except BrokenProcessPool:
             # One of its processes died -- the kernel's out-of-memory killer
             # took one with the machine short of memory, 2026-10-07, where a
@@ -81,16 +136,28 @@ def _reading(key: tuple, start: tuple, end: tuple) -> Future | None:
             log.warning("the chart reader's pool lost a process; starting a new one")
             _PROCESSES.shutdown(wait=False, cancel_futures=True)
             _PROCESSES = _pool()
-            future = _PROCESSES.submit(chart_reader.read_corridor, key, start, end, TRAINING_HALF_WIDTH_NM)
-        _READING[key] = future
+            read = _PROCESSES.submit(chart_reader.read_corridor, key, start, end, TRAINING_HALF_WIDTH_NM)
+        _RUNNING += 1
+        _RUNNING_AHEAD += ahead
+        read.add_done_callback(lambda done, future=future, ahead=ahead: _read_ended(done, future, ahead))
+
+
+def _read_ended(read: Future, future: Future, ahead: bool) -> None:
+    """A read out of the pool: its outcome to whoever waits on it, and the
+    process it had to the next in the queue."""
+    global _LAST_READ, _RUNNING, _RUNNING_AHEAD
+    with _READING_LOCK:
+        _RUNNING -= 1
+        _RUNNING_AHEAD -= ahead
         _LAST_READ = time.time()
-        future.add_done_callback(_read_ended)
-        return future
-
-
-def _read_ended(_future: Future) -> None:
-    global _LAST_READ
-    _LAST_READ = time.time()
+        if not future.done():
+            if read.cancelled():
+                future.cancel()
+            elif read.exception() is not None:
+                future.set_exception(read.exception())
+            else:
+                future.set_result(read.result())
+        _dispatch()
 
 
 def release_idle(now: float | None = None) -> bool:
@@ -118,12 +185,14 @@ def corridor_kept(route: str) -> bool:
     return detection._kept_path(key).exists()
 
 
-def corridor(route: str, wait: bool) -> list | None:
+def corridor(route: str, wait: bool, ahead: bool = False) -> list | None:
     """Every detection the training page shows along a route ("C81->KDLH"):
     its charted airports and what the reader found, at the page's own
     half-width -- so a pick claims what it was made on. None while the
     read is still going and `wait` is False; the job it asks for is the
-    page's own, shared, so this starts no second read."""
+    page's own, shared, so this starts no second read. A read `ahead` --
+    nobody waiting on it yet -- goes behind the reads that are waited on
+    (_reading)."""
     dep, dest = route.split("->")
     r = load_hop(dep, dest)
     key = (route, TRAINING_HALF_WIDTH_NM)
@@ -132,7 +201,7 @@ def corridor(route: str, wait: bool) -> list | None:
     # new pool _reading starts; not here, where a read that ran a process
     # out of memory would take the planner with it.
     for tries in (1, 2):
-        elsewhere = _reading(key, r.start, r.end)
+        elsewhere = _reading(key, r.start, r.end, ahead=ahead and not wait)
         if elsewhere is None:
             break
         if not wait and not elsewhere.done():
