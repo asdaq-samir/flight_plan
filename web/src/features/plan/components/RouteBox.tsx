@@ -439,7 +439,9 @@ function Pill({ id, ident, waypoint, index, role, stopNumber, airspaceOf, metarC
   const byWeather = usePreferences(s => s.routeColours) === "metar";
   // The class the course came with, else the airport's card asked for.
   const known = airspaceOf(ident);
-  const space = useAirspace({ ident, name: ident, airspace: known }, !waypoint && !byWeather && !known);
+  // Not for a present position, which has no card to ask for (it was
+  // asked for, and the planner answered 404, at every Fly Here).
+  const space = useAirspace({ ident, name: ident, airspace: known }, !waypoint && !byWeather && !known && !isPosition(ident));
   const metar = byWeather && !waypoint ? metarColourOf(ident) : undefined;
   const look = waypoint ? undefined
     : metar ? { backgroundColor: metar, color: inkOn(metar) }

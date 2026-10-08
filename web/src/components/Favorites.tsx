@@ -1,7 +1,8 @@
 import { ChevronLeft, ChevronRight, CircleMinus, GripVertical, House, Plane, Plus } from "lucide-react";
 import { useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { cn } from "cn";
-import { distanceNm, type LatLon } from "../lib/geo";
+import { distanceNm } from "../lib/geo";
+import { useOwnShip } from "../lib/map/ownShip";
 import type { RecentAirport } from "../lib/preferences";
 import { useAirspace } from "../lib/useAirspace";
 import { TEXT } from "../lib/text";
@@ -18,11 +19,9 @@ import IconButton from "./IconButton";
  * the search bar for the field. "Favorites ›" opens the list where
  * they are changed (FavoritesList).
  */
-export function Favorites({ home, favorites, from, onOpen, onAddHome, onAddFavorite, onShowAll }: {
+export function Favorites({ home, favorites, onOpen, onAddHome, onAddFavorite, onShowAll }: {
   home: RecentAirport | null;
   favorites: RecentAirport[];
-  /** Own ship, when its position is known. */
-  from: LatLon | null;
   onOpen: (airport: RecentAirport) => void;
   onAddHome: () => void;
   onAddFavorite: () => void;
@@ -39,7 +38,7 @@ export function Favorites({ home, favorites, from, onOpen, onAddHome, onAddFavor
         </button>
       </h3>
       <FavoriteTiles
-        home={home} favorites={favorites} from={from} onOpen={onOpen} onAddHome={onAddHome}
+        home={home} favorites={favorites} onOpen={onOpen} onAddHome={onAddHome}
         trailing={<PlaceTile icon={<Plus />} className="bg-foreground/8 text-tint" title="Add" onClick={onAddFavorite} testId="favorite-add" />}
       />
     </section>
@@ -52,14 +51,16 @@ export function Favorites({ home, favorites, from, onOpen, onAddHome, onAddFavor
  * (AirportPicker), which offer the same airports before anything is
  * typed. Without `onAddHome`, a Home not set yet is left out.
  */
-export function FavoriteTiles({ home, favorites, from, onOpen, onAddHome, trailing }: {
+export function FavoriteTiles({ home, favorites, onOpen, onAddHome, trailing }: {
   home: RecentAirport | null;
   favorites: RecentAirport[];
-  from: LatLon | null;
   onOpen: (airport: RecentAirport) => void;
   onAddHome?: () => void;
   trailing?: ReactNode;
 }) {
+  // How far, from own ship's fix as it is: the tiles' own, drawn again at
+  // each, where the page round them is not (useOwnShipNear).
+  const from = useOwnShip(o => (o.enabled ? o.fix : null));
   const away = (a: RecentAirport) =>
     from && a.lat !== undefined && a.lon !== undefined
       ? `${Math.round(distanceNm(from, { lat: a.lat, lon: a.lon }))} nm`

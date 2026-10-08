@@ -373,7 +373,9 @@ function LegPoints({ legs, onSelectPoint }: { legs: Leg[]; onSelectPoint: Props[
  *  neighbours on the sectional. */
 const PLACE_ZOOM = 9;
 
-export default function RouteMap({
+// Drawn again only when its own props change (memo): the workspace
+// renders at each answer that streams in, and the whole map went with it.
+export default memo(function RouteMap({
   course, candidates, selected, focus, onSelectCandidate, onSelectPoint,
   airportWeather, place, onSelectPlace, onAddStop, legs, heldPoint, onHoldPoint, nearest = null,
 }: Props) {
@@ -436,4 +438,4 @@ export default function RouteMap({
       )}
     </MapShell>
   );
-}
+});

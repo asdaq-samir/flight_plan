@@ -98,6 +98,41 @@ const AS_ENTERED_AFTER_MS = 600;
 // chart drawn again at every render of the page.
 const NONE: Candidate[] = [];
 
+/** Everything the nav log is computed from -- the narratives are keyed
+ *  on the same, so a narrative is always about the log on screen. */
+function planKeyOf(
+  { dep, dest, stops, altitudeFt, altitudeChoice, depart, aircraft, load, classBClearance = false, altitudes = "", checkpoints = true }: PlanParams,
+) {
+  return [
+    dep, dest, stops.join(","), altitudeFt, altitudeChoice, depart, load, classBClearance, altitudes, checkpoints,
+    aircraft.profile, aircraft.cruiseTasKt ?? null, aircraft.fuelBurnGph ?? null, aircraft.usableFuelGal ?? null,
+    aircraft.climbTasKt ?? null, aircraft.climbFuelBurnGph ?? null, aircraft.cruisePowerPct ?? null,
+  ];
+}
+
+/** A plan's nav log, with its checkpoints or point to point: the page's
+ *  own (usePlan), and Fly Here's, asked for at the tap before the page
+ *  has drawn the route (PlanWorkspace). */
+export function navlogQuery(plan: PlanParams, checkpointsToo: boolean) {
+  const { dep, dest, stops, altitudeFt, altitudeChoice, depart, aircraft, classBClearance = false, altitudes = "" } = plan;
+  const planKey = planKeyOf(plan);
+  return {
+    // The same key as the checkpoints' with them off, so the route as
+    // entered and a plan with Waypoints off are one answer.
+    queryKey: ["navlog", ...planKey.slice(0, 9), checkpointsToo, ...planKey.slice(10)],
+    queryFn: streamedQuery({
+      streamFn: ({ signal }: { signal: AbortSignal }) => ended(
+        api.navlog(dep, dest, altitudeFt || undefined, aircraft, altitudeChoice, depart || undefined, signal, stops, classBClearance, altitudes, checkpointsToo),
+        "nav log",
+      ),
+    }),
+    staleTime: Infinity,
+    // No legal altitude is the page's to say, with what can be done about
+    // it (PlanWorkspace): not the query client's plain toast.
+    meta: { silent: (error: unknown) => error instanceof ApiError && error.advice !== null },
+  };
+}
+
 export function usePlan(
   {
     dep, dest, stops, altitudeFt, altitudeChoice, depart, aircraft, load, classBClearance = false, altitudes = "",
@@ -130,29 +165,11 @@ export function usePlan(
   // the route as the course is asked for (app.prefetch).
   const checkpoints = useQuery({ ...checkpointsQuery(dep, dest, stops), enabled: routeKnown && withCheckpoints });
 
-  // Everything the nav log is computed from -- the narratives below are
-  // keyed on the same, so a narrative is always about the log on screen.
-  const planKey = [
-    dep, dest, via, altitudeFt, altitudeChoice, depart, load, classBClearance, altitudes, withCheckpoints,
-    aircraft.profile, aircraft.cruiseTasKt ?? null, aircraft.fuelBurnGph ?? null, aircraft.usableFuelGal ?? null,
-    aircraft.climbTasKt ?? null, aircraft.climbFuelBurnGph ?? null, aircraft.cruisePowerPct ?? null,
-  ];
-  const navlogQuery = (checkpointsToo: boolean, enabled: boolean) => ({
-    // The same key as the checkpoints' with them off, so the route as
-    // entered and a plan with Waypoints off are one answer.
-    queryKey: ["navlog", ...planKey.slice(0, 9), checkpointsToo, ...planKey.slice(10)],
-    queryFn: streamedQuery({
-      streamFn: ({ signal }: { signal: AbortSignal }) => ended(
-        api.navlog(dep, dest, altitudeFt || undefined, aircraft, altitudeChoice, depart || undefined, signal, stops, classBClearance, altitudes, checkpointsToo),
-        "nav log",
-      ),
-    }),
-    enabled, staleTime: Infinity,
-    // No legal altitude is the page's to say, with what can be done about
-    // it (PlanWorkspace): not the query client's plain toast.
-    meta: { silent: (error: unknown) => error instanceof ApiError && error.advice !== null },
-  });
-  const navlog = useQuery(navlogQuery(withCheckpoints, routeKnown));
+  const plan = {
+    dep, dest, stops, altitudeFt, altitudeChoice, depart, aircraft, load, classBClearance, altitudes, checkpoints: withCheckpoints,
+  };
+  const planKey = planKeyOf(plan);
+  const navlog = useQuery({ ...navlogQuery(plan, withCheckpoints), enabled: routeKnown });
   const fullIn = (navlog.data ?? []).some(m => m.type === "leg" || m.type === "done") || !!navlog.error;
   // The route as entered first, point to point, at the pilot's ask for a
   // fast route to nav log: no chart read before it, so its legs are in a
@@ -174,7 +191,9 @@ export function usePlan(
     return () => window.clearTimeout(timer);
   }, [routeId, routeKnown, withCheckpoints, fullIn]);
   const ready = course.isPlaceholderData ? undefined : course.data?.checkpoints_ready;
-  const asEntered = useQuery(navlogQuery(false, routeKnown && withCheckpoints && !fullIn && (ready === undefined ? slowFor === routeId : !ready)));
+  const asEntered = useQuery({
+    ...navlogQuery(plan, false), enabled: routeKnown && withCheckpoints && !fullIn && (ready === undefined ? slowFor === routeId : !ready),
+  });
   const pointToPoint = withCheckpoints && !fullIn && !!asEntered.data?.some(m => m.type === "leg");
   const messages = useMemo(
     () => (pointToPoint ? asEntered.data : navlog.data) ?? [], [pointToPoint, asEntered.data, navlog.data]);

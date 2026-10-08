@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
@@ -57,6 +58,27 @@ export const OPEN_ZOOM = 7;
 
 export function ownShipAvailable(): boolean {
   return typeof navigator !== "undefined" && "geolocation" in navigator && window.isSecureContext;
+}
+
+/**
+ * Own ship's position near enough for the planner page as a whole -- the
+ * map fitted to Nearest's fields with it -- drawn again only as the
+ * airplane moves a hundredth of a degree (some 0.6 nm), not at every
+ * fix; what measures from it (an airport card's distance, Favorites')
+ * reads the fix itself. The whole planner subscribed to the fix and drew
+ * again at each one, about once a second in the air, and a route asked
+ * for meanwhile was started over behind each draw -- Fly Here's route
+ * took 4.4 to 5.9 s to appear at a phone's speed with the GPS moving,
+ * 2.7 to 3.5 without (measured 2026-10-08). The position given is the
+ * fix as it was when it last moved that far. Null while own ship is off
+ * or has no fix.
+ */
+export function useOwnShipNear(): { lat: number; lon: number } | null {
+  const at = useOwnShip(o => (o.enabled && o.fix ? `${o.fix.lat.toFixed(2)},${o.fix.lon.toFixed(2)}` : null));
+  return useMemo(() => {
+    const fix = at === null ? null : useOwnShip.getState().fix;
+    return fix ? { lat: fix.lat, lon: fix.lon } : null;
+  }, [at]);
 }
 
 let watchId: number | null = null;

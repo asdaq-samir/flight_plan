@@ -45,10 +45,14 @@ export function useCheckpointNotes(dep: string, dest: string, stops: string[] = 
     }),
     enabled: false, staleTime: Infinity,
   });
+  // The query's own refetch and flags, not its result, which is new at
+  // every render: so was this, and with it the nav log drawn again at
+  // every render of the page (as useNarratives).
+  const { isFetching, isFetched, refetch } = descriptions;
   const generateDescriptions = useCallback(() => {
-    if (descriptions.isFetching || descriptions.isFetched) return;
-    void descriptions.refetch();
-  }, [descriptions]);
+    if (isFetching || isFetched) return;
+    void refetch();
+  }, [isFetching, isFetched, refetch]);
 
   // The pilot's own edits, shown the moment they are made: an overlay
   // on the stream, scoped the same way. Written when the save starts;
@@ -96,9 +100,12 @@ export function useCheckpointNotes(dep: string, dest: string, stops: string[] = 
   });
   // The save's own promise, so the note's box can keep a pilot's typing
   // until it is safely saved (DescriptionCell).
+  // The mutation's own mutateAsync, which keeps its identity, for the same
+  // reason.
+  const { mutateAsync } = saveNote;
   const saveDescription = useCallback(
-    (lat: number, lon: number, text: string) => saveNote.mutateAsync({ lat, lon, text }),
-    [saveNote],
+    (lat: number, lon: number, text: string) => mutateAsync({ lat, lon, text }),
+    [mutateAsync],
   );
 
   return { descriptions: descriptionMap, descriptionError, descriptionProgress, generateDescriptions, saveDescription };
