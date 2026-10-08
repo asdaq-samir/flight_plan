@@ -20,7 +20,6 @@ import { AIRSPACE, useAirspace } from "../../../lib/useAirspace";
 import { inkOn } from "../../../lib/scoreScale";
 import { altFt, flightLevel } from "../../../lib/units";
 import PointAltitudeDialog, { type EditedPoint, type PointAltitude } from "./PointAltitudeDialog";
-import { TEXT } from "../../../lib/text";
 
 /** The route as the box changes it: either end may be missing (half a
  *  route, the other end still to be typed), and neither means none. */
@@ -242,11 +241,12 @@ export default function RouteBox({
       placeholder={!points.length ? "Route" : at === null && !hasDest ? "Destination" : at === 0 && !hasDep ? "Departure" : ""}
       aria-label={!points.length ? "The route, from its departure" : at === null ? (hasDest ? "Change the destination" : "The destination") : at === 0 && !hasDep ? "The departure" : "A stop here"}
       enterKeyHint="done" autoCapitalize="characters" autoCorrect="off" spellCheck={false}
-      // A row's size (TEXT.row): 17 to a finger, over the 16 under which
-      // iOS zooms the page in on a field, and 14 with a mouse.
+      // 16 at the least below md, as every field is: under 16 iOS zooms
+      // the page in on it (checkpoints.spec checks every field). Not
+      // TEXT.row, whose 14 with a mouse would be under it on a narrow
+      // window; 17 to a finger, a row's, and 14 from md up.
       className={cn(
-        "h-8 bg-transparent font-mono uppercase outline-none placeholder:font-sans placeholder:normal-case placeholder:text-muted-foreground",
-        TEXT.row,
+        "h-8 bg-transparent font-mono text-base uppercase outline-none placeholder:font-sans placeholder:normal-case placeholder:text-muted-foreground md:text-sm pointer-coarse:text-[1.0625rem]",
         // The departure's field wide enough for its word: at a stop's width
         // it read "Departu".
         at === null ? "min-w-12 flex-1" : cn("shrink-0 rounded-full bg-background/60 px-2", at === 0 && !hasDep ? "w-28" : "w-20"),
