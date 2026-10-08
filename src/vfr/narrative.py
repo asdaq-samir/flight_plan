@@ -129,7 +129,9 @@ def briefing_prompt(
             "\n\nSimilar past route briefings (for context/consistency, not to copy verbatim):\n"
             f"{_format_memory(similar_briefings)}"
         )
-    return prompt
+    # Said again last, after the data: claude-haiku-5-5 bolded its
+    # headings with only the rule at the top (2026-10-08).
+    return prompt + "\n\nWrite the briefing as plain text: no Markdown, so no ** or # anywhere."
 
 
 def _ft(value) -> str:
