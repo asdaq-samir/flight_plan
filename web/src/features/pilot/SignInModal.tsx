@@ -14,6 +14,7 @@ import { ApiError, api } from "../../lib/api/client";
 import { LEGAL_PAGES } from "../../lib/legal";
 import { capabilitiesQuery } from "../../lib/queryClient";
 import { TEXT } from "../../lib/text";
+import { inNativeApp } from "../../lib/native";
 
 /**
  * Three ways in, the standard shape every "sign in" prompt (Auth.js,
@@ -30,7 +31,11 @@ import { TEXT } from "../../lib/text";
 export default function SignInModal() {
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState("");
-  const providers = useQuery(capabilitiesQuery).data?.providers ?? [];
+  // In the iOS app, the emailed link alone: Google refuses to sign in
+  // inside an app's web view, and its link opens the app (lib/native).
+  // Google and Apple there need the native flows of a later build.
+  const offered = useQuery(capabilitiesQuery).data?.providers ?? [];
+  const providers = inNativeApp() ? [] : offered;
   const trimmedEmail = email.trim();
   // The address a link went to is the one it was asked for with -- the
   // mutation's own variable -- not a copy taken from the box when the

@@ -194,6 +194,9 @@ public class SecurityConfig {
                             // at all (SignInCapabilitiesController).
                             .requestMatchers(HttpMethod.GET, "/api/auth/capabilities").permitAll()
                             .requestMatchers(HttpMethod.GET, "/", "/error").permitAll()
+                            // What iOS reads to open this site's links in the
+                            // app (AppSiteAssociationController).
+                            .requestMatchers(HttpMethod.GET, "/.well-known/apple-app-site-association").permitAll()
                             // Everything else that exists is pilot-scoped.
                             .anyRequest().authenticated();
                 })

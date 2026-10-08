@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { inNativeApp, watchNativePosition, type NativePosition } from "../native";
 
 /**
  * Own ship: the phone's position on the chart, from the browser's
@@ -82,6 +83,9 @@ export function useOwnShipNear(): { lat: number; lon: number } | null {
 }
 
 let watchId: number | null = null;
+// In the iOS app, the plugin's own watch (lib/native), stopped by this.
+let stopNative: (() => void) | null = null;
+let nativeStarting = false;
 // Started by the page itself (locateOnOpen) rather than by a tap: a
 // refusal then is no error to show, own ship just goes off again.
 let quiet = false;
@@ -91,41 +95,64 @@ function stopWatching() {
     navigator.geolocation.clearWatch(watchId);
     watchId = null;
   }
+  stopNative?.();
+  stopNative = null;
 }
 
 function startWatching(set: (patch: Partial<OwnShip>) => void) {
+  if (inNativeApp()) {
+    startNativeWatching(set);
+    return;
+  }
   if (!ownShipAvailable() || watchId !== null) return;
   watchId = navigator.geolocation.watchPosition(
-    position => {
-      quiet = false;
-      const { latitude, longitude, accuracy, heading, speed, altitude } = position.coords;
-      set({
-        lastFix: { lat: Math.round(latitude * 1000) / 1000, lon: Math.round(longitude * 1000) / 1000 },
-        error: null,
-        fix: {
-          lat: latitude, lon: longitude, accuracyM: accuracy,
-          headingDeg: heading === null || Number.isNaN(heading) ? null : heading,
-          speedKt: speed === null || Number.isNaN(speed) ? null : speed * 1.943844,
-          altitudeFt: altitude === null || Number.isNaN(altitude) ? null : altitude * 3.28084,
-          at: position.timestamp,
-        },
-      });
-    },
-    err => {
-      if (quiet) {
-        quiet = false;
-        stopWatching();
-        set({ enabled: false, fix: null, error: null });
-        return;
-      }
-      set({
-        error: err.code === err.PERMISSION_DENIED
-          ? "Location access was refused; allow it for this site in the browser's settings."
-          : err.message || "No position yet.",
-      });
-    },
+    position => applyFix(set, position),
+    err => failed(set, err.code === err.PERMISSION_DENIED
+      ? "Location access was refused; allow it for this site in the browser's settings."
+      : err.message || "No position yet."),
     { enableHighAccuracy: true, maximumAge: 1000, timeout: 20000 },
   );
+}
+
+/** In the iOS app, the same fixes from iOS's own location (lib/native),
+ *  asked for with the app's permission sheet. */
+function startNativeWatching(set: (patch: Partial<OwnShip>) => void) {
+  if (stopNative !== null || nativeStarting) return;
+  nativeStarting = true;
+  void watchNativePosition(position => applyFix(set, position), message => failed(set, message)).then(stop => {
+    nativeStarting = false;
+    if (useOwnShip.getState().enabled) stopNative = stop;
+    else stop();
+  });
+}
+
+/** A fix, the browser's or the app's (the same shape), into own ship. */
+function applyFix(set: (patch: Partial<OwnShip>) => void, position: GeolocationPosition | NativePosition) {
+  quiet = false;
+  const { latitude, longitude, accuracy, heading, speed, altitude } = position.coords;
+  set({
+    lastFix: { lat: Math.round(latitude * 1000) / 1000, lon: Math.round(longitude * 1000) / 1000 },
+    error: null,
+    fix: {
+      lat: latitude, lon: longitude, accuracyM: accuracy,
+      headingDeg: heading === null || Number.isNaN(heading) ? null : heading,
+      speedKt: speed === null || Number.isNaN(speed) ? null : speed * 1.943844,
+      altitudeFt: altitude === null || Number.isNaN(altitude) ? null : altitude * 3.28084,
+      at: position.timestamp,
+    },
+  });
+}
+
+/** No fix: said where own ship is, or, when the page asked by itself
+ *  (locateOnOpen), own ship quietly off again. */
+function failed(set: (patch: Partial<OwnShip>) => void, message: string) {
+  if (quiet) {
+    quiet = false;
+    stopWatching();
+    set({ enabled: false, fix: null, error: null });
+    return;
+  }
+  set({ error: message });
 }
 
 export const useOwnShip = create<OwnShip>()(

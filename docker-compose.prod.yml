@@ -154,6 +154,9 @@ services:
       APPLE_KEY_ID: ${APPLE_KEY_ID:-}
       APPLE_SERVICES_ID: ${APPLE_SERVICES_ID:-}
       APPLE_PRIVATE_KEY: ${APPLE_PRIVATE_KEY:-}
+      # The iOS app's bundle id, with APPLE_TEAM_ID: links to the site open
+      # in the app (AppSiteAssociationController).
+      APP_IOS_BUNDLE_ID: ${APP_IOS_BUNDLE_ID:-}
       # "oauth" turns on Sign in with Google and Apple (OAuthClientsConfig).
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-}
       JAVA_TOOL_OPTIONS: -XX:MaxRAMPercentage=40 -XX:TieredStopAtLevel=1

@@ -44,6 +44,7 @@ import { navlogQuery, usePlan } from "./hooks/usePlan";
 import { useVerdict, type VerdictItem } from "../../lib/verdict";
 import CloseButton from "../../components/CloseButton";
 import type { BriefingPart } from "./components/briefing/sections";
+import { inNativeApp, nativeShare } from "../../lib/native";
 
 /** A local flight's times aloft to choose from, in minutes: a menu, not a
  *  slider. */
@@ -663,12 +664,14 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   }, [hasPoints, under, setSearchParams]);
 
   // The plan's own address, to another device or person: the share
-  // sheet where the browser has one (Safari on an iPhone), otherwise
-  // copied.
+  // sheet where the browser has one (Safari on an iPhone) or in the iOS
+  // app (lib/native), otherwise copied.
   const share = useCallback(async () => {
     const url = window.location.href;
+    const title = routeName(planned.dep, planned.dest, planned.stops);
     try {
-      if (navigator.share) await navigator.share({ title: routeName(planned.dep, planned.dest, planned.stops), url });
+      if (inNativeApp()) await nativeShare(title, url);
+      else if (navigator.share) await navigator.share({ title, url });
       else {
         await navigator.clipboard.writeText(url);
         toast.success("Link copied");

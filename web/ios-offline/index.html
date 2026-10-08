@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Wingtip Maps</title>
+<style>
+  body { margin: 0; min-height: 100vh; display: grid; place-items: center; font: 17px -apple-system, system-ui, sans-serif;
+         color: #1c1c1e; background: #fff; text-align: center; padding: 0 24px; }
+  @media (prefers-color-scheme: dark) { body { color: #f2f2f7; background: #000; } }
+  h1 { font-size: 22px; margin: 0 0 8px; }
+  p { color: #8e8e93; margin: 0 0 20px; }
+  button { font: inherit; color: #fff; background: #007aff; border: 0; border-radius: 12px; padding: 12px 20px; }
+</style>
+</head>
+<body>
+<!-- Shown by the iOS app only when the site cannot be reached on its very
+     first open: after that the service worker has the app and its charts. -->
+<main>
+  <h1>No connection</h1>
+  <p>Wingtip Maps needs the internet the first time it opens. After that, the charts you have looked at work without it.</p>
+  <button onclick="location.reload()">Try again</button>
+</main>
+</body>
+</html>
