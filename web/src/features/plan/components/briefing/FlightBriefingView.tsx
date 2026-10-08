@@ -18,6 +18,7 @@ import type { FrameworkNarrative } from "../../hooks/useNarratives";
 import type { BriefingState } from "../../hooks/usePlan";
 import { altFt, ceilingAndVisibility, clockTime, deg, describeFuel, describeSteps, describeTime } from "../../format";
 import { flightLevel } from "../../../../lib/units";
+import { withoutAltitude } from "../../../../lib/identSchema";
 import { navLogRows, savedCheckpoints } from "../navlog/rows";
 import { useLoad } from "../../hooks/useLoad";
 import { TakeoffLandingSection, WeightBalanceSection } from "./PreflightSections";
@@ -238,7 +239,8 @@ export function SaveFlightButton({
     if (!course || !nav || !totals) return null;
     return {
       aircraftId,
-      departureIdent: course.departure.ident,
+      // A present position without the moment's altitude (withoutAltitude).
+      departureIdent: withoutAltitude(course.departure.ident),
       destinationIdent: course.destination.ident,
       stops: (course.stops ?? []).map(stop => stop.ident),
       cruiseAltitudeFt: nav.altitude_ft,

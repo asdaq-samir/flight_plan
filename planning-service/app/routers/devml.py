@@ -33,22 +33,40 @@ def _where(fix: dict) -> str | None:
     return ", ".join(part for part in (where, fix["state"]) if part) or None
 
 
+def _near(near: str) -> tuple:
+    """"42.2,-88.1;46.8,-92.2" as ((42.2, -88.1), (46.8, -92.2)); what is
+    not a pair of numbers left out."""
+    points = []
+    for pair in near.split(";"):
+        try:
+            lat, lon = (float(v) for v in pair.split(","))
+        except ValueError:
+            continue
+        points.append((lat, lon))
+    return tuple(points)
+
+
 @router.get("/api/airports/search")
-def airport_search(q: str = "", fixes: bool = False) -> AirportSearch:
+def airport_search(q: str = "", fixes: bool = False, near: str = "") -> AirportSearch:
     """DEP/DEST's own autocomplete -- every airport whose ident or name
     starts with `q`, for the route inputs to suggest as a pilot types.
     Runs against the same in-memory OurAirports table the real lookup
     uses, not a second data source that could drift from it. With
     `fixes`, a stop's: the named fixes and navaids whose ident starts with
-    it too, after the airports -- VFR waypoints first (vfr.fixes).
+    it too, after the airports -- VFR waypoints first (vfr.fixes). `near`,
+    the route's points as "lat,lon;lat,lon": of an ident's navaids in two
+    places, the one the route would fly over (fixes.find_navaid), as the
+    stop typed will be -- the row named the other where they differed.
     """
     found = airports.search_airports(q)
     if fixes:
         known = {a["ident"] for a in found}
-        named = [
-            {"ident": f["ident"], "name": fixes_module.title(f), "region": _where(f), "kind": "fix"}
+        by_route = _near(near)
+        found_fixes = [
+            (fixes_module.find_navaid(f["ident"], by_route) or f) if f.get("navaid") else f
             for f in fixes_module.search_fixes(q) if f["ident"] not in known
         ]
+        named = [{"ident": f["ident"], "name": fixes_module.title(f), "region": _where(f), "kind": "fix"} for f in found_fixes]
         # The fix typed whole before the airports: "RFD" is the navaid a
         # stop by that ident flies over (app.common.resolve_stop), and the
         # airport, KRFD, is listed under it.

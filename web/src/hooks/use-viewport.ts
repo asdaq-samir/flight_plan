@@ -11,14 +11,47 @@ import { useSyncExternalStore } from "react";
  * other way to ask the browser for them. Both are re-read on a resize,
  * which is also what turning a phone fires.
  */
-const subscribe = (onChange: () => void) => {
+/** A reading of the window, taken once and again only when one of its
+ *  events says it has changed -- not at every render of every component
+ *  that asks (useSyncExternalStore's getSnapshot): the insets' read is a
+ *  computed style, and asked for at every render it brought the whole
+ *  page's styles up to date each time, 0.4 s of a phone's as a new route
+ *  drew (measured 2026-10-07). */
+function held<T>(read: () => T, events: (onChange: () => void) => () => void) {
+  let value: T | undefined;
+  let fresh = false;
+  // Its own listener, for good and ahead of any component's: a change
+  // while nothing was listening is still a change.
+  let watching = false;
+  const watch = () => {
+    if (watching) return;
+    watching = true;
+    events(() => { fresh = false; });
+  };
+  return {
+    subscribe: (onChange: () => void) => {
+      watch();
+      return events(onChange);
+    },
+    get: (): T => {
+      watch();
+      if (!fresh) {
+        value = read();
+        fresh = true;
+      }
+      return value as T;
+    },
+  };
+}
+
+const onResize = (onChange: () => void) => {
   window.addEventListener("resize", onChange);
   return () => window.removeEventListener("resize", onChange);
 };
 
 let probe: HTMLDivElement | null = null;
 
-function insets(): string {
+function readInsets(): string {
   if (!probe) {
     probe = document.createElement("div");
     probe.setAttribute("aria-hidden", "true");
@@ -30,20 +63,23 @@ function insets(): string {
   return `${style.paddingTop}|${style.paddingBottom}`;
 }
 
+const insets = held(readInsets, onResize);
+const windowHeight = held(() => window.innerHeight, onResize);
+
 export function useSafeArea(): { top: number; bottom: number } {
-  const [top = 0, bottom = 0] = useSyncExternalStore(subscribe, insets, () => "0px|0px").split("|").map(v => parseFloat(v) || 0);
+  const [top = 0, bottom = 0] = useSyncExternalStore(insets.subscribe, insets.get, () => "0px|0px").split("|").map(v => parseFloat(v) || 0);
   return { top, bottom };
 }
 
 export function useWindowHeight(): number {
-  return useSyncExternalStore(subscribe, () => window.innerHeight, () => 800);
+  return useSyncExternalStore(windowHeight.subscribe, windowHeight.get, () => 800);
 }
 
 /** The visual viewport, which shrinks when the on-screen keyboard
  *  comes up (iOS leaves the layout viewport, and so `fixed` things,
  *  where they were), and moves as Safari scrolls the page to the
  *  focused field. */
-const subscribeVisual = (onChange: () => void) => {
+const onVisual = (onChange: () => void) => {
   const visual = window.visualViewport;
   window.addEventListener("resize", onChange);
   visual?.addEventListener("resize", onChange);
@@ -55,18 +91,21 @@ const subscribeVisual = (onChange: () => void) => {
   };
 };
 
+const keyboardInset = held(() => {
+  const visual = window.visualViewport;
+  return visual ? Math.max(0, Math.round(window.innerHeight - visual.height - visual.offsetTop)) : 0;
+}, onVisual);
+const visualHeight = held(() => Math.round(window.visualViewport?.height ?? window.innerHeight), onVisual);
+
 /** How much of the bottom of the window the on-screen keyboard covers:
  *  0 with no keyboard, and where the browser shrinks the window for one
  *  instead (Chrome on Android), since the window's own height says it. */
 export function useKeyboardInset(): number {
-  return useSyncExternalStore(subscribeVisual, () => {
-    const visual = window.visualViewport;
-    return visual ? Math.max(0, Math.round(window.innerHeight - visual.height - visual.offsetTop)) : 0;
-  }, () => 0);
+  return useSyncExternalStore(keyboardInset.subscribe, keyboardInset.get, () => 0);
 }
 
 /** How tall the part of the page in sight is: the window's height, less
  *  the on-screen keyboard while it is up. */
 export function useVisualHeight(): number {
-  return useSyncExternalStore(subscribeVisual, () => Math.round(window.visualViewport?.height ?? window.innerHeight), () => 800);
+  return useSyncExternalStore(visualHeight.subscribe, visualHeight.get, () => 800);
 }

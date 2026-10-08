@@ -356,8 +356,8 @@ export const api = {
   /** DEP/DEST's own autocomplete -- airports whose ident or name
    *  starts with `q`. Empty `q` short-circuits server-side to `[]`, so
    *  this is safe to call on every keystroke including the first. */
-  airportSearch: (q: string, fixes = false) =>
-    planner.GET("/api/airports/search", { params: { query: { q, fixes: fixes || undefined } } })
+  airportSearch: (q: string, fixes = false, near = "") =>
+    planner.GET("/api/airports/search", { params: { query: { q, fixes: fixes || undefined, near: near || undefined } } })
       .then(data<AirportSearch>).then(r => r.airports),
 
   /** One airport's card: where it is, the airspace over it, its runways

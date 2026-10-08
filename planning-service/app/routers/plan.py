@@ -20,12 +20,12 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import Response, StreamingResponse
-from vfr import airspace, altitude, charts, faa_data, fixes, geo, navlog, places, sun
+from vfr import airspace, altitude, chartlabels, charts, faa_data, fixes, geo, navlog, places, sun
 from vfr.profile import route_profile as side_view
 from vfr.config import DATA_DIR, VFR_SECTIONAL_MAX_ZOOM, VFR_SECTIONAL_MIN_ZOOM
 from vfr.weather import WeatherServiceError
 
-from .. import foreflight, prefetch
+from .. import chart_model, foreflight, prefetch
 from ..common import DEFAULT_AIRCRAFT, Route, line, load_route, ndjson
 from ..planning import (
     COMPUTE_LIMIT_S, StillComputing, aircraft_profile, altitude_plans, altitude_waiting_on, class_b_detours,
@@ -141,9 +141,12 @@ def chart_layers() -> list[ChartLayer]:
 
 def departure_elevation(r) -> float | None:
     """The field the climb starts from, when the airports table knows
-    it; None starts the log level at the first leg's altitude -- as a
-    hop out of a waypoint does, flown through at cruise."""
-    return r.departure.get("elevation_ft") if r.takes_off else None
+    it; a present position's own altitude, the GPS's, where it has one --
+    a Direct-To in the air climbs from where the airplane is, not from the
+    ground or level at the first leg's altitude; None starts the log level
+    at the first leg's altitude -- as a hop out of a waypoint does, flown
+    through at cruise."""
+    return r.departure.get("elevation_ft") if r.takes_off else r.dep_airport.get("altitude_ft")
 
 
 @dataclass(frozen=True)
@@ -493,6 +496,8 @@ def course(dep: str, dest: str, stops: str = "") -> Course:
     this finds them under way or done.
     """
     r = load_route(dep, dest, stops)
+    # Asked before the reads below start: read is read, not under way.
+    ready = all(chart_model.corridor_kept(chartlabels.route_key(hop.dep_ident, hop.dest_ident)) for hop in r.hops)
     prefetch.route(dep, dest, stops)
     first = r.hops[0]
     shp = airspace.ensure_class_airspace_shapefile(altitude.DEFAULT_FAA_CACHE_DIR)
@@ -510,6 +515,7 @@ def course(dep: str, dest: str, stops: str = "") -> Course:
         distance_nm=round(r.distance_nm, 1),
         bearing_deg=round(geo.bearing_deg(*first.start, *first.end)),
         course_line=route_line(r),
+        checkpoints_ready=ready,
         **_chart_info(),
     )
 

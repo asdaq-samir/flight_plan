@@ -39,7 +39,7 @@ function courseFixture(): Course {
     destination: { ident: "KDLH", name: "Duluth", lat: 46.8, lon: -92.2, elevation_ft: 1428, kind: "airport" },
     stops: [],
     distance_nm: 323.4, bearing_deg: 328,
-    course_line: [[42.1, -88.1], [46.8, -92.2]],
+    course_line: [[42.1, -88.1], [46.8, -92.2]], checkpoints_ready: false,
     max_zoom: 12, min_zoom: 4, chart_cycle: "09-03-2026", chart_revision: 0, chart_tiles_base: null,
     chart_layers: [],
   };
@@ -190,5 +190,30 @@ describe("the briefing", () => {
     const { result } = renderHook(() => usePlan(params), { wrapper });
 
     await waitFor(() => expect(result.current.briefing).toEqual({ state: "failed", detail: "aviationweather.gov did not answer" }));
+  });
+});
+
+describe("the route as entered", () => {
+  // A nav log that never answers: the checkpoints' one still waiting on
+  // the chart, as a new route's does.
+  async function* waiting(): AsyncGenerator<never> {
+    yield* (await new Promise<never[]>(() => {}));
+  }
+  const asEntered = () => vi.mocked(api.navlog).mock.calls.filter(call => call[10] === false);
+
+  test("is asked for at once where the course says the chart is still to be read", async () => {
+    vi.mocked(api.navlog).mockImplementation(waiting);
+    renderHook(() => usePlan(params), { wrapper });
+    // Well inside the 0.6 s it waited before.
+    await waitFor(() => expect(asEntered()).toHaveLength(1), { timeout: 400 });
+  });
+
+  test("is not asked for where the course says the chart is read", async () => {
+    vi.mocked(api.course).mockResolvedValue({ ...courseFixture(), checkpoints_ready: true });
+    vi.mocked(api.navlog).mockImplementation(waiting);
+    renderHook(() => usePlan(params), { wrapper });
+    await waitFor(() => expect(api.navlog).toHaveBeenCalled());
+    await new Promise(done => setTimeout(done, 800));
+    expect(asEntered()).toHaveLength(0);
   });
 });

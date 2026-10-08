@@ -167,6 +167,18 @@ def test_of_two_navaids_by_one_ident_a_route_flies_over_the_one_by_it(monkeypatc
     assert load_hop("AB", "KDLH").airports[0]["lat"] == 44.5
 
 
+def test_a_stops_search_names_the_navaid_by_the_route_of_an_ident_in_two_places(monkeypatch):
+    beacon = {"ident": "AB", "kind": "NDB", "vfr": False, "navaid": True, "freq": "350"}
+    navaids = {"AB": [{**beacon, "name": "Georgia", "lat": 33.5, "lon": -82.6, "state": "GA"},
+                      {**beacon, "name": "Wisconsin", "lat": 44.5, "lon": -90.5, "state": "WI"}]}
+    monkeypatch.setattr(fixes, "_TABLE", fixes._Table({}, navaids))
+    monkeypatch.setattr(fixes, "find_navaid", REAL_FIND_NAVAID)
+    monkeypatch.setattr(airports, "search_airports", lambda q: [])
+    search = lambda **near: client.get("/api/airports/search", params={"q": "AB", "fixes": True, **near}).json()["airports"]  # noqa: E731
+    assert search(near="42.3,-88.1;46.8,-92.2")[0]["name"] == "Wisconsin NDB 350"
+    assert search(near="33.6,-84.4;32.1,-81.2")[0]["name"] == "Georgia NDB 350"
+
+
 def test_a_stops_search_puts_the_navaid_typed_whole_first(the_rockford_dme, monkeypatch):
     monkeypatch.setattr(airports, "search_airports", lambda q: [{**airport("KMSN"), "ident": "KRFD"}])
     found = client.get("/api/airports/search", params={"q": "rfd", "fixes": True}).json()["airports"]
@@ -323,4 +335,17 @@ def test_a_position_off_the_globe_is_no_position():
 
     assert position_of("@91.0,-88.0") is None
     assert position_of("KDLH") is None
-    assert position_of("@42.3,-88.1") == {"name": "Present position", "lat": 42.3, "lon": -88.1, "elevation_ft": None, "fix": True}
+    assert position_of("@42.3,-88.1") == {
+        "name": "Present position", "lat": 42.3, "lon": -88.1, "elevation_ft": None, "fix": True, "altitude_ft": None,
+    }
+    assert position_of("@42.3,-88.1,3500")["altitude_ft"] == 3500.0
+
+
+def test_a_direct_to_climbs_from_the_gps_altitude_and_with_none_starts_level(altitude):
+    """In the air the climb to the cruise starts where the airplane is:
+    from 1,000 ft, a climb on the first leg; with no altitude from the
+    GPS, level at the first leg's, as before."""
+    legs = lambda dep: client.get("/api/plan", params={"dep": dep, "dest": "KDLH"}).json()["legs"]  # noqa: E731
+    assert altitude["recommended_ft"] > 1000
+    assert legs("@42.3246,-88.0741,1000")[0]["climb_min"] > 0
+    assert legs("@42.3246,-88.0741")[0]["climb_min"] == 0

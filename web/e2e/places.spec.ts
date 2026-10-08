@@ -103,6 +103,22 @@ async function airportToTap(page: Page) {
   return at!;
 }
 
+// A planner out of reach for a moment (restarted, say) is not an airport
+// that does not exist: the card says it could not look it up, and asks
+// again where it is.
+test("an airport's card that could not be had says so, and Try again brings it", async ({ page }) => {
+  let down = true;
+  await page.route(url => url.pathname.endsWith("/api/planner/airport/KDLH"), route =>
+    (down ? route.fulfill({ status: 502, body: "" }) : route.fallback()));
+  await page.goto("/app/plan?place=KDLH");
+  await settle(page);
+  await expect(card(page)).toContainText("KDLH · could not be looked up", { timeout: slow(30_000) });
+  down = false;
+  await card(page).getByTestId("place-retry").click();
+  await expect(card(page).getByTestId("place-name")).toHaveText("Duluth International Airport");
+  await expect(card(page).getByTestId("place-retry")).toHaveCount(0);
+});
+
 test("a tap on an airport on the chart opens its card, a tap elsewhere puts it away, and Fly Here makes it the destination", async ({ page }) => {
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);

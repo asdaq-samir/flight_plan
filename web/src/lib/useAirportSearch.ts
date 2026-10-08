@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { api } from "./api/client";
 
@@ -28,12 +28,21 @@ function useDebounced<T>(value: T, delayMs: number): T {
 /** One answer: an airport, or with `fixes` a waypoint (`kind` "fix"). */
 export type AirportSearchRow = Awaited<ReturnType<typeof api.airportSearch>>[number];
 
+/** Where the route is, as its ends' "lat,lon;lat,lon", for a stop's
+ *  search (PlanWorkspace provides it round the route's box): of an
+ *  ident's navaids in two places -- "AA", a beacon in North Dakota and
+ *  another in Georgia -- the one the route will fly over is the one named
+ *  (the planner's `near`). Empty off a route. */
+export const SearchNear = createContext("");
+
 export function useAirportSearch(text: string, enabled = true, fixes = false) {
   const typed = text.trim();
   const q = useDebounced(typed, 100);
+  const near = useContext(SearchNear);
+  const by = fixes ? near : "";
   const { data, isPlaceholderData } = useQuery({
-    queryKey: ["airportSearch", q, fixes],
-    queryFn: () => api.airportSearch(q, fixes),
+    queryKey: ["airportSearch", q, fixes, by],
+    queryFn: () => api.airportSearch(q, fixes, by),
     enabled: enabled && q.length > 0,
     placeholderData: keepPreviousData,
   });

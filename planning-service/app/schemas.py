@@ -110,6 +110,11 @@ class Course(ChartInfo):
     distance_nm: float
     bearing_deg: float
     course_line: list[tuple[float, float]]
+    #: Whether the chart along every hop is read already, so its
+    #: checkpoints, and the nav log through them, are a moment away: the
+    #: web app asks for the route as entered beside them only where they
+    #: are not.
+    checkpoints_ready: bool = False
 
 
 class Candidate(BaseModel):

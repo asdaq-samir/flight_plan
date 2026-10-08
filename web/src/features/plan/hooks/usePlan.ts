@@ -160,7 +160,12 @@ export function usePlan(
   // its own legs come. Asked for only once the checkpoints' has been a
   // moment without legs (a route new to the planner): one it has planned
   // before answers in a tenth of a second, and asking for both doubled
-  // the planner's work on every route.
+  // the planner's work on every route. And once the course has answered,
+  // as it says (Course.checkpoints_ready): at once where the chart along
+  // the route is still to be read, not at all where it is -- the wait
+  // was 0.6 s on every new route, and a planned one asked for both all
+  // the same when the course came after it (measured at a phone's speed,
+  // 2026-10-07).
   const routeId = planKey.join("|");
   const [slowFor, setSlowFor] = useState<string | null>(null);
   useEffect(() => {
@@ -168,7 +173,8 @@ export function usePlan(
     const timer = window.setTimeout(() => setSlowFor(routeId), AS_ENTERED_AFTER_MS);
     return () => window.clearTimeout(timer);
   }, [routeId, routeKnown, withCheckpoints, fullIn]);
-  const asEntered = useQuery(navlogQuery(false, routeKnown && withCheckpoints && slowFor === routeId));
+  const ready = course.isPlaceholderData ? undefined : course.data?.checkpoints_ready;
+  const asEntered = useQuery(navlogQuery(false, routeKnown && withCheckpoints && !fullIn && (ready === undefined ? slowFor === routeId : !ready)));
   const pointToPoint = withCheckpoints && !fullIn && !!asEntered.data?.some(m => m.type === "leg");
   const messages = useMemo(
     () => (pointToPoint ? asEntered.data : navlog.data) ?? [], [pointToPoint, asEntered.data, navlog.data]);
