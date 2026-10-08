@@ -5,6 +5,7 @@ import {
 } from "../../../components/ui/alert-dialog";
 import { Button } from "../../../components/ui/button";
 import { Input } from "../../../components/ui/input";
+import { TEXT } from "../../../lib/text";
 import { flightLevel } from "../../../lib/units";
 
 /** The altitude at a point of the route: the pilot's own (`own`), else
@@ -67,7 +68,7 @@ function AltitudeForm({ point, onSet }: { point: EditedPoint; onSet: (ident: str
         </AlertDialogDescription>
       </AlertDialogHeader>
       {altitude.caution && altitude.caution.length > 0 && (
-        <ul className="list-disc space-y-0.5 rounded-lg bg-amber-500/12 py-2 pr-2.5 pl-6 text-sm text-amber-800 dark:text-amber-300" data-testid="point-altitude-caution">
+        <ul className={`list-disc space-y-0.5 rounded-lg bg-amber-500/12 py-2 pr-2.5 pl-6 text-amber-800 dark:text-amber-300 ${TEXT.prose}`} data-testid="point-altitude-caution">
           {altitude.caution.map(reason => <li key={reason}>{reason}</li>)}
         </ul>
       )}

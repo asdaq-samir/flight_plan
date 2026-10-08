@@ -12,6 +12,7 @@ import { Input } from "../../components/ui/input";
 import { Spinner } from "../../components/ui/spinner";
 import { ApiError, api } from "../../lib/api/client";
 import { capabilitiesQuery } from "../../lib/queryClient";
+import { TEXT } from "../../lib/text";
 
 /**
  * Three ways in, the standard shape every "sign in" prompt (Auth.js,
@@ -89,13 +90,13 @@ export default function SignInModal() {
                 </Button>
               )}
             </div>
-            <div className="flex items-center gap-3 text-xs text-muted-foreground before:h-px before:flex-1 before:bg-border after:h-px after:flex-1 after:bg-border">
+            <div className={`flex items-center gap-3 text-muted-foreground ${TEXT.note} before:h-px before:flex-1 before:bg-border after:h-px after:flex-1 after:bg-border`}>
               or
             </div>
           </>
         )}
         {sent ? (
-          <p className="text-sm text-muted-foreground" role="status">
+          <p className={`text-muted-foreground ${TEXT.prose}`} role="status">
             Check <span className="font-semibold text-foreground">{sent}</span> for a sign-in link.
             It expires in 15 minutes.
           </p>
@@ -126,7 +127,7 @@ export default function SignInModal() {
                 {magicLink.isPending ? <Spinner className="size-5" role="presentation" aria-label={undefined} aria-hidden /> : <Mail className="size-5" />}
               </IconButton>
             </div>
-            {linkFailure && <p className="text-sm text-destructive" role="alert" data-testid="sign-in-error">{linkFailure}</p>}
+            {linkFailure && <p className={`text-destructive ${TEXT.prose}`} role="alert" data-testid="sign-in-error">{linkFailure}</p>}
           </form>
         )}
       </DialogContent>

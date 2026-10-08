@@ -74,7 +74,7 @@ export default function AccordionSection({ title, description, aside, summary, c
         label={(
           <span
             className={cn(
-              "pointer-events-none col-start-1 row-start-1 flex min-w-0 flex-col gap-0.5 self-start py-4 pr-6 text-left text-sm font-semibold",
+              "pointer-events-none col-start-1 row-start-1 flex min-w-0 flex-col gap-0.5 self-start py-4 pr-6 text-left font-semibold",
               "group-hover/accordion-header:underline pointer-coarse:group-has-[[data-slot=accordion-trigger]:active]/accordion-header:opacity-60",
               TEXT.row,
             )}

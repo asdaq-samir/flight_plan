@@ -161,7 +161,7 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
               // The words in whichever ink reads on the colour (inkOn), as
               // the map's chips are: white on a field's no-report grey was
               // 2.6:1.
-              className="mt-1 shrink-0 rounded-md px-2 py-0.5 text-xs font-bold tracking-wide"
+              className={cn("mt-1 shrink-0 rounded-md px-2 py-0.5 font-bold tracking-wide", TEXT.note)}
               style={{ backgroundColor: chipColourOf(weather), color: inkOn(chipColourOf(weather)) }}
               data-testid="place-category"
             >
