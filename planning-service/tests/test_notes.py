@@ -82,3 +82,27 @@ def test_a_shared_edit_saved_while_the_stream_runs_is_kept(monkeypatch, tmp_path
 
     assert (streamed["source"], streamed["description"]) == ("saved", "Edited: the island")
     assert again["description"] == "Edited: the island"
+
+
+def _claude_replies(monkeypatch, blocks, stop_reason):
+    """notes' own Claude call, answered with these blocks and stop reason."""
+    from types import SimpleNamespace
+    messages = SimpleNamespace(create=lambda **kw: SimpleNamespace(content=blocks, stop_reason=stop_reason))
+    monkeypatch.setattr(notes.anthropic, "Anthropic", lambda: SimpleNamespace(messages=messages))
+
+
+def test_a_note_is_the_text_block_after_the_thinking(monkeypatch):
+    from types import SimpleNamespace
+    _claude_replies(monkeypatch, [SimpleNamespace(type="thinking", thinking=""),
+                                  SimpleNamespace(type="text", text=" Look for the lake south of the highway. ")], "end_turn")
+    assert notes._describe_checkpoint(CHECKPOINT, "C81", None, None) == "Look for the lake south of the highway."
+
+
+def test_a_note_cut_off_at_the_cap_is_refused_rather_than_saved(monkeypatch):
+    """The note is saved as the one every pilot sees: half a sentence is
+    worse than the row's own "no note" and a pilot's edit."""
+    import pytest
+    from types import SimpleNamespace
+    _claude_replies(monkeypatch, [SimpleNamespace(type="text", text="Look for the lake south of")], "max_tokens")
+    with pytest.raises(RuntimeError, match="max_tokens"):
+        notes._describe_checkpoint(CHECKPOINT, "C81", None, None)

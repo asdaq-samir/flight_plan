@@ -176,4 +176,4 @@ jobs:
             reply saying why, and no change. If nothing needs changing,
             change nothing.
           claude_args: |
-            --allowedTools "Skill,WebFetch,Edit,MultiEdit,Write,Read,Glob,Grep,LS,Bash(git:*),Bash(gh:*),Bash(npm:*),Bash(npx:*),Bash(node:*),Bash(python:*),Bash(python3:*),Bash(pip:*),Bash(mvn:*)"
+            --allowedTools "Skill,WebFetch,Edit,MultiEdit,Write,Read,Glob,Grep,LS,Bash(git:*),Bash(gh:*),Bash(npm:*),Bash(npx:*),Bash(node:*),Bash(python:*),Bash(python3:*),Bash(pip:*),Bash(mvn:*),Bash(cd:*),Bash(ls:*),Bash(cat:*),Bash(head:*),Bash(tail:*),Bash(grep:*),Bash(find:*),Bash(wc:*),Bash(diff:*),Bash(pytest:*),Bash(ruff:*),Bash(uv:*),Bash(java:*)"

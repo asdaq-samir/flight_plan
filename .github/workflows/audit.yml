@@ -159,4 +159,4 @@ jobs:
             Create a label that is missing. If you find nothing worth
             changing, say so in the job's summary and open nothing.
           claude_args: |
-            --allowedTools "Skill,WebFetch,WebSearch,Edit,MultiEdit,Write,Read,Glob,Grep,LS,Bash(git:*),Bash(gh:*),Bash(npm:*),Bash(npx:*),Bash(node:*),Bash(python:*),Bash(python3:*),Bash(pip:*),Bash(mvn:*),Bash(time:*),Bash(du:*),Bash(ls:*)"
+            --allowedTools "Skill,WebFetch,WebSearch,Edit,MultiEdit,Write,Read,Glob,Grep,LS,Bash(git:*),Bash(gh:*),Bash(npm:*),Bash(npx:*),Bash(node:*),Bash(python:*),Bash(python3:*),Bash(pip:*),Bash(mvn:*),Bash(time:*),Bash(du:*),Bash(ls:*),Bash(cd:*),Bash(cat:*),Bash(head:*),Bash(tail:*),Bash(grep:*),Bash(find:*),Bash(wc:*),Bash(diff:*),Bash(pytest:*),Bash(ruff:*),Bash(uv:*),Bash(java:*)"
