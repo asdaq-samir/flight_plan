@@ -194,7 +194,7 @@ Resources:
             Prefix: tiles/
             ExpirationInDays: 120
 
-  # The nightly database dumps (postgres/, kept 14 days) and the chart
+  # The nightly backups (backups/, kept 14 days) and the chart
   # model the planner ranks checkpoints with (models/, uploaded by hand).
   # Kept if the stack goes: it is what a new server is restored from.
   ServerBucket:
@@ -209,9 +209,9 @@ Resources:
         RestrictPublicBuckets: true
       LifecycleConfiguration:
         Rules:
-          - Id: DatabaseDumps
+          - Id: NightlyBackups
             Status: Enabled
-            Prefix: postgres/
+            Prefix: backups/
             ExpirationInDays: 14
 
   # ---------------------------------------------------------------------
@@ -771,7 +771,7 @@ Outputs:
     Description: Fill in the owner's values here (infra/server/env.example), then run deploy.sh.
     Value: !Ref AppSecret
   ServerBucketName:
-    Description: Database dumps (postgres/) and the chart model (models/chart/current/).
+    Description: The nightly backups (backups/<date>/) and the chart model (models/chart/current/).
     Value: !Ref ServerBucket
   ChartTilesBucketName:
     Value: !Ref ChartTilesBucket

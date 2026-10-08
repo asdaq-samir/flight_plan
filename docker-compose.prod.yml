@@ -74,6 +74,10 @@ services:
     # the planner's caches: on the server's disk, kept across deploys.
     volumes:
       - /srv/flight_plan/data:/workspace/data
+      # The stock aircraft profiles are the repository's, so they follow
+      # each deploy; the image has none, and the data folder above is the
+      # server's own.
+      - ./data/aircraft:/workspace/data/aircraft:ro
     environment:
       MODEL_SERVICE_URL: http://model-service:8000
       NAV_LOG_AGENT_URL: http://nav-log-agent:8000

@@ -249,17 +249,25 @@ with the next cycle.
 
 ### Backups and restore
 
-`backup.sh` dumps the database to `s3://<ServerBucketName>/postgres/<date>.dump`
-at 07:17 UTC every night, and the bucket keeps 14 days. To restore one,
-on the server:
+At 07:17 UTC every night `backup.sh` copies to
+`s3://<ServerBucketName>/backups/<date>/` what the server alone holds:
+the database (`postgres.dump`: accounts, aircraft, flights, the briefing
+agent's memory) and the planner's `data/labels` (`labels.tar.gz`: the
+checkpoint notes pilots and Claude have written). The bucket keeps 14
+days. To restore one, on the server:
 
 ```bash
 cd /srv/flight_plan/repo
-aws s3 cp s3://<ServerBucketName>/postgres/<date>.dump - | \
+B=s3://<ServerBucketName>/backups/<date>
+aws s3 cp $B/postgres.dump - | \
   docker compose --env-file /srv/flight_plan/.env -f docker-compose.prod.yml \
   exec -T db pg_restore -U vfr -d vfr_route --clean --if-exists
-docker compose --env-file /srv/flight_plan/.env -f docker-compose.prod.yml restart webapp nav-log-agent
+aws s3 cp $B/labels.tar.gz - | tar -xz -C /srv/flight_plan/data
+docker compose --env-file /srv/flight_plan/.env -f docker-compose.prod.yml restart webapp nav-log-agent planning-service
 ```
+
+Everything else in the data folder (the FAA's files, the chart sheets)
+is downloaded again by the planner as it is needed.
 
 ### A replaced server
 

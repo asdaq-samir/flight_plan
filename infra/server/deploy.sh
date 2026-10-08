@@ -40,6 +40,19 @@ for k, v in json.load(sys.stdin).items():
 } > "$ENV_FILE.new"
 mv "$ENV_FILE.new" "$ENV_FILE"
 
+# The repository's seeds for the data folder, copied once: the checkpoint
+# notes written so far, and the corridor the planner warms its charts up
+# on. After that the server's copies are the live ones -- pilots add notes
+# to them -- and are never overwritten. (The stock aircraft profiles are
+# mounted from the repository instead, docker-compose.prod.yml, so they
+# follow each deploy.)
+for dir in labels processed; do
+  install -d -o 1000 -g 1000 "/srv/flight_plan/data/$dir"
+  for seed in "$REPO/data/$dir"/*; do
+    [ -e "/srv/flight_plan/data/$dir/${seed##*/}" ] || install -o 1000 -g 1000 -m 644 "$seed" "/srv/flight_plan/data/$dir/"
+  done
+done
+
 aws ecr get-login-password --region "$AWS_REGION" | docker login --username AWS --password-stdin "${IMAGE_REGISTRY%%/*}" > /dev/null
 
 # The chart model the planner ranks checkpoints with, if one has been
