@@ -139,6 +139,12 @@ def equipment(klass: str, floor_msl: float, agl: float, in_veil: bool) -> str | 
     if klass in ("B", "C"):
         return transponder
     if klass == "D":
+        # 91.215(b)(2) asks for the transponder in "all airspace" within 30 nm
+        # of a Class B primary airport, surface to 10,000 ft MSL, a Class D
+        # (Addison or Arlington under DFW's veil) included.
+        if in_veil and floor_msl < TEN_THOUSAND_FT:
+            return ("A two-way radio, and a transponder with altitude reporting and ADS-B Out: "
+                    "inside a Class B's 30 nm Mode C veil (91.215, 91.225).")
         return "A two-way radio."
     if floor_msl >= TEN_THOUSAND_FT and agl >= TRANSPONDER_EXEMPT_AGL_FT:
         return transponder
