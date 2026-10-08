@@ -41,6 +41,7 @@ import FindingIcon from "../../../../components/FindingIcon";
 import MockOral from "./MockOral";
 import { planFacts } from "../../../../lib/oral";
 import { assess, riskLine, useRisk } from "../../../../lib/frat";
+import { LIMITS } from "../../../../lib/limits";
 import type { BriefingPart } from "./sections";
 
 interface Props {
@@ -841,7 +842,7 @@ export function BriefingNotices({ briefing: state }: { briefing: BriefingState }
 export function PlanningAidNote() {
   return (
     <p className={cn("py-3 text-muted-foreground", TEXT.note)} data-testid="planning-aid-note">
-      <span className="font-semibold">Planning aid only.</span> Before flight, obtain an official briefing and verify current weather, NOTAMs, TFRs, airport status, aircraft performance, and applicable regulations.
+      {LIMITS}
     </p>
   );
 }
