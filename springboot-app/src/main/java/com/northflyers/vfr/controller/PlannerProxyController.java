@@ -10,6 +10,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Set;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -55,9 +56,13 @@ public class PlannerProxyController {
     private static final StreamingProxy.Upstream PLANNER = new StreamingProxy.Upstream(
             "planner service", "planner service unreachable", "planner service timed out");
 
-    /** The chart tiles, every kind under one path. Only these carry their
+    /** The chart tiles, every kind under one path. These carry their
      *  upstream's Cache-Control -- see {@link #forward}. */
     private static final String TILE_PATH = "/api/chart-tile/";
+    /** The other answers that carry their upstream's Cache-Control: the
+     *  same for every pilot, with no weather in them (the planner's
+     *  app.common SHARED_CACHE and CHART_CACHE say why each). */
+    static final Set<String> SHARED_PATHS = Set.of("/api/chart", "/api/airports/search", "/api/aircraft-profiles");
     /** The ForeFlight pack: a file, its name in Content-Disposition. */
     private static final String PACK_PATH = "/api/foreflight-pack/";
 
@@ -201,16 +206,17 @@ public class PlannerProxyController {
             ResponseEntity.BodyBuilder builder = StreamingProxy.unbuffered(
                     ResponseEntity.status(response.statusCode())
                             .header(HttpHeaders.CONTENT_TYPE, StreamingProxy.contentTypeOf(response)));
-            // Forwarded for the chart-tile endpoints only: their
-            // `public, max-age=...` is what lets the browser (and any CDN
-            // in front of this app) skip asking again for a tile it
-            // already has, rather than round-tripping here just to get
-            // told "same as before" on every pan/zoom. Every other route
-            // under /api/planner/** (course, detect/stream, picks, build,
-            // navlog, ...) depends on saved state or a request body, so a
+            // Forwarded for the chart tiles and the few answers the same
+            // for every pilot (SHARED_PATHS): their `public, max-age=...`
+            // is what lets the browser, and CloudFront in front of this
+            // app, skip asking again for what it already has -- a tile on
+            // every pan and zoom, the airport search on every letter.
+            // Every other route under /api/planner/** (course, navlog,
+            // the fields in view with their METARs, picks, ...) depends
+            // on saved state, live weather or a request body, so a
             // Cache-Control it happened to emit must not be echoed the
-            // same way.
-            if (path.startsWith(TILE_PATH)) {
+            // same way: Spring Security's no-store stands.
+            if (path.startsWith(TILE_PATH) || SHARED_PATHS.contains(path)) {
                 response.headers().firstValue(HttpHeaders.CACHE_CONTROL)
                         .ifPresent(value -> builder.header(HttpHeaders.CACHE_CONTROL, value));
             }

@@ -26,6 +26,8 @@ pilot ──HTTPS──▶ CloudFront  (app.example.com, ACM certificate)
                    │
                    ├─ /tiles/*        ──▶ S3 tiles bucket       cached a month (immutable, cycle in the path)
                    ├─ /app/assets/*   ──▶ the server            cached a year (fingerprinted)
+                   ├─ the chart, the airport search, the stock aircraft
+                   │                  ──▶ the server            cached by their own header: a minute, an hour
                    └─ everything else ──▶ the server            not cached: pages, /api, sign-in
                                             │ origin.app.example.com:443, with X-Origin-Secret
                                             ▼
@@ -44,6 +46,16 @@ EventBridge, daily 08:30 UTC ─▶ Fargate Spot task: python -m vfr.charts refr
 - **One domain for everything** (`PublicHost`), so the webapp's Secure
   session cookies work as they do locally and the map's tile requests
   are same-origin.
+- **What the edge keeps is what is the same for every pilot.** Besides
+  the tiles and the app's files, three answers: the chart the map draws
+  (a minute), the airport search as a pilot types, and the stock
+  aircraft (an hour each). Each says so itself (`app.common` in the
+  planner), the webapp passes the header on for those paths alone
+  (`PlannerProxyController`), and CloudFront keys them by path and query
+  string, never by cookie. Everything with weather in it (the fields in
+  view, an airport's card, the Class B list, the airspace at a point), a
+  route's answers, and anything of one pilot's is `no-store`, which
+  `CacheHeadersTest` checks through the whole filter chain.
 - **Only CloudFront reaches the server.** The security group admits
   port 443 from CloudFront's origin-facing addresses alone, and Caddy
   answers 404 to any request without the secret header CloudFront adds

@@ -244,6 +244,29 @@ class PlannerProxyControllerTest {
     }
 
     @Test
+    void theAnswersTheSameForEveryPilotKeepTheirUpstreamCacheControl() throws Exception {
+        responseHeaders.put("Cache-Control", "public, max-age=300, s-maxage=3600");
+
+        // The chart, the airport search and the stock aircraft: what the
+        // browser and CloudFront may keep (the planner's app.common says
+        // for how long), so a pilot typing an ident is answered from the
+        // nearest edge.
+        for (String path : new String[] {"/api/planner/chart", "/api/planner/airports/search?q=KD",
+                "/api/planner/aircraft-profiles"}) {
+            MvcResult started = mockMvc.perform(get(path)).andExpect(request().asyncStarted()).andReturn();
+            mockMvc.perform(asyncDispatch(started))
+                    .andExpect(header().string("Cache-Control", "public, max-age=300, s-maxage=3600"));
+        }
+
+        // The fields in view carry each one's METAR: whatever the planner
+        // said, not passed on.
+        MvcResult inView = mockMvc.perform(get("/api/planner/airports/in-view?south=46&west=-93&north=47&east=-92"))
+                .andExpect(request().asyncStarted())
+                .andReturn();
+        mockMvc.perform(asyncDispatch(inView)).andExpect(header().doesNotExist("Cache-Control"));
+    }
+
+    @Test
     void theForeFlightPackKeepsItsFileNameSizeAndRangeAndNoOtherPathDoes() throws Exception {
         responseHeaders.put("Content-Disposition", "attachment; filename=\"C81-KDLH-checkpoints.zip\"");
         responseHeaders.put("Content-Range", "bytes 0-1/2");
