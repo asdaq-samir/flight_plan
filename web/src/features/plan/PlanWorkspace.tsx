@@ -29,8 +29,7 @@ import { useSearchParamsNow } from "../../lib/useSearchParamsNow";
 import type { WorkspaceProps } from "../page/workspace";
 import RoundButton from "../../components/RoundButton";
 import TipHost from "../../components/TipHost";
-import { CHIP_TEXT, FILLS_HALF, GLASS_BUTTON } from "../../components/mapChrome";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
+import { FILLS_HALF } from "../../components/mapChrome";
 import { RouteCapsule, SearchField, SearchResults } from "../../components/PanelCapsule";
 import { chipColourOf } from "../../lib/map/flightCategory";
 import { Favorites, FavoritesList } from "../../components/Favorites";
@@ -49,9 +48,6 @@ import type { BriefingPart } from "./components/briefing/sections";
 /** A local flight's times aloft to choose from, in minutes: a menu, not a
  *  slider. */
 const LOCAL_MINUTES = [30, 45, 60, 90, 120, 150, 180, 240];
-
-/** "1 h", "1.5 h", "45 min". */
-const hoursOf = (minutes: number) => (minutes < 60 ? `${minutes} min` : `${minutes / 60} h`);
 
 /** Which of the four altitude plans the log flies -- the fastest for
  *  the winds unless the URL says otherwise, the plan a pilot with the
@@ -101,6 +97,7 @@ const AltitudeButton = fromRoutePanel("AltitudeButton");
 const BriefNarrative = fromRoutePanel("BriefNarrative");
 const RouteProblem = fromRoutePanel("RouteProblem");
 const PrintMenu = fromRoutePanel("PrintMenu");
+const LocalDuration = fromRoutePanel("LocalDuration");
 /** A round button's room while its code comes (routePanel). */
 const roundRoom = <span className="size-9 shrink-0" aria-hidden="true" />;
 
@@ -1227,14 +1224,9 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
         </Suspense>
         {s.local ? (
           <>
-            <Select value={String(localMin)} onValueChange={v => changeLocalMin(Number(v))}>
-              <SelectTrigger size="sm" aria-label="Time aloft" className={cn("rounded-full [&_svg]:text-foreground", GLASS_BUTTON, CHIP_TEXT)} data-testid="local-duration">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {LOCAL_MINUTES.map(m => <SelectItem key={m} value={String(m)}>{hoursOf(m)}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <Suspense fallback={<span className="h-9 w-24" aria-hidden="true" />}>
+              <LocalDuration minutes={localMin} options={LOCAL_MINUTES} onChange={changeLocalMin} />
+            </Suspense>
             <RoundButton label="Print the briefing" onClick={() => window.print()} className="ml-auto print:hidden" data-testid="print-button">
               <Printer className="size-5" strokeWidth={2} />
             </RoundButton>
