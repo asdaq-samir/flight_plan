@@ -127,8 +127,9 @@ jobs:
             CI failed on ${{ github.event.workflow_run.head_branch }}: ${{ github.event.workflow_run.html_url }}
 
             Read the failed jobs' logs (`gh run view ${{ github.event.workflow_run.id }} --log-failed`)
-            and their annotations, and find the cause. CLAUDE.md has the project's rules.
+            and their annotations, and find the cause. CLAUDE.md has the project's rules,
+            and the checks skill says how to tell a real failure from a flaky one.
 
             ${{ steps.mode.outputs.task }}
           claude_args: |
-            --allowedTools "Edit,MultiEdit,Write,Read,Glob,Grep,LS,Bash(git:*),Bash(gh:*),Bash(npm:*),Bash(npx:*),Bash(python:*),Bash(python3:*),Bash(pip:*),Bash(mvn:*)"
+            --allowedTools "Skill,Edit,MultiEdit,Write,Read,Glob,Grep,LS,Bash(git:*),Bash(gh:*),Bash(npm:*),Bash(npx:*),Bash(node:*),Bash(python:*),Bash(python3:*),Bash(pip:*),Bash(mvn:*)"
