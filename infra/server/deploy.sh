@@ -28,6 +28,8 @@ agent_key=$(secret "$AGENT_SECRET_ARN")
 app_values=$(secret "$APP_SECRET_ARN")
 umask 077
 {
+  echo "AWS_REGION=$AWS_REGION"
+  echo "LOG_GROUP=$LOG_GROUP"
   echo "IMAGE_REGISTRY=$IMAGE_REGISTRY"
   echo "IMAGE_TAG=${IMAGE_TAG:-latest}"
   echo "PUBLIC_HOST=$PUBLIC_HOST"
