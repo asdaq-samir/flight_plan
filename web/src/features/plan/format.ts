@@ -121,9 +121,21 @@ export function cruiseByAltitude(legs: Leg[], cruisePowerPct: number | null | un
   });
 }
 
-/** A clock time, "09:05", in the browser's own zone -- an ETA. */
+/** A clock time, "09:05", in the browser's own zone -- an ETA. One
+ *  formatter, made the first time it is asked for: toLocaleTimeString
+ *  made one at every time written, a row's ETA and the flight's line at
+ *  every render -- 75 ms of a phone's (CPU 4x slower) as a route came in
+ *  (measured 2026-10-08). */
+let clock: Intl.DateTimeFormat | null = null;
+// Made in the page's idle time after it loads, as units' number one is.
+if (typeof window !== "undefined") {
+  (window.requestIdleCallback ?? ((go: () => void) => window.setTimeout(go, 2000)))(() => {
+    clock ??= new Intl.DateTimeFormat([], { hour: "2-digit", minute: "2-digit", hour12: false });
+  });
+}
 export function clockTime(at: Date): string {
-  return at.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
+  clock ??= new Intl.DateTimeFormat([], { hour: "2-digit", minute: "2-digit", hour12: false });
+  return clock.format(at);
 }
 
 /** When a leg ends: the departure instant plus the minutes flown to
