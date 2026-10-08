@@ -62,6 +62,22 @@ class ClientErrorControllerTest {
     }
 
     @Test
+    void aStackCannotForgeALineNorCarryAQuery(CapturedOutput output) throws Exception {
+        mockMvc.perform(post("/api/client-errors").header("X-Forwarded-For", "203.0.113.4")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"message": "GET /api/airports/nearest?lat=41.2&lon=-87.9 failed",
+                                 "stack": "boom\\nclient error [error] forged\\n    at x?lat=41.2:1:2",
+                                 "page": "/app/plan", "userAgent": "iPhone", "kind": "error"}"""))
+                .andExpect(status().isNoContent());
+
+        assertThat(output.getOut()).contains("GET /api/airports/nearest failed")
+                .contains("\n    client error [error] forged")
+                .doesNotContain("\nclient error [error] forged")
+                .doesNotContain("lat=41.2");
+    }
+
+    @Test
     void notAReportIsRefused() throws Exception {
         mockMvc.perform(post("/api/client-errors").contentType(MediaType.APPLICATION_JSON).content("{\"message\": \"\"}"))
                 .andExpect(status().isBadRequest());

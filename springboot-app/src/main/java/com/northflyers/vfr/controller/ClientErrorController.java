@@ -10,6 +10,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
@@ -63,8 +64,8 @@ public class ClientErrorController {
     @PostMapping
     public ResponseEntity<Void> report(@Valid @RequestBody ClientError error, HttpServletRequest request) {
         if (recent.allow("client:" + SlidingWindowLimiter.clientOf(request), PER_HOUR, Instant.now())) {
-            log.warn("client error [{}] {} at {} ({})\n{}", oneLine(error.kind()), oneLine(error.message()),
-                    pathOnly(error.page()), oneLine(error.userAgent()), error.stack() == null ? "" : error.stack());
+            log.warn("client error [{}] {} at {} ({})\n{}", oneLine(error.kind()), withoutQueries(oneLine(error.message())),
+                    pathOnly(error.page()), oneLine(error.userAgent()), stackLines(error.stack()));
         }
         return ResponseEntity.noContent().build();
     }
@@ -82,6 +83,19 @@ public class ClientErrorController {
             }
         }
         return oneLine(page.substring(0, cut));
+    }
+
+    /** Text with the query and fragment of any address in it cut off: a fetch error carries the pilot's position. */
+    static String withoutQueries(String text) {
+        return text.replaceAll("[?#]\\S*", "");
+    }
+
+    /** A stack with every line indented, so none can start as a log line of its own, and without queries. */
+    static String stackLines(String stack) {
+        if (stack == null) {
+            return "";
+        }
+        return withoutQueries(stack).lines().map(line -> "    " + line).collect(Collectors.joining("\n"));
     }
 
     /** A field on one line, so one report cannot forge another's. */

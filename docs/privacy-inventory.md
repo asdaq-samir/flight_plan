@@ -25,7 +25,7 @@ longer than it takes to answer the request.
 - **Position for Nearest, the map and the airspace at a point.** The
   device's position goes to the planner to answer and is not kept: the
   planner writes no access log in production (`docker-compose.prod.yml`),
-  and nothing stores it. The position itself is read on the device, with
+  and nothing stores it (the webapp's log of a planner outage names the path only). The position itself is read on the device, with
   the permission the browser or iOS asks for.
 - **A route's airports and stops**, to plan it. Kept only as a pilot's
   saved flight (above).

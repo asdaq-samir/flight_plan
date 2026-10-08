@@ -30,6 +30,10 @@ x-restart: &restart
       # so they are not demanded here.
       awslogs-region: ${AWS_REGION:-}
       awslogs-group: ${LOG_GROUP:-}
+      # A CloudWatch or IAM fault then drops log lines; the default,
+      # blocking, would fail a container's start.
+      mode: non-blocking
+      max-buffer-size: 4m
       tag: "{{.Name}}"
 
 services:

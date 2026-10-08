@@ -119,10 +119,10 @@ public class StreamingProxy {
             // An IOException too, so caught first: an upstream that took
             // too long answered, slowly -- it was reported as unreachable,
             // and the 504 below was only ever an interrupted thread's.
-            log.warn("{} timed out at {}: {}", upstream.name(), request.uri(), err.toString());
+            log.warn("{} timed out at {}: {}", upstream.name(), request.uri().getPath(), err.toString());
             return error(504, upstream.timedOutDetail());
         } catch (IOException err) {
-            log.warn("{} unreachable at {}: {}", upstream.name(), request.uri(), err.toString());
+            log.warn("{} unreachable at {}: {}", upstream.name(), request.uri().getPath(), err.toString());
             return error(502, upstream.unreachableDetail());
         } catch (InterruptedException err) {
             Thread.currentThread().interrupt();

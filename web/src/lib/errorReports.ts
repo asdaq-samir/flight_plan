@@ -5,7 +5,7 @@
  * nobody caught, a render React could not finish (main.tsx).
  *
  * Nothing of the pilot's goes: the page's path without its query (a
- * magic link's token rides there), the message and the stack cut short,
+ * magic link's token rides there), the message and the stack cut short and without any address's query,
  * the browser's own name. Each different error once per page load, and
  * ten at most, so a loop cannot flood the log; the server holds a caller
  * to thirty an hour besides. Sent with sendBeacon, which outlives the
@@ -29,11 +29,14 @@ export function resetReports() {
   sent.clear();
 }
 
+/** Text with the query and fragment of any address in it cut off: a fetch error carries the pilot's position. */
+const withoutQueries = (text: string) => text.replace(/[?#]\S*/g, "");
+
 /** The report for an error, as the page saw it. */
 export function reportOf(kind: ClientErrorReport["kind"], error: unknown, location: { pathname: string } = window.location,
   userAgent: string = navigator.userAgent): ClientErrorReport {
-  const message = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
-  const stack = error instanceof Error && error.stack ? error.stack.slice(0, 4000) : undefined;
+  const message = withoutQueries(error instanceof Error ? `${error.name}: ${error.message}` : String(error));
+  const stack = error instanceof Error && error.stack ? withoutQueries(error.stack).slice(0, 4000) : undefined;
   return { kind, message: message.slice(0, 500) || "(no message)", stack, page: location.pathname.slice(0, 300),
     userAgent: userAgent.slice(0, 300) };
 }

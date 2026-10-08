@@ -976,6 +976,7 @@ Resources:
   # Route 53's checkers round the world. About $1.50 a month.
   HealthCheck:
     Type: AWS::Route53::HealthCheck
+    Condition: HasBudget
     Properties:
       HealthCheckConfig:
         Type: HTTPS
@@ -984,6 +985,9 @@ Resources:
         ResourcePath: /actuator/health
         RequestInterval: 30
         FailureThreshold: 3
+        # CloudFront is SNI-only; without this the handshake can fail and
+        # the alarm would say down while the app is fine.
+        EnableSNI: true
       HealthCheckTags: [{ Key: Name, Value: !Sub "${AWS::StackName}" }]
 
   # Not answering for three minutes running: an email, and another when

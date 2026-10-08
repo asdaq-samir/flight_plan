@@ -11,6 +11,14 @@ describe("error reports", () => {
     expect(JSON.stringify(report)).not.toContain("token");
   });
 
+  it("cut the query off any address in the message and the stack", () => {
+    const error = new TypeError("GET /api/airports/nearest?lat=41.2&lon=-87.9 failed");
+    error.stack = "TypeError: boom\n    at fetch (https://x.test/api/airports/nearest?lat=41.2&lon=-87.9#top:1:2)";
+    const report = reportOf("error", error, { pathname: "/" }, "");
+    expect(JSON.stringify(report)).not.toMatch(/lat=|lon=|#top/);
+    expect(report.message).toContain("/api/airports/nearest");
+  });
+
   it("send each different error once, and ten at most a load", () => {
     const sent: string[] = [];
     const send = (body: string) => { sent.push(body); return true; };

@@ -318,7 +318,7 @@ docker compose --env-file /srv/flight_plan/.env -f docker-compose.prod.yml logs 
   a stream per container, kept a month:
 
   ```bash
-  aws logs tail /wingtip/server --region us-east-1 --follow --log-stream-name-prefix webapp
+  aws logs tail /wingtip/server --region us-east-1 --follow --log-stream-name-prefix flight_plan-webapp
   ```
 
 - **Errors on pilots' phones** are in the webapp's stream as `client
