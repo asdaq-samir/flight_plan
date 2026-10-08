@@ -842,7 +842,7 @@ export function BriefingNotices({ briefing: state }: { briefing: BriefingState }
 export function PlanningAidNote() {
   return (
     <p className={cn("py-3 text-muted-foreground", TEXT.note)} data-testid="planning-aid-note">
-      {LIMITS}
+      {LIMITS} Before flight, verify current weather, NOTAMs, TFRs, airport status, aircraft performance, and applicable regulations (14 CFR 91.103).
     </p>
   );
 }

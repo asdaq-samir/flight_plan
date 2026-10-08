@@ -13,7 +13,7 @@ export default function LimitsDialog() {
   return (
     <Dialog open={!acknowledged}>
       <DialogContent
-        showCloseButton={false} data-testid="limits-dialog"
+        showCloseButton={false} data-testid="limits-dialog" className="max-h-[85dvh] overflow-y-auto"
         onInteractOutside={e => e.preventDefault()} onEscapeKeyDown={e => e.preventDefault()}
       >
         <DialogHeader>
