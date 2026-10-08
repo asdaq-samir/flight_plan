@@ -1224,7 +1224,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
         </Suspense>
         {s.local ? (
           <>
-            <Suspense fallback={<span className="h-9 w-24" aria-hidden="true" />}>
+            <Suspense fallback={<span className="h-8 w-20 shrink-0" aria-hidden="true" />}>
               <LocalDuration minutes={localMin} options={LOCAL_MINUTES} onChange={changeLocalMin} />
             </Suspense>
             <RoundButton label="Print the briefing" onClick={() => window.print()} className="ml-auto print:hidden" data-testid="print-button">
