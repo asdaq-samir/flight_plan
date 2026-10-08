@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { chipColourOf } from "./flightCategory";
 import { feet, miles } from "../units";
 import { MapCard } from "./MapCard";
+import { TEXT } from "../text";
 
 /**
  * What is known about a field's weather, which is not always a report:
@@ -107,7 +108,7 @@ export function AirportCard({
           {ident}
           {badge ?? (
             <span
-              className="rounded px-1.5 py-0.5 text-xs font-semibold text-white"
+              className={`rounded px-1.5 py-0.5 font-semibold text-white ${TEXT.note}`}
               style={{ backgroundColor: chipColourOf(weather) }}
             >
               {!weather ? STATUS_LABEL["no-report"]
