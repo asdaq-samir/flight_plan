@@ -10,6 +10,8 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.stream.Stream;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.session.FindByIndexNameSessionRepository;
 import org.springframework.session.Session;
@@ -21,19 +23,24 @@ import org.springframework.transaction.support.TransactionTemplate;
  * App Review's 5.1.1(v): an app that lets an account be made lets it be
  * deleted, from inside the app.
  *
- * <p>In this order, so a failure leaves the account whole rather than
- * half gone: first the checkpoint notes the pilot wrote for themselves,
- * which the planner keeps (its routers/notes.py), since the planner may
- * not answer; then, in one transaction, the pilot's row -- the database
- * cascades it to their aircraft, flights, logbook and endorsements --
- * and the sign-in links ever sent to their address; last every session
- * they hold, on any device, under any of the names they sign in by.
+ * <p>In this order: first the checkpoint notes the pilot wrote for
+ * themselves, which the planner keeps (its routers/notes.py), since the
+ * planner may not answer; then, in one transaction, the pilot's row --
+ * the database cascades it to their aircraft, flights, logbook and
+ * endorsements -- and the sign-in links ever sent to their address; last
+ * every session they hold, on any device, under any of the names they
+ * sign in by. Only the planner being down leaves the account whole: the
+ * notes cannot be given back, so a database failure after them leaves
+ * the account without its notes, and once the transaction commits the
+ * account is gone whatever happens to the sessions.
  */
 @Service
 public class AccountService {
 
     /** Who a note belongs to, as the planner reads it (PlannerProxyController's). */
     static final String PILOT_HEADER = "X-Pilot-Id";
+
+    private static final Logger log = LoggerFactory.getLogger(AccountService.class);
 
     private final PilotRepository pilots;
     private final MagicLinkRepository magicLinks;
@@ -68,7 +75,17 @@ public class AccountService {
         // their own subject: whichever this pilot used, on whatever device.
         Stream.of(pilot.getEmail(), pilot.getGoogleSubject(), pilot.getAppleSubject())
                 .filter(name -> name != null && !name.isBlank())
-                .forEach(name -> sessions.findByPrincipalName(name).keySet().forEach(sessions::deleteById));
+                .forEach(this::endSessions);
+    }
+
+    /** The account is already gone, so a failure here must not turn the
+     *  answer into an error: the browser would not clear this device. */
+    private void endSessions(String name) {
+        try {
+            sessions.findByPrincipalName(name).keySet().forEach(sessions::deleteById);
+        } catch (RuntimeException failed) {
+            log.error("Account deleted but its sessions under {} could not all be ended", name, failed);
+        }
     }
 
     private void forgetNotes(Pilot pilot) {

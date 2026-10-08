@@ -13,6 +13,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.northflyers.vfr.controller.PilotController;
 import com.northflyers.vfr.controller.SignInCapabilitiesController;
 import com.northflyers.vfr.domain.Pilot;
+import com.northflyers.vfr.service.AccountService;
 import com.northflyers.vfr.service.PilotService;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
@@ -40,6 +41,9 @@ class SecurityRulesTest {
 
     @MockitoBean
     private PilotService pilotService;
+
+    @MockitoBean
+    private AccountService accountService;
 
     @Test
     void anAnonymousCallerIsRefusedWith401RatherThanRedirected() throws Exception {
