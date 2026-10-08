@@ -31,6 +31,9 @@ function PatternDiagram({ end, opposite, fromDeg }: { end: RunwayEnd; opposite: 
   const rel = fromDeg == null ? null : ((fromDeg - heading) * Math.PI) / 180;
   const label = `${end.traffic === "right" ? "Right" : "Left"} traffic for runway ${runwayNumber(end.ident)}: the downwind ${compassWord(patternSideDeg(end))} of the runway, joined on the 45 abeam midfield.`;
   return (
+    // Its labels at 12 in a 240-wide drawing never drawn wider than 240
+    // (max-w-60): 12 points or more on the screen, over the 11 HIG's
+    // smallest -- a diagram's labels, outside the type scale on purpose.
     <svg viewBox="0 0 240 240" className="mx-auto h-auto w-full max-w-60 text-foreground" role="img" aria-label={label} data-testid="pattern-diagram">
       <g className="text-xs text-muted-foreground" fill="currentColor" textAnchor="middle">
         <text x={xd + side * 12} y={150} transform={`rotate(${-90 * side} ${xd + side * 12} 150)`}>Downwind</text>

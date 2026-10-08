@@ -122,7 +122,10 @@ export default function AirportPicker({
           style={onPhone && keyboard > 0 ? { paddingBottom: keyboard } : undefined}
         >
           {/* The field, and a close beside it, as Maps' search sheet has:
-              on a phone the sheet stands over nearly the whole screen. */}
+              on a phone the sheet stands over nearly the whole screen.
+              A field, not a control grown to its hit area: 44 tall as
+              the search field of Maps' sheet is, its whole box the place
+              to type. */}
           <div className="flex shrink-0 items-center gap-2">
             <div className={cn("flex h-11 min-w-0 flex-1 items-center gap-2 rounded-full bg-foreground/8 px-4 text-muted-foreground", TEXT.row)}>
               <Search className="size-5 shrink-0" aria-hidden="true" />
@@ -181,6 +184,9 @@ export function PickerGroup({ heading, children }: { heading: string; children: 
   return <CommandGroup heading={heading} className={GROUP}>{children}</CommandGroup>;
 }
 
+// The group's heading is cmdk's own element, reached only by its
+// attribute's selector, so GROUP_HEADING's note sizes (TEXT.note, 12 and
+// 13) are written out here under it.
 const GROUP = "p-0 **:[[cmdk-group-heading]]:px-1 **:[[cmdk-group-heading]]:pb-1.5 **:[[cmdk-group-heading]]:font-semibold **:[[cmdk-group-heading]]:uppercase **:[[cmdk-group-heading]]:tracking-wide **:[[cmdk-group-heading]]:text-xs pointer-coarse:**:[[cmdk-group-heading]]:text-[0.8125rem]";
 
 /** What a search answers, as the picker lists it and the route box's
@@ -226,6 +232,8 @@ export function AirportRow({ airport, recent = false, waypoint = false, onSelect
   airport: RecentAirport; recent?: boolean; waypoint?: boolean; onSelect: () => void; testId?: string;
 }) {
   return (
+    // A list's row, 44 at the least as iOS's rows are: the row is the
+    // control, not a control grown to its hit area.
     <CommandItem value={airport.ident} onSelect={onSelect} className="min-h-11 gap-3 rounded-lg px-2 py-2" data-testid={testId}>
       {/* Its magenta as fill and stroke, not the text colour: a row's
           highlight recolours its icons' text, and the diamond went black. */}

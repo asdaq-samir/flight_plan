@@ -12,6 +12,8 @@ export default function ChartTick({ x, y, payload, textAnchor, orientation, form
 }) {
   if (payload === undefined) return null;
   // Under an X axis a line down, beside a Y axis half a line: recharts' own.
+  // 12 as an axis's figures are (text-xs, outside the type scale on
+  // purpose): a chart's labels, not text to read, and drawn at its size.
   const dy = orientation === "bottom" ? "0.71em" : orientation === "top" ? "-0.2em" : "0.355em";
   return (
     <text x={x} y={y} dy={dy} textAnchor={textAnchor as "start" | "middle" | "end" | undefined} className="fill-foreground text-xs text-foreground">

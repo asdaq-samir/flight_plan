@@ -267,7 +267,8 @@ export default function MapPage({ mode }: { mode: Mode }) {
               is taken to the map (the switch itself is in the settings). */}
           <DevGuard />
           {/* For a keyboard: past the panel to the map in one press.
-              Visible only while it has focus. */}
+              Visible only while it has focus, so at a keyboard's 14
+              (text-sm), outside the touch type scale. */}
           <a
             href="#content"
             className="sr-only z-50 rounded-md bg-background px-3 py-2 text-sm shadow outline-none focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"

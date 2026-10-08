@@ -20,7 +20,7 @@ export default function EmptyState({ icon, title, children, action, className }:
     <Empty className={cn("gap-3 p-6", className)}>
       <EmptyHeader className="gap-1.5">
         <EmptyMedia variant="icon" className="mb-1 size-12 rounded-xl text-tint [&_svg:not([class*='size-'])]:size-6">{icon}</EmptyMedia>
-        <EmptyTitle className="text-xl leading-[1.5625rem] font-semibold tracking-tight">{title}</EmptyTitle>
+        <EmptyTitle className={cn("font-semibold tracking-tight", TEXT.heading)}>{title}</EmptyTitle>
         {children && <EmptyDescription className={TEXT.prose}>{children}</EmptyDescription>}
       </EmptyHeader>
       {action && <EmptyContent>{action}</EmptyContent>}
