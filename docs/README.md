@@ -83,7 +83,7 @@ explicit path to production on AWS.
   state-graph control flow against CrewAI's agent-driven tool selection on
   the same real task this project runs end to end.
 - **A cheap path to production**: one EC2 server behind CloudFront, chart
-  tiles drawn once a cycle into S3, about $27 a month — see
+  tiles drawn once a cycle into S3, about $29 a month — see
   [Target Architecture](#target-architecture-aws).
 - **CI on every push.** GitHub Actions runs the test suite and lint on
   every push/PR, then builds every service image and publishes it to GHCR
@@ -356,7 +356,7 @@ erDiagram
 One small server behind CloudFront runs what must stay live, and what is
 the same for every pilot is drawn ahead of time and served from the edge
 — see [`README-AWS.md`](README-AWS.md) for the design, the cost (about
-$27 a month) and the runbook.
+$29 a month) and the runbook.
 
 | Local component | AWS target |
 |---|---|

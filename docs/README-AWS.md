@@ -114,13 +114,14 @@ Prices in us-east-1, October 2026, at today's traffic:
 | Secrets Manager, four secrets | $1.60 |
 | Route 53 hosted zone | $0.50 |
 | Daily snapshots of the data disk, seven kept | ~$1 |
+| The health check (HTTPS, every 30 s) and the server's logs in CloudWatch | ~$1.60 |
 | ECR, CloudWatch logs, backups, the Fargate Spot refresh (under $1 a cycle) | ~$1.50 |
 | CloudFront | $0 within the always-free 1 TB and 10 million requests |
 | SES | $0.10 per 1,000 sign-in emails |
-| **Total** | **about $27** |
+| **Total** | **about $29** |
 
 With `ServerPricing=on-demand`, for a server AWS never takes back, it
-is about $44, or about $34 with a one-year Savings Plan. The next
+is about $46, or about $36 with a one-year Savings Plan. The next
 saving after Spot is the tiles' upload bill: one
 PMTiles archive per chart kind in place of 1.5 million files would take
 it to cents, at the cost of a PMTiles reader in the map.
@@ -304,6 +305,25 @@ docker compose --env-file /srv/flight_plan/.env -f docker-compose.prod.yml logs 
 `/srv/flight_plan` is the data disk: `data` the planner's data folder,
 `postgres` the database, `repo` this repository. Never edit
 `/srv/flight_plan/.env`; `deploy.sh` writes it.
+
+### When something goes wrong
+
+- **The app down:** Route 53 asks `https://<domain>/actuator/health`
+  every 30 seconds from round the world, through CloudFront, and three
+  minutes without an answer emails `BudgetEmail` (confirm the SNS
+  subscription mail once); another follows when it is back. A Spot
+  interruption's few minutes may send one pair.
+- **A failed backup** emails the same address (`backup.sh`).
+- **The logs:** every service's, in CloudWatch under `/<stack>/server`,
+  a stream per container, kept a month:
+
+  ```bash
+  aws logs tail /wingtip/server --region us-east-1 --follow --log-stream-name-prefix webapp
+  ```
+
+- **Errors on pilots' phones** are in the webapp's stream as `client
+  error [...]` lines (`ClientErrorController`, `lib/errorReports`): the
+  message, the stack and the page's path, nothing of the pilot's.
 
 ### Chart cycles
 

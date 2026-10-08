@@ -107,6 +107,37 @@
         "required" : [ "access", "providers" ],
         "type" : "object"
       },
+      "ClientError" : {
+        "properties" : {
+          "kind" : {
+            "maxLength" : 40,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "message" : {
+            "maxLength" : 500,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "page" : {
+            "maxLength" : 300,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "stack" : {
+            "maxLength" : 4000,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "userAgent" : {
+            "maxLength" : 300,
+            "minLength" : 0,
+            "type" : "string"
+          }
+        },
+        "required" : [ "kind", "message", "page", "stack", "userAgent" ],
+        "type" : "object"
+      },
       "CurrencyDatesRequest" : {
         "properties" : {
           "flightReviewOn" : {
@@ -1024,6 +1055,32 @@
         "tags" : [ "magic-link-controller" ]
       }
     },
+    "/api/client-errors" : {
+      "post" : {
+        "description" : "Logged for the owner, without the page's query string; 30 an hour per caller, the rest dropped.",
+        "operationId" : "report",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ClientError"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "204" : {
+            "description" : "Logged, or dropped past the hour's allowance"
+          },
+          "400" : {
+            "description" : "Not an error report"
+          }
+        },
+        "summary" : "Report an error on a pilot's device",
+        "tags" : [ "Client errors" ]
+      }
+    },
     "/api/comparison" : {
       "post" : {
         "description" : "framework=langgraph (nav-log-agent) or framework=crewai (crewai-agent), each a real billed Claude call. The body is the nav log the flight planning drawer shows (departure_ident, destination_ident, aircraft_name, altitude_ft, altitude_selection, legs); the response is newline-delimited JSON: delta lines with text as it is written, then a done line with the whole briefing, or an error line.",
@@ -1585,6 +1642,9 @@
   }, {
     "description" : "LangGraph vs CrewAI, same nav log -- the flight planning drawer's narrative popover",
     "name" : "Comparison"
+  }, {
+    "description" : "Errors on pilots' devices, logged for the owner",
+    "name" : "Client errors"
   }, {
     "description" : "Chart vision, course and nav log, proxied from the planner service",
     "name" : "Planner"

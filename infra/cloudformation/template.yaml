@@ -3,7 +3,7 @@ Description: >
   Wingtip Maps on AWS, built for low cost: one EC2 server (webapp, planner,
   briefing agent, Postgres) behind CloudFront, FAA chart tiles drawn once
   per 56-day cycle by a Fargate Spot task into S3, and the web app's
-  fingerprinted files cached at the edge. About $27 a month with the
+  fingerprinted files cached at the edge. About $29 a month with the
   server on Spot capacity, the default (docs/README-AWS.md has the
   itemised cost and the runbook). Deploy in
   us-east-1: CloudFront's certificate must be there.
@@ -317,6 +317,10 @@ Resources:
                 - HasBudget
                 - { Effect: Allow, Action: "sns:Publish", Resource: !Ref BackupAlertTopic }
                 - !Ref AWS::NoValue
+              # Its services' logs, to CloudWatch (docker-compose.prod.yml).
+              - Effect: Allow
+                Action: [logs:CreateLogStream, logs:PutLogEvents]
+                Resource: !GetAtt ServerLogGroup.Arn
               # Each new server takes over the stack's address and data disk.
               # The volume and the address are the stack's own; an instance
               # is allowed only if it carries the stack's server Name tag
@@ -436,6 +440,7 @@ Resources:
               AGENT_SECRET_ARN=${AgentKeySecret}
               ORIGIN_SECRET_ARN=${OriginSecret}
               BACKUP_TOPIC_ARN=${BackupTopicArn}
+              LOG_GROUP=${ServerLogGroup}
               MAIL_HOST=email-smtp.${AWS::Region}.amazonaws.com
               MAIL_FROM=no-reply@${MailFrom}
               CONF
@@ -506,6 +511,14 @@ Resources:
             CreateRule: { Interval: 24, IntervalUnit: HOURS, Times: ["05:00"] }
             RetainRule: { Count: 7 }
             CopyTags: true
+
+  # Every service's log on the server, the pilots' error reports among
+  # them (ClientErrorController), kept a month.
+  ServerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/${AWS::StackName}/server"
+      RetentionInDays: 30
 
   # The server's fixed address, taken over by each new server on boot.
   ServerAddress:
@@ -949,12 +962,48 @@ Resources:
   # ---------------------------------------------------------------------
   # Spending: an email at 80% of $50 a month.
   # ---------------------------------------------------------------------
+  # The owner's alerts by email: a failed nightly backup (backup.sh), and
+  # the app not answering (HealthAlarm).
   BackupAlertTopic:
     Type: AWS::SNS::Topic
     Condition: HasBudget
     Properties:
-      DisplayName: Wingtip Maps backup
+      DisplayName: Wingtip Maps alerts
       Subscription: [{ Protocol: email, Endpoint: !Ref BudgetEmail }]
+
+  # Is the app up, as a pilot reaches it: through CloudFront to the
+  # webapp's health, which counts its database, every 30 seconds from
+  # Route 53's checkers round the world. About $1.50 a month.
+  HealthCheck:
+    Type: AWS::Route53::HealthCheck
+    Properties:
+      HealthCheckConfig:
+        Type: HTTPS
+        FullyQualifiedDomainName: !Ref PublicHost
+        Port: 443
+        ResourcePath: /actuator/health
+        RequestInterval: 30
+        FailureThreshold: 3
+      HealthCheckTags: [{ Key: Name, Value: !Sub "${AWS::StackName}" }]
+
+  # Not answering for three minutes running: an email, and another when
+  # it is back. A Spot interruption's few minutes may send one pair.
+  HealthAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: HasBudget
+    Properties:
+      AlarmDescription: Wingtip Maps is not answering its health check (Route 53, through CloudFront).
+      Namespace: AWS/Route53
+      MetricName: HealthCheckStatus
+      Dimensions: [{ Name: HealthCheckId, Value: !Ref HealthCheck }]
+      Statistic: Minimum
+      Period: 60
+      EvaluationPeriods: 3
+      Threshold: 1
+      ComparisonOperator: LessThanThreshold
+      TreatMissingData: breaching
+      AlarmActions: [!Ref BackupAlertTopic]
+      OKActions: [!Ref BackupAlertTopic]
 
   MonthlyBudget:
     Type: AWS::Budgets::Budget
