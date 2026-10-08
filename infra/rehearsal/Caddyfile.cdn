@@ -1,0 +1,36 @@
+# CloudFront's stand-in for the local rehearsal
+# (docker-compose.rehearsal.yml): what the distribution in
+# infra/cloudformation/template.yaml does with a request, without the
+# caching.
+{
+	skip_install_trust
+}
+
+https://cdn:9443, https://localhost:9443 {
+	tls internal
+
+	# /tiles/* is the S3 bucket: the cycle's pyramid, laid out as
+	# vfr.charts.publish uploads it.
+	handle_path /tiles/* {
+		root * /srv/tiles
+		header Cache-Control "public, max-age=2419200, immutable"
+		file_server
+	}
+
+	# Everything else goes to the origin as CloudFront sends it: over
+	# HTTPS to the origin's own name (its Host, not the viewer's), with
+	# the secret header, and the viewer's address appended to
+	# X-Forwarded-For.
+	handle {
+		reverse_proxy https://caddy:443 {
+			header_up Host {$ORIGIN_HOST}
+			header_up X-Origin-Secret {$ORIGIN_SECRET}
+			transport http {
+				tls_server_name {$ORIGIN_HOST}
+				# The origin's certificate is from its own Caddy's local
+				# authority here, not Let's Encrypt.
+				tls_insecure_skip_verify
+			}
+		}
+	}
+}
