@@ -35,7 +35,8 @@ from vfr.narrative import briefing_prompt
 
 from .tools import compute_dead_reckoning_legs, get_recommended_altitude, get_route_checkpoints
 
-CLAUDE_MODEL = os.environ.get("NAV_LOG_AGENT_MODEL", "claude-sonnet-5")
+# The same model as nav-log-agent's briefing (app/graph.py there says why).
+CLAUDE_MODEL = os.environ.get("NAV_LOG_AGENT_MODEL", "claude-haiku-5-5")
 
 
 def build_crew(

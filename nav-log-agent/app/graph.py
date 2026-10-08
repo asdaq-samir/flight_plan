@@ -25,11 +25,20 @@ from vfr import narrative, planner_client
 
 from . import db
 
-CLAUDE_MODEL = os.environ.get("NAV_LOG_AGENT_MODEL", "claude-sonnet-5")
+# Haiku: on the C81 to KDLH route (2026-10-08) it wrote the whole
+# briefing, three times out of three, for about $0.001 each, where
+# claude-sonnet-5 spent $0.009 and wrote nothing (below).
+CLAUDE_MODEL = os.environ.get("NAV_LOG_AGENT_MODEL", "claude-haiku-5-5")
 # A briefing a pilot reads in a minute (vfr.narrative asks for under 200
-# words), and one Claude writes in seconds: the narrative used to run to
-# 1,024 tokens of prose, ten seconds or more of generation on its own.
-BRIEFING_MAX_TOKENS = 512
+# words). The model thinks before it writes, and the thinking counts
+# toward this cap: at 512, claude-sonnet-5 thought until the cap and
+# returned no text at all (stop reason max_tokens), so the briefing fell
+# back to "Narrative generation failed"; Haiku at 1,536 did the same on
+# two runs of three. At 4,096 every run finished, in 8 to 10 s. Thinking
+# stays on: turned off, the same briefing read a 9,000 ft freezing level
+# as "a serious icing risk" at 3,000 ft.
+BRIEFING_MAX_TOKENS = 4096
+BRIEFING_EFFORT = "low"
 
 
 class NavLogState(TypedDict, total=False):
@@ -134,6 +143,7 @@ def generate_briefing(state: NavLogState) -> dict:
         with client.messages.stream(
             model=CLAUDE_MODEL,
             max_tokens=BRIEFING_MAX_TOKENS,
+            output_config={"effort": BRIEFING_EFFORT},
             messages=[{"role": "user", "content": briefing_prompt(state)}],
         ) as stream:
             for text in stream.text_stream:
