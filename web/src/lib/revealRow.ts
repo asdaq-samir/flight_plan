@@ -36,18 +36,28 @@ export function revealRow(row: HTMLElement | null): () => void {
   let frames = 0;
   const look = () => {
     still = moving(row) ? 0 : still + 1;
+    // In view already with nothing round it moving, at the first look --
+    // a row tapped in the list itself -- it stays: watched for two frames
+    // more as the map followed it, each look made the browser work the
+    // page's styles out afresh mid-frame, 0.2 s of a phone's (CPU 4x
+    // slower) at every row picked (measured 2026-10-08).
+    if (frames === 0 && still === 1 && row.isConnected && inView(row)) return;
     if (still < 2 && ++frames < 90) {
       frame = requestAnimationFrame(look);
       return;
     }
-    if (!row.isConnected) return;
-    const box = row.getBoundingClientRect();
-    const view = visibleBand(row);
-    if (box.top >= view.top && box.bottom <= view.bottom) return;
+    if (!row.isConnected || inView(row)) return;
     row.scrollIntoView({ block: "center" });
   };
   frame = requestAnimationFrame(look);
   return () => cancelAnimationFrame(frame);
+}
+
+/** Whether all of `row` is where it can be seen. */
+function inView(row: HTMLElement): boolean {
+  const box = row.getBoundingClientRect();
+  const view = visibleBand(row);
+  return box.top >= view.top && box.bottom <= view.bottom;
 }
 
 /** Whether an animation or transition that can move it is running on

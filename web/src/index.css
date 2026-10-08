@@ -349,6 +349,15 @@ body[data-map-sheet][data-map-panel="full"] [data-map-controls] {
 body:is([data-map-panel="half"], [data-map-panel="full"], [data-scroll-locked]) [data-sonner-toast] {
   pointer-events: auto;
 }
+/* The scroll lock's own variable kept from the page under <body>: the
+   lock sets it on <body> as a stock dialog, menu or select opens, and
+   being inherited, every element of the page had its style worked out
+   again, opening and closing -- 80 ms each of a phone's (CPU 4x slower),
+   5 with this (measured 2026-10-08). The page under the body never
+   scrolls, so has no scroll bar's width to make room for. */
+#root {
+  --removed-body-scroll-bar-size: 0px;
+}
 
 /* Touch targets. Apple asks for 44 points on both sides of anything a
    finger taps; the stock controls are smaller than that -- an icon
@@ -483,6 +492,17 @@ html [data-sonner-toaster] [data-sonner-toast][data-styled="true"]:is([data-type
    edge, brighter along the top, and a soft shadow under it. iOS also
    bends what is behind the glass at its edge; Safari runs no SVG filter
    behind an element, so that part is left out. */
+/* The glass's fill, its own and not its children's: a phone's sheet sets
+   it at every frame of a drag (MapPanel), and inherited, every element in
+   the sheet had its style worked out again each time -- 150 to 250 ms a
+   frame of a phone's (CPU 4x slower), 3.3 s of a drag up; 0.1 s with it
+   kept to the glass (measured 2026-10-08). Nothing under a pane of glass
+   reads it: a pane inside one sets its own. */
+@property --glass-fill {
+  syntax: "*";
+  inherits: false;
+}
+
 @utility liquid-glass {
   background-color: color-mix(in oklab, var(--background) var(--glass-fill, 40%), transparent);
   -webkit-backdrop-filter: blur(14px) saturate(1.9) brightness(1.05);
