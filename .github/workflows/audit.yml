@@ -156,6 +156,10 @@ jobs:
               a control, a new feature or idea, launch, marketing, pricing,
               anything bigger than one pull request. The owner labels it
               "ready" when it should be built.
+            Shell substitution -- $(...), backticks, a heredoc into a
+            command -- is refused here, so write each issue's or pull
+            request's body to a file with the Write tool and pass it with
+            --body-file (gh issue create, gh pr create, gh issue edit).
             Create a label that is missing. If you find nothing worth
             changing, say so in the job's summary and open nothing.
           claude_args: |

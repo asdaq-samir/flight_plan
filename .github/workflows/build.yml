@@ -113,6 +113,10 @@ jobs:
             Work on a new branch claude/issue-${{ steps.next.outputs.issue }}
             from main. Make the smallest change that does what the issue
             asks, with tests for it and the checks CLAUDE.md names passing.
+            Shell substitution -- $(...), backticks, a heredoc into a
+            command -- is refused here, so write each issue's or pull
+            request's body to a file with the Write tool and pass it with
+            --body-file (gh issue create, gh pr create, gh issue edit).
             Commit (a paragraph: what changed for the pilot or the
             developer, why, and the evidence), push, and open a pull request
             to main whose body says what it does and "Closes
