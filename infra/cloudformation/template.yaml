@@ -318,13 +318,29 @@ Resources:
                 - { Effect: Allow, Action: "sns:Publish", Resource: !Ref BackupAlertTopic }
                 - !Ref AWS::NoValue
               # Each new server takes over the stack's address and data disk.
+              # The volume and the address are the stack's own; an instance
+              # is allowed only if it carries the stack's server Name tag
+              # (the launch template sets it), so a compromised server
+              # cannot attach the disk to, or move the address onto, any
+              # other instance. A condition on a tag applies to every
+              # resource in its statement, so each kind has its own.
+              - Effect: Allow
+                Action: ec2:AttachVolume
+                Resource: !Sub "arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:volume/${DataVolume}"
+              - Effect: Allow
+                Action: ec2:AssociateAddress
+                Resource: !Sub "arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:elastic-ip/${ServerAddress.AllocationId}"
               - Effect: Allow
                 Action: [ec2:AttachVolume, ec2:AssociateAddress]
-                Resource:
-                  - !Sub "arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:volume/${DataVolume}"
-                  - !Sub "arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:elastic-ip/${ServerAddress.AllocationId}"
-                  - !Sub "arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/*"
-                  - !Sub "arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:network-interface/*"
+                Resource: !Sub "arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/*"
+                Condition:
+                  StringEquals:
+                    "ec2:ResourceTag/Name": !Sub "${AWS::StackName}-server"
+              # AssociateAddress also names the instance's network interface,
+              # which has no tag to match on.
+              - Effect: Allow
+                Action: ec2:AssociateAddress
+                Resource: !Sub "arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:network-interface/*"
 
   ServerInstanceProfile:
     Type: AWS::IAM::InstanceProfile
@@ -380,8 +396,17 @@ Resources:
               until aws ec2 attach-volume --region ${AWS::Region} --volume-id ${DataVolume} --instance-id "$iid" --device /dev/sdf; do sleep 10; done
               disk=/dev/disk/by-id/nvme-Amazon_Elastic_Block_Store_$(echo ${DataVolume} | tr -d -)
               until [ -e "$disk" ]; do sleep 2; done
-              # Formatted the first time only; after that, mounted as it is.
-              blkid "$disk" || mkfs.xfs "$disk"
+              # Formatted only when blkid positively finds no filesystem (exit
+              # 2); any other failure stops the script rather than risk
+              # wiping Postgres, and a disk that has one is mounted as it is.
+              probe=0
+              blkid -p "$disk" > /dev/null || probe=$?
+              if [ "$probe" -eq 2 ]; then
+                mkfs.xfs "$disk"
+              elif [ "$probe" -ne 0 ]; then
+                echo "blkid failed ($probe) on $disk: not formatting" >&2
+                exit 1
+              fi
               mkdir -p /srv/flight_plan
               echo "UUID=$(blkid -s UUID -o value "$disk") /srv/flight_plan xfs defaults,nofail 0 2" >> /etc/fstab
               mount /srv/flight_plan
