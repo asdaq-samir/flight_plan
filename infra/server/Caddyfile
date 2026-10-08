@@ -1,0 +1,37 @@
+# The production server's front door (docker-compose.prod.yml's caddy).
+#
+# CloudFront is the only client: the security group admits port 443 from
+# CloudFront's origin-facing addresses alone, and every request must carry
+# the secret header CloudFront adds (X-Origin-Secret, from the stack's
+# OriginSecret). Caddy gets the certificate for ORIGIN_HOST from Let's
+# Encrypt by itself over port 80, which is open for that and redirects
+# everything else to HTTPS.
+
+{$ORIGIN_HOST} {
+	encode zstd gzip
+
+	@cloudfront header X-Origin-Secret {$ORIGIN_SECRET}
+	handle @cloudfront {
+		# The pilot's address is the last one in X-Forwarded-For: CloudFront
+		# appends the viewer's to whatever the request came with, and only
+		# CloudFront reaches this server. The webapp's per-client limits
+		# (SlidingWindowLimiter) read the last entry, so it is passed on
+		# alone -- appended to, it would be CloudFront's own address.
+		map {http.request.header.X-Forwarded-For} {viewer_ip} {
+			~(?:^|,\s*)([^,\s]+)\s*$ "${1}"
+			default {remote_host}
+		}
+		reverse_proxy webapp:8080 {
+			header_up X-Forwarded-For {viewer_ip}
+			header_up X-Forwarded-Proto https
+			# Links and redirects the webapp builds name the public domain,
+			# not this origin's.
+			header_up X-Forwarded-Host {$PUBLIC_HOST}
+			header_up -X-Origin-Secret
+		}
+	}
+
+	handle {
+		respond "Not found" 404
+	}
+}

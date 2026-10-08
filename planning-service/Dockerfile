@@ -13,8 +13,10 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     rm -f /etc/apt/apt.conf.d/docker-clean \
     && apt-get update && apt-get install -y --no-install-recommends libexpat1
 # The user before the source, which changes every commit: this layer
-# then stays cached with the dependencies.
-RUN useradd -m appuser
+# then stays cached with the dependencies. The data folder is the
+# user's: the stacks mount theirs over it, but the chart refresh task on
+# Fargate mounts nothing and writes the cycle's sheets and tiles there.
+RUN useradd -m appuser && mkdir -p /workspace/data && chown appuser:appuser /workspace/data
 
 # The service's own list includes vfr's (-r ../src/requirements-charts.txt),
 # so both are copied to where that relative path points.

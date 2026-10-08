@@ -82,8 +82,8 @@ explicit path to production on AWS.
   backend, identical Claude API — evaluates LangGraph's explicit
   state-graph control flow against CrewAI's agent-driven tool selection on
   the same real task this project runs end to end.
-- **A concrete path to production**: every local service maps to a
-  specific AWS target (SageMaker, ECS Fargate, RDS, CloudFormation) — see
+- **A cheap path to production**: one EC2 server behind CloudFront, chart
+  tiles drawn once a cycle into S3, about $42 a month — see
   [Target Architecture](#target-architecture-aws).
 - **CI on every push.** GitHub Actions runs the test suite and lint on
   every push/PR, then builds every service image and publishes it to GHCR
@@ -353,29 +353,27 @@ erDiagram
 
 ### Target architecture (AWS)
 
-Every local service maps to a specific, already-written AWS resource —
-see [`README-AWS.md`](README-AWS.md) for the full diagram walkthrough, the
-CloudFormation/Lambda reference, and the deploy runbook.
+One small server behind CloudFront runs what must stay live, and what is
+the same for every pilot is drawn ahead of time and served from the edge
+— see [`README-AWS.md`](README-AWS.md) for the design, the cost (about
+$42 a month on demand) and the runbook.
 
 | Local component | AWS target |
 |---|---|
-| `webapp` | ECS Fargate |
-| `nav-log-agent` | ECS Fargate, behind the same ALB (`/mcp/*`) |
-| `crewai-agent` | ECS Fargate task definition, run on demand |
-| `db` | RDS PostgreSQL |
-| `airflow` | ECS Fargate (self-hosted), EFS-backed metadata |
-| `pipeline-processing` / `pipeline-training` | SageMaker Processing/Training Jobs |
-| Model evaluation/promotion | SageMaker Model Registry pattern |
-| `ml` | SageMaker Studio, used ad hoc for development work |
-| CI/CD | GitHub Actions → GHCR + ECR |
+| `webapp`, `planning-service`, `nav-log-agent`, `model-service` | One EC2 server (`docker-compose.prod.yml`), behind Caddy and CloudFront |
+| `db` | Postgres on the same server, dumped to S3 nightly |
+| Chart tiles | A Fargate Spot task per 56-day cycle, published to S3, served by CloudFront |
+| Mailpit | Amazon SES |
+| `crewai-agent`, `airflow`, the pipelines, `ml`, `dev-services` | Development only |
+| CI/CD | GitHub Actions → GHCR + ECR, then `deploy.sh` on the server over SSM |
 
 ### Status
 
 The ML pipeline, orchestration layer, dead-reckoning engine, altitude
 selection logic, both Gen AI agents, and CI are built, integrated, and
 working end to end. The AWS side is fully written and validated
-(`cfn-lint` clean, every image builds, the AWS-mode DAG parses correctly)
-— see [`README-AWS.md`](README-AWS.md). Three things remain, and none is
+(`cfn-lint` clean, every image builds) — see
+[`README-AWS.md`](README-AWS.md). Three things remain, and none is
 an engineering gap:
 
 - **More ratings for the chart model.** The planner's checkpoints come
@@ -409,9 +407,10 @@ an engineering gap:
   predict-the-mean baseline, which is a route being memorised rather than
   spottability being learned.
 - **A live AWS deployment.** No AWS account exists in this project's
-  environment. Everything that can be verified without one — template
-  validity, image builds, DAG correctness — has been; an actual
-  `aws cloudformation deploy` is the only remaining step.
+  environment. Everything that can be verified without one — the
+  template, the production compose file, the origin's Caddy gate — has
+  been; the owner's account and domain, then `aws cloudformation deploy`,
+  are what remain.
 
 ## Developer Guide
 

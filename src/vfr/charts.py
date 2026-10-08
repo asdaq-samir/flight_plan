@@ -1569,12 +1569,19 @@ def refresh_lock(wait: bool = False):
 
 
 def refresh(kinds: tuple = tuple(KINDS), workers: int = 2, prune: bool = True,
-            publish_bucket: str | None = None) -> str:
+            publish_bucket: str | None = None, client=None) -> str:
     """Bring the FAA's current cycle to a complete pyramid, publish it
     to `publish_bucket` if one is given (the AWS refresh task's job),
     then drop older cycles. Returns the cycle. Idempotent: a complete,
     published cycle costs one status read and one listing."""
     cycle = current_cycle()
+    # The AWS refresh task starts on an empty disk every day, which would
+    # read as a cycle never drawn: the bucket's own pointer says whether
+    # it is done. Only a complete cycle is ever published, so the 55 days
+    # between the FAA's cycles cost that one read.
+    if publish_bucket and _bucket_cycle(publish_bucket, client=client) == cycle:
+        log.info("cycle %s is already published to %s", cycle, publish_bucket)
+        return cycle
     # Only the kinds due: a finished kind is not rendered again unless
     # the renderer has changed since, and one with a sheet missing is
     # tried again every run -- it used to read complete, and nothing
@@ -1587,7 +1594,7 @@ def refresh(kinds: tuple = tuple(KINDS), workers: int = 2, prune: bool = True,
             log.info("cycle %s: rendering the %s pyramid", cycle, key)
             render_pyramid(KINDS[key], workers=workers, cycle=cycle)
     if publish_bucket and pyramid_complete(cycle, kinds):
-        publish(cycle, publish_bucket)
+        publish(cycle, publish_bucket, client=client)
     if prune and pyramid_complete(cycle, kinds):
         prune_cycles(keep=cycle)
     return cycle
@@ -1598,6 +1605,22 @@ def refresh(kinds: tuple = tuple(KINDS), workers: int = 2, prune: bool = True,
 # ---------------------------------------------------------------------------
 
 _PUBLISHED = "published.json"
+
+
+def _bucket_cycle(bucket: str, prefix: str = CHART_TILES_PREFIX, client=None) -> str | None:
+    """The cycle the bucket's serving.json names, or None before the
+    first publish. Any other failure raises: a refresh that cannot tell
+    is better stopped (the next day's runs again) than spent drawing
+    the country over again."""
+    if client is None:
+        import boto3
+
+        client = boto3.client("s3")
+    try:
+        body = client.get_object(Bucket=bucket, Key=f"{prefix}/serving.json")["Body"].read()
+    except client.exceptions.NoSuchKey:
+        return None
+    return json.loads(body).get("cycle")
 
 
 def publish(cycle: str, bucket: str, prefix: str = CHART_TILES_PREFIX, workers: int = 32, client=None) -> int:

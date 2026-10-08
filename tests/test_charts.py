@@ -605,6 +605,48 @@ def test_refresh_prepares_renders_and_prunes_only_when_complete(tmp_path, monkey
     assert calls == []                                        # already complete: nothing to do
 
 
+def test_a_refresh_publishing_to_a_bucket_asks_the_bucket_whether_the_cycle_is_done(tmp_path, monkeypatch):
+    # The AWS task's disk is empty every morning; the bucket's pointer,
+    # not the disk, says whether the FAA's cycle still has to be drawn.
+    monkeypatch.setattr(charts, "RENDERER_VERSION", 1)
+    monkeypatch.setattr(charts, "CHART_TILE_CACHE_DIR", tmp_path / "tiles")
+    monkeypatch.setattr(charts, "CHARTS_DIR", tmp_path / "charts")
+    monkeypatch.setattr(charts, "current_cycle", lambda *a, **k: "10-29-2026")
+    calls = []
+    monkeypatch.setattr(charts, "prepare_all", lambda kinds, cycle: calls.append("prepare"))
+
+    def fake_render(kind, workers=2, cycle=None, **kw):
+        charts._write_pyramid_status(cycle, {"kind": kind.key, "zooms": [], "started_at": "t", "finished_at": "t",
+                                             "rasters_total": 0, "rasters_done": 0, "tiles_written": 0, "current": None})
+        return 0
+
+    monkeypatch.setattr(charts, "render_pyramid", fake_render)
+    monkeypatch.setattr(charts, "publish", lambda cycle, bucket, **kw: calls.append(("publish", cycle, bucket)))
+
+    class Bucket:
+        class exceptions:
+            class NoSuchKey(Exception):
+                pass
+
+        def __init__(self, cycle):
+            self.cycle = cycle
+
+        def get_object(self, Bucket, Key):
+            assert (Bucket, Key) == ("charts-bucket", "tiles/serving.json")
+            if self.cycle is None:
+                raise self.exceptions.NoSuchKey()
+            return {"Body": io.BytesIO(json.dumps({"cycle": self.cycle}).encode())}
+
+    assert charts.refresh(publish_bucket="charts-bucket", client=Bucket("10-29-2026"), prune=False) == "10-29-2026"
+    assert calls == []                                        # published already: nothing drawn
+
+    for published in ("09-03-2026", None):                    # the cycle before, or nothing yet
+        monkeypatch.setattr(charts, "CHART_TILE_CACHE_DIR", tmp_path / f"tiles-{published}")  # a morning's empty disk
+        calls.clear()
+        charts.refresh(publish_bucket="charts-bucket", client=Bucket(published), prune=False)
+        assert calls == ["prepare", ("publish", "10-29-2026", "charts-bucket")]
+
+
 def test_tile_png_caches_the_render_and_remembers_empty_tiles(tmp_path, monkeypatch):
     monkeypatch.setattr(charts, "CHART_TILE_CACHE_DIR", tmp_path / "tiles")
     monkeypatch.setattr(charts, "current_cycle", lambda *a, **k: "09-03-2026")
@@ -1080,8 +1122,9 @@ def test_a_cycle_missing_a_sheet_is_not_complete_so_nothing_is_published_or_prun
     published, pruned = [], []
     monkeypatch.setattr(charts, "prepare_all", lambda kinds, cycle: None)
     monkeypatch.setattr(charts, "render_pyramid", lambda kind, **kw: 0)
-    monkeypatch.setattr(charts, "publish", lambda cycle, bucket: published.append(cycle))
+    monkeypatch.setattr(charts, "publish", lambda cycle, bucket, **kw: published.append(cycle))
     monkeypatch.setattr(charts, "prune_cycles", lambda keep: pruned.append(keep))
+    monkeypatch.setattr(charts, "_bucket_cycle", lambda bucket, **kw: None)   # nothing published yet
     charts.refresh(kinds=("sec",), publish_bucket="bucket")
     assert published == [] and pruned == []
 
