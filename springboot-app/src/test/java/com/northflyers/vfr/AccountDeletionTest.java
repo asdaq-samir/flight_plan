@@ -115,7 +115,8 @@ class AccountDeletionTest {
     /** A pilot with one of everything a pilot can have, and a session. */
     private Pilot pilotWithEverything() {
         String email = UUID.randomUUID() + "@example.com";
-        Pilot pilot = pilots.save(new Pilot(email, "Test Pilot", null));
+        String google = "google-" + UUID.randomUUID();
+        Pilot pilot = pilots.save(new Pilot(email, "Test Pilot", google));
         Aircraft plane = aircraft.save(new Aircraft(pilot, "N" + email.substring(0, 5), "C172", 110, 8.5,
                 null, null, null, null));
         Flight flight = flights.save(new Flight(pilot, plane, "C81", "KDLH").fileNavLog(List.of(
@@ -127,7 +128,10 @@ class AccountDeletionTest {
                 2.5, 0, 2.5, 1, 0, null));
         endorsements.save(new Endorsement(pilot.getId(), "A.1", LocalDate.of(2026, 9, 1)));
         magicLinks.save(new MagicLink(email, UUID.randomUUID().toString().replace("-", ""), Instant.now().plusSeconds(600)));
+        // Two devices by address, and one by Google.
         signIn(email);
+        signIn(email);
+        signIn(google);
         return pilot;
     }
 
@@ -157,7 +161,8 @@ class AccountDeletionTest {
                 jdbc.queryForObject("SELECT count(*) FROM logbook_entries WHERE pilot_id = ?", Integer.class, id),
                 jdbc.queryForObject("SELECT count(*) FROM pilot_endorsements WHERE pilot_id = ?", Integer.class, id),
                 jdbc.queryForObject("SELECT count(*) FROM magic_links WHERE email = ?", Integer.class, pilot.getEmail()),
-                sessions.findByPrincipalName(pilot.getEmail()).size());
+                sessions.findByPrincipalName(pilot.getEmail()).size(),
+                sessions.findByPrincipalName(pilot.getGoogleSubject()).size());
     }
 
     @Test

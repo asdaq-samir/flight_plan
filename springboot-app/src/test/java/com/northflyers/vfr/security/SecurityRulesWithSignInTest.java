@@ -16,6 +16,7 @@ import com.northflyers.vfr.controller.PilotController;
 import com.northflyers.vfr.controller.SignInCapabilitiesController;
 import com.northflyers.vfr.domain.Pilot;
 import com.northflyers.vfr.domain.PilotRole;
+import com.northflyers.vfr.service.AccountService;
 import com.northflyers.vfr.service.PilotService;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
@@ -49,6 +50,9 @@ class SecurityRulesWithSignInTest {
 
     @MockitoBean
     private PilotService pilotService;
+
+    @MockitoBean
+    private AccountService accountService;
 
     /** A 204, not the default redirect to /login?logout: this app has no
      *  such page, and the page's fetch read its 401 as the logout failing. */

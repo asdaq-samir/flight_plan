@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.northflyers.vfr.controller.PilotController;
 import com.northflyers.vfr.controller.SignInCapabilitiesController;
+import com.northflyers.vfr.service.AccountService;
 import com.northflyers.vfr.service.PilotService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -35,6 +36,9 @@ class SecurityRulesOpenWritesTest {
 
     @MockitoBean
     private PilotService pilotService;
+
+    @MockitoBean
+    private AccountService accountService;
 
     @Test
     void plannerWritesAndTheNarrativeAreOpen() throws Exception {
