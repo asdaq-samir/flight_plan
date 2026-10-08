@@ -21,7 +21,8 @@ test("Print offers the kneeboard card, and prints it alone on half-letter paper"
   // Off screen until printed, and whole: every row of the log, both fields.
   const card = page.getByTestId("kneeboard");
   await expect(card).toBeHidden();
-  expect(await card.locator("tbody tr").count()).toBeGreaterThan(5);
+  // Drawn just after the log itself (PlanWorkspace's offscreen parts).
+  await expect.poll(() => card.locator("tbody tr").count()).toBeGreaterThan(5);
   await expect(card).toContainText("KDLH · Duluth");
 
   await page.getByTestId("print-button").click();

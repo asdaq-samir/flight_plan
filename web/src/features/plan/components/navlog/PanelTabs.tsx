@@ -1,4 +1,4 @@
-import { useCallback, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useDeferredValue, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { CloudSun, Gauge, ListOrdered, Sparkles, TowerControl } from "lucide-react";
 import { cn } from "cn";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../../../components/ui/tabs";
@@ -42,7 +42,7 @@ const PRINTED: PanelTab[] = ["navlog", "weather", "airports", "performance", "br
  * when its tab opens -- and again when a checkpoint is picked on the map
  * (`pick`): that is what the pilot opened the panel to see.
  */
-export default function PanelTabs({ rootRef, before, contents, notice, footer, children, printing, local, marks, pick, onTap }: {
+export default function PanelTabs({ rootRef, before, contents, notice, footer, children, printing, local, marks, pick, onTap, route }: {
   rootRef: (el: HTMLDivElement | null) => void;
   /** Over the tabs: the printed title and the flight's line. */
   before: ReactNode;
@@ -61,7 +61,19 @@ export default function PanelTabs({ rootRef, before, contents, notice, footer, c
    *  show it, at the pilot's ask -- at half the bar is the panel's last
    *  line -- and the one up tapped again there, back to half. */
   onTap?: (again: boolean) => void;
+  /** Which route the contents are of: drawn just after the frame that
+   *  shows a new one (below). */
+  route: string;
 }) {
+  // The tabs' contents drawn just after the frame that shows a new route,
+  // not in it: the route's box, its figures and the map first, the nav
+  // log's rows and the briefing's sections a moment later, in the
+  // background (useDeferredValue's first value) -- at half the panel ends
+  // at the tabs, and they are out of sight anyway. In the same frame they
+  // held Fly Here's route back 2.5 to 3.6 s at a phone's speed (measured
+  // 2026-10-08). On paper at once.
+  const drawnFor = useDeferredValue(route, "");
+  const drawn = printing || drawnFor === route;
   const [tab, setTab] = useState<PanelTab>("navlog");
   const [opened, setOpened] = useState<PanelTab[]>(["navlog"]);
   if (!opened.includes(tab)) setOpened([...opened, tab]);
@@ -167,7 +179,7 @@ export default function PanelTabs({ rootRef, before, contents, notice, footer, c
         {notice}
         <SectionsOpen.Provider value>
           <GoToTab.Provider value={goTo}>
-            {(printing ? PRINTED : TABS.map(t => t.value).filter(t => opened.includes(t))).map(t => {
+            {drawn && (printing ? PRINTED : TABS.map(t => t.value).filter(t => opened.includes(t))).map(t => {
               const away = !printing && t !== tab;
               return (
                 <TabsContent

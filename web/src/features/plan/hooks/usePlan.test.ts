@@ -10,7 +10,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import type { CheckpointDescriptionMessage, Course } from "../../../lib/api/types";
+import type { CheckpointDescriptionMessage, Course, NavLogMessage } from "../../../lib/api/types";
 import { useSystemProblems } from "../../../lib/problems";
 import { queryClient } from "../../../lib/queryClient";
 import { usePlan, type PlanParams } from "./usePlan";
@@ -206,6 +206,18 @@ describe("the route as entered", () => {
     renderHook(() => usePlan(params), { wrapper });
     // Well inside the 0.6 s it waited before.
     await waitFor(() => expect(asEntered()).toHaveLength(1), { timeout: 400 });
+  });
+
+  test("is said to be the log on screen until the checkpoints' own comes (Save waits for that)", async () => {
+    // A leg of the route as entered, and the checkpoints' log still on the chart.
+    async function* oneLeg(): AsyncGenerator<NavLogMessage> {
+      yield { type: "leg", to: "KDLH" } as NavLogMessage;
+      yield* (await new Promise<never[]>(() => {}));
+    }
+    vi.mocked(api.navlog).mockImplementation((...args: Parameters<typeof api.navlog>) => (args[10] === false ? oneLeg() : waiting()));
+    const { result } = renderHook(() => usePlan(params), { wrapper });
+    await waitFor(() => expect(result.current.pointToPoint).toBe(true));
+    expect(result.current.legs).toHaveLength(1);
   });
 
   test("is not asked for where the course says the chart is read", async () => {

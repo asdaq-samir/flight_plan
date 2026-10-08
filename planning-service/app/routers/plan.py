@@ -20,8 +20,9 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import Response, StreamingResponse
-from vfr import airspace, altitude, chartlabels, charts, faa_data, fixes, geo, navlog, places, sun
+from vfr import airspace, altitude, chartlabels, charts, elevation, faa_data, fixes, geo, navlog, places, sun
 from vfr.profile import route_profile as side_view
+from vfr.terrain import M_TO_FT
 from vfr.config import DATA_DIR, VFR_SECTIONAL_MAX_ZOOM, VFR_SECTIONAL_MIN_ZOOM
 from vfr.weather import WeatherServiceError
 
@@ -145,8 +146,24 @@ def departure_elevation(r) -> float | None:
     a Direct-To in the air climbs from where the airplane is, not from the
     ground or level at the first leg's altitude; None starts the log level
     at the first leg's altitude -- as a hop out of a waypoint does, flown
-    through at cruise."""
-    return r.departure.get("elevation_ft") if r.takes_off else r.dep_airport.get("altitude_ft")
+    through at cruise.
+
+    Never under the ground at the position (USGS 3DEP, vfr.elevation: the
+    first of the route's terrain samples, read already for its floor): a
+    phone indoors gave its GPS altitude as 0 ft MSL where the ground is
+    730 ft, and the log climbed from under it. Where the ground cannot be
+    read, the GPS's altitude as it is."""
+    if r.takes_off:
+        return r.departure.get("elevation_ft")
+    altitude_ft = r.dep_airport.get("altitude_ft")
+    if altitude_ft is None:
+        return None
+    point = (r.dep_airport["lat"], r.dep_airport["lon"])
+    try:
+        ground_ft = elevation.get_elevations_m([point])[point] * M_TO_FT
+    except Exception:  # noqa: BLE001 -- the ground unread is the GPS's word alone, not a failed plan
+        return altitude_ft
+    return max(altitude_ft, round(ground_ft))
 
 
 @dataclass(frozen=True)

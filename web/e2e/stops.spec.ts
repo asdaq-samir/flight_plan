@@ -395,26 +395,27 @@ test("a point's menu has its altitude before Remove: an airport's pattern in fee
   await expect(page).not.toHaveURL(/[?&]altitudes=/);
 });
 
-// Add to Route, beside Fly Here, at the pilot's ask: the field on to the
-// end of the route, the old destination a stop on the way; none on the
-// destination's own card; with no route, the first point of one.
-test("an airport's card adds it to the end of the route, the old destination a stop; the destination's own card has none", async ({ page }) => {
+// Add Stop, beside Fly Here, at the pilot's ask: the field the route's
+// next stop, after the ones it makes and before its destination; none on
+// a card of the route's own points; with no route, the first point of one.
+test("an airport's card adds it as the route's next stop; a card of the route's own points has none", async ({ page }) => {
   await page.goto("/app/plan?dep=C81&dest=KMSN&place=KMSN");
   await expect(page.getByTestId("place-card")).toBeVisible({ timeout: slow(30000) });
   await expect(page.getByTestId("fly-here")).toBeVisible();
-  await expect(page.getByTestId("place-add-to-route")).toHaveCount(0);
+  await expect(page.getByTestId("place-add-stop")).toHaveCount(0);
 
-  await page.goto("/app/plan?dep=C81&dest=KMSN&place=KDLH");
-  const add = page.getByTestId("place-add-to-route");
+  await page.goto("/app/plan?dep=C81&stops=KJVL&dest=KMSN&place=KDLH");
+  const add = page.getByTestId("place-add-stop");
   await expect(add).toBeVisible({ timeout: slow(30000) });
+  await expect(add).toHaveText("Add Stop");
   await add.click();
-  await expect(page).toHaveURL(/[?&]dest=KDLH/);
-  await expect(page).toHaveURL(/[?&]stops=KMSN/);
+  await expect(page).toHaveURL(/[?&]stops=KJVL(%2C|,)KDLH(&|$)/);
+  await expect(page).toHaveURL(/[?&]dest=KMSN/);
   await expect(page).toHaveURL(/[?&]dep=C81/);
   await expect(page.getByTestId("place-card")).toHaveCount(0);
 
   await page.goto("/app/plan?place=KDLH");
-  await page.getByTestId("place-add-to-route").click();
+  await page.getByTestId("place-add-stop").click();
   await expect(page).toHaveURL(/[?&]dep=KDLH/);
   await expect(page).not.toHaveURL(/[?&]dest=/);
   await expect(sideDrawer(page).getByTestId("route-type")).toHaveAttribute("placeholder", "Destination");

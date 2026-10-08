@@ -7,7 +7,6 @@ import { Button } from "./ui/button";
 import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from "./ui/command";
 import { FavoriteTiles } from "./Favorites";
 import { usePreferences, type RecentAirport } from "../lib/preferences";
-import { useOwnShip } from "../lib/map/ownShip";
 import { ResponsivePopover, ResponsivePopoverContent, ResponsivePopoverTrigger } from "./ResponsivePopover";
 import { useAirportSearch, type AirportSearchRow } from "../lib/useAirportSearch";
 import { useIsMobile } from "../hooks/use-mobile";
@@ -68,7 +67,6 @@ export default function AirportPicker({
   const home = usePreferences(p => p.homeAirport);
   const favorites = usePreferences(p => p.favoriteAirports);
   const recents = usePreferences(p => p.recentAirports);
-  const fix = useOwnShip(o => (o.enabled ? o.fix : null));
   const choose = (airport: RecentAirport) => {
     usePreferences.getState().addRecentAirport(airport);
     pick(airport.ident);
@@ -155,7 +153,7 @@ export default function AirportPicker({
               short, and the tiles were squeezed to a sliver of their tops. */}
           {!typed && (home || favorites.length > 0) && (
             <div className="shrink-0">
-              <FavoriteTiles home={home} favorites={favorites} from={fix} onOpen={choose} />
+              <FavoriteTiles home={home} favorites={favorites} onOpen={choose} />
             </div>
           )}
           {/* Dimmed while they answer something older than the box. */}

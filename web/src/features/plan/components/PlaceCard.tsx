@@ -1,9 +1,10 @@
-import { useRef, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
-import { CloudSun, Lightbulb, Radio, RouteIcon, Star } from "lucide-react";
+import { CloudSun, Lightbulb, Loader2, MapPinPlus, Radio, Star } from "lucide-react";
 import DirectToIcon from "../../../components/DirectToIcon";
 import { cn } from "cn";
 import { usePreferences } from "../../../lib/preferences";
+import { useOwnShip } from "../../../lib/map/ownShip";
 import RoundButton from "../../../components/RoundButton";
 import { FILLS_HALF, GLASS_BUTTON } from "../../../components/mapChrome";
 import { CardHead, PanelCard } from "../../../components/PanelCard";
@@ -59,19 +60,23 @@ function knownOf(queryClient: QueryClient, ident: string): { name: string; categ
  *  in the text's colour, as the gear and the route's close are, at the
  *  pilot's ask (they were the tint on grey). Maps' size, a 24-point glyph
  *  in a tile 70 tall: the card fills more of the panel's one half height. */
-function Action({ icon, label, spoken, filled, onClick, testId }: {
+function Action({ icon, label, spoken, filled, busy, onClick, testId }: {
   icon: ReactNode; label: string; filled?: boolean; onClick: () => void; testId: string;
   /** The whole word, where the tile shows it cut short. */
   spoken?: string;
+  /** Tapped, and its work under way: a spinner in place of its symbol,
+   *  which turns on the compositor while the page is busy drawing what
+   *  the tap asked for. */
+  busy?: boolean;
 }) {
   return (
     <Button
-      type="button" variant={filled ? "default" : "secondary"} onClick={onClick} data-testid={testId} aria-label={spoken}
+      type="button" variant={filled ? "default" : "secondary"} onClick={onClick} data-testid={testId} aria-label={spoken} aria-busy={busy || undefined}
       className={cn("h-auto flex-col gap-1 rounded-xl py-3 whitespace-normal [&_svg:not([class*='size-'])]:size-6", !filled && GLASS_BUTTON)}
     >
-      {icon}
-      {/* On two lines where it needs them ("Add to / Route"), at the
-          pilot's ask, rather than past the tile's edge. */}
+      {busy ? <Loader2 className="size-6 animate-spin" aria-hidden="true" /> : icon}
+      {/* On two lines where it needs them, at the pilot's ask, rather
+          than past the tile's edge. */}
       <span className={cn("text-center leading-tight font-semibold", TEXT.note)}>{label}</span>
     </Button>
   );
@@ -89,16 +94,17 @@ function Action({ icon, label, spoken, filled, onClick, testId }: {
  * How far it is is from the pilot's own position when it is known, and
  * from the route's departure otherwise.
  */
-export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddToRoute, onExpand }: {
+export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, onExpand }: {
   ident: string;
-  /** What the distance is measured from: own ship, or the departure. */
+  /** What the distance is measured from where own ship has no fix: the
+   *  route's departure. */
   from: { point: LatLon; name: string | null } | null;
   onClose: () => void;
   onFlyHere: (place: AirportPlace) => void;
-  /** With a route open, the field landed at on the way: Add Stop. */
-  /** The field on to the end of the route, the new destination (or the
-   *  first of a new one); none where it is the destination already. */
-  onAddToRoute?: (place: AirportPlace) => void;
+  /** Add Stop: the field the route's next stop, before its destination
+   *  (or the end a half route lacks, or the first point of a new one);
+   *  none where it is in the route already. */
+  onAddStop?: (place: AirportPlace) => void;
   /** The panel all the way up, for a section scrolled to. */
   onExpand: () => void;
 }) {
@@ -111,8 +117,19 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddToRout
   // answer came, a second or more on a phone while the chart's tiles
   // loaded.
   const known = knownOf(useQueryClient(), ident);
+  // How far, from own ship's fix as it is, where there is one: the card's
+  // own, drawn again at each, where the page under it is not (its
+  // useOwnShipNear) -- tenths of a mile from a fix a hundredth of a degree
+  // old would be wrong.
+  const ship = useOwnShip(o => (o.enabled ? o.fix : null));
+  const measured = ship ? { point: { lat: ship.lat, lon: ship.lon }, name: null } : from;
   const weatherRef = useRef<HTMLDivElement>(null);
   const radioRef = useRef<HTMLDivElement>(null);
+  // Fly Here tapped: the tile says so at once, a frame before the route
+  // is drawn (PlanWorkspace's flyHere), which is a moment of a phone's --
+  // the tap looked lost under it, at the pilot's ask for no lag. The card
+  // goes with the route; it is a new card (keyed by its ident) after.
+  const [flying, setFlying] = useState(false);
   const show = (section: HTMLElement | null) => {
     // From half, once the panel is up and the name and actions have
     // closed up to their own height (below), so the section is scrolled
@@ -134,7 +151,7 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddToRout
           name={place?.name ?? known?.name ?? ident} nameTestId="place-name"
           // Not found only where the planner said so: a planner out of
           // reach for a moment (restarted) read "not found" for KBUR.
-          line={place ? subtitleOf(place, from)
+          line={place ? subtitleOf(place, measured)
             : error ? `${ident} · ${error instanceof ApiError && error.status === 404 ? "not found" : "could not be looked up"}`
               : `${ident} · …`}
           onClose={onClose} closeTestId="place-close"
@@ -154,12 +171,15 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddToRout
           {place && <FavoriteButton place={place} />}
         </CardHead>
         {place && (
-          <div className={cn("mt-3 grid gap-2", onAddToRoute ? "grid-cols-4" : "grid-cols-3")}>
-            {/* Fly Here is the Direct-To, and wears its symbol; Add to
-                Route beside it, at the pilot's ask, puts the field on the
-                end of the route. */}
-            <Action icon={<DirectToIcon />} label="Fly Here" filled onClick={() => onFlyHere(place)} testId="fly-here" />
-            {onAddToRoute && <Action icon={<RouteIcon />} label="Add to Route" onClick={() => onAddToRoute(place)} testId="place-add-to-route" />}
+          <div className={cn("mt-3 grid gap-2", onAddStop ? "grid-cols-4" : "grid-cols-3")}>
+            {/* Fly Here is the Direct-To, and wears its symbol; Add Stop
+                beside it, at the pilot's ask, makes the field the route's
+                next stop. */}
+            <Action
+              icon={<DirectToIcon />} label="Fly Here" filled busy={flying} testId="fly-here"
+              onClick={() => { setFlying(true); onFlyHere(place); }}
+            />
+            {onAddStop && <Action icon={<MapPinPlus />} label="Add Stop" onClick={() => onAddStop(place)} testId="place-add-stop" />}
             <Action icon={<CloudSun />} label="Weather" onClick={() => show(weatherRef.current)} testId="place-weather" />
             {/* "Freq." on the tile, at the pilot's ask: the whole word ran
                 past a quarter of a phone's card with Add Stop beside it. */}

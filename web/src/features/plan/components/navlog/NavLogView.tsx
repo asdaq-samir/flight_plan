@@ -809,6 +809,7 @@ export default function NavLogView({
   return (
     <PanelTabs
       rootRef={setRoot} printing={printing} local={local} marks={marks} pick={pick} onTap={onTabTap}
+      route={routeName(dep, dest, ends?.stops?.map(s => s.ident))}
       notice={notice} footer={footer}
       before={(
         <>

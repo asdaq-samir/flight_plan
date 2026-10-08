@@ -23,7 +23,9 @@ import { ownShipAvailable, useOwnShip } from "../lib/map/ownShip";
 export default function MyPositionButton() {
   const enabled = useOwnShip(s => s.enabled);
   const follow = useOwnShip(s => s.follow);
-  const fix = useOwnShip(s => s.fix);
+  // Whether there is a fix, not the fix: drawn again once, not at each
+  // second's new one in the air.
+  const fixed = useOwnShip(s => s.fix !== null);
   const error = useOwnShip(s => s.error);
   const setEnabled = useOwnShip(s => s.setEnabled);
   const recentre = useOwnShip(s => s.recentre);
@@ -54,7 +56,7 @@ export default function MyPositionButton() {
           drawn with round joins at 2, a heavier mark than any around it. */}
       <Navigation
         strokeWidth={1.5} strokeLinejoin="miter"
-        className={cn("size-5", following && "fill-current", enabled && !fix && "animate-pulse")}
+        className={cn("size-5", following && "fill-current", enabled && !fixed && "animate-pulse")}
       />
     </IconButton>
   );
