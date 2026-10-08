@@ -194,7 +194,11 @@ export function DescriptionCell({
       // does not: maximum-scale=1 in index.html).
       className={cn(
         "min-h-0 w-full resize-none rounded py-0.5 pr-1 pl-0.5 text-left align-top shadow-none",
+        // md:text-xs: the Textarea's own md:text-sm is another variant, which
+        // TEXT.detail's text-xs does not displace, so a mouse would see 14
+        // beside the row's 12.
         TEXT.detail,
+        "md:text-xs",
         // On a selected row, a field: the page's own background and the
         // stock edge, on the selection's tint, so it reads as somewhere
         // to type rather than one more line of the row.
