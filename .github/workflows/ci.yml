@@ -327,6 +327,7 @@ jobs:
       test-nav-log-agent: ${{ steps.plan.outputs.test-nav-log-agent }}
       test-crewai-agent: ${{ steps.plan.outputs.test-crewai-agent }}
       docs: ${{ steps.plan.outputs.docs }}
+      infra: ${{ steps.plan.outputs.infra }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
       - name: The last green commit on main
@@ -384,6 +385,11 @@ jobs:
             test-crewai-agent:
               - crewai-agent/**
               - src/**
+            # The production stack's own files.
+            infra:
+              - infra/cloudformation/**
+              - infra/server/**
+              - docker-compose.prod.yml
             # Javadoc and godoc; each Python suite's job makes its pdoc.
             docs:
               - springboot-app/**
@@ -445,7 +451,7 @@ jobs:
           images = [{"service": s} for s in IMAGES if due(s)]
           outputs = {"images": json.dumps(images)}
           for name in ("test-root", "test-web", "test-webapp", "test-planning-service", "test-model-service",
-                       "test-nav-log-agent", "test-crewai-agent", "docs"):
+                       "test-nav-log-agent", "test-crewai-agent", "docs", "infra"):
               outputs[name] = "true" if due(name) else "false"
           with open(os.environ["GITHUB_OUTPUT"], "a") as out:
               for key, value in outputs.items():
@@ -1374,6 +1380,35 @@ jobs:
             springboot-app/target/reports/apidocs
             /tmp/godoc-retrain-trigger.txt
 
+  # The production stack's files, each checked by its own tool: the
+  # CloudFormation template by cfn-lint, the server's scripts by
+  # shellcheck (on the runner already), the compose file by compose
+  # itself with stand-in values, and the Caddyfile by Caddy. Nothing
+  # else runs them before a deploy does.
+  infra:
+    runs-on: ubuntu-26.04
+    needs: [changes]
+    if: needs.changes.outputs.infra == 'true'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7
+        with:
+          python-version: "3.13"
+      - run: pip install cfn-lint==1.57.2
+      - run: cfn-lint infra/cloudformation/template.yaml
+      - run: shellcheck infra/server/*.sh
+      - name: docker compose config (docker-compose.prod.yml)
+        run: |
+          printf '%s\n' IMAGE_REGISTRY=registry.example/vfr-route PUBLIC_HOST=app.example.com \
+            ORIGIN_HOST=origin.app.example.com ORIGIN_SECRET=x POSTGRES_PASSWORD=x NAV_LOG_AGENT_API_KEY=x \
+            MAIL_HOST=smtp.example.com MAIL_FROM=no-reply@example.com > /tmp/prod.env
+          docker compose --env-file /tmp/prod.env -f docker-compose.prod.yml config --quiet
+      - name: caddy validate (infra/server/Caddyfile)
+        run: |
+          docker run --rm -e ORIGIN_HOST=origin.app.example.com -e PUBLIC_HOST=app.example.com -e ORIGIN_SECRET=x \
+            -v "$PWD/infra/server/Caddyfile:/etc/caddy/Caddyfile:ro" caddy:2.10-alpine \
+            caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+
   # Lighthouse's report against the industry's thresholds: Google's
   # "good" Core Web Vitals (web.dev/vitals -- LCP within 2.5 s, CLS 0.1 at
   # most; TBT within 200 ms standing in for INP, which needs a real tap)
@@ -1477,7 +1512,7 @@ jobs:
   passed:
     name: CI passed
     runs-on: ubuntu-26.04
-    needs: [changes, test, test-web, test-webapp, test-planning-service, test-model-service, test-nav-log-agent, test-crewai-agent, e2e, e2e-images, build-images, docs]
+    needs: [changes, test, test-web, test-webapp, test-planning-service, test-model-service, test-nav-log-agent, test-crewai-agent, e2e, e2e-images, build-images, docs, infra]
     if: always()
     steps:
       - name: Every job passed or was not needed

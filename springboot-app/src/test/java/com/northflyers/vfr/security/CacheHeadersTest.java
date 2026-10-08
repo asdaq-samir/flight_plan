@@ -1,0 +1,109 @@
+package com.northflyers.vfr.security;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+
+import com.sun.net.httpserver.HttpServer;
+import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.mock.web.MockHttpServletResponse;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
+import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
+
+/**
+ * What a browser and CloudFront may keep, through the whole filter chain
+ * as deployed: the answers the same for every pilot keep the planner's
+ * {@code public} Cache-Control, and nothing of one pilot's -- a flight,
+ * the account, a planner answer with weather in it -- is ever anything
+ * but {@code no-store}. CloudFront caches by these headers
+ * (infra/cloudformation/template.yaml), so a {@code public} on the wrong
+ * answer would serve one pilot's to the next.
+ */
+@SpringBootTest
+@AutoConfigureMockMvc
+@Testcontainers
+class CacheHeadersTest {
+
+    @Container
+    @ServiceConnection
+    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:18");
+
+    /** A planner that says every answer may be kept, so it is this app
+     *  that decides which ones are. */
+    private static HttpServer planner;
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @BeforeAll
+    static void startPlanner() throws IOException {
+        planner = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        planner.createContext("/", exchange -> {
+            exchange.getResponseHeaders().add("Content-Type", "application/json");
+            exchange.getResponseHeaders().add("Cache-Control", "public, max-age=300, s-maxage=3600");
+            byte[] body = "{}".getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(200, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.close();
+        });
+        planner.start();
+    }
+
+    @AfterAll
+    static void stopPlanner() {
+        planner.stop(0);
+    }
+
+    @DynamicPropertySource
+    static void plannerUrl(DynamicPropertyRegistry registry) {
+        registry.add("planner-service.base-url", () -> "http://127.0.0.1:" + planner.getAddress().getPort());
+    }
+
+    private MockHttpServletResponse planner(String path) throws Exception {
+        MvcResult started = mockMvc.perform(get(path)).andReturn();
+        return mockMvc.perform(asyncDispatch(started)).andReturn().getResponse();
+    }
+
+    @Test
+    void theAirportSearchMayBeKeptByEveryone() throws Exception {
+        MockHttpServletResponse search = planner("/api/planner/airports/search?q=KD");
+        assertThat(search.getStatus()).isEqualTo(200);
+        assertThat(search.getHeaders("Cache-Control")).containsExactly("public, max-age=300, s-maxage=3600");
+    }
+
+    @Test
+    void anAnswerWithWeatherOrARouteInItIsNeverKept() throws Exception {
+        for (String path : new String[] {"/api/planner/airports/in-view?south=46&west=-93&north=47&east=-92",
+                "/api/planner/course?dep=C81&dest=KDLH"}) {
+            MockHttpServletResponse answer = planner(path);
+            assertThat(String.join(", ", answer.getHeaders("Cache-Control"))).as(path).contains("no-store")
+                    .doesNotContain("public");
+        }
+    }
+
+    @Test
+    void aPilotsOwnIsNeverKeptSignedInOrNot() throws Exception {
+        for (String path : new String[] {"/api/me", "/api/flights"}) {
+            MockHttpServletResponse signedOut = mockMvc.perform(get(path)).andReturn().getResponse();
+            assertThat(signedOut.getHeader("Cache-Control")).as(path).contains("no-store");
+            MockHttpServletResponse signedIn = mockMvc.perform(get(path).with(user("pilot@example.com")))
+                    .andReturn().getResponse();
+            assertThat(signedIn.getHeader("Cache-Control")).as(path).contains("no-store");
+        }
+    }
+}

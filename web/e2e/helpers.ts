@@ -14,6 +14,9 @@ export const PAGES = ["/app/plan", "/app/dev"] as const;
  *  with none of the suite's saved session. */
 export function noTips() {
   localStorage.setItem("vfr.tips", JSON.stringify({ state: { seen: ["*"] }, version: 0 }));
+  // The first-launch acknowledgement (lib/limits) given too: its dialog
+  // takes every click. limits.spec starts without it.
+  localStorage.setItem("vfr.limits", JSON.stringify({ state: { acknowledged: true }, version: 0 }));
 }
 
 /** An explicit wait, doubled in CI: playwright.config.ts doubles the

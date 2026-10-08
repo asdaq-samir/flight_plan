@@ -5,20 +5,24 @@ Plan's own info popover naming the model that scored the checkpoints).
 Nothing the planner's own scoring path depends on."""
 import json
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Response
 from vfr import aircraft, airports, model_registry, places
 from vfr import fixes as fixes_module
 
+from ..common import SHARED_CACHE
 from ..schemas import AircraftProfiles, AirportSearch, ModelComparison
 
 router = APIRouter()
 
 
 @router.get("/api/aircraft-profiles")
-def aircraft_profiles() -> AircraftProfiles:
+def aircraft_profiles(response: Response) -> AircraftProfiles:
     """The stock performance profiles (data/aircraft/*.json) the nav log
     can be computed for -- a pilot's own aeroplane overrides the cruise
-    TAS and fuel burn on top of one of these, see /api/navlog."""
+    TAS and fuel burn on top of one of these, see /api/navlog. Kept for
+    an hour at most (SHARED_CACHE): this is the picker's list; the nav
+    log's figures come from the profile on the server."""
+    response.headers["Cache-Control"] = SHARED_CACHE
     profiles = []
     for path in sorted(aircraft.DEFAULT_PROFILE_DIR.glob("*.json")):
         profile = aircraft.load_aircraft_profile(path)
@@ -47,7 +51,7 @@ def _near(near: str) -> tuple:
 
 
 @router.get("/api/airports/search")
-def airport_search(q: str = "", fixes: bool = False, near: str = "") -> AirportSearch:
+def airport_search(response: Response, q: str = "", fixes: bool = False, near: str = "") -> AirportSearch:
     """DEP/DEST's own autocomplete -- every airport whose ident or name
     starts with `q`, for the route inputs to suggest as a pilot types.
     Runs against the same in-memory OurAirports table the real lookup
@@ -57,7 +61,10 @@ def airport_search(q: str = "", fixes: bool = False, near: str = "") -> AirportS
     the route's points as "lat,lon;lat,lon": of an ident's navaids in two
     places, the one the route would fly over (fixes.find_navaid), as the
     stop typed will be -- the row named the other where they differed.
+    Kept for an hour at most (SHARED_CACHE): these are suggestions, and
+    the stop picked is looked up afresh when the route is planned.
     """
+    response.headers["Cache-Control"] = SHARED_CACHE
     found = airports.search_airports(q)
     if fixes:
         known = {a["ident"] for a in found}

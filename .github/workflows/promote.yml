@@ -77,19 +77,18 @@ jobs:
           for job in $(jobs -p); do wait "$job" || failed=1; done
           exit "$failed"
 
-  # Pushes every image the CloudFormation stack actually deploys
-  # (infra/cloudformation/template.yaml's *ImageUri parameters) to ECR,
-  # alongside the GHCR publish above. Reads build-images' registry cache,
-  # so this is a cache hit, not a second real build -- of the commit CI
-  # passed, not of whatever main is by now. Authenticates via OIDC (no
-  # long-lived AWS keys stored as secrets) -- activates automatically
-  # once AWS_ROLE_ARN/AWS_REGION are set as repo variables (Settings ->
-  # Secrets and variables -> Actions -> Variables); skipped entirely
-  # until then. The role's trust policy sees this workflow on main
-  # (`workflow_run` runs on the default branch). ecrRepo is separate from
-  # the images.hcl target name only for airflow-aws, whose ECR repo is
-  # named `airflow` (matching AirflowImageUri) even though its registry
-  # cache stays `airflow-aws` (distinct from the *local* airflow image).
+  # Pushes every image the production server runs
+  # (docker-compose.prod.yml; the stack's ECR repositories in
+  # infra/cloudformation/template.yaml) to ECR, alongside the GHCR
+  # publish above. Reads build-images' registry cache, so this is a cache
+  # hit, not a second real build -- of the commit CI passed, not of
+  # whatever main is by now. Authenticates via OIDC (no long-lived AWS
+  # keys stored as secrets) -- activates automatically once
+  # AWS_ROLE_ARN/AWS_REGION are set as repo variables (Settings ->
+  # Secrets and variables -> Actions -> Variables; the stack's
+  # DeployRoleArn output); skipped entirely until then. The role's trust
+  # policy sees this workflow on main (`workflow_run` runs on the default
+  # branch).
   push-ecr:
     runs-on: ubuntu-26.04
     needs: promote
@@ -115,14 +114,14 @@ jobs:
             ecrRepo: nav-log-agent
             context: .
             dockerfile: nav-log-agent/Dockerfile
-          - service: crewai-agent
-            ecrRepo: crewai-agent
-            context: .
-            dockerfile: crewai-agent/Dockerfile
-          - service: airflow-aws
-            ecrRepo: airflow
-            context: .
-            dockerfile: docker/Dockerfile.airflow.aws
+          # The four images the production server runs
+          # (docker-compose.prod.yml). crewai-agent and Airflow stay out
+          # of production: the same briefing nav-log-agent writes, and
+          # retraining run on the owner's machine (docs/README-AWS.md).
+          - service: model-service
+            ecrRepo: model-service
+            context: model-service
+            dockerfile: model-service/Dockerfile
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
         with:
@@ -148,3 +147,40 @@ jobs:
           push: true
           tags: ${{ steps.ecr-login.outputs.registry }}/vfr-route/${{ matrix.ecrRepo }}:latest
           cache-from: type=registry,ref=ghcr.io/${{ github.repository }}/${{ matrix.service }}:buildcache
+
+  # Then the server takes them: deploy.sh over SSM Run Command (no SSH,
+  # no open port), which pulls the new images and restarts what changed.
+  # The server is whichever one is running under the stack's name (a Spot
+  # interruption replaces it), so it is looked up each time. Only once
+  # AWS_SERVER_NAME is set as a repo variable (the stack's ServerName
+  # output).
+  deploy:
+    runs-on: ubuntu-26.04
+    needs: push-ecr
+    if: vars.AWS_SERVER_NAME != ''
+    permissions:
+      id-token: write
+    steps:
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd  # v6
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - name: Run deploy.sh on the server
+        env:
+          SERVER: ${{ vars.AWS_SERVER_NAME }}
+        run: |
+          instance=$(aws ec2 describe-instances --filters "Name=tag:Name,Values=$SERVER" Name=instance-state-name,Values=running \
+            --query 'Reservations[0].Instances[0].InstanceId' --output text)
+          if [ "$instance" = None ]; then echo "::error title=No server::none running as $SERVER"; exit 1; fi
+          id=$(aws ssm send-command --instance-ids "$instance" --document-name AWS-RunShellScript \
+            --comment "deploy ${GITHUB_SHA::7}" --parameters 'commands=["/srv/flight_plan/repo/infra/server/deploy.sh"]' \
+            --query Command.CommandId --output text)
+          # Pulling new images can outlast the CLI's own wait (100 s), so
+          # the status is asked after for up to 15 minutes.
+          for _ in $(seq 90); do
+            status=$(aws ssm get-command-invocation --command-id "$id" --instance-id "$instance" --query Status --output text 2>/dev/null || echo Pending)
+            case "$status" in Pending|InProgress|Delayed) sleep 10 ;; *) break ;; esac
+          done
+          aws ssm get-command-invocation --command-id "$id" --instance-id "$instance" \
+            --query '[Status, StandardOutputContent, StandardErrorContent]' --output text
+          test "$status" = Success

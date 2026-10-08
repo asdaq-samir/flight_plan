@@ -32,7 +32,7 @@ Demo route: **Campbell Airport (C81)** → **Duluth International (KDLH)**.
 - **FAA-accurate flight planning.** Dead-reckoning legs (wind correction angle, true/magnetic heading, groundspeed, ETE, fuel burn) from live NOAA winds-aloft and magnetic-declination data. Cruising-altitude selection accounts for terrain/obstacle clearance (FAA MEF methodology), live Class B/C/D airspace, and current METAR/TAF/SIGMET data.
 - **A Gen AI agent with long-term memory.** A LangGraph agent, served over MCP, assembles the full nav log into a natural-language briefing and recalls similar past routes via a Postgres/pgvector semantic-search store.
 - **The same agent, two frameworks.** A second implementation in CrewAI runs the identical task — same tools, same model-serving backend, same Claude API — so LangGraph's explicit state-graph control flow and CrewAI's agent-driven tool selection can be compared on one real task, side by side, from the UI.
-- **A written path to production.** Every local service maps to a named AWS target — SageMaker, ECS Fargate, RDS, CloudFormation — in a template that is not yet deployable: the planner's data and its label and note files still need S3 or RDS behind them first ([`docs/README-AWS.md`](docs/README-AWS.md) lists what is left).
+- **A cheap path to production.** One server behind CloudFront runs the webapp, the planner, the briefing agent and Postgres, and a Fargate Spot task draws each 56-day chart cycle once into S3 for the edge to serve: about $27 a month with the server on Spot capacity, in one CloudFormation template ([`docs/README-AWS.md`](docs/README-AWS.md) has the design, the cost and the runbook).
 
 ## Architecture
 
@@ -49,6 +49,10 @@ Demo route: **Campbell Airport (C81)** → **Duluth International (KDLH)**.
 | `ml` | Jupyter environment for model development -- on demand: `docker compose up ml` |
 
 Ten services, one `docker compose up`. Full write-up, including the AWS target architecture, is in [`docs/README.md`](docs/README.md).
+
+## A planning aid
+
+Wingtip Maps is a planning aid for VFR flight. It does not replace an official weather briefing (1800wxbrief.com or 1-800-WX-BRIEF), current FAA charts and publications, or the pilot in command's judgement and final authority (14 CFR 91.3, 91.103). Its checkpoints are a model's suggestions: check them against the chart. The app says so on first launch and under Settings, About & limits.
 
 ## Quick start
 

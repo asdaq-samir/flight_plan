@@ -860,74 +860,92 @@ create/update/delete order from the dependency graph implied by
 `!Ref`/`!GetAtt` between resources. Core vocabulary, all present in this
 template:
 
-- **Parameters** — inputs supplied at deploy time (`VpcId`,
-  `WebappImageUri`, etc.), so the same template can be deployed to
-  different environments without editing it.
-- **Resources** — the actual AWS objects to create (an ECS service, an RDS
-  instance, a Lambda function, ...). This is the bulk of any template.
+- **Parameters** — inputs supplied at deploy time (`PublicHost`,
+  `ServerImageId`, etc.), so the same template can be deployed to
+  different accounts and domains without editing it.
+- **Resources** — the actual AWS objects to create (an EC2 server, a
+  CloudFront distribution, an S3 bucket, ...). This is the bulk of any
+  template.
 - **Conditions** — boolean expressions (e.g. "was this optional parameter
   actually supplied?") used with `!If` to make a resource or property
-  optional based on parameter values.
-- **Outputs** — values (like the ALB's DNS name) surfaced after a
-  successful deploy, so other tooling — or a human — can find them without
-  digging through the console.
+  optional based on parameter values: the budget alarm exists only when
+  `BudgetEmail` is given.
+- **Outputs** — values (like the deploy role's ARN, or the command that
+  draws the first chart cycle) surfaced after a successful deploy, so
+  other tooling — or a human — can find them without digging through the
+  console.
 
 `cfn-lint` is a *static* validator — it checks the template's shape
 against the AWS resource specification (required properties, valid enum
 values, cross-references that don't resolve) without ever touching a real
-AWS account. It's a genuinely useful first gate — three real mistakes were
-caught by it while building this template (a `Description` property in
-the wrong place, a missing `UpdateReplacePolicy`, an invalid RDS engine
-version) — but passing it is not the same as a template being
-deployable: IAM permission gaps, real VPC/subnet compatibility, and AWS
-account quotas are only provable by actually running
+AWS account, and CI runs it on every change to the template. It is a
+genuinely useful first gate — it caught two real mistakes in this
+template's rewrite: YAML anchors and aliases, which CloudFormation itself
+rejects, and an apostrophe in a security group's description, which EC2
+does not allow — but passing it is not the same as a template being
+deployable: IAM permission gaps, account quotas and DNS that does not
+resolve yet are only provable by actually running
 `aws cloudformation deploy`.
 
 ### Patterns worth stealing from this template
 
 The vocabulary above is generic. These are the specific decisions in
 `template.yaml` that are worth understanding, because each one solves a
-problem you'll meet in any real deployment:
+problem you'll meet in any real deployment
+([`README-AWS.md`](README-AWS.md) has the whole design and its cost):
 
-- **One load balancer, many services.** `webapp` gets the ALB's default
-  action; `nav-log-agent` gets a `ListenerRule` matching `/mcp/*` and
-  forwards to its own target group. A second service does *not* need a
-  second (hourly-billed) load balancer. The catch: path-based routing only
-  works if the app actually serves those paths, which is why
-  `nav-log-agent` passes explicit `sse_path`/`message_path` rather than
-  accepting its library's unprefixed defaults — the infrastructure and the
-  application had to agree on a contract.
-- **A service that isn't a service.** `crewai-agent` is a
-  `TaskDefinition` with no `Service` attached. It's a one-shot CLI, so
-  there's nothing to keep running; you invoke it with `aws ecs run-task`.
-  Registering a task definition without a service is the ECS equivalent of
-  "here's how to run this thing" without also saying "and keep one alive
-  at all times."
-- **Stateful containers need somewhere to put state.** Fargate task
-  storage is ephemeral, so Airflow's SQLite metadata DB would reset on
-  every restart. An EFS volume, mounted via an `AccessPoint`, survives.
-  The gotcha: the access point's POSIX UID must match the user *inside*
-  the image (`50000` for `apache/airflow`, not the more common `1000`), or
-  the mount is read-only in practice.
-- **Service discovery instead of hardcoded addresses.** The Lambda needs
-  Airflow's address, but a Fargate task's IP changes on every restart.
-  Cloud Map gives it a stable DNS name (`airflow.vfr-route.internal`), so
-  the Lambda's `AIRFLOW_BASE_URL` is a fixed string this stack owns both
-  ends of, rather than a parameter someone has to look up and supply.
-- **`iam:PassRole` is its own permission.** Airflow doesn't just need
-  permission to *create* SageMaker jobs — it needs permission to hand
-  those jobs an execution role. Two distinct grants: `sagemaker:Create*`
-  on the job, and `iam:PassRole` scoped to exactly the one role it's
-  allowed to pass. Forgetting the second is a classic first-deploy
-  failure, and the error message rarely says "PassRole" plainly.
+- **A CDN in front of one server, and only the CDN let in.** CloudFront
+  serves the app's domain; the server takes HTTPS only from CloudFront's
+  managed prefix list (a security group rule by name, not a list of
+  addresses to keep up to date), and Caddy on the server refuses any
+  request without the secret header CloudFront adds. Either alone could be
+  got round; both together cannot without the secret.
+- **Cache by what the answer says, not by path alone.** Chart tiles and
+  the app's fingerprinted files use AWS's managed caching policy; the few
+  API answers the same for every pilot use a policy that keeps them only
+  as long as their own `Cache-Control` says, keyed without cookies so one
+  pilot's answer can serve the next; everything else is not cached at all.
+  The application decides what is shareable, and a test checks it.
+- **Draw it once, not on every request.** The chart tiles are the same
+  for every pilot for 56 days, so a scheduled Fargate task draws the whole
+  pyramid once per cycle and publishes it to S3, and the always-on server
+  never draws a tile. On Fargate Spot (up to 70% cheaper, interruptible),
+  because a run that is stopped simply runs again the next day.
+- **No NAT gateway.** The server and the task sit in a public subnet with
+  public addresses and reach the FAA, Anthropic and AWS directly; a NAT
+  gateway for a private subnet would cost more than the server.
+- **Keep the state off the server.** The server is Spot capacity in an
+  Auto Scaling group of one, so AWS may take it back at any time; what
+  it keeps (the database, the planner's data) is on a data disk of its
+  own that each new server attaches on its first boot, along with the
+  fixed address. A lost server then costs minutes, not data. The
+  machine image is still a parameter, not a lookup of "the latest" —
+  a lookup is re-resolved on every stack update, and the server would
+  change without anyone choosing to — and the backup bucket is kept if
+  the stack goes (`DeletionPolicy: Retain`).
+- **Secrets the stack makes, and one it does not.** The database
+  password, the origin's header and the agent's key are generated by
+  Secrets Manager (`GenerateSecretString`), so no person ever sees them;
+  the owner's own keys go in one secret filled in by hand, which the
+  stack writes once and leaves alone.
+- **Deploys with no stored keys.** GitHub Actions assumes the deploy
+  role through GitHub's OIDC provider, limited to this repository's main
+  branch, then pushes the images and runs the server's `deploy.sh` over
+  SSM Run Command — no SSH key and no open port.
+- **`iam:PassRole` is its own permission.** The scheduler that starts
+  the chart refresh needs permission to *run* the task and, separately,
+  to hand it its two roles. Forgetting the second is a classic
+  first-deploy failure, and the error message rarely says "PassRole"
+  plainly.
 
 The Go Lambda ([`infra/lambda-retrain-trigger/main.go`](../infra/lambda-retrain-trigger/main.go))
-is a small, complete example of the standard Lambda shape: a `handler`
-function with the signature Lambda expects, registered via
-`lambda.Start(handler)` in `main()`. Worth reading end to end — at ~120
-lines it's short enough to see the whole request lifecycle: parse the
-incoming event, fetch a secret from Secrets Manager, make an outbound HTTP
-call, shape a response.
+is no longer deployed — it triggered Airflow, which stays on the owner's
+machine — but it is still a small, complete example of the standard
+Lambda shape: a `handler` function with the signature Lambda expects,
+registered via `lambda.Start(handler)` in `main()`. Worth reading end to
+end — at ~120 lines it's short enough to see the whole request lifecycle:
+parse the incoming event, fetch a secret from Secrets Manager, make an
+outbound HTTP call, shape a response.
 
 ---
 

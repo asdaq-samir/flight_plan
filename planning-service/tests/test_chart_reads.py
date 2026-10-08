@@ -8,7 +8,7 @@ from concurrent.futures.process import BrokenProcessPool
 from types import SimpleNamespace
 
 import pytest
-from app import chart_model, detection
+from app import chart_model, chart_reader, detection
 
 
 @pytest.fixture(autouse=True)
@@ -122,34 +122,16 @@ def test_a_read_whose_process_died_twice_says_so_in_words(monkeypatch, tmp_path)
         chart_model.corridor("KORD->KNEW", wait=True)
 
 
-class _Running(_Pool):
-    def __init__(self):
-        super().__init__()
-        self.shut = False
-
-    def submit(self, fn, *args):
-        self.asked.append(args[0])
-        return Future()  # never done: a read still going
-
-    def shutdown(self, wait=True, cancel_futures=False):
-        self.shut = True
-
-
-def test_an_idle_pool_is_let_go_but_not_while_reading_or_soon_after(monkeypatch, tmp_path):
-    pool = _Running()
+def test_the_readers_start_with_the_planner_one_task_each(monkeypatch):
+    """Each process started, and its imports done, before the first route
+    asks for a read; kept from then on."""
+    asked = []
+    pool = SimpleNamespace(submit=lambda fn, *args: asked.append(fn))
     monkeypatch.setattr(chart_model, "READS_IN_PROCESS", True)
-    monkeypatch.setattr(chart_model, "_PROCESSES", pool)
-    monkeypatch.setattr(chart_model, "_READING", {})
-    monkeypatch.setattr(detection, "_kept_path", lambda key: tmp_path / "not-kept.json")
-    running = chart_model._reading(("KORD->KNEW", 4.0), (42.0, -87.9), (30.0, -90.0))
-    later = chart_model._LAST_READ + chart_model.IDLE_S + 1
-    # Still reading: kept, however long ago it began.
-    assert not chart_model.release_idle(now=later) and not pool.shut
-    running.set_result(None)
-    # Read a moment ago: kept.
-    assert not chart_model.release_idle(now=chart_model._LAST_READ + 1)
-    assert chart_model.release_idle(now=chart_model._LAST_READ + chart_model.IDLE_S + 1)
-    assert pool.shut and chart_model._PROCESSES is None and chart_model._READING == {}
+    monkeypatch.setattr(chart_model, "_PROCESSES", None)
+    monkeypatch.setattr(chart_model, "_pool", lambda: pool)
+    chart_model.start_readers()
+    assert chart_model._PROCESSES is pool and asked == [chart_reader.ready] * chart_model.READERS
 
 
 def test_a_corridor_is_ready_once_read_here_or_kept_on_disk(monkeypatch, tmp_path):

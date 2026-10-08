@@ -2,6 +2,7 @@ import { useState } from "react";
 import { CloudSun, Hexagon, Monitor, Moon, PanelBottom, PanelTop, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
 import { ListGroup, ListRow } from "./GroupedList";
+import AboutLimits from "./AboutLimits";
 import Segmented from "./Segmented";
 import { useNavEdge } from "../hooks/use-nav-edge";
 import { usePreferences, type NarrativeFramework, type NavEdge, type RouteColours } from "../lib/preferences";
@@ -36,6 +37,7 @@ export default function SettingsPanel() {
       <AppearanceGroup />
       <BriefGroup />
       <TipsGroup />
+      <AboutLimits />
       <LegalGroup />
     </div>
   );
