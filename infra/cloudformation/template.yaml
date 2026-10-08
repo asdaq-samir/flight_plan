@@ -3,8 +3,8 @@ Description: >
   Wingtip Maps on AWS, built for low cost: one EC2 server (webapp, planner,
   briefing agent, Postgres) behind CloudFront, FAA chart tiles drawn once
   per 56-day cycle by a Fargate Spot task into S3, and the web app's
-  fingerprinted files cached at the edge. About $42 a month on demand,
-  $32 with a one-year Savings Plan on the server (docs/README-AWS.md has
+  fingerprinted files cached at the edge. About $43 a month on demand,
+  $33 with a one-year Savings Plan on the server (docs/README-AWS.md has
   the itemised cost and the runbook). Deploy in
   us-east-1: CloudFront's certificate must be there.
 

@@ -102,13 +102,14 @@ On-demand prices in us-east-1, October 2026, at today's traffic:
 | S3 tiles: 1.5 million uploads a cycle ($7.50 per 56 days) and up to three cycles stored | ~$4.50 |
 | Secrets Manager, four secrets | $1.60 |
 | Route 53 hosted zone | $0.50 |
+| Daily snapshots of the server's disk, seven kept | ~$1 |
 | ECR, CloudWatch logs, backups, the Fargate Spot refresh (under $1 a cycle) | ~$1.50 |
 | CloudFront | $0 within the always-free 1 TB and 10 million requests |
 | SES | $0.10 per 1,000 sign-in emails |
-| **Total** | **about $42** |
+| **Total** | **about $43** |
 
 A one-year Savings Plan on the server takes about $10 off (**about
-$32**). The next saving after that is the tiles' upload bill: one
+$33**). The next saving after that is the tiles' upload bill: one
 PMTiles archive per chart kind in place of 1.5 million files would take
 it to cents, at the cost of a PMTiles reader in the map.
 
