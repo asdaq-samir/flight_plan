@@ -15,3 +15,4 @@ export { default as AltitudeButton } from "./components/navlog/AltitudeButton";
 export { default as BriefNarrative } from "./components/briefing/BriefNarrative";
 export { default as RouteProblem } from "./components/RouteProblem";
 export { default as PrintMenu } from "./components/navlog/PrintMenu";
+export { default as LocalDuration } from "./components/LocalDuration";

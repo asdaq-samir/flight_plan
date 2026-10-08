@@ -15,7 +15,9 @@ import { join } from "node:path";
 const args = process.argv.slice(2);
 const budgetAt = args.indexOf("--budget");
 const budget = budgetAt >= 0 ? Number(args[budgetAt + 1]) : null;
-const dist = args.find((a, i) => !a.startsWith("--") && i !== budgetAt + 1) ?? "dist";
+// With no --budget, budgetAt is -1 and the first argument is index 0, which
+// "i !== budgetAt + 1" alone would skip: the dist named on its own was ignored.
+const dist = args.find((a, i) => !a.startsWith("--") && (budgetAt < 0 || i !== budgetAt + 1)) ?? "dist";
 const assets = join(dist, "assets");
 
 const html = readFileSync(join(dist, "index.html"), "utf8");
