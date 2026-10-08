@@ -11,6 +11,7 @@ import {
 import { Input } from "../../components/ui/input";
 import { Spinner } from "../../components/ui/spinner";
 import { ApiError, api } from "../../lib/api/client";
+import { LEGAL_PAGES } from "../../lib/legal";
 import { capabilitiesQuery } from "../../lib/queryClient";
 import { TEXT } from "../../lib/text";
 
@@ -130,6 +131,11 @@ export default function SignInModal() {
             {linkFailure && <p className={`text-destructive ${TEXT.prose}`} role="alert" data-testid="sign-in-error">{linkFailure}</p>}
           </form>
         )}
+        <p className={`text-muted-foreground ${TEXT.note}`} data-testid="sign-in-legal">
+          By signing in you accept the <a className="text-tint" href={LEGAL_PAGES[1].href} target="_blank" rel="noreferrer">Terms of use</a> and
+          the <a className="text-tint" href={LEGAL_PAGES[0].href} target="_blank" rel="noreferrer">Privacy policy</a>.
+          Need help? <a className="text-tint" href={LEGAL_PAGES[2].href} target="_blank" rel="noreferrer">Support</a>.
+        </p>
       </DialogContent>
     </Dialog>
   );
