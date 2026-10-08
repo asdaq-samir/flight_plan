@@ -131,11 +131,14 @@ export default function SignInModal() {
             {linkFailure && <p className={`text-destructive ${TEXT.prose}`} role="alert" data-testid="sign-in-error">{linkFailure}</p>}
           </form>
         )}
-        <p className={`text-muted-foreground ${TEXT.note}`} data-testid="sign-in-legal">
-          By signing in you accept the <a className="text-tint" href={LEGAL_PAGES[1].href} target="_blank" rel="noreferrer">Terms of use</a> and
-          the <a className="text-tint" href={LEGAL_PAGES[0].href} target="_blank" rel="noreferrer">Privacy policy</a>.
-          Need help? <a className="text-tint" href={LEGAL_PAGES[2].href} target="_blank" rel="noreferrer">Support</a>.
-        </p>
+        {/* One row of links, not links in a sentence: each gets its 44-point
+            area from a pseudo-element, and a wrapped sentence would put
+            those areas on top of each other. */}
+        <nav aria-label="Legal" className={`flex justify-center gap-2 text-tint ${TEXT.note}`} data-testid="sign-in-legal">
+          {[LEGAL_PAGES[1], LEGAL_PAGES[0], LEGAL_PAGES[2]].map(p => (
+            <a key={p.key} className="relative after:absolute after:-inset-x-1 after:-inset-y-3.5" href={p.href} target="_blank" rel="noreferrer">{p.title}</a>
+          ))}
+        </nav>
       </DialogContent>
     </Dialog>
   );
