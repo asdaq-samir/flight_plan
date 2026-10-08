@@ -19,9 +19,20 @@ from ..scoring import route_checkpoints
 
 router = APIRouter()
 
-# Same env-var convention as nav-log-agent's NAV_LOG_AGENT_MODEL -- this
-# is the only other place in the repo that names a Claude model.
-CHECKPOINT_NOTE_MODEL = os.environ.get("CHECKPOINT_NOTE_MODEL", "claude-sonnet-5")
+# Same env-var convention as nav-log-agent's NAV_LOG_AGENT_MODEL. Haiku:
+# on eight of the C81 to KDLH route's checkpoints (2026-10-08) it wrote
+# lines as useful as claude-sonnet-5's for a quarter of the cost, $0.0002
+# a checkpoint against $0.00085.
+CHECKPOINT_NOTE_MODEL = os.environ.get("CHECKPOINT_NOTE_MODEL", "claude-haiku-5-5")
+# Medium, not low: at low effort the same eight ran to 28 words where the
+# prompt asks under 20, and one line ended "Wait, that's not quite right;
+# let me give one clean sentence instead." -- in a pilot's nav log. At
+# medium, a median of 20 words and nothing of the kind. The model thinks
+# first, and the thinking counts toward max_tokens: at 1,024 it ran out
+# before the sentence on the nightly AI check's first run (stop reason
+# max_tokens), so the cap is 4,096 -- even used whole, $0.002 on Haiku.
+CHECKPOINT_NOTE_EFFORT = "medium"
+CHECKPOINT_NOTE_MAX_TOKENS = 4096
 # These fail the same way for every checkpoint in the route, not just
 # the one that happened to hit it first -- a bad key or an exhausted
 # rate limit does not get better by trying the next 20 checkpoints the
@@ -92,14 +103,23 @@ def _describe_checkpoint(
         "If you don't have specific knowledge of this named feature's "
         "actual shape or layout, say only what's safely inferable from its "
         "category and position -- don't invent specific geographic "
-        "details (which shore, which bend) you can't know."
+        "details (which shore, which bend) you can't know.\n\n"
+        "Reply with that one sentence and nothing else: no preamble, and no "
+        "remark about what you do or don't know."
     )
     resp = anthropic.Anthropic().messages.create(
         model=CHECKPOINT_NOTE_MODEL,
-        max_tokens=128,
+        max_tokens=CHECKPOINT_NOTE_MAX_TOKENS,
+        output_config={"effort": CHECKPOINT_NOTE_EFFORT},
         messages=[{"role": "user", "content": prompt}],
     )
-    return resp.content[0].text.strip()
+    # The answer is the text block: a thinking block can come first. A
+    # reply cut off at the cap (the thinking shares it) is refused like an
+    # empty one, since the note is saved as the one every pilot then sees.
+    text = "".join(block.text for block in resp.content if block.type == "text").strip()
+    if not text or resp.stop_reason == "max_tokens":
+        raise RuntimeError(f"Claude did not finish a note (stop reason {resp.stop_reason})")
+    return text
 
 
 @router.post("/api/checkpoint-notes/generate")

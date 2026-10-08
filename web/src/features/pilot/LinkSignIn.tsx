@@ -5,6 +5,7 @@ import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
 } from "../../components/ui/dialog";
 import { ApiError, api } from "../../lib/api/client";
+import { TEXT } from "../../lib/text";
 
 /** The token an emailed sign-in link brought, from the address's
  *  fragment (`#signin=…`), where the link's redirect put it
@@ -55,7 +56,7 @@ export default function LinkSignIn() {
           <DialogDescription>Finish signing in with the link from your email.</DialogDescription>
         </DialogHeader>
         {finish.isError && (
-          <p role="alert" className="text-sm text-destructive">
+          <p role="alert" className={`text-destructive ${TEXT.prose}`}>
             {spent
               ? "This link has expired or was already used. Ask for a new one from the pilot console."
               : "Couldn't sign in just now. Try again."}

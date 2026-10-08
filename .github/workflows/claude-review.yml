@@ -3,9 +3,12 @@ name: Claude review
 # A review by Claude on every pull request but Dependabot's: inline
 # comments where something is wrong, one summary. It reviews; it does not
 # gate -- main's ruleset requires CI, not this, so a pull request with no
-# review (no secret set, a failed run) still merges on a green CI. Needs
-# what claude.yml needs: the Claude GitHub App and ANTHROPIC_API_KEY or
-# CLAUDE_CODE_OAUTH_TOKEN. Without either it says so and stops.
+# review (no secret set, a failed run) still merges on a green CI. On
+# Claude's own pull requests (a claude/ branch) a second job then puts
+# right what the review found and pushes, at most twice a branch; on the
+# owner's it only comments. Needs what claude.yml needs: the Claude
+# GitHub App and ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN. Without
+# either it says so and stops.
 
 on:
   pull_request:
@@ -42,6 +45,10 @@ jobs:
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # Claude's own pull requests are opened and pushed by the Claude app, a
+          # bot, and the action refuses a bot unless it is named here. Without
+          # it, Claude's pull requests got no review, no fixes and no autofix.
+          allowed_bots: claude
           use_sticky_comment: true
           prompt: |
             REPO: ${{ github.repository }}
@@ -55,10 +62,13 @@ jobs:
             2. Aviation: every figure, rule and regulation the change states
                or computes (14 CFR, the AIM, the ACS, FAA data) must be right
                and say where it comes from. A wrong one is a safety problem.
+               Follow the aviation-check skill, and check a figure against
+               the regulation's own text, fetched, before calling it wrong.
             3. The iPhone: the change as a pilot meets it on a phone, against
                Apple's Human Interface Guidelines -- 44-point hit areas made
                without enlarging the controls, legible type, Liquid Glass,
-               errors shown where they happen rather than in a toast.
+               errors shown where they happen rather than in a toast. The
+               iphone-review skill has the app's own rules.
             4. Security and privacy: pilots' accounts, sessions, their data.
             5. Tests: what the change does that no test would catch.
 
@@ -66,7 +76,7 @@ jobs:
             clear, and leave one short summary comment. Say nothing about
             style or taste alone, and nothing a linter or CI already checks.
           claude_args: |
-            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*)"
+            --allowedTools "Skill,WebFetch,mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*)"
       # The action hides Claude's own output, so a run that stops at once
       # -- a key out of credit or revoked, 0.3 s and nothing spent, as every
       # review from 7 October 03:00 did -- said only "is_error: true". Its
@@ -87,3 +97,83 @@ jobs:
           why = str(result.get("result") or "no message").replace("\n", " ")[:300]
           print(f"::error title=Claude review stopped::{why} (cost ${result.get('total_cost_usd', 0)}, {result.get('num_turns', 0)} turns)")
           EOF
+
+  # On Claude's own pull requests, what the review found is put right on
+  # the branch, so the pull request merges with it fixed rather than with
+  # comments nobody reads. At most twice a branch ("Address review" in the
+  # commit), since each push is reviewed again. The owner's branches are
+  # never pushed to.
+  address:
+    needs: review
+    if: ${{ startsWith(github.head_ref, 'claude/') && github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-26.04
+    timeout-minutes: 60
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+    env:
+      HAS_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' || secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
+        if: env.HAS_KEY == 'true'
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+      - name: Twice at most
+        id: tries
+        if: env.HAS_KEY == 'true'
+        run: |
+          n=$(git log --oneline origin/main..HEAD --grep '^Address review' | wc -l)
+          echo "$n review fixes on this branch so far"
+          if [ "$n" -lt 2 ]; then echo "go=true" >> "$GITHUB_OUTPUT"; fi
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7
+        if: steps.tries.outputs.go == 'true'
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7
+        if: steps.tries.outputs.go == 'true'
+        with:
+          python-version: "3.13"
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6  # v6
+        if: steps.tries.outputs.go == 'true'
+        with:
+          distribution: temurin
+          java-version: "25"
+          cache: maven
+      - name: The web app's packages
+        if: steps.tries.outputs.go == 'true'
+        working-directory: web
+        run: npm ci
+      - uses: anthropics/claude-code-action@86d88e619d8e6caf07b5c3944dd14f441c533718  # v1.0.243
+        if: steps.tries.outputs.go == 'true'
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # Claude's own pull requests are opened and pushed by the Claude app, a
+          # bot, and the action refuses a bot unless it is named here. Without
+          # it, Claude's pull requests got no review, no fixes and no autofix.
+          allowed_bots: claude
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+            BRANCH: ${{ github.head_ref }}
+
+            Claude has just reviewed this pull request. Read its inline
+            comments and its summary (gh api
+            repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/comments,
+            gh pr view ${{ github.event.pull_request.number }} --comments).
+            For each real problem it names, put it right on this branch,
+            following CLAUDE.md and the skills that fit (checks, and
+            aviation-check or iphone-review where the comment is about
+            those), with the checks CLAUDE.md names passing. Commit with a
+            message that starts "Address review:" and says what was wrong
+            and how it is now right, and push to this branch. Answer each
+            comment you acted on, briefly. A comment you judge wrong gets a
+            reply saying why, and no change. If nothing needs changing,
+            change nothing.
+          claude_args: |
+            --allowedTools "Skill,WebFetch,Edit,MultiEdit,Write,Read,Glob,Grep,LS,Bash(git:*),Bash(gh:*),Bash(npm:*),Bash(npx:*),Bash(node:*),Bash(python:*),Bash(python3:*),Bash(pip:*),Bash(mvn:*),Bash(cd:*),Bash(ls:*),Bash(cat:*),Bash(head:*),Bash(tail:*),Bash(grep:*),Bash(find:*),Bash(wc:*),Bash(diff:*),Bash(pytest:*),Bash(ruff:*),Bash(uv:*),Bash(java:*)"

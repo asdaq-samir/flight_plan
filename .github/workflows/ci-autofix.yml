@@ -119,6 +119,10 @@ jobs:
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # Claude's own pull requests are opened and pushed by the Claude app, a
+          # bot, and the action refuses a bot unless it is named here. Without
+          # it, Claude's pull requests got no review, no fixes and no autofix.
+          allowed_bots: claude
           additional_permissions: |
             actions: read
           prompt: |
@@ -127,8 +131,9 @@ jobs:
             CI failed on ${{ github.event.workflow_run.head_branch }}: ${{ github.event.workflow_run.html_url }}
 
             Read the failed jobs' logs (`gh run view ${{ github.event.workflow_run.id }} --log-failed`)
-            and their annotations, and find the cause. CLAUDE.md has the project's rules.
+            and their annotations, and find the cause. CLAUDE.md has the project's rules,
+            and the checks skill says how to tell a real failure from a flaky one.
 
             ${{ steps.mode.outputs.task }}
           claude_args: |
-            --allowedTools "Edit,MultiEdit,Write,Read,Glob,Grep,LS,Bash(git:*),Bash(gh:*),Bash(npm:*),Bash(npx:*),Bash(python:*),Bash(python3:*),Bash(pip:*),Bash(mvn:*)"
+            --allowedTools "Skill,Edit,MultiEdit,Write,Read,Glob,Grep,LS,Bash(git:*),Bash(gh:*),Bash(npm:*),Bash(npx:*),Bash(node:*),Bash(python:*),Bash(python3:*),Bash(pip:*),Bash(mvn:*),Bash(cd:*),Bash(ls:*),Bash(cat:*),Bash(head:*),Bash(tail:*),Bash(grep:*),Bash(find:*),Bash(wc:*),Bash(diff:*),Bash(pytest:*),Bash(ruff:*),Bash(uv:*),Bash(java:*)"

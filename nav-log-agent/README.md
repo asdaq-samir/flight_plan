@@ -68,11 +68,11 @@ import anthropic
 
 client = anthropic.Anthropic()
 msg = client.messages.create(
-    model="claude-sonnet-5",
+    model="claude-haiku-5-5",
     max_tokens=1024,
     messages=[{"role": "user", "content": "Brief a VFR flight C81 to KDLH."}],
 )
-print(msg.content[0].text)
+print(next(block.text for block in msg.content if block.type == "text"))
 ```
 
 That is not useless, and it is not an agent — it has no tools and no

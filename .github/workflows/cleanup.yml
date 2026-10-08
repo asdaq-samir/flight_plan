@@ -1,0 +1,38 @@
+name: Cleanup
+
+# Once a week, the claude/ branches whose work is done: a pull request
+# merged or closed, and no commit on the branch since. They pile up
+# because the repository keeps merged branches (delete_branch_on_merge is
+# off, so that maps-layout survives its own merges). A branch with an
+# open pull request, with none yet, or with commits its pull request never
+# had is left alone -- that may be work still going on.
+
+on:
+  schedule:
+    - cron: "5 8 * * 0"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  branches:
+    runs-on: ubuntu-26.04
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Delete the claude/ branches that are done
+        run: |
+          set -euo pipefail
+          for branch in $(gh api "repos/$GH_REPO/branches?per_page=100" --paginate --jq '.[].name | select(startswith("claude/"))'); do
+            tip=$(gh api "repos/$GH_REPO/branches/$branch" --jq .commit.sha)
+            pr=$(gh pr list --head "$branch" --state all --limit 1 --json number,state,headRefOid --jq '.[0] // empty')
+            if [ -z "$pr" ]; then echo "keep $branch: no pull request yet"; continue; fi
+            state=$(printf '%s' "$pr" | jq -r .state)
+            if [ "$state" = OPEN ]; then echo "keep $branch: its pull request is open"; continue; fi
+            if [ "$(printf '%s' "$pr" | jq -r .headRefOid)" != "$tip" ]; then echo "keep $branch: commits after its pull request"; continue; fi
+            gh api -X DELETE "repos/$GH_REPO/git/refs/heads/$branch"
+            echo "deleted $branch (pull request #$(printf '%s' "$pr" | jq -r .number), $state)"
+          done

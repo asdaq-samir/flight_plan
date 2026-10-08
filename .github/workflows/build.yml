@@ -1,0 +1,141 @@
+name: Build
+
+# Every morning Claude builds the next piece of ready work: the first
+# open issue labelled "ready" in the Roadmap issue's Now list (plan.yml),
+# else the oldest one. It works on a claude/ branch, runs the checks, and
+# opens a pull request that closes the issue and merges by itself once CI
+# passes (auto-merge-agents.yml), after Claude's review and its fixes
+# (claude-review.yml). One issue a day, so each change stays small enough
+# to read and CI's runners stay free for everyone else's.
+#
+# "ready" means no decision is left for the owner: the audits label their
+# own findings so when they need none, and the owner labels anything else
+# "ready" once it should be built. An issue that turns out to need a
+# decision goes back to "owner" with the question, untouched. Started by
+# hand from the Actions tab too, for a chosen issue. Needs what claude.yml
+# needs; without a key it says so and stops.
+
+on:
+  schedule:
+    - cron: "23 7 * * *"
+  workflow_dispatch:
+    inputs:
+      issue:
+        description: Issue number (empty for the next ready one)
+        required: false
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  id-token: write
+  actions: read
+
+concurrency:
+  group: build
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 120
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      HAS_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' || secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
+      CHOSEN: ${{ github.event.inputs.issue }}
+    steps:
+      # The next issue: the one asked for; else the first ready one the
+      # Roadmap issue's Now list names; else the oldest ready one. Never one
+      # already in progress or already with an open pull request.
+      - name: The next piece of work
+        id: next
+        run: |
+          set -euo pipefail
+          if [ "$HAS_KEY" != true ]; then
+            echo "::notice::No ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN secret, so nothing is built."; exit 0
+          fi
+          ready=$(gh issue list --state open --label ready --search "-label:in-progress -label:owner sort:created-asc" --limit 100 --json number --jq '.[].number')
+          busy=$(gh pr list --state open --limit 100 --json headRefName --jq '.[].headRefName | select(startswith("claude/issue-")) | ltrimstr("claude/issue-")')
+          pick=
+          if [ -n "$CHOSEN" ]; then pick=$CHOSEN
+          else
+            roadmap=$(gh issue list --state open --label roadmap --limit 1 --json body --jq '.[0].body // ""')
+            now=$(printf '%s\n' "$roadmap" | sed -n '/^## Now/,/^## /p' | grep -o '#[0-9]\+' | tr -d '#' || true)
+            for n in $now $ready; do
+              if printf '%s\n' "$ready" | grep -qx "$n" && ! printf '%s\n' "$busy" | grep -qx "$n"; then pick=$n; break; fi
+            done
+          fi
+          if [ -z "$pick" ]; then echo "::notice::No ready issue to build."; exit 0; fi
+          gh issue edit "$pick" --add-label in-progress
+          echo "issue=$pick" >> "$GITHUB_OUTPUT"
+          echo "Building #$pick"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
+        if: steps.next.outputs.issue != ''
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7
+        if: steps.next.outputs.issue != ''
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7
+        if: steps.next.outputs.issue != ''
+        with:
+          python-version: "3.13"
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6  # v6
+        if: steps.next.outputs.issue != ''
+        with:
+          distribution: temurin
+          java-version: "25"
+          cache: maven
+      - name: The web app's packages
+        if: steps.next.outputs.issue != ''
+        working-directory: web
+        run: npm ci
+      - uses: anthropics/claude-code-action@86d88e619d8e6caf07b5c3944dd14f441c533718  # v1.0.243
+        id: claude
+        if: steps.next.outputs.issue != ''
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            REPO: ${{ github.repository }}
+            ISSUE: ${{ steps.next.outputs.issue }}
+
+            Build issue #${{ steps.next.outputs.issue }} (gh issue view
+            ${{ steps.next.outputs.issue }} --comments). CLAUDE.md has the
+            project's rules; follow them, and the skills that fit the work:
+            checks, ship, iphone-review for anything a pilot sees,
+            aviation-check for any figure or rule, measure-speed for speed.
+
+            Work on a new branch claude/issue-${{ steps.next.outputs.issue }}
+            from main. Make the smallest change that does what the issue
+            asks, with tests for it and the checks CLAUDE.md names passing.
+            Shell substitution -- $(...), backticks, a heredoc into a
+            command -- is refused here, so write each issue's or pull
+            request's body to a file with the Write tool and pass it with
+            --body-file (gh issue create, gh pr create, gh issue edit).
+            Commit (a paragraph: what changed for the pilot or the
+            developer, why, and the evidence), push, and open a pull request
+            to main whose body says what it does and "Closes
+            #${{ steps.next.outputs.issue }}".
+
+            If the issue turns out to need a decision from the owner --
+            moving a panel or a control, a product choice, more than one
+            pull request's worth -- change nothing: comment on the issue
+            with the question and the options, remove its "ready" and
+            "in-progress" labels and add "owner".
+          claude_args: |
+            --allowedTools "Skill,WebFetch,WebSearch,Edit,MultiEdit,Write,Read,Glob,Grep,LS,Bash(git:*),Bash(gh:*),Bash(npm:*),Bash(npx:*),Bash(node:*),Bash(python:*),Bash(python3:*),Bash(pip:*),Bash(mvn:*),Bash(cd:*),Bash(ls:*),Bash(cat:*),Bash(head:*),Bash(tail:*),Bash(grep:*),Bash(find:*),Bash(wc:*),Bash(diff:*),Bash(pytest:*),Bash(ruff:*),Bash(uv:*),Bash(java:*)"
+      # A run that ends without a pull request leaves the issue free for
+      # the next morning, rather than marked in progress for ever.
+      - name: Free the issue if nothing came of it
+        if: always() && steps.next.outputs.issue != ''
+        env:
+          ISSUE: ${{ steps.next.outputs.issue }}
+        run: |
+          if [ -z "$(gh pr list --state open --head "claude/issue-$ISSUE" --json number --jq '.[0].number // empty')" ]; then
+            gh issue edit "$ISSUE" --remove-label in-progress || true
+          fi

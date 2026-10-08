@@ -1,0 +1,77 @@
+name: AI check
+
+# Every night, the app's two Claude features asked for real: one
+# checkpoint description and one briefing, through the services' own code
+# and settings (.github/ai-check/check.py says what it checks). The tests
+# stand Claude in, so they can't catch a reply that comes back empty or
+# cut off -- the briefing did, for every pilot, and every test passed
+# (#81). A failure opens an issue labelled "ready", which Build takes up
+# the next morning, or adds to the one already open.
+#
+# It spends the app's own API key (APP_ANTHROPIC_API_KEY), about $0.002 a
+# night, not the subscription the other Claude workflows use: this is the
+# app's traffic. Without the secret it says so and stops.
+
+on:
+  schedule:
+    - cron: "47 9 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.APP_ANTHROPIC_API_KEY }}
+      PYTHONPATH: ${{ github.workspace }}/src
+    steps:
+      - name: No key, no check
+        if: env.ANTHROPIC_API_KEY == ''
+        run: echo "::notice::No APP_ANTHROPIC_API_KEY secret, so the app's Claude features are not checked."
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
+        if: env.ANTHROPIC_API_KEY != ''
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7
+        if: env.ANTHROPIC_API_KEY != ''
+        with:
+          python-version: "3.13"
+      - name: The two services' packages
+        if: env.ANTHROPIC_API_KEY != ''
+        run: |
+          pip install uv
+          uv pip install --system -r planning-service/requirements-dev.txt
+          uv pip install --system torch --index-url https://download.pytorch.org/whl/cpu
+          uv pip install --system -r nav-log-agent/requirements-dev.txt
+      - name: A checkpoint description
+        id: note
+        if: env.ANTHROPIC_API_KEY != ''
+        continue-on-error: true
+        working-directory: planning-service
+        run: python ../.github/ai-check/check.py note
+      - name: A briefing
+        id: briefing
+        if: env.ANTHROPIC_API_KEY != ''
+        continue-on-error: true
+        working-directory: nav-log-agent
+        run: python ../.github/ai-check/check.py briefing
+      - name: A failure, as an issue for Build
+        if: steps.note.outcome == 'failure' || steps.briefing.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          NOTE: ${{ steps.note.outcome }}
+          BRIEFING: ${{ steps.briefing.outcome }}
+        run: |
+          title="The app's Claude features failed the nightly AI check"
+          what="checkpoint description: $NOTE; briefing: $BRIEFING"
+          open=$(gh issue list --state open --label ai-check --json number --jq '.[0].number // empty')
+          if [ -n "$open" ]; then
+            gh issue comment "$open" --body "Failed again ($what): $RUN_URL"
+          else
+            gh issue create --title "$title" --label ready --label ai-check --body "The nightly AI check ($RUN_URL) failed: $what. Its annotations say why. Reproduce with .github/ai-check/check.py (its docstring has the commands), put it right in planning-service/app/routers/notes.py or nav-log-agent/app/graph.py, and run the check again from the Actions tab."
+          fi
+          exit 1

@@ -1,3 +1,4 @@
+import AxeBuilder from "@axe-core/playwright";
 import { test, expect } from "@playwright/test";
 import { SCREENS } from "./screens";
 import {
@@ -66,6 +67,30 @@ for (const screen of SCREENS) {
     await still(page);
     await instant.evaluate(style => style.remove());
     const overflow = await horizontalOverflow(page);
+    // One device is enough to see a change and to read the page's markup.
+    const shots = process.env.SCREENSHOTS;
+    const reference = info.project.name === "iphone-16-pro";
+    // For whoever reviews a pull request: the screen as a pilot sees it,
+    // uploaded with the run (ci.yml), so a change to the layout can be
+    // looked at without running the app.
+    if (shots && reference) {
+      await page.screenshot({ path: `${shots}/${screen.name.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}.png` });
+    }
+    // WCAG 2.2 AA by axe-core on every screen, in the nightly full audit
+    // (IOS_AUDIT): a11y.spec checks WCAG 2.1 on the main states on every
+    // run. Not axe's target-size: P1 measures each control's real tap
+    // region, its ::after hit area included, which axe can't see.
+    let wcag22: string[] = [];
+    if (process.env.IOS_AUDIT && reference) {
+      const results = await new AxeBuilder({ page })
+        .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22a", "wcag22aa"])
+        .exclude(".leaflet-pane")
+        .disableRules(["meta-viewport", "target-size"])
+        .analyze();
+      wcag22 = results.violations
+        .filter(v => v.impact === "serious" || v.impact === "critical")
+        .map(v => `${v.id} (${v.impact}): ${v.nodes.slice(0, 3).map(n => n.target.join(" ")).join(" | ")}`);
+    }
     // The safe area last on the screen as laid out, since it rewrites the
     // page's own CSS to a device's insets.
     const insets = INSETS[info.project.name];
@@ -83,8 +108,9 @@ for (const screen of SCREENS) {
 
     await info.attach("findings", {
       contentType: "application/json",
-      body: JSON.stringify({ misses, offScale, offLeading, offFace, greyed, components, contrast, contrastDark, overflow, zoomed, insets: insets ?? null, outside }),
+      body: JSON.stringify({ misses, offScale, offLeading, offFace, greyed, components, contrast, contrastDark, overflow, zoomed, insets: insets ?? null, outside, wcag22 }),
     });
+    expect.soft(wcag22, "WCAG 2.2 AA (axe-core): no serious or critical violation").toEqual([]);
     expect.soft(misses, "P1: every control owns a 44 × 44 pt hit region").toEqual([]);
     expect.soft(offScale, "P2: all text on the iOS type scale").toEqual([]);
     expect.soft(offLeading, "P3: each size at its iOS leading").toEqual([]);
