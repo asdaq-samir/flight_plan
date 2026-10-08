@@ -149,9 +149,15 @@ def generate_briefing(state: NavLogState) -> dict:
             for text in stream.text_stream:
                 parts.append(text)
                 writer({"type": "delta", "text": text})
+            stop_reason = stream.get_final_message().stop_reason
         briefing = "".join(parts).strip()
         if not briefing:
             raise RuntimeError("Claude response had no text")
+        # Cut off at the cap, a briefing can end before its weather or
+        # icing; shown, a pilot would take it as whole, and stored, it
+        # would be the precedent the next briefing follows.
+        if stop_reason == "max_tokens":
+            raise RuntimeError("the briefing was cut off at the token cap")
         return {"briefing": briefing}
     except (anthropic.APIError, RuntimeError) as err:
         return {

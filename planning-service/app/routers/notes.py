@@ -28,9 +28,11 @@ CHECKPOINT_NOTE_MODEL = os.environ.get("CHECKPOINT_NOTE_MODEL", "claude-haiku-5-
 # prompt asks under 20, and one line ended "Wait, that's not quite right;
 # let me give one clean sentence instead." -- in a pilot's nav log. At
 # medium, a median of 20 words and nothing of the kind. The model thinks
-# first, and the thinking counts toward max_tokens, hence the room.
+# first, and the thinking counts toward max_tokens: at 1,024 it ran out
+# before the sentence on the nightly AI check's first run (stop reason
+# max_tokens), so the cap is 4,096 -- even used whole, $0.002 on Haiku.
 CHECKPOINT_NOTE_EFFORT = "medium"
-CHECKPOINT_NOTE_MAX_TOKENS = 1024
+CHECKPOINT_NOTE_MAX_TOKENS = 4096
 # These fail the same way for every checkpoint in the route, not just
 # the one that happened to hit it first -- a bad key or an exhausted
 # rate limit does not get better by trying the next 20 checkpoints the
@@ -111,10 +113,12 @@ def _describe_checkpoint(
         output_config={"effort": CHECKPOINT_NOTE_EFFORT},
         messages=[{"role": "user", "content": prompt}],
     )
-    # The answer is the text block: a thinking block can come first.
+    # The answer is the text block: a thinking block can come first. A
+    # reply cut off at the cap (the thinking shares it) is refused like an
+    # empty one, since the note is saved as the one every pilot then sees.
     text = "".join(block.text for block in resp.content if block.type == "text").strip()
-    if not text:
-        raise RuntimeError(f"Claude answered without text (stop reason {resp.stop_reason})")
+    if not text or resp.stop_reason == "max_tokens":
+        raise RuntimeError(f"Claude did not finish a note (stop reason {resp.stop_reason})")
     return text
 
 

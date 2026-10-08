@@ -22,7 +22,11 @@ It is headed for an iOS app. README.md has the services and the layout.
   Roadmap issue, whose Now list Build follows, and a weekly digest.
 - On a `claude/` pull request, Claude's review is put right on the branch
   ("Address review:" commits) and a CI failure is fixed ("Fix CI:"), each
-  at most twice.
+  at most twice. It is set to merge only once that review has run.
+- Every night the AI check (ai-check.yml) asks for one real checkpoint
+  description and one real briefing, and opens a "ready" issue if either
+  comes back empty, cut off or malformed. Every week Cleanup deletes the
+  `claude/` branches whose pull request is done.
 - How to check, ship, review and audit: the skills in `.claude/skills`.
 
 ## Never
