@@ -136,6 +136,11 @@ jobs:
       - run: npx eslint .
       - run: npx vitest run
       - run: npx vite build
+      # The JavaScript a phone loads before the planner draws, against a
+      # ceiling: 1.03 MB on 2026-10-08, and it had crept to 1.30 MB before
+      # anyone measured it (scripts/first-load.mjs says how it counts).
+      # Raise the budget only with the reason in the commit.
+      - run: node scripts/first-load.mjs dist --budget 1100000
       # Advisory only (continue-on-error): reports known-vulnerable
       # dependencies without blocking a merge on one this repo can't fix
       # immediately (e.g. a transitive dep with no patched release yet).
@@ -942,10 +947,16 @@ jobs:
         # github reporter puts each failure on the commit's checks, as
         # the webapp's job does for its tests; the list goes to a file
         # for the step below, since the job's log takes admin rights to
-        # read. Thirty minutes, and then the step ends and says so.
+        # read. Thirty minutes, and then the step ends and says so. The
+        # nightly run takes the whole iOS audit (IOS_AUDIT): all eight
+        # devices and WebKit, Safari's engine, which every other run
+        # leaves out -- a Safari-only failure reached the pilot's iPhone
+        # through 188 green Chromium tests once (2ad0317).
+        env:
+          IOS_AUDIT: ${{ github.event_name == 'schedule' && '1' || '' }}
         run: |
           echo "$(($(date +%s) - T0)) the tests" >> /tmp/e2e-out/timeline
-          docker run --rm --network host -e CI=1 \
+          docker run --rm --network host -e CI=1 -e IOS_AUDIT \
             -v "$PWD/web:/w" -v /tmp/e2e-out:/out -w /w \
             "$PLAYWRIGHT_IMAGE" \
             bash -o pipefail -c "timeout 1800 npx playwright test --shard=${{ matrix.shard }}/${{ strategy.job-total }} --reporter=list,github 2>&1 | tee /out/playwright.log"

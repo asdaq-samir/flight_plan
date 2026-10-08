@@ -1,6 +1,6 @@
 name: Audit
 
-# Claude audits the code on main every week, three ways, and puts right
+# Claude audits the code on main every week, four ways, and puts right
 # what it finds in pull requests that merge like any of its own once CI
 # passes (auto-merge-agents.yml):
 #
@@ -11,24 +11,34 @@ name: Audit
 #   component or library does it, code nothing calls -- made one;
 # - speed: the build, the tests, the app's first load, the planner's
 #   answers and the hand-offs to other apps, measured, the slowest put
-#   right.
+#   right;
+# - aviation: every figure and rule the code states or computes checked
+#   against the regulation, the AIM or the FAA data set it comes from --
+#   a wrong one is a safety problem.
 #
-# Each audit opens at most one pull request, on one theme, small enough
-# to read, with what it measured before and after; what it should not
-# change by itself (moving a panel, a product decision, anything bigger
-# than one pull request) it opens as an issue for the owner instead,
-# labelled "audit". Started by hand from the Actions tab too, one audit
-# or all. Needs what claude.yml needs; without a key it says so and stops.
+# And once a month, market: what ForeFlight, Garmin Pilot, WeatherSpork,
+# CloudAhoy and the FAA's and NWS's own products added, and what that
+# means for the roadmap -- issues only, never code.
+#
+# Each audit follows the project's skill for it (.claude/skills) and
+# opens at most one pull request, on one theme, small enough to read,
+# with what it measured before and after; what it should not change by
+# itself (moving a panel, a product decision, anything bigger than one
+# pull request) it opens as an issue for the owner instead, labelled
+# "audit". Started by hand from the Actions tab too, one audit or all.
+# Needs what claude.yml needs; without a key it says so and stops.
 
 on:
   schedule:
     - cron: "41 10 * * 1"
+    # The first of the month: the market audit, and only that.
+    - cron: "41 11 1 * *"
   workflow_dispatch:
     inputs:
       audit:
         description: Which audit
         type: choice
-        options: [all, design, code, speed]
+        options: [all, design, code, speed, aviation, market]
         default: all
 
 permissions:
@@ -43,20 +53,27 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        audit: [design, code, speed]
+        audit: [design, code, speed, aviation, market]
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-26.04
     timeout-minutes: 120
     env:
       HAS_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' || secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
       CHOSEN: ${{ github.event.inputs.audit || 'all' }}
+      CRON: ${{ github.event.schedule }}
+      AUDIT: ${{ matrix.audit }}
     steps:
+      # The weekly schedule runs every audit but market; the monthly one,
+      # market alone. By hand, the one chosen, or all five.
       - name: This audit, or not
         id: run
         run: |
           if [ "$HAS_KEY" != true ]; then
             echo "::notice::No ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN secret, so no audit."
-          elif [ "$CHOSEN" = all ] || [ "$CHOSEN" = "${{ matrix.audit }}" ]; then
+          elif [ -n "$CRON" ]; then
+            if [ "$CRON" = "41 11 1 * *" ] && [ "$AUDIT" = market ]; then echo "go=true" >> "$GITHUB_OUTPUT"; fi
+            if [ "$CRON" != "41 11 1 * *" ] && [ "$AUDIT" != market ]; then echo "go=true" >> "$GITHUB_OUTPUT"; fi
+          elif [ "$CHOSEN" = all ] || [ "$CHOSEN" = "$AUDIT" ]; then
             echo "go=true" >> "$GITHUB_OUTPUT"
           fi
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
@@ -88,9 +105,11 @@ jobs:
         if: steps.run.outputs.go == 'true'
         run: |
           case "${{ matrix.audit }}" in
-            design) brief="Audit the design: every screen and control as a pilot meets it on an iPhone (web/src), against Apple's Human Interface Guidelines and the rules in CLAUDE.md -- hit areas, type sizes, tint, Liquid Glass sheets and detents, errors shown in context, what a pilot needs in flight being one tap away, nothing a pilot must read being cut off or covered. Find the decisions that are wrong for the pilot, not matters of taste." ;;
-            code) brief="Audit the code for what can be one: logic written twice or more (in web/src, between planning-service and src/vfr, between the services), components hand-rolled where shadcn/ui, Radix or a library already in package.json or a requirements file does it, code nothing calls any more. Make it one shared piece, in the place the code around it would look for it; delete what nothing uses. Behaviour stays the same and the tests prove it." ;;
-            speed) brief="Audit the speed: the web build and the critical path's size (npx vite build; the critical path's budget is 1.00 MB), the test suites' run times, the app's first load and its map points (airports, checkpoints) arriving, the planner's answers (planning-service), and the hand-offs to other apps (ForeFlight's pack and links, the files the plan exports). Measure first, with the numbers in the pull request, before and after; put right the slowest thing measured. A change that is not measurably faster is not made." ;;
+            design) brief="Audit the design, following the iphone-review skill: every screen and control as a pilot meets it on an iPhone (web/src), against Apple's Human Interface Guidelines and the rules in CLAUDE.md -- hit areas, type sizes, tint, Liquid Glass sheets and detents, errors shown in context, what a pilot needs in flight being one tap away, nothing a pilot must read being cut off or covered. Find the decisions that are wrong for the pilot, not matters of taste." ;;
+            code) brief="Audit the code for what can be one, following the reuse-before-build and measure-software-simplicity skills: logic written twice or more (in web/src, between planning-service and src/vfr, between the services), components hand-rolled where shadcn/ui, Radix or a library already in package.json or a requirements file does it, code nothing calls any more. Make it one shared piece, in the place the code around it would look for it; delete what nothing uses. Behaviour stays the same and the tests prove it." ;;
+            speed) brief="Audit the speed, following the measure-speed skill: the web build and the first load (npx vite build, then node scripts/first-load.mjs dist in web/; CI fails it over 1.10 MB, and the goal is 1.00 MB), the test suites' run times, the app's first load and its map points (airports, checkpoints) arriving, the planner's answers (planning-service), and the hand-offs to other apps (ForeFlight's pack and links, the files the plan exports). Measure first, with the numbers in the pull request, before and after; put right the slowest thing measured. A change that is not measurably faster is not made." ;;
+            aviation) brief="Audit the aviation, following the aviation-check skill: every altitude, clearance, weather minimum, airspace rule, fuel or oxygen figure, traffic-pattern procedure and FAA data field the code states or computes (src/vfr, planning-service/app, web/src/lib). Check each against the current regulation, AIM paragraph, handbook or data set's own documentation, fetched from the FAA or eCFR, never from memory. A wrong figure is fixed with a test that pins it to the source; a right one without its source gets the citation. Anything you are not certain of goes in an issue with the source text quoted. Never edit planning-service/app/detection.py." ;;
+            market) brief="Audit the market, following the market-gap skill: what ForeFlight, Garmin Pilot, WeatherSpork, CloudAhoy, FltPlan Go, SkyVector and the FAA's and NWS's public products have added since the last market audit (read the issues labelled audit), and what that means for this planner -- something it now duplicates, a public product it could take in as data, a gap still open that it could lead in. Open issues only, one per finding, with the date and the sources; change no code and open no pull request." ;;
           esac
           echo "brief=$brief" >> "$GITHUB_OUTPUT"
       - uses: anthropics/claude-code-action@86d88e619d8e6caf07b5c3944dd14f441c533718  # v1.0.243
@@ -108,8 +127,8 @@ jobs:
             issue list --label audit) and leave alone what one of them
             already covers.
 
-            Then put right the single most valuable thing you found, on one
-            theme: on a new branch claude/audit-${{ matrix.audit }}-<today's date>,
+            Then, unless the brief above says issues only, put right the
+            single most valuable thing you found, on one theme: on a new branch claude/audit-${{ matrix.audit }}-<today's date>,
             with tests for what changed, the checks CLAUDE.md names passing,
             committed and pushed, and a pull request to main that says what
             was wrong, why, and what proves the change right (for speed, the
@@ -123,4 +142,4 @@ jobs:
             with where, why and what you would do. If you find nothing worth
             changing, say so in the job's summary and open nothing.
           claude_args: |
-            --allowedTools "Edit,MultiEdit,Write,Read,Glob,Grep,LS,Bash(git:*),Bash(gh:*),Bash(npm:*),Bash(npx:*),Bash(node:*),Bash(python:*),Bash(python3:*),Bash(pip:*),Bash(mvn:*),Bash(time:*),Bash(du:*),Bash(ls:*)"
+            --allowedTools "Skill,WebFetch,WebSearch,Edit,MultiEdit,Write,Read,Glob,Grep,LS,Bash(git:*),Bash(gh:*),Bash(npm:*),Bash(npx:*),Bash(node:*),Bash(python:*),Bash(python3:*),Bash(pip:*),Bash(mvn:*),Bash(time:*),Bash(du:*),Bash(ls:*)"
