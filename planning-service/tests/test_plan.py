@@ -344,6 +344,8 @@ def test_the_chart_alone_is_there_for_a_map_with_no_route():
     body = resp.json()
     assert body["chart_cycle"] and body["max_zoom"] >= body["min_zoom"]
     assert any(layer["kind"] == "sec" for layer in body["chart_layers"])
+    # The map waits on it for its first tile, so the edge may keep it a minute.
+    assert resp.headers["cache-control"] == "public, max-age=60"
 
 
 def test_no_altitude_says_where_and_why_in_a_pilots_words():

@@ -26,6 +26,25 @@ MAX_STOPS = 8
 #: mile, inside any airport's own boundary.
 SAME_PLACE_NM = 0.1
 
+#: What an answer that is the same for every pilot may say about being
+#: kept: five minutes in a browser, an hour at CloudFront. Only the
+#: lookups built from tables that change once a chart cycle at most
+#: (OurAirports, NASR's fixes, the stock aircraft) and that carry no
+#: weather: the airport search, as a pilot types each letter, and the
+#: aircraft picker. Never an answer with a METAR or a TFR in it, which
+#: change within the hour; nor a route's, whose course starts the chart's
+#: reads; nor anything of one pilot's. PlannerProxyController passes the
+#: header on for these paths alone, and the CDN keeps by it
+#: (infra/cloudformation/template.yaml).
+SHARED_CACHE = "public, max-age=300, s-maxage=3600"
+
+#: The chart the map draws, for every pilot: its cycle changes once in
+#: 56 days, and the planner itself holds the published one for a minute
+#: (vfr.charts.serving_cycle), so a minute here, in the browser and at
+#: the CDN. The old cycle's tiles stay published for months, so a page a
+#: minute behind a new cycle still draws a whole chart.
+CHART_CACHE = "public, max-age=60"
+
 
 def route_key(dep: str, dest: str) -> tuple:
     return dep.strip().upper(), dest.strip().upper()

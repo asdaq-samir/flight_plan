@@ -114,6 +114,22 @@ def test_the_fields_in_view_carry_their_metars_flight_category(monkeypatch):
     assert [a["flight_category"] for a in body["airports"]] == [None, None]
 
 
+def test_the_search_may_be_kept_and_the_fields_in_view_with_their_weather_may_not(monkeypatch):
+    # The search is the same for every pilot until the tables change, so
+    # a browser and the CDN may keep it; the fields in view carry each
+    # one's METAR, which changes within the hour, so they say nothing
+    # (and the webapp marks them no-store).
+    monkeypatch.setattr(airports, "places_in", lambda *args, **kwargs: [{**DULUTH}])
+    monkeypatch.setattr(weather, "reporting_idents", lambda: {"KDLH"})
+    monkeypatch.setattr(weather, "metar_for_idents", lambda idents: {"KDLH": {"flight_category": "VFR"}})
+    in_view = client.get("/api/airports/in-view", params={"south": 46, "west": -93, "north": 47, "east": -92})
+    assert "cache-control" not in in_view.headers
+
+    monkeypatch.setattr(airports, "search_airports", lambda q: [])
+    search = client.get("/api/airports/search", params={"q": "KD"})
+    assert search.headers["cache-control"] == "public, max-age=300, s-maxage=3600"
+
+
 def test_a_field_the_armed_services_own_is_marked_military_or_joint_use(monkeypatch):
     # From the FAA's airport file (vfr.faa_data.military_fields), by the
     # FAA's ident or the ICAO one: most pilots may not land at the first

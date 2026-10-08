@@ -27,7 +27,7 @@ from vfr.config import DATA_DIR, VFR_SECTIONAL_MAX_ZOOM, VFR_SECTIONAL_MIN_ZOOM
 from vfr.weather import WeatherServiceError
 
 from .. import chart_model, foreflight, prefetch
-from ..common import DEFAULT_AIRCRAFT, Route, line, load_route, ndjson
+from ..common import CHART_CACHE, DEFAULT_AIRCRAFT, Route, line, load_route, ndjson
 from ..planning import (
     COMPUTE_LIMIT_S, StillComputing, aircraft_profile, altitude_plans, altitude_waiting_on, class_b_detours,
     cruise_altitude, flight_totals, flight_window, forecast_hour_for, join_selections, no_altitude, no_altitude_detail,
@@ -481,9 +481,12 @@ def _chart_info() -> dict:
 
 
 @router.get("/api/chart")
-def chart_info() -> ChartInfo:
+def chart_info(response: Response) -> ChartInfo:
     """The chart the map draws, for a map with no route on it yet: the
-    planner's page opens on a search bar over the chart, as Maps does."""
+    planner's page opens on a search bar over the chart, as Maps does.
+    The map asks for no tile before this answers, so it may be kept
+    (CHART_CACHE) and served from the CDN's edge."""
+    response.headers["Cache-Control"] = CHART_CACHE
     return ChartInfo(**_chart_info())
 
 

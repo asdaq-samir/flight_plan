@@ -26,6 +26,8 @@ pilot ──HTTPS──▶ CloudFront  (app.example.com, ACM certificate)
                    │
                    ├─ /tiles/*        ──▶ S3 tiles bucket       cached a month (immutable, cycle in the path)
                    ├─ /app/assets/*   ──▶ the server            cached a year (fingerprinted)
+                   ├─ the chart, the airport search, the stock aircraft
+                   │                  ──▶ the server            cached by their own header: a minute, an hour
                    └─ everything else ──▶ the server            not cached: pages, /api, sign-in
                                             │ origin.app.example.com:443, with X-Origin-Secret
                                             ▼
@@ -44,6 +46,16 @@ EventBridge, daily 08:30 UTC ─▶ Fargate Spot task: python -m vfr.charts refr
 - **One domain for everything** (`PublicHost`), so the webapp's Secure
   session cookies work as they do locally and the map's tile requests
   are same-origin.
+- **What the edge keeps is what is the same for every pilot.** Besides
+  the tiles and the app's files, three answers: the chart the map draws
+  (a minute), the airport search as a pilot types, and the stock
+  aircraft (an hour each). Each says so itself (`app.common` in the
+  planner), the webapp passes the header on for those paths alone
+  (`PlannerProxyController`), and CloudFront keys them by path and query
+  string, never by cookie. Everything with weather in it (the fields in
+  view, an airport's card, the Class B list, the airspace at a point), a
+  route's answers, and anything of one pilot's is `no-store`, which
+  `CacheHeadersTest` checks through the whole filter chain.
 - **Only CloudFront reaches the server.** The security group admits
   port 443 from CloudFront's origin-facing addresses alone, and Caddy
   answers 404 to any request without the secret header CloudFront adds
@@ -90,13 +102,14 @@ On-demand prices in us-east-1, October 2026, at today's traffic:
 | S3 tiles: 1.5 million uploads a cycle ($7.50 per 56 days) and up to three cycles stored | ~$4.50 |
 | Secrets Manager, four secrets | $1.60 |
 | Route 53 hosted zone | $0.50 |
+| Daily snapshots of the server's disk, seven kept | ~$1 |
 | ECR, CloudWatch logs, backups, the Fargate Spot refresh (under $1 a cycle) | ~$1.50 |
 | CloudFront | $0 within the always-free 1 TB and 10 million requests |
 | SES | $0.10 per 1,000 sign-in emails |
-| **Total** | **about $42** |
+| **Total** | **about $43** |
 
 A one-year Savings Plan on the server takes about $10 off (**about
-$32**). The next saving after that is the tiles' upload bill: one
+$33**). The next saving after that is the tiles' upload bill: one
 PMTiles archive per chart kind in place of 1.5 million files would take
 it to cents, at the cost of a PMTiles reader in the map.
 

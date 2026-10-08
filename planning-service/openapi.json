@@ -7470,7 +7470,7 @@
     },
     "/api/aircraft-profiles": {
       "get": {
-        "description": "The stock performance profiles (data/aircraft/*.json) the nav log\ncan be computed for -- a pilot's own aeroplane overrides the cruise\nTAS and fuel burn on top of one of these, see /api/navlog.",
+        "description": "The stock performance profiles (data/aircraft/*.json) the nav log\ncan be computed for -- a pilot's own aeroplane overrides the cruise\nTAS and fuel burn on top of one of these, see /api/navlog. Kept for\nan hour at most (SHARED_CACHE): this is the picker's list; the nav\nlog's figures come from the profile on the server.",
         "operationId": "aircraft_profiles_api_aircraft_profiles_get",
         "responses": {
           "200": {
@@ -7691,7 +7691,7 @@
     },
     "/api/airports/search": {
       "get": {
-        "description": "DEP/DEST's own autocomplete -- every airport whose ident or name\nstarts with `q`, for the route inputs to suggest as a pilot types.\nRuns against the same in-memory OurAirports table the real lookup\nuses, not a second data source that could drift from it. With\n`fixes`, a stop's: the named fixes and navaids whose ident starts with\nit too, after the airports -- VFR waypoints first (vfr.fixes). `near`,\nthe route's points as \"lat,lon;lat,lon\": of an ident's navaids in two\nplaces, the one the route would fly over (fixes.find_navaid), as the\nstop typed will be -- the row named the other where they differed.",
+        "description": "DEP/DEST's own autocomplete -- every airport whose ident or name\nstarts with `q`, for the route inputs to suggest as a pilot types.\nRuns against the same in-memory OurAirports table the real lookup\nuses, not a second data source that could drift from it. With\n`fixes`, a stop's: the named fixes and navaids whose ident starts with\nit too, after the airports -- VFR waypoints first (vfr.fixes). `near`,\nthe route's points as \"lat,lon;lat,lon\": of an ident's navaids in two\nplaces, the one the route would fly over (fixes.find_navaid), as the\nstop typed will be -- the row named the other where they differed.\nKept for an hour at most (SHARED_CACHE): these are suggestions, and\nthe stop picked is looked up afresh when the route is planned.",
         "operationId": "airport_search_api_airports_search_get",
         "parameters": [
           {
@@ -7897,7 +7897,7 @@
     },
     "/api/chart": {
       "get": {
-        "description": "The chart the map draws, for a map with no route on it yet: the\nplanner's page opens on a search bar over the chart, as Maps does.",
+        "description": "The chart the map draws, for a map with no route on it yet: the\nplanner's page opens on a search bar over the chart, as Maps does.\nThe map asks for no tile before this answers, so it may be kept\n(CHART_CACHE) and served from the CDN's edge.",
         "operationId": "chart_info_api_chart_get",
         "responses": {
           "200": {

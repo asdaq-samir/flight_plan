@@ -3,8 +3,8 @@ Description: >
   Wingtip Maps on AWS, built for low cost: one EC2 server (webapp, planner,
   briefing agent, Postgres) behind CloudFront, FAA chart tiles drawn once
   per 56-day cycle by a Fargate Spot task into S3, and the web app's
-  fingerprinted files cached at the edge. About $42 a month on demand,
-  $32 with a one-year Savings Plan on the server (docs/README-AWS.md has
+  fingerprinted files cached at the edge. About $43 a month on demand,
+  $33 with a one-year Savings Plan on the server (docs/README-AWS.md has
   the itemised cost and the runbook). Deploy in
   us-east-1: CloudFront's certificate must be there.
 
@@ -455,9 +455,12 @@ Resources:
   #                  carries its own immutable Cache-Control).
   # - /app/assets/*  the server, cached: fingerprinted, a year, immutable
   #                  (WebMvcConfig's own header).
+  # - the chart, the airport search, the stock aircraft
+  #                  the server, cached by their own Cache-Control: the
+  #                  same for every pilot (SharedAnswersCachePolicy).
   # - everything else the server, not cached: the app's pages, the API,
   #                  sign-in -- cookies and query strings go through.
-  # One domain for all three, so the session's Secure cookies work as
+  # One domain for all of it, so the session's Secure cookies work as
   # they do locally and the map's tile fetches are same-origin.
   # ---------------------------------------------------------------------
   TilesOriginAccessControl:
@@ -483,6 +486,28 @@ Resources:
             Condition:
               StringEquals:
                 AWS:SourceArn: !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${Distribution}"
+
+  # The answers the same for every pilot (PlannerProxyController's
+  # SHARED_PATHS, the planner's app.common SHARED_CACHE and CHART_CACHE):
+  # kept for as long as their own Cache-Control says, a day at most, and
+  # not at all when they say nothing. Keyed by path and query string alone
+  # -- no cookie, no header -- so one pilot's search answers the next; and
+  # nothing else goes to the server either, so no Set-Cookie can be kept
+  # and handed on (CloudFront drops it where no cookie is forwarded).
+  SharedAnswersCachePolicy:
+    Type: AWS::CloudFront::CachePolicy
+    Properties:
+      CachePolicyConfig:
+        Name: !Sub "${AWS::StackName}-shared-answers"
+        MinTTL: 0
+        DefaultTTL: 0
+        MaxTTL: 86400
+        ParametersInCacheKeyAndForwardedToOrigin:
+          EnableAcceptEncodingGzip: true
+          EnableAcceptEncodingBrotli: true
+          HeadersConfig: { HeaderBehavior: none }
+          CookiesConfig: { CookieBehavior: none }
+          QueryStringsConfig: { QueryStringBehavior: all }
 
   Distribution:
     Type: AWS::CloudFront::Distribution
@@ -540,6 +565,35 @@ Resources:
             CachedMethods: [GET, HEAD]
             Compress: true
             CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6  # managed CachingOptimized
+          - PathPattern: api/planner/chart
+            TargetOriginId: server
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD]
+            CachedMethods: [GET, HEAD]
+            Compress: true
+            CachePolicyId: !Ref SharedAnswersCachePolicy
+          - PathPattern: api/planner/airports/search
+            TargetOriginId: server
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD]
+            CachedMethods: [GET, HEAD]
+            Compress: true
+            CachePolicyId: !Ref SharedAnswersCachePolicy
+          - PathPattern: api/planner/aircraft-profiles
+            TargetOriginId: server
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD]
+            CachedMethods: [GET, HEAD]
+            Compress: true
+            CachePolicyId: !Ref SharedAnswersCachePolicy
+        # A server error is passed on, never kept: CloudFront would hold
+        # one for ten seconds by default, and a planner restarting would
+        # then outlast itself at the edge.
+        CustomErrorResponses:
+          - { ErrorCode: 500, ErrorCachingMinTTL: 0 }
+          - { ErrorCode: 502, ErrorCachingMinTTL: 0 }
+          - { ErrorCode: 503, ErrorCachingMinTTL: 0 }
+          - { ErrorCode: 504, ErrorCachingMinTTL: 0 }
 
   # ---------------------------------------------------------------------
   # Chart tiles, once per cycle: a Fargate Spot task runs vfr.charts'
