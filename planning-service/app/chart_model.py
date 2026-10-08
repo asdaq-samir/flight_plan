@@ -17,7 +17,7 @@ import pandas as pd
 from vfr import chartfeatures, chartlabels, chartmodel, model_client
 from vfr.pipeline import _publish
 
-from . import detection
+from . import chart_reader, detection
 from .common import load_hop
 from .detection import detect_job, faa_airports
 
@@ -43,18 +43,11 @@ _READING_LOCK = threading.Lock()
 # the planner's own loop): its processes keep what their last reads grew
 # to -- 215 and 342 MB, seen 2026-10-07, beside a planner of 1 GB, on a
 # machine whose browsers were being killed for memory. The next read
-# starts them again, some 4 s of imports, under its 3 to 6 s of reading.
-IDLE_S = 600
+# starts them again, some 3 s of imports (app.chart_reader), under its 2
+# to 8 s of reading: half an hour, so a pilot planning on and off does
+# not pay it at every route.
+IDLE_S = 1800
 _LAST_READ = 0.0
-
-
-def _read_in_process(key: tuple, start: tuple, end: tuple, half_width_nm: float) -> str | None:
-    """In a process of the pool: the corridor read and kept on disk, as
-    app.detection reads one; what went wrong, else None."""
-    job = detect_job(key, start, end, half_width_nm)
-    with job["cond"]:
-        job["cond"].wait_for(lambda: job["done"])
-    return job["error"]
 
 
 def _pool() -> ProcessPoolExecutor:
@@ -77,7 +70,7 @@ def _reading(key: tuple, start: tuple, end: tuple) -> Future | None:
         if _PROCESSES is None:
             _PROCESSES = _pool()
         try:
-            future = _PROCESSES.submit(_read_in_process, key, start, end, TRAINING_HALF_WIDTH_NM)
+            future = _PROCESSES.submit(chart_reader.read_corridor, key, start, end, TRAINING_HALF_WIDTH_NM)
         except BrokenProcessPool:
             # One of its processes died -- the kernel's out-of-memory killer
             # took one with the machine short of memory, 2026-10-07, where a
@@ -88,7 +81,7 @@ def _reading(key: tuple, start: tuple, end: tuple) -> Future | None:
             log.warning("the chart reader's pool lost a process; starting a new one")
             _PROCESSES.shutdown(wait=False, cancel_futures=True)
             _PROCESSES = _pool()
-            future = _PROCESSES.submit(_read_in_process, key, start, end, TRAINING_HALF_WIDTH_NM)
+            future = _PROCESSES.submit(chart_reader.read_corridor, key, start, end, TRAINING_HALF_WIDTH_NM)
         _READING[key] = future
         _LAST_READ = time.time()
         future.add_done_callback(_read_ended)
@@ -112,6 +105,17 @@ def release_idle(now: float | None = None) -> bool:
         _PROCESSES = None
         _READING.clear()
         return True
+
+
+def corridor_kept(route: str) -> bool:
+    """Whether a route's corridor ("C81->KDLH") is read already, here or
+    on disk: its checkpoints are a moment away, and the web app asks for
+    no route as entered beside them (Course.checkpoints_ready)."""
+    key = (route, TRAINING_HALF_WIDTH_NM)
+    job = detection._DETECT_JOBS.get(key)
+    if job is not None and job.get("done") and job.get("error") is None:
+        return True
+    return detection._kept_path(key).exists()
 
 
 def corridor(route: str, wait: bool) -> list | None:

@@ -140,3 +140,17 @@ def test_an_idle_pool_is_let_go_but_not_while_reading_or_soon_after(monkeypatch,
     assert not chart_model.release_idle(now=chart_model._LAST_READ + 1)
     assert chart_model.release_idle(now=chart_model._LAST_READ + chart_model.IDLE_S + 1)
     assert pool.shut and chart_model._PROCESSES is None and chart_model._READING == {}
+
+
+def test_a_corridor_is_ready_once_read_here_or_kept_on_disk(monkeypatch, tmp_path):
+    kept = tmp_path / "kept.json"
+    monkeypatch.setattr(detection, "_kept_path", lambda key: kept)
+    monkeypatch.setitem(detection._DETECT_JOBS, ("C81->KMSN", 4.0), {"done": True, "error": None})
+    monkeypatch.setitem(detection._DETECT_JOBS, ("C81->KRFD", 4.0), {"done": False, "error": None})
+    assert chart_model.corridor_kept("C81->KMSN")
+    # Under way is not read; nor is a read that failed.
+    assert not chart_model.corridor_kept("C81->KRFD")
+    monkeypatch.setitem(detection._DETECT_JOBS, ("C81->KRFD", 4.0), {"done": True, "error": "no tiles"})
+    assert not chart_model.corridor_kept("C81->KRFD")
+    kept.write_text("[]")
+    assert chart_model.corridor_kept("C81->KDLH")

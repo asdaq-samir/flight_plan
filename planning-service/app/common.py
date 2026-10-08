@@ -41,20 +41,25 @@ def stops_of(stops: str | list | None) -> list[str]:
 #: A present position as a route's point, "@42.3246,-88.0741": where the
 #: pilot is, for Fly Here's Direct-To, which in the air goes from wherever
 #: the airplane is, any time, not from a field near it (the pilot's ask).
-_POSITION = re.compile(r"^@(-?\d{1,2}(?:\.\d{1,6})?),(-?\d{1,3}(?:\.\d{1,6})?)$")
+#: With the GPS's altitude where it gives one, feet MSL: "...,-88.0741,3500".
+_POSITION = re.compile(r"^@(-?\d{1,2}(?:\.\d{1,6})?),(-?\d{1,3}(?:\.\d{1,6})?)(?:,(\d{1,5}))?$")
 
 
 def position_of(ident: str) -> dict | None:
     """A present position (_POSITION) in the shape a waypoint's is: flown
     from, not taken off from (Route.takes_off), so its hop has no climb
-    from a field; None for any other ident."""
+    from a field -- from the GPS's altitude where it has one; None for any
+    other ident."""
     match = _POSITION.match(ident.strip())
     if match is None:
         return None
     lat, lon = float(match[1]), float(match[2])
     if not (-90 <= lat <= 90 and -180 <= lon <= 180):
         return None
-    return {"name": "Present position", "lat": lat, "lon": lon, "elevation_ft": None, "fix": True}
+    # The altitude the airplane is at, for its climb or level start (app.
+    # routers.plan's departure_elevation); none where the GPS gave none.
+    altitude = float(match[3]) if match[3] else None
+    return {"name": "Present position", "lat": lat, "lon": lon, "elevation_ft": None, "fix": True, "altitude_ft": altitude}
 
 
 def resolve(*idents: str) -> tuple:

@@ -2449,6 +2449,11 @@
             ],
             "title": "Chart Tiles Base"
           },
+          "checkpoints_ready": {
+            "default": false,
+            "title": "Checkpoints Ready",
+            "type": "boolean"
+          },
           "course_line": {
             "items": {
               "maxItems": 2,
@@ -7686,7 +7691,7 @@
     },
     "/api/airports/search": {
       "get": {
-        "description": "DEP/DEST's own autocomplete -- every airport whose ident or name\nstarts with `q`, for the route inputs to suggest as a pilot types.\nRuns against the same in-memory OurAirports table the real lookup\nuses, not a second data source that could drift from it. With\n`fixes`, a stop's: the named fixes and navaids whose ident starts with\nit too, after the airports -- VFR waypoints first (vfr.fixes).",
+        "description": "DEP/DEST's own autocomplete -- every airport whose ident or name\nstarts with `q`, for the route inputs to suggest as a pilot types.\nRuns against the same in-memory OurAirports table the real lookup\nuses, not a second data source that could drift from it. With\n`fixes`, a stop's: the named fixes and navaids whose ident starts with\nit too, after the airports -- VFR waypoints first (vfr.fixes). `near`,\nthe route's points as \"lat,lon;lat,lon\": of an ident's navaids in two\nplaces, the one the route would fly over (fixes.find_navaid), as the\nstop typed will be -- the row named the other where they differed.",
         "operationId": "airport_search_api_airports_search_get",
         "parameters": [
           {
@@ -7707,6 +7712,16 @@
               "default": false,
               "title": "Fixes",
               "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "near",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Near",
+              "type": "string"
             }
           }
         ],
