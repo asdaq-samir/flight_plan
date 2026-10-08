@@ -284,6 +284,9 @@ export function usePlan(
     // entered, whose legs run point to point.
     logSelected: withCheckpoints && !pointToPoint ? checkpoints.data?.selected ?? NONE : NONE,
     legs, nav, navStage, stage, unflyable,
+    // The nav log on screen is the route as entered, its checkpoints' own
+    // still to come in its place.
+    pointToPoint,
     totals: local ? localFlight.data ?? null : totals,
     local,
     briefing: briefingState,

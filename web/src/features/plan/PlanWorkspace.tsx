@@ -81,7 +81,11 @@ function fromRoutePanel<K extends keyof RoutePanel>(name: K) {
   type Props = PropsOf<RoutePanel[K]>;
   const Waited = lazy(() => loadRoutePanel().then(m => ({ default: m[name] as ComponentType<Props> })));
   return memo(function RoutePanelPart(props: Props) {
-    const Part = (routePanel?.[name] ?? Waited) as ComponentType<Props>;
+    // The one it was first drawn with, for good: a part drawn before the
+    // chunk came, switched to the module's own once it had, was a new part
+    // from nothing, its state lost -- and drawn again only when its props
+    // change (memo), the switch could come at any moment.
+    const [Part] = useState(() => (routePanel?.[name] ?? Waited) as ComponentType<Props>);
     return <Part {...props} />;
   });
 }
@@ -871,29 +875,21 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // checkpoint picked then is brought into view as it comes up.
   const drawerOpen = panel === "full";
   const descriptionsLoading = s.descriptionProgress !== null;
-  // Out of the tabs, drawing nothing on screen: the risk assessment and
-  // the Go / No-Go's findings published once, for Save and the tabs'
-  // marks; and Print's Kneeboard card, off screen (a portal to the page's
-  // body). Drawn after what the pilot sees (useDeferredValue), first and
-  // as the legs stream in: they were a part of the route's first draw on
-  // a phone, and of each leg's.
+  // Print's Kneeboard card, off screen (a portal to the page's body):
+  // drawn after what the pilot sees (useDeferredValue), first and as the
+  // legs stream in -- it was a part of the route's first draw on a phone,
+  // and of each leg's. (Not the Go / No-Go's publishing beside it: Save
+  // files the risk assessment it publishes, and drawn later, Save was
+  // offered, and pressed, before it was in.)
   const landings = useMemo(() => [...new Set([planned.dep, ...landedStops, planned.dest])], [planned.dep, landedStops, planned.dest]);
-  const offscreen = useMemo(() => (
-    <>
-      <FlightBriefingView
-        part={null} publish nav={s.nav} legs={s.legs} dep={planned.dep} dest={planned.dest} stops={landedStops}
-        briefing={s.briefing} course={course} totals={s.totals} depart={depart}
-        langgraphNarrative={s.langgraphNarrative} crewaiNarrative={s.crewaiNarrative} problem={unflyableBrief}
-      />
-      <Kneeboard
-        course={course} selected={s.logSelected} legs={s.legs} totals={s.totals} nav={s.nav}
-        briefing={s.briefing.state === "ready" ? s.briefing.data : null} depart={depart}
-        aircraftLabel={aircraft.label} landings={landings}
-      />
-    </>
-  ), [s.nav, s.legs, planned.dep, planned.dest, landedStops, s.briefing, course, s.totals, depart, s.langgraphNarrative,
-    s.crewaiNarrative, unflyableBrief, s.logSelected, aircraft.label, landings]);
-  const offscreenLater = useDeferredValue(offscreen, null);
+  const kneeboard = useMemo(() => (
+    <Kneeboard
+      course={course} selected={s.logSelected} legs={s.legs} totals={s.totals} nav={s.nav}
+      briefing={s.briefing.state === "ready" ? s.briefing.data : null} depart={depart}
+      aircraftLabel={aircraft.label} landings={landings}
+    />
+  ), [course, s.logSelected, s.legs, s.totals, s.nav, s.briefing, depart, aircraft.label, landings]);
+  const kneeboardLater = useDeferredValue(kneeboard, null);
   // Made again only when the plan does, so the nav log and its tabs are
   // drawn again only then (fromRoutePanel's memo), not at each render of
   // the page as the route's answers stream in.
@@ -918,12 +914,19 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       footer={<PlanningAidNote />}
       local={s.local}
     >
-      {offscreenLater}
+      {/* Out of the tabs, drawing nothing: the risk assessment and the
+          Go / No-Go's findings published once, for Save and the tabs' marks. */}
+      <FlightBriefingView
+        part={null} publish nav={s.nav} legs={s.legs} dep={planned.dep} dest={planned.dest} stops={landedStops}
+        briefing={s.briefing} course={course} totals={s.totals} depart={depart}
+        langgraphNarrative={s.langgraphNarrative} crewaiNarrative={s.crewaiNarrative} problem={unflyableBrief}
+      />
+      {kneeboardLater}
     </NavLogView>
     </Suspense>
   ), [s.totals, s.nav, s.legs, depart, planned.dep, planned.dest, course, s.logSelected, s.descriptions, s.saveDescription,
     s.generateDescriptions, descriptionsLoading, selectedPoint, selectPointAt, deselectPoint, drawerOpen, tabTap, aircraft.label,
-    marks, tabContent, s.briefing, s.local, offscreenLater]);
+    marks, tabContent, s.briefing, s.local, landedStops, s.langgraphNarrative, s.crewaiNarrative, unflyableBrief, kneeboardLater]);
 
   // The airplane, the altitude and the time, made again only when one of
   // them changes, as the chips are drawn again only then (fromRoutePanel's
@@ -1042,8 +1045,11 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       <Suspense fallback={roundRoom}>
       <SaveFlightButton
         // A route from a present position too: the webapp files one
-        // (V17), as Fly Here's Direct-To in the air starts.
-        course={routed ? course : null} totals={s.totals} nav={s.nav} legs={s.legs} selected={s.logSelected}
+        // (V17), as Fly Here's Direct-To in the air starts. Not the route
+        // as entered, whose checkpoints' log comes in its place: saved
+        // then, it filed a flight with none, and Save was offered again
+        // as the log changed under it.
+        course={routed ? course : null} totals={s.pointToPoint ? null : s.totals} nav={s.nav} legs={s.legs} selected={s.logSelected}
         aircraftId={aircraft.aircraftId ?? null} depart={depart} altitudes={altitudes}
       />
       {shareMenu("end", !routed)}

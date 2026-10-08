@@ -263,8 +263,13 @@ export function SaveFlightButton({
   // "Saved" belongs to the plan that was saved: another route, time,
   // airplane or altitude is a new request, and Save is offered again.
   // It used to stay "Saved" for the session, and a click filed a
-  // duplicate of whatever was on screen by then.
-  const saved = save.isSuccess && save.variables === request;
+  // duplicate of whatever was on screen by then. The same plan with its
+  // risk assessment made again is not another: the briefing is asked for
+  // again with the flight's time en route once the nav log has it, a
+  // second or two after Save is offered, and "Saved" went back to Save.
+  const planOf = (r: SaveFlightRequest) => JSON.stringify({ ...r, risk: null });
+  const plan = useMemo(() => request && planOf(request), [request]);
+  const saved = save.isSuccess && !!save.variables && planOf(save.variables) === plan;
 
   if (!pilot) return null;
 
