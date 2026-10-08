@@ -254,7 +254,11 @@ At 07:17 UTC every night `backup.sh` copies to
 the database (`postgres.dump`: accounts, aircraft, flights, the briefing
 agent's memory) and the planner's `data/labels` (`labels.tar.gz`: the
 checkpoint notes pilots and Claude have written). The bucket keeps 14
-days. To restore one, on the server:
+days. The dump is written to a file and checked with `pg_restore --list`
+before it is uploaded, so a truncated one never replaces a good day, and a
+failed backup emails `BudgetEmail` (confirm the SNS subscription mail once).
+The server's disk is also snapshotted daily at 05:00 UTC, seven kept. To
+restore one, on the server:
 
 ```bash
 cd /srv/flight_plan/repo

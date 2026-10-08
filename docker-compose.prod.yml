@@ -35,7 +35,7 @@ services:
     environment:
       ORIGIN_HOST: ${ORIGIN_HOST}
       PUBLIC_HOST: ${PUBLIC_HOST}
-      ORIGIN_SECRET: ${ORIGIN_SECRET}
+      ORIGIN_SECRET: ${ORIGIN_SECRET:?set ORIGIN_SECRET in .env}
     volumes:
       - ./infra/server/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data

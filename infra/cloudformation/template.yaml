@@ -75,7 +75,7 @@ Parameters:
   BudgetEmail:
     Type: String
     Default: ""
-    Description: Where the monthly budget alarm ($50, at 80% spent) goes. Empty for no alarm.
+    Description: Where the monthly budget alarm ($50, at 80% spent) and a failed nightly backup go. Empty for no alarm.
 
 Rules:
   UsEast1:
@@ -295,6 +295,10 @@ Resources:
               - Effect: Allow
                 Action: s3:ListBucket
                 Resource: !GetAtt ServerBucket.Arn
+              - !If
+                - HasBudget
+                - { Effect: Allow, Action: "sns:Publish", Resource: !Ref BackupAlertTopic }
+                - !Ref AWS::NoValue
 
   ServerInstanceProfile:
     Type: AWS::IAM::InstanceProfile
@@ -314,11 +318,13 @@ Resources:
       # The disk outlives the server: it holds Postgres, and a server
       # replaced by mistake should leave the pilots' accounts behind to be
       # copied back, not take them with it (delete the old volume once
-      # they are; docs/README-AWS.md).
+      # they are; docs/README-AWS.md). SnapshotPolicy snapshots it daily.
       BlockDeviceMappings:
         - DeviceName: /dev/xvda
           Ebs: { VolumeType: gp3, VolumeSize: !Ref RootVolumeGb, Encrypted: true, DeleteOnTermination: false }
-      Tags: [{ Key: Name, Value: !Sub "${AWS::StackName}-server" }]
+      Tags:
+        - { Key: Name, Value: !Sub "${AWS::StackName}-server" }
+        - { Key: Snapshot, Value: !Sub "${AWS::StackName}-daily" }
       UserData:
         Fn::Base64: !Sub
           - |
@@ -329,8 +335,11 @@ Resources:
             dnf install -y docker git cronie
             systemctl enable --now docker crond
             mkdir -p /usr/local/lib/docker/cli-plugins
-            curl -fsSL https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64 \
-              -o /usr/local/lib/docker/cli-plugins/docker-compose
+            # A pinned release, checked against the checksum published
+            # beside it, so a rebuild gets the plugin the first boot did.
+            compose_url=https://github.com/docker/compose/releases/download/v2.40.3/docker-compose-linux-x86_64
+            curl -fsSL "$compose_url" -o /usr/local/lib/docker/cli-plugins/docker-compose
+            echo "$(curl -fsSL "$compose_url.sha256" | cut -d' ' -f1)  /usr/local/lib/docker/cli-plugins/docker-compose" | sha256sum -c -
             chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
             # 2 GB of swap: headroom for a JVM, a planner and an agent on 4 GB.
             if [ ! -f /swapfile ]; then
@@ -348,6 +357,7 @@ Resources:
             DB_SECRET_ARN=${DbPasswordSecret}
             AGENT_SECRET_ARN=${AgentKeySecret}
             ORIGIN_SECRET_ARN=${OriginSecret}
+            BACKUP_TOPIC_ARN=${BackupTopicArn}
             MAIL_HOST=email-smtp.${AWS::Region}.amazonaws.com
             MAIL_FROM=no-reply@${MailFrom}
             CONF
@@ -360,6 +370,35 @@ Resources:
             # then this fails, and deploy.sh is run again after that push.
             /srv/flight_plan/repo/infra/server/deploy.sh || echo "no images yet: run deploy.sh after the first push"
           - MailFrom: !If [HasMailDomain, !Ref MailDomain, !Ref PublicHost]
+            BackupTopicArn: !If [HasBudget, !Ref BackupAlertTopic, ""]
+
+  # Daily snapshots of the server's disk, 7 kept (cents a month): a lost
+  # disk does not mean restoring from a nightly dump alone.
+  SnapshotRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Description: Lets Data Lifecycle Manager snapshot the server's disk.
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - { Effect: Allow, Principal: { Service: dlm.amazonaws.com }, Action: "sts:AssumeRole" }
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSDataLifecycleManagerServiceRole
+
+  SnapshotPolicy:
+    Type: AWS::DLM::LifecyclePolicy
+    Properties:
+      Description: Daily snapshots of the Wingtip Maps server
+      State: ENABLED
+      ExecutionRoleArn: !GetAtt SnapshotRole.Arn
+      PolicyDetails:
+        ResourceTypes: [INSTANCE]
+        TargetTags: [{ Key: Snapshot, Value: !Sub "${AWS::StackName}-daily" }]
+        Schedules:
+          - Name: daily
+            CreateRule: { Interval: 24, IntervalUnit: HOURS, Times: ["05:00"] }
+            RetainRule: { Count: 7 }
+            CopyTags: true
 
   ServerAddress:
     Type: AWS::EC2::EIP
@@ -740,6 +779,13 @@ Resources:
   # ---------------------------------------------------------------------
   # Spending: an email at 80% of $50 a month.
   # ---------------------------------------------------------------------
+  BackupAlertTopic:
+    Type: AWS::SNS::Topic
+    Condition: HasBudget
+    Properties:
+      DisplayName: Wingtip Maps backup
+      Subscription: [{ Protocol: email, Endpoint: !Ref BudgetEmail }]
+
   MonthlyBudget:
     Type: AWS::Budgets::Budget
     Condition: HasBudget

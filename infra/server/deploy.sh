@@ -19,6 +19,13 @@ ENV_FILE=/srv/flight_plan/.env
 git -C "$REPO" pull --ff-only --quiet
 
 secret() { aws secretsmanager get-secret-value --region "$AWS_REGION" --secret-id "$1" --query SecretString --output text; }
+# Fetched before anything is written: a failure inside $(...) in an echo
+# does not stop set -e, and an empty ORIGIN_SECRET would let Caddy's
+# header check pass any request that merely carries the header.
+db_password=$(secret "$DB_SECRET_ARN")
+origin_secret=$(secret "$ORIGIN_SECRET_ARN")
+agent_key=$(secret "$AGENT_SECRET_ARN")
+app_values=$(secret "$APP_SECRET_ARN")
 umask 077
 {
   echo "IMAGE_REGISTRY=$IMAGE_REGISTRY"
@@ -27,14 +34,14 @@ umask 077
   echo "ORIGIN_HOST=$ORIGIN_HOST"
   echo "MAIL_HOST=$MAIL_HOST"
   echo "MAIL_FROM=$MAIL_FROM"
-  echo "POSTGRES_PASSWORD=$(secret "$DB_SECRET_ARN")"
-  echo "ORIGIN_SECRET=$(secret "$ORIGIN_SECRET_ARN")"
-  echo "NAV_LOG_AGENT_API_KEY=$(secret "$AGENT_SECRET_ARN")"
+  echo "POSTGRES_PASSWORD=$db_password"
+  echo "ORIGIN_SECRET=$origin_secret"
+  echo "NAV_LOG_AGENT_API_KEY=$agent_key"
   # The owner's own values (infra/server/env.example lists them), kept as
   # one JSON secret: ANTHROPIC_API_KEY, MAIL_USERNAME, MAIL_PASSWORD, ...
   # Double-quoted, escapes and all: Sign in with Apple's private key is a
   # multi-line PEM, which compose's .env reads back from "\n".
-  secret "$APP_SECRET_ARN" | python3 -c 'import json, sys
+  printf '%s' "$app_values" | python3 -c 'import json, sys
 for k, v in json.load(sys.stdin).items():
     print(f"{k}={json.dumps(str(v))}")'
 } > "$ENV_FILE.new"
