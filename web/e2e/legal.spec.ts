@@ -36,13 +36,17 @@ test("Settings links the three pages", async ({ page }) => {
   }
 });
 
-test("the sign-in dialog links them", async ({ page }) => {
-  await page.goto("/app/plan");
-  await page.getByTestId("settings-button").click();
-  await page.getByTestId("console-sheet").getByRole("tab", { name: "Personal" }).click();
-  await page.getByTestId("console-sheet").getByRole("tabpanel").getByRole("button", { name: "Sign in" }).click();
-  const legal = page.getByRole("dialog", { name: "Sign in to Wingtip Maps" }).getByTestId("sign-in-legal");
-  await expect(legal.getByRole("link", { name: "Terms of use" })).toHaveAttribute("href", "/app/terms.html");
-  await expect(legal.getByRole("link", { name: "Privacy policy" })).toHaveAttribute("href", "/app/privacy.html");
-  await expect(legal.getByRole("link", { name: "Support" })).toHaveAttribute("href", "/app/support.html");
+// Signed out: a signed-in session has no Sign in button to open (signin.spec.ts does the same).
+test.describe("signed out", () => {
+  test.use({ storageState: { cookies: [], origins: [] } });
+  test("the sign-in dialog links them", async ({ page }) => {
+    await page.goto("/app/plan");
+    await page.getByTestId("settings-button").click();
+    await page.getByTestId("console-sheet").getByRole("tab", { name: "Personal" }).click();
+    await page.getByTestId("console-sheet").getByRole("tabpanel").getByRole("button", { name: "Sign in" }).click();
+    const legal = page.getByRole("dialog", { name: "Sign in to Wingtip Maps" }).getByTestId("sign-in-legal");
+    await expect(legal.getByRole("link", { name: "Terms of use" })).toHaveAttribute("href", "/app/terms.html");
+    await expect(legal.getByRole("link", { name: "Privacy policy" })).toHaveAttribute("href", "/app/privacy.html");
+    await expect(legal.getByRole("link", { name: "Support" })).toHaveAttribute("href", "/app/support.html");
+  });
 });
