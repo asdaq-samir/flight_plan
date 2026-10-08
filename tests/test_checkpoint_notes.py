@@ -18,6 +18,19 @@ def test_a_pilots_edit_is_theirs_and_everyone_else_keeps_the_shared_note(tmp_pat
     assert checkpoint_notes.find_note(notes, 45.0, -90.0)["description"] == "Shared: the lake with the island"
 
 
+def test_a_deleted_pilots_own_notes_go_and_everyone_elses_stay(tmp_path):
+    path = tmp_path / "notes.csv"
+    checkpoint_notes.save_note(ROUTE, 45.0, -90.0, "Shared: the lake with the island", path=path)
+    checkpoint_notes.save_note(ROUTE, 45.0, -90.0, "Mine: north shore", pilot="42", path=path)
+    checkpoint_notes.save_note(ROUTE, 46.0, -91.0, "Mine too", pilot="42", path=path)
+    checkpoint_notes.save_note(ROUTE, 45.0, -90.0, "Another pilot's", pilot="7", path=path)
+
+    assert checkpoint_notes.forget_pilot("42", path=path) == 2
+    assert [(n["pilot"], n["description"]) for n in checkpoint_notes.load_notes(ROUTE, path=path)] == [
+        ("", "Shared: the lake with the island"), ("7", "Another pilot's")]
+    assert checkpoint_notes.forget_pilot("42", path=path) == 0
+
+
 def test_an_edit_is_added_and_what_it_replaced_stays(tmp_path):
     path = tmp_path / "notes.csv"
     checkpoint_notes.save_note(ROUTE, 45.0, -90.0, "first", path=path)

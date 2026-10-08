@@ -5294,6 +5294,20 @@
         "title": "PickSummary",
         "type": "object"
       },
+      "PilotNotesForgotten": {
+        "description": "How many of one pilot's own notes went, as their account did.",
+        "properties": {
+          "removed": {
+            "title": "Removed",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "removed"
+        ],
+        "title": "PilotNotesForgotten",
+        "type": "object"
+      },
       "PipelineRun": {
         "description": "A run of the training DAG. `error`, for one that failed: the\nexception its failed task ended on, from that task's own log.",
         "properties": {
@@ -8108,6 +8122,53 @@
           }
         },
         "summary": "Describe Checkpoints"
+      }
+    },
+    "/api/checkpoint-notes/mine": {
+      "delete": {
+        "description": "A pilot's own notes, every one, taken out as their account is\ndeleted (the webapp's DELETE /api/me). Asked by the webapp alone:\nits proxy does not forward this path, and the pilot is named by the\nheader it sets from the session. The shared notes stay.",
+        "operationId": "forget_pilots_notes_api_checkpoint_notes_mine_delete",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Pilot-Id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Pilot-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PilotNotesForgotten"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Forget Pilots Notes"
       }
     },
     "/api/checkpoints": {

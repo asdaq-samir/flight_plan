@@ -1110,6 +1110,11 @@ class CheckpointNoteSaved(BaseModel):
     note: CheckpointNote
 
 
+class PilotNotesForgotten(BaseModel):
+    """How many of one pilot's own notes went, as their account did."""
+    removed: int
+
+
 class NoteStart(BaseModel):
     type: Literal["start"] = "start"
     count: int

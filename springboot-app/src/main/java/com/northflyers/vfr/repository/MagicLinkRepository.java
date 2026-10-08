@@ -36,4 +36,10 @@ public interface MagicLinkRepository extends JpaRepository<MagicLink, Long> {
     @Transactional
     @Query("DELETE FROM MagicLink m WHERE m.expiresAt < :cutoff")
     int deleteExpiredBefore(@Param("cutoff") Instant cutoff);
+
+    /** Every link ever sent to an address, as its account is deleted:
+     *  they hold no foreign key to the pilot, so nothing cascades to them. */
+    @Modifying
+    @Query("DELETE FROM MagicLink m WHERE lower(m.email) = lower(:email)")
+    int deleteByEmail(@Param("email") String email);
 }

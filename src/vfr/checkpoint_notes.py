@@ -112,6 +112,21 @@ def seed_note(route: str, lat: float, lon: float, description: str, path: Path |
     return _append(route, lat, lon, description, "", path or NOTES_PATH, if_absent=True)
 
 
+def forget_pilot(pilot: str, path: Path | None = None) -> int:
+    """Every note one pilot wrote for themselves taken out of the file, as
+    their account is deleted: what they wrote is theirs, and nobody else
+    ever saw it. The shared notes stay. Returns how many rows went."""
+    if not pilot:
+        raise ValueError("a pilot's id, not the shared notes' empty one")
+    path = path or NOTES_PATH
+    with locked(path):
+        notes = load_notes(path=path)
+        kept = [n for n in notes if n["pilot"] != pilot]
+        if len(kept) != len(notes):
+            write_rows(path, COLUMNS, kept)
+    return len(notes) - len(kept)
+
+
 def places(route: str, path: Path | None = None) -> int:
     """How many places on the route have a note -- not how many rows,
     which counts every edit's history."""
