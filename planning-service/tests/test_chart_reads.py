@@ -2,12 +2,22 @@
 from what it kept (app.chart_model), so the planner's other requests do
 not wait on it."""
 import threading
+from collections import deque
 from concurrent.futures import Future
 from concurrent.futures.process import BrokenProcessPool
 from types import SimpleNamespace
 
 import pytest
 from app import chart_model, detection
+
+
+@pytest.fixture(autouse=True)
+def _empty_queue(monkeypatch):
+    """Each test with the reader's queue empty and no read under way."""
+    monkeypatch.setattr(chart_model, "_WANTED", deque())
+    monkeypatch.setattr(chart_model, "_AHEAD", deque())
+    monkeypatch.setattr(chart_model, "_RUNNING", 0)
+    monkeypatch.setattr(chart_model, "_RUNNING_AHEAD", 0)
 
 
 class _Pool:
@@ -154,3 +164,70 @@ def test_a_corridor_is_ready_once_read_here_or_kept_on_disk(monkeypatch, tmp_pat
     assert not chart_model.corridor_kept("C81->KRFD")
     kept.write_text("[]")
     assert chart_model.corridor_kept("C81->KDLH")
+
+
+class _Held(_Pool):
+    """A pool whose reads end when the test says: each read's future, by key."""
+    def __init__(self):
+        super().__init__()
+        self.reads = {}
+
+    def submit(self, fn, *args):
+        self.asked.append(args[0][0])
+        self.reads[args[0][0]] = Future()
+        return self.reads[args[0][0]]
+
+
+def _held(monkeypatch, tmp_path):
+    pool = _Held()
+    monkeypatch.setattr(chart_model, "READS_IN_PROCESS", True)
+    monkeypatch.setattr(chart_model, "_PROCESSES", pool)
+    monkeypatch.setattr(chart_model, "_READING", {})
+    monkeypatch.setattr(detection, "_kept_path", lambda key: tmp_path / "not-kept.json")
+    return pool
+
+
+def _ask(route, ahead=False):
+    return chart_model._reading((route, 4.0), (42.0, -88.0), (43.0, -89.0), ahead=ahead)
+
+
+def test_a_read_waited_on_goes_before_the_reads_ahead_and_those_newest_first(monkeypatch, tmp_path):
+    """The reads ahead one at a time, the latest typed first, a process
+    kept for the route whose checkpoints are waited on -- where first
+    come, first served had them wait 22 s behind routes typed on the way."""
+    pool = _held(monkeypatch, tmp_path)
+    for route in ("A->B", "B->C", "C->D", "D->E"):
+        _ask(route, ahead=True)
+    assert pool.asked == ["A->B"]
+    wanted = _ask("X->Y")
+    assert pool.asked == ["A->B", "X->Y"]
+    pool.reads["A->B"].set_result(None)
+    assert pool.asked[2] == "D->E"
+    pool.reads["X->Y"].set_result(None)
+    assert wanted.done() and wanted.result() is None
+    pool.reads["D->E"].set_result(None)
+    assert pool.asked == ["A->B", "X->Y", "D->E", "C->D"]
+
+
+def test_a_read_ahead_that_is_then_waited_on_is_read_next(monkeypatch, tmp_path):
+    pool = _held(monkeypatch, tmp_path)
+    for route in ("A->B", "B->C", "C->D", "D->E", "E->F"):
+        _ask(route, ahead=True)
+    # C->D, queued behind E->F and D->E, waited on now: read at once.
+    waited = _ask("C->D")
+    assert pool.asked == ["A->B", "C->D"]
+    pool.reads["C->D"].set_result("no tiles")
+    assert waited.result() == "no tiles"
+
+
+def test_past_a_few_reads_ahead_the_oldest_are_dropped(monkeypatch, tmp_path):
+    pool = _held(monkeypatch, tmp_path)
+    routes = [f"R{i}->S{i}" for i in range(1 + chart_model.AHEAD_KEPT + 2)]
+    futures = [_ask(route, ahead=True) for route in routes]
+    # One reading, AHEAD_KEPT queued, and the two oldest queued dropped.
+    assert pool.asked == routes[:1]
+    assert futures[1].cancelled() and futures[2].cancelled()
+    assert (routes[1], 4.0) not in chart_model._READING
+    # Asked for again, by a route that waits on it: read.
+    again = _ask(routes[1])
+    assert again is not futures[1] and not again.done() and pool.asked == [routes[0], routes[1]]

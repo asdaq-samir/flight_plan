@@ -29,10 +29,11 @@ def test_a_route_is_read_ahead_once_a_while_however_often_its_course_is_asked(mo
 
 def test_the_reads_ahead_are_each_hops_chart_and_ground(monkeypatch):
     charts, grounds = [], []
-    monkeypatch.setattr(prefetch.chart_model, "corridor", lambda route, wait: charts.append((route, wait)))
+    monkeypatch.setattr(prefetch.chart_model, "corridor", lambda route, wait, ahead: charts.append((route, wait, ahead)))
     monkeypatch.setattr(prefetch.terrain, "floor_profile", lambda start, end, breaks: grounds.append(breaks[0]))
     prefetch._read("C81", "KDLH", "KMSN")
-    assert charts == [("C81->KMSN", False), ("KMSN->KDLH", False)]
+    # Read ahead: behind any read a route's checkpoints wait on (app.chart_model).
+    assert charts == [("C81->KMSN", False, True), ("KMSN->KDLH", False, True)]
     assert grounds == [0.0, 0.0]
 
 
@@ -40,13 +41,13 @@ def test_a_route_that_does_not_load_reads_nothing(monkeypatch):
     def unknown(*args):
         raise ValueError("no such airport")
     monkeypatch.setattr(prefetch, "load_route", unknown)
-    monkeypatch.setattr(prefetch.chart_model, "corridor", lambda route, wait: (_ for _ in ()).throw(AssertionError))
+    monkeypatch.setattr(prefetch.chart_model, "corridor", lambda route, wait, ahead: (_ for _ in ()).throw(AssertionError))
     prefetch._read("ZZZZ", "KDLH", "")
 
 
 def test_a_hop_across_the_country_is_not_read_ahead(monkeypatch):
     charts = []
-    monkeypatch.setattr(prefetch.chart_model, "corridor", lambda route, wait: charts.append(route))
+    monkeypatch.setattr(prefetch.chart_model, "corridor", lambda route, wait, ahead: charts.append(route))
     monkeypatch.setattr(prefetch.terrain, "floor_profile", lambda start, end, breaks: None)
     monkeypatch.setattr(prefetch, "MAX_HOP_NM", 100)
     prefetch._read("C81", "KDLH", "KMSN")  # 82 nm, then 255 nm
