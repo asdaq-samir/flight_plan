@@ -9,7 +9,6 @@ import logging
 import multiprocessing
 import os
 import threading
-import time
 from collections import deque
 from concurrent.futures import Future, ProcessPoolExecutor
 from concurrent.futures.process import BrokenProcessPool
@@ -40,15 +39,6 @@ READS_IN_PROCESS = os.environ.get("CHART_READS_IN_PROCESS", "1") != "0"
 _PROCESSES: ProcessPoolExecutor | None = None
 _READING: dict = {}
 _READING_LOCK = threading.RLock()  # re-entered: a read already done calls back as it is queued
-# A pool with nothing to read for this long is let go (release_idle, from
-# the planner's own loop): its processes keep what their last reads grew
-# to -- 215 and 342 MB, seen 2026-10-07, beside a planner of 1 GB, on a
-# machine whose browsers were being killed for memory. The next read
-# starts them again, some 3 s of imports (app.chart_reader), under its 2
-# to 8 s of reading: half an hour, so a pilot planning on and off does
-# not pay it at every route.
-IDLE_S = 1800
-_LAST_READ = 0.0
 
 
 def _pool() -> ProcessPoolExecutor:
@@ -84,7 +74,6 @@ def _reading(key: tuple, start: tuple, end: tuple, ahead: bool = False) -> Futur
     disk, started once however many ask -- queued, a read `ahead` behind
     any that is waited on -- and None where there is nothing to read (or
     the pool is not to be used)."""
-    global _LAST_READ
     if not READS_IN_PROCESS or key in detection._DETECT_JOBS or detection._kept_path(key).exists():
         return None
     with _READING_LOCK:
@@ -100,7 +89,6 @@ def _reading(key: tuple, start: tuple, end: tuple, ahead: bool = False) -> Futur
             return running
         future: Future = Future()
         _READING[key] = future
-        _LAST_READ = time.time()
         if ahead:
             _AHEAD.appendleft((key, start, end))
             while len(_AHEAD) > AHEAD_KEPT:
@@ -145,11 +133,10 @@ def _dispatch() -> None:
 def _read_ended(read: Future, future: Future, ahead: bool) -> None:
     """A read out of the pool: its outcome to whoever waits on it, and the
     process it had to the next in the queue."""
-    global _LAST_READ, _RUNNING, _RUNNING_AHEAD
+    global _RUNNING, _RUNNING_AHEAD
     with _READING_LOCK:
         _RUNNING -= 1
         _RUNNING_AHEAD -= ahead
-        _LAST_READ = time.time()
         if not future.done():
             if read.cancelled():
                 future.cancel()
@@ -160,18 +147,24 @@ def _read_ended(read: Future, future: Future, ahead: bool) -> None:
         _dispatch()
 
 
-def release_idle(now: float | None = None) -> bool:
-    """The pool's processes let go where none has read for IDLE_S; whether
-    they were."""
+def start_readers() -> None:
+    """The pool's processes started as the planner starts, each importing
+    what it reads with (app.chart_reader), at the pilot's ask for the
+    checkpoints at once: started at the first new route, they were 3 to
+    4 s of its "Scoring checkpoints" -- and they are kept from then on.
+    They were let go after half an hour unread, for the 0.5 GB they hold
+    (215 and 342 MB, seen 2026-10-07); the pilot would rather the next
+    route came at once (2026-10-08)."""
     global _PROCESSES
-    now = time.time() if now is None else now
+    if not READS_IN_PROCESS:
+        return
     with _READING_LOCK:
-        if _PROCESSES is None or now - _LAST_READ < IDLE_S or any(not f.done() for f in _READING.values()):
-            return False
-        _PROCESSES.shutdown(wait=False, cancel_futures=True)
-        _PROCESSES = None
-        _READING.clear()
-        return True
+        if _PROCESSES is None:
+            _PROCESSES = _pool()
+        # One task a process, at once: the pool starts a process for each
+        # task that finds none idle.
+        for _ in range(READERS):
+            _PROCESSES.submit(chart_reader.ready)
 
 
 def corridor_kept(route: str) -> bool:
