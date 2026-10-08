@@ -11,6 +11,7 @@ import {
 import { Input } from "../../components/ui/input";
 import { Spinner } from "../../components/ui/spinner";
 import { ApiError, api } from "../../lib/api/client";
+import { LEGAL_PAGES } from "../../lib/legal";
 import { capabilitiesQuery } from "../../lib/queryClient";
 import { TEXT } from "../../lib/text";
 
@@ -130,6 +131,15 @@ export default function SignInModal() {
             {linkFailure && <p className={`text-destructive ${TEXT.prose}`} role="alert" data-testid="sign-in-error">{linkFailure}</p>}
           </form>
         )}
+        {/* One row of links, not links in a sentence: each gets its 44-point
+            area from a pseudo-element, and a wrapped sentence would put
+            those areas on top of each other. */}
+        <p className={`text-center text-muted-foreground ${TEXT.note}`} data-testid="sign-in-accept">By signing in you accept the</p>
+        <nav aria-label="Legal" className={`flex justify-center gap-2 text-tint ${TEXT.note}`} data-testid="sign-in-legal">
+          {[LEGAL_PAGES[1], LEGAL_PAGES[0], LEGAL_PAGES[2]].map(p => (
+            <a key={p.key} className="relative after:absolute after:-inset-x-1 after:-inset-y-3.5" href={p.href} target="_blank" rel="noreferrer">{p.title}</a>
+          ))}
+        </nav>
       </DialogContent>
     </Dialog>
   );

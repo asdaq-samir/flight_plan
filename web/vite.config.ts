@@ -78,6 +78,10 @@ export default defineConfig({
       workbox: {
         navigateFallback: "/app/index.html",
         navigateFallbackAllowlist: [/^\/app\//],
+        // The legal pages are files, not routes of the app: a miss in
+        // the precache (the first load after a deploy) must reach the
+        // server, not fall back to the app shell.
+        navigateFallbackDenylist: [/\/(privacy|terms|support)\.html$/],
         globPatterns: ["**/*.{js,css,html,svg,woff2}"],
         // This build's own chunks only, where the old ones are kept
         // (thisBuildOnly).

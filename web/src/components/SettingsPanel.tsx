@@ -6,6 +6,7 @@ import AboutLimits from "./AboutLimits";
 import Segmented from "./Segmented";
 import { useNavEdge } from "../hooks/use-nav-edge";
 import { usePreferences, type NarrativeFramework, type NavEdge, type RouteColours } from "../lib/preferences";
+import { LEGAL_PAGES } from "../lib/legal";
 import { useTips } from "../lib/tips";
 
 /**
@@ -37,6 +38,7 @@ export default function SettingsPanel() {
       <BriefGroup />
       <TipsGroup />
       <AboutLimits />
+      <LegalGroup />
     </div>
   );
 }
@@ -61,6 +63,16 @@ const NARRATIVES = [
   { value: "langgraph", label: "LangGraph" },
   { value: "crewai", label: "CrewAI" },
 ];
+
+/** The privacy policy, terms and support pages (lib/legal), which App
+ *  Review wants a link to inside the app. */
+function LegalGroup() {
+  return (
+    <ListGroup title="About">
+      {LEGAL_PAGES.map(p => <ListRow key={p.key} title={p.title} href={p.href} data-testid={`legal-${p.key}`} />)}
+    </ListGroup>
+  );
+}
 
 /** The first-run tips (lib/tips), offered again from the start. */
 function TipsGroup() {
