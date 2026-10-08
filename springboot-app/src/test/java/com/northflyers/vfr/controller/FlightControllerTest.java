@@ -94,6 +94,22 @@ class FlightControllerTest {
     }
 
     @Test
+    void save_takesAPresentPositionForTheDeparture_andNotOneOffTheShape() throws Exception {
+        given(pilotService.current(any())).willReturn(Optional.of(samplePilot()));
+        given(flightService.save(any(), any())).willReturn(sampleFlight());
+
+        // Fly Here's Direct-To in the air: from where the airplane is.
+        mockMvc.perform(post("/api/flights").with(oidcLogin()).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"departureIdent\":\"@42.2340,-87.9877\",\"destinationIdent\":\"KDLH\",\"checkpoints\":[]}"))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/flights").with(oidcLogin()).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"departureIdent\":\"@42.2340\",\"destinationIdent\":\"KDLH\"}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void save_returns400_whenAStopIsTheWrongShape() throws Exception {
         given(pilotService.current(any())).willReturn(Optional.of(samplePilot()));
 

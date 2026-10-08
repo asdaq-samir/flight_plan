@@ -18,8 +18,12 @@ import org.springframework.lang.Nullable;
  *  itself allows it to be null. */
 public record SaveFlightRequest(
         @Nullable Long aircraftId,
+        /** An airport's ident, or a present position, "@42.2340,-87.9877":
+         *  a Direct-To in the air starts where the airplane is (the
+         *  planner's app.common.position_of, whose pattern this is). */
         @NotBlank(message = "departureIdent is required")
-        @Pattern(regexp = "[A-Za-z0-9]{3,4}", message = "departureIdent must be a 3-4 character airport ident")
+        @Pattern(regexp = "[A-Za-z0-9]{3,4}|@-?\\d{1,2}(\\.\\d{1,6})?,-?\\d{1,3}(\\.\\d{1,6})?",
+                message = "departureIdent must be a 3-4 character airport ident, or a position as @lat,lon")
         String departureIdent,
         @NotBlank(message = "destinationIdent is required")
         @Pattern(regexp = "[A-Za-z0-9]{3,4}", message = "destinationIdent must be a 3-4 character airport ident")

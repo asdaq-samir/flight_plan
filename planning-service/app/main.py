@@ -61,6 +61,8 @@ log = logging.getLogger(__name__)
 # Inside the datasets' own five-minute time-to-live, so a held copy is
 # replaced before a request could find it stale.
 WEATHER_REFRESH_S = 240
+# How often the FAA's files are checked for a new edition.
+EDITIONS_CHECK_EVERY_S = 6 * 3600
 # Set once the reference data below is loaded: the health probe reports
 # it, so a test run against a fresh stack can wait for a planner that
 # answers at full speed rather than one still parsing airspace under
@@ -146,7 +148,26 @@ def _warm_reference_data() -> None:
     # logged and the held copies go on being served. Once an hour, the
     # chart cycle is checked (app.chart_refresh decides what that starts).
     last_cycle_check = time.time()
+    # The FAA's files a new edition at a time (vfr.faa_data.refresh_editions):
+    # checked now, and four times a day -- a cycle starts on a known day,
+    # and a check is three page reads. Off with the charts' own refresh
+    # (CHARTS_AUTO_REFRESH=0: a test stack).
+    last_editions_check = 0.0
     while True:
+        if chart_refresh.AUTO_REFRESH and time.time() - last_editions_check >= EDITIONS_CHECK_EVERY_S:
+            last_editions_check = time.time()
+            try:
+                refreshed = faa_data.refresh_editions(altitude.DEFAULT_FAA_CACHE_DIR)
+                if refreshed:
+                    log.info("FAA files refreshed: %s", ", ".join(refreshed))
+                    # Read again here rather than under a pilot's request:
+                    # the airspace's shapes alone are half a minute.
+                    airspace.preload(altitude.DEFAULT_FAA_CACHE_DIR)
+                    faa_data.preload_obstacles(altitude.DEFAULT_FAA_CACHE_DIR)
+                    remarks.preload()
+                    fixes.preload()
+            except Exception:  # noqa: BLE001 -- the FAA's index out of reach: the next check tries again
+                log.warning("FAA editions not checked", exc_info=True)
         time.sleep(WEATHER_REFRESH_S)
         try:
             if weather.in_use():

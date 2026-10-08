@@ -16,7 +16,7 @@ import { bestStopIndex } from "../../lib/geo";
 import { useKeepOffline } from "../../lib/map/keepStatus";
 import { locateOnOpen, positionNow, useOwnShip } from "../../lib/map/ownShip";
 import { pointOf } from "../../lib/airspace";
-import { altitudesOf, altitudesParam, departureOf, identOf, isPosition, routeName, routeOf, stopsOf } from "../../lib/identSchema";
+import { altitudesOf, altitudesParam, departureOf, identOf, routeName, routeOf, stopsOf } from "../../lib/identSchema";
 import { usePreferences, type RecentAirport } from "../../lib/preferences";
 import { useAirportSearch } from "../../lib/useAirportSearch";
 // Without this Leaflet's tiles, markers and controls have no
@@ -929,9 +929,9 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     <>
       <Suspense fallback={roundRoom}>
       <SaveFlightButton
-        // Not a route from a present position: a saved flight is filed
-        // between airports (the webapp's own rule for its idents).
-        course={routed && !isPosition(planned.dep) ? course : null} totals={s.totals} nav={s.nav} legs={s.legs} selected={s.logSelected}
+        // A route from a present position too: the webapp files one
+        // (V17), as Fly Here's Direct-To in the air starts.
+        course={routed ? course : null} totals={s.totals} nav={s.nav} legs={s.legs} selected={s.logSelected}
         aircraftId={aircraft.aircraftId ?? null} depart={depart} altitudes={altitudes}
       />
       {shareMenu("end", !routed)}

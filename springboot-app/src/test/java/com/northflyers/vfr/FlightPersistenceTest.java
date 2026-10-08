@@ -84,6 +84,14 @@ class FlightPersistenceTest {
     }
 
     @Test
+    void aFlightFromAPresentPositionRoundTrips() {
+        // The longest position the planner takes: 23 characters (V17).
+        Flight saved = flights.save(new Flight(newPilot(), null, "@-42.123456,-142.123456", "KDLH"));
+
+        assertThat(flights.findById(saved.getId()).orElseThrow().getDepartureIdent()).isEqualTo("@-42.123456,-142.123456");
+    }
+
+    @Test
     void theStopsAFlightLandsAtRoundTripInOrder() {
         Pilot pilot = newPilot();
         Flight saved = flights.save(new Flight(pilot, null, "C81", "KDLH").withStops(List.of("KMSN", "KEAU")));

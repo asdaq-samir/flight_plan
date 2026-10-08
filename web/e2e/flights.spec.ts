@@ -58,6 +58,21 @@ test("a flight is filed once, whole, and a new plan is offered for saving again"
   await expect(save).toBeEnabled({ timeout: 90_000 });
 });
 
+// Fly Here's Direct-To in the air starts where the airplane is, and is a
+// flight to file like any other: it was offered no Save.
+test("a flight from a present position is filed from that position", async ({ page }) => {
+  test.setTimeout(120_000);
+  const filed: Record<string, unknown>[] = [];
+  await signedIn(page, filed);
+  await page.goto("/app/plan?dep=%4042.2340%2C-87.9877&dest=KDLH&view=briefing");
+  const save = page.getByRole("button", { name: /Save this flight|Saved|Saving/ });
+  await expect(save).toBeEnabled({ timeout: 90_000 });
+  await save.click();
+  await expect(save).toHaveAccessibleName("Saved");
+  expect(filed).toHaveLength(1);
+  expect(filed[0]).toMatchObject({ departureIdent: "@42.2340,-87.9877", destinationIdent: "KDLH" });
+});
+
 test("signed out, there is nothing to save", async ({ page }) => {
   await page.route("**/api/me", route => route.fulfill({ status: 401, body: "" }));
   await page.goto("/app/plan?dep=C81&dest=KDLH&view=briefing");

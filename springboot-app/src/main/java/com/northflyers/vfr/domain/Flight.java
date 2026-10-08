@@ -48,7 +48,9 @@ public class Flight {
     @JoinColumn(name = "aircraft_id")
     private Aircraft aircraft;
 
-    @Column(nullable = false, length = 8)
+    /** An airport's ident, or a present position flown from, "@lat,lon"
+     *  (the planner's; V17 widened it for one). */
+    @Column(nullable = false, length = 24)
     private String departureIdent;
 
     @Column(nullable = false, length = 8)

@@ -152,11 +152,11 @@ def test_a_box_turned_inside_out_is_refused(monkeypatch):
 def test_the_vfr_waypoints_in_view_are_the_sectionals_magenta_flags_only(monkeypatch):
     from vfr import fixes
 
-    monkeypatch.setattr(fixes, "_fixes", lambda: {
+    monkeypatch.setattr(fixes, "_TABLE", fixes._Table({
         "VPBNG": {"ident": "VPBNG", "lat": 42.0, "lon": -88.0, "vfr": True, "kind": "VFR waypoint"},
         "BEPKE": {"ident": "BEPKE", "lat": 42.0, "lon": -88.1, "vfr": False, "kind": "GPS waypoint"},
         "VPFAR": {"ident": "VPFAR", "lat": 45.0, "lon": -88.0, "vfr": True, "kind": "VFR waypoint"},
-    })
+    }, {}))
     client = TestClient(app)
 
     resp = client.get("/api/waypoints/in-view", params={"south": 41.5, "west": -88.5, "north": 42.5, "east": -87.5})

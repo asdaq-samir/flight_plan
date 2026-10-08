@@ -52,7 +52,7 @@ def no_navaids(monkeypatch):
     """No navaid by any ident, without NASR's NAV_BASE -- which a fresh
     checkout does not have, and would download. A test about one stubs
     find_navaid again itself."""
-    monkeypatch.setattr(fixes, "find_navaid", lambda ident: None)
+    monkeypatch.setattr(fixes, "find_navaid", lambda ident, near=(): None)
 
 
 @pytest.fixture(autouse=True)
