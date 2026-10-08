@@ -102,6 +102,11 @@ def _warm_reference_data() -> None:
     charts under it. All are loaded here rather than on the first
     pilot's request after a restart. A request arriving mid-load waits
     on the same parse instead of starting another."""
+    # The chart reader's processes first, starting beside all of it.
+    try:
+        chart_model.start_readers()
+    except Exception:  # noqa: BLE001 -- the first route's read starts them
+        log.exception("chart readers not started")
     for name, load in (
         ("airspace", lambda: airspace.preload(altitude.DEFAULT_FAA_CACHE_DIR)),
         ("obstacles", lambda: faa_data.preload_obstacles(altitude.DEFAULT_FAA_CACHE_DIR)),
@@ -178,10 +183,6 @@ def _warm_reference_data() -> None:
         if chart_refresh.AUTO_REFRESH and time.time() - last_cycle_check >= chart_refresh.CHECK_EVERY_S:
             last_cycle_check = time.time()
             chart_refresh.maybe_refresh()
-        # The chart reader's processes let go once nobody has read a chart
-        # for a while (app.chart_model.IDLE_S).
-        if chart_model.release_idle():
-            log.info("chart reader's processes let go, idle")
 
 
 @asynccontextmanager

@@ -16,3 +16,9 @@ def read_corridor(key: tuple, start: tuple, end: tuple, half_width_nm: float) ->
     with job["cond"]:
         job["cond"].wait_for(lambda: job["done"])
     return job["error"]
+
+
+def ready() -> bool:
+    """Nothing: given to each new process as the planner starts, for it to
+    import the above before the first route's read (app.chart_model)."""
+    return True
