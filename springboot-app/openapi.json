@@ -1111,7 +1111,7 @@
     },
     "/api/flights/{id}" : {
       "delete" : {
-        "operationId" : "delete_3",
+        "operationId" : "delete_4",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -1374,6 +1374,44 @@
       }
     },
     "/api/me" : {
+      "delete" : {
+        "description" : "The pilot and everything that was theirs -- aircraft, flights with their nav logs and tracks, logbook, endorsements, their own checkpoint notes, the sign-in links sent to them -- and every session they hold. Nothing is deleted when the planner cannot take the notes (502).",
+        "operationId" : "delete_3",
+        "responses" : {
+          "204" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "type" : "object"
+                }
+              }
+            },
+            "description" : "Deleted, and signed out"
+          },
+          "401" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "type" : "object"
+                }
+              }
+            },
+            "description" : "No session"
+          },
+          "502" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "type" : "object"
+                }
+              }
+            },
+            "description" : "Nothing deleted: the planner could not take the notes"
+          }
+        },
+        "summary" : "Delete the signed-in pilot's account",
+        "tags" : [ "pilot-controller" ]
+      },
       "get" : {
         "description" : "Creates the pilot record on first sign-in. 401 when no session exists.",
         "operationId" : "me",

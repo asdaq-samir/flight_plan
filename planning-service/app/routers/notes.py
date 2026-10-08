@@ -14,7 +14,7 @@ from vfr import checkpoint_notes
 from vfr import geo
 
 from ..common import line, load_route, ndjson
-from ..schemas import CheckpointNoteSaved, NoteCheckpoint, NoteDone, NoteError, NoteStart
+from ..schemas import CheckpointNoteSaved, NoteCheckpoint, NoteDone, NoteError, NoteStart, PilotNotesForgotten
 from ..scoring import route_checkpoints
 
 router = APIRouter()
@@ -220,3 +220,17 @@ def save_checkpoint_note(
     route = _hop_key(_hop_of(r, note.lat, note.lon))
     saved = checkpoint_notes.save_note(route, note.lat, note.lon, note.description.strip(), x_pilot_id)
     return CheckpointNoteSaved(ok=True, note=saved)
+
+
+@router.delete("/api/checkpoint-notes/mine")
+def forget_pilots_notes(
+    x_pilot_id: str | None = Header(default=None, alias=PILOT_HEADER),
+) -> PilotNotesForgotten:
+    """A pilot's own notes, every one, taken out as their account is
+    deleted (the webapp's DELETE /api/me). Asked by the webapp alone:
+    its proxy does not forward this path, and the pilot is named by the
+    header it sets from the session. The shared notes stay."""
+    if not x_pilot_id:
+        raise HTTPException(422, f"{PILOT_HEADER} names the pilot whose notes go")
+    return PilotNotesForgotten(removed=checkpoint_notes.forget_pilot(x_pilot_id))
+

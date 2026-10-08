@@ -13,11 +13,13 @@ import { TEXT } from "../../lib/text";
 import SignInModal from "./SignInModal";
 import { useLogout } from "./useLogout";
 import CloseButton from "../../components/CloseButton";
+import { useConfirm } from "../../components/useConfirm";
+import { useDeleteAccount } from "./useDeleteAccount";
 
 /**
  * The line both consoles open with, one row: the role as the title, a
  * menu -- Pilot, Developer for whoever may use dev mode (useDevMode),
- * and Sign out last for whoever is signed in -- then who is signed in,
+ * and Sign out and Delete account last for whoever is signed in -- then who is signed in,
  * small and grey in whatever room is left, then the close button.
  * Picking the other role changes the page under the console, which
  * stays out across the change (useConsoleOpen). It was a Pilot and
@@ -33,6 +35,17 @@ export default function ConsoleHeader({ console }: { console: string }) {
   const { data: pilot, isLoading, isError, refetch } = useQuery(pilotQuery);
   const devMode = useDevMode();
   const logout = useLogout();
+  const deleteAccount = useDeleteAccount();
+  // Asked first, red, saying what goes: App Review 5.1.1(v) has an app
+  // that makes accounts delete them, from inside the app.
+  const [askDelete, deleteDialog] = useConfirm({
+    title: "Delete your account?",
+    description: "Your airplanes, flights, logbook, saved tracks and the checkpoint notes you wrote go, on every "
+      + "device, and you are signed out. This can't be undone.",
+    confirmLabel: "Delete account",
+    destructive: true,
+    onConfirm: () => deleteAccount.mutate(),
+  });
   const menu = !!pilot || devMode.allowed;
   return (
     // Its sides clear the island of a phone on its side: from the top, the
@@ -68,6 +81,14 @@ export default function ConsoleHeader({ console }: { console: string }) {
               <>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem variant="destructive" onSelect={() => logout.mutate()} disabled={logout.isPending}>Sign out</DropdownMenuItem>
+                <DropdownMenuItem
+                  variant="destructive" data-testid="delete-account" disabled={deleteAccount.isPending}
+                  // After the menu has closed: a dialog opened while it still
+                  // holds the focus has its own taken back.
+                  onSelect={() => setTimeout(askDelete)}
+                >
+                  Delete account…
+                </DropdownMenuItem>
               </>
             )}
           </DropdownMenuContent>
@@ -85,6 +106,7 @@ export default function ConsoleHeader({ console }: { console: string }) {
       <SheetClose asChild>
         <CloseButton />
       </SheetClose>
+      {deleteDialog}
     </SheetHeader>
   );
 }

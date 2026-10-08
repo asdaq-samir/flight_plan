@@ -106,3 +106,17 @@ def test_a_note_cut_off_at_the_cap_is_refused_rather_than_saved(monkeypatch):
     _claude_replies(monkeypatch, [SimpleNamespace(type="text", text="Look for the lake south of")], "max_tokens")
     with pytest.raises(RuntimeError, match="max_tokens"):
         notes._describe_checkpoint(CHECKPOINT, "C81", None, None)
+
+
+def test_a_deleted_account_takes_its_own_notes_and_only_those(monkeypatch, tmp_path):
+    path = tmp_path / "notes.csv"
+    monkeypatch.setattr(checkpoint_notes, "NOTES_PATH", path)
+    checkpoint_notes.save_note("C81->KDLH", 45.0, -90.0, "Shared", path=path)
+    checkpoint_notes.save_note("C81->KDLH", 45.0, -90.0, "Mine", pilot="42", path=path)
+
+    resp = client.delete("/api/checkpoint-notes/mine", headers={"X-Pilot-Id": "42"})
+    assert resp.status_code == 200 and resp.json() == {"removed": 1}
+    assert [n["description"] for n in checkpoint_notes.load_notes(path=path)] == ["Shared"]
+    # Nobody named: refused, rather than read as the shared notes' empty pilot.
+    assert client.delete("/api/checkpoint-notes/mine").status_code == 422
+

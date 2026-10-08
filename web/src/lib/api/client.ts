@@ -406,6 +406,13 @@ export const api = {
     }
   },
 
+  /** Deletes the signed-in pilot's account and everything that was
+   *  theirs, on every device, and signs them out (a 204). A 502 deleted
+   *  nothing: the planner could not take their notes. */
+  async deleteAccount(): Promise<void> {
+    await webapp.DELETE("/api/me");
+  },
+
   /**
    * What signing in can do here. Public, and asked before any session
    * exists: a deployment with no Google or Apple credentials and no
