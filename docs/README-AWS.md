@@ -1,443 +1,313 @@
-# Target Architecture (AWS)
+# Wingtip Maps on AWS
 
 ## Contents
 
-- **[Overview](#overview)** — [Reading the diagram](#reading-the-diagram)
-- **[Architecture Diagram](#architecture-diagram)** — [1. CI/CD](#1-cicd-amber) · [2. Airflow DAG](#2-airflow-dag-blue) · [3. CloudFormation](#3-cloudformation-iac--provisions-everything-below) · [4. Gen AI](#4-gen-ai--langgraph--mcp--crewai-violet)
-- **[Infrastructure as Code](#infrastructure-as-code)** — [Where this sits relative to the current state](#where-this-sits-relative-to-the-current-state)
-- **[Deployment Guide](#deployment-guide)** — [AWS account setup](#aws-account-setup-one-time) · [Deploy runbook](#deploy-runbook) · [Rollback / teardown](#rollback--teardown) · [Cost awareness](#cost-awareness)
-- **[Appendix](#appendix)** — [Full connection reference](#full-connection-reference) · [CloudFormation parameter reference](#cloudformation-parameter-reference) · [AWS-specific gotchas](#aws-specific-gotchas)
+- **[The design](#the-design)** — [What runs where](#what-runs-where) · [What is left out](#what-is-left-out)
+- **[What it costs](#what-it-costs)**
+- **[The first deploy](#the-first-deploy)** — [Before anything (the owner)](#before-anything-the-owner) · [The stack](#the-stack) · [The images and the server](#the-images-and-the-server) · [Mail](#mail) · [The first chart cycle](#the-first-chart-cycle) · [The chart model](#the-chart-model)
+- **[Running it](#running-it)** — [Deploys](#deploys) · [On the server](#on-the-server) · [Chart cycles](#chart-cycles) · [Backups and restore](#backups-and-restore) · [A replaced server](#a-replaced-server) · [Teardown](#teardown)
+- **[Gotchas](#gotchas)**
 
-## Overview
+## The design
 
-A box-by-box walkthrough of `architecture-aws.svg` — the AWS/Go/Airflow/
-LangGraph/CrewAI stack this project is built toward — followed by the
-infrastructure-as-code that implements it and the runbook to deploy it.
+The app runs on one small server behind CloudFront. What is the same for
+every pilot is drawn ahead of time and served from the edge.
 
-![Target architecture diagram](architecture-aws.svg)
+The expensive parts of the old design, an ALB, RDS, a NAT gateway, VPC
+endpoints and Fargate services running all month, cost about $200–250
+a month for a planner nobody was using yet. This design costs a fifth of
+that (below), and the map is faster: tiles come from the nearest
+CloudFront edge, not from a planner drawing them on request.
 
-<sub>Editable source: `architecture-aws.drawio`. The rendered SVG also has
-the diagram embedded in it, so opening `architecture-aws.svg` directly in
-[draw.io](https://app.diagrams.net) (or the VS Code draw.io extension)
-works too.</sub>
+### What runs where
 
-The diagram has four top-level sections, stacked top to bottom in the order
-they'd fire on a real push: **CI/CD → Airflow DAG → CloudFormation (which
-provisions Retrain Trigger + AWS Serving Layer) → Gen AI**.
+```
+pilot ──HTTPS──▶ CloudFront  (app.example.com, ACM certificate)
+                   │
+                   ├─ /tiles/*        ──▶ S3 tiles bucket       cached a month (immutable, cycle in the path)
+                   ├─ /app/assets/*   ──▶ the server            cached a year (fingerprinted)
+                   └─ everything else ──▶ the server            not cached: pages, /api, sign-in
+                                            │ origin.app.example.com:443, with X-Origin-Secret
+                                            ▼
+                        EC2 t3a.medium (Amazon Linux 2023, docker-compose.prod.yml)
+                          caddy ─▶ webapp ─▶ planning-service ─▶ model-service
+                                     │            └──────────▶ nav-log-agent ─▶ Anthropic
+                                     └──▶ db (Postgres 18 + pgvector, on the server's disk)
+                          nightly pg_dump ─▶ S3 server bucket (14 days)
 
-### Reading the diagram
-
-- **Box color = which layer owns it.** Amber = CI/CD. Blue = the Airflow
-  data/ML pipeline. Grey = AWS infrastructure provisioned by CloudFormation.
-  Violet = the Gen AI agents. CloudFormation's own outer box uses a
-  distinct olive/brown, reading as a wrapper around the two grey boxes
-  nested inside it.
-- **Solid vs. dashed connections.** Solid = a normal same-section
-  connection. Dashed = a connection crossing from one section into
-  another. The one exception: `CrewAI Agent → LangGraph Agent` is dashed
-  even though both are inside Gen AI — that dash means "not
-  pipeline-connected," covered below.
-- **Dashed box border = not a pipeline connection.** Only **CrewAI Agent**
-  uses one — it's a second, comparison-only build of the same agent.
-- **`northflyers.com` has a black border**, not amber/grey — it's the one
-  box that isn't AWS-owned infrastructure.
-
-## Architecture Diagram
-
-### 1. CI/CD (amber)
-
-> Every push to main tests, lints, and builds a Docker image, then pushes
-> it to ECR — the images Airflow's workers and the ECS services pull from.
-
-**GitHub** (`git push -> main`) → **GitHub Actions** (`test · lint ·
-build`) → **ECR** (`Docker images`). A failing test or lint never reaches
-ECR; a passing run pushes.
-
-### 2. Airflow DAG (blue)
-
-> The automated version of the manual notebook sequence (01→02→03). Only
-> promotes a new model if it beats the current one on held-out metrics.
-
-Five tasks, left to right: **Collect** → **Feature-Engineer** → **Retrain**
-→ **Evaluate** → **Promote** (reached only if Evaluate's metrics
-comparison passes — this is the task that makes a model "live").
-
-Crossing connections:
-
-- **ECR → Collect** (`deploys DAG image`) — the image CI/CD just built is what Airflow's workers run
-- **Lambda (Go) → Collect** (`DAG trigger`) — the on-demand path into this same DAG
-
-### 3. CloudFormation (IaC) — provisions everything below
-
-The outer wrapper box: everything nested inside is CloudFormation-managed
-infrastructure. Two nested sections:
-
-#### 3a. Retrain Trigger (grey)
-
-> A deliberately small Go function — the one place Go has a legitimate
-> home in this stack — letting a retrain run on demand instead of waiting
-> on Airflow's schedule.
-
-One box, **Lambda (Go)**: receives a webhook/schedule hit via API Gateway
-(`POST /retrain`) and kicks off an Airflow DAG run.
-
-#### 3b. AWS Serving Layer (grey)
-
-> The AWS-hosted version of the local Docker Compose stack — same Spring
-> Boot app, same planning-service, same Postgres schema, on managed infra
-> that scales independently.
-
-**northflyers.com** (public, black border) → **API Gateway** → **ECS
-Fargate** (Spring Boot API) → **planning-service** and **RDS PostgreSQL**
-(JDBC, bidirectional); planning-service publishes the chart tiles to
-**S3 + CloudFront**, which the browser reads directly.
-
-### 4. Gen AI — LangGraph / MCP / CrewAI (violet)
-
-> Turns the planner's own nav log into a natural-language briefing,
-> wrapped as an MCP server. The vector store gives it memory of past
-> routes. CrewAI is a second build of the same agent, both getting their
-> nav log from planning-service.
-
-**LangGraph Agent (MCP Server)** ↔ **Vector Store** (`long-term memory`,
-bidirectional). **LangGraph Agent → planning-service** (`nav log (HTTP)`,
-over Cloud Map at `planning-service.vfr-route.internal`; planning-service
-admits the two agents' security groups for exactly this). **CrewAI Agent** (dashed border) exists in parallel —
-same tools, same task, not pipeline-connected to the LangGraph build.
-
-## Infrastructure as Code
-
-The diagram above is design intent; `infra/` is the part of it that's
-written, cfn-lint-validated, and ready to deploy as soon as an AWS account
-is in the picture.
-
-**`cloudformation/template.yaml`** provisions, into an existing VPC
-(bring-your-own-network — a common real-org constraint, and it keeps this
-template focused on the application layer rather than also reinventing a
-VPC/subnet/NAT-gateway layout most orgs already have):
-
-- **`webapp`** — ECS Fargate behind an ALB, calling RDS and proxying
-  the planner.
-- **`planning-service`** — ECS Fargate, and the one service with *no*
-  path into it from the load balancer. The browser never calls it: the
-  front end calls `webapp`, which proxies `/api/planner/*` onward, so its
-  security group admits traffic from `webapp`'s alone. `webapp` finds it
-  through the same Cloud Map namespace Airflow uses
-  (`planning-service.vfr-route.internal`), which is why no URL parameter
-  is needed. Sized larger than `webapp` (1 vCPU / 4 GB) because
-  sectional tiles are decoded into numpy arrays block by block.
-- **The chart tiles** — an S3 bucket (`ChartTilesBucket`) behind a
-  CloudFront distribution. The map draws nothing but FAA charts, a
-  static pyramid of some 400,000 tiles per 56-day cycle rendered from
-  the FAA's GeoTIFFs (`src/vfr/charts.py`), which is what a CDN is for
-  and what a Fargate task has no disk to keep. A scheduled task
-  (`ChartRefreshTaskDefinition`, the planner image running
-  `python -m vfr.charts refresh`, 2 vCPU / 8 GB / 60 GB ephemeral,
-  once a day) fetches the sheets, renders the pyramid and publishes it
-  under `tiles/<cycle>/`, then points `tiles/serving.json` at the
-  cycle; the planner reads that pointer (`CHART_TILES_URL`) and hands
-  the browser the base URL on every course, and `webapp`'s content
-  security policy admits the CloudFront origin
-  (`APP_CHART_TILES_ORIGIN`). A new cycle goes live for everyone the
-  moment the pointer moves, never before every tile is there. The
-  planner's own tile endpoints remain as the fallback and for the
-  chart reader, which renders the sheets a corridor needs on demand
-  into the task's ephemeral storage. **The first run is by hand**:
-  `aws ecs run-task --cluster vfr-route --task-definition
-  vfr-route-chart-refresh --launch-type FARGATE --network-configuration
-  ...` (a few hours); until then `ChartTilesUrl` answers nothing and
-  the map renders through the planner.
-- **`nav-log-agent`** — ECS Fargate, reachable through the *same* ALB via
-  a path-based route (`/mcp/*` → its own target group), rather than a
-  second load balancer.
-- **`crewai-agent`** — a task definition only, no standing service —
-  matches its local one-shot-CLI role; run with `aws ecs run-task`.
-- **RDS PostgreSQL** — `ManageMasterUserPassword` (native Secrets Manager
-  integration, no hand-created secret resource).
-- **Airflow, self-hosted on ECS Fargate** — chosen over Amazon MWAA to
-  reuse the same Fargate pattern as every other service rather than bring
-  in a second, differently-shaped managed service for one component. Its
-  metadata database is SQLite on an EFS-backed volume (matching local
-  `standalone` mode), which survives a task restart; single task
-  (`DesiredCount: 1`), a deliberate scale-appropriate choice, not a
-  general-purpose multi-writer setup. Reachable only from the Retrain
-  Trigger Lambda, over a Cloud Map private DNS name
-  (`airflow.vfr-route.internal`) rather than a manually-supplied URL.
-- **The Retrain Trigger Lambda** behind an HTTP API, and optional
-  Route53/ACM for a custom domain.
-
-**`lambda-retrain-trigger/`** — the Go source for the Retrain Trigger.
-Fetches Airflow credentials from Secrets Manager at invocation time, not a
-plaintext env var.
-
-**`airflow/dags/vfr_pipeline_aws_dag.py`** — the AWS counterpart to the
-local DAG: Collect/Feature-Engineer run as `SageMakerProcessingOperator`
-jobs, Retrain as a `SageMakerTrainingOperator` job, instead of
-`DockerOperator` sibling containers (there's no host Docker socket on
-Fargate). Evaluate/Promote stay in-process, same reasoning as locally —
-`vfr.model_registry` has zero third-party dependencies. Configuration
-(S3 bucket, job role ARN, image URIs) comes from Airflow Variables, set
-once after deploy — see [Deployment Guide](#deployment-guide).
-
-**What's verified**, without needing an AWS account:
-
-- `cfn-lint` passes with zero errors/warnings
-- Every image the template references (`webapp`, `planning-service`, `nav-log-agent`, `crewai-agent`, the AWS-mode `airflow`) builds cleanly
-- The Lambda compiles (`GOOS=linux GOARCH=arm64`) and passes `go vet`
-- The AWS-mode DAG parses with zero import errors and the correct five-task order
-
-**What only a live deploy can confirm:** IAM permission correctness, real VPC/subnet compatibility, AWS quotas, and whether the resources actually stand up together end to end.
-
-**Deliberately out of scope**, by design rather than omission:
-
-- Bringing your own VPC (above)
-- Alerting/dashboards on top of the CloudWatch Logs every service already writes to — a natural next increment once real traffic exists to alert on, not a missing piece of the current design
-
-**Not yet wired into this template** (a real gap, not a design choice):
-sign-in with Google/Apple/email now exists in `webapp` itself (see the
-main [`README.md`](README.md#services-in-detail)), but `template.yaml`
-doesn't yet provision `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`, the
-four `APPLE_*` values, or `MAIL_HOST`/`MAIL_USERNAME`/`MAIL_PASSWORD`
-as Secrets Manager entries, or pass `SPRING_PROFILES_ACTIVE=oauth` to
-the ECS task definition — a live deploy today would run with OIDC
-sign-in inactive and the magic link unable to actually send, the same
-as local `docker compose up` with none of those set.
-
-### Where this sits relative to the current state
-
-The Airflow DAG, both Gen AI agents, and CI/CD all run locally today; the
-AWS infrastructure and its AWS-mode DAG variant are written and lint
-clean but not provisioned — no AWS account exists in this project's
-environment. See the main [`README.md`](README.md) for the full local→AWS
-mapping table.
-
-**Deferred, and not deployable as it stands.** These gaps would each stop
-or undermine a real deploy, and are known:
-
-- planning-service is given `VFR_DATA_S3_BUCKET`, but no code reads it, so
-  a Fargate task finds no FAA data or feature stores (it has no repo
-  mount).
-- Chart picks, checkpoint notes and corridor builds are written to the
-  task's own disk, which a restart or deploy wipes. They need S3 or RDS
-  first.
-- The webapp task sets no `NAV_LOG_AGENT_URL`, `CREWAI_AGENT_URL` or agent
-  bearer key, so the narrative falls back to `localhost`; and
-  crewai-agent is a one-off task definition while webapp calls it as a
-  running service.
-- planning-service has no Anthropic key, so checkpoint notes fail.
-- There is no model-service: the chart model's scorer runs only in the
-  local stack, so planning-service ranks the chart's detections by the
-  palette's constants, as it does locally before a model is promoted.
-- The template takes no sign-in settings. With none, the webapp refuses
-  every planner write and the narrative (`app.open-writes` is off), so
-  the site would be read-only until Google, Apple or mail sign-in is
-  configured.
-
-## Deployment Guide
-
-The runbook, in order.
-
-### AWS account setup (one-time)
-
-1. **Account + billing.** Set a budget alert (Billing → Budgets) before
-   deploying anything.
-2. **IAM.** A user/role able to create this template's resources
-   (IAM, EC2 security groups, RDS, ECS, SageMaker, Lambda, API Gateway,
-   Route53, EFS, Cloud Map). Broad `AdministratorAccess` is fine for a
-   first personal-project deploy.
-3. **AWS CLI**, configured (`aws configure` or SSO).
-4. **Pick a region** — affects ACM certificate validation (same region as
-   the ALB) and subnet AZs.
-5. **A VPC with public and private subnets across at least two
-   Availability Zones.** The template takes `VpcId`/`PublicSubnetIds`/
-   `PrivateSubnetIds` as parameters; it does not create a VPC.
-6. **NAT Gateway or VPC endpoints for the private subnets.** `WebappService`
-   and the other Fargate services run with `AssignPublicIp: DISABLED`, so
-   without one or the other, tasks can't pull their image from ECR or read
-   Secrets Manager, and sit stuck in `PROVISIONING` with the real reason
-   buried in ECS's own task-stopped detail, not the CloudFormation events.
-   Cheapest fix for a low-traffic project: one NAT Gateway; VPC endpoints
-   (ECR api + dkr, Secrets Manager, CloudWatch Logs, an S3 gateway
-   endpoint) avoid its hourly + per-GB cost instead.
-7. **An S3 bucket** for `DataS3BucketName` (pipeline data).
-8. **(Optional) Route 53 hosted zone + ACM certificate**, if using
-   `DomainName`/`CertificateArn`. Leave both blank for an initial test
-   deploy — a working ALB DNS name with no custom domain is enough to
-   verify the stack.
-
-### Deploy runbook
-
-1. **Create the five ECR repositories:**
-   ```bash
-   for repo in webapp planning-service nav-log-agent crewai-agent airflow; do
-     aws ecr create-repository --repository-name vfr-route/$repo
-   done
-   ```
-2. **Push images.** Either set `AWS_ROLE_ARN`/`AWS_REGION` as GitHub repo
-   variables (Settings → Secrets and variables → Actions) so CI's
-   `push-ecr` job does this on every push to `main`, or build/push
-   manually:
-   ```bash
-   aws ecr get-login-password | docker login --username AWS --password-stdin <account>.dkr.ecr.<region>.amazonaws.com
-   docker build -t <account>.dkr.ecr.<region>.amazonaws.com/vfr-route/webapp:latest ./springboot-app
-   docker push <account>.dkr.ecr.<region>.amazonaws.com/vfr-route/webapp:latest
-   # repeat for planning-service, nav-log-agent, crewai-agent, and
-   # airflow (built from
-   # docker/Dockerfile.airflow.aws, not Dockerfile.airflow)
-   ```
-3. **Upload labels**, since they're hand-produced, not pipeline output:
-   ```bash
-   aws s3 cp data/labels/spottability_ratings.csv s3://<DataS3BucketName>/labels/spottability_ratings.csv
-   ```
-4. **Build and upload the Lambda:**
-   ```bash
-   cd infra/lambda-retrain-trigger
-   GOOS=linux GOARCH=arm64 go build -o bootstrap main.go
-   zip bootstrap.zip bootstrap
-   aws s3 cp bootstrap.zip s3://<your-bucket>/retrain-trigger/bootstrap.zip
-   ```
-5. **Create the three secrets** the template reads (it doesn't create
-   any of them):
-   ```bash
-   aws secretsmanager create-secret --name anthropic-api-key --secret-string '<your key>'
-   aws secretsmanager create-secret --name airflow-rest-api-creds --secret-string '{"username":"...","password":"..."}'
-   # The bearer token nav-log-agent's own MCP endpoint checks (its ALB
-   # route has no other auth in front of it) -- generate one, don't
-   # reuse another secret's value:
-   aws secretsmanager create-secret --name nav-log-agent-api-key --secret-string "$(openssl rand -base64 32)"
-   ```
-6. **Verify the RDS engine version is still valid** — the template pins
-   `EngineVersion: "17.4"` with a documented lint suppression:
-   ```bash
-   aws rds describe-db-engine-versions --engine postgres --query "DBEngineVersions[].EngineVersion"
-   ```
-7. **Deploy the stack:**
-   ```bash
-   aws cloudformation deploy \
-     --template-file infra/cloudformation/template.yaml \
-     --stack-name vfr-route \
-     --capabilities CAPABILITY_IAM \
-     --parameter-overrides \
-       VpcId=vpc-... \
-       PublicSubnetIds=subnet-...,subnet-... \
-       PrivateSubnetIds=subnet-...,subnet-... \
-       WebappImageUri=<account>.dkr.ecr.<region>.amazonaws.com/vfr-route/webapp:latest \
-       PlanningServiceImageUri=<account>.dkr.ecr.<region>.amazonaws.com/vfr-route/planning-service:latest \
-       NavLogAgentImageUri=<account>.dkr.ecr.<region>.amazonaws.com/vfr-route/nav-log-agent:latest \
-       CrewaiAgentImageUri=<account>.dkr.ecr.<region>.amazonaws.com/vfr-route/crewai-agent:latest \
-       AirflowImageUri=<account>.dkr.ecr.<region>.amazonaws.com/vfr-route/airflow:latest \
-       DataS3BucketName=<DataS3BucketName> \
-       AnthropicApiKeySecretArn=arn:aws:secretsmanager:... \
-       NavLogAgentApiKeySecretArn=arn:aws:secretsmanager:... \
-       LambdaCodeS3Bucket=<your-bucket> \
-       AirflowCredentialsSecretArn=arn:aws:secretsmanager:...
-   ```
-8. **Watch it deploy** (`aws cloudformation describe-stack-events
-   --stack-name vfr-route`). A stuck `WebappService`/`NavLogAgentService`
-   (see the NAT/VPC-endpoint note above) is the most likely first-deploy
-   snag; RDS typically takes the longest wall time but rarely fails
-   outright once parameters are valid.
-9. **Set the Airflow Variables** the AWS DAG reads, via
-    `aws ecs execute-command` (enabled on `AirflowService`):
-    ```bash
-    aws ecs execute-command --cluster vfr-route --container airflow --interactive \
-      --command "airflow variables set vfr_data_s3_bucket <DataS3BucketName>" \
-      --task <task-id-from-aws-ecs-list-tasks>
-    # repeat for vfr_sagemaker_job_role_arn (SageMakerJobRoleArn output),
-    # vfr_pipeline_processing_image_uri, vfr_pipeline_training_image_uri
-    ```
-    (`pipeline-processing`/`pipeline-training` aren't in the ECR-repo list
-    above since Airflow's SageMaker Jobs pull them directly by URI —
-    create and push those two repos the same way as step 1/2 first.)
-10. **Verify each piece**: ALB target health for both `webapp` and
-    `nav-log-agent` (`healthy` confirms Flyway's migrations applied and
-    the MCP SSE endpoint responds); `curl -X POST <RetrainApiUrl>`
-    reaches the Lambda.
-11. **Smoke test**: `GET /api/planner/course?dep=C81&dest=KDLH` against
-    the ALB/domain (the webapp → planning-service hop),
-    `GET /api/planner/checkpoints?dep=C81&dest=KDLH` (planning-service
-    reading the chart along the route), `GET /actuator/health/readiness`
-    (RDS), then
-    trigger a retrain via the API Gateway URL and confirm Airflow received
-    the DAG-run request.
-
-### Rollback / teardown
-
-```bash
-aws cloudformation delete-stack --stack-name vfr-route
+EventBridge, daily 08:30 UTC ─▶ Fargate Spot task: python -m vfr.charts refresh
+   a no-op until the FAA's new cycle, then fetches every sheet, draws the
+   pyramid (1.5 million tiles) and publishes it to the tiles bucket,
+   serving.json last, so every browser moves to the new cycle at once
 ```
 
-`Database` has `DeletionPolicy: Snapshot`, so deleting the stack leaves a
-final RDS snapshot behind — it keeps costing storage until manually
-deleted (`aws rds delete-db-snapshot`). ECR images, S3 objects, and EFS
-data aren't part of the stack and need separate cleanup for a fully clean
-teardown.
+- **One domain for everything** (`PublicHost`), so the webapp's Secure
+  session cookies work as they do locally and the map's tile requests
+  are same-origin.
+- **Only CloudFront reaches the server.** The security group admits
+  port 443 from CloudFront's origin-facing addresses alone, and Caddy
+  answers 404 to any request without the secret header CloudFront adds
+  (`infra/server/Caddyfile`). Port 80 is open for Let's Encrypt, which
+  gives Caddy the certificate for `origin.<domain>`.
+- **No SSH.** A shell on the server is SSM Session Manager; deploys are
+  SSM Run Command. The server's role can pull its own images, read its
+  own secrets and write its own backups, and nothing else.
+- **The planner no longer draws tiles** (`CHARTS_AUTO_REFRESH=0`,
+  `CHART_TILES_URL`). It still reads the chart for checkpoints, from the
+  sheets under each route, fetched the first time a route needs them
+  and kept on the server's disk.
+- **Images are x86** (t3a), so CI's images run as built. A Graviton
+  server (t4g) would save about $3 a month and need every image built
+  for both architectures.
 
-### Cost awareness
+Every resource is in [`infra/cloudformation/template.yaml`](../infra/cloudformation/template.yaml);
+the server's own files are in [`infra/server/`](../infra/server/) and
+[`docker-compose.prod.yml`](../docker-compose.prod.yml).
 
-Billed hourly regardless of traffic: **RDS**, the **ALB**, and a **NAT
-Gateway** if that's the route chosen for private-subnet
-internet access (often the single biggest line item at this scale). Free
-or near-free at this project's scale: Lambda, API Gateway, EFS, S3.
+### What is left out
 
-## Appendix
+Each of these stays in the development stack (`docker-compose.yml`), and
+nothing in production calls it; the developer console says so where it
+offers one.
 
-### Full connection reference
+| Left out | Why | In production |
+|---|---|---|
+| crewai-agent | The same briefing nav-log-agent writes, built to compare frameworks | The comparison popover's CrewAI side reports it unavailable |
+| Airflow, the pipelines, SageMaker | Retraining runs on the owner's machine | The console's retrain button says Airflow is not configured; a new model is uploaded (below) |
+| Mailpit | A development mailer | Sign-in mail goes through Amazon SES |
+| dev-services, Jupyter | Development tools | The console's service buttons say there is no sidecar |
+| The Go retrain Lambda and API Gateway | Triggered Airflow, which is not here | — |
 
-| From | To | Label | Style | Crosses section? |
-|---|---|---|---|---|
-| GitHub | GitHub Actions | push | solid | no (within CI/CD) |
-| GitHub Actions | ECR | build & push image | solid | no (within CI/CD) |
-| ECR | Collect | deploys DAG image | dashed | CI/CD → Airflow |
-| Collect | Feature-Engineer | candidates.csv | solid | no (within Airflow) |
-| Feature-Engineer | Retrain | features.parquet | solid | no (within Airflow) |
-| Retrain | Evaluate | model | solid | no (within Airflow) |
-| Evaluate | Promote | metrics pass | solid | no (within Airflow) |
-| API Gateway | Lambda (Go) | POST /retrain (webhook/schedule) | dashed | AWS Serving Layer → Retrain Trigger |
-| Lambda (Go) | Collect | DAG trigger | dashed | Retrain Trigger → Airflow |
-| northflyers.com | API Gateway | HTTPS | solid | no (within AWS Serving Layer) |
-| API Gateway | ECS Fargate | *(unlabeled)* | solid | no (within AWS Serving Layer) |
-| ECS Fargate | planning-service | *(unlabeled)* | solid | no (within AWS Serving Layer) |
-| planning-service | S3 + CloudFront | publishes tiles | solid | no (within AWS Serving Layer) |
-| northflyers.com | S3 + CloudFront | tiles (direct, once published) | dashed | no (within AWS Serving Layer) |
-| ECS Fargate | RDS PostgreSQL | JDBC | solid, bidirectional | no (within AWS Serving Layer) |
-| LangGraph Agent | Vector Store | long-term memory | solid, bidirectional | no (within Gen AI) |
-| CrewAI Agent | LangGraph Agent | parallel comparison, not pipeline-connected | dashed, no arrowheads | no (within Gen AI) |
-| LangGraph Agent | planning-service | nav log (HTTP) | dashed | Gen AI → AWS Serving Layer |
+## What it costs
 
-### CloudFormation parameter reference
+On-demand prices in us-east-1, October 2026, at today's traffic:
 
-Full parameter list and descriptions live in
-`infra/cloudformation/template.yaml` itself (`Parameters:` section, grouped
-in the console via `AWS::CloudFormation::Interface`) — the single source
-of truth, kept from drifting out of sync with a duplicated copy here.
+| Item | A month |
+|---|---|
+| EC2 t3a.medium, all month | $27.45 |
+| Its public IPv4 address | $3.65 |
+| 40 GB gp3 disk | $3.20 |
+| S3 tiles: 1.5 million uploads a cycle ($7.50 per 56 days) and up to three cycles stored | ~$4.50 |
+| Secrets Manager, four secrets | $1.60 |
+| Route 53 hosted zone | $0.50 |
+| ECR, CloudWatch logs, backups, the Fargate Spot refresh (under $1 a cycle) | ~$1.50 |
+| CloudFront | $0 within the always-free 1 TB and 10 million requests |
+| SES | $0.10 per 1,000 sign-in emails |
+| **Total** | **about $42** |
 
-### AWS-specific gotchas
+A one-year Savings Plan on the server takes about $10 off (**about
+$32**). The next saving after that is the tiles' upload bill: one
+PMTiles archive per chart kind in place of 1.5 million files would take
+it to cents, at the cost of a PMTiles reader in the map.
 
-- **`SageMakerProcessingOperator`/`SageMakerTrainingOperator` need
-  `apache-airflow-providers-amazon`**, not installed in the local
-  `docker/Dockerfile.airflow` — that's what `docker/Dockerfile.airflow.aws`
-  is for, a deliberately separate image (see its header comment).
-- **SageMaker Training Jobs have no argument-override mechanism** the way
-  Processing Jobs do (`ContainerEntrypoint`/`ContainerArguments`) — a
-  Training Job always runs the image's own `ENTRYPOINT`/`CMD` unchanged.
-  `docker/Dockerfile.training` has `CMD ["retrain"]` specifically so it
-  works as a Training Job's image with no override needed.
-- **`sagemaker:CreateProcessingJob`/`CreateTrainingJob` don't support
-  resource-level IAM restriction** — job names are chosen per-run, so
-  `Resource: "*"` on `AirflowTaskRole` is what AWS itself requires, not a
-  broadened grant of convenience.
-- **An EFS `AccessPoint`'s POSIX UID/GID must match the container's own
-  user** or the mounted volume is unwritable — `50000` matches the
-  `apache/airflow` base image's own `airflow` user, not the more common
-  `1000`.
-- **`aws ecs execute-command` requires `EnableExecuteCommand: true` on the
-  service** *and* `ssmmessages:Create*Channel`/`Open*Channel` permissions
-  on the task role — both are easy to forget independently, and the
-  failure mode (the command just hangs) doesn't point at either directly.
+The template's `BudgetEmail` sets an alarm at 80% of $50 a month.
+
+## The first deploy
+
+### Before anything (the owner)
+
+What only the owner can do (issue #115):
+
+1. An AWS account, with MFA on the root user.
+2. A domain whose DNS is a Route 53 hosted zone in that account. Note
+   the zone's ID.
+3. The AWS CLI on the Mac, signed in to that account (`aws configure` or
+   `aws sso login`), and the
+   [Session Manager plugin](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html)
+   for a shell on the server.
+
+### The stack
+
+The server's image is named, not looked up, so that a later stack update
+never replaces the server because Amazon published a newer one. Find the
+current one, then create the stack (us-east-1 only: CloudFront's
+certificate must be there):
+
+```bash
+AMI=$(aws ssm get-parameter --region us-east-1 \
+  --name /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64 \
+  --query Parameter.Value --output text)
+
+aws cloudformation deploy --region us-east-1 --stack-name wingtip \
+  --template-file infra/cloudformation/template.yaml \
+  --capabilities CAPABILITY_IAM \
+  --parameter-overrides \
+    PublicHost=app.example.com HostedZoneId=Z0123456789ABC \
+    ServerImageId="$AMI" BudgetEmail=you@example.com
+
+aws cloudformation describe-stacks --region us-east-1 --stack-name wingtip \
+  --query 'Stacks[0].Outputs' --output table
+```
+
+It takes about 20 minutes, most of it the certificate's DNS validation
+and CloudFront. Pass `CreateGitHubOidcProvider=false` if the account
+already trusts GitHub's OIDC provider. `MailDomain` sends sign-in mail
+from another domain than `PublicHost`.
+
+The outputs name everything the steps below need.
+
+### The images and the server
+
+The server boots, installs Docker, clones this repository and writes
+its settings, but has no images to run until the first push to ECR.
+
+1. In GitHub, Settings → Secrets and variables → Actions → Variables,
+   add `AWS_ROLE_ARN` (the `DeployRoleArn` output), `AWS_REGION`
+   (`us-east-1`) and `AWS_INSTANCE_ID` (the `ServerInstanceId` output).
+2. Fill in the owner's values in the `AppSecret` output's secret, as
+   [`infra/server/env.example`](../infra/server/env.example) lists them:
+
+   ```bash
+   aws secretsmanager put-secret-value --region us-east-1 \
+     --secret-id <AppSecretArn> --secret-string file://app-secret.json
+   rm app-secret.json
+   ```
+
+3. The next green CI run on `main` promotes its images, pushes the four
+   the server runs to ECR (`promote.yml`, `push-ecr`) and runs
+   [`infra/server/deploy.sh`](../infra/server/deploy.sh) on the server
+   (`deploy`). To deploy without waiting for one:
+
+   ```bash
+   aws ssm send-command --region us-east-1 --instance-ids <ServerInstanceId> \
+     --document-name AWS-RunShellScript \
+     --parameters 'commands=["/srv/flight_plan/repo/infra/server/deploy.sh"]'
+   ```
+
+`deploy.sh` writes the server's `.env` from the stack's settings and the
+four secrets, pulls the images and starts what changed. It is safe to run
+at any time.
+
+### Mail
+
+The stack creates the SES identity for the mail domain and its three
+DKIM records. Then:
+
+1. **SMTP credentials:** SES console → SMTP settings → Create SMTP
+   credentials. The user name and password go in the `AppSecret` as
+   `MAIL_USERNAME` and `MAIL_PASSWORD`; run `deploy.sh` again.
+2. **DMARC:** add a TXT record `_dmarc.<mail domain>` with
+   `v=DMARC1; p=quarantine; rua=mailto:<you>`. DKIM, signed by SES for
+   the domain, is what aligns for DMARC.
+3. **SPF** is SES's own: it sends from `amazonses.com` unless a custom
+   MAIL FROM domain is set up, so the domain needs no SPF record for
+   these emails.
+4. **Leave the sandbox:** SES console → Account dashboard → Request
+   production access. Until Amazon approves it, mail goes only to
+   addresses verified in SES, which is enough to test with your own.
+
+### The first chart cycle
+
+The daily refresh draws the cycle at 08:30 UTC. To have tiles now, run
+the `ChartRefreshNow` output's command. The whole country takes some
+hours on the task's two cores; its log is in CloudWatch under
+`/ecs/wingtip-chart-refresh`. Until it publishes, the map has no chart
+under it.
+
+### The chart model
+
+The planner ranks checkpoints with the chart model when one is there,
+and by its own rules when not. To serve the one trained on the Mac:
+
+```bash
+aws s3 sync data/models/chart/current s3://<ServerBucketName>/models/chart/current/
+```
+
+then run `deploy.sh`, which copies it to the server. Each retrain on the
+Mac is promoted the same way.
+
+## Running it
+
+### Deploys
+
+A pull request merged to `main` deploys itself once CI passes: Promote
+pushes the images and runs `deploy.sh` over SSM, and the job fails if it
+does. A deploy restarts only the services whose image changed. The
+server's copy of the repository follows `main` too (`git pull` in
+`deploy.sh`), for `docker-compose.prod.yml` and the Caddyfile.
+
+### On the server
+
+```bash
+aws ssm start-session --region us-east-1 --target <ServerInstanceId>
+sudo -i
+cd /srv/flight_plan/repo
+docker compose --env-file /srv/flight_plan/.env -f docker-compose.prod.yml ps
+docker compose --env-file /srv/flight_plan/.env -f docker-compose.prod.yml logs -f --tail 100 webapp
+```
+
+`/srv/flight_plan/data` is the planner's data folder, `/srv/flight_plan/postgres`
+the database. Never edit `/srv/flight_plan/.env`; `deploy.sh` writes it.
+
+### Chart cycles
+
+Nothing to do: the daily task publishes each new cycle once and is a
+no-op on the other 55 days. A Spot interruption starts it over the next
+day, the old cycle served until then. Tiles are cached by their cycle,
+so a tile drawn again within a cycle (a renderer change) reaches pilots
+with the next cycle.
+
+### Backups and restore
+
+At 07:17 UTC every night `backup.sh` copies to
+`s3://<ServerBucketName>/backups/<date>/` what the server alone holds:
+the database (`postgres.dump`: accounts, aircraft, flights, the briefing
+agent's memory) and the planner's `data/labels` (`labels.tar.gz`: the
+checkpoint notes pilots and Claude have written). The bucket keeps 14
+days. The dump is written to a file and checked with `pg_restore --list`
+before it is uploaded, so a truncated one never replaces a good day, and a
+failed backup emails `BudgetEmail` (confirm the SNS subscription mail once).
+The server's disk is also snapshotted daily at 05:00 UTC, seven kept. To
+restore one, on the server:
+
+```bash
+cd /srv/flight_plan/repo
+B=s3://<ServerBucketName>/backups/<date>
+aws s3 cp $B/postgres.dump - | \
+  docker compose --env-file /srv/flight_plan/.env -f docker-compose.prod.yml \
+  exec -T db pg_restore -U vfr -d vfr_route --clean --if-exists
+aws s3 cp $B/labels.tar.gz - | tar -xz -C /srv/flight_plan/data
+docker compose --env-file /srv/flight_plan/.env -f docker-compose.prod.yml restart webapp nav-log-agent planning-service
+```
+
+Everything else in the data folder (the FAA's files, the chart sheets)
+is downloaded again by the planner as it is needed.
+
+### A replaced server
+
+A new `ServerImageId`, or any other change CloudFormation can make only
+by replacing the server (its subnet, say), gives a new server. It
+deploys itself on its first boot, with an empty database; restore last
+night's dump as above. The old server's
+disk is kept (it is not deleted with its server): delete it in the EC2
+console under Volumes once the restore is checked.
+
+### Teardown
+
+```bash
+aws cloudformation delete-stack --region us-east-1 --stack-name wingtip
+```
+
+Empty the tiles bucket first (or the delete fails on it). The server
+bucket, with the backups, and the server's disk are kept on purpose:
+delete them by hand when they are no longer wanted.
+
+## Gotchas
+
+- **The CloudFront prefix list counts as 55 rules** against the
+  security group's limit of 60.
+- **Caddy needs `origin.<domain>` to resolve** before it can get its
+  certificate; it retries by itself after the first boot, while the
+  record is being created.
+- **The Fargate task has no data folder mounted:** the planner image
+  makes `/workspace/data` its user's for that, and the task's 60 GB of
+  storage holds the sheets and the pyramid.
+- **The refresh task's empty disk would read as a cycle never drawn;**
+  it asks the bucket's `serving.json` first (`vfr.charts.refresh`).
+- **`AppSecret` is written once.** The stack leaves the values filled in
+  by the owner alone unless its `SecretString` in the template changes,
+  so leave that as it is.
 
 ---
 
-Back to [`README.md`](README.md) for the project overview, or
-[`LEARNING-GUIDE.md`](LEARNING-GUIDE.md) to understand the concepts behind
-any of this in depth.
+Back to [`README.md`](README.md) for the project overview.

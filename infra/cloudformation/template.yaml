@@ -1,711 +1,180 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: >
-  VFR Nav Log Platform -- target AWS architecture from docs/architecture-aws.svg.
-  Deploys into an existing VPC (bring-your-own-network, a common constraint in
-  real orgs, and it keeps this template focused on the application-level
-  resources) -- ECS Fargate (Spring Boot API, nav-log-agent, crewai-agent,
-  and a self-hosted Airflow) behind an ALB, RDS PostgreSQL, and the Go
-  Lambda "Retrain Trigger" behind an HTTP API. Not yet deployed anywhere -- see docs/README-AWS.md's
-  "Infrastructure as code" section for what has and hasn't been verified
-  about this template specifically.
+  Wingtip Maps on AWS, built for low cost: one EC2 server (webapp, planner,
+  briefing agent, Postgres) behind CloudFront, FAA chart tiles drawn once
+  per 56-day cycle by a Fargate Spot task into S3, and the web app's
+  fingerprinted files cached at the edge. About $42 a month on demand,
+  $32 with a one-year Savings Plan on the server (docs/README-AWS.md has
+  the itemised cost and the runbook). Deploy in
+  us-east-1: CloudFront's certificate must be there.
 
 Metadata:
   AWS::CloudFormation::Interface:
     ParameterGroups:
-      - Label:
-          default: Networking (existing VPC)
-        Parameters:
-          - VpcId
-          - PublicSubnetIds
-          - PrivateSubnetIds
-      - Label:
-          default: Container images (already pushed to ECR by CI -- see .github/workflows/ci.yml)
-        Parameters:
-          - WebappImageUri
-          - PlanningServiceImageUri
-          - NavLogAgentImageUri
-          - CrewaiAgentImageUri
-          - AirflowImageUri
-      - Label:
-          default: Database
-        Parameters:
-          - DBInstanceClass
-          - DBAllocatedStorageGb
-          - DBName
-          - DBUsername
-      - Label:
-          default: Gen AI (nav-log-agent / crewai-agent)
-        Parameters:
-          - AnthropicApiKeySecretArn
-          - NavLogAgentApiKeySecretArn
-      - Label:
-          default: Pipeline data (read/written by SageMaker Processing/Training Jobs)
-        Parameters:
-          - DataS3BucketName
-      - Label:
-          default: Retrain Trigger (Lambda)
-        Parameters:
-          - LambdaCodeS3Bucket
-          - LambdaCodeS3Key
-          - AirflowDagId
-          - AirflowCredentialsSecretArn
-      - Label:
-          default: Public ingress (optional -- omit both to skip HTTPS/custom domain)
-        Parameters:
-          - DomainName
-          - CertificateArn
+      - Label: { default: Domain }
+        Parameters: [PublicHost, HostedZoneId, MailDomain]
+      - Label: { default: Server }
+        Parameters: [ServerImageId, InstanceType, RootVolumeGb, ImageTag, CloudFrontPrefixListId]
+      - Label: { default: Deploys from GitHub }
+        Parameters: [GitHubRepo, CreateGitHubOidcProvider]
+      - Label: { default: Spending }
+        Parameters: [BudgetEmail]
 
 Parameters:
-  VpcId:
-    Type: AWS::EC2::VPC::Id
-  PublicSubnetIds:
-    Type: List<AWS::EC2::Subnet::Id>
-    Description: For the ALB and the Lambda's API Gateway (HTTP API is regional, not VPC-attached, but listed for symmetry/clarity of intent).
-  PrivateSubnetIds:
-    Type: List<AWS::EC2::Subnet::Id>
-    Description: For the ECS service, RDS instance, and the Lambda's VPC config (so it can reach Airflow privately).
-
-  WebappImageUri:
+  PublicHost:
     Type: String
-    Description: Full ECR image URI for webapp, e.g. <account>.dkr.ecr.<region>.amazonaws.com/<repo>/webapp:latest
-  PlanningServiceImageUri:
+    Description: The app's domain, e.g. app.example.com. Its Route 53 zone must be HostedZoneId.
+  HostedZoneId:
+    Type: AWS::Route53::HostedZone::Id
+    Description: The Route 53 zone the domain lives in (for the certificate, the DNS records and SES's DKIM).
+  MailDomain:
     Type: String
-    Description: Full ECR image URI for planning-service -- chart vision, checkpoint selection and the nav log. Internal only; webapp proxies to it and nothing else reaches it.
-  NavLogAgentImageUri:
+    Default: ""
+    Description: The domain sign-in mail is sent from (no-reply@MailDomain). Empty means PublicHost.
+  ServerImageId:
+    Type: AWS::EC2::Image::Id
+    Description: >
+      The server's Amazon Linux 2023 image (x86_64), named here rather
+      than looked up, so a stack update never replaces the server -- and
+      its database -- because Amazon published a newer one. The current
+      one: aws ssm get-parameter --region us-east-1 --name
+      /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64
+      --query Parameter.Value --output text
+  InstanceType:
     Type: String
-    Description: Full ECR image URI for nav-log-agent.
-  CrewaiAgentImageUri:
-    Type: String
-    Description: Full ECR image URI for crewai-agent -- registered as a standalone task definition, not a standing service; run on demand with `aws ecs run-task`, matching its local one-shot CLI role.
-  AirflowImageUri:
-    Type: String
-    Description: Full ECR image URI for the AWS-hosted Airflow image (docker/Dockerfile.airflow.aws, not docker/Dockerfile.airflow -- see that file's header comment for why they differ).
-
-  DBInstanceClass:
-    Type: String
-    Default: db.t4g.micro
-  DBAllocatedStorageGb:
+    Default: t3a.medium
+    AllowedValues: [t3a.medium, t3a.large, t3.medium, t3.large]
+    Description: >
+      2 cores and 4 GB run the stack once the planner no longer draws tiles
+      (its five services held 1.8 GB at rest on the development stack,
+      2026-10-08). x86, so CI's images run as built; t3a.large (8 GB) if
+      it ever runs short.
+  RootVolumeGb:
     Type: Number
-    Default: 20
-  DBName:
+    Default: 40
+    MinValue: 30
+    Description: >
+      The server's disk: the images (about 5 GB), the FAA data and the
+      chart sheets the planner reads checkpoints off (6 GB for the whole
+      country), Postgres and 2 GB of swap. gp3 grows in place if it fills.
+  ImageTag:
     Type: String
-    Default: vfr_route
-  DBUsername:
+    Default: latest
+  CloudFrontPrefixListId:
     Type: String
-    Default: vfr
-
-  AnthropicApiKeySecretArn:
+    Default: pl-3b927c52
+    Description: CloudFront's origin-facing managed prefix list in us-east-1 (com.amazonaws.global.cloudfront.origin-facing).
+  GitHubRepo:
     Type: String
-    Description: ARN of an existing Secrets Manager secret holding the raw Anthropic API key as its secret value (plaintext, not JSON) -- used by nav-log-agent and crewai-agent.
-  NavLogAgentApiKeySecretArn:
+    Default: asdaq-samir/flight_plan
+  CreateGitHubOidcProvider:
     Type: String
-    Description: ARN of an existing Secrets Manager secret holding the shared bearer token nav-log-agent's own MCP endpoint checks (nav-log-agent/app/main.py's BearerAuthMiddleware) -- the ALB routes /mcp/* to it with no auth of its own in front, so this is the only thing stopping an unauthenticated caller from running billed Claude calls and writing to the briefing store.
-
-  DataS3BucketName:
-    Type: String
-    Description: S3 bucket holding pipeline data (candidates/features/labels in, trained models out) -- read and written by the SageMaker Processing/Training Jobs Airflow launches (airflow/dags/vfr_pipeline_aws_dag.py).
-
-  LambdaCodeS3Bucket:
-    Type: String
-    Description: Where infra/lambda-retrain-trigger's compiled `bootstrap` binary (zipped) has been uploaded -- this template doesn't build/upload it, see that directory's own notes.
-  LambdaCodeS3Key:
-    Type: String
-    Default: retrain-trigger/bootstrap.zip
-  AirflowDagId:
-    Type: String
-    Default: vfr_pipeline_aws
-  AirflowCredentialsSecretArn:
-    Type: String
-    Description: 'ARN of an existing Secrets Manager secret shaped {"username": "...", "password": "..."} for Airflow''s REST API basic auth.'
-
-  DomainName:
+    Default: "true"
+    AllowedValues: ["true", "false"]
+    Description: "false if the account already has token.actions.githubusercontent.com as an OIDC provider."
+  BudgetEmail:
     Type: String
     Default: ""
-    Description: e.g. northflyers.com -- leave blank to skip the Route53 record and serve over the ALB's own DNS name.
-  CertificateArn:
-    Type: String
-    Default: ""
-    Description: ACM certificate ARN for HTTPS -- leave blank to serve HTTP only on the ALB (fine for initial testing, not for real public traffic).
+    Description: Where the monthly budget alarm ($50, at 80% spent) and a failed nightly backup go. Empty for no alarm.
+
+Rules:
+  UsEast1:
+    Assertions:
+      - Assert: !Equals [!Ref AWS::Region, us-east-1]
+        AssertDescription: Deploy in us-east-1, where CloudFront's certificate must live.
 
 Conditions:
-  HasCertificate: !Not [!Equals [!Ref CertificateArn, ""]]
-  HasDomainName: !Not [!Equals [!Ref DomainName, ""]]
+  HasBudget: !Not [!Equals [!Ref BudgetEmail, ""]]
+  CreateOidc: !Equals [!Ref CreateGitHubOidcProvider, "true"]
+  HasMailDomain: !Not [!Equals [!Ref MailDomain, ""]]
 
 Resources:
   # ---------------------------------------------------------------------
-  # Security groups
+  # Network: one public subnet. The server and the refresh task reach the
+  # FAA, NOAA, Anthropic and AWS's own APIs directly, so there is no NAT
+  # gateway ($33 a month) and no VPC endpoints ($7 each).
   # ---------------------------------------------------------------------
-  AlbSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
+  Vpc:
+    Type: AWS::EC2::VPC
     Properties:
-      GroupDescription: ALB -- public HTTP/HTTPS ingress
-      VpcId: !Ref VpcId
-      SecurityGroupIngress:
-        - IpProtocol: tcp
-          FromPort: 80
-          ToPort: 80
-          CidrIp: 0.0.0.0/0
-        - !If
-          - HasCertificate
-          - IpProtocol: tcp
-            FromPort: 443
-            ToPort: 443
-            CidrIp: 0.0.0.0/0
-          - !Ref AWS::NoValue
+      CidrBlock: 10.20.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags: [{ Key: Name, Value: !Ref AWS::StackName }]
 
-  EcsServiceSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      GroupDescription: webapp Fargate tasks -- only reachable from the ALB
-      VpcId: !Ref VpcId
-      SecurityGroupIngress:
-        - IpProtocol: tcp
-          FromPort: 8080
-          ToPort: 8080
-          SourceSecurityGroupId: !Ref AlbSecurityGroup
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
 
-  NavLogAgentSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
+  VpcGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
     Properties:
-      GroupDescription: nav-log-agent Fargate task -- reachable from the ALB (path-based /mcp/* route, see AlbMcpListenerRule)
-      VpcId: !Ref VpcId
-      SecurityGroupIngress:
-        - IpProtocol: tcp
-          FromPort: 8000
-          ToPort: 8000
-          SourceSecurityGroupId: !Ref AlbSecurityGroup
+      VpcId: !Ref Vpc
+      InternetGatewayId: !Ref InternetGateway
 
-  PlanningServiceSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
+  PublicSubnet:
+    Type: AWS::EC2::Subnet
     Properties:
-      GroupDescription: planning-service Fargate tasks -- reachable from webapp and the two agents, never the ALB
-      VpcId: !Ref VpcId
-      SecurityGroupIngress:
-        # No ALB rule on purpose. This service is the browser's data source
-        # but never its destination: the front end calls webapp, which
-        # proxies to here (PlannerProxyController). Same reasoning as
-        # RdsSecurityGroup below -- reachable from the things that need
-        # it, and nothing else. The agents need it because the nav log
-        # they brief is the planner's own (vfr.planner_client).
-        - IpProtocol: tcp
-          FromPort: 8000
-          ToPort: 8000
-          SourceSecurityGroupId: !Ref EcsServiceSecurityGroup
-        - IpProtocol: tcp
-          FromPort: 8000
-          ToPort: 8000
-          SourceSecurityGroupId: !Ref NavLogAgentSecurityGroup
-        - IpProtocol: tcp
-          FromPort: 8000
-          ToPort: 8000
-          SourceSecurityGroupId: !Ref CrewaiAgentSecurityGroup
+      VpcId: !Ref Vpc
+      CidrBlock: 10.20.0.0/24
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      MapPublicIpOnLaunch: true
 
-  CrewaiAgentSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
     Properties:
-      GroupDescription: crewai-agent task -- one-shot CLI via aws ecs run-task, outbound only (to planning-service), no ingress needed
-      VpcId: !Ref VpcId
+      VpcId: !Ref Vpc
 
-  AirflowSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
+  PublicDefaultRoute:
+    Type: AWS::EC2::Route
+    DependsOn: VpcGatewayAttachment
     Properties:
-      GroupDescription: Airflow Fargate task -- reachable only from the Retrain Trigger Lambda
-      VpcId: !Ref VpcId
-      SecurityGroupIngress:
-        - IpProtocol: tcp
-          FromPort: 8080
-          ToPort: 8080
-          SourceSecurityGroupId: !Ref LambdaSecurityGroup
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
 
-  AirflowEfsSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
+  PublicSubnetRouteTable:
+    Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
-      GroupDescription: Airflow EFS-backed metadata volume -- reachable only from the Airflow task
-      VpcId: !Ref VpcId
-      SecurityGroupIngress:
-        - IpProtocol: tcp
-          FromPort: 2049
-          ToPort: 2049
-          SourceSecurityGroupId: !Ref AirflowSecurityGroup
-
-  RdsSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      GroupDescription: RDS PostgreSQL -- only reachable from webapp and nav-log-agent
-      VpcId: !Ref VpcId
-      SecurityGroupIngress:
-        - IpProtocol: tcp
-          FromPort: 5432
-          ToPort: 5432
-          SourceSecurityGroupId: !Ref EcsServiceSecurityGroup
-        - IpProtocol: tcp
-          FromPort: 5432
-          ToPort: 5432
-          SourceSecurityGroupId: !Ref NavLogAgentSecurityGroup
-
-  LambdaSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      GroupDescription: Retrain Trigger Lambda -- outbound only, to reach Airflow privately
-      VpcId: !Ref VpcId
+      SubnetId: !Ref PublicSubnet
+      RouteTableId: !Ref PublicRouteTable
 
   # ---------------------------------------------------------------------
-  # IAM
+  # Images: the four the server runs, pushed by promote.yml's push-ecr.
   # ---------------------------------------------------------------------
-  EcsTaskExecutionRole:
-    Type: AWS::IAM::Role
+  WebappRepository:
+    Type: AWS::ECR::Repository
     Properties:
-      Description: Shared by every ECS task definition in this stack -- pulls images from ECR (managed policy) and reads the startup secrets each container needs.
-      AssumeRolePolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Effect: Allow
-            Principal: { Service: ecs-tasks.amazonaws.com }
-            Action: sts:AssumeRole
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
-      Policies:
-        - PolicyName: ReadStartupSecrets
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Effect: Allow
-                Action: secretsmanager:GetSecretValue
-                Resource:
-                  - !GetAtt Database.MasterUserSecret.SecretArn
-                  - !Ref AnthropicApiKeySecretArn
-                  - !Ref NavLogAgentApiKeySecretArn
+      RepositoryName: vfr-route/webapp
+      EmptyOnDelete: true
+      LifecyclePolicy:
+        LifecyclePolicyText: '{"rules":[{"rulePriority":1,"description":"keep the last 20","selection":{"tagStatus":"any","countType":"imageCountMoreThan","countNumber":20},"action":{"type":"expire"}}]}'
 
-  EcsTaskRole:
-    Type: AWS::IAM::Role
+  PlanningServiceRepository:
+    Type: AWS::ECR::Repository
     Properties:
-      Description: Assumed by the webapp and planning-service containers.
-      AssumeRolePolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Effect: Allow
-            Principal: { Service: ecs-tasks.amazonaws.com }
-            Action: sts:AssumeRole
+      RepositoryName: vfr-route/planning-service
+      EmptyOnDelete: true
+      LifecyclePolicy:
+        LifecyclePolicyText: '{"rules":[{"rulePriority":1,"description":"keep the last 20","selection":{"tagStatus":"any","countType":"imageCountMoreThan","countNumber":20},"action":{"type":"expire"}}]}'
 
-  ChartRefreshTaskRole:
-    Type: AWS::IAM::Role
+  NavLogAgentRepository:
+    Type: AWS::ECR::Repository
     Properties:
-      Description: Assumed by the scheduled chart refresh task -- it fetches the FAA's sheets, renders every tile and publishes the cycle to the tiles bucket (python -m vfr.charts refresh --bucket).
-      AssumeRolePolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Effect: Allow
-            Principal: { Service: ecs-tasks.amazonaws.com }
-            Action: sts:AssumeRole
-      Policies:
-        - PolicyName: PublishChartTiles
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Effect: Allow
-                Action:
-                  - s3:PutObject
-                  - s3:ListBucket
-                Resource:
-                  - !GetAtt ChartTilesBucket.Arn
-                  - !Sub "${ChartTilesBucket.Arn}/*"
+      RepositoryName: vfr-route/nav-log-agent
+      EmptyOnDelete: true
+      LifecyclePolicy:
+        LifecyclePolicyText: '{"rules":[{"rulePriority":1,"description":"keep the last 20","selection":{"tagStatus":"any","countType":"imageCountMoreThan","countNumber":20},"action":{"type":"expire"}}]}'
 
-  SageMakerJobRole:
-    Type: AWS::IAM::Role
+  ModelServiceRepository:
+    Type: AWS::ECR::Repository
     Properties:
-      Description: Passed to SageMaker Processing/Training Jobs by Airflow's SageMakerProcessingOperator/SageMakerTrainingOperator (airflow/dags/vfr_pipeline_aws_dag.py) -- what each job runs as, distinct from AirflowTaskRole below, which is what launches them.
-      AssumeRolePolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Effect: Allow
-            Principal: { Service: sagemaker.amazonaws.com }
-            Action: sts:AssumeRole
-      Policies:
-        - PolicyName: PipelineDataAccess
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Effect: Allow
-                Action:
-                  - s3:GetObject
-                  - s3:PutObject
-                  - s3:ListBucket
-                Resource:
-                  - !Sub "arn:aws:s3:::${DataS3BucketName}"
-                  - !Sub "arn:aws:s3:::${DataS3BucketName}/*"
-              - Effect: Allow
-                Action:
-                  - logs:CreateLogGroup
-                  - logs:CreateLogStream
-                  - logs:PutLogEvents
-                Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/sagemaker/*"
-
-  AirflowTaskRole:
-    Type: AWS::IAM::Role
-    Properties:
-      Description: Assumed by the running Airflow container -- launches/monitors SageMaker Processing and Training Jobs, and mounts its EFS-backed metadata volume.
-      AssumeRolePolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Effect: Allow
-            Principal: { Service: ecs-tasks.amazonaws.com }
-            Action: sts:AssumeRole
-      Policies:
-        - PolicyName: RunSageMakerJobs
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Effect: Allow
-                # CreateProcessingJob/CreateTrainingJob don't support
-                # resource-level restriction -- job names are chosen at
-                # creation time (see the run_id-suffixed names in
-                # vfr_pipeline_aws_dag.py), so "*" is what AWS itself
-                # requires here, not a broadened grant of convenience.
-                Action:
-                  - sagemaker:CreateProcessingJob
-                  - sagemaker:DescribeProcessingJob
-                  - sagemaker:StopProcessingJob
-                  - sagemaker:CreateTrainingJob
-                  - sagemaker:DescribeTrainingJob
-                  - sagemaker:StopTrainingJob
-                  - sagemaker:ListTags
-                Resource: "*"
-              - Effect: Allow
-                Action: iam:PassRole
-                Resource: !GetAtt SageMakerJobRole.Arn
-        - PolicyName: MountEfs
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Effect: Allow
-                Action:
-                  - elasticfilesystem:ClientMount
-                  - elasticfilesystem:ClientWrite
-                Resource: !GetAtt AirflowEfs.Arn
-        - PolicyName: AllowExecuteCommand
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Effect: Allow
-                # Required for AirflowService's EnableExecuteCommand above --
-                # this is the standard, AWS-documented policy shape for it,
-                # not scoped down further because the SSM data channel APIs
-                # themselves don't support resource-level restriction.
-                Action:
-                  - ssmmessages:CreateControlChannel
-                  - ssmmessages:CreateDataChannel
-                  - ssmmessages:OpenControlChannel
-                  - ssmmessages:OpenDataChannel
-                Resource: "*"
-
-  LambdaExecutionRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Effect: Allow
-            Principal: { Service: lambda.amazonaws.com }
-            Action: sts:AssumeRole
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
-      Policies:
-        - PolicyName: ReadAirflowSecret
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Effect: Allow
-                Action: secretsmanager:GetSecretValue
-                Resource: !Ref AirflowCredentialsSecretArn
+      RepositoryName: vfr-route/model-service
+      EmptyOnDelete: true
+      LifecyclePolicy:
+        LifecyclePolicyText: '{"rules":[{"rulePriority":1,"description":"keep the last 20","selection":{"tagStatus":"any","countType":"imageCountMoreThan","countNumber":20},"action":{"type":"expire"}}]}'
 
   # ---------------------------------------------------------------------
-  # Database -- RDS-managed master password (Secrets Manager), same
-  # Postgres + pgvector setup as the local `db` service (pg18 there; the
-  # EngineVersion below is RDS's, which trails it).
-  # ---------------------------------------------------------------------
-  Database:
-    Type: AWS::RDS::DBInstance
-    DeletionPolicy: Snapshot
-    UpdateReplacePolicy: Snapshot
-    Metadata:
-      cfn-lint:
-        config:
-          ignore_checks:
-            - W3691 # EngineVersion below is a moving target (RDS deprecates old
-              # minor versions on its own schedule); no live AWS access from
-              # this environment to check the actual current list. Verify with
-              # `aws rds describe-db-engine-versions --engine postgres
-              # --query "DBEngineVersions[].EngineVersion"` before first deploy
-              # and bump this if needed -- don't trust it's still valid as-is.
-    Properties:
-      Engine: postgres
-      EngineVersion: "17.4"
-      DBInstanceClass: !Ref DBInstanceClass
-      AllocatedStorage: !Ref DBAllocatedStorageGb
-      DBName: !Ref DBName
-      MasterUsername: !Ref DBUsername
-      ManageMasterUserPassword: true
-      VPCSecurityGroups: [!Ref RdsSecurityGroup]
-      DBSubnetGroupName: !Ref DbSubnetGroup
-      PubliclyAccessible: false
-      BackupRetentionPeriod: 7
-
-  DbSubnetGroup:
-    Type: AWS::RDS::DBSubnetGroup
-    Properties:
-      DBSubnetGroupDescription: Private subnets for RDS
-      SubnetIds: !Ref PrivateSubnetIds
-
-  # ---------------------------------------------------------------------
-  # Service discovery -- gives Airflow a stable, predictable internal DNS
-  # name (airflow.vfr-route.internal) so RetrainTriggerFunction below has
-  # a real address to call, without a manually-supplied URL parameter.
-  # ---------------------------------------------------------------------
-  ServiceDiscoveryNamespace:
-    Type: AWS::ServiceDiscovery::PrivateDnsNamespace
-    Properties:
-      Name: vfr-route.internal
-      Vpc: !Ref VpcId
-
-  AirflowServiceDiscoveryService:
-    Type: AWS::ServiceDiscovery::Service
-    Properties:
-      Name: airflow
-      NamespaceId: !Ref ServiceDiscoveryNamespace
-      DnsConfig:
-        DnsRecords:
-          - Type: A
-            TTL: 10
-      HealthCheckCustomConfig:
-        FailureThreshold: 1
-
-  PlanningServiceDiscoveryService:
-    Type: AWS::ServiceDiscovery::Service
-    Properties:
-      Name: planning-service
-      NamespaceId: !Ref ServiceDiscoveryNamespace
-      DnsConfig:
-        DnsRecords:
-          - Type: A
-            TTL: 10
-      HealthCheckCustomConfig:
-        FailureThreshold: 1
-      # Resolves as planning-service.vfr-route.internal, which is what
-      # webapp's planner-service.base-url is set to below -- the AWS
-      # counterpart of the Compose hostname it defaults to locally.
-
-  # ---------------------------------------------------------------------
-  # EFS -- Airflow's metadata database (SQLite, same as `standalone` mode
-  # locally) needs to survive a Fargate task restart, which ephemeral task
-  # storage doesn't. One task (DesiredCount: 1 on AirflowService below), so
-  # SQLite-on-EFS is a deliberately simple fit here, not a general-purpose
-  # multi-writer setup.
-  # ---------------------------------------------------------------------
-  AirflowEfs:
-    Type: AWS::EFS::FileSystem
-    Properties:
-      Encrypted: true
-      FileSystemTags:
-        - Key: Name
-          Value: vfr-route-airflow
-
-  # Assumes exactly two private subnets, matching the "at least two
-  # Availability Zones" guidance in docs/README-AWS.md's deploy runbook.
-  AirflowEfsMountTargetA:
-    Type: AWS::EFS::MountTarget
-    Properties:
-      FileSystemId: !Ref AirflowEfs
-      SubnetId: !Select [0, !Ref PrivateSubnetIds]
-      SecurityGroups: [!Ref AirflowEfsSecurityGroup]
-
-  AirflowEfsMountTargetB:
-    Type: AWS::EFS::MountTarget
-    Properties:
-      FileSystemId: !Ref AirflowEfs
-      SubnetId: !Select [1, !Ref PrivateSubnetIds]
-      SecurityGroups: [!Ref AirflowEfsSecurityGroup]
-
-  AirflowEfsAccessPoint:
-    Type: AWS::EFS::AccessPoint
-    Properties:
-      FileSystemId: !Ref AirflowEfs
-      # Matches the `airflow` user the apache/airflow base image itself
-      # runs as (UID/GID 50000), so files EFS creates are owned by the
-      # same user the container's own process runs as.
-      PosixUser:
-        Uid: "50000"
-        Gid: "0"
-      RootDirectory:
-        Path: /airflow
-        CreationInfo:
-          OwnerUid: "50000"
-          OwnerGid: "0"
-          Permissions: "0755"
-
-  # ---------------------------------------------------------------------
-  # ECS Fargate -- webapp (Spring Boot API)
-  # ---------------------------------------------------------------------
-  EcsCluster:
-    Type: AWS::ECS::Cluster
-    Properties:
-      ClusterName: vfr-route
-
-  WebappLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: /ecs/vfr-route-webapp
-      RetentionInDays: 30
-
-  WebappTaskDefinition:
-    Type: AWS::ECS::TaskDefinition
-    Properties:
-      Family: vfr-route-webapp
-      RequiresCompatibilities: [FARGATE]
-      NetworkMode: awsvpc
-      Cpu: "512"
-      Memory: "1024"
-      ExecutionRoleArn: !GetAtt EcsTaskExecutionRole.Arn
-      TaskRoleArn: !GetAtt EcsTaskRole.Arn
-      ContainerDefinitions:
-        - Name: webapp
-          Image: !Ref WebappImageUri
-          PortMappings:
-            - ContainerPort: 8080
-          Environment:
-            - Name: SPRING_DATASOURCE_URL
-              Value: !Sub "jdbc:postgresql://${Database.Endpoint.Address}:${Database.Endpoint.Port}/${DBName}"
-            - Name: SPRING_DATASOURCE_USERNAME
-              Value: !Ref DBUsername
-            - Name: PLANNER_SERVICE_URL
-              Value: http://planning-service.vfr-route.internal:8000
-              # The name application.yml reads -- planner-service.base-url
-              # is set from ${PLANNER_SERVICE_URL}. Without this the proxy
-              # would fall back to localhost:8084, which on Fargate is the
-              # webapp container talking to itself.
-            - Name: APP_CHART_TILES_ORIGIN
-              Value: !Sub "https://${ChartTilesDistribution.DomainName}"
-              # The content security policy must let images load from
-              # the tile CDN (SecurityConfig appends this to img-src).
-          Secrets:
-            - Name: SPRING_DATASOURCE_PASSWORD
-              ValueFrom: !Sub "${Database.MasterUserSecret.SecretArn}:password::"
-          LogConfiguration:
-            LogDriver: awslogs
-            Options:
-              awslogs-group: !Ref WebappLogGroup
-              awslogs-region: !Ref AWS::Region
-              awslogs-stream-prefix: webapp
-
-  WebappService:
-    Type: AWS::ECS::Service
-    DependsOn: AlbListener
-    Properties:
-      Cluster: !Ref EcsCluster
-      TaskDefinition: !Ref WebappTaskDefinition
-      DesiredCount: 1
-      LaunchType: FARGATE
-      NetworkConfiguration:
-        AwsvpcConfiguration:
-          Subnets: !Ref PrivateSubnetIds
-          SecurityGroups: [!Ref EcsServiceSecurityGroup]
-          AssignPublicIp: DISABLED
-      LoadBalancers:
-        - ContainerName: webapp
-          ContainerPort: 8080
-          TargetGroupArn: !Ref AlbTargetGroup
-      HealthCheckGracePeriodSeconds: 60
-
-  # ---------------------------------------------------------------------
-  # ECS Fargate -- planning-service (chart vision, checkpoints, nav log)
-  #
-  # It reads FAA sectional raster tiles, walks great circles, selects
-  # checkpoints and computes dead reckoning.
-  #
-  # No ALB listener rule and no public IP. The browser never reaches it;
-  # webapp does, over service discovery, which is why the only ingress is
-  # from EcsServiceSecurityGroup.
-  #
-  # More memory than webapp because a corridor's tiles are decoded into
-  # numpy arrays block by block -- a long leg is a few hundred MB of
-  # pixels in flight, and MAX_BLOCK_TILES bounds it (see
-  # src/vfr/chartvision.py).
-  # ---------------------------------------------------------------------
-  PlanningServiceLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: /ecs/vfr-route-planning-service
-      RetentionInDays: 30
-
-  PlanningServiceTaskDefinition:
-    Type: AWS::ECS::TaskDefinition
-    Properties:
-      Family: vfr-route-planning-service
-      RequiresCompatibilities: [FARGATE]
-      NetworkMode: awsvpc
-      Cpu: "1024"
-      Memory: "4096"
-      ExecutionRoleArn: !GetAtt EcsTaskExecutionRole.Arn
-      TaskRoleArn: !GetAtt EcsTaskRole.Arn
-      ContainerDefinitions:
-        - Name: planning-service
-          Image: !Ref PlanningServiceImageUri
-          PortMappings:
-            - ContainerPort: 8000
-          Environment:
-            # Locally this service bind-mounts the repo for data/. On
-            # Fargate there is no repo, so the FAA datasets (NASR airports,
-            # the obstacle file, Class airspace shapefiles) and the feature
-            # stores are read from the same bucket the pipeline jobs use.
-            # EcsTaskRole already carries the s3 permissions for it.
-            - Name: VFR_DATA_S3_BUCKET
-              Value: !Ref DataS3BucketName
-            - Name: CHART_TILES_URL
-              Value: !Sub "https://${ChartTilesDistribution.DomainName}/tiles"
-              # The map's tiles come from CloudFront, not from this
-              # task: the planner reads which cycle is published there
-              # (tiles/serving.json) and tells the browser the base URL
-              # on every course. Its own tile endpoints stay as the
-              # fallback and for the chart reader, which renders the
-              # sheets a corridor needs on demand into ephemeral storage.
-            - Name: CHARTS_AUTO_REFRESH
-              Value: "0"
-              # The scheduled ChartRefreshTask does the fetching and
-              # rendering, on a task sized for it; this one only serves.
-          LogConfiguration:
-            LogDriver: awslogs
-            Options:
-              awslogs-group: !Ref PlanningServiceLogGroup
-              awslogs-region: !Ref AWS::Region
-              awslogs-stream-prefix: planning-service
-
-  PlanningServiceService:
-    Type: AWS::ECS::Service
-    Properties:
-      Cluster: !Ref EcsCluster
-      TaskDefinition: !Ref PlanningServiceTaskDefinition
-      DesiredCount: 1
-      LaunchType: FARGATE
-      NetworkConfiguration:
-        AwsvpcConfiguration:
-          Subnets: !Ref PrivateSubnetIds
-          SecurityGroups: [!Ref PlanningServiceSecurityGroup]
-          AssignPublicIp: DISABLED
-      ServiceRegistries:
-        - RegistryArn: !GetAtt PlanningServiceDiscoveryService.Arn
-
-  # ---------------------------------------------------------------------
-  # The chart tiles: a static pyramid in S3 behind CloudFront.
-  #
-  # The map draws nothing but FAA charts, rendered from the FAA's own
-  # GeoTIFFs into a {z}/{x}/{y} pyramid of some 400,000 tiles per
-  # 56-day cycle (src/vfr/charts.py). Locally the planner serves them
-  # from its own disk; here a static pyramid is exactly what a CDN is
-  # for, and a Fargate task has no disk worth keeping. So a scheduled
-  # task renders the cycle and publishes it to ChartTilesBucket under
-  # tiles/<cycle>/, then points tiles/serving.json at it; the planner
-  # reads that pointer and the browser fetches tiles from CloudFront.
-  # A new cycle goes live for everyone the moment the pointer moves,
-  # and never before every tile of it is there.
+  # Storage
   # ---------------------------------------------------------------------
   ChartTilesBucket:
     Type: AWS::S3::Bucket
@@ -717,19 +186,285 @@ Resources:
         RestrictPublicBuckets: true
       LifecycleConfiguration:
         Rules:
-          # The refresh task deletes the previous cycle's tiles from its
-          # own disk; here they simply age out, so a browser still on an
-          # old pointer for its five minutes keeps getting tiles.
+          # A cycle's tiles age out after the next two cycles have come:
+          # a browser on an old serving.json for its five minutes still
+          # finds its tiles.
           - Id: OldCycles
             Status: Enabled
             Prefix: tiles/
             ExpirationInDays: 120
 
-  ChartTilesOriginAccessControl:
+  # The nightly backups (backups/, kept 14 days) and the chart
+  # model the planner ranks checkpoints with (models/, uploaded by hand).
+  # Kept if the stack goes: it is what a new server is restored from.
+  ServerBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      LifecycleConfiguration:
+        Rules:
+          - Id: NightlyBackups
+            Status: Enabled
+            Prefix: backups/
+            ExpirationInDays: 14
+
+  # ---------------------------------------------------------------------
+  # Secrets: three the stack generates, one the owner fills in
+  # (infra/server/env.example). deploy.sh reads all four.
+  # ---------------------------------------------------------------------
+  DbPasswordSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: Postgres password on the server.
+      GenerateSecretString: { PasswordLength: 32, ExcludePunctuation: true }
+
+  # nav-log-agent will not start without its key (an open MCP server),
+  # and the webapp sends it.
+  AgentKeySecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: The bearer token of nav-log-agent's MCP server.
+      GenerateSecretString: { PasswordLength: 40, ExcludePunctuation: true }
+
+  OriginSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: The header CloudFront sends and Caddy demands, so only CloudFront reaches the server.
+      GenerateSecretString: { PasswordLength: 40, ExcludePunctuation: true }
+
+  # Its keys only: the owner fills in the values in the console, and the
+  # stack never writes it again unless this SecretString changes -- so
+  # leave it as it is.
+  AppSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: The owner's own values (infra/server/env.example). Fill in, then run deploy.sh.
+      SecretString: '{"ANTHROPIC_API_KEY":"","MAIL_USERNAME":"","MAIL_PASSWORD":"","APP_DEVELOPER_EMAILS":""}'
+
+  # ---------------------------------------------------------------------
+  # The server
+  # ---------------------------------------------------------------------
+  ServerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: HTTPS from CloudFront only, HTTP from anywhere for the Lets Encrypt challenge (Caddy redirects the rest).
+      VpcId: !Ref Vpc
+      SecurityGroupIngress:
+        - { IpProtocol: tcp, FromPort: 443, ToPort: 443, SourcePrefixListId: !Ref CloudFrontPrefixListId }
+        - { IpProtocol: tcp, FromPort: 80, ToPort: 80, CidrIp: 0.0.0.0/0 }
+
+  ServerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Description: The server's own permissions -- pull its images, read its secrets, write its backups. Shell access through SSM, no SSH.
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: ec2.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+      Policies:
+        - PolicyName: Server
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: ecr:GetAuthorizationToken
+                Resource: "*"
+              - Effect: Allow
+                Action: [ecr:BatchGetImage, ecr:GetDownloadUrlForLayer, ecr:BatchCheckLayerAvailability]
+                Resource:
+                  - !GetAtt WebappRepository.Arn
+                  - !GetAtt PlanningServiceRepository.Arn
+                  - !GetAtt NavLogAgentRepository.Arn
+                  - !GetAtt ModelServiceRepository.Arn
+              - Effect: Allow
+                Action: secretsmanager:GetSecretValue
+                Resource: [!Ref DbPasswordSecret, !Ref AgentKeySecret, !Ref OriginSecret, !Ref AppSecret]
+              - Effect: Allow
+                Action: [s3:GetObject, s3:PutObject]
+                Resource: !Sub "${ServerBucket.Arn}/*"
+              - Effect: Allow
+                Action: s3:ListBucket
+                Resource: !GetAtt ServerBucket.Arn
+              - !If
+                - HasBudget
+                - { Effect: Allow, Action: "sns:Publish", Resource: !Ref BackupAlertTopic }
+                - !Ref AWS::NoValue
+
+  ServerInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles: [!Ref ServerRole]
+
+  ServerInstance:
+    Type: AWS::EC2::Instance
+    DependsOn: PublicDefaultRoute
+    Properties:
+      ImageId: !Ref ServerImageId
+      InstanceType: !Ref InstanceType
+      SubnetId: !Ref PublicSubnet
+      SecurityGroupIds: [!Ref ServerSecurityGroup]
+      IamInstanceProfile: !Ref ServerInstanceProfile
+      MetadataOptions: { HttpTokens: required, HttpEndpoint: enabled }
+      # The disk outlives the server: it holds Postgres, and a server
+      # replaced by mistake should leave the pilots' accounts behind to be
+      # copied back, not take them with it (delete the old volume once
+      # they are; docs/README-AWS.md). SnapshotPolicy snapshots it daily.
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs: { VolumeType: gp3, VolumeSize: !Ref RootVolumeGb, Encrypted: true, DeleteOnTermination: false }
+      Tags:
+        - { Key: Name, Value: !Sub "${AWS::StackName}-server" }
+        - { Key: Snapshot, Value: !Sub "${AWS::StackName}-daily" }
+      UserData:
+        Fn::Base64: !Sub
+          - |
+            #!/bin/bash
+            # First boot: Docker, the repo's production files, the
+            # settings deploy.sh reads, and the nightly backup.
+            set -euxo pipefail
+            dnf install -y docker git cronie
+            systemctl enable --now docker crond
+            mkdir -p /usr/local/lib/docker/cli-plugins
+            # A pinned release, checked against the checksum published
+            # beside it, so a rebuild gets the plugin the first boot did.
+            compose_url=https://github.com/docker/compose/releases/download/v2.40.3/docker-compose-linux-x86_64
+            curl -fsSL "$compose_url" -o /usr/local/lib/docker/cli-plugins/docker-compose
+            echo "$(curl -fsSL "$compose_url.sha256" | cut -d' ' -f1)  /usr/local/lib/docker/cli-plugins/docker-compose" | sha256sum -c -
+            chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+            # 2 GB of swap: headroom for a JVM, a planner and an agent on 4 GB.
+            if [ ! -f /swapfile ]; then
+              fallocate -l 2G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
+              echo '/swapfile none swap sw 0 0' >> /etc/fstab
+            fi
+            cat > /etc/flight_plan.conf <<'CONF'
+            AWS_REGION=${AWS::Region}
+            IMAGE_REGISTRY=${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/vfr-route
+            IMAGE_TAG=${ImageTag}
+            PUBLIC_HOST=${PublicHost}
+            ORIGIN_HOST=origin.${PublicHost}
+            SERVER_BUCKET=${ServerBucket}
+            APP_SECRET_ARN=${AppSecret}
+            DB_SECRET_ARN=${DbPasswordSecret}
+            AGENT_SECRET_ARN=${AgentKeySecret}
+            ORIGIN_SECRET_ARN=${OriginSecret}
+            BACKUP_TOPIC_ARN=${BackupTopicArn}
+            MAIL_HOST=email-smtp.${AWS::Region}.amazonaws.com
+            MAIL_FROM=no-reply@${MailFrom}
+            CONF
+            mkdir -p /srv/flight_plan/data /srv/flight_plan/postgres
+            chown 1000:1000 /srv/flight_plan/data
+            [ -d /srv/flight_plan/repo ] || git clone --depth 1 https://github.com/${GitHubRepo}.git /srv/flight_plan/repo
+            echo '17 7 * * * root /srv/flight_plan/repo/infra/server/backup.sh >> /var/log/flight_plan-backup.log 2>&1' \
+              > /etc/cron.d/flight_plan-backup
+            # The images arrive with the first promote.yml push to ECR; until
+            # then this fails, and deploy.sh is run again after that push.
+            /srv/flight_plan/repo/infra/server/deploy.sh || echo "no images yet: run deploy.sh after the first push"
+          - MailFrom: !If [HasMailDomain, !Ref MailDomain, !Ref PublicHost]
+            BackupTopicArn: !If [HasBudget, !Ref BackupAlertTopic, ""]
+
+  # Daily snapshots of the server's disk, 7 kept (cents a month): a lost
+  # disk does not mean restoring from a nightly dump alone.
+  SnapshotRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Description: Lets Data Lifecycle Manager snapshot the server's disk.
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - { Effect: Allow, Principal: { Service: dlm.amazonaws.com }, Action: "sts:AssumeRole" }
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSDataLifecycleManagerServiceRole
+
+  SnapshotPolicy:
+    Type: AWS::DLM::LifecyclePolicy
+    Properties:
+      Description: Daily snapshots of the Wingtip Maps server
+      State: ENABLED
+      ExecutionRoleArn: !GetAtt SnapshotRole.Arn
+      PolicyDetails:
+        ResourceTypes: [INSTANCE]
+        TargetTags: [{ Key: Snapshot, Value: !Sub "${AWS::StackName}-daily" }]
+        Schedules:
+          - Name: daily
+            CreateRule: { Interval: 24, IntervalUnit: HOURS, Times: ["05:00"] }
+            RetainRule: { Count: 7 }
+            CopyTags: true
+
+  ServerAddress:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+      InstanceId: !Ref ServerInstance
+
+  # ---------------------------------------------------------------------
+  # Domain: the certificate (CloudFront's, so in us-east-1), the public
+  # name on CloudFront, and origin.<domain> on the server for Caddy's own
+  # Let's Encrypt certificate.
+  # ---------------------------------------------------------------------
+  Certificate:
+    Type: AWS::CertificateManager::Certificate
+    Properties:
+      DomainName: !Ref PublicHost
+      ValidationMethod: DNS
+      DomainValidationOptions:
+        - DomainName: !Ref PublicHost
+          HostedZoneId: !Ref HostedZoneId
+
+  OriginRecord:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Sub "origin.${PublicHost}"
+      Type: A
+      TTL: "300"
+      ResourceRecords: [!Ref ServerAddress]
+
+  PublicRecord:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Ref PublicHost
+      Type: A
+      AliasTarget:
+        DNSName: !GetAtt Distribution.DomainName
+        HostedZoneId: Z2FDTNDATAQYW2  # CloudFront's own zone, the same for every distribution
+
+  PublicRecordIpv6:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Ref PublicHost
+      Type: AAAA
+      AliasTarget:
+        DNSName: !GetAtt Distribution.DomainName
+        HostedZoneId: Z2FDTNDATAQYW2
+
+  # ---------------------------------------------------------------------
+  # CloudFront: one distribution on the app's domain.
+  # - /tiles/*       S3, the chart tiles: a month at the edge (each tile
+  #                  carries its own immutable Cache-Control).
+  # - /app/assets/*  the server, cached: fingerprinted, a year, immutable
+  #                  (WebMvcConfig's own header).
+  # - everything else the server, not cached: the app's pages, the API,
+  #                  sign-in -- cookies and query strings go through.
+  # One domain for all three, so the session's Secure cookies work as
+  # they do locally and the map's tile fetches are same-origin.
+  # ---------------------------------------------------------------------
+  TilesOriginAccessControl:
     Type: AWS::CloudFront::OriginAccessControl
     Properties:
       OriginAccessControlConfig:
-        Name: !Sub "${AWS::StackName}-chart-tiles"
+        Name: !Sub "${AWS::StackName}-tiles"
         OriginAccessControlOriginType: s3
         SigningBehavior: always
         SigningProtocol: sigv4
@@ -747,66 +482,154 @@ Resources:
             Resource: !Sub "${ChartTilesBucket.Arn}/*"
             Condition:
               StringEquals:
-                AWS:SourceArn: !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${ChartTilesDistribution}"
+                AWS:SourceArn: !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${Distribution}"
 
-  ChartTilesDistribution:
+  Distribution:
     Type: AWS::CloudFront::Distribution
     Properties:
       DistributionConfig:
         Enabled: true
-        Comment: FAA chart tiles for the VFR planner
+        Comment: !Sub "Wingtip Maps (${AWS::StackName})"
+        Aliases: [!Ref PublicHost]
+        ViewerCertificate:
+          AcmCertificateArn: !Ref Certificate
+          SslSupportMethod: sni-only
+          MinimumProtocolVersion: TLSv1.2_2021
         HttpVersion: http2and3
+        IPV6Enabled: true
+        # North America and Europe: where the pilots are, and the cheapest edges.
         PriceClass: PriceClass_100
         Origins:
           - Id: tiles
             DomainName: !GetAtt ChartTilesBucket.RegionalDomainName
-            S3OriginConfig:
-              OriginAccessIdentity: ""
-            OriginAccessControlId: !GetAtt ChartTilesOriginAccessControl.Id
+            S3OriginConfig: { OriginAccessIdentity: "" }
+            OriginAccessControlId: !GetAtt TilesOriginAccessControl.Id
+          - Id: server
+            DomainName: !Sub "origin.${PublicHost}"
+            CustomOriginConfig:
+              OriginProtocolPolicy: https-only
+              OriginSSLProtocols: [TLSv1.2]
+              OriginReadTimeout: 60
+            OriginCustomHeaders:
+              - HeaderName: X-Origin-Secret
+                HeaderValue: !Sub "{{resolve:secretsmanager:${OriginSecret}:SecretString}}"
         DefaultCacheBehavior:
-          TargetOriginId: tiles
+          TargetOriginId: server
           ViewerProtocolPolicy: redirect-to-https
-          AllowedMethods: [GET, HEAD]
+          AllowedMethods: [GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE]
           CachedMethods: [GET, HEAD]
-          Compress: false
-          # The managed CachingOptimized policy: the objects carry their
-          # own Cache-Control (a month for a tile, five minutes for the
-          # serving pointer), which it honours.
-          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
-          # The managed CORS-S3Origin origin request policy, so a
-          # browser's cross-origin tile fetch from the app's own domain
-          # is answered with the CORS headers the bucket would send.
-          OriginRequestPolicyId: 88a5eaf4-2fd4-4709-b370-b4c650ea3fcf
-          ResponseHeadersPolicyId: 5cc3b908-e619-4b99-88e5-2cf7f45965bd
+          Compress: true
+          CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad  # managed CachingDisabled
+          # Managed AllViewerExceptHostHeader: every header, cookie and
+          # query string, but Host -- CloudFront then names
+          # origin.<domain>, the name Caddy holds a certificate for, and
+          # Caddy tells the webapp the public one.
+          OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
+        CacheBehaviors:
+          - PathPattern: tiles/*
+            TargetOriginId: tiles
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD]
+            CachedMethods: [GET, HEAD]
+            Compress: false  # PNGs, already compressed
+            CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6  # managed CachingOptimized
+          - PathPattern: app/assets/*
+            TargetOriginId: server
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD]
+            CachedMethods: [GET, HEAD]
+            Compress: true
+            CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6  # managed CachingOptimized
+
+  # ---------------------------------------------------------------------
+  # Chart tiles, once per cycle: a Fargate Spot task runs vfr.charts'
+  # refresh every day -- a no-op until the FAA publishes a new cycle, then
+  # it fetches the country's sheets, draws the pyramid and publishes it to
+  # the tiles bucket (charts.publish), serving.json last, so every planner
+  # and browser moves to the new cycle at once. Spot: an interrupted run
+  # starts over the next day, the old cycle served until then. Under $1
+  # a cycle.
+  # ---------------------------------------------------------------------
+  EcsCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Sub "${AWS::StackName}-jobs"
+
+  EcsClusterCapacityProviders:
+    Type: AWS::ECS::ClusterCapacityProviderAssociations
+    Properties:
+      Cluster: !Ref EcsCluster
+      CapacityProviders: [FARGATE_SPOT, FARGATE]
+      DefaultCapacityProviderStrategy:
+        - { CapacityProvider: FARGATE_SPOT, Weight: 1 }
+
+  TaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: ecs-tasks.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+
+  ChartRefreshTaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Description: Lets the refresh task publish tiles and read the pointer.
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: ecs-tasks.amazonaws.com }
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: PublishTiles
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: [s3:PutObject, s3:GetObject]
+                Resource: !Sub "${ChartTilesBucket.Arn}/*"
+              - Effect: Allow
+                Action: s3:ListBucket
+                Resource: !GetAtt ChartTilesBucket.Arn
 
   ChartRefreshLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: /ecs/vfr-route-chart-refresh
+      LogGroupName: !Sub "/ecs/${AWS::StackName}-chart-refresh"
       RetentionInDays: 30
+
+  ChartRefreshSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: The refresh task reaches out (FAA, S3); nothing reaches in.
+      VpcId: !Ref Vpc
 
   ChartRefreshTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
-      Family: vfr-route-chart-refresh
+      Family: !Sub "${AWS::StackName}-chart-refresh"
       RequiresCompatibilities: [FARGATE]
       NetworkMode: awsvpc
-      # Two workers warping tiles, and the country's sheets plus its
-      # pyramid on the task's own disk: 7 GB of rasters and 5 GB of
-      # tiles, well inside 60 GB with the previous cycle still there.
+      # Two workers drawing tiles, and the country's sheets plus their
+      # pyramid on the task's own disk: 6 GB of sheets and 7.4 GB of
+      # tiles (1.5 million of them) for the 09-03-2026 cycle.
       Cpu: "2048"
       Memory: "8192"
-      EphemeralStorage:
-        SizeInGiB: 60
-      ExecutionRoleArn: !GetAtt EcsTaskExecutionRole.Arn
+      EphemeralStorage: { SizeInGiB: 60 }
+      ExecutionRoleArn: !GetAtt TaskExecutionRole.Arn
       TaskRoleArn: !GetAtt ChartRefreshTaskRole.Arn
       ContainerDefinitions:
         - Name: chart-refresh
-          Image: !Ref PlanningServiceImageUri
+          Image: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/vfr-route/planning-service:${ImageTag}"
           Command: ["python", "-m", "vfr.charts", "refresh", "--workers", "2"]
           Environment:
-            - Name: CHART_TILES_BUCKET
-              Value: !Ref ChartTilesBucket
+            - { Name: CHART_TILES_BUCKET, Value: !Ref ChartTilesBucket }
+            - { Name: CHART_TILES_URL, Value: !Sub "https://${PublicHost}/tiles" }
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -817,7 +640,6 @@ Resources:
   ChartRefreshSchedulerRole:
     Type: AWS::IAM::Role
     Properties:
-      Description: Lets EventBridge start the chart refresh task once a day.
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -825,7 +647,7 @@ Resources:
             Principal: { Service: events.amazonaws.com }
             Action: sts:AssumeRole
       Policies:
-        - PolicyName: RunChartRefreshTask
+        - PolicyName: RunChartRefresh
           PolicyDocument:
             Version: "2012-10-17"
             Statement:
@@ -834,15 +656,14 @@ Resources:
                 Resource: !Ref ChartRefreshTaskDefinition
               - Effect: Allow
                 Action: iam:PassRole
-                Resource:
-                  - !GetAtt EcsTaskExecutionRole.Arn
-                  - !GetAtt ChartRefreshTaskRole.Arn
+                Resource: [!GetAtt TaskExecutionRole.Arn, !GetAtt ChartRefreshTaskRole.Arn]
 
   ChartRefreshSchedule:
     Type: AWS::Events::Rule
+    DependsOn: EcsClusterCapacityProviders
     Properties:
-      Description: Fetch and publish the FAA's current chart cycle if it is not published yet -- a no-op on the other 55 days.
-      ScheduleExpression: rate(1 day)
+      Description: Publish the FAA's current chart cycle if it is not published yet; a no-op on the other 55 days.
+      ScheduleExpression: cron(30 8 * * ? *)
       State: ENABLED
       Targets:
         - Id: chart-refresh
@@ -850,381 +671,160 @@ Resources:
           RoleArn: !GetAtt ChartRefreshSchedulerRole.Arn
           EcsParameters:
             TaskDefinitionArn: !Ref ChartRefreshTaskDefinition
-            LaunchType: FARGATE
+            CapacityProviderStrategy:
+              - { CapacityProvider: FARGATE_SPOT, Weight: 1 }
             NetworkConfiguration:
               AwsVpcConfiguration:
-                Subnets: !Ref PrivateSubnetIds
-                SecurityGroups: [!Ref PlanningServiceSecurityGroup]
-                AssignPublicIp: DISABLED
+                Subnets: [!Ref PublicSubnet]
+                SecurityGroups: [!Ref ChartRefreshSecurityGroup]
+                AssignPublicIp: ENABLED
 
   # ---------------------------------------------------------------------
-  # ECS Fargate -- nav-log-agent (LangGraph MCP server). Reached through
-  # the same ALB as webapp via a path-based route (AlbMcpListenerRule,
-  # /mcp/*) -- see app/main.py's sse_path/message_path for why those are
-  # the real, stable routes this rule can target.
+  # Sign-in mail through SES: the domain identity with DKIM, its records
+  # in Route 53. SMTP credentials and leaving SES's sandbox are the
+  # owner's (docs/README-AWS.md).
   # ---------------------------------------------------------------------
-  NavLogAgentLogGroup:
-    Type: AWS::Logs::LogGroup
+  MailIdentity:
+    Type: AWS::SES::EmailIdentity
     Properties:
-      LogGroupName: /ecs/vfr-route-nav-log-agent
-      RetentionInDays: 30
+      EmailIdentity: !If [HasMailDomain, !Ref MailDomain, !Ref PublicHost]
+      DkimSigningAttributes: { NextSigningKeyLength: RSA_2048_BIT }
 
-  NavLogAgentTaskDefinition:
-    Type: AWS::ECS::TaskDefinition
-    Properties:
-      Family: vfr-route-nav-log-agent
-      RequiresCompatibilities: [FARGATE]
-      NetworkMode: awsvpc
-      Cpu: "512"
-      Memory: "1024"
-      ExecutionRoleArn: !GetAtt EcsTaskExecutionRole.Arn
-      # No task role: the agent calls no AWS API. Its nav log comes from
-      # planning-service over the private network; its secrets arrive
-      # through the execution role.
-      ContainerDefinitions:
-        - Name: nav-log-agent
-          Image: !Ref NavLogAgentImageUri
-          PortMappings:
-            - ContainerPort: 8000
-          Environment:
-            - Name: DB_HOST
-              Value: !GetAtt Database.Endpoint.Address
-            - Name: DB_PORT
-              Value: !GetAtt Database.Endpoint.Port
-            - Name: DB_NAME
-              Value: !Ref DBName
-            - Name: DB_USER
-              Value: !Ref DBUsername
-            - Name: PLANNING_SERVICE_URL
-              Value: http://planning-service.vfr-route.internal:8000
-          Secrets:
-            - Name: DB_PASSWORD
-              ValueFrom: !Sub "${Database.MasterUserSecret.SecretArn}:password::"
-            - Name: ANTHROPIC_API_KEY
-              ValueFrom: !Ref AnthropicApiKeySecretArn
-            - Name: NAV_LOG_AGENT_API_KEY
-              ValueFrom: !Ref NavLogAgentApiKeySecretArn
-          LogConfiguration:
-            LogDriver: awslogs
-            Options:
-              awslogs-group: !Ref NavLogAgentLogGroup
-              awslogs-region: !Ref AWS::Region
-              awslogs-stream-prefix: nav-log-agent
-
-  NavLogAgentService:
-    Type: AWS::ECS::Service
-    DependsOn: AlbMcpListenerRule
-    Properties:
-      Cluster: !Ref EcsCluster
-      TaskDefinition: !Ref NavLogAgentTaskDefinition
-      DesiredCount: 1
-      LaunchType: FARGATE
-      NetworkConfiguration:
-        AwsvpcConfiguration:
-          Subnets: !Ref PrivateSubnetIds
-          SecurityGroups: [!Ref NavLogAgentSecurityGroup]
-          AssignPublicIp: DISABLED
-      LoadBalancers:
-        - ContainerName: nav-log-agent
-          ContainerPort: 8000
-          TargetGroupArn: !Ref AlbMcpTargetGroup
-      HealthCheckGracePeriodSeconds: 60
-
-  # ---------------------------------------------------------------------
-  # ECS Fargate -- crewai-agent. A task definition only, no service: this
-  # is a one-shot CLI locally (`docker compose run --rm crewai-agent ...`)
-  # and stays that on AWS too -- run on demand with
-  # `aws ecs run-task --cluster vfr-route --task-definition vfr-route-crewai-agent
-  # --launch-type FARGATE --network-configuration ...`, not a standing service.
-  # ---------------------------------------------------------------------
-  CrewaiAgentLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: /ecs/vfr-route-crewai-agent
-      RetentionInDays: 30
-
-  CrewaiAgentTaskDefinition:
-    Type: AWS::ECS::TaskDefinition
-    Properties:
-      Family: vfr-route-crewai-agent
-      RequiresCompatibilities: [FARGATE]
-      NetworkMode: awsvpc
-      Cpu: "512"
-      Memory: "1024"
-      ExecutionRoleArn: !GetAtt EcsTaskExecutionRole.Arn
-      # No task role, for the same reason as NavLogAgentTaskDefinition.
-      ContainerDefinitions:
-        - Name: crewai-agent
-          Image: !Ref CrewaiAgentImageUri
-          # The image's own command is the HTTP wrapper the local
-          # flight planning drawer calls; nothing calls it here, so
-          # run-task runs the one-shot CLI instead and the task exits
-          # once the briefing is printed.
-          Command: ["python3", "-m", "app.main"]
-          Environment:
-            - Name: PLANNING_SERVICE_URL
-              Value: http://planning-service.vfr-route.internal:8000
-          Secrets:
-            - Name: ANTHROPIC_API_KEY
-              ValueFrom: !Ref AnthropicApiKeySecretArn
-          LogConfiguration:
-            LogDriver: awslogs
-            Options:
-              awslogs-group: !Ref CrewaiAgentLogGroup
-              awslogs-region: !Ref AWS::Region
-              awslogs-stream-prefix: crewai-agent
-
-  # ---------------------------------------------------------------------
-  # ECS Fargate -- Airflow, self-hosted (the alternative was Amazon MWAA;
-  # self-hosting was chosen to reuse the same Fargate/ECS pattern as every
-  # other service here rather than bring in a second, differently-shaped
-  # managed service for one component). Not reachable from the ALB --
-  # only the Retrain Trigger Lambda talks to it, over Cloud Map (see
-  # ServiceDiscoveryNamespace above).
-  # ---------------------------------------------------------------------
-  AirflowLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: /ecs/vfr-route-airflow
-      RetentionInDays: 30
-
-  AirflowTaskDefinition:
-    Type: AWS::ECS::TaskDefinition
-    Properties:
-      Family: vfr-route-airflow
-      RequiresCompatibilities: [FARGATE]
-      NetworkMode: awsvpc
-      Cpu: "1024"
-      Memory: "2048"
-      ExecutionRoleArn: !GetAtt EcsTaskExecutionRole.Arn
-      TaskRoleArn: !GetAtt AirflowTaskRole.Arn
-      Volumes:
-        - Name: airflow-home
-          EFSVolumeConfiguration:
-            FilesystemId: !Ref AirflowEfs
-            TransitEncryption: ENABLED
-            AuthorizationConfig:
-              AccessPointId: !Ref AirflowEfsAccessPoint
-              IAM: ENABLED
-      ContainerDefinitions:
-        - Name: airflow
-          Image: !Ref AirflowImageUri
-          Command: ["standalone"]
-          PortMappings:
-            - ContainerPort: 8080
-          MountPoints:
-            - SourceVolume: airflow-home
-              ContainerPath: /opt/airflow
-          Environment:
-            - Name: AIRFLOW__CORE__LOAD_EXAMPLES
-              Value: "false"
-          LogConfiguration:
-            LogDriver: awslogs
-            Options:
-              awslogs-group: !Ref AirflowLogGroup
-              awslogs-region: !Ref AWS::Region
-              awslogs-stream-prefix: airflow
-
-  AirflowService:
-    Type: AWS::ECS::Service
-    Properties:
-      Cluster: !Ref EcsCluster
-      TaskDefinition: !Ref AirflowTaskDefinition
-      DesiredCount: 1
-      LaunchType: FARGATE
-      # Lets `aws ecs execute-command` open a shell into the running task --
-      # the way to run `airflow variables set ...` once, post-deploy (see
-      # docs/README-AWS.md's deploy runbook), since there's no other shell
-      # access to a Fargate task.
-      EnableExecuteCommand: true
-      NetworkConfiguration:
-        AwsvpcConfiguration:
-          Subnets: !Ref PrivateSubnetIds
-          SecurityGroups: [!Ref AirflowSecurityGroup]
-          AssignPublicIp: DISABLED
-      ServiceRegistries:
-        - RegistryArn: !GetAtt AirflowServiceDiscoveryService.Arn
-
-  # ---------------------------------------------------------------------
-  # ALB
-  # ---------------------------------------------------------------------
-  Alb:
-    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
-    Properties:
-      Type: application
-      Scheme: internet-facing
-      Subnets: !Ref PublicSubnetIds
-      SecurityGroups: [!Ref AlbSecurityGroup]
-
-  AlbTargetGroup:
-    Type: AWS::ElasticLoadBalancingV2::TargetGroup
-    Properties:
-      VpcId: !Ref VpcId
-      Protocol: HTTP
-      Port: 8080
-      TargetType: ip
-      # Matches webapp's actual Spring Boot Actuator readiness probe --
-      # see springboot-app/src/main/resources/application.yml.
-      HealthCheckPath: /actuator/health/readiness
-      HealthCheckIntervalSeconds: 15
-      HealthyThresholdCount: 2
-      UnhealthyThresholdCount: 3
-
-  AlbListener:
-    Type: AWS::ElasticLoadBalancingV2::Listener
-    Properties:
-      LoadBalancerArn: !Ref Alb
-      Port: !If [HasCertificate, 443, 80]
-      Protocol: !If [HasCertificate, HTTPS, HTTP]
-      Certificates: !If
-        - HasCertificate
-        - [{ CertificateArn: !Ref CertificateArn }]
-        - !Ref AWS::NoValue
-      DefaultActions:
-        - Type: forward
-          TargetGroupArn: !Ref AlbTargetGroup
-
-  # nav-log-agent's MCP endpoint, reached through the same ALB as webapp
-  # instead of a second load balancer -- see app/main.py for why /mcp/sse
-  # and /mcp/messages/ are the two real routes this pattern has to match.
-  AlbMcpTargetGroup:
-    Type: AWS::ElasticLoadBalancingV2::TargetGroup
-    Properties:
-      VpcId: !Ref VpcId
-      Protocol: HTTP
-      Port: 8000
-      TargetType: ip
-      HealthCheckPath: /mcp/sse
-      # An SSE connection is expected to hang open, not return a fast 200 --
-      # ELB's health check just needs *a* response within the timeout to
-      # consider the target healthy, which an SSE handshake satisfies.
-      HealthCheckIntervalSeconds: 30
-      HealthCheckTimeoutSeconds: 10
-      HealthyThresholdCount: 2
-      UnhealthyThresholdCount: 3
-
-  AlbMcpListenerRule:
-    Type: AWS::ElasticLoadBalancingV2::ListenerRule
-    Properties:
-      ListenerArn: !Ref AlbListener
-      Priority: 10
-      Conditions:
-        - Field: path-pattern
-          Values: ["/mcp/*"]
-      Actions:
-        - Type: forward
-          TargetGroupArn: !Ref AlbMcpTargetGroup
-
-  DnsRecord:
+  MailDkimRecord1:
     Type: AWS::Route53::RecordSet
-    Condition: HasDomainName
     Properties:
-      HostedZoneName: !Sub "${DomainName}."
-      Name: !Ref DomainName
-      Type: A
-      AliasTarget:
-        DNSName: !GetAtt Alb.DNSName
-        HostedZoneId: !GetAtt Alb.CanonicalHostedZoneID
+      HostedZoneId: !Ref HostedZoneId
+      Name: !GetAtt MailIdentity.DkimDNSTokenName1
+      Type: CNAME
+      TTL: "1800"
+      ResourceRecords: [!GetAtt MailIdentity.DkimDNSTokenValue1]
+
+  MailDkimRecord2:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !GetAtt MailIdentity.DkimDNSTokenName2
+      Type: CNAME
+      TTL: "1800"
+      ResourceRecords: [!GetAtt MailIdentity.DkimDNSTokenValue2]
+
+  MailDkimRecord3:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !GetAtt MailIdentity.DkimDNSTokenName3
+      Type: CNAME
+      TTL: "1800"
+      ResourceRecords: [!GetAtt MailIdentity.DkimDNSTokenValue3]
 
   # ---------------------------------------------------------------------
-  # Retrain Trigger -- infra/lambda-retrain-trigger (Go), behind an HTTP
-  # API. Triggers vfr_pipeline on demand instead of waiting on Airflow's
-  # own schedule.
+  # Deploys from GitHub with no stored keys: promote.yml assumes this role
+  # through GitHub's OIDC to push the images and run deploy.sh on the
+  # server over SSM. Set its ARN as the repo variable AWS_ROLE_ARN.
   # ---------------------------------------------------------------------
-  RetrainTriggerFunction:
-    Type: AWS::Lambda::Function
+  GitHubOidcProvider:
+    Type: AWS::IAM::OIDCProvider
+    Condition: CreateOidc
     Properties:
-      FunctionName: vfr-retrain-trigger
-      Runtime: provided.al2023
-      Architectures: [arm64]
-      Handler: bootstrap
-      Code:
-        S3Bucket: !Ref LambdaCodeS3Bucket
-        S3Key: !Ref LambdaCodeS3Key
-      MemorySize: 128
-      Timeout: 15
-      Role: !GetAtt LambdaExecutionRole.Arn
-      VpcConfig:
-        SubnetIds: !Ref PrivateSubnetIds
-        SecurityGroupIds: [!Ref LambdaSecurityGroup]
-      Environment:
-        Variables:
-          # Matches ServiceDiscoveryNamespace + AirflowServiceDiscoveryService
-          # above -- a fixed, predictable address rather than a
-          # separately-supplied parameter, since this stack owns both ends.
-          AIRFLOW_BASE_URL: http://airflow.vfr-route.internal:8080
-          AIRFLOW_DAG_ID: !Ref AirflowDagId
-          AIRFLOW_CREDENTIALS_SECRET_ARN: !Ref AirflowCredentialsSecretArn
+      Url: https://token.actions.githubusercontent.com
+      ClientIdList: [sts.amazonaws.com]
 
-  RetrainApi:
-    Type: AWS::ApiGatewayV2::Api
+  DeployRole:
+    Type: AWS::IAM::Role
     Properties:
-      Name: vfr-retrain-api
-      ProtocolType: HTTP
+      Description: GitHub Actions on main pushes the images and runs deploy.sh on the server.
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !Sub "arn:aws:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com"
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                token.actions.githubusercontent.com:aud: sts.amazonaws.com
+              StringLike:
+                token.actions.githubusercontent.com:sub: !Sub "repo:${GitHubRepo}:ref:refs/heads/main"
+      Policies:
+        - PolicyName: PushAndDeploy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: ecr:GetAuthorizationToken
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - ecr:BatchCheckLayerAvailability
+                  - ecr:BatchGetImage
+                  - ecr:CompleteLayerUpload
+                  - ecr:GetDownloadUrlForLayer
+                  - ecr:InitiateLayerUpload
+                  - ecr:PutImage
+                  - ecr:UploadLayerPart
+                Resource:
+                  - !GetAtt WebappRepository.Arn
+                  - !GetAtt PlanningServiceRepository.Arn
+                  - !GetAtt NavLogAgentRepository.Arn
+                  - !GetAtt ModelServiceRepository.Arn
+              - Effect: Allow
+                Action: ssm:SendCommand
+                Resource:
+                  - !Sub "arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/${ServerInstance}"
+                  - !Sub "arn:aws:ssm:${AWS::Region}::document/AWS-RunShellScript"
+              - Effect: Allow
+                Action: [ssm:GetCommandInvocation, ssm:ListCommandInvocations]
+                Resource: "*"
 
-  RetrainApiIntegration:
-    Type: AWS::ApiGatewayV2::Integration
+  # ---------------------------------------------------------------------
+  # Spending: an email at 80% of $50 a month.
+  # ---------------------------------------------------------------------
+  BackupAlertTopic:
+    Type: AWS::SNS::Topic
+    Condition: HasBudget
     Properties:
-      ApiId: !Ref RetrainApi
-      IntegrationType: AWS_PROXY
-      IntegrationUri: !GetAtt RetrainTriggerFunction.Arn
-      PayloadFormatVersion: "2.0"
+      DisplayName: Wingtip Maps backup
+      Subscription: [{ Protocol: email, Endpoint: !Ref BudgetEmail }]
 
-  RetrainApiRoute:
-    Type: AWS::ApiGatewayV2::Route
+  MonthlyBudget:
+    Type: AWS::Budgets::Budget
+    Condition: HasBudget
     Properties:
-      ApiId: !Ref RetrainApi
-      RouteKey: "POST /retrain"
-      Target: !Sub "integrations/${RetrainApiIntegration}"
-
-  RetrainApiStage:
-    Type: AWS::ApiGatewayV2::Stage
-    Properties:
-      ApiId: !Ref RetrainApi
-      StageName: $default
-      AutoDeploy: true
-
-  RetrainApiLambdaPermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      FunctionName: !Ref RetrainTriggerFunction
-      Action: lambda:InvokeFunction
-      Principal: apigateway.amazonaws.com
-      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${RetrainApi}/*/*/retrain"
+      Budget:
+        BudgetName: !Sub "${AWS::StackName}-monthly"
+        BudgetType: COST
+        TimeUnit: MONTHLY
+        BudgetLimit: { Amount: 50, Unit: USD }
+      NotificationsWithSubscribers:
+        - Notification: { NotificationType: ACTUAL, ComparisonOperator: GREATER_THAN, Threshold: 80, ThresholdType: PERCENTAGE }
+          Subscribers: [{ SubscriptionType: EMAIL, Address: !Ref BudgetEmail }]
 
 Outputs:
-  AlbDnsName:
-    Value: !GetAtt Alb.DNSName
-  ChartTilesUrl:
-    Description: Where the map fetches its chart tiles from; tiles/serving.json under it names the cycle being served. Empty until the first ChartRefreshTask has run (start one by hand with `aws ecs run-task`, it takes a few hours).
-    Value: !Sub "https://${ChartTilesDistribution.DomainName}/tiles"
-  AppUrl:
-    Value: !If
-      - HasDomainName
-      - !Sub "https://${DomainName}"
-      - !Sub
-        - "${Scheme}://${DnsName}"
-        - Scheme: !If [HasCertificate, "https", "http"]
-          DnsName: !GetAtt Alb.DNSName
-  DatabaseEndpoint:
-    Value: !GetAtt Database.Endpoint.Address
-  DatabaseSecretArn:
-    Description: Fetch the actual generated password with `aws secretsmanager get-secret-value`.
-    Value: !GetAtt Database.MasterUserSecret.SecretArn
-  RetrainApiUrl:
-    Value: !Sub "${RetrainApi.ApiEndpoint}/retrain"
-  McpUrl:
-    Description: nav-log-agent's MCP endpoint -- an MCP client connects to <this>/sse.
-    Value: !If
-      - HasDomainName
-      - !Sub "https://${DomainName}/mcp"
-      - !Sub
-        - "${Scheme}://${DnsName}/mcp"
-        - Scheme: !If [HasCertificate, "https", "http"]
-          DnsName: !GetAtt Alb.DNSName
-  CrewaiAgentTaskDefinitionArn:
-    Description: Run with `aws ecs run-task --cluster vfr-route --task-definition <this> --launch-type FARGATE --network-configuration ...` -- not a standing service.
-    Value: !Ref CrewaiAgentTaskDefinition
-  SageMakerJobRoleArn:
-    Description: Set as the `vfr_sagemaker_job_role_arn` Airflow Variable (airflow/dags/vfr_pipeline_aws_dag.py) once Airflow is up.
-    Value: !GetAtt SageMakerJobRole.Arn
+  PublicUrl:
+    Value: !Sub "https://${PublicHost}/app/plan"
+  DistributionId:
+    Description: For cache invalidations.
+    Value: !Ref Distribution
+  ServerInstanceId:
+    Description: The repo variable AWS_INSTANCE_ID, for promote.yml's deploy.
+    Value: !Ref ServerInstance
+  ServerAddress:
+    Value: !Ref ServerAddress
+  DeployRoleArn:
+    Description: The repo variable AWS_ROLE_ARN (with AWS_REGION us-east-1).
+    Value: !GetAtt DeployRole.Arn
+  AppSecretArn:
+    Description: Fill in the owner's values here (infra/server/env.example), then run deploy.sh.
+    Value: !Ref AppSecret
+  ServerBucketName:
+    Description: The nightly backups (backups/<date>/) and the chart model (models/chart/current/).
+    Value: !Ref ServerBucket
+  ChartTilesBucketName:
+    Value: !Ref ChartTilesBucket
+  ChartRefreshNow:
+    Description: Draws and publishes the current chart cycle now, rather than at the next 08:30 UTC run (the first deploy's tiles).
+    Value: !Sub >-
+      aws ecs run-task --region ${AWS::Region} --cluster ${EcsCluster}
+      --task-definition ${ChartRefreshTaskDefinition}
+      --capacity-provider-strategy capacityProvider=FARGATE_SPOT,weight=1
+      --network-configuration "awsvpcConfiguration={subnets=[${PublicSubnet}],securityGroups=[${ChartRefreshSecurityGroup}],assignPublicIp=ENABLED}"
