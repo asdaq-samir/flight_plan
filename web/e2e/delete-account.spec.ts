@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { signInByEmail } from "./emailSignIn";
+import { noTips } from "./helpers";
 
 /**
  * Deleting an account from inside the app (App Review 5.1.1(v)): signed
@@ -12,19 +13,21 @@ test.use({ storageState: { cookies: [], origins: [] } });
 test("Delete account asks, then deletes the account and everything in it, and signs out", async ({ page }) => {
   test.setTimeout(120_000);
   const address = `delete-${Date.now()}@example.com`;
+  // The tips and the first-launch notice given, on every load: deleting
+  // the account clears this device's copies of both.
+  await page.addInitScript(noTips);
   await page.goto("/app/plan");
   await signInByEmail(page, address);
 
-  // An airplane of theirs, saved through the app's own endpoint.
-  const added = await page.evaluate(async () => {
-    const csrf = document.cookie.match(/XSRF-TOKEN=([^;]+)/)?.[1] ?? "";
-    const res = await fetch("/api/aircraft", {
-      method: "POST", headers: { "Content-Type": "application/json", "X-XSRF-TOKEN": decodeURIComponent(csrf) },
-      body: JSON.stringify({ tailNumber: "N12345", typeDesignator: "C172", cruiseTasKt: 110, fuelBurnGph: 8 }),
-    });
-    return res.status;
+  // Signed in once the server says so; then an airplane of theirs, saved
+  // through the app's own endpoint with the session's CSRF token.
+  await expect.poll(async () => (await page.request.get("/api/me")).status()).toBe(200);
+  const xsrf = (await page.context().cookies()).find(c => c.name === "XSRF-TOKEN")?.value ?? "";
+  const added = await page.request.post("/api/aircraft", {
+    headers: { "X-XSRF-TOKEN": decodeURIComponent(xsrf) },
+    data: { tailNumber: "N12345", typeDesignator: "C172", cruiseTasKt: 110, fuelBurnGph: 8 },
   });
-  expect(added).toBe(201);
+  expect(added.ok()).toBe(true);
 
   const console = page.getByTestId("console-sheet");
   if (!(await console.isVisible())) await page.getByTestId("settings-button").click();
@@ -44,6 +47,6 @@ test("Delete account asks, then deletes the account and everything in it, and si
 
   // The same address again is a new pilot, with no airplanes.
   await signInByEmail(page, address);
-  const mine = await page.evaluate(async () => (await (await fetch("/api/aircraft")).json()) as unknown[]);
-  expect(mine).toEqual([]);
+  await expect.poll(async () => (await page.request.get("/api/me")).status()).toBe(200);
+  expect(await (await page.request.get("/api/aircraft")).json()).toEqual([]);
 });
