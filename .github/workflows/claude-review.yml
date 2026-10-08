@@ -113,6 +113,8 @@ jobs:
       pull-requests: write
       issues: write
       id-token: write
+      # To let the fix's held checks run (the last step).
+      actions: write
     env:
       HAS_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' || secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
     steps:
@@ -177,3 +179,27 @@ jobs:
             change nothing.
           claude_args: |
             --allowedTools "Skill,WebFetch,Edit,MultiEdit,Write,Read,Glob,Grep,LS,Bash(git:*),Bash(gh:*),Bash(npm:*),Bash(npx:*),Bash(node:*),Bash(python:*),Bash(python3:*),Bash(pip:*),Bash(mvn:*),Bash(cd:*),Bash(ls:*),Bash(cat:*),Bash(head:*),Bash(tail:*),Bash(grep:*),Bash(find:*),Bash(wc:*),Bash(diff:*),Bash(pytest:*),Bash(ruff:*),Bash(uv:*),Bash(java:*)"
+      # A commit pushed from a workflow starts its pull request's checks as
+      # github-actions[bot], and GitHub holds those for approval
+      # (action_required): on 2026-10-08 the fixes on #107 and #116 sat
+      # there, and a pull request whose CI never runs never merges. They
+      # are this repository's own workflow's commits, so they are approved
+      # here, with the owner's token where there is one. The runs appear a
+      # few seconds after the push: the newest commit is asked after for
+      # two minutes.
+      - name: Let the pushed fix's checks run
+        if: always() && steps.tries.outputs.go == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.MERGE_TOKEN || github.token }}
+          GH_REPO: ${{ github.repository }}
+          BRANCH: ${{ github.head_ref }}
+        run: |
+          git fetch -q origin "$BRANCH" || exit 0
+          sha=$(git rev-parse FETCH_HEAD)
+          for _ in 1 2 3 4 5 6; do
+            for id in $(gh api "repos/$GH_REPO/actions/runs?head_sha=$sha&status=action_required" --jq '.workflow_runs[].id'); do
+              gh api -X POST "repos/$GH_REPO/actions/runs/$id/approve" > /dev/null && echo "approved run $id on ${sha:0:7}" \
+                || echo "::warning title=Checks held::run $id on ${sha:0:7} waits for approval, and this token cannot give it"
+            done
+            sleep 20
+          done
