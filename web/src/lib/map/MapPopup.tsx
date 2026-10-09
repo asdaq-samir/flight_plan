@@ -1,4 +1,6 @@
-import { useContext, type ComponentProps } from "react";
+import type L from "leaflet";
+import type { LeafletEventHandlerFnMap } from "leaflet";
+import { useContext, useMemo, type ComponentProps } from "react";
 import { Popup } from "react-leaflet";
 import { MapInsetsContext } from "../../components/mapChrome";
 
@@ -27,10 +29,43 @@ import { MapInsetsContext } from "../../components/mapChrome";
  * a tap on the chart fires one). That is why the pin can keep working
  * with dismissal left at Leaflet's default.
  */
-export function MapPopup(props: ComponentProps<typeof Popup>) {
+/** Opened, a popup pans the map to be in sight, and then holds still:
+ *  react-leaflet updates an open popup each time what holds it draws
+ *  again, and each of Leaflet's updates pans it again. The VFR waypoints'
+ *  layer drew again at each move's end, so a popup a pixel out of place
+ *  (a half point rounded the other way) panned the map a pixel, which
+ *  ended a move, which drew it again -- the map crept for as long as the
+ *  card was open, at the pilot's report (measured: a point every second
+ *  or so on a 700-point screen). Its first pans are its content's, drawn
+ *  into it just after it opens; past the time those take (Leaflet's
+ *  quarter-second pan, and a frame or two), it pans no more until it is
+ *  opened again. */
+const SETTLES_MS = 600;
+const settling = new WeakMap<L.Popup, number>();
+const PAN_ONCE: LeafletEventHandlerFnMap = {
+  add: event => {
+    const popup = event.target as L.Popup;
+    popup.options.autoPan = true;
+    settling.set(popup, window.setTimeout(() => { popup.options.autoPan = false; }, SETTLES_MS));
+  },
+  remove: event => {
+    const popup = event.target as L.Popup;
+    window.clearTimeout(settling.get(popup));
+    popup.options.autoPan = true;
+  },
+};
+
+export function MapPopup({ eventHandlers, ...props }: ComponentProps<typeof Popup>) {
   // Opened, it pans the map to be in sight past the panel over the map
   // (MapPanel), not just inside the map, which runs under the panel.
   const insets = useContext(MapInsetsContext);
+  // The caller's handlers beside the one that pans once, as one object
+  // while theirs is the same.
+  const handlers = useMemo<LeafletEventHandlerFnMap>(() => (eventHandlers ? {
+    ...eventHandlers,
+    add: event => { PAN_ONCE.add!(event); eventHandlers.add?.(event); },
+    remove: event => { PAN_ONCE.remove!(event); eventHandlers.remove?.(event); },
+  } : PAN_ONCE), [eventHandlers]);
   // Props last: these are defaults, and a caller that means something
   // different says so.
   return (
@@ -48,6 +83,7 @@ export function MapPopup(props: ComponentProps<typeof Popup>) {
       // One close, one place, one size -- see `MapCard`.
       closeButton={false}
       {...props}
+      eventHandlers={handlers}
     />
   );
 }

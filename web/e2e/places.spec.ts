@@ -17,7 +17,9 @@ test("an airport's card names the field, its airspace and tower, how far it is, 
   await expect(card(page).getByTestId("place-name")).toHaveText("Duluth International Airport");
   // Measured from the route's departure while the pilot's own position
   // is not known.
-  await expect(card(page)).toContainText(/KDLH · Class [BCD] · Towered · \d+ nm NW of C81/);
+  await expect(card(page)).toContainText(/KDLH · Class [BCD] · Towered/);
+  // Its elevation under that, and how far it is beside it.
+  await expect(card(page)).toContainText(/Elevation [\d,]+ ft · \d+ nm NW of C81/);
   await expect(card(page).getByTestId("place-category")).toBeVisible();
   for (const id of ["fly-here", "place-weather", "place-frequencies"]) await expect(card(page).getByTestId(id)).toBeVisible();
 
@@ -33,6 +35,28 @@ test("an airport's card names the field, its airspace and tower, how far it is, 
   await expect(page).not.toHaveURL(/[?&]place=/);
   await expect(sideDrawer(page)).toHaveAttribute("data-panel", "full");
   await expect(sideDrawer(page).getByTestId("panel-tab-navlog")).toBeVisible();
+});
+
+test("an airport's card has four tabs under its tiles, the weather first where there is no diagram, and a tab takes the panel up", async ({ page }) => {
+  // C81 has no airport diagram: its card opens on the weather.
+  await page.route(url => url.pathname.endsWith("/api/planner/airport/C81"), async route => {
+    const answer = await route.fetch();
+    await route.fulfill({ response: answer, json: { ...await answer.json(), airport_diagram_url: null, airport_diagram_cycle: null } });
+  });
+  await page.goto("/app/plan?place=C81");
+  await settle(page);
+  const tabs = card(page).getByRole("tab");
+  await expect(tabs).toHaveText(["Diagram", "Weather", "Freq.", "Runways"], { timeout: slow(15000) });
+  await expect(card(page).getByTestId("place-tab-weather")).toHaveAttribute("aria-selected", "true");
+  await expect(sideDrawer(page)).toHaveAttribute("data-panel", "half");
+
+  await card(page).getByTestId("place-tab-runways").click();
+  await expect(sideDrawer(page)).toHaveAttribute("data-panel", "full");
+  await expect(card(page).getByRole("tabpanel")).toContainText("Pattern altitude");
+  await expect(card(page).getByRole("tabpanel")).toContainText(/Runway \d/);
+
+  await card(page).getByTestId("place-tab-diagram").click();
+  await expect(card(page).getByRole("tabpanel")).toContainText("The FAA publishes no airport diagram for this field");
 });
 
 /** Closer in over the departure, where the chart's airports are drawn big
@@ -325,6 +349,8 @@ test("an airport's card says which lights a pilot turns on with the mic, and the
   // own airport data, in plain English.
   await page.goto("/app/plan?place=3CK");
   await expect(card(page).getByTestId("place-name")).not.toBeEmpty({ timeout: slow(15000) });
+  // With the radio, under Freq.: it is the mic that turns them on.
+  await card(page).getByTestId("place-tab-radio").click();
   const lights = card(page).getByTestId("place-lighting");
   await expect(lights.first()).toContainText("Activate REIL runway 08 & 26");
   await expect(card(page)).toContainText("Key the mic on the frequency 7 times within 5 seconds for high intensity, 5 for medium, 3 for low.");

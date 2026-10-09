@@ -9,6 +9,8 @@ import RoundButton from "../../../components/RoundButton";
 import { FILLS_HALF, GLASS_BUTTON } from "../../../components/mapChrome";
 import { CardHead, PanelCard } from "../../../components/PanelCard";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
+import { LINE_TAB } from "../../../components/lineTabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../../components/ui/tabs";
 import { Button } from "../../../components/ui/button";
 import { ApiError, api } from "../../../lib/api/client";
 import type { AirportPin, AirportPlace, ClassBAirport } from "../../../lib/api/types";
@@ -29,9 +31,9 @@ function away(from: LatLon, to: LatLon): string {
 
 /** The line under the name: the ident, the airspace, the tower or its
  *  CTAF, and how far it is -- "KDLH · Class C · 18 nm NE". */
-function subtitleOf(place: AirportPlace, from: { point: LatLon; name: string | null } | null): string {
+function subtitleOf(place: AirportPlace, from: { point: LatLon; name: string | null } | null): ReactNode {
   const ctaf = place.frequencies.find(f => f.type === "CTAF" || f.type === "UNIC");
-  return [
+  const what = [
     place.ident,
     // A field the armed services own (the FAA's airport file): one most
     // pilots may not land at without the service's permission, or a civil
@@ -39,8 +41,14 @@ function subtitleOf(place: AirportPlace, from: { point: LatLon; name: string | n
     place.military === "military" ? "Military, permission required" : place.military === "joint" ? "Joint use" : null,
     place.airspace_class ? `Class ${place.airspace_class}` : null,
     place.towered ? "Towered" : ctaf?.frequency_mhz ? `CTAF ${ctaf.frequency_mhz.toFixed(3).replace(/0+$/, "").replace(/\.$/, "")}` : "Non-towered",
+  ].filter(Boolean).join(" · ");
+  // Its elevation on a line of its own under that, at the pilot's ask,
+  // where it was the Runways tab's first row; how far it is after it.
+  const where = [
+    place.elevation_ft != null ? `Elevation ${feet(place.elevation_ft)}` : null,
     from ? (from.name ? `${away(from.point, place)} of ${from.name}` : away(from.point, place)) : null,
   ].filter(Boolean).join(" · ");
+  return where ? <>{what}<br />{where}</> : what;
 }
 
 /** An airport's name and weather from whatever the map has already
@@ -54,6 +62,15 @@ function knownOf(queryClient: QueryClient, ident: string): { name: string; categ
   }
   return null;
 }
+
+type CardTab = "diagram" | "weather" | "radio" | "runways";
+/** The card's tabs, in the pilot's order. "Freq." as on its tile. */
+const CARD_TABS: { value: CardTab; label: string }[] = [
+  { value: "diagram", label: "Diagram" },
+  { value: "weather", label: "Weather" },
+  { value: "radio", label: "Freq." },
+  { value: "runways", label: "Runways" },
+];
 
 /** A tile of the card's action row: its glyph over its word, as Maps
  *  draws its own -- Fly Here filled in the tint, the rest panes of glass
@@ -131,20 +148,26 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
   // old would be wrong.
   const ship = useOwnShip(o => (o.enabled ? o.fix : null));
   const measured = ship ? { point: { lat: ship.lat, lon: ship.lon }, name: null } : from;
-  const weatherRef = useRef<HTMLDivElement>(null);
-  const radioRef = useRef<HTMLDivElement>(null);
+  const tabsRef = useRef<HTMLDivElement>(null);
   // Fly Here tapped: the tile says so at once, a frame before the route
   // is drawn (PlanWorkspace's flyHere), which is a moment of a phone's --
   // the tap looked lost under it, at the pilot's ask for no lag. The card
   // goes with the route; it is a new card (keyed by its ident) after.
   const [flying, setFlying] = useState(false);
-  const show = (section: HTMLElement | null) => {
-    // From half, once the panel is up and the name and actions have
-    // closed up to their own height (below), so the section is scrolled
-    // to where it ends up; all the way up already, after a frame.
-    const up = section?.closest("[data-panel]")?.getAttribute("data-panel") === "full";
+  // The card's four tabs under its tiles, at the pilot's ask, where its
+  // sections ran on one under another: the diagram first where the field
+  // has one, the weather first where it has none (most small fields).
+  const [picked, setPicked] = useState<CardTab | null>(null);
+  const tab: CardTab = picked ?? (place?.airport_diagram_url || place?.airport_diagram_cycle ? "diagram" : "weather");
+  // A tab picked -- or Weather or Freq. on the tiles -- takes the panel all
+  // the way up, as the route's tabs do; the bar back in sight if the card
+  // was scrolled past it, once the panel is up and the name and tiles
+  // have closed up to their own height.
+  const open = (next: CardTab) => {
+    setPicked(next);
+    const up = tabsRef.current?.closest("[data-panel]")?.getAttribute("data-panel") === "full";
     onExpand();
-    window.setTimeout(() => section?.scrollIntoView({ block: "start", behavior: "smooth" }), up ? 50 : 520);
+    window.setTimeout(() => tabsRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" }), up ? 50 : 520);
   };
   const metar = place?.metar ?? null;
   const weather = place
@@ -152,8 +175,10 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
     : known && { status: known.category ? "reported" : "no-report", category: known.category };
   return (
     <PanelCard testId="place-card">
-      {/* The name and the actions the panel's half, less the card's own
-          top: the weather starts under it, out of sight there (FILLS_HALF). */}
+      <Tabs value={tab} onValueChange={next => setPicked(next as CardTab)} className="gap-0">
+      {/* The name, the actions and the tabs' bar the panel's half, less the
+          card's own top: a tab's content starts under it, out of sight
+          there (FILLS_HALF). */}
       <div className={cn("min-h-[calc(var(--half-body,0px)_-_var(--corner-inset,0.75rem))]", FILLS_HALF)}>
         <CardHead
           name={place?.name ?? known?.name ?? kept?.name ?? ident} nameTestId="place-name"
@@ -192,21 +217,56 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
             {onAddStop && (
               <Action icon={<MapPinPlus />} label="Add Stop" disabled={!place} onClick={() => { if (place) onAddStop(place); }} testId="place-add-stop" />
             )}
-            <Action icon={<CloudSun />} label="Weather" disabled={!place} onClick={() => show(weatherRef.current)} testId="place-weather" />
+            <Action icon={<CloudSun />} label="Weather" disabled={!place} onClick={() => open("weather")} testId="place-weather" />
             {/* "Freq." on the tile, at the pilot's ask: the whole word ran
                 past a quarter of a phone's card with Add Stop beside it. */}
             <Action
               icon={<Radio />} label="Freq." spoken="Frequencies" disabled={!place}
-              onClick={() => show(radioRef.current)} testId="place-frequencies"
+              onClick={() => open("radio")} testId="place-frequencies"
             />
           </div>
+        )}
+        {place && (
+          // The stock line tabs, the consoles' (ConsoleTabs): words over a
+          // hairline, the chosen one in the tint, a 44-point bar to a
+          // finger.
+          <TabsList
+            ref={tabsRef} variant="line"
+            className="mt-3 w-full scroll-mt-3 gap-0 border-b border-border p-0 group-data-[orientation=horizontal]/tabs:h-9 pointer-coarse:group-data-[orientation=horizontal]/tabs:h-11"
+          >
+            {CARD_TABS.map(t => (
+              // Tapped, the panel comes all the way up, the tab already
+              // picked as well (onValueChange is not called for it).
+              <TabsTrigger
+                key={t.value} value={t.value} className={LINE_TAB} onClick={() => open(t.value)} data-testid={`place-tab-${t.value}`}
+              >
+                {t.label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
         )}
       </div>
 
       {place && (
         <>
-          <div ref={weatherRef} className="scroll-mt-3 pt-5">
-            <ListGroup title="Weather">
+          <TabsContent value="diagram" className="pt-4">
+            <ListGroup>
+              {!place.airport_diagram_url && !place.airport_diagram_cycle && (
+                // Drawn by the FAA for the fields with a tower or a busy
+                // ramp; most small fields have none.
+                <ListRow title={<span className="text-muted-foreground">The FAA publishes no airport diagram for this field</span>} />
+              )}
+              {(place.airport_diagram_url || place.airport_diagram_cycle || place.chart_supplement_url) && (
+                <PublicationRows
+                  ident={place.ident} diagram={place.airport_diagram_url}
+                  diagramCycle={place.airport_diagram_cycle} supplement={place.chart_supplement_url}
+                />
+              )}
+            </ListGroup>
+          </TabsContent>
+
+          <TabsContent value="weather" className="pt-4">
+            <ListGroup>
               {metar ? (
                 <>
                   <ListRow title="Ceiling" value={metar.ceiling_ft == null ? "none" : feet(metar.ceiling_ft)} />
@@ -223,10 +283,10 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
                 <ListRow title={place.weather_unavailable ? "The weather service could not be reached" : "No weather station reports from this field"} />
               )}
             </ListGroup>
-          </div>
+          </TabsContent>
 
-          <div ref={radioRef} className="scroll-mt-3 pt-5">
-            <ListGroup title="Frequencies">
+          <TabsContent value="radio" className="pt-4">
+            <ListGroup>
               {place.frequencies.length ? place.frequencies.map((f, i) => (
                 <ListRow
                   key={`${f.type}-${f.frequency_mhz}-${i}`}
@@ -240,12 +300,12 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
                 <ListRow key={note} media={<Radio className="size-5 text-muted-foreground" />} title={note} />
               ))}
             </ListGroup>
-          </div>
 
           {place.lighting.length > 0 && (
             // The field's lights, from its Chart Supplement remarks: the
             // ones a pilot turns on from the cockpit by keying the mic,
-            // and with no count of clicks of their own, the standard one.
+            // and with no count of clicks of their own, the standard one --
+            // with the radio, as it is the mic that turns them on.
             <div className="pt-5">
               <ListGroup
                 title="Lights"
@@ -259,10 +319,10 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
               </ListGroup>
             </div>
           )}
+          </TabsContent>
 
-          <div className="pt-5">
-            <ListGroup title="Field">
-              <ListRow title="Elevation" value={feet(place.elevation_ft)} />
+          <TabsContent value="runways" className="pt-4">
+            <ListGroup>
               {place.pattern?.altitude_ft != null && (
                 <ListRow
                   title="Pattern altitude"
@@ -272,20 +332,10 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
               )}
               {place.runways.map((r, i) => <RunwayRow key={`${r.ends}-${i}`} runway={r} />)}
             </ListGroup>
-          </div>
-
-          {(place.airport_diagram_url || place.chart_supplement_url) && (
-            <div className="pt-5">
-              <ListGroup title="FAA">
-                <PublicationRows
-                  ident={place.ident} diagram={place.airport_diagram_url}
-                  diagramCycle={place.airport_diagram_cycle} supplement={place.chart_supplement_url}
-                />
-              </ListGroup>
-            </div>
-          )}
+          </TabsContent>
         </>
       )}
+      </Tabs>
       {isLoading && !known && <p className={cn("pt-4 text-muted-foreground", TEXT.prose)}>Looking the airport up…</p>}
       {/* Where the planner could not be reached, the way to ask again, in
           the card that could not be had (lib/problems: errors where they

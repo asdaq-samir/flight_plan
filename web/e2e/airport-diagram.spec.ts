@@ -64,8 +64,6 @@ test("where the diagram's picture cannot be had, the card links the FAA's PDF", 
   await page.goto("/app/plan?place=KDLH");
   await settle(page);
   await grabberTo(page, "full");
-  // Asked for as it comes into sight (loading="lazy").
-  await card(page).getByTestId("airport-diagram-picture").scrollIntoViewIfNeeded();
   await expect(card(page).getByTestId("airport-diagram")).toHaveAttribute("href", PDF);
   await expect(card(page).getByTestId("airport-diagram-picture")).toHaveCount(0);
 });

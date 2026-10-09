@@ -430,7 +430,7 @@ test("a VFR waypoint on the chart is a diamond, and its card adds it as a stop",
   // One waypoint, where it is: VPBNG, by Campbell. In close enough for
   // the diamonds -- the wheel over C81, a level at a time.
   await page.route(url => url.pathname.endsWith("/waypoints/in-view"), route =>
-    route.fulfill({ json: { waypoints: [{ ident: "VPBNG", lat: 42.2673, lon: -88.1311 }] } }));
+    route.fulfill({ json: { waypoints: [{ ident: "VPBNG", lat: 42.2673, lon: -88.1311, description: "3 nm SW of Campbell" }] } }));
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   const departure = page.locator(".leaflet-marker-icon", { hasText: "C81" }).first();
   await expect(departure).toBeVisible({ timeout: slow(30000) });
@@ -461,6 +461,17 @@ test("a VFR waypoint on the chart is a diamond, and its card adds it as a stop",
     await diamond.click({ timeout: 2000 });
     await expect(add).toBeVisible({ timeout: 2000 });
   }).toPass({ timeout: slow(15000) });
+  // What it is beside its ident, where it is on a line of its own.
+  const popup = page.locator(".leaflet-popup");
+  await expect(popup.getByText("VFR waypoint", { exact: true })).toBeVisible();
+  await expect(popup.getByText("3 nm SW of Campbell", { exact: true })).toBeVisible();
+  // And the map holds still under the open card, once it has panned it
+  // into sight: it crept a point a second as the card was drawn again.
+  await page.waitForTimeout(1000);
+  const pane = () => page.evaluate(() => document.querySelector<HTMLElement>(".leaflet-map-pane")!.style.transform);
+  const before = await pane();
+  await page.waitForTimeout(2000);
+  expect(await pane()).toBe(before);
   await add.click();
   await expect(page).toHaveURL(/[?&]stops=VPBNG/);
 });
