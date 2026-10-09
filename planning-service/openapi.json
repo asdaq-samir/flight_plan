@@ -646,6 +646,14 @@
             ],
             "title": "Phone"
           },
+          "procedures": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/TerminalChart"
+            },
+            "title": "Procedures",
+            "type": "array"
+          },
           "radio_notes": {
             "default": [],
             "items": {
@@ -6664,6 +6672,30 @@
           "corridors"
         ],
         "title": "Status",
+        "type": "object"
+      },
+      "TerminalChart": {
+        "description": "One of a field's charts in the d-TPP (vfr.publications): `kind` the\nFAA's chart code -- APD the airport diagram, HOT its hot spots, LAH\nland and hold short, IAP an approach, DP and ODP a departure, STR an\narrival, MIN the takeoff or alternate minimums -- `name` its title as\nthe FAA prints it, `url` its PDF.",
+        "properties": {
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "name",
+          "url"
+        ],
+        "title": "TerminalChart",
         "type": "object"
       },
       "Tfr": {

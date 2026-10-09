@@ -164,6 +164,7 @@ def airport_place(ident: str) -> AirportPlace:
         "airport_diagram_url": publications.airport_diagram_url(place["ident"]),
         "airport_diagram_cycle": publications.airport_diagram_cycle(place["ident"]),
         "chart_supplement_url": publications.chart_supplement_url(place["ident"]),
+        "procedures": publications.terminal_charts(place["ident"]),
     }
 
 

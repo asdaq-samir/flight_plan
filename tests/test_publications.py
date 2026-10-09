@@ -8,6 +8,12 @@ from PIL import Image
 
 from vfr import publications
 
+#: KDLH's charts in a kept index, by either ident.
+DLH_CHARTS = (
+    '{"DLH": [["IAP", "ILS OR LOC RWY 09", "00125IL9.PDF"], ["APD", "AIRPORT DIAGRAM", "00125AD.PDF"]],'
+    ' "KDLH": [["IAP", "ILS OR LOC RWY 09", "00125IL9.PDF"], ["APD", "AIRPORT DIAGRAM", "00125AD.PDF"]]}'
+)
+
 METAFILE = b"""<digital_tpp cycle="2610"><state_code><city_name>
 <airport_name apt_ident="DLH" icao_ident="KDLH">
   <record><chart_code>MIN</chart_code><pdf_name>NC1TO.PDF</pdf_name></record>
@@ -28,9 +34,10 @@ def test_the_cycles_are_named_as_the_faa_names_them():
     assert publications.dcs_edition(date(2026, 10, 29)) == "29Oct2026"
 
 
-def test_an_airport_with_a_diagram_has_it_by_either_ident_and_one_without_has_none():
-    diagrams = publications._diagrams_of(METAFILE)
-    assert diagrams == {"DLH": "00125AD.PDF", "KDLH": "00125AD.PDF"}
+def test_an_airports_charts_are_kept_by_either_ident_in_the_faas_order():
+    charts = publications._charts_of(METAFILE)
+    assert charts["DLH"] == charts["KDLH"] == [["MIN", "", "NC1TO.PDF"], ["APD", "", "00125AD.PDF"]]
+    assert charts["C81"] == [["IAP", "", "X.PDF"]]
 
 
 def test_the_supplement_is_the_airports_first_page():
@@ -40,12 +47,17 @@ def test_the_supplement_is_the_airports_first_page():
 def test_the_links_are_the_editions_own(monkeypatch, tmp_path):
     monkeypatch.setattr(publications, "CACHE_DIR", tmp_path)
     monkeypatch.setattr(publications, "_HELD", {})
-    (tmp_path / "dtpp-2610.json").write_text('{"DLH": "00125AD.PDF", "KDLH": "00125AD.PDF"}')
+    (tmp_path / "dtpp-charts-2610.json").write_text(DLH_CHARTS)
     (tmp_path / "dcs-03Sep2026.json").write_text('{"DLH": "nc_161_03SEP2026.pdf"}')
     on = date(2026, 10, 3)
     assert publications.airport_diagram_url("KDLH", on) == "https://aeronav.faa.gov/d-tpp/2610/00125AD.PDF"
     assert publications.chart_supplement_url("KDLH", on) == "https://aeronav.faa.gov/afd/03Sep2026/nc_161_03SEP2026.pdf"
     assert publications.airport_diagram_url("C81", on) is None
+    assert publications.terminal_charts("KDLH", on) == [
+        {"kind": "IAP", "name": "ILS OR LOC RWY 09", "url": "https://aeronav.faa.gov/d-tpp/2610/00125IL9.PDF"},
+        {"kind": "APD", "name": "AIRPORT DIAGRAM", "url": "https://aeronav.faa.gov/d-tpp/2610/00125AD.PDF"},
+    ]
+    assert publications.terminal_charts("C81", on) == []
 
 
 def _blank_pdf(width: int, height: int) -> bytes:
@@ -69,7 +81,7 @@ class _Answer:
 def test_the_diagram_is_drawn_once_a_cycle_by_either_ident_and_kept(monkeypatch, tmp_path):
     monkeypatch.setattr(publications, "CACHE_DIR", tmp_path)
     monkeypatch.setattr(publications, "_HELD", {})
-    (tmp_path / "dtpp-2610.json").write_text('{"DLH": "00125AD.PDF", "KDLH": "00125AD.PDF"}')
+    (tmp_path / "dtpp-charts-2610.json").write_text(DLH_CHARTS)
     asked = []
     pdf = _blank_pdf(396, 594)
     monkeypatch.setattr(publications.requests, "get", lambda url, **kw: asked.append(url) or _Answer(pdf))
@@ -88,7 +100,7 @@ def test_the_diagram_is_drawn_once_a_cycle_by_either_ident_and_kept(monkeypatch,
 def test_no_diagram_for_another_cycle_a_field_without_one_or_while_the_faa_is_down(monkeypatch, tmp_path):
     monkeypatch.setattr(publications, "CACHE_DIR", tmp_path)
     monkeypatch.setattr(publications, "_HELD", {})
-    (tmp_path / "dtpp-2610.json").write_text('{"DLH": "00125AD.PDF", "KDLH": "00125AD.PDF"}')
+    (tmp_path / "dtpp-charts-2610.json").write_text(DLH_CHARTS)
     monkeypatch.setattr(publications.requests, "get", lambda url, **kw: _Answer(fail=True))
     on = date(2026, 10, 3)
 

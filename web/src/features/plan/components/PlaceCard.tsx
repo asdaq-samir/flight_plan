@@ -1,6 +1,6 @@
 import { useRef, useState, type ReactNode } from "react";
 import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
-import { Lightbulb, Loader2, MapPin, MapPinPlus, Phone, Radio, Star } from "lucide-react";
+import { FileText, Lightbulb, Loader2, MapPin, MapPinPlus, Phone, Radio, Star } from "lucide-react";
 import DirectToIcon from "../../../components/DirectToIcon";
 import { cn } from "cn";
 import { useKeptAirport, usePreferences } from "../../../lib/preferences";
@@ -13,7 +13,7 @@ import { LINE_TAB } from "../../../components/lineTabs";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../../components/ui/tabs";
 import { Button } from "../../../components/ui/button";
 import { ApiError, api } from "../../../lib/api/client";
-import type { AirportPin, AirportPlace, ClassBAirport } from "../../../lib/api/types";
+import type { AirportPin, AirportPlace, ClassBAirport, TerminalChart } from "../../../lib/api/types";
 import { compassPoint } from "../../../lib/compass";
 import { bearingDeg, distanceNm, type LatLon } from "../../../lib/geo";
 import { chipColourOf } from "../../../lib/map/flightCategory";
@@ -63,14 +63,36 @@ function knownOf(queryClient: QueryClient, ident: string): { name: string; categ
   return null;
 }
 
-type CardTab = "diagram" | "weather" | "radio" | "runways";
-/** The card's tabs, in the pilot's order. "Freq." as on its tile. */
+type CardTab = "radio" | "weather" | "runways" | "diagrams";
+/** The card's tabs, in the pilot's order: the radio first, what is
+ *  wanted first on the way in. "Freq." as on its tile was. */
 const CARD_TABS: { value: CardTab; label: string }[] = [
-  { value: "diagram", label: "Diagram" },
-  { value: "weather", label: "Weather" },
   { value: "radio", label: "Freq." },
+  { value: "weather", label: "Weather" },
   { value: "runways", label: "Runways" },
+  { value: "diagrams", label: "Diagrams" },
 ];
+
+/** The field's charts in the d-TPP under the Diagrams tab, by what they
+ *  are for: the FAA's chart codes (vfr.publications). The airport's own
+ *  -- its hot spots, land and hold short -- go with its diagram. */
+const CHART_GROUPS: { title: string; kinds: string[] }[] = [
+  { title: "Approaches", kinds: ["IAP"] },
+  { title: "Departures", kinds: ["DP", "ODP"] },
+  { title: "Arrivals", kinds: ["STR"] },
+  { title: "Minimums", kinds: ["MIN"] },
+];
+const AIRPORT_CHARTS = ["HOT", "LAH"];
+const GROUPED = new Set(["APD", ...AIRPORT_CHARTS, ...CHART_GROUPS.flatMap(g => g.kinds)]);
+
+/** A chart's row: its title as the FAA prints it -- "LEGOZ FOUR (RNAV)",
+ *  "ILS OR LOC RWY 24" -- not in sentence case as the FAA's other words
+ *  are here (lib/advisories faaWords): a procedure is named by its fixes
+ *  and its navaids, as a code is, and pilots know it by the title on the
+ *  plate. Opens its PDF. */
+function ChartRow({ chart }: { chart: TerminalChart }) {
+  return <ListRow media={<FileText className="size-5" />} title={chart.name} href={chart.url} data-testid="terminal-chart" />;
+}
 
 /** The field in Maps -- Apple's, which a phone opens in its Maps app --
  *  by its street address where the FAA lists one, so Maps names the
@@ -185,7 +207,7 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
   // sections ran on one under another: the diagram first where the field
   // has one, the weather first where it has none (most small fields).
   const [picked, setPicked] = useState<CardTab | null>(null);
-  const tab: CardTab = picked ?? (place?.airport_diagram_url || place?.airport_diagram_cycle ? "diagram" : "weather");
+  const tab: CardTab = picked ?? "radio";
   // A tab picked -- or Weather or Freq. on the tiles -- takes the panel all
   // the way up, as the route's tabs do; the bar back in sight if the card
   // was scrolled past it, once the panel is up and the name and tiles
@@ -196,6 +218,9 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
     onExpand();
     window.setTimeout(() => tabsRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" }), up ? 50 : 520);
   };
+  // None from a planner older than the list (a card kept by the worker,
+  // a deploy under way), not a page that fails.
+  const procedures = place?.procedures ?? [];
   const metar = place?.metar ?? null;
   const weather = place
     ? { status: place.weather_unavailable ? "unavailable" : metar ? "reported" : "no-report", category: metar?.flight_category ?? null }
@@ -283,8 +308,8 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
 
       {place && (
         <>
-          <TabsContent value="diagram" className="pt-4">
-            <ListGroup>
+          <TabsContent value="diagrams" className="space-y-5 pt-4">
+            <ListGroup title="Airport">
               {!place.airport_diagram_url && !place.airport_diagram_cycle && (
                 // Drawn by the FAA for the fields with a tower or a busy
                 // ramp; most small fields have none.
@@ -296,7 +321,18 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
                   diagramCycle={place.airport_diagram_cycle} supplement={place.chart_supplement_url}
                 />
               )}
+              {procedures.filter(c => AIRPORT_CHARTS.includes(c.kind)).map(c => <ChartRow key={c.url} chart={c} />)}
             </ListGroup>
+            {/* The approaches, departures, arrivals and minimums in this
+                cycle's d-TPP, at the pilot's ask, as the FAA's PDFs. */}
+            {[...CHART_GROUPS, { title: "Other", kinds: procedures.map(c => c.kind).filter(k => !GROUPED.has(k)) }].map(g => {
+              const charts = procedures.filter(c => g.kinds.includes(c.kind));
+              return charts.length > 0 && (
+                <ListGroup key={g.title} title={g.title}>
+                  {charts.map(c => <ChartRow key={c.url} chart={c} />)}
+                </ListGroup>
+              );
+            })}
           </TabsContent>
 
           <TabsContent value="weather" className="pt-4">

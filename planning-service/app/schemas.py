@@ -1229,6 +1229,18 @@ class WaypointsInView(BaseModel):
     waypoints: list[WaypointPin]
 
 
+class TerminalChart(BaseModel):
+    """One of a field's charts in the d-TPP (vfr.publications): `kind` the
+    FAA's chart code -- APD the airport diagram, HOT its hot spots, LAH
+    land and hold short, IAP an approach, DP and ODP a departure, STR an
+    arrival, MIN the takeoff or alternate minimums -- `name` its title as
+    the FAA prints it, `url` its PDF."""
+
+    kind: str
+    name: str
+    url: str
+
+
 class AirportPlace(BaseModel):
     """One airport the way the map's card shows it: its name and place,
     the class of the airspace over it, whether it has a tower, its
@@ -1273,6 +1285,9 @@ class AirportPlace(BaseModel):
     airport_diagram_url: str | None = None
     airport_diagram_cycle: str | None = None
     chart_supplement_url: str | None = None
+    # And all of the field's charts in this cycle's d-TPP, the diagram among
+    # them: what the card's Diagrams tab lists.
+    procedures: list[TerminalChart] = []
 
 
 class ModelComparisonEntry(BaseModel):
