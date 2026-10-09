@@ -38,7 +38,12 @@ function away(from: LatLon, to: LatLon): string {
 function subtitleOf(place: AirportPlace, from: { point: LatLon; name: string | null } | null): ReactNode {
   const mhz = (f?: { frequency_mhz?: number | null }) =>
     f?.frequency_mhz ? f.frequency_mhz.toFixed(3).replace(/0+$/, "").replace(/\.$/, "") : null;
-  const tower = mhz(place.frequencies.find(f => f.type === "TWR"));
+  // The civil tower: the airport file also lists military UHF (225-400 MHz)
+  // towers, which a civil VHF radio cannot call; civil VHF comm is
+  // 118.000-136.975 MHz (AIM 4-1-9 and the FAA's frequency allocations).
+  const civil = (f: { frequency_mhz?: number | null }) =>
+    f.frequency_mhz != null && f.frequency_mhz >= 118 && f.frequency_mhz <= 136.975;
+  const tower = mhz(place.frequencies.find(f => f.type === "TWR" && civil(f)));
   const ctaf = mhz(place.frequencies.find(f => f.type === "CTAF" || f.type === "UNIC"));
   // Three short lines, at the pilot's ask, to save room: the ident and the
   // class of the airspace over it, the frequency it is called on -- the
@@ -53,7 +58,12 @@ function subtitleOf(place: AirportPlace, from: { point: LatLon; name: string | n
     place.military === "military" ? "Military, permission required" : place.military === "joint" ? "Joint use" : null,
     from ? (from.name ? `${away(from.point, place)} of ${from.name}` : away(from.point, place)) : null,
   ].filter(Boolean).join(" · ");
-  const radio = place.towered ? (tower ? `Tower: ${tower}` : "Towered") : ctaf ? `CTAF: ${ctaf}` : "Non-towered";
+  // Many towers are part-time, and when one is closed the field is a CTAF
+  // field (AIM 4-1-9), so a towered field with a CTAF in the file (the
+  // frequency_mhz of its CTAF entry) shows both.
+  const radio = place.towered
+    ? tower ? `Tower: ${tower}${ctaf && ctaf !== tower ? ` · CTAF: ${ctaf}` : ""}` : "Towered"
+    : ctaf ? `CTAF: ${ctaf}` : "Non-towered";
   return (
     <>
       {what}<br />{radio}
