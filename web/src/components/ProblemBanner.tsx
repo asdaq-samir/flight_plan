@@ -19,7 +19,10 @@ import { useSystemProblems } from "../lib/problems";
  * per problem, a stack of them folded to lines the panel had to stop
  * short of.
  */
-export default function ProblemBanner() {
+export default function ProblemBanner({ clearLeft = false }: {
+  /** Clear of map buttons on the left as well (MapControlsLeft). */
+  clearLeft?: boolean;
+}) {
   const problems = useSystemProblems(s => s.problems);
   const [open, setOpen] = useState(false);
   if (problems.length === 0) return null;
@@ -29,7 +32,10 @@ export default function ProblemBanner() {
     // Beside the map's buttons (MapControls), on their edge: the top
     // right under a panel at the bottom, the bottom right otherwise.
     <div
-      className="pointer-events-none absolute right-[calc(max(0.5rem,env(safe-area-inset-right))+3.25rem)] bottom-[calc(env(safe-area-inset-bottom)+1.5rem)] left-[max(1rem,env(safe-area-inset-left))] z-[1000] flex nav-bottom:top-[max(0.5rem,env(safe-area-inset-top))] nav-bottom:bottom-auto"
+      className={cn(
+        "pointer-events-none absolute right-[calc(max(0.5rem,env(safe-area-inset-right))+3.25rem)] bottom-[calc(env(safe-area-inset-bottom)+1.5rem)] z-[1000] flex nav-bottom:top-[max(0.5rem,env(safe-area-inset-top))] nav-bottom:bottom-auto",
+        clearLeft ? "left-[calc(max(0.5rem,env(safe-area-inset-left))+3.25rem)]" : "left-[max(1rem,env(safe-area-inset-left))]",
+      )}
       data-problem-banner=""
     >
       {/* The glass round the Alert, which is clear: its own card colour

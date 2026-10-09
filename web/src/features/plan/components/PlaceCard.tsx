@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { FileText, Lightbulb, Loader2, MapPin, MapPinPlus, Phone, Radio, Star } from "lucide-react";
 import DirectToIcon from "../../../components/DirectToIcon";
@@ -21,6 +21,7 @@ import { inkOn } from "../../../lib/scoreScale";
 import { feet, miles } from "../../../lib/units";
 import { RunwayRow } from "./RunwayRow";
 import { PublicationRows } from "./PublicationRows";
+import { DiagramButton } from "./AirportDiagram";
 import { TEXT } from "../../../lib/text";
 
 /** "18 nm NE", from wherever the card is measured from. */
@@ -163,7 +164,7 @@ function Action({ icon, label, spoken, filled, busy, disabled, onClick, href, te
  * How far it is is from the pilot's own position when it is known, and
  * from the route's departure otherwise.
  */
-export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, onExpand }: {
+export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, onExpand, startOn, onStarted }: {
   ident: string;
   /** What the distance is measured from where own ship has no fix: the
    *  route's departure. */
@@ -176,6 +177,10 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
   onAddStop?: (place: AirportPlace) => void;
   /** The panel all the way up, for a section scrolled to. */
   onExpand: () => void;
+  /** Opened on a section of a tab: the route's Approaches opens the
+   *  destination's on its approaches. `onStarted` once it has. */
+  startOn?: "approaches";
+  onStarted?: () => void;
 }) {
   const { data: place, isLoading, error, refetch, isFetching } = useQuery({
     queryKey: ["airport", ident], queryFn: () => api.airport(ident), staleTime: 5 * 60_000,
@@ -206,7 +211,7 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
   // The card's four tabs under its tiles, at the pilot's ask, where its
   // sections ran on one under another: the diagram first where the field
   // has one, the weather first where it has none (most small fields).
-  const [picked, setPicked] = useState<CardTab | null>(null);
+  const [picked, setPicked] = useState<CardTab | null>(startOn ? "diagrams" : null);
   const tab: CardTab = picked ?? "radio";
   // A tab picked -- or Weather or Freq. on the tiles -- takes the panel all
   // the way up, as the route's tabs do; the bar back in sight if the card
@@ -218,6 +223,32 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
     onExpand();
     window.setTimeout(() => tabsRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" }), up ? 50 : 520);
   };
+  // Opened on its approaches (the route's Approaches): the panel all the
+  // way up and, once the answer is in and the panel has risen, the
+  // approaches at the top of the card.
+  // The callbacks the page's, made again at each of its draws: read
+  // through a ref, so the panel rising draws nothing that restarts this.
+  const placeIn = !!place;
+  const calls = useRef({ onExpand, onStarted });
+  useEffect(() => { calls.current = { onExpand, onStarted }; });
+  useEffect(() => {
+    if (startOn !== "approaches" || !placeIn) return;
+    calls.current.onExpand();
+    const scroll = window.setTimeout(() => {
+      tabsRef.current?.closest('[data-testid="place-card"]')?.querySelector('[data-chart-group="Approaches"]')
+        ?.scrollIntoView({ block: "start", behavior: "smooth" });
+      calls.current.onStarted?.();
+    }, 520);
+    return () => window.clearTimeout(scroll);
+  }, [startOn, placeIn]);
+  // The diagram's thumbnail over the Call and Address tiles, at the
+  // pilot's ask, the lines under the name beside it; none for a field
+  // without a diagram, or where its picture cannot be had.
+  const [noThumbnail, setNoThumbnail] = useState(false);
+  const thumbnail = place?.airport_diagram_cycle && !noThumbnail ? place.airport_diagram_cycle : null;
+  const line = place ? subtitleOf(place, measured)
+    : error ? `${ident} · ${error instanceof ApiError && error.status === 404 ? "not found" : "could not be looked up"}`
+      : `${ident} · …`;
   // None from a planner older than the list (a card kept by the worker,
   // a deploy under way), not a page that fails.
   const procedures = place?.procedures ?? [];
@@ -236,9 +267,7 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
           name={place?.name ?? known?.name ?? kept?.name ?? ident} nameTestId="place-name"
           // Not found only where the planner said so: a planner out of
           // reach for a moment (restarted) read "not found" for KBUR.
-          line={place ? subtitleOf(place, measured)
-            : error ? `${ident} · ${error instanceof ApiError && error.status === 404 ? "not found" : "could not be looked up"}`
-              : `${ident} · …`}
+          line={thumbnail ? null : line}
           onClose={onClose} closeTestId="place-close"
         >
           {weather && (
@@ -259,6 +288,21 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
             in: the card stood empty below its name until then. */}
         {(place || !error) && (
           <div className={cn("mt-3 grid gap-2", onAddStop ? "grid-cols-4" : "grid-cols-3")}>
+            {/* The diagram's thumbnail over Call and Address, their width;
+                the lines under the name across the rest, up against the
+                name as they are without one. A tap shows it full screen. */}
+            {place && thumbnail && (
+              <>
+                <p className={cn("-mt-3 text-muted-foreground", onAddStop ? "col-span-2" : "col-span-1", TEXT.note)}>{line}</p>
+                <DiagramButton
+                  ident={place.ident} cycle={thumbnail} pdf={place.airport_diagram_url ?? null}
+                  testId="place-diagram-thumbnail" onMissing={() => setNoThumbnail(true)}
+                  // Its middle, where the runways cross.
+                  className={cn("col-span-2 block h-14 w-full rounded-xl", GLASS_BUTTON)}
+                  imageClassName="size-full object-cover"
+                />
+              </>
+            )}
             {/* Fly Here is the Direct-To, and wears its symbol; Add Stop
                 beside it, at the pilot's ask, makes the field the route's
                 next stop. */}
@@ -328,9 +372,11 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
             {[...CHART_GROUPS, { title: "Other", kinds: procedures.map(c => c.kind).filter(k => !GROUPED.has(k)) }].map(g => {
               const charts = procedures.filter(c => g.kinds.includes(c.kind));
               return charts.length > 0 && (
-                <ListGroup key={g.title} title={g.title}>
-                  {charts.map(c => <ChartRow key={c.url} chart={c} />)}
-                </ListGroup>
+                <div key={g.title} data-chart-group={g.title} className="scroll-mt-3">
+                  <ListGroup title={g.title}>
+                    {charts.map(c => <ChartRow key={c.url} chart={c} />)}
+                  </ListGroup>
+                </div>
               );
             })}
           </TabsContent>
@@ -430,11 +476,12 @@ function FavoriteButton({ place }: { place: AirportPlace }) {
   const kept = usePreferences(s => s.favoriteAirports.some(a => a.ident === place.ident));
   const toggle = usePreferences(s => s.toggleFavoriteAirport);
   return (
-    // A round pane of glass, as the gear is; the star filled in the tint
-    // while the airport is a favorite.
+    // A round pane of glass, as the gear is.
     <RoundButton
       label={kept ? "Remove from Favorites" : "Add to Favorites"} aria-pressed={kept}
-      className={cn(kept && "text-tint hover:text-tint")}
+      // Filled in iOS's yellow while it is a favorite, as a starred thing
+      // is everywhere on iOS, at the pilot's ask (it was the tint).
+      className={cn(kept && "text-[#ffcc00] hover:text-[#ffcc00] dark:text-[#ffd60a] dark:hover:text-[#ffd60a]")}
       onClick={() => toggle({ ident: place.ident, name: place.name, municipality: place.municipality, lat: place.lat, lon: place.lon })}
       data-testid="place-favorite"
     >

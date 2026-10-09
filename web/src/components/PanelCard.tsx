@@ -47,7 +47,9 @@ export function PanelCard({ testId, children }: { testId: string; children: Reac
  */
 export function CardHead({ name, line, nameTestId, lineClassName, lineTestId, onClose, closeTestId, children }: {
   name: ReactNode;
-  line: ReactNode;
+  /** Under the name; none where the caller sets it out itself (an
+   *  airport's card, beside its diagram's thumbnail). */
+  line?: ReactNode;
   nameTestId?: string;
   lineClassName?: string;
   lineTestId?: string;
@@ -60,7 +62,7 @@ export function CardHead({ name, line, nameTestId, lineClassName, lineTestId, on
     <div className="flex items-start gap-2">
       <div className="min-w-0 flex-1">
         <h2 tabIndex={-1} className={cn("font-bold tracking-tight text-foreground outline-none", TEXT.card)} data-testid={nameTestId}>{name}</h2>
-        <p className={cn("text-muted-foreground", TEXT.note, lineClassName)} data-testid={lineTestId}>{line}</p>
+        {line != null && <p className={cn("text-muted-foreground", TEXT.note, lineClassName)} data-testid={lineTestId}>{line}</p>}
       </div>
       {children}
       <CloseButton onClick={onClose} className="-mr-1" data-testid={closeTestId} />

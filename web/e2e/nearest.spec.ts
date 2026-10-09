@@ -24,7 +24,8 @@ test("Nearest opens as a card half way up, a field over it as a layer, and its c
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   await openPanel(page);
-  await sideDrawer(page).getByTestId("nearest-button").click();
+  // Among the map's buttons on its left.
+  await page.locator("[data-map-controls-left]").getByTestId("nearest-button").click();
   const card = sideDrawer(page).getByTestId("nearest-card");
   await expect(card).toBeVisible();
   await expect(sideDrawer(page)).toHaveAttribute("data-panel", "half");

@@ -84,10 +84,10 @@ body .leaflet-container {
    as Maps' do: only a sliver of them showed past its edge. The panel's
    height and shape are on <body> (MapPanel): a :has() there restyled the
    whole page at every change of the attributes it named. */
-[data-map-controls] {
+[data-map-controls], [data-map-controls-left] {
   transition: opacity 0.2s;
 }
-body[data-map-sheet][data-map-panel="full"] [data-map-controls] {
+body[data-map-sheet][data-map-panel="full"] :is([data-map-controls], [data-map-controls-left]) {
   opacity: 0;
   pointer-events: none;
 }
