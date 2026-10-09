@@ -9,6 +9,7 @@ import { useOwnShip } from "../../../lib/map/ownShip";
 import RoundButton from "../../../components/RoundButton";
 import { FILLS_HALF, GLASS_BUTTON } from "../../../components/mapChrome";
 import CloseButton from "../../../components/CloseButton";
+import { FitText } from "../../../components/FitText";
 import { CardHead, PanelCard } from "../../../components/PanelCard";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
 import { LINE_TAB } from "../../../components/lineTabs";
@@ -35,20 +36,22 @@ function away(from: LatLon, to: LatLon): string {
   return nm < 0.5 ? "here" : `${nm < 10 ? nm.toFixed(1) : Math.round(nm)} nm ${compassPoint(bearingDeg(from, to))}`;
 }
 
+/** A note's own leading, iOS's Footnote's 18 on its 13 (16 on a mouse's
+ *  12), for a note set in lines of its own (the elevation's pane). */
+const NOTE_LEADING = "leading-4 pointer-coarse:leading-[1.125rem]";
+
 /** The line under the name, how far the field is alone at the pilot's
  *  ask -- "18 nm NE of C81" -- the ident at the end of the name
  *  (NameWithIdent), and its class and frequencies left to the tabs.
- *  Nothing where there is nothing to measure from. */
-function subtitleOf(place: AirportPlace, from: { point: LatLon; name: string | null } | null, elevation = true): string {
+ *  Nothing where there is nothing to measure from; the elevation is the
+ *  runways' box's. */
+function subtitleOf(place: AirportPlace, from: { point: LatLon; name: string | null } | null): string {
   return [
     from ? (from.name ? `${away(from.point, place)} of ${from.name}` : away(from.point, place)) : null,
     // A field the armed services own (the FAA's airport file): one most
     // pilots may not land at without the service's permission, or a civil
     // airport sharing it -- not a description, a field to keep out of.
     place.military === "military" ? "Military, permission required" : place.military === "joint" ? "Joint use" : null,
-    // The elevation where the runways' sketch is not there to show it
-    // (`elevation` true), the card having nowhere else that does.
-    elevation && place.elevation_ft != null ? `Elev: ${feet(place.elevation_ft)}` : null,
   ].filter(Boolean).join(" · ");
 }
 
@@ -294,12 +297,11 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
   const [diagramOpen, setDiagramOpen] = useState(false);
   const [noRunwaysPicture, setNoRunwaysPicture] = useState(false);
   const [elevationPane, setElevationPane] = useState<HTMLElement | null>(null);
-  // The ident is in the name's head (NameWithIdent), so not here again.
+  // The ident is in the name's head (NameWithIdent), so not here again;
+  // nor the elevation, which the runways' box shows.
   const line = place ? subtitleOf(place, measured)
     : error ? (error instanceof ApiError && error.status === 404 ? "Not found" : "Could not be looked up")
       : "…";
-  // Beside the sketch, which shows the elevation itself.
-  const lineBySketch = place ? subtitleOf(place, measured, false) : "";
   // None from a planner older than the list (a card kept by the worker,
   // a deploy under way), not a page that fails.
   const procedures = place?.procedures ?? [];
@@ -325,31 +327,61 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
           card's own top: a tab's content starts under it, out of sight
           there (FILLS_HALF). */}
       <div className={cn("min-h-[calc(var(--half-body,0px)_-_var(--corner-inset,0.75rem))]", FILLS_HALF)}>
-        {place && sketched ? (
+        {place || !error ? (
           // The runways' sketch to the right of the name, at the pilot's
           // ask, under the weather's chip, the star and the close and down
           // to the tiles, the width of Call and Address, the field's
-          // elevation alone in its top left ("788 ft"); the ident at the end
-          // of the name, and how far it is under it.
+          // elevation in its top left ("Elev 788 ft"); the ident at
+          // the end of the name, and how far it is under it.
           // Four columns as the tiles' are, where the tiles are three too:
-          // the name its half of the card.
-          <div className="grid grid-cols-4 gap-x-2">
-            <div className="col-span-2 row-span-2 min-w-0">
+          // the name its half of the card. Its rows a fixed height, at the
+          // pilot's ask -- the close's row and the sketch's -- so the card
+          // keeps its layout whatever the field: a long name is set smaller
+          // to fit its half (FitText), where it wrapped to four lines and
+          // pushed the tiles and the tabs down.
+          <div className="grid grid-cols-4 grid-rows-[36px_4.5rem] gap-x-2">
+            <div className="col-span-2 row-span-2 flex min-h-0 min-w-0 flex-col">
               <h2
                 tabIndex={-1} data-testid="place-name"
-                className={cn("font-bold tracking-tight break-words text-foreground outline-none", TEXT.card)}
+                className={cn("min-h-0 flex-1 font-bold tracking-tight break-words text-foreground outline-none", TEXT.card)}
               >
-                <NameWithIdent name={place.name} ident={place.ident} airspace={place.airspace_class} />
+                <FitText className="h-full" data-testid="place-name-fit">
+                  <NameWithIdent
+                    name={place?.name ?? known?.name ?? kept?.name ?? ident} ident={place?.ident ?? ident}
+                    airspace={place ? place.airspace_class : kept?.airspace}
+                  />
+                </FitText>
               </h2>
-              {lineBySketch && <p className={cn("text-muted-foreground", TEXT.note)} data-testid="place-line">{lineBySketch}</p>}
+              {line && <p className={cn("line-clamp-2 text-muted-foreground", TEXT.note)} data-testid="place-line">{line}</p>}
             </div>
             <div className="col-span-2 flex items-start justify-end gap-2">
               {chip}
-              <FavoriteButton place={place} />
+              {place && <FavoriteButton place={place} />}
               <CloseButton onClick={onClose} className="-mr-1" data-testid="place-close" />
             </div>
-            <div className={cn("relative col-span-2 mt-2 min-h-16 overflow-hidden rounded-xl text-foreground", GLASS_BUTTON)}>
-              <button
+            {/* The box there from the first frame, empty until the card's
+                answer is in, and for a field with no runway to draw, so
+                the card is the one shape for every field. */}
+            <div className={cn("relative col-span-2 mt-2 h-16 overflow-hidden rounded-xl text-foreground", GLASS_BUTTON)}>
+              {/* A button only where the Runways tab has something to show
+                  (rows for runways whose ends are unsurveyed, a pattern
+                  altitude); otherwise the tap would open an empty tab. */}
+              {place && !sketched && (place.runways.length > 0 || place.pattern?.altitude_ft != null ? (
+                <button
+                  type="button" data-testid="place-runway-sketch" onClick={() => open("runways")}
+                  className={cn("absolute inset-0 flex items-end justify-end rounded-xl p-2 text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset", TEXT.note)}
+                >
+                  No runways to draw
+                </button>
+              ) : (
+                <div
+                  data-testid="place-runway-sketch"
+                  className={cn("absolute inset-0 flex items-end justify-end p-2 text-muted-foreground", TEXT.note)}
+                >
+                  No runways to draw
+                </div>
+              ))}
+              {place && sketched && (<button
                 type="button" data-testid="place-runway-sketch"
                 aria-label={`${place.ident} runways ${sketchedRunways.join(", ")}, north up${leftOut ? `, ${leftOut} more not drawn, their ends unsurveyed` : ""}. ${place.airport_diagram_url ? "Airport diagram, full screen" : "Show runways"}`}
                 onClick={() => (place.airport_diagram_url ? setDiagramOpen(true) : open("runways"))}
@@ -370,17 +402,18 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
                 ) : (
                   <RunwaySketch runways={place.runways} lat={place.lat} lon={place.lon} avoid={elevationPane} />
                 )}
-              </button>
+              </button>)}
               {/* Over the sketch, read as it is (the button's name is the
                   runways'), on a pane of the card's own ground where a
-                  runway runs under it: "Elev 788 ft", at the pilot's ask,
+                  runway runs under it: "Elev 788 ft" on one line, at the
+                  pilot's ask (it was tried with "Elev" over the figure);
                   the word lighter than its figure (by weight, not a grey
                   that loses contrast on the glass), and "Elevation" in
                   full to a screen reader. */}
-              {place.elevation_ft != null && (
+              {place?.elevation_ft != null && (
                 <span
                   ref={setElevationPane}
-                  className={cn("pointer-events-none absolute top-1 left-1.5 rounded-md bg-background/75 px-1 font-semibold text-foreground", TEXT.note)}
+                  className={cn("pointer-events-none absolute top-1 left-1.5 rounded-md bg-background/75 px-1 font-semibold text-foreground", TEXT.note, NOTE_LEADING)}
                   data-testid="place-elevation"
                 >
                   <span aria-hidden="true" className="font-normal">Elev </span>
@@ -388,7 +421,7 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
                 </span>
               )}
             </div>
-            {diagramOpen && place.airport_diagram_url && (
+            {diagramOpen && place?.airport_diagram_url && (
               <FaaChart
                 title={`${place.ident} airport diagram`} url={place.airport_diagram_url} airport={place.ident}
                 onClose={() => setDiagramOpen(false)}
@@ -397,21 +430,12 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
           </div>
         ) : (
           <CardHead
-            name={(
-              <NameWithIdent
-                name={place?.name ?? known?.name ?? kept?.name ?? ident} ident={place?.ident ?? ident}
-                airspace={place ? place.airspace_class : kept?.airspace}
-              />
-            )}
-            nameTestId="place-name"
+            name={kept?.name ?? known?.name ?? ident} nameTestId="place-name"
             // Not found only where the planner said so: a planner out of
             // reach for a moment (restarted) read "not found" for KBUR.
-            line={line || null} lineTestId="place-line"
+            line={line} lineTestId="place-line"
             onClose={onClose} closeTestId="place-close"
-          >
-            {chip}
-            {place && <FavoriteButton place={place} />}
-          </CardHead>
+          />
         )}
         {/* In their places from the first frame, live once the answer is
             in: the card stood empty below its name until then. */}
