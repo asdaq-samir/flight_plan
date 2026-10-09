@@ -1319,6 +1319,9 @@ class AirportPlace(BaseModel):
     airspace_class: Literal["B", "C", "D", "E", "G"] | None = None
     #: A field the armed services own, as AirportPin's.
     military: Literal["military", "joint"] | None = None
+    #: Closed to the public, as AirportPin's: the card says so, since a
+    #: pilot who taps the R needs to know to ask the owner first.
+    private: bool = False
     towered: bool
     # Its remarks a pilot acts on from the cockpit, in plain English
     # (vfr.remarks): the lighting schedule -- lights turned on by keying

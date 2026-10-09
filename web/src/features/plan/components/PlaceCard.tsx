@@ -45,7 +45,7 @@ function subtitleOf(place: AirportPlace, from: { point: LatLon; name: string | n
     // A field the armed services own (the FAA's airport file): one most
     // pilots may not land at without the service's permission, or a civil
     // airport sharing it -- not a description, a field to keep out of.
-    place.military === "military" ? "Military, permission required" : place.military === "joint" ? "Joint use" : null,
+    place.military === "military" ? "Military, permission required" : place.military === "joint" ? "Joint use" : place.private ? "Private, permission required" : null,
     // The elevation where the runways' sketch is not there to show it
     // (`elevation` true), the card having nowhere else that does.
     elevation && place.elevation_ft != null ? `Elev: ${feet(place.elevation_ft)}` : null,

@@ -669,6 +669,11 @@
             ],
             "title": "Phone"
           },
+          "private": {
+            "default": false,
+            "title": "Private",
+            "type": "boolean"
+          },
           "procedures": {
             "default": [],
             "items": {

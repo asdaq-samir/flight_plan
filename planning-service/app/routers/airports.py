@@ -35,11 +35,6 @@ def _owners(places: list[dict]) -> list[tuple]:
     ]
 
 
-def _military(place: dict) -> str | None:
-    """Whether the armed services own the field, as _owners has it."""
-    return _owners([place])[0][0]
-
-
 @router.get("/api/airports/in-view", response_model=AirportsInView)
 def airports_in_view(
     south: float = Query(ge=-90, le=90), west: float = Query(ge=-180, le=180),
@@ -216,10 +211,12 @@ def airport_place(ident: str) -> AirportPlace:
         metar = weather.metar_for_idents([source]).get(source)
     except weather.WeatherServiceError:
         metar, unavailable = None, True
+    military, private = _owners([place])[0]
     return {
         **{key: value for key, value in place.items() if key != "source_ident"},
         "airspace_class": airspace.surface_class_at(place["lat"], place["lon"], shp_path),
-        "military": _military(place),
+        "military": military,
+        "private": private,
         "towered": any(f["type"] == "TWR" for f in frequencies),
         **_notes(place["ident"]),
         "pattern": pattern.pattern_at(place["ident"], place["elevation_ft"]),
