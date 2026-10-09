@@ -234,12 +234,19 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
   useEffect(() => {
     if (startOn !== "approaches" || !placeIn) return;
     calls.current.onExpand();
+    // The card may already be open on another tab (it does not remount),
+    // and the inactive tab's group is not drawn: switch, and look a frame
+    // or so after it has drawn.
+    let look = 0;
     const scroll = window.setTimeout(() => {
-      tabsRef.current?.closest('[data-testid="place-card"]')?.querySelector('[data-chart-group="Approaches"]')
-        ?.scrollIntoView({ block: "start", behavior: "smooth" });
-      calls.current.onStarted?.();
+      setPicked("diagrams");
+      look = window.setTimeout(() => {
+        tabsRef.current?.closest('[data-testid="place-card"]')?.querySelector('[data-chart-group="Approaches"]')
+          ?.scrollIntoView({ block: "start", behavior: "smooth" });
+        calls.current.onStarted?.();
+      }, 50);
     }, 520);
-    return () => window.clearTimeout(scroll);
+    return () => { window.clearTimeout(scroll); window.clearTimeout(look); };
   }, [startOn, placeIn]);
   // The diagram's thumbnail over the Call and Address tiles, at the
   // pilot's ask, the lines under the name beside it; none for a field

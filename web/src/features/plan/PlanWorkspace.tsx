@@ -237,7 +237,14 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // The airport's card under the route, the route flown to from it (Fly
   // Here): where the route's close goes back to, as Maps' layers are.
   const [under, setUnder] = useState<string | null>(null);
+  // The route's Approaches: the destination's card, opened on them. Which
+  // field's, until its card has opened on them (PlaceCard's onStarted).
+  const [approachesOf, setApproachesOf] = useState<string | null>(null);
   const selectPlace = useCallback((ident: string | null) => {
+    // The Approaches intent belongs to the card it was asked for: another
+    // card, or none, drops it, so a card that never answered (or was closed
+    // first) does not jump to its approaches when it is next opened.
+    setApproachesOf(of => (of === ident ? of : null));
     if ((ident ?? null) === place && !heldPoint) return;
     setSearchParams(prev => {
       const next = new URLSearchParams(prev);
@@ -270,9 +277,6 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     if (open) setPanel("half");
   }, [setSearchParams, setPanel]);
   const openNearest = useCallback(() => showNearest(true), [showNearest]);
-  // The route's Approaches: the destination's card, opened on them. Which
-  // field's, until its card has opened on them (PlaceCard's onStarted).
-  const [approachesOf, setApproachesOf] = useState<string | null>(null);
   const { data: destCard } = useQuery({
     queryKey: ["airport", planned.dest], queryFn: () => api.airport(planned.dest!), enabled: !!planned.dest, staleTime: 5 * 60_000,
     meta: { silent: true },
