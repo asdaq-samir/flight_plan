@@ -3,7 +3,7 @@ import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-quer
 import { CloudSun, Lightbulb, Loader2, MapPinPlus, Radio, Star } from "lucide-react";
 import DirectToIcon from "../../../components/DirectToIcon";
 import { cn } from "cn";
-import { usePreferences } from "../../../lib/preferences";
+import { useKeptAirport, usePreferences } from "../../../lib/preferences";
 import { useOwnShip } from "../../../lib/map/ownShip";
 import RoundButton from "../../../components/RoundButton";
 import { FILLS_HALF, GLASS_BUTTON } from "../../../components/mapChrome";
@@ -60,10 +60,12 @@ function knownOf(queryClient: QueryClient, ident: string): { name: string; categ
  *  in the text's colour, as the gear and the route's close are, at the
  *  pilot's ask (they were the tint on grey). Maps' size, a 24-point glyph
  *  in a tile 70 tall: the card fills more of the panel's one half height. */
-function Action({ icon, label, spoken, filled, busy, onClick, testId }: {
+function Action({ icon, label, spoken, filled, busy, disabled, onClick, testId }: {
   icon: ReactNode; label: string; filled?: boolean; onClick: () => void; testId: string;
   /** The whole word, where the tile shows it cut short. */
   spoken?: string;
+  /** Until the card's answer is in: the tile in its place, not yet live. */
+  disabled?: boolean;
   /** Tapped, and its work under way: a spinner in place of its symbol,
    *  which turns on the compositor while the page is busy drawing what
    *  the tap asked for. */
@@ -71,7 +73,8 @@ function Action({ icon, label, spoken, filled, busy, onClick, testId }: {
 }) {
   return (
     <Button
-      type="button" variant={filled ? "default" : "secondary"} onClick={onClick} data-testid={testId} aria-label={spoken} aria-busy={busy || undefined}
+      type="button" variant={filled ? "default" : "secondary"} onClick={onClick} disabled={disabled}
+      data-testid={testId} aria-label={spoken} aria-busy={busy || undefined}
       className={cn("h-auto flex-col gap-1 rounded-xl py-3 whitespace-normal [&_svg:not([class*='size-'])]:size-6", !filled && GLASS_BUTTON)}
     >
       {busy ? <Loader2 className="size-6 animate-spin" aria-hidden="true" /> : icon}
@@ -117,6 +120,11 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
   // answer came, a second or more on a phone while the chart's tiles
   // loaded.
   const known = knownOf(useQueryClient(), ident);
+  // And what this browser keeps of it -- Home, a Favorite, one picked
+  // lately -- its whole name: a card opened from a Favorite, or from the
+  // address on a page just loaded, read its ident alone over an empty
+  // card while its answer queued behind the page's first requests.
+  const kept = useKeptAirport(ident);
   // How far, from own ship's fix as it is, where there is one: the card's
   // own, drawn again at each, where the page under it is not (its
   // useOwnShipNear) -- tenths of a mile from a fix a hundredth of a degree
@@ -148,7 +156,7 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
           top: the weather starts under it, out of sight there (FILLS_HALF). */}
       <div className={cn("min-h-[calc(var(--half-body,0px)_-_var(--corner-inset,0.75rem))]", FILLS_HALF)}>
         <CardHead
-          name={place?.name ?? known?.name ?? ident} nameTestId="place-name"
+          name={place?.name ?? known?.name ?? kept?.name ?? ident} nameTestId="place-name"
           // Not found only where the planner said so: a planner out of
           // reach for a moment (restarted) read "not found" for KBUR.
           line={place ? subtitleOf(place, measured)
@@ -170,20 +178,27 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
           )}
           {place && <FavoriteButton place={place} />}
         </CardHead>
-        {place && (
+        {/* In their places from the first frame, live once the answer is
+            in: the card stood empty below its name until then. */}
+        {(place || !error) && (
           <div className={cn("mt-3 grid gap-2", onAddStop ? "grid-cols-4" : "grid-cols-3")}>
             {/* Fly Here is the Direct-To, and wears its symbol; Add Stop
                 beside it, at the pilot's ask, makes the field the route's
                 next stop. */}
             <Action
-              icon={<DirectToIcon />} label="Fly Here" filled busy={flying} testId="fly-here"
-              onClick={() => { setFlying(true); onFlyHere(place); }}
+              icon={<DirectToIcon />} label="Fly Here" filled busy={flying} disabled={!place} testId="fly-here"
+              onClick={() => { if (place) { setFlying(true); onFlyHere(place); } }}
             />
-            {onAddStop && <Action icon={<MapPinPlus />} label="Add Stop" onClick={() => onAddStop(place)} testId="place-add-stop" />}
-            <Action icon={<CloudSun />} label="Weather" onClick={() => show(weatherRef.current)} testId="place-weather" />
+            {onAddStop && (
+              <Action icon={<MapPinPlus />} label="Add Stop" disabled={!place} onClick={() => { if (place) onAddStop(place); }} testId="place-add-stop" />
+            )}
+            <Action icon={<CloudSun />} label="Weather" disabled={!place} onClick={() => show(weatherRef.current)} testId="place-weather" />
             {/* "Freq." on the tile, at the pilot's ask: the whole word ran
                 past a quarter of a phone's card with Add Stop beside it. */}
-            <Action icon={<Radio />} label="Freq." spoken="Frequencies" onClick={() => show(radioRef.current)} testId="place-frequencies" />
+            <Action
+              icon={<Radio />} label="Freq." spoken="Frequencies" disabled={!place}
+              onClick={() => show(radioRef.current)} testId="place-frequencies"
+            />
           </div>
         )}
       </div>

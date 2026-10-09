@@ -103,6 +103,33 @@ async function airportToTap(page: Page) {
   return at!;
 }
 
+// A card opened from a Favorite -- here, from the address on a page just
+// loaded -- names the field and has its tiles in their places, and the map
+// is on the field with its ring, before the card's answer is in: on a
+// phone the answer queued behind the page's first requests, and the card
+// stood empty under its ident with the map on the pilot's position.
+test("a Favorite's card names it and the map goes to it before the card's answer is in", async ({ page }) => {
+  await page.addInitScript(() => {
+    const kept = { ident: "KBUR", name: "Hollywood Burbank/Bob Hope Airport", municipality: "Burbank", lat: 34.2007, lon: -118.3587 };
+    localStorage.setItem("vfr.preferences", JSON.stringify({ state: { favoriteAirports: [kept] }, version: 0 }));
+  });
+  let answer: () => void = () => {};
+  const held = new Promise<void>(go => { answer = go; });
+  await page.route(url => url.pathname.endsWith("/api/planner/airport/KBUR"), async route => {
+    await held;
+    await route.fallback();
+  });
+  await page.goto("/app/plan?place=KBUR");
+  await settle(page);
+  await expect(card(page).getByTestId("place-name")).toHaveText("Hollywood Burbank/Bob Hope Airport");
+  await expect(card(page).getByTestId("fly-here")).toBeDisabled();
+  await expect(page.locator("[data-selected-airport]")).toBeInViewport({ timeout: slow(10_000) });
+
+  answer();
+  await expect(card(page).getByTestId("fly-here")).toBeEnabled({ timeout: slow(15_000) });
+  await expect(card(page)).toContainText(/KBUR · Class [BCD]/);
+});
+
 // A planner out of reach for a moment (restarted, say) is not an airport
 // that does not exist: the card says it could not look it up, and asks
 // again where it is.

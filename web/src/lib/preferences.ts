@@ -212,3 +212,12 @@ export const usePreferences = create<Preferences>()(
     },
   ),
 );
+
+/** What this browser keeps of a field -- Home, a Favorite, one picked
+ *  lately -- its name and, once it was looked up, where it is: what its
+ *  card and the map show at once, before the planner answers. */
+export function useKeptAirport(ident: string | null): RecentAirport | null {
+  return usePreferences(p => (ident
+    ? [p.homeAirport, ...p.favoriteAirports, ...p.recentAirports].find(a => a?.ident === ident) ?? null
+    : null));
+}
