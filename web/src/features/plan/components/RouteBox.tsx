@@ -241,8 +241,10 @@ export default function RouteBox({
       placeholder={!points.length ? "Route" : at === null && !hasDest ? "Destination" : at === 0 && !hasDep ? "Departure" : ""}
       aria-label={!points.length ? "The route, from its departure" : at === null ? (hasDest ? "Change the destination" : "The destination") : at === 0 && !hasDep ? "The departure" : "A stop here"}
       enterKeyHint="done" autoCapitalize="characters" autoCorrect="off" spellCheck={false}
-      // 16 at the least, as every field is: under 16 iOS zooms the page
-      // in on it.
+      // 16 at the least below md, as every field is: under 16 iOS zooms
+      // the page in on it (checkpoints.spec checks every field). Not
+      // TEXT.row, whose 14 with a mouse would be under it on a narrow
+      // window; 17 to a finger, a row's, and 14 from md up.
       className={cn(
         "h-8 bg-transparent font-mono text-base uppercase outline-none placeholder:font-sans placeholder:normal-case placeholder:text-muted-foreground md:text-sm pointer-coarse:text-[1.0625rem]",
         // The departure's field wide enough for its word: at a stop's width

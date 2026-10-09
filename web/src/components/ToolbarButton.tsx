@@ -23,6 +23,8 @@ export default function ToolbarButton({ icon, text, label, className, ...props }
       variant="ghost"
       aria-label={label}
       className={cn(
+        // 44 across at the least, as an iOS toolbar's items are: a ghost
+        // button draws no box, so its box is only where a tap lands.
         // The word at 11 points, in rem so it grows with the text size
         // as everything round it does: in pixels it stayed 11 at any.
         // To a finger too, as an iOS tab bar's words are (10), where a

@@ -1,6 +1,7 @@
 import type { ReactNode, Ref } from "react";
 import { cn } from "cn";
 import { TableCell, TableRow } from "./ui/table";
+import { TEXT } from "../lib/text";
 
 /**
  * A clickable/keyboard-selectable row of the nav log (click, Enter, or
@@ -94,7 +95,7 @@ export function NoteRow({ selected, colSpan, children }: { selected: boolean; co
         // a hair under WCAG's 4.5 for 12px type (and /40 was 4.46). On
         // the selection's tint, the training list's grey words: muted
         // on it is 3.9:1. To a finger at the rows' own 15 (lib/text.ts).
-        className={cn("py-1 pr-2 pl-4 text-left text-xs pointer-coarse:py-2 pointer-coarse:text-[0.9375rem]", selected ? "text-foreground/70" : "bg-muted/20 text-muted-foreground")}
+        className={cn("py-1 pr-2 pl-4 text-left pointer-coarse:py-2", TEXT.detail, selected ? "text-foreground/70" : "bg-muted/20 text-muted-foreground")}
         colSpan={colSpan}
       >
         {/* The row's width, wrapped in it, and none of its own (w-0

@@ -193,7 +193,12 @@ export function DescriptionCell({
       // under 16 only where the page lets it, and this one's viewport
       // does not: maximum-scale=1 in index.html).
       className={cn(
-        "min-h-0 w-full resize-none rounded py-0.5 pr-1 pl-0.5 text-left align-top text-xs shadow-none md:text-xs pointer-coarse:text-[0.9375rem]",
+        "min-h-0 w-full resize-none rounded py-0.5 pr-1 pl-0.5 text-left align-top shadow-none",
+        // md:text-xs: the Textarea's own md:text-sm is another variant, which
+        // TEXT.detail's text-xs does not displace, so a mouse would see 14
+        // beside the row's 12.
+        TEXT.detail,
+        "md:text-xs",
         // On a selected row, a field: the page's own background and the
         // stock edge, on the selection's tint, so it reads as somewhere
         // to type rather than one more line of the row.
@@ -616,12 +621,12 @@ export default function NavLogView({
         // sideways scroll -- beside a desktop's map as on a phone, where
         // every column of it scrolled sideways under the waypoint's. On
         // paper, every column at the stock padding.
-        "text-right text-xs whitespace-nowrap [&_td]:px-1 [&_th]:px-1 print:[&_td]:px-2 print:[&_th]:px-2",
+        "text-right whitespace-nowrap [&_td]:px-1 [&_th]:px-1 print:[&_td]:px-2 print:[&_th]:px-2",
         // To a finger, the figures at what is read (15) and the rows 44
         // points to tap (lib/text.ts), as the pilot had them: 12 on a
         // phone was too small to read. (What they had asked to have
         // compact was the leg's figures under a row, LegLine.)
-        "pointer-coarse:text-[0.9375rem] pointer-coarse:[&_td]:py-3",
+        TEXT.detail, "pointer-coarse:[&_td]:py-3",
       )}
     >
       <TableCaption className="sr-only">
@@ -819,6 +824,7 @@ export default function NavLogView({
               text. On screen the name is the panel's tab's, said once there;
               here it is for a screen reader. */}
           <span className="sr-only" data-testid="drawer-title">Flight Planning</span>
+          {/* On paper only, at paper's own 14: no finger, no type scale. */}
           <div className="hidden flex-col gap-1 border-b border-border px-4 py-3 text-sm print:flex">
             <div className="flex flex-wrap items-center gap-2">
               <span className={cn("font-semibold", TEXT.title)}>Wingtip Maps</span>

@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { cn } from "cn";
 import { ToggleGroup, ToggleGroupItem } from "./ui/toggle-group";
+import { TEXT } from "../lib/text";
 
 /** A segment: 28 tall in the track's 32, the words 13 to a finger, the
  *  chosen one raised -- in the dark, iOS's own lighter grey for it, where
@@ -9,7 +10,7 @@ import { ToggleGroup, ToggleGroupItem } from "./ui/toggle-group";
  *  sheet on a phone, in from the screen's edges) the pictures go and the
  *  words stay: with them, Theme's three cut its own row's label short.
  *  Each keeps 44 across there, so a short word's (Top) is its own to tap. */
-const SEGMENT = "h-7 rounded-md px-2.5 text-xs pointer-coarse:text-[0.8125rem] text-foreground data-[state=on]:bg-background data-[state=on]:shadow-sm dark:data-[state=on]:bg-[#636366] [&_svg:not([class*='size-'])]:size-3.5 @max-[22.5rem]/settings:min-w-11 @max-[22.5rem]/settings:px-2 @max-[22.5rem]/settings:[&_svg]:hidden";
+const SEGMENT = `h-7 rounded-md px-2.5 ${TEXT.note} text-foreground data-[state=on]:bg-background data-[state=on]:shadow-sm dark:data-[state=on]:bg-[#636366] [&_svg:not([class*='size-'])]:size-3.5 @max-[22.5rem]/settings:min-w-11 @max-[22.5rem]/settings:px-2 @max-[22.5rem]/settings:[&_svg]:hidden`;
 
 /** Two to three choices, one of which is picked: shadcn's ToggleGroup as
  *  a segmented control -- the choice raised out of a muted track, as iOS

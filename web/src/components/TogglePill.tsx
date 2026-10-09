@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 import { Toggle } from "./ui/toggle";
+import { cn } from "cn";
+import { TEXT } from "../lib/text";
 
 /**
  * Something on or off, as a pill of its own: filled in the tint while
@@ -21,7 +23,7 @@ export default function TogglePill({ pressed, onPressedChange, icon, label, test
   return (
     <Toggle
       pressed={pressed} onPressedChange={onPressedChange} size="sm" data-testid={testId} disabled={disabled}
-      className="h-7 gap-1.5 rounded-full border border-border px-3 text-xs pointer-coarse:text-[0.8125rem] text-foreground aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground hover:aria-pressed:bg-primary/90 [&_svg:not([class*='size-'])]:size-3.5"
+      className={cn("h-7 gap-1.5 rounded-full border border-border px-3 text-foreground aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground hover:aria-pressed:bg-primary/90 [&_svg:not([class*='size-'])]:size-3.5", TEXT.note)}
     >
       {icon}
       {label}
