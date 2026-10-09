@@ -45,44 +45,74 @@ def faa_ids(ident: str) -> list[str]:
 
 
 @lru_cache(maxsize=2)
-def _right_ends_of(path: str, _mtime: float) -> dict:
-    """Every airport's runway ends flown with right-hand traffic, by its
-    FAA identifier."""
-    by_airport: dict[str, set[str]] = {}
+def _ends_of(path: str, _mtime: float) -> tuple[dict, dict]:
+    """Every airport's runway ends flown with right-hand traffic, and
+    where each of its ends is (NASR's LAT_DECIMAL and LONG_DECIMAL, the
+    threshold's surveyed position, where the FAA has one: three ends in
+    five), by its FAA identifier."""
+    right: dict[str, set[str]] = {}
+    at: dict[str, dict[str, tuple[float, float]]] = {}
     with open(path, newline="", encoding="utf-8", errors="replace") as f:
         for row in csv.DictReader(f):
+            airport, end = row["ARPT_ID"].strip().upper(), end_key(row["RWY_END_ID"])
             if row["RIGHT_HAND_TRAFFIC_PAT_FLAG"].strip().upper() == "Y":
-                by_airport.setdefault(row["ARPT_ID"].strip().upper(), set()).add(end_key(row["RWY_END_ID"]))
-    return by_airport
+                right.setdefault(airport, set()).add(end)
+            try:
+                at.setdefault(airport, {})[end] = (float(row.get("LAT_DECIMAL") or ""), float(row.get("LONG_DECIMAL") or ""))
+            except (TypeError, ValueError):
+                pass
+    return right, at
+
+
+def _ends(ident: str, cache_dir) -> tuple[set[str], dict]:
+    """This airport's ends flown with right traffic and where its ends
+    are; none where the file cannot be had -- a card is no reason to
+    fail."""
+    try:
+        with _LOCK:
+            path = faa_data.ensure_nasr_file("APT_RWY_END.csv", cache_dir)
+            right, at = _ends_of(str(path), Path(path).stat().st_mtime)
+    except (OSError, RuntimeError):
+        return set(), {}
+    for faa_id in faa_ids(ident):
+        if faa_id in right or faa_id in at:
+            return right.get(faa_id, set()), at.get(faa_id, {})
+    return set(), {}
 
 
 def right_traffic_ends(ident: str, cache_dir=FAA_CACHE_DIR) -> set[str]:
     """The ends of this airport's runways the FAA has flown with right
     traffic (as end_key gives them); none where it has no such flag, and
     none where the file cannot be had -- a card is no reason to fail."""
-    try:
-        with _LOCK:
-            path = faa_data.ensure_nasr_file("APT_RWY_END.csv", cache_dir)
-            right = _right_ends_of(str(path), Path(path).stat().st_mtime)
-    except (OSError, RuntimeError):
-        return set()
-    for faa_id in faa_ids(ident):
-        if faa_id in right:
-            return right[faa_id]
-    return set()
+    return _ends(ident, cache_dir)[0]
+
+
+def end_positions(ident: str, cache_dir=FAA_CACHE_DIR) -> dict:
+    """Where this airport's runway ends are, as end_key gives them, where
+    the FAA surveyed them; none where it did not, or the file cannot be
+    had."""
+    return _ends(ident, cache_dir)[1]
 
 
 def with_traffic(runways: list, ident: str, lat: float, lon: float, cache_dir=FAA_CACHE_DIR) -> list:
     """vfr.airports.get_runways' runways at a field at (lat, lon), each
     with its `runway_ends`: each end's ident, its true heading
-    (vfr.runway_wind; None for a helipad) and which way its pattern is
-    flown."""
+    (vfr.runway_wind; None for a helipad), which way its pattern is flown,
+    and where it is -- NASR's surveyed threshold, else OurAirports' (its
+    `end_positions`), else None -- for the card's sketch of the field."""
     variation = magnetic_variation_deg(lat, lon)
     right = right_traffic_ends(ident, cache_dir)
+    at = end_positions(ident, cache_dir)
+
+    def position(runway: dict, end: str) -> tuple:
+        found = at.get(end_key(end)) or (runway.get("end_positions") or {}).get(end)
+        return (round(found[0], 6), round(found[1], 6)) if found else (None, None)
+
     return [
         {**r, "runway_ends": [
             {"ident": end, "heading_true_deg": end_heading_true_deg(end, heading, variation),
-             "traffic": "right" if end_key(end) in right else "left"}
+             "traffic": "right" if end_key(end) in right else "left",
+             **dict(zip(("lat", "lon"), position(r, end)))}
             for end, heading in r.get("end_headings", [])
         ]}
         for r in runways

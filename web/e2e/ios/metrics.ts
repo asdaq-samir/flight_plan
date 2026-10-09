@@ -296,7 +296,9 @@ export function componentFindings(page: Page): Promise<ComponentFinding[]> {
     }
     for (const button of document.querySelectorAll<HTMLElement>('button, a[data-slot="button"]')) {
       const svg = button.querySelector("svg");
-      if (!svg || !on(button) || button.closest('header, .leaflet-marker-icon, [data-sonner-toaster], [data-slot="tabs-trigger"]')) continue;
+      // The airport card's runway sketch is a picture as wide as two tiles,
+      // not an icon button: its svg is the drawing, not a glyph.
+      if (!svg || !on(button) || button.closest('header, .leaflet-marker-icon, [data-sonner-toaster], [data-slot="tabs-trigger"], [data-testid="place-runway-sketch"]')) continue;
       const words = [...button.querySelectorAll("*"), button].some(n => [...n.childNodes].some(c => c.nodeType === 3 && c.textContent!.trim() && !(n as Element).closest(".sr-only")));
       // A button named by words laid over it -- a section's title over its
       // row-wide accordion trigger (AccordionSection) -- has words: it is
