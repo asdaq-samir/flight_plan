@@ -106,12 +106,14 @@ export default defineConfig({
             // The airport diagrams' pictures, cache first as the tiles
             // are: an address names its 28-day d-TPP cycle, so what is
             // kept is right for the whole of it, and a card opened again
-            // in the air, with no network, still shows its field's.
+            // in the air, with no network, still shows its field's. Kept
+            // no longer than a cycle lasts, and the card and the full
+            // screen name the cycle the picture is of.
             urlPattern: ({ url }) => url.pathname.includes("/airport-diagram/"),
             handler: "CacheFirst",
             options: {
               cacheName: "airport-diagrams",
-              expiration: { maxEntries: 200, maxAgeSeconds: 30 * 24 * 3600, purgeOnQuotaError: true },
+              expiration: { maxEntries: 200, maxAgeSeconds: 28 * 24 * 3600, purgeOnQuotaError: true },
               cacheableResponse: { statuses: [0, 200] },
             },
           },

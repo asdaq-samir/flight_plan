@@ -22,7 +22,9 @@ import io
 import json
 import logging
 import os
+import shutil
 import threading
+import time
 import xml.etree.ElementTree as ET
 from datetime import date, timedelta
 from pathlib import Path
@@ -58,6 +60,11 @@ _HELD: dict = {}
 #: One lock per diagram being drawn: two cards opened on the same field at
 #: once read its PDF once, and a draw does not hold up every other card.
 _DRAWING: dict = {}
+#: When the FAA last failed to give each diagram, so a slow or down FAA is
+#: asked once a minute for it and not by every card opened: each ask would
+#: otherwise hold one of the server's worker threads for the whole timeout.
+_FAILED: dict = {}
+FAILED_FOR = 60.0
 
 
 def _cycle_start(on: date, epoch: date, days: int) -> date:
@@ -197,21 +204,39 @@ def airport_diagram_png(ident: str, cycle: str, on: date | None = None) -> Path 
         return path
     with _LOCK:
         lock = _DRAWING.setdefault(path, threading.Lock())
-    with lock:
-        if path.exists():
-            return path
-        try:
-            resp = requests.get(url, headers=HEADERS, timeout=60)
-            resp.raise_for_status()
-            png = _drawn(resp.content)
-        except (requests.RequestException, pypdfium2.PdfiumError) as err:
-            log.warning("No airport diagram for %s in %s: %s", ident, cycle, err)
-            return None
-        path.parent.mkdir(parents=True, exist_ok=True)
-        partial = path.with_name(path.name + ".part")
-        partial.write_bytes(png)
-        os.replace(partial, path)
+    try:
+        with lock:
+            if path.exists():
+                return path
+            if time.monotonic() - _FAILED.get(path, -FAILED_FOR) < FAILED_FOR:
+                return None
+            try:
+                resp = requests.get(url, headers=HEADERS, timeout=(5, 30))
+                resp.raise_for_status()
+                png = _drawn(resp.content)
+            except (requests.RequestException, pypdfium2.PdfiumError) as err:
+                log.warning("No airport diagram for %s in %s: %s", ident, cycle, err)
+                _FAILED[path] = time.monotonic()
+                return None
+            _FAILED.pop(path, None)
+            _forget_other_cycles(cycle)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            partial = path.with_name(path.name + ".part")
+            partial.write_bytes(png)
+            os.replace(partial, path)
+    finally:
+        # The lock only matters while a draw is under way.
+        with _LOCK:
+            _DRAWING.pop(path, None)
     return path
+
+
+def _forget_other_cycles(cycle: str) -> None:
+    """Delete the pictures of every other cycle: a new cycle's diagrams
+    are drawn afresh, and the old ones are never asked for again."""
+    for old in (CACHE_DIR / "diagrams").glob("*"):
+        if old.name != cycle and old.is_dir():
+            shutil.rmtree(old, ignore_errors=True)
 
 
 def preload() -> None:

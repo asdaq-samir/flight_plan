@@ -37,8 +37,9 @@ function FitWhole({ bounds }: { bounds: L.LatLngBounds }) {
  * the corner every panel has it in, and the FAA's PDF a tap away, for a
  * print or another app.
  */
-export default function AirportDiagramViewer({ ident, src, size, pdf, onClose }: {
+export default function AirportDiagramViewer({ ident, cycle, src, size, pdf, onClose }: {
   ident: string;
+  cycle: string;
   src: string;
   size: { width: number; height: number };
   pdf: string | null;
@@ -53,7 +54,7 @@ export default function AirportDiagramViewer({ ident, src, size, pdf, onClose }:
       >
         {/* Under the status bar, the close where every panel has it. */}
         <div className="flex shrink-0 items-center gap-4 pt-[max(0.5rem,env(safe-area-inset-top))] pr-[max(0.75rem,env(safe-area-inset-right))] pb-2 pl-[max(1rem,env(safe-area-inset-left))]">
-          <DialogTitle className={cn("min-w-0 flex-1 truncate font-semibold", TEXT.title)}>{ident} airport diagram</DialogTitle>
+          <DialogTitle className={cn("min-w-0 flex-1 truncate font-semibold", TEXT.title)}>{ident} airport diagram, d-TPP {cycle}</DialogTitle>
           {pdf && (
             <a href={pdf} target="_blank" rel="noreferrer" className={cn("relative shrink-0 text-tint after:absolute after:-inset-3", TEXT.row)} data-testid="airport-diagram-pdf">
               FAA PDF

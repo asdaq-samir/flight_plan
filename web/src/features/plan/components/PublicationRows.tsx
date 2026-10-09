@@ -3,6 +3,7 @@ import { FileText } from "lucide-react";
 import { cn } from "cn";
 import { ListRow } from "../../../components/GroupedList";
 import { ItemSeparator } from "../../../components/ui/item";
+import { TEXT } from "../../../lib/text";
 import { diagramPicture } from "../../../lib/diagram";
 
 const AirportDiagramViewer = lazy(() => import("./AirportDiagramViewer"));
@@ -32,7 +33,7 @@ export function PublicationRows({ ident, diagram, diagramCycle, supplement }: {
     <>
       {picture ? (
         <button
-          type="button" onClick={() => setOpen(true)} disabled={!size}
+          type="button" onClick={() => setOpen(true)}
           aria-label={`${ident} airport diagram, full screen`} data-testid="airport-diagram-picture"
           // The diagram's own white paper round it, and black at night,
           // where the diagram is drawn white on it.
@@ -42,6 +43,9 @@ export function PublicationRows({ ident, diagram, diagramCycle, supplement }: {
           )}
         >
           <img
+            // Already loaded when React attaches (a remount, a cached hit),
+            // its load event has gone by: read its size now.
+            ref={img => { if (img?.complete && img.naturalWidth) setSize({ width: img.naturalWidth, height: img.naturalHeight }); }}
             src={picture} alt="" loading="lazy" decoding="async"
             onLoad={event => setSize({ width: event.currentTarget.naturalWidth, height: event.currentTarget.naturalHeight })}
             onError={() => setFailed(true)}
@@ -49,6 +53,8 @@ export function PublicationRows({ ident, diagram, diagramCycle, supplement }: {
             // most of a phone's half sheet.
             className="mx-auto block max-h-[22rem] w-auto max-w-full dark:invert"
           />
+          {/* Which d-TPP cycle it is of, for a picture kept for the air. */}
+          <span className={cn("block pb-1 text-center text-black/60 dark:text-white/60", TEXT.note)}>d-TPP cycle {diagramCycle}</span>
         </button>
       ) : diagram && (
         <ListRow media={<FileText className="size-5" />} title="Airport diagram" href={diagram} data-testid="airport-diagram" />
@@ -57,9 +63,9 @@ export function PublicationRows({ ident, diagram, diagramCycle, supplement }: {
       {supplement && (
         <ListRow media={<FileText className="size-5" />} title="Chart Supplement" href={supplement} data-testid="chart-supplement" />
       )}
-      {open && picture && size && (
+      {open && picture && diagramCycle && size && (
         <Suspense fallback={null}>
-          <AirportDiagramViewer ident={ident} src={picture} size={size} pdf={diagram ?? null} onClose={() => setOpen(false)} />
+          <AirportDiagramViewer ident={ident} cycle={diagramCycle} src={picture} size={size} pdf={diagram ?? null} onClose={() => setOpen(false)} />
         </Suspense>
       )}
     </>

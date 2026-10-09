@@ -95,9 +95,30 @@ def test_no_diagram_for_another_cycle_a_field_without_one_or_while_the_faa_is_do
     assert publications.airport_diagram_png("KDLH", "2609", on) is None
     assert publications.airport_diagram_png("C81", "2610", on) is None
     assert publications.airport_diagram_cycle("C81", on) is None
-    # Nothing kept from a failure: the next ask tries the FAA again.
+    # Nothing kept from a failure, and the FAA is not asked again for a
+    # minute; after it, it is.
+    monkeypatch.setattr(publications, "_FAILED", {})
+    asked = []
+    monkeypatch.setattr(publications.requests, "get", lambda url, **kw: asked.append(url) or _Answer(fail=True))
     assert publications.airport_diagram_png("KDLH", "2610", on) is None
+    assert publications.airport_diagram_png("KDLH", "2610", on) is None
+    assert len(asked) == 1
+    monkeypatch.setattr(publications, "FAILED_FOR", 0.0)
+    assert publications.airport_diagram_png("KDLH", "2610", on) is None
+    assert len(asked) == 2
     assert not (tmp_path / "diagrams").exists()
+    assert not publications._DRAWING
+
+
+def test_a_new_cycles_diagram_clears_the_old_cycles(monkeypatch, tmp_path):
+    monkeypatch.setattr(publications, "CACHE_DIR", tmp_path)
+    monkeypatch.setattr(publications, "_HELD", {})
+    (tmp_path / "dtpp-2610.json").write_text('{"DLH": "00125AD.PDF"}')
+    (tmp_path / "diagrams" / "2609").mkdir(parents=True)
+    (tmp_path / "diagrams" / "2609" / "00125AD.png").write_bytes(b"old")
+    monkeypatch.setattr(publications.requests, "get", lambda url, **kw: _Answer(_blank_pdf(100, 100)))
+    assert publications.airport_diagram_png("DLH", "2610", date(2026, 10, 3)).exists()
+    assert not (tmp_path / "diagrams" / "2609").exists()
 
 
 def test_pdfium_draws_one_pdf_at_a_time(monkeypatch):
