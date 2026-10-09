@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import type { Runway } from "./api/types";
-import { stripsOf } from "./runwaySketch";
+import { runwaysLeftOut, stripsOf } from "./runwaySketch";
 
 const runway = (ends: [string, number | null, number | null, number | null][], extra: Partial<Runway> = {}): Runway => ({
   ends: ends.map(e => e[0]).join("/"), length_ft: 6000, width_ft: 150, surface: "ASP", lighted: true, closed: false,
@@ -32,6 +32,15 @@ describe("the runways' sketch", () => {
     const left = runway([["18L", 180, null, null], ["36R", 0, null, null]]);
     const right = runway([["18R", 180, null, null], ["36L", 0, null, null]]);
     expect(stripsOf([left, right, unknown], 43, -89).map(s => s.ends)).toEqual([["18L", "36R"], ["9", "27"]]);
+  });
+
+  test("counts the runways left out, a runway with one end known and one not among them", () => {
+    const known = runway([["18", 180, 43.01, -89], ["36", 0, 43, -89]]);
+    const half = runway([["9", 90, 43, -89.01], ["27", 270, null, null]]);
+    const strips = stripsOf([known, half], 43, -89);
+    expect(strips.map(s => s.ends)).toEqual([["18", "36"]]);
+    expect(runwaysLeftOut([known, half], strips)).toBe(1);
+    expect(runwaysLeftOut([known], stripsOf([known], 43, -89))).toBe(0);
   });
 
   test("draws nothing for a helipad or a runway with neither", () => {

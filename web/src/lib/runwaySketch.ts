@@ -49,3 +49,10 @@ export function stripsOf(runways: Runway[], lat: number, lon: number): Strip[] {
   }
   return strips.length ? strips : guesses;
 }
+
+/** How many of the field's runways the sketch leaves out for want of their
+ *  ends, so the card can say its picture is partial rather than whole. */
+export function runwaysLeftOut(runways: Runway[], drawn: Strip[]): number {
+  const real = runways.filter(r => (r.runway_ends ?? []).length >= 2).length;
+  return Math.max(0, real - drawn.length);
+}

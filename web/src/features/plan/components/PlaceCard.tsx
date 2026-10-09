@@ -23,7 +23,7 @@ import { RunwayRow } from "./RunwayRow";
 import { PublicationRows } from "./PublicationRows";
 import { ChartRow, FaaChart } from "./AirportDiagram";
 import { RunwaySketch } from "./RunwaySketch";
-import { stripsOf } from "../../../lib/runwaySketch";
+import { runwaysLeftOut, stripsOf } from "../../../lib/runwaySketch";
 import { TEXT } from "../../../lib/text";
 
 /** "18 nm NE", from wherever the card is measured from. */
@@ -136,9 +136,10 @@ function Action({ icon, label, spoken, filled, busy, disabled, onClick, href, te
       {busy ? <Loader2 className="size-6 animate-spin" aria-hidden="true" /> : icon}
       {/* On one line, at the pilot's ask: "Fly Here" and "Add Stop" on
           two at a larger text size made every tile a line taller, and
-          the card's tiles ran off the half sheet. Cut short ("…") only
-          where even that is too narrow, a 320-point Slide Over. */}
-      <span className={cn("max-w-full truncate text-center leading-tight font-semibold", TEXT.note)}>{label}</span>
+          the card's tiles ran off the half sheet. Wrapped, not cut
+          short, only where even that is too narrow, a 320-point Slide Over:
+          HIG says not to truncate a button's title. */}
+      <span className={cn("max-w-full text-center leading-tight font-semibold", TEXT.note)}>{label}</span>
     </>
   );
   // A link where it leaves the app, the stock button's look on it.
@@ -261,10 +262,10 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
   // any field with a runway to draw. A tap shows the diagram full screen,
   // or the Runways tab where the field has none.
   // Named on the button, whose label hides what is inside it from a screen reader.
-  const sketchedRunways = useMemo(
-    () => (place ? stripsOf(place.runways, place.lat, place.lon).map(r => r.ends.join("/")) : []),
-    [place],
-  );
+  const { sketchedRunways, leftOut } = useMemo(() => {
+    const strips = place ? stripsOf(place.runways, place.lat, place.lon) : [];
+    return { sketchedRunways: strips.map(r => r.ends.join("/")), leftOut: place ? runwaysLeftOut(place.runways, strips) : 0 };
+  }, [place]);
   const sketched = sketchedRunways.length > 0;
   const [diagramOpen, setDiagramOpen] = useState(false);
   const line = place ? subtitleOf(place, measured)
@@ -317,7 +318,7 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
                 <p className={cn("-mt-3 text-muted-foreground", onAddStop ? "col-span-2" : "col-span-1", TEXT.note)}>{line}</p>
                 <button
                   type="button" data-testid="place-runway-sketch"
-                  aria-label={`${place.ident} runways ${sketchedRunways.join(", ")}, north up. ${place.airport_diagram_url ? "Airport diagram, full screen" : "Show runways"}`}
+                  aria-label={`${place.ident} runways ${sketchedRunways.join(", ")}, north up${leftOut ? `, ${leftOut} more not drawn, their ends unsurveyed` : ""}. ${place.airport_diagram_url ? "Airport diagram, full screen" : "Show runways"}`}
                   onClick={() => (place.airport_diagram_url ? setDiagramOpen(true) : open("runways"))}
                   // As tall as the lines beside it, two tiles' height at the
                   // least: a field is rarely three times as wide as it is
