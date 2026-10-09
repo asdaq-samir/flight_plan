@@ -25,6 +25,15 @@ describe("the runways' sketch", () => {
     expect(strip!.a[1]).toBeCloseTo(0);
   });
 
+  test("guesses none where another runway's ends are known, and one of two parallels", () => {
+    const known = runway([["18", 180, 43.01, -89], ["36", 0, 43, -89]]);
+    const unknown = runway([["9", 90, null, null], ["27", 270, null, null]]);
+    expect(stripsOf([known, unknown], 43, -89).map(s => s.ends)).toEqual([["18", "36"]]);
+    const left = runway([["18L", 180, null, null], ["36R", 0, null, null]]);
+    const right = runway([["18R", 180, null, null], ["36L", 0, null, null]]);
+    expect(stripsOf([left, right, unknown], 43, -89).map(s => s.ends)).toEqual([["18L", "36R"], ["9", "27"]]);
+  });
+
   test("draws nothing for a helipad or a runway with neither", () => {
     expect(stripsOf([runway([["H1", null, null, null]])], 43, -89)).toEqual([]);
     expect(stripsOf([runway([["9", null, null, null], ["27", null, null, null]])], 43, -89)).toEqual([]);

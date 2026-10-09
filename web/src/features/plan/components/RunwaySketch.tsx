@@ -54,7 +54,7 @@ export function RunwaySketch({ runways, lat, lon }: { runways: Runway[]; lat: nu
       // Out of the flow, the box's size its own: an SVG's own default
       // size (150 tall) made the box that tall.
       ref={box} viewBox={drawn ? `0 0 ${drawn.w} ${drawn.h}` : undefined} className="absolute inset-0 size-full"
-      role="img" aria-label={drawn ? `Runways ${drawn.strips.map(r => r.ends.join("/")).join(", ")}, north up` : undefined}
+      aria-hidden="true"
       data-testid="runway-sketch"
     >
       {drawn?.strips.map(s => (

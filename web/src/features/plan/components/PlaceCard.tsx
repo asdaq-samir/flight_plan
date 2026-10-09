@@ -260,7 +260,12 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
   // scatter of its lettering -- the lines under the name beside it; for
   // any field with a runway to draw. A tap shows the diagram full screen,
   // or the Runways tab where the field has none.
-  const sketched = useMemo(() => !!place && stripsOf(place.runways, place.lat, place.lon).length > 0, [place]);
+  // Named on the button, whose label hides what is inside it from a screen reader.
+  const sketchedRunways = useMemo(
+    () => (place ? stripsOf(place.runways, place.lat, place.lon).map(r => r.ends.join("/")) : []),
+    [place],
+  );
+  const sketched = sketchedRunways.length > 0;
   const [diagramOpen, setDiagramOpen] = useState(false);
   const line = place ? subtitleOf(place, measured)
     : error ? `${ident} · ${error instanceof ApiError && error.status === 404 ? "not found" : "could not be looked up"}`
@@ -312,7 +317,7 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
                 <p className={cn("-mt-3 text-muted-foreground", onAddStop ? "col-span-2" : "col-span-1", TEXT.note)}>{line}</p>
                 <button
                   type="button" data-testid="place-runway-sketch"
-                  aria-label={place.airport_diagram_url ? `${place.ident} airport diagram, full screen` : `${place.ident} runways`}
+                  aria-label={`${place.ident} runways ${sketchedRunways.join(", ")}, north up. ${place.airport_diagram_url ? "Airport diagram, full screen" : "Show runways"}`}
                   onClick={() => (place.airport_diagram_url ? setDiagramOpen(true) : open("runways"))}
                   // As tall as the lines beside it, two tiles' height at the
                   // least: a field is rarely three times as wide as it is

@@ -17,11 +17,17 @@ export interface Strip {
  *  ends where both are known (NASR's surveyed thresholds, else
  *  OurAirports'), else its length along its first end's true heading,
  *  through the field's own point -- a sketch's guess for a field whose
- *  ends are known to neither, mostly one runway's. None for a helipad. */
+ *  ends are known to neither, mostly one runway's. The guess is made only
+ *  where no runway at the field has its ends, since one placed on the
+ *  field's point would cross the others where it may not, and not for a
+ *  runway parallel to one already guessed, which would lie on top of it.
+ *  None for a helipad. */
 export function stripsOf(runways: Runway[], lat: number, lon: number): Strip[] {
   const east = (lonDeg: number) => (lonDeg - lon) * NM_PER_DEG * Math.cos((lat * Math.PI) / 180);
   const north = (latDeg: number) => (latDeg - lat) * NM_PER_DEG;
   const strips: Strip[] = [];
+  const guesses: Strip[] = [];
+  const guessed: number[] = [];
   for (const r of runways) {
     const [first, second] = r.runway_ends ?? [];
     if (!first || !second) continue;
@@ -34,8 +40,12 @@ export function stripsOf(runways: Runway[], lat: number, lon: number): Strip[] {
       const rad = (first.heading_true_deg * Math.PI) / 180;
       // The first end is where a landing on it starts: back along its heading.
       const dx = Math.sin(rad) * half, dy = Math.cos(rad) * half;
-      strips.push({ a: [-dx, -dy], b: [dx, dy], width_ft, ends, closed: r.closed });
+      // Within a degree of a heading already guessed, either way round.
+      const line = ((first.heading_true_deg % 180) + 180) % 180;
+      if (guessed.some(h => Math.min(Math.abs(h - line), 180 - Math.abs(h - line)) < 1)) continue;
+      guessed.push(line);
+      guesses.push({ a: [-dx, -dy], b: [dx, dy], width_ft, ends, closed: r.closed });
     }
   }
-  return strips;
+  return strips.length ? strips : guesses;
 }

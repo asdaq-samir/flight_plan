@@ -71,7 +71,7 @@ test("the card's sketch of the runways sits over Call and Address, their width, 
   await settle(page);
   const sketch = card(page).getByTestId("place-runway-sketch");
   // KDLH's runways, named for a screen reader.
-  await expect(sketch.getByTestId("runway-sketch")).toHaveAttribute("aria-label", /^Runways .*09\/27.*, north up$/, { timeout: slow(15000) });
+  await expect(sketch).toHaveAttribute("aria-label", /^KDLH runways .*09\/27.*, north up\./, { timeout: slow(15000) });
   const [box, call, address] = await Promise.all([sketch, card(page).getByTestId("place-call"), card(page).getByTestId("place-address")]
     .map(async l => (await l.boundingBox())!));
   expect(Math.abs(box.x - call.x)).toBeLessThan(1);
