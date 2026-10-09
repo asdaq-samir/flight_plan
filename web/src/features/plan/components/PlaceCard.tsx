@@ -373,13 +373,17 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
               </button>
               {/* Over the sketch, read as it is (the button's name is the
                   runways'), on a pane of the card's own ground where a
-                  runway runs under it. */}
+                  runway runs under it: "Elev 788 ft", at the pilot's ask,
+                  the word lighter than its figure (by weight, not a grey
+                  that loses contrast on the glass), and "Elevation" in
+                  full to a screen reader. */}
               {place.elevation_ft != null && (
                 <span
                   ref={setElevationPane}
                   className={cn("pointer-events-none absolute top-1 left-1.5 rounded-md bg-background/75 px-1 font-semibold text-foreground", TEXT.note)}
                   data-testid="place-elevation"
                 >
+                  <span aria-hidden="true" className="font-normal">Elev </span>
                   <span className="sr-only">Elevation </span>{feet(place.elevation_ft)}
                 </span>
               )}
