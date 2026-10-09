@@ -127,6 +127,12 @@ jobs:
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069  # v4
+        # Docker Hub's images through Google's public mirror first, as in
+        # CI's image job (ci.yml): Docker Hub limits a runner's pulls.
+        with:
+          buildkitd-config-inline: |
+            [registry."docker.io"]
+              mirrors = ["mirror.gcr.io"]
       # The registry cache is private, like the images: without this the
       # cache is refused, quietly, and every image built from nothing.
       - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f  # v4
