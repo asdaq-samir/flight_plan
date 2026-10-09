@@ -7,6 +7,7 @@ import { useKeptAirport, usePreferences } from "../../../lib/preferences";
 import { useOwnShip } from "../../../lib/map/ownShip";
 import RoundButton from "../../../components/RoundButton";
 import { FILLS_HALF, GLASS_BUTTON } from "../../../components/mapChrome";
+import CloseButton from "../../../components/CloseButton";
 import { CardHead, PanelCard } from "../../../components/PanelCard";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
 import { LINE_TAB } from "../../../components/lineTabs";
@@ -35,23 +36,30 @@ function away(from: LatLon, to: LatLon): string {
 /** The line under the name: the ident, the airspace, the tower or its
  *  CTAF, and how far it is -- "KDLH · Class C · 18 nm NE". */
 function subtitleOf(place: AirportPlace, from: { point: LatLon; name: string | null } | null): ReactNode {
-  const ctaf = place.frequencies.find(f => f.type === "CTAF" || f.type === "UNIC");
+  const mhz = (f?: { frequency_mhz?: number | null }) =>
+    f?.frequency_mhz ? f.frequency_mhz.toFixed(3).replace(/0+$/, "").replace(/\.$/, "") : null;
+  const tower = mhz(place.frequencies.find(f => f.type === "TWR"));
+  const ctaf = mhz(place.frequencies.find(f => f.type === "CTAF" || f.type === "UNIC"));
+  // Three short lines, at the pilot's ask, to save room: the ident and the
+  // class of the airspace over it, the frequency it is called on -- the
+  // tower's at a towered field, else its CTAF -- and its elevation:
+  // "C81 (G)", "CTAF: 122.7", "Elev: 788 ft"; how far it is after the
+  // first, the shortest.
   const what = [
-    place.ident,
+    place.airspace_class ? `${place.ident} (${place.airspace_class})` : place.ident,
     // A field the armed services own (the FAA's airport file): one most
     // pilots may not land at without the service's permission, or a civil
     // airport sharing it.
     place.military === "military" ? "Military, permission required" : place.military === "joint" ? "Joint use" : null,
-    place.airspace_class ? `Class ${place.airspace_class}` : null,
-    place.towered ? "Towered" : ctaf?.frequency_mhz ? `CTAF ${ctaf.frequency_mhz.toFixed(3).replace(/0+$/, "").replace(/\.$/, "")}` : "Non-towered",
-  ].filter(Boolean).join(" · ");
-  // Its elevation on a line of its own under that, at the pilot's ask,
-  // where it was the Runways tab's first row; how far it is after it.
-  const where = [
-    place.elevation_ft != null ? `Elevation ${feet(place.elevation_ft)}` : null,
     from ? (from.name ? `${away(from.point, place)} of ${from.name}` : away(from.point, place)) : null,
   ].filter(Boolean).join(" · ");
-  return where ? <>{what}<br />{where}</> : what;
+  const radio = place.towered ? (tower ? `Tower: ${tower}` : "Towered") : ctaf ? `CTAF: ${ctaf}` : "Non-towered";
+  return (
+    <>
+      {what}<br />{radio}
+      {place.elevation_ft != null && <><br />Elev: {feet(place.elevation_ft)}</>}
+    </>
+  );
 }
 
 /** An airport's name and weather from whatever the map has already
@@ -256,7 +264,7 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
     }, 520);
     return () => { window.clearTimeout(scroll); window.clearTimeout(look); };
   }, [startOn, placeIn]);
-  // A sketch of the runways over the Call and Address tiles, at the
+  // A sketch of the runways beside the name, over the Call and Address tiles, at the
   // pilot's ask -- it was the FAA's diagram cropped to that size, a
   // scatter of its lettering -- the lines under the name beside it; for
   // any field with a runway to draw. A tap shows the diagram full screen,
@@ -278,6 +286,17 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
   const weather = place
     ? { status: place.weather_unavailable ? "unavailable" : metar ? "reported" : "no-report", category: metar?.flight_category ?? null }
     : known && { status: known.category ? "reported" : "no-report", category: known.category };
+  const chip = weather && (
+    <span
+      // The words in whichever ink reads on the colour (inkOn), as the
+      // map's chips are: white on a field's no-report grey was 2.6:1.
+      className={cn("mt-1 shrink-0 rounded-md px-2 py-0.5 font-bold tracking-wide", TEXT.note)}
+      style={{ backgroundColor: chipColourOf(weather), color: inkOn(chipColourOf(weather)) }}
+      data-testid="place-category"
+    >
+      {weather.category ?? (place?.weather_unavailable ? "Unavailable" : "No report")}
+    </span>
+  );
   return (
     <PanelCard testId="place-card">
       <Tabs value={tab} onValueChange={next => setPicked(next as CardTab)} className="gap-0">
@@ -285,56 +304,65 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
           card's own top: a tab's content starts under it, out of sight
           there (FILLS_HALF). */}
       <div className={cn("min-h-[calc(var(--half-body,0px)_-_var(--corner-inset,0.75rem))]", FILLS_HALF)}>
-        <CardHead
-          name={place?.name ?? known?.name ?? kept?.name ?? ident} nameTestId="place-name"
-          // Not found only where the planner said so: a planner out of
-          // reach for a moment (restarted) read "not found" for KBUR.
-          line={sketched ? null : line}
-          onClose={onClose} closeTestId="place-close"
-        >
-          {weather && (
-            <span
-              // The words in whichever ink reads on the colour (inkOn), as
-              // the map's chips are: white on a field's no-report grey was
-              // 2.6:1.
-              className={cn("mt-1 shrink-0 rounded-md px-2 py-0.5 font-bold tracking-wide", TEXT.note)}
-              style={{ backgroundColor: chipColourOf(weather), color: inkOn(chipColourOf(weather)) }}
-              data-testid="place-category"
+        {place && sketched ? (
+          // The runways' sketch to the right of the name, at the pilot's
+          // ask, under the weather's chip, the star and the close and down
+          // to the tiles, the width of Call and Address; the card's lines --
+          // the ident and class, the tower or CTAF, the elevation -- at its
+          // top left, the runways drawn under them. The room the lines took
+          // under the name is the card's. Four columns as the tiles' are,
+          // where the tiles are three too: the name its half of the card.
+          <div className="grid grid-cols-4 gap-x-2">
+            <h2
+              tabIndex={-1} data-testid="place-name"
+              className={cn("col-span-2 row-span-2 min-w-0 font-bold tracking-tight break-words text-foreground outline-none", TEXT.card)}
             >
-              {weather.category ?? (place?.weather_unavailable ? "Unavailable" : "No report")}
-            </span>
-          )}
-          {place && <FavoriteButton place={place} />}
-        </CardHead>
+              {place.name}
+            </h2>
+            <div className="col-span-2 flex items-start justify-end gap-2">
+              {chip}
+              <FavoriteButton place={place} />
+              <CloseButton onClick={onClose} className="-mr-1" data-testid="place-close" />
+            </div>
+            <div className={cn("col-span-2 mt-2 flex min-h-24 flex-col overflow-hidden rounded-xl p-1.5 text-foreground", GLASS_BUTTON)}>
+              {/* In the text's own colour: the muted grey on the sketch's
+                  glass, lighter than the card's at night, read at 4.4:1
+                  there, under WCAG's 4.5 (the iPhone audit). */}
+              <p className={cn("text-foreground", TEXT.note)} data-testid="place-line">{line}</p>
+              {/* The runways in what the lines leave, never under them; the
+                  tap the sketch's, the lines read as they are. */}
+              <button
+                type="button" data-testid="place-runway-sketch"
+                aria-label={`${place.ident} runways ${sketchedRunways.join(", ")}, north up${leftOut ? `, ${leftOut} more not drawn, their ends unsurveyed` : ""}. ${place.airport_diagram_url ? "Airport diagram, full screen" : "Show runways"}`}
+                onClick={() => (place.airport_diagram_url ? setDiagramOpen(true) : open("runways"))}
+                className="relative block min-h-12 w-full flex-1 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <RunwaySketch runways={place.runways} lat={place.lat} lon={place.lon} />
+              </button>
+            </div>
+            {diagramOpen && place.airport_diagram_url && (
+              <FaaChart
+                title={`${place.ident} airport diagram`} url={place.airport_diagram_url} airport={place.ident}
+                onClose={() => setDiagramOpen(false)}
+              />
+            )}
+          </div>
+        ) : (
+          <CardHead
+            name={place?.name ?? known?.name ?? kept?.name ?? ident} nameTestId="place-name"
+            // Not found only where the planner said so: a planner out of
+            // reach for a moment (restarted) read "not found" for KBUR.
+            line={line}
+            onClose={onClose} closeTestId="place-close"
+          >
+            {chip}
+            {place && <FavoriteButton place={place} />}
+          </CardHead>
+        )}
         {/* In their places from the first frame, live once the answer is
             in: the card stood empty below its name until then. */}
         {(place || !error) && (
           <div className={cn("mt-3 grid gap-2", onAddStop ? "grid-cols-4" : "grid-cols-3")}>
-            {/* The runways' sketch over Call and Address, their width; the
-                lines under the name across the rest, up against the name
-                as they are without one. */}
-            {place && sketched && (
-              <>
-                <p className={cn("-mt-3 text-muted-foreground", onAddStop ? "col-span-2" : "col-span-1", TEXT.note)}>{line}</p>
-                <button
-                  type="button" data-testid="place-runway-sketch"
-                  aria-label={`${place.ident} runways ${sketchedRunways.join(", ")}, north up${leftOut ? `, ${leftOut} more not drawn, their ends unsurveyed` : ""}. ${place.airport_diagram_url ? "Airport diagram, full screen" : "Show runways"}`}
-                  onClick={() => (place.airport_diagram_url ? setDiagramOpen(true) : open("runways"))}
-                  // As tall as the lines beside it, two tiles' height at the
-                  // least: a field is rarely three times as wide as it is
-                  // long, and a wide strip of a box drew it small.
-                  className={cn("relative col-span-2 block min-h-14 w-full self-stretch overflow-hidden rounded-xl text-foreground", GLASS_BUTTON)}
-                >
-                  <RunwaySketch runways={place.runways} lat={place.lat} lon={place.lon} />
-                </button>
-                {diagramOpen && place.airport_diagram_url && (
-                  <FaaChart
-                    title={`${place.ident} airport diagram`} url={place.airport_diagram_url} airport={place.ident}
-                    onClose={() => setDiagramOpen(false)}
-                  />
-                )}
-              </>
-            )}
             {/* Fly Here is the Direct-To, and wears its symbol; Add Stop
                 beside it, at the pilot's ask, makes the field the route's
                 next stop. */}
