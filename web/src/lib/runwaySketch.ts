@@ -17,15 +17,17 @@ export interface Strip {
 
 /** A runway of turf or grass alone, as OurAirports writes its surface
  *  ("TURF", "TURF-G", "GRS", "GRASS / SOD"); one of two surfaces
- *  ("ASPH-TURF") is turf only where the FAA's remarks say (`turf`). */
+ *  ("ASPH-TURF", "TURF-ASPH") is turf only where the FAA's remarks say
+ *  (`turf`), whichever surface it lists first. */
 const TURF_SURFACE = /^(TURF|GRS|GRASS|SOD)\b/i;
+const HARD_SURFACE = /\b(ASPH?|CONC?|PEM|BIT|MAC|PAVED)/i;
 
 /** The runway's turf as fractions of the way from its first end to its
  *  second: all of it for a runway of turf, else each part the planner
  *  read from the remarks, measured from whichever end it names. None
  *  without the runway's length to measure by. */
 function turfOf(r: Runway, ends: [string, string]): [number, number][] {
-  if (r.surface && TURF_SURFACE.test(r.surface)) return [[0, 1]];
+  if (r.surface && TURF_SURFACE.test(r.surface) && !HARD_SURFACE.test(r.surface)) return [[0, 1]];
   const length = r.length_ft;
   if (!length) return [];
   return (r.turf ?? []).flatMap(part => {

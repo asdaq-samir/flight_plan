@@ -55,6 +55,11 @@ describe("the runways' sketch", () => {
     expect(grass!.turf).toEqual([[0, 1]]);
     const [paved] = stripsOf([runway(ends, { surface: "ASPH-TURF" })], 42.3246, -88.0741);
     expect(paved!.turf).toEqual([]);
+    // Turf listed first is still two surfaces: green only where the remarks say.
+    for (const surface of ["TURF-ASPH", "TURF-CONC", "GRASS / ASPH"]) {
+      const [mixed] = stripsOf([runway(ends, { surface })], 42.3246, -88.0741);
+      expect(mixed!.turf, surface).toEqual([]);
+    }
     // A remark longer than the published length ends on the end, not past it.
     const [past] = stripsOf([runway(ends, { length_ft: 3000, turf: [{ end: "24", from_ft: 2500, to_ft: 3400 }] })], 42.3246, -88.0741);
     expect(past!.turf).toEqual([[0, 1 - 2500 / 3000]]);
