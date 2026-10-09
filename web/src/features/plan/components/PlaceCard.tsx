@@ -247,6 +247,7 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
   // was scrolled past it, once the panel is up and the name and tiles
   // have closed up to their own height.
   const isUp = () => tabsRef.current?.closest("[data-panel]")?.getAttribute("data-panel") === "full";
+  const openWhenPressed = useRef<CardTab | null>(null);
   const open = (next: CardTab) => {
     setPicked(next);
     const up = isUp();
@@ -449,10 +450,13 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
               // Tapped, the panel comes all the way up, the tab already
               // picked as well (onValueChange is not called for it); the
               // open one tapped again up there, back to half, as the
-              // route's tabs do.
+              // route's tabs do (PanelTabs) -- which one was open read as
+              // it is pressed, since Radix picks the tab on the press,
+              // before the click.
               <TabsTrigger
                 key={t.value} value={t.value} className={LINE_TAB} data-testid={`place-tab-${t.value}`}
-                onClick={() => (t.value === tab && isUp() ? onLower() : open(t.value))}
+                onPointerDown={() => { openWhenPressed.current = tab; }} onKeyDown={() => { openWhenPressed.current = tab; }}
+                onClick={() => (openWhenPressed.current === t.value && isUp() ? onLower() : open(t.value))}
               >
                 {t.label}
               </TabsTrigger>

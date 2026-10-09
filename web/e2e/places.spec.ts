@@ -80,7 +80,7 @@ test("the card's ident is in the route's pill for the field, in its airspace's l
   await expect(async () => expect(await page.getByTestId("route-dest").evaluate(lookOf)).toBe(look)).toPass({ timeout: slow(10_000) });
 });
 
-test("an airport's card has four tabs under its tiles, the radio first, and a tab takes the panel up", async ({ page }) => {
+test("an airport's card has four tabs under its tiles, in sight at half, the radio first; a tab takes the panel up, and again, down", async ({ page }) => {
   // C81 has no airport diagram, and an approach.
   await page.route(url => url.pathname.endsWith("/api/planner/airport/C81"), async route => {
     const answer = await route.fetch();
@@ -95,6 +95,10 @@ test("an airport's card has four tabs under its tiles, the radio first, and a ta
   await expect(tabs).toHaveText(["Freq.", "Weather", "Runways", "Diagrams"], { timeout: slow(15000) });
   await expect(card(page).getByTestId("place-tab-radio")).toHaveAttribute("aria-selected", "true");
   await expect(sideDrawer(page)).toHaveAttribute("data-panel", "half");
+  // The bar whole above the half sheet's foot, at the pilot's ask.
+  await expect(card(page).getByRole("tablist")).toBeInViewport({ ratio: 1 });
+  const [bar, sheet] = await Promise.all([card(page).getByRole("tablist"), sideDrawer(page)].map(async l => (await l.boundingBox())!));
+  expect(bar.y + bar.height).toBeLessThanOrEqual(sheet.y + sheet.height + 1);
 
   await card(page).getByTestId("place-tab-runways").click();
   await expect(sideDrawer(page)).toHaveAttribute("data-panel", "full");
@@ -109,6 +113,10 @@ test("an airport's card has four tabs under its tiles, the radio first, and a ta
   await expect(approach).toHaveText(/RNAV \(GPS\) RWY 24/);
   // Shown in the app (airport-diagram.spec), not a link out of it.
   await expect(approach).not.toHaveAttribute("href", /.*/);
+
+  // The open tab tapped again up there: back to half, as the route's are.
+  await card(page).getByTestId("place-tab-diagrams").click();
+  await expect(sideDrawer(page)).toHaveAttribute("data-panel", "half");
 });
 
 test("the route's Approaches opens its destination's card on its approaches, and Nearest is on the map's left", async ({ page }) => {
