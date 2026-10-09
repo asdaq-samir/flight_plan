@@ -11,7 +11,8 @@ import L from "leaflet";
  * once the fingers lift, Leaflet's own zoom to the final level rounds
  * them again, so a mark at rest stays on a whole pixel, its edges and
  * its ident crisp. Leaflet 1.9's own private fields (`_zooming`, `_icon`,
- * `_setPos`), kept to the version the app pins.
+ * `_setPos`), kept to the version the app pins exactly (package.json), with
+ * pinch.test.ts failing if they are not there.
  */
 type Placed = L.Marker & { _map?: L.Map & { touchZoom?: { _zooming?: boolean } }; _icon?: HTMLElement; _setPos: (pos: L.Point) => void };
 
@@ -40,7 +41,8 @@ const roundedLevel = (L.GridLayer.prototype as unknown as Grid)._setZoomTransfor
 L.GridLayer.include({
   _setZoomTransform(this: Grid, level: Level, center: L.LatLng, zoom: number) {
     const map = this._map;
-    if (!map?.touchZoom?._zooming) return roundedLevel.call(this, level, center, zoom);
+    // Without 3D transforms Leaflet positions the level another way; leave that to it.
+    if (!map?.touchZoom?._zooming || !L.Browser.any3d) return roundedLevel.call(this, level, center, zoom);
     const scale = map.getZoomScale(zoom, level.zoom);
     L.DomUtil.setTransform(level.el, level.origin.multiplyBy(scale).subtract(map._getNewPixelOrigin(center, zoom)), scale);
   },
