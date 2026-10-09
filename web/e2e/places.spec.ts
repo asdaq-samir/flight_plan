@@ -516,3 +516,16 @@ test("an airport's card says which lights a pilot turns on with the mic, and the
   await expect(card(page)).toContainText("Key the mic on the frequency 7 times within 5 seconds for high intensity, 5 for medium, 3 for low.");
   await expect(card(page)).toContainText("Weather advisory - CTAF 5 clicks");
 });
+
+test("a military field's card shows 'permission required' whole in its line, not cut at an ellipsis", async ({ page }) => {
+  await page.route(url => url.pathname.endsWith("/api/planner/airport/KORD"), async route => {
+    const answer = await route.fetch();
+    await route.fulfill({ response: answer, json: { ...await answer.json(), military: "military" } });
+  });
+  await page.goto("/app/plan?place=KORD");
+  const line = card(page).getByTestId("place-line");
+  await expect(line).toContainText("Military, permission required", { timeout: slow(15000) });
+  // Whole: nothing of it is past the line's box (a clamp of two lines
+  // wraps it where one line would cut it).
+  await expect(line).toHaveJSProperty("scrollHeight", await line.evaluate(el => el.clientHeight));
+});

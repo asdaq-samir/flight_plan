@@ -20,18 +20,34 @@ export function FitText({ min = 13, className, ...props }: ComponentProps<"span"
   useLayoutEffect(() => {
     const el = box.current;
     if (!el) return;
+    const clipped = () => el.scrollHeight > el.clientHeight + 1 || el.scrollWidth > el.clientWidth + 1;
     const fit = () => {
       el.style.fontSize = "";
       let size = parseFloat(getComputedStyle(el).fontSize);
-      while (size > min && (el.scrollHeight > el.clientHeight + 1 || el.scrollWidth > el.clientWidth + 1)) {
+      while (size > min && clipped()) {
         size = Math.max(min, size - 0.5);
         el.style.fontSize = `${size}px`;
       }
+      // At the least size and still cut: the whole name is one long press
+      // away rather than lost.
+      if (clipped()) el.title = el.textContent ?? "";
+      else el.removeAttribute("title");
     };
     fit();
+    // One observer for the box's life: the box changing size, the text
+    // changing under it, and the web font arriving (which changes the
+    // text's metrics but not the box).
     const observer = new ResizeObserver(fit);
     observer.observe(el);
-    return () => observer.disconnect();
-  });
+    const text = new MutationObserver(fit);
+    text.observe(el, { childList: true, characterData: true, subtree: true });
+    void document.fonts?.ready.then(fit);
+    document.fonts?.addEventListener("loadingdone", fit);
+    return () => {
+      observer.disconnect();
+      text.disconnect();
+      document.fonts?.removeEventListener("loadingdone", fit);
+    };
+  }, [min]);
   return <span ref={box} className={cn("block overflow-hidden", className)} {...props} />;
 }

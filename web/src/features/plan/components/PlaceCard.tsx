@@ -348,7 +348,7 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
                   />
                 </FitText>
               </h2>
-              {line && <p className={cn("truncate text-muted-foreground", TEXT.note)} data-testid="place-line">{line}</p>}
+              {line && <p className={cn("line-clamp-2 text-muted-foreground", TEXT.note)} data-testid="place-line">{line}</p>}
             </div>
             <div className="col-span-2 flex items-start justify-end gap-2">
               {chip}
