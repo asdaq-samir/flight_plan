@@ -36,7 +36,7 @@ function away(from: LatLon, to: LatLon): string {
 }
 
 /** The line under the name, how far the field is alone at the pilot's
- *  ask -- "18 nm NE of C81" -- the ident in front of the name
+ *  ask -- "18 nm NE of C81" -- the ident at the end of the name
  *  (NameWithIdent), and its class and frequencies left to the tabs.
  *  Nothing where there is nothing to measure from. */
 function subtitleOf(place: AirportPlace, from: { point: LatLon; name: string | null } | null, elevation = true): string {
@@ -129,8 +129,9 @@ function mapsLink(place: AirportPlace): string {
  *  pilot's ask (they were the tint on grey). A 20-point glyph in a tile
  *  about 50 tall, at the pilot's ask: 70 tall, with Maps' 24-point glyph,
  *  they put the card's tabs under the half sheet's foot. The box in
- *  points, its word in the reader's size: at a larger text size the tiles
- *  grew with it and pushed the tabs back under. */
+ *  points, its word in the reader's size: the glyph, padding and gap are
+ *  fixed, but the word's line still grows with the text size (checked at
+ *  a 19 px root, not at the largest sizes). */
 function Action({ icon, label, spoken, filled, busy, disabled, onClick, href, testId }: {
   icon: ReactNode; label: string; filled?: boolean; onClick?: () => void; testId: string;
   /** Where it goes instead, outside the app: a phone number to call, the
@@ -328,7 +329,7 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
           // The runways' sketch to the right of the name, at the pilot's
           // ask, under the weather's chip, the star and the close and down
           // to the tiles, the width of Call and Address, the field's
-          // elevation alone in its top left ("788 ft"); the ident in front
+          // elevation alone in its top left ("788 ft"); the ident at the end
           // of the name, and how far it is under it.
           // Four columns as the tiles' are, where the tiles are three too:
           // the name its half of the card.
@@ -441,7 +442,7 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
         {place && (
           // The stock line tabs, the consoles' (ConsoleTabs): words over a
           // hairline, the chosen one in the tint, a 44-point bar to a
-          // finger -- 44 points at any text size, as the tiles are.
+          // finger -- 44 points at any text size.
           <TabsList
             ref={tabsRef} variant="line"
             className="mt-1 w-full scroll-mt-3 gap-0 border-b border-border p-0 group-data-[orientation=horizontal]/tabs:h-9 pointer-coarse:group-data-[orientation=horizontal]/tabs:h-[44px]"
@@ -456,7 +457,14 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
               <TabsTrigger
                 key={t.value} value={t.value} className={LINE_TAB} data-testid={`place-tab-${t.value}`}
                 onPointerDown={() => { openWhenPressed.current = tab; }} onKeyDown={() => { openWhenPressed.current = tab; }}
-                onClick={() => (openWhenPressed.current === t.value && isUp() ? onLower() : open(t.value))}
+                onClick={() => {
+                  // Read once and cleared: a click with no press before it
+                  // (VoiceOver's activate, a switch) must not find an
+                  // earlier press's tab.
+                  const was = openWhenPressed.current;
+                  openWhenPressed.current = null;
+                  if (was === t.value && isUp()) onLower(); else open(t.value);
+                }}
               >
                 {t.label}
               </TabsTrigger>
