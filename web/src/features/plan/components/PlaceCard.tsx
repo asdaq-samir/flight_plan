@@ -331,7 +331,7 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
           // The runways' sketch to the right of the name, at the pilot's
           // ask, under the weather's chip, the star and the close and down
           // to the tiles, the width of Call and Address, the field's
-          // elevation in its top left ("Elev" over "788 ft"); the ident at
+          // elevation in its top left ("Elev 788 ft"); the ident at
           // the end of the name, and how far it is under it.
           // Four columns as the tiles' are, where the tiles are three too:
           // the name its half of the card. Its rows a fixed height, at the
@@ -405,19 +405,19 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
               </button>)}
               {/* Over the sketch, read as it is (the button's name is the
                   runways'), on a pane of the card's own ground where a
-                  runway runs under it: "Elev" over "788 ft", at the pilot's
-                  ask, the narrower pane leaving the runways more of the
-                  box; the word smaller and lighter than its figure (by
-                  weight, not a grey that loses contrast on the glass), and
-                  "Elevation" in full to a screen reader. */}
+                  runway runs under it: "Elev 788 ft" on one line, at the
+                  pilot's ask (it was tried with "Elev" over the figure);
+                  the word lighter than its figure (by weight, not a grey
+                  that loses contrast on the glass), and "Elevation" in
+                  full to a screen reader. */}
               {place?.elevation_ft != null && (
                 <span
                   ref={setElevationPane}
-                  className={cn("pointer-events-none absolute top-1 left-1.5 flex flex-col rounded-md bg-background/75 px-1 py-0.5 font-semibold text-foreground", TEXT.note, NOTE_LEADING)}
+                  className={cn("pointer-events-none absolute top-1 left-1.5 rounded-md bg-background/75 px-1 font-semibold text-foreground", TEXT.note, NOTE_LEADING)}
                   data-testid="place-elevation"
                 >
                   <span aria-hidden="true" className="font-normal">Elev </span>
-                  <span><span className="sr-only">Elevation </span>{feet(place.elevation_ft)}</span>
+                  <span className="sr-only">Elevation </span>{feet(place.elevation_ft)}
                 </span>
               )}
             </div>
