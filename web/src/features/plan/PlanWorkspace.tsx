@@ -1146,7 +1146,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       place ? (
         <PlaceCard
           key={place} ident={place} from={measuredFrom}
-          onClose={() => selectPlace(null)} onFlyHere={to => void flyHere(to)} onExpand={() => setPanel("full")}
+          onClose={() => selectPlace(null)} onFlyHere={to => void flyHere(to)} onExpand={() => setPanel("full")} onLower={() => setPanel("half")}
           onAddStop={addStop}
         />
       ) : heldPoint ? (
@@ -1186,7 +1186,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
         {place && (
           <PlaceCard
             key={place} ident={place} from={measuredFrom}
-            onClose={() => selectPlace(null)} onFlyHere={to => void flyHere(to)} onExpand={() => setPanel("full")}
+            onClose={() => selectPlace(null)} onFlyHere={to => void flyHere(to)} onExpand={() => setPanel("full")} onLower={() => setPanel("half")}
             // None for a point of the route, or past the planner's most stops.
             onAddStop={[planned.dep, ...planned.stops, planned.dest].includes(place) || planned.stops.length >= MAX_STOPS ? undefined : addStop}
             startOn={approachesOf === place ? "approaches" : undefined} onStarted={() => setApproachesOf(null)}

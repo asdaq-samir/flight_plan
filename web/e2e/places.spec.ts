@@ -10,7 +10,7 @@ import { expectDrawerClosed, expectDrawerOpen, grabberTo, openPanel, settle, sid
 
 const card = (page: Page) => sideDrawer(page).getByTestId("place-card");
 
-test("an airport's card names the field with its ident at the end, how far it is under it, and the weather there", async ({ page }) => {
+test("an airport's card names the field with its ident's airspace pill at the end, how far it is under it, and the weather there", async ({ page }) => {
   await page.goto("/app/plan?dep=C81&dest=KDLH&place=KDLH");
   await settle(page);
   await expectDrawerOpen(page);
@@ -61,6 +61,23 @@ test("an airport's card calls the field and finds it in Maps, from the FAA's air
   await settle(page);
   await expect(card(page).getByTestId("place-call")).toBeDisabled({ timeout: slow(15000) });
   await expect(card(page).getByTestId("place-address")).toHaveAttribute("href", /^https:\/\/maps\.apple\.com\/\?q=.+&ll=42\.\d+,-88\.\d+$/);
+});
+
+test("the card's ident is in the route's pill for the field, in its airspace's look", async ({ page }) => {
+  await page.goto("/app/plan?dep=C81&dest=KDLH&place=KDLH");
+  await settle(page);
+  const pill = card(page).getByTestId("place-ident");
+  await expect(pill).toHaveText("KDLH", { timeout: slow(15000) });
+  await expect(pill).toHaveAttribute("data-airspace", /^[BCDEG]$/);
+  const lookOf = (el: Element) => {
+    const s = getComputedStyle(el);
+    return [s.backgroundColor, s.outlineStyle, s.outlineColor, s.color].join(" ");
+  };
+  const look = await pill.evaluate(lookOf);
+  // The route under the card, once the card is put away: its destination's
+  // pill the same, once it has its class too (AIRSPACE_PILL).
+  await card(page).getByTestId("place-close").click();
+  await expect(async () => expect(await page.getByTestId("route-dest").evaluate(lookOf)).toBe(look)).toPass({ timeout: slow(10_000) });
 });
 
 test("an airport's card has four tabs under its tiles, the radio first, and a tab takes the panel up", async ({ page }) => {
