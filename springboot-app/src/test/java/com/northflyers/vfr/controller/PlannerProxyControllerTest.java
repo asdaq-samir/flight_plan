@@ -274,6 +274,27 @@ class PlannerProxyControllerTest {
     }
 
     @Test
+    void theAirportIndexKeepsItsGzipEncodingAndCacheControlAndTheSearchDoesNotGetTheEncoding() throws Exception {
+        responseHeaders.put("Content-Encoding", "gzip");
+        responseHeaders.put("Vary", "Accept-Encoding");
+        responseHeaders.put("Cache-Control", "public, max-age=86400");
+
+        // The phone's own copy of the airport search: sent gzipped by the
+        // planner, so the browser has to be told so, or it reads the bytes
+        // as they are.
+        MvcResult index = mockMvc.perform(get("/api/planner/airports/index")).andExpect(request().asyncStarted()).andReturn();
+        mockMvc.perform(asyncDispatch(index))
+                .andExpect(header().string("Content-Encoding", "gzip"))
+                .andExpect(header().string("Vary", "Accept-Encoding"))
+                .andExpect(header().string("Cache-Control", "public, max-age=86400"));
+
+        // Any other path's encoding is not passed on: its body is not the
+        // planner's bytes as they came.
+        MvcResult search = mockMvc.perform(get("/api/planner/airports/search?q=KD")).andExpect(request().asyncStarted()).andReturn();
+        mockMvc.perform(asyncDispatch(search)).andExpect(header().doesNotExist("Content-Encoding"));
+    }
+
+    @Test
     void theForeFlightPackKeepsItsFileNameSizeAndRangeAndNoOtherPathDoes() throws Exception {
         responseHeaders.put("Content-Disposition", "attachment; filename=\"C81-KDLH-checkpoints.zip\"");
         responseHeaders.put("Content-Range", "bytes 0-1/2");

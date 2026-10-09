@@ -62,7 +62,11 @@ public class PlannerProxyController {
     /** The other answers that carry their upstream's Cache-Control: the
      *  same for every pilot, with no weather in them (the planner's
      *  app.common SHARED_CACHE and CHART_CACHE say why each). */
-    static final Set<String> SHARED_PATHS = Set.of("/api/chart", "/api/airports/search", "/api/aircraft-profiles");
+    static final Set<String> SHARED_PATHS = Set.of("/api/chart", "/api/airports/search", "/api/airports/index", "/api/aircraft-profiles");
+    /** The airport search's index, for the phone to search on its own: the
+     *  planner sends it gzipped (530 KB of 1.8 MB), so its encoding is
+     *  passed on with it, the bytes as they came. */
+    static final String INDEX_PATH = "/api/airports/index";
     /** An airport diagram's picture, its d-TPP cycle in its address: the
      *  same for every pilot for the cycle, so its upstream's Cache-Control
      *  is carried too. */
@@ -105,6 +109,7 @@ public class PlannerProxyController {
             route("GET", "/api/class-b"),
             route("GET", "/api/airspace/at"),
             route("GET", "/api/airports/search"),
+            route("GET", INDEX_PATH),
             route("GET", "/api/airports/in-view"),
             route("GET", "/api/waypoints/in-view"),
             route("GET", "/api/airports/nearest"),
@@ -238,6 +243,11 @@ public class PlannerProxyController {
             // list of packs) shows, and what a download manager needs to
             // fetch it in pieces: its size, and the range each answer is.
             // ForeFlight would not install a pack sent without its size.
+            if (path.equals(INDEX_PATH)) {
+                for (String name : new String[] {HttpHeaders.CONTENT_ENCODING, HttpHeaders.VARY}) {
+                    response.headers().firstValue(name).ifPresent(value -> builder.header(name, value));
+                }
+            }
             if (path.startsWith(PACK_PATH)) {
                 for (String name : new String[] {HttpHeaders.CONTENT_DISPOSITION, HttpHeaders.CONTENT_LENGTH,
                         HttpHeaders.CONTENT_RANGE, HttpHeaders.ACCEPT_RANGES}) {

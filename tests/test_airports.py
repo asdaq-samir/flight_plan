@@ -3,6 +3,8 @@ CSVs shaped like OurAirports' real ones -- no network call, and no
 collision with the real disk cache, since each test gets its own
 tmp_path and _load_table keys its cache on that exact path.
 """
+import gzip
+import json
 import pandas as pd
 import pytest
 
@@ -205,6 +207,18 @@ def test_a_search_finds_a_word_of_the_name_not_only_its_start(us_airports_csv):
     assert [a["ident"] for a in search_airports("paul", cache_path=us_airports_csv)] == ["KMSP"]
     # An ident typed whole first, before the idents it starts.
     assert search_airports("kdlh", cache_path=us_airports_csv)[0]["ident"] == "KDLH"
+
+
+def test_the_search_index_holds_every_us_field_the_search_answers_with(us_airports_csv):
+    """The phone's own copy (search_index): each US row -- abroad left out
+    -- its ident shown, name, town, state, size rank and the idents it is
+    also found by where they differ from the one shown."""
+    rows = json.loads(gzip.decompress(airports.search_index(cache_path=us_airports_csv)))["airports"]
+    assert "CYQT" not in {r[0] for r in rows}
+    assert ["KDLH", "Duluth Intl", "", "MN", 1, "DLH"] in rows
+    # C81 is found by OurAirports' made-up KC81 too.
+    assert ["C81", "Campbell Airport", "", "MN", 2, "KC81"] in rows
+    assert ["MN01", "A Helipad", "", "MN", 3] in rows
 
 
 def test_a_search_puts_the_bigger_field_first(tmp_path):

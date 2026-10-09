@@ -4,12 +4,16 @@ import { openPanel } from "./helpers";
 /**
  * The route picker's search: Enter takes a row only when the rows answer
  * what is in the box. The lookup is held, so the box runs ahead of it
- * the way it does on a slow link.
+ * the way it does on a slow link -- the planner's lookup, as before the
+ * phone has its own copy of the search (lib/airportIndex), which these
+ * keep from it: with the copy in, the rows answer the box at once
+ * (places.spec).
  */
 
 const airport = (ident: string, name: string) => ({ ident, name, municipality: null, region: "US-MN" });
 
 async function slowSearch(page: Page, heldFor: string) {
+  await page.route(url => url.pathname.endsWith("/airports/index"), route => route.fulfill({ status: 503, body: "" }));
   await page.route("**/airports/search?**", async route => {
     const q = new URL(route.request().url()).searchParams.get("q") ?? "";
     if (q.toUpperCase() === heldFor) await new Promise(resolve => setTimeout(resolve, 3000));

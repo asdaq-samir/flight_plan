@@ -360,6 +360,14 @@ export const api = {
   /** DEP/DEST's own autocomplete -- airports whose ident or name
    *  starts with `q`. Empty `q` short-circuits server-side to `[]`, so
    *  this is safe to call on every keystroke including the first. */
+  /** Every US airport the search answers with, for the phone to search
+   *  on its own as a pilot types (lib/airportIndex): rows of ident, name,
+   *  town, state, size rank and the other idents each is found by. */
+  airportIndex: () =>
+    // Behind what the page needs first: half a megabyte, wanted only when
+    // a pilot types.
+    planner.GET("/api/airports/index", { priority: "low" }).then(r => r.data as unknown as { airports: unknown[][] }),
+
   airportSearch: (q: string, fixes = false, near = "") =>
     planner.GET("/api/airports/search", { params: { query: { q, fixes: fixes || undefined, near: near || undefined } } })
       .then(data<AirportSearch>).then(r => r.airports),

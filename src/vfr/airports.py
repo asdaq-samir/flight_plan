@@ -3,6 +3,8 @@ data -- all backed by OurAirports' free, no-API-key-required dataset
 (three sibling CSVs from the same host).
 """
 import bisect
+import gzip
+import json
 import os
 from functools import lru_cache
 from pathlib import Path
@@ -180,6 +182,35 @@ def search_airports(query: str, limit: int = 8, cache_path: Path = DEFAULT_CACHE
     matches = pd.concat([df[exact].assign(_rank=0), df[ident_hit].assign(_rank=1), df[word_hit].assign(_rank=2)])
     matches = matches.sort_values(["_rank", "_size_rank", "_display_ident"]).head(limit)
     return _rows(df, [df.index.get_loc(i) for i in matches.index])
+
+
+def search_index(cache_path: Path = DEFAULT_CACHE_PATH) -> bytes:
+    """Every US airport `search_airports` can answer with, as the phone's
+    own copy for searching as a pilot types (web lib/airportIndex), gzipped
+    JSON: `{"airports": [[ident, name, town, state, size, *other idents]]}`
+    -- the ident pilots use, the name and town every word of which is
+    searched, the state without "US-", the size rank the answers are
+    ordered by (0 large to 3 other), and OurAirports' ident and the local
+    code where either is not the ident shown (KC81 for C81). 32,600 rows,
+    about 530 KB. Made once per file."""
+    path = _ensure_cached(OURAIRPORTS_URL, cache_path)
+    return _search_index_bytes(str(path), path.stat().st_mtime)
+
+
+@lru_cache(maxsize=2)
+def _search_index_bytes(path: str, _mtime: float) -> bytes:
+    us = _us_airports_of(path, _mtime)
+    rows = []
+    columns = zip(us["_display_ident"].astype(str), us["_ident_upper"], us["_local_upper"], us["name"],
+                  us["municipality"], us["iso_region"], us["_size_rank"])
+    for display, ident, local, name, town, region, size in columns:
+        # A missing local code is "NAN" once upper-cased (_us_airports_of).
+        others = sorted({key for key in (ident, local) if isinstance(key, str) and key not in ("NAN", display.upper())})
+        rows.append([
+            display, name if isinstance(name, str) else "", town if isinstance(town, str) else "",
+            region.removeprefix("US-") if isinstance(region, str) else "", int(size), *others,
+        ])
+    return gzip.compress(json.dumps({"airports": rows}, separators=(",", ":")).encode(), mtime=0)
 
 
 def _rows(df: pd.DataFrame, positions: list[int]) -> list[dict]:

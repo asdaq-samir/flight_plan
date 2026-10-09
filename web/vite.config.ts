@@ -139,6 +139,19 @@ export default defineConfig({
             handler: "NetworkOnly",
           },
           {
+            // The phone's own copy of the airport search (lib/airportIndex),
+            // from the cache at once and asked again behind it: the search
+            // answers from the first letter after a start, and with no
+            // network at all. Its own cache, one entry, kept a week.
+            urlPattern: ({ url }) => url.pathname === "/api/planner/airports/index",
+            handler: "StaleWhileRevalidate",
+            options: {
+              cacheName: "airport-index",
+              expiration: { maxEntries: 1, maxAgeSeconds: 7 * 24 * 3600 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+          {
             // What does not change with the weather or the hour -- a
             // route's course and checkpoints (the chart's, kept for its
             // cycle), the VFR waypoints in view, the airplanes' book
