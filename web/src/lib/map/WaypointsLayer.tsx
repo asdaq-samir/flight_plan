@@ -57,7 +57,7 @@ export function WaypointsLayer({ exclude, onAddStop }: {
           {/* In Leaflet's own panes, not this one: a popup in the
               diamonds' pane had the diamonds after it drawn over it. */}
           {hovers && <MapTooltip pane="tooltipPane">{w.ident} · VFR waypoint{w.description ? ` ${w.description}` : ""}</MapTooltip>}
-          <MapPopup pane="popupPane">
+          <MapPopup pane="popupPane" panOnce>
             {/* No name of its own: what it is beside its ident, and where it
                 is on a line of its own (the planner's vfr.places), at the
                 pilot's ask -- on one line the card ran the screen's width. */}

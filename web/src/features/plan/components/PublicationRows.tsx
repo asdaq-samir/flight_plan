@@ -33,10 +33,14 @@ export function PublicationRows({ ident, diagram, diagramCycle, supplement }: {
           // most of a phone's half sheet.
           imageClassName="mx-auto block max-h-[22rem] w-auto max-w-full"
         />
-      ) : diagram && (
+      ) : diagram ? (
         <ListRow media={<FileText className="size-5" />} title="Airport diagram" href={diagram} data-testid="airport-diagram" />
+      ) : diagramCycle && (
+        // The FAA lists a diagram (a cycle) but the picture would not load
+        // and there is no PDF to fall back on: say so, not a blank tab.
+        <ListRow title={<span className="text-muted-foreground">The airport diagram could not be loaded</span>} data-testid="airport-diagram-missing" />
       )}
-      {(picture || diagram) && supplement && <ItemSeparator className="my-0" />}
+      {supplement && <ItemSeparator className="my-0" />}
       {supplement && (
         <ListRow media={<FileText className="size-5" />} title="Chart Supplement" href={supplement} data-testid="chart-supplement" />
       )}
