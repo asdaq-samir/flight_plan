@@ -6,7 +6,7 @@ import { api } from "../api/client";
 import { usePreferences } from "../preferences";
 import type { AirportPin } from "../api/types";
 import { colourOf } from "./flightCategory";
-import { airportIcon } from "./icons";
+import { airportIcon, selectionIcon } from "./icons";
 import { MapTooltip } from "./MapTooltip";
 import { boxOf, hovers } from "./view";
 
@@ -35,7 +35,6 @@ const NEAR_MISS_PX = 22;
 // Each style one object for good: react-leaflet restyles a path whenever
 // its pathOptions is a new object, and a literal is one at every render.
 const TARGET_STYLE: L.PathOptions = { stroke: false, fill: true, fillOpacity: 0 };
-const SELECTED_RING: L.PathOptions = { color: "#F2B600", weight: 4, opacity: 0.95, fill: false };
 
 /** One field on the chart, its chip or its invisible target, drawn again
  *  only when it changes (memo): react-leaflet moves a mark whose position
@@ -79,14 +78,17 @@ const AirportMark = memo(function AirportMark({ airport: a, chip, onSelect }: {
  * and names it. Under the route's own markers, which keep their taps,
  * and not for a field something else draws a chip for already
  * (`exclude`: the route's two, the Class B ones). The selected one
- * wears the taxiway-yellow halo the brand gives a chosen place.
+ * wears the taxiway-yellow ring the brand gives a chosen place, round
+ * whichever chip it wears (selectionIcon) and over all of them.
  *
  * A tap anywhere else on the chart puts the card away, as it does in Maps.
  */
-export function AirportsLayer({ selected, onSelect, exclude, route }: {
+export function AirportsLayer({ selected, onSelect, exclude, pills, route }: {
   selected: { ident: string; lat: number; lon: number } | null;
   onSelect: (ident: string | null) => void;
   exclude: Set<string>;
+  /** Those of `exclude` whose chip is a Class B field's pill. */
+  pills: Set<string>;
   /** The route's box: its reporting fields asked for once, ahead. */
   route: { south: number; west: number; north: number; east: number } | null;
 }) {
@@ -168,14 +170,30 @@ export function AirportsLayer({ selected, onSelect, exclude, route }: {
   const latest = useRef(onSelect);
   useEffect(() => { latest.current = onSelect; }, [onSelect]);
   const pick = useCallback((ident: string) => latest.current(ident), []);
+  const chip = (a: AirportPin) => !!a.flight_category || zoom >= NO_REPORT_FROM_ZOOM;
+  // The selected field's ring takes the shape of whatever it wears: a
+  // chip, from this layer or from the route's or the Class B layer's
+  // (`exclude`), or nothing but the chart's own symbol.
+  const ring = !selected ? null
+    : exclude.has(selected.ident) ? (pills.has(selected.ident) ? "pill" : "chip")
+    : shown.some(a => a.ident === selected.ident && chip(a)) ? "chip" : "dot";
   return (
-    <Pane name="airports" style={{ zIndex: 450 }}>
-      {shown.map((a: AirportPin) => (
-        <AirportMark key={a.ident} airport={a} chip={!!a.flight_category || zoom >= NO_REPORT_FROM_ZOOM} onSelect={pick} />
-      ))}
-      {selected && (
-        <CircleMarker center={[selected.lat, selected.lon]} radius={16} interactive={false} pathOptions={SELECTED_RING} />
+    <>
+      <Pane name="airports" style={{ zIndex: 450 }}>
+        {shown.map((a: AirportPin) => (
+          <AirportMark key={a.ident} airport={a} chip={chip(a)} onSelect={pick} />
+        ))}
+      </Pane>
+      {/* Over every chip, the route's and the Class B fields' in Leaflet's
+          marker pane (600) too, and under the tooltips (650). */}
+      {selected && ring && (
+        <Pane name="selected-airport" style={{ zIndex: 610 }}>
+          <Marker
+            position={[selected.lat, selected.lon]} icon={selectionIcon(selected.ident, ring)}
+            interactive={false} keyboard={false}
+          />
+        </Pane>
       )}
-    </Pane>
+    </>
   );
 }

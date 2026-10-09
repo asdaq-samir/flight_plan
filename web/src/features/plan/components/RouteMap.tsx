@@ -391,6 +391,9 @@ export default memo(function RouteMap({
     ...(course ? routeAirports(course).map(a => a.ident) : []),
     ...(showClassB ? (classBAirports ?? []).map(a => a.ident) : []),
   ]), [course, showClassB, classBAirports]);
+  // Of those, the ones whose chip is the Class B layer's pill, for the
+  // selected field's ring to take its shape.
+  const pills = useMemo(() => new Set(showClassB ? (classBAirports ?? []).map(a => a.ident) : []), [showClassB, classBAirports]);
 
   // The route's box, half a degree round it, on the half-degree grid the
   // layer asks in: one question for its reporting fields however the
@@ -409,7 +412,7 @@ export default memo(function RouteMap({
     <MapShell course={course} onSelectPlace={onSelectPlace} held={!!focus || !!place || !!heldPoint || !!nearest}>
       {/* The chart's own airports with no route as well: a tap on a field
           opens its card, and Fly Here makes the route. */}
-      <AirportsLayer selected={place} onSelect={onSelectPlace} exclude={chipped} route={routeBox} />
+      <AirportsLayer selected={place} onSelect={onSelectPlace} exclude={chipped} pills={pills} route={routeBox} />
       <TfrLayer />
       <WaypointsLayer exclude={chipped} onAddStop={course ? onAddStop : undefined} />
       {/* The airport whose card opens comes to the middle of the chart
