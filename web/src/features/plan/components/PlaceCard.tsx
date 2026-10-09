@@ -344,7 +344,7 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
             <div className={cn("relative col-span-2 mt-2 min-h-20 overflow-hidden rounded-xl text-foreground", GLASS_BUTTON)}>
               <button
                 type="button" data-testid="place-runway-sketch"
-                aria-label={`${place.ident} runways ${sketchedRunways.join(", ")}, north up${leftOut ? `, ${leftOut} more not drawn, their ends unsurveyed` : ""}. ${place.airport_diagram_url ? "Airport diagram, full screen" : "Show runways"}`}
+                aria-label={`${place.ident} runways ${sketchedRunways.join(", ")}${place.airport_diagram_cycle && !noRunwaysPicture ? "" : ", north up"}${leftOut ? `, ${leftOut} more not drawn, their ends unsurveyed` : ""}. ${place.airport_diagram_url ? "Airport diagram, full screen" : "Show runways"}`}
                 onClick={() => (place.airport_diagram_url ? setDiagramOpen(true) : open("runways"))}
                 className="absolute inset-0 block rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
               >

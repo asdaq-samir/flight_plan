@@ -412,7 +412,9 @@ def chart_page_png(source: str, edition: str, name: str, page: int, on: date | N
 
 #: A diagram's latitude and longitude labels: "43 09'N" (its degree sign
 #: a glyph of its own, not in the text), "34°12.5'N", "118°22.0'W".
-_DMS = re.compile(r"(\d{1,3})\s*°?\s*(\d{1,2}(?:\.\d+)?)\s*['’]\s*([NSEW])")
+#: No space before the hemisphere letter, which ends a word, and minutes
+#: under 60, so a note ("TDZE 35' East", "12 5' W") is not read as one.
+_DMS = re.compile(r"(?<!\d)(\d{1,3})(?:\s*°\s*|\s+)([0-5]?\d(?:\.\d+)?)['’](?=[NSEW]\b)([NSEW])")
 
 
 def _graticule(page) -> tuple | None:

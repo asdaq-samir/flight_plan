@@ -305,3 +305,9 @@ def test_a_miss_is_kept_and_a_crop_made_without_ends_is_not_the_one_with_them(mo
     assert len(drawn) == 1
     assert publications.airport_diagram_runways_png("KXXX", cycle, [(44.0, -91.0)], on).read_bytes() == b"png"
     assert len(drawn) == 2
+
+
+def test_a_note_is_not_read_as_a_coordinate():
+    assert publications._DMS.search("43 09'N") and publications._DMS.search("118°22.5'W")
+    for note in ("TDZE 35' East", "12 5' W", "43 75'N"):
+        assert not publications._DMS.search(note)

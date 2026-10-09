@@ -71,7 +71,9 @@ test("the card's sketch of the runways sits right of the name, under its close, 
   await settle(page);
   const sketch = card(page).getByTestId("place-runway-sketch");
   // KDLH's runways, named for a screen reader.
-  await expect(sketch).toHaveAttribute("aria-label", /^KDLH runways .*09\/27.*, north up\./, { timeout: slow(15000) });
+  await expect(sketch).toHaveAttribute("aria-label", /^KDLH runways .*09\/27.*\./, { timeout: slow(15000) });
+  // The FAA's sheet may be turned on its page: "north up" is the sketch's.
+  await expect(sketch).not.toHaveAttribute("aria-label", /north up/);
   // The ident and class and the tower under the name; the elevation
   // alone, the figure and its feet, at the sketch's top left.
   const line = card(page).getByTestId("place-line");
