@@ -10,8 +10,10 @@ national cache vfr.weather keeps for minutes at a time. A card costs a
 few table lookups and a point-in-polygon test.
 """
 from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import FileResponse
 from vfr import airports, airspace, altitude, faa_data, fixes, pattern, places, publications, remarks, runway_wind, weather
 
+from ..common import DIAGRAM_CACHE
 from ..schemas import AirportPlace, AirportsInView, NearestAirports, WaypointsInView
 
 router = APIRouter()
@@ -158,5 +160,21 @@ def airport_place(ident: str) -> AirportPlace:
         "metar": metar,
         "weather_unavailable": unavailable,
         "airport_diagram_url": publications.airport_diagram_url(place["ident"]),
+        "airport_diagram_cycle": publications.airport_diagram_cycle(place["ident"]),
         "chart_supplement_url": publications.chart_supplement_url(place["ident"]),
     }
+
+
+@router.get("/api/airport-diagram/{cycle}/{ident}.png", response_class=FileResponse,
+            responses={200: {"content": {"image/png": {}}}, 404: {"description": "No diagram for the field in that cycle"}})
+def airport_diagram(cycle: str, ident: str) -> FileResponse:
+    """The FAA's airport diagram for the field, from the d-TPP cycle in
+    force (`airport_diagram_cycle` on its card), as a picture for the card
+    to show and a finger to pinch in on: its PDF drawn once and kept for
+    the cycle (vfr.publications). 404 for a field with none -- most small
+    ones -- for any cycle but the one in force, and while the FAA cannot
+    be reached."""
+    path = publications.airport_diagram_png(ident, cycle)
+    if path is None:
+        raise HTTPException(404, f"No airport diagram for {ident.strip().upper()!r} in d-TPP cycle {cycle}.")
+    return FileResponse(path, media_type="image/png", headers={"Cache-Control": DIAGRAM_CACHE})

@@ -684,8 +684,11 @@ class AirportFacilities(BaseModel):
     airspace_class: Literal["B", "C", "D", "E", "G"] | None = None
     pattern: TrafficPattern | None = None
     runways: list[Runway]
-    # The FAA's airport diagram and Chart Supplement page (vfr.publications).
+    # The FAA's airport diagram and Chart Supplement page (vfr.publications),
+    # and the d-TPP cycle to ask for the diagram's picture by
+    # (/api/airport-diagram/{cycle}/{ident}.png).
     airport_diagram_url: str | None = None
+    airport_diagram_cycle: str | None = None
     chart_supplement_url: str | None = None
     frequencies: list[Frequency]
 
@@ -1260,8 +1263,10 @@ class AirportPlace(BaseModel):
     metar: Metar | None = None
     weather_unavailable: bool = False
     # The FAA's airport diagram and Chart Supplement page for the current
-    # editions (vfr.publications); None where the field has none.
+    # editions (vfr.publications); None where the field has none. The
+    # diagram's picture is /api/airport-diagram/{airport_diagram_cycle}/{ident}.png.
     airport_diagram_url: str | None = None
+    airport_diagram_cycle: str | None = None
     chart_supplement_url: str | None = None
 
 

@@ -97,6 +97,7 @@ def no_publications(monkeypatch):
     """No airport diagram or Chart Supplement page, without the FAA's
     indexes."""
     monkeypatch.setattr(publications, "airport_diagram_url", lambda ident: None)
+    monkeypatch.setattr(publications, "airport_diagram_cycle", lambda ident: None)
     monkeypatch.setattr(publications, "chart_supplement_url", lambda ident: None)
 
 

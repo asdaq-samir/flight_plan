@@ -262,7 +262,10 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
           {(place.airport_diagram_url || place.chart_supplement_url) && (
             <div className="pt-5">
               <ListGroup title="FAA">
-                <PublicationRows diagram={place.airport_diagram_url} supplement={place.chart_supplement_url} />
+                <PublicationRows
+                  ident={place.ident} diagram={place.airport_diagram_url}
+                  diagramCycle={place.airport_diagram_cycle} supplement={place.chart_supplement_url}
+                />
               </ListGroup>
             </div>
           )}

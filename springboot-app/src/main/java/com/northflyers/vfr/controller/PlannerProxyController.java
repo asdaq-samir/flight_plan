@@ -63,6 +63,10 @@ public class PlannerProxyController {
      *  same for every pilot, with no weather in them (the planner's
      *  app.common SHARED_CACHE and CHART_CACHE say why each). */
     static final Set<String> SHARED_PATHS = Set.of("/api/chart", "/api/airports/search", "/api/aircraft-profiles");
+    /** An airport diagram's picture, its d-TPP cycle in its address: the
+     *  same for every pilot for the cycle, so its upstream's Cache-Control
+     *  is carried too. */
+    private static final String DIAGRAM_PATH = "/api/airport-diagram/";
     /** The ForeFlight pack: a file, its name in Content-Disposition. */
     private static final String PACK_PATH = "/api/foreflight-pack/";
 
@@ -102,6 +106,7 @@ public class PlannerProxyController {
             route("GET", "/api/waypoints/in-view"),
             route("GET", "/api/airports/nearest"),
             route("GET", "/api/airport/{ident}"),
+            route("GET", DIAGRAM_PATH + "{cycle}/{ident}.png"),
             route("GET", "/api/aircraft-profiles"),
             route("GET", "/api/chart-tile/{kind}/{z}/{x}/{y}.png"),
             route("POST", "/api/checkpoint-notes"),
@@ -206,8 +211,9 @@ public class PlannerProxyController {
             ResponseEntity.BodyBuilder builder = StreamingProxy.unbuffered(
                     ResponseEntity.status(response.statusCode())
                             .header(HttpHeaders.CONTENT_TYPE, StreamingProxy.contentTypeOf(response)));
-            // Forwarded for the chart tiles and the few answers the same
-            // for every pilot (SHARED_PATHS): their `public, max-age=...`
+            // Forwarded for the chart tiles, the airport diagrams and the
+            // few answers the same for every pilot (SHARED_PATHS): their
+            // `public, max-age=...`
             // is what lets the browser, and CloudFront in front of this
             // app, skip asking again for what it already has -- a tile on
             // every pan and zoom, the airport search on every letter.
@@ -216,7 +222,7 @@ public class PlannerProxyController {
             // on saved state, live weather or a request body, so a
             // Cache-Control it happened to emit must not be echoed the
             // same way: Spring Security's no-store stands.
-            if (path.startsWith(TILE_PATH) || SHARED_PATHS.contains(path)) {
+            if (path.startsWith(TILE_PATH) || path.startsWith(DIAGRAM_PATH) || SHARED_PATHS.contains(path)) {
                 response.headers().firstValue(HttpHeaders.CACHE_CONTROL)
                         .ifPresent(value -> builder.header(HttpHeaders.CACHE_CONTROL, value));
             }

@@ -215,6 +215,7 @@ def briefing(dep: str, dest: str, stops: str = "", depart: datetime | None = Non
                         runway_wind.with_winds(runways[ident], metars.get(ident), *where[ident]), ident, *where[ident]),
                     "frequencies": frequencies[ident],
                     "airport_diagram_url": publications.airport_diagram_url(ident),
+                    "airport_diagram_cycle": publications.airport_diagram_cycle(ident),
                     "chart_supplement_url": publications.chart_supplement_url(ident)}
             for ident in idents
         },

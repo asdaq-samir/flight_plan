@@ -7,7 +7,8 @@
  */
 import { act, cleanup, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import type { ChartLayer, Course } from "../api/types";
+import { api } from "../api/client";
+import type { AirportPlace, ChartLayer, Course } from "../api/types";
 import { WORKER_WAIT_MS, keep, keepKey, keptAlready, stopKeeping, useKeepJob, useKeptCharts } from "./keepRoute";
 import { toast } from "sonner";
 import { useKeepRouteToast } from "./keepStatus";
@@ -46,6 +47,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  vi.restoreAllMocks();
   vi.unstubAllGlobals();
   vi.useRealTimers();
 });
@@ -60,6 +62,16 @@ describe("keeping a route's charts", () => {
     const job = useKeepJob.getState();
     expect(job.status).toBe("kept");
     expect(job.status === "kept" && job.progress.failed).toBe(0);
+  });
+
+  test("keeps the route's airports' diagrams with its tiles", async () => {
+    const { fetch } = network(ok);
+    // The cards, through the planner's client (which holds its own fetch).
+    vi.spyOn(api, "airport").mockImplementation(ident =>
+      Promise.resolve({ ident, airport_diagram_cycle: ident === "KDLH" ? "2610" : null } as AirportPlace));
+    await keep(COURSE, SEC);
+    const asked = fetch.mock.calls.map(([url]) => url);
+    expect(asked.filter(url => url.includes("/airport-diagram/"))).toEqual(["/api/planner/airport-diagram/2610/KDLH.png"]);
   });
 
   test("a second keep cancels the first, and the first finishing late writes nothing", async () => {
