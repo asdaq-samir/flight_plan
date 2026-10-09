@@ -38,6 +38,7 @@ longer than it takes to answer the request.
 | Amazon SES | The address a sign-in link is sent to, and the link | Yes, to deliver it |
 | Google, Apple | Their own sign-in, when a pilot uses it | Their own |
 | FAA, NOAA (aviationweather.gov) | Chart and data downloads, weather for airports | None: the server asks, not the device |
+| US Census Bureau (geocoding.geo.census.gov) | A street address typed in Nearest's field, to place it; its gazetteer of towns is downloaded once | The address typed, from the server, not the device; not stored, but the text typed is in request logs, and a place picked is in the page address (`nearName`, `nearAt`) |
 | Amazon Web Services | Hosting all of the above (us-east-1) | As above |
 
 ## Not done

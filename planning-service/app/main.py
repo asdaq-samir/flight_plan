@@ -35,7 +35,7 @@ from fastapi import FastAPI, Request
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
 from pydantic import TypeAdapter
-from vfr import airspace, altitude, charts, faa_data, fixes, places, publications, remarks, weather
+from vfr import airspace, altitude, charts, faa_data, fixes, geocode, places, publications, remarks, weather
 from vfr import airports as airport_table
 
 from . import chart_model, chart_refresh, errors, tracing
@@ -138,6 +138,12 @@ def _warm_reference_data() -> None:
         publications.preload()
     except Exception:  # noqa: BLE001
         log.exception("publications warm-up failed")
+    # And the towns Nearest can be asked from (vfr.geocode), a megabyte
+    # from the Census Bureau the first time.
+    try:
+        geocode.preload()
+    except Exception:  # noqa: BLE001
+        log.exception("towns warm-up failed")
     # And the fields' contacts (vfr.faa_data.airport_contact), read once a
     # cycle: two seconds a card would otherwise wait the first time.
     try:

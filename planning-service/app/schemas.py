@@ -1177,6 +1177,20 @@ class AirportSearch(BaseModel):
     airports: list[AirportSuggestion]
 
 
+class PlaceFound(BaseModel):
+    """A place a pilot typed for Nearest to find the fields near: an
+    airport, a town, a street address (vfr.geocode), and where it is."""
+
+    label: str
+    kind: Literal["airport", "town", "address"]
+    lat: float
+    lon: float
+
+
+class PlacesFound(BaseModel):
+    places: list[PlaceFound]
+
+
 class AirportPin(BaseModel):
     """A landing field the map can open a card for: the ident pilots use,
     where it is, and its size -- the bigger ones are kept when a wide

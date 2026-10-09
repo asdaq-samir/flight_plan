@@ -3,7 +3,7 @@ import type { paths } from "./schema";
 import type { paths as WebappPaths } from "./webapp-schema";
 import type {
   Aircraft, AircraftChoice, AircraftProfiles, AircraftRequest, AirportPlace, AirportSearch, AirportsInView, AltitudeChoice, Briefing,
-  ChartInfo, ChartPages, ChartRefreshStarted, CheckpointDescriptionMessage, CheckpointNoteSaved, Checkpoints, Classification, Course, Detour,
+  ChartInfo, ChartPages, ChartRefreshStarted, PlacesFound, CheckpointDescriptionMessage, CheckpointNoteSaved, Checkpoints, Classification, Course, Detour,
   Flight, FlightSummary, ModelComparison, NarrativeMessage, NarrativeRequest, NavLogMessage, PickDeleted, PickSaved,
   AirspaceAt, ClassBResponse, NearestAirports, RouteProfile, Tfrs, DevServices, DevServiceStarted, Pilot, Rating, RetrainStarted, Role, SaveFlightRequest,
   SignInCapabilities, AppleSignedIn, LogbookEntry, LogbookEntryRequest, Currency, CurrencyDatesRequest,
@@ -240,6 +240,10 @@ export const api = {
   tfrs: () => planner.GET("/api/tfrs").then(data<Tfrs>).then(r => r.tfrs),
   nearestAirports: (lat: number, lon: number) =>
     planner.GET("/api/airports/nearest", { params: { query: { lat, lon, limit: 10 } } }).then(data<NearestAirports>).then(r => r.airports),
+  /** Where a place typed is -- an airport, a town, an address -- for
+   *  Nearest to find the fields near it. */
+  placesSearch: (q: string) =>
+    planner.GET("/api/places/search", { params: { query: { q } } }).then(data<PlacesFound>).then(r => r.places),
 
   /** Which of the services the developer console links to are
    *  running, and whether starting one is possible here at all. */

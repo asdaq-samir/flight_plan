@@ -11,10 +11,10 @@ few table lookups and a point-in-polygon test.
 """
 from fastapi import APIRouter, HTTPException, Query, Response
 from fastapi.responses import FileResponse
-from vfr import airports, airspace, altitude, faa_data, fixes, pattern, places, publications, remarks, runway_wind, weather
+from vfr import airports, airspace, altitude, faa_data, fixes, geocode, pattern, places, publications, remarks, runway_wind, weather
 
 from ..common import DIAGRAM_CACHE
-from ..schemas import AirportPlace, AirportsInView, ChartPages, NearestAirports, WaypointsInView
+from ..schemas import AirportPlace, AirportsInView, ChartPages, NearestAirports, PlacesFound, WaypointsInView
 
 router = APIRouter()
 
@@ -62,6 +62,26 @@ def airports_in_view(
         {**p, "flight_category": (metars.get(p["source_ident"]) or {}).get("flight_category"), "military": _military(p)}
         for p in places
     ]}
+
+
+@router.get("/api/places/search", response_model=PlacesFound)
+def places_search(q: str = "") -> PlacesFound:
+    """Where a place typed is, for Nearest to find the fields near it
+    rather than near own ship: the airports whose ident or name starts
+    with it, the towns that do (the Census gazetteer), and a street
+    address where it starts with a house number (the Census geocoder) --
+    each with where it is (vfr.geocode)."""
+    q = q.strip()
+    if len(q) < 2:
+        return {"places": []}
+    found = []
+    for row in airports.search_airports(q, limit=3):
+        place = airports.find_place(row["ident"])
+        if place:
+            found.append({"label": f"{place['ident']} · {place['name']}", "kind": "airport", "lat": place["lat"], "lon": place["lon"]})
+    found += [{**t, "kind": "town"} for t in geocode.find_towns(q)]
+    found += [{**a, "kind": "address"} for a in geocode.find_addresses(q)]
+    return {"places": found}
 
 
 @router.get("/api/airports/nearest", response_model=NearestAirports)
