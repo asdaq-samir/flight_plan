@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import type { Runway } from "./api/types";
-import { runwaysLeftOut, stripsOf } from "./runwaySketch";
+import { runwaysLeftOut, scaleClearOf, stripsOf } from "./runwaySketch";
 
 const runway = (ends: [string, number | null, number | null, number | null][], extra: Partial<Runway> = {}): Runway => ({
   ends: ends.map(e => e[0]).join("/"), length_ft: 6000, width_ft: 150, surface: "ASP", lighted: true, closed: false,
@@ -46,5 +46,26 @@ describe("the runways' sketch", () => {
   test("draws nothing for a helipad or a runway with neither", () => {
     expect(stripsOf([runway([["H1", null, null, null]])], 43, -89)).toEqual([]);
     expect(stripsOf([runway([["9", null, null, null], ["27", null, null, null]])], 43, -89)).toEqual([]);
+  });
+});
+
+describe("the pane over the sketch", () => {
+  const box = { w: 200, h: 200 }, hole = { x: 6, y: 4, w: 60, h: 50 };
+  const diagonal = stripsOf([runway([["13", 135, 43.01, -89.01], ["31", 315, 42.99, -88.99]])], 43, -89);
+  const under = (k: number) => diagonal.some(s => [s.a, s.b].some(([x, y]) => {
+    const px = box.w / 2 + x * k, py = box.h / 2 - y * k;
+    return px > hole.x && px < hole.x + hole.w && py > hole.y && py < hole.y + hole.h;
+  }));
+
+  test("leaves a runway end at the box's top left, which the whole fit would put under it, clear of it", () => {
+    const fit = 100;
+    expect(under(fit)).toBe(true);
+    const scale = scaleClearOf(diagonal, fit, [0, 0], box, hole, 4);
+    expect(scale).toBeLessThan(fit);
+    expect(under(scale)).toBe(false);
+  });
+
+  test("keeps the fit where no end is under it", () => {
+    expect(scaleClearOf(diagonal, 20, [0, 0], box, hole, 4)).toBe(20);
   });
 });

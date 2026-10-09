@@ -56,3 +56,25 @@ export function runwaysLeftOut(runways: Runway[], drawn: Strip[]): number {
   const real = runways.filter(r => (r.runway_ends ?? []).length >= 2).length;
   return Math.max(0, real - drawn.length);
 }
+
+/**
+ * The scale (points per nautical mile) at which no runway end is under a
+ * pane laid over the box. Only the ends are tested: a pane over a runway's
+ * middle hides nothing a pilot reads, but one over an end hides where the
+ * runway stops. The field is drawn about the box's centre, so shrinking it
+ * brings every end toward the centre, and the loop ends at the first scale
+ * that clears the pane, however far a diagonal runway reaches into its
+ * corner; it only gives up when the centre itself is under the pane.
+ */
+export function scaleClearOf(
+  strips: Strip[], fit: number, centre: [number, number], box: { w: number; h: number },
+  hole: { x: number; y: number; w: number; h: number }, pad: number,
+): number {
+  const under = (k: number) => strips.some(s => [s.a, s.b].some(([x, y]) => {
+    const px = box.w / 2 + (x - centre[0]) * k, py = box.h / 2 - (y - centre[1]) * k;
+    return px > hole.x - pad && px < hole.x + hole.w + pad && py > hole.y - pad && py < hole.y + hole.h + pad;
+  }));
+  let scale = fit;
+  for (let i = 0; i < 80 && under(scale); i++) scale *= 0.95;
+  return scale;
+}

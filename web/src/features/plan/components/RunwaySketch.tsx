@@ -1,6 +1,6 @@
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { Runway } from "../../../lib/api/types";
-import { FT_PER_NM, stripsOf } from "../../../lib/runwaySketch";
+import { FT_PER_NM, scaleClearOf, stripsOf } from "../../../lib/runwaySketch";
 
 /** Round the runways, in the box's own points: the strips' half width and
  *  a little air. */
@@ -49,25 +49,9 @@ export function RunwaySketch({ runways, lat, lon, avoid }: {
     const fit = Math.min((w - 2 * MARGIN) / Math.max(maxX - minX, 1e-3), (h - 2 * MARGIN) / Math.max(maxY - minY, 1e-3));
     const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
     const atScale = (k: number) => ([x, y]: [number, number]): [number, number] => [w / 2 + (x - cx) * k, h / 2 - (y - cy) * k];
-    // A runway that reaches the pane's corner is drawn smaller about the
-    // box's centre until it clears it, so the pane never hides a runway end.
-    let scale = fit;
-    if (size.hole) {
-      const hole = size.hole;
-      const under = (k: number) => {
-        const to = atScale(k);
-        return strips.some(s => {
-          const [ax, ay] = to(s.a), [bx, by] = to(s.b);
-          const pad = MARGIN / 2;
-          for (let t = 0; t <= 1; t += 1 / 24) {
-            const x = ax + (bx - ax) * t, y = ay + (by - ay) * t;
-            if (x > hole.x - pad && x < hole.x + hole.w + pad && y > hole.y - pad && y < hole.y + hole.h + pad) return true;
-          }
-          return false;
-        });
-      };
-      while (under(scale) && scale > fit / 4) scale *= 0.95;
-    }
+    // A runway end under the pane's corner makes the field drawn smaller
+    // about the box's centre until every end clears it.
+    const scale = size.hole ? scaleClearOf(strips, fit, [cx, cy], { w, h }, size.hole, MARGIN / 2) : fit;
     const at = atScale(scale);
     const placed = strips.map(s => {
       const [ax, ay] = at(s.a), [bx, by] = at(s.b);
