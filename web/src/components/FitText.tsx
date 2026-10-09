@@ -28,8 +28,9 @@ export function FitText({ min = 13, className, ...props }: ComponentProps<"span"
         size = Math.max(min, size - 0.5);
         el.style.fontSize = `${size}px`;
       }
-      // At the least size and still cut: the whole name is one long press
-      // away rather than lost.
+      // At the least size and still cut: the whole name as a tooltip where
+      // there is a pointer to hover (a touch screen has none; a screen
+      // reader reads the text itself, cut or not).
       if (clipped()) el.title = el.textContent ?? "";
       else el.removeAttribute("title");
     };

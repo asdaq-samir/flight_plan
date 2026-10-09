@@ -359,14 +359,24 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
                 answer is in, and for a field with no runway to draw, so
                 the card is the one shape for every field. */}
             <div className={cn("relative col-span-2 mt-2 h-16 overflow-hidden rounded-xl text-foreground", GLASS_BUTTON)}>
-              {place && !sketched && (
+              {/* A button only where the Runways tab has something to show
+                  (rows for runways whose ends are unsurveyed, a pattern
+                  altitude); otherwise the tap would open an empty tab. */}
+              {place && !sketched && (place.runways.length > 0 || place.pattern?.altitude_ft != null ? (
                 <button
                   type="button" data-testid="place-runway-sketch" onClick={() => open("runways")}
                   className={cn("absolute inset-0 flex items-end justify-end rounded-xl p-2 text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset", TEXT.note)}
                 >
                   No runways to draw
                 </button>
-              )}
+              ) : (
+                <div
+                  data-testid="place-runway-sketch"
+                  className={cn("absolute inset-0 flex items-end justify-end p-2 text-muted-foreground", TEXT.note)}
+                >
+                  No runways to draw
+                </div>
+              ))}
               {place && sketched && (<button
                 type="button" data-testid="place-runway-sketch"
                 aria-label={`${place.ident} runways ${sketchedRunways.join(", ")}, north up${leftOut ? `, ${leftOut} more not drawn, their ends unsurveyed` : ""}. ${place.airport_diagram_url ? "Airport diagram, full screen" : "Show runways"}`}
@@ -402,7 +412,7 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
                   className={cn("pointer-events-none absolute top-1 left-1.5 flex flex-col rounded-md bg-background/75 px-1 py-0.5 leading-tight font-semibold text-foreground", TEXT.note)}
                   data-testid="place-elevation"
                 >
-                  <span aria-hidden="true" className="text-[0.6875rem] leading-[0.8125rem] font-normal">Elev </span>
+                  <span aria-hidden="true" className="leading-[0.8125rem] font-normal">Elev </span>
                   <span><span className="sr-only">Elevation </span>{feet(place.elevation_ft)}</span>
                 </span>
               )}
