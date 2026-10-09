@@ -263,7 +263,7 @@ export const airportMarkIcon = made(function airportMarkIcon(
   const casing = `stroke="#fff" stroke-linecap="round"`;
   const symbol = use
     ? `<circle r="10" fill="${use === "military" ? BLUE : MAGENTA}" ${casing} stroke-width="2"/>` +
-      `<text y="4" text-anchor="middle" font-size="11" font-weight="800" fill="#fff" font-family="system-ui,sans-serif">${use === "military" ? "M" : "R"}</text>` +
+      `<text y="4" text-anchor="middle" font-size="11" font-weight="800" fill="#fff">${use === "military" ? "M" : "R"}</text>` +
       `<circle data-weather="" cx="8" cy="8" r="3.4" fill="${text(weather)}" ${casing} stroke-width="1.4"/>`
     : (() => {
       const ticks = [[0, -8.5, 0, -12], [8.5, 0, 12, 0], [0, 8.5, 0, 12], [-8.5, 0, -12, 0]]
