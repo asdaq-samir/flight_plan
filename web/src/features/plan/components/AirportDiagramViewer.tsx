@@ -55,7 +55,7 @@ export default function AirportDiagramViewer({ ident, src, size, pdf, onClose }:
         <div className="flex shrink-0 items-center gap-4 pt-[max(0.5rem,env(safe-area-inset-top))] pr-[max(0.75rem,env(safe-area-inset-right))] pb-2 pl-[max(1rem,env(safe-area-inset-left))]">
           <DialogTitle className={cn("min-w-0 flex-1 truncate font-semibold", TEXT.title)}>{ident} airport diagram</DialogTitle>
           {pdf && (
-            <a href={pdf} target="_blank" rel="noreferrer" className={cn("shrink-0 text-tint", TEXT.row)} data-testid="airport-diagram-pdf">
+            <a href={pdf} target="_blank" rel="noreferrer" className={cn("relative shrink-0 text-tint after:absolute after:-inset-3", TEXT.row)} data-testid="airport-diagram-pdf">
               FAA PDF
             </a>
           )}

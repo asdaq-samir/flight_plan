@@ -98,3 +98,32 @@ def test_no_diagram_for_another_cycle_a_field_without_one_or_while_the_faa_is_do
     # Nothing kept from a failure: the next ask tries the FAA again.
     assert publications.airport_diagram_png("KDLH", "2610", on) is None
     assert not (tmp_path / "diagrams").exists()
+
+
+def test_pdfium_draws_one_pdf_at_a_time(monkeypatch):
+    import threading
+    import time
+
+    inside, most = 0, 0
+    count = threading.Lock()
+    real_render = pypdfium2.PdfPage.render
+
+    def watched(self, *args, **kw):
+        nonlocal inside, most
+        with count:
+            inside += 1
+            most = max(most, inside)
+        time.sleep(0.05)
+        try:
+            return real_render(self, *args, **kw)
+        finally:
+            with count:
+                inside -= 1
+
+    monkeypatch.setattr(pypdfium2.PdfPage, "render", watched)
+    threads = [threading.Thread(target=publications._drawn, args=(_blank_pdf(100 + n, 100),)) for n in range(4)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert most == 1

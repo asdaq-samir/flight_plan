@@ -160,15 +160,21 @@ def airport_diagram_cycle(ident: str, on: date | None = None) -> str | None:
     return dtpp_cycle(on) if airport_diagram_url(ident, on) else None
 
 
+_PDFIUM = threading.Lock()
+
+
 def _drawn(pdf: bytes) -> bytes:
     """The PDF's first page as a greyscale PNG, DIAGRAM_SCALE times its
     points: the diagram is black on white, and grey keeps it a third the
     size of colour with nothing lost."""
-    document = pypdfium2.PdfDocument(pdf)
-    try:
-        image = document[0].render(scale=DIAGRAM_SCALE, grayscale=True).to_pil().convert("L")
-    finally:
-        document.close()
+    # pdfium is not thread-safe, and draws of different PDFs run in the
+    # server's thread pool at once: one at a time, or the process can crash.
+    with _PDFIUM:
+        document = pypdfium2.PdfDocument(pdf)
+        try:
+            image = document[0].render(scale=DIAGRAM_SCALE, grayscale=True).to_pil().convert("L")
+        finally:
+            document.close()
     out = io.BytesIO()
     image.save(out, "PNG", optimize=True)
     return out.getvalue()
