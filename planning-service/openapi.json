@@ -475,6 +475,17 @@
       "AirportPlace": {
         "description": "One airport the way the map's card shows it: its name and place,\nthe class of the airspace over it, whether it has a tower, its\nrunways and radio, and the weather there now. `metar` is None for a\nfield with no reporting station, and `weather_unavailable` says the\nweather service could not be asked at all -- not the same thing.",
         "properties": {
+          "address": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Address"
+          },
           "airport_diagram_cycle": {
             "anyOf": [
               {
@@ -623,6 +634,17 @@
                 "type": "null"
               }
             ]
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
           },
           "radio_notes": {
             "default": [],

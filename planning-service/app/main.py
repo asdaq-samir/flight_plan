@@ -138,6 +138,12 @@ def _warm_reference_data() -> None:
         publications.preload()
     except Exception:  # noqa: BLE001
         log.exception("publications warm-up failed")
+    # And the fields' contacts (vfr.faa_data.airport_contact), read once a
+    # cycle: two seconds a card would otherwise wait the first time.
+    try:
+        faa_data.airport_contact("KORD", altitude.DEFAULT_FAA_CACHE_DIR)
+    except Exception:  # noqa: BLE001
+        log.exception("airport contacts warm-up failed")
 
     if chart_refresh.AUTO_REFRESH:
         chart_refresh.maybe_refresh()

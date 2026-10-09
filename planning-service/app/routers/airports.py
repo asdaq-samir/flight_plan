@@ -159,6 +159,8 @@ def airport_place(ident: str) -> AirportPlace:
         "frequencies": frequencies,
         "metar": metar,
         "weather_unavailable": unavailable,
+        # Its phone and street address, for the card's Call and Address.
+        **faa_data.airport_contact(place["ident"], altitude.DEFAULT_FAA_CACHE_DIR),
         "airport_diagram_url": publications.airport_diagram_url(place["ident"]),
         "airport_diagram_cycle": publications.airport_diagram_cycle(place["ident"]),
         "chart_supplement_url": publications.chart_supplement_url(place["ident"]),

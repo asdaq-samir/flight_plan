@@ -1,6 +1,6 @@
 import { useRef, useState, type ReactNode } from "react";
 import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
-import { CloudSun, Lightbulb, Loader2, MapPinPlus, Radio, Star } from "lucide-react";
+import { Lightbulb, Loader2, MapPin, MapPinPlus, Phone, Radio, Star } from "lucide-react";
 import DirectToIcon from "../../../components/DirectToIcon";
 import { cn } from "cn";
 import { useKeptAirport, usePreferences } from "../../../lib/preferences";
@@ -72,13 +72,27 @@ const CARD_TABS: { value: CardTab; label: string }[] = [
   { value: "runways", label: "Runways" },
 ];
 
+/** The field in Maps -- Apple's, which a phone opens in its Maps app --
+ *  by its street address where the FAA lists one, so Maps names the
+ *  road a driver is taken to, and by where it is otherwise; its name the
+ *  pin's either way. */
+function mapsLink(place: AirportPlace): string {
+  const where = place.address
+    ? `address=${encodeURIComponent(place.address)}`
+    : `ll=${place.lat.toFixed(5)},${place.lon.toFixed(5)}`;
+  return `https://maps.apple.com/?q=${encodeURIComponent(place.name)}&${where}`;
+}
+
 /** A tile of the card's action row: its glyph over its word, as Maps
  *  draws its own -- Fly Here filled in the tint, the rest panes of glass
  *  in the text's colour, as the gear and the route's close are, at the
  *  pilot's ask (they were the tint on grey). Maps' size, a 24-point glyph
  *  in a tile 70 tall: the card fills more of the panel's one half height. */
-function Action({ icon, label, spoken, filled, busy, disabled, onClick, testId }: {
-  icon: ReactNode; label: string; filled?: boolean; onClick: () => void; testId: string;
+function Action({ icon, label, spoken, filled, busy, disabled, onClick, href, testId }: {
+  icon: ReactNode; label: string; filled?: boolean; onClick?: () => void; testId: string;
+  /** Where it goes instead, outside the app: a phone number to call, the
+   *  field in Maps. */
+  href?: string;
   /** The whole word, where the tile shows it cut short. */
   spoken?: string;
   /** Until the card's answer is in: the tile in its place, not yet live. */
@@ -88,16 +102,29 @@ function Action({ icon, label, spoken, filled, busy, disabled, onClick, testId }
    *  the tap asked for. */
   busy?: boolean;
 }) {
-  return (
-    <Button
-      type="button" variant={filled ? "default" : "secondary"} onClick={onClick} disabled={disabled}
-      data-testid={testId} aria-label={spoken} aria-busy={busy || undefined}
-      className={cn("h-auto flex-col gap-1 rounded-xl py-3 whitespace-normal [&_svg:not([class*='size-'])]:size-6", !filled && GLASS_BUTTON)}
-    >
+  const look = cn("h-auto flex-col gap-1 rounded-xl py-3 whitespace-normal [&_svg:not([class*='size-'])]:size-6", !filled && GLASS_BUTTON);
+  const face = (
+    <>
       {busy ? <Loader2 className="size-6 animate-spin" aria-hidden="true" /> : icon}
       {/* On two lines where it needs them, at the pilot's ask, rather
           than past the tile's edge. */}
       <span className={cn("text-center leading-tight font-semibold", TEXT.note)}>{label}</span>
+    </>
+  );
+  // A link where it leaves the app, the stock button's look on it.
+  if (href && !disabled) {
+    return (
+      <Button asChild variant={filled ? "default" : "secondary"} className={look}>
+        <a href={href} target={href.startsWith("tel:") ? undefined : "_blank"} rel="noreferrer" data-testid={testId} aria-label={spoken}>{face}</a>
+      </Button>
+    );
+  }
+  return (
+    <Button
+      type="button" variant={filled ? "default" : "secondary"} onClick={onClick} disabled={disabled}
+      data-testid={testId} aria-label={spoken} aria-busy={busy || undefined} className={look}
+    >
+      {face}
     </Button>
   );
 }
@@ -217,12 +244,19 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
             {onAddStop && (
               <Action icon={<MapPinPlus />} label="Add Stop" disabled={!place} onClick={() => { if (place) onAddStop(place); }} testId="place-add-stop" />
             )}
-            <Action icon={<CloudSun />} label="Weather" disabled={!place} onClick={() => open("weather")} testId="place-weather" />
-            {/* "Freq." on the tile, at the pilot's ask: the whole word ran
-                past a quarter of a phone's card with Add Stop beside it. */}
+            {/* Call and Address, at the pilot's ask, where Weather and Freq.
+                were, which are tabs now: the field's own phone and where it
+                is on the ground, from the FAA's airport file -- greyed for a
+                field it lists no phone for. */}
             <Action
-              icon={<Radio />} label="Freq." spoken="Frequencies" disabled={!place}
-              onClick={() => open("radio")} testId="place-frequencies"
+              icon={<Phone />} label="Call" disabled={!place?.phone}
+              href={place?.phone ? `tel:${place.phone}` : undefined}
+              spoken={place?.phone ? `Call ${place.phone}` : "Call: no phone listed"} testId="place-call"
+            />
+            <Action
+              icon={<MapPin />} label="Address" disabled={!place}
+              href={place ? mapsLink(place) : undefined}
+              spoken={place?.address ? `${place.address}, in Maps` : "Where it is, in Maps"} testId="place-address"
             />
           </div>
         )}

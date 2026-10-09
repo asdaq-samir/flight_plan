@@ -1262,6 +1262,11 @@ class AirportPlace(BaseModel):
     frequencies: list[Frequency]
     metar: Metar | None = None
     weather_unavailable: bool = False
+    # Its phone and one-line street address, from the FAA's airport file
+    # (vfr.faa_data.airport_contact): the manager's, else the owner's; None
+    # where the FAA lists none.
+    phone: str | None = None
+    address: str | None = None
     # The FAA's airport diagram and Chart Supplement page for the current
     # editions (vfr.publications); None where the field has none. The
     # diagram's picture is /api/airport-diagram/{airport_diagram_cycle}/{ident}.png.
