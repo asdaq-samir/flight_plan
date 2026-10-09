@@ -492,7 +492,10 @@ function FavoriteButton({ place }: { place: AirportPlace }) {
       onClick={() => toggle({ ident: place.ident, name: place.name, municipality: place.municipality, lat: place.lat, lon: place.lon })}
       data-testid="place-favorite"
     >
-      <Star className={cn("size-5", kept && "fill-current")} strokeWidth={2} />
+      {/* The yellow alone is 1.6:1 on a light sheet, under the 3:1 a
+          control's state wants (HIG), so the star is outlined in a darker
+          gold there. */}
+      <Star className={cn("size-5", kept && "fill-current stroke-[#b38600] dark:stroke-current")} strokeWidth={2} />
     </RoundButton>
   );
 }
