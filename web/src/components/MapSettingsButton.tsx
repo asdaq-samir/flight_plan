@@ -9,7 +9,7 @@ import MapSettings from "./MapSettings";
  * sheet the map's settings -- the chart, Class B's weather and terminal
  * sheet, the waypoints, the TFRs, keeping charts offline -- where Maps
  * keeps its map's, at the pilot's ask. It was Nearest's place; Nearest is
- * on the open route's head, where the console's button was.
+ * among the map's buttons on its left (NearestButton).
  */
 export default function MapSettingsButton() {
   const [open, setOpen] = useState(false);

@@ -9,6 +9,7 @@ import type { Candidate, ClassBAirport, Course, Leg } from "../../../lib/api/typ
 import type { BriefingState } from "../hooks/usePlan";
 import type { AirportWeather } from "../../../lib/map/AirportCard";
 import { AirportsLayer } from "../../../lib/map/AirportsLayer";
+import NearestButton from "../../../components/NearestButton";
 import { WaypointsLayer } from "../../../lib/map/WaypointsLayer";
 import { TfrLayer } from "../../../lib/map/TfrLayer";
 import { chipColourOf } from "../../../lib/map/flightCategory";
@@ -61,6 +62,8 @@ interface Props {
    *  finger held on the chart, or a right-click. */
   heldPoint: { lat: number; lon: number } | null;
   onHoldPoint: (point: { lat: number; lon: number }) => void;
+  /** Nearest, from the map's button on its left. */
+  onNearest: () => void;
 }
 
 /** A finger held on the chart, or a right-click, asks what airspace is
@@ -378,9 +381,12 @@ const PLACE_ZOOM = 9;
 // renders at each answer that streams in, and the whole map went with it.
 export default memo(function RouteMap({
   course, candidates, selected, focus, onSelectCandidate, onSelectPoint,
-  airportWeather, place, onSelectPlace, onAddStop, legs, heldPoint, onHoldPoint, nearest = null,
+  airportWeather, place, onSelectPlace, onAddStop, legs, heldPoint, onHoldPoint, nearest = null, onNearest,
 }: Props) {
   const focusZoom = course?.max_zoom ?? 12;
+  // Nearest among the map's buttons on its left, one element while its
+  // callback is the same.
+  const nearestButton = useMemo(() => <NearestButton onOpen={onNearest} />, [onNearest]);
   // The route's airports, one array while the course is the same answer:
   // the checkpoints' names keep off their chips.
   const airports = useMemo(() => (course ? routeAirports(course) : []), [course]);
@@ -410,7 +416,10 @@ export default memo(function RouteMap({
   }, [course]);
 
   return (
-    <MapShell course={course} onSelectPlace={onSelectPlace} held={!!focus || !!place || !!heldPoint || !!nearest}>
+    <MapShell
+      course={course} onSelectPlace={onSelectPlace} held={!!focus || !!place || !!heldPoint || !!nearest}
+      leftControls={nearestButton}
+    >
       {/* The chart's own airports with no route as well: a tap on a field
           opens its card, and Fly Here makes the route. */}
       <AirportsLayer selected={place} onSelect={onSelectPlace} exclude={chipped} pills={pills} route={routeBox} />

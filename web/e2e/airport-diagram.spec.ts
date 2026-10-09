@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { grabberTo, settle, sideDrawer } from "./helpers";
+import { grabberTo, settle, sideDrawer, slow } from "./helpers";
 
 /**
  * An airport's diagram in its card, as a picture (PublicationRows): the
@@ -59,6 +59,24 @@ test("an airport's card shows its diagram, and a tap shows it full screen with t
   await viewer.getByTestId("airport-diagram-close").click();
   await expect(viewer).toHaveCount(0);
   await expect(card(page)).toBeVisible();
+});
+
+test("the card's diagram thumbnail sits over Call and Address, their width, and a tap shows it full screen", async ({ page }) => {
+  await withDiagram(page, "drawn");
+  await page.goto("/app/plan?place=KDLH");
+  await settle(page);
+  const thumbnail = card(page).getByTestId("place-diagram-thumbnail");
+  await expect(thumbnail).toBeEnabled({ timeout: slow(15000) });
+  const [thumb, call, address] = await Promise.all([thumbnail, card(page).getByTestId("place-call"), card(page).getByTestId("place-address")]
+    .map(async l => (await l.boundingBox())!));
+  expect(Math.abs(thumb.x - call.x)).toBeLessThan(1);
+  expect(Math.abs(thumb.x + thumb.width - (address.x + address.width))).toBeLessThan(1);
+  expect(thumb.y + thumb.height).toBeLessThanOrEqual(call.y);
+  // The line under the name beside it.
+  await expect(card(page)).toContainText(/KDLH · Class [BCD] · Towered/);
+
+  await thumbnail.click();
+  await expect(page.getByTestId("airport-diagram-viewer")).toBeVisible();
 });
 
 test("where the diagram's picture cannot be had, the card links the FAA's PDF", async ({ page }) => {

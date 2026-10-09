@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { expectDrawerClosed, expectDrawerOpen, grabberTo, settle, sideDrawer, slow, tapTheChart } from "./helpers";
+import { expectDrawerClosed, expectDrawerOpen, grabberTo, openPanel, settle, sideDrawer, slow, tapTheChart } from "./helpers";
 
 /**
  * Airports as places, as Maps has them: a tap on one on the chart opens
@@ -89,6 +89,35 @@ test("an airport's card has four tabs under its tiles, the radio first, and a ta
   const approach = card(page).getByRole("tabpanel").getByTestId("terminal-chart");
   await expect(approach).toHaveText(/RNAV \(GPS\) RWY 24/);
   await expect(approach).toHaveAttribute("href", "https://aeronav.faa.gov/d-tpp/2610/05887R24.PDF");
+});
+
+test("the route's Approaches opens its destination's card on its approaches, and Nearest is on the map's left", async ({ page }) => {
+  await page.route(url => url.pathname.endsWith("/api/planner/airport/KDLH"), async route => {
+    const answer = await route.fetch();
+    await route.fulfill({ response: answer, json: { ...await answer.json(), procedures: [
+      { kind: "MIN", name: "TAKEOFF MINIMUMS", url: "https://aeronav.faa.gov/d-tpp/2610/NC1TO.PDF" },
+      { kind: "IAP", name: "ILS OR LOC RWY 09", url: "https://aeronav.faa.gov/d-tpp/2610/00125IL9.PDF" },
+      { kind: "IAP", name: "RNAV (GPS) RWY 27", url: "https://aeronav.faa.gov/d-tpp/2610/00125R27.PDF" },
+    ] } });
+  });
+  await page.goto("/app/plan?dep=C81&dest=KDLH");
+  await settle(page);
+  await openPanel(page);
+  // Nearest among the map's buttons, on the left of the screen; the
+  // map's own on its right.
+  const nearest = page.locator("[data-map-controls-left]").getByTestId("nearest-button");
+  const settings = page.locator("[data-map-controls]").getByTestId("map-settings-button");
+  const width = page.viewportSize()!.width;
+  expect((await nearest.boundingBox())!.x).toBeLessThan(width / 2);
+  expect((await settings.boundingBox())!.x).toBeGreaterThan(width / 2);
+
+  await sideDrawer(page).getByTestId("route-approaches").click();
+  await expect(card(page).getByTestId("place-name")).toHaveText("Duluth International Airport", { timeout: slow(15000) });
+  await expect(card(page).getByTestId("place-tab-diagrams")).toHaveAttribute("aria-selected", "true");
+  await expect(sideDrawer(page)).toHaveAttribute("data-panel", "full");
+  const approaches = card(page).locator('[data-chart-group="Approaches"]');
+  await expect(approaches.getByTestId("terminal-chart")).toHaveText([/ILS OR LOC RWY 09/, /RNAV \(GPS\) RWY 27/]);
+  await expect(approaches).toBeInViewport();
 });
 
 /** Closer in over the departure, where the chart's airports are drawn big

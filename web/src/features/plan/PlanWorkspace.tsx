@@ -237,7 +237,14 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // The airport's card under the route, the route flown to from it (Fly
   // Here): where the route's close goes back to, as Maps' layers are.
   const [under, setUnder] = useState<string | null>(null);
+  // The route's Approaches: the destination's card, opened on them. Which
+  // field's, until its card has opened on them (PlaceCard's onStarted).
+  const [approachesOf, setApproachesOf] = useState<string | null>(null);
   const selectPlace = useCallback((ident: string | null) => {
+    // The Approaches intent belongs to the card it was asked for: another
+    // card, or none, drops it, so a card that never answered (or was closed
+    // first) does not jump to its approaches when it is next opened.
+    setApproachesOf(of => (of === ident ? of : null));
     if ((ident ?? null) === place && !heldPoint) return;
     setSearchParams(prev => {
       const next = new URLSearchParams(prev);
@@ -269,6 +276,14 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     }, { replace: true });
     if (open) setPanel("half");
   }, [setSearchParams, setPanel]);
+  const openNearest = useCallback(() => showNearest(true), [showNearest]);
+  const { data: destCard } = useQuery({
+    queryKey: ["airport", planned.dest], queryFn: () => api.airport(planned.dest!), enabled: !!planned.dest, staleTime: 5 * 60_000,
+    meta: { silent: true },
+  });
+  // Greyed only once its card says it has none; a planner older than the
+  // list says nothing, and the button stays.
+  const noApproaches = !!destCard?.procedures && !destCard.procedures.some(c => c.kind === "IAP");
   const selectPlaceOnChart = useCallback((ident: string | null) => {
     if (!ident && nearOpen && !place) {
       showNearest(false);
@@ -1083,6 +1098,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           airportWeather={s.briefing}
           place={placePin}
           nearest={nearOpen ? nearestPoints : null}
+          onNearest={openNearest}
           onSelectPlace={selectPlaceOnChart}
           onAddStop={addStopAt}
           legs={s.legs}
@@ -1143,6 +1159,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
             onClose={() => selectPlace(null)} onFlyHere={to => void flyHere(to)} onExpand={() => setPanel("full")}
             // None for a point of the route, or past the planner's most stops.
             onAddStop={[planned.dep, ...planned.stops, planned.dest].includes(place) || planned.stops.length >= MAX_STOPS ? undefined : addStop}
+            startOn={approachesOf === place ? "approaches" : undefined} onStarted={() => setApproachesOf(null)}
           />
         )}
         {!place && heldPoint && <AirspaceCard key={atParam} point={heldPoint} onClose={() => selectPlace(null)} />}
@@ -1207,11 +1224,15 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
             apart at the least, so the two's hit areas meet. */}
         <div className="flex shrink-0 flex-col gap-[max(8px,calc(0.75rem-var(--corner-line)))] pt-[var(--corner-line)]">
           <CloseButton label={hasPoints ? "Clear the route" : "Close"} onClick={clearRoute} data-testid="route-clear" />
-          {/* Nearest under it, where the console's button was, at the
-              pilot's ask: the console's is at the capsule's end, the route
-              lowered, and on the search bar. Its list is a card of the
-              panel's (NearestCard). */}
-          <RoundButton label="Nearest airports" onClick={() => showNearest(true)} data-testid="nearest-button">
+          {/* Approaches under it, at the pilot's ask, where Nearest was --
+              Nearest is among the map's buttons on its left now: the
+              destination's card open on its Diagrams tab at its approaches
+              (PlaceCard), greyed for a field whose card lists none. */}
+          <RoundButton
+            label={planned.dest ? `Approaches at ${planned.dest}` : "Approaches"} disabled={!planned.dest || noApproaches}
+            onClick={() => { if (planned.dest) { setApproachesOf(planned.dest); selectPlace(planned.dest); } }}
+            data-testid="route-approaches"
+          >
             <PlaneLanding className="size-5" strokeWidth={2} />
           </RoundButton>
         </div>

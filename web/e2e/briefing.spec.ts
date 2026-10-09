@@ -70,10 +70,10 @@ test("plan page: the flight planning drawer opens the way the Model Training dra
   await expect(drawer.getByRole("table", { name: /Navigation log from/i })).toHaveCount(0);
 
   // The panel's head is still in sight: the route's box, and under the
-  // route's close Nearest, where the console's button was; the console's
-  // is the capsule's, the route lowered.
+  // route's close Approaches, where Nearest was; the console's button is
+  // the capsule's, the route lowered.
   expect(await page.locator("header").getByLabel("Departure", { exact: true }).count()).toBe(1);
-  await expect(page.locator("header").getByTestId("nearest-button")).toBeVisible();
+  await expect(page.locator("header").getByTestId("route-approaches")).toBeVisible();
   expect(await page.locator("header").getByTestId("settings-button").count()).toBe(0);
 
   // The panel's actions, Save, Share and Print, round buttons at the end
