@@ -78,8 +78,8 @@ const AirportMark = memo(function AirportMark({ airport: a, chip, onSelect }: {
  * and names it. Under the route's own markers, which keep their taps,
  * and not for a field something else draws a chip for already
  * (`exclude`: the route's two, the Class B ones). The selected one
- * wears the taxiway-yellow ring the brand gives a chosen place, round
- * whichever chip it wears (selectionIcon) and over all of them.
+ * wears the ring a picked point wears on the map, round whichever chip
+ * it wears (selectionIcon) and over all of them.
  *
  * A tap anywhere else on the chart puts the card away, as it does in Maps.
  */

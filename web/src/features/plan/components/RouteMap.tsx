@@ -69,7 +69,6 @@ interface Props {
  *  menu from. The point wears a pin while its card is open. */
 // Constants, not literals: react-leaflet restyles a path whenever its
 // pathOptions is a new object.
-const HELD_RING: L.PathOptions = { color: "#F2B600", weight: 4, opacity: 0.95, fill: false };
 const HELD_DOT: L.PathOptions = { color: "#ffffff", weight: 2, fillColor: "#0a84ff", fillOpacity: 1 };
 
 function HeldPoint({ point, onHold }: { point: Props["heldPoint"]; onHold: Props["onHoldPoint"] }) {
@@ -81,7 +80,9 @@ function HeldPoint({ point, onHold }: { point: Props["heldPoint"]; onHold: Props
   if (!point) return null;
   return (
     <>
-      <CircleMarker center={[point.lat, point.lon]} radius={16} interactive={false} pathOptions={HELD_RING} />
+      {/* The ring a picked point wears on the map (Halo), round the dot:
+          the taxiway yellow it was went into the sectional's yellow. */}
+      <Halo at={point} />
       <CircleMarker center={[point.lat, point.lon]} radius={6} interactive={false} pathOptions={HELD_DOT} />
     </>
   );

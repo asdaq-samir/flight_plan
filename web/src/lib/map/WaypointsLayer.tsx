@@ -28,8 +28,15 @@ export function WaypointsLayer({ exclude, onAddStop }: {
 }) {
   const map = useMap();
   const [view, setView] = useState(() => boxOf(map));
-  // Memoized: see AirportsLayer.
-  const handlers = useMemo(() => ({ moveend: () => setView(boxOf(map)) }), [map]);
+  // Memoized: see AirportsLayer. Drawn again only when the box asked for
+  // changes, not at every move's end: a pan inside the same half-degree
+  // box drew every diamond, and its open card, again (MapPopup).
+  const handlers = useMemo(() => ({
+    moveend: () => setView(was => {
+      const now = boxOf(map);
+      return now.key === was.key && now.zoom === was.zoom ? was : now;
+    }),
+  }), [map]);
   useMapEvents(handlers);
   const { data } = useQuery({
     queryKey: ["waypointsInView", view.key],
@@ -50,9 +57,14 @@ export function WaypointsLayer({ exclude, onAddStop }: {
           {/* In Leaflet's own panes, not this one: a popup in the
               diamonds' pane had the diamonds after it drawn over it. */}
           {hovers && <MapTooltip pane="tooltipPane">{w.ident} · VFR waypoint{w.description ? ` ${w.description}` : ""}</MapTooltip>}
-          <MapPopup pane="popupPane">
-            {/* No name of its own: where it is (the planner's vfr.places). */}
-            <MapCard title={w.ident} subtitle={w.description ? `VFR waypoint ${w.description}` : "VFR waypoint"}>
+          <MapPopup pane="popupPane" panOnce>
+            {/* No name of its own: what it is beside its ident, and where it
+                is on a line of its own (the planner's vfr.places), at the
+                pilot's ask -- on one line the card ran the screen's width. */}
+            <MapCard
+              title={<>{w.ident}<span className="font-normal text-muted-foreground">VFR waypoint</span></>}
+              subtitle={w.description || undefined}
+            >
               {onAddStop && (
                 <Button
                   type="button" size="sm" className="w-full"
