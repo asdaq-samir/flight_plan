@@ -1,6 +1,6 @@
 import { useRef, useState, type ReactNode } from "react";
 import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
-import { CloudSun, Lightbulb, Loader2, MapPinPlus, Radio, Star } from "lucide-react";
+import { FileText, Lightbulb, Loader2, MapPin, MapPinPlus, Phone, Radio, Star } from "lucide-react";
 import DirectToIcon from "../../../components/DirectToIcon";
 import { cn } from "cn";
 import { useKeptAirport, usePreferences } from "../../../lib/preferences";
@@ -13,7 +13,7 @@ import { LINE_TAB } from "../../../components/lineTabs";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../../components/ui/tabs";
 import { Button } from "../../../components/ui/button";
 import { ApiError, api } from "../../../lib/api/client";
-import type { AirportPin, AirportPlace, ClassBAirport } from "../../../lib/api/types";
+import type { AirportPin, AirportPlace, ClassBAirport, TerminalChart } from "../../../lib/api/types";
 import { compassPoint } from "../../../lib/compass";
 import { bearingDeg, distanceNm, type LatLon } from "../../../lib/geo";
 import { chipColourOf } from "../../../lib/map/flightCategory";
@@ -63,22 +63,58 @@ function knownOf(queryClient: QueryClient, ident: string): { name: string; categ
   return null;
 }
 
-type CardTab = "diagram" | "weather" | "radio" | "runways";
-/** The card's tabs, in the pilot's order. "Freq." as on its tile. */
+type CardTab = "radio" | "weather" | "runways" | "diagrams";
+/** The card's tabs, in the pilot's order: the radio first, what is
+ *  wanted first on the way in. "Freq." as on its tile was. */
 const CARD_TABS: { value: CardTab; label: string }[] = [
-  { value: "diagram", label: "Diagram" },
-  { value: "weather", label: "Weather" },
   { value: "radio", label: "Freq." },
+  { value: "weather", label: "Weather" },
   { value: "runways", label: "Runways" },
+  { value: "diagrams", label: "Diagrams" },
 ];
+
+/** The field's charts in the d-TPP under the Diagrams tab, by what they
+ *  are for: the FAA's chart codes (vfr.publications). The airport's own
+ *  -- its hot spots, land and hold short -- go with its diagram. */
+const CHART_GROUPS: { title: string; kinds: string[] }[] = [
+  { title: "Approaches", kinds: ["IAP"] },
+  { title: "Departures", kinds: ["DP", "ODP"] },
+  { title: "Arrivals", kinds: ["STR"] },
+  { title: "Minimums", kinds: ["MIN"] },
+];
+const AIRPORT_CHARTS = ["HOT", "LAH"];
+const GROUPED = new Set(["APD", ...AIRPORT_CHARTS, ...CHART_GROUPS.flatMap(g => g.kinds)]);
+
+/** A chart's row: its title as the FAA prints it -- "LEGOZ FOUR (RNAV)",
+ *  "ILS OR LOC RWY 24" -- not in sentence case as the FAA's other words
+ *  are here (lib/advisories faaWords): a procedure is named by its fixes
+ *  and its navaids, as a code is, and pilots know it by the title on the
+ *  plate. Opens its PDF. */
+function ChartRow({ chart }: { chart: TerminalChart }) {
+  return <ListRow media={<FileText className="size-5" />} title={chart.name} href={chart.url} data-testid="terminal-chart" />;
+}
+
+/** The field in Maps -- Apple's, which a phone opens in its Maps app --
+ *  by its street address where the FAA lists one, so Maps names the
+ *  road a driver is taken to, and by where it is otherwise; its name the
+ *  pin's either way. */
+function mapsLink(place: AirportPlace): string {
+  const where = place.address
+    ? `address=${encodeURIComponent(place.address)}`
+    : `ll=${place.lat.toFixed(5)},${place.lon.toFixed(5)}`;
+  return `https://maps.apple.com/?q=${encodeURIComponent(place.name)}&${where}`;
+}
 
 /** A tile of the card's action row: its glyph over its word, as Maps
  *  draws its own -- Fly Here filled in the tint, the rest panes of glass
  *  in the text's colour, as the gear and the route's close are, at the
  *  pilot's ask (they were the tint on grey). Maps' size, a 24-point glyph
  *  in a tile 70 tall: the card fills more of the panel's one half height. */
-function Action({ icon, label, spoken, filled, busy, disabled, onClick, testId }: {
-  icon: ReactNode; label: string; filled?: boolean; onClick: () => void; testId: string;
+function Action({ icon, label, spoken, filled, busy, disabled, onClick, href, testId }: {
+  icon: ReactNode; label: string; filled?: boolean; onClick?: () => void; testId: string;
+  /** Where it goes instead, outside the app: a phone number to call, the
+   *  field in Maps. */
+  href?: string;
   /** The whole word, where the tile shows it cut short. */
   spoken?: string;
   /** Until the card's answer is in: the tile in its place, not yet live. */
@@ -88,16 +124,29 @@ function Action({ icon, label, spoken, filled, busy, disabled, onClick, testId }
    *  the tap asked for. */
   busy?: boolean;
 }) {
-  return (
-    <Button
-      type="button" variant={filled ? "default" : "secondary"} onClick={onClick} disabled={disabled}
-      data-testid={testId} aria-label={spoken} aria-busy={busy || undefined}
-      className={cn("h-auto flex-col gap-1 rounded-xl py-3 whitespace-normal [&_svg:not([class*='size-'])]:size-6", !filled && GLASS_BUTTON)}
-    >
+  const look = cn("h-auto flex-col gap-1 rounded-xl py-3 whitespace-normal [&_svg:not([class*='size-'])]:size-6", !filled && GLASS_BUTTON);
+  const face = (
+    <>
       {busy ? <Loader2 className="size-6 animate-spin" aria-hidden="true" /> : icon}
       {/* On two lines where it needs them, at the pilot's ask, rather
           than past the tile's edge. */}
       <span className={cn("text-center leading-tight font-semibold", TEXT.note)}>{label}</span>
+    </>
+  );
+  // A link where it leaves the app, the stock button's look on it.
+  if (href && !disabled) {
+    return (
+      <Button asChild variant={filled ? "default" : "secondary"} className={look}>
+        <a href={href} target={href.startsWith("tel:") ? undefined : "_blank"} rel="noreferrer" data-testid={testId} aria-label={spoken}>{face}</a>
+      </Button>
+    );
+  }
+  return (
+    <Button
+      type="button" variant={filled ? "default" : "secondary"} onClick={onClick} disabled={disabled}
+      data-testid={testId} aria-label={spoken} aria-busy={busy || undefined} className={look}
+    >
+      {face}
     </Button>
   );
 }
@@ -158,7 +207,7 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
   // sections ran on one under another: the diagram first where the field
   // has one, the weather first where it has none (most small fields).
   const [picked, setPicked] = useState<CardTab | null>(null);
-  const tab: CardTab = picked ?? (place?.airport_diagram_url || place?.airport_diagram_cycle ? "diagram" : "weather");
+  const tab: CardTab = picked ?? "radio";
   // A tab picked -- or Weather or Freq. on the tiles -- takes the panel all
   // the way up, as the route's tabs do; the bar back in sight if the card
   // was scrolled past it, once the panel is up and the name and tiles
@@ -169,6 +218,9 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
     onExpand();
     window.setTimeout(() => tabsRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" }), up ? 50 : 520);
   };
+  // None from a planner older than the list (a card kept by the worker,
+  // a deploy under way), not a page that fails.
+  const procedures = place?.procedures ?? [];
   const metar = place?.metar ?? null;
   const weather = place
     ? { status: place.weather_unavailable ? "unavailable" : metar ? "reported" : "no-report", category: metar?.flight_category ?? null }
@@ -217,12 +269,19 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
             {onAddStop && (
               <Action icon={<MapPinPlus />} label="Add Stop" disabled={!place} onClick={() => { if (place) onAddStop(place); }} testId="place-add-stop" />
             )}
-            <Action icon={<CloudSun />} label="Weather" disabled={!place} onClick={() => open("weather")} testId="place-weather" />
-            {/* "Freq." on the tile, at the pilot's ask: the whole word ran
-                past a quarter of a phone's card with Add Stop beside it. */}
+            {/* Call and Address, at the pilot's ask, where Weather and Freq.
+                were, which are tabs now: the field's own phone and where it
+                is on the ground, from the FAA's airport file -- greyed for a
+                field it lists no phone for. */}
             <Action
-              icon={<Radio />} label="Freq." spoken="Frequencies" disabled={!place}
-              onClick={() => open("radio")} testId="place-frequencies"
+              icon={<Phone />} label="Call" disabled={!place?.phone}
+              href={place?.phone ? `tel:${place.phone}` : undefined}
+              spoken={place?.phone ? `Call ${place.phone}` : "Call: no phone listed"} testId="place-call"
+            />
+            <Action
+              icon={<MapPin />} label="Address" disabled={!place}
+              href={place ? mapsLink(place) : undefined}
+              spoken={place?.address ? `${place.address}, in Maps` : "Where it is, in Maps"} testId="place-address"
             />
           </div>
         )}
@@ -249,8 +308,8 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
 
       {place && (
         <>
-          <TabsContent value="diagram" className="pt-4">
-            <ListGroup>
+          <TabsContent value="diagrams" className="space-y-5 pt-4">
+            <ListGroup title="Airport">
               {!place.airport_diagram_url && !place.airport_diagram_cycle && (
                 // Drawn by the FAA for the fields with a tower or a busy
                 // ramp; most small fields have none.
@@ -262,7 +321,18 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
                   diagramCycle={place.airport_diagram_cycle} supplement={place.chart_supplement_url}
                 />
               )}
+              {procedures.filter(c => AIRPORT_CHARTS.includes(c.kind)).map(c => <ChartRow key={c.url} chart={c} />)}
             </ListGroup>
+            {/* The approaches, departures, arrivals and minimums in this
+                cycle's d-TPP, at the pilot's ask, as the FAA's PDFs. */}
+            {[...CHART_GROUPS, { title: "Other", kinds: procedures.map(c => c.kind).filter(k => !GROUPED.has(k)) }].map(g => {
+              const charts = procedures.filter(c => g.kinds.includes(c.kind));
+              return charts.length > 0 && (
+                <ListGroup key={g.title} title={g.title}>
+                  {charts.map(c => <ChartRow key={c.url} chart={c} />)}
+                </ListGroup>
+              );
+            })}
           </TabsContent>
 
           <TabsContent value="weather" className="pt-4">

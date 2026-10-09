@@ -71,6 +71,7 @@ def known_patterns(monkeypatch):
     # No field the armed services own, without the FAA's airport file: a
     # test about one stubs it again itself.
     monkeypatch.setattr(faa_data, "military_fields", lambda cache_dir: {})
+    monkeypatch.setattr(faa_data, "airport_contact", lambda ident, cache_dir: {"phone": None, "address": None})
     monkeypatch.setattr(pattern, "right_traffic_ends", lambda ident, cache_dir=None: set())
 
 
@@ -98,6 +99,7 @@ def no_publications(monkeypatch):
     indexes."""
     monkeypatch.setattr(publications, "airport_diagram_url", lambda ident: None)
     monkeypatch.setattr(publications, "airport_diagram_cycle", lambda ident: None)
+    monkeypatch.setattr(publications, "terminal_charts", lambda ident: [])
     monkeypatch.setattr(publications, "chart_supplement_url", lambda ident: None)
 
 

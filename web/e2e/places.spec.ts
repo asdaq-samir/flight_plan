@@ -21,10 +21,10 @@ test("an airport's card names the field, its airspace and tower, how far it is, 
   // Its elevation under that, and how far it is beside it.
   await expect(card(page)).toContainText(/Elevation [\d,]+ ft · \d+ nm NW of C81/);
   await expect(card(page).getByTestId("place-category")).toBeVisible();
-  for (const id of ["fly-here", "place-weather", "place-frequencies"]) await expect(card(page).getByTestId(id)).toBeVisible();
+  for (const id of ["fly-here", "place-call", "place-address"]) await expect(card(page).getByTestId(id)).toBeVisible();
 
-  // Frequencies brings its section into sight, the panel all the way up.
-  await card(page).getByTestId("place-frequencies").click();
+  // The Freq. tab brings the frequencies into sight, the panel all the way up.
+  await card(page).getByTestId("place-tab-radio").click();
   await expect(sideDrawer(page)).toHaveAttribute("data-panel", "full");
   await expect(card(page).getByText("118.300")).toBeInViewport();
 
@@ -37,17 +37,44 @@ test("an airport's card names the field, its airspace and tower, how far it is, 
   await expect(sideDrawer(page).getByTestId("panel-tab-navlog")).toBeVisible();
 });
 
-test("an airport's card has four tabs under its tiles, the weather first where there is no diagram, and a tab takes the panel up", async ({ page }) => {
-  // C81 has no airport diagram: its card opens on the weather.
+test("an airport's card calls the field and finds it in Maps, from the FAA's airport file", async ({ page }) => {
+  await page.route(url => url.pathname.endsWith("/api/planner/airport/KDLH"), async route => {
+    const answer = await route.fetch();
+    await route.fulfill({ response: answer, json: { ...await answer.json(), phone: "218-727-2968", address: "4701 Grinden Dr, Duluth, MN 55811" } });
+  });
   await page.route(url => url.pathname.endsWith("/api/planner/airport/C81"), async route => {
     const answer = await route.fetch();
-    await route.fulfill({ response: answer, json: { ...await answer.json(), airport_diagram_url: null, airport_diagram_cycle: null } });
+    // And no list of charts at all, as a planner older than the list
+    // answers: the card still draws.
+    await route.fulfill({ response: answer, json: { ...await answer.json(), phone: null, address: null, procedures: undefined } });
+  });
+  await page.goto("/app/plan?place=KDLH");
+  await settle(page);
+  await expect(card(page).getByTestId("place-call")).toHaveAttribute("href", "tel:218-727-2968", { timeout: slow(15000) });
+  await expect(card(page).getByTestId("place-address")).toHaveAttribute(
+    "href", "https://maps.apple.com/?q=Duluth%20International%20Airport&address=4701%20Grinden%20Dr%2C%20Duluth%2C%20MN%2055811");
+
+  // A field the FAA lists no phone for: Call greyed, and Address by where it is.
+  await page.goto("/app/plan?place=C81");
+  await settle(page);
+  await expect(card(page).getByTestId("place-call")).toBeDisabled({ timeout: slow(15000) });
+  await expect(card(page).getByTestId("place-address")).toHaveAttribute("href", /^https:\/\/maps\.apple\.com\/\?q=.+&ll=42\.\d+,-88\.\d+$/);
+});
+
+test("an airport's card has four tabs under its tiles, the radio first, and a tab takes the panel up", async ({ page }) => {
+  // C81 has no airport diagram, and an approach.
+  await page.route(url => url.pathname.endsWith("/api/planner/airport/C81"), async route => {
+    const answer = await route.fetch();
+    await route.fulfill({ response: answer, json: {
+      ...await answer.json(), airport_diagram_url: null, airport_diagram_cycle: null,
+      procedures: [{ kind: "IAP", name: "RNAV (GPS) RWY 24", url: "https://aeronav.faa.gov/d-tpp/2610/05887R24.PDF" }],
+    } });
   });
   await page.goto("/app/plan?place=C81");
   await settle(page);
   const tabs = card(page).getByRole("tab");
-  await expect(tabs).toHaveText(["Diagram", "Weather", "Freq.", "Runways"], { timeout: slow(15000) });
-  await expect(card(page).getByTestId("place-tab-weather")).toHaveAttribute("aria-selected", "true");
+  await expect(tabs).toHaveText(["Freq.", "Weather", "Runways", "Diagrams"], { timeout: slow(15000) });
+  await expect(card(page).getByTestId("place-tab-radio")).toHaveAttribute("aria-selected", "true");
   await expect(sideDrawer(page)).toHaveAttribute("data-panel", "half");
 
   await card(page).getByTestId("place-tab-runways").click();
@@ -55,8 +82,13 @@ test("an airport's card has four tabs under its tiles, the weather first where t
   await expect(card(page).getByRole("tabpanel")).toContainText("Pattern altitude");
   await expect(card(page).getByRole("tabpanel")).toContainText(/Runway \d/);
 
-  await card(page).getByTestId("place-tab-diagram").click();
+  // Diagrams: the airport's (none here), and its approach as the FAA
+  // prints its title, opening its PDF.
+  await card(page).getByTestId("place-tab-diagrams").click();
   await expect(card(page).getByRole("tabpanel")).toContainText("The FAA publishes no airport diagram for this field");
+  const approach = card(page).getByRole("tabpanel").getByTestId("terminal-chart");
+  await expect(approach).toHaveText(/RNAV \(GPS\) RWY 24/);
+  await expect(approach).toHaveAttribute("href", "https://aeronav.faa.gov/d-tpp/2610/05887R24.PDF");
 });
 
 /** Closer in over the departure, where the chart's airports are drawn big

@@ -202,8 +202,11 @@ def test_the_card_names_the_cycle_its_diagram_is_drawn_from(monkeypatch):
     stub_place(monkeypatch)
     monkeypatch.setattr(publications, "airport_diagram_url", lambda ident: "https://aeronav.faa.gov/d-tpp/2610/00125AD.PDF")
     monkeypatch.setattr(publications, "airport_diagram_cycle", lambda ident: "2610")
+    monkeypatch.setattr(publications, "terminal_charts", lambda ident: [
+        {"kind": "IAP", "name": "ILS OR LOC RWY 09", "url": "https://aeronav.faa.gov/d-tpp/2610/00125IL9.PDF"}])
     card = client.get("/api/airport/KDLH").json()
     assert card["airport_diagram_cycle"] == "2610"
+    assert card["procedures"] == [{"kind": "IAP", "name": "ILS OR LOC RWY 09", "url": "https://aeronav.faa.gov/d-tpp/2610/00125IL9.PDF"}]
 
 
 def test_the_diagram_is_a_picture_kept_for_its_cycle_and_none_for_another(monkeypatch, tmp_path):
@@ -217,3 +220,12 @@ def test_the_diagram_is_a_picture_kept_for_its_cycle_and_none_for_another(monkey
     assert answer.headers["cache-control"] == "public, max-age=2419200, immutable"
     assert answer.content == b"\x89PNG\r\n\x1a\n"
     assert client.get("/api/airport-diagram/2609/KDLH.png").status_code == 404
+
+
+def test_the_card_has_the_fields_phone_and_street_address(monkeypatch):
+    stub_place(monkeypatch)
+    duluth = {"phone": "218-727-2968", "address": "4701 Grinden Drive, Duluth, MN 55811"}
+    monkeypatch.setattr(faa_data, "airport_contact",
+                        lambda ident, cache_dir: duluth if ident == "KDLH" else {"phone": None, "address": None})
+    card = client.get("/api/airport/KDLH").json()
+    assert (card["phone"], card["address"]) == ("218-727-2968", "4701 Grinden Drive, Duluth, MN 55811")

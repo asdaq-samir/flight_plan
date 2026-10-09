@@ -147,6 +147,9 @@ _NASR_FILES = {
     # And each runway end's: which way its traffic pattern is flown
     # (vfr.pattern).
     "APT_RWY_END.csv": lambda: find_download_link(find_current_cycle_page(NASR_INDEX_URL), r'href="([^"]*APT_CSV\.zip)"'),
+    # And each field's contacts: its manager's and its owner's office
+    # address and phone, what an airport's card calls and finds in Maps.
+    "APT_CON.csv": lambda: find_download_link(find_current_cycle_page(NASR_INDEX_URL), r'href="([^"]*APT_CSV\.zip)"'),
     "DOF.DAT": lambda: find_download_link(DOF_INDEX_URL, r'href="(https://aeronav\.faa\.gov/Obst_Data/DOF_\d+\.zip)"'),
     # Every named fix: the RNAV (GPS) waypoints, the reporting points and
     # the VFR waypoints charted on the sectionals (VPBNG) -- what a route
@@ -188,7 +191,7 @@ def ensure_nasr_file(name: str, cache_dir) -> Path:
 # went missing (2026-10-07).
 _EDITIONS = {
     "NAV_CSV": (("NAV_BASE.csv",), None, r'href="([^"]*NAV_CSV\.zip)"'),
-    "APT_CSV": (("APT_BASE.csv", "APT_RMK.csv", "APT_RWY_END.csv"), None, r'href="([^"]*APT_CSV\.zip)"'),
+    "APT_CSV": (("APT_BASE.csv", "APT_RMK.csv", "APT_RWY_END.csv", "APT_CON.csv"), None, r'href="([^"]*APT_CSV\.zip)"'),
     "FIX_CSV": (("FIX_BASE.csv",), None, r'href="([^"]*FIX_CSV\.zip)"'),
     # The Class B, C and D shapes (vfr.airspace), from the same cycle.
     "Class_Airspace": (
@@ -364,6 +367,70 @@ def military_fields(cache_dir) -> dict:
     except Exception:
         log.warning("No APT_BASE.csv for military fields; none marked", exc_info=True)
         return {}
+
+
+#: A box number, not a street a pilot can be driven to.
+_PO_BOX = re.compile(r"^\s*P\.?\s*O\.?\s*BOX\b", re.IGNORECASE)
+
+
+def _street_case(text: str) -> str:
+    """The FAA's capitals set as an address is written: "2627 HOLLYWOOD
+    WAY" as "2627 Hollywood Way", its compass points (NE) and ordinals
+    (1st) as they are written."""
+    words = text.strip().title()
+    words = re.sub(r"\b(Ne|Nw|Se|Sw)\b", lambda m: m.group(1).upper(), words)
+    return re.sub(r"(\d)(St|Nd|Rd|Th)\b", lambda m: m.group(1) + m.group(2).lower(), words)
+
+
+def _address_of(row) -> str | None:
+    """One line a map can find: the street (not a box number), the town,
+    the state and the ZIP code -- None where it has no street."""
+    street = next((a for a in (row["ADDRESS1"], row["ADDRESS2"]) if a.strip() and not _PO_BOX.match(a)), None)
+    if not street:
+        return None
+    town = _street_case(row["TITLE_CITY"]) if row["TITLE_CITY"].strip() else None
+    place = " ".join(p for p in (row["STATE"].strip(), row["ZIP_CODE"].strip()) if p)
+    return ", ".join(p for p in (_street_case(street), town, place) if p)
+
+
+@lru_cache(maxsize=2)
+def _contacts_of(path: str, _mtime: float, base: str, _base_mtime: float) -> dict:
+    con = pd.read_csv(path, dtype=str, low_memory=False, keep_default_na=False)
+    # The manager's first, the airport's own office as a rule, and the
+    # owner's where there is no manager -- a county's or a company's.
+    rank = {"MANAGER": 0, "OWNER": 1}
+    con = con[con["TITLE"].isin(rank)].assign(rank=lambda d: d["TITLE"].map(rank)).sort_values("rank", kind="stable")
+    by_id: dict = {}
+    for row in con.to_dict("records"):
+        mine = by_id.setdefault(row["ARPT_ID"].strip().upper(), {"phone": None, "address": None})
+        if mine["phone"] is None and row["PHONE_NO"].strip():
+            mine["phone"] = row["PHONE_NO"].strip()
+        if mine["address"] is None:
+            mine["address"] = _address_of(row)
+    # And by the ICAO identifier pilots use (KBUR for BUR), from APT_BASE.
+    apt = _read_apt_base_cached(base, _base_mtime)
+    for arpt_id, icao_id in zip(apt["ARPT_ID"], apt["ICAO_ID"]):
+        if isinstance(icao_id, str) and icao_id.strip() and isinstance(arpt_id, str) and arpt_id.strip().upper() in by_id:
+            by_id.setdefault(icao_id.strip().upper(), by_id[arpt_id.strip().upper()])
+    return by_id
+
+
+def airport_contact(ident: str, cache_dir) -> dict:
+    """How to reach a field on the ground, from the FAA's own airport file
+    (NASR's APT_CON, the contacts the Chart Supplement is made from): a
+    phone and a one-line street address, the manager's first and the
+    owner's where there is none, by its FAA or ICAO identifier -- no
+    names. Each None where the FAA lists none (a box number is no
+    address), and both where the file cannot be had: a card without them,
+    not a card that failed."""
+    try:
+        path = ensure_nasr_file("APT_CON.csv", cache_dir)
+        base = ensure_nasr_file("APT_BASE.csv", cache_dir)
+        contacts = _contacts_of(str(path), path.stat().st_mtime, str(base), base.stat().st_mtime)
+    except Exception:
+        log.warning("No APT_CON.csv for airport contacts; %s gets none", ident, exc_info=True)
+        return {"phone": None, "address": None}
+    return contacts.get(ident.strip().upper(), {"phone": None, "address": None})
 
 
 def pattern_agl_ft(ident: str, cache_dir) -> float:

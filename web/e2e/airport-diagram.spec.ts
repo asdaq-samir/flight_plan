@@ -33,6 +33,8 @@ test("an airport's card shows its diagram, and a tap shows it full screen with t
   await page.goto("/app/plan?place=KDLH");
   await settle(page);
   await grabberTo(page, "full");
+  // Under the Diagrams tab, the card's last.
+  await card(page).getByTestId("place-tab-diagrams").click();
   const picture = card(page).getByTestId("airport-diagram-picture");
   await picture.scrollIntoViewIfNeeded();
   await expect(picture.locator("img")).toHaveAttribute("src", "/api/planner/airport-diagram/2610/KDLH.png");
@@ -64,6 +66,8 @@ test("where the diagram's picture cannot be had, the card links the FAA's PDF", 
   await page.goto("/app/plan?place=KDLH");
   await settle(page);
   await grabberTo(page, "full");
+  // Under the Diagrams tab, the card's last.
+  await card(page).getByTestId("place-tab-diagrams").click();
   await expect(card(page).getByTestId("airport-diagram")).toHaveAttribute("href", PDF);
   await expect(card(page).getByTestId("airport-diagram-picture")).toHaveCount(0);
 });

@@ -148,3 +148,36 @@ def test_an_archive_gives_up_only_the_files_the_planner_reads(tmp_path, monkeypa
     monkeypatch.setattr(faa_data.requests, "get", lambda *a, **k: Answer())
     faa_data.download_and_extract("https://example/DOF.zip", tmp_path, only=["DOF.DAT", "APT_BASE.csv"])
     assert sorted(p.name for p in tmp_path.iterdir()) == ["DOF.DAT"]
+
+
+CONTACTS = (
+    "EFF_DATE,SITE_NO,SITE_TYPE_CODE,STATE_CODE,ARPT_ID,CITY,COUNTRY_CODE,TITLE,NAME,"
+    "ADDRESS1,ADDRESS2,TITLE_CITY,STATE,ZIP_CODE,ZIP_PLUS_FOUR,PHONE_NO\n"
+) + """2026/10/01,01353.,A,CA,BUR,BURBANK,US,OWNER,BURBANK-GLENDALE-PASADENA APT,2627 HOLLYWOOD WAY,,BURBANK,CA,91505,,818-840-8840
+2026/10/01,01353.,A,CA,BUR,BURBANK,US,MANAGER,A MANAGER,2627 HOLLYWOOD WAY,,BURBANK,CA,91505,,818-840-8830
+2026/10/01,00103.,A,AL,0J0,ABBEVILLE,US,MANAGER,A MANAGER,PO BOX 427,101 E. WASHINGTON ST,ABBEVILLE,AL,36310,,334-585-6444
+2026/10/01,00104.,A,AL,0J1,SOMEWHERE,US,OWNER,A COUNTY,P.O. BOX 9,,SOMEWHERE,AL,36000,,
+2026/10/01,00105.,A,MN,0J2,ELSEWHERE,US,MANAGER,A MANAGER,1ST AVE NE,,ELSEWHERE,MN,55000,,
+"""
+
+
+def test_a_fields_contact_is_its_managers_phone_and_street_by_either_ident(tmp_path):
+    (tmp_path / "APT_CON.csv").write_text(CONTACTS)
+    (tmp_path / "APT_BASE.csv").write_text("ARPT_ID,ICAO_ID,TPA\nBUR,KBUR,\n0J0,,\n0J1,,\n0J2,,\n")
+    # The manager's, before the owner's that comes first in the file; no
+    # names; the FAA's capitals as an address is written.
+    assert faa_data.airport_contact("KBUR", tmp_path) == faa_data.airport_contact("bur", tmp_path) == {
+        "phone": "818-840-8830", "address": "2627 Hollywood Way, Burbank, CA 91505"}
+    # A box number is no street: the second line is.
+    assert faa_data.airport_contact("0J0", tmp_path)["address"] == "101 E. Washington St, Abbeville, AL 36310"
+    # Neither, where the FAA lists none.
+    assert faa_data.airport_contact("0J1", tmp_path) == {"phone": None, "address": None}
+    assert faa_data.airport_contact("0J2", tmp_path)["address"] == "1st Ave NE, Elsewhere, MN 55000"
+    assert faa_data.airport_contact("ZZZ", tmp_path) == {"phone": None, "address": None}
+
+
+def test_no_contacts_file_is_a_card_without_them_not_a_failure(monkeypatch, tmp_path):
+    def unreachable(name, cache_dir):
+        raise RuntimeError("the FAA is down")
+    monkeypatch.setattr(faa_data, "ensure_nasr_file", unreachable)
+    assert faa_data.airport_contact("KBUR", tmp_path) == {"phone": None, "address": None}

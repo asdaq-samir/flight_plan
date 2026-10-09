@@ -475,6 +475,17 @@
       "AirportPlace": {
         "description": "One airport the way the map's card shows it: its name and place,\nthe class of the airspace over it, whether it has a tower, its\nrunways and radio, and the weather there now. `metar` is None for a\nfield with no reporting station, and `weather_unavailable` says the\nweather service could not be asked at all -- not the same thing.",
         "properties": {
+          "address": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Address"
+          },
           "airport_diagram_cycle": {
             "anyOf": [
               {
@@ -623,6 +634,25 @@
                 "type": "null"
               }
             ]
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          },
+          "procedures": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/TerminalChart"
+            },
+            "title": "Procedures",
+            "type": "array"
           },
           "radio_notes": {
             "default": [],
@@ -6642,6 +6672,30 @@
           "corridors"
         ],
         "title": "Status",
+        "type": "object"
+      },
+      "TerminalChart": {
+        "description": "One of a field's charts in the d-TPP (vfr.publications): `kind` the\nFAA's chart code -- APD the airport diagram, HOT its hot spots, LAH\nland and hold short, IAP an approach, DP and ODP a departure, STR an\narrival, MIN the takeoff or alternate minimums -- `name` its title as\nthe FAA prints it, `url` its PDF.",
+        "properties": {
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "name",
+          "url"
+        ],
+        "title": "TerminalChart",
         "type": "object"
       },
       "Tfr": {

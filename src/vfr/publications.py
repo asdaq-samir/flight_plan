@@ -78,17 +78,21 @@ def dcs_edition(on: date | None = None) -> str:
     return _cycle_start(on or date.today(), DCS_EPOCH, DCS_DAYS).strftime("%d%b%Y")
 
 
-def _diagrams_of(xml_bytes: bytes) -> dict:
-    """{FAA ident and ICAO ident: the airport diagram's PDF} from a d-TPP
-    metafile."""
+def _charts_of(xml_bytes: bytes) -> dict:
+    """{FAA ident and ICAO ident: the field's charts, each [chart code,
+    chart name, PDF], in the metafile's order} from a d-TPP metafile --
+    the airport diagram (APD) among them, and its hot spots (HOT), land
+    and hold short (LAH), approaches (IAP), departures (DP, ODP),
+    arrivals (STR) and takeoff and alternate minimums (MIN)."""
     found = {}
     for airport in ET.fromstring(xml_bytes).iter("airport_name"):
-        for record in airport.iter("record"):
-            if record.findtext("chart_code") == "APD" and record.findtext("pdf_name"):
-                for ident in (airport.get("apt_ident"), airport.get("icao_ident")):
-                    if ident:
-                        found[ident.upper()] = record.findtext("pdf_name")
-                break
+        charts = [
+            [record.findtext("chart_code") or "", record.findtext("chart_name") or "", record.findtext("pdf_name")]
+            for record in airport.iter("record") if record.findtext("pdf_name")
+        ]
+        for ident in (airport.get("apt_ident"), airport.get("icao_ident")):
+            if ident and charts:
+                found[ident.upper()] = charts
     return found
 
 
@@ -135,12 +139,29 @@ def _faa_idents(ident: str) -> list:
     return [ident, ident[1:]] if len(ident) == 4 and ident[0] in "KP" else [ident]
 
 
+def _charts_for(ident: str, cycle: str) -> list:
+    # "dtpp-charts": every chart, where "dtpp" kept the diagram alone; a
+    # new name, so an index kept on disk in the old shape is not read as
+    # the new one.
+    index = _index("dtpp-charts", cycle, f"{DTPP_BASE}/{cycle}/xml_data/d-tpp_Metafile.xml", _charts_of)
+    return next((index[i] for i in _faa_idents(ident) if i in index), [])
+
+
+def terminal_charts(ident: str, on: date | None = None) -> list:
+    """The field's charts in this cycle's d-TPP -- its airport diagram,
+    hot spots, approaches, departures, arrivals and minimums -- each
+    {"kind": the FAA's chart code, "name": its title as the FAA prints it,
+    "url": its PDF}; none for a field with none (most small ones) or
+    where the index cannot be had."""
+    cycle = dtpp_cycle(on)
+    return [{"kind": code, "name": name, "url": f"{DTPP_BASE}/{cycle}/{pdf}"} for code, name, pdf in _charts_for(ident, cycle)]
+
+
 def airport_diagram_url(ident: str, on: date | None = None) -> str | None:
     """The airport diagram's PDF for this cycle, None where the field has
     none (most small ones) or the index cannot be had."""
     cycle = dtpp_cycle(on)
-    index = _index("dtpp", cycle, f"{DTPP_BASE}/{cycle}/xml_data/d-tpp_Metafile.xml", _diagrams_of)
-    pdf = next((index[i] for i in _faa_idents(ident) if i in index), None)
+    pdf = next((pdf for code, _, pdf in _charts_for(ident, cycle) if code == "APD"), None)
     return f"{DTPP_BASE}/{cycle}/{pdf}" if pdf else None
 
 
