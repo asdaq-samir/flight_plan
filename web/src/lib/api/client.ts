@@ -6,7 +6,7 @@ import type {
   ChartInfo, ChartRefreshStarted, CheckpointDescriptionMessage, CheckpointNoteSaved, Checkpoints, Classification, Course, Detour,
   Flight, FlightSummary, ModelComparison, NarrativeMessage, NarrativeRequest, NavLogMessage, PickDeleted, PickSaved,
   AirspaceAt, ClassBResponse, NearestAirports, RouteProfile, Tfrs, DevServices, DevServiceStarted, Pilot, Rating, RetrainStarted, Role, SaveFlightRequest,
-  SignInCapabilities, AppleSignedIn, LogbookEntry, LogbookEntryRequest, Currency, CurrencyDatesRequest,
+  SignInCapabilities, AppleSignedIn, AppleNonce, LogbookEntry, LogbookEntryRequest, Currency, CurrencyDatesRequest,
   Status, StreamMessage, Totals, WaypointsInView, Training, SavedTrack,
   OralQuestion, OralQuestionRequest, OralGrade, OralGradeRequest,
 } from "./types";
@@ -405,6 +405,11 @@ export const api = {
       throw err;
     }
   },
+
+  /** A one-time nonce for the next native Apple sign-in, kept on the
+   *  session; the sheet is given its SHA-256 (lib/native). */
+  appleNativeNonce: () =>
+    webapp.GET("/api/auth/apple/native/nonce").then(data<AppleNonce>),
 
   /** The iOS app's Sign in with Apple: the native sheet's identity
    *  token, which the webapp checks before signing the pilot in on this

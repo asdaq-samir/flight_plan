@@ -612,6 +612,15 @@
         "required" : [ "email" ],
         "type" : "object"
       },
+      "Nonce" : {
+        "properties" : {
+          "nonce" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "nonce" ],
+        "type" : "object"
+      },
       "PilotDto" : {
         "description" : "The signed-in pilot",
         "properties" : {
@@ -987,7 +996,7 @@
     },
     "/api/auth/apple/native" : {
       "post" : {
-        "description" : "Checks the native sheet's identity token (Apple's keys, issuer, this app's bundle id) and signs the pilot in on this session. 404 where no iOS app is set up.",
+        "description" : "Checks the native sheet's identity token (Apple's keys, issuer, this app's bundle id, the nonce from /nonce) and signs the pilot in on this session. 404 where no iOS app is set up.",
         "operationId" : "signIn",
         "requestBody" : {
           "content" : {
@@ -1032,6 +1041,36 @@
           }
         },
         "summary" : "Sign in with Apple from the iOS app",
+        "tags" : [ "apple-native-sign-in-controller" ]
+      }
+    },
+    "/api/auth/apple/native/nonce" : {
+      "get" : {
+        "description" : "Kept on the session for the next native sign-in only; the page gives the sheet its SHA-256 (lowercase hex). 404 where no iOS app is set up.",
+        "operationId" : "nonce",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Nonce"
+                }
+              }
+            },
+            "description" : "The nonce to hash for the sheet"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "type" : "object"
+                }
+              }
+            },
+            "description" : "No iOS app set up here"
+          }
+        },
+        "summary" : "A one-time nonce for the iOS app's Apple sheet",
         "tags" : [ "apple-native-sign-in-controller" ]
       }
     },

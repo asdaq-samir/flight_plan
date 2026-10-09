@@ -39,7 +39,8 @@ export default function SignInModal() {
   const providers = native ? [] : offered;
   const appleSheet = useMutation({
     mutationFn: async () => {
-      const token = await nativeAppleIdentityToken();
+      const { nonce } = await api.appleNativeNonce();
+      const token = await nativeAppleIdentityToken(nonce);
       if (token === null) return null;
       return api.signInWithAppleNative(token);
     },

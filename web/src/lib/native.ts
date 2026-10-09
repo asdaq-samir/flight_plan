@@ -70,14 +70,20 @@ export async function followAppLinks(): Promise<void> {
 /**
  * Sign in with Apple through the app's own sheet: Apple's identity token
  * for this app, which the webapp checks and signs the pilot in with
- * (AppleNativeSignInController). Answers it, or null when the pilot
+ * (AppleNativeSignInController) against the nonce it issued. Answers it, or null when the pilot
  * closed the sheet.
  */
-export async function nativeAppleIdentityToken(): Promise<string | null> {
+export async function nativeAppleIdentityToken(nonce: string): Promise<string | null> {
   const { SignInWithApple } = await import("@capacitor-community/apple-sign-in");
   try {
     // clientId and redirectURI are the web flow's; the native sheet uses neither.
-    const { response } = await SignInWithApple.authorize({ clientId: "", redirectURI: "", scopes: "email name" });
+    // The token carries the nonce's SHA-256 (hex), which the webapp
+    // checks against the nonce it issued: a copied token is no use.
+    const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(nonce));
+    const hashed = Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, "0")).join("");
+    const { response } = await SignInWithApple.authorize({
+      clientId: "", redirectURI: "", scopes: "email name", nonce: hashed,
+    });
     return response.identityToken;
   } catch (err) {
     // ASAuthorizationError 1001: the pilot cancelled.

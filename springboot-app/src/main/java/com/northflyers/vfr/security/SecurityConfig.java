@@ -192,6 +192,7 @@ public class SecurityConfig {
                             // The iOS app's native Apple sheet, before any
                             // session exists (AppleNativeSignInController).
                             .requestMatchers(HttpMethod.POST, "/api/auth/apple/native").permitAll()
+                            .requestMatchers(HttpMethod.GET, "/api/auth/apple/native/nonce").permitAll()
                             // Asked before any session exists, to decide
                             // whether a sign-in button is worth showing
                             // at all (SignInCapabilitiesController).

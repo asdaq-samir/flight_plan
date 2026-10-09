@@ -15,6 +15,12 @@ import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
+import java.util.Base64;
+import java.util.HexFormat;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -40,6 +46,7 @@ import org.springframework.security.web.authentication.session.SessionAuthentica
 import org.springframework.security.web.authentication.session.SessionFixationProtectionStrategy;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.web.context.SecurityContextRepository;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -55,6 +62,14 @@ import org.springframework.web.bind.annotation.RestController;
  * cannot use the web flow: Apple's page does not load inside an app's
  * app-bound web view, and App Review expects the native sheet.
  *
+ * <p>A token is also tied to one sign-in attempt, as the web flow's
+ * OIDC nonce does: the page asks for a nonce first (kept on the session,
+ * good for one try), has the Apple sheet put its SHA-256 in the token
+ * (Apple's own advice, Sign in with Apple "Authenticating users with
+ * Sign in with Apple"), and the token is accepted only with that hash. A
+ * token copied from a log or the bridge was made for another attempt and
+ * is refused.
+ *
  * <p>Without APP_IOS_BUNDLE_ID there is no app whose tokens to accept,
  * and this answers 404.
  */
@@ -63,6 +78,9 @@ import org.springframework.web.bind.annotation.RestController;
 public class AppleNativeSignInController {
 
     static final String APPLE = "https://appleid.apple.com";
+    static final String NONCE = AppleNativeSignInController.class.getName() + ".NONCE";
+
+    private final SecureRandom random = new SecureRandom();
 
     private final PilotService pilots;
     private final JwtDecoder decoder;
@@ -100,11 +118,44 @@ public class AppleNativeSignInController {
     /** What the app's Apple sheet answered. */
     public record AppleToken(@NotBlank @Size(max = 8000) String identityToken) {}
 
+    /** The nonce for one sign-in attempt, as the page gives it to the sheet. */
+    public record Nonce(String nonce) {}
+
     /** Signed in: where the app goes next (SignInLanding). */
     public record SignedIn(String next) {}
 
+    @Operation(summary = "A one-time nonce for the iOS app's Apple sheet",
+            description = "Kept on the session for the next native sign-in only; the page gives the sheet its SHA-256 "
+                    + "(lowercase hex). 404 where no iOS app is set up.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "The nonce to hash for the sheet",
+                content = @Content(schema = @Schema(implementation = Nonce.class))),
+        @ApiResponse(responseCode = "404", description = "No iOS app set up here")
+    })
+    @GetMapping("/nonce")
+    public ResponseEntity<?> nonce(HttpServletRequest request) {
+        if (decoder == null) {
+            return ResponseEntity.status(404).body(new ErrorResponse("Sign in with Apple is not set up for the app here."));
+        }
+        byte[] bytes = new byte[32];
+        random.nextBytes(bytes);
+        String nonce = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+        request.getSession().setAttribute(NONCE, nonce);
+        return ResponseEntity.ok(new Nonce(nonce));
+    }
+
+    /** SHA-256 of the nonce, lowercase hex: what the sheet puts in the token. */
+    static String hashed(String nonce) {
+        try {
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(nonce.getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException impossible) {
+            throw new IllegalStateException(impossible);
+        }
+    }
+
     @Operation(summary = "Sign in with Apple from the iOS app",
-            description = "Checks the native sheet's identity token (Apple's keys, issuer, this app's bundle id) and "
+            description = "Checks the native sheet's identity token (Apple's keys, issuer, this app's bundle id, the nonce "
+                    + "from /nonce) and "
                     + "signs the pilot in on this session. 404 where no iOS app is set up.")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Signed in; `next` is where to go",
@@ -126,6 +177,15 @@ public class AppleNativeSignInController {
         }
         OidcUser user = new DefaultOidcUser(List.of(new SimpleGrantedAuthority("OIDC_USER")),
                 new OidcIdToken(jwt.getTokenValue(), jwt.getIssuedAt(), jwt.getExpiresAt(), jwt.getClaims()), "sub");
+        // One try per nonce, spent whatever the answer.
+        var session = request.getSession(false);
+        Object issued = session == null ? null : session.getAttribute(NONCE);
+        if (session != null) {
+            session.removeAttribute(NONCE);
+        }
+        if (!(issued instanceof String nonce) || !hashed(nonce).equals(jwt.getClaimAsString("nonce"))) {
+            return ResponseEntity.status(401).body(new ErrorResponse("Apple's sign-in could not be confirmed. Try again."));
+        }
         Pilot pilot;
         try {
             pilot = pilots.fromOidcUser(user, "apple");

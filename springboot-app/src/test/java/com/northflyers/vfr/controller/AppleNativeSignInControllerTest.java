@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.northflyers.vfr.domain.Pilot;
 import com.northflyers.vfr.service.PilotService;
@@ -30,10 +31,21 @@ import org.springframework.security.web.context.HttpSessionSecurityContextReposi
 class AppleNativeSignInControllerTest {
 
     private static Jwt token(String audience) {
+        return token(audience, null);
+    }
+
+    private static Jwt token(String audience, String nonce) {
         return Jwt.withTokenValue("apple-token").header("alg", "RS256")
                 .issuer("https://appleid.apple.com").audience(List.of(audience)).subject("apple-sub-1")
                 .claim("email", "pilot@example.com").claim("email_verified", "true")
+                .claim("nonce", nonce == null ? "none" : AppleNativeSignInController.hashed(nonce))
                 .issuedAt(Instant.now()).expiresAt(Instant.now().plusSeconds(600)).build();
+    }
+
+    private static MockHttpServletRequest withNonce(String nonce) {
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.getSession().setAttribute(AppleNativeSignInController.NONCE, nonce);
+        return request;
     }
 
     @Test
@@ -41,8 +53,8 @@ class AppleNativeSignInControllerTest {
         PilotService pilots = mock(PilotService.class);
         given(pilots.fromOidcUser(any(OidcUser.class), eq("apple")))
                 .willReturn(new Pilot("pilot@example.com", "A Pilot", null, "apple-sub-1"));
-        JwtDecoder decoder = value -> token("app.wingtipmaps.ios");
-        MockHttpServletRequest request = new MockHttpServletRequest();
+        JwtDecoder decoder = value -> token("app.wingtipmaps.ios", "n-1");
+        MockHttpServletRequest request = withNonce("n-1");
 
         var answer = new AppleNativeSignInController(pilots, decoder).signIn(
                 new AppleNativeSignInController.AppleToken("apple-token"), request, new MockHttpServletResponse());
@@ -71,8 +83,8 @@ class AppleNativeSignInControllerTest {
     void anUnverifiedAddressSignsNobodyIn() {
         PilotService pilots = mock(PilotService.class);
         given(pilots.fromOidcUser(any(OidcUser.class), eq("apple"))).willThrow(new UnverifiedEmailException("pilot@example.com"));
-        var answer = new AppleNativeSignInController(pilots, value -> token("app.wingtipmaps.ios")).signIn(
-                new AppleNativeSignInController.AppleToken("apple-token"), new MockHttpServletRequest(),
+        var answer = new AppleNativeSignInController(pilots, value -> token("app.wingtipmaps.ios", "n-1")).signIn(
+                new AppleNativeSignInController.AppleToken("apple-token"), withNonce("n-1"),
                 new MockHttpServletResponse());
         assertThat(answer.getStatusCode().value()).isEqualTo(401);
     }
@@ -90,5 +102,44 @@ class AppleNativeSignInControllerTest {
         var validator = AppleNativeSignInController.forApp("app.wingtipmaps.ios");
         assertThat(validator.validate(token("app.wingtipmaps.ios")).hasErrors()).isFalse();
         assertThat(validator.validate(token("com.someone.else")).hasErrors()).isTrue();
+    }
+
+    @Test
+    void aTokenMadeForAnotherAttemptIsRefused() {
+        PilotService pilots = mock(PilotService.class);
+        var controller = new AppleNativeSignInController(pilots, value -> token("app.wingtipmaps.ios", "other"));
+        MockHttpServletRequest request = withNonce("n-1");
+        var answer = controller.signIn(new AppleNativeSignInController.AppleToken("copied"), request,
+                new MockHttpServletResponse());
+        assertThat(answer.getStatusCode().value()).isEqualTo(401);
+        assertThat(request.getSession().getAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY)).isNull();
+        verifyNoInteractions(pilots);
+    }
+
+    @Test
+    void aNonceIsGoodForOneTryAndTokensWithoutOneAreRefused() {
+        PilotService pilots = mock(PilotService.class);
+        given(pilots.fromOidcUser(any(OidcUser.class), eq("apple")))
+                .willReturn(new Pilot("pilot@example.com", "A Pilot", null, "apple-sub-1"));
+        var controller = new AppleNativeSignInController(pilots, value -> token("app.wingtipmaps.ios", "n-1"));
+        var body = new AppleNativeSignInController.AppleToken("apple-token");
+        MockHttpServletRequest request = withNonce("n-1");
+        assertThat(controller.signIn(body, request, new MockHttpServletResponse()).getStatusCode().value()).isEqualTo(200);
+        // The same token again (a replay) finds the nonce spent.
+        MockHttpServletRequest replay = new MockHttpServletRequest();
+        replay.setSession(request.getSession());
+        replay.getSession().removeAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY);
+        assertThat(controller.signIn(body, replay, new MockHttpServletResponse()).getStatusCode().value()).isEqualTo(401);
+        // And from a session that never asked for one.
+        assertThat(controller.signIn(body, new MockHttpServletRequest(), new MockHttpServletResponse())
+                .getStatusCode().value()).isEqualTo(401);
+    }
+
+    @Test
+    void theNonceIsKeptOnTheSession() {
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        var answer = new AppleNativeSignInController(mock(PilotService.class), value -> token("a")).nonce(request);
+        var nonce = ((AppleNativeSignInController.Nonce) answer.getBody()).nonce();
+        assertThat(request.getSession().getAttribute(AppleNativeSignInController.NONCE)).isEqualTo(nonce);
     }
 }

@@ -119,11 +119,15 @@ function startWatching(set: (patch: Partial<OwnShip>) => void) {
 function startNativeWatching(set: (patch: Partial<OwnShip>) => void) {
   if (stopNative !== null || nativeStarting) return;
   nativeStarting = true;
-  void watchNativePosition(position => applyFix(set, position), message => failed(set, message)).then(stop => {
-    nativeStarting = false;
-    if (useOwnShip.getState().enabled) stopNative = stop;
-    else stop();
-  });
+  void watchNativePosition(position => applyFix(set, position), message => failed(set, message))
+    .then(stop => {
+      if (useOwnShip.getState().enabled) stopNative = stop;
+      else stop();
+    })
+    // The plugin failing to load or to start is said like any other
+    // refusal, and a later tap may try again.
+    .catch(err => failed(set, err instanceof Error ? err.message : "No position yet."))
+    .finally(() => { nativeStarting = false; });
 }
 
 /** A fix, the browser's or the app's (the same shape), into own ship. */
