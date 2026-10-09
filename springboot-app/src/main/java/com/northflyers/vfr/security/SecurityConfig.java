@@ -189,6 +189,9 @@ public class SecurityConfig {
                             // routes for Google/Apple) are never matched
                             // against "anyRequest" here either.
                             .requestMatchers("/api/auth/magic-link/**").permitAll()
+                            // The iOS app's native Apple sheet, before any
+                            // session exists (AppleNativeSignInController).
+                            .requestMatchers(HttpMethod.POST, "/api/auth/apple/native").permitAll()
                             // Asked before any session exists, to decide
                             // whether a sign-in button is worth showing
                             // at all (SignInCapabilitiesController).
@@ -197,6 +200,9 @@ public class SecurityConfig {
                             // much as after (ClientErrorController).
                             .requestMatchers(HttpMethod.POST, "/api/client-errors").permitAll()
                             .requestMatchers(HttpMethod.GET, "/", "/error").permitAll()
+                            // What iOS reads to open this site's links in the
+                            // app (AppSiteAssociationController).
+                            .requestMatchers(HttpMethod.GET, "/.well-known/apple-app-site-association").permitAll()
                             // Everything else that exists is pilot-scoped.
                             .anyRequest().authenticated();
                 })

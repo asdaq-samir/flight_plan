@@ -178,6 +178,8 @@ export type Pilot = Webapp["PilotDto"];
 /** How this deployment is reached -- SIGN_IN, OPEN or CLOSED -- asked
  *  before anyone has signed in (`/api/auth/capabilities`). */
 export type SignInCapabilities = Webapp["Capabilities"];
+/** The iOS app's Apple sign-in, done: where to go next. */
+export type AppleSignedIn = Webapp["SignedIn"];
 
 /** A pilot's own airplane, from `/api/aircraft`. `usableFuelGal` is
  *  null when the owner has not said, and then the nav log makes no

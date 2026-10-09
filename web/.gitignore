@@ -9,3 +9,5 @@ tsconfig.tsbuildinfo
 # from ../springboot-app/openapi.json.
 src/lib/api/schema.d.ts
 src/lib/api/webapp-schema.d.ts
+# Written by capacitor.config.ts from WINGTIP_URL.
+ios-offline/site.js

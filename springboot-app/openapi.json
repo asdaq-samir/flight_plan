@@ -87,6 +87,17 @@
         "required" : [ "climbFuelBurnGph", "climbTasKt", "cruisePowerPct", "cruiseTasKt", "fuelBurnGph", "tailNumber", "typeDesignator", "usableFuelGal" ],
         "type" : "object"
       },
+      "AppleToken" : {
+        "properties" : {
+          "identityToken" : {
+            "maxLength" : 8000,
+            "minLength" : 0,
+            "type" : "string"
+          }
+        },
+        "required" : [ "identityToken" ],
+        "type" : "object"
+      },
       "Capabilities" : {
         "properties" : {
           "access" : {
@@ -782,6 +793,15 @@
         "required" : [ "aircraftId", "altitudes", "checkpoints", "cruiseAltitudeFt", "departureIdent", "destinationIdent", "plannedFor", "risk", "stops", "totalDistanceNm", "totalEteMin", "totalFuelGal" ],
         "type" : "object"
       },
+      "SignedIn" : {
+        "properties" : {
+          "next" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "next" ],
+        "type" : "object"
+      },
       "StreamingResponseBody" : {
         "type" : "object"
       },
@@ -963,6 +983,56 @@
           }
         },
         "tags" : [ "aircraft-controller" ]
+      }
+    },
+    "/api/auth/apple/native" : {
+      "post" : {
+        "description" : "Checks the native sheet's identity token (Apple's keys, issuer, this app's bundle id) and signs the pilot in on this session. 404 where no iOS app is set up.",
+        "operationId" : "signIn",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/AppleToken"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SignedIn"
+                }
+              }
+            },
+            "description" : "Signed in; `next` is where to go"
+          },
+          "401" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "type" : "object"
+                }
+              }
+            },
+            "description" : "Not a token Apple issued to this app, or no verified email"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "type" : "object"
+                }
+              }
+            },
+            "description" : "No iOS app set up here"
+          }
+        },
+        "summary" : "Sign in with Apple from the iOS app",
+        "tags" : [ "apple-native-sign-in-controller" ]
       }
     },
     "/api/auth/capabilities" : {

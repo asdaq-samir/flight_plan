@@ -6,7 +6,7 @@ import type {
   ChartInfo, ChartRefreshStarted, CheckpointDescriptionMessage, CheckpointNoteSaved, Checkpoints, Classification, Course, Detour,
   Flight, FlightSummary, ModelComparison, NarrativeMessage, NarrativeRequest, NavLogMessage, PickDeleted, PickSaved,
   AirspaceAt, ClassBResponse, NearestAirports, RouteProfile, Tfrs, DevServices, DevServiceStarted, Pilot, Rating, RetrainStarted, Role, SaveFlightRequest,
-  SignInCapabilities, LogbookEntry, LogbookEntryRequest, Currency, CurrencyDatesRequest,
+  SignInCapabilities, AppleSignedIn, LogbookEntry, LogbookEntryRequest, Currency, CurrencyDatesRequest,
   Status, StreamMessage, Totals, WaypointsInView, Training, SavedTrack,
   OralQuestion, OralQuestionRequest, OralGrade, OralGradeRequest,
 } from "./types";
@@ -405,6 +405,12 @@ export const api = {
       throw err;
     }
   },
+
+  /** The iOS app's Sign in with Apple: the native sheet's identity
+   *  token, which the webapp checks before signing the pilot in on this
+   *  session (AppleNativeSignInController); answers where to go next. */
+  signInWithAppleNative: (identityToken: string) =>
+    webapp.POST("/api/auth/apple/native", { body: { identityToken } }).then(data<AppleSignedIn>),
 
   /** Deletes the signed-in pilot's account and everything that was
    *  theirs, on every device, and signs them out (a 204). A 502 deleted

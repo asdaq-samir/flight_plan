@@ -14,6 +14,7 @@ import { ApiError, api } from "../../lib/api/client";
 import { LEGAL_PAGES } from "../../lib/legal";
 import { capabilitiesQuery } from "../../lib/queryClient";
 import { TEXT } from "../../lib/text";
+import { inNativeApp, nativeAppleIdentityToken } from "../../lib/native";
 
 /**
  * Three ways in, the standard shape every "sign in" prompt (Auth.js,
@@ -30,7 +31,21 @@ import { TEXT } from "../../lib/text";
 export default function SignInModal() {
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState("");
-  const providers = useQuery(capabilitiesQuery).data?.providers ?? [];
+  // In the iOS app, Apple's own sheet and the emailed link (whose link
+  // opens the app, lib/native): Google refuses to sign in inside an
+  // app's web view, and Apple's web page does not load in it.
+  const native = inNativeApp();
+  const offered = useQuery(capabilitiesQuery).data?.providers ?? [];
+  const providers = native ? [] : offered;
+  const appleSheet = useMutation({
+    mutationFn: async () => {
+      const token = await nativeAppleIdentityToken();
+      if (token === null) return null;
+      return api.signInWithAppleNative(token);
+    },
+    onSuccess: signedIn => { if (signedIn) window.location.assign(signedIn.next); },
+    meta: { silent: true },
+  });
   const trimmedEmail = email.trim();
   // The address a link went to is the one it was asked for with -- the
   // mutation's own variable -- not a copy taken from the box when the
@@ -71,9 +86,21 @@ export default function SignInModal() {
           <DialogTitle>Sign in to Wingtip Maps</DialogTitle>
           <DialogDescription>Save your airplanes and filed flights to your own account.</DialogDescription>
         </DialogHeader>
-        {providers.length > 0 && (
+        {(providers.length > 0 || native) && (
           <>
             <div className="flex flex-col gap-2">
+              {native && (
+                <Button variant="outline" className="justify-start gap-3" disabled={appleSheet.isPending}
+                  onClick={() => appleSheet.mutate()} data-testid="apple-native">
+                  <AppleLogo className="size-4" />
+                  Continue with Apple
+                </Button>
+              )}
+              {appleSheet.isError && (
+                <p role="alert" className={`text-destructive ${TEXT.note}`}>
+                  {appleSheet.error instanceof ApiError ? appleSheet.error.message : "Sign in with Apple did not finish. Try again."}
+                </p>
+              )}
               {providers.includes("google") && (
                 <Button asChild variant="outline" className="justify-start gap-3">
                   <a href="/oauth2/authorization/google">
