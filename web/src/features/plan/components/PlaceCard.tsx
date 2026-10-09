@@ -35,7 +35,7 @@ function away(from: LatLon, to: LatLon): string {
 
 /** The line under the name: the ident, the airspace, the tower or its
  *  CTAF, and how far it is -- "KDLH · Class C · 18 nm NE". */
-function subtitleOf(place: AirportPlace, from: { point: LatLon; name: string | null } | null): ReactNode {
+function subtitleOf(place: AirportPlace, from: { point: LatLon; name: string | null } | null, elevation = true): ReactNode {
   const mhz = (f?: { frequency_mhz?: number | null }) =>
     f?.frequency_mhz ? f.frequency_mhz.toFixed(3).replace(/0+$/, "").replace(/\.$/, "") : null;
   // The civil tower: the airport file also lists military UHF (225-400 MHz)
@@ -45,11 +45,12 @@ function subtitleOf(place: AirportPlace, from: { point: LatLon; name: string | n
     f.frequency_mhz != null && f.frequency_mhz >= 118 && f.frequency_mhz <= 136.975;
   const tower = mhz(place.frequencies.find(f => f.type === "TWR" && civil(f)));
   const ctaf = mhz(place.frequencies.find(f => f.type === "CTAF" || f.type === "UNIC"));
-  // Three short lines, at the pilot's ask, to save room: the ident and the
+  // Short lines, at the pilot's ask, to save room: the ident and the
   // class of the airspace over it, the frequency it is called on -- the
   // tower's at a towered field, else its CTAF -- and its elevation:
   // "C81 (G)", "CTAF: 122.7", "Elev: 788 ft"; how far it is after the
-  // first, the shortest.
+  // first, the shortest. Not the elevation where the runways' sketch
+  // shows it (`elevation` false).
   const what = [
     place.airspace_class ? `${place.ident} (${place.airspace_class})` : place.ident,
     // A field the armed services own (the FAA's airport file): one most
@@ -67,7 +68,7 @@ function subtitleOf(place: AirportPlace, from: { point: LatLon; name: string | n
   return (
     <>
       {what}<br />{radio}
-      {place.elevation_ft != null && <><br />Elev: {feet(place.elevation_ft)}</>}
+      {elevation && place.elevation_ft != null && <><br />Elev: {feet(place.elevation_ft)}</>}
     </>
   );
 }
@@ -286,6 +287,7 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
   }, [place]);
   const sketched = sketchedRunways.length > 0;
   const [diagramOpen, setDiagramOpen] = useState(false);
+  const [elevationPane, setElevationPane] = useState<HTMLElement | null>(null);
   const line = place ? subtitleOf(place, measured)
     : error ? `${ident} · ${error instanceof ApiError && error.status === 404 ? "not found" : "could not be looked up"}`
       : `${ident} · …`;
@@ -317,38 +319,47 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
         {place && sketched ? (
           // The runways' sketch to the right of the name, at the pilot's
           // ask, under the weather's chip, the star and the close and down
-          // to the tiles, the width of Call and Address; the card's lines --
-          // the ident and class, the tower or CTAF, the elevation -- at its
-          // top left, the runways drawn under them. The room the lines took
-          // under the name is the card's. Four columns as the tiles' are,
-          // where the tiles are three too: the name its half of the card.
+          // to the tiles, the width of Call and Address, the field's
+          // elevation alone in its top left ("788 ft"); the ident and
+          // class and the tower or CTAF under the name, where they were.
+          // Four columns as the tiles' are, where the tiles are three too:
+          // the name its half of the card.
           <div className="grid grid-cols-4 gap-x-2">
-            <h2
-              tabIndex={-1} data-testid="place-name"
-              className={cn("col-span-2 row-span-2 min-w-0 font-bold tracking-tight break-words text-foreground outline-none", TEXT.card)}
-            >
-              {place.name}
-            </h2>
+            <div className="col-span-2 row-span-2 min-w-0">
+              <h2
+                tabIndex={-1} data-testid="place-name"
+                className={cn("font-bold tracking-tight break-words text-foreground outline-none", TEXT.card)}
+              >
+                {place.name}
+              </h2>
+              <p className={cn("text-muted-foreground", TEXT.note)} data-testid="place-line">{subtitleOf(place, measured, false)}</p>
+            </div>
             <div className="col-span-2 flex items-start justify-end gap-2">
               {chip}
               <FavoriteButton place={place} />
               <CloseButton onClick={onClose} className="-mr-1" data-testid="place-close" />
             </div>
-            <div className={cn("col-span-2 mt-2 flex min-h-24 flex-col overflow-hidden rounded-xl p-1.5 text-foreground", GLASS_BUTTON)}>
-              {/* In the text's own colour: the muted grey on the sketch's
-                  glass, lighter than the card's at night, read at 4.4:1
-                  there, under WCAG's 4.5 (the iPhone audit). */}
-              <p className={cn("text-foreground", TEXT.note)} data-testid="place-line">{line}</p>
-              {/* The runways in what the lines leave, never under them; the
-                  tap the sketch's, the lines read as they are. */}
+            <div className={cn("relative col-span-2 mt-2 min-h-16 overflow-hidden rounded-xl text-foreground", GLASS_BUTTON)}>
               <button
                 type="button" data-testid="place-runway-sketch"
                 aria-label={`${place.ident} runways ${sketchedRunways.join(", ")}, north up${leftOut ? `, ${leftOut} more not drawn, their ends unsurveyed` : ""}. ${place.airport_diagram_url ? "Airport diagram, full screen" : "Show runways"}`}
                 onClick={() => (place.airport_diagram_url ? setDiagramOpen(true) : open("runways"))}
-                className="relative block min-h-12 w-full flex-1 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="absolute inset-0 block rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
               >
-                <RunwaySketch runways={place.runways} lat={place.lat} lon={place.lon} />
+                <RunwaySketch runways={place.runways} lat={place.lat} lon={place.lon} avoid={elevationPane} />
               </button>
+              {/* Over the sketch, read as it is (the button's name is the
+                  runways'), on a pane of the card's own ground where a
+                  runway runs under it. */}
+              {place.elevation_ft != null && (
+                <span
+                  ref={setElevationPane}
+                  className={cn("pointer-events-none absolute top-1 left-1.5 rounded-md bg-background/75 px-1 font-semibold text-foreground", TEXT.note)}
+                  data-testid="place-elevation"
+                >
+                  <span className="sr-only">Elevation </span>{feet(place.elevation_ft)}
+                </span>
+              )}
             </div>
             {diagramOpen && place.airport_diagram_url && (
               <FaaChart
