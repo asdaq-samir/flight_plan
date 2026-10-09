@@ -17,10 +17,10 @@ import { beforeTheRoute, openMapSettings } from "./helpers";
 // service worker for the whole suite.
 
 const PLAN = "/app/plan?dep=C81&dest=KDLH";
-// The pill is a Class B field's alone (airportIcon's `classB`); the
-// route's own C81 and KDLH draw squarer chips, so counting pills counts
-// Class B airports.
-const chips = (page: Page) => page.locator(".leaflet-marker-icon span.rounded-full");
+// The Class B fields' marks (airportMarkIcon), in the marker pane with
+// the route's own C81 and KDLH, which are not Class B: counting them
+// counts the Class B airports.
+const chips = (page: Page) => page.locator(".leaflet-marker-pane .leaflet-marker-icon").filter({ has: page.locator('[data-airspace="B"]') });
 
 /** The route on the map: its destination chip drawn, which is after
  *  the course has arrived and the markers laid out. It used to be a
@@ -86,7 +86,7 @@ test("switched on, every Class B is on the map by name", { tag: "@smoke" }, asyn
   await expect(chips(page).filter({ hasText: "KORD" })).toHaveCount(1);
 });
 
-test("the marker's colour is the field's own flight category", async ({ page }) => {
+test("the marker's weather dot is the field's own flight category", async ({ page }) => {
   await mockClassB(page);
   await showClassBFirst(page);
   await page.goto(PLAN);
@@ -101,8 +101,8 @@ test("the marker's colour is the field's own flight category", async ({ page }) 
   // locator, which retries: Leaflet redraws a marker's icon as the
   // layer settles, and a colour read once off the element it had just
   // replaced came back "" (a detached node has no computed style).
-  await expect(ord).toHaveCSS("background-color", "rgb(179, 38, 30)");
-  await expect(msp).toHaveCSS("background-color", "rgb(143, 163, 176)");
+  await expect(ord.locator("[data-weather]")).toHaveCSS("fill", "rgb(179, 38, 30)");
+  await expect(msp.locator("[data-weather]")).toHaveCSS("fill", "rgb(143, 163, 176)");
 });
 
 test("tapping one opens its card in the panel, with Fly Here, as any airport on the chart does", async ({ page }) => {

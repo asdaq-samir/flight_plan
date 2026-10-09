@@ -198,10 +198,10 @@ test("plan page: the checkpoints are named on the map beside their dots, as Fore
     const r = el.getBoundingClientRect();
     return { left: r.left, right: r.right, top: r.top, bottom: r.bottom };
   })));
-  // Nor over the route's own airports' chips.
+  // Nor over the route's own airports' marks, nor their idents beside them.
   const chips = await page.locator(".leaflet-marker-icon", { hasText: /^(C81|KDLH)$/ }).evaluateAll(els => els.map(el => {
-    const r = el.firstElementChild!.getBoundingClientRect();
-    return { left: r.left, right: r.right, top: r.top, bottom: r.bottom };
+    const [mark, ident] = [...el.children].map(c => c.getBoundingClientRect());
+    return { left: mark!.left, right: Math.max(mark!.right, ident!.right), top: Math.min(mark!.top, ident!.top), bottom: Math.max(mark!.bottom, ident!.bottom) };
   }));
   for (const a of boxes) {
     for (const c of chips) {

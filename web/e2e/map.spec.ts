@@ -56,7 +56,7 @@ test("plan page: every popup the map opens dismisses the same way", async ({ pag
     await page.waitForTimeout(400);
   }
 
-  const chip = page.locator(".leaflet-marker-icon span.rounded-full").filter({ hasText: "KORD" }).first();
+  const chip = page.locator(".leaflet-marker-icon").filter({ has: page.locator('[data-airspace="B"]'), hasText: "KORD" }).first();
   await expect(chip).toBeVisible({ timeout: slow(25000) });
   // A Class B chip opens the field's card in the panel, as every
   // airport on the chart does, not a popup of its own on the map.

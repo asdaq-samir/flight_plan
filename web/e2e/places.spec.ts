@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { expectDrawerClosed, expectDrawerOpen, grabberTo, openPanel, settle, sideDrawer, slow, tapTheChart } from "./helpers";
+import { expectDrawerClosed, expectDrawerOpen, grabberTo, openMapSettings, openPanel, settle, sideDrawer, slow, tapTheChart } from "./helpers";
 
 /**
  * Airports as places, as Maps has them: a tap on one on the chart opens
@@ -290,33 +290,69 @@ test("a tap on an airport on the chart opens its card, a tap elsewhere puts it a
   await expect(card(page)).toHaveCount(0);
 });
 
-test("the airport whose card is open wears a ring round its chip, clear of it on every side", async ({ page }) => {
-  // C81 reporting VFR, so it wears a chip at its card's zoom.
+test("the airport whose card is open wears a ring round its mark, clear of it on every side, its ident over it", async ({ page }) => {
+  // C81 reporting VFR, so it wears a mark at its card's zoom.
   await page.route(url => url.pathname.endsWith("/api/planner/airports/in-view"), route => route.fulfill({
     status: 200, contentType: "application/json", body: JSON.stringify({ airports: [
-      { ident: "C81", name: "Campbell", lat: 42.3246, lon: -88.0741, kind: "small", flight_category: "VFR", military: null },
+      { ident: "C81", name: "Campbell", lat: 42.3246, lon: -88.0741, kind: "small", flight_category: "VFR", military: null, airspace_class: "G" },
     ] }),
   }));
   await page.goto("/app/plan?place=C81");
   await settle(page);
-  const chip = page.locator(".leaflet-airports-pane .leaflet-marker-icon", { hasText: "C81" }).locator("span");
+  const marker = page.locator(".leaflet-airports-pane .leaflet-marker-icon", { hasText: "C81" });
+  const mark = marker.locator("[data-airport-mark]");
   const ring = page.locator("[data-selected-airport]");
-  await expect(chip).toBeVisible({ timeout: slow(15000) });
+  await expect(mark).toBeVisible({ timeout: slow(15000) });
   await expect(ring).toBeVisible();
   // Measured once the map has stopped moving the two together.
   await expect(async () => {
-    const c = (await chip.boundingBox())!, r = (await ring.boundingBox())!;
+    const c = (await mark.boundingBox())!, r = (await ring.boundingBox())!;
     expect(Math.abs(c.x + c.width / 2 - (r.x + r.width / 2))).toBeLessThan(1);
     expect(Math.abs(c.y + c.height / 2 - (r.y + r.height / 2))).toBeLessThan(1);
-    // Its yellow 3 wide and 3 clear of the chip: the circle it was,
-    // smaller than the chip, lay under it all but a sliver.
+    // Its red-orange 3 wide and clear of the mark: the circle it was,
+    // smaller than the chip it went round, lay under it all but a sliver.
     expect(r.width - c.width).toBeGreaterThanOrEqual(11);
     expect(r.height - c.height).toBeGreaterThanOrEqual(11);
   }).toPass({ timeout: slow(10000) });
+  // The ident beside the mark is over the ring, not hidden under it.
+  const ident = marker.locator("span").filter({ hasText: "C81" });
+  const at = (await ident.boundingBox())!;
+  const top = await page.evaluate(([x, y]) => document.elementFromPoint(x!, y!)?.textContent ?? "", [at.x + 3, at.y + at.height / 2]);
+  expect(top).toBe("C81");
 
   // Put away, the ring goes with the card.
   await card(page).getByTestId("place-close").click();
   await expect(ring).toHaveCount(0);
+});
+
+test("the chart's airports are marked by their airspace -- B, C, D, E, G -- a military field with an M, each with its weather's dot", async ({ page }) => {
+  // Round C81, at its card's zoom, every class once, and a military field
+  // (shown once the map's Military is on).
+  const field = (ident: string, at: number, airspace_class: string | null, extra = {}) => ({
+    ident, name: ident, lat: 42.30 + at * 0.03, lon: -88.20 + at * 0.05, kind: "medium", flight_category: "VFR", military: null, airspace_class, ...extra,
+  });
+  await page.route(url => url.pathname.endsWith("/api/planner/airports/in-view"), route => route.fulfill({
+    status: 200, contentType: "application/json", body: JSON.stringify({ airports: [
+      field("KBBB", 0, "B"), field("KCCC", 1, "C"), field("KDDD", 2, "D"), field("KEEE", 3, "E"),
+      field("KGGG", 4, "G", { flight_category: "IFR" }), field("KMIL", 5, "C", { military: "military" }), field("KUNK", 6, null),
+    ] }),
+  }));
+  await page.goto("/app/plan?place=C81");
+  await settle(page);
+  await openMapSettings(page);
+  await page.getByTestId("military-toggle").click();
+  await page.keyboard.press("Escape");
+  const markOf = (ident: string) => page.locator(".leaflet-airports-pane .leaflet-marker-icon", { hasText: ident }).locator("[data-airport-mark]");
+  for (const [ident, space] of [["KBBB", "B"], ["KCCC", "C"], ["KDDD", "D"], ["KEEE", "E"], ["KGGG", "G"], ["KMIL", "C"], ["KUNK", ""]]) {
+    await expect(markOf(ident!)).toHaveAttribute("data-airspace", space!, { timeout: slow(15000) });
+  }
+  await expect(markOf("KMIL")).toHaveAttribute("data-military", "");
+  await expect(markOf("KMIL")).toContainText("M");
+  await expect(markOf("KCCC")).not.toHaveAttribute("data-military");
+  // The dot in its METAR's colour: VFR green, IFR red (no report's grey,
+  // classb.spec).
+  await expect(markOf("KBBB").locator("[data-weather]")).toHaveCSS("fill", "rgb(26, 127, 55)");
+  await expect(markOf("KGGG").locator("[data-weather]")).toHaveCSS("fill", "rgb(179, 38, 30)");
 });
 
 test("closer in, the airports that report wear their weather's colour, and a tap on one opens its card", async ({ page }) => {

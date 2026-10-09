@@ -6,7 +6,7 @@ import { api } from "../api/client";
 import { usePreferences } from "../preferences";
 import type { AirportPin } from "../api/types";
 import { colourOf } from "./flightCategory";
-import { airportIcon, selectionIcon } from "./icons";
+import { airportMarkIcon, selectionIcon } from "./icons";
 import { MapTooltip } from "./MapTooltip";
 import { boxOf, hovers } from "./view";
 
@@ -15,12 +15,12 @@ import { boxOf, hovers } from "./view";
  *  circles over half a state. */
 const FROM_ZOOM = 8;
 
-/** A zoom further out the fields that report wear their chips already,
+/** A zoom further out the fields that report wear their marks already,
  *  the rest nothing: the weather across a region at a glance, the chart
  *  under it still readable. */
 const REPORTING_FROM_ZOOM = 7;
 
-/** From this zoom the fields with no report wear a chip too, in the
+/** From this zoom the fields with no report wear a mark too, its dot in the
  *  grey of no report: the sectional's own scale, where they are a
  *  handful on the screen rather than every strip in half a state.
  *  Further out they keep an invisible target. */
@@ -36,7 +36,7 @@ const NEAR_MISS_PX = 22;
 // its pathOptions is a new object, and a literal is one at every render.
 const TARGET_STYLE: L.PathOptions = { stroke: false, fill: true, fillOpacity: 0 };
 
-/** One field on the chart, its chip or its invisible target, drawn again
+/** One field on the chart, its mark or its invisible target, drawn again
  *  only when it changes (memo): react-leaflet moves a mark whose position
  *  is a new array, as a literal is at every render, and restyles one whose
  *  style is -- every field on the map was moved and restyled each time the
@@ -49,7 +49,10 @@ const AirportMark = memo(function AirportMark({ airport: a, chip, onSelect }: {
 }) {
   const events = { click: (e: L.LeafletMouseEvent) => { L.DomEvent.stopPropagation(e); onSelect(a.ident); } };
   return chip ? (
-    <Marker position={[a.lat, a.lon]} icon={airportIcon(colourOf(a.flight_category), a.ident)} eventHandlers={events}>
+    <Marker
+      position={[a.lat, a.lon]} eventHandlers={events}
+      icon={airportMarkIcon(a.ident, a.airspace_class ?? null, colourOf(a.flight_category), a.military === "military")}
+    >
       {hovers && <MapTooltip>{a.ident} · {a.name} · {a.flight_category ?? "no report"}</MapTooltip>}
     </Marker>
   ) : (
@@ -67,28 +70,27 @@ const AirportMark = memo(function AirportMark({ airport: a, chip, onSelect }: {
 
 /**
  * The chart's own airports, made tappable, from zoom 8 in -- the ones
- * that report from zoom 7: each one that
- * reports its weather wears a chip, its ident in its METAR's flight
- * category's colour, as the route's own airports and the Class B ones
- * do; from zoom 10 every other landing field one in the grey of no
- * report, and further out an invisible target, since the chart already
- * draws it. Either opens the field's card (PlaceCard),
+ * that report from zoom 7: each one that reports its weather wears its
+ * mark (airportMarkIcon), the symbol of its class of airspace -- or the
+ * M of a military field -- with a dot in its METAR's flight category's
+ * colour and its ident beside it, as the route's own airports and the
+ * Class B ones do; from zoom 10 every other landing field one, its dot
+ * the grey of no report, and further out an invisible target, since the
+ * chart already draws it. Either opens the field's card (PlaceCard),
  * with Fly Here -- the chart is a picture, and the map cannot otherwise
  * know an airport was tapped on it. A pointer turns to a hand over one
  * and names it. Under the route's own markers, which keep their taps,
- * and not for a field something else draws a chip for already
+ * and not for a field something else draws a mark for already
  * (`exclude`: the route's two, the Class B ones). The selected one
- * wears the ring a picked point wears on the map, round whichever chip
- * it wears (selectionIcon) and over all of them.
+ * wears the ring a picked point wears on the map, round its mark
+ * (selectionIcon) and over all of them.
  *
  * A tap anywhere else on the chart puts the card away, as it does in Maps.
  */
-export function AirportsLayer({ selected, onSelect, exclude, pills, route }: {
+export function AirportsLayer({ selected, onSelect, exclude, route }: {
   selected: { ident: string; lat: number; lon: number } | null;
   onSelect: (ident: string | null) => void;
   exclude: Set<string>;
-  /** Those of `exclude` whose chip is a Class B field's pill. */
-  pills: Set<string>;
   /** The route's box: its reporting fields asked for once, ahead. */
   route: { south: number; west: number; north: number; east: number } | null;
 }) {
@@ -107,10 +109,10 @@ export function AirportsLayer({ selected, onSelect, exclude, pills, route }: {
   // render detaches the listener and re-attaches it on every commit --
   // and an event fired inside that same commit, by an earlier sibling's
   // effect (a `FocusOn` zoom), lands in the gap with nothing listening.
-  // A tap on the chart a little off a field's chip -- within a finger's
+  // A tap on the chart a little off a field's mark -- within a finger's
   // half-width of it, the 44 points Apple asks for -- is that field's, the
   // nearest's where there are two, at the pilot's ask for a kinder map: a
-  // chip is only 24 tall, and its box grown to 44 covered its neighbours'.
+  // mark is only 26 across, and a box grown to 44 covered its neighbours'.
   // Anywhere else, the card is put away.
   const drawn = useRef<AirportPin[]>([]);
   const handlers = useMemo(() => ({
@@ -171,12 +173,6 @@ export function AirportsLayer({ selected, onSelect, exclude, pills, route }: {
   useEffect(() => { latest.current = onSelect; }, [onSelect]);
   const pick = useCallback((ident: string) => latest.current(ident), []);
   const chip = (a: AirportPin) => !!a.flight_category || zoom >= NO_REPORT_FROM_ZOOM;
-  // The selected field's ring takes the shape of whatever it wears: a
-  // chip, from this layer or from the route's or the Class B layer's
-  // (`exclude`), or nothing but the chart's own symbol.
-  const ring = !selected ? null
-    : exclude.has(selected.ident) ? (pills.has(selected.ident) ? "pill" : "chip")
-    : shown.some(a => a.ident === selected.ident && chip(a)) ? "chip" : "dot";
   return (
     <>
       <Pane name="airports" style={{ zIndex: 450 }}>
@@ -184,12 +180,15 @@ export function AirportsLayer({ selected, onSelect, exclude, pills, route }: {
           <AirportMark key={a.ident} airport={a} chip={chip(a)} onSelect={pick} />
         ))}
       </Pane>
-      {/* Over every chip, the route's and the Class B fields' in Leaflet's
-          marker pane (600) too, and under the tooltips (650). */}
-      {selected && ring && (
-        <Pane name="selected-airport" style={{ zIndex: 610 }}>
+      {/* Under the marks (the airports' pane, 450), round the field's
+          own: over them, it hid the first letters of its ident beside its
+          mark. Over the course line and the chart (the overlay pane, 400);
+          the route's and the Class B fields' marks, in the marker pane
+          (600), lie in it as these do. */}
+      {selected && (
+        <Pane name="selected-airport" style={{ zIndex: 445 }}>
           <Marker
-            position={[selected.lat, selected.lon]} icon={selectionIcon(selected.ident, ring)}
+            position={[selected.lat, selected.lon]} icon={selectionIcon()}
             interactive={false} keyboard={false}
           />
         </Pane>

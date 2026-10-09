@@ -29,7 +29,7 @@ import threading
 from pathlib import Path
 
 import shapefile
-from shapely import from_wkb, to_wkb
+from shapely import STRtree, from_wkb, points as shapely_points, to_wkb
 from shapely.geometry import LineString, Point, shape as shapely_shape
 from shapely.ops import unary_union
 
@@ -336,19 +336,33 @@ def surface_class_at(lat: float, lon: float, shp_path) -> str:
     anywhere else, uncontrolled at the ground -- the classes the chart
     draws solid blue, solid magenta, dashed blue, dashed magenta and, for
     G, none at all, the field under the shaded edge of the E above it."""
-    point = Point(lon, lat)
+    return surface_classes([(lat, lon)], shp_path)[0]
+
+
+def surface_classes(points: list[tuple[float, float]], shp_path) -> list[str]:
+    """surface_class_at for many (lat, lon) points at once -- every field
+    in the map's view, for its mark -- the airspace about them read once
+    and indexed (shapely's STRtree) rather than searched a point at a
+    time."""
+    if not points:
+        return []
+    lats, lons = [p[0] for p in points], [p[1] for p in points]
     margin = 0.01
-    classes = [
-        p["class"] for p in load_controlled_airspace(shp_path, (lat - margin, lon - margin, lat + margin, lon + margin))
-        if p["floor_ft_msl"] <= 0 and p["geometry"].contains(point)
+    south, west, north, east = min(lats) - margin, min(lons) - margin, max(lats) + margin, max(lons) + margin
+    where = shapely_points(lons, lats)
+    found: list[str | None] = [None] * len(points)
+    reaching = [p for p in load_controlled_airspace(shp_path, (south, west, north, east)) if p["floor_ft_msl"] <= 0]
+    if reaching:
+        inside, polygon = STRtree([p["geometry"] for p in reaching]).query(where, predicate="within")
+        for i, j in zip(inside.tolist(), polygon.tolist()):
+            cls = reaching[j]["class"]
+            found[i] = cls if found[i] is None else min(found[i], cls)
+    surface_e = [
+        geometry for geometry, (min_lon, min_lat, max_lon, max_lat) in _load_surface_e(shp_path)
+        if not (max_lat < south or min_lat > north or max_lon < west or min_lon > east)
     ]
-    if classes:
-        return min(classes)
-    in_e = any(
-        geometry.contains(point) for geometry, (min_lon, min_lat, max_lon, max_lat) in _load_surface_e(shp_path)
-        if min_lat <= lat <= max_lat and min_lon <= lon <= max_lon
-    )
-    return "E" if in_e else "G"
+    in_e = set(STRtree(surface_e).query(where, predicate="within")[0].tolist()) if surface_e else set()
+    return [cls or ("E" if i in in_e else "G") for i, cls in enumerate(found)]
 
 
 def is_own_surface_area(polygon: dict, start_point, end_point) -> bool:

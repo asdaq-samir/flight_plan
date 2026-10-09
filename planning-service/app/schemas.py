@@ -1223,6 +1223,10 @@ class AirportPin(BaseModel):
     kind: Literal["large", "medium", "small", "other"]
     flight_category: str | None = None
     military: Literal["military", "joint"] | None = None
+    #: The class of the airspace at its surface (vfr.airspace.surface_classes),
+    #: for its mark on the map in that airspace's look; None where the FAA's
+    #: airspace could not be had.
+    airspace_class: Literal["B", "C", "D", "E", "G"] | None = None
 
 
 class NearestAirport(AirportPin):

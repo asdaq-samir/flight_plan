@@ -222,6 +222,10 @@ def test_an_airports_own_class_is_the_most_restrictive_reaching_the_surface_ther
     assert airspace.surface_class_at(field.y, field.x, "airspace.shp") == "C"
     assert airspace.surface_class_at(e_field.y, e_field.x, "airspace.shp") == "E"
     assert airspace.surface_class_at(field.y + 1, field.x, "airspace.shp") == "G"
+    # And all three at once, as the map's view asks for its fields'.
+    points = [(field.y, field.x), (e_field.y, e_field.x), (field.y + 1, field.x)]
+    assert airspace.surface_classes(points, "airspace.shp") == ["C", "E", "G"]
+    assert airspace.surface_classes([], "airspace.shp") == []
 
 
 # --- A way round a Class B -------------------------------------------------
