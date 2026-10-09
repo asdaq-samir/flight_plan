@@ -16,7 +16,7 @@ import type { Detour } from "../../../lib/api/types";
 import { MAX_STOPS, identOf, isPosition, pointName, stopOf } from "../../../lib/identSchema";
 import { usePreferences, type AirspaceClass, type RecentAirport } from "../../../lib/preferences";
 import { useAirportSearch } from "../../../lib/useAirportSearch";
-import { AIRSPACE, useAirspace } from "../../../lib/useAirspace";
+import { AIRSPACE_PILL, pillLook, useAirspace } from "../../../lib/useAirspace";
 import { inkOn } from "../../../lib/scoreScale";
 import { altFt, flightLevel } from "../../../lib/units";
 import PointAltitudeDialog, { type EditedPoint, type PointAltitude } from "./PointAltitudeDialog";
@@ -447,7 +447,7 @@ function Pill({ id, ident, waypoint, index, role, stopNumber, airspaceOf, metarC
   const metar = byWeather && !waypoint ? metarColourOf(ident) : undefined;
   const look = waypoint ? undefined
     : metar ? { backgroundColor: metar, color: inkOn(metar) }
-      : byWeather || space.name === AIRSPACE.G.name || !space.style ? undefined : space.style;
+      : byWeather ? undefined : pillLook(space);
   // The fields' own names, as the two fields were: "Departure", "Stop 1".
   const label = role === "dep" ? "Departure" : role === "dest" ? "Destination" : `Stop ${stopNumber}`;
   const pill = (
@@ -466,7 +466,7 @@ function Pill({ id, ident, waypoint, index, role, stopNumber, airspaceOf, metarC
       className={cn(
         // A swipe up or down scrolls the lines; a hold, then a move, drags;
         // a hold alone, its menu. No callout of iOS's own over the hold.
-        "inline-flex shrink-0 touch-pan-y items-center rounded-full bg-background/80 shadow-xs select-none [-webkit-touch-callout:none] dark:bg-background/50",
+        AIRSPACE_PILL, "touch-pan-y select-none [-webkit-touch-callout:none]",
         isDragging && "z-10 shadow-md ring-2 ring-tint",
       )}
       data-testid={role === "stop" ? "stop" : `route-${role}`}

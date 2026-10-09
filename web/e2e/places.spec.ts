@@ -10,7 +10,7 @@ import { expectDrawerClosed, expectDrawerOpen, grabberTo, openPanel, settle, sid
 
 const card = (page: Page) => sideDrawer(page).getByTestId("place-card");
 
-test("an airport's card names the field with its ident at the end, how far it is under it, and the weather there", async ({ page }) => {
+test("an airport's card names the field with its ident's airspace pill at the end, how far it is under it, and the weather there", async ({ page }) => {
   await page.goto("/app/plan?dep=C81&dest=KDLH&place=KDLH");
   await settle(page);
   await expectDrawerOpen(page);
@@ -63,7 +63,24 @@ test("an airport's card calls the field and finds it in Maps, from the FAA's air
   await expect(card(page).getByTestId("place-address")).toHaveAttribute("href", /^https:\/\/maps\.apple\.com\/\?q=.+&ll=42\.\d+,-88\.\d+$/);
 });
 
-test("an airport's card has four tabs under its tiles, the radio first, and a tab takes the panel up", async ({ page }) => {
+test("the card's ident is in the route's pill for the field, in its airspace's look", async ({ page }) => {
+  await page.goto("/app/plan?dep=C81&dest=KDLH&place=KDLH");
+  await settle(page);
+  const pill = card(page).getByTestId("place-ident");
+  await expect(pill).toHaveText("KDLH", { timeout: slow(15000) });
+  await expect(pill).toHaveAttribute("data-airspace", /^[BCDEG]$/);
+  const lookOf = (el: Element) => {
+    const s = getComputedStyle(el);
+    return [s.backgroundColor, s.outlineStyle, s.outlineColor, s.color].join(" ");
+  };
+  const look = await pill.evaluate(lookOf);
+  // The route under the card, once the card is put away: its destination's
+  // pill the same, once it has its class too (AIRSPACE_PILL).
+  await card(page).getByTestId("place-close").click();
+  await expect(async () => expect(await page.getByTestId("route-dest").evaluate(lookOf)).toBe(look)).toPass({ timeout: slow(10_000) });
+});
+
+test("an airport's card has four tabs under its tiles, in sight at half, the radio first; a tab takes the panel up, and again, down", async ({ page }) => {
   // C81 has no airport diagram, and an approach.
   await page.route(url => url.pathname.endsWith("/api/planner/airport/C81"), async route => {
     const answer = await route.fetch();
@@ -78,6 +95,10 @@ test("an airport's card has four tabs under its tiles, the radio first, and a ta
   await expect(tabs).toHaveText(["Freq.", "Weather", "Runways", "Diagrams"], { timeout: slow(15000) });
   await expect(card(page).getByTestId("place-tab-radio")).toHaveAttribute("aria-selected", "true");
   await expect(sideDrawer(page)).toHaveAttribute("data-panel", "half");
+  // The bar whole above the half sheet's foot, at the pilot's ask.
+  await expect(card(page).getByRole("tablist")).toBeInViewport({ ratio: 1 });
+  const [bar, sheet] = await Promise.all([card(page).getByRole("tablist"), sideDrawer(page)].map(async l => (await l.boundingBox())!));
+  expect(bar.y + bar.height).toBeLessThanOrEqual(sheet.y + sheet.height + 1);
 
   await card(page).getByTestId("place-tab-runways").click();
   await expect(sideDrawer(page)).toHaveAttribute("data-panel", "full");
@@ -92,6 +113,10 @@ test("an airport's card has four tabs under its tiles, the radio first, and a ta
   await expect(approach).toHaveText(/RNAV \(GPS\) RWY 24/);
   // Shown in the app (airport-diagram.spec), not a link out of it.
   await expect(approach).not.toHaveAttribute("href", /.*/);
+
+  // The open tab tapped again up there: back to half, as the route's are.
+  await card(page).getByTestId("place-tab-diagrams").click();
+  await expect(sideDrawer(page)).toHaveAttribute("data-panel", "half");
 });
 
 test("the route's Approaches opens its destination's card on its approaches, and Nearest is on the map's left", async ({ page }) => {

@@ -3,7 +3,8 @@ import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-quer
 import { FileText, Lightbulb, Loader2, MapPin, MapPinPlus, Phone, Radio, Star } from "lucide-react";
 import DirectToIcon from "../../../components/DirectToIcon";
 import { cn } from "cn";
-import { useKeptAirport, usePreferences } from "../../../lib/preferences";
+import { useKeptAirport, usePreferences, type AirspaceClass } from "../../../lib/preferences";
+import { AIRSPACE, AIRSPACE_PILL, pillLook } from "../../../lib/useAirspace";
 import { useOwnShip } from "../../../lib/map/ownShip";
 import RoundButton from "../../../components/RoundButton";
 import { FILLS_HALF, GLASS_BUTTON } from "../../../components/mapChrome";
@@ -51,12 +52,21 @@ function subtitleOf(place: AirportPlace, from: { point: LatLon; name: string | n
   ].filter(Boolean).join(" · ");
 }
 
-/** The field's name with its ident at its end, at the pilot's ask --
- *  "Campbell Airport C81" -- the ident in the line's grey, a code after
- *  the words; the ident alone while its name is not known. */
-function NameWithIdent({ name, ident }: { name: string; ident: string }) {
-  if (name === ident) return ident;
-  return <>{name} <span className="font-semibold text-muted-foreground">{ident}</span></>;
+/** The field's name with its ident at its end, at the pilot's ask, in
+ *  the route's box's pill (AIRSPACE_PILL) in its airspace's look -- the
+ *  plain pill until the class is known -- a size down from the route's,
+ *  so the name wraps less; the pill alone while the name is not known. */
+function NameWithIdent({ name, ident, airspace }: { name: string; ident: string; airspace?: AirspaceClass | null }) {
+  const look = airspace ? pillLook(AIRSPACE[airspace]) : undefined;
+  const pill = (
+    <span
+      style={look} data-airspace={airspace ?? undefined} data-testid="place-ident"
+      className={cn(AIRSPACE_PILL, "h-6 px-1.5 align-[0.1em] font-semibold tracking-normal uppercase", TEXT.note, !look && "text-foreground")}
+    >
+      {ident}
+    </span>
+  );
+  return name === ident ? pill : <>{name}{" "}{pill}</>;
 }
 
 /** An airport's name and weather from whatever the map has already
@@ -116,8 +126,12 @@ function mapsLink(place: AirportPlace): string {
 /** A tile of the card's action row: its glyph over its word, as Maps
  *  draws its own -- Fly Here filled in the tint, the rest panes of glass
  *  in the text's colour, as the gear and the route's close are, at the
- *  pilot's ask (they were the tint on grey). Maps' size, a 24-point glyph
- *  in a tile 70 tall: the card fills more of the panel's one half height. */
+ *  pilot's ask (they were the tint on grey). A 20-point glyph in a tile
+ *  about 50 tall, at the pilot's ask: 70 tall, with Maps' 24-point glyph,
+ *  they put the card's tabs under the half sheet's foot. The box in
+ *  points, its word in the reader's size: the glyph, padding and gap are
+ *  fixed, but the word's line still grows with the text size (checked at
+ *  a 19 px root, not at the largest sizes). */
 function Action({ icon, label, spoken, filled, busy, disabled, onClick, href, testId }: {
   icon: ReactNode; label: string; filled?: boolean; onClick?: () => void; testId: string;
   /** Where it goes instead, outside the app: a phone number to call, the
@@ -135,10 +149,10 @@ function Action({ icon, label, spoken, filled, busy, disabled, onClick, href, te
   // Its sides four points in, not the stock button's ten: the room a
   // word needs to stay on its one line (below) at the text sizes a reader
   // sets larger.
-  const look = cn("h-auto min-w-0 flex-col gap-1 rounded-xl px-1 py-3 [&_svg:not([class*='size-'])]:size-6", !filled && GLASS_BUTTON);
+  const look = cn("h-auto min-w-0 flex-col gap-[2px] rounded-xl px-1 py-[6px] [&_svg:not([class*='size-'])]:size-[20px]", !filled && GLASS_BUTTON);
   const face = (
     <>
-      {busy ? <Loader2 className="size-6 animate-spin" aria-hidden="true" /> : icon}
+      {busy ? <Loader2 className="size-[20px] animate-spin" aria-hidden="true" /> : icon}
       {/* On one line, at the pilot's ask: "Fly Here" and "Add Stop" on
           two at a larger text size made every tile a line taller, and
           the card's tiles ran off the half sheet. Wrapped, not cut
@@ -177,7 +191,7 @@ function Action({ icon, label, spoken, filled, busy, disabled, onClick, href, te
  * How far it is is from the pilot's own position when it is known, and
  * from the route's departure otherwise.
  */
-export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, onExpand, startOn, onStarted }: {
+export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, onExpand, onLower, startOn, onStarted }: {
   ident: string;
   /** What the distance is measured from where own ship has no fix: the
    *  route's departure. */
@@ -190,6 +204,9 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
   onAddStop?: (place: AirportPlace) => void;
   /** The panel all the way up, for a section scrolled to. */
   onExpand: () => void;
+  /** Back down to half: the open tab tapped again with the panel all the
+   *  way up, as the route's tabs do (PanelTabs). */
+  onLower: () => void;
   /** Opened on a section of a tab: the route's Approaches opens the
    *  destination's on its approaches. `onStarted` once it has. */
   startOn?: "approaches";
@@ -230,9 +247,11 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
   // the way up, as the route's tabs do; the bar back in sight if the card
   // was scrolled past it, once the panel is up and the name and tiles
   // have closed up to their own height.
+  const isUp = () => tabsRef.current?.closest("[data-panel]")?.getAttribute("data-panel") === "full";
+  const openWhenPressed = useRef<CardTab | null>(null);
   const open = (next: CardTab) => {
     setPicked(next);
-    const up = tabsRef.current?.closest("[data-panel]")?.getAttribute("data-panel") === "full";
+    const up = isUp();
     onExpand();
     window.setTimeout(() => tabsRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" }), up ? 50 : 520);
   };
@@ -275,7 +294,7 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
   const [diagramOpen, setDiagramOpen] = useState(false);
   const [noRunwaysPicture, setNoRunwaysPicture] = useState(false);
   const [elevationPane, setElevationPane] = useState<HTMLElement | null>(null);
-  // The ident is the name's (NameWithIdent), so not here again.
+  // The ident is in the name's head (NameWithIdent), so not here again.
   const line = place ? subtitleOf(place, measured)
     : error ? (error instanceof ApiError && error.status === 404 ? "Not found" : "Could not be looked up")
       : "…";
@@ -310,8 +329,8 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
           // The runways' sketch to the right of the name, at the pilot's
           // ask, under the weather's chip, the star and the close and down
           // to the tiles, the width of Call and Address, the field's
-          // elevation alone in its top left ("788 ft"); the ident at the
-          // end of the name, and how far it is under it.
+          // elevation alone in its top left ("788 ft"); the ident at the end
+          // of the name, and how far it is under it.
           // Four columns as the tiles' are, where the tiles are three too:
           // the name its half of the card.
           <div className="grid grid-cols-4 gap-x-2">
@@ -320,7 +339,7 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
                 tabIndex={-1} data-testid="place-name"
                 className={cn("font-bold tracking-tight break-words text-foreground outline-none", TEXT.card)}
               >
-                <NameWithIdent name={place.name} ident={place.ident} />
+                <NameWithIdent name={place.name} ident={place.ident} airspace={place.airspace_class} />
               </h2>
               {lineBySketch && <p className={cn("text-muted-foreground", TEXT.note)} data-testid="place-line">{lineBySketch}</p>}
             </div>
@@ -329,7 +348,7 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
               <FavoriteButton place={place} />
               <CloseButton onClick={onClose} className="-mr-1" data-testid="place-close" />
             </div>
-            <div className={cn("relative col-span-2 mt-2 min-h-20 overflow-hidden rounded-xl text-foreground", GLASS_BUTTON)}>
+            <div className={cn("relative col-span-2 mt-2 min-h-16 overflow-hidden rounded-xl text-foreground", GLASS_BUTTON)}>
               <button
                 type="button" data-testid="place-runway-sketch"
                 aria-label={`${place.ident} runways ${sketchedRunways.join(", ")}, north up${leftOut ? `, ${leftOut} more not drawn, their ends unsurveyed` : ""}. ${place.airport_diagram_url ? "Airport diagram, full screen" : "Show runways"}`}
@@ -374,7 +393,12 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
           </div>
         ) : (
           <CardHead
-            name={<NameWithIdent name={place?.name ?? known?.name ?? kept?.name ?? ident} ident={place?.ident ?? ident} />}
+            name={(
+              <NameWithIdent
+                name={place?.name ?? known?.name ?? kept?.name ?? ident} ident={place?.ident ?? ident}
+                airspace={place ? place.airspace_class : kept?.airspace}
+              />
+            )}
             nameTestId="place-name"
             // Not found only where the planner said so: a planner out of
             // reach for a moment (restarted) read "not found" for KBUR.
@@ -388,7 +412,7 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
         {/* In their places from the first frame, live once the answer is
             in: the card stood empty below its name until then. */}
         {(place || !error) && (
-          <div className={cn("mt-3 grid gap-2", onAddStop ? "grid-cols-4" : "grid-cols-3")}>
+          <div className={cn("mt-1.5 grid gap-2", onAddStop ? "grid-cols-4" : "grid-cols-3")}>
             {/* Fly Here is the Direct-To, and wears its symbol; Add Stop
                 beside it, at the pilot's ask, makes the field the route's
                 next stop. */}
@@ -418,16 +442,30 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
         {place && (
           // The stock line tabs, the consoles' (ConsoleTabs): words over a
           // hairline, the chosen one in the tint, a 44-point bar to a
-          // finger.
+          // finger -- 44 points at any text size.
           <TabsList
             ref={tabsRef} variant="line"
-            className="mt-3 w-full scroll-mt-3 gap-0 border-b border-border p-0 group-data-[orientation=horizontal]/tabs:h-9 pointer-coarse:group-data-[orientation=horizontal]/tabs:h-11"
+            className="mt-1 w-full scroll-mt-3 gap-0 border-b border-border p-0 group-data-[orientation=horizontal]/tabs:h-9 pointer-coarse:group-data-[orientation=horizontal]/tabs:h-[44px]"
           >
             {CARD_TABS.map(t => (
               // Tapped, the panel comes all the way up, the tab already
-              // picked as well (onValueChange is not called for it).
+              // picked as well (onValueChange is not called for it); the
+              // open one tapped again up there, back to half, as the
+              // route's tabs do (PanelTabs) -- which one was open read as
+              // it is pressed, since Radix picks the tab on the press,
+              // before the click.
               <TabsTrigger
-                key={t.value} value={t.value} className={LINE_TAB} onClick={() => open(t.value)} data-testid={`place-tab-${t.value}`}
+                key={t.value} value={t.value} className={LINE_TAB} data-testid={`place-tab-${t.value}`}
+                onPointerDown={() => { openWhenPressed.current = tab; }} onKeyDown={() => { openWhenPressed.current = tab; }}
+                onPointerCancel={() => { openWhenPressed.current = null; }} onBlur={() => { openWhenPressed.current = null; }}
+                onClick={() => {
+                  // Read once and cleared: a click with no press before it
+                  // (VoiceOver's activate, a switch) must not find an
+                  // earlier press's tab.
+                  const was = openWhenPressed.current;
+                  openWhenPressed.current = null;
+                  if (was === t.value && isUp()) onLower(); else open(t.value);
+                }}
               >
                 {t.label}
               </TabsTrigger>

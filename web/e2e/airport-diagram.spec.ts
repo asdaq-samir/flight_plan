@@ -72,7 +72,7 @@ test("the card's sketch of the runways sits right of the name, under its close, 
   const sketch = card(page).getByTestId("place-runway-sketch");
   // KDLH's runways, named for a screen reader.
   await expect(sketch).toHaveAttribute("aria-label", /^KDLH runways .*09\/27.*, north up\./, { timeout: slow(15000) });
-  // The ident at the end of the name, and no line under it with nothing
+  // The ident's pill at the end of the name, and no line under it with nothing
   // to measure from (places.spec has the distance); the elevation alone,
   // the figure and its feet, at the sketch's top left.
   const name = card(page).getByTestId("place-name");
