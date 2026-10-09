@@ -299,3 +299,46 @@ def test_a_runway_part_turf_says_which_part_by_its_own_end(monkeypatch):
     monkeypatch.setattr(remarks, "runway_turf", lambda faa_id: turf if faa_id == "DLH" else {})
     runway = client.get("/api/airport/KDLH").json()["runways"][0]
     assert runway["turf"] == [{"end": "6", "from_ft": 0, "to_ft": 1000}]
+
+
+def test_turf_named_from_the_far_end_keeps_the_runways_own_end_name(monkeypatch):
+    # The remarks measure from 24, and OurAirports lists the ends the other way round.
+    stub_place(monkeypatch, runways=[{
+        "ends": "24/6", "length_ft": 3573, "width_ft": 40, "surface": "ASPH-TURF", "lighted": False, "closed": False,
+        "end_headings": [("24", 238.0), ("6", 58.0)],
+    }])
+    monkeypatch.setattr(pattern, "end_positions", lambda ident, cache_dir=None: {})
+    turf = {"06/24": [{"end": "24", "from_ft": 0, "to_ft": 500}]}
+    monkeypatch.setattr(remarks, "runway_turf", lambda faa_id: turf if faa_id == "DLH" else {})
+    runway = client.get("/api/airport/KDLH").json()["runways"][0]
+    assert runway["turf"] == [{"end": "24", "from_ft": 0, "to_ft": 500}]
+
+
+def test_a_card_without_the_remarks_file_has_its_runways_and_no_turf(monkeypatch):
+    stub_place(monkeypatch, runways=[{
+        "ends": "6/24", "length_ft": 3573, "width_ft": 40, "surface": "ASPH-TURF", "lighted": False, "closed": False,
+        "end_headings": [("6", 58.0), ("24", 238.0)],
+    }])
+    monkeypatch.setattr(pattern, "end_positions", lambda ident, cache_dir=None: {})
+
+    def missing(faa_id):
+        raise OSError("no remarks file")
+    monkeypatch.setattr(remarks, "runway_turf", missing)
+    runway = client.get("/api/airport/KDLH").json()["runways"][0]
+    assert runway["length_ft"] == 3573 and not runway.get("turf")
+
+
+def test_turf_is_found_under_the_faa_identifier_of_a_k_ident(monkeypatch):
+    stub_place(monkeypatch, runways=[{
+        "ends": "6/24", "length_ft": 3573, "width_ft": 40, "surface": "ASPH-TURF", "lighted": False, "closed": False,
+        "end_headings": [("6", 58.0), ("24", 238.0)],
+    }])
+    monkeypatch.setattr(pattern, "end_positions", lambda ident, cache_dir=None: {})
+    asked = []
+
+    def turf(faa_id):
+        asked.append(faa_id)
+        return {"06/24": [{"end": "06", "from_ft": 0, "to_ft": 1000}]} if faa_id == "DLH" else {}
+    monkeypatch.setattr(remarks, "runway_turf", turf)
+    runway = client.get("/api/airport/KDLH").json()["runways"][0]
+    assert "DLH" in asked and runway["turf"] == [{"end": "6", "from_ft": 0, "to_ft": 1000}]

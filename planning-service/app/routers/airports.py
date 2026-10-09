@@ -155,11 +155,12 @@ def _with_turf(runways: list[dict], ident: str) -> list[dict]:
         turf = next((found for faa_id in pattern.faa_ids(ident) if (found := remarks.runway_turf(faa_id))), {})
     except (OSError, RuntimeError):
         return runways
-    by_ends = {"/".join(map(pattern.end_key, ends.split("/"))): parts for ends, parts in turf.items()}
+    # A runway is the same either way round: OurAirports may list 24/06.
+    by_ends = {frozenset(map(pattern.end_key, ends.split("/"))): parts for ends, parts in turf.items()}
     with_turf = []
     for runway in runways:
         own = {pattern.end_key(end["ident"]): end["ident"] for end in runway.get("runway_ends", [])}
-        parts = by_ends.get("/".join(map(pattern.end_key, (runway.get("ends") or "").split("/"))), [])
+        parts = by_ends.get(frozenset(map(pattern.end_key, (runway.get("ends") or "").split("/"))), [])
         with_turf.append({**runway, "turf": [{**part, "end": own.get(pattern.end_key(part["end"]), part["end"])} for part in parts]})
     return with_turf
 

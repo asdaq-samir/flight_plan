@@ -118,6 +118,16 @@ export function RunwaySketch({ runways, lat, lon, avoid }: {
               stroke={TURF} strokeWidth={s.width}
             />
           ))}
+          {/* A dotted line of light down the turf, so it is told from
+              paving by its texture and not by its green alone. */}
+          {s.turf.map(([from, to]) => (
+            <line
+              key={`dots-${from}-${to}`}
+              x1={s.ax + (s.bx - s.ax) * from} y1={s.ay + (s.by - s.ay) * from}
+              x2={s.ax + (s.bx - s.ax) * to} y2={s.ay + (s.by - s.ay) * to}
+              stroke="white" strokeOpacity={0.7} strokeWidth={Math.max(1, s.width / 4)} strokeDasharray="1 3" strokeLinecap="round"
+            />
+          ))}
           {/* The centre line on the paving alone: grass has none painted. */}
           {pavedOf(s.turf).map(([from, to]) => (
             <line
