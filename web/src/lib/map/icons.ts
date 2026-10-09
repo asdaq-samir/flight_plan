@@ -245,8 +245,9 @@ const UNKNOWN_GREY = "#6b7280";
  * dashed magenta ring, G a thin magenta ring, and grey until the class is
  * known. A field the armed services keep is an M on a blue disc, and one
  * closed to the public an R on a magenta one (the sectional's R in a
- * circle), at the pilot's ask, each in a ring of its airspace's colour so
- * the class is not lost under the letter. In its
+ * circle), at the pilot's ask, whatever the airspace over either -- the
+ * disc alone, as asked: a ring of the airspace's colour round it was tried
+ * and taken off, the card saying the class. In its
  * middle (at the disc's edge on the M and the R) a dot in the
  * colour of the field's weather, its METAR's flight category, grey with
  * no report, kept from the chips the map had, at the pilot's ask. Its
@@ -261,11 +262,9 @@ export const airportMarkIcon = made(function airportMarkIcon(
   const ink = space ? (blue ? BLUE : MAGENTA) : UNKNOWN_GREY;
   const casing = `stroke="#fff" stroke-linecap="round"`;
   const symbol = use
-    ? `<circle r="11.5" fill="#fff" ${casing} stroke-width="4"/>` +
-      `<circle r="11.5" fill="#fff" stroke="${ink}" stroke-width="2"${space === "D" || space === "E" ? ` stroke-dasharray="3.1 2"` : ""}/>` +
-      `<circle r="9" fill="${use === "military" ? BLUE : MAGENTA}" ${casing} stroke-width="1.5"/>` +
+    ? `<circle r="10" fill="${use === "military" ? BLUE : MAGENTA}" ${casing} stroke-width="2"/>` +
       `<text y="4" text-anchor="middle" font-size="11" font-weight="800" fill="#fff" font-family="system-ui,sans-serif">${use === "military" ? "M" : "R"}</text>` +
-      `<circle data-weather="" cx="6.4" cy="6.4" r="3.4" fill="${text(weather)}" ${casing} stroke-width="1.4"/>`
+      `<circle data-weather="" cx="8" cy="8" r="3.4" fill="${text(weather)}" ${casing} stroke-width="1.4"/>`
     : (() => {
       const ticks = [[0, -8.5, 0, -12], [8.5, 0, 12, 0], [0, 8.5, 0, 12], [-8.5, 0, -12, 0]]
         .map(([x1, y1, x2, y2]) => `x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"`);
