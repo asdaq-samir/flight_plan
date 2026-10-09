@@ -8659,7 +8659,7 @@
     },
     "/api/faa-chart": {
       "get": {
-        "description": "The pages of one of the FAA's charts in force -- by its address on\naeronav.faa.gov, as a card lists it (`procedures`, the Chart\nSupplement's) -- for the app to show them itself rather than leave for\nthe FAA's site: every page of an approach or a departure, of one of\nthe FAA's booklets (a region's takeoff minimums) the pages naming\n`airport`, of a Chart Supplement entry each of its pages. 404 for any\nother address, and while the FAA cannot be reached.",
+        "description": "The pages of one of the FAA's charts in force -- by its address on\naeronav.faa.gov, as a card lists it (`procedures`, the Chart\nSupplement's) -- for the app to show them itself rather than leave for\nthe FAA's site: every page of an approach or a departure, of one of\nthe FAA's booklets (a region's takeoff minimums) the pages naming\n`airport`, of a Chart Supplement entry each of its pages. 404 for any\nother address; 502 while the FAA cannot be reached, which the edge\ndoes not keep as it keeps a 404.",
         "operationId": "faa_chart_api_faa_chart_get",
         "parameters": [
           {
@@ -8774,6 +8774,9 @@
               }
             },
             "description": "Validation Error"
+          },
+          "502": {
+            "description": "The FAA could not be reached"
           }
         },
         "summary": "Faa Chart Page"

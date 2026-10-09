@@ -3,6 +3,7 @@ import { useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ImageOverlay, MapContainer, useMap } from "react-leaflet";
 import CloseButton from "../../../components/CloseButton";
+import { Button } from "../../../components/ui/button";
 import { Dialog, DialogClose, DialogContent, DialogTitle } from "../../../components/ui/dialog";
 import { api } from "../../../lib/api/client";
 import { chartPagePicture } from "../../../lib/diagram";
@@ -64,12 +65,14 @@ function FitFirst({ first }: { first: L.LatLngBounds }) {
  * dialog, the map behind it waiting; the close in the corner every panel
  * has it in.
  */
-export default function ChartViewer({ title, pages, loading = false, failed = false, onClose }: {
+export default function ChartViewer({ title, pages, loading = false, failed = false, onRetry, onClose }: {
   title: string;
   pages: Page[];
   /** Its pages still being asked for (FaaChartViewer). */
   loading?: boolean;
   failed?: boolean;
+  /** Asks again after a failure, beside the failure. */
+  onRetry?: () => void;
   onClose: () => void;
 }) {
   const layout = useMemo(() => (pages.length ? laidOut(pages) : null), [pages]);
@@ -99,9 +102,22 @@ export default function ChartViewer({ title, pages, loading = false, failed = fa
             <FitFirst first={layout.placed[0]!.bounds} />
           </MapContainer>
         ) : (
-          <p className={cn("px-4 pt-4 text-muted-foreground", TEXT.prose)} data-testid="chart-viewer-status">
-            {failed ? "The FAA's chart could not be had. Try again in a moment." : loading ? "Drawing the chart…" : null}
-          </p>
+          <div className="flex flex-col items-start gap-2 px-4 pt-4" data-testid="chart-viewer-status">
+            <p className={cn("text-muted-foreground", TEXT.prose)}>
+              {failed
+                ? "The FAA's chart could not be had. Try again in a moment."
+                : loading
+                  ? "Drawing the chart…"
+                  // A booklet lists a field only where it has an entry (takeoff
+                  // minimums, alternates, hot spots).
+                  : "The FAA lists nothing for this field in this chart."}
+            </p>
+            {failed && onRetry && (
+              <Button type="button" variant="ghost" className="relative -ml-2 rounded-full text-tint after:absolute after:-inset-1" onClick={onRetry}>
+                Try again
+              </Button>
+            )}
+          </div>
         )}
       </DialogContent>
     </Dialog>
@@ -117,9 +133,9 @@ export function FaaChartViewer({ title, url, airport, onClose }: {
   airport: string;
   onClose: () => void;
 }) {
-  const { data, isLoading, isError } = useQuery({
+  const { data, isFetching, isError, refetch } = useQuery({
     queryKey: ["faaChart", url, airport], queryFn: () => api.faaChart(url, airport), staleTime: Infinity, meta: { silent: true },
   });
   const pages = useMemo(() => (data?.pages ?? []).map(p => ({ src: chartPagePicture(p), width: p.width, height: p.height })), [data]);
-  return <ChartViewer title={title} pages={pages} loading={isLoading} failed={isError} onClose={onClose} />;
+  return <ChartViewer title={title} pages={pages} loading={isFetching && !data} failed={isError && !isFetching} onRetry={() => { void refetch(); }} onClose={onClose} />;
 }

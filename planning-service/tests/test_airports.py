@@ -249,3 +249,12 @@ def test_an_faa_charts_pages_are_listed_and_drawn_for_its_edition(monkeypatch, t
     drawn = client.get("/api/faa-chart/page/dtpp/2610/EC3TO.PDF/33.png")
     assert drawn.status_code == 200 and drawn.headers["content-type"] == "image/png"
     assert client.get("/api/faa-chart/page/dtpp/2610/EC3TO.PDF/34.png").status_code == 404
+
+    # The FAA not answering is a 502, which the edge does not keep; a bad address is the 404.
+    def down(*args):
+        raise publications.FaaUnreachable("down")
+
+    monkeypatch.setattr(publications, "chart_pages", down)
+    monkeypatch.setattr(publications, "chart_page_png", down)
+    assert client.get("/api/faa-chart", params={"url": "https://aeronav.faa.gov/d-tpp/2610/EC3TO.PDF"}).status_code == 502
+    assert client.get("/api/faa-chart/page/dtpp/2610/EC3TO.PDF/33.png").status_code == 502

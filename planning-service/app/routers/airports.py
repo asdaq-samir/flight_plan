@@ -191,21 +191,29 @@ def faa_chart(url: str, response: Response, airport: str | None = None) -> Chart
     the FAA's site: every page of an approach or a departure, of one of
     the FAA's booklets (a region's takeoff minimums) the pages naming
     `airport`, of a Chart Supplement entry each of its pages. 404 for any
-    other address, and while the FAA cannot be reached."""
-    pages = publications.chart_pages(url, airport)
+    other address; 502 while the FAA cannot be reached, which the edge
+    does not keep as it keeps a 404."""
+    try:
+        pages = publications.chart_pages(url, airport)
+    except publications.FaaUnreachable:
+        raise HTTPException(502, "The FAA could not be reached.") from None
     if pages is None:
-        raise HTTPException(404, "Not one of the FAA's charts in force, or the FAA could not be reached.")
+        raise HTTPException(404, "Not one of the FAA's charts in force.")
     # The address names the chart's edition: the same answer for the whole of it.
     response.headers["Cache-Control"] = DIAGRAM_CACHE
     return {"pages": pages}
 
 
 @router.get("/api/faa-chart/page/{source}/{edition}/{pdf}/{page}.png", response_class=FileResponse,
-            responses={200: {"content": {"image/png": {}}}, 404: {"description": "No such page in force"}})
+            responses={200: {"content": {"image/png": {}}}, 404: {"description": "No such page in force"},
+                       502: {"description": "The FAA could not be reached"}})
 def faa_chart_page(source: str, edition: str, pdf: str, page: int) -> FileResponse:
     """One page of one of the FAA's charts in force as a picture, drawn
     once and kept for its edition, as the airport diagram's is."""
-    path = publications.chart_page_png(source, edition, pdf, page)
+    try:
+        path = publications.chart_page_png(source, edition, pdf, page)
+    except publications.FaaUnreachable:
+        raise HTTPException(502, "The FAA could not be reached.") from None
     if path is None:
         raise HTTPException(404, f"No page {page} of {pdf} in {source} {edition}.")
     return FileResponse(path, media_type="image/png", headers={"Cache-Control": DIAGRAM_CACHE})

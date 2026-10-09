@@ -73,8 +73,8 @@ def _blank_pdf(width: int, height: int) -> bytes:
 
 
 class _Answer:
-    def __init__(self, content=b"", fail=False):
-        self.content, self.fail = content, fail
+    def __init__(self, content=b"", fail=False, status=200):
+        self.content, self.fail, self.status_code = content, fail, status
 
     def raise_for_status(self):
         if self.fail:
@@ -166,6 +166,7 @@ def _pdf_with(pages: list) -> bytes:
 
 
 def test_a_booklets_pages_are_the_ones_naming_the_field_and_a_charts_its_own(monkeypatch, tmp_path):
+    publications._pages_of.cache_clear()
     monkeypatch.setattr(publications, "CACHE_DIR", tmp_path)
     booklet = _pdf_with(["KENOSHA (ENW)", "MADISON DANE COUNTY RGNL/TRUAX FLD (MSN)", "MSN CONTINUED (MSN)", "MILWAUKEE (MKE)"])
     approach = _pdf_with(["ILS OR LOC RWY 18"])
@@ -177,6 +178,11 @@ def test_a_booklets_pages_are_the_ones_naming_the_field_and_a_charts_its_own(mon
     scale = publications.DIAGRAM_SCALE
     assert pages[0] == {"source": "dtpp", "edition": "2610", "pdf": "EC3TO.PDF", "page": 2, "width": 387 * scale, "height": 594 * scale}
     assert [p["page"] for p in publications.chart_pages("https://aeronav.faa.gov/d-tpp/2610/00245IL18.PDF", "KMSN", on)] == [1]
+    # A booklet without the field has no pages for it, not another field's.
+    assert publications.chart_pages("https://aeronav.faa.gov/d-tpp/2610/EC3TO.PDF", "KDLH", on) == []
+    # A chart of its own keeps every page, though only one is headed with the field.
+    answers["00245IL19.PDF"] = _pdf_with(["ILS OR LOC RWY 19 (MSN)", "NOTES", "MORE NOTES"])
+    assert [p["page"] for p in publications.chart_pages("https://aeronav.faa.gov/d-tpp/2610/00245IL19.PDF", "KMSN", on)] == [1, 2, 3]
     # Drawn, a page at a time, and kept.
     path = publications.chart_page_png("dtpp", "2610", "EC3TO.PDF", 3, on)
     assert Image.open(path).size == (387 * scale, 594 * scale)
@@ -192,3 +198,28 @@ def test_only_the_faas_charts_in_force_are_read(monkeypatch, tmp_path):
         assert publications.chart_pages(url, "KMSN", on) is None
     assert publications.chart_page_png("dtpp", "2609", "X.PDF", 1, on) is None
     assert publications.chart_page_png("elsewhere", "2610", "X.PDF", 1, on) is None
+
+
+def test_the_faa_not_answering_is_told_from_a_chart_it_does_not_have(monkeypatch, tmp_path):
+    publications._pages_of.cache_clear()
+    monkeypatch.setattr(publications, "CACHE_DIR", tmp_path)
+    monkeypatch.setattr(publications, "_ABSENT", set())
+    on = date(2026, 10, 3)
+    asked = []
+
+    def get(url, **kw):
+        asked.append(url)
+        if url.endswith("GONE.PDF"):
+            return _Answer(status=404)
+        raise publications.requests.ConnectionError("down")
+
+    monkeypatch.setattr(publications.requests, "get", get)
+    with pytest.raises(publications.FaaUnreachable):
+        publications.chart_pages("https://aeronav.faa.gov/d-tpp/2610/00245IL19.PDF", "KMSN", on)
+    with pytest.raises(publications.FaaUnreachable):
+        publications.chart_page_png("dtpp", "2610", "00245IL19.PDF", 1, on)
+    # Not there is None, and asked of the FAA once.
+    gone = "https://aeronav.faa.gov/d-tpp/2610/GONE.PDF"
+    assert publications.chart_pages(gone, "KMSN", on) is None
+    assert publications.chart_pages(gone, "KMSN", on) is None
+    assert asked.count(gone) == 1

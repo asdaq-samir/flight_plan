@@ -26,6 +26,7 @@ import re
 import threading
 import xml.etree.ElementTree as ET
 from datetime import date, timedelta
+from functools import lru_cache
 from pathlib import Path
 
 import pypdfium2
@@ -262,12 +263,26 @@ def _source_of(url: str, on: date | None = None) -> tuple | None:
     return None
 
 
+class FaaUnreachable(Exception):
+    """The FAA's site did not answer (or answered with an error): not
+    the same as the chart not existing, and not kept as that."""
+
+
+#: PDFs the FAA said it has no such file for, by (source, edition, name):
+#: an address made up to fetch is asked of the FAA once, not each time.
+_ABSENT: set = set()
+_ABSENT_MAX = 1000
+
+
 def _pdf_of(source: str, edition: str, name: str) -> bytes | None:
     """One of the FAA's PDFs, downloaded once and kept for its edition;
-    None where the FAA cannot be reached."""
+    None where the FAA has no such file; FaaUnreachable where it could
+    not be asked, so an outage is not taken for a missing chart."""
     path = CACHE_DIR / "pdf" / source / edition / name
     if path.exists():
         return path.read_bytes()
+    if (source, edition, name) in _ABSENT:
+        return None
     with _LOCK:
         lock = _DRAWING.setdefault(path, threading.Lock())
     with lock:
@@ -276,15 +291,59 @@ def _pdf_of(source: str, edition: str, name: str) -> bytes | None:
         base = DTPP_BASE if source == "dtpp" else DCS_BASE
         try:
             resp = requests.get(f"{base}/{edition}/{name}", headers=HEADERS, timeout=60)
+            if resp.status_code in (403, 404):
+                # S3, which serves the FAA's files, answers 403 for a key that is not there.
+                with _LOCK:
+                    if len(_ABSENT) >= _ABSENT_MAX:
+                        _ABSENT.clear()
+                    _ABSENT.add((source, edition, name))
+                return None
             resp.raise_for_status()
         except requests.RequestException as err:
             log.warning("No %s %s in %s: %s", source, name, edition, err)
-            return None
+            raise FaaUnreachable(str(err)) from err
         path.parent.mkdir(parents=True, exist_ok=True)
         partial = path.with_name(path.name + ".part")
         partial.write_bytes(resp.content)
         os.replace(partial, path)
         return resp.content
+
+
+def _is_booklet(source: str, name: str) -> bool:
+    """Whether a d-TPP PDF is one of the FAA's region booklets (takeoff
+    and alternate minimums, hot spots), which hold many fields' entries.
+    A field's own charts -- approaches, departures, the diagram -- are
+    named from its five-figure sequence number ("00245IL18.PDF"); a
+    booklet's name starts with its region ("EC3TO.PDF")."""
+    return source == "dtpp" and not re.match(r"\d{5}", name)
+
+
+@lru_cache(maxsize=512)
+def _pages_of(source: str, edition: str, pdf: str, ident: str | None) -> tuple | None:
+    """The pages of one PDF to show, as their sizes -- a booklet's pages
+    naming the field (none where it has no entry: the FAA lists takeoff
+    minimums, alternates and hot spots only for fields that need them),
+    any other PDF's every page. Kept per (edition, PDF, field), since
+    reading the text of a booklet's sixty-nine pages is long and holds
+    the drawing lock. None where the FAA has no such file."""
+    data = _pdf_of(source, edition, pdf)
+    if data is None:
+        return None
+    booklet = _is_booklet(source, pdf)
+    needle = f"({_faa_idents(ident)[-1]})" if booklet and ident else None
+    pages = []
+    with _PDFIUM:
+        document = pypdfium2.PdfDocument(data)
+        try:
+            for i in range(len(document)):
+                page = document[i]
+                if booklet and (needle is None or needle not in page.get_textpage().get_text_bounded()):
+                    continue
+                pages.append({"source": source, "edition": edition, "pdf": pdf, "page": i + 1,
+                              "width": round(page.get_width() * DIAGRAM_SCALE), "height": round(page.get_height() * DIAGRAM_SCALE)})
+        finally:
+            document.close()
+    return tuple(pages)
 
 
 def chart_pages(url: str, ident: str | None = None, on: date | None = None) -> list | None:
@@ -294,10 +353,10 @@ def chart_pages(url: str, ident: str | None = None, on: date | None = None) -> l
     Every page of a chart of its own (an approach, a departure); of one of
     the FAA's booklets -- a region's takeoff minimums, sixty-nine pages,
     or its hot spots -- only the pages that name the field ("(MSN)", as
-    the FAA heads each field's entry), and all of them where none does;
-    and of a Chart Supplement entry, each of its pages. None for an
-    address that is not one of the FAA's charts in force, or where the
-    FAA cannot be reached."""
+    the FAA heads each field's entry), and none where none does; and of
+    a Chart Supplement entry, each of its pages. None for an address that
+    is not one of the FAA's charts in force; FaaUnreachable where the FAA
+    cannot be reached."""
     found = _source_of(url, on)
     if not found:
         return None
@@ -309,23 +368,10 @@ def chart_pages(url: str, ident: str | None = None, on: date | None = None) -> l
             names = entry[entry.index(name):]
     pages = []
     for pdf in names:
-        data = _pdf_of(source, edition, pdf)
-        if data is None:
+        some = _pages_of(source, edition, pdf, ident)
+        if some is None:
             return None
-        needle = f"({_faa_idents(ident)[-1]})" if ident else None
-        with _PDFIUM:
-            document = pypdfium2.PdfDocument(data)
-            try:
-                every = []
-                for i in range(len(document)):
-                    page = document[i]
-                    size = {"source": source, "edition": edition, "pdf": pdf, "page": i + 1,
-                            "width": round(page.get_width() * DIAGRAM_SCALE), "height": round(page.get_height() * DIAGRAM_SCALE)}
-                    every.append((size, len(document) > 1 and needle is not None and needle in page.get_textpage().get_text_bounded()))
-            finally:
-                document.close()
-        named = [size for size, names_field in every if names_field]
-        pages.extend(named or [size for size, _ in every])
+        pages.extend(dict(p) for p in some)
     return pages
 
 
@@ -333,7 +379,8 @@ def chart_page_png(source: str, edition: str, name: str, page: int, on: date | N
     """One page of one of the FAA's charts in force as a picture on disk,
     drawn the first time it is asked for and kept for its edition, as the
     airport diagram is (`airport_diagram_png`); None for a chart not in
-    force, a page it does not have, or while the FAA cannot be reached."""
+    force or not the FAA's, or a page it does not have; FaaUnreachable
+    while the FAA cannot be reached."""
     current = {"dtpp": dtpp_cycle(on), "dcs": dcs_edition(on)}
     if current.get(source) != edition or not _PDF_NAME.match(name) or page < 1:
         return None
