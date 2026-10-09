@@ -18,7 +18,7 @@ import { useKeepOffline } from "../../lib/map/keepStatus";
 import { locateOnOpen, positionNow, useOwnShip, useOwnShipNear } from "../../lib/map/ownShip";
 import { pointOf } from "../../lib/airspace";
 import { MAX_STOPS, altitudesOf, altitudesParam, departureOf, identOf, positionIdent, routeName, routeOf, stopsOf } from "../../lib/identSchema";
-import { usePreferences, type RecentAirport } from "../../lib/preferences";
+import { useKeptAirport, usePreferences, type RecentAirport } from "../../lib/preferences";
 import { SearchNear, useAirportSearch } from "../../lib/useAirportSearch";
 // Without this Leaflet's tiles, markers and controls have no
 // positioning at all -- this is the library's own stylesheet, not
@@ -302,10 +302,20 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const { data: placeData } = useQuery({
     queryKey: ["airport", place], queryFn: () => api.airport(place!), enabled: !!place, staleTime: 5 * 60_000,
   });
-  // One object while the answer is the same one, as the map brings
-  // itself to it each time it changes.
+  // Where it is, from the card's answer -- or at once, where this browser
+  // keeps where it is (Home, a Favorite, one picked lately): the map and
+  // its ring waited on the answer, which on a page just loaded queues
+  // behind the page's first requests, and stood on the pilot's position
+  // under a card that named a field a thousand miles off. One object
+  // while it is the same place, as the map brings itself to it each time
+  // it changes.
+  const keptPlace = useKeptAirport(place);
+  const pinIdent = placeData?.ident ?? place;
+  const pinLat = placeData?.lat ?? keptPlace?.lat;
+  const pinLon = placeData?.lon ?? keptPlace?.lon;
   const placePin = useMemo(
-    () => (placeData ? { ident: placeData.ident, lat: placeData.lat, lon: placeData.lon } : null), [placeData],
+    () => (pinIdent && pinLat != null && pinLon != null ? { ident: pinIdent, lat: pinLat, lon: pinLon } : null),
+    [pinIdent, pinLat, pinLon],
   );
   // Own ship, near enough to fit the map to Nearest's fields with it.
   const fix = useOwnShipNear();
