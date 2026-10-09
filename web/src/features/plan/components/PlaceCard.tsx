@@ -36,6 +36,10 @@ function away(from: LatLon, to: LatLon): string {
   return nm < 0.5 ? "here" : `${nm < 10 ? nm.toFixed(1) : Math.round(nm)} nm ${compassPoint(bearingDeg(from, to))}`;
 }
 
+/** A note's own leading, iOS's Footnote's 18 on its 13 (16 on a mouse's
+ *  12), for a note set in lines of its own (the elevation's pane). */
+const NOTE_LEADING = "leading-4 pointer-coarse:leading-[1.125rem]";
+
 /** The line under the name, how far the field is alone at the pilot's
  *  ask -- "18 nm NE of C81" -- the ident at the end of the name
  *  (NameWithIdent), and its class and frequencies left to the tabs.
@@ -409,10 +413,10 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
               {place?.elevation_ft != null && (
                 <span
                   ref={setElevationPane}
-                  className={cn("pointer-events-none absolute top-1 left-1.5 flex flex-col rounded-md bg-background/75 px-1 py-0.5 leading-tight font-semibold text-foreground", TEXT.note)}
+                  className={cn("pointer-events-none absolute top-1 left-1.5 flex flex-col rounded-md bg-background/75 px-1 py-0.5 font-semibold text-foreground", TEXT.note, NOTE_LEADING)}
                   data-testid="place-elevation"
                 >
-                  <span aria-hidden="true" className="leading-[0.8125rem] font-normal">Elev </span>
+                  <span aria-hidden="true" className="font-normal">Elev </span>
                   <span><span className="sr-only">Elevation </span>{feet(place.elevation_ft)}</span>
                 </span>
               )}
