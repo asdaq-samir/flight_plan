@@ -44,6 +44,12 @@ export const ConsoleButtonContext = createContext<ReactNode>(null);
  *  own (MapPage), the same in either console. */
 export const ConsoleSettingsContext = createContext<ReactNode>(null);
 
+/** The console's close where it is a layer of the map's panel rather
+ *  than a sheet of its own -- on a phone (MapPage) -- for its header to
+ *  put it away with (ConsoleHeader): with no sheet round it, it has no
+ *  sheet's own close, title or description to use. */
+export const ConsoleInPanelContext = createContext<{ close: () => void } | null>(null);
+
 /** Where the route's tabs' bar ends, in pixels from the map panel's
  *  body's top, or null with no tabs in sight: the panel's half height,
  *  every panel's, is the route's head and that bar (MapPanel). */

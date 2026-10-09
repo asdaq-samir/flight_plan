@@ -1,3 +1,4 @@
+import { useContext } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronDown } from "lucide-react";
 import { cn } from "cn";
@@ -13,6 +14,7 @@ import { TEXT } from "../../lib/text";
 import SignInModal from "./SignInModal";
 import { useLogout } from "./useLogout";
 import CloseButton from "../../components/CloseButton";
+import { ConsoleInPanelContext } from "../../components/mapChrome";
 import { useConfirm } from "../../components/useConfirm";
 import { useDeleteAccount } from "./useDeleteAccount";
 
@@ -32,6 +34,9 @@ import { useDeleteAccount } from "./useDeleteAccount";
  * by the sheet (`showCloseButton={false}`), so it sits on this row.
  */
 export default function ConsoleHeader({ console }: { console: string }) {
+  // A layer of the map's panel on a phone (MapPage): its own heading and
+  // close, there being no sheet's.
+  const inPanel = useContext(ConsoleInPanelContext);
   const { data: pilot, isLoading, isError, refetch } = useQuery(pilotQuery);
   const devMode = useDevMode();
   const logout = useLogout();
@@ -54,7 +59,9 @@ export default function ConsoleHeader({ console }: { console: string }) {
       {/* The title semibold at a sheet's title's size (TEXT): 17 to a
           finger, as an iOS navigation bar's title is. Named for a screen
           reader still where the menu stands in for it. */}
-      <SheetTitle className={cn("min-w-0 truncate font-semibold", TEXT.title, menu && "sr-only")}>{console}</SheetTitle>
+      {inPanel
+        ? <h2 className={cn("min-w-0 truncate font-semibold", TEXT.title, menu && "sr-only")}>{console}</h2>
+        : <SheetTitle className={cn("min-w-0 truncate font-semibold", TEXT.title, menu && "sr-only")}>{console}</SheetTitle>}
       {menu && (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -99,13 +106,17 @@ export default function ConsoleHeader({ console }: { console: string }) {
       <span className={cn("min-w-0 flex-1 truncate text-muted-foreground", TEXT.note)} data-testid="pilot-address">
         {pilot?.displayName}
       </span>
-      <SheetDescription className="sr-only">The {console.toLowerCase()} console</SheetDescription>
+      {!inPanel && <SheetDescription className="sr-only">The {console.toLowerCase()} console</SheetDescription>}
       {isLoading && <span className={cn("text-muted-foreground", TEXT.prose)}>Checking sign-in…</span>}
       {isError && <Button variant="outline" size="sm" onClick={() => void refetch()}>Retry sign-in check</Button>}
       {!isLoading && !isError && !pilot && <SignInModal />}
-      <SheetClose asChild>
-        <CloseButton />
-      </SheetClose>
+      {inPanel ? (
+        <CloseButton onClick={inPanel.close} data-testid="console-close" />
+      ) : (
+        <SheetClose asChild>
+          <CloseButton data-testid="console-close" />
+        </SheetClose>
+      )}
       {deleteDialog}
     </SheetHeader>
   );
