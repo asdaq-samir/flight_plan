@@ -38,7 +38,15 @@ test("plan page: the pilot console holds the account, airplanes and flights, and
   await page.getByTestId("settings-button").click();
   const pilot = consoleSheet(page);
   await expect(pilot).toBeVisible();
-  await expect(page.getByTestId("settings-button")).toHaveAttribute("aria-expanded", "true");
+  // On a phone the console is the panel's layer, in the search bar's
+  // place, the gear with it; elsewhere a sheet the gear says is out.
+  const phone = page.viewportSize()!.width < 768;
+  if (phone) {
+    await expect(page.getByTestId("settings-button")).toHaveCount(0);
+    expect(await pilot.evaluate(el => !!el.closest('[data-slot="map-panel"]'))).toBe(true);
+  } else {
+    await expect(page.getByTestId("settings-button")).toHaveAttribute("aria-expanded", "true");
+  }
   // The title is the role, a menu: Pilot (chosen here), Developer for a
   // developer, and Sign out last; who is signed in beside it.
   await expect(page.getByRole("dialog", { name: "Pilot" })).toBeVisible();
@@ -63,8 +71,9 @@ test("plan page: the pilot console holds the account, airplanes and flights, and
   await library(pilot, "Minimums");
   await expect(pilot.getByTestId("minimum-ceilingFt")).toBeVisible();
 
-  // The console is modal: Escape puts it away, and then Escape lowers
-  // the panel too, and its grabber opens it again.
+  // Escape puts it away -- the search under it at the height it was, on
+  // a phone -- and then Escape lowers the panel too, and its grabber opens
+  // it again.
   await page.keyboard.press("Escape");
   await expect(pilot).toHaveCount(0);
   await closeSidebarWithTheStockKey(page);
@@ -128,14 +137,16 @@ test("the navigation bar's edge is a setting: the panel moves to it, the map's b
 });
 
 test("the console holds still as its tabs change: up from the bottom of a phone's screen, down from the top of a desktop's", async ({ page }) => {
-  // On a phone the console is a sheet from the bottom edge, where the
-  // header is. Sized to the tab showing, its top edge rose and fell as
-  // the tabs changed, and the tab row moved out from under the finger
-  // that had just tapped it; its height is now fixed, half the screen
-  // showing until it is dragged up. From `md` up it is the Sheet from
-  // the top, whose tab row stays put however tall it is.
+  // On a phone the console is a layer of the map's panel, from the
+  // bottom edge, where the header is. Sized to the tab showing, its top
+  // edge rose and fell as the tabs changed, and the tab row moved out
+  // from under the finger that had just tapped it; its height is the
+  // panel's, half way until it is dragged up. From `md` up it is the
+  // Sheet from the top, whose tab row stays put however tall it is.
   await page.goto("/app/plan");
   await settle(page);
+  const panel = page.locator('[data-slot="map-panel"]');
+  const half = (await panel.boundingBox())!;
   await page.getByTestId("settings-button").click();
   const pilot = consoleSheet(page);
   await expect(pilot.getByRole("tab", { name: "Guide" })).toBeVisible();
@@ -144,12 +155,15 @@ test("the console holds still as its tabs change: up from the bottom of a phone'
   if (!viewport) throw new Error("no viewport configured");
   const box = (await pilot.boundingBox())!;
   if (viewport.width < 768) {
-    // iOS's medium detent, as the map's panel is at half: in from the
-    // screen's sides and its foot by eight, half of what it has to rise in.
+    // A layer of the map's panel, at the half every panel has, as the
+    // search was: in from the screen's sides and its foot by eight.
+    await expect(panel).toHaveAttribute("data-panel", "half");
+    const now = (await panel.boundingBox())!;
+    expect(Math.abs(now.y - half.y)).toBeLessThan(1);
+    expect(Math.abs(now.height - half.height)).toBeLessThan(1);
     expect(Math.round(box.x)).toBe(8);
     expect(Math.round(box.width)).toBe(viewport.width - 16);
-    expect(Math.abs(box.y + box.height - (viewport.height - 8))).toBeLessThan(1);
-    expect(Math.abs(box.height - (viewport.height - 8) / 2)).toBeLessThan(1);
+    expect(Math.abs(box.y + box.height - (now.y + now.height))).toBeLessThan(1);
   } else {
     expect(box.y).toBe(0);
   }

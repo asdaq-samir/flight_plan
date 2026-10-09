@@ -50,8 +50,8 @@ function letGo<S extends string>(latest: Latest<S>, to: number, speed: number) {
  *
  * The body drags too, under a finger (`body`, its element): see below.
  *
- * The map's panel (MapPanel) and the console's sheet on a phone
- * (ConsoleSheet) share it, so the two move alike from either edge. The
+ * The map's panel (MapPanel) uses it -- the console too, a layer of the
+ * panel on a phone -- from either edge. The
  * sheet keeps the height being dragged to (`setDragged`, null at rest);
  * `shown` is the height it is at now.
  */

@@ -1,10 +1,9 @@
-import { Suspense, lazy, useCallback, useDeferredValue, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { Suspense, lazy, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { showError } from "../../lib/problems";
 import { useSearchParamsNow } from "../../lib/useSearchParamsNow";
 import DevGuard from "../../components/DevGuard";
-import ConsoleSheet, { type ConsoleDetent } from "../../components/ConsoleSheet";
 import MapPanel from "../../components/MapPanel";
-import { ConsoleButtonContext, ConsoleSettingsContext, useConsoleOpen, MapInsetsContext, NO_INSETS, type MapInsets, type PanelState } from "../../components/mapChrome";
+import { ConsoleButtonContext, ConsoleInPanelContext, ConsoleSettingsContext, useConsoleOpen, MapInsetsContext, NO_INSETS, type MapInsets, type PanelState } from "../../components/mapChrome";
 import RouteForm from "../../components/RouteForm";
 import SettingsButton from "../../components/SettingsButton";
 import { Sheet, SheetContent } from "../../components/ui/sheet";
@@ -146,10 +145,14 @@ export default function MapPage({ mode }: { mode: Mode }) {
   // panel's capsule and nowhere else, as Maps' account is beside its
   // search: on the planner's search bar -- with a route on screen,
   // closing it brings the bar back -- and at the end of the training
-  // page's route capsule. Modal, so the page waits while it is out. From
-  // the navigation bar's edge (useNavEdge): on a phone the map's panel's
-  // own shapes, half way in from the edges on glass and all the way on
-  // them (ConsoleSheet), from either edge; otherwise a stock Sheet. Its
+  // page's route capsule. On a phone, a layer of the map's panel itself,
+  // at the pilot's ask, as an airport's card is: it pulls out as the
+  // route's sheet does -- the pill, the half every panel has and all the
+  // way -- dragged from anywhere on it, and its close shows the layer
+  // under it at the height it is; it was a sheet of its own over a dimmed
+  // map (ConsoleSheet), half the screen, that slid away when lowered.
+  // Elsewhere modal, so the page waits while it is out: a stock Sheet
+  // from the navigation bar's edge (useNavEdge). Its
   // height is fixed rather than its content's: sized to the tab showing,
   // its edge rose and fell as the tabs changed, and the tab row moved out
   // from under the finger that had just tapped it. It opens half way, at
@@ -157,7 +160,6 @@ export default function MapPage({ mode }: { mode: Mode }) {
   // opened all the way every time, a screen of nothing under one
   // airplane -- all the way, though, over a panel that is. On an iPad, iOS's form sheet instead: a card 540 by 620,
   // centred, as a sheet there is.
-  const [consoleDetent, setConsoleDetent] = useState<ConsoleDetent>("medium");
   // Out or not, the app's (useConsoleOpen): a developer's Pilot and
   // Developer in the console's title change the page under it, and the
   // console stays out, the other page's.
@@ -168,11 +170,26 @@ export default function MapPage({ mode }: { mode: Mode }) {
   // from and given the focus back on closing.
   const consoleButton = useRef<HTMLButtonElement>(null);
   const openConsole = useCallback(() => {
-    // All the way out when the panel under it is: opened half way over a
-    // sheet already at the top, it read as a step down.
-    setConsoleDetent(panel === "full" ? "large" : "medium");
+    // In the panel on a phone: half way up from the pill (below), as a
+    // card opens; where the panel is out already, at the height it is.
     setConsoleOpen(true);
-  }, [setConsoleOpen, panel]);
+  }, [setConsoleOpen]);
+  // The layer put away: the one under it shows at the height the panel
+  // is, and the focus goes back to the gear it was opened from.
+  const closeConsole = useCallback(() => {
+    setConsoleOpen(false);
+    // Once the search bar it is on is back.
+    window.setTimeout(() => consoleButton.current?.focus({ preventScroll: true }));
+  }, [setConsoleOpen]);
+  const consoleInPanel = useMemo(() => ({ close: closeConsole }), [closeConsole]);
+  // Opened from anywhere -- the gear, or the training's retrain sending
+  // the pilot to its progress -- the layer half way up from the pill on a
+  // phone, as a card opens; lowered to the pill after, it stays there.
+  const consoleWasOpen = useRef(consoleOpen);
+  useEffect(() => {
+    if (consoleOpen && !consoleWasOpen.current && onPhone && !onTablet && panel === "peek") setPanel("half");
+    consoleWasOpen.current = consoleOpen;
+  }, [consoleOpen, onPhone, onTablet, panel, setPanel]);
   const backToButton = useCallback((event: Event) => {
     event.preventDefault();
     consoleButton.current?.focus();
@@ -208,19 +225,8 @@ export default function MapPage({ mode }: { mode: Mode }) {
         </Dialog>
       );
     }
-    if (onPhone) {
-      return (
-        <ConsoleSheet
-          open={consoleOpen} onOpenChange={setConsoleOpen} detent={consoleDetent} onDetentChange={setConsoleDetent}
-          edge={edge} onCloseAutoFocus={backToButton}
-          header={<ConsoleHeader console={consoleLabel} />}
-        >
-          <ConsoleSettingsContext.Provider value={<SettingsPanel />}>
-            <AfterTheSheet>{pieces.console}</AfterTheSheet>
-          </ConsoleSettingsContext.Provider>
-        </ConsoleSheet>
-      );
-    }
+    // On a phone, in the panel (consoleLayerOf).
+    if (onPhone) return null;
     return (
       <Sheet open={consoleOpen} onOpenChange={setConsoleOpen}>
         <SheetContent
@@ -235,6 +241,22 @@ export default function MapPage({ mode }: { mode: Mode }) {
       </Sheet>
     );
   };
+
+  // On a phone, the console as a layer of the panel: its header and tabs
+  // where the panel's body is, the route or the search under it kept
+  // (hidden) for when it is put away. Named as the console it is; Escape
+  // puts it away, unless something open in it (a menu) took the key.
+  const consoleLayer = onPhone && !onTablet && consoleOpen;
+  const consoleLayerOf = (pieces: WorkspacePieces) => (
+    <ConsoleInPanelContext.Provider value={consoleInPanel}>
+      <ConsoleLayer label={consoleLabel} detent={panel === "full" ? "large" : "medium"} edge={edge} onClose={closeConsole}>
+        <ConsoleHeader console={consoleLabel} />
+        <ConsoleSettingsContext.Provider value={<SettingsPanel />}>
+          <AfterTheSheet>{pieces.console}</AfterTheSheet>
+        </ConsoleSettingsContext.Provider>
+      </ConsoleLayer>
+    </ConsoleInPanelContext.Provider>
+  );
 
   return (
     // The fallback is the page's own background rather than a spinner:
@@ -297,10 +319,10 @@ export default function MapPage({ mode }: { mode: Mode }) {
               panel out, and at the end of either page's route capsule. */}
           <ConsoleButtonContext.Provider value={settingsButton}>
           <MapPanel
-            label={panelLabel} controls={pieces.alone ? undefined : pieces.controls}
+            label={consoleLayer ? consoleLabel : panelLabel} controls={pieces.alone || consoleLayer ? undefined : pieces.controls}
             state={panel} onStateChange={setPanel} onInsetsChange={changeInsets}
             compact={pieces.compact}
-            top={pieces.alone ? null : pieces.head ?? (
+            top={pieces.alone || consoleLayer ? null : pieces.head ?? (
               <>
                 <div className="min-w-0 flex-1">
                   {pieces.route ?? (
@@ -314,13 +336,55 @@ export default function MapPage({ mode }: { mode: Mode }) {
               </>
             )}
           >
-            {pieces.sidebar}
+            {consoleLayer && consoleLayerOf(pieces)}
+            {/* Under the console while it is out, kept as it is. */}
+            <div className={consoleLayer ? "hidden" : "contents"}>{pieces.sidebar}</div>
           </MapPanel>
           </ConsoleButtonContext.Provider>
         </div>
       )}
     </Workspace>
     </Suspense>
+  );
+}
+
+/**
+ * The console as a layer of the map's panel (a phone's): named as the
+ * console it is, the focus taken into it as it opens, as the sheet took
+ * it, and Escape putting it away -- heard here, inside the panel, before
+ * the panel hears it and lowers itself; not when a menu open in it took
+ * the key first.
+ */
+function ConsoleLayer({ label, detent, edge, onClose, children }: {
+  label: string;
+  detent: "medium" | "large";
+  edge: "top" | "bottom";
+  onClose: () => void;
+  children: ReactNode;
+}) {
+  const layer = useRef<HTMLElement>(null);
+  const close = useRef(onClose);
+  useEffect(() => { close.current = onClose; });
+  useEffect(() => {
+    const node = layer.current;
+    if (!node) return;
+    node.focus({ preventScroll: true });
+    const onKey = (event: globalThis.KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      event.preventDefault();
+      close.current();
+    };
+    node.addEventListener("keydown", onKey);
+    return () => node.removeEventListener("keydown", onKey);
+  }, []);
+  return (
+    <section
+      ref={layer} role="dialog" aria-label={label} tabIndex={-1}
+      data-testid="console-sheet" data-detent={detent} data-edge={edge}
+      className="flex min-h-0 flex-1 flex-col outline-none print:hidden"
+    >
+      {children}
+    </section>
   );
 }
 

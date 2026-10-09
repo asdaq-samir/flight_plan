@@ -124,14 +124,19 @@ export async function beforeTheRoute(page: Page, change: () => Promise<void>) {
   await expect(page.getByTestId("map-settings")).toHaveCount(0);
 }
 
-/** The console all the way out. On a phone it opens half way, at iOS's
- *  medium detent (ConsoleSheet), with the rest of its tab past the
- *  screen's middle and out of a click's reach; a drag on its head away
- *  from its edge brings it all the way, as a finger's does. Elsewhere it
- *  has one height, and this does nothing. */
+/** The console all the way out. On a phone it is a layer of the map's
+ *  panel (MapPage), opened half way with the rest of its tab out of a
+ *  click's reach: its grabber brings the panel all the way, as a finger's
+ *  drag does. Elsewhere it has one height, and this does nothing. */
 export async function expandConsole(page: Page) {
   const sheet = page.getByTestId("console-sheet");
   if ((await sheet.getAttribute("data-detent")) !== "medium") return;
+  if (await sheet.evaluate(el => !!el.closest('[data-slot="map-panel"]'))) {
+    await grabberTo(page, "full");
+    await expect(sheet).toHaveAttribute("data-detent", "large");
+    await sideDrawer(page).evaluate(el => Promise.all(el.getAnimations({ subtree: true }).map(a => a.finished.catch(() => undefined))));
+    return;
+  }
   // Once it has slid in.
   await sheet.evaluate(el => Promise.all(el.getAnimations().map(a => a.finished)));
   const box = (await sheet.boundingBox())!;
@@ -171,8 +176,14 @@ export async function roleMenu(page: Page) {
 /** Escape until the console is away: a menu open in it takes the first. */
 export async function closeConsole(page: Page) {
   const sheet = page.getByTestId("console-sheet");
+  let tries = 0;
   await expect(async () => {
-    if (await sheet.count()) await page.keyboard.press("Escape");
+    // Escape, as a keyboard puts it away -- and its own close where the
+    // focus has gone out of it (a phone's console is no modal to keep it).
+    if (await sheet.count()) {
+      if (tries++ % 2 === 0) await page.keyboard.press("Escape");
+      else await sheet.getByTestId("console-close").click();
+    }
     await expect(sheet).toHaveCount(0, { timeout: 1000 });
   }).toPass({ timeout: 10000 });
 }

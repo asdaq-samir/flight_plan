@@ -4,7 +4,7 @@ import { format } from "date-fns";
 import { Check, Upload, X } from "lucide-react";
 import { cn } from "cn";
 import { ListGroup, ListRow } from "../../components/GroupedList";
-import { SheetClose } from "../../components/ui/sheet";
+import ConsoleClose from "../../components/ConsoleClose";
 import { api } from "../../lib/api/client";
 import type { Flight, FlightSummary } from "../../lib/api/types";
 import {
@@ -245,7 +245,7 @@ function DebriefSection({ flight, planHref }: { flight: Flight; planHref: string
         {result && (
           // Onto the chart over its own route, red where it was outside a
           // tolerance; the map's buttons have its key and Hide.
-          <SheetClose asChild>
+          <ConsoleClose>
             <ListRow
               title="Show on the map" to={planHref} data-testid="debrief-show"
               onClick={() => showTrack({
@@ -253,7 +253,7 @@ function DebriefSection({ flight, planHref }: { flight: Flight; planHref: string
                 departure: flight.departureIdent, destination: flight.destinationIdent, line: result.line,
               })}
             />
-          </SheetClose>
+          </ConsoleClose>
         )}
       </ListGroup>
       <input
@@ -303,9 +303,9 @@ export default function FlightPage({ summary, planHref }: { summary: FlightSumma
             value={<span className={LEVEL_TONE[summary.risk.level as RiskLevel]}>{riskLine(summary.risk)}</span>}
           />
         )}
-        <SheetClose asChild>
+        <ConsoleClose>
           <ListRow title="Open on the map" to={planHref} data-testid="flight-open" />
-        </SheetClose>
+        </ConsoleClose>
       </ListGroup>
       {isPending ? (
         <p role="status" className={cn("px-1 text-muted-foreground", TEXT.note)}>Fetching its nav log…</p>
