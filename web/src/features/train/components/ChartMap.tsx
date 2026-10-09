@@ -119,7 +119,7 @@ export default function ChartMap({
             // training map never asks about its weather, and grey is
             // what a field that was asked and had no report looks like.
             <Marker
-              key={e.ident} position={[e.lat, e.lon]} icon={airportIcon("#ffffff", e.ident, { unchecked: true })}
+              key={e.ident} position={[e.lat, e.lon]} icon={airportIcon(e.ident)}
               eventHandlers={{ click: ev => { L.DomEvent.stopPropagation(ev); onSelect(e); } }}
             >
               {selected !== e && <MapTooltip><PointPreview point={e} /></MapTooltip>}

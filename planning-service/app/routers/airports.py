@@ -38,7 +38,8 @@ def airports_in_view(
     state holds thousands and the map only lays a tap target over each --
     with each one's flight category from its METAR, for a weather chip on
     the ones that report: the limit drops small fields with nothing to
-    show, never a chip a pilot saw a zoom further out.
+    show, never a chip a pilot saw a zoom further out -- and each one's
+    class of airspace at its surface, for its mark.
     The METARs are the national cache already in memory; with the
     weather service out the fields come back without, as fields with no
     station do. With `reporting`, only the fields that report, before
@@ -58,10 +59,23 @@ def airports_in_view(
         metars = weather.metar_for_idents([p["source_ident"] for p in places])
     except weather.WeatherServiceError:
         metars = {}
+    classes = _surface_classes(places)
     return {"airports": [
-        {**p, "flight_category": (metars.get(p["source_ident"]) or {}).get("flight_category"), "military": _military(p)}
-        for p in places
+        {**p, "flight_category": (metars.get(p["source_ident"]) or {}).get("flight_category"), "military": _military(p),
+         "airspace_class": cls}
+        for p, cls in zip(places, classes)
     ]}
+
+
+def _surface_classes(places: list[dict]) -> list:
+    """Each field's class of airspace at its surface, for its mark on the
+    map (vfr.airspace.surface_classes, all of them at once); None for each
+    where the FAA's airspace cannot be had, the marks drawn without it."""
+    try:
+        shp_path = airspace.ensure_class_airspace_shapefile(altitude.DEFAULT_FAA_CACHE_DIR)
+        return airspace.surface_classes([(p["lat"], p["lon"]) for p in places], shp_path)
+    except (OSError, RuntimeError):
+        return [None] * len(places)
 
 
 @router.get("/api/places/search", response_model=PlacesFound)
@@ -91,18 +105,20 @@ def nearest_airports(
 ) -> NearestAirports:
     """The landing fields nearest a position -- own ship's, for the map's
     Nearest -- the nearest first: how far and which way, each one's
-    longest open runway and its flight category where it reports."""
+    longest open runway, its flight category where it reports, and its
+    class of airspace at the surface, as the map's marks have it."""
     found = airports.nearest(lat, lon, limit)
     try:
         metars = weather.metar_for_idents([p["source_ident"] for p in found])
     except weather.WeatherServiceError:
         metars = {}
     out = []
-    for p in found:
+    for p, cls in zip(found, _surface_classes(found)):
         lengths = [r["length_ft"] for r in airports.get_runways(p["source_ident"]) if not r["closed"] and r["length_ft"]]
         out.append({
             **p, "longest_runway_ft": max(lengths) if lengths else None,
             "flight_category": (metars.get(p["source_ident"]) or {}).get("flight_category"), "military": _military(p),
+            "airspace_class": cls,
         })
     return {"airports": out}
 

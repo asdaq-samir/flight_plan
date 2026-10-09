@@ -4,7 +4,7 @@ import { classBQuery } from "../queryClient";
 import type { ChartInfo } from "../api/types";
 import { usePreferences } from "../preferences";
 import { colourOf } from "./flightCategory";
-import { airportIcon } from "./icons";
+import { airportMarkIcon } from "./icons";
 import { MapTooltip } from "./MapTooltip";
 import { chartPair, sheetAt } from "./tiles";
 import { centreClear } from "./clear";
@@ -59,7 +59,7 @@ export function ClassBLayer({ chart, endpoints, onPreview, onSelectPlace }: {
           <Marker
             key={airport.ident}
             position={[airport.lat, airport.lon]}
-            icon={airportIcon(colourOf(airport.flight_category), airport.ident, { classB: true })}
+            icon={airportMarkIcon(airport.ident, "B", colourOf(airport.flight_category))}
             // Over the route's own airports' chips (RouteMap's 500), as over
             // the checkpoints: drawn only while the pilot has asked for the
             // Class B fields, and the one in the way is the one to see --

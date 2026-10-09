@@ -17,7 +17,7 @@ import { CourseLine } from "../../../lib/map/CourseLine";
 import { FlownTrackLayer } from "../../../lib/map/FlownTrackLayer";
 import { Halo } from "../../../lib/map/Halo";
 import {
-  CHECKPOINT_LABEL_GAP, CHECKPOINT_LABEL_HEIGHT, airportChipWidth, airportIcon, checkpointLabelIcon, checkpointLabelWidth, dotIcon, legPointIcon,
+  AIRPORT_MARK, CHECKPOINT_LABEL_GAP, CHECKPOINT_LABEL_HEIGHT, airportMarkIcon, airportMarkReach, checkpointLabelIcon, checkpointLabelWidth, dotIcon, legPointIcon,
   waypointIcon,
 } from "../../../lib/map/icons";
 import { FitTo, FocusOn } from "../../../lib/map/MapEffects";
@@ -158,10 +158,11 @@ function routeAirports(course: Course, each = false) {
 /**
  * The route's departure, stops and destination, drawn at every zoom, so
  * on a route whose checkpoints are still too far out to draw they are
- * the only ones there to tap. An airport chip coloured by the field's
- * own current METAR -- the Class B pill when the field is one on the
- * Class B layer (which then leaves it to this rather than drawing a
- * second chip on top) -- and a tap opens its card in the panel
+ * the only ones there to tap. An airport's mark (airportMarkIcon) in
+ * its class of airspace's look -- the course's, else Class B's when the
+ * field is one on the Class B layer (which then leaves it to this rather
+ * than drawing a second mark on top) -- its dot the field's own current
+ * METAR's colour, and a tap opens its card in the panel
  * (PlaceCard), as every airport on the chart does: it was a weather card
  * over the chart. A waypoint flown through brings the map to it, as the
  * nav log's rows do.
@@ -194,7 +195,7 @@ function Endpoints({ course, weather, onSelectPoint, onSelectPlace }: {
         return (
           <Marker
             key={a.ident} position={[a.lat, a.lon]}
-            icon={airportIcon(chipColourOf(w), a.ident, { classB: !!field })}
+            icon={airportMarkIcon(a.ident, a.airspace_class ?? (field ? "B" : null), chipColourOf(w))}
             // Over the checkpoints' dots: the field the route leaves from or
             // lands at is the one thing on the chart it must not lose --
             // KMDW's chip lay under checkpoint 1's dot.
@@ -306,8 +307,9 @@ function useLabelled(
     const at = selected.map(c => map.latLngToContainerPoint([c.lat, c.lon]));
     const dots = at.map(p => L.bounds([p.x - 12, p.y - 12], [p.x + 12, p.y + 12]));
     const chips = airports.map(a => {
-      const p = map.latLngToContainerPoint([a.lat, a.lon]), half = airportChipWidth(a.ident) / 2;
-      return L.bounds([p.x - half, p.y - 12], [p.x + half, p.y + 12]);
+      // The mark and its ident, which runs right of it.
+      const p = map.latLngToContainerPoint([a.lat, a.lon]), half = AIRPORT_MARK / 2;
+      return L.bounds([p.x - half, p.y - half], [p.x + airportMarkReach(a.ident), p.y + half]);
     });
     const placed: L.Bounds[] = [];
     const kept = new Map<string, { name: string; side: "right" | "left" }>();
@@ -398,9 +400,6 @@ export default memo(function RouteMap({
     ...(course ? routeAirports(course).map(a => a.ident) : []),
     ...(showClassB ? (classBAirports ?? []).map(a => a.ident) : []),
   ]), [course, showClassB, classBAirports]);
-  // Of those, the ones whose chip is the Class B layer's pill, for the
-  // selected field's ring to take its shape.
-  const pills = useMemo(() => new Set(showClassB ? (classBAirports ?? []).map(a => a.ident) : []), [showClassB, classBAirports]);
 
   // The route's box, half a degree round it, on the half-degree grid the
   // layer asks in: one question for its reporting fields however the
@@ -422,7 +421,7 @@ export default memo(function RouteMap({
     >
       {/* The chart's own airports with no route as well: a tap on a field
           opens its card, and Fly Here makes the route. */}
-      <AirportsLayer selected={place} onSelect={onSelectPlace} exclude={chipped} pills={pills} route={routeBox} />
+      <AirportsLayer selected={place} onSelect={onSelectPlace} exclude={chipped} route={routeBox} />
       <TfrLayer />
       <WaypointsLayer exclude={chipped} onAddStop={course ? onAddStop : undefined} />
       {/* The airport whose card opens comes to the middle of the chart

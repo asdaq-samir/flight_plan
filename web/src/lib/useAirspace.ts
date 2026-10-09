@@ -11,9 +11,10 @@ import { usePreferences, type AirspaceClass, type RecentAirport } from "./prefer
 type Space = AirspaceClass;
 
 /** The sectional's blue and magenta, a shade lighter so a glyph in them
- *  reads on the panel's dark material too. */
-const BLUE = "#2465b8";
-const MAGENTA = "#b02e7c";
+ *  reads on the panel's dark material too -- the map's airport marks'
+ *  as well (lib/map/icons). */
+export const BLUE = "#2465b8";
+export const MAGENTA = "#b02e7c";
 
 /**
  * A field's airspace as the sectional draws it, on its tile: Class B a

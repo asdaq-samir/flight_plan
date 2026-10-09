@@ -1,6 +1,8 @@
 import L from "leaflet";
+import type { AirspaceClass } from "../preferences";
 import { inkOn } from "../scoreScale";
 import { textWidth } from "../textWidth";
+import { BLUE, MAGENTA } from "../useAirspace";
 
 /** An icon made once for the same arguments and handed out again after:
  *  react-leaflet sets a marker's icon again whenever the icon is a new
@@ -123,8 +125,13 @@ export function checkpointLabelWidth(name: string): number {
   return width == null ? name.length * 9 + 12 : Math.ceil(width + name.length * 0.3 + 12);
 }
 
-/** An airport chip's width (airportIcon), for a label to keep off it. */
-export const airportChipWidth = (ident: string) => Math.max(40, Math.ceil(ident.length * 7.5) + 22);
+/** An airport chip's width (airportIcon). */
+const airportChipWidth = (ident: string) => Math.max(40, Math.ceil(ident.length * 7.5) + 22);
+
+/** An airport mark's symbol across (airportMarkIcon), and how far its
+ *  ident runs right of the field: for a label to keep off both. */
+export const AIRPORT_MARK = 26;
+export const airportMarkReach = (ident: string) => AIRPORT_MARK / 2 + 2 + Math.ceil(ident.length * 7.5);
 
 /**
  * A checkpoint's name beside its dot, as ForeFlight labels a flight
@@ -145,26 +152,6 @@ export const checkpointLabelIcon = made(function checkpointLabelIcon(name: strin
 });
 
 /**
- * An airport: the ident on a chip coloured by what is known of its
- * weather (see `AirportCard`) -- grey where nothing is reported yet.
- *
- * A chip rather than a dot because an airport is always worth naming
- * outright -- a pilot deciding whether to route around Chicago wants
- * to see "ORD", not a coloured spot they have to hover to identify.
- * The white casing is the same reasoning as the checkpoint dots': a
- * coloured shape alone disappears into chart of the same hue.
- *
- * `classB` draws the pill a Class B field has had since the layer was
- * added; every other airport gets squarer corners, so the route's own
- * C81 no longer looks like O'Hare. `unchecked` is a field nobody asked
- * about at all -- a training corridor's endpoint -- in white rather than
- * the grey that means "asked, and no report".
- *
- * The box is sized from the ident, with the chip centred in it: a fixed
- * 56 px box left-aligned a short ident off the airport's position and
- * cut a seven-character one (US-1234) off its own tap target.
- */
-/**
  * The ring round the airport whose card is open: the selected
  * checkpoint's halo (Halo) -- red-orange, cased in white and then a dark
  * line on both sides -- so one look marks what is picked on the map, and
@@ -172,28 +159,18 @@ export const checkpointLabelIcon = made(function checkpointLabelIcon(name: strin
  * linework alike. It was the brand's taxiway yellow, which the pilot
  * found hard to see; of red-orange, blue and magenta tried over KBUR's
  * Los Angeles and KMSN's Madison, red-orange stood out most, where blue
- * is an MVFR chip's and Class B's and magenta LIFR's and the chart's
- * own airspace. It sits 4 points clear of the field's chip and takes the
- * chip's shape: the ident is set again, unseen, in
- * the chip's own type and padding, so the ring hugs the chip whatever
- * the ident's width. A circle of 16 on the radius was drawn under the
- * chip, which is 24 tall and wider than that, and only slivers of it
- * showed. Where the field wears no chip (an invisible target), the ring
- * goes round the chart's own symbol instead. It is not a target: a tap
- * there still goes to the chip under it.
+ * is Class B's and D's and magenta the chart's own airspace. Round, 40
+ * across, clear of the field's mark (airportMarkIcon) by 7 on every side,
+ * or round the chart's own symbol where the field wears none. It is not
+ * a target: a tap there still goes to the mark under it.
  */
-export const selectionIcon = made(function selectionIcon(ident: string, shape: "chip" | "pill" | "dot") {
+export const selectionIcon = made(function selectionIcon() {
   const ring = "pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 border-[3px] border-[#ff3b00]" +
     " shadow-[0_0_0_1.5px_#fff,0_0_0_2.5px_rgba(10,20,28,.6),inset_0_0_0_1.5px_#fff,inset_0_0_0_2.5px_rgba(10,20,28,.6)]";
   return L.divIcon({
     className: "",
     iconSize: [0, 0], iconAnchor: [0, 0],
-    html: shape === "dot"
-      ? `<span data-selected-airport="" class="${ring} size-10 rounded-full"></span>`
-      // The chip's padding (6 and 2) and border (2), each 4 more: 1.5 of
-      // white casing inside the ring, and the chart for the rest.
-      : `<span data-selected-airport="" aria-hidden="true" class="${ring} whitespace-nowrap px-[12px] py-[8px] text-[11px] font-bold text-transparent"` +
-        ` style="border-radius:${shape === "pill" ? "9999px" : "calc(var(--radius-md) + 7px)"}">${text(ident)}</span>`,
+    html: `<span data-selected-airport="" class="${ring} size-10 rounded-full"></span>`,
   });
 });
 
@@ -239,24 +216,69 @@ export const legPointIcon = made(function legPointIcon(label: "TOC" | "TOD") {
   });
 });
 
-export const airportIcon = made(function airportIcon(colour: string, ident: string, { classB = false, unchecked = false } = {}) {
+/**
+ * A field nobody asked about -- a training corridor's endpoint: its ident
+ * on a white chip, the white casing and the dark hairline round it so it
+ * holds on the chart's paper and its linework alike. The box is sized
+ * from the ident, with the chip centred in it.
+ */
+export const airportIcon = made(function airportIcon(ident: string) {
   const width = airportChipWidth(ident);
-  // A Class B field's pill is round-ended and coloured by its flight
-  // category (the category in words was tried above the ident and
-  // read as clutter; the colour, with the card a tap opens, is
-  // enough); the route's own airports are squarer.
-  const shape = classB ? "rounded-full" : "rounded-md";
-  // The ident in whichever ink the fill reads at 4.5:1 with (inkOn), as
-  // the checkpoint dots' numbers are: white on the grey of a field with no
-  // report was 2.6:1.
-  const fill = unchecked
-    ? "background-color:#ffffff;color:#1c1a17"
-    : `background-color:${text(colour)};color:${text(inkOn(colour))}`;
   return L.divIcon({
     className: "",
     iconSize: [width, 24], iconAnchor: [width / 2, 12],
     html:
-      `<span class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap ${shape} border-2 border-white px-1.5 py-0.5 text-[11px] font-bold shadow-sm outline outline-1 outline-[rgba(10,20,28,.45)]"` +
-      ` style="${fill}">${text(ident)}</span>`,
+      `<span class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded-md border-2 border-white px-1.5 py-0.5 text-[11px] font-bold shadow-sm outline outline-1 outline-[rgba(10,20,28,.45)]"` +
+      ` style="background-color:#ffffff;color:#1c1a17">${text(ident)}</span>`,
+  });
+});
+
+/** The sectional's ink for a mark whose class is not known yet. */
+const UNKNOWN_GREY = "#6b7280";
+
+/**
+ * An airport on the map, at the pilot's ask, as ForeFlight marks them
+ * from the sectional's own symbols: a ring with four ticks (the chart's
+ * sign of a field with services) in the look its airspace has
+ * everywhere in the planner (lib/useAirspace) -- Class B a solid blue
+ * disc, C a solid magenta one, D a dashed blue ring, an E surface area a
+ * dashed magenta ring, G a thin magenta ring, and grey until the class is
+ * known -- and a field the armed services keep, an M on a disc of its
+ * airspace's colour. In its middle (at its edge on the M) a dot in the
+ * colour of the field's weather, its METAR's flight category, grey with
+ * no report, kept from the chips the map had, at the pilot's ask. Its
+ * ident beside it, dark on a white halo, as the chart letters a field.
+ * White casing round each line, as on every mark here: a coloured line
+ * alone is lost on chart of the same hue.
+ */
+export const airportMarkIcon = made(function airportMarkIcon(
+  ident: string, space: AirspaceClass | null, weather: string, military = false,
+) {
+  const blue = space === "B" || space === "D";
+  const ink = space ? (blue ? BLUE : MAGENTA) : UNKNOWN_GREY;
+  const casing = `stroke="#fff" stroke-linecap="round"`;
+  const symbol = military
+    ? `<circle r="10" fill="${ink}" ${casing} stroke-width="2"/>` +
+      `<text y="4" text-anchor="middle" font-size="11" font-weight="800" fill="#fff" font-family="system-ui,sans-serif">M</text>` +
+      `<circle data-weather="" cx="8" cy="8" r="3.4" fill="${text(weather)}" ${casing} stroke-width="1.4"/>`
+    : (() => {
+      const ticks = [[0, -8.5, 0, -12], [8.5, 0, 12, 0], [0, 8.5, 0, 12], [-8.5, 0, -12, 0]]
+        .map(([x1, y1, x2, y2]) => `x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"`);
+      const filled = space === "B" || space === "C";
+      const dashed = space === "D" || space === "E";
+      return ticks.map(t => `<line ${t} ${casing} stroke-width="5"/>`).join("") +
+        `<circle r="8" fill="#fff" ${casing} stroke-width="5"/>` +
+        ticks.map(t => `<line ${t} stroke="${ink}" stroke-width="2.5" stroke-linecap="round"/>`).join("") +
+        `<circle r="8" fill="${filled ? ink : "#fff"}" stroke="${ink}" stroke-width="${space === "G" ? 1.6 : 2.5}"${dashed ? ` stroke-dasharray="3.1 2"` : ""}/>` +
+        `<circle data-weather="" r="3.6" fill="${text(weather)}" ${casing} stroke-width="1.4"/>`;
+    })();
+  const half = AIRPORT_MARK / 2;
+  return L.divIcon({
+    className: "",
+    iconSize: [AIRPORT_MARK, AIRPORT_MARK], iconAnchor: [half, half],
+    html:
+      `<svg data-airport-mark="" data-airspace="${space ?? ""}"${military ? ` data-military=""` : ""} aria-hidden="true" class="absolute inset-0 overflow-visible drop-shadow-[0_1px_1px_rgba(0,0,0,.35)]"` +
+      ` width="${AIRPORT_MARK}" height="${AIRPORT_MARK}" viewBox="${-half} ${-half} ${AIRPORT_MARK} ${AIRPORT_MARK}">${symbol}</svg>` +
+      `<span class="absolute top-1/2 left-[calc(100%+1px)] -translate-y-1/2 whitespace-nowrap text-[11px] leading-none font-bold text-[#1c1a17] [text-shadow:0_0_2px_#fff,0_0_2px_#fff,0_0_3px_#fff,0_0_4px_#fff]">${text(ident)}</span>`,
   });
 });

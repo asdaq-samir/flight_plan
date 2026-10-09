@@ -81,6 +81,7 @@ def uncontrolled_fields(monkeypatch):
     shapefile: a test about the class stubs these again itself."""
     monkeypatch.setattr(airspace, "ensure_class_airspace_shapefile", lambda cache_dir: "Class_Airspace.shp")
     monkeypatch.setattr(airspace, "surface_class_at", lambda lat, lon, shp: "G")
+    monkeypatch.setattr(airspace, "surface_classes", lambda points, shp: ["G"] * len(points))
 
 
 @pytest.fixture(autouse=True)

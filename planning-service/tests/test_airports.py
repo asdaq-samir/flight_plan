@@ -115,6 +115,26 @@ def test_the_fields_in_view_carry_their_metars_flight_category(monkeypatch):
     assert [a["flight_category"] for a in body["airports"]] == [None, None]
 
 
+def test_the_fields_in_view_carry_their_surface_class_for_their_marks(monkeypatch):
+    # Asked once for all of them, each field's own point.
+    small = {**DULUTH, "ident": "1D2", "source_ident": "1D2", "lat": 46.5, "lon": -92.5, "kind": "small"}
+    monkeypatch.setattr(airports, "places_in", lambda *args, **kwargs: [{**DULUTH}, small])
+    monkeypatch.setattr(weather, "reporting_idents", lambda: set())
+    monkeypatch.setattr(weather, "metar_for_idents", lambda idents: {})
+    asked = []
+    monkeypatch.setattr(airspace, "surface_classes", lambda points, shp: asked.append(points) or ["C", "G"])
+    body = client.get("/api/airports/in-view", params={"south": 46, "west": -93, "north": 47, "east": -92}).json()
+    assert asked == [[(46.8421, -92.1936), (46.5, -92.5)]]
+    assert [(a["ident"], a["airspace_class"]) for a in body["airports"]] == [("KDLH", "C"), ("1D2", "G")]
+
+    # Without the FAA's airspace, the fields all the same, their class unknown.
+    def unreachable(cache_dir):
+        raise OSError("nfdc.faa.gov is down")
+    monkeypatch.setattr(airspace, "ensure_class_airspace_shapefile", unreachable)
+    body = client.get("/api/airports/in-view", params={"south": 46, "west": -93, "north": 47, "east": -92}).json()
+    assert [(a["ident"], a["airspace_class"]) for a in body["airports"]] == [("KDLH", None), ("1D2", None)]
+
+
 def test_the_search_may_be_kept_and_the_fields_in_view_with_their_weather_may_not(monkeypatch):
     # The search is the same for every pilot until the tables change, so
     # a browser and the CDN may keep it; the fields in view carry each
@@ -195,7 +215,7 @@ def test_the_nearest_fields_are_the_nearest_first_with_their_way_and_runway(monk
     assert body["airports"][0] == {
         "ident": "C81", "name": "Campbell", "lat": 42.32, "lon": -88.07, "kind": "small", "flight_category": None,
         "municipality": "Grayslake", "elevation_ft": 788.0, "distance_nm": 2.1, "bearing_deg": 45, "longest_runway_ft": 3573,
-        "military": None,
+        "military": None, "airspace_class": "G",
     }
 
 
