@@ -75,8 +75,9 @@ const RANK: Record<PanelState, number> = { peek: 0, half: 1, full: 2 };
  *
  * A sheet on the navigation bar's edge (useNavEdge), with iOS's three
  * detents -- resting with its head in sight, half the screen, all of it
- * -- and a grabber on its far edge: drag it, or the head, and it follows
- * the finger and lets go to the detent it was heading for; tap the
+ * -- and a grabber on its far edge: drag it, the head, or with a finger
+ * anywhere on the body, and it follows the finger and lets go to the
+ * detent it was heading for; tap the
  * grabber and it opens or lowers; Escape lowers it. The same from the
  * top of the screen as from the bottom. The screen's width on a phone;
  * from `md` up a card at the left, as Maps' is on an iPad and a Mac. The
@@ -256,7 +257,7 @@ export default function MapPanel({ label, top, controls, compact, children, stat
   // While it turns, the capsule's own content fades out over the sheet's
   // head as that fades in -- unless the two are one (the search bar).
   const crossFade = morphing && morph < 1 && compact !== top;
-  const { startDrag: drag, swallow } = useDetentDrag({
+  const { startDrag: drag, swallow, body: dragBody } = useDetentDrag({
     detents, shown, fromBottom, onRelease: onStateChange, setDragged,
     // Down to the capsule's own height, which is less than the sheet's
     // lowest detent: its head alone, no controls.
@@ -454,6 +455,9 @@ export default function MapPanel({ label, top, controls, compact, children, stat
           foot, only past half, at the pilot's ask: at half the tabs' own
           bar is the line under the head. */}
       <div
+        // Dragged from anywhere under a finger, as the head is, where its
+        // content is not scrolling (useDetentDrag).
+        ref={dragBody}
         className={cn("flex min-h-0 flex-1 flex-col border-border/60", expanded && shown > detents.half + 1 && cn("border-t", !fromBottom && "pb-4"))}
         style={{ "--half-body": `${halfBody}px` } as CSSProperties}
         data-panel-body=""
