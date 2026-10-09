@@ -18,11 +18,11 @@ const SHEET = `<svg xmlns="http://www.w3.org/2000/svg" width="1937" height="2970
 
 const card = (page: Page) => sideDrawer(page).getByTestId("place-card");
 
-async function withDiagram(page: Page, picture: "drawn" | "missing") {
+async function withDiagram(page: Page, picture: "drawn" | "missing", pdf = true) {
   await page.route(url => url.pathname.endsWith("/api/planner/airport/KDLH"), async route => {
     const answer = await route.fetch();
     const place = await answer.json();
-    await route.fulfill({ response: answer, json: { ...place, airport_diagram_url: PDF, airport_diagram_cycle: "2610" } });
+    await route.fulfill({ response: answer, json: { ...place, airport_diagram_url: pdf ? PDF : null, airport_diagram_cycle: "2610" } });
   });
   await page.route(url => url.pathname.includes("/api/planner/airport-diagram/"), route =>
     (picture === "drawn"
@@ -116,6 +116,19 @@ test("where the diagram's picture cannot be had, the card links the FAA's PDF", 
   await withChartPages(page);
   await row.click();
   await expect(page.getByTestId("airport-diagram-viewer").locator(".leaflet-image-layer")).toHaveCount(2);
+});
+
+test("where the picture cannot be had and the FAA gives no PDF, the row says the diagram could not be loaded", async ({ page }) => {
+  await withDiagram(page, "missing", false);
+  await page.goto("/app/plan?place=KDLH");
+  await settle(page);
+  await grabberTo(page, "full");
+  await card(page).getByTestId("place-tab-diagrams").click();
+  const row = card(page).getByTestId("airport-diagram");
+  await row.scrollIntoViewIfNeeded();
+  await row.click();
+  await expect(row).toContainText("The airport diagram could not be loaded");
+  await expect(page.getByTestId("airport-diagram-viewer")).toHaveCount(0);
 });
 
 /** The planner's pages for any FAA chart asked for: two, as a region's
