@@ -34,44 +34,29 @@ function away(from: LatLon, to: LatLon): string {
   return nm < 0.5 ? "here" : `${nm < 10 ? nm.toFixed(1) : Math.round(nm)} nm ${compassPoint(bearingDeg(from, to))}`;
 }
 
-/** The line under the name: the ident, the airspace, the tower or its
- *  CTAF, and how far it is -- "KDLH · Class C · 18 nm NE". */
-function subtitleOf(place: AirportPlace, from: { point: LatLon; name: string | null } | null, elevation = true): ReactNode {
-  const mhz = (f?: { frequency_mhz?: number | null }) =>
-    f?.frequency_mhz ? f.frequency_mhz.toFixed(3).replace(/0+$/, "").replace(/\.$/, "") : null;
-  // The civil tower: the airport file also lists military UHF (225-400 MHz)
-  // towers, which a civil VHF radio cannot call; civil VHF comm is
-  // 118.000-136.975 MHz (AIM 4-1-9 and the FAA's frequency allocations).
-  const civil = (f: { frequency_mhz?: number | null }) =>
-    f.frequency_mhz != null && f.frequency_mhz >= 118 && f.frequency_mhz <= 136.975;
-  const tower = mhz(place.frequencies.find(f => f.type === "TWR" && civil(f)));
-  const ctaf = mhz(place.frequencies.find(f => f.type === "CTAF" || f.type === "UNIC"));
-  // Short lines, at the pilot's ask, to save room: the ident and the
-  // class of the airspace over it, the frequency it is called on -- the
-  // tower's at a towered field, else its CTAF -- and its elevation:
-  // "C81 (G)", "CTAF: 122.7", "Elev: 788 ft"; how far it is after the
-  // first, the shortest. Not the elevation where the runways' sketch
-  // shows it (`elevation` false).
-  const what = [
-    place.airspace_class ? `${place.ident} (${place.airspace_class})` : place.ident,
+/** The line under the name, how far the field is alone at the pilot's
+ *  ask -- "18 nm NE of C81" -- the ident at the end of the name
+ *  (NameWithIdent), and its class and frequencies left to the tabs.
+ *  Nothing where there is nothing to measure from. */
+function subtitleOf(place: AirportPlace, from: { point: LatLon; name: string | null } | null, elevation = true): string {
+  return [
+    from ? (from.name ? `${away(from.point, place)} of ${from.name}` : away(from.point, place)) : null,
     // A field the armed services own (the FAA's airport file): one most
     // pilots may not land at without the service's permission, or a civil
-    // airport sharing it.
+    // airport sharing it -- not a description, a field to keep out of.
     place.military === "military" ? "Military, permission required" : place.military === "joint" ? "Joint use" : null,
-    from ? (from.name ? `${away(from.point, place)} of ${from.name}` : away(from.point, place)) : null,
+    // The elevation where the runways' sketch is not there to show it
+    // (`elevation` true), the card having nowhere else that does.
+    elevation && place.elevation_ft != null ? `Elev: ${feet(place.elevation_ft)}` : null,
   ].filter(Boolean).join(" · ");
-  // Many towers are part-time, and when one is closed the field is a CTAF
-  // field (AIM 4-1-9), so a towered field with a CTAF in the file (the
-  // frequency_mhz of its CTAF entry) shows both.
-  const radio = place.towered
-    ? tower ? `Tower: ${tower}${ctaf && ctaf !== tower ? ` · CTAF: ${ctaf}` : ""}` : "Towered"
-    : ctaf ? `CTAF: ${ctaf}` : "Non-towered";
-  return (
-    <>
-      {what}<br />{radio}
-      {elevation && place.elevation_ft != null && <><br />Elev: {feet(place.elevation_ft)}</>}
-    </>
-  );
+}
+
+/** The field's name with its ident at its end, at the pilot's ask --
+ *  "Campbell Airport C81" -- the ident in the line's grey, a code after
+ *  the words; the ident alone while its name is not known. */
+function NameWithIdent({ name, ident }: { name: string; ident: string }) {
+  if (name === ident) return ident;
+  return <>{name} <span className="font-semibold text-muted-foreground">{ident}</span></>;
 }
 
 /** An airport's name and weather from whatever the map has already
@@ -290,9 +275,12 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
   const [diagramOpen, setDiagramOpen] = useState(false);
   const [noRunwaysPicture, setNoRunwaysPicture] = useState(false);
   const [elevationPane, setElevationPane] = useState<HTMLElement | null>(null);
+  // The ident is the name's (NameWithIdent), so not here again.
   const line = place ? subtitleOf(place, measured)
-    : error ? `${ident} · ${error instanceof ApiError && error.status === 404 ? "not found" : "could not be looked up"}`
-      : `${ident} · …`;
+    : error ? (error instanceof ApiError && error.status === 404 ? "Not found" : "Could not be looked up")
+      : "…";
+  // Beside the sketch, which shows the elevation itself.
+  const lineBySketch = place ? subtitleOf(place, measured, false) : "";
   // None from a planner older than the list (a card kept by the worker,
   // a deploy under way), not a page that fails.
   const procedures = place?.procedures ?? [];
@@ -322,8 +310,8 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
           // The runways' sketch to the right of the name, at the pilot's
           // ask, under the weather's chip, the star and the close and down
           // to the tiles, the width of Call and Address, the field's
-          // elevation alone in its top left ("788 ft"); the ident and
-          // class and the tower or CTAF under the name, where they were.
+          // elevation alone in its top left ("788 ft"); the ident at the
+          // end of the name, and how far it is under it.
           // Four columns as the tiles' are, where the tiles are three too:
           // the name its half of the card.
           <div className="grid grid-cols-4 gap-x-2">
@@ -332,9 +320,9 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
                 tabIndex={-1} data-testid="place-name"
                 className={cn("font-bold tracking-tight break-words text-foreground outline-none", TEXT.card)}
               >
-                {place.name}
+                <NameWithIdent name={place.name} ident={place.ident} />
               </h2>
-              <p className={cn("text-muted-foreground", TEXT.note)} data-testid="place-line">{subtitleOf(place, measured, false)}</p>
+              {lineBySketch && <p className={cn("text-muted-foreground", TEXT.note)} data-testid="place-line">{lineBySketch}</p>}
             </div>
             <div className="col-span-2 flex items-start justify-end gap-2">
               {chip}
@@ -386,10 +374,11 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
           </div>
         ) : (
           <CardHead
-            name={place?.name ?? known?.name ?? kept?.name ?? ident} nameTestId="place-name"
+            name={<NameWithIdent name={place?.name ?? known?.name ?? kept?.name ?? ident} ident={place?.ident ?? ident} />}
+            nameTestId="place-name"
             // Not found only where the planner said so: a planner out of
             // reach for a moment (restarted) read "not found" for KBUR.
-            line={line}
+            line={line || null} lineTestId="place-line"
             onClose={onClose} closeTestId="place-close"
           >
             {chip}

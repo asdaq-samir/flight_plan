@@ -72,23 +72,21 @@ test("the card's sketch of the runways sits right of the name, under its close, 
   const sketch = card(page).getByTestId("place-runway-sketch");
   // KDLH's runways, named for a screen reader.
   await expect(sketch).toHaveAttribute("aria-label", /^KDLH runways .*09\/27.*, north up\./, { timeout: slow(15000) });
-  // The ident and class and the tower under the name; the elevation
-  // alone, the figure and its feet, at the sketch's top left.
-  const line = card(page).getByTestId("place-line");
-  await expect(line).toContainText(/KDLH \([BCD]\)/);
-  await expect(line).toContainText(/Tower: \d{3}\.\d/);
-  await expect(line).not.toContainText("Elev");
+  // The ident at the end of the name, and no line under it with nothing
+  // to measure from (places.spec has the distance); the elevation alone,
+  // the figure and its feet, at the sketch's top left.
+  const name = card(page).getByTestId("place-name");
+  await expect(name).toHaveText("Duluth International Airport KDLH");
+  await expect(card(page).getByTestId("place-line")).toHaveCount(0);
   // The FAA's diagram cropped to its runways, the field having one.
   await expect(sketch.getByTestId("place-diagram-runways")).toHaveAttribute("src", "/api/planner/airport-diagram/2610/runways/KDLH.png");
   const elevation = card(page).getByTestId("place-elevation");
   await expect(elevation).toHaveText(/^Elevation [\d,]+ ft$/);
-  const [lines, height, box, name, close, call, address] = await Promise.all([
-    line, elevation, sketch, card(page).getByTestId("place-name"), card(page).getByTestId("place-close"),
+  const [height, box, named, close, call, address] = await Promise.all([
+    elevation, sketch, name, card(page).getByTestId("place-close"),
     card(page).getByTestId("place-call"), card(page).getByTestId("place-address"),
   ].map(async l => (await l.boundingBox())!));
-  expect(lines.y).toBeGreaterThanOrEqual(name.y + name.height - 1);
-  expect(Math.abs(lines.x - name.x)).toBeLessThan(1);
-  expect(box.x).toBeGreaterThan(name.x + name.width - 1);
+  expect(box.x).toBeGreaterThan(named.x + named.width - 1);
   expect(box.y).toBeGreaterThan(close.y + close.height - 1);
   expect(height.x).toBeLessThan(box.x + 12);
   expect(height.y).toBeLessThan(box.y + 12);
