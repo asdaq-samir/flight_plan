@@ -64,6 +64,39 @@ test("an airport's card calls the field and finds it in Maps, from the FAA's air
   await expect(card(page).getByTestId("place-address")).toHaveAttribute("href", /^https:\/\/maps\.apple\.com\/\?q=.+&ll=42\.\d+,-88\.\d+$/);
 });
 
+test("an airport's card keeps one layout whatever the field: a long name set smaller, a field with no runways to draw an empty box", async ({ page }) => {
+  const layout = async (ident: string) => {
+    await page.goto(`/app/plan?place=${ident}`);
+    await settle(page);
+    await expect(card(page).getByTestId("place-call")).toBeVisible({ timeout: slow(15000) });
+    await expect(card(page).getByRole("tablist")).toBeVisible();
+    const [tiles, tabs] = await Promise.all([card(page).getByTestId("fly-here"), card(page).getByRole("tablist")].map(async l => (await l.boundingBox())!));
+    const size = await card(page).getByTestId("place-name-fit").evaluate(el => parseFloat(getComputedStyle(el).fontSize));
+    return { tiles: Math.round(tiles.y), tabs: Math.round(tabs.y), size };
+  };
+  const short = await layout("C81");
+  // A name long enough to need its size brought down to fit its half.
+  await page.route(url => url.pathname.endsWith("/api/planner/airport/KORD"), async route => {
+    const answer = await route.fetch();
+    await route.fulfill({ response: answer, json: { ...await answer.json(), name: "Chicago O'Hare International Airport and Its Many Long Words" } });
+  });
+  const long = await layout("KORD");
+  expect(long.tiles).toBe(short.tiles);
+  expect(long.tabs).toBe(short.tabs);
+  expect(long.size).toBeLessThan(short.size);
+  // The name whole in its box, not cut at its foot.
+  await expect(card(page).getByTestId("place-name-fit")).toHaveJSProperty("scrollHeight", await card(page).getByTestId("place-name-fit").evaluate(el => el.clientHeight));
+
+  // No runway the sketch can draw: the box there all the same, saying so.
+  await page.route(url => url.pathname.endsWith("/api/planner/airport/3CK"), async route => {
+    const answer = await route.fetch();
+    await route.fulfill({ response: answer, json: { ...await answer.json(), runways: [], airport_diagram_cycle: null, airport_diagram_url: null } });
+  });
+  const none = await layout("3CK");
+  expect(none.tiles).toBe(short.tiles);
+  await expect(card(page).getByTestId("place-runway-sketch")).toHaveText("No runways to draw");
+});
+
 test("the card's ident is in the route's pill for the field, in its airspace's look", async ({ page }) => {
   await page.goto("/app/plan?dep=C81&dest=KDLH&place=KDLH");
   await settle(page);
@@ -109,7 +142,8 @@ test("an airport's card has four tabs under its tiles, in sight at half, the rad
   // Diagrams: the airport's (none here), and its approach as the FAA
   // prints its title.
   await card(page).getByTestId("place-tab-diagrams").click();
-  await expect(card(page).getByRole("tabpanel")).toContainText("The FAA publishes no airport diagram for this field");
+  // No diagram from the FAA: the row shows the card's sketch instead.
+  await expect(card(page).getByTestId("airport-diagram-sketch")).toContainText("A sketch of the runways");
   const approach = card(page).getByRole("tabpanel").getByTestId("terminal-chart");
   await expect(approach).toHaveText(/RNAV \(GPS\) RWY 24/);
   // Shown in the app (airport-diagram.spec), not a link out of it.
@@ -489,4 +523,17 @@ test("an airport's card says which lights a pilot turns on with the mic, and the
   await expect(lights.first()).toContainText("Activate REIL runway 08 & 26");
   await expect(card(page)).toContainText("Key the mic on the frequency 7 times within 5 seconds for high intensity, 5 for medium, 3 for low.");
   await expect(card(page)).toContainText("Weather advisory - CTAF 5 clicks");
+});
+
+test("a military field's card shows 'permission required' whole in its line, not cut at an ellipsis", async ({ page }) => {
+  await page.route(url => url.pathname.endsWith("/api/planner/airport/KORD"), async route => {
+    const answer = await route.fetch();
+    await route.fulfill({ response: answer, json: { ...await answer.json(), military: "military" } });
+  });
+  await page.goto("/app/plan?place=KORD");
+  const line = card(page).getByTestId("place-line");
+  await expect(line).toContainText("Military, permission required", { timeout: slow(15000) });
+  // Whole: nothing of it is past the line's box (a clamp of two lines
+  // wraps it where one line would cut it).
+  await expect(line).toHaveJSProperty("scrollHeight", await line.evaluate(el => el.clientHeight));
 });

@@ -43,3 +43,11 @@ export const TEXT = {
  *  (ListGroup), the nav log's columns, a popover's parts -- one look,
  *  where the nav log's were a row's size in black, at the pilot's ask. */
 export const GROUP_HEADING = `font-semibold uppercase tracking-wide text-muted-foreground ${TEXT.note}`;
+
+/** iOS's text styles from Title 2 down to Footnote, each size on its own
+ *  leading, in rem (points at the default text size): 22 on 28, 20 on
+ *  25, 17 on 22, 16 on 21, 15 on 20, 13 on 18 -- the steps a card's name
+ *  is brought down by to fit its box (FitText). */
+export const TITLE_DOWN_TO_FOOTNOTE: [number, number][] = [
+  [1.375, 1.75], [1.25, 1.5625], [1.0625, 1.375], [1, 1.3125], [0.9375, 1.25], [0.8125, 1.125],
+];
