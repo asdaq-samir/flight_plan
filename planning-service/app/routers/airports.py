@@ -145,6 +145,25 @@ def _notes(ident: str) -> dict:
     }
 
 
+def _with_turf(runways: list[dict], ident: str) -> list[dict]:
+    """Each runway with the part of it that is turf where the FAA's
+    remarks say which (vfr.remarks.runway_turf), by the FAA's own
+    identifier as `_notes` takes it, each part's end named as the runway's
+    own are: C81's 06/24 the 1,000 ft from its south-west end, 06. None
+    where the remarks file cannot be had."""
+    try:
+        turf = next((found for faa_id in pattern.faa_ids(ident) if (found := remarks.runway_turf(faa_id))), {})
+    except (OSError, RuntimeError):
+        return runways
+    by_ends = {"/".join(map(pattern.end_key, ends.split("/"))): parts for ends, parts in turf.items()}
+    with_turf = []
+    for runway in runways:
+        own = {pattern.end_key(end["ident"]): end["ident"] for end in runway.get("runway_ends", [])}
+        parts = by_ends.get("/".join(map(pattern.end_key, (runway.get("ends") or "").split("/"))), [])
+        with_turf.append({**runway, "turf": [{**part, "end": own.get(pattern.end_key(part["end"]), part["end"])} for part in parts]})
+    return with_turf
+
+
 @router.get("/api/airport/{ident}", response_model=AirportPlace)
 def airport_place(ident: str) -> AirportPlace:
     """One US airport's card, by any ident it goes by (C81, KC81, KDLH).
@@ -173,9 +192,9 @@ def airport_place(ident: str) -> AirportPlace:
         "towered": any(f["type"] == "TWR" for f in frequencies),
         **_notes(place["ident"]),
         "pattern": pattern.pattern_at(place["ident"], place["elevation_ft"]),
-        "runways": pattern.with_traffic(runway_wind.with_winds(
+        "runways": _with_turf(pattern.with_traffic(runway_wind.with_winds(
             [r for r in airports.get_runways(source) if not r["closed"]], metar, place["lat"], place["lon"]),
-            place["ident"], place["lat"], place["lon"]),
+            place["ident"], place["lat"], place["lon"]), place["ident"]),
         "frequencies": frequencies,
         "metar": metar,
         "weather_unavailable": unavailable,

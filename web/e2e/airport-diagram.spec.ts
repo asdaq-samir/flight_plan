@@ -156,3 +156,29 @@ test("the Diagrams tab's charts and the Chart Supplement open in the app, the fi
   await expect(viewer.getByRole("heading", { name: "Chart Supplement" })).toBeVisible();
   expect(asked).toEqual(["https://aeronav.faa.gov/d-tpp/2610/NC1TO.PDF", "https://aeronav.faa.gov/afd/03Sep2026/nc_161_03SEP2026.pdf"]);
 });
+
+test("the card's sketch draws a runway's turf green, C81's south-west 1,000 ft of its 06/24", async ({ page }) => {
+  // The planner's answer as it reads the FAA's remarks ("SW 1000 FT
+  // TURF-GRVL."), whatever this stack's remarks file says.
+  await page.route(url => url.pathname.endsWith("/api/planner/airport/C81"), async route => {
+    const answer = await route.fetch();
+    const place = await answer.json();
+    for (const runway of place.runways) runway.turf = runway.ends === "06/24" ? [{ end: "06", from_ft: 0, to_ft: 1000 }] : [];
+    await route.fulfill({ response: answer, json: { ...place, airport_diagram_url: null, airport_diagram_cycle: null } });
+  });
+  await page.goto("/app/plan?place=C81");
+  await settle(page);
+  const turf = card(page).getByTestId("runway-sketch").locator("[data-turf]");
+  await expect(turf).toHaveCount(1, { timeout: slow(15000) });
+  // From 06's end, south-west of the field, a little over a quarter of
+  // the runway's length.
+  const [x1, y1, x2, y2] = await turf.evaluate(line => ["x1", "y1", "x2", "y2"].map(a => Number(line.getAttribute(a))));
+  const runway = card(page).getByTestId("runway-sketch").locator("g").first().locator("line").first();
+  const [ax, ay, bx, by] = await runway.evaluate(line => ["x1", "y1", "x2", "y2"].map(a => Number(line.getAttribute(a))));
+  expect(x1).toBeCloseTo(ax, 1);
+  expect(y1).toBeCloseTo(ay, 1);
+  expect(Math.hypot(x2 - x1, y2 - y1) / Math.hypot(bx - ax, by - ay)).toBeCloseTo(1000 / 3573, 1);
+  // The south-west end: left of and below the other.
+  expect(ax).toBeLessThan(bx);
+  expect(ay).toBeGreaterThan(by);
+});

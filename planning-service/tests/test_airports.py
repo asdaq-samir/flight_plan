@@ -24,6 +24,7 @@ def stub_place(monkeypatch, place=DULUTH, frequencies=(), runways=(), metar=None
         "lighting": ["Activate MIRL runway 09/27 - CTAF."] if faa_id == "DLH" else [],
         "radio": [], "pilot_controlled": faa_id == "DLH", "explicit_clicks": False,
     })
+    monkeypatch.setattr(remarks, "runway_turf", lambda faa_id: {})
     if isinstance(metar, Exception):
         def fail(idents):
             raise metar
@@ -285,3 +286,16 @@ def test_the_diagrams_runways_are_its_crop_with_the_fields_ends(monkeypatch, tmp
     assert answer.status_code == 200 and answer.headers["cache-control"] == "public, max-age=2419200, immutable"
     assert asked == [("KDLH", "2610", [(46.84, -92.21), (46.84, -92.17)])]
     assert client.get("/api/airport-diagram/2609/runways/KDLH.png").status_code == 404
+
+
+def test_a_runway_part_turf_says_which_part_by_its_own_end(monkeypatch):
+    # The remarks name its end "06"; OurAirports' runway names it "6".
+    stub_place(monkeypatch, runways=[{
+        "ends": "6/24", "length_ft": 3573, "width_ft": 40, "surface": "ASPH-TURF", "lighted": False, "closed": False,
+        "end_headings": [("6", 58.0), ("24", 238.0)],
+    }])
+    monkeypatch.setattr(pattern, "end_positions", lambda ident, cache_dir=None: {})
+    turf = {"06/24": [{"end": "06", "from_ft": 0, "to_ft": 1000}]}
+    monkeypatch.setattr(remarks, "runway_turf", lambda faa_id: turf if faa_id == "DLH" else {})
+    runway = client.get("/api/airport/KDLH").json()["runways"][0]
+    assert runway["turf"] == [{"end": "6", "from_ft": 0, "to_ft": 1000}]

@@ -649,6 +649,16 @@ class RunwayEnd(BaseModel):
     lon: float | None = None
 
 
+class RunwayTurf(BaseModel):
+    """A length of a runway of two surfaces that is turf, where the FAA's
+    remarks say which (vfr.remarks.runway_turf): from `from_ft` to `to_ft`
+    feet along it from its `end`, `to_ft` None for the rest of it."""
+
+    end: str
+    from_ft: int
+    to_ft: int | None = None
+
+
 class Runway(BaseModel):
     ends: str | None
     length_ft: int | None
@@ -660,6 +670,10 @@ class Runway(BaseModel):
     #: report, with a variable wind, or for a helipad.
     wind: RunwayWind | None = None
     runway_ends: list[RunwayEnd] = []
+    #: Its turf, where it is partly paved and the remarks say where: C81's
+    #: 06/24, the south-west 1,000 ft. None said for a runway of one
+    #: surface, whose `surface` says it.
+    turf: list[RunwayTurf] = []
 
 
 class TrafficPattern(BaseModel):

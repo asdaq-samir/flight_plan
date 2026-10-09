@@ -11,6 +11,29 @@ export interface Strip {
   width_ft: number;
   ends: [string, string];
   closed: boolean;
+  /** Its turf, as fractions of the way from `a` to `b`. */
+  turf: [number, number][];
+}
+
+/** A runway of turf or grass alone, as OurAirports writes its surface
+ *  ("TURF", "TURF-G", "GRS", "GRASS / SOD"); one of two surfaces
+ *  ("ASPH-TURF") is turf only where the FAA's remarks say (`turf`). */
+const TURF_SURFACE = /^(TURF|GRS|GRASS|SOD)\b/i;
+
+/** The runway's turf as fractions of the way from its first end to its
+ *  second: all of it for a runway of turf, else each part the planner
+ *  read from the remarks, measured from whichever end it names. None
+ *  without the runway's length to measure by. */
+function turfOf(r: Runway, ends: [string, string]): [number, number][] {
+  if (r.surface && TURF_SURFACE.test(r.surface)) return [[0, 1]];
+  const length = r.length_ft;
+  if (!length) return [];
+  return (r.turf ?? []).flatMap(part => {
+    const from = Math.min(1, part.from_ft / length), to = Math.min(1, (part.to_ft ?? length) / length);
+    if (part.end === ends[0]) return [[from, to] as [number, number]];
+    if (part.end === ends[1]) return [[1 - to, 1 - from] as [number, number]];
+    return [];
+  });
 }
 
 /** Each runway as a strip in nautical miles about the field: between its
@@ -34,7 +57,7 @@ export function stripsOf(runways: Runway[], lat: number, lon: number): Strip[] {
     const ends: [string, string] = [first.ident, second.ident];
     const width_ft = r.width_ft ?? 75;
     if (first.lat != null && first.lon != null && second.lat != null && second.lon != null) {
-      strips.push({ a: [east(first.lon), north(first.lat)], b: [east(second.lon), north(second.lat)], width_ft, ends, closed: r.closed });
+      strips.push({ a: [east(first.lon), north(first.lat)], b: [east(second.lon), north(second.lat)], width_ft, ends, closed: r.closed, turf: turfOf(r, ends) });
     } else if (first.heading_true_deg != null && r.length_ft) {
       const half = r.length_ft / FT_PER_NM / 2;
       const rad = (first.heading_true_deg * Math.PI) / 180;
@@ -44,7 +67,7 @@ export function stripsOf(runways: Runway[], lat: number, lon: number): Strip[] {
       const line = ((first.heading_true_deg % 180) + 180) % 180;
       if (guessed.some(h => Math.min(Math.abs(h - line), 180 - Math.abs(h - line)) < 1)) continue;
       guessed.push(line);
-      guesses.push({ a: [-dx, -dy], b: [dx, dy], width_ft, ends, closed: r.closed });
+      guesses.push({ a: [-dx, -dy], b: [dx, dy], width_ft, ends, closed: r.closed, turf: turfOf(r, ends) });
     }
   }
   return strips.length ? strips : guesses;

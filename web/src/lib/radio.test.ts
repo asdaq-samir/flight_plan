@@ -12,9 +12,9 @@ const WAUKEGAN: Facilities = {
   pattern: { agl_ft: 1000, altitude_ft: 1727, published: false },
   runways: [
     { ends: "05/23", length_ft: 6000, width_ft: 150, surface: "ASP", lighted: true, closed: false,
-      wind: { end: "23", headwind_kt: 8, crosswind_kt: 3 }, runway_ends: [end("05", 48), end("23", 228, "right")] },
+      wind: { end: "23", headwind_kt: 8, crosswind_kt: 3 }, runway_ends: [end("05", 48), end("23", 228, "right")], turf: [] },
     { ends: "14/32", length_ft: 3750, width_ft: 100, surface: "ASP", lighted: true, closed: false,
-      wind: { end: "32", headwind_kt: 4, crosswind_kt: -1 }, runway_ends: [end("14", 144), end("32", 324)] },
+      wind: { end: "32", headwind_kt: 4, crosswind_kt: -1 }, runway_ends: [end("14", 144), end("32", 324)], turf: [] },
   ],
   frequencies: [
     { type: "ATIS", description: "ATIS", frequency_mhz: 132.4 },
@@ -30,7 +30,7 @@ const DACY: Facilities = {
   pattern: { agl_ft: 1000, altitude_ft: 1913, published: false },
   runways: [
     { ends: "09/27", length_ft: 3270, width_ft: 40, surface: "ASP", lighted: true, closed: false,
-      wind: { end: "27", headwind_kt: 6, crosswind_kt: 2 }, runway_ends: [end("09", 90), end("27", 270)] },
+      wind: { end: "27", headwind_kt: 6, crosswind_kt: 2 }, runway_ends: [end("09", 90), end("27", 270)], turf: [] },
   ],
   frequencies: [
     { type: "A/D", description: "CHICAGO APP/DEP", frequency_mhz: 120.55 },
