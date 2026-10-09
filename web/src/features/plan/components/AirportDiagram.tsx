@@ -1,5 +1,6 @@
 import { lazy, Suspense, useState, type ReactNode } from "react";
 import { ListRow } from "../../../components/GroupedList";
+import { Spinner } from "../../../components/ui/spinner";
 import { diagramPicture } from "../../../lib/diagram";
 
 const ChartViewer = lazy(() => import("./AirportDiagramViewer"));
@@ -24,18 +25,26 @@ export function DiagramRow({ ident, cycle, url, media, testId }: {
   const [shown, setShown] = useState<{ width: number; height: number } | "pdf" | "missing" | null>(null);
   const src = diagramPicture(ident, cycle);
   const title = `${ident} airport diagram`;
+  // Set while the picture downloads: on a slow link a tap shows a spinner
+  // in the row, and a second tap does not start a second load.
+  const [loading, setLoading] = useState(false);
   const open = () => {
+    if (loading) return;
+    setLoading(true);
     const picture = new Image();
-    picture.onload = () => setShown({ width: picture.naturalWidth, height: picture.naturalHeight });
-    picture.onerror = () => setShown(url ? "pdf" : "missing");
+    picture.onload = () => { setLoading(false); setShown({ width: picture.naturalWidth, height: picture.naturalHeight }); };
+    picture.onerror = () => { setLoading(false); setShown(url ? "pdf" : "missing"); };
     picture.src = src;
   };
   return (
     <>
       <ListRow
         media={media} title="Airport diagram" onClick={open} data-testid={testId}
+        aria-busy={loading || undefined}
         description={shown === "missing" ? "The airport diagram could not be loaded" : undefined}
-      />
+      >
+        {loading && <Spinner className="text-muted-foreground" />}
+      </ListRow>
       {shown && shown !== "missing" && (
         <Suspense fallback={null}>
           {shown === "pdf"
