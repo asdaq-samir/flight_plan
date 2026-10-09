@@ -10,17 +10,16 @@ import { expectDrawerClosed, expectDrawerOpen, grabberTo, openPanel, settle, sid
 
 const card = (page: Page) => sideDrawer(page).getByTestId("place-card");
 
-test("an airport's card names the field, its airspace and tower, how far it is, and the weather there", async ({ page }) => {
+test("an airport's card names the field with its ident at the end, how far it is under it, and the weather there", async ({ page }) => {
   await page.goto("/app/plan?dep=C81&dest=KDLH&place=KDLH");
   await settle(page);
   await expectDrawerOpen(page);
-  await expect(card(page).getByTestId("place-name")).toHaveText("Duluth International Airport");
+  await expect(card(page).getByTestId("place-name")).toHaveText("Duluth International Airport KDLH");
   // Measured from the route's departure while the pilot's own position
   // is not known.
-  // Under the name, the ident and its class with how far it is, and the
-  // tower.
-  await expect(card(page)).toContainText(/KDLH \([BCD]\) · \d+ nm NW of C81/);
-  await expect(card(page)).toContainText("Tower: 118.3");
+  // Under the name, how far it is alone: its class and frequencies are
+  // the tabs'.
+  await expect(card(page).getByTestId("place-line")).toHaveText(/^\d+ nm NW of C81$/);
   // And its elevation on the runways' sketch.
   await expect(card(page).getByTestId("place-elevation")).toHaveText(/^Elevation [\d,]+ ft$/);
   await expect(card(page).getByTestId("place-category")).toBeVisible();
@@ -116,7 +115,7 @@ test("the route's Approaches opens its destination's card on its approaches, and
   expect((await settings.boundingBox())!.x).toBeGreaterThan(width / 2);
 
   await sideDrawer(page).getByTestId("route-approaches").click();
-  await expect(card(page).getByTestId("place-name")).toHaveText("Duluth International Airport", { timeout: slow(15000) });
+  await expect(card(page).getByTestId("place-name")).toHaveText("Duluth International Airport KDLH", { timeout: slow(15000) });
   await expect(card(page).getByTestId("place-tab-diagrams")).toHaveAttribute("aria-selected", "true");
   await expect(sideDrawer(page)).toHaveAttribute("data-panel", "full");
   const approaches = card(page).locator('[data-chart-group="Approaches"]');
@@ -210,13 +209,14 @@ test("a Favorite's card names it and the map goes to it before the card's answer
   });
   await page.goto("/app/plan?place=KBUR");
   await settle(page);
-  await expect(card(page).getByTestId("place-name")).toHaveText("Hollywood Burbank/Bob Hope Airport");
+  await expect(card(page).getByTestId("place-name")).toHaveText("Hollywood Burbank/Bob Hope Airport KBUR");
   await expect(card(page).getByTestId("fly-here")).toBeDisabled();
   await expect(page.locator("[data-selected-airport]")).toBeInViewport({ timeout: slow(10_000) });
 
   answer();
   await expect(card(page).getByTestId("fly-here")).toBeEnabled({ timeout: slow(15_000) });
-  await expect(card(page)).toContainText(/KBUR \([BCD]\)/);
+  // Nothing to measure from: no line under the name, where it said "…".
+  await expect(card(page).getByTestId("place-line")).toHaveCount(0);
 });
 
 // A planner out of reach for a moment (restarted, say) is not an airport
@@ -228,10 +228,10 @@ test("an airport's card that could not be had says so, and Try again brings it",
     (down ? route.fulfill({ status: 502, body: "" }) : route.fallback()));
   await page.goto("/app/plan?place=KDLH");
   await settle(page);
-  await expect(card(page)).toContainText("KDLH · could not be looked up", { timeout: slow(30_000) });
+  await expect(card(page)).toContainText("Could not be looked up", { timeout: slow(30_000) });
   down = false;
   await card(page).getByTestId("place-retry").click();
-  await expect(card(page).getByTestId("place-name")).toHaveText("Duluth International Airport");
+  await expect(card(page).getByTestId("place-name")).toHaveText("Duluth International Airport KDLH");
   await expect(card(page).getByTestId("place-retry")).toHaveCount(0);
 });
 
@@ -361,7 +361,7 @@ test("with no route the panel is a search bar: Home is set from Favorites, an ai
   const first = page.getByTestId("search-result").first();
   await expect(first).toContainText("KDLH", { timeout: slow(10000) });
   await first.click();
-  await expect(card(page).getByTestId("place-name")).toHaveText("Duluth International Airport");
+  await expect(card(page).getByTestId("place-name")).toHaveText("Duluth International Airport KDLH");
   await card(page).getByTestId("place-favorite").click();
   await expect(card(page).getByTestId("place-favorite")).toHaveAttribute("aria-pressed", "true");
   await card(page).getByTestId("place-close").click();
@@ -393,7 +393,7 @@ test("with no route the panel is a search bar: Home is set from Favorites, an ai
   await expect(sideDrawer(page).getByTestId("panel-tab-navlog")).toBeVisible();
   await expect(sideDrawer(page)).toHaveAttribute("data-panel", "half");
   await sideDrawer(page).getByTestId("route-clear").click();
-  await expect(card(page).getByTestId("place-name")).toHaveText("Duluth International Airport");
+  await expect(card(page).getByTestId("place-name")).toHaveText("Duluth International Airport KDLH");
   await expect(sideDrawer(page)).toHaveAttribute("data-panel", "half");
   await card(page).getByTestId("place-close").click();
   await expect(sideDrawer(page)).toHaveAttribute("data-panel", "half");

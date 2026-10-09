@@ -77,7 +77,7 @@ export const SCREENS: Screen[] = [
     name: "airport card",
     ready: async page => {
       await page.goto(`/app/plan?${ROUTE}&place=KDLH`);
-      await expect(page.getByTestId("place-name")).toHaveText("Duluth International Airport", { timeout: slow(30000) });
+      await expect(page.getByTestId("place-name")).toHaveText("Duluth International Airport KDLH", { timeout: slow(30000) });
     },
   },
   {
