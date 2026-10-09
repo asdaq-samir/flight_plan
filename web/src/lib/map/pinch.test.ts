@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import L from "leaflet";
 import { describe, expect, it } from "vitest";
 import "./pinch";
