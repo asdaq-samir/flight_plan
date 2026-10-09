@@ -121,7 +121,7 @@ jobs:
             marketing) brief="Audit the marketing, following the market-gap skill for what the planner does that no one else does. Issues only: change no code and open no pull request. Who it is for first (student pilots, renters, flight instructors, flight schools, owners) and why them; where they hear of tools (flight schools, instructors, AOPA and EAA chapters, pilot forums and subreddits, YouTube channels, podcasts); the App Store name, subtitle, keywords and first screenshots; a launch announcement draft; and three pieces of content that show what only this planner does. Each a separate issue with a concrete next step and how to tell whether it worked. Read the issues labelled marketing first and update rather than repeat them." ;;
           esac
           echo "brief=$brief" >> "$GITHUB_OUTPUT"
-      - uses: anthropics/claude-code-action@86d88e619d8e6caf07b5c3944dd14f441c533718  # v1.0.243
+      - uses: anthropics/claude-code-action@58985842b834ed26087302ba27d07bc24ca8697a  # v1.0.244
         if: steps.run.outputs.go == 'true'
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
