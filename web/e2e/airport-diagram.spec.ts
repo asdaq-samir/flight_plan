@@ -64,7 +64,7 @@ test("an airport's card shows its diagram, and a tap shows it full screen, in th
   await expect(card(page)).toBeVisible();
 });
 
-test("the card's sketch of the runways sits right of the name, under its close, over Call and Address, with the card's lines at its top left", async ({ page }) => {
+test("the card's sketch of the runways sits right of the name, under its close, over Call and Address, with the elevation at its top left", async ({ page }) => {
   await withDiagram(page, "drawn");
   await withChartPages(page);
   await page.goto("/app/plan?place=KDLH");
@@ -72,22 +72,26 @@ test("the card's sketch of the runways sits right of the name, under its close, 
   const sketch = card(page).getByTestId("place-runway-sketch");
   // KDLH's runways, named for a screen reader.
   await expect(sketch).toHaveAttribute("aria-label", /^KDLH runways .*09\/27.*, north up\./, { timeout: slow(15000) });
-  // The lines that were under the name, at its top left: the ident and
-  // class, the tower, the elevation.
+  // The ident and class and the tower under the name; the elevation
+  // alone, the figure and its feet, at the sketch's top left.
   const line = card(page).getByTestId("place-line");
   await expect(line).toContainText(/KDLH \([BCD]\)/);
   await expect(line).toContainText(/Tower: \d{3}\.\d/);
-  await expect(line).toContainText(/Elev: [\d,]+ ft/);
-  const [lines, box, name, close, call, address] = await Promise.all([
-    line, sketch, card(page).getByTestId("place-name"), card(page).getByTestId("place-close"),
+  await expect(line).not.toContainText("Elev");
+  const elevation = card(page).getByTestId("place-elevation");
+  await expect(elevation).toHaveText(/^Elevation [\d,]+ ft$/);
+  const [lines, height, box, name, close, call, address] = await Promise.all([
+    line, elevation, sketch, card(page).getByTestId("place-name"), card(page).getByTestId("place-close"),
     card(page).getByTestId("place-call"), card(page).getByTestId("place-address"),
   ].map(async l => (await l.boundingBox())!));
-  expect(lines.x).toBeGreaterThan(name.x + name.width - 1);
-  expect(lines.y).toBeGreaterThan(close.y + close.height - 1);
-  expect(lines.y).toBeLessThan(close.y + close.height + 24);
-  expect(box.y).toBeGreaterThanOrEqual(lines.y + lines.height - 1);
-  expect(lines.x).toBeGreaterThanOrEqual(call.x - 1);
-  expect(box.x + box.width).toBeLessThanOrEqual(address.x + address.width + 1);
+  expect(lines.y).toBeGreaterThanOrEqual(name.y + name.height - 1);
+  expect(Math.abs(lines.x - name.x)).toBeLessThan(1);
+  expect(box.x).toBeGreaterThan(name.x + name.width - 1);
+  expect(box.y).toBeGreaterThan(close.y + close.height - 1);
+  expect(height.x).toBeLessThan(box.x + 12);
+  expect(height.y).toBeLessThan(box.y + 12);
+  expect(Math.abs(box.x - call.x)).toBeLessThan(1);
+  expect(Math.abs(box.x + box.width - (address.x + address.width))).toBeLessThan(1);
   expect(box.y + box.height).toBeLessThanOrEqual(call.y);
 
   await sketch.click();

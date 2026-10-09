@@ -17,11 +17,12 @@ test("an airport's card names the field, its airspace and tower, how far it is, 
   await expect(card(page).getByTestId("place-name")).toHaveText("Duluth International Airport");
   // Measured from the route's departure while the pilot's own position
   // is not known.
-  // Three short lines: the ident and its class, with how far it is; the
-  // tower; the elevation.
+  // Under the name, the ident and its class with how far it is, and the
+  // tower.
   await expect(card(page)).toContainText(/KDLH \([BCD]\) · \d+ nm NW of C81/);
   await expect(card(page)).toContainText("Tower: 118.3");
-  await expect(card(page)).toContainText(/Elev: [\d,]+ ft/);
+  // And its elevation on the runways' sketch.
+  await expect(card(page).getByTestId("place-elevation")).toHaveText(/^Elevation [\d,]+ ft$/);
   await expect(card(page).getByTestId("place-category")).toBeVisible();
   for (const id of ["fly-here", "place-call", "place-address"]) await expect(card(page).getByTestId(id)).toBeVisible();
 
