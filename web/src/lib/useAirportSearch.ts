@@ -49,7 +49,7 @@ export function useAirportSearch(text: string, enabled = true, fixes = false) {
   // Once per typed value: the scan covers every row, and the panel
   // re-renders for much besides typing (map moves, weather, sheet drags).
   const local = useMemo(() => (index && typed ? searchIndex(index, typed) : null), [index, typed]);
-  const { data, isPlaceholderData } = useQuery({
+  const { data, isPlaceholderData, isFetching } = useQuery({
     queryKey: ["airportSearch", q, fixes, by],
     queryFn: () => api.airportSearch(q, fixes, by),
     // Airports alone and the copy in: nothing to ask.
@@ -59,7 +59,9 @@ export function useAirportSearch(text: string, enabled = true, fixes = false) {
   const asked = q === typed && !isPlaceholderData && !!data;
   if (local && !fixes) return { typed, rows: local, answered: true };
   // A stop's: the planner's answer, the waypoints with the airports, once
-  // it answers what is typed; the airports from the copy until then.
-  if (local && !asked) return { typed, rows: local, answered: false };
+  // it answers what is typed; the airports from the copy until then, and
+  // after it, when the request has failed or the phone is offline: the
+  // query has settled, so Enter may take the first airport shown.
+  if (local && !asked) return { typed, rows: local, answered: q === typed && !isFetching };
   return { typed, rows: typed && q ? (data ?? []) : [], answered: q === typed && !isPlaceholderData };
 }
