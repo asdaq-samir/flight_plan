@@ -72,9 +72,11 @@ charts need no account.
 > example KMSN and KDLH) in the search bar at the bottom. To try the
 > account features -- saving an airplane, and Delete account, in the
 > console's menu under Sign out -- use Sign in with Apple. Location is
-> asked for only when the location arrow on the map is tapped, to draw
-> the airplane on the chart. The first open needs a connection; after
-> that, the charts already looked at work offline.
+> asked for when the map first opens, to open the chart on where you
+> are, as Maps does, and to draw the airplane on it; declined, the map
+> opens on the country and the location arrow asks again. The first
+> open needs a connection; after that, the charts already looked at
+> work offline.
 
 ## Screenshots
 
