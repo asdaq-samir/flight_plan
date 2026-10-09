@@ -17,7 +17,8 @@ const GRABBER = 16;
  * screen's sides and its edge with every corner round and Liquid Glass
  * under it, as the panel is at half; dragged all the way, it meets the
  * edges and is opaque. The same drag as the panel's (useDetentDrag), on
- * its head and its grabber; dragged toward its edge past half, it goes.
+ * its head, its grabber and under a finger its body; dragged toward its
+ * edge past half, it goes.
  *
  * It was vaul's drawer from the bottom -- the screen's width at either
  * height, and its foot under the screen's edge at half, so it could not
@@ -52,7 +53,7 @@ export default function ConsoleSheet({
   const detents = { closed: 0, medium: Math.round(room / 2), large: room };
   const [dragged, setDragged] = useState<number | null>(null);
   const shown = dragged ?? detents[detent];
-  const { startDrag, swallow } = useDetentDrag({
+  const { startDrag, swallow, body } = useDetentDrag({
     detents, shown, fromBottom, setDragged,
     onRelease: next => (next === "closed" ? onOpenChange(false) : onDetentChange(next)),
   });
@@ -115,7 +116,8 @@ export default function ConsoleSheet({
         >
           {fromBottom && grabber}
           <div className="shrink-0 touch-none" onPointerDown={startDrag}>{header}</div>
-          <div className="flex min-h-0 flex-1 flex-col">{children}</div>
+          {/* Under a finger, from anywhere on it too (useDetentDrag). */}
+          <div ref={body} className="flex min-h-0 flex-1 flex-col">{children}</div>
           {!fromBottom && grabber}
         </DialogPrimitive.Content>
       </DialogPortal>
