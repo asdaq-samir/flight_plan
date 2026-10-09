@@ -94,6 +94,13 @@ def quiet_sky(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def no_runway_end_positions(monkeypatch):
+    """No surveyed runway ends, without NASR's file: a test about them
+    stubs them itself."""
+    monkeypatch.setattr(pattern, "end_positions", lambda ident, cache_dir=None: {})
+
+
+@pytest.fixture(autouse=True)
 def no_publications(monkeypatch):
     """No airport diagram or Chart Supplement page, without the FAA's
     indexes."""

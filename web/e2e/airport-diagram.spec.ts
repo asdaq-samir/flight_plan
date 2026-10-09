@@ -64,22 +64,24 @@ test("an airport's card shows its diagram, and a tap shows it full screen, in th
   await expect(card(page)).toBeVisible();
 });
 
-test("the card's diagram thumbnail sits over Call and Address, their width, and a tap shows it full screen", async ({ page }) => {
+test("the card's sketch of the runways sits over Call and Address, their width, and a tap shows the diagram", async ({ page }) => {
   await withDiagram(page, "drawn");
+  await withChartPages(page);
   await page.goto("/app/plan?place=KDLH");
   await settle(page);
-  const thumbnail = card(page).getByTestId("place-diagram-thumbnail");
-  await expect(thumbnail).toBeEnabled({ timeout: slow(15000) });
-  const [thumb, call, address] = await Promise.all([thumbnail, card(page).getByTestId("place-call"), card(page).getByTestId("place-address")]
+  const sketch = card(page).getByTestId("place-runway-sketch");
+  // KDLH's runways, named for a screen reader.
+  await expect(sketch.getByTestId("runway-sketch")).toHaveAttribute("aria-label", /^Runways .*09\/27.*, north up$/, { timeout: slow(15000) });
+  const [box, call, address] = await Promise.all([sketch, card(page).getByTestId("place-call"), card(page).getByTestId("place-address")]
     .map(async l => (await l.boundingBox())!));
-  expect(Math.abs(thumb.x - call.x)).toBeLessThan(1);
-  expect(Math.abs(thumb.x + thumb.width - (address.x + address.width))).toBeLessThan(1);
-  expect(thumb.y + thumb.height).toBeLessThanOrEqual(call.y);
+  expect(Math.abs(box.x - call.x)).toBeLessThan(1);
+  expect(Math.abs(box.x + box.width - (address.x + address.width))).toBeLessThan(1);
+  expect(box.y + box.height).toBeLessThanOrEqual(call.y);
   // The line under the name beside it.
   await expect(card(page)).toContainText(/KDLH · Class [BCD] · Towered/);
 
-  await thumbnail.click();
-  await expect(page.getByTestId("airport-diagram-viewer")).toBeVisible();
+  await sketch.click();
+  await expect(page.getByTestId("airport-diagram-viewer").getByRole("heading", { name: "KDLH airport diagram" })).toBeVisible();
 });
 
 test("where the diagram's picture cannot be had, the card links the FAA's PDF", async ({ page }) => {

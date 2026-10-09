@@ -76,3 +76,14 @@ export function ChartRow({ title, url, airport, media, testId }: {
     </>
   );
 }
+
+/** One of the FAA's charts full screen by its address, its code fetched
+ *  at the first one (FaaChartViewer): for a caller with a button of its
+ *  own, the card's runway sketch. */
+export function FaaChart({ title, url, airport, onClose }: { title: string; url: string; airport: string; onClose: () => void }) {
+  return (
+    <Suspense fallback={null}>
+      <FaaChartViewer title={title} url={url} airport={airport} onClose={onClose} />
+    </Suspense>
+  );
+}

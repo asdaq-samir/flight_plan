@@ -6276,7 +6276,7 @@
         "type": "object"
       },
       "RunwayEnd": {
-        "description": "One end of a runway (vfr.pattern): its true heading, None for a\nhelipad, and which way its traffic pattern is flown -- left unless\nthe FAA flags it right (14 CFR 91.126(b)(1)).",
+        "description": "One end of a runway (vfr.pattern): its true heading, None for a\nhelipad, which way its traffic pattern is flown -- left unless the FAA\nflags it right (14 CFR 91.126(b)(1)) -- and where it is.",
         "properties": {
           "heading_true_deg": {
             "anyOf": [
@@ -6292,6 +6292,28 @@
           "ident": {
             "title": "Ident",
             "type": "string"
+          },
+          "lat": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lat"
+          },
+          "lon": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lon"
           },
           "traffic": {
             "default": "left",

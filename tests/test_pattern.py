@@ -1,18 +1,18 @@
 from vfr import faa_data, pattern
 
 RWY_END = (
-    '"ARPT_ID","RWY_ID","RWY_END_ID","RIGHT_HAND_TRAFFIC_PAT_FLAG"\n'
-    '"UGN","05/23","05","N"\n'
-    '"UGN","05/23","23","Y"\n'
-    '"UGN","14/32","14",""\n'
-    '"RFD","07/25","07","Y"\n'
+    '"ARPT_ID","RWY_ID","RWY_END_ID","RIGHT_HAND_TRAFFIC_PAT_FLAG","LAT_DECIMAL","LONG_DECIMAL"\n'
+    '"UGN","05/23","05","N","42.4176","-87.8742"\n'
+    '"UGN","05/23","23","Y","42.4268","-87.8593"\n'
+    '"UGN","14/32","14","","",""\n'
+    '"RFD","07/25","07","Y","",""\n'
 )
 
 
 def _files(tmp_path, apt_base="ARPT_ID,ICAO_ID,TPA\nUGN,KUGN,\nRFD,KRFD,800\n"):
     (tmp_path / "APT_RWY_END.csv").write_text(RWY_END)
     (tmp_path / "APT_BASE.csv").write_text(apt_base)
-    pattern._right_ends_of.cache_clear()
+    pattern._ends_of.cache_clear()
     faa_data._patterns_of.cache_clear()
     faa_data._read_apt_base_cached.cache_clear()
 
@@ -50,3 +50,14 @@ def test_no_runway_end_file_is_left_traffic_not_a_failure(monkeypatch, tmp_path)
         raise RuntimeError("the FAA is down")
     monkeypatch.setattr(faa_data, "ensure_nasr_file", unreachable)
     assert pattern.right_traffic_ends("KUGN", tmp_path) == set()
+
+
+def test_each_end_is_where_the_faa_surveyed_it_else_where_ourairports_has_it(tmp_path):
+    _files(tmp_path)
+    runways = [
+        {"ends": "5/23", "end_headings": [("5", 50.0), ("23", 230.0)]},
+        {"ends": "14/32", "end_headings": [("14", 140.0), ("32", 320.0)], "end_positions": {"14": (42.43, -87.87)}},
+    ]
+    ends = [e for r in pattern.with_traffic(runways, "KUGN", 42.42, -87.87, tmp_path) for e in r["runway_ends"]]
+    assert [(e["ident"], e["lat"], e["lon"]) for e in ends] == [
+        ("5", 42.4176, -87.8742), ("23", 42.4268, -87.8593), ("14", 42.43, -87.87), ("32", None, None)]

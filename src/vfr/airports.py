@@ -364,6 +364,13 @@ def get_runways(ident: str, cache_path: Path = RUNWAYS_CACHE_PATH) -> list[dict]
                 (str(end), float(row.get(f"{side}_heading_degT")) if pd.notna(row.get(f"{side}_heading_degT")) else None)
                 for side, end in (("le", le), ("he", he)) if pd.notna(end)
             ],
+            # Where each end is, where the table has it (four runways in ten
+            # at a small US field): vfr.pattern's fallback to NASR's own.
+            "end_positions": {
+                str(end): (float(row.get(f"{side}_latitude_deg")), float(row.get(f"{side}_longitude_deg")))
+                for side, end in (("le", le), ("he", he))
+                if pd.notna(end) and pd.notna(row.get(f"{side}_latitude_deg")) and pd.notna(row.get(f"{side}_longitude_deg"))
+            },
             "length_ft": int(length) if pd.notna(length) else None,
             "width_ft": int(width) if pd.notna(width) else None,
             "surface": row.get("surface") if pd.notna(row.get("surface")) else None,

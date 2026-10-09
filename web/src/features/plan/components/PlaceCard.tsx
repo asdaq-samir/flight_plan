@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { FileText, Lightbulb, Loader2, MapPin, MapPinPlus, Phone, Radio, Star } from "lucide-react";
 import DirectToIcon from "../../../components/DirectToIcon";
@@ -21,7 +21,9 @@ import { inkOn } from "../../../lib/scoreScale";
 import { feet, miles } from "../../../lib/units";
 import { RunwayRow } from "./RunwayRow";
 import { PublicationRows } from "./PublicationRows";
-import { ChartRow, DiagramButton } from "./AirportDiagram";
+import { ChartRow, FaaChart } from "./AirportDiagram";
+import { RunwaySketch } from "./RunwaySketch";
+import { stripsOf } from "../../../lib/runwaySketch";
 import { TEXT } from "../../../lib/text";
 
 /** "18 nm NE", from wherever the card is measured from. */
@@ -125,13 +127,18 @@ function Action({ icon, label, spoken, filled, busy, disabled, onClick, href, te
    *  the tap asked for. */
   busy?: boolean;
 }) {
-  const look = cn("h-auto flex-col gap-1 rounded-xl py-3 whitespace-normal [&_svg:not([class*='size-'])]:size-6", !filled && GLASS_BUTTON);
+  // Its sides four points in, not the stock button's ten: the room a
+  // word needs to stay on its one line (below) at the text sizes a reader
+  // sets larger.
+  const look = cn("h-auto min-w-0 flex-col gap-1 rounded-xl px-1 py-3 [&_svg:not([class*='size-'])]:size-6", !filled && GLASS_BUTTON);
   const face = (
     <>
       {busy ? <Loader2 className="size-6 animate-spin" aria-hidden="true" /> : icon}
-      {/* On two lines where it needs them, at the pilot's ask, rather
-          than past the tile's edge. */}
-      <span className={cn("text-center leading-tight font-semibold", TEXT.note)}>{label}</span>
+      {/* On one line, at the pilot's ask: "Fly Here" and "Add Stop" on
+          two at a larger text size made every tile a line taller, and
+          the card's tiles ran off the half sheet. Cut short ("…") only
+          where even that is too narrow, a 320-point Slide Over. */}
+      <span className={cn("max-w-full truncate text-center leading-tight font-semibold", TEXT.note)}>{label}</span>
     </>
   );
   // A link where it leaves the app, the stock button's look on it.
@@ -248,11 +255,13 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
     }, 520);
     return () => { window.clearTimeout(scroll); window.clearTimeout(look); };
   }, [startOn, placeIn]);
-  // The diagram's thumbnail over the Call and Address tiles, at the
-  // pilot's ask, the lines under the name beside it; none for a field
-  // without a diagram, or where its picture cannot be had.
-  const [noThumbnail, setNoThumbnail] = useState(false);
-  const thumbnail = place?.airport_diagram_cycle && !noThumbnail ? place.airport_diagram_cycle : null;
+  // A sketch of the runways over the Call and Address tiles, at the
+  // pilot's ask -- it was the FAA's diagram cropped to that size, a
+  // scatter of its lettering -- the lines under the name beside it; for
+  // any field with a runway to draw. A tap shows the diagram full screen,
+  // or the Runways tab where the field has none.
+  const sketched = useMemo(() => !!place && stripsOf(place.runways, place.lat, place.lon).length > 0, [place]);
+  const [diagramOpen, setDiagramOpen] = useState(false);
   const line = place ? subtitleOf(place, measured)
     : error ? `${ident} · ${error instanceof ApiError && error.status === 404 ? "not found" : "could not be looked up"}`
       : `${ident} · …`;
@@ -274,7 +283,7 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
           name={place?.name ?? known?.name ?? kept?.name ?? ident} nameTestId="place-name"
           // Not found only where the planner said so: a planner out of
           // reach for a moment (restarted) read "not found" for KBUR.
-          line={thumbnail ? null : line}
+          line={sketched ? null : line}
           onClose={onClose} closeTestId="place-close"
         >
           {weather && (
@@ -295,19 +304,29 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
             in: the card stood empty below its name until then. */}
         {(place || !error) && (
           <div className={cn("mt-3 grid gap-2", onAddStop ? "grid-cols-4" : "grid-cols-3")}>
-            {/* The diagram's thumbnail over Call and Address, their width;
-                the lines under the name across the rest, up against the
-                name as they are without one. A tap shows it full screen. */}
-            {place && thumbnail && (
+            {/* The runways' sketch over Call and Address, their width; the
+                lines under the name across the rest, up against the name
+                as they are without one. */}
+            {place && sketched && (
               <>
                 <p className={cn("-mt-3 text-muted-foreground", onAddStop ? "col-span-2" : "col-span-1", TEXT.note)}>{line}</p>
-                <DiagramButton
-                  ident={place.ident} cycle={thumbnail}
-                  testId="place-diagram-thumbnail" onMissing={() => setNoThumbnail(true)}
-                  // Its middle, where the runways cross.
-                  className={cn("col-span-2 block h-14 w-full rounded-xl", GLASS_BUTTON)}
-                  imageClassName="size-full object-cover"
-                />
+                <button
+                  type="button" data-testid="place-runway-sketch"
+                  aria-label={place.airport_diagram_url ? `${place.ident} airport diagram, full screen` : `${place.ident} runways`}
+                  onClick={() => (place.airport_diagram_url ? setDiagramOpen(true) : open("runways"))}
+                  // As tall as the lines beside it, two tiles' height at the
+                  // least: a field is rarely three times as wide as it is
+                  // long, and a wide strip of a box drew it small.
+                  className={cn("relative col-span-2 block min-h-14 w-full self-stretch overflow-hidden rounded-xl text-foreground", GLASS_BUTTON)}
+                >
+                  <RunwaySketch runways={place.runways} lat={place.lat} lon={place.lon} />
+                </button>
+                {diagramOpen && place.airport_diagram_url && (
+                  <FaaChart
+                    title={`${place.ident} airport diagram`} url={place.airport_diagram_url} airport={place.ident}
+                    onClose={() => setDiagramOpen(false)}
+                  />
+                )}
               </>
             )}
             {/* Fly Here is the Direct-To, and wears its symbol; Add Stop

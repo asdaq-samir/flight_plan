@@ -637,12 +637,16 @@ class RunwayWind(BaseModel):
 
 class RunwayEnd(BaseModel):
     """One end of a runway (vfr.pattern): its true heading, None for a
-    helipad, and which way its traffic pattern is flown -- left unless
-    the FAA flags it right (14 CFR 91.126(b)(1))."""
+    helipad, which way its traffic pattern is flown -- left unless the FAA
+    flags it right (14 CFR 91.126(b)(1)) -- and where it is."""
 
     ident: str
     heading_true_deg: float | None = None
     traffic: Literal["left", "right"] = "left"
+    #: Where it is, for the card's sketch of the field's runways: NASR's
+    #: surveyed threshold, else OurAirports'; None where neither has it.
+    lat: float | None = None
+    lon: float | None = None
 
 
 class Runway(BaseModel):
