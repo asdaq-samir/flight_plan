@@ -5,7 +5,7 @@ import { ImageOverlay, MapContainer, useMap } from "react-leaflet";
 import CloseButton from "../../../components/CloseButton";
 import { Button } from "../../../components/ui/button";
 import { Dialog, DialogClose, DialogContent, DialogTitle } from "../../../components/ui/dialog";
-import { api } from "../../../lib/api/client";
+import { ApiError, api } from "../../../lib/api/client";
 import { chartPagePicture } from "../../../lib/diagram";
 import { TEXT } from "../../../lib/text";
 import { cn } from "cn";
@@ -65,12 +65,15 @@ function FitFirst({ first }: { first: L.LatLngBounds }) {
  * dialog, the map behind it waiting; the close in the corner every panel
  * has it in.
  */
-export default function ChartViewer({ title, pages, loading = false, failed = false, onRetry, onClose }: {
+export default function ChartViewer({ title, pages, loading = false, failed = false, outOfDate = false, onRetry, onClose }: {
   title: string;
   pages: Page[];
   /** Its pages still being asked for (FaaChartViewer). */
   loading?: boolean;
   failed?: boolean;
+  /** The FAA's chart is no longer in force (a card left open across the
+   *  cycle's change): asking again cannot help, opening the airport anew can. */
+  outOfDate?: boolean;
   /** Asks again after a failure, beside the failure. */
   onRetry?: () => void;
   onClose: () => void;
@@ -104,15 +107,17 @@ export default function ChartViewer({ title, pages, loading = false, failed = fa
         ) : (
           <div className="flex flex-col items-start gap-2 px-4 pt-4" data-testid="chart-viewer-status">
             <p className={cn("text-muted-foreground", TEXT.prose)}>
-              {failed
-                ? "The FAA's chart could not be had. Try again in a moment."
-                : loading
-                  ? "Drawing the chart…"
-                  // A booklet lists a field only where it has an entry (takeoff
-                  // minimums, alternates, hot spots).
-                  : "The FAA lists nothing for this field in this chart."}
+              {outOfDate
+                ? "This chart is out of date. Close the airport and open it again for the chart in force."
+                : failed
+                  ? "The FAA's chart could not be had. Try again in a moment."
+                  : loading
+                    ? "Drawing the chart…"
+                    // A booklet lists a field only where it has an entry (takeoff
+                    // minimums, alternates, hot spots).
+                    : "The FAA lists nothing for this field in this chart."}
             </p>
-            {failed && onRetry && (
+            {failed && !outOfDate && onRetry && (
               <Button type="button" variant="ghost" className="relative -ml-2 rounded-full text-tint after:absolute after:-inset-1" onClick={onRetry}>
                 Try again
               </Button>
@@ -133,9 +138,9 @@ export function FaaChartViewer({ title, url, airport, onClose }: {
   airport: string;
   onClose: () => void;
 }) {
-  const { data, isFetching, isError, refetch } = useQuery({
+  const { data, error, isFetching, isError, refetch } = useQuery({
     queryKey: ["faaChart", url, airport], queryFn: () => api.faaChart(url, airport), staleTime: Infinity, meta: { silent: true },
   });
   const pages = useMemo(() => (data?.pages ?? []).map(p => ({ src: chartPagePicture(p), width: p.width, height: p.height })), [data]);
-  return <ChartViewer title={title} pages={pages} loading={isFetching && !data} failed={isError && !isFetching} onRetry={() => { void refetch(); }} onClose={onClose} />;
+  return <ChartViewer title={title} pages={pages} loading={isFetching && !data} failed={isError && !isFetching} outOfDate={error instanceof ApiError && error.status === 404} onRetry={() => { void refetch(); }} onClose={onClose} />;
 }

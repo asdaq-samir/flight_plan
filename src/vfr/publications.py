@@ -24,9 +24,9 @@ import logging
 import os
 import re
 import threading
+import time
 import xml.etree.ElementTree as ET
 from datetime import date, timedelta
-from functools import lru_cache
 from pathlib import Path
 
 import pypdfium2
@@ -268,10 +268,13 @@ class FaaUnreachable(Exception):
     the same as the chart not existing, and not kept as that."""
 
 
-#: PDFs the FAA said it has no such file for, by (source, edition, name):
-#: an address made up to fetch is asked of the FAA once, not each time.
-_ABSENT: set = set()
+#: PDFs the FAA said it has no such file for, by (source, edition, name),
+#: and when: an address made up to fetch is asked of the FAA once, then
+#: again after _ABSENT_FOR, since a 403 can be a throttle as well as a key
+#: that is not there.
+_ABSENT: dict = {}
 _ABSENT_MAX = 1000
+_ABSENT_FOR = 600.0
 
 
 def _pdf_of(source: str, edition: str, name: str) -> bytes | None:
@@ -281,7 +284,8 @@ def _pdf_of(source: str, edition: str, name: str) -> bytes | None:
     path = CACHE_DIR / "pdf" / source / edition / name
     if path.exists():
         return path.read_bytes()
-    if (source, edition, name) in _ABSENT:
+    key = (source, edition, name)
+    if time.monotonic() - _ABSENT.get(key, -_ABSENT_FOR) < _ABSENT_FOR:
         return None
     with _LOCK:
         lock = _DRAWING.setdefault(path, threading.Lock())
@@ -292,11 +296,13 @@ def _pdf_of(source: str, edition: str, name: str) -> bytes | None:
         try:
             resp = requests.get(f"{base}/{edition}/{name}", headers=HEADERS, timeout=60)
             if resp.status_code in (403, 404):
-                # S3, which serves the FAA's files, answers 403 for a key that is not there.
+                # S3, which serves the FAA's files, answers 403 for a key that is
+                # not there; a throttle looks the same, so this is remembered
+                # for a while, not for good.
                 with _LOCK:
                     if len(_ABSENT) >= _ABSENT_MAX:
                         _ABSENT.clear()
-                    _ABSENT.add((source, edition, name))
+                    _ABSENT[key] = time.monotonic()
                 return None
             resp.raise_for_status()
         except requests.RequestException as err:
@@ -309,41 +315,78 @@ def _pdf_of(source: str, edition: str, name: str) -> bytes | None:
         return resp.content
 
 
-def _is_booklet(source: str, name: str) -> bool:
-    """Whether a d-TPP PDF is one of the FAA's region booklets (takeoff
-    and alternate minimums, hot spots), which hold many fields' entries.
-    A field's own charts -- approaches, departures, the diagram -- are
-    named from its five-figure sequence number ("00245IL18.PDF"); a
-    booklet's name starts with its region ("EC3TO.PDF")."""
-    return source == "dtpp" and not re.match(r"\d{5}", name)
+#: A field's heading in a booklet: its name and code in brackets
+#: ("MADISON DANE COUNTY RGNL/TRUAX FLD (MSN)").
+_HEADING = re.compile(r"\(([A-Z0-9]{3,4})\)")
+#: (edition, PDF) -> (every page's size, {code: pages}), each read once.
+_SCANNED: dict = {}
+_SCANNED_MAX = 64
 
 
-@lru_cache(maxsize=512)
-def _pages_of(source: str, edition: str, pdf: str, ident: str | None) -> tuple | None:
-    """The pages of one PDF to show, as their sizes -- a booklet's pages
-    naming the field (none where it has no entry: the FAA lists takeoff
-    minimums, alternates and hot spots only for fields that need them),
-    any other PDF's every page. Kept per (edition, PDF, field), since
-    reading the text of a booklet's sixty-nine pages is long and holds
-    the drawing lock. None where the FAA has no such file."""
+def _scanned(source: str, edition: str, pdf: str) -> tuple | None:
+    """A PDF's pages as their sizes, and where it is one of the FAA's
+    region booklets (takeoff and alternate minimums, hot spots: many
+    fields' entries, each headed with the field's code) the pages of
+    each code. A page with no heading of its own goes with the entry
+    before it, as an entry that runs on does. Read once per (edition,
+    PDF), whatever field is asked for, since reading the text of a
+    booklet's sixty-nine pages is long and holds the drawing lock. None
+    where the FAA has no such file (not kept, so it is asked again)."""
+    key = (source, edition, pdf)
+    if key in _SCANNED:
+        return _SCANNED[key]
     data = _pdf_of(source, edition, pdf)
     if data is None:
         return None
     booklet = _is_booklet(source, pdf)
-    needle = f"({_faa_idents(ident)[-1]})" if booklet and ident else None
-    pages = []
+    sizes, entries, current = [], {}, None
     with _PDFIUM:
         document = pypdfium2.PdfDocument(data)
         try:
             for i in range(len(document)):
                 page = document[i]
-                if booklet and (needle is None or needle not in page.get_textpage().get_text_bounded()):
-                    continue
-                pages.append({"source": source, "edition": edition, "pdf": pdf, "page": i + 1,
+                sizes.append({"source": source, "edition": edition, "pdf": pdf, "page": i + 1,
                               "width": round(page.get_width() * DIAGRAM_SCALE), "height": round(page.get_height() * DIAGRAM_SCALE)})
+                if booklet:
+                    found = _HEADING.findall(page.get_textpage().get_text_bounded())
+                    if found:
+                        current = found[-1]
+                    for code in dict.fromkeys(found or ([current] if current else [])):
+                        entries.setdefault(code, []).append(i)
         finally:
             document.close()
-    return tuple(pages)
+    result = (tuple(sizes), entries)
+    with _LOCK:
+        if len(_SCANNED) >= _SCANNED_MAX:
+            _SCANNED.clear()
+        _SCANNED[key] = result
+    return result
+
+
+def _is_booklet(source: str, name: str) -> bool:
+    """Whether a d-TPP PDF is probably one of the FAA's region booklets,
+    which hold many fields' entries. A field's own charts -- approaches,
+    departures, the diagram -- are named from its five-figure sequence
+    number ("00245IL18.PDF"); a booklet's name starts with its region
+    ("EC3TO.PDF"). A PDF so named that has no field headings at all is
+    shown whole (_pages_of), not filtered to nothing."""
+    return source == "dtpp" and not re.match(r"\d{5}", name)
+
+
+def _pages_of(source: str, edition: str, pdf: str, ident: str | None) -> tuple | None:
+    """The pages of one PDF to show, as their sizes -- a booklet's pages
+    for the field (none where it has no entry: the FAA lists takeoff
+    minimums, alternates and hot spots only for fields that need them),
+    any other PDF's every page. None where the FAA has no such file."""
+    scanned = _scanned(source, edition, pdf)
+    if scanned is None:
+        return None
+    sizes, entries = scanned
+    if not entries:
+        return sizes
+    if not ident:
+        return ()
+    return tuple(sizes[i] for i in entries.get(_faa_idents(ident)[-1], []))
 
 
 def chart_pages(url: str, ident: str | None = None, on: date | None = None) -> list | None:

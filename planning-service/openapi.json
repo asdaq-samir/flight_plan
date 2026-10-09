@@ -8678,6 +8678,7 @@
             "schema": {
               "anyOf": [
                 {
+                  "pattern": "^[A-Za-z0-9]{2,5}$",
                   "type": "string"
                 },
                 {

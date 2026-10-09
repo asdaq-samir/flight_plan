@@ -166,9 +166,10 @@ def _pdf_with(pages: list) -> bytes:
 
 
 def test_a_booklets_pages_are_the_ones_naming_the_field_and_a_charts_its_own(monkeypatch, tmp_path):
-    publications._pages_of.cache_clear()
+    publications._SCANNED.clear()
     monkeypatch.setattr(publications, "CACHE_DIR", tmp_path)
-    booklet = _pdf_with(["KENOSHA (ENW)", "MADISON DANE COUNTY RGNL/TRUAX FLD (MSN)", "MSN CONTINUED (MSN)", "MILWAUKEE (MKE)"])
+    # The entry's second page carries no heading of its own, as an entry that runs on may not.
+    booklet = _pdf_with(["KENOSHA (ENW)", "MADISON DANE COUNTY RGNL/TRUAX FLD (MSN)", "THE SAME ENTRY, CONTINUED", "MILWAUKEE (MKE)"])
     approach = _pdf_with(["ILS OR LOC RWY 18"])
     answers = {"EC3TO.PDF": booklet, "00245IL18.PDF": approach}
     monkeypatch.setattr(publications.requests, "get", lambda url, **kw: _Answer(answers[url.rsplit("/", 1)[1]]))
@@ -201,9 +202,9 @@ def test_only_the_faas_charts_in_force_are_read(monkeypatch, tmp_path):
 
 
 def test_the_faa_not_answering_is_told_from_a_chart_it_does_not_have(monkeypatch, tmp_path):
-    publications._pages_of.cache_clear()
+    publications._SCANNED.clear()
     monkeypatch.setattr(publications, "CACHE_DIR", tmp_path)
-    monkeypatch.setattr(publications, "_ABSENT", set())
+    monkeypatch.setattr(publications, "_ABSENT", {})
     on = date(2026, 10, 3)
     asked = []
 
@@ -223,3 +224,17 @@ def test_the_faa_not_answering_is_told_from_a_chart_it_does_not_have(monkeypatch
     assert publications.chart_pages(gone, "KMSN", on) is None
     assert publications.chart_pages(gone, "KMSN", on) is None
     assert asked.count(gone) == 1
+    # A 403 may be a throttle, so it is forgotten after a while and asked again.
+    for key in publications._ABSENT:
+        publications._ABSENT[key] -= publications._ABSENT_FOR + 1
+    assert publications.chart_pages(gone, "KMSN", on) is None
+    assert asked.count(gone) == 2
+
+
+def test_a_pdf_without_field_headings_is_shown_whole(monkeypatch, tmp_path):
+    publications._SCANNED.clear()
+    monkeypatch.setattr(publications, "CACHE_DIR", tmp_path)
+    odd = _pdf_with(["NOTES", "MORE NOTES"])
+    monkeypatch.setattr(publications.requests, "get", lambda url, **kw: _Answer(odd))
+    pages = publications.chart_pages("https://aeronav.faa.gov/d-tpp/2610/XY1.PDF", "KMSN", date(2026, 10, 3))
+    assert [p["page"] for p in pages] == [1, 2]

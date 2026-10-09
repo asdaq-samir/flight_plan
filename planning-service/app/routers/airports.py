@@ -184,7 +184,8 @@ def airport_diagram(cycle: str, ident: str) -> FileResponse:
 
 
 @router.get("/api/faa-chart", response_model=ChartPages)
-def faa_chart(url: str, response: Response, airport: str | None = None) -> ChartPages:
+def faa_chart(url: str, response: Response,
+              airport: str | None = Query(default=None, pattern=r"^[A-Za-z0-9]{2,5}$")) -> ChartPages:
     """The pages of one of the FAA's charts in force -- by its address on
     aeronav.faa.gov, as a card lists it (`procedures`, the Chart
     Supplement's) -- for the app to show them itself rather than leave for
