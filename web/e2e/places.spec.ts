@@ -21,7 +21,8 @@ test("an airport's card names the field with its ident's airspace pill at the en
   // the tabs'.
   await expect(card(page).getByTestId("place-line")).toHaveText(/^\d+ nm NW of C81$/);
   // And its elevation on the runways' sketch.
-  await expect(card(page).getByTestId("place-elevation")).toHaveText(/^Elevation [\d,]+ ft$/);
+  await expect(card(page).getByTestId("place-elevation")).toHaveText(/Elevation [\d,]+ ft$/);
+  await expect(card(page).getByTestId("place-elevation").locator('[aria-hidden="true"]')).toHaveText("Elev");
   await expect(card(page).getByTestId("place-category")).toBeVisible();
   for (const id of ["fly-here", "place-call", "place-address"]) await expect(card(page).getByTestId(id)).toBeVisible();
 
