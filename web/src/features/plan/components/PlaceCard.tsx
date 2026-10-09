@@ -457,6 +457,7 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
               <TabsTrigger
                 key={t.value} value={t.value} className={LINE_TAB} data-testid={`place-tab-${t.value}`}
                 onPointerDown={() => { openWhenPressed.current = tab; }} onKeyDown={() => { openWhenPressed.current = tab; }}
+                onPointerCancel={() => { openWhenPressed.current = null; }} onBlur={() => { openWhenPressed.current = null; }}
                 onClick={() => {
                   // Read once and cleared: a click with no press before it
                   // (VoiceOver's activate, a switch) must not find an
