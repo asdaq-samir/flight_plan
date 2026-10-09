@@ -478,6 +478,11 @@
           "name": {
             "title": "Name",
             "type": "string"
+          },
+          "private": {
+            "default": false,
+            "title": "Private",
+            "type": "boolean"
           }
         },
         "required": [
@@ -4733,6 +4738,11 @@
           "name": {
             "title": "Name",
             "type": "string"
+          },
+          "private": {
+            "default": false,
+            "title": "Private",
+            "type": "boolean"
           }
         },
         "required": [

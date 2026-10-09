@@ -1223,6 +1223,9 @@ class AirportPin(BaseModel):
     kind: Literal["large", "medium", "small", "other"]
     flight_category: str | None = None
     military: Literal["military", "joint"] | None = None
+    #: Closed to the public (vfr.faa_data.private_fields): landed at only
+    #: with its owner's permission, the sectional's R in a circle.
+    private: bool = False
     #: The class of the airspace at its surface (vfr.airspace.surface_classes),
     #: for its mark on the map in that airspace's look; None where the FAA's
     #: airspace could not be had.

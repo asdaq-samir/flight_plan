@@ -326,7 +326,7 @@ test("the airport whose card is open wears a ring round its mark, clear of it on
   await expect(ring).toHaveCount(0);
 });
 
-test("the chart's airports are marked by their airspace -- B, C, D, E, G -- a military field with an M, each with its weather's dot", async ({ page }) => {
+test("the chart's airports are marked by their airspace -- B, C, D, E, G -- a military field with an M, a private one with an R, each with its weather's dot", async ({ page }) => {
   // Round C81, at its card's zoom, every class once, and a military field
   // (shown once the map's Military is on).
   const field = (ident: string, at: number, airspace_class: string | null, extra = {}) => ({
@@ -336,6 +336,7 @@ test("the chart's airports are marked by their airspace -- B, C, D, E, G -- a mi
     status: 200, contentType: "application/json", body: JSON.stringify({ airports: [
       field("KBBB", 0, "B"), field("KCCC", 1, "C"), field("KDDD", 2, "D"), field("KEEE", 3, "E"),
       field("KGGG", 4, "G", { flight_category: "IFR" }), field("KMIL", 5, "C", { military: "military" }), field("KUNK", 6, null),
+      field("KPVT", 7, "D", { private: true }),
     ] }),
   }));
   await page.goto("/app/plan?place=C81");
@@ -347,9 +348,15 @@ test("the chart's airports are marked by their airspace -- B, C, D, E, G -- a mi
   for (const [ident, space] of [["KBBB", "B"], ["KCCC", "C"], ["KDDD", "D"], ["KEEE", "E"], ["KGGG", "G"], ["KMIL", "C"], ["KUNK", ""]]) {
     await expect(markOf(ident!)).toHaveAttribute("data-airspace", space!, { timeout: slow(15000) });
   }
-  await expect(markOf("KMIL")).toHaveAttribute("data-military", "");
+  // The M on a blue disc whatever the airspace over it, and a private
+  // field's R on a magenta one.
+  await expect(markOf("KMIL")).toHaveAttribute("data-use", "military");
   await expect(markOf("KMIL")).toContainText("M");
-  await expect(markOf("KCCC")).not.toHaveAttribute("data-military");
+  await expect(markOf("KMIL").locator("circle").first()).toHaveAttribute("fill", "#2465b8");
+  await expect(markOf("KPVT")).toHaveAttribute("data-use", "private");
+  await expect(markOf("KPVT")).toContainText("R");
+  await expect(markOf("KPVT").locator("circle").first()).toHaveAttribute("fill", "#b02e7c");
+  await expect(markOf("KCCC")).not.toHaveAttribute("data-use");
   // The dot in its METAR's colour: VFR green, IFR red (no report's grey,
   // classb.spec).
   await expect(markOf("KBBB").locator("[data-weather]")).toHaveCSS("fill", "rgb(26, 127, 55)");

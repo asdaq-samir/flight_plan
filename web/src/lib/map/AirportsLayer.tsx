@@ -51,7 +51,7 @@ const AirportMark = memo(function AirportMark({ airport: a, chip, onSelect }: {
   return chip ? (
     <Marker
       position={[a.lat, a.lon]} eventHandlers={events}
-      icon={airportMarkIcon(a.ident, a.airspace_class ?? null, colourOf(a.flight_category), a.military === "military")}
+      icon={airportMarkIcon(a.ident, a.airspace_class ?? null, colourOf(a.flight_category), a.military === "military" ? "military" : a.private ? "private" : null)}
     >
       {hovers && <MapTooltip>{a.ident} · {a.name} · {a.flight_category ?? "no report"}</MapTooltip>}
     </Marker>
@@ -72,7 +72,7 @@ const AirportMark = memo(function AirportMark({ airport: a, chip, onSelect }: {
  * The chart's own airports, made tappable, from zoom 8 in -- the ones
  * that report from zoom 7: each one that reports its weather wears its
  * mark (airportMarkIcon), the symbol of its class of airspace -- or the
- * M of a military field -- with a dot in its METAR's flight category's
+ * M of a military field, the R of a private one -- with a dot in its METAR's flight category's
  * colour and its ident beside it, as the route's own airports and the
  * Class B ones do; from zoom 10 every other landing field one, its dot
  * the grey of no report, and further out an invisible target, since the

@@ -26,6 +26,13 @@ def _military(place: dict) -> str | None:
     return owned.get(place["ident"].upper()) or owned.get(place.get("source_ident", "").upper())
 
 
+def _private(place: dict) -> bool:
+    """Whether the field is closed to the public (vfr.faa_data), by either
+    ident, as _military."""
+    closed = faa_data.private_fields(altitude.DEFAULT_FAA_CACHE_DIR)
+    return place["ident"].upper() in closed or place.get("source_ident", "").upper() in closed
+
+
 @router.get("/api/airports/in-view", response_model=AirportsInView)
 def airports_in_view(
     south: float = Query(ge=-90, le=90), west: float = Query(ge=-180, le=180),
@@ -62,7 +69,7 @@ def airports_in_view(
     classes = _surface_classes(places)
     return {"airports": [
         {**p, "flight_category": (metars.get(p["source_ident"]) or {}).get("flight_category"), "military": _military(p),
-         "airspace_class": cls}
+         "private": _private(p), "airspace_class": cls}
         for p, cls in zip(places, classes)
     ]}
 
@@ -118,7 +125,7 @@ def nearest_airports(
         out.append({
             **p, "longest_runway_ft": max(lengths) if lengths else None,
             "flight_category": (metars.get(p["source_ident"]) or {}).get("flight_category"), "military": _military(p),
-            "airspace_class": cls,
+            "private": _private(p), "airspace_class": cls,
         })
     return {"airports": out}
 

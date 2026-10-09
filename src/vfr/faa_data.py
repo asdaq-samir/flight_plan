@@ -369,6 +369,29 @@ def military_fields(cache_dir) -> dict:
         return {}
 
 
+@lru_cache(maxsize=2)
+def _private_of(path: str, _mtime: float) -> frozenset:
+    df = _read_apt_base_cached(path, _mtime)
+    df = df[(df["FACILITY_USE_CODE"] == "PR") & ~df["OWNERSHIP_TYPE_CODE"].isin(MILITARY_OWNERS)]
+    return frozenset(
+        ident.strip().upper() for ident in [*df["ARPT_ID"], *df["ICAO_ID"]] if isinstance(ident, str) and ident.strip()
+    )
+
+
+def private_fields(cache_dir) -> frozenset:
+    """Every field closed to the public (APT_BASE's FACILITY_USE_CODE PR),
+    by its FAA and ICAO identifiers -- the sectional's R in a circle, a
+    field to land at only with its owner's permission -- but for those the
+    armed services own, which are military_fields'. Empty where the file
+    cannot be had: the map then marks none."""
+    try:
+        path = ensure_nasr_file("APT_BASE.csv", cache_dir)
+        return _private_of(str(path), path.stat().st_mtime)
+    except Exception:
+        log.warning("No APT_BASE.csv for private fields; none marked", exc_info=True)
+        return frozenset()
+
+
 #: A box number, not a street a pilot can be driven to.
 _PO_BOX = re.compile(r"^\s*P\.?\s*O\.?\s*BOX\b", re.IGNORECASE)
 
