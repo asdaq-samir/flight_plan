@@ -17,9 +17,11 @@ test("an airport's card names the field, its airspace and tower, how far it is, 
   await expect(card(page).getByTestId("place-name")).toHaveText("Duluth International Airport");
   // Measured from the route's departure while the pilot's own position
   // is not known.
-  await expect(card(page)).toContainText(/KDLH · Class [BCD] · Towered/);
-  // Its elevation under that, and how far it is beside it.
-  await expect(card(page)).toContainText(/Elevation [\d,]+ ft · \d+ nm NW of C81/);
+  // Three short lines: the ident and its class, with how far it is; the
+  // tower; the elevation.
+  await expect(card(page)).toContainText(/KDLH \([BCD]\) · \d+ nm NW of C81/);
+  await expect(card(page)).toContainText("Tower: 118.3");
+  await expect(card(page)).toContainText(/Elev: [\d,]+ ft/);
   await expect(card(page).getByTestId("place-category")).toBeVisible();
   for (const id of ["fly-here", "place-call", "place-address"]) await expect(card(page).getByTestId(id)).toBeVisible();
 
@@ -213,7 +215,7 @@ test("a Favorite's card names it and the map goes to it before the card's answer
 
   answer();
   await expect(card(page).getByTestId("fly-here")).toBeEnabled({ timeout: slow(15_000) });
-  await expect(card(page)).toContainText(/KBUR · Class [BCD]/);
+  await expect(card(page)).toContainText(/KBUR \([BCD]\)/);
 });
 
 // A planner out of reach for a moment (restarted, say) is not an airport

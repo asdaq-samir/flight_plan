@@ -64,7 +64,7 @@ test("an airport's card shows its diagram, and a tap shows it full screen, in th
   await expect(card(page)).toBeVisible();
 });
 
-test("the card's sketch of the runways sits over Call and Address, their width, and a tap shows the diagram", async ({ page }) => {
+test("the card's sketch of the runways sits right of the name, under its close, over Call and Address, with the card's lines at its top left", async ({ page }) => {
   await withDiagram(page, "drawn");
   await withChartPages(page);
   await page.goto("/app/plan?place=KDLH");
@@ -72,13 +72,23 @@ test("the card's sketch of the runways sits over Call and Address, their width, 
   const sketch = card(page).getByTestId("place-runway-sketch");
   // KDLH's runways, named for a screen reader.
   await expect(sketch).toHaveAttribute("aria-label", /^KDLH runways .*09\/27.*, north up\./, { timeout: slow(15000) });
-  const [box, call, address] = await Promise.all([sketch, card(page).getByTestId("place-call"), card(page).getByTestId("place-address")]
-    .map(async l => (await l.boundingBox())!));
-  expect(Math.abs(box.x - call.x)).toBeLessThan(1);
-  expect(Math.abs(box.x + box.width - (address.x + address.width))).toBeLessThan(1);
+  // The lines that were under the name, at its top left: the ident and
+  // class, the tower, the elevation.
+  const line = card(page).getByTestId("place-line");
+  await expect(line).toContainText(/KDLH \([BCD]\)/);
+  await expect(line).toContainText(/Tower: \d{3}\.\d/);
+  await expect(line).toContainText(/Elev: [\d,]+ ft/);
+  const [lines, box, name, close, call, address] = await Promise.all([
+    line, sketch, card(page).getByTestId("place-name"), card(page).getByTestId("place-close"),
+    card(page).getByTestId("place-call"), card(page).getByTestId("place-address"),
+  ].map(async l => (await l.boundingBox())!));
+  expect(lines.x).toBeGreaterThan(name.x + name.width - 1);
+  expect(lines.y).toBeGreaterThan(close.y + close.height - 1);
+  expect(lines.y).toBeLessThan(close.y + close.height + 24);
+  expect(box.y).toBeGreaterThanOrEqual(lines.y + lines.height - 1);
+  expect(lines.x).toBeGreaterThanOrEqual(call.x - 1);
+  expect(box.x + box.width).toBeLessThanOrEqual(address.x + address.width + 1);
   expect(box.y + box.height).toBeLessThanOrEqual(call.y);
-  // The line under the name beside it.
-  await expect(card(page)).toContainText(/KDLH · Class [BCD] · Towered/);
 
   await sketch.click();
   await expect(page.getByTestId("airport-diagram-viewer").getByRole("heading", { name: "KDLH airport diagram" })).toBeVisible();
