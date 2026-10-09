@@ -143,6 +143,11 @@ export function useDetentDrag<S extends string>({ detents, shown, fromBottom, on
     } | null = null;
     let frame = 0;
     const start = (event: TouchEvent) => {
+      // A finger landing on a drag that has begun is a pinch: let the sheet
+      // go to its detent now, as no touchmove of one finger is left to.
+      if (gesture?.moved) letGo(latest.current, gesture.to, 0);
+      if (frame) cancelAnimationFrame(frame);
+      frame = 0;
       const touch = event.touches[0];
       gesture = touch && event.touches.length === 1 && event.target instanceof Element ? {
         x: touch.clientX, y: touch.clientY, from: latest.current.shown, target: event.target,
@@ -160,8 +165,10 @@ export function useDetentDrag<S extends string>({ detents, shown, fromBottom, on
         return;
       }
       const dx = touch.clientX - g.x, dy = touch.clientY - g.y;
+      // A first move that went nowhere says nothing of the direction.
+      if (g.sheet === null && dx === 0 && dy === 0) return;
       if (g.sheet === null) {
-        g.sheet = Math.abs(dy) > Math.abs(dx) && sheetTakes(g.target, dy);
+        g.sheet =Math.abs(dy) > Math.abs(dx) && sheetTakes(g.target, dy);
         if (!g.sheet) {
           gesture = null;
           return;
