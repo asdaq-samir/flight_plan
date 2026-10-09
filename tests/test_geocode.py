@@ -70,3 +70,35 @@ def test_a_geocoder_that_does_not_answer_finds_nothing_and_fails_nothing(monkeyp
         raise requests.ConnectionError("down")
     monkeypatch.setattr(geocode.requests, "get", down)
     assert geocode.find_addresses("4000 International Ln") == []
+
+
+def _no_kept_gazetteer(monkeypatch, tmp_path):
+    monkeypatch.setattr(geocode, "TOWNS_PATH", tmp_path / "places.json")
+    monkeypatch.setattr(geocode, "_TOWNS", None)
+    monkeypatch.setattr(geocode, "_RETRY_AT", 0.0)
+
+
+def test_a_failed_download_is_not_tried_again_at_once(monkeypatch, tmp_path):
+    _no_kept_gazetteer(monkeypatch, tmp_path)
+    calls = []
+
+    def down(url, **kwargs):
+        calls.append(url)
+        raise requests.ConnectionError("down")
+    monkeypatch.setattr(geocode.requests, "get", down)
+    assert geocode.find_towns("madison") == []
+    assert geocode.find_towns("madison") == []
+    assert len(calls) == 1
+
+
+def test_a_corrupt_kept_gazetteer_is_downloaded_again(monkeypatch, tmp_path):
+    _no_kept_gazetteer(monkeypatch, tmp_path)
+    geocode.TOWNS_PATH.write_text('[["Madison", "WI", 43.')
+
+    class Resp:
+        content = _zipped(GAZETTEER)
+
+        def raise_for_status(self):
+            pass
+    monkeypatch.setattr(geocode.requests, "get", lambda url, **kwargs: Resp())
+    assert geocode.find_towns("madison")[0]["label"] == "Madison, WI"

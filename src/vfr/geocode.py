@@ -18,6 +18,7 @@ import logging
 import os
 import re
 import threading
+import time
 import zipfile
 
 import requests
@@ -38,8 +39,14 @@ _KIND_WORDS = re.compile(r"(\s+(?:[a-z()][^\s]*|CDP))+$")
 #: What an address typed looks like: a house number first.
 _ADDRESS = re.compile(r"^\d+\s+\S")
 
+#: After a failed download, the next try waits this long, so a slow Census
+#: host does not queue every search behind a timeout.
+RETRY_AFTER_S = 300
+DOWNLOAD_TIMEOUT_S = 10
+
 _LOCK = threading.Lock()
 _TOWNS: list | None = None
+_RETRY_AT = 0.0
 
 
 def _towns_of(zipped: bytes) -> list:
@@ -67,19 +74,28 @@ def _towns() -> list:
     """The gazetteer's places, from memory, from disk, or downloaded once;
     none where the Census Bureau cannot be reached (only addresses and
     airports are found then, nothing failed)."""
-    global _TOWNS
+    global _TOWNS, _RETRY_AT
     with _LOCK:
         if _TOWNS is not None:
             return _TOWNS
         if TOWNS_PATH.exists():
-            _TOWNS = json.loads(TOWNS_PATH.read_text())
-            return _TOWNS
+            try:
+                _TOWNS = json.loads(TOWNS_PATH.read_text())
+                return _TOWNS
+            except ValueError as err:
+                # A truncated file would fail every search for good; it is
+                # downloaded again instead.
+                log.warning("The kept Census gazetteer is unreadable, fetching it again: %s", err)
+                TOWNS_PATH.unlink(missing_ok=True)
+        if time.monotonic() < _RETRY_AT:
+            return []
         try:
-            resp = requests.get(GAZETTEER_URL, headers=HEADERS, timeout=60)
+            resp = requests.get(GAZETTEER_URL, headers=HEADERS, timeout=DOWNLOAD_TIMEOUT_S)
             resp.raise_for_status()
             towns = _towns_of(resp.content)
         except (requests.RequestException, zipfile.BadZipFile, StopIteration) as err:
             log.warning("No Census gazetteer of places: %s", err)
+            _RETRY_AT = time.monotonic() + RETRY_AFTER_S
             return []
         TOWNS_PATH.parent.mkdir(parents=True, exist_ok=True)
         partial = TOWNS_PATH.with_name(TOWNS_PATH.name + ".part")

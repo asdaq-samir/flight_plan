@@ -39,10 +39,15 @@ function NearField({ from, onFrom }: { from: NearFrom | null; onFrom: (from: Nea
     return () => window.clearTimeout(later);
   }, [typed]);
   const searching = asked.length >= 2 && asked !== from?.label;
-  const { data: found, isFetching } = useQuery({
+  const { data: answered, isFetching, isError } = useQuery({
     queryKey: ["places", asked], queryFn: () => api.placesSearch(asked), enabled: searching, staleTime: 60 * 60_000,
     meta: { silent: true },
   });
+  // What answers belongs to what was asked, which trails what is typed by
+  // TYPING_MS: until they meet, nothing is offered or picked, so Return
+  // cannot take the first result of an earlier text.
+  const current = typed.trim() === asked;
+  const found = current ? answered : undefined;
   const pick = (place: PlaceFound | null) => {
     onFrom(place && { label: place.label, lat: place.lat, lon: place.lon });
     setTyped(place?.label ?? "");
@@ -65,7 +70,7 @@ function NearField({ from, onFrom }: { from: NearFrom | null; onFrom: (from: Nea
           <button
             type="button" aria-label="Nearest to your position" data-testid="nearest-from-clear"
             onClick={() => pick(null)}
-            className="grid size-5 shrink-0 place-items-center rounded-full bg-muted-foreground/50 text-background outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="relative grid size-5 shrink-0 place-items-center rounded-full bg-muted-foreground/50 text-background outline-none after:absolute after:-inset-3 after:content-[''] focus-visible:ring-2 focus-visible:ring-ring"
           >
             <X className="size-3" strokeWidth={3} />
           </button>
@@ -84,7 +89,10 @@ function NearField({ from, onFrom }: { from: NearFrom | null; onFrom: (from: Nea
             {found && !found.length && !isFetching && (
               <ListRow title={<span className="text-muted-foreground">Nothing by that name</span>} />
             )}
-            {!found && <ListRow title={<span className={cn("text-muted-foreground", TEXT.detail)}>Looking…</span>} />}
+            {current && isError && (
+              <ListRow title={<span className={cn("text-destructive", TEXT.detail)}>Couldn't search. Try again.</span>} />
+            )}
+            {!found && !(current && isError) && <ListRow title={<span className={cn("text-muted-foreground", TEXT.detail)}>Looking…</span>} />}
             {from && (
               <ListRow
                 media={<LocateFixed className="size-5 text-tint" />} title="Current position"
