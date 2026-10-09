@@ -8,8 +8,11 @@ import org.apache.tomcat.util.net.SSLHostConfig;
 import org.apache.tomcat.util.net.SSLHostConfigCertificate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.web.ServerProperties;
 import org.springframework.boot.web.embedded.tomcat.TomcatServletWebServerFactory;
+import org.springframework.boot.web.server.Compression;
 import org.springframework.boot.web.server.WebServerFactoryCustomizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -58,7 +61,13 @@ public class HttpsConnectorConfig {
     WebServerFactoryCustomizer<TomcatServletWebServerFactory> httpsConnector(
             @Value("${app.https.keystore:}") String keystore,
             @Value("${app.https.keystore-password:changeit}") String password,
-            @Value("${app.https.port:8443}") int port) {
+            @Value("${app.https.port:8443}") int port,
+            ObjectProvider<ServerProperties> server) {
+        return httpsConnector(keystore, password, port, server.getIfAvailable(ServerProperties::new).getCompression());
+    }
+
+    WebServerFactoryCustomizer<TomcatServletWebServerFactory> httpsConnector(
+            String keystore, String password, int port, Compression compression) {
         return factory -> {
             // docker-compose.yml names the file whether or not make-certs.sh
             // has been run yet; absent, the plain port is all there is.
@@ -80,8 +89,25 @@ public class HttpsConnectorConfig {
             certificate.setCertificateKeystoreType("PKCS12");
             ssl.addCertificate(certificate);
             connector.addSslHostConfig(ssl);
+            compressLike(connector, compression);
             factory.addAdditionalTomcatConnectors(connector);
         };
+    }
+
+    /**
+     * The plain port's compression (server.compression) on this one too:
+     * Spring Boot sets it on the connector it makes, not on one added, so
+     * over HTTPS -- the phone's way to the local stack -- every JSON answer
+     * went whole, the map's fields in view 43 KB where gzipped they are a
+     * few, and the page's own script uncompressed.
+     */
+    static void compressLike(Connector connector, Compression compression) {
+        if (compression == null || !compression.getEnabled()) {
+            return;
+        }
+        connector.setProperty("compression", "on");
+        connector.setProperty("compressibleMimeType", String.join(",", compression.getMimeTypes()));
+        connector.setProperty("compressionMinSize", String.valueOf(compression.getMinResponseSize().toBytes()));
     }
 
     static boolean isKeystore(String keystore) {
