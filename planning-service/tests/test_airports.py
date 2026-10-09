@@ -165,6 +165,32 @@ def test_a_field_the_armed_services_own_is_marked_military_or_joint_use(monkeypa
     assert [(a["ident"], a["military"]) for a in body["airports"]] == [("KMXF", "military"), ("KFHU", "joint"), ("KDLH", None)]
 
 
+def test_a_field_closed_to_the_public_is_marked_private(monkeypatch):
+    # From the FAA's airport file (vfr.faa_data.private_fields), by either ident.
+    base = {**DULUTH, "kind": "small"}
+    fields = [{**base, "ident": "IL22", "source_ident": "IL22"}, {**base}]
+    monkeypatch.setattr(airports, "places_in", lambda *args, **kwargs: fields)
+    monkeypatch.setattr(weather, "reporting_idents", lambda: set())
+    monkeypatch.setattr(weather, "metar_for_idents", lambda idents: {})
+    monkeypatch.setattr(faa_data, "private_fields", lambda cache_dir: frozenset({"IL22"}))
+    body = client.get("/api/airports/in-view", params={"south": 30, "west": -100, "north": 47, "east": -80}).json()
+    assert [(a["ident"], a["private"]) for a in body["airports"]] == [("IL22", True), ("KDLH", False)]
+
+
+def test_the_airport_file_is_read_once_for_all_the_fields_in_view(monkeypatch):
+    # With APT_BASE.csv missing each read retries the NASR download, so a
+    # read per field would repeat it hundreds of times on a wide map.
+    calls = []
+    fields = [{**DULUTH, "kind": "small", "ident": f"X{n}", "source_ident": f"X{n}"} for n in range(5)]
+    monkeypatch.setattr(airports, "places_in", lambda *args, **kwargs: fields)
+    monkeypatch.setattr(weather, "reporting_idents", lambda: set())
+    monkeypatch.setattr(weather, "metar_for_idents", lambda idents: {})
+    monkeypatch.setattr(faa_data, "military_fields", lambda cache_dir: calls.append("military") or {})
+    monkeypatch.setattr(faa_data, "private_fields", lambda cache_dir: calls.append("private") or frozenset())
+    client.get("/api/airports/in-view", params={"south": 30, "west": -100, "north": 47, "east": -80})
+    assert sorted(calls) == ["military", "private"]
+
+
 def test_reporting_asks_for_the_fields_with_a_metar_alone(monkeypatch):
     asked = {}
 
@@ -215,7 +241,7 @@ def test_the_nearest_fields_are_the_nearest_first_with_their_way_and_runway(monk
     assert body["airports"][0] == {
         "ident": "C81", "name": "Campbell", "lat": 42.32, "lon": -88.07, "kind": "small", "flight_category": None,
         "municipality": "Grayslake", "elevation_ft": 788.0, "distance_nm": 2.1, "bearing_deg": 45, "longest_runway_ft": 3573,
-        "military": None, "airspace_class": "G",
+        "military": None, "private": False, "airspace_class": "G",
     }
 
 

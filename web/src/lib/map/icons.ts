@@ -243,8 +243,12 @@ const UNKNOWN_GREY = "#6b7280";
  * everywhere in the planner (lib/useAirspace) -- Class B a solid blue
  * disc, C a solid magenta one, D a dashed blue ring, an E surface area a
  * dashed magenta ring, G a thin magenta ring, and grey until the class is
- * known -- and a field the armed services keep, an M on a disc of its
- * airspace's colour. In its middle (at its edge on the M) a dot in the
+ * known. A field the armed services keep is an M on a blue disc, and one
+ * closed to the public an R on a magenta one (the sectional's R in a
+ * circle), at the pilot's ask, whatever the airspace over either -- the
+ * disc alone, as asked: a ring of the airspace's colour round it was tried
+ * and taken off, the card saying the class. In its
+ * middle (at the disc's edge on the M and the R) a dot in the
  * colour of the field's weather, its METAR's flight category, grey with
  * no report, kept from the chips the map had, at the pilot's ask. Its
  * ident beside it, dark on a white halo, as the chart letters a field.
@@ -252,14 +256,14 @@ const UNKNOWN_GREY = "#6b7280";
  * alone is lost on chart of the same hue.
  */
 export const airportMarkIcon = made(function airportMarkIcon(
-  ident: string, space: AirspaceClass | null, weather: string, military = false,
+  ident: string, space: AirspaceClass | null, weather: string, use: "military" | "private" | null = null,
 ) {
   const blue = space === "B" || space === "D";
   const ink = space ? (blue ? BLUE : MAGENTA) : UNKNOWN_GREY;
   const casing = `stroke="#fff" stroke-linecap="round"`;
-  const symbol = military
-    ? `<circle r="10" fill="${ink}" ${casing} stroke-width="2"/>` +
-      `<text y="4" text-anchor="middle" font-size="11" font-weight="800" fill="#fff" font-family="system-ui,sans-serif">M</text>` +
+  const symbol = use
+    ? `<circle r="10" fill="${use === "military" ? BLUE : MAGENTA}" ${casing} stroke-width="2"/>` +
+      `<text y="4" text-anchor="middle" font-size="11" font-weight="800" fill="#fff" font-family="system-ui,sans-serif">${use === "military" ? "M" : "R"}</text>` +
       `<circle data-weather="" cx="8" cy="8" r="3.4" fill="${text(weather)}" ${casing} stroke-width="1.4"/>`
     : (() => {
       const ticks = [[0, -8.5, 0, -12], [8.5, 0, 12, 0], [0, 8.5, 0, 12], [-8.5, 0, -12, 0]]
@@ -277,7 +281,7 @@ export const airportMarkIcon = made(function airportMarkIcon(
     className: "",
     iconSize: [AIRPORT_MARK, AIRPORT_MARK], iconAnchor: [half, half],
     html:
-      `<svg data-airport-mark="" data-airspace="${space ?? ""}"${military ? ` data-military=""` : ""} aria-hidden="true" class="absolute inset-0 overflow-visible drop-shadow-[0_1px_1px_rgba(0,0,0,.35)]"` +
+      `<svg data-airport-mark="" data-airspace="${space ?? ""}"${use ? ` data-use="${use}"` : ""} aria-hidden="true" class="absolute inset-0 overflow-visible drop-shadow-[0_1px_1px_rgba(0,0,0,.35)]"` +
       ` width="${AIRPORT_MARK}" height="${AIRPORT_MARK}" viewBox="${-half} ${-half} ${AIRPORT_MARK} ${AIRPORT_MARK}">${symbol}</svg>` +
       `<span class="absolute top-1/2 left-[calc(100%+1px)] -translate-y-1/2 whitespace-nowrap text-[11px] leading-none font-bold text-[#1c1a17] [text-shadow:0_0_2px_#fff,0_0_2px_#fff,0_0_3px_#fff,0_0_4px_#fff]">${text(ident)}</span>`,
   });

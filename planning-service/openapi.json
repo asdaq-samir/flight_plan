@@ -478,6 +478,11 @@
           "name": {
             "title": "Name",
             "type": "string"
+          },
+          "private": {
+            "default": false,
+            "title": "Private",
+            "type": "boolean"
           }
         },
         "required": [
@@ -663,6 +668,11 @@
               }
             ],
             "title": "Phone"
+          },
+          "private": {
+            "default": false,
+            "title": "Private",
+            "type": "boolean"
           },
           "procedures": {
             "default": [],
@@ -4733,6 +4743,11 @@
           "name": {
             "title": "Name",
             "type": "string"
+          },
+          "private": {
+            "default": false,
+            "title": "Private",
+            "type": "boolean"
           }
         },
         "required": [

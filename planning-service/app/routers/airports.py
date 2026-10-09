@@ -19,11 +19,20 @@ from ..schemas import AirportPlace, AirportsInView, ChartPages, NearestAirports,
 router = APIRouter()
 
 
-def _military(place: dict) -> str | None:
-    """Whether the armed services own the field (vfr.faa_data), by the
-    ident pilots use or OurAirports' own (KDLH, C81, KC81)."""
+def _owners(places: list[dict]) -> list[tuple]:
+    """Each field's (military, private) from the FAA's airport file
+    (vfr.faa_data), by either ident (KDLH, C81, KC81). The file's sets are
+    fetched once for all the fields, not once each: with the file missing
+    each fetch retries the download, and a zoomed-out map has hundreds."""
     owned = faa_data.military_fields(altitude.DEFAULT_FAA_CACHE_DIR)
-    return owned.get(place["ident"].upper()) or owned.get(place.get("source_ident", "").upper())
+    closed = faa_data.private_fields(altitude.DEFAULT_FAA_CACHE_DIR)
+    return [
+        (
+            owned.get(p["ident"].upper()) or owned.get(p.get("source_ident", "").upper()),
+            p["ident"].upper() in closed or p.get("source_ident", "").upper() in closed,
+        )
+        for p in places
+    ]
 
 
 @router.get("/api/airports/in-view", response_model=AirportsInView)
@@ -61,9 +70,9 @@ def airports_in_view(
         metars = {}
     classes = _surface_classes(places)
     return {"airports": [
-        {**p, "flight_category": (metars.get(p["source_ident"]) or {}).get("flight_category"), "military": _military(p),
-         "airspace_class": cls}
-        for p, cls in zip(places, classes)
+        {**p, "flight_category": (metars.get(p["source_ident"]) or {}).get("flight_category"), "military": military,
+         "private": private, "airspace_class": cls}
+        for p, cls, (military, private) in zip(places, classes, _owners(places))
     ]}
 
 
@@ -113,12 +122,12 @@ def nearest_airports(
     except weather.WeatherServiceError:
         metars = {}
     out = []
-    for p, cls in zip(found, _surface_classes(found)):
+    for p, cls, (military, private) in zip(found, _surface_classes(found), _owners(found)):
         lengths = [r["length_ft"] for r in airports.get_runways(p["source_ident"]) if not r["closed"] and r["length_ft"]]
         out.append({
             **p, "longest_runway_ft": max(lengths) if lengths else None,
-            "flight_category": (metars.get(p["source_ident"]) or {}).get("flight_category"), "military": _military(p),
-            "airspace_class": cls,
+            "flight_category": (metars.get(p["source_ident"]) or {}).get("flight_category"), "military": military,
+            "private": private, "airspace_class": cls,
         })
     return {"airports": out}
 
@@ -202,10 +211,12 @@ def airport_place(ident: str) -> AirportPlace:
         metar = weather.metar_for_idents([source]).get(source)
     except weather.WeatherServiceError:
         metar, unavailable = None, True
+    military, private = _owners([place])[0]
     return {
         **{key: value for key, value in place.items() if key != "source_ident"},
         "airspace_class": airspace.surface_class_at(place["lat"], place["lon"], shp_path),
-        "military": _military(place),
+        "military": military,
+        "private": private,
         "towered": any(f["type"] == "TWR" for f in frequencies),
         **_notes(place["ident"]),
         "pattern": pattern.pattern_at(place["ident"], place["elevation_ft"]),

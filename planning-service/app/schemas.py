@@ -1223,6 +1223,9 @@ class AirportPin(BaseModel):
     kind: Literal["large", "medium", "small", "other"]
     flight_category: str | None = None
     military: Literal["military", "joint"] | None = None
+    #: Closed to the public (vfr.faa_data.private_fields): landed at only
+    #: with its owner's permission, the sectional's R in a circle.
+    private: bool = False
     #: The class of the airspace at its surface (vfr.airspace.surface_classes),
     #: for its mark on the map in that airspace's look; None where the FAA's
     #: airspace could not be had.
@@ -1316,6 +1319,9 @@ class AirportPlace(BaseModel):
     airspace_class: Literal["B", "C", "D", "E", "G"] | None = None
     #: A field the armed services own, as AirportPin's.
     military: Literal["military", "joint"] | None = None
+    #: Closed to the public, as AirportPin's: the card says so, since a
+    #: pilot who taps the R needs to know to ask the owner first.
+    private: bool = False
     towered: bool
     # Its remarks a pilot acts on from the cockpit, in plain English
     # (vfr.remarks): the lighting schedule -- lights turned on by keying
