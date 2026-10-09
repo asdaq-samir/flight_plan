@@ -2,13 +2,13 @@ import { test, expect, type Page } from "@playwright/test";
 import { grabberTo, settle, sideDrawer, slow } from "./helpers";
 
 /**
- * An airport's diagram in its card, as a picture (PublicationRows): the
- * whole sheet in the card, a tap away from full screen to pinch in on
- * (ChartViewer) -- and where the picture cannot be had, a row that draws
- * the FAA's PDF in the app instead. Every other chart and the Chart
- * Supplement show in the app too, nothing leading out of it. The card and
- * the pictures are stubbed: the FAA's publications are not the suite's
- * to depend on.
+ * An airport's diagram in its card, a row as the Chart Supplement's is
+ * (PublicationRows), a tap away from full screen to pinch in on
+ * (ChartViewer) -- the FAA's PDF drawn in the app where the picture
+ * cannot be had, and the card's own sketch of the runways where the FAA
+ * publishes none. Every other chart and the Chart Supplement show in the
+ * app too, nothing leading out of it. The card and the pictures are
+ * stubbed: the FAA's publications are not the suite's to depend on.
  */
 
 const PDF = "https://aeronav.faa.gov/d-tpp/2610/00125AD.PDF";
@@ -30,21 +30,21 @@ async function withDiagram(page: Page, picture: "drawn" | "missing") {
       : route.fulfill({ status: 404, contentType: "application/json", body: '{"detail":"No airport diagram"}' })));
 }
 
-test("an airport's card shows its diagram, and a tap shows it full screen, in the app", async ({ page }) => {
+test("an airport's card has its diagram as a row, and a tap shows it full screen, in the app", async ({ page }) => {
   await withDiagram(page, "drawn");
   await page.goto("/app/plan?place=KDLH");
   await settle(page);
   await grabberTo(page, "full");
   // Under the Diagrams tab, the card's last.
   await card(page).getByTestId("place-tab-diagrams").click();
-  const picture = card(page).getByTestId("airport-diagram-picture");
-  await picture.scrollIntoViewIfNeeded();
-  await expect(picture.locator("img")).toHaveAttribute("src", "/api/planner/airport-diagram/2610/KDLH.png");
-  await expect(picture).toBeEnabled();
-  // The PDF is not a row of its own while the picture is there.
-  await expect(card(page).getByTestId("airport-diagram")).toHaveCount(0);
+  // A row, as the Chart Supplement's is, not the sheet itself in the tab.
+  const row = card(page).getByTestId("airport-diagram");
+  await row.scrollIntoViewIfNeeded();
+  await expect(row).toHaveText(/^Airport diagram/);
+  await expect(card(page).getByTestId("chart-supplement")).toBeVisible();
+  await expect(card(page).locator("img[src*='/airport-diagram/2610/KDLH.png']")).toHaveCount(0);
 
-  await picture.click();
+  await row.click();
   const viewer = page.getByTestId("airport-diagram-viewer");
   await expect(viewer).toBeVisible();
   await expect(viewer.getByRole("heading", { name: "KDLH airport diagram" })).toBeVisible();
@@ -107,7 +107,6 @@ test("where the diagram's picture cannot be had, the card links the FAA's PDF", 
   await grabberTo(page, "full");
   // Under the Diagrams tab, the card's last.
   await card(page).getByTestId("place-tab-diagrams").click();
-  await expect(card(page).getByTestId("airport-diagram-picture")).toHaveCount(0);
   // And the card's own sketch of the runways where the crop is not had.
   await expect(card(page).getByTestId("runway-sketch")).toBeVisible();
   await expect(card(page).getByTestId("place-diagram-runways")).toHaveCount(0);
@@ -183,4 +182,30 @@ test("the card's sketch draws a runway's turf green, C81's south-west 1,000 ft o
   // The south-west end: left of and below the other.
   expect(ax).toBeLessThan(bx);
   expect(ay).toBeGreaterThan(by);
+});
+
+
+test("a field the FAA draws no diagram for has the row all the same, showing the card's sketch of its runways", async ({ page }) => {
+  await page.route(url => url.pathname.endsWith("/api/planner/airport/C81"), async route => {
+    const answer = await route.fetch();
+    await route.fulfill({ response: answer, json: { ...await answer.json(), airport_diagram_url: null, airport_diagram_cycle: null } });
+  });
+  await page.goto("/app/plan?place=C81");
+  await settle(page);
+  await grabberTo(page, "full");
+  await card(page).getByTestId("place-tab-diagrams").click();
+  const row = card(page).getByTestId("airport-diagram-sketch");
+  await expect(row).toContainText("Airport diagram");
+  await expect(row).toContainText("A sketch of the runways");
+  await row.click();
+  const viewer = page.getByTestId("airport-sketch-viewer");
+  await expect(viewer.getByRole("heading", { name: "C81 runways" })).toBeVisible();
+  // Its runways drawn across the screen, not a thumbnail's box.
+  const sketch = viewer.getByTestId("runway-sketch");
+  await expect(sketch.locator("line").first()).toBeVisible();
+  const box = (await sketch.boundingBox())!;
+  expect(box.width).toBeGreaterThan(page.viewportSize()!.width - 2);
+  await expect(viewer).toContainText("Not an FAA airport diagram");
+  await viewer.getByTestId("airport-sketch-close").click();
+  await expect(viewer).toHaveCount(0);
 });

@@ -109,7 +109,8 @@ test("an airport's card has four tabs under its tiles, in sight at half, the rad
   // Diagrams: the airport's (none here), and its approach as the FAA
   // prints its title.
   await card(page).getByTestId("place-tab-diagrams").click();
-  await expect(card(page).getByRole("tabpanel")).toContainText("The FAA publishes no airport diagram for this field");
+  // No diagram from the FAA: the row shows the card's sketch instead.
+  await expect(card(page).getByTestId("airport-diagram-sketch")).toContainText("A sketch of the runways");
   const approach = card(page).getByRole("tabpanel").getByTestId("terminal-chart");
   await expect(approach).toHaveText(/RNAV \(GPS\) RWY 24/);
   // Shown in the app (airport-diagram.spec), not a link out of it.

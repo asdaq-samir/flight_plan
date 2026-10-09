@@ -1,5 +1,4 @@
 import { lazy, Suspense, useState, type ReactNode } from "react";
-import { cn } from "cn";
 import { ListRow } from "../../../components/GroupedList";
 import { diagramPicture } from "../../../lib/diagram";
 
@@ -7,42 +6,41 @@ const ChartViewer = lazy(() => import("./AirportDiagramViewer"));
 const FaaChartViewer = lazy(() => import("./AirportDiagramViewer").then(m => ({ default: m.FaaChartViewer })));
 
 /**
- * An airport diagram's picture as a button that opens it full screen, to
- * pinch in on (AirportDiagramViewer, fetched at the first tap): the whole
- * sheet in the card's Diagram tab (PublicationRows). On the diagram's own white paper,
- * and black at night, where the diagram is drawn white on it.
- * `onMissing` where the picture cannot be had, for the caller to show
- * something else, or nothing.
+ * The airport diagram's row, as the Chart Supplement's (ChartRow), at the
+ * pilot's ask, where the whole sheet was a picture in the tab: a tap
+ * shows the FAA's diagram full screen to pinch in on (ChartViewer) as
+ * the planner draws it for the cycle -- the picture a route kept for the
+ * air keeps too (keepRoute) -- its size read as it loads; where the
+ * picture cannot be had, the FAA's PDF drawn in the app (FaaChartViewer).
  */
-export function DiagramButton({ ident, cycle, className, imageClassName, testId, onMissing }: {
+export function DiagramRow({ ident, cycle, url, media, testId }: {
   ident: string;
   cycle: string;
-  className?: string;
-  imageClassName?: string;
+  /** The diagram's PDF on aeronav.faa.gov, where the picture fails. */
+  url?: string | null;
+  media?: ReactNode;
   testId: string;
-  onMissing: () => void;
 }) {
-  const [open, setOpen] = useState(false);
-  // The picture's own size, as it loaded, for the full screen to fit it.
-  const [size, setSize] = useState<{ width: number; height: number } | null>(null);
+  const [shown, setShown] = useState<{ width: number; height: number } | "pdf" | "missing" | null>(null);
   const src = diagramPicture(ident, cycle);
+  const title = `${ident} airport diagram`;
+  const open = () => {
+    const picture = new Image();
+    picture.onload = () => setShown({ width: picture.naturalWidth, height: picture.naturalHeight });
+    picture.onerror = () => setShown(url ? "pdf" : "missing");
+    picture.src = src;
+  };
   return (
     <>
-      <button
-        type="button" onClick={() => setOpen(true)} disabled={!size}
-        aria-label={`${ident} airport diagram, full screen`} data-testid={testId}
-        className={cn("overflow-hidden bg-white outline-none focus-visible:ring-2 focus-visible:ring-ring dark:bg-black", className)}
-      >
-        <img
-          src={src} alt="" loading="lazy" decoding="async"
-          onLoad={event => setSize({ width: event.currentTarget.naturalWidth, height: event.currentTarget.naturalHeight })}
-          onError={onMissing}
-          className={cn("dark:invert", imageClassName)}
-        />
-      </button>
-      {open && size && (
+      <ListRow
+        media={media} title="Airport diagram" onClick={open} data-testid={testId}
+        description={shown === "missing" ? "The airport diagram could not be loaded" : undefined}
+      />
+      {shown && shown !== "missing" && (
         <Suspense fallback={null}>
-          <ChartViewer title={`${ident} airport diagram`} pages={[{ src, ...size }]} onClose={() => setOpen(false)} />
+          {shown === "pdf"
+            ? <FaaChartViewer title={title} url={url!} airport={ident} onClose={() => setShown(null)} />
+            : <ChartViewer title={title} pages={[{ src, ...shown }]} onClose={() => setShown(null)} />}
         </Suspense>
       )}
     </>
