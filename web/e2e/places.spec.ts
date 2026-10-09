@@ -149,6 +149,35 @@ test("a tap on an airport on the chart opens its card, a tap elsewhere puts it a
   await expect(card(page)).toHaveCount(0);
 });
 
+test("the airport whose card is open wears a ring round its chip, clear of it on every side", async ({ page }) => {
+  // C81 reporting VFR, so it wears a chip at its card's zoom.
+  await page.route(url => url.pathname.endsWith("/api/planner/airports/in-view"), route => route.fulfill({
+    status: 200, contentType: "application/json", body: JSON.stringify({ airports: [
+      { ident: "C81", name: "Campbell", lat: 42.3246, lon: -88.0741, kind: "small", flight_category: "VFR", military: null },
+    ] }),
+  }));
+  await page.goto("/app/plan?place=C81");
+  await settle(page);
+  const chip = page.locator(".leaflet-airports-pane .leaflet-marker-icon", { hasText: "C81" }).locator("span");
+  const ring = page.locator("[data-selected-airport]");
+  await expect(chip).toBeVisible({ timeout: slow(15000) });
+  await expect(ring).toBeVisible();
+  // Measured once the map has stopped moving the two together.
+  await expect(async () => {
+    const c = (await chip.boundingBox())!, r = (await ring.boundingBox())!;
+    expect(Math.abs(c.x + c.width / 2 - (r.x + r.width / 2))).toBeLessThan(1);
+    expect(Math.abs(c.y + c.height / 2 - (r.y + r.height / 2))).toBeLessThan(1);
+    // Its yellow 3 wide and 3 clear of the chip: the circle it was,
+    // smaller than the chip, lay under it all but a sliver.
+    expect(r.width - c.width).toBeGreaterThanOrEqual(11);
+    expect(r.height - c.height).toBeGreaterThanOrEqual(11);
+  }).toPass({ timeout: slow(10000) });
+
+  // Put away, the ring goes with the card.
+  await card(page).getByTestId("place-close").click();
+  await expect(ring).toHaveCount(0);
+});
+
 test("closer in, the airports that report wear their weather's colour, and a tap on one opens its card", async ({ page }) => {
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);

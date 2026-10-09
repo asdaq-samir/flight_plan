@@ -164,6 +164,32 @@ export const checkpointLabelIcon = made(function checkpointLabelIcon(name: strin
  * 56 px box left-aligned a short ident off the airport's position and
  * cut a seven-character one (US-1234) off its own tap target.
  */
+/**
+ * The ring round the airport whose card is open, in the brand's taxiway
+ * yellow, cased thin and dark on both sides so it holds over the chart's
+ * paper and its linework alike. It sits 3 points clear of the field's
+ * chip and takes the chip's shape: the ident is set again, unseen, in
+ * the chip's own type and padding, so the ring hugs the chip whatever
+ * the ident's width. A circle of 16 on the radius was drawn under the
+ * chip, which is 24 tall and wider than that, and only slivers of it
+ * showed. Where the field wears no chip (an invisible target), the ring
+ * goes round the chart's own symbol instead. It is not a target: a tap
+ * there still goes to the chip under it.
+ */
+export const selectionIcon = made(function selectionIcon(ident: string, shape: "chip" | "pill" | "dot") {
+  const ring = "pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 border-[3px] border-[#F2B600]" +
+    " shadow-[0_0_0_1px_rgba(10,20,28,.55),inset_0_0_0_1px_rgba(10,20,28,.55)]";
+  return L.divIcon({
+    className: "",
+    iconSize: [0, 0], iconAnchor: [0, 0],
+    html: shape === "dot"
+      ? `<span data-selected-airport="" class="${ring} size-9 rounded-full"></span>`
+      // The chip's padding (6 and 2) and border (2), each 3 more.
+      : `<span data-selected-airport="" aria-hidden="true" class="${ring} whitespace-nowrap px-[11px] py-[7px] text-[11px] font-bold text-transparent"` +
+        ` style="border-radius:${shape === "pill" ? "9999px" : "calc(var(--radius-md) + 6px)"}">${text(ident)}</span>`,
+  });
+});
+
 /** The sectional's magenta, a VFR waypoint's colour on the chart. */
 const WAYPOINT_MAGENTA = "#b02e7c";
 
