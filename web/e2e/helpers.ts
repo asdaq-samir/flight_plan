@@ -176,14 +176,9 @@ export async function roleMenu(page: Page) {
 /** Escape until the console is away: a menu open in it takes the first. */
 export async function closeConsole(page: Page) {
   const sheet = page.getByTestId("console-sheet");
-  let tries = 0;
   await expect(async () => {
-    // Escape, as a keyboard puts it away -- and its own close where the
-    // focus has gone out of it (a phone's console is no modal to keep it).
-    if (await sheet.count()) {
-      if (tries++ % 2 === 0) await page.keyboard.press("Escape");
-      else await sheet.getByTestId("console-close").click();
-    }
+    // Escape, as a keyboard puts it away, wherever the focus is.
+    if (await sheet.count()) await page.keyboard.press("Escape");
     await expect(sheet).toHaveCount(0, { timeout: 1000 });
   }).toPass({ timeout: 10000 });
 }

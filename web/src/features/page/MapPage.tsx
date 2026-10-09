@@ -352,8 +352,8 @@ export default function MapPage({ mode }: { mode: Mode }) {
  * The console as a layer of the map's panel (a phone's): named as the
  * console it is, the focus taken into it as it opens, as the sheet took
  * it, and Escape putting it away -- heard here, inside the panel, before
- * the panel hears it and lowers itself; not when a menu open in it took
- * the key first.
+ * the panel hears it and lowers itself, and wherever the focus has gone
+ * while it is open; not when a menu open in it took the key first.
  */
 function ConsoleLayer({ label, detent, edge, onClose, children }: {
   label: string;
@@ -374,8 +374,17 @@ function ConsoleLayer({ label, detent, edge, onClose, children }: {
       event.preventDefault();
       close.current();
     };
+    // On the layer first, ahead of the panel's own Escape; on the document
+    // too, for when a tap on the map or on the panel's bare parts has
+    // taken the focus out (the layer is no modal), where the key would
+    // otherwise be lost or lower the panel. A menu's own Escape has
+    // already prevented the default by the time either hears it.
     node.addEventListener("keydown", onKey);
-    return () => node.removeEventListener("keydown", onKey);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      node.removeEventListener("keydown", onKey);
+      document.removeEventListener("keydown", onKey);
+    };
   }, []);
   return (
     <section
