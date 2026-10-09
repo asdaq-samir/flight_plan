@@ -26,6 +26,9 @@ const REPORTING_FROM_ZOOM = 7;
  *  Further out they keep an invisible target. */
 const NO_REPORT_FROM_ZOOM = 10;
 
+/** The most fields the planner answers with at once. */
+const AIRPORTS_LIMIT = 1000;
+
 /** A finger's width round each airport symbol, 44 points across. */
 const TARGET_RADIUS = 22;
 /** How far off a field's mark a tap on the chart is still the field's:
@@ -161,8 +164,21 @@ export function AirportsLayer({ selected, onSelect, exclude, route }: {
   // 270 in two degrees by two and a half round Chicago in 0.14 s.
   const { data: inView } = useQuery({
     queryKey: ["airportsInView", asked.key, reportingOnly],
-    queryFn: () => api.airportsInView({ ...asked.box, reporting: reportingOnly, limit: 1000 }),
+    queryFn: () => api.airportsInView({ ...asked.box, reporting: reportingOnly, limit: AIRPORTS_LIMIT }),
     enabled: zoom >= REPORTING_FROM_ZOOM,
+    staleTime: 10 * 60_000,
+    placeholderData: keepPreviousData,
+    meta: { silent: true },
+  });
+  // The planner keeps the biggest fields when the box holds more than the
+  // limit, cut from the whole box and not from the view, so a full answer
+  // may lack a small field the pilot is looking at. Then the view alone is
+  // asked for too (the old question, with a thousand to spare for one view).
+  const full = (inView?.length ?? 0) >= AIRPORTS_LIMIT;
+  const { data: inViewAlone } = useQuery({
+    queryKey: ["airportsInView", view.key, reportingOnly],
+    queryFn: () => api.airportsInView({ ...view.box, reporting: reportingOnly, limit: AIRPORTS_LIMIT }),
+    enabled: full && zoom >= REPORTING_FROM_ZOOM,
     staleTime: 10 * 60_000,
     placeholderData: keepPreviousData,
     meta: { silent: true },
@@ -170,14 +186,13 @@ export function AirportsLayer({ selected, onSelect, exclude, route }: {
   const data = useMemo(() => {
     const { south, west, north, east } = view.box;
     const byIdent = new Map<string, AirportPin>();
-    for (const a of alongRoute ?? []) {
-      if (a.lat >= south && a.lat <= north && a.lon >= west && a.lon <= east) byIdent.set(a.ident, a);
-    }
-    for (const a of inView ?? []) {
-      if (a.lat >= south && a.lat <= north && a.lon >= west && a.lon <= east) byIdent.set(a.ident, a);
+    for (const list of [alongRoute, inView, full ? inViewAlone : undefined]) {
+      for (const a of list ?? []) {
+        if (a.lat >= south && a.lat <= north && a.lon >= west && a.lon <= east) byIdent.set(a.ident, a);
+      }
     }
     return [...byIdent.values()];
-  }, [alongRoute, inView, view.box]);
+  }, [alongRoute, inView, inViewAlone, full, view.box]);
   const shown = useMemo(() => (reports
     ? data.filter(a => !exclude.has(a.ident) && (near || a.flight_category) && (showMilitary || a.military !== "military"))
     : []), [reports, data, exclude, near, showMilitary]);
