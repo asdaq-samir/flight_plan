@@ -1,8 +1,10 @@
-import { lazy, Suspense, useState } from "react";
+import { lazy, Suspense, useState, type ReactNode } from "react";
 import { cn } from "cn";
+import { ListRow } from "../../../components/GroupedList";
 import { diagramPicture } from "../../../lib/diagram";
 
-const AirportDiagramViewer = lazy(() => import("./AirportDiagramViewer"));
+const ChartViewer = lazy(() => import("./AirportDiagramViewer"));
+const FaaChartViewer = lazy(() => import("./AirportDiagramViewer").then(m => ({ default: m.FaaChartViewer })));
 
 /**
  * An airport diagram's picture as a button that opens it full screen, to
@@ -12,11 +14,9 @@ const AirportDiagramViewer = lazy(() => import("./AirportDiagramViewer"));
  * `onMissing` where the picture cannot be had, for the caller to show
  * something else, or nothing.
  */
-export function DiagramButton({ ident, cycle, pdf, className, imageClassName, testId, onMissing }: {
+export function DiagramButton({ ident, cycle, className, imageClassName, testId, onMissing }: {
   ident: string;
   cycle: string;
-  /** The FAA's PDF, a tap away in the full screen. */
-  pdf: string | null;
   className?: string;
   imageClassName?: string;
   testId: string;
@@ -42,7 +42,35 @@ export function DiagramButton({ ident, cycle, pdf, className, imageClassName, te
       </button>
       {open && size && (
         <Suspense fallback={null}>
-          <AirportDiagramViewer ident={ident} src={src} size={size} pdf={pdf} onClose={() => setOpen(false)} />
+          <ChartViewer title={`${ident} airport diagram`} pages={[{ src, ...size }]} onClose={() => setOpen(false)} />
+        </Suspense>
+      )}
+    </>
+  );
+}
+
+/**
+ * A row for one of the FAA's charts -- an approach, the takeoff minimums,
+ * the Chart Supplement -- that shows it in the app, full screen to pinch
+ * in on (FaaChartViewer), at the pilot's ask: it opened the FAA's PDF, on
+ * the FAA's site, out of the app.
+ */
+export function ChartRow({ title, url, airport, media, testId }: {
+  title: string;
+  /** Its address on aeronav.faa.gov, as the card lists it. */
+  url: string;
+  /** The field it is for: of a region's booklet, its pages alone. */
+  airport: string;
+  media?: ReactNode;
+  testId: string;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <ListRow media={media} title={title} onClick={() => setOpen(true)} data-testid={testId} />
+      {open && (
+        <Suspense fallback={null}>
+          <FaaChartViewer title={title} url={url} airport={airport} onClose={() => setOpen(false)} />
         </Suspense>
       )}
     </>

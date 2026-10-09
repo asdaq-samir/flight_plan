@@ -21,7 +21,7 @@ import { inkOn } from "../../../lib/scoreScale";
 import { feet, miles } from "../../../lib/units";
 import { RunwayRow } from "./RunwayRow";
 import { PublicationRows } from "./PublicationRows";
-import { DiagramButton } from "./AirportDiagram";
+import { ChartRow, DiagramButton } from "./AirportDiagram";
 import { TEXT } from "../../../lib/text";
 
 /** "18 nm NE", from wherever the card is measured from. */
@@ -90,9 +90,9 @@ const GROUPED = new Set(["APD", ...AIRPORT_CHARTS, ...CHART_GROUPS.flatMap(g => 
  *  "ILS OR LOC RWY 24" -- not in sentence case as the FAA's other words
  *  are here (lib/advisories faaWords): a procedure is named by its fixes
  *  and its navaids, as a code is, and pilots know it by the title on the
- *  plate. Opens its PDF. */
-function ChartRow({ chart }: { chart: TerminalChart }) {
-  return <ListRow media={<FileText className="size-5" />} title={chart.name} href={chart.url} data-testid="terminal-chart" />;
+ *  plate. Shown in the app, full screen (ChartRow), not on the FAA's site. */
+function TerminalChartRow({ chart, airport }: { chart: TerminalChart; airport: string }) {
+  return <ChartRow media={<FileText className="size-5" />} title={chart.name} url={chart.url} airport={airport} testId="terminal-chart" />;
 }
 
 /** The field in Maps -- Apple's, which a phone opens in its Maps app --
@@ -302,7 +302,7 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
               <>
                 <p className={cn("-mt-3 text-muted-foreground", onAddStop ? "col-span-2" : "col-span-1", TEXT.note)}>{line}</p>
                 <DiagramButton
-                  ident={place.ident} cycle={thumbnail} pdf={place.airport_diagram_url ?? null}
+                  ident={place.ident} cycle={thumbnail}
                   testId="place-diagram-thumbnail" onMissing={() => setNoThumbnail(true)}
                   // Its middle, where the runways cross.
                   className={cn("col-span-2 block h-14 w-full rounded-xl", GLASS_BUTTON)}
@@ -372,7 +372,7 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
                   diagramCycle={place.airport_diagram_cycle} supplement={place.chart_supplement_url}
                 />
               )}
-              {procedures.filter(c => AIRPORT_CHARTS.includes(c.kind)).map(c => <ChartRow key={c.url} chart={c} />)}
+              {procedures.filter(c => AIRPORT_CHARTS.includes(c.kind)).map(c => <TerminalChartRow key={c.url} chart={c} airport={place.ident} />)}
             </ListGroup>
             {/* The approaches, departures, arrivals and minimums in this
                 cycle's d-TPP, at the pilot's ask, as the FAA's PDFs. */}
@@ -381,7 +381,7 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
               return charts.length > 0 && (
                 <div key={g.title} data-chart-group={g.title} className="scroll-mt-3">
                   <ListGroup title={g.title}>
-                    {charts.map(c => <ChartRow key={c.url} chart={c} />)}
+                    {charts.map(c => <TerminalChartRow key={c.url} chart={c} airport={place.ident} />)}
                   </ListGroup>
                 </div>
               );

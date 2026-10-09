@@ -1945,6 +1945,66 @@
         "title": "ChartModelSnapshot",
         "type": "object"
       },
+      "ChartPage": {
+        "description": "One page of one of the FAA's charts, to show in the app: its\npicture is /api/faa-chart/page/{source}/{edition}/{pdf}/{page}.png,\n`width` by `height` pixels (vfr.publications.chart_page_png).",
+        "properties": {
+          "edition": {
+            "title": "Edition",
+            "type": "string"
+          },
+          "height": {
+            "title": "Height",
+            "type": "integer"
+          },
+          "page": {
+            "title": "Page",
+            "type": "integer"
+          },
+          "pdf": {
+            "title": "Pdf",
+            "type": "string"
+          },
+          "source": {
+            "enum": [
+              "dtpp",
+              "dcs"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "width": {
+            "title": "Width",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "source",
+          "edition",
+          "pdf",
+          "page",
+          "width",
+          "height"
+        ],
+        "title": "ChartPage",
+        "type": "object"
+      },
+      "ChartPages": {
+        "description": "The pages of an FAA chart the app shows, in order: every page of a\nchart of its own, a booklet's pages for the field, a Chart Supplement\nentry's pages (vfr.publications.chart_pages).",
+        "properties": {
+          "pages": {
+            "items": {
+              "$ref": "#/components/schemas/ChartPage"
+            },
+            "title": "Pages",
+            "type": "array"
+          }
+        },
+        "required": [
+          "pages"
+        ],
+        "title": "ChartPages",
+        "type": "object"
+      },
       "ChartRefreshStarted": {
         "properties": {
           "current_cycle": {
@@ -8595,6 +8655,131 @@
           }
         },
         "summary": "Start Dev Service"
+      }
+    },
+    "/api/faa-chart": {
+      "get": {
+        "description": "The pages of one of the FAA's charts in force -- by its address on\naeronav.faa.gov, as a card lists it (`procedures`, the Chart\nSupplement's) -- for the app to show them itself rather than leave for\nthe FAA's site: every page of an approach or a departure, of one of\nthe FAA's booklets (a region's takeoff minimums) the pages naming\n`airport`, of a Chart Supplement entry each of its pages. 404 for any\nother address; 502 while the FAA cannot be reached, which the edge\ndoes not keep as it keeps a 404.",
+        "operationId": "faa_chart_api_faa_chart_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "url",
+            "required": true,
+            "schema": {
+              "title": "Url",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "airport",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Airport"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChartPages"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Faa Chart"
+      }
+    },
+    "/api/faa-chart/page/{source}/{edition}/{pdf}/{page}.png": {
+      "get": {
+        "description": "One page of one of the FAA's charts in force as a picture, drawn\nonce and kept for its edition, as the airport diagram's is.",
+        "operationId": "faa_chart_page_api_faa_chart_page__source___edition___pdf___page__png_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "source",
+            "required": true,
+            "schema": {
+              "title": "Source",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "edition",
+            "required": true,
+            "schema": {
+              "title": "Edition",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "pdf",
+            "required": true,
+            "schema": {
+              "title": "Pdf",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "page",
+            "required": true,
+            "schema": {
+              "title": "Page",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "image/png": {}
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "No such page in force"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "502": {
+            "description": "The FAA could not be reached"
+          }
+        },
+        "summary": "Faa Chart Page"
       }
     },
     "/api/foreflight-pack/{route}/{file}": {

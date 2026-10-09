@@ -70,6 +70,7 @@ export type ChartInfo = Schemas["ChartInfo"];
 export type AirportSearch = Schemas["AirportSearch"];
 export type AirportPlace = Schemas["AirportPlace"];
 export type TerminalChart = Schemas["TerminalChart"];
+export type ChartPages = Schemas["ChartPages"];
 /** The mock oral's question, its answer graded, and what each is asked with. */
 export type OralQuestion = Schemas["OralQuestion"];
 export type OralQuestionRequest = Schemas["OralQuestionRequest"];

@@ -94,6 +94,15 @@ class CacheHeadersTest {
     }
 
     @Test
+    void anFaaChartsPagesMayBeKeptByEveryone() throws Exception {
+        for (String path : new String[] {"/api/planner/faa-chart?url=https://aeronav.faa.gov/d-tpp/2610/EC3TO.PDF&airport=KMSN",
+                "/api/planner/faa-chart/page/dtpp/2610/EC3TO.PDF/33.png"}) {
+            MockHttpServletResponse answer = planner(path);
+            assertThat(answer.getHeaders("Cache-Control")).as(path).containsExactly("public, max-age=300, s-maxage=3600");
+        }
+    }
+
+    @Test
     void anAnswerWithWeatherOrARouteInItIsNeverKept() throws Exception {
         for (String path : new String[] {"/api/planner/airports/in-view?south=46&west=-93&north=47&east=-92",
                 "/api/planner/course?dep=C81&dest=KDLH"}) {

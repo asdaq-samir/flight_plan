@@ -67,6 +67,9 @@ public class PlannerProxyController {
      *  same for every pilot for the cycle, so its upstream's Cache-Control
      *  is carried too. */
     private static final String DIAGRAM_PATH = "/api/airport-diagram/";
+    /** The FAA's charts' pages, their edition in their address too (the
+     *  list by the chart's own, in its query): carried as the diagram's. */
+    private static final String FAA_CHART_PATH = "/api/faa-chart";
     /** The ForeFlight pack: a file, its name in Content-Disposition. */
     private static final String PACK_PATH = "/api/foreflight-pack/";
 
@@ -107,6 +110,8 @@ public class PlannerProxyController {
             route("GET", "/api/airports/nearest"),
             route("GET", "/api/airport/{ident}"),
             route("GET", DIAGRAM_PATH + "{cycle}/{ident}.png"),
+            route("GET", FAA_CHART_PATH),
+            route("GET", FAA_CHART_PATH + "/page/{source}/{edition}/{pdf}/{page}.png"),
             route("GET", "/api/aircraft-profiles"),
             route("GET", "/api/chart-tile/{kind}/{z}/{x}/{y}.png"),
             route("POST", "/api/checkpoint-notes"),
@@ -222,7 +227,8 @@ public class PlannerProxyController {
             // on saved state, live weather or a request body, so a
             // Cache-Control it happened to emit must not be echoed the
             // same way: Spring Security's no-store stands.
-            if (path.startsWith(TILE_PATH) || path.startsWith(DIAGRAM_PATH) || SHARED_PATHS.contains(path)) {
+            if (path.startsWith(TILE_PATH) || path.startsWith(DIAGRAM_PATH) || path.startsWith(FAA_CHART_PATH)
+                    || SHARED_PATHS.contains(path)) {
                 response.headers().firstValue(HttpHeaders.CACHE_CONTROL)
                         .ifPresent(value -> builder.header(HttpHeaders.CACHE_CONTROL, value));
             }

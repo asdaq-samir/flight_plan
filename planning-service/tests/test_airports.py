@@ -229,3 +229,32 @@ def test_the_card_has_the_fields_phone_and_street_address(monkeypatch):
                         lambda ident, cache_dir: duluth if ident == "KDLH" else {"phone": None, "address": None})
     card = client.get("/api/airport/KDLH").json()
     assert (card["phone"], card["address"]) == ("218-727-2968", "4701 Grinden Drive, Duluth, MN 55811")
+
+
+
+def test_an_faa_charts_pages_are_listed_and_drawn_for_its_edition(monkeypatch, tmp_path):
+    page = {"source": "dtpp", "edition": "2610", "pdf": "EC3TO.PDF", "page": 33, "width": 1935, "height": 2970}
+    monkeypatch.setattr(publications, "chart_pages",
+                        lambda url, ident: [page] if (url, ident) == ("https://aeronav.faa.gov/d-tpp/2610/EC3TO.PDF", "KMSN") else None)
+    answer = client.get("/api/faa-chart", params={"url": "https://aeronav.faa.gov/d-tpp/2610/EC3TO.PDF", "airport": "KMSN"})
+    assert answer.status_code == 200
+    assert answer.json() == {"pages": [page]}
+    assert answer.headers["cache-control"] == "public, max-age=2419200, immutable"
+    assert client.get("/api/faa-chart", params={"url": "https://example.com/x.pdf"}).status_code == 404
+
+    picture = tmp_path / "EC3TO-33.png"
+    picture.write_bytes(b"\x89PNG\r\n\x1a\n")
+    monkeypatch.setattr(publications, "chart_page_png",
+                        lambda source, edition, pdf, n: picture if (source, edition, pdf, n) == ("dtpp", "2610", "EC3TO.PDF", 33) else None)
+    drawn = client.get("/api/faa-chart/page/dtpp/2610/EC3TO.PDF/33.png")
+    assert drawn.status_code == 200 and drawn.headers["content-type"] == "image/png"
+    assert client.get("/api/faa-chart/page/dtpp/2610/EC3TO.PDF/34.png").status_code == 404
+
+    # The FAA not answering is a 502, which the edge does not keep; a bad address is the 404.
+    def down(*args):
+        raise publications.FaaUnreachable("down")
+
+    monkeypatch.setattr(publications, "chart_pages", down)
+    monkeypatch.setattr(publications, "chart_page_png", down)
+    assert client.get("/api/faa-chart", params={"url": "https://aeronav.faa.gov/d-tpp/2610/EC3TO.PDF"}).status_code == 502
+    assert client.get("/api/faa-chart/page/dtpp/2610/EC3TO.PDF/33.png").status_code == 502

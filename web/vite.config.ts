@@ -107,7 +107,9 @@ export default defineConfig({
             // are: an address names its 28-day d-TPP cycle, so what is
             // kept is right for the whole of it, and a card opened again
             // in the air, with no network, still shows its field's.
-            urlPattern: ({ url }) => url.pathname.includes("/airport-diagram/"),
+            // The FAA's other charts' pages and their lists too, the
+            // edition in each address (/faa-chart).
+            urlPattern: ({ url }) => url.pathname.includes("/airport-diagram/") || url.pathname.includes("/faa-chart"),
             handler: "CacheFirst",
             options: {
               cacheName: "airport-diagrams",

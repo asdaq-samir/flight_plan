@@ -1241,6 +1241,27 @@ class TerminalChart(BaseModel):
     url: str
 
 
+class ChartPage(BaseModel):
+    """One page of one of the FAA's charts, to show in the app: its
+    picture is /api/faa-chart/page/{source}/{edition}/{pdf}/{page}.png,
+    `width` by `height` pixels (vfr.publications.chart_page_png)."""
+
+    source: Literal["dtpp", "dcs"]
+    edition: str
+    pdf: str
+    page: int
+    width: int
+    height: int
+
+
+class ChartPages(BaseModel):
+    """The pages of an FAA chart the app shows, in order: every page of a
+    chart of its own, a booklet's pages for the field, a Chart Supplement
+    entry's pages (vfr.publications.chart_pages)."""
+
+    pages: list[ChartPage]
+
+
 class AirportPlace(BaseModel):
     """One airport the way the map's card shows it: its name and place,
     the class of the airspace over it, whether it has a tower, its
