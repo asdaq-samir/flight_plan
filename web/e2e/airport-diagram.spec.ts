@@ -78,6 +78,8 @@ test("the card's sketch of the runways sits right of the name, under its close, 
   await expect(line).toContainText(/KDLH \([BCD]\)/);
   await expect(line).toContainText(/Tower: \d{3}\.\d/);
   await expect(line).not.toContainText("Elev");
+  // The FAA's diagram cropped to its runways, the field having one.
+  await expect(sketch.getByTestId("place-diagram-runways")).toHaveAttribute("src", "/api/planner/airport-diagram/2610/runways/KDLH.png");
   const elevation = card(page).getByTestId("place-elevation");
   await expect(elevation).toHaveText(/^Elevation [\d,]+ ft$/);
   const [lines, height, box, name, close, call, address] = await Promise.all([
@@ -106,6 +108,9 @@ test("where the diagram's picture cannot be had, the card links the FAA's PDF", 
   // Under the Diagrams tab, the card's last.
   await card(page).getByTestId("place-tab-diagrams").click();
   await expect(card(page).getByTestId("airport-diagram-picture")).toHaveCount(0);
+  // And the card's own sketch of the runways where the crop is not had.
+  await expect(card(page).getByTestId("runway-sketch")).toBeVisible();
+  await expect(card(page).getByTestId("place-diagram-runways")).toHaveCount(0);
   // A row that draws the FAA's PDF in the app instead, not a link out.
   const row = card(page).getByTestId("airport-diagram");
   await expect(row).not.toHaveAttribute("href", /.*/);

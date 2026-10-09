@@ -3,6 +3,11 @@
  *  offline for the whole of it (vite.config.ts, airport-diagrams). The
  *  card shows it (PublicationRows), and a route kept for the air fetches
  *  its airports' (keepRoute). */
+/** The airport diagram cropped to its runways, for the card's thumbnail
+ *  (the planner's /api/airport-diagram/{cycle}/runways). */
+export const diagramRunwaysPicture = (ident: string, cycle: string) =>
+  `/api/planner/airport-diagram/${encodeURIComponent(cycle)}/runways/${encodeURIComponent(ident)}.png`;
+
 export const diagramPicture = (ident: string, cycle: string) =>
   `/api/planner/airport-diagram/${encodeURIComponent(cycle)}/${encodeURIComponent(ident)}.png`;
 

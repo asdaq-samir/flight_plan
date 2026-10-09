@@ -3,7 +3,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { api } from "../api/client";
 import type { ChartLayer, Course } from "../api/types";
-import { diagramPicture } from "../diagram";
+import { diagramPicture, diagramRunwaysPicture } from "../diagram";
 import { tileUrl } from "./tiles";
 
 /**
@@ -107,15 +107,16 @@ async function workerReady(): Promise<boolean> {
   }
 }
 
-/** The route's airports' diagrams, by their cards (cached by the worker
- *  too): none for a waypoint, a field with none, or a card that could not
- *  be had. */
+/** The route's airports' diagrams and their runway crops, by their cards
+ *  (cached by the worker too): none for a waypoint, a field with none, or
+ *  a card that could not be had. A field may have a diagram and no crop. */
 async function routeDiagrams(course: Course): Promise<string[]> {
   const idents = [...new Set([course.departure, ...(course.stops ?? []), course.destination]
     .filter(a => a.kind !== "fix").map(a => a.ident))];
   const cards = await Promise.allSettled(idents.map(ident => api.airport(ident)));
   return cards.flatMap(card => (card.status === "fulfilled" && card.value.airport_diagram_cycle
-    ? [diagramPicture(card.value.ident, card.value.airport_diagram_cycle)] : []));
+    ? [diagramPicture(card.value.ident, card.value.airport_diagram_cycle),
+       diagramRunwaysPicture(card.value.ident, card.value.airport_diagram_cycle)] : []));
 }
 
 /**
@@ -140,7 +141,9 @@ async function keepRouteCharts(
       const url = urls[next++]!;
       try {
         const res = await fetch(url, { signal, priority: "low" });
-        if (!res.ok) progress.failed++;
+        // A 404 for a runway crop is the field having none (the card draws
+        // its sketch), not a failure to keep.
+        if (!res.ok && !(res.status === 404 && url.includes("/runways/"))) progress.failed++;
       } catch {
         if (signal?.aborted) return;
         progress.failed++;

@@ -197,6 +197,7 @@ class PlannerProxyControllerTest {
         assertThat(PlannerProxyController.isForwarded("GET", "/api/places/search")).isTrue();
         assertThat(PlannerProxyController.isForwarded("GET", "/api/airport/KDLH/extra")).isFalse();
         assertThat(PlannerProxyController.isForwarded("GET", "/api/airport-diagram/2610/KDLH.png")).isTrue();
+        assertThat(PlannerProxyController.isForwarded("GET", "/api/airport-diagram/2610/runways/KDLH.png")).isTrue();
         assertThat(PlannerProxyController.isForwarded("GET", "/api/airport-diagram/2610/KDLH.pdf")).isFalse();
         assertThat(PlannerProxyController.isForwarded("GET", "/api/faa-chart")).isTrue();
         assertThat(PlannerProxyController.isForwarded("GET", "/api/faa-chart/page/dtpp/2610/EC3TO.PDF/33.png")).isTrue();

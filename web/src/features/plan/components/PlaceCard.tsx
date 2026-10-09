@@ -26,6 +26,7 @@ import { ChartRow, FaaChart } from "./AirportDiagram";
 import { RunwaySketch } from "./RunwaySketch";
 import { runwaysLeftOut, stripsOf } from "../../../lib/runwaySketch";
 import { TEXT } from "../../../lib/text";
+import { diagramRunwaysPicture } from "../../../lib/diagram";
 
 /** "18 nm NE", from wherever the card is measured from. */
 function away(from: LatLon, to: LatLon): string {
@@ -287,6 +288,7 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
   }, [place]);
   const sketched = sketchedRunways.length > 0;
   const [diagramOpen, setDiagramOpen] = useState(false);
+  const [noRunwaysPicture, setNoRunwaysPicture] = useState(false);
   const [elevationPane, setElevationPane] = useState<HTMLElement | null>(null);
   const line = place ? subtitleOf(place, measured)
     : error ? `${ident} · ${error instanceof ApiError && error.status === 404 ? "not found" : "could not be looked up"}`
@@ -339,14 +341,28 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
               <FavoriteButton place={place} />
               <CloseButton onClick={onClose} className="-mr-1" data-testid="place-close" />
             </div>
-            <div className={cn("relative col-span-2 mt-2 min-h-16 overflow-hidden rounded-xl text-foreground", GLASS_BUTTON)}>
+            <div className={cn("relative col-span-2 mt-2 min-h-20 overflow-hidden rounded-xl text-foreground", GLASS_BUTTON)}>
               <button
                 type="button" data-testid="place-runway-sketch"
                 aria-label={`${place.ident} runways ${sketchedRunways.join(", ")}, north up${leftOut ? `, ${leftOut} more not drawn, their ends unsurveyed` : ""}. ${place.airport_diagram_url ? "Airport diagram, full screen" : "Show runways"}`}
                 onClick={() => (place.airport_diagram_url ? setDiagramOpen(true) : open("runways"))}
                 className="absolute inset-0 block rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
               >
-                <RunwaySketch runways={place.runways} lat={place.lat} lon={place.lon} avoid={elevationPane} />
+                {/* The FAA's own diagram, cropped to its runways, where the field
+                    has one, at the pilot's ask; the card's sketch of them
+                    where it has none, or the crop cannot be had. */}
+                {place.airport_diagram_cycle && !noRunwaysPicture ? (
+                  <img
+                    src={diagramRunwaysPicture(place.ident, place.airport_diagram_cycle)} alt=""
+                    onError={() => setNoRunwaysPicture(true)} data-testid="place-diagram-runways"
+                    // The diagram's white paper round it, black at night: the
+                    // inversion turns the paper too (a black ground under it
+                    // came out white).
+                    className="absolute inset-0 size-full rounded-xl bg-white object-contain dark:invert"
+                  />
+                ) : (
+                  <RunwaySketch runways={place.runways} lat={place.lat} lon={place.lon} avoid={elevationPane} />
+                )}
               </button>
               {/* Over the sketch, read as it is (the button's name is the
                   runways'), on a pane of the card's own ground where a

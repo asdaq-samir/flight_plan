@@ -2,7 +2,7 @@
 tables, the airspace and the weather are stubbed -- these test what the
 router makes of them, not OurAirports or aviationweather.gov."""
 from fastapi.testclient import TestClient
-from vfr import airports, airspace, faa_data, geocode, publications, remarks, weather
+from vfr import airports, airspace, faa_data, geocode, pattern, publications, remarks, weather
 
 from app.main import app
 
@@ -272,3 +272,16 @@ def test_a_place_typed_is_an_airport_a_town_or_an_address_with_where_it_is(monke
         {"label": "Duluth, MN", "kind": "town", "lat": 46.78, "lon": -92.1},
     ]
     assert client.get("/api/places/search", params={"q": "d"}).json() == {"places": []}
+def test_the_diagrams_runways_are_its_crop_with_the_fields_ends(monkeypatch, tmp_path):
+    stub_place(monkeypatch, runways=[{"ends": "09/27", "end_headings": [("09", 90.0), ("27", 270.0)], "length_ft": 10162,
+                                      "width_ft": 150, "surface": "CON", "lighted": True, "closed": False}])
+    monkeypatch.setattr(pattern, "end_positions", lambda ident, cache_dir=None: {"9": (46.84, -92.21), "27": (46.84, -92.17)})
+    asked = []
+    picture = tmp_path / "00125AD-runways.png"
+    picture.write_bytes(b"\x89PNG\r\n\x1a\n")
+    monkeypatch.setattr(publications, "airport_diagram_runways_png",
+                        lambda ident, cycle, ends: asked.append((ident, cycle, ends)) or (picture if cycle == "2610" else None))
+    answer = client.get("/api/airport-diagram/2610/runways/KDLH.png")
+    assert answer.status_code == 200 and answer.headers["cache-control"] == "public, max-age=2419200, immutable"
+    assert asked == [("KDLH", "2610", [(46.84, -92.21), (46.84, -92.17)])]
+    assert client.get("/api/airport-diagram/2609/runways/KDLH.png").status_code == 404

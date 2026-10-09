@@ -146,20 +146,24 @@ def test_pdfium_draws_one_pdf_at_a_time(monkeypatch):
 
 
 def _pdf_with(pages: list) -> bytes:
-    """A PDF of `pages` d-TPP-sized pages, each with its text set on it."""
+    """A PDF of `pages` d-TPP-sized pages, each with its text set on it:
+    a page's text one string at (40, 500), or [(text, x, y), ...]."""
     document = pypdfium2.PdfDocument.new()
     font = None
     for words in pages:
         page = document.new_page(387, 594)
-        if words:
+        placed = [(words, 40, 500)] if isinstance(words, str) else words
+        for text_of, x, y in placed:
+            if not text_of:
+                continue
             if font is None:
                 font = raw.FPDFText_LoadStandardFont(document.raw, b"Helvetica")
             text = raw.FPDFPageObj_CreateTextObj(document.raw, font, ctypes.c_float(12))
-            encoded = (words + "\x00").encode("utf-16-le")
+            encoded = (text_of + "\x00").encode("utf-16-le")
             raw.FPDFText_SetText(text, ctypes.cast(encoded, ctypes.POINTER(raw.FPDF_WCHAR)))
-            raw.FPDFPageObj_Transform(text, 1, 0, 0, 1, 40, 500)
+            raw.FPDFPageObj_Transform(text, 1, 0, 0, 1, x, y)
             raw.FPDFPage_InsertObject(page.raw, text)
-            raw.FPDFPage_GenerateContent(page.raw)
+        raw.FPDFPage_GenerateContent(page.raw)
     out = io.BytesIO()
     document.save(out)
     return out.getvalue()
@@ -223,3 +227,81 @@ def test_the_faa_not_answering_is_told_from_a_chart_it_does_not_have(monkeypatch
     assert publications.chart_pages(gone, "KMSN", on) is None
     assert publications.chart_pages(gone, "KMSN", on) is None
     assert asked.count(gone) == 1
+
+
+
+def test_a_diagram_is_cropped_to_its_runways_placed_by_its_own_labels():
+    # A north-up sheet's labels: a minute of latitude 300 points, a minute
+    # of longitude 300 cos(44.86) = 212.6 -- the same scale both ways.
+    labels = [("44 52'N", 20, 450), ("44 51'N", 20, 150), ("91 30'W", 80, 40), ("91 29'W", 292.6, 40)]
+    pdf = _pdf_with([labels])
+    document = pypdfium2.PdfDocument(pdf)
+    a, b, c, d = publications._graticule(document[0])
+    document.close()
+    # 44 51.5'N half way down the two, 91 29.5'W half way across.
+    assert abs((a * (44 + 51.5 / 60) + b) - (594 - 300 - 4)) < 6
+    assert abs((c * -(91 + 29.5 / 60) + d) - 196) < 20
+
+    # Its runways' two ends a third of a minute apart: the crop round them,
+    # not the sheet.
+    png = publications._runways_drawn(pdf, [(44 + 51.6 / 60, -(91 + 29.7 / 60)), (44 + 51.3 / 60, -(91 + 29.3 / 60))])
+    image = Image.open(io.BytesIO(png))
+    assert image.width < 387 * publications.DIAGRAM_SCALE * 0.6 and image.height < 594 * publications.DIAGRAM_SCALE * 0.6
+
+
+def test_a_turned_or_unlabelled_sheet_is_not_placed_by_its_labels():
+    # Longitude labels a scale apart from latitude's: not north up.
+    turned = _pdf_with([[("44 52'N", 20, 450), ("44 51'N", 20, 150), ("91 30'W", 80, 40), ("91 29'W", 120, 40)]])
+    blank = _pdf_with([""])
+    for pdf in (turned, blank):
+        document = pypdfium2.PdfDocument(pdf)
+        assert publications._graticule(document[0]) is None
+        document.close()
+    # Nothing to crop to on a blank sheet: none, for the card's sketch.
+    assert publications._runways_drawn(blank, [(44.86, -91.49)]) is None
+
+
+def _with_runway(labels: list, bar: tuple) -> bytes:
+    """`labels` on a sheet and a runway-thick black bar (x, y, width,
+    height in points from the bottom left) drawn on it."""
+    document = pypdfium2.PdfDocument(_pdf_with([labels]))
+    page = document[0]
+    x, y, width, height = bar
+    rect = raw.FPDFPageObj_CreateNewRect(x, y, width, height)
+    raw.FPDFPageObj_SetFillColor(rect, 0, 0, 0, 255)
+    raw.FPDFPath_SetDrawMode(rect, 1, 0)
+    raw.FPDFPage_InsertObject(page.raw, rect)
+    raw.FPDFPage_GenerateContent(page.raw)
+    out = io.BytesIO()
+    document.save(out)
+    return out.getvalue()
+
+
+_LABELS = [("44 52'N", 20, 450), ("44 51'N", 20, 150), ("91 30'W", 80, 40), ("91 29'W", 292.6, 40)]
+_ENDS = [(44 + 51.6 / 60, -(91 + 29.7 / 60)), (44 + 51.3 / 60, -(91 + 29.3 / 60))]
+
+
+def test_a_sheet_without_labels_is_cropped_to_its_runway_thick_strokes():
+    png = publications._runways_drawn(_with_runway([], (100, 300, 150, 12)), [])
+    image = Image.open(io.BytesIO(png))
+    assert image.width < 387 * publications.DIAGRAM_SCALE * 0.7 and image.height < 594 * publications.DIAGRAM_SCALE * 0.3
+
+
+def test_labels_that_disagree_with_the_sheets_runways_give_the_sketch():
+    # The runway is drawn far from where the labels put the ends.
+    assert publications._runways_drawn(_with_runway(_LABELS, (250, 540, 100, 12)), _ENDS) is None
+
+
+def test_a_miss_is_kept_and_a_crop_made_without_ends_is_not_the_one_with_them(monkeypatch, tmp_path):
+    monkeypatch.setattr(publications, "CACHE_DIR", tmp_path)
+    on = date(2026, 10, 9)
+    cycle = publications.dtpp_cycle(on)
+    monkeypatch.setattr(publications, "airport_diagram_url", lambda ident, on=None: f"https://aeronav.faa.gov/d-tpp/{cycle}/00001AD.PDF")
+    monkeypatch.setattr(publications, "_pdf_of", lambda *a: b"%PDF")
+    drawn = []
+    monkeypatch.setattr(publications, "_runways_drawn", lambda pdf, ends: drawn.append(ends) or (b"png" if ends else None))
+    assert publications.airport_diagram_runways_png("KXXX", cycle, [], on) is None
+    assert publications.airport_diagram_runways_png("KXXX", cycle, [], on) is None
+    assert len(drawn) == 1
+    assert publications.airport_diagram_runways_png("KXXX", cycle, [(44.0, -91.0)], on).read_bytes() == b"png"
+    assert len(drawn) == 2

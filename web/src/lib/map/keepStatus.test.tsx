@@ -26,10 +26,10 @@ const COURSE = {
 } as unknown as Course;
 
 /** fetch, answering each call when `release` is called (or at once). */
-function network(answer: () => Response, held = false) {
+function network(answer: (url: string) => Response, held = false) {
   const waiting: (() => void)[] = [];
-  const fetch = vi.fn((_url: string, init?: RequestInit) => new Promise<Response>((resolve, reject) => {
-    const go = () => (init?.signal?.aborted ? reject(new DOMException("aborted", "AbortError")) : resolve(answer()));
+  const fetch = vi.fn((url: string, init?: RequestInit) => new Promise<Response>((resolve, reject) => {
+    const go = () => (init?.signal?.aborted ? reject(new DOMException("aborted", "AbortError")) : resolve(answer(url)));
     if (held) waiting.push(go); else go();
   }));
   vi.stubGlobal("fetch", fetch);
@@ -71,7 +71,18 @@ describe("keeping a route's charts", () => {
       Promise.resolve({ ident, airport_diagram_cycle: ident === "KDLH" ? "2610" : null } as AirportPlace));
     await keep(COURSE, SEC);
     const asked = fetch.mock.calls.map(([url]) => url);
-    expect(asked.filter(url => url.includes("/airport-diagram/"))).toEqual(["/api/planner/airport-diagram/2610/KDLH.png"]);
+    expect(asked.filter(url => url.includes("/airport-diagram/"))).toEqual([
+      "/api/planner/airport-diagram/2610/KDLH.png", "/api/planner/airport-diagram/2610/runways/KDLH.png",
+    ]);
+  });
+
+  test("a field with a diagram and no runway crop is kept, not failed", async () => {
+    network(url => new Response("", { status: url.includes("/runways/") ? 404 : 200 }));
+    vi.spyOn(api, "airport").mockImplementation(ident =>
+      Promise.resolve({ ident, airport_diagram_cycle: ident === "KDLH" ? "2610" : null } as AirportPlace));
+    await keep(COURSE, SEC);
+    const job = useKeepJob.getState();
+    expect(job.status === "kept" && job.progress.failed).toBe(0);
   });
 
   test("a second keep cancels the first, and the first finishing late writes nothing", async () => {

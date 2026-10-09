@@ -203,6 +203,26 @@ def airport_diagram(cycle: str, ident: str) -> FileResponse:
     return FileResponse(path, media_type="image/png", headers={"Cache-Control": DIAGRAM_CACHE})
 
 
+@router.get("/api/airport-diagram/{cycle}/runways/{ident}.png", response_class=FileResponse,
+            responses={200: {"content": {"image/png": {}}}, 404: {"description": "No diagram, or its runways not found on it"}})
+def airport_diagram_runways(cycle: str, ident: str) -> FileResponse:
+    """The airport diagram cropped to its runways, for the card's
+    thumbnail: where the field's runway ends are (vfr.pattern's, NASR's
+    surveyed thresholds) placed on the diagram by its own latitude and
+    longitude labels, else its runway-thick strokes (vfr.publications).
+    404 where it has none, or its runways cannot be found on it -- the
+    card draws its own sketch then."""
+    place = airports.find_place(ident)
+    if place is None:
+        raise HTTPException(404, f"No US airport goes by {ident.strip().upper()!r}.")
+    runways = pattern.with_traffic(airports.get_runways(place["source_ident"]), place["ident"], place["lat"], place["lon"])
+    ends = [(e["lat"], e["lon"]) for r in runways if not r["closed"] for e in r["runway_ends"] if e.get("lat") is not None]
+    path = publications.airport_diagram_runways_png(place["ident"], cycle, ends)
+    if path is None:
+        raise HTTPException(404, f"No airport diagram's runways for {ident.strip().upper()!r} in d-TPP cycle {cycle}.")
+    return FileResponse(path, media_type="image/png", headers={"Cache-Control": DIAGRAM_CACHE})
+
+
 @router.get("/api/faa-chart", response_model=ChartPages)
 def faa_chart(url: str, response: Response, airport: str | None = None) -> ChartPages:
     """The pages of one of the FAA's charts in force -- by its address on
