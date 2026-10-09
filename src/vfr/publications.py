@@ -29,8 +29,11 @@ from datetime import date, timedelta
 from functools import lru_cache
 from pathlib import Path
 
+import numpy as np
 import pypdfium2
 import requests
+from PIL import Image
+from scipy import ndimage
 
 from .config import DATA_DIR
 
@@ -399,6 +402,135 @@ def chart_page_png(source: str, edition: str, name: str, page: int, on: date | N
             png = _drawn(data, page - 1)
         except (pypdfium2.PdfiumError, IndexError) as err:
             log.warning("No page %s of %s %s in %s: %s", page, source, name, edition, err)
+            return None
+        path.parent.mkdir(parents=True, exist_ok=True)
+        partial = path.with_name(path.name + ".part")
+        partial.write_bytes(png)
+        os.replace(partial, path)
+    return path
+
+
+#: A diagram's latitude and longitude labels: "43 09'N" (its degree sign
+#: a glyph of its own, not in the text), "34°12.5'N", "118°22.0'W".
+_DMS = re.compile(r"(\d{1,3})\s*°?\s*(\d{1,2}(?:\.\d+)?)\s*['’]\s*([NSEW])")
+
+
+def _graticule(page) -> tuple | None:
+    """Where latitude and longitude fall on a north-up diagram's page, from
+    its own labels: (y = a * lat + b, x = c * lon + d) in the page's points
+    from its top left, as least squares over two labels of each at the
+    least. None where the diagram has too few, or is turned on its page
+    (its scale north-south and east-west then disagree): KCRQ's and
+    KORD's have none."""
+    textpage = page.get_textpage()
+    text = textpage.get_text_bounded()
+    height = page.get_height()
+    lats, lons = [], []
+    for match in _DMS.finditer(text):
+        boxes = [textpage.get_charbox(i) for i in range(match.start(), match.end())]
+        x = (min(b[0] for b in boxes) + max(b[2] for b in boxes)) / 2
+        y = height - (min(b[1] for b in boxes) + max(b[3] for b in boxes)) / 2
+        degrees = int(match.group(1)) + float(match.group(2)) / 60
+        if match.group(3) in "SW":
+            degrees = -degrees
+        (lats if match.group(3) in "NS" else lons).append((degrees, x, y))
+    if len({d for d, _, _ in lats}) < 2 or len({d for d, _, _ in lons}) < 2:
+        return None
+    a, b = np.polyfit([d for d, _, _ in lats], [y for _, _, y in lats], 1)
+    c, d = np.polyfit([d for d, _, _ in lons], [x for _, x, _ in lons], 1)
+    # North up: y falls as latitude rises, x grows as longitude does, and a
+    # degree of latitude is a degree of longitude over its cosine.
+    mid = np.mean([deg for deg, _, _ in lats])
+    if a >= 0 or c <= 0 or not 0.85 < (c / np.cos(np.radians(mid))) / -a < 1.15:
+        return None
+    return a, b, c, d
+
+
+def _thick_strokes(image) -> tuple | None:
+    """The box round a diagram's runways where its labels cannot place
+    them: its strokes as thick as a runway's, at the thickest that leaves
+    a stroke as long as one (letters, the frame and the graticule are
+    thinner, a building's block shorter), in the image's pixels."""
+    dark = np.asarray(image) < 100
+    for size in (11, 7, 5):
+        labels, _ = ndimage.label(ndimage.binary_erosion(dark, structure=np.ones((size, size))))
+        long = [s for s in ndimage.find_objects(labels) if max(s[0].stop - s[0].start, s[1].stop - s[1].start) >= 30 * DIAGRAM_SCALE]
+        if long:
+            return (min(s[1].start for s in long), min(s[0].start for s in long),
+                    max(s[1].stop for s in long), max(s[0].stop for s in long))
+    return None
+
+
+def _runways_drawn(pdf: bytes, ends: list) -> bytes | None:
+    """The airport diagram cropped to its runways, for the card's
+    thumbnail, at the pilot's ask: where the runways' ends are (NASR's
+    surveyed thresholds) placed on the diagram by its own latitude and
+    longitude labels, else its runway-thick strokes; a margin round them,
+    at most 700 pixels a side. None where neither finds them on a part of
+    the sheet: the card draws its own sketch of the runways then."""
+    with _PDFIUM:
+        document = pypdfium2.PdfDocument(pdf)
+        try:
+            page = document[0]
+            image = page.render(scale=DIAGRAM_SCALE, grayscale=True).to_pil().convert("L")
+            grid = _graticule(page)
+        finally:
+            document.close()
+    box = None
+    if grid and ends:
+        a, b, c, d = grid
+        xs = [(c * lon + d) * DIAGRAM_SCALE for _, lon in ends]
+        ys = [(a * lat + b) * DIAGRAM_SCALE for lat, _ in ends]
+        box = (min(xs), min(ys), max(xs), max(ys))
+        # Not on the sheet: the labels read wrong.
+        if box[0] < 0 or box[1] < 0 or box[2] > image.width or box[3] > image.height:
+            box = None
+    box = box or _thick_strokes(image)
+    if not box:
+        return None
+    x0, y0, x1, y1 = box
+    # A little round the runways' ends, for their numbers: the box is small.
+    pad = 0.03 * max(x1 - x0, y1 - y0) + 4 * DIAGRAM_SCALE
+    crop = (int(max(0, x0 - pad)), int(max(0, y0 - pad)), int(min(image.width, x1 + pad)), int(min(image.height, y1 + pad)))
+    # Most of the sheet is no crop -- the thick strokes found a legend's or
+    # an inset's too (KLAX's): the card's own sketch serves better then.
+    if (crop[2] - crop[0]) * (crop[3] - crop[1]) > 0.7 * image.width * image.height:
+        return None
+    image = image.crop(crop)
+    image.thumbnail((700, 700), Image.LANCZOS)
+    out = io.BytesIO()
+    image.save(out, "PNG", optimize=True)
+    return out.getvalue()
+
+
+def airport_diagram_runways_png(ident: str, cycle: str, ends: list, on: date | None = None) -> Path | None:
+    """The airport diagram of this cycle cropped to its runways (`ends`,
+    each (lat, lon), where they are known) as a picture on disk, drawn the
+    first time and kept for the cycle, as the whole diagram is
+    (`airport_diagram_png`); None where it has none, or its runways cannot
+    be found on it."""
+    if cycle != dtpp_cycle(on):
+        return None
+    url = airport_diagram_url(ident, on)
+    if not url:
+        return None
+    path = CACHE_DIR / "diagrams" / cycle / f"{Path(url).stem}-runways.png"
+    if path.exists():
+        return path
+    data = _pdf_of("dtpp", cycle, Path(url).name)
+    if data is None:
+        return None
+    with _LOCK:
+        lock = _DRAWING.setdefault(path, threading.Lock())
+    with lock:
+        if path.exists():
+            return path
+        try:
+            png = _runways_drawn(data, ends)
+        except pypdfium2.PdfiumError as err:
+            log.warning("No runways' diagram for %s in %s: %s", ident, cycle, err)
+            return None
+        if png is None:
             return None
         path.parent.mkdir(parents=True, exist_ok=True)
         partial = path.with_name(path.name + ".part")

@@ -7709,6 +7709,54 @@
         "summary": "Aircraft Profiles"
       }
     },
+    "/api/airport-diagram/{cycle}/runways/{ident}.png": {
+      "get": {
+        "description": "The airport diagram cropped to its runways, for the card's\nthumbnail: where the field's runway ends are (vfr.pattern's, NASR's\nsurveyed thresholds) placed on the diagram by its own latitude and\nlongitude labels, else its runway-thick strokes (vfr.publications).\n404 where it has none, or its runways cannot be found on it -- the\ncard draws its own sketch then.",
+        "operationId": "airport_diagram_runways_api_airport_diagram__cycle__runways__ident__png_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "cycle",
+            "required": true,
+            "schema": {
+              "title": "Cycle",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "ident",
+            "required": true,
+            "schema": {
+              "title": "Ident",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "image/png": {}
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "No diagram, or its runways not found on it"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Airport Diagram Runways"
+      }
+    },
     "/api/airport-diagram/{cycle}/{ident}.png": {
       "get": {
         "description": "The FAA's airport diagram for the field, from the d-TPP cycle in\nforce (`airport_diagram_cycle` on its card), as a picture for the card\nto show and a finger to pinch in on: its PDF drawn once and kept for\nthe cycle (vfr.publications). 404 for a field with none -- most small\nones -- for any cycle but the one in force, and while the FAA cannot\nbe reached.",
