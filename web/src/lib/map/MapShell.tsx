@@ -11,6 +11,8 @@ import { ChartTiles } from "./ChartTiles";
 import { ClassBLayer } from "./ClassBLayer";
 import { ResizeAware } from "./MapEffects";
 import { centreClear } from "./clear";
+// The marks held to the chart under a pinch: a patch to Leaflet's markers.
+import "./pinch";
 import { OwnShipLayer } from "./OwnShipLayer";
 import { OPEN_ZOOM, useOwnShip } from "./ownShip";
 import { underway } from "./glide";
