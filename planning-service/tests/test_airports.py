@@ -177,6 +177,20 @@ def test_a_field_closed_to_the_public_is_marked_private(monkeypatch):
     assert [(a["ident"], a["private"]) for a in body["airports"]] == [("IL22", True), ("KDLH", False)]
 
 
+def test_the_airport_file_is_read_once_for_all_the_fields_in_view(monkeypatch):
+    # With APT_BASE.csv missing each read retries the NASR download, so a
+    # read per field would repeat it hundreds of times on a wide map.
+    calls = []
+    fields = [{**DULUTH, "kind": "small", "ident": f"X{n}", "source_ident": f"X{n}"} for n in range(5)]
+    monkeypatch.setattr(airports, "places_in", lambda *args, **kwargs: fields)
+    monkeypatch.setattr(weather, "reporting_idents", lambda: set())
+    monkeypatch.setattr(weather, "metar_for_idents", lambda idents: {})
+    monkeypatch.setattr(faa_data, "military_fields", lambda cache_dir: calls.append("military") or {})
+    monkeypatch.setattr(faa_data, "private_fields", lambda cache_dir: calls.append("private") or frozenset())
+    client.get("/api/airports/in-view", params={"south": 30, "west": -100, "north": 47, "east": -80})
+    assert sorted(calls) == ["military", "private"]
+
+
 def test_reporting_asks_for_the_fields_with_a_metar_alone(monkeypatch):
     asked = {}
 
