@@ -95,6 +95,7 @@ interface Props {
  */
 function BriefingNarrativePrintBlock({ langgraph, crewai }: { langgraph: string | null; crewai: string | null }) {
   if (!langgraph && !crewai) return null;
+  // On paper only, at paper's own 14: no finger, no type scale.
   return (
     <div className="hidden break-inside-avoid-page border-b border-border px-4 py-3 print:block print:break-inside-avoid">
       {langgraph && (

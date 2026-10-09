@@ -12,6 +12,7 @@ import { TooltipProvider } from "./components/ui/tooltip";
 import { registerSW } from "virtual:pwa-register";
 import { followDynamicType } from "./lib/dynamicType";
 import { keepAddressThroughReload, startFresh } from "./lib/freshLoad";
+import { installErrorReports, reportOf, sendReport } from "./lib/errorReports";
 import MapPage from "./features/page/MapPage";
 import "./index.css";
 import { followAppLinks, inNativeApp } from "./lib/native";
@@ -19,6 +20,10 @@ import { followAppLinks, inNativeApp } from "./lib/native";
 // The reader's text size from the iPhone's Settings, before the first
 // render, so the page is never drawn at the wrong size first.
 followDynamicType();
+
+// What goes wrong on the pilot's device, to the owner's log
+// (lib/errorReports): before anything else can throw.
+installErrorReports();
 
 // The service worker (vite.config.ts): the app shell, the chart tiles
 // the map has drawn or kept ahead, and the planner's answers, held for
@@ -125,7 +130,10 @@ if (routeOf(openingDep, openingDest, openingStops)) {
   void queryClient.prefetchQuery({ ...courseQuery(openingDep!, openingDest!, openingStops), meta: { silent: true } });
 }
 
-ReactDOM.createRoot(document.getElementById("root")!).render(
+// A render React could not finish takes the page down: reported too.
+ReactDOM.createRoot(document.getElementById("root")!, {
+  onUncaughtError: error => { sendReport(reportOf("render", error)); console.error(error); },
+}).render(
   <React.StrictMode>
     {/* Light, dark, or the OS's own choice -- the settings' Theme
         sets it, next-themes keeps it and puts the `dark` class on

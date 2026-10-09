@@ -50,6 +50,8 @@ export default function ConsoleTabs({ tabs: own, saved, onChange }: Props) {
               past the column's margins. (The System tab's
               refresh, which sat on a line under them, is the tab's last
               row now.) */}
+          {/* A bar, 44 tall to a finger as iOS's tab bars are: its tabs
+              share it edge to edge, so the bar is their hit area. */}
           <TabsList
             variant="line"
             className="w-full gap-0 border-b border-border p-0 group-data-[orientation=horizontal]/tabs:h-9 pointer-coarse:group-data-[orientation=horizontal]/tabs:h-11"

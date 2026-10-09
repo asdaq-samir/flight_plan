@@ -114,6 +114,8 @@ export function ListRow({ id, media, title, description, value, href, to, chevro
       )}
     </>
   );
+  // Each row 44 at the least, as iOS's grouped lists have them: the row
+  // is the control, so its own height is its hit area.
   if (to !== undefined) {
     return (
       <Item asChild size="sm" className="min-h-11 rounded-none border-0 py-2 no-underline! hover:bg-muted/50 pointer-coarse:active:bg-muted">

@@ -35,6 +35,8 @@ export default function ProblemBanner() {
       {/* The glass round the Alert, which is clear: its own card colour
           outranked the glass on the same element, and it read white. */}
       <div className={cn(GLASS, "pointer-events-auto w-fit max-w-full rounded-[22px]")}>
+      {/* A row of its own, 44 tall as a list's row is: the line and its
+          Retry, not a control grown to its hit area. */}
       <Alert
         variant="destructive" role="status"
         className="flex min-h-11 items-center gap-2 rounded-[22px] border-transparent bg-transparent py-1 pr-1 pl-3 *:[svg]:translate-y-0"

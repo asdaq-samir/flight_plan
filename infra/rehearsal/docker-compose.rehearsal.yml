@@ -17,32 +17,42 @@
 # (docs/README-AWS.md, "Rehearse it locally").
 
 services:
+  # Logs to the machine's own Docker, not CloudWatch (every service
+  # below): there is no AWS here.
   caddy:
     # Only the CDN reaches it, over this stack's own network.
     ports: !reset []
+    logging: !override { driver: json-file, options: { max-size: "20m", max-file: "5" } }
 
   db:
+    logging: !override { driver: json-file, options: { max-size: "20m", max-file: "5" } }
     # A volume, as in the development stack, rather than a folder of
     # this machine's.
     volumes: !override
       - postgres:/var/lib/postgresql
 
   model-service:
+    logging: !override { driver: json-file, options: { max-size: "20m", max-file: "5" } }
     volumes: !override
       - ${REHEARSAL_DIR:?}/data/models/chart/current:/opt/ml/chart-model:ro
 
   planning-service:
+    logging: !override { driver: json-file, options: { max-size: "20m", max-file: "5" } }
     volumes: !override
       - ${REHEARSAL_DIR:?}/data:/workspace/data
       - ./data/aircraft:/workspace/data/aircraft:ro
 
   webapp:
+    logging: !override { driver: json-file, options: { max-size: "20m", max-file: "5" } }
     environment:
       # The browser suite signs in and asks for notes more often in a run
       # than a pilot does in an hour (docker-compose.yml loosens the same).
       APP_MAGIC_LINK_PER_ADDRESS_PER_HOUR: "60"
       APP_MAGIC_LINK_PER_CLIENT_PER_HOUR: "200"
       APP_PAID_CALLS_PER_DAY: "500"
+
+  nav-log-agent:
+    logging: !override { driver: json-file, options: { max-size: "20m", max-file: "5" } }
 
   cdn:
     image: caddy:2.10-alpine

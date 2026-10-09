@@ -47,6 +47,13 @@ updates:
     schedule:
       interval: monthly
     open-pull-requests-limit: 5
+    # Playwright moves with the browser image CI runs it in
+    # (mcr.microsoft.com/playwright:v<same>, ci.yml, and the e2e cache
+    # keys named for it): bumped alone, its test runner looked for a
+    # browser the image does not have and every shard failed (#124,
+    # 2026-10-08). It is bumped by hand, image and package together.
+    ignore:
+      - dependency-name: "@playwright/test"
     groups:
       web:
         patterns: ["*"]

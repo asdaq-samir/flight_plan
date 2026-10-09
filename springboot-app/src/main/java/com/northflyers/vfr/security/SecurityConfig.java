@@ -196,6 +196,9 @@ public class SecurityConfig {
                             // whether a sign-in button is worth showing
                             // at all (SignInCapabilitiesController).
                             .requestMatchers(HttpMethod.GET, "/api/auth/capabilities").permitAll()
+                            // An error on a pilot's phone, before sign-in as
+                            // much as after (ClientErrorController).
+                            .requestMatchers(HttpMethod.POST, "/api/client-errors").permitAll()
                             .requestMatchers(HttpMethod.GET, "/", "/error").permitAll()
                             // What iOS reads to open this site's links in the
                             // app (AppSiteAssociationController).
@@ -211,7 +214,10 @@ public class SecurityConfig {
                 // exploits, so this stays on.
                 .csrf(csrf -> csrf
                         .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
-                        .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler()))
+                        .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler())
+                        // sendBeacon carries no header, and a forged report
+                        // can only add a line to the log (ClientErrorController).
+                        .ignoringRequestMatchers("/api/client-errors"))
                 // The handler above resolves the token lazily and nothing
                 // server-rendered ever forces it, so without this filter
                 // the XSRF-TOKEN cookie is never written and every POST

@@ -18,11 +18,23 @@
 # file (infra/server/env.example lists every key):
 #   docker compose -f docker-compose.prod.yml up -d
 
+# Every service's log to CloudWatch (the stack's ServerLogGroup), a
+# stream per container: the server's own disk keeps none, and what went
+# wrong is read in the console or with `aws logs tail`.
 x-restart: &restart
   restart: unless-stopped
   logging:
-    driver: json-file
-    options: { max-size: "20m", max-file: "5" }
+    driver: awslogs
+    options:
+      # deploy.sh writes both; the rehearsal's overlay logs locally instead,
+      # so they are not demanded here.
+      awslogs-region: ${AWS_REGION:-}
+      awslogs-group: ${LOG_GROUP:-}
+      # A CloudWatch or IAM fault then drops log lines; the default,
+      # blocking, would fail a container's start.
+      mode: non-blocking
+      max-buffer-size: 4m
+      tag: "{{.Name}}"
 
 services:
   # TLS for the origin, and the only door in: CloudFront reaches the
@@ -70,6 +82,11 @@ services:
   planning-service:
     <<: *restart
     image: ${IMAGE_REGISTRY}/planning-service:${IMAGE_TAG:-latest}
+    # No access log: its lines carry each request's query, and the
+    # Nearest list asks with the pilot's own position, which would then
+    # sit in CloudWatch for a month (docs/privacy-inventory.md). The
+    # planner's own log says what it did.
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--no-access-log"]
     # FAA data, the corridor's chart sheets for reading checkpoints, and
     # the planner's caches: on the server's disk, kept across deploys.
     volumes:

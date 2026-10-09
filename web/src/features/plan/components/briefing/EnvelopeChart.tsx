@@ -44,6 +44,8 @@ export default function EnvelopeChart({ envelope, takeoff, landing }: {
           data={[{ arm: landing.armIn, loaded: landing.weightLb }, { arm: takeoff.armIn, loaded: takeoff.weightLb }]}
           dataKey="loaded" type="linear" dot={false} isAnimationActive={false} stroke="var(--color-loaded)" strokeWidth={2}
         />
+        {/* The two points' labels at an axis's 12 (chartTick), as charts
+            label things, outside the type scale on purpose. */}
         <ReferenceDot x={takeoff.armIn} y={takeoff.weightLb} r={4.5} fill="var(--color-loaded)" stroke="white"
           label={{ value: "Takeoff", position: "top", className: "text-xs", fill: "currentColor" }} />
         <ReferenceDot x={landing.armIn} y={landing.weightLb} r={4.5} fill="var(--color-loaded)" stroke="white"
