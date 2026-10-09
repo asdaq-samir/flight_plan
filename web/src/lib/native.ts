@@ -66,3 +66,23 @@ export async function followAppLinks(): Promise<void> {
     }
   });
 }
+
+/**
+ * Sign in with Apple through the app's own sheet: Apple's identity token
+ * for this app, which the webapp checks and signs the pilot in with
+ * (AppleNativeSignInController). Answers it, or null when the pilot
+ * closed the sheet.
+ */
+export async function nativeAppleIdentityToken(): Promise<string | null> {
+  const { SignInWithApple } = await import("@capacitor-community/apple-sign-in");
+  try {
+    // clientId and redirectURI are the web flow's; the native sheet uses neither.
+    const { response } = await SignInWithApple.authorize({ clientId: "", redirectURI: "", scopes: "email name" });
+    return response.identityToken;
+  } catch (err) {
+    // ASAuthorizationError 1001: the pilot cancelled.
+    if (String((err as Error)?.message ?? err).includes("1001")) return null;
+    throw err;
+  }
+}
+

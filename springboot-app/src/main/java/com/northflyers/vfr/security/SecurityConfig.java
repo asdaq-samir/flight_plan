@@ -189,6 +189,9 @@ public class SecurityConfig {
                             // routes for Google/Apple) are never matched
                             // against "anyRequest" here either.
                             .requestMatchers("/api/auth/magic-link/**").permitAll()
+                            // The iOS app's native Apple sheet, before any
+                            // session exists (AppleNativeSignInController).
+                            .requestMatchers(HttpMethod.POST, "/api/auth/apple/native").permitAll()
                             // Asked before any session exists, to decide
                             // whether a sign-in button is worth showing
                             // at all (SignInCapabilitiesController).

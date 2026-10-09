@@ -17,10 +17,14 @@ as it does in Safari. What the shell adds is the device:
 - The app icon and launch screen from `docs/brand`, and a privacy
   manifest (`PrivacyInfo.xcprivacy`) from `docs/privacy-inventory.md`.
 
-In the app, sign-in is by the emailed link. Google refuses to sign in
-inside an app's web view, so its button and Apple's are hidden there.
-Native Google and Apple sign-in is the work before App Store review;
-TestFlight's internal testing needs no review.
+In the app, sign-in is **Sign in with Apple, through iOS's own sheet**
+(`@capacitor-community/apple-sign-in`): the app hands Apple's identity
+token to the webapp, which checks its signature, issuer and audience
+(this app's bundle id) and signs the pilot in, the same pilot the web's
+Apple sign-in finds (`AppleNativeSignInController`). Or **the emailed
+link**, which opens the app. Google refuses to sign in inside an app's
+web view, so its button is the web's only; App Review needs none, and a
+reviewer can sign in with their own Apple ID.
 
 ## The build
 
@@ -41,7 +45,7 @@ TestFlight's internal testing needs no review.
    once the app is in App Store Connect.
 3. **Create the app in App Store Connect** (My Apps → +): the name, the
    bundle id (register it under Identifiers first, with the Associated
-   Domains capability), a SKU.
+   Domains and Sign in with Apple capabilities), a SKU.
 4. **Create an App Store Connect API key** (Users and Access →
    Integrations → App Store Connect API, role App Manager) and download
    its `.p8` once.
@@ -52,7 +56,8 @@ TestFlight's internal testing needs no review.
    - the secret `APP_STORE_KEY_P8`, the `.p8` file's contents.
 6. **On the server**, add `APPLE_TEAM_ID` and `APP_IOS_BUNDLE_ID` to the
    stack's AppSecret (`infra/server/env.example`) and run `deploy.sh`,
-   so the site names the app for its links.
+   so the site names the app for its links and accepts its Apple
+   sign-in.
 7. **TestFlight:** add yourself as an internal tester. The next push to
    `main` that changes the app (or Run workflow on the iOS workflow)
    uploads a build; it appears in TestFlight after Apple processes it.

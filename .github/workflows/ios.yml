@@ -66,7 +66,9 @@ jobs:
 
   testflight:
     needs: simulator
-    if: github.event_name != 'pull_request' && vars.APP_STORE_KEY_ID != ''
+    # main only: a run started by hand from another branch builds for the
+    # simulator but uploads nothing.
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && vars.APP_STORE_KEY_ID != ''
     runs-on: macos-26
     timeout-minutes: 45
     env:
@@ -92,6 +94,8 @@ jobs:
         working-directory: web/ios/App
         run: |
           key="$RUNNER_TEMP/AuthKey_$KEY_ID.p8"
+          # Gone however the step ends, a failed archive included.
+          trap 'rm -f "$key"' EXIT
           printf '%s' "$KEY_P8" > "$key"
           host=$(node -e 'console.log(new URL(process.env.WINGTIP_URL).host)')
           auth=(-allowProvisioningUpdates -authenticationKeyPath "$key" -authenticationKeyID "$KEY_ID" -authenticationKeyIssuerID "$ISSUER")
@@ -111,4 +115,3 @@ jobs:
           PLIST
           xcodebuild -exportArchive -archivePath "$RUNNER_TEMP/App.xcarchive" \
             -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" -exportPath "$RUNNER_TEMP/export" "${auth[@]}"
-          rm -f "$key"

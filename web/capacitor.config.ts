@@ -1,4 +1,3 @@
-import { writeFileSync } from "node:fs";
 import type { CapacitorConfig } from "@capacitor/cli";
 
 /**
@@ -19,8 +18,11 @@ const url = process.env.WINGTIP_URL ?? "https://wingtipmaps.app/app/plan";
 // reload itself: it has to go to the site, whose address is WINGTIP_URL.
 // `cap sync` reads this file before it copies webDir, so the page is
 // given the address there (ios-offline/site.js, not committed).
-writeFileSync(
-  new URL("./ios-offline/site.js", import.meta.url),
+// Node's own fs, asked for at run time: an import here would be compiled
+// by the Capacitor CLI into a require() that this ES-module package
+// refuses ("exports is not defined"). The CLI runs from web/.
+process.getBuiltinModule("node:fs").writeFileSync(
+  `${process.cwd()}/ios-offline/site.js`,
   `window.WINGTIP_URL = ${JSON.stringify(url)};\n`,
 );
 
