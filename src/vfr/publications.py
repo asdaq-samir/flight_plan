@@ -11,16 +11,23 @@ asks nothing of the FAA.
 The d-TPP is on the 28-day AIRAC cycle, named by the year and the cycle's
 number in it ("2610", from 1 Oct 2026); the Chart Supplement on the
 56-day cycle the sectionals are, named by its date ("03Sep2026").
+
+The airport diagram is drawn as a picture too (`airport_diagram_png`), for
+the card to show it in the app rather than send the pilot to a PDF: the
+cycle's PDF read once and rendered once, kept on disk for the cycle.
 """
 from __future__ import annotations
 
+import io
 import json
 import logging
 import os
 import threading
 import xml.etree.ElementTree as ET
 from datetime import date, timedelta
+from pathlib import Path
 
+import pypdfium2
 import requests
 
 from .config import DATA_DIR
@@ -38,8 +45,19 @@ AIRAC_DAYS = 28
 DCS_EPOCH = date(2026, 9, 3)             # the 3 Sep 2026 edition
 DCS_DAYS = 56
 
+#: How much finer than the PDF's own points the diagram is drawn: 5 is
+#: 360 dots an inch, a d-TPP page (5.4 by 8.25 in) 1937 by 2970, where
+#: the taxiway letters and the hot spots stay sharp on a phone's three
+#: pixels a point as a pinch brings them in to 1.6 times its width, and
+#: readable past that. Measured on KMSN's: 351 KB and 0.9 s to draw, where
+#: 3 was 191 KB, soft as soon as it was pinched, and 6 was 439 KB.
+DIAGRAM_SCALE = 5
+
 _LOCK = threading.Lock()
 _HELD: dict = {}
+#: One lock per diagram being drawn: two cards opened on the same field at
+#: once read its PDF once, and a draw does not hold up every other card.
+_DRAWING: dict = {}
 
 
 def _cycle_start(on: date, epoch: date, days: int) -> date:
@@ -133,6 +151,61 @@ def chart_supplement_url(ident: str, on: date | None = None) -> str | None:
     index = _index("dcs", edition, f"{DCS_BASE}/{edition}/afd_{edition}.xml", _supplements_of)
     pdf = next((index[i] for i in _faa_idents(ident) if i in index), None)
     return f"{DCS_BASE}/{edition}/{pdf}" if pdf else None
+
+
+def airport_diagram_cycle(ident: str, on: date | None = None) -> str | None:
+    """The d-TPP cycle whose airport diagram this field has, for the card
+    to ask for its picture by (`airport_diagram_png`); None where it has
+    none."""
+    return dtpp_cycle(on) if airport_diagram_url(ident, on) else None
+
+
+def _drawn(pdf: bytes) -> bytes:
+    """The PDF's first page as a greyscale PNG, DIAGRAM_SCALE times its
+    points: the diagram is black on white, and grey keeps it a third the
+    size of colour with nothing lost."""
+    document = pypdfium2.PdfDocument(pdf)
+    try:
+        image = document[0].render(scale=DIAGRAM_SCALE, grayscale=True).to_pil().convert("L")
+    finally:
+        document.close()
+    out = io.BytesIO()
+    image.save(out, "PNG", optimize=True)
+    return out.getvalue()
+
+
+def airport_diagram_png(ident: str, cycle: str, on: date | None = None) -> Path | None:
+    """The airport diagram of this cycle as a picture on disk: drawn from
+    the FAA's PDF the first time it is asked for, and kept for the cycle.
+    None where the field has none, the cycle is not the one in force, or
+    the FAA cannot be reached (nothing is kept then, so the next ask
+    tries again)."""
+    if cycle != dtpp_cycle(on):
+        return None
+    url = airport_diagram_url(ident, on)
+    if not url:
+        return None
+    # By the PDF's own name: KDLH's and DLH's are one picture.
+    path = CACHE_DIR / "diagrams" / cycle / f"{Path(url).stem}.png"
+    if path.exists():
+        return path
+    with _LOCK:
+        lock = _DRAWING.setdefault(path, threading.Lock())
+    with lock:
+        if path.exists():
+            return path
+        try:
+            resp = requests.get(url, headers=HEADERS, timeout=60)
+            resp.raise_for_status()
+            png = _drawn(resp.content)
+        except (requests.RequestException, pypdfium2.PdfiumError) as err:
+            log.warning("No airport diagram for %s in %s: %s", ident, cycle, err)
+            return None
+        path.parent.mkdir(parents=True, exist_ok=True)
+        partial = path.with_name(path.name + ".part")
+        partial.write_bytes(png)
+        os.replace(partial, path)
+    return path
 
 
 def preload() -> None:

@@ -608,7 +608,8 @@ Resources:
                 AWS:SourceArn: !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${Distribution}"
 
   # The answers the same for every pilot (PlannerProxyController's
-  # SHARED_PATHS, the planner's app.common SHARED_CACHE and CHART_CACHE):
+  # SHARED_PATHS and the airport diagrams, the planner's app.common
+  # SHARED_CACHE, CHART_CACHE and DIAGRAM_CACHE):
   # kept for as long as their own Cache-Control says, a day at most, and
   # not at all when they say nothing. Keyed by path and query string alone
   # -- no cookie, no header -- so one pilot's search answers the next; and
@@ -705,6 +706,15 @@ Resources:
             AllowedMethods: [GET, HEAD]
             CachedMethods: [GET, HEAD]
             Compress: true
+            CachePolicyId: !Ref SharedAnswersCachePolicy
+          # An airport diagram's picture, its d-TPP cycle in its address
+          # (the planner's app.common DIAGRAM_CACHE).
+          - PathPattern: api/planner/airport-diagram/*
+            TargetOriginId: server
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD]
+            CachedMethods: [GET, HEAD]
+            Compress: false  # PNGs, already compressed
             CachePolicyId: !Ref SharedAnswersCachePolicy
         # A server error is passed on, never kept: CloudFront would hold
         # one for ten seconds by default, and a planner restarting would

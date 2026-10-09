@@ -65,7 +65,10 @@ export default function AirportSections({ briefing, landings, legs, callSign }: 
                 {info?.runways.length
                   ? info.runways.map((r, k) => <RunwayRow key={k} runway={r} />)
                   : <ListRow title={<span className="text-muted-foreground">No published runway data</span>} />}
-                <PublicationRows diagram={info?.airport_diagram_url} supplement={info?.chart_supplement_url} />
+                <PublicationRows
+                  ident={ident} diagram={info?.airport_diagram_url}
+                  diagramCycle={info?.airport_diagram_cycle} supplement={info?.chart_supplement_url}
+                />
               </ListGroup>
               <PatternRadio briefing={briefing} landings={landings} legs={legs} callSign={callSign} at={ident} />
             </div>

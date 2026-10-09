@@ -103,6 +103,19 @@ export default defineConfig({
             },
           },
           {
+            // The airport diagrams' pictures, cache first as the tiles
+            // are: an address names its 28-day d-TPP cycle, so what is
+            // kept is right for the whole of it, and a card opened again
+            // in the air, with no network, still shows its field's.
+            urlPattern: ({ url }) => url.pathname.includes("/airport-diagram/"),
+            handler: "CacheFirst",
+            options: {
+              cacheName: "airport-diagrams",
+              expiration: { maxEntries: 200, maxAgeSeconds: 30 * 24 * 3600, purgeOnQuotaError: true },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+          {
             // Current weather, never from the cache. A METAR, a TAF or a
             // SIGMET shown from last week because the network was slow
             // is worse than none: nothing on the page could say it was

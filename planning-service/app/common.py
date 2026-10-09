@@ -45,6 +45,12 @@ SHARED_CACHE = "public, max-age=300, s-maxage=3600"
 #: minute behind a new cycle still draws a whole chart.
 CHART_CACHE = "public, max-age=60"
 
+#: An airport diagram's picture (routers/airports.py): the same for every
+#: pilot for the whole of its 28-day d-TPP cycle, which its address names,
+#: so kept that long in a browser and as long as the CDN keeps anything (a
+#: day, its policy's most), and never asked for again in between.
+DIAGRAM_CACHE = f"public, max-age={28 * 24 * 3600}, immutable"
+
 
 def route_key(dep: str, dest: str) -> tuple:
     return dep.strip().upper(), dest.strip().upper()

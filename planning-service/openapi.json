@@ -301,6 +301,17 @@
       },
       "AirportFacilities": {
         "properties": {
+          "airport_diagram_cycle": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Airport Diagram Cycle"
+          },
           "airport_diagram_url": {
             "anyOf": [
               {
@@ -464,6 +475,17 @@
       "AirportPlace": {
         "description": "One airport the way the map's card shows it: its name and place,\nthe class of the airspace over it, whether it has a tower, its\nrunways and radio, and the weather there now. `metar` is None for a\nfield with no reporting station, and `weather_unavailable` says the\nweather service could not be asked at all -- not the same thing.",
         "properties": {
+          "airport_diagram_cycle": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Airport Diagram Cycle"
+          },
           "airport_diagram_url": {
             "anyOf": [
               {
@@ -7499,6 +7521,54 @@
           }
         },
         "summary": "Aircraft Profiles"
+      }
+    },
+    "/api/airport-diagram/{cycle}/{ident}.png": {
+      "get": {
+        "description": "The FAA's airport diagram for the field, from the d-TPP cycle in\nforce (`airport_diagram_cycle` on its card), as a picture for the card\nto show and a finger to pinch in on: its PDF drawn once and kept for\nthe cycle (vfr.publications). 404 for a field with none -- most small\nones -- for any cycle but the one in force, and while the FAA cannot\nbe reached.",
+        "operationId": "airport_diagram_api_airport_diagram__cycle___ident__png_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "cycle",
+            "required": true,
+            "schema": {
+              "title": "Cycle",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "ident",
+            "required": true,
+            "schema": {
+              "title": "Ident",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "image/png": {}
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "No diagram for the field in that cycle"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Airport Diagram"
       }
     },
     "/api/airport/{ident}": {

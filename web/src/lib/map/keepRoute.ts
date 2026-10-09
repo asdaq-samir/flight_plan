@@ -1,7 +1,9 @@
 import L from "leaflet";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { api } from "../api/client";
 import type { ChartLayer, Course } from "../api/types";
+import { diagramPicture } from "../diagram";
 import { tileUrl } from "./tiles";
 
 /**
@@ -15,6 +17,10 @@ import { tileUrl } from "./tiles";
  * Sized for a phone: a 300 nm route at zooms 8 to 12 is about a
  * thousand tiles, fifteen megabytes. The fetches run a few at a time
  * so the map itself stays responsive while they land.
+ *
+ * The route's airports' diagrams come with them (airport-diagrams in
+ * the worker), a third of a megabyte each, so a card opened on the
+ * ground at the other end shows its field's with no network.
  */
 export const CORRIDOR_NM = 10;
 const CONCURRENCY = 6;
@@ -101,24 +107,39 @@ async function workerReady(): Promise<boolean> {
   }
 }
 
+/** The route's airports' diagrams, by their cards (cached by the worker
+ *  too): none for a waypoint, a field with none, or a card that could not
+ *  be had. */
+async function routeDiagrams(course: Course): Promise<string[]> {
+  const idents = [...new Set([course.departure, ...(course.stops ?? []), course.destination]
+    .filter(a => a.kind !== "fix").map(a => a.ident))];
+  const cards = await Promise.allSettled(idents.map(ident => api.airport(ident)));
+  return cards.flatMap(card => (card.status === "fulfilled" && card.value.airport_diagram_cycle
+    ? [diagramPicture(card.value.ident, card.value.airport_diagram_cycle)] : []));
+}
+
 /**
- * Fetches every corridor tile of `kind` at `zooms`, reporting progress;
- * resolves with the final count. A tile that fails (a 404 where the
- * kind has no sheet, a dropped connection) is counted and skipped.
+ * Fetches every corridor tile of `kind` at `zooms`, and the route's
+ * airports' diagrams, reporting progress; resolves with the final
+ * count. A tile that fails (a 404 where the kind has no sheet, a
+ * dropped connection) is counted and skipped.
  */
 async function keepRouteCharts(
   course: Course, kind: string, zooms: number[], onProgress: (p: KeepProgress) => void, signal?: AbortSignal,
 ): Promise<KeepProgress> {
   if (!(await workerReady())) throw new NoServiceWorker();
-  const tiles = corridorTiles(course.course_line as [number, number][], zooms);
-  const progress: KeepProgress = { done: 0, total: tiles.length, failed: 0 };
+  const urls = [
+    ...await routeDiagrams(course),
+    ...corridorTiles(course.course_line as [number, number][], zooms).map(t => tileUrl(course, kind, t.z, t.x, t.y)),
+  ];
+  const progress: KeepProgress = { done: 0, total: urls.length, failed: 0 };
   onProgress({ ...progress });
   let next = 0;
   const worker = async () => {
-    while (next < tiles.length && !signal?.aborted) {
-      const t = tiles[next++]!;
+    while (next < urls.length && !signal?.aborted) {
+      const url = urls[next++]!;
       try {
-        const res = await fetch(tileUrl(course, kind, t.z, t.x, t.y), { signal, priority: "low" });
+        const res = await fetch(url, { signal, priority: "low" });
         if (!res.ok) progress.failed++;
       } catch {
         if (signal?.aborted) return;

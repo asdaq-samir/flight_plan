@@ -2,7 +2,7 @@
 tables, the airspace and the weather are stubbed -- these test what the
 router makes of them, not OurAirports or aviationweather.gov."""
 from fastapi.testclient import TestClient
-from vfr import airports, airspace, faa_data, remarks, weather
+from vfr import airports, airspace, faa_data, publications, remarks, weather
 
 from app.main import app
 
@@ -196,3 +196,24 @@ def test_the_nearest_fields_are_the_nearest_first_with_their_way_and_runway(monk
         "municipality": "Grayslake", "elevation_ft": 788.0, "distance_nm": 2.1, "bearing_deg": 45, "longest_runway_ft": 3573,
         "military": None,
     }
+
+
+def test_the_card_names_the_cycle_its_diagram_is_drawn_from(monkeypatch):
+    stub_place(monkeypatch)
+    monkeypatch.setattr(publications, "airport_diagram_url", lambda ident: "https://aeronav.faa.gov/d-tpp/2610/00125AD.PDF")
+    monkeypatch.setattr(publications, "airport_diagram_cycle", lambda ident: "2610")
+    card = client.get("/api/airport/KDLH").json()
+    assert card["airport_diagram_cycle"] == "2610"
+
+
+def test_the_diagram_is_a_picture_kept_for_its_cycle_and_none_for_another(monkeypatch, tmp_path):
+    picture = tmp_path / "00125AD.png"
+    picture.write_bytes(b"\x89PNG\r\n\x1a\n")
+    monkeypatch.setattr(publications, "airport_diagram_png",
+                        lambda ident, cycle: picture if (ident, cycle) == ("KDLH", "2610") else None)
+    answer = client.get("/api/airport-diagram/2610/KDLH.png")
+    assert answer.status_code == 200
+    assert answer.headers["content-type"] == "image/png"
+    assert answer.headers["cache-control"] == "public, max-age=2419200, immutable"
+    assert answer.content == b"\x89PNG\r\n\x1a\n"
+    assert client.get("/api/airport-diagram/2609/KDLH.png").status_code == 404

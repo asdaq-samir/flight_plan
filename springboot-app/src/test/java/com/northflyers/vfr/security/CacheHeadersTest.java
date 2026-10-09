@@ -87,6 +87,13 @@ class CacheHeadersTest {
     }
 
     @Test
+    void anAirportDiagramMayBeKeptByEveryone() throws Exception {
+        MockHttpServletResponse diagram = planner("/api/planner/airport-diagram/2610/KDLH.png");
+        assertThat(diagram.getStatus()).isEqualTo(200);
+        assertThat(diagram.getHeaders("Cache-Control")).containsExactly("public, max-age=300, s-maxage=3600");
+    }
+
+    @Test
     void anAnswerWithWeatherOrARouteInItIsNeverKept() throws Exception {
         for (String path : new String[] {"/api/planner/airports/in-view?south=46&west=-93&north=47&east=-92",
                 "/api/planner/course?dep=C81&dest=KDLH"}) {
