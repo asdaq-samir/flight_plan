@@ -506,17 +506,16 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
         <>
           <TabsContent value="diagrams" className="space-y-5 pt-4">
             <ListGroup title="Airport">
-              {!place.airport_diagram_url && !place.airport_diagram_cycle && (
+              {!place.airport_diagram_url && !place.airport_diagram_cycle && !sketched && (
                 // Drawn by the FAA for the fields with a tower or a busy
-                // ramp; most small fields have none.
+                // ramp; most small fields have none, and are sketched.
                 <ListRow title={<span className="text-muted-foreground">The FAA publishes no airport diagram for this field</span>} />
               )}
-              {(place.airport_diagram_url || place.airport_diagram_cycle || place.chart_supplement_url) && (
-                <PublicationRows
-                  ident={place.ident} diagram={place.airport_diagram_url}
-                  diagramCycle={place.airport_diagram_cycle} supplement={place.chart_supplement_url}
-                />
-              )}
+              <PublicationRows
+                ident={place.ident} diagram={place.airport_diagram_url} diagramCycle={place.airport_diagram_cycle}
+                supplement={place.chart_supplement_url}
+                sketch={sketched ? { runways: place.runways, lat: place.lat, lon: place.lon } : null}
+              />
               {procedures.filter(c => AIRPORT_CHARTS.includes(c.kind)).map(c => <TerminalChartRow key={c.url} chart={c} airport={place.ident} />)}
             </ListGroup>
             {/* The approaches, departures, arrivals and minimums in this
