@@ -1,0 +1,24 @@
+name: Docker Hub through its mirror
+description: >
+  The runner's Docker pulls Docker Hub's images (Postgres, Mailpit, Caddy,
+  Testcontainers' own) through Google's public mirror of Docker Hub,
+  mirror.gcr.io, first, falling back to Docker Hub where the mirror lacks
+  one. Docker Hub's limit on pulls from a runner's address refused them
+  -- 429 Too Many Requests, then its token service failing -- and with
+  them every e2e shard, test-webapp and infra, on every pull request of
+  the evening of 2026-10-09. The image builds have the same mirror in
+  BuildKit's config (ci.yml's build jobs).
+runs:
+  using: composite
+  steps:
+    - name: Docker Hub through mirror.gcr.io
+      shell: bash
+      run: |
+        # Added to whatever the runner's image already sets there.
+        config=/etc/docker/daemon.json
+        { sudo cat "$config" 2>/dev/null || echo '{}'; } \
+          | jq '. + {"registry-mirrors": ["https://mirror.gcr.io"]}' \
+          | sudo tee "$config.new" > /dev/null
+        sudo mv "$config.new" "$config"
+        sudo systemctl restart docker
+        docker info --format 'registry mirrors: {{.RegistryConfig.Mirrors}}'
