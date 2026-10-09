@@ -5601,6 +5601,56 @@
         "title": "Pirep",
         "type": "object"
       },
+      "PlaceFound": {
+        "description": "A place a pilot typed for Nearest to find the fields near: an\nairport, a town, a street address (vfr.geocode), and where it is.",
+        "properties": {
+          "kind": {
+            "enum": [
+              "airport",
+              "town",
+              "address"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "lat": {
+            "title": "Lat",
+            "type": "number"
+          },
+          "lon": {
+            "title": "Lon",
+            "type": "number"
+          }
+        },
+        "required": [
+          "label",
+          "kind",
+          "lat",
+          "lon"
+        ],
+        "title": "PlaceFound",
+        "type": "object"
+      },
+      "PlacesFound": {
+        "properties": {
+          "places": {
+            "items": {
+              "$ref": "#/components/schemas/PlaceFound"
+            },
+            "title": "Places",
+            "type": "array"
+          }
+        },
+        "required": [
+          "places"
+        ],
+        "title": "PlacesFound",
+        "type": "object"
+      },
       "Plan": {
         "properties": {
           "aircraft": {
@@ -9556,6 +9606,47 @@
           }
         },
         "summary": "Add Pick"
+      }
+    },
+    "/api/places/search": {
+      "get": {
+        "description": "Where a place typed is, for Nearest to find the fields near it\nrather than near own ship: the airports whose ident or name starts\nwith it, the towns that do (the Census gazetteer), and a street\naddress where it starts with a house number (the Census geocoder) --\neach with where it is (vfr.geocode).",
+        "operationId": "places_search_api_places_search_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Q",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlacesFound"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Places Search"
       }
     },
     "/api/plan": {

@@ -65,3 +65,36 @@ test("a field the armed services keep to themselves is off the map until Militar
   await page.keyboard.press("Escape");
   await expect(chip("KMIL")).toBeVisible();
 });
+
+
+test("Nearest is from a place typed -- a town, an address, an airport -- and back from the position at its clear", async ({ page }) => {
+  const asked: string[] = [];
+  await page.route(url => url.pathname.endsWith("/api/planner/airports/nearest"), route => {
+    const at = new URL(route.request().url()).searchParams;
+    asked.push(`${at.get("lat")},${at.get("lon")}`);
+    return route.fulfill({ json: { airports: [
+      { ...FIELD, ident: "KMSN", name: "Dane County Regional", lat: 43.14, lon: -89.34, distance_nm: 4.1, bearing_deg: 40 },
+    ] } });
+  });
+  await page.route(url => url.pathname.endsWith("/api/planner/places/search"), route => route.fulfill({ json: { places: [
+    { label: "Madison, WI", kind: "town", lat: 43.0849, lon: -89.3888 },
+    { label: "Madison, AL", kind: "town", lat: 34.7, lon: -86.74 },
+  ] } }));
+  await page.goto("/app/plan?near=1");
+  await settle(page);
+  const card = sideDrawer(page).getByTestId("nearest-card");
+  const field = card.getByTestId("nearest-from");
+  await expect(field).toHaveAttribute("placeholder", "Current position");
+
+  await field.fill("madison");
+  await card.getByTestId("nearest-from-option").filter({ hasText: "Madison, WI" }).click();
+  await expect(card).toContainText("Near Madison, WI");
+  await expect(page).toHaveURL(/[?&]nearAt=43\.0849%2C-89\.3888/);
+  await expect(card.getByTestId("nearest-airport")).toContainText("KMSN");
+  expect(asked).toContain("43.1,-89.4");
+
+  // Its clear: from the position again.
+  await card.getByTestId("nearest-from-clear").click();
+  await expect(page).not.toHaveURL(/nearAt=/);
+  await expect(field).toHaveValue("");
+});

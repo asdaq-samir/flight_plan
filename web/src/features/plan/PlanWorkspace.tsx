@@ -234,6 +234,28 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // the map fitted to them, at the pilot's ask. An airport opened from it
   // is a layer over it, its close back to the list.
   const nearOpen = searchParams.get("near") === "1";
+  // Or near a place the pilot typed in it -- a town, an address, an
+  // airport -- at the pilot's ask, where it was own ship's alone:
+  // `?nearAt=43.0731,-89.4012&nearName=Madison, WI`.
+  const nearAtParam = searchParams.get("nearAt");
+  const nearNameParam = searchParams.get("nearName");
+  const nearFrom = useMemo(() => {
+    const at = pointOf(nearAtParam);
+    return at ? { ...at, label: nearNameParam ?? `${at.lat}, ${at.lon}` } : null;
+  }, [nearAtParam, nearNameParam]);
+  const setNearFrom = useCallback((from: { label: string; lat: number; lon: number } | null) => {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      if (from) {
+        next.set("nearAt", `${from.lat.toFixed(4)},${from.lon.toFixed(4)}`);
+        next.set("nearName", from.label);
+      } else {
+        next.delete("nearAt");
+        next.delete("nearName");
+      }
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
   // The airport's card under the route, the route flown to from it (Fly
   // Here): where the route's close goes back to, as Maps' layers are.
   const [under, setUnder] = useState<string | null>(null);
@@ -268,7 +290,11 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     setSearchParams(prev => {
       const next = new URLSearchParams(prev);
       if (open) next.set("near", "1");
-      else next.delete("near");
+      else {
+        next.delete("near");
+        next.delete("nearAt");
+        next.delete("nearName");
+      }
       next.delete("place");
       next.delete("at");
       if (open) next.delete("view");
@@ -336,10 +362,14 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const fix = useOwnShipNear();
   // Nearest's fields and own ship, for the map to fit with its card up
   // (RouteMap's FitTo): the card's own question, shared.
-  const { data: nearestData } = useQuery({ ...nearestQuery(fix?.lat ?? 0, fix?.lon ?? 0), enabled: nearOpen && !!fix });
+  // From the place typed in it where there is one.
+  const nearOrigin = nearFrom ?? fix;
+  const { data: nearestData } = useQuery({ ...nearestQuery(nearOrigin?.lat ?? 0, nearOrigin?.lon ?? 0), enabled: nearOpen && !!nearOrigin });
   const nearestPoints = useMemo(
-    () => (fix && nearestData ? [{ ident: "own ship", lat: fix.lat, lon: fix.lon }, ...nearestData] : null),
-    [fix, nearestData],
+    () => (nearOrigin && nearestData
+      ? [{ ident: nearFrom ? nearFrom.label : "own ship", lat: nearOrigin.lat, lon: nearOrigin.lon }, ...nearestData]
+      : null),
+    [nearOrigin, nearFrom, nearestData],
   );
   // How far the card's airport is where own ship has no fix: from the
   // route's departure (the card measures from a fix itself).
@@ -1122,7 +1152,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       ) : heldPoint ? (
         <AirspaceCard key={atParam} point={heldPoint} onClose={() => selectPlace(null)} />
       ) : nearOpen ? (
-        <NearestCard onOpen={selectPlace} onClose={() => showNearest(false)} />
+        <NearestCard onOpen={selectPlace} onClose={() => showNearest(false)} from={nearFrom} onFrom={setNearFrom} />
       ) : favoritesOpen ? (
         <div className="min-h-0 flex-1 overflow-y-auto px-4 pt-2 pb-4">
           <FavoritesList
@@ -1163,7 +1193,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           />
         )}
         {!place && heldPoint && <AirspaceCard key={atParam} point={heldPoint} onClose={() => selectPlace(null)} />}
-        {!place && !heldPoint && nearOpen && <NearestCard onOpen={selectPlace} onClose={() => showNearest(false)} />}
+        {!place && !heldPoint && nearOpen && <NearestCard onOpen={selectPlace} onClose={() => showNearest(false)} from={nearFrom} onFrom={setNearFrom} />}
         <div className={cn("flex min-h-0 flex-1 flex-col print:flex", (place || heldPoint || nearOpen) && "hidden")}>{navLog}</div>
       </>
     ),

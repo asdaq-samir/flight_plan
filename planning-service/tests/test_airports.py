@@ -2,7 +2,7 @@
 tables, the airspace and the weather are stubbed -- these test what the
 router makes of them, not OurAirports or aviationweather.gov."""
 from fastapi.testclient import TestClient
-from vfr import airports, airspace, faa_data, publications, remarks, weather
+from vfr import airports, airspace, faa_data, geocode, publications, remarks, weather
 
 from app.main import app
 
@@ -258,3 +258,17 @@ def test_an_faa_charts_pages_are_listed_and_drawn_for_its_edition(monkeypatch, t
     monkeypatch.setattr(publications, "chart_page_png", down)
     assert client.get("/api/faa-chart", params={"url": "https://aeronav.faa.gov/d-tpp/2610/EC3TO.PDF"}).status_code == 502
     assert client.get("/api/faa-chart/page/dtpp/2610/EC3TO.PDF/33.png").status_code == 502
+
+
+
+def test_a_place_typed_is_an_airport_a_town_or_an_address_with_where_it_is(monkeypatch):
+    stub_place(monkeypatch)
+    monkeypatch.setattr(airports, "search_airports", lambda q, limit=8: [{"ident": "KDLH", "name": "Duluth International Airport"}])
+    monkeypatch.setattr(geocode, "find_towns", lambda q: [{"label": "Duluth, MN", "lat": 46.78, "lon": -92.1}])
+    monkeypatch.setattr(geocode, "find_addresses", lambda q: [])
+    found = client.get("/api/places/search", params={"q": "dul"}).json()["places"]
+    assert found == [
+        {"label": "KDLH · Duluth International Airport", "kind": "airport", "lat": 46.8421, "lon": -92.1936},
+        {"label": "Duluth, MN", "kind": "town", "lat": 46.78, "lon": -92.1},
+    ]
+    assert client.get("/api/places/search", params={"q": "d"}).json() == {"places": []}
