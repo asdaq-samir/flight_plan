@@ -6,6 +6,8 @@ import { FT_PER_NM, stripsOf } from "../../../lib/runwaySketch";
  *  a little air. */
 const MARGIN = 8;
 
+type Hole = { x: number; y: number; w: number; h: number };
+
 /**
  * A sketch of the field's runways, north up and to scale, as a diagram
  * draws them -- dark strips with a dashed centre line, and nothing else,
@@ -16,18 +18,26 @@ const MARGIN = 8;
  * whatever its shape, so the field fills it. Nothing where no runway can
  * be drawn.
  */
-export function RunwaySketch({ runways, lat, lon }: { runways: Runway[]; lat: number; lon: number }) {
+export function RunwaySketch({ runways, lat, lon, avoid }: {
+  runways: Runway[]; lat: number; lon: number;
+  /** A pane laid over the box (the elevation): no runway is drawn under it. */
+  avoid?: HTMLElement | null;
+}) {
   const box = useRef<SVGSVGElement>(null);
-  const [size, setSize] = useState<{ w: number; h: number } | null>(null);
+  const [size, setSize] = useState<{ w: number; h: number; hole: Hole | null } | null>(null);
   useLayoutEffect(() => {
     const parent = box.current?.parentElement;
     if (!parent) return;
-    const measure = () => setSize({ w: parent.clientWidth, h: parent.clientHeight });
+    const measure = () => setSize({
+      w: parent.clientWidth, h: parent.clientHeight,
+      hole: avoid ? { x: avoid.offsetLeft, y: avoid.offsetTop, w: avoid.offsetWidth, h: avoid.offsetHeight } : null,
+    });
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(parent);
+    if (avoid) observer.observe(avoid);
     return () => observer.disconnect();
-  }, []);
+  }, [avoid]);
   const drawn = useMemo(() => {
     const strips = stripsOf(runways, lat, lon);
     if (!strips.length || !size || size.w < 2 * MARGIN || size.h < 2 * MARGIN) return null;
@@ -36,9 +46,29 @@ export function RunwaySketch({ runways, lat, lon }: { runways: Runway[]; lat: nu
     const [minX, maxX, minY, maxY] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
     // Nautical miles to points, the same both ways (to scale), the whole
     // field inside the margin.
-    const scale = Math.min((w - 2 * MARGIN) / Math.max(maxX - minX, 1e-3), (h - 2 * MARGIN) / Math.max(maxY - minY, 1e-3));
+    const fit = Math.min((w - 2 * MARGIN) / Math.max(maxX - minX, 1e-3), (h - 2 * MARGIN) / Math.max(maxY - minY, 1e-3));
     const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
-    const at = ([x, y]: [number, number]): [number, number] => [w / 2 + (x - cx) * scale, h / 2 - (y - cy) * scale];
+    const atScale = (k: number) => ([x, y]: [number, number]): [number, number] => [w / 2 + (x - cx) * k, h / 2 - (y - cy) * k];
+    // A runway that reaches the pane's corner is drawn smaller about the
+    // box's centre until it clears it, so the pane never hides a runway end.
+    let scale = fit;
+    if (size.hole) {
+      const hole = size.hole;
+      const under = (k: number) => {
+        const to = atScale(k);
+        return strips.some(s => {
+          const [ax, ay] = to(s.a), [bx, by] = to(s.b);
+          const pad = MARGIN / 2;
+          for (let t = 0; t <= 1; t += 1 / 24) {
+            const x = ax + (bx - ax) * t, y = ay + (by - ay) * t;
+            if (x > hole.x - pad && x < hole.x + hole.w + pad && y > hole.y - pad && y < hole.y + hole.h + pad) return true;
+          }
+          return false;
+        });
+      };
+      while (under(scale) && scale > fit / 4) scale *= 0.95;
+    }
+    const at = atScale(scale);
     const placed = strips.map(s => {
       const [ax, ay] = at(s.a), [bx, by] = at(s.b);
       const length = Math.hypot(bx - ax, by - ay) || 1;

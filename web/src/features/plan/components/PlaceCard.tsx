@@ -287,6 +287,7 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
   }, [place]);
   const sketched = sketchedRunways.length > 0;
   const [diagramOpen, setDiagramOpen] = useState(false);
+  const [elevationPane, setElevationPane] = useState<HTMLElement | null>(null);
   const line = place ? subtitleOf(place, measured)
     : error ? `${ident} · ${error instanceof ApiError && error.status === 404 ? "not found" : "could not be looked up"}`
       : `${ident} · …`;
@@ -345,13 +346,14 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
                 onClick={() => (place.airport_diagram_url ? setDiagramOpen(true) : open("runways"))}
                 className="absolute inset-0 block rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
               >
-                <RunwaySketch runways={place.runways} lat={place.lat} lon={place.lon} />
+                <RunwaySketch runways={place.runways} lat={place.lat} lon={place.lon} avoid={elevationPane} />
               </button>
               {/* Over the sketch, read as it is (the button's name is the
                   runways'), on a pane of the card's own ground where a
                   runway runs under it. */}
               {place.elevation_ft != null && (
                 <span
+                  ref={setElevationPane}
                   className={cn("pointer-events-none absolute top-1 left-1.5 rounded-md bg-background/75 px-1 font-semibold text-foreground", TEXT.note)}
                   data-testid="place-elevation"
                 >
