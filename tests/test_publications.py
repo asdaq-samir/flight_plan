@@ -259,3 +259,49 @@ def test_a_turned_or_unlabelled_sheet_is_not_placed_by_its_labels():
         document.close()
     # Nothing to crop to on a blank sheet: none, for the card's sketch.
     assert publications._runways_drawn(blank, [(44.86, -91.49)]) is None
+
+
+def _with_runway(labels: list, bar: tuple) -> bytes:
+    """`labels` on a sheet and a runway-thick black bar (x, y, width,
+    height in points from the bottom left) drawn on it."""
+    document = pypdfium2.PdfDocument(_pdf_with([labels]))
+    page = document[0]
+    x, y, width, height = bar
+    rect = raw.FPDFPageObj_CreateNewRect(x, y, width, height)
+    raw.FPDFPageObj_SetFillColor(rect, 0, 0, 0, 255)
+    raw.FPDFPath_SetDrawMode(rect, 1, 0)
+    raw.FPDFPage_InsertObject(page.raw, rect)
+    raw.FPDFPage_GenerateContent(page.raw)
+    out = io.BytesIO()
+    document.save(out)
+    return out.getvalue()
+
+
+_LABELS = [("44 52'N", 20, 450), ("44 51'N", 20, 150), ("91 30'W", 80, 40), ("91 29'W", 292.6, 40)]
+_ENDS = [(44 + 51.6 / 60, -(91 + 29.7 / 60)), (44 + 51.3 / 60, -(91 + 29.3 / 60))]
+
+
+def test_a_sheet_without_labels_is_cropped_to_its_runway_thick_strokes():
+    png = publications._runways_drawn(_with_runway([], (100, 300, 150, 12)), [])
+    image = Image.open(io.BytesIO(png))
+    assert image.width < 387 * publications.DIAGRAM_SCALE * 0.7 and image.height < 594 * publications.DIAGRAM_SCALE * 0.3
+
+
+def test_labels_that_disagree_with_the_sheets_runways_give_the_sketch():
+    # The runway is drawn far from where the labels put the ends.
+    assert publications._runways_drawn(_with_runway(_LABELS, (250, 540, 100, 12)), _ENDS) is None
+
+
+def test_a_miss_is_kept_and_a_crop_made_without_ends_is_not_the_one_with_them(monkeypatch, tmp_path):
+    monkeypatch.setattr(publications, "CACHE_DIR", tmp_path)
+    on = date(2026, 10, 9)
+    cycle = publications.dtpp_cycle(on)
+    monkeypatch.setattr(publications, "airport_diagram_url", lambda ident, on=None: f"https://aeronav.faa.gov/d-tpp/{cycle}/00001AD.PDF")
+    monkeypatch.setattr(publications, "_pdf_of", lambda *a: b"%PDF")
+    drawn = []
+    monkeypatch.setattr(publications, "_runways_drawn", lambda pdf, ends: drawn.append(ends) or (b"png" if ends else None))
+    assert publications.airport_diagram_runways_png("KXXX", cycle, [], on) is None
+    assert publications.airport_diagram_runways_png("KXXX", cycle, [], on) is None
+    assert len(drawn) == 1
+    assert publications.airport_diagram_runways_png("KXXX", cycle, [(44.0, -91.0)], on).read_bytes() == b"png"
+    assert len(drawn) == 2

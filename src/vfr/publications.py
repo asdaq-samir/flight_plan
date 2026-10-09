@@ -485,7 +485,16 @@ def _runways_drawn(pdf: bytes, ends: list) -> bytes | None:
         # Not on the sheet: the labels read wrong.
         if box[0] < 0 or box[1] < 0 or box[2] > image.width or box[3] > image.height:
             box = None
-    box = box or _thick_strokes(image)
+    strokes = _thick_strokes(image)
+    if box and strokes:
+        # The labels and the sheet's own runways must agree: a fit that is
+        # on the page but wrong, or a crop that would cut a runway off,
+        # is worse than the card's sketch, which draws them all.
+        slack = 0.05 * max(strokes[2] - strokes[0], strokes[3] - strokes[1]) + 4 * DIAGRAM_SCALE
+        if box[0] < strokes[0] - slack or box[1] < strokes[1] - slack or box[2] > strokes[2] + slack or box[3] > strokes[3] + slack:
+            return None
+        box = (min(box[0], strokes[0]), min(box[1], strokes[1]), max(box[2], strokes[2]), max(box[3], strokes[3]))
+    box = box or strokes
     if not box:
         return None
     x0, y0, x1, y1 = box
@@ -514,9 +523,16 @@ def airport_diagram_runways_png(ident: str, cycle: str, ends: list, on: date | N
     url = airport_diagram_url(ident, on)
     if not url:
         return None
-    path = CACHE_DIR / "diagrams" / cycle / f"{Path(url).stem}-runways.png"
+    # What is drawn depends on the ends: with none the sheet's strokes
+    # alone place the crop, and that must not stand in for the labels'
+    # once NASR's ends are there.
+    kind = "runways" if ends else "runways-noends"
+    path = CACHE_DIR / "diagrams" / cycle / f"{Path(url).stem}-{kind}.png"
+    none = path.with_suffix(".none")
     if path.exists():
         return path
+    if none.exists():
+        return None
     data = _pdf_of("dtpp", cycle, Path(url).name)
     if data is None:
         return None
@@ -525,14 +541,19 @@ def airport_diagram_runways_png(ident: str, cycle: str, ends: list, on: date | N
     with lock:
         if path.exists():
             return path
+        if none.exists():
+            return None
         try:
             png = _runways_drawn(data, ends)
         except pypdfium2.PdfiumError as err:
             log.warning("No runways' diagram for %s in %s: %s", ident, cycle, err)
             return None
-        if png is None:
-            return None
         path.parent.mkdir(parents=True, exist_ok=True)
+        if png is None:
+            # Kept as a miss, so the sheet is not drawn and eroded again
+            # at every card for the rest of the cycle.
+            none.touch()
+            return None
         partial = path.with_name(path.name + ".part")
         partial.write_bytes(png)
         os.replace(partial, path)
