@@ -50,6 +50,21 @@ def _near(near: str) -> tuple:
     return tuple(points)
 
 
+@router.get("/api/airports/index", responses={200: {"content": {"application/json": {}}}})
+def airport_index() -> Response:
+    """Every US airport the search answers with, for the app to search on
+    the phone itself as a pilot types (vfr.airports.search_index): its
+    answers there at once, where each letter's question waited on this
+    planner, a second and more while it planned a route. Gzipped as it is
+    kept -- about 530 KB, from 1.8 MB -- and the same for every pilot until
+    OurAirports' table changes, so kept a day by the browser and the CDN
+    (PlannerProxyController passes both headers on)."""
+    return Response(
+        content=airports.search_index(), media_type="application/json",
+        headers={"Content-Encoding": "gzip", "Cache-Control": "public, max-age=86400", "Vary": "Accept-Encoding"},
+    )
+
+
 @router.get("/api/airports/search")
 def airport_search(response: Response, q: str = "", fixes: bool = False, near: str = "") -> AirportSearch:
     """DEP/DEST's own autocomplete -- every airport whose ident or name

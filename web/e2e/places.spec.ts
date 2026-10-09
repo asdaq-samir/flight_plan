@@ -394,6 +394,26 @@ test("closer in, the airports that report wear their weather's colour, and a tap
   await expect(card(page).getByTestId("fly-here")).toBeVisible({ timeout: slow(15000) });
 });
 
+test("the airport search answers from the phone's own copy, asking the planner nothing as it is typed", async ({ page }) => {
+  // The planner's index (vfr.airports.search_index), two fields of it.
+  await page.route(url => url.pathname.endsWith("/api/planner/airports/index"), route => route.fulfill({ json: { airports: [
+    ["KOSH", "Wittman Regional Airport", "Oshkosh", "WI", 1, "OSH"],
+    ["2WN8", "Oshkosh Sky Ranch Airport", "Omro", "WI", 2],
+  ] } }));
+  const asked: string[] = [];
+  page.on("request", request => { if (request.url().includes("/airports/search")) asked.push(request.url()); });
+  const index = page.waitForResponse(response => response.url().includes("/api/planner/airports/index"));
+  await page.goto("/app/plan");
+  await settle(page);
+  await index;
+  const search = page.getByTestId("search-airports");
+  await search.click();
+  await search.pressSequentially("oshk");
+  // Wittman by its town, the bigger field first, as the planner would.
+  await expect(page.getByTestId("search-result")).toHaveText([/KOSH/, /2WN8/]);
+  expect(asked).toEqual([]);
+});
+
 test("with no route the panel is a search bar: Home is set from Favorites, an airport found is starred onto Favorites, and Fly Here flies from Home", async ({ page }) => {
   await page.goto("/app/plan");
   await settle(page);

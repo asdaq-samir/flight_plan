@@ -8016,6 +8016,23 @@
         "summary": "Airports In View"
       }
     },
+    "/api/airports/index": {
+      "get": {
+        "description": "Every US airport the search answers with, for the app to search on\nthe phone itself as a pilot types (vfr.airports.search_index): its\nanswers there at once, where each letter's question waited on this\nplanner, a second and more while it planned a route. Gzipped as it is\nkept -- about 530 KB, from 1.8 MB -- and the same for every pilot until\nOurAirports' table changes, so kept a day by the browser and the CDN\n(PlannerProxyController passes both headers on).",
+        "operationId": "airport_index_api_airports_index_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Airport Index"
+      }
+    },
     "/api/airports/nearest": {
       "get": {
         "description": "The landing fields nearest a position -- own ship's, for the map's\nNearest -- the nearest first: how far and which way, each one's\nlongest open runway, its flight category where it reports, and its\nclass of airspace at the surface, as the map's marks have it.",

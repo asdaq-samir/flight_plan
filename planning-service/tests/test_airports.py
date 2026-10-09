@@ -1,6 +1,9 @@
 """Airports as places: the fields in a box, and one field's card. The
 tables, the airspace and the weather are stubbed -- these test what the
 router makes of them, not OurAirports or aviationweather.gov."""
+import gzip
+import json
+
 from fastapi.testclient import TestClient
 from vfr import airports, airspace, faa_data, geocode, pattern, publications, remarks, weather
 
@@ -149,6 +152,17 @@ def test_the_search_may_be_kept_and_the_fields_in_view_with_their_weather_may_no
     monkeypatch.setattr(airports, "search_airports", lambda q: [])
     search = client.get("/api/airports/search", params={"q": "KD"})
     assert search.headers["cache-control"] == "public, max-age=300, s-maxage=3600"
+
+
+def test_the_search_index_goes_gzipped_and_kept_a_day(monkeypatch):
+    # The phone's own copy of the search (vfr.airports.search_index), as
+    # the planner keeps it, and the same for every pilot.
+    body = gzip.compress(json.dumps({"airports": [["KDLH", "Duluth Intl", "Duluth", "MN", 1, "DLH"]]}).encode())
+    monkeypatch.setattr(airports, "search_index", lambda: body)
+    response = client.get("/api/airports/index")
+    assert response.headers["content-encoding"] == "gzip"
+    assert response.headers["cache-control"] == "public, max-age=86400"
+    assert response.json() == {"airports": [["KDLH", "Duluth Intl", "Duluth", "MN", 1, "DLH"]]}
 
 
 def test_a_field_the_armed_services_own_is_marked_military_or_joint_use(monkeypatch):
