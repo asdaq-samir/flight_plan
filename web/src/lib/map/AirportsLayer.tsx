@@ -8,7 +8,7 @@ import type { AirportPin } from "../api/types";
 import { colourOf } from "./flightCategory";
 import { airportMarkIcon, selectionIcon } from "./icons";
 import { MapTooltip } from "./MapTooltip";
-import { boxOf, hovers } from "./view";
+import { aheadOf, boundsAt, boxOf, hovers, within, type Box } from "./view";
 
 /** From this zoom in a sectional draws its airports big enough to aim a
  *  finger at; further out the targets would be a field of overlapping
@@ -101,9 +101,19 @@ export function AirportsLayer({ selected, onSelect, exclude, route }: {
   const map = useMap();
   const [view, setView] = useState(() => boxOf(map));
   // The zoom a zoom is going to, as it starts: the route's chips draw
-  // while the map is still easing in, not after it settles. The view's
-  // own question waits for it to settle, where its box is known.
+  // while the map is still easing in, not after it settles.
   const [easingTo, setEasingTo] = useState<number | null>(null);
+  // The box asked for: the view with as much again round it
+  // (aheadOf), asked again only when the view leaves it -- at a zoom's
+  // start, for where it will end, and at a move's end. The marks waited
+  // for the map to stop, its glide after a finger lifts too, and then for
+  // the planner (0.35 to 0.5 s from a drag's end on a laptop, 2026-10-09);
+  // a pan or a zoom in inside the box now has its answer already, and the
+  // marks are drawn the moment the map stops. Drawn for the view alone
+  // (below), not the whole box: a mark costs a phone over a millisecond to
+  // make, and the box's 885 round Minneapolis held the map up seconds.
+  const [asked, setAsked] = useState<Box>(() => aheadOf(map.getBounds()));
+  const ask = useCallback((bounds: L.LatLngBounds) => setAsked(was => (within(bounds, was) ? was : aheadOf(bounds))), []);
   // Memoized, not an object literal. react-leaflet lists the handlers
   // object in its effect's own dependencies, so a fresh one on every
   // render detaches the listener and re-attaches it on every commit --
@@ -116,8 +126,8 @@ export function AirportsLayer({ selected, onSelect, exclude, route }: {
   // Anywhere else, the card is put away.
   const drawn = useRef<AirportPin[]>([]);
   const handlers = useMemo(() => ({
-    zoomanim: (e: L.ZoomAnimEvent) => setEasingTo(e.zoom),
-    moveend: () => { setView(boxOf(map)); setEasingTo(null); },
+    zoomanim: (e: L.ZoomAnimEvent) => { setEasingTo(e.zoom); ask(boundsAt(map, e.center, e.zoom)); },
+    moveend: () => { setView(boxOf(map)); setEasingTo(null); ask(map.getBounds()); },
     click: (e: L.LeafletMouseEvent) => {
       let best: { ident: string; px: number } | null = null;
       for (const a of drawn.current) {
@@ -126,13 +136,14 @@ export function AirportsLayer({ selected, onSelect, exclude, route }: {
       }
       onSelect(best?.ident ?? null);
     },
-  }), [map, onSelect]);
+  }), [map, onSelect, ask]);
   useMapEvents(handlers);
   const zoom = easingTo ?? view.zoom;
   const near = zoom >= FROM_ZOOM;
   const reports = zoom >= REPORTING_FROM_ZOOM;
-  // At zoom 7 the view asks for the fields that report alone.
-  const reportingOnly = view.zoom < FROM_ZOOM;
+  // At zoom 7 the view asks for the fields that report alone -- at the
+  // zoom a zoom is going to, so the question goes as it starts.
+  const reportingOnly = zoom < FROM_ZOOM;
   // The fields along the route that report, asked for once the route is
   // drawn: zoomed in anywhere on it, their chips are already here, where
   // they used to wait for the zoom to settle and then behind its tiles.
@@ -146,10 +157,12 @@ export function AirportsLayer({ selected, onSelect, exclude, route }: {
     staleTime: 10 * 60_000,
     meta: { silent: true },
   });
+  // Up to a thousand, the box being some nine views: the planner's most,
+  // 270 in two degrees by two and a half round Chicago in 0.14 s.
   const { data: inView } = useQuery({
-    queryKey: ["airportsInView", view.key, reportingOnly],
-    queryFn: () => api.airportsInView({ ...view.box, reporting: reportingOnly }),
-    enabled: view.zoom >= REPORTING_FROM_ZOOM,
+    queryKey: ["airportsInView", asked.key, reportingOnly],
+    queryFn: () => api.airportsInView({ ...asked.box, reporting: reportingOnly, limit: 1000 }),
+    enabled: zoom >= REPORTING_FROM_ZOOM,
     staleTime: 10 * 60_000,
     placeholderData: keepPreviousData,
     meta: { silent: true },
@@ -160,7 +173,9 @@ export function AirportsLayer({ selected, onSelect, exclude, route }: {
     for (const a of alongRoute ?? []) {
       if (a.lat >= south && a.lat <= north && a.lon >= west && a.lon <= east) byIdent.set(a.ident, a);
     }
-    for (const a of inView ?? []) byIdent.set(a.ident, a);
+    for (const a of inView ?? []) {
+      if (a.lat >= south && a.lat <= north && a.lon >= west && a.lon <= east) byIdent.set(a.ident, a);
+    }
     return [...byIdent.values()];
   }, [alongRoute, inView, view.box]);
   const shown = useMemo(() => (reports
