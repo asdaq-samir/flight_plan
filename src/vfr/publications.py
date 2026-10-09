@@ -22,6 +22,7 @@ import io
 import json
 import logging
 import os
+import re
 import threading
 import xml.etree.ElementTree as ET
 from datetime import date, timedelta
@@ -97,13 +98,14 @@ def _charts_of(xml_bytes: bytes) -> dict:
 
 
 def _supplements_of(xml_bytes: bytes) -> dict:
-    """{FAA ident: its first Chart Supplement page's PDF} from a d-CS
-    airport list."""
+    """{FAA ident: its Chart Supplement pages' PDFs, in order} from a d-CS
+    airport list: an entry may run on to a second page."""
     found = {}
     for airport in ET.fromstring(xml_bytes).iter("airport"):
-        ident, pdf = airport.findtext("aptid"), airport.findtext("pages/pdf")
-        if ident and pdf:
-            found.setdefault(ident.upper(), pdf)
+        ident = airport.findtext("aptid")
+        pdfs = [pdf.text.strip() for pdf in airport.iterfind("pages/pdf") if pdf.text and pdf.text.strip()]
+        if ident and pdfs:
+            found.setdefault(ident.upper(), pdfs)
     return found
 
 
@@ -168,10 +170,16 @@ def airport_diagram_url(ident: str, on: date | None = None) -> str | None:
 def chart_supplement_url(ident: str, on: date | None = None) -> str | None:
     """The field's Chart Supplement page for this edition, None where it
     has none or the index cannot be had."""
-    edition = dcs_edition(on)
-    index = _index("dcs", edition, f"{DCS_BASE}/{edition}/afd_{edition}.xml", _supplements_of)
-    pdf = next((index[i] for i in _faa_idents(ident) if i in index), None)
-    return f"{DCS_BASE}/{edition}/{pdf}" if pdf else None
+    pages = _supplement_pages(ident, dcs_edition(on))
+    return f"{DCS_BASE}/{dcs_edition(on)}/{pages[0]}" if pages else None
+
+
+def _supplement_pages(ident: str, edition: str) -> list:
+    # "dcs-pages": every page of the entry, where "dcs" kept the first; a
+    # new name, so an index kept on disk in the old shape is not read as
+    # the new one.
+    index = _index("dcs-pages", edition, f"{DCS_BASE}/{edition}/afd_{edition}.xml", _supplements_of)
+    return next((index[i] for i in _faa_idents(ident) if i in index), [])
 
 
 def airport_diagram_cycle(ident: str, on: date | None = None) -> str | None:
@@ -184,16 +192,18 @@ def airport_diagram_cycle(ident: str, on: date | None = None) -> str | None:
 _PDFIUM = threading.Lock()
 
 
-def _drawn(pdf: bytes) -> bytes:
-    """The PDF's first page as a greyscale PNG, DIAGRAM_SCALE times its
-    points: the diagram is black on white, and grey keeps it a third the
-    size of colour with nothing lost."""
+def _drawn(pdf: bytes, page: int = 0) -> bytes:
+    """A page of the PDF (its first) as a greyscale PNG, DIAGRAM_SCALE
+    times its points: the FAA's charts are black on white, and grey keeps
+    one a third the size of colour with nothing lost."""
     # pdfium is not thread-safe, and draws of different PDFs run in the
     # server's thread pool at once: one at a time, or the process can crash.
     with _PDFIUM:
         document = pypdfium2.PdfDocument(pdf)
         try:
-            image = document[0].render(scale=DIAGRAM_SCALE, grayscale=True).to_pil().convert("L")
+            if not 0 <= page < len(document):
+                raise IndexError(f"no page {page + 1} of {len(document)}")
+            image = document[page].render(scale=DIAGRAM_SCALE, grayscale=True).to_pil().convert("L")
         finally:
             document.close()
     out = io.BytesIO()
@@ -227,6 +237,121 @@ def airport_diagram_png(ident: str, cycle: str, on: date | None = None) -> Path 
             png = _drawn(resp.content)
         except (requests.RequestException, pypdfium2.PdfiumError) as err:
             log.warning("No airport diagram for %s in %s: %s", ident, cycle, err)
+            return None
+        path.parent.mkdir(parents=True, exist_ok=True)
+        partial = path.with_name(path.name + ".part")
+        partial.write_bytes(png)
+        os.replace(partial, path)
+    return path
+
+
+#: A PDF's own name in an FAA publication: letters, figures and a few
+#: marks, no path -- what a chart's address may name and nothing else.
+_PDF_NAME = re.compile(r"^[A-Za-z0-9_.-]{1,80}\.pdf$", re.IGNORECASE)
+
+
+def _source_of(url: str, on: date | None = None) -> tuple | None:
+    """("dtpp" or "dcs", the edition, the PDF's name) for an FAA chart's
+    address in the edition in force -- the d-TPP's or the Chart
+    Supplement's, on aeronav.faa.gov -- and None for any other address:
+    the planner reads the FAA's charts and nothing it is pointed at."""
+    for source, base, edition in (("dtpp", DTPP_BASE, dtpp_cycle(on)), ("dcs", DCS_BASE, dcs_edition(on))):
+        prefix = f"{base}/{edition}/"
+        if url.startswith(prefix) and _PDF_NAME.match(url[len(prefix):]):
+            return source, edition, url[len(prefix):]
+    return None
+
+
+def _pdf_of(source: str, edition: str, name: str) -> bytes | None:
+    """One of the FAA's PDFs, downloaded once and kept for its edition;
+    None where the FAA cannot be reached."""
+    path = CACHE_DIR / "pdf" / source / edition / name
+    if path.exists():
+        return path.read_bytes()
+    with _LOCK:
+        lock = _DRAWING.setdefault(path, threading.Lock())
+    with lock:
+        if path.exists():
+            return path.read_bytes()
+        base = DTPP_BASE if source == "dtpp" else DCS_BASE
+        try:
+            resp = requests.get(f"{base}/{edition}/{name}", headers=HEADERS, timeout=60)
+            resp.raise_for_status()
+        except requests.RequestException as err:
+            log.warning("No %s %s in %s: %s", source, name, edition, err)
+            return None
+        path.parent.mkdir(parents=True, exist_ok=True)
+        partial = path.with_name(path.name + ".part")
+        partial.write_bytes(resp.content)
+        os.replace(partial, path)
+        return resp.content
+
+
+def chart_pages(url: str, ident: str | None = None, on: date | None = None) -> list | None:
+    """The pages of an FAA chart to show in the app, for its in-app view
+    (`chart_page_png`): {"source", "edition", "pdf", "page" (from 1),
+    "width", "height" (in pixels, drawn DIAGRAM_SCALE times its points)}.
+    Every page of a chart of its own (an approach, a departure); of one of
+    the FAA's booklets -- a region's takeoff minimums, sixty-nine pages,
+    or its hot spots -- only the pages that name the field ("(MSN)", as
+    the FAA heads each field's entry), and all of them where none does;
+    and of a Chart Supplement entry, each of its pages. None for an
+    address that is not one of the FAA's charts in force, or where the
+    FAA cannot be reached."""
+    found = _source_of(url, on)
+    if not found:
+        return None
+    source, edition, name = found
+    names = [name]
+    if source == "dcs" and ident:
+        entry = _supplement_pages(ident, edition)
+        if name in entry:
+            names = entry[entry.index(name):]
+    pages = []
+    for pdf in names:
+        data = _pdf_of(source, edition, pdf)
+        if data is None:
+            return None
+        needle = f"({_faa_idents(ident)[-1]})" if ident else None
+        with _PDFIUM:
+            document = pypdfium2.PdfDocument(data)
+            try:
+                every = []
+                for i in range(len(document)):
+                    page = document[i]
+                    size = {"source": source, "edition": edition, "pdf": pdf, "page": i + 1,
+                            "width": round(page.get_width() * DIAGRAM_SCALE), "height": round(page.get_height() * DIAGRAM_SCALE)}
+                    every.append((size, len(document) > 1 and needle is not None and needle in page.get_textpage().get_text_bounded()))
+            finally:
+                document.close()
+        named = [size for size, names_field in every if names_field]
+        pages.extend(named or [size for size, _ in every])
+    return pages
+
+
+def chart_page_png(source: str, edition: str, name: str, page: int, on: date | None = None) -> Path | None:
+    """One page of one of the FAA's charts in force as a picture on disk,
+    drawn the first time it is asked for and kept for its edition, as the
+    airport diagram is (`airport_diagram_png`); None for a chart not in
+    force, a page it does not have, or while the FAA cannot be reached."""
+    current = {"dtpp": dtpp_cycle(on), "dcs": dcs_edition(on)}
+    if current.get(source) != edition or not _PDF_NAME.match(name) or page < 1:
+        return None
+    path = CACHE_DIR / "pages" / source / edition / f"{Path(name).stem}-{page}.png"
+    if path.exists():
+        return path
+    data = _pdf_of(source, edition, name)
+    if data is None:
+        return None
+    with _LOCK:
+        lock = _DRAWING.setdefault(path, threading.Lock())
+    with lock:
+        if path.exists():
+            return path
+        try:
+            png = _drawn(data, page - 1)
+        except (pypdfium2.PdfiumError, IndexError) as err:
+            log.warning("No page %s of %s %s in %s: %s", page, source, name, edition, err)
             return None
         path.parent.mkdir(parents=True, exist_ok=True)
         partial = path.with_name(path.name + ".part")

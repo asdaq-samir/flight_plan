@@ -716,6 +716,15 @@ Resources:
             CachedMethods: [GET, HEAD]
             Compress: false  # PNGs, already compressed
             CachePolicyId: !Ref SharedAnswersCachePolicy
+          # The FAA's charts' pages and their list, the edition in each
+          # address (the planner's /api/faa-chart).
+          - PathPattern: api/planner/faa-chart*
+            TargetOriginId: server
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD]
+            CachedMethods: [GET, HEAD]
+            Compress: true
+            CachePolicyId: !Ref SharedAnswersCachePolicy
         # A server error is passed on, never kept: CloudFront would hold
         # one for ten seconds by default, and a planner restarting would
         # then outlast itself at the edge.

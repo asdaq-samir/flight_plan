@@ -9,12 +9,12 @@ are parsed once at startup (vfr.airspace), and the METARs are the
 national cache vfr.weather keeps for minutes at a time. A card costs a
 few table lookups and a point-in-polygon test.
 """
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Response
 from fastapi.responses import FileResponse
 from vfr import airports, airspace, altitude, faa_data, fixes, pattern, places, publications, remarks, runway_wind, weather
 
 from ..common import DIAGRAM_CACHE
-from ..schemas import AirportPlace, AirportsInView, NearestAirports, WaypointsInView
+from ..schemas import AirportPlace, AirportsInView, ChartPages, NearestAirports, WaypointsInView
 
 router = APIRouter()
 
@@ -180,4 +180,32 @@ def airport_diagram(cycle: str, ident: str) -> FileResponse:
     path = publications.airport_diagram_png(ident, cycle)
     if path is None:
         raise HTTPException(404, f"No airport diagram for {ident.strip().upper()!r} in d-TPP cycle {cycle}.")
+    return FileResponse(path, media_type="image/png", headers={"Cache-Control": DIAGRAM_CACHE})
+
+
+@router.get("/api/faa-chart", response_model=ChartPages)
+def faa_chart(url: str, response: Response, airport: str | None = None) -> ChartPages:
+    """The pages of one of the FAA's charts in force -- by its address on
+    aeronav.faa.gov, as a card lists it (`procedures`, the Chart
+    Supplement's) -- for the app to show them itself rather than leave for
+    the FAA's site: every page of an approach or a departure, of one of
+    the FAA's booklets (a region's takeoff minimums) the pages naming
+    `airport`, of a Chart Supplement entry each of its pages. 404 for any
+    other address, and while the FAA cannot be reached."""
+    pages = publications.chart_pages(url, airport)
+    if pages is None:
+        raise HTTPException(404, "Not one of the FAA's charts in force, or the FAA could not be reached.")
+    # The address names the chart's edition: the same answer for the whole of it.
+    response.headers["Cache-Control"] = DIAGRAM_CACHE
+    return {"pages": pages}
+
+
+@router.get("/api/faa-chart/page/{source}/{edition}/{pdf}/{page}.png", response_class=FileResponse,
+            responses={200: {"content": {"image/png": {}}}, 404: {"description": "No such page in force"}})
+def faa_chart_page(source: str, edition: str, pdf: str, page: int) -> FileResponse:
+    """One page of one of the FAA's charts in force as a picture, drawn
+    once and kept for its edition, as the airport diagram's is."""
+    path = publications.chart_page_png(source, edition, pdf, page)
+    if path is None:
+        raise HTTPException(404, f"No page {page} of {pdf} in {source} {edition}.")
     return FileResponse(path, media_type="image/png", headers={"Cache-Control": DIAGRAM_CACHE})

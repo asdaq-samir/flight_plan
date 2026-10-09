@@ -83,12 +83,13 @@ test("an airport's card has four tabs under its tiles, the radio first, and a ta
   await expect(card(page).getByRole("tabpanel")).toContainText(/Runway \d/);
 
   // Diagrams: the airport's (none here), and its approach as the FAA
-  // prints its title, opening its PDF.
+  // prints its title.
   await card(page).getByTestId("place-tab-diagrams").click();
   await expect(card(page).getByRole("tabpanel")).toContainText("The FAA publishes no airport diagram for this field");
   const approach = card(page).getByRole("tabpanel").getByTestId("terminal-chart");
   await expect(approach).toHaveText(/RNAV \(GPS\) RWY 24/);
-  await expect(approach).toHaveAttribute("href", "https://aeronav.faa.gov/d-tpp/2610/05887R24.PDF");
+  // Shown in the app (airport-diagram.spec), not a link out of it.
+  await expect(approach).not.toHaveAttribute("href", /.*/);
 });
 
 test("the route's Approaches opens its destination's card on its approaches, and Nearest is on the map's left", async ({ page }) => {

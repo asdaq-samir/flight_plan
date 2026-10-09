@@ -1,8 +1,11 @@
 """The FAA's airport diagrams and Chart Supplement pages, by edition."""
+import ctypes
 import io
 from datetime import date
 
 import pypdfium2
+import pypdfium2.raw as raw
+import pytest
 import requests
 from PIL import Image
 
@@ -40,15 +43,15 @@ def test_an_airports_charts_are_kept_by_either_ident_in_the_faas_order():
     assert charts["C81"] == [["IAP", "", "X.PDF"]]
 
 
-def test_the_supplement_is_the_airports_first_page():
-    assert publications._supplements_of(AFD) == {"DLH": "nc_161_03SEP2026.pdf", "C81": "ec_59_03SEP2026.pdf"}
+def test_the_supplement_is_the_airports_pages_in_order():
+    assert publications._supplements_of(AFD) == {"DLH": ["nc_161_03SEP2026.pdf"], "C81": ["ec_59_03SEP2026.pdf", "ec_60_03SEP2026.pdf"]}
 
 
 def test_the_links_are_the_editions_own(monkeypatch, tmp_path):
     monkeypatch.setattr(publications, "CACHE_DIR", tmp_path)
     monkeypatch.setattr(publications, "_HELD", {})
     (tmp_path / "dtpp-charts-2610.json").write_text(DLH_CHARTS)
-    (tmp_path / "dcs-03Sep2026.json").write_text('{"DLH": "nc_161_03SEP2026.pdf"}')
+    (tmp_path / "dcs-pages-03Sep2026.json").write_text('{"DLH": ["nc_161_03SEP2026.pdf"]}')
     on = date(2026, 10, 3)
     assert publications.airport_diagram_url("KDLH", on) == "https://aeronav.faa.gov/d-tpp/2610/00125AD.PDF"
     assert publications.chart_supplement_url("KDLH", on) == "https://aeronav.faa.gov/afd/03Sep2026/nc_161_03SEP2026.pdf"
@@ -139,3 +142,53 @@ def test_pdfium_draws_one_pdf_at_a_time(monkeypatch):
     for t in threads:
         t.join()
     assert most == 1
+
+
+
+def _pdf_with(pages: list) -> bytes:
+    """A PDF of `pages` d-TPP-sized pages, each with its text set on it."""
+    document = pypdfium2.PdfDocument.new()
+    font = None
+    for words in pages:
+        page = document.new_page(387, 594)
+        if words:
+            if font is None:
+                font = raw.FPDFText_LoadStandardFont(document.raw, b"Helvetica")
+            text = raw.FPDFPageObj_CreateTextObj(document.raw, font, ctypes.c_float(12))
+            encoded = (words + "\x00").encode("utf-16-le")
+            raw.FPDFText_SetText(text, ctypes.cast(encoded, ctypes.POINTER(raw.FPDF_WCHAR)))
+            raw.FPDFPageObj_Transform(text, 1, 0, 0, 1, 40, 500)
+            raw.FPDFPage_InsertObject(page.raw, text)
+            raw.FPDFPage_GenerateContent(page.raw)
+    out = io.BytesIO()
+    document.save(out)
+    return out.getvalue()
+
+
+def test_a_booklets_pages_are_the_ones_naming_the_field_and_a_charts_its_own(monkeypatch, tmp_path):
+    monkeypatch.setattr(publications, "CACHE_DIR", tmp_path)
+    booklet = _pdf_with(["KENOSHA (ENW)", "MADISON DANE COUNTY RGNL/TRUAX FLD (MSN)", "MSN CONTINUED (MSN)", "MILWAUKEE (MKE)"])
+    approach = _pdf_with(["ILS OR LOC RWY 18"])
+    answers = {"EC3TO.PDF": booklet, "00245IL18.PDF": approach}
+    monkeypatch.setattr(publications.requests, "get", lambda url, **kw: _Answer(answers[url.rsplit("/", 1)[1]]))
+    on = date(2026, 10, 3)
+    pages = publications.chart_pages("https://aeronav.faa.gov/d-tpp/2610/EC3TO.PDF", "KMSN", on)
+    assert [p["page"] for p in pages] == [2, 3]
+    scale = publications.DIAGRAM_SCALE
+    assert pages[0] == {"source": "dtpp", "edition": "2610", "pdf": "EC3TO.PDF", "page": 2, "width": 387 * scale, "height": 594 * scale}
+    assert [p["page"] for p in publications.chart_pages("https://aeronav.faa.gov/d-tpp/2610/00245IL18.PDF", "KMSN", on)] == [1]
+    # Drawn, a page at a time, and kept.
+    path = publications.chart_page_png("dtpp", "2610", "EC3TO.PDF", 3, on)
+    assert Image.open(path).size == (387 * scale, 594 * scale)
+    assert publications.chart_page_png("dtpp", "2610", "EC3TO.PDF", 9, on) is None
+
+
+def test_only_the_faas_charts_in_force_are_read(monkeypatch, tmp_path):
+    monkeypatch.setattr(publications, "CACHE_DIR", tmp_path)
+    monkeypatch.setattr(publications.requests, "get", lambda url, **kw: pytest.fail(f"asked for {url}"))
+    on = date(2026, 10, 3)
+    for url in ("https://example.com/d-tpp/2610/X.PDF", "https://aeronav.faa.gov/d-tpp/2609/X.PDF",
+                "https://aeronav.faa.gov/d-tpp/2610/../secret.PDF", "https://aeronav.faa.gov/d-tpp/2610/X.exe"):
+        assert publications.chart_pages(url, "KMSN", on) is None
+    assert publications.chart_page_png("dtpp", "2609", "X.PDF", 1, on) is None
+    assert publications.chart_page_png("elsewhere", "2610", "X.PDF", 1, on) is None
