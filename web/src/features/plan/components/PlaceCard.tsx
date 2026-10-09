@@ -341,7 +341,7 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
                 tabIndex={-1} data-testid="place-name"
                 className={cn("min-h-0 flex-1 font-bold tracking-tight break-words text-foreground outline-none", TEXT.card)}
               >
-                <FitText className="h-full leading-[1.2]" data-testid="place-name-fit">
+                <FitText className="h-full" data-testid="place-name-fit">
                   <NameWithIdent
                     name={place?.name ?? known?.name ?? kept?.name ?? ident} ident={place?.ident ?? ident}
                     airspace={place ? place.airspace_class : kept?.airspace}
@@ -402,7 +402,7 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
                   className={cn("pointer-events-none absolute top-1 left-1.5 flex flex-col rounded-md bg-background/75 px-1 py-0.5 leading-tight font-semibold text-foreground", TEXT.note)}
                   data-testid="place-elevation"
                 >
-                  <span aria-hidden="true" className="text-[0.6875rem] leading-none font-normal">Elev </span>
+                  <span aria-hidden="true" className="text-[0.6875rem] leading-[0.8125rem] font-normal">Elev </span>
                   <span><span className="sr-only">Elevation </span>{feet(place.elevation_ft)}</span>
                 </span>
               )}
