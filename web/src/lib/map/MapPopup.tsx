@@ -29,7 +29,7 @@ import { MapInsetsContext } from "../../components/mapChrome";
  * a tap on the chart fires one). That is why the pin can keep working
  * with dismissal left at Leaflet's default.
  */
-/** Opened, a popup pans the map to be in sight, and then holds still:
+/** With `panOnce`, an opened popup pans the map to be in sight, and then holds still:
  *  react-leaflet updates an open popup each time what holds it draws
  *  again, and each of Leaflet's updates pans it again. The VFR waypoints'
  *  layer drew again at each move's end, so a popup a pixel out of place
@@ -55,17 +55,26 @@ const PAN_ONCE: LeafletEventHandlerFnMap = {
   },
 };
 
-export function MapPopup({ eventHandlers, ...props }: ComponentProps<typeof Popup>) {
+export function MapPopup({ eventHandlers, panOnce = false, ...props }: ComponentProps<typeof Popup> & {
+  /** Pans on opening only, for a popup whose holder draws again while it is
+   *  open (the VFR waypoints'). The others keep Leaflet's pan, so a card
+   *  that grows late -- a weather or airspace answer, say -- is still
+   *  brought into sight. */
+  panOnce?: boolean;
+}) {
   // Opened, it pans the map to be in sight past the panel over the map
   // (MapPanel), not just inside the map, which runs under the panel.
   const insets = useContext(MapInsetsContext);
   // The caller's handlers beside the one that pans once, as one object
   // while theirs is the same.
-  const handlers = useMemo<LeafletEventHandlerFnMap>(() => (eventHandlers ? {
-    ...eventHandlers,
-    add: event => { PAN_ONCE.add!(event); eventHandlers.add?.(event); },
-    remove: event => { PAN_ONCE.remove!(event); eventHandlers.remove?.(event); },
-  } : PAN_ONCE), [eventHandlers]);
+  const handlers = useMemo<LeafletEventHandlerFnMap | undefined>(() => {
+    if (!panOnce) return eventHandlers;
+    return eventHandlers ? {
+      ...eventHandlers,
+      add: event => { PAN_ONCE.add!(event); eventHandlers.add?.(event); },
+      remove: event => { PAN_ONCE.remove!(event); eventHandlers.remove?.(event); },
+    } : PAN_ONCE;
+  }, [eventHandlers, panOnce]);
   // Props last: these are defaults, and a caller that means something
   // different says so.
   return (
