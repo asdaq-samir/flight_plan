@@ -39,8 +39,9 @@ function subtitleOf(place: AirportPlace, from: { point: LatLon; name: string | n
   const mhz = (f?: { frequency_mhz?: number | null }) =>
     f?.frequency_mhz ? f.frequency_mhz.toFixed(3).replace(/0+$/, "").replace(/\.$/, "") : null;
   // The civil tower: the airport file also lists military UHF (225-400 MHz)
-  // towers, which a civil VHF radio cannot call; civil VHF comm is
-  // 118.000-136.975 MHz (AIM 4-1-9 and the FAA's frequency allocations).
+  // towers, which a civil VHF radio cannot call; the civil VHF comm
+  // channels run 118.000-136.975 MHz (47 CFR 87.173(b), the aviation
+  // service's VHF frequency table).
   const civil = (f: { frequency_mhz?: number | null }) =>
     f.frequency_mhz != null && f.frequency_mhz >= 118 && f.frequency_mhz <= 136.975;
   const tower = mhz(place.frequencies.find(f => f.type === "TWR" && civil(f)));
@@ -334,18 +335,19 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
               <FavoriteButton place={place} />
               <CloseButton onClick={onClose} className="-mr-1" data-testid="place-close" />
             </div>
-            <div className={cn("col-span-2 mt-2 flex min-h-24 flex-col overflow-hidden rounded-xl p-1.5 text-foreground", GLASS_BUTTON)}>
+            <div className={cn("relative col-span-2 mt-2 flex min-h-24 flex-col overflow-hidden rounded-xl p-1.5 text-foreground", GLASS_BUTTON)}>
               {/* In the text's own colour: the muted grey on the sketch's
                   glass, lighter than the card's at night, read at 4.4:1
                   there, under WCAG's 4.5 (the iPhone audit). */}
-              <p className={cn("text-foreground", TEXT.note)} data-testid="place-line">{line}</p>
+              <p className={cn("pointer-events-none text-foreground", TEXT.note)} data-testid="place-line">{line}</p>
               {/* The runways in what the lines leave, never under them; the
-                  tap the sketch's, the lines read as they are. */}
+                  tap the whole tile's (the button's after: covers it and
+                  the lines let it through), the lines read as they are. */}
               <button
                 type="button" data-testid="place-runway-sketch"
                 aria-label={`${place.ident} runways ${sketchedRunways.join(", ")}, north up${leftOut ? `, ${leftOut} more not drawn, their ends unsurveyed` : ""}. ${place.airport_diagram_url ? "Airport diagram, full screen" : "Show runways"}`}
                 onClick={() => (place.airport_diagram_url ? setDiagramOpen(true) : open("runways"))}
-                className="relative block min-h-12 w-full flex-1 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="block min-h-12 w-full flex-1 rounded-lg outline-none after:absolute after:inset-0 after:rounded-xl focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <RunwaySketch runways={place.runways} lat={place.lat} lon={place.lon} />
               </button>
