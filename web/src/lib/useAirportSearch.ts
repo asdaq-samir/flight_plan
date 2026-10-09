@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { api } from "./api/client";
 import { searchIndex, useAirportIndex } from "./airportIndex";
@@ -46,7 +46,9 @@ export function useAirportSearch(text: string, enabled = true, fixes = false) {
   const near = useContext(SearchNear);
   const by = fixes ? near : "";
   const index = useAirportIndex(enabled);
-  const local = index && typed ? searchIndex(index, typed) : null;
+  // Once per typed value: the scan covers every row, and the panel
+  // re-renders for much besides typing (map moves, weather, sheet drags).
+  const local = useMemo(() => (index && typed ? searchIndex(index, typed) : null), [index, typed]);
   const { data, isPlaceholderData } = useQuery({
     queryKey: ["airportSearch", q, fixes, by],
     queryFn: () => api.airportSearch(q, fixes, by),
