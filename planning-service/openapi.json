@@ -6292,6 +6292,14 @@
             ],
             "title": "Surface"
           },
+          "turf": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/RunwayTurf"
+            },
+            "title": "Turf",
+            "type": "array"
+          },
           "width_ft": {
             "anyOf": [
               {
@@ -6379,6 +6387,36 @@
           "ident"
         ],
         "title": "RunwayEnd",
+        "type": "object"
+      },
+      "RunwayTurf": {
+        "description": "A length of a runway of two surfaces that is turf, where the FAA's\nremarks say which (vfr.remarks.runway_turf): from `from_ft` to `to_ft`\nfeet along it from its `end`, `to_ft` None for the rest of it.",
+        "properties": {
+          "end": {
+            "title": "End",
+            "type": "string"
+          },
+          "from_ft": {
+            "title": "From Ft",
+            "type": "integer"
+          },
+          "to_ft": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "To Ft"
+          }
+        },
+        "required": [
+          "end",
+          "from_ft"
+        ],
+        "title": "RunwayTurf",
         "type": "object"
       },
       "RunwayWind": {

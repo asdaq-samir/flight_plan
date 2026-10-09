@@ -6,11 +6,29 @@ import { FT_PER_NM, stripsOf } from "../../../lib/runwaySketch";
  *  a little air. */
 const MARGIN = 8;
 
+/** Turf, green as the grass it is, at the pilot's ask: a shade that
+ *  reads beside the paved strips' ink on the card's glass in either
+ *  scheme. */
+const TURF = "#3f8f3a";
+
 type Hole = { x: number; y: number; w: number; h: number };
+
+/** What of a runway is not its turf, as fractions of it from end to end. */
+function pavedOf(turf: [number, number][]): [number, number][] {
+  const paved: [number, number][] = [];
+  let at = 0;
+  for (const [from, to] of [...turf].sort((a, b) => a[0] - b[0])) {
+    if (from > at) paved.push([at, from]);
+    at = Math.max(at, to);
+  }
+  if (at < 1) paved.push([at, 1]);
+  return paved;
+}
 
 /**
  * A sketch of the field's runways, north up and to scale, as a diagram
- * draws them -- dark strips with a dashed centre line, and nothing else,
+ * draws them -- dark strips with a dashed centre line, green where they
+ * are turf, and nothing else,
  * the runways alone at the pilot's ask: the FAA's diagram cropped to the
  * card's box was a scatter of its lettering, and the ends' numbers, tried
  * beside them, took the room the runways needed in a box that size (the
@@ -90,10 +108,35 @@ export function RunwaySketch({ runways, lat, lon, avoid }: {
       {drawn?.strips.map(s => (
         <g key={s.ends.join("/")} opacity={s.closed ? 0.35 : 1}>
           <line x1={s.ax} y1={s.ay} x2={s.bx} y2={s.by} stroke="currentColor" strokeWidth={s.width} />
-          <line
-            x1={s.ax + s.ux * 3} y1={s.ay + s.uy * 3} x2={s.bx - s.ux * 3} y2={s.by - s.uy * 3}
-            className="stroke-background" strokeWidth={0.9} strokeDasharray="3.5 3"
-          />
+          {/* Its turf over the paving, the part the remarks say (C81's
+              south-west 1,000 ft), or all of a turf runway. */}
+          {s.turf.map(([from, to]) => (
+            <line
+              key={`${from}-${to}`} data-turf=""
+              x1={s.ax + (s.bx - s.ax) * from} y1={s.ay + (s.by - s.ay) * from}
+              x2={s.ax + (s.bx - s.ax) * to} y2={s.ay + (s.by - s.ay) * to}
+              stroke={TURF} strokeWidth={s.width}
+            />
+          ))}
+          {/* A dotted line of light down the turf, so it is told from
+              paving by its texture and not by its green alone. */}
+          {s.turf.map(([from, to]) => (
+            <line
+              key={`dots-${from}-${to}`}
+              x1={s.ax + (s.bx - s.ax) * from} y1={s.ay + (s.by - s.ay) * from}
+              x2={s.ax + (s.bx - s.ax) * to} y2={s.ay + (s.by - s.ay) * to}
+              stroke="white" strokeOpacity={0.7} strokeWidth={Math.max(1, s.width / 4)} strokeDasharray="1 3" strokeLinecap="round"
+            />
+          ))}
+          {/* The centre line on the paving alone: grass has none painted. */}
+          {pavedOf(s.turf).map(([from, to]) => (
+            <line
+              key={`${from}-${to}`}
+              x1={s.ax + (s.bx - s.ax) * from + s.ux * 3} y1={s.ay + (s.by - s.ay) * from + s.uy * 3}
+              x2={s.ax + (s.bx - s.ax) * to - s.ux * 3} y2={s.ay + (s.by - s.ay) * to - s.uy * 3}
+              className="stroke-background" strokeWidth={0.9} strokeDasharray="3.5 3"
+            />
+          ))}
         </g>
       ))}
     </svg>

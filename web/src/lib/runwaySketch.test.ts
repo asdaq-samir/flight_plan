@@ -4,7 +4,7 @@ import { runwaysLeftOut, stripsOf } from "./runwaySketch";
 
 const runway = (ends: [string, number | null, number | null, number | null][], extra: Partial<Runway> = {}): Runway => ({
   ends: ends.map(e => e[0]).join("/"), length_ft: 6000, width_ft: 150, surface: "ASP", lighted: true, closed: false,
-  runway_ends: ends.map(([ident, heading, lat, lon]) => ({ ident, heading_true_deg: heading, traffic: "left", lat, lon })),
+  runway_ends: ends.map(([ident, heading, lat, lon]) => ({ ident, heading_true_deg: heading, traffic: "left", lat, lon })), turf: [],
   ...extra,
 });
 
@@ -41,6 +41,23 @@ describe("the runways' sketch", () => {
     expect(strips.map(s => s.ends)).toEqual([["18", "36"]]);
     expect(runwaysLeftOut([known, half], strips)).toBe(1);
     expect(runwaysLeftOut([known], stripsOf([known], 43, -89))).toBe(0);
+  });
+
+  test("marks a runway's turf from whichever end the remarks measure it, and all of a turf runway", () => {
+    const ends: [string, number, number, number][] = [["06", 58, 42.3226, -88.0797], ["24", 238, 42.3277, -88.0685]];
+    // C81's 06/24: the south-west 1,000 of its 3,573 ft, from 06's end.
+    const [c81] = stripsOf([runway(ends, { length_ft: 3573, surface: "ASPH-TURF", turf: [{ end: "06", from_ft: 0, to_ft: 1000 }] })], 42.3246, -88.0741);
+    expect(c81!.turf).toEqual([[0, 1000 / 3573]]);
+    // From the second end, the rest of it: the way back from it.
+    const [rest] = stripsOf([runway(ends, { length_ft: 4000, turf: [{ end: "24", from_ft: 1000, to_ft: null }] })], 42.3246, -88.0741);
+    expect(rest!.turf).toEqual([[0, 0.75]]);
+    const [grass] = stripsOf([runway(ends, { surface: "TURF-G" })], 42.3246, -88.0741);
+    expect(grass!.turf).toEqual([[0, 1]]);
+    const [paved] = stripsOf([runway(ends, { surface: "ASPH-TURF" })], 42.3246, -88.0741);
+    expect(paved!.turf).toEqual([]);
+    // A remark longer than the published length ends on the end, not past it.
+    const [past] = stripsOf([runway(ends, { length_ft: 3000, turf: [{ end: "24", from_ft: 2500, to_ft: 3400 }] })], 42.3246, -88.0741);
+    expect(past!.turf).toEqual([[0, 1 - 2500 / 3000]]);
   });
 
   test("draws nothing for a helipad or a runway with neither", () => {
