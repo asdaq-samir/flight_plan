@@ -45,7 +45,7 @@ export default function ProblemBanner({ clearLeft = false }: {
           Retry, not a control grown to its hit area. */}
       <Alert
         variant="destructive" role="status"
-        className="flex min-h-11 items-center gap-2 rounded-[22px] border-transparent bg-transparent py-1 pr-1 pl-3 *:[svg]:translate-y-0"
+        className="flex min-h-11 items-center gap-2 rounded-[22px] border-transparent bg-transparent py-1 pr-1 pl-3 text-destructive-ink *:[svg]:translate-y-0"
       >
         <CircleAlert className="shrink-0" />
         <button

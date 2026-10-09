@@ -150,7 +150,7 @@ export default function PanelTabs({ rootRef, before, contents, notice, footer, c
             key={t.value} value={t.value} data-testid={`panel-tab-${t.value}`} aria-label={t.short ? t.label : undefined}
             onPointerDown={() => { upWhenPressed.current = tab; }} onKeyDown={() => { upWhenPressed.current = tab; }}
             onClick={() => onTap?.(upWhenPressed.current === t.value)}
-            className={cn(LINE_TAB, "min-w-0 flex-1 flex-col gap-1 px-0.5 py-2 text-[13px] leading-[18px] pointer-coarse:text-[13px] pointer-coarse:max-[374px]:text-[11px] max-[374px]:px-0 [&_svg:not([class*='size-'])]:size-6")}
+            className={cn(LINE_TAB, "min-w-0 flex-1 flex-col gap-1 px-0.5 py-2 text-[13px] leading-[18px] pointer-coarse:text-[13px] pointer-coarse:max-[374px]:text-[11px] pointer-coarse:max-[374px]:leading-[13px] max-[374px]:px-0 [&_svg:not([class*='size-'])]:size-6")}
           >
             <span className="relative">
               {t.icon}
