@@ -47,6 +47,12 @@ DOWNLOAD_TIMEOUT_S = 10
 _LOCK = threading.Lock()
 _TOWNS: list | None = None
 _RETRY_AT = 0.0
+#: Addresses already asked, by the text normalised, for ADDRESS_TTL_S: a
+#: pilot's typing pauses, and anyone calling the endpoint, do not each
+#: reach the Census geocoder. Only answers are kept, not failures.
+ADDRESS_TTL_S = 3600
+ADDRESS_CACHE_MAX = 512
+_ADDRESSES: dict = {}
 
 
 def _towns_of(zipped: bytes) -> list:
@@ -73,7 +79,10 @@ def _towns_of(zipped: bytes) -> list:
 def _towns() -> list:
     """The gazetteer's places, from memory, from disk, or downloaded once;
     none where the Census Bureau cannot be reached (only addresses and
-    airports are found then, nothing failed)."""
+    airports are found then, nothing failed). The download runs outside
+    the lock, so a slow host holds up the one search that asked, not every
+    search behind it; two at the start may both fetch, and the second
+    publishes the same list."""
     global _TOWNS, _RETRY_AT
     with _LOCK:
         if _TOWNS is not None:
@@ -89,20 +98,26 @@ def _towns() -> list:
                 TOWNS_PATH.unlink(missing_ok=True)
         if time.monotonic() < _RETRY_AT:
             return []
-        try:
-            resp = requests.get(GAZETTEER_URL, headers=HEADERS, timeout=DOWNLOAD_TIMEOUT_S)
-            resp.raise_for_status()
-            towns = _towns_of(resp.content)
-        except (requests.RequestException, zipfile.BadZipFile, StopIteration) as err:
-            log.warning("No Census gazetteer of places: %s", err)
+        # Claimed now, so searches arriving during the download return none
+        # at once; a success clears it.
+        _RETRY_AT = time.monotonic() + DOWNLOAD_TIMEOUT_S
+    try:
+        resp = requests.get(GAZETTEER_URL, headers=HEADERS, timeout=DOWNLOAD_TIMEOUT_S)
+        resp.raise_for_status()
+        towns = _towns_of(resp.content)
+    except (requests.RequestException, zipfile.BadZipFile, StopIteration) as err:
+        log.warning("No Census gazetteer of places: %s", err)
+        with _LOCK:
             _RETRY_AT = time.monotonic() + RETRY_AFTER_S
-            return []
-        TOWNS_PATH.parent.mkdir(parents=True, exist_ok=True)
-        partial = TOWNS_PATH.with_name(TOWNS_PATH.name + ".part")
-        partial.write_text(json.dumps(towns))
-        os.replace(partial, TOWNS_PATH)
+        return []
+    TOWNS_PATH.parent.mkdir(parents=True, exist_ok=True)
+    partial = TOWNS_PATH.with_name(TOWNS_PATH.name + ".part")
+    partial.write_text(json.dumps(towns))
+    os.replace(partial, TOWNS_PATH)
+    with _LOCK:
         _TOWNS = towns
-        return towns
+        _RETRY_AT = 0.0
+    return towns
 
 
 def find_towns(query: str, limit: int = 6) -> list:
@@ -134,6 +149,11 @@ def find_addresses(query: str, limit: int = 4) -> list:
     number first) or while the geocoder cannot be reached."""
     if not _ADDRESS.match(query.strip()):
         return []
+    key = " ".join(query.lower().split())
+    with _LOCK:
+        kept = _ADDRESSES.get(key)
+    if kept and time.monotonic() < kept[0]:
+        return kept[1][:limit]
     try:
         resp = requests.get(GEOCODER_URL, headers=HEADERS, timeout=8, params={
             "address": query.strip(), "benchmark": "Public_AR_Current", "format": "json"})
@@ -142,10 +162,15 @@ def find_addresses(query: str, limit: int = 4) -> list:
     except (requests.RequestException, ValueError) as err:
         log.warning("The Census geocoder did not answer for an address: %s", err)
         return []
-    return [
+    found = [
         {"label": _address_label(m["matchedAddress"]), "lat": m["coordinates"]["y"], "lon": m["coordinates"]["x"]}
         for m in matches[:limit] if m.get("matchedAddress") and m.get("coordinates")
     ]
+    with _LOCK:
+        if len(_ADDRESSES) >= ADDRESS_CACHE_MAX:
+            _ADDRESSES.clear()
+        _ADDRESSES[key] = (time.monotonic() + ADDRESS_TTL_S, found)
+    return found
 
 
 def preload() -> None:

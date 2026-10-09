@@ -50,6 +50,7 @@ class _Answer:
 
 
 def test_an_address_is_where_the_census_geocoder_places_it(monkeypatch):
+    monkeypatch.setattr(geocode, "_ADDRESSES", {})
     asked = []
 
     def get(url, **kwargs):
@@ -63,9 +64,13 @@ def test_an_address_is_where_the_census_geocoder_places_it(monkeypatch):
     # Not an address -- no house number first -- and not asked.
     assert geocode.find_addresses("Madison") == []
     assert asked == ["4000 International Ln Madison WI"]
+    # The same text again, in other case and spacing, is the kept answer.
+    assert len(geocode.find_addresses("4000  international ln madison wi")) == 1
+    assert len(asked) == 1
 
 
 def test_a_geocoder_that_does_not_answer_finds_nothing_and_fails_nothing(monkeypatch):
+    monkeypatch.setattr(geocode, "_ADDRESSES", {})
     def down(url, **kwargs):
         raise requests.ConnectionError("down")
     monkeypatch.setattr(geocode.requests, "get", down)

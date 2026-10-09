@@ -38,7 +38,7 @@ function NearField({ from, onFrom }: { from: NearFrom | null; onFrom: (from: Nea
     const later = window.setTimeout(() => setAsked(typed.trim()), TYPING_MS);
     return () => window.clearTimeout(later);
   }, [typed]);
-  const searching = asked.length >= 2 && asked !== from?.label;
+  const searching = asked.length >= 2 && asked !== from?.label && typed.trim() !== from?.label;
   const { data: answered, isFetching, isError } = useQuery({
     queryKey: ["places", asked], queryFn: () => api.placesSearch(asked), enabled: searching, staleTime: 60 * 60_000,
     meta: { silent: true },
