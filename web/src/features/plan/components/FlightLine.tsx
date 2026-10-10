@@ -51,20 +51,23 @@ export default function FlightLine({ totals, estimate, depart, local, problem }:
   const probe = useRef<HTMLSpanElement>(null);
   const unitProbe = useRef<HTMLSpanElement>(null);
   const key = exact.map(f => `${f.value}${f.unit ?? ""}`).join("|");
-  const [verdict, setVerdict] = useState<{ key: string; width: number; fits: boolean[] } | null>(null);
+  const [verdict, setVerdict] = useState<{ key: string; room: typeof space; fits: boolean[] } | null>(null);
   // Before the frame is painted, and again only as the figures or the
-  // room change.
+  // room change. The room itself is kept, not its width: useRoom hands out
+  // a new one when the width or the font changes, and once the web font is
+  // in (same width, same font name), and each of those moves the figures'
+  // widths.
   useLayoutEffect(() => {
     const value = probe.current, unit = unitProbe.current;
-    if (!space || !value || !unit || (verdict?.key === key && verdict.width === space.width)) return;
+    if (!space || !value || !unit || (verdict?.key === key && verdict.room === space)) return;
     const fits = exact.map(f => {
       value.textContent = f.value;
       unit.textContent = f.unit ? ` ${f.unit}` : "";
       return value.getBoundingClientRect().width + unit.getBoundingClientRect().width <= space.width + 0.5;
     });
-    setVerdict({ key, width: space.width, fits });
+    setVerdict({ key, room: space, fits });
   }, [space, key, exact, verdict]);
-  const fitting = verdict?.key === key ? verdict.fits : null;
+  const fitting = verdict?.key === key && verdict.room === space ? verdict.fits : null;
   const shown = fitFigures(exact, rounded, f => fitting?.[exact.indexOf(f)] ?? true);
   return (
     // What the planner is working on is the toast's (useProgressToast), at
