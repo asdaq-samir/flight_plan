@@ -37,4 +37,16 @@ describe("where the runways' numbers are written", () => {
     const written = numbersOf([strip(["09", "27"], 100, 5, 395)], SIZE, GAP, 400, 200);
     expect(written).toEqual([]);
   });
+
+  test("leaves a number off whose further place is under the pane too", () => {
+    // 09R's first place is taken by 09C's number, and its second is under
+    // the pane: it is left off, not written beneath it.
+    const pane = (x: number, y: number, hw: number, hh: number) =>
+      x + hw > 40 && x - hw < 70 && y + hh > 90 && y - hh < 110;
+    const written = numbersOf(
+      [strip(["09C", "27C"], 100, 100, 350), strip(["09R", "27R"], 104, 80, 300)],
+      SIZE, GAP, 400, 200, pane,
+    );
+    expect(written.map(n => n.end).sort()).toEqual(["09C", "27C", "27R"]);
+  });
 });

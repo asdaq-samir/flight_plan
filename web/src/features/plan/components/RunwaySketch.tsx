@@ -1,5 +1,6 @@
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { Runway } from "../../../lib/api/types";
+import { TEXT_POINTS } from "../../../lib/text";
 import { FT_PER_NM, numberHalfWidth, numbersOf, stripsOf } from "../../../lib/runwaySketch";
 
 /** Round the runways, in the box's own points: the strips' half width and
@@ -34,12 +35,12 @@ function pavedOf(turf: [number, number][]): [number, number][] {
  * shorter for it. Drawn in the box's own points, whatever its shape, so
  * the field fills it. Nothing where no runway can be drawn.
  */
-export function RunwaySketch({ runways, lat, lon, avoid, numberSize = 11 }: {
+export function RunwaySketch({ runways, lat, lon, avoid, numberSize = TEXT_POINTS.caption }: {
   runways: Runway[]; lat: number; lon: number;
   /** A pane laid over the box (the elevation): nothing is drawn under it. */
   avoid?: HTMLElement | null;
-  /** The ends' numbers' size, points: TEXT.caption's 11 (iOS's Caption 2)
-   *  in the card's box, a row's 17 full screen (SketchViewer). */
+  /** The ends' numbers' size, points: TEXT_POINTS.caption (iOS's Caption 2)
+   *  in the card's box, TEXT_POINTS.row full screen (SketchViewer). */
   numberSize?: number;
 }) {
   const box = useRef<SVGSVGElement>(null);
@@ -87,11 +88,11 @@ export function RunwaySketch({ runways, lat, lon, avoid, numberSize = 11 }: {
     // about the box's centre until it clears it, so the pane never hides
     // a runway end or its number.
     let scale = fit;
-    if (size.hole) {
-      const hole = size.hole;
-      const pad = MARGIN / 2;
-      const inHole = (x: number, y: number, rx = 0, ry = 0) =>
-        x + rx > hole.x - pad && x - rx < hole.x + hole.w + pad && y + ry > hole.y - pad && y - ry < hole.y + hole.h + pad;
+    const hole = size.hole;
+    const pad = MARGIN / 2;
+    const inHole = (x: number, y: number, rx = 0, ry = 0) =>
+      !!hole && x + rx > hole.x - pad && x - rx < hole.x + hole.w + pad && y + ry > hole.y - pad && y - ry < hole.y + hole.h + pad;
+    if (hole) {
       const under = (k: number) => place(k).some(s => {
         for (let t = 0; t <= 1; t += 1 / 24) {
           if (inHole(s.ax + (s.bx - s.ax) * t, s.ay + (s.by - s.ay) * t)) return true;
@@ -106,7 +107,7 @@ export function RunwaySketch({ runways, lat, lon, avoid, numberSize = 11 }: {
       const width = Math.max(4, Math.min(10, (s.width_ft / FT_PER_NM) * scale * 3));
       return { ...s, ...p, width };
     });
-    return { w, h, strips: placed, numbers: numbersOf(placed, numberSize, gap, w, h) };
+    return { w, h, strips: placed, numbers: numbersOf(placed, numberSize, gap, w, h, inHole) };
   }, [runways, lat, lon, size, numberSize]);
   return (
     <svg

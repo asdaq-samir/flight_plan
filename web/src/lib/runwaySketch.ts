@@ -92,11 +92,14 @@ export function numberHalfWidth(characters: number, size: number): number {
  * there -- a field of close parallels (O'Hare's 09C and 09R) set its
  * numbers on one another -- the longest runways' first. A number with no
  * clear place near its end is left off, rather than written over another
- * or out where it reads as no runway's.
+ * or out where it reads as no runway's. `blocked` says a box (centre and
+ * half sizes) lies under a pane laid over the sketch: no number is written
+ * there, whichever of its places it is.
  */
 export function numbersOf(
   strips: { ends: [string, string]; closed: boolean; ax: number; ay: number; bx: number; by: number; ux: number; uy: number }[],
   size: number, gap: number, w: number, h: number,
+  blocked: (x: number, y: number, hw: number, hh: number) => boolean = () => false,
 ) {
   const taken: { x: number; y: number; hw: number; hh: number }[] = [];
   const written: { end: string; key: string; x: number; y: number; closed: boolean }[] = [];
@@ -110,7 +113,7 @@ export function numbersOf(
       for (const out of [gap, gap + size * 1.2]) {
         const x = ex + dx * out, y = ey + dy * out;
         const inBox = x - hw >= 0 && x + hw <= w && y - hh >= 0 && y + hh <= h;
-        if (!inBox || taken.some(t => Math.abs(t.x - x) < t.hw + hw && Math.abs(t.y - y) < t.hh + hh)) continue;
+        if (!inBox || blocked(x, y, hw, hh) || taken.some(t => Math.abs(t.x - x) < t.hw + hw && Math.abs(t.y - y) < t.hh + hh)) continue;
         taken.push({ x, y, hw, hh });
         written.push({ end, key: `${s.ends.join("/")}-${end}`, x, y, closed: s.closed });
         return;
