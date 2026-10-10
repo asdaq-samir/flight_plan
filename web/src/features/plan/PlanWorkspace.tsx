@@ -336,8 +336,16 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const briefed = s.briefing.state === "ready" ? s.briefing.data.airports : null;
   const procedureAirports = useMemo<ProcedureAirport[]>(() => {
     const idents = [planned.dep, ...planned.stops, planned.dest].filter((i): i is string => !!i && !i.includes(","));
-    return idents.map((ident, i) => ({
-      ident, role: i === 0 ? "Departure" : i === idents.length - 1 ? "Destination" : "Stop",
+    // A round trip names a field twice; it is listed and drawn once, in its
+    // first place, and called the Destination if the flight ends there (its
+    // charts are that card's).
+    const fields = idents.map((ident, i) => ({
+      ident, role: (i === 0 ? "Departure" : i === idents.length - 1 ? "Destination" : "Stop") as ProcedureAirport["role"],
+    }));
+    const once = fields.filter((f, i) => fields.findIndex(g => g.ident === f.ident) === i)
+      .map(f => fields.some(g => g.ident === f.ident && g.role === "Destination") ? { ...f, role: "Destination" as const } : f);
+    return once.map(({ ident, role }) => ({
+      ident, role,
       runways: briefed ? briefed[ident]?.runways ?? [] : null,
       patternAltitudeFt: briefed?.[ident]?.pattern?.altitude_ft ?? null,
     }));

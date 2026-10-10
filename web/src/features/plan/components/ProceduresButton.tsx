@@ -58,9 +58,7 @@ export default function ProceduresButton({ airports, picked, onPick, onCharts, c
             return (
               <ListGroup
                 key={a.ident} title={`${a.ident} · ${a.role} · traffic pattern`}
-                footer={a.role === "Destination"
-                  ? "Drawn on the map as the FAA's Airplane Flying Handbook flies a pattern: the downwind about three-quarters of a mile out, the base 45° from the runway's end, the 45° entry abeam midfield. A sketch to fly by, not a procedure."
-                  : undefined}
+                footer="Drawn on the map as the FAA's Airplane Flying Handbook flies a pattern: the downwind about three-quarters of a mile out, the base 45° from the runway's end, the 45° entry abeam midfield. A sketch to fly by, not a procedure; the field's own pattern may differ."
               >
                 {a.runways === null ? (
                   <ListRow title={<span className="text-muted-foreground">Looking the runways up…</span>} />
