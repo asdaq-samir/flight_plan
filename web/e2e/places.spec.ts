@@ -67,7 +67,7 @@ test("a field with no report wears the nearest station's category as \"≈\" wit
   await page.goto("/app/plan?place=C81");
   await settle(page);
   const chip = card(page).getByTestId("place-category");
-  await expect(chip).toHaveText("≈MVFR", { timeout: slow(15000) });
+  await expect(chip).toContainText("≈MVFR",{ timeout: slow(15000) });
   await expect(chip).toHaveAccessibleName("About MVFR, from KUGN");
   await grabberTo(page, "full");
   await card(page).getByTestId("place-tab-weather").click();

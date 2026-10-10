@@ -620,10 +620,11 @@ def test_the_weather_is_in_use_once_a_request_asks_for_it(monkeypatch):
 def test_a_field_with_no_report_is_given_the_nearest_and_told_whether_it_is_near(monkeypatch):
     # One station 6 nm north of the point, one 12 nm east -- past ten
     # statute miles (8.7 nm), within thirty -- and one with no place.
+    now = datetime.fromtimestamp(time.time() - 600, timezone.utc).isoformat()
     reports = {
-        "KNEAR": {"flight_category": "MVFR", "lat": 42.4, "lon": -88.0},
-        "KFAR": {"flight_category": "VFR", "lat": 42.3, "lon": -88.0 + 12 / 60 / 0.7396},
-        "KNONE": {"flight_category": "VFR", "lat": None, "lon": None},
+        "KNEAR": {"flight_category": "MVFR", "lat": 42.4, "lon": -88.0, "observed_at": now},
+        "KFAR": {"flight_category": "VFR", "lat": 42.3, "lon": -88.0 + 12 / 60 / 0.7396, "observed_at": now},
+        "KNONE": {"flight_category": "VFR", "lat": None, "lon": None, "observed_at": now},
     }
     monkeypatch.setattr(weather, "_dataset", lambda name: reports)
     near = weather.nearest_report(42.3, -88.0)
@@ -634,3 +635,18 @@ def test_a_field_with_no_report_is_given_the_nearest_and_told_whether_it_is_near
     assert far["ident"] == "KFAR" and abs(far["distance_nm"] - 12) < 0.2 and far["bearing_deg"] == 90 and not far["near"]
     # None within thirty.
     assert weather.nearest_report(45.0, -100.0) is None
+
+
+def test_the_nearest_report_is_a_current_one(monkeypatch):
+    # An old station nearer than a current one must not hide it, and one
+    # with no time is not known to be current.
+    fresh = datetime.fromtimestamp(time.time() - 1800, timezone.utc).isoformat()
+    old = datetime.fromtimestamp(time.time() - 3 * 3600, timezone.utc).isoformat()
+    reports = {
+        "KOLD": {"flight_category": "IFR", "lat": 42.31, "lon": -88.0, "observed_at": old},
+        "KNOTIME": {"flight_category": "IFR", "lat": 42.32, "lon": -88.0},
+        "KNEW": {"flight_category": "VFR", "lat": 42.4, "lon": -88.0, "observed_at": fresh},
+    }
+    monkeypatch.setattr(weather, "_dataset", lambda name: reports)
+    assert weather.nearest_report(42.3, -88.0)["ident"] == "KNEW"
+    assert weather.nearest_report(42.3, -88.0, exclude="KNEW") is None

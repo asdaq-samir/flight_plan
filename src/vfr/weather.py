@@ -628,12 +628,17 @@ def metar_for_idents(idents: list) -> dict:
     return {ident: metars.get(ident) for ident in idents}
 
 
-#: How far a station's report may be said of a field, approximately: a
-#: METAR's "vicinity" is between 5 and 10 statute miles of the station
-#: (FAA AC 00-45H, Aviation Weather Services, METAR "VC"); farther, its
-#: category is not given as the field's (the card's "≈" chip), only the
-#: report and how far it is.
+#: How far a station's report is said of a field, approximately: a design
+#: choice, not a rule. AC 00-45H (Aviation Weather Services) takes a METAR's
+#: "VC" to be 5 to 10 statute miles from the station for the phenomena it
+#: reports, and does not say a station's flight category holds at another
+#: field; the top of that range is where the card's "≈" chip stops, and
+#: farther only the report and how far it is are given.
 NEAR_REPORT_SM = 10.0
+#: The oldest report given as the nearest: METARs come hourly, so this
+#: allows one missed cycle; the server keeps a held copy for hours when a
+#: refresh fails, and an older report is not "current".
+NEAREST_REPORT_MAX_AGE_S = 2 * 3600
 #: How far the nearest report is looked for at all, as an EFB lists a
 #: field's nearest METAR: about a quarter hour's flight in a light
 #: airplane.
@@ -652,6 +657,12 @@ def nearest_report(lat: float, lon: float, exclude: str | None = None, within_nm
     for ident, report in _dataset("metars").items():
         s_lat, s_lon = report.get("lat"), report.get("lon")
         if ident == exclude or s_lat is None or s_lon is None:
+            continue
+        # Before the distance test, so an old near station does not hide a
+        # current farther one; a report with no readable time is not known
+        # to be current.
+        observed = _unix(report.get("observed_at"))
+        if observed is None or time.time() - observed > NEAREST_REPORT_MAX_AGE_S:
             continue
         # Flat-earth nautical miles: within thirty the error is yards.
         north, east = (s_lat - lat) * 60, (s_lon - lon) * 60 * coslat

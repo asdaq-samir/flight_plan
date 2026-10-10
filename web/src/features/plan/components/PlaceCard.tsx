@@ -346,9 +346,15 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
       className={cn("mt-1 shrink-0 rounded-md px-1.5 py-0.5 font-bold tracking-wide", TEXT.note)}
       style={{ backgroundColor: chipColour, color: inkOn(chipColour) }}
       data-testid="place-category"
-      aria-label={weather?.category ? undefined : `About ${category}, from ${nearby?.ident}`}
     >
-      {weather?.category ? category : `≈${category}`}
+      {weather?.category ? category : (
+        <>
+          {/* Words for VoiceOver, which may read a bare "≈" as a symbol;
+              an aria-label on a role-less span may be ignored. */}
+          <span aria-hidden>≈{category}</span>
+          <span className="sr-only">About {category}, from {nearby?.ident}</span>
+        </>
+      )}
     </span>
   );
   return (
