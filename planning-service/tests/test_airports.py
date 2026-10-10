@@ -444,7 +444,8 @@ def test_a_fields_procedures_are_listed_and_one_drawn_from_the_cifp(monkeypatch)
         "transitions": ["LAX"], "runway_transitions": [],
     }]}
     drawn = {
-        "airport": "KBUR", "kind": "approach", "id": "I08-Y", "name": "ILS Y RWY 08", "transition": "LAX", "cycle": "261001", "stale": False,
+        "airport": "KBUR", "kind": "approach", "id": "I08-Y", "name": "ILS Y RWY 08", "transition": "LAX",
+        "cycle": "261001", "stale": False,
         "lines": [{"role": "transition", "name": "LAX", "points": [[33.93, -118.43], [34.2, -118.61]]}],
         "holds": [{"fix": "SILEX", "turn": "R", "inbound_deg": 91, "missed": False, "points": [[34.2, -118.61], [34.19, -118.6]]}],
         "fixes": [{"ident": "SILEX", "lat": 34.2, "lon": -118.61, "roles": ["IAF"], "min_ft": 3700, "max_ft": None,
