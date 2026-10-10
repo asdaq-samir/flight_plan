@@ -8,6 +8,7 @@ import { boxOf, hovers } from "./view";
 import { diamondIcon } from "./icons";
 import { MapCard } from "./MapCard";
 import { MapPopup } from "./MapPopup";
+import { MAGENTA } from "../useAirspace";
 import { MapTooltip } from "./MapTooltip";
 
 /** From this zoom in, as the airports' (AirportsLayer): further out the
@@ -62,6 +63,8 @@ export function WaypointsLayer({ exclude, onAddStop }: {
                 is on a line of its own (the planner's vfr.places), at the
                 pilot's ask -- on one line the card ran the screen's width. */}
             <MapCard
+              // The chart's diamond, as the map marks it, before its ident.
+              media={<span aria-hidden="true" className="mx-1.5 size-3.5 shrink-0 rotate-45 rounded-[2px] border-2 border-white shadow-sm" style={{ backgroundColor: MAGENTA }} />}
               title={<>{w.ident}<span className="font-normal text-muted-foreground">VFR waypoint</span></>}
               subtitle={w.description || undefined}
             >

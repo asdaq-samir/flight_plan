@@ -1,4 +1,7 @@
 import { memo } from "react";
+import { Ban } from "lucide-react";
+import { RowBadge } from "../../components/RowBadge";
+import { BADGE } from "../rowBadges";
 import { useQuery } from "@tanstack/react-query";
 import { Polygon } from "react-leaflet";
 import type { LatLngExpression, PathOptions } from "leaflet";
@@ -79,7 +82,11 @@ const TfrShape = memo(function TfrShape({ tfr, active }: { tfr: Tfr; active: boo
 
 function TfrCard({ tfr, active }: { tfr: Tfr; active: boolean }) {
   return (
-    <MapCard title={`TFR ${tfr.notam_id}`} subtitle={[tfr.kind, active ? "In force now" : "Not yet in force"].filter(Boolean).join(" · ")}>
+    <MapCard
+      // A TFR's badge, red while it is in force, as its shape is drawn.
+      media={<RowBadge colour={active ? TFR_RED : BADGE.other}><Ban /></RowBadge>}
+      title={`TFR ${tfr.notam_id}`} subtitle={[tfr.kind, active ? "In force now" : "Not yet in force"].filter(Boolean).join(" · ")}
+    >
       <div className="space-y-1 text-left" data-testid="tfr-card">
         {tfrAltitudes(tfr) && <p>{tfrAltitudes(tfr)}</p>}
         {tfrTimes(tfr) && <p>{tfrTimes(tfr)}</p>}

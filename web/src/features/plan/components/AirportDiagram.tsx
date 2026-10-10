@@ -39,7 +39,7 @@ export function DiagramRow({ ident, cycle, url, media, testId }: {
   return (
     <>
       <ListRow
-        media={media} title="Airport diagram" onClick={open} data-testid={testId}
+        media={media} title="Airport diagram" onClick={open} chevron data-testid={testId}
         aria-busy={loading || undefined}
         description={shown === "missing" ? "The airport diagram could not be loaded" : undefined}
       >
@@ -74,7 +74,9 @@ export function ChartRow({ title, url, airport, media, testId }: {
   const [open, setOpen] = useState(false);
   return (
     <>
-      <ListRow media={media} title={title} onClick={() => setOpen(true)} data-testid={testId} />
+      {/* A row that goes somewhere, as iOS's: in the text's colour with a
+          chevron, as Nearest's rows are -- a link's blue was every chart. */}
+      <ListRow media={media} title={title} onClick={() => setOpen(true)} chevron data-testid={testId} />
       {open && (
         <Suspense fallback={null}>
           <FaaChartViewer title={title} url={url} airport={airport} onClose={() => setOpen(false)} />

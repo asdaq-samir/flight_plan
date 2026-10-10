@@ -33,7 +33,10 @@ test("an airport's card names the field alone, how far it is under it, and the w
   // The Freq. tab brings the frequencies into sight, the panel all the way up.
   await card(page).getByTestId("place-tab-radio").click();
   await expect(sideDrawer(page)).toHaveAttribute("data-panel", "full");
-  await expect(card(page).getByText("118.300")).toBeInViewport();
+  // The tower's, named in words, its frequency as pilots write it.
+  const tower = card(page).getByTestId("place-frequency").filter({ hasText: "Tower" });
+  await expect(tower).toContainText("118.3");
+  await expect(tower).toBeInViewport();
 
   // Put away: the address forgets it, and the route is the panel again,
   // the layer under the card, at the height the panel was.

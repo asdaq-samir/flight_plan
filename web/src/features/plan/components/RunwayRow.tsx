@@ -4,6 +4,25 @@ import { cn } from "cn";
 import { runwayWind, surfaceName } from "../format";
 import { usePreferences } from "../../../lib/preferences";
 import { runwayNumber } from "../../../lib/pattern";
+import { RowBadge } from "../../../components/RowBadge";
+import { BADGE } from "../../../lib/rowBadges";
+import { TEXT } from "../../../lib/text";
+
+/** A runway drawn on its badge, laid along its true heading as the
+ *  chart lays it (north up), its centre line dashed; upright where its
+ *  heading is not known. */
+function RunwayGlyph({ headingDeg }: { headingDeg: number | null }) {
+  return (
+    <RowBadge colour={BADGE.runway}>
+      <svg viewBox="-9 -9 18 18" fill="none">
+        <g transform={`rotate(${headingDeg ?? 0})`}>
+          <rect x="-2.6" y="-8.5" width="5.2" height="17" rx="1" fill="currentColor" />
+          <line x1="0" y1="-6.5" x2="0" y2="6.5" stroke={BADGE.runway} strokeWidth="0.9" strokeDasharray="1.6 1.4" />
+        </g>
+      </svg>
+    </RowBadge>
+  );
+}
 
 /** A runway as an airport's card and the briefing list it: its ends, its
  *  surface and lights, its size, and the reported wind on the end it
@@ -20,8 +39,10 @@ export function RunwayRow({ runway }: { runway: Runway }) {
   const most = usePreferences(s => s.minimums.crosswindKt);
   const wind = runway.wind;
   const over = !!wind && most != null && Math.max(Math.abs(wind.crosswind_kt), Math.abs(wind.gust_crosswind_kt ?? 0)) > most;
+  const heading = (runway.runway_ends ?? []).find(e => e.heading_true_deg != null)?.heading_true_deg ?? null;
   return (
     <ListRow
+      media={<RunwayGlyph headingDeg={heading} />}
       title={`Runway ${runway.ends ?? "—"}`}
       description={(detail || runway.wind) && (
         <>
@@ -33,7 +54,14 @@ export function RunwayRow({ runway }: { runway: Runway }) {
           )}
         </>
       )}
-      value={runway.length_ft ? `${runway.length_ft.toLocaleString()} × ${runway.width_ft ?? "—"} ft` : "—"}
+      // How long, the figure a pilot looks for, at the right in the text's
+      // own colour, as Nearest has a field's distance; how wide under it.
+      value={runway.length_ft ? (
+        <span className="flex flex-col items-end">
+          <span className="font-semibold text-foreground">{runway.length_ft.toLocaleString()} ft</span>
+          {runway.width_ft != null && <span className={cn("text-muted-foreground", TEXT.note)}>{runway.width_ft} ft wide</span>}
+        </span>
+      ) : "—"}
     />
   );
 }

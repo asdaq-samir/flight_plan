@@ -1,4 +1,6 @@
+import type { ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { Ban, Cloud, Gauge, KeyRound, Radio, ShieldAlert } from "lucide-react";
 import { cn } from "cn";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
 import { api } from "../../../lib/api/client";
@@ -8,6 +10,21 @@ import type { LatLon } from "../../../lib/geo";
 import { altFt } from "../../../lib/units";
 import { TEXT } from "../../../lib/text";
 import { CardHead, PanelCard } from "../../../components/PanelCard";
+import { RowBadge } from "../../../components/RowBadge";
+import { BADGE } from "../../../lib/rowBadges";
+
+/** One of a band's rules on a line of its own, its glyph before it: the
+ *  weather minimums, what it takes to go in, what the airplane carries,
+ *  the speed limit -- each found at a glance, as the pilot asked of every
+ *  card after Nearest's. */
+function Rule({ icon, children }: { icon: ReactNode; children: ReactNode }) {
+  return (
+    <span className="flex items-start gap-1.5">
+      <span aria-hidden="true" className="mt-[0.2em] shrink-0 text-muted-foreground [&_svg]:size-3.5">{icon}</span>
+      <span>{children}</span>
+    </span>
+  );
+}
 
 /** The class's letter in the chart's own ink: solid blue for B, magenta
  *  for C, dashed blue for D, dashed magenta for E, none for G. */
@@ -29,13 +46,11 @@ function range(band: AirspaceBand, ground: number | null): string {
 function BandRow({ band, ground }: { band: AirspaceBand; ground: number | null }) {
   const m = band.minimums;
   const sameDayNight = m && minimumsLine(m.day) === minimumsLine(m.night);
-  const lines = [
-    range(band, ground),
-    m && (sameDayNight ? `VFR ${minimumsLine(m.day)}` : `VFR by day ${minimumsLine(m.day)}; at night ${minimumsLine(m.night)}`),
-    band.entry !== "Nothing." && band.entry !== "Nothing for VFR." ? band.entry : null,
-    band.equipment,
-    band.speed_kt ? `${band.speed_kt} kt at most (91.117)` : null,
-  ].filter(Boolean);
+  const rules: { icon: ReactNode; text: string }[] = [];
+  if (m) rules.push({ icon: <Cloud />, text: sameDayNight ? `VFR ${minimumsLine(m.day)}` : `VFR by day ${minimumsLine(m.day)}; at night ${minimumsLine(m.night)}` });
+  if (band.entry && band.entry !== "Nothing." && band.entry !== "Nothing for VFR.") rules.push({ icon: <KeyRound />, text: band.entry });
+  if (band.equipment) rules.push({ icon: <Radio />, text: band.equipment });
+  if (band.speed_kt) rules.push({ icon: <Gauge />, text: `${band.speed_kt} kt at most (91.117)` });
   return (
     <ListRow
       media={(
@@ -46,11 +61,13 @@ function BandRow({ band, ground }: { band: AirspaceBand; ground: number | null }
           {band.class}
         </span>
       )}
-      title={band.name ? `Class ${band.class} · ${shortAirspaceName(band.name)}` : `Class ${band.class}`}
-      // The range first, the figure a pilot looks for; then the rules.
+      title={<><span className="font-semibold">Class {band.class}</span>{band.name && <span className="text-muted-foreground"> · {shortAirspaceName(band.name)}</span>}</>}
+      // The range first, the figure a pilot looks for; then the rules,
+      // each with its glyph.
       description={(
         <span className="grid gap-0.5">
-          {lines.map((line, i) => <span key={line} className={cn(i === 0 && "font-medium text-foreground tabular-nums")}>{line}</span>)}
+          <span className="font-semibold text-foreground tabular-nums">{range(band, ground)}</span>
+          {rules.map(r => <Rule key={r.text} icon={r.icon}>{r.text}</Rule>)}
         </span>
       )}
       data-testid="airspace-band"
@@ -94,6 +111,7 @@ export default function AirspaceCard({ point, onClose }: { point: LatLon; onClos
             {data.mode_c_veil && (
               <ListGroup>
                 <ListRow
+                  media={<RowBadge colour={BADGE.rule}><Radio /></RowBadge>}
                   title="In a Mode C veil"
                   description={`${data.mode_c_veil.distance_nm} nm from ${data.mode_c_veil.ident}: a transponder with altitude reporting and ADS-B Out from the surface to 10,000 ft (91.215, 91.225).`}
                   data-testid="airspace-veil"
@@ -107,7 +125,8 @@ export default function AirspaceCard({ point, onClose }: { point: LatLon; onClos
                   ? <ListRow title={<span className="text-muted-foreground">None here</span>} />
                   : data.special_use.map(area => (
                     <ListRow
-                      key={area.name} title={`${area.name} · ${area.kind}`}
+                      key={area.name} media={<RowBadge colour={BADGE.hazard}><ShieldAlert /></RowBadge>}
+                      title={<><span className="font-semibold">{area.name}</span><span className="text-muted-foreground"> · {area.kind}</span></>}
                       description={[
                         `${area.floor_ft == null ? "?" : area.floor_ft === 0 ? "Surface" : `${altFt(area.floor_ft)} ${area.floor_ref ?? ""}`.trim()} to ${area.ceiling_ft == null ? "?" : `${altFt(area.ceiling_ft)} ${area.ceiling_ref ?? ""}`.trim()}`,
                         area.times_of_use, area.controlling_agency,
@@ -124,6 +143,7 @@ export default function AirspaceCard({ point, onClose }: { point: LatLon; onClos
                   : data.tfrs.map(t => (
                     <ListRow
                       key={t.notam_id}
+                      media={<RowBadge colour={t.active_now ? BADGE.hazard : BADGE.other}><Ban /></RowBadge>}
                       title={<span className={cn(t.active_now && "font-semibold text-red-700 dark:text-red-400")}>{`TFR ${t.notam_id}${t.kind ? ` · ${t.kind}` : ""}`}</span>}
                       description={[t.active_now ? "In force now" : "To come", t.title].filter(Boolean).join(" · ")}
                       href={`https://tfr.faa.gov/tfr3/?page=detail_${t.notam_id.replace("/", "_")}`}

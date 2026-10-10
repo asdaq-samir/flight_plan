@@ -1,9 +1,9 @@
 import { lazy, Suspense, useState } from "react";
-import { FileText } from "lucide-react";
 import { ListRow } from "../../../components/GroupedList";
 import { ItemSeparator } from "../../../components/ui/item";
 import type { Runway } from "../../../lib/api/types";
 import { ChartRow, DiagramRow } from "./AirportDiagram";
+import { ChartBadge } from "../../../components/RowBadge";
 
 const SketchViewer = lazy(() => import("./SketchViewer"));
 
@@ -33,18 +33,18 @@ export function PublicationRows({ ident, diagram, diagramCycle, supplement, sket
   return (
     <>
       {diagramCycle ? (
-        <DiagramRow media={<FileText className="size-5" />} ident={ident} cycle={diagramCycle} url={diagram} testId="airport-diagram" />
+        <DiagramRow media={<ChartBadge />} ident={ident} cycle={diagramCycle} url={diagram} testId="airport-diagram" />
       ) : diagram ? (
-        <ChartRow media={<FileText className="size-5" />} title="Airport diagram" url={diagram} airport={ident} testId="airport-diagram" />
+        <ChartRow media={<ChartBadge />} title="Airport diagram" url={diagram} airport={ident} testId="airport-diagram" />
       ) : sketched && (
         <ListRow
-          media={<FileText className="size-5" />} title="Airport diagram" description="A sketch of the runways: the FAA publishes none"
-          onClick={() => setSketchOpen(true)} data-testid="airport-diagram-sketch"
+          media={<ChartBadge />} title="Airport diagram" description="A sketch of the runways: the FAA publishes none"
+          onClick={() => setSketchOpen(true)} chevron data-testid="airport-diagram-sketch"
         />
       )}
       {supplement && (published || sketched) && <ItemSeparator className="my-0" />}
       {supplement && (
-        <ChartRow media={<FileText className="size-5" />} title="Chart Supplement" url={supplement} airport={ident} testId="chart-supplement" />
+        <ChartRow media={<ChartBadge />} title="Chart Supplement" url={supplement} airport={ident} testId="chart-supplement" />
       )}
       {sketchOpen && sketch && (
         <Suspense fallback={null}>
