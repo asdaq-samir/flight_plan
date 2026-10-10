@@ -80,7 +80,8 @@ test("a field's approach is picked with its transition, kept in the address and 
   // From vectors first; then by DLH.
   await page.getByTestId("procedure-transition").filter({ hasText: "Via DLH" }).click();
   await expect(page).toHaveURL(/[?&]procs=KDLH(%3A|:)I09(%3A|:)DLH(&|$)/);
-  expect(asked).toContain("/api/planner/airport/KDLH/procedures/I09?transition=DLH");
+  // The drawing is fetched after the address changes, so wait for it.
+  await expect.poll(() => asked, { timeout: slow(10000) }).toContain("/api/planner/airport/KDLH/procedures/I09?transition=DLH");
   await page.keyboard.press("Escape");
 
   // On the map: the transition and the final, the missed approach dashed,
