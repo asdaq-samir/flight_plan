@@ -341,6 +341,22 @@ test("a short town's name (four letters) takes the first airport shown at Enter,
   await expect(page).toHaveURL(new RegExp(`[?&]stops=${ident}(&|$)`));
 });
 
+test("a waypoint's ident typed before the planner answers is put in as typed, not swapped for an airport", async ({ page }) => {
+  // The planner's search held back: the rows are the airports' copy, in
+  // which "SAXON" is no airport's name or town, so Enter keeps the word
+  // (as it did) and cmdk's highlighted row does not take its place.
+  await recordedStops(page);
+  await page.route(url => url.pathname.includes("/airports/search"), () => new Promise(() => undefined));
+  await page.goto("/app/plan?dep=C81&dest=KDLH");
+  await settle(page);
+  await openPanel(page);
+  await sideDrawer(page).getByRole("button", { name: "Type a stop between C81 and KDLH" }).click();
+  const field = sideDrawer(page).getByTestId("route-type");
+  await field.fill("saxon");
+  await field.press("Enter");
+  await expect(page).toHaveURL(/[?&]stops=SAXON(&|$)/);
+});
+
 test("a long route's box wraps its points onto two lines and scrolls down to the rest, never sideways", async ({ page }) => {
   // Nothing past the course asked of the planner: the box is the claim.
   await page.route(url => /\/(checkpoints|navlog|briefing)$/.test(url.pathname), route => route.abort());

@@ -45,11 +45,17 @@ const fixIcon = made(function fixIcon(fix: ProcedureFix, words: boolean, stale: 
     return `<span style="text-decoration:${deco || "none"};text-decoration-thickness:1.5px">${esc(l.text)}</span>`;
   }).join("");
   // A runway's threshold (the missed approach point of most approaches)
-  // is under the field's own mark and its ident: its diamond alone, where
-  // "RW08 MAP" covered the field's name (2026-10-10).
-  const label = words && !/^RW\d/.test(fix.ident)
+  // is under the field's own mark and its ident: "RW08 MAP" covered the
+  // field's name (2026-10-10). Its ident is left out of the label, but its
+  // part, altitudes and speed stay: a crossing altitude at the runway's end
+  // is the pilot's to read. With nothing to say, no label.
+  const runway = /^RW\d/.test(fix.ident);
+  const heading = runway
+    ? esc(roles.join(" "))
+    : `${esc(fix.ident)}${roles.length ? ` <span class="font-semibold opacity-80">${esc(roles.join(" "))}</span>` : ""}`;
+  const label = words && (heading || alt || speed || stale)
     ? `<span class="absolute top-1/2 left-[14px] flex -translate-y-1/2 flex-col rounded-md bg-white/95 px-1.5 py-0.5 text-[0.8125rem] leading-4 font-bold whitespace-nowrap shadow-sm" style="color:${ink}">` +
-      `<span>${esc(fix.ident)}${roles.length ? ` <span class="font-semibold opacity-80">${esc(roles.join(" "))}</span>` : ""}</span>` +
+      `${heading ? `<span>${heading}</span>` : ""}` +
       `${alt ? `<span class="flex flex-col text-[#1c1a17]">${alt}</span>` : ""}` +
       `${speed ? `<span class="text-[#1c1a17]">${esc(speed)}</span>` : ""}` +
       `${stale ? `<span class="text-[#1c1a17]">OUT OF DATE</span>` : ""}</span>`

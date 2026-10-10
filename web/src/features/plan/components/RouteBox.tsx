@@ -213,14 +213,17 @@ export default function RouteBox({
   const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
       // The first suggestion, once they answer what is typed (cmdk's own
-      // Enter, on its highlighted row); else what was typed -- but what is
-      // no row's ident (a town's name, "madison", or a short one, "reno",
-      // which stopOf takes for an ident) takes the first airport shown at
-      // once, before the planner's waypoints answer: it was put in as
-      // typed, which is nothing, and the box emptied.
+      // Enter, on its highlighted row); else what was typed. But before the
+      // planner's waypoints answer, a town's name ("madison", or a short
+      // one, "reno", which stopOf takes for an ident) is no row's ident and
+      // was put in as typed, which is nothing, the box emptied: it takes
+      // the first airport shown when that airport's name or town begins
+      // with the word. A fix ("SAXON") is no airport's name, so it is still
+      // put in as typed, not swapped for whichever airport fuzzy-matched.
       const word = typed.trim().toUpperCase();
       const exact = rows.some(r => r.ident === word);
-      if (open && rows.length > 0 && (answered || !exact)) return;
+      const named = rows.some(r => [r.name, r.municipality].some(t => t?.toUpperCase().startsWith(word)));
+      if (open && rows.length > 0 && (answered || (!exact && named))) return;
       e.preventDefault();
       e.stopPropagation();
       if (typed.trim()) commitTyped();
@@ -369,8 +372,8 @@ export default function RouteBox({
                           approach to fly into it, its arrival, its departure
                           -- a tap opens the Procedures they were picked in.
                           Not points of the route: not dragged, not typed. */}
-                      {(i === points.findIndex(p => p === point)) && procedures.filter(p => sameField(p.ident, point)).map(p => (
-                        <ProcedureChip key={`${p.kind}-${p.label}`} procedure={p} onOpen={onProcedures} />
+                      {(i === points.findIndex(p => p === point)) && procedures.filter(p => sameField(p.ident, point)).map((p, n) => (
+                        <ProcedureChip key={`${n}-${p.kind}-${p.label}`} procedure={p} onOpen={onProcedures} />
                       ))}
                     </Fragment>
                   ))}
@@ -443,7 +446,7 @@ function ProcedureChip({ procedure, onOpen }: { procedure: RouteProcedure; onOpe
       type="button" onClick={onOpen} data-testid="route-procedure"
       aria-label={`${procedure.spoken}: the route's procedures`}
       className={cn(
-        "relative ml-1 inline-flex h-7 shrink-0 after:absolute after:-inset-y-2 after:inset-x-0 after:content-[''] items-center gap-1 rounded-full border-[1.5px] border-[#5b5bd6] bg-background/70 px-2 font-semibold whitespace-nowrap text-[#4343b8] outline-none focus-visible:ring-2 focus-visible:ring-ring dark:border-[#9d9df0] dark:text-[#c3c3fa]",
+        "relative ml-1 inline-flex h-7 shrink-0 after:absolute after:-inset-x-1 after:-inset-y-2 after:content-[''] items-center gap-1 rounded-full border-[1.5px] border-[#5b5bd6] bg-background/70 px-2 font-semibold whitespace-nowrap text-[#4343b8] outline-none focus-visible:ring-2 focus-visible:ring-ring dark:border-[#9d9df0] dark:text-[#c3c3fa]",
         TEXT.note,
       )}
     >
