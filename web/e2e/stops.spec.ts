@@ -267,7 +267,7 @@ test("a flight saved with a stop is filed with it and the altitude set there, an
   expect(filed[0]!.checkpoints.filter(c => c.category === "stop").map(c => c.name)).toEqual(["KMSN"]);
 });
 
-test("the route's box is round and one line tall for a short route, Add stop after its destination, with no plus beside it, and Enter takes the first airport offered for what is typed", async ({ page }) => {
+test("the route's box is round and two lines tall beside its close and its Procedures stacked, Add stop after its destination, with no plus beside it, and Enter takes the first airport offered for what is typed", async ({ page }) => {
   await recordedStops(page);
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
@@ -275,27 +275,31 @@ test("the route's box is round and one line tall for a short route, Add stop aft
   const box = sideDrawer(page).getByTestId("route-box");
   await expect(box).toBeVisible();
   expect(await sideDrawer(page).getByTestId("add-stop").count()).toBe(0);
-  // Round as the search bar's field is, and its one line tall -- no grey
-  // line left empty under a route that fits on one -- with the route's
-  // Procedures and its close on that line beside it.
+  // Round as the search bar's field is, two lines tall, the route's close
+  // and its Procedures stacked beside it, the close on its first line.
   const shape = await box.evaluate(el => ({ radius: parseFloat(getComputedStyle(el).borderTopLeftRadius), height: el.getBoundingClientRect().height }));
   expect(shape.radius).toBeGreaterThanOrEqual(20);
-  expect(shape.height).toBeGreaterThanOrEqual(40);
-  expect(shape.height).toBeLessThanOrEqual(42);
-  const line = await box.boundingBox();
-  for (const button of [sideDrawer(page).getByTestId("route-clear"), sideDrawer(page).getByTestId("route-approaches")]) {
-    const b = (await button.boundingBox())!;
-    expect(Math.abs(b.y + b.height / 2 - (line!.y + line!.height / 2))).toBeLessThanOrEqual(1);
-  }
+  expect(shape.height).toBeGreaterThanOrEqual(80);
+  const close = (await sideDrawer(page).getByTestId("route-clear").boundingBox())!;
+  const procedures = (await sideDrawer(page).getByTestId("route-approaches").boundingBox())!;
+  expect(Math.abs(close.x - procedures.x)).toBeLessThanOrEqual(1);
+  expect(procedures.y).toBeGreaterThan(close.y + close.height);
   await expect(sideDrawer(page).getByTestId("route-type")).toHaveAttribute("placeholder", "Add stop");
 
   // A town's name at the arrow: its field offered first, and Enter takes
   // it, as a stop.
   await sideDrawer(page).getByRole("button", { name: "Type a stop between C81 and KDLH" }).click();
   const field = sideDrawer(page).getByTestId("route-type");
+  // A stop's rows come from the airports' copy at once and the planner's
+  // answer (with the waypoints) a debounce and a request later; Enter
+  // before it keeps what was typed (useAirportSearch `answered`), so on a
+  // slow CI stack the first row showing was not yet the one Enter takes.
+  const answer = page.waitForResponse(r => /\/airports\/search\?/i.test(r.url()) && /madison/i.test(r.url()), { timeout: slow(15000) });
   await field.fill("madison");
   const first = page.getByTestId("route-suggestions").getByRole("option").first();
   await expect(first).toContainText("KMSN", { timeout: slow(10000) });
+  await answer;
+  await page.waitForTimeout(300);
   await field.press("Enter");
   await expect(page).toHaveURL(/[?&]stops=KMSN(&|$)/);
   await expect(page).toHaveURL(/[?&]dest=KDLH(&|$)/);

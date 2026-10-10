@@ -32,7 +32,7 @@ export function tripFigures({ totals, estimate, depart, local }: TripInput, whol
     ];
   }
   const minutes = totals?.ete_min ?? null;
-  const time = minutes === null ? "—" : whole ? decimalHours(minutes) : hhmm(minutes);
+  const time = minutes === null ? "—" : whole ? decimalHours(minutes) : enRoute(minutes);
   const fuel = totals?.fuel_gal == null ? null : whole ? `${Math.ceil(totals.fuel_gal)}` : `${totals.fuel_gal}`;
   const fuelFigure = { name: "Fuel", value: fuel ?? "—", unit: fuel === null ? undefined : "gal" };
   const arrival = totals ? etaAt(from, minutes) : "—";
@@ -45,6 +45,12 @@ export function tripFigures({ totals, estimate, depart, local }: TripInput, whol
     { name: "ETA", value: arrival, testId: totals ? "navlog-eta" : undefined },
     fuelFigure,
   ];
+}
+
+/** A time en route as the strip writes it: "15m" under an hour, where
+ *  "0h 15m" took a column's room for its nought, and "2h 45m" from one. */
+function enRoute(minutes: number): string {
+  return Math.round(minutes) < 60 ? `${Math.round(minutes)}m` : hhmm(minutes);
 }
 
 /** Each figure on its own: the one that does not fit its column rounded,

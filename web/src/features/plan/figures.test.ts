@@ -27,6 +27,13 @@ describe("fitFigures", () => {
 });
 
 describe("tripFigures", () => {
+  it("writes a time en route under an hour in minutes alone", () => {
+    const short = { ...input, totals: { ...totals, ete_min: 15 } as Totals };
+    expect(tripFigures(short, false)[1]!.value).toBe("15m");
+    expect(tripFigures(short, true)[1]!.value).toBe("0.3h");
+    expect(tripFigures(input, false)[1]!.value).toBe("2h 45m");
+  });
+
   it("names a local flight's figures Aloft, Back and Fuel", () => {
     expect(tripFigures({ ...input, local: true }, false).map(f => f.name)).toEqual(["Aloft", "Back", "Fuel"]);
   });
