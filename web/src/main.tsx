@@ -14,12 +14,16 @@ import { followDynamicType } from "./lib/dynamicType";
 import { keepAddressThroughReload, startFresh } from "./lib/freshLoad";
 import { installErrorReports, reportOf, sendReport } from "./lib/errorReports";
 import MapPage from "./features/page/MapPage";
+import { prefetchRouteMap } from "./features/plan/routeMapChunk";
 import "./index.css";
 import { followAppLinks, inNativeApp } from "./lib/native";
 
 // The reader's text size from the iPhone's Settings, before the first
 // render, so the page is never drawn at the wrong size first.
 followDynamicType();
+
+// The map's chunk (routeMapChunk),fetched while the page draws.
+prefetchRouteMap();
 
 // What goes wrong on the pilot's device, to the owner's log
 // (lib/errorReports): before anything else can throw.

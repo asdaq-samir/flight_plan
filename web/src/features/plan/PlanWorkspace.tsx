@@ -24,7 +24,7 @@ import { SearchNear, useAirportSearch } from "../../lib/useAirportSearch";
 // Without this Leaflet's tiles, markers and controls have no
 // positioning at all -- this is the library's own stylesheet, not
 // app styling.
-import "leaflet/dist/leaflet.css";
+import { RouteMap } from "./routeMapChunk";
 import { useProgressToast } from "../../lib/useProgressToast";
 import { useSearchParamsNow } from "../../lib/useSearchParamsNow";
 import type { WorkspaceProps } from "../page/workspace";
@@ -40,7 +40,6 @@ import PlaceCard from "./components/PlaceCard";
 import NearestCard from "./components/NearestCard";
 import type { RouteParts } from "./components/RouteBox";
 import type { PointAltitude } from "./components/PointAltitudeDialog";
-import RouteMap from "./components/RouteMap";
 import { navlogQuery, usePlan } from "./hooks/usePlan";
 import { useVerdict, type VerdictItem } from "../../lib/verdict";
 import CloseButton from "../../components/CloseButton";

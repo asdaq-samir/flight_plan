@@ -1,4 +1,3 @@
-import L from "leaflet";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { api } from "../api/client";
@@ -33,14 +32,22 @@ export interface KeepProgress {
 
 const TILE_PX = 256;
 
-/** The {x, y} of the tile a point falls in, from Leaflet's own Web
- *  Mercator projection -- the same one the map uses to decide which
- *  tiles to ask for, so these are the URLs it will ask for later.
- *  Hand-written longitude and Gudermannian latitude formulas stood
- *  here; Leaflet is already loaded and has both. */
+/** Leaflet's Web Mercator clamps latitude here (SphericalMercator.MAX_LATITUDE,
+ *  the latitude at which the projected square's top edge falls). */
+const MAX_LATITUDE = 85.0511287798;
+
+/** The {x, y} of the tile a point falls in, by the Web Mercator
+ *  projection Leaflet's EPSG:3857 uses to decide which tiles to ask for,
+ *  so these are the URLs it will ask for later. Written out here, not
+ *  taken from Leaflet, so that this module -- reached by the page's first
+ *  script through the Keep button -- does not pull Leaflet's 149 KB into
+ *  it (issue #87); keepRoute.test pins it to the slippy-map scheme's own definition. */
 function tileOf(lat: number, lon: number, zoom: number): { x: number; y: number } {
-  const point = L.CRS.EPSG3857.latLngToPoint(L.latLng(lat, lon), zoom);
-  return { x: Math.floor(point.x / TILE_PX), y: Math.floor(point.y / TILE_PX) };
+  const phi = (Math.max(Math.min(lat, MAX_LATITUDE), -MAX_LATITUDE) * Math.PI) / 180;
+  const scale = TILE_PX * 2 ** zoom;
+  const x = ((lon + 180) / 360) * scale;
+  const y = ((1 - Math.asinh(Math.tan(phi)) / Math.PI) / 2) * scale;
+  return { x: Math.floor(x / TILE_PX), y: Math.floor(y / TILE_PX) };
 }
 
 /** Tile width in nautical miles at a latitude and zoom. */

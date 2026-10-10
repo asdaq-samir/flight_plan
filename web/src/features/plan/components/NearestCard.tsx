@@ -9,7 +9,7 @@ import type { NearestAirport, PlaceFound } from "../../../lib/api/types";
 import { compassPoint } from "../../../lib/compass";
 import { colourOf } from "../../../lib/map/flightCategory";
 import { glideRangeNm } from "../../../lib/map/glide";
-import { airportMarkSvg } from "../../../lib/map/icons";
+import { airportMarkSvg } from "../../../lib/map/airportMark";
 import { positionNow, useOwnShip } from "../../../lib/map/ownShip";
 import { nearestQuery } from "../../../lib/queryClient";
 import { inkOn } from "../../../lib/scoreScale";
