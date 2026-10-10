@@ -1,4 +1,4 @@
-import { CloudSun, Download, Eye, EyeOff, Map as MapIcon } from "lucide-react";
+import { Bell, BellOff, CloudSun, Download, Eye, EyeOff, Map as MapIcon } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { ListGroup, ListRow } from "./GroupedList";
@@ -20,8 +20,8 @@ function editionOf(cycle: string): string {
  * The map's settings, the whole of the map's own button's sheet
  * (MapSettingsButton), as Maps' map button holds its map's -- moved out
  * of the console's Settings at the pilot's ask: the chart, Class B's
- * weather and terminal sheet, the waypoints, the TFRs, and keeping charts
- * offline, with the charts' edition under them.
+ * weather and terminal sheet, the waypoints, the TFRs, the alerts in
+ * flight, and keeping charts offline, with the charts' edition under them.
  */
 export default function MapSettings() {
   const base = usePreferences(s => s.base);
@@ -32,6 +32,8 @@ export default function MapSettings() {
   const setClassB = usePreferences(s => s.setClassB);
   const tfrs = usePreferences(s => s.tfrs);
   const setTfrs = usePreferences(s => s.setTfrs);
+  const alerts = usePreferences(s => s.alerts);
+  const setAlerts = usePreferences(s => s.setAlerts);
   const military = usePreferences(s => s.military);
   const setMilitary = usePreferences(s => s.setMilitary);
   const waypoints = usePreferences(s => s.waypoints);
@@ -80,6 +82,11 @@ export default function MapSettings() {
           turned off, as a pilot must know of every one near the route. */}
       <ListRow title="TFRs">
         <TogglePill pressed={tfrs} onPressedChange={setTfrs} icon={tfrs ? <Eye /> : <EyeOff />} label="Show" testId="tfrs-toggle" />
+      </ListRow>
+      {/* What is ahead of own ship in the air, over the map (AlertsBanner):
+          on unless turned off. */}
+      <ListRow title="Alerts">
+        <TogglePill pressed={alerts} onPressedChange={setAlerts} icon={alerts ? <Bell /> : <BellOff />} label="In flight" testId="alerts-toggle" />
       </ListRow>
       {/* The fields the armed services own and keep to themselves, at the
           pilot's ask: off by default, as most pilots may not land there

@@ -56,3 +56,29 @@ def test_a_feed_that_does_not_answer_is_said_so(monkeypatch):
 
 def test_a_point_off_the_earth_is_refused():
     assert client.get("/api/airspace/at", params={"lat": 95, "lon": 0}).status_code == 422
+
+
+def test_what_is_ahead_of_own_ship(monkeypatch):
+    from shapely.geometry import box
+
+    _point(monkeypatch)
+    monkeypatch.setattr(airspace, "load_controlled_airspace", lambda shp, bbox: [
+        {"name": "ROCKFORD CLASS C", "class": "C", "ident": "RFD", "floor_ft_msl": 0.0, "ceiling_ft_msl": 4700.0,
+         "geometry": box(-87.9, 41.9, -87.8, 42.1), "bbox": (-87.9, 41.9, -87.8, 42.1)},
+    ])
+    monkeypatch.setattr(sua, "areas_in", lambda bbox: [])
+    monkeypatch.setattr(tfr, "all_tfrs", lambda: [])
+    monkeypatch.setattr("vfr.faa_data.ensure_nasr_file", lambda name, cache_dir: "DOF.DAT")
+    monkeypatch.setattr("vfr.faa_data.load_obstacles", lambda path, bbox, min_agl_ft=0: __import__("pandas").DataFrame(
+        columns=["lat", "lon", "city", "type", "agl_ft", "amsl_ft", "lit"]))
+    monkeypatch.setattr("vfr.airports.nearest", lambda lat, lon, limit=1: [{"ident": "C81", "distance_nm": 20.0}])
+    body = client.get("/api/airspace/ahead", params={"lat": 42.0, "lon": -88.0, "track": 90, "gs": 120, "alt": 3000}).json()
+    (alert,) = body["alerts"]
+    assert alert["class"] == "C" and alert["kind"] == "airspace" and alert["level"] == "caution"
+    assert body["unavailable"] == []
+
+
+def test_nothing_is_ahead_on_the_ground(monkeypatch):
+    _point(monkeypatch)
+    body = client.get("/api/airspace/ahead", params={"lat": 42.0, "lon": -88.0, "track": 90, "gs": 10}).json()
+    assert body == {"alerts": [], "unavailable": []}

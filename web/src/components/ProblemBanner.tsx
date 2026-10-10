@@ -10,37 +10,24 @@ import { useSystemProblems } from "../lib/problems";
 /**
  * What the app could not do that is not the pilot's doing -- the planner
  * or a service out, a download that failed (lib/problems) -- as one line
- * on the map, beside its buttons and level with them, in the stock
- * Alert on the map buttons' glass: the problem, or how many there are,
- * and Try again where asking
- * again could help. A tap on the words shows all of it. It goes when
- * what caused it has, and sits in the map's own layer, under the panel:
- * nothing of the panel or its grabber is ever under it. It was a toast
- * per problem, a stack of them folded to lines the panel had to stop
- * short of.
+ * on the map, beside its buttons and level with them (MapBanners), in
+ * the stock Alert on the map buttons' glass: the problem, or how many
+ * there are, and Try again where asking again could help. A tap on the
+ * words shows all of it. It goes when what caused it has, and sits in
+ * the map's own layer, under the panel: nothing of the panel or its
+ * grabber is ever under it. It was a toast per problem, a stack of them
+ * folded to lines the panel had to stop short of.
  */
-export default function ProblemBanner({ clearLeft = false }: {
-  /** Clear of map buttons on the left as well (MapControlsLeft). */
-  clearLeft?: boolean;
-}) {
+export default function ProblemBanner() {
   const problems = useSystemProblems(s => s.problems);
   const [open, setOpen] = useState(false);
   if (problems.length === 0) return null;
   const retries = problems.filter(p => p.retry);
   const title = problems.length === 1 ? problems[0]!.title : `${problems.length} problems`;
+  // The glass round the Alert, which is clear: its own card colour
+  // outranked the glass on the same element, and it read white.
   return (
-    // Beside the map's buttons (MapControls), on their edge: the top
-    // right under a panel at the bottom, the bottom right otherwise.
-    <div
-      className={cn(
-        "pointer-events-none absolute right-[calc(max(0.5rem,env(safe-area-inset-right))+3.25rem)] bottom-[calc(env(safe-area-inset-bottom)+1.5rem)] z-[1000] flex nav-bottom:top-[max(0.5rem,env(safe-area-inset-top))] nav-bottom:bottom-auto",
-        clearLeft ? "left-[calc(max(0.5rem,env(safe-area-inset-left))+3.25rem)]" : "left-[max(1rem,env(safe-area-inset-left))]",
-      )}
-      data-problem-banner=""
-    >
-      {/* The glass round the Alert, which is clear: its own card colour
-          outranked the glass on the same element, and it read white. */}
-      <div className={cn(GLASS, "pointer-events-auto w-fit max-w-full rounded-[22px]")}>
+    <div className={cn(GLASS, "pointer-events-auto w-fit max-w-full rounded-[22px]")} data-problem-banner="">
       {/* A row of its own, 44 tall as a list's row is: the line and its
           Retry, not a control grown to its hit area. */}
       <Alert
@@ -67,7 +54,6 @@ export default function ProblemBanner({ clearLeft = false }: {
           </Button>
         )}
       </Alert>
-      </div>
     </div>
   );
 }

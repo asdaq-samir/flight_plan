@@ -818,6 +818,51 @@ class AirspaceAt(BaseModel):
     tfrs_unavailable: bool = False
 
 
+class AheadAlert(BaseModel):
+    """One thing ahead of the airplane (vfr.alerts): airspace, a special-
+    use area or a TFR its track goes into in the next five minutes, or the
+    ground or an obstacle it comes within 500 ft of in the next minute.
+    `seconds` and `distance_nm` are how long and how far until it at the
+    ground speed, 0 where it is now; `lat`/`lon` where the track meets it
+    (the obstacle itself, the ground's highest point)."""
+
+    id: str
+    kind: Literal["airspace", "special_use", "tfr", "terrain", "obstacle"]
+    level: Literal["warning", "caution"]
+    #: As the FAA names it ("CHICAGO CLASS B", "R-6901A", a TFR's title),
+    #: an obstacle's kind ("TOWER"), or "Terrain".
+    name: str
+    #: B, C or D; P, R, MOA, W or A.
+    class_: str | None = Field(default=None, alias="class")
+    #: What it takes, with the rule's section.
+    need: str
+    inside: bool = False
+    seconds: float
+    distance_nm: float
+    lat: float
+    lon: float
+    #: Its floor and ceiling, feet MSL; None at the surface or with no top.
+    floor_ft: float | None = None
+    ceiling_ft: float | None = None
+    #: The ground's or the obstacle's top, feet MSL, and the airplane's
+    #: projected height over it there.
+    top_ft: float | None = None
+    clearance_ft: float | None = None
+    times_of_use: str | None = None
+    notam_id: str | None = None
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class AlertsAhead(BaseModel):
+    """What is ahead of the airplane, warnings first, then the soonest;
+    `unavailable` names what could not be read (special-use airspace,
+    TFRs, terrain, obstacles), said rather than shown as nothing there."""
+
+    alerts: list[AheadAlert]
+    unavailable: list[str] = []
+
+
 class ProfileGround(BaseModel):
     along_nm: float
     ground_ft: float
