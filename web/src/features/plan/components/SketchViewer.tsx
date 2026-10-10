@@ -33,7 +33,7 @@ export default function SketchViewer({ ident, runways, lat, lon, onClose }: {
           </DialogClose>
         </div>
         <div className="relative min-h-0 flex-1 text-foreground">
-          <RunwaySketch runways={runways} lat={lat} lon={lon} />
+          <RunwaySketch runways={runways} lat={lat} lon={lon} numberSize={17} />
         </div>
         <p className={cn("shrink-0 px-4 pt-2 pb-[max(1rem,env(safe-area-inset-bottom))] text-muted-foreground", TEXT.note)}>
           Sketched from the runways' surveyed ends, north up and to scale. Not an FAA airport diagram: the FAA publishes none for this field.
