@@ -180,7 +180,7 @@ export function isEndpoint(p: Point): p is Endpoint {
 // ---------------------------------------------------------------------
 // Spring Boot's own endpoints, camelCase (Jackson's default).
 
-/** `GET /api/me`. 401 (not this shape) when signed out. `developer` is
+/** `GET /api/me`. 204, no body (not this shape), when signed out. `developer` is
  *  whether the training workspace and the developer console are theirs:
  *  granted with an UPDATE on the pilots table, never inherited -- see
  *  the V7 migration. */

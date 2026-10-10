@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * What signing in can do here, asked before anyone has.
  *
- * <p>{@code /api/me} answers "who are you", and 401s when nobody is.
+ * <p>{@code /api/me} answers "who are you", and answers 204, nothing, when nobody is.
  * That is not enough for the front end to decide whether to offer the
  * developer's workspace: a deployment with no Google or Apple
  * credentials and no mail host has no way to hold a role at all, and

@@ -239,8 +239,9 @@ public class SecurityConfig {
                 // Security's own entry point for exactly this, in place
                 // of the one this project wrote: the only difference is
                 // that the 401 carries no body, and nothing read it --
-                // the browser client treats a 401 from /api/me as the
-                // ordinary signed-out answer, and every other call
+                // the browser client treats /api/me, which is open and
+                // answers 204 when signed out, as the ordinary
+                // signed-out answer, and every other call
                 // falls back to the status text.
                 .exceptionHandling(handling -> handling
                         .authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
