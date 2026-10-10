@@ -15,6 +15,7 @@ CESSNA = {"hex": "a128b9", "type": "adsr_icao", "flight": "N174HA  ", "r": "N174
 @pytest.fixture(autouse=True)
 def _fresh_cache(monkeypatch):
     monkeypatch.setattr(traffic, "_CACHE", {})
+    monkeypatch.setattr(traffic, "_FAILED", {})
 
 
 def _answer(entries):
@@ -27,7 +28,7 @@ def _answer(entries):
 def test_an_airplane_in_the_air_as_the_map_draws_it():
     with patch("vfr.traffic.requests.get", return_value=_answer([CESSNA])) as get:
         (cessna,) = traffic.near(42.3246, -88.0741, 25)
-    assert get.call_args.args[0] == "https://api.adsb.lol/v2/point/42.32/-88.07/20"
+    assert get.call_args.args[0] == "https://api.adsb.lol/v2/point/42.32/-88.07/30"
     assert cessna == {
         "hex": "a128b9", "callsign": "N174HA", "registration": "N174HA", "type": "C172", "lat": 42.00128, "lon": -88.14525,
         # The GNSS height, as the phone's own is, and its climb.
@@ -65,10 +66,42 @@ def test_the_radius_is_kept_within_what_is_asked_of_adsb_lol():
     with patch("vfr.traffic.requests.get", return_value=_answer([])) as get:
         traffic.near(42.3, -88.1, 1)
         traffic.near(42.3, -88.1, 400)
-    assert [c.args[0].rsplit("/", 1)[1] for c in get.call_args_list] == ["5", "100"]
+    assert [c.args[0].rsplit("/", 1)[1] for c in get.call_args_list] == ["10", "100"]
 
 
 def test_adsb_lol_not_answering_is_said():
     with patch("vfr.traffic.requests.get", side_effect=requests.ConnectionError("down")):
         with pytest.raises(traffic.TrafficUnavailable):
             traffic.near(42.3, -88.1, 25)
+
+
+def test_a_radius_is_rounded_up_to_reach_the_edge_of_the_view():
+    with patch("vfr.traffic.requests.get", return_value=_answer([])) as get:
+        traffic.near(42.3, -88.1, 25)
+        traffic.near(42.4, -88.1, 14)
+    assert [c.args[0].rsplit("/", 1)[1] for c in get.call_args_list] == ["30", "20"]
+
+
+def test_a_failure_is_remembered_for_a_few_seconds():
+    with patch("vfr.traffic.requests.get", side_effect=requests.ConnectionError("down")) as get:
+        for _ in range(3):
+            with pytest.raises(traffic.TrafficUnavailable):
+                traffic.near(42.3, -88.1, 25)
+    assert get.call_count == 1
+
+
+def test_askers_at_once_share_one_request():
+    import threading
+    import time
+
+    def slow(*args, **kwargs):
+        time.sleep(0.2)
+        return _answer([])
+
+    with patch("vfr.traffic.requests.get", side_effect=slow) as get:
+        threads = [threading.Thread(target=traffic.near, args=(42.3, -88.1, 25)) for _ in range(5)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+    assert get.call_count == 1

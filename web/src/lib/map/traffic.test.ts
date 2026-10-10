@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { TrafficAircraft } from "../api/types";
-import { isOwnShip, nearOwnHeight, trafficLabel } from "./traffic";
+import { ownShipHex, nearOwnHeight, trafficLabel } from "./traffic";
 import type { Fix } from "./ownShip";
 
 const plane = (over: Partial<TrafficAircraft> = {}): TrafficAircraft => ({
@@ -36,16 +36,28 @@ it("is near own ship's height within 1,000 ft", () => {
   expect(nearOwnHeight(plane(), null)).toBe(false);
 });
 
-describe("isOwnShip", () => {
+describe("ownShipHex", () => {
   it("knows own ship's own transponder: where it is, as high, the same way, as fast", () => {
-    expect(isOwnShip(plane({ altitude_ft: 3100 }), fix())).toBe(true);
+    expect(ownShipHex([plane({ altitude_ft: 3100 })], fix())).toBe("a128b9");
   });
 
   it("does not take another airplane for it", () => {
-    expect(isOwnShip(plane({ track_deg: 270 }), fix())).toBe(false);
-    expect(isOwnShip(plane({ altitude_ft: 3600 }), fix())).toBe(false);
-    expect(isOwnShip(plane({ lat: 42.34 }), fix())).toBe(false);
-    expect(isOwnShip(plane({ speed_kt: 60 }), fix())).toBe(false);
-    expect(isOwnShip(plane(), null)).toBe(false);
+    expect(ownShipHex([plane({ track_deg: 270 })], fix())).toBeNull();
+    expect(ownShipHex([plane({ altitude_ft: 3600 })], fix())).toBeNull();
+    expect(ownShipHex([plane({ lat: 42.34 })], fix())).toBeNull();
+    expect(ownShipHex([plane({ speed_kt: 60 })], fix())).toBeNull();
+    expect(ownShipHex([plane()], null)).toBeNull();
+  });
+
+  it("hides only the nearest match, so a wingman stays drawn", () => {
+    const wing = plane({ hex: "wing", altitude_ft: 3100, lat: 42.3246 + 0.002 });
+    expect(ownShipHex([wing, plane({ altitude_ft: 3100 })], fix())).toBe("a128b9");
+  });
+
+  it("allows for the feed's age: own ship was further back when it was heard", () => {
+    // 30 s at 112 kt is 0.93 nm: beyond half a mile of the fix as it is now.
+    const heard = plane({ altitude_ft: 3100, lon: -88.0741 - 0.0147, seen_s: 30 });
+    expect(ownShipHex([heard], fix())).toBe("a128b9");
+    expect(ownShipHex([{ ...heard, seen_s: 0 }], fix())).toBeNull();
   });
 });

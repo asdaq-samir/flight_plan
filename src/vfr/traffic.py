@@ -14,6 +14,7 @@ spared (its rate limits follow its load).
 """
 from __future__ import annotations
 
+import math
 import threading
 
 import requests
@@ -24,12 +25,18 @@ HEADERS = {"User-Agent": "wingtip-maps/0.1 (VFR flight planner; traffic for pilo
 #: How long one answer serves: about an ADS-B receiver's own refresh.
 TTL_S = 5
 #: The radius asked for is kept between these, nm: adsb.lol's own most is 250.
-MIN_RADIUS_NM, MAX_RADIUS_NM = 5, 100
+MIN_RADIUS_NM, MAX_RADIUS_NM = 10, 100
 #: A position older than this is left out: the airplane is somewhere else.
 STALE_S = 30.0
 
+#: How long a failure is remembered, so phones asking every five seconds
+#: do not each wait out an adsb.lol that is slow or down.
+FAILURE_TTL_S = 5
+
 _CACHE: TTLCache = TTLCache(maxsize=512, ttl=TTL_S)
+_FAILED: TTLCache = TTLCache(maxsize=512, ttl=FAILURE_TTL_S)
 _LOCK = threading.Lock()
+_KEY_LOCKS: dict = {}
 
 
 class TrafficUnavailable(RuntimeError):
@@ -46,7 +53,10 @@ def _number(value) -> float | None:
 def _aircraft(entry: dict) -> dict | None:
     """One airplane as the map draws it; None on the ground, without a
     position, or with one too old. Its height the GNSS's where it sends
-    one (`alt_geom`, as the phone's own is), else its pressure altitude."""
+    one (`alt_geom`, height above the WGS84 ellipsoid, as a phone's GNSS
+    fix is; about 100 ft from mean sea level over the US, and not the
+    pressure altitude ATC and TCAS use), else its pressure altitude
+    (`alt_baro`), which `pressure_altitude` says."""
     lat, lon = _number(entry.get("lat")), _number(entry.get("lon"))
     seen = _number(entry.get("seen_pos"))
     if lat is None or lon is None or entry.get("alt_baro") == "ground" or (seen is not None and seen > STALE_S):
@@ -71,19 +81,38 @@ def near(lat: float, lon: float, radius_nm: float) -> list[dict]:
     """The airplanes in the air within `radius_nm` of a point, as
     `_aircraft` gives each. Raises TrafficUnavailable where adsb.lol does
     not answer."""
-    radius = int(min(MAX_RADIUS_NM, max(MIN_RADIUS_NM, round(radius_nm / 10) * 10)))
+    # Rounded up, so the answer always reaches the edge of what was asked.
+    radius = int(min(MAX_RADIUS_NM, max(MIN_RADIUS_NM, math.ceil(radius_nm / 10) * 10)))
     key = (round(lat, 2), round(lon, 2), radius)
+
+    def held():
+        with _LOCK:
+            if key in _FAILED:
+                raise TrafficUnavailable(_FAILED[key])
+            return _CACHE.get(key)
+
+    answer = held()
+    if answer is not None:
+        return answer
+    # One asker at a time per place: the rest wait, then read its answer.
     with _LOCK:
-        held = _CACHE.get(key)
-    if held is not None:
-        return held
-    try:
-        resp = requests.get(URL.format(lat=key[0], lon=key[1], radius=radius), headers=HEADERS, timeout=8)
-        resp.raise_for_status()
-        entries = resp.json().get("ac") or []
-    except (requests.RequestException, ValueError) as err:
-        raise TrafficUnavailable(f"adsb.lol did not answer: {err}") from err
-    found = [a for a in (_aircraft(e) for e in entries if isinstance(e, dict)) if a is not None]
-    with _LOCK:
-        _CACHE[key] = found
-    return found
+        key_lock = _KEY_LOCKS.setdefault(key, threading.Lock())
+    with key_lock:
+        answer = held()
+        if answer is not None:
+            return answer
+        try:
+            resp = requests.get(URL.format(lat=key[0], lon=key[1], radius=radius), headers=HEADERS, timeout=8)
+            resp.raise_for_status()
+            entries = resp.json().get("ac") or []
+        except (requests.RequestException, ValueError) as err:
+            message = f"adsb.lol did not answer: {err}"
+            with _LOCK:
+                _FAILED[key] = message
+            raise TrafficUnavailable(message) from err
+        found = [a for a in (_aircraft(e) for e in entries if isinstance(e, dict)) if a is not None]
+        with _LOCK:
+            _CACHE[key] = found
+            if len(_KEY_LOCKS) > 1024:
+                _KEY_LOCKS.clear()
+        return found

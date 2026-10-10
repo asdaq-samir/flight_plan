@@ -1,5 +1,5 @@
 import type { TrafficAircraft } from "../api/types";
-import { distanceNm } from "../geo";
+import { destination, distanceNm } from "../geo";
 import { grouped } from "../units";
 import type { Fix } from "./ownShip";
 
@@ -31,17 +31,27 @@ export function nearOwnHeight(plane: TrafficAircraft, ownFt: number | null): boo
 }
 
 /**
- * Whether the airplane is own ship itself, heard by the receivers on the
- * ground from its own transponder: within half a mile and 400 ft of the
- * GPS's fix, going the same way at about the same speed. A design
- * choice, as an EFB asks for the airplane's own address instead, which
- * this app does not know; the feed is seconds behind, and the airplane
- * is drawn where it was.
+ * Which airplane, if any, is own ship itself, heard by the receivers on
+ * the ground from its own transponder: the one nearest the GPS's fix --
+ * within half a mile and 400 ft of it, going the same way at about the
+ * same speed -- and only that one, so an airplane in formation or just
+ * ahead is not lost with it. The feed's position is `seen_s` old, so the
+ * fix is taken back along its heading by as much. A design choice, as an
+ * EFB asks for the airplane's own address instead, which this app does
+ * not know.
  */
-export function isOwnShip(plane: TrafficAircraft, fix: Fix | null): boolean {
-  if (!fix || fix.speedKt == null || fix.headingDeg == null || plane.track_deg == null || plane.speed_kt == null) return false;
-  const turn = Math.abs(((plane.track_deg - fix.headingDeg + 540) % 360) - 180);
-  const height = fix.altitudeFt != null && plane.altitude_ft != null ? Math.abs(plane.altitude_ft - fix.altitudeFt) : 0;
-  return distanceNm({ lat: fix.lat, lon: fix.lon }, { lat: plane.lat, lon: plane.lon }) <= 0.5
-    && height <= 400 && turn <= 20 && Math.abs(plane.speed_kt - fix.speedKt) <= Math.max(20, fix.speedKt * 0.3);
+export function ownShipHex(planes: TrafficAircraft[], fix: Fix | null): string | null {
+  if (!fix || fix.speedKt == null || fix.headingDeg == null) return null;
+  let best: { hex: string; nm: number } | null = null;
+  for (const plane of planes) {
+    if (plane.track_deg == null || plane.speed_kt == null) continue;
+    const then = destination({ lat: fix.lat, lon: fix.lon }, (fix.headingDeg + 180) % 360, (fix.speedKt * (plane.seen_s ?? 0)) / 3600);
+    const nm = distanceNm(then, { lat: plane.lat, lon: plane.lon });
+    const turn = Math.abs(((plane.track_deg - fix.headingDeg + 540) % 360) - 180);
+    const height = fix.altitudeFt != null && plane.altitude_ft != null ? Math.abs(plane.altitude_ft - fix.altitudeFt) : 0;
+    if (nm > 0.5 || height > 400 || turn > 20 || Math.abs(plane.speed_kt - fix.speedKt) > Math.max(20, fix.speedKt * 0.3)) continue;
+    if (!best || nm < best.nm) best = { hex: plane.hex, nm };
+  }
+  return best?.hex ?? null;
 }
+
