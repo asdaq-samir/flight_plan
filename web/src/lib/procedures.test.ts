@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { altitudeLines, kindsFor, proceduresOf, proceduresParam, sameField } from "./procedures";
+import { altitudeLines, speedWords, kindsFor, proceduresOf, proceduresParam, sameField } from "./procedures";
+
+describe("speedWords", () => {
+  it("words a speed by its limit, not as a maximum always", () => {
+    expect(speedWords({ speed_kt: 210, speed_limit: "max" })).toBe("210 kt max");
+    expect(speedWords({ speed_kt: 120, speed_limit: "min" })).toBe("120 kt min");
+    expect(speedWords({ speed_kt: 150, speed_limit: "at" })).toBe("150 kt");
+    expect(speedWords({ speed_kt: null, speed_limit: null })).toBeNull();
+  });
+});
 
 describe("the procedures picked, in the address", () => {
   it("reads each field, procedure and transition, and leaves out what is not one", () => {

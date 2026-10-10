@@ -206,7 +206,7 @@ function ProcedurePicker({ kind, list, chosen, onPick }: {
   return (
     <div className="space-y-5">
       <ListGroup
-        footer={`From the FAA's coded procedures (CIFP), the cycle of ${cycleDate(list.cycle)}: a sketch on the chart to plan by, not for navigation. Fly the FAA's chart.`}
+        footer={`From the FAA's coded procedures (CIFP), the cycle of ${cycleDate(list.cycle)}${list.stale ? ", OUT OF DATE (the current cycle could not be had)" : ""}: a sketch on the chart to plan by, not for navigation. Fly the FAA's chart.`}
       >
         <ListRow role="radio" aria-checked={!current} onClick={() => onPick(null)} media={tick(!current)} title="None" />
         {of.map(p => (

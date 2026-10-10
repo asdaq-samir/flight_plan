@@ -2,7 +2,7 @@ import { Fragment, memo, useMemo, useState } from "react";
 import L from "leaflet";
 import { Marker, Pane, Polyline, useMap, useMapEvents } from "react-leaflet";
 import type { ProcedureDrawing, ProcedureFix } from "../api/types";
-import { altitudeLines } from "../procedures";
+import { altitudeLines, speedWords } from "../procedures";
 import { BADGE } from "../rowBadges";
 import { made } from "./icons";
 
@@ -34,6 +34,7 @@ const esc = (text: string) => text.replace(/[<>&"]/g, "");
 const fixIcon = made(function fixIcon(fix: ProcedureFix, words: boolean) {
   const roles = fix.roles.filter(r => r !== "hold");
   const { lines } = altitudeLines(fix);
+  const speed = speedWords(fix);
   const alt = lines.map(l => {
     const deco = [l.under && "underline", l.over && "overline"].filter(Boolean).join(" ");
     return `<span style="text-decoration:${deco || "none"};text-decoration-thickness:1.5px">${esc(l.text)}</span>`;
@@ -42,7 +43,7 @@ const fixIcon = made(function fixIcon(fix: ProcedureFix, words: boolean) {
     ? `<span class="absolute top-1/2 left-[14px] flex -translate-y-1/2 flex-col rounded-md bg-white/95 px-1.5 py-0.5 text-[11px] leading-[13px] font-bold whitespace-nowrap shadow-sm" style="color:${INK}">` +
       `<span>${esc(fix.ident)}${roles.length ? ` <span class="font-semibold opacity-80">${esc(roles.join(" "))}</span>` : ""}</span>` +
       `${alt ? `<span class="flex flex-col text-[#1c1a17]">${alt}</span>` : ""}` +
-      `${fix.speed_kt ? `<span class="text-[#1c1a17]">${fix.speed_kt} kt max</span>` : ""}</span>`
+      `${speed ? `<span class="text-[#1c1a17]">${esc(speed)}</span>` : ""}</span>`
     : "";
   return L.divIcon({
     className: "", iconSize: [14, 14], iconAnchor: [7, 7],

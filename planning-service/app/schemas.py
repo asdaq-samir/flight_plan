@@ -1313,6 +1313,9 @@ class ProcedureList(BaseModel):
 
     airport: str
     cycle: str
+    # True when `cycle` is not the one in force: the FAA's file for it
+    # could not be had, and an older one is used.
+    stale: bool = False
     procedures: list[ProcedureSummary]
 
 
@@ -1343,7 +1346,9 @@ class ProcedureFix(BaseModel):
     """A fix of a drawn procedure: its `roles` on an approach (IAF, IF,
     FAF, MAP, hold), the altitudes it is crossed at -- at or above
     `min_ft`, at or below `max_ft`, at both where they are one -- and the
-    speed it is crossed at or below. `missed` where it is on the missed
+    speed it is crossed at, `speed_limit` saying whether that is the
+    speed ("at"), a minimum ("min") or a maximum ("max"; ARINC 424-18
+    5.261). `missed` where it is on the missed
     approach alone."""
 
     ident: str
@@ -1353,6 +1358,7 @@ class ProcedureFix(BaseModel):
     min_ft: int | None = None
     max_ft: int | None = None
     speed_kt: int | None = None
+    speed_limit: Literal["at", "min", "max"] | None = None
     missed: bool
 
 
@@ -1366,6 +1372,7 @@ class ProcedureDrawing(BaseModel):
     name: str
     transition: str | None = None
     cycle: str
+    stale: bool = False
     lines: list[ProcedureLine]
     holds: list[ProcedureHold]
     fixes: list[ProcedureFix]

@@ -64,6 +64,15 @@ export function altitudeLines(fix: Pick<ProcedureFix, "min_ft" | "max_ft">): { l
   return { lines: [], words: null };
 }
 
+/** A fix's speed as the chart words it (ARINC 424-18 5.261): "at" the
+ *  speed, or "min" or "max" of it. */
+export function speedWords(fix: Pick<ProcedureFix, "speed_kt" | "speed_limit">): string | null {
+  if (!fix.speed_kt) return null;
+  if (fix.speed_limit === "min") return `${fix.speed_kt} kt min`;
+  if (fix.speed_limit === "max") return `${fix.speed_kt} kt max`;
+  return `${fix.speed_kt} kt`;
+}
+
 /** Which kinds of procedure a field of the route offers, by its part in
  *  the flight: a departure is left by, a destination arrived at and
  *  landed on, and a stop both. */

@@ -5952,6 +5952,11 @@
             "title": "Name",
             "type": "string"
           },
+          "stale": {
+            "default": false,
+            "title": "Stale",
+            "type": "boolean"
+          },
           "transition": {
             "anyOf": [
               {
@@ -5978,7 +5983,7 @@
         "type": "object"
       },
       "ProcedureFix": {
-        "description": "A fix of a drawn procedure: its `roles` on an approach (IAF, IF,\nFAF, MAP, hold), the altitudes it is crossed at -- at or above\n`min_ft`, at or below `max_ft`, at both where they are one -- and the\nspeed it is crossed at or below. `missed` where it is on the missed\napproach alone.",
+        "description": "A fix of a drawn procedure: its `roles` on an approach (IAF, IF,\nFAF, MAP, hold), the altitudes it is crossed at -- at or above\n`min_ft`, at or below `max_ft`, at both where they are one -- and the\nspeed it is crossed at, `speed_limit` saying whether that is the\nspeed (\"at\"), a minimum (\"min\") or a maximum (\"max\"; ARINC 424-18\n5.261). `missed` where it is on the missed\napproach alone.",
         "properties": {
           "ident": {
             "title": "Ident",
@@ -6035,6 +6040,22 @@
               }
             ],
             "title": "Speed Kt"
+          },
+          "speed_limit": {
+            "anyOf": [
+              {
+                "enum": [
+                  "at",
+                  "min",
+                  "max"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Speed Limit"
           }
         },
         "required": [
@@ -6165,6 +6186,11 @@
             },
             "title": "Procedures",
             "type": "array"
+          },
+          "stale": {
+            "default": false,
+            "title": "Stale",
+            "type": "boolean"
           }
         },
         "required": [

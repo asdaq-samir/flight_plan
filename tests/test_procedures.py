@@ -21,6 +21,7 @@ VTU = (34.115064, -119.0495)
 @pytest.fixture(autouse=True)
 def _cifp(monkeypatch):
     monkeypatch.setattr(procedures, "cifp_path", lambda on=None: CIFP)
+    monkeypatch.setattr(procedures, "cifp_cycle", lambda path: procedures.cifp_start().strftime("%y%m%d"))
 
 
 def near(a, b, nm=0.01):
@@ -131,3 +132,18 @@ def test_altitude_descriptions_are_read_as_arinc_424_codes_them(code, first, sec
     leg = next(iter(procedures._airport("KBUR", CIFP).legs.values()))[0]
     leg = dataclasses.replace(leg, altitude_code=code, altitude1=first, altitude2=second)
     assert procedures.altitude_limits(leg) == limits
+
+
+def test_a_fallback_file_is_reported_as_the_cycle_it_is_of(monkeypatch, tmp_path):
+    monkeypatch.undo()
+    old = tmp_path / "260903" / "FAACIFP18"
+    assert procedures.cifp_cycle(old) == "260903"
+    assert procedures.cifp_stale(old, date(2026, 10, 10))
+    assert not procedures.cifp_stale(tmp_path / "261001" / "FAACIFP18", date(2026, 10, 10))
+
+
+def test_a_speed_says_whether_it_is_at_a_minimum_or_a_maximum():
+    drawing = procedures.procedure_drawing("KBUR", "I08-Y", "LAX")
+    limits = {f["speed_limit"] for f in drawing["fixes"] if f["speed_kt"]}
+    assert limits <= {"at", "min", "max"}
+    assert all(f["speed_limit"] is None for f in drawing["fixes"] if not f["speed_kt"])

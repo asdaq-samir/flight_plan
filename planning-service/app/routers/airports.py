@@ -276,7 +276,11 @@ def airport_procedures(ident: str) -> ProcedureList:
         found = procedures.procedures_at(ident)
     except RuntimeError as err:
         raise HTTPException(503, f"The FAA's procedure file could not be had: {err}") from err
-    return found or {"airport": ident.strip().upper(), "cycle": f"{procedures.cifp_start():%y%m%d}", "procedures": []}
+    if found:
+        return found
+    path = procedures.cifp_path()
+    return {"airport": ident.strip().upper(), "cycle": procedures.cifp_cycle(path),
+            "stale": procedures.cifp_stale(path), "procedures": []}
 
 
 @router.get("/api/airport/{ident}/procedures/{procedure}", response_model=ProcedureDrawing,

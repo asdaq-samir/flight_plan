@@ -20,7 +20,9 @@ from __future__ import annotations
 
 import logging
 import math
+import os
 import re
+import shutil
 import threading
 from dataclasses import dataclass, field
 from datetime import date
@@ -88,7 +90,8 @@ def cifp_start(on: date | None = None) -> date:
 def cifp_path(on: date | None = None) -> Path:
     """The cycle's FAACIFP18, downloaded the first time it is asked for.
     The newest one on disk while the cycle's own cannot be had: the FAA
-    posts it a few weeks ahead, so that is rare and short."""
+    posts it a few weeks ahead, so that is rare and short. Say which
+    cycle the answer is from with `cifp_cycle`."""
     start = cifp_start(on)
     folder = CIFP_DIR / f"{start:%y%m%d}"
     path = folder / CIFP_FILE
@@ -97,7 +100,7 @@ def cifp_path(on: date | None = None) -> Path:
     with _LOCK:
         if not path.exists():
             try:
-                download_and_extract(CIFP_URL.format(start=start), folder, only={CIFP_FILE})
+                _fetch(CIFP_URL.format(start=start), folder)
             except RuntimeError:
                 held = sorted(CIFP_DIR.glob(f"*/{CIFP_FILE}"))
                 if not held:
@@ -105,6 +108,35 @@ def cifp_path(on: date | None = None) -> Path:
                 log.warning("The CIFP for %s could not be had; using %s", start, held[-1].parent.name)
                 return held[-1]
     return path
+
+
+def _fetch(url: str, folder: Path) -> None:
+    """Extract into a folder of its own and move the file into place whole,
+    so a request that comes while the 53 MB is being written does not
+    find it there, cut short, and index it for good."""
+    work = folder.with_name(folder.name + ".part")
+    shutil.rmtree(work, ignore_errors=True)
+    try:
+        download_and_extract(url, work, only={CIFP_FILE})
+        found = next(work.rglob(CIFP_FILE), None)
+        if found is None:
+            raise RuntimeError(f"{url} has no {CIFP_FILE}")
+        folder.mkdir(parents=True, exist_ok=True)
+        os.replace(found, folder / CIFP_FILE)
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+
+
+def cifp_cycle(path: Path) -> str:
+    """The cycle ("261001") the file at `path` is of, which is its
+    folder's name -- the one in force unless the fallback was used."""
+    return path.parent.name
+
+
+def cifp_stale(path: Path, on: date | None = None) -> bool:
+    """Whether `path` is of an older cycle than the one in force: its
+    fixes, altitudes and whole procedures may have changed since."""
+    return cifp_cycle(path) != f"{cifp_start(on):%y%m%d}"
 
 
 # --- the records -----------------------------------------------------------
@@ -410,7 +442,7 @@ def procedures_at(ident: str, on: date | None = None) -> dict | None:
         })
     order = {"approach": 0, "arrival": 1, "departure": 2}
     found.sort(key=lambda p: (order[p["kind"]], p["runway"] or "", p["name"]))
-    return {"airport": airport.ident, "cycle": f"{cifp_start(on):%y%m%d}", "procedures": found}
+    return {"airport": airport.ident, "cycle": cifp_cycle(path), "stale": cifp_stale(path, on), "procedures": found}
 
 
 # --- drawing it -------------------------------------------------------------
@@ -552,7 +584,7 @@ def procedure_drawing(ident: str, procedure: str, transition: str | None = None,
 
     return {
         "airport": airport.ident, "kind": kind, "id": procedure.upper(), "name": procedure_name(kind, procedure.upper()),
-        "transition": wanted or None, "cycle": f"{cifp_start(on):%y%m%d}",
+        "transition": wanted or None, "cycle": cifp_cycle(path), "stale": cifp_stale(path, on),
         "lines": [{**ln, "points": [[round(p[0], 6), round(p[1], 6)] for p in ln["points"]]} for ln in lines],
         "holds": [{**h, "points": [[round(p[0], 6), round(p[1], 6)] for p in h["points"]]} for h in holds],
         "fixes": list(fixes.values()),
@@ -566,7 +598,7 @@ def _note_fix(fixes: dict, leg: Leg, place: tuple[float, float], missed: bool) -
     low, high = altitude_limits(leg)
     at = fixes.setdefault(leg.fix, {
         "ident": leg.fix, "lat": round(place[0], 6), "lon": round(place[1], 6), "roles": [],
-        "min_ft": None, "max_ft": None, "speed_kt": None, "missed": missed,
+        "min_ft": None, "max_ft": None, "speed_kt": None, "speed_limit": None, "missed": missed,
     })
     for role in _fix_roles(leg):
         if role not in at["roles"]:
@@ -578,6 +610,8 @@ def _note_fix(fixes: dict, leg: Leg, place: tuple[float, float], missed: bool) -
         at["min_ft"], at["max_ft"] = low, high
     if leg.speed_kt:
         at["speed_kt"] = leg.speed_kt
+        # ARINC 424-18 5.261: "+" at or above, "-" at or below, blank at.
+        at["speed_limit"] = {"+": "min", "-": "max"}.get(leg.speed_code, "at")
     at["missed"] = at["missed"] and missed
 
 
