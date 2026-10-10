@@ -1,6 +1,7 @@
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { Runway } from "../../../lib/api/types";
-import { FT_PER_NM, stripsOf } from "../../../lib/runwaySketch";
+import { TEXT_POINTS } from "../../../lib/text";
+import { FT_PER_NM, numberHalfWidth, numbersOf, stripsOf } from "../../../lib/runwaySketch";
 
 /** Round the runways, in the box's own points: the strips' half width and
  *  a little air. */
@@ -28,18 +29,19 @@ function pavedOf(turf: [number, number][]): [number, number][] {
 /**
  * A sketch of the field's runways, north up and to scale, as a diagram
  * draws them -- dark strips with a dashed centre line, green where they
- * are turf, and nothing else,
- * the runways alone at the pilot's ask: the FAA's diagram cropped to the
- * card's box was a scatter of its lettering, and the ends' numbers, tried
- * beside them, took the room the runways needed in a box that size (the
- * Runways tab and the diagram have them). Drawn in the box's own points,
- * whatever its shape, so the field fills it. Nothing where no runway can
- * be drawn.
+ * are turf -- and each end's number just past it, upright, at the
+ * pilot's ask: they were left off once for the room they took in the
+ * card's box, and the box gives that room now, the runways a little
+ * shorter for it. Drawn in the box's own points, whatever its shape, so
+ * the field fills it. Nothing where no runway can be drawn.
  */
-export function RunwaySketch({ runways, lat, lon, avoid }: {
+export function RunwaySketch({ runways, lat, lon, avoid, numberSize = TEXT_POINTS.caption }: {
   runways: Runway[]; lat: number; lon: number;
-  /** A pane laid over the box (the elevation): no runway is drawn under it. */
+  /** A pane laid over the box (the elevation): nothing is drawn under it. */
   avoid?: HTMLElement | null;
+  /** The ends' numbers' size, points: TEXT_POINTS.caption (iOS's Caption 2)
+   *  in the card's box, TEXT_POINTS.row full screen (SketchViewer). */
+  numberSize?: number;
 }) {
   const box = useRef<SVGSVGElement>(null);
   const [size, setSize] = useState<{ w: number; h: number; hole: Hole | null } | null>(null);
@@ -62,41 +64,51 @@ export function RunwaySketch({ runways, lat, lon, avoid }: {
     const { w, h } = size;
     const xs = strips.flatMap(s => [s.a[0], s.b[0]]), ys = strips.flatMap(s => [s.a[1], s.b[1]]);
     const [minX, maxX, minY, maxY] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+    // Each end's number, its middle this far past the end along the
+    // runway: clear of the strip whichever way it runs.
+    const gap = numberSize * 0.9 + 2;
     // Nautical miles to points, the same both ways (to scale), the whole
-    // field inside the margin.
-    const fit = Math.min((w - 2 * MARGIN) / Math.max(maxX - minX, 1e-3), (h - 2 * MARGIN) / Math.max(maxY - minY, 1e-3));
+    // field inside the margin and the numbers past its ends inside the
+    // box, and off its edge: the widest number's half past the gap, and
+    // half the margin's air.
+    const widest = Math.max(...strips.flatMap(s => s.ends.map(e => e.length)));
+    const margin = gap + numberHalfWidth(widest, numberSize) + MARGIN / 2;
+    const fit = Math.min((w - 2 * margin) / Math.max(maxX - minX, 1e-3), (h - 2 * margin) / Math.max(maxY - minY, 1e-3));
     const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
     const atScale = (k: number) => ([x, y]: [number, number]): [number, number] => [w / 2 + (x - cx) * k, h / 2 - (y - cy) * k];
-    // A runway that reaches the pane's corner is drawn smaller about the
-    // box's centre until it clears it, so the pane never hides a runway end.
-    let scale = fit;
-    if (size.hole) {
-      const hole = size.hole;
-      const under = (k: number) => {
-        const to = atScale(k);
-        return strips.some(s => {
-          const [ax, ay] = to(s.a), [bx, by] = to(s.b);
-          const pad = MARGIN / 2;
-          for (let t = 0; t <= 1; t += 1 / 24) {
-            const x = ax + (bx - ax) * t, y = ay + (by - ay) * t;
-            if (x > hole.x - pad && x < hole.x + hole.w + pad && y > hole.y - pad && y < hole.y + hole.h + pad) return true;
-          }
-          return false;
-        });
-      };
-      while (under(scale) && scale > fit / 4) scale *= 0.95;
-    }
-    const at = atScale(scale);
-    const placed = strips.map(s => {
-      const [ax, ay] = at(s.a), [bx, by] = at(s.b);
+    const place = (k: number) => strips.map(s => {
+      const to = atScale(k);
+      const [ax, ay] = to(s.a), [bx, by] = to(s.b);
       const length = Math.hypot(bx - ax, by - ay) || 1;
       const [ux, uy] = [(bx - ax) / length, (by - ay) / length];
+      const na: [number, number] = [ax - ux * gap, ay - uy * gap], nb: [number, number] = [bx + ux * gap, by + uy * gap];
+      return { ax, ay, bx, by, ux, uy, na, nb };
+    });
+    // A runway or a number that reaches the pane's corner is drawn smaller
+    // about the box's centre until it clears it, so the pane never hides
+    // a runway end or its number.
+    let scale = fit;
+    const hole = size.hole;
+    const pad = MARGIN / 2;
+    const inHole = (x: number, y: number, rx = 0, ry = 0) =>
+      !!hole && x + rx > hole.x - pad && x - rx < hole.x + hole.w + pad && y + ry > hole.y - pad && y - ry < hole.y + hole.h + pad;
+    if (hole) {
+      const under = (k: number) => place(k).some(s => {
+        for (let t = 0; t <= 1; t += 1 / 24) {
+          if (inHole(s.ax + (s.bx - s.ax) * t, s.ay + (s.by - s.ay) * t)) return true;
+        }
+        return [s.na, s.nb].some(([x, y]) => inHole(x, y, numberSize * 0.9, numberSize * 0.6));
+      });
+      while (under(scale) && scale > fit / 4) scale *= 0.95;
+    }
+    const placed = place(scale).map((p, i) => {
+      const s = strips[i]!;
       // Wide enough to read at this size, whatever the field's scale.
       const width = Math.max(4, Math.min(10, (s.width_ft / FT_PER_NM) * scale * 3));
-      return { ...s, ax, ay, bx, by, ux, uy, width };
+      return { ...s, ...p, width };
     });
-    return { w, h, strips: placed };
-  }, [runways, lat, lon, size]);
+    return { w, h, strips: placed, numbers: numbersOf(placed, numberSize, gap, w, h, inHole) };
+  }, [runways, lat, lon, size, numberSize]);
   return (
     <svg
       // Out of the flow, the box's size its own: an SVG's own default
@@ -138,6 +150,18 @@ export function RunwaySketch({ runways, lat, lon, avoid }: {
             />
           ))}
         </g>
+      ))}
+      {/* Each end's number past it, upright, over every strip, in the
+          strips' ink with a casing of the box's ground so a crossing
+          runway does not cut through it. */}
+      {drawn?.numbers.map(n => (
+        <text
+          key={n.key} x={n.x} y={n.y} textAnchor="middle" dominantBaseline="central" data-runway-end={n.end}
+          fontSize={numberSize} fontWeight={700} fill="currentColor" opacity={n.closed ? 0.35 : 1}
+          className="stroke-background" strokeWidth={3} paintOrder="stroke" strokeLinejoin="round"
+        >
+          {n.end}
+        </text>
       ))}
     </svg>
   );

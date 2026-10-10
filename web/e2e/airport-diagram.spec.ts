@@ -207,6 +207,20 @@ test("the card's sketch draws a runway's turf green, C81's south-west 1,000 ft o
   // The south-west end: left of and below the other.
   expect(ax).toBeLessThan(bx);
   expect(ay).toBeGreaterThan(by);
+  // Each end's number just past it, at the pilot's ask: 06 beyond the
+  // south-west end, 24 beyond the north-east.
+  const sketch = card(page).getByTestId("runway-sketch");
+  const number = async (end: string) => sketch.locator(`[data-runway-end="${end}"]`).evaluate(t => [Number(t.getAttribute("x")), Number(t.getAttribute("y"))]);
+  const [x06, y06] = await number("06");
+  const [x24, y24] = await number("24");
+  expect(x06).toBeLessThan(ax);
+  expect(y06).toBeGreaterThan(ay);
+  expect(x24).toBeGreaterThan(bx);
+  expect(y24).toBeLessThan(by);
+  // Looked up by end, not read in order: the order they are written in
+  // is the longest runway's first, which is no business of the pilot's.
+  for (const end of ["06", "24", "09", "27"]) await expect(sketch.locator(`[data-runway-end="${end}"]`)).toHaveText(end);
+  await expect(sketch.locator("[data-runway-end]")).toHaveCount(4);
 });
 
 
