@@ -26,6 +26,11 @@ interface Props {
   compact?: ReactNode;
   /** The body: the nav log and the briefing, the training list. */
   children: ReactNode;
+  /** The body down to the sheet's own edge, over the home indicator's
+   *  inset, where the rest of the way is kept clear for every other
+   *  panel: an airport's card, its tiles and tabs at its foot (PlaceCard),
+   *  at the pilot's ask. The inset's height is `--half-foot` to it. */
+  toEdge?: boolean;
   state: PanelState;
   onStateChange: (state: PanelState) => void;
   onInsetsChange: (insets: MapInsets) => void;
@@ -88,7 +93,7 @@ const RANK: Record<PanelState, number> = { peek: 0, half: 1, full: 2 };
  * drawer that never closes held the keyboard's focus inside itself and
  * hid the map, and any dialog opened before it, from a screen reader.
  */
-export default function MapPanel({ label, top, controls, compact, children, state, onStateChange, onInsetsChange }: Props) {
+export default function MapPanel({ label, top, controls, compact, children, state, onStateChange, onInsetsChange, toEdge = false }: Props) {
   const onPhone = useIsMobile();
   const edge = useNavEdge();
   const safe = useSafeArea();
@@ -250,6 +255,9 @@ export default function MapPanel({ label, top, controls, compact, children, stat
     geometry.gap = between(capsuleGap, SHEET_INSET, morph);
     geometry.radius = `${between(capsuleHeight / 2, SHEET_INSET_RADIUS, morph)}px`;
   }
+  // The way on from the body to the screen's edge, under the home
+  // indicator: kept clear below the body, or the body's own (toEdge).
+  const foot = Math.max(0, edgeInset - geometry.gap);
   // The glass the whole way, its fill following the height: the capsule's,
   // the half sheet's, nearly whole all the way up (GLASS_FILL).
   const fill = morph < 1 ? between(GLASS_FILL.capsule, GLASS_FILL.half, morph)
@@ -459,7 +467,9 @@ export default function MapPanel({ label, top, controls, compact, children, stat
         // content is not scrolling (useDetentDrag).
         ref={dragBody}
         className={cn("flex min-h-0 flex-1 flex-col border-border/60", expanded && shown > detents.half + 1 && cn("border-t", !fromBottom && "pb-4"))}
-        style={{ "--half-body": `${halfBody}px` } as CSSProperties}
+        // The foot as it is at half, whatever the height now: a card laid
+        // out to it keeps one layout all the way up.
+        style={{ "--half-body": `${halfBody}px`, "--half-foot": `${toEdge && fromBottom ? halfChrome : 0}px` } as CSSProperties}
         data-panel-body=""
       >
         <PanelHalfContext.Provider value={setTabsAt}>{children}</PanelHalfContext.Provider>
@@ -467,9 +477,10 @@ export default function MapPanel({ label, top, controls, compact, children, stat
       {/* The grabber last on a sheet from the top. */}
       {!fromBottom && !capsule && grabber}
       {/* The rest of the way to the screen's edge, under the home
-          indicator, below the body. */}
-      {edgeInset > 0 && !capsule && (
-        <div className="shrink-0" style={{ height: Math.max(0, edgeInset - geometry.gap) }} aria-hidden="true" />
+          indicator, below the body -- in the body where it runs to the
+          edge (toEdge). */}
+      {foot > 0 && !toEdge && !capsule && (
+        <div className="shrink-0" style={{ height: foot }} aria-hidden="true" />
       )}
     </section>
   );
