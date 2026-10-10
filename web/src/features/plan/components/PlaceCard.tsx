@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
-import { FileText, Lightbulb, Loader2, MapPin, MapPinPlus, Phone, Radio, Star } from "lucide-react";
+import { Cloud, CloudSun, Eye, Gauge, Headset, Lightbulb, Loader2, MapPin, MapPinPlus, Phone, PlaneLanding, PlaneTakeoff, Radar, Radio, RadioTower, Repeat, Route, Star, Thermometer, TowerControl, Wind } from "lucide-react";
 import DirectToIcon from "../../../components/DirectToIcon";
 import { cn } from "cn";
 import { useKeptAirport, usePreferences } from "../../../lib/preferences";
@@ -21,6 +21,9 @@ import { bearingDeg, distanceNm, type LatLon } from "../../../lib/geo";
 import { chipColourOf } from "../../../lib/map/flightCategory";
 import { inkOn } from "../../../lib/scoreScale";
 import { feet, miles } from "../../../lib/units";
+import { frequencyLine, mhzText, type FrequencyKind } from "../../../lib/frequencies";
+import { ChartBadge, RowBadge } from "../../../components/RowBadge";
+import { BADGE } from "../../../lib/rowBadges";
 import { RunwayRow } from "./RunwayRow";
 import { PublicationRows } from "./PublicationRows";
 import { ChartRow, FaaChart } from "./AirportDiagram";
@@ -52,6 +55,29 @@ function subtitleOf(place: AirportPlace, from: { point: LatLon; name: string | n
     // airport sharing it -- not a description, a field to keep out of.
     place.military === "military" ? "Military, permission required" : place.military === "joint" ? "Joint use" : place.private ? "Private, permission required" : null,
   ].filter(Boolean).join(" · ");
+}
+
+/** A frequency's glyph by its kind (lib/frequencies). */
+const FREQUENCY_GLYPH: Record<FrequencyKind, ReactNode> = {
+  tower: <TowerControl />, ground: <Headset />, weather: <CloudSun />, approach: <Radar />, traffic: <RadioTower />, other: <Radio />,
+};
+
+/** The wind as reported, true: "140° at 10 kt", "calm", "variable at 4
+ *  kt, gusts 18". */
+function windLine(metar: NonNullable<AirportPlace["metar"]>): string {
+  if (!metar.wind_speed_kt) return "Calm";
+  const from = metar.wind_dir_true_deg == null ? "Variable" : `${String(Math.round(metar.wind_dir_true_deg)).padStart(3, "0")}°`;
+  return `${from} at ${Math.round(metar.wind_speed_kt)} kt${metar.wind_gust_kt ? `, gusts ${Math.round(metar.wind_gust_kt)}` : ""}`;
+}
+
+/** When the report was made: "Observed 1255Z, 14 minutes ago". */
+function observedLine(at: string): string {
+  const when = new Date(at);
+  if (Number.isNaN(when.getTime())) return "";
+  const zulu = `${String(when.getUTCHours()).padStart(2, "0")}${String(when.getUTCMinutes()).padStart(2, "0")}Z`;
+  const minutes = Math.max(0, Math.round((Date.now() - when.getTime()) / 60_000));
+  const ago = minutes < 1 ? "just now" : minutes < 90 ? `${minutes} minute${minutes === 1 ? "" : "s"} ago` : `${Math.round(minutes / 60)} hours ago`;
+  return `Observed ${zulu}, ${ago}. Wind true, as reported.`;
 }
 
 /** The field's name alone, at the pilot's ask, its ident taken off to
@@ -102,7 +128,14 @@ const GROUPED = new Set(["APD", ...AIRPORT_CHARTS, ...CHART_GROUPS.flatMap(g => 
  *  and its navaids, as a code is, and pilots know it by the title on the
  *  plate. Shown in the app, full screen (ChartRow), not on the FAA's site. */
 function TerminalChartRow({ chart, airport }: { chart: TerminalChart; airport: string }) {
-  return <ChartRow media={<FileText className="size-5" />} title={chart.name} url={chart.url} airport={airport} testId="terminal-chart" />;
+  // A procedure's badge says which kind it is, as its group's title does:
+  // an approach's a landing airplane, a departure's one taking off, an
+  // arrival's a route; the rest a chart's.
+  const badge = chart.kind === "IAP" ? <RowBadge colour={BADGE.approach}><PlaneLanding /></RowBadge>
+    : chart.kind === "DP" || chart.kind === "ODP" ? <RowBadge colour={BADGE.approach}><PlaneTakeoff /></RowBadge>
+      : chart.kind === "STR" ? <RowBadge colour={BADGE.approach}><Route /></RowBadge>
+        : <ChartBadge />;
+  return <ChartRow media={badge} title={chart.name} url={chart.url} airport={airport} testId="terminal-chart" />;
 }
 
 /** The field in Maps -- Apple's, which a phone opens in its Maps app --
@@ -533,15 +566,37 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
           </TabsContent>
 
           <TabsContent value="weather" className="pt-4">
-            <ListGroup>
+            <ListGroup footer={metar?.observed_at ? observedLine(metar.observed_at) : undefined}>
               {metar ? (
                 <>
-                  <ListRow title="Ceiling" value={metar.ceiling_ft == null ? "none" : feet(metar.ceiling_ft)} />
-                  <ListRow title="Visibility" value={miles(metar.visibility_sm)} />
+                  {/* Each figure with its glyph, its value at the right in
+                      the text's own colour; the report as it was sent
+                      under them. */}
                   {metar.wind_speed_kt != null && (
                     <ListRow
-                      title="Wind"
-                      value={metar.wind_speed_kt === 0 ? "calm" : `${metar.wind_dir_true_deg == null ? "variable" : `${String(Math.round(metar.wind_dir_true_deg)).padStart(3, "0")}°`} at ${Math.round(metar.wind_speed_kt)} kt`}
+                      media={<RowBadge colour={BADGE.weather}><Wind /></RowBadge>} title="Wind"
+                      value={<span className="font-semibold text-foreground">{windLine(metar)}</span>} data-testid="place-wind"
+                    />
+                  )}
+                  <ListRow
+                    media={<RowBadge colour={BADGE.weather}><Eye /></RowBadge>} title="Visibility"
+                    value={<span className="font-semibold text-foreground">{miles(metar.visibility_sm)}</span>}
+                  />
+                  <ListRow
+                    media={<RowBadge colour={BADGE.weather}><Cloud /></RowBadge>} title="Ceiling"
+                    value={<span className="font-semibold text-foreground">{metar.ceiling_ft == null ? "None" : feet(metar.ceiling_ft)}</span>}
+                  />
+                  {metar.temp_c != null && (
+                    <ListRow
+                      media={<RowBadge colour={BADGE.weather}><Thermometer /></RowBadge>} title="Temperature"
+                      description={metar.dewpoint_c != null ? `Dew point ${Math.round(metar.dewpoint_c)} °C` : undefined}
+                      value={<span className="font-semibold text-foreground">{Math.round(metar.temp_c)} °C</span>}
+                    />
+                  )}
+                  {metar.altimeter_in_hg != null && (
+                    <ListRow
+                      media={<RowBadge colour={BADGE.weather}><Gauge /></RowBadge>} title="Altimeter"
+                      value={<span className="font-semibold text-foreground">{metar.altimeter_in_hg.toFixed(2)} inHg</span>}
                     />
                   )}
                   <ListRow title={<span className="font-mono break-words">{metar.raw}</span>} />
@@ -554,17 +609,26 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
 
           <TabsContent value="radio" className="pt-4">
             <ListGroup>
-              {place.frequencies.length ? place.frequencies.map((f, i) => (
-                <ListRow
-                  key={`${f.type}-${f.frequency_mhz}-${i}`}
-                  title={f.type ?? "Frequency"} description={f.description ?? undefined}
-                  value={f.frequency_mhz != null ? f.frequency_mhz.toFixed(3) : "—"}
-                />
-              )) : <ListRow title="None listed" />}
+              {place.frequencies.length ? place.frequencies.map((f, i) => {
+                // Named in words, a glyph by its kind, the frequency as
+                // pilots write it, at the right in the text's own colour,
+                // as Nearest has a field's distance (the pilot's ask for
+                // every card to read as Nearest's does).
+                const line = frequencyLine(f.type, f.description);
+                return (
+                  <ListRow
+                    key={`${f.type}-${f.frequency_mhz}-${i}`}
+                    media={<RowBadge colour={BADGE[line.kind]}>{FREQUENCY_GLYPH[line.kind]}</RowBadge>}
+                    title={line.name} description={line.detail ?? undefined}
+                    value={f.frequency_mhz != null ? <span className="font-semibold text-foreground">{mhzText(f.frequency_mhz)}</span> : "—"}
+                    data-testid="place-frequency"
+                  />
+                );
+              }) : <ListRow title="None listed" />}
               {/* What some fields read out on so many clicks of the mic on
                   the CTAF: the weather, a radio check (vfr.remarks). */}
               {place.radio_notes.map(note => (
-                <ListRow key={note} media={<Radio className="size-5 text-muted-foreground" />} title={note} />
+                <ListRow key={note} media={<RowBadge colour={BADGE.traffic}><Radio /></RowBadge>} title={note} />
               ))}
             </ListGroup>
 
@@ -581,7 +645,7 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
                   : undefined}
               >
                 {place.lighting.map(note => (
-                  <ListRow key={note} media={<Lightbulb className="size-5 text-muted-foreground" />} title={note} data-testid="place-lighting" />
+                  <ListRow key={note} media={<RowBadge colour={BADGE.lights}><Lightbulb /></RowBadge>} title={note} data-testid="place-lighting" />
                 ))}
               </ListGroup>
             </div>
@@ -592,9 +656,10 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
             <ListGroup>
               {place.pattern?.altitude_ft != null && (
                 <ListRow
+                  media={<RowBadge colour={BADGE.runway}><Repeat /></RowBadge>}
                   title="Pattern altitude"
                   description={place.pattern.published ? "As the FAA publishes it" : "1,000 ft above the field: none published"}
-                  value={feet(place.pattern.altitude_ft)} data-testid="place-pattern"
+                  value={<span className="font-semibold text-foreground">{feet(place.pattern.altitude_ft)}</span>} data-testid="place-pattern"
                 />
               )}
               {place.runways.map((r, i) => <RunwayRow key={`${r.ends}-${i}`} runway={r} />)}

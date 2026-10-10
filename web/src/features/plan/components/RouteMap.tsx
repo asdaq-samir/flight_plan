@@ -97,9 +97,27 @@ function HeldPoint({ point, onHold }: { point: Props["heldPoint"]; onHold: Props
  *  written twice, which is why the two drifted into saying the same
  *  thing two ways. */
 function CheckpointCard({ candidate, number }: { candidate: Candidate; number?: number }) {
+  const fill = scoreColor(candidate.predicted_score);
   return (
     <MapCard
-      title={`${number === undefined ? "" : `${number}. `}${candidate.name || "(unnamed)"}`}
+      // Its dot as the map draws it, numbered in flight order where it is
+      // one of the route's, before its name.
+      media={(
+        <span
+          // The number is the checkpoint's place in the flight, which the
+          // title no longer carries, so a screen reader hears it here; an
+          // unnumbered candidate has nothing to say.
+          role={number === undefined ? undefined : "img"}
+          aria-label={number === undefined ? undefined : `Checkpoint ${number}`}
+          aria-hidden={number === undefined ? true : undefined}
+          className="grid size-7 shrink-0 place-items-center rounded-full border-[2.5px] border-background text-[11px] font-bold leading-none shadow-[0_1px_3px_rgba(0,0,0,.35)] outline outline-1 outline-[rgba(10,20,28,.45)]"
+          style={{ backgroundColor: fill, color: inkOn(fill) }}
+        >
+          {number ?? ""}
+        </span>
+      )}
+      // The number on its dot, not again before its name.
+      title={candidate.name || "(unnamed)"}
       subtitle={`${candidate.along_track_nm.toFixed(1)} nm along`}
     >
       {/* The score and what kind of thing it is on one line: two facts
@@ -108,7 +126,7 @@ function CheckpointCard({ candidate, number }: { candidate: Candidate; number?: 
           be. The score keeps the colour its own marker is drawn in, so
           the dot on the chart and the number in the card are the same
           fact twice rather than two things to reconcile. */}
-      <div className="flex items-center justify-center gap-2">
+      <div className="flex items-center gap-2">
         <Badge
           className="tabular-nums"
           style={{ backgroundColor: scoreColor(candidate.predicted_score), color: inkOn(scoreColor(candidate.predicted_score)) }}

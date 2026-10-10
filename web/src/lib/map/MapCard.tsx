@@ -25,13 +25,18 @@ import { TEXT } from "../text";
  * terminal chart's pin, the training pass's step arrows -- sit in the
  * head, which is what `leading` is for.
  */
-export function MapCard({ title, subtitle, leading, children }: {
+export function MapCard({ title, subtitle, leading, media, children }: {
   title: ReactNode;
   subtitle?: ReactNode;
   /** A control that belongs with the title rather than in the corner,
    *  drawn at the head's left edge -- the Class B card's terminal-chart
    *  pin, which is about the field the title names. */
   leading?: ReactNode;
+  /** The thing's own mark before its title -- a checkpoint's numbered
+   *  dot, a waypoint's diamond, a TFR's badge -- the head then set to its
+   *  left, as a list's rows are: the cards on the map read as the
+   *  panel's do, at the pilot's ask for every card to read as Nearest's. */
+  media?: ReactNode;
   children?: ReactNode;
 }) {
   return (
@@ -58,16 +63,18 @@ export function MapCard({ title, subtitle, leading, children }: {
     // the parent shrink-wraps, so this resolves to nothing and `w-max`
     // still governs.
     <div className={cn("w-max min-w-full max-w-[min(22rem,74vw)] space-y-1.5 whitespace-normal", TEXT.detail)}>
-      <div className="flex items-start gap-2">
+      <div className={cn("flex gap-2", media ? "items-center gap-2.5" : "items-start")}>
         {leading}
-        {/* Centred, and `flex justify-center` rather than `text-center`
+        {media}
+        {/* Beside its mark, set to the left as a row is; with none,
+            centred, and `flex justify-center` rather than `text-center`
             so a title that is itself a row -- an ident beside its
             flight-category chip -- centres as a block too. It centres
             in the space the corner controls leave, not in the card:
             those are part of the head, and a title that ignored them
             would sit under the close on a narrow card. */}
-        <div className="min-w-0 flex-1 space-y-0.5 text-center">
-          <div className={cn("flex items-center justify-center gap-2 font-semibold", TEXT.row)}>{title}</div>
+        <div className={cn("min-w-0 flex-1 space-y-0.5", media ? "text-left" : "text-center")}>
+          <div className={cn("flex items-center gap-2 font-semibold", media ? "justify-start" : "justify-center", TEXT.row)}>{title}</div>
           {subtitle !== undefined && <div className="text-muted-foreground">{subtitle}</div>}
         </div>
       </div>
