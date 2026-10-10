@@ -1,6 +1,7 @@
 package com.northflyers.vfr.security;
 
 import com.northflyers.vfr.service.PilotService;
+import jakarta.servlet.Filter;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
@@ -27,6 +28,7 @@ import org.springframework.security.web.authentication.logout.HttpStatusReturnin
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.csrf.CsrfFilter;
 import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
+import org.springframework.security.web.header.HeaderWriterFilter;
 import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter.ReferrerPolicy;
 import org.springframework.security.web.savedrequest.NullRequestCache;
 
@@ -325,7 +327,26 @@ public class SecurityConfig {
                     })
                     .failureUrl("/app/plan?signin=refused"));
         }
-        return http.build();
+        SecurityFilterChain chain = http.build();
+        // The security headers (CSP, Referrer-Policy, no-store, ...) are
+        // written as each request comes in, not as its response is
+        // committed. A planner answer is piped on a thread of its own
+        // (StreamingProxy), which committed the response while the
+        // request's thread, leaving the filter chain, wrote the headers it
+        // had not seen written: two threads in Tomcat's header table at
+        // once, which is not safe -- a NullPointerException in
+        // MimeHeaders.setValue, and the answer's connection closed with
+        // nothing sent (a briefing, with three routes planned at once,
+        // 2026-10-10). Written first, nothing is left to write after.
+        // An answer the same for every pilot replaces the no-store with
+        // the planner's own Cache-Control (PlannerProxyController), as
+        // Spring's static resources replace it with theirs.
+        for (Filter filter : chain.getFilters()) {
+            if (filter instanceof HeaderWriterFilter headers) {
+                headers.setShouldWriteHeadersEagerly(true);
+            }
+        }
+        return chain;
     }
 
     /** Apple issues a refresh token at every sign-in; it is kept so that
