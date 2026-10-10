@@ -1,7 +1,7 @@
 import { Suspense, lazy, memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type ComponentType } from "react";
 import { flushSync } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
-import { FileArchive, FileDown, Link2, MapPinned, PlaneLanding, Printer, Send, Share } from "lucide-react";
+import { FileArchive, FileDown, Link2, MapPinned, Printer, Send, Share } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../../components/ui/dropdown-menu";
 import { foreflightRoute, fplOf, gpxOf, shareFile, type PlanPoint } from "../../lib/flightPlanFiles";
 import { markPackSent, openInForeFlight, packOrigin, packPath, packSent } from "../../lib/foreflightPack";
@@ -37,6 +37,9 @@ import { Favorites, FavoritesList } from "../../components/Favorites";
 import FlightLine from "./components/FlightLine";
 import AirspaceCard from "./components/AirspaceCard";
 import PlaceCard from "./components/PlaceCard";
+import ProceduresButton, { type ProcedureAirport } from "./components/ProceduresButton";
+import { patternsOf, patternsParam, trafficPattern, type TrafficPattern } from "../../lib/trafficPattern";
+import { runwayNumber } from "../../lib/pattern";
 import NearestCard from "./components/NearestCard";
 import type { RouteParts } from "./components/RouteBox";
 import type { PointAltitude } from "./components/PointAltitudeDialog";
@@ -196,6 +199,23 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     // nav log runs from point to point, at the pilot's ask.
     checkpoints: showWaypoints,
   });
+  // The traffic patterns the pilot picked for the route's fields (the
+  // route's Procedures), kept in the address as the rest of the plan is:
+  // "KDLH:27,C81:24".
+  const patternParam = searchParams.get("pattern");
+  const pickedPatterns = useMemo(() => patternsOf(patternParam), [patternParam]);
+  // The pattern just picked, for the map to go to it.
+  const [patternFocus, setPatternFocus] = useState<string | null>(null);
+  const pickPattern = useCallback((ident: string, end: string | null) => {
+    if (end) setPatternFocus(`${ident}:${end}:${Date.now()}`);
+    setSearchParams(prev => {
+      const picked = patternsOf(prev.get("pattern"));
+      if (end) picked.set(ident, end); else picked.delete(ident);
+      const next = new URLSearchParams(prev);
+      if (picked.size) next.set("pattern", patternsParam(picked)); else next.delete("pattern");
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
   const changeLocalMin = useCallback((minutes: number) => {
     setSearchParams(prev => {
       const next = new URLSearchParams(prev);
@@ -311,6 +331,34 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // Greyed only once its card says it has none; a planner older than the
   // list says nothing, and the button stays.
   const noApproaches = !!destCard?.procedures && !destCard.procedures.some(c => c.kind === "IAP");
+  // The route's fields for its Procedures, with their runways from the
+  // briefing once it is in.
+  const briefed = s.briefing.state === "ready" ? s.briefing.data.airports : null;
+  const procedureAirports = useMemo<ProcedureAirport[]>(() => {
+    const idents = [planned.dep, ...planned.stops, planned.dest].filter((i): i is string => !!i && !i.includes(","));
+    // A round trip names a field twice; it is listed and drawn once, in its
+    // first place, and called the Destination if the flight ends there (its
+    // charts are that card's).
+    const fields = idents.map((ident, i) => ({
+      ident, role: (i === 0 ? "Departure" : i === idents.length - 1 ? "Destination" : "Stop") as ProcedureAirport["role"],
+    }));
+    const once = fields.filter((f, i) => fields.findIndex(g => g.ident === f.ident) === i)
+      .map(f => fields.some(g => g.ident === f.ident && g.role === "Destination") ? { ...f, role: "Destination" as const } : f);
+    return once.map(({ ident, role }) => ({
+      ident, role,
+      runways: briefed ? briefed[ident]?.runways ?? [] : null,
+      patternAltitudeFt: briefed?.[ident]?.pattern?.altitude_ft ?? null,
+    }));
+  }, [planned.dep, planned.dest, planned.stops, briefed]);
+  // Their patterns as the map draws them.
+  const patterns = useMemo<TrafficPattern[]>(() => procedureAirports.flatMap(a => {
+    const end = pickedPatterns.get(a.ident);
+    if (!end) return [];
+    const runway = a.runways?.find(r => (r.runway_ends ?? []).some(e => runwayNumber(e.ident) === end));
+    const ident = runway?.runway_ends?.find(e => runwayNumber(e.ident) === end)?.ident;
+    const drawn = runway && ident ? trafficPattern(a.ident, runway, ident, a.patternAltitudeFt) : null;
+    return drawn ? [drawn] : [];
+  }), [procedureAirports, pickedPatterns]);
   const selectPlaceOnChart = useCallback((ident: string | null) => {
     if (!ident && nearOpen && !place) {
       showNearest(false);
@@ -1127,6 +1175,8 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           onSelectCandidate={selectCandidate}
           onSelectPoint={selectPointAt}
           airportWeather={s.briefing}
+          patterns={patterns}
+          patternFocus={patternFocus}
           place={placePin}
           nearest={nearOpen ? nearestPoints : null}
           onNearest={openNearest}
@@ -1260,13 +1310,14 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
               Nearest is among the map's buttons on its left now: the
               destination's card open on its Diagrams tab at its approaches
               (PlaceCard), greyed for a field whose card lists none. */}
-          <RoundButton
-            label={planned.dest ? `Approaches at ${planned.dest}` : "Approaches"} disabled={!planned.dest || noApproaches}
-            onClick={() => { if (planned.dest) { setApproachesOf(planned.dest); selectPlace(planned.dest); } }}
-            data-testid="route-approaches"
-          >
-            <PlaneLanding className="size-5" strokeWidth={2} />
-          </RoundButton>
+          {/* The route's Procedures there now, at the pilot's ask: each
+              field's traffic pattern to draw, and the destination's
+              approach charts as the button opened before. */}
+          <ProceduresButton
+            airports={procedureAirports} picked={pickedPatterns} onPick={pickPattern}
+            onCharts={() => { if (planned.dest) { setApproachesOf(planned.dest); selectPlace(planned.dest); } }}
+            chartsDisabled={!planned.dest || noApproaches}
+          />
         </div>
       </div>
     ) : undefined,
