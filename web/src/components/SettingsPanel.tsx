@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { CloudSun, Hexagon, Monitor, Moon, PanelBottom, PanelTop, Sun } from "lucide-react";
+import { useState, type ReactNode } from "react";
+import { CloudSun, FileText, Hand, Hexagon, Info, LifeBuoy, Lightbulb, Monitor, Moon, Palette, PanelBottom, PanelTop, Sparkles, Sun, SunMoon } from "lucide-react";
 import { useTheme } from "next-themes";
 import { ListGroup, ListRow } from "./GroupedList";
 import AboutLimits from "./AboutLimits";
@@ -8,6 +8,8 @@ import { useNavEdge } from "../hooks/use-nav-edge";
 import { usePreferences, type NarrativeFramework, type NavEdge, type RouteColours } from "../lib/preferences";
 import { LEGAL_PAGES } from "../lib/legal";
 import { useTips } from "../lib/tips";
+import { SETTING_BADGE } from "../lib/rowBadges";
+import { RowBadge } from "./RowBadge";
 
 /**
  * The settings, the consoles' last tab (ConsoleTabs), laid out the way
@@ -30,6 +32,8 @@ import { useTips } from "../lib/tips";
  * all replaced a column of headings, checkboxes, dropdowns and a
  * paragraph under nearly every control, twice the height; the last two
  * lines under a group went too, at the pilot's ask: no descriptions.
+ * Each row leads with its glyph in a colour of its own, as iOS's Settings
+ * has them, at the pilot's ask.
  */
 export default function SettingsPanel() {
   return (
@@ -37,8 +41,7 @@ export default function SettingsPanel() {
       <AppearanceGroup />
       <BriefGroup />
       <TipsGroup />
-      <AboutLimits />
-      <LegalGroup />
+      <AboutGroup />
     </div>
   );
 }
@@ -64,15 +67,26 @@ const NARRATIVES = [
   { value: "crewai", label: "CrewAI" },
 ];
 
-/** The privacy policy, terms and support pages (lib/legal), which App
- *  Review wants a link to inside the app. */
-function LegalGroup() {
+const LEGAL_GLYPHS: Record<(typeof LEGAL_PAGES)[number]["key"], ReactNode> = {
+  privacy: <Hand />, terms: <FileText />, support: <LifeBuoy />,
+};
+
+/** About & limits, then the privacy policy, terms and support pages
+ *  (lib/legal), which App Review wants a link to inside the app: one
+ *  group, where they were two under the same heading. */
+function AboutGroup() {
   return (
     <ListGroup title="About">
-      {LEGAL_PAGES.map(p => <ListRow key={p.key} title={p.title} href={p.href} data-testid={`legal-${p.key}`} />)}
+      <AboutLimits media={badge("about", <Info />)} />
+      {LEGAL_PAGES.map(p => (
+        <ListRow key={p.key} media={badge("about", LEGAL_GLYPHS[p.key])} title={p.title} href={p.href} data-testid={`legal-${p.key}`} />
+      ))}
     </ListGroup>
   );
 }
+
+/** A settings row's glyph on its colour (RowBadge). */
+const badge = (kind: keyof typeof SETTING_BADGE, glyph: ReactNode) => <RowBadge colour={SETTING_BADGE[kind]}>{glyph}</RowBadge>;
 
 /** The first-run tips (lib/tips), offered again from the start. */
 function TipsGroup() {
@@ -81,6 +95,7 @@ function TipsGroup() {
   return (
     <ListGroup title="Tips">
       <ListRow
+        media={badge("tips", <Lightbulb />)}
         title={asked ? "Tips will show again" : "Show tips again"} disabled={asked}
         onClick={() => { reset(); setAsked(true); }} data-testid="tips-reset"
       />
@@ -95,7 +110,7 @@ function BriefGroup() {
   const setNarrative = usePreferences(s => s.setNarrative);
   return (
     <ListGroup title="Brief">
-      <ListRow title="Narrative">
+      <ListRow media={badge("narrative", <Sparkles />)} title="Narrative">
         <Segmented
           label="Narrative from" value={narrative} onChange={v => setNarrative(v as NarrativeFramework)}
           testId="narrative-framework" options={NARRATIVES}
@@ -119,15 +134,15 @@ function AppearanceGroup() {
   const setRouteColours = usePreferences(s => s.setRouteColours);
   return (
     <ListGroup title="Appearance">
-      <ListRow title="Theme">
+      <ListRow media={badge("theme", <SunMoon />)} title="Theme">
         <Segmented label="Theme" value={theme ?? "system"} onChange={setTheme} testId="theme-select" options={THEMES} />
       </ListRow>
-      <ListRow title="Layout">
+      <ListRow media={badge("layout", <PanelBottom />)} title="Layout">
         <Segmented label="Layout" value={edge} onChange={v => setNavBar(v as NavEdge)} testId="nav-bar-select" options={LAYOUTS} />
       </ListRow>
       {/* The route box's airports by their airspace, as the sectional
           draws it, or by the weather, as the map's chips are. */}
-      <ListRow title="Route">
+      <ListRow media={badge("route", <Palette />)} title="Route">
         <Segmented
           label="Route colours" value={routeColours} onChange={v => setRouteColours(v as RouteColours)}
           testId="route-colours-select" options={ROUTE_COLOURS}

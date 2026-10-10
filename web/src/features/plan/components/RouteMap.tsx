@@ -12,6 +12,11 @@ import { AirportsLayer } from "../../../lib/map/AirportsLayer";
 import NearestButton from "../../../components/NearestButton";
 import { WaypointsLayer } from "../../../lib/map/WaypointsLayer";
 import { TfrLayer } from "../../../lib/map/TfrLayer";
+import { PatternLayer } from "../../../lib/map/PatternLayer";
+import type { TrafficPattern } from "../../../lib/trafficPattern";
+
+const NO_PATTERNS: TrafficPattern[] = [];
+const NO_POINTS: { lat: number; lon: number }[] = [];
 import { chipColourOf } from "../../../lib/map/flightCategory";
 import { CourseLine } from "../../../lib/map/CourseLine";
 import { FlownTrackLayer } from "../../../lib/map/FlownTrackLayer";
@@ -47,6 +52,10 @@ interface Props {
   /** The route's briefing (see `usePlan`): the departure and
    *  destination's own current METARs, and where fetching it stands. */
   airportWeather: BriefingState;
+  /** The traffic patterns picked in the route's Procedures, to draw. */
+  patterns?: TrafficPattern[];
+  /** The one just picked ("KDLH:27:<when>"), for the map to go to it. */
+  patternFocus?: string | null;
   /** The airport whose card is open, and the way to open one from the
    *  chart (AirportsLayer) -- or, with null, to put it away. */
   place: { ident: string; lat: number; lon: number } | null;
@@ -401,9 +410,15 @@ const PLACE_ZOOM = 9;
 // renders at each answer that streams in, and the whole map went with it.
 export default memo(function RouteMap({
   course, candidates, selected, focus, onSelectCandidate, onSelectPoint,
-  airportWeather, place, onSelectPlace, onAddStop, legs, heldPoint, onHoldPoint, nearest = null, onNearest,
+  airportWeather, place, onSelectPlace, onAddStop, legs, heldPoint, onHoldPoint, nearest = null, onNearest, patterns = NO_PATTERNS, patternFocus = null,
 }: Props) {
   const focusZoom = course?.max_zoom ?? 12;
+  // The pattern just picked, its corners and its entry, to bring in.
+  const focusedPattern = useMemo(() => {
+    const [ident, end] = (patternFocus ?? "").split(":");
+    const p = patterns.find(q => q.ident === ident && q.runway === end);
+    return p ? [...p.legs.map(l => l.from), p.entry.from] : NO_POINTS;
+  }, [patterns, patternFocus]);
   // Nearest among the map's buttons on its left, one element while its
   // callback is the same.
   const nearestButton = useMemo(() => <NearestButton onOpen={onNearest} />, [onNearest]);
@@ -459,6 +474,9 @@ export default memo(function RouteMap({
           />
           {/* A saved flight's flown track over it, from its debrief. */}
           <FlownTrackLayer course={course} />
+          <PatternLayer patterns={patterns} />
+          {/* A pattern just picked, all of it in sight clear of the panel. */}
+          <FitTo points={focusedPattern} fitKey={focusedPattern.length ? patternFocus : null} maxZoom={13} />
           <Endpoints course={course} weather={airportWeather} onSelectPoint={onSelectPoint} onSelectPlace={onSelectPlace} />
           <LegPoints legs={legs} onSelectPoint={onSelectPoint} />
           <Checkpoints candidates={candidates} selected={selected} onSelectCandidate={onSelectCandidate} airports={airports} />

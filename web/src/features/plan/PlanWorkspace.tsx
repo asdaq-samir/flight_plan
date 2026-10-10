@@ -1,7 +1,7 @@
 import { Suspense, lazy, memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type ComponentType } from "react";
 import { flushSync } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
-import { FileArchive, FileDown, Link2, MapPinned, PlaneLanding, Printer, Send, Share } from "lucide-react";
+import { FileArchive, FileDown, Link2, MapPinned, Printer, Send, Share } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../../components/ui/dropdown-menu";
 import { foreflightRoute, fplOf, gpxOf, shareFile, type PlanPoint } from "../../lib/flightPlanFiles";
 import { markPackSent, openInForeFlight, packOrigin, packPath, packSent } from "../../lib/foreflightPack";
@@ -34,6 +34,9 @@ import { Favorites, FavoritesList } from "../../components/Favorites";
 import FlightLine from "./components/FlightLine";
 import AirspaceCard from "./components/AirspaceCard";
 import PlaceCard from "./components/PlaceCard";
+import ProceduresButton, { type ProcedureAirport } from "./components/ProceduresButton";
+import { patternsOf, patternsParam, trafficPattern, type TrafficPattern } from "../../lib/trafficPattern";
+import { runwayNumber } from "../../lib/pattern";
 import NearestCard from "./components/NearestCard";
 import type { RouteParts } from "./components/RouteBox";
 import type { PointAltitude } from "./components/PointAltitudeDialog";
@@ -192,6 +195,23 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     // nav log runs from point to point, at the pilot's ask.
     checkpoints: showWaypoints,
   });
+  // The traffic patterns the pilot picked for the route's fields (the
+  // route's Procedures), kept in the address as the rest of the plan is:
+  // "KDLH:27,C81:24".
+  const patternParam = searchParams.get("pattern");
+  const pickedPatterns = useMemo(() => patternsOf(patternParam), [patternParam]);
+  // The pattern just picked, for the map to go to it.
+  const [patternFocus, setPatternFocus] = useState<string | null>(null);
+  const pickPattern = useCallback((ident: string, end: string | null) => {
+    if (end) setPatternFocus(`${ident}:${end}:${Date.now()}`);
+    setSearchParams(prev => {
+      const picked = patternsOf(prev.get("pattern"));
+      if (end) picked.set(ident, end); else picked.delete(ident);
+      const next = new URLSearchParams(prev);
+      if (picked.size) next.set("pattern", patternsParam(picked)); else next.delete("pattern");
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
   const changeLocalMin = useCallback((minutes: number) => {
     setSearchParams(prev => {
       const next = new URLSearchParams(prev);
@@ -307,6 +327,34 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // Greyed only once its card says it has none; a planner older than the
   // list says nothing, and the button stays.
   const noApproaches = !!destCard?.procedures && !destCard.procedures.some(c => c.kind === "IAP");
+  // The route's fields for its Procedures, with their runways from the
+  // briefing once it is in.
+  const briefed = s.briefing.state === "ready" ? s.briefing.data.airports : null;
+  const procedureAirports = useMemo<ProcedureAirport[]>(() => {
+    const idents = [planned.dep, ...planned.stops, planned.dest].filter((i): i is string => !!i && !i.includes(","));
+    // A round trip names a field twice; it is listed and drawn once, in its
+    // first place, and called the Destination if the flight ends there (its
+    // charts are that card's).
+    const fields = idents.map((ident, i) => ({
+      ident, role: (i === 0 ? "Departure" : i === idents.length - 1 ? "Destination" : "Stop") as ProcedureAirport["role"],
+    }));
+    const once = fields.filter((f, i) => fields.findIndex(g => g.ident === f.ident) === i)
+      .map(f => fields.some(g => g.ident === f.ident && g.role === "Destination") ? { ...f, role: "Destination" as const } : f);
+    return once.map(({ ident, role }) => ({
+      ident, role,
+      runways: briefed ? briefed[ident]?.runways ?? [] : null,
+      patternAltitudeFt: briefed?.[ident]?.pattern?.altitude_ft ?? null,
+    }));
+  }, [planned.dep, planned.dest, planned.stops, briefed]);
+  // Their patterns as the map draws them.
+  const patterns = useMemo<TrafficPattern[]>(() => procedureAirports.flatMap(a => {
+    const end = pickedPatterns.get(a.ident);
+    if (!end) return [];
+    const runway = a.runways?.find(r => (r.runway_ends ?? []).some(e => runwayNumber(e.ident) === end));
+    const ident = runway?.runway_ends?.find(e => runwayNumber(e.ident) === end)?.ident;
+    const drawn = runway && ident ? trafficPattern(a.ident, runway, ident, a.patternAltitudeFt) : null;
+    return drawn ? [drawn] : [];
+  }), [procedureAirports, pickedPatterns]);
   const selectPlaceOnChart = useCallback((ident: string | null) => {
     if (!ident && nearOpen && !place) {
       showNearest(false);
@@ -942,6 +990,14 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     />
   ), [course, s.logSelected, s.legs, s.totals, s.nav, s.briefing, depart, aircraft.label, landings]);
   const kneeboardLater = useDeferredValue(kneeboard, null);
+  // An airport's METAR colour, as its chip on the map: its flight category
+  // once the briefing has it, grey until then (the route's pills, coloured
+  // by the weather in the settings).
+  const metars = s.briefing.state === "ready" ? s.briefing.data.metars : null;
+  const metarColour = useCallback((ident: string) => {
+    const metar = metars?.[ident];
+    return chipColourOf({ status: metar ? "reported" : "no-report", category: metar?.flight_category ?? null });
+  }, [metars]);
   // Made again only when the plan does, so the nav log and its tabs are
   // drawn again only then (fromRoutePanel's memo), not at each render of
   // the page as the route's answers stream in.
@@ -964,7 +1020,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       tabContent={tabContent}
       notice={<BriefingNotices briefing={s.briefing} />}
       footer={<PlanningAidNote />}
-      local={s.local}
+      local={s.local} metarColourOf={metarColour}
     >
       {/* Out of the tabs, drawing nothing: the risk assessment and the
           Go / No-Go's findings published once, for Save and the tabs' marks. */}
@@ -978,7 +1034,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     </Suspense>
   ), [s.totals, s.nav, s.legs, depart, planned.dep, planned.dest, course, s.logSelected, s.descriptions, s.saveDescription,
     s.generateDescriptions, descriptionsLoading, selectedPoint, selectPointAt, deselectPoint, drawerOpen, tabTap, aircraft.label,
-    marks, tabContent, s.briefing, s.local, landedStops, s.langgraphNarrative, s.crewaiNarrative, unflyableBrief, kneeboardLater]);
+    marks, tabContent, s.briefing, s.local, landedStops, s.langgraphNarrative, s.crewaiNarrative, unflyableBrief, kneeboardLater, metarColour]);
 
   // The airplane, the altitude and the time, made again only when one of
   // them changes, as the chips are drawn again only then (fromRoutePanel's
@@ -1032,14 +1088,6 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     return { feet: ownAltitudes[ident] ?? planned ?? null, own: ident in ownAltitudes, caution };
   }, [altitudes, s.legs, s.nav, routeAirport]);
 
-  // An airport's METAR colour, as its chip on the map: its flight category
-  // once the briefing has it, grey until then (the route's pills, coloured
-  // by the weather in the settings).
-  const metars = s.briefing.state === "ready" ? s.briefing.data.metars : null;
-  const metarColour = useCallback((ident: string) => {
-    const metar = metars?.[ident];
-    return chipColourOf({ status: metar ? "reported" : "no-report", category: metar?.flight_category ?? null });
-  }, [metars]);
   const addingChange = useCallback((open: boolean) => setAddingStop(open ? "stop" : false), []);
 
   // The route shared: a link, a file for another app or the panel's GPS,
@@ -1127,6 +1175,8 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           onSelectCandidate={selectCandidate}
           onSelectPoint={selectPointAt}
           airportWeather={s.briefing}
+          patterns={patterns}
+          patternFocus={patternFocus}
           place={placePin}
           nearest={nearOpen ? nearestPoints : null}
           onNearest={openNearest}
@@ -1234,8 +1284,8 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     route: started ? (
       <div className="flex items-start gap-2">
         <div className="min-w-0 flex-1">
-          {/* Its room while its code comes: the box's own two lines. */}
-          <Suspense fallback={<div className="min-h-[5.25rem] rounded-[20.5px] bg-foreground/8" />}>
+          {/* Its room while its code comes: the box's own line. */}
+          <Suspense fallback={<div className="min-h-[2.5625rem] rounded-[20.5px] bg-foreground/8" />}>
           <SearchNear.Provider value={searchNear}>
           <RouteBox
             dep={planned.dep} stops={planned.stops} dest={planned.dest} waypoints={waypointStops} airspaceOf={airspaceOf} metarColourOf={metarColour}
@@ -1247,27 +1297,29 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           </SearchNear.Provider>
           </Suspense>
         </div>
-        {/* The route's close, and under it Nearest: round glass buttons
+        {/* The route's Procedures and its close: round glass buttons
             (RoundButton) the size of Save, Share and Print under them, at
             the pilot's ask -- 36 points, 20-point glyphs, one line weight,
-            a finger's 44 round each (index.css) -- the box's two lines tall.
-            The close where every panel's top-right button is, the search's
-            gear and a card's close (MapPanel's --corner-line), so it does not
-            move under the pilot's finger from one panel to the next; eight
-            apart at the least, so the two's hit areas meet. */}
-        <div className="flex shrink-0 flex-col gap-[max(8px,calc(0.75rem-var(--corner-line)))] pt-[var(--corner-line)]">
+            a finger's 44 round each (index.css) -- side by side on the
+            box's first line, as Maps' card has its share and its close,
+            now the box is one line tall (RouteBox); they were stacked
+            beside its two. The close where every panel's top-right button
+            is, the search's gear and a card's close (MapPanel's
+            --corner-line), so it does not move under the pilot's finger
+            from one panel to the next; eight apart, so the two's hit areas
+            meet. */}
+        <div className="flex shrink-0 items-center gap-2 pt-[var(--corner-line)]">
+          {/* Procedures beside it, at the pilot's ask, where Nearest was --
+              Nearest is among the map's buttons on its left now: each
+              field's traffic pattern to draw, and the destination's
+              approach charts (PlaceCard), greyed for a field whose card
+              lists none. */}
+          <ProceduresButton
+            airports={procedureAirports} picked={pickedPatterns} onPick={pickPattern}
+            onCharts={() => { if (planned.dest) { setApproachesOf(planned.dest); selectPlace(planned.dest); } }}
+            chartsDisabled={!planned.dest || noApproaches}
+          />
           <CloseButton label={hasPoints ? "Clear the route" : "Close"} onClick={clearRoute} data-testid="route-clear" />
-          {/* Approaches under it, at the pilot's ask, where Nearest was --
-              Nearest is among the map's buttons on its left now: the
-              destination's card open on its Diagrams tab at its approaches
-              (PlaceCard), greyed for a field whose card lists none. */}
-          <RoundButton
-            label={planned.dest ? `Approaches at ${planned.dest}` : "Approaches"} disabled={!planned.dest || noApproaches}
-            onClick={() => { if (planned.dest) { setApproachesOf(planned.dest); selectPlace(planned.dest); } }}
-            data-testid="route-approaches"
-          >
-            <PlaneLanding className="size-5" strokeWidth={2} />
-          </RoundButton>
         </div>
       </div>
     ) : undefined,
@@ -1306,7 +1358,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           // hit areas (index.css) meet.
           <div className="ml-auto flex shrink-0 items-center gap-2">{routeActions}</div>
         )}
-        {/* The flight in one line, the last of the route's panel, just over
+        {/* The flight's figures, the last of the route's panel, just over
             the separator and the tabs, at the pilot's ask: the quick figures
             read with the route, the detail under the tabs. */}
         <div className="w-full basis-full px-1" data-testid="flight-line">

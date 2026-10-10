@@ -2,27 +2,10 @@ import AccordionSection from "../../../../components/AccordionSection";
 import { ListGroup, ListRow } from "../../../../components/GroupedList";
 import type { Briefing, Leg } from "../../../../lib/api/types";
 import { altFt } from "../../format";
+import { FrequencyRow } from "../FrequencyRow";
 import { PublicationRows } from "../PublicationRows";
 import { RunwayRow } from "../RunwayRow";
 import PatternRadio, { RadioNote } from "./PatternRadio";
-
-/** Frequency types by what a pilot calls them. The FAA's own
- *  description beside each is often the type again ("TWR (TWR)"), and
- *  is shown only when it adds something. */
-const FREQUENCY_NAMES: Record<string, string> = {
-  TWR: "Tower", GND: "Ground", ATIS: "ATIS", UNIC: "UNICOM", UNICOM: "UNICOM", CTAF: "CTAF",
-  APP: "Approach", APCH: "Approach", DEP: "Departure", "A/D": "Approach and departure",
-  CLD: "Clearance delivery", CD: "Clearance delivery", AWOS: "AWOS", ASOS: "ASOS", AFIS: "AFIS",
-  FSS: "Flight service", MULT: "MULTICOM", MULTICOM: "MULTICOM", RDO: "Radio",
-};
-
-function frequencyName(type: string | null | undefined, description: string | null | undefined): { name: string; detail: string | null } {
-  const code = (type ?? "").trim().toUpperCase();
-  const name = FREQUENCY_NAMES[code] ?? type ?? description ?? "Frequency";
-  const detail = description?.trim() ?? "";
-  const redundant = !detail || [code, name.toUpperCase()].includes(detail.toUpperCase());
-  return { name, detail: redundant ? null : detail };
-}
 
 /**
  * The Airports tab: a section for each field the flight leaves or lands
@@ -53,12 +36,13 @@ export default function AirportSections({ briefing, landings, legs, callSign }: 
         return (
           <AccordionSection key={ident} title={`${ident} · ${role}`} description={about || undefined}>
             <div className="space-y-4 pt-2" data-testid="airport-section">
+              {/* Each frequency as the field's card lists it (FrequencyRow):
+                  its glyph and its name in words, the figure at the right. */}
               <ListGroup title="Radio">
                 {info?.frequencies.length
-                  ? info.frequencies.map((f, k) => {
-                    const { name, detail } = frequencyName(f.type, f.description);
-                    return <ListRow key={k} title={name} description={detail ?? undefined} value={f.frequency_mhz ?? "—"} />;
-                  })
+                  ? info.frequencies.map((f, k) => (
+                    <FrequencyRow key={k} type={f.type} description={f.description} mhz={f.frequency_mhz} testId="airport-frequency" />
+                  ))
                   : <ListRow title={<span className="text-muted-foreground">No published frequencies</span>} />}
               </ListGroup>
               <ListGroup title="Runways">
