@@ -110,6 +110,9 @@ export type PlacesFound = Schemas["PlacesFound"];
 /** The route from the side: the ground and the controlled airspace. */
 export type RouteProfile = Schemas["RouteProfile"];
 export type AirspaceAt = Schemas["AirspaceAt"];
+/** What is ahead of own ship (vfr.alerts). */
+export type AlertsAhead = Schemas["AlertsAhead"];
+export type AheadAlert = Schemas["AheadAlert"];
 export type AirspaceBand = Schemas["AirspaceBand"];
 export type VfrMinimums = Schemas["VfrMinimums"];
 /** `available` is false where the planner has no Docker API to talk

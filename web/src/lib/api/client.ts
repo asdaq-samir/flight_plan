@@ -5,7 +5,7 @@ import type {
   Aircraft, AircraftChoice, AircraftProfiles, AircraftRequest, AirportPlace, AirportSearch, AirportsInView, AltitudeChoice, Briefing,
   ChartInfo, ChartPages, ChartRefreshStarted, PlacesFound, CheckpointDescriptionMessage, CheckpointNoteSaved, Checkpoints, Classification, Course, Detour,
   Flight, FlightSummary, ModelComparison, NarrativeMessage, NarrativeRequest, NavLogMessage, PickDeleted, PickSaved,
-  AirspaceAt, ClassBResponse, NearestAirports, RouteProfile, Tfrs, DevServices, DevServiceStarted, Pilot, Rating, RetrainStarted, Role, SaveFlightRequest,
+  AirspaceAt, AlertsAhead, ClassBResponse, NearestAirports, RouteProfile, Tfrs, DevServices, DevServiceStarted, Pilot, Rating, RetrainStarted, Role, SaveFlightRequest,
   SignInCapabilities, AppleSignedIn, LogbookEntry, LogbookEntryRequest, Currency, CurrencyDatesRequest,
   Status, StreamMessage, Totals, WaypointsInView, Training, SavedTrack,
   OralQuestion, OralQuestionRequest, OralGrade, OralGradeRequest, ProcedureDrawing, ProcedureList,
@@ -417,6 +417,12 @@ export const api = {
    *  bands with their minimums, the Mode C veil, special use and TFRs. */
   airspaceAt: (lat: number, lon: number) =>
     planner.GET("/api/airspace/at", { params: { query: { lat, lon } } }).then(data<AirspaceAt>),
+
+  /** What is ahead of own ship in the air (lib/map/ahead): airspace,
+   *  special-use areas and TFRs its track goes into, the ground and
+   *  obstacles it comes near. */
+  airspaceAhead: (ask: { lat: number; lon: number; track: number; gs: number; alt?: number; vs: number }) =>
+    planner.GET("/api/airspace/ahead", { params: { query: ask } }).then(data<AlertsAhead>),
 
   /** The VFR waypoints in the map's view (VPBNG), for its diamonds. */
   waypointsInView: (box: { south: number; west: number; north: number; east: number }) =>

@@ -1,14 +1,15 @@
 """What airspace is over a point the pilot holds a finger on (the map's
 Airspace card): the classes from the ground up, the Mode C veil, the
-special-use areas and the TFRs there."""
+special-use areas and the TFRs there; and what is ahead of own ship in
+the air (the map's alerts)."""
 import logging
 from concurrent.futures import ThreadPoolExecutor
 
 import requests
 from fastapi import APIRouter, Query
-from vfr import airports, airspace, airspace_at, altitude, classb, elevation, sua, tfr
+from vfr import airports, airspace, airspace_at, alerts, altitude, classb, elevation, sua, tfr
 
-from ..schemas import AirspaceAt
+from ..schemas import AirspaceAt, AlertsAhead
 
 log = logging.getLogger(__name__)
 
@@ -66,3 +67,24 @@ def airspace_at_point(
         special_use=special_use, special_use_unavailable=special_use_unavailable,
         tfrs=tfrs, tfrs_unavailable=tfrs_unavailable,
     )
+
+
+@router.get("/api/airspace/ahead", response_model=AlertsAhead, response_model_by_alias=True)
+def airspace_ahead(
+    lat: float = Query(ge=-90, le=90), lon: float = Query(ge=-180, le=180),
+    track: float = Query(ge=0, le=360, description="True track over the ground, degrees"),
+    gs: float = Query(ge=0, le=1000, description="Ground speed, knots"),
+    alt: float | None = Query(default=None, ge=-2000, le=60000, description="GPS altitude, feet MSL"),
+    vs: float = Query(default=0.0, ge=-10000, le=10000, description="Vertical speed, feet a minute"),
+) -> AlertsAhead:
+    """What is ahead of own ship in the air (vfr.alerts): the Class B, C
+    and D, special-use areas and TFRs its track goes into in the next five
+    minutes, and the ground or an obstacle it comes within 500 ft of in
+    the next minute. Nothing under 40 kt, on the ground. Advisory, from
+    the phone's GPS: not a TAWS."""
+    found = alerts.ahead(
+        lat, lon, track % 360, gs, alt, vs,
+        shp_path=airspace.ensure_class_airspace_shapefile(altitude.DEFAULT_FAA_CACHE_DIR),
+        faa_cache_dir=altitude.DEFAULT_FAA_CACHE_DIR,
+    )
+    return AlertsAhead(**found)

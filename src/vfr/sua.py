@@ -142,18 +142,27 @@ def _area(props: dict) -> dict:
     }
 
 
+def areas_in(bbox: tuple) -> list:
+    """Every special-use polygon in bbox (min_lat, min_lon, max_lat,
+    max_lon) as (area, shapely geometry), an area as at_point's: several
+    polygons can share a name."""
+    found = []
+    for feature in _query(bbox):
+        try:
+            geometry = shape(feature["geometry"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        found.append((_area(feature.get("properties") or {}), geometry))
+    return found
+
+
 def at_point(lat: float, lon: float) -> list:
     """The special-use airspace over a point, one entry per named area,
     lowest first: as along_route's, without the route's own fields."""
     point = Point(lon, lat)
     found = {}
-    for feature in _query((lat, lon, lat, lon)):
-        try:
-            geometry = shape(feature["geometry"])
-        except (KeyError, TypeError, ValueError):
-            continue
+    for area, geometry in areas_in((lat, lon, lat, lon)):
         if geometry.contains(point):
-            area = _area(feature.get("properties") or {})
             found.setdefault(area["name"], area)
     return sorted(found.values(), key=lambda a: (a["floor_ft"] is None, a["floor_ft"] or 0))
 

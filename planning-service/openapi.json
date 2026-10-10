@@ -1,6 +1,153 @@
 {
   "components": {
     "schemas": {
+      "AheadAlert": {
+        "description": "One thing ahead of the airplane (vfr.alerts): airspace, a special-\nuse area or a TFR its track goes into in the next five minutes, or the\nground or an obstacle it comes within 500 ft of in the next minute.\n`seconds` and `distance_nm` are how long and how far until it at the\nground speed, 0 where it is now; `lat`/`lon` where the track meets it\n(the obstacle itself, the ground's highest point).",
+        "properties": {
+          "ceiling_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ceiling Ft"
+          },
+          "class": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Class"
+          },
+          "clearance_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Clearance Ft"
+          },
+          "distance_nm": {
+            "title": "Distance Nm",
+            "type": "number"
+          },
+          "floor_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Floor Ft"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "inside": {
+            "default": false,
+            "title": "Inside",
+            "type": "boolean"
+          },
+          "kind": {
+            "enum": [
+              "airspace",
+              "special_use",
+              "tfr",
+              "terrain",
+              "obstacle"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "lat": {
+            "title": "Lat",
+            "type": "number"
+          },
+          "level": {
+            "enum": [
+              "warning",
+              "caution"
+            ],
+            "title": "Level",
+            "type": "string"
+          },
+          "lon": {
+            "title": "Lon",
+            "type": "number"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "need": {
+            "title": "Need",
+            "type": "string"
+          },
+          "notam_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notam Id"
+          },
+          "seconds": {
+            "title": "Seconds",
+            "type": "number"
+          },
+          "times_of_use": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Times Of Use"
+          },
+          "top_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Top Ft"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "level",
+          "name",
+          "need",
+          "seconds",
+          "distance_nm",
+          "lat",
+          "lon"
+        ],
+        "title": "AheadAlert",
+        "type": "object"
+      },
       "AircraftProfile": {
         "additionalProperties": true,
         "description": "The aircraft's name plus its performance profile -- every field a\ndata/aircraft/*.json file carries, declared, so a page reads them as\nfields rather than guessing at a dict. The three figures after the\nname are required when a profile is loaded (REQUIRED_FIELDS in\nvfr.aircraft); the rest fall back to defaults in vfr.navlog when a\nprofile leaves them out. `extra=\"allow\"` keeps a field a newer\nprofile adds on its way through.",
@@ -1022,6 +1169,31 @@
           "along_track_nm"
         ],
         "title": "AirspaceTransit",
+        "type": "object"
+      },
+      "AlertsAhead": {
+        "description": "What is ahead of the airplane, warnings first, then the soonest;\n`unavailable` names what could not be read (special-use airspace,\nTFRs, terrain, obstacles), said rather than shown as nothing there.",
+        "properties": {
+          "alerts": {
+            "items": {
+              "$ref": "#/components/schemas/AheadAlert"
+            },
+            "title": "Alerts",
+            "type": "array"
+          },
+          "unavailable": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Unavailable",
+            "type": "array"
+          }
+        },
+        "required": [
+          "alerts"
+        ],
+        "title": "AlertsAhead",
         "type": "object"
       },
       "AltitudeBreakdown": {
@@ -8717,6 +8889,119 @@
           }
         },
         "summary": "Airport Search"
+      }
+    },
+    "/api/airspace/ahead": {
+      "get": {
+        "description": "What is ahead of own ship in the air (vfr.alerts): the Class B, C\nand D, special-use areas and TFRs its track goes into in the next five\nminutes, and the ground or an obstacle it comes within 500 ft of in\nthe next minute. Nothing under 40 kt, on the ground. Advisory, from\nthe phone's GPS: not a TAWS.",
+        "operationId": "airspace_ahead_api_airspace_ahead_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "lat",
+            "required": true,
+            "schema": {
+              "maximum": 90,
+              "minimum": -90,
+              "title": "Lat",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "lon",
+            "required": true,
+            "schema": {
+              "maximum": 180,
+              "minimum": -180,
+              "title": "Lon",
+              "type": "number"
+            }
+          },
+          {
+            "description": "True track over the ground, degrees",
+            "in": "query",
+            "name": "track",
+            "required": true,
+            "schema": {
+              "description": "True track over the ground, degrees",
+              "maximum": 360,
+              "minimum": 0,
+              "title": "Track",
+              "type": "number"
+            }
+          },
+          {
+            "description": "Ground speed, knots",
+            "in": "query",
+            "name": "gs",
+            "required": true,
+            "schema": {
+              "description": "Ground speed, knots",
+              "maximum": 1000,
+              "minimum": 0,
+              "title": "Gs",
+              "type": "number"
+            }
+          },
+          {
+            "description": "GPS altitude, feet MSL",
+            "in": "query",
+            "name": "alt",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 60000,
+                  "minimum": -2000,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "GPS altitude, feet MSL",
+              "title": "Alt"
+            }
+          },
+          {
+            "description": "Vertical speed, feet a minute",
+            "in": "query",
+            "name": "vs",
+            "required": false,
+            "schema": {
+              "default": 0.0,
+              "description": "Vertical speed, feet a minute",
+              "maximum": 10000,
+              "minimum": -10000,
+              "title": "Vs",
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertsAhead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Airspace Ahead"
       }
     },
     "/api/airspace/at": {

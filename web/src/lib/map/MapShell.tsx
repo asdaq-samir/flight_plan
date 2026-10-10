@@ -6,7 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { MapContainer } from "react-leaflet";
 import MapControls, { MapControlsLeft } from "../../components/MapControls";
-import ProblemBanner from "../../components/ProblemBanner";
+import MapBanners from "../../components/MapBanners";
 import { MapInsetsContext, NO_INSETS, SHEET_SECONDS } from "../../components/mapChrome";
 import type { Course } from "../api/types";
 import { chartQuery } from "../queryClient";
@@ -17,6 +17,7 @@ import { centreClear } from "./clear";
 // The marks held to the chart under a pinch: a patch to Leaflet's markers.
 import "./pinch";
 import { OwnShipLayer } from "./OwnShipLayer";
+import { AheadLayer } from "./AheadLayer";
 import { OPEN_ZOOM, useOwnShip } from "./ownShip";
 import { underway } from "./glide";
 
@@ -235,11 +236,13 @@ export function MapShell({ course, onReady, children, onSelectPlace, held = fals
           {/* Own ship on both maps, with the location arrow among the
               map's buttons: the training page's as well as the planner's. */}
           <OwnShipLayer />
+          {/* What is ahead of it in the air, where it is (lib/map/ahead). */}
+          <AheadLayer />
         </MapContainer>
       ) : (
         <div className="h-full w-full bg-slate-100 dark:bg-slate-900" />
       )}
-      <ProblemBanner clearLeft={!!leftControls} />
+      <MapBanners clearLeft={!!leftControls} />
       <MapControls />
       {leftControls && <MapControlsLeft>{leftControls}</MapControlsLeft>}
     </div>
