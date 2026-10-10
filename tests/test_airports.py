@@ -260,3 +260,26 @@ def test_the_nearest_fields_are_found_nearest_first_with_how_far_and_which_way(t
     assert [f["ident"] for f in found] == ["C81", "KUGN"]
     assert found[0]["distance_nm"] < found[1]["distance_nm"]
     assert 0 <= found[1]["bearing_deg"] < 90
+
+
+def test_get_airport_takes_the_first_row_when_a_code_is_one_rows_ident_and_anothers_local_code(tmp_path):
+    path = tmp_path / "airports.csv"
+    base = dict(latitude_deg=40.0, longitude_deg=-90.0, elevation_ft=100, municipality="X", iso_region="US-IL")
+    pd.DataFrame([
+        dict(ident="US-0AB", local_code="ABC", name="Local code first", **base),
+        dict(ident="ABC", local_code=None, name="Ident second", **base),
+        dict(ident=" kxyz ", local_code=None, name="Padded", **base),
+    ]).to_csv(path, index=False)
+    assert get_airport("abc", cache_path=path)["name"] == "Local code first"
+    assert get_airport("KXYZ", cache_path=path)["name"] == "Padded"
+    with pytest.raises(ValueError):
+        get_airport("NAN", cache_path=path)
+
+
+def test_a_table_on_disk_is_read_without_the_lock_or_a_download(airports_csv, monkeypatch):
+    def refuse(*a, **k):
+        raise AssertionError("touched the lock or the network")
+    monkeypatch.setattr(airports, "locked", refuse)
+    monkeypatch.setattr(airports.requests, "get", refuse)
+    assert airports._ensure_cached("http://unused", airports_csv) == airports_csv
+    assert get_airport("KDLH", cache_path=airports_csv)["name"] == "Duluth Intl"

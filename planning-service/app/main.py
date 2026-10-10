@@ -116,6 +116,8 @@ def _warm_reference_data() -> None:
         # search after a restart built them, three seconds before the
         # first suggestion.
         ("airport search", lambda: airport_table.search_airports("K")),
+        # And the lookup of a route's airports by ident (get_airport).
+        ("airport lookup", airport_table.preload_lookup),
         ("fixes", fixes.preload),
         ("charts", _prepare_corridor_charts),
     ):

@@ -41,6 +41,14 @@ def _ensure_cached(url: str, cache_path: Path) -> Path:
     other's half-written file -- "No columns to parse from file", a
     500 for the first briefing after a fresh start.
     """
+    # On disk already, it is whole (a download is renamed into place), so
+    # there is no lock to take: each read of a table took it -- a lock
+    # file opened and flocked on the data's mount, a millisecond a time --
+    # and a nav log reads the airports table for each leg's temperatures
+    # aloft at each altitude it weighs, a fifth of its time once its
+    # checkpoints were known (profiled 2026-10-10).
+    if cache_path.exists():
+        return cache_path
     cache_path.parent.mkdir(parents=True, exist_ok=True)
     with locked(cache_path):
         if not cache_path.exists():
@@ -77,17 +85,45 @@ def load_airports(cache_path: Path = DEFAULT_CACHE_PATH) -> pd.DataFrame:
     return _load_table(OURAIRPORTS_URL, cache_path)
 
 
+@lru_cache(maxsize=4)
+def _airport_rows(path: str, _mtime: float) -> dict:
+    """Each ident and local code in the table, upper-cased, to its first
+    row's position: the row a scan of both columns found first, in the
+    table's order. Made once per table read (keyed as _read_table is);
+    the scan it replaces was 8 ms a lookup, and every request about a
+    route looks up its airports."""
+    df = _read_table(path, _mtime)
+    rows: dict = {}
+    # A missing local code is no code: as "NAN" it would answer a lookup of "NAN".
+    idents = df["ident"].fillna("").astype(str).str.strip().str.upper()
+    locals_ = df["local_code"].fillna("").astype(str).str.strip().str.upper()
+    for i, (ident, local) in enumerate(zip(idents, locals_)):
+        if ident:
+            rows.setdefault(ident, i)
+        if local:
+            rows.setdefault(local, i)
+    return rows
+
+
+def preload_lookup(cache_path: Path = DEFAULT_CACHE_PATH) -> None:
+    """get_airport's index made now (the planner's warm-up), not by the
+    first route asked for after a restart: a quarter of a second."""
+    path = _ensure_cached(OURAIRPORTS_URL, cache_path)
+    _airport_rows(str(path), path.stat().st_mtime)
+
+
 def get_airport(ident: str, cache_path: Path = DEFAULT_CACHE_PATH) -> dict:
     """Look up one airport by FAA local identifier or ICAO ident.
 
     Raises ValueError if not found.
     """
     ident = ident.strip().upper()
-    df = load_airports(cache_path)
-    match = df[(df["ident"].str.upper() == ident) | (df["local_code"].astype(str).str.upper() == ident)]
-    if match.empty:
+    path = _ensure_cached(OURAIRPORTS_URL, cache_path)
+    mtime = path.stat().st_mtime
+    at = _airport_rows(str(path), mtime).get(ident)
+    if at is None:
         raise ValueError(f"Airport identifier {ident!r} not found in OurAirports data")
-    row = match.iloc[0]
+    row = _read_table(str(path), mtime).iloc[at]
     elevation = row.get("elevation_ft")
     return {
         "ident": row["ident"],
