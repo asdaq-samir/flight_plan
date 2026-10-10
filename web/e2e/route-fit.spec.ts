@@ -187,3 +187,27 @@ test("a route the pilot has moved is fitted again as the sheet goes up and down 
   await page.waitForTimeout(900);
   expect(await mapAt(page)).toBe(before);
 });
+
+test("an airport's card keeps its field in sight: the next position the GPS gives does not take the map back to own ship", async ({ page, context }) => {
+  await context.grantPermissions(["geolocation"], { origin });
+  await context.setGeolocation({ latitude: 42.3247, longitude: -88.0742 });
+  await page.goto("/app/plan");
+  await settle(page);
+  await expect(page.getByTestId("my-position-button")).toHaveAttribute("aria-pressed", "true");
+  await shipInTheMiddle(page);
+
+  // A field far from the position, from the search: the map goes to it.
+  const search = page.getByTestId("search-airports");
+  await search.click();
+  await search.fill("KDLH");
+  await page.getByTestId("search-result").filter({ hasText: "KDLH" }).first().click();
+  await expect(sideDrawer(page).getByTestId("place-card")).toBeVisible();
+  const field = page.locator(".leaflet-marker-icon", { hasText: /^KDLH$/ }).first();
+  await expect(field).toBeInViewport({ timeout: slow(10_000) });
+
+  // The GPS moves on: the map stays on the field, as Maps' does once a
+  // place is picked, until the location arrow is tapped.
+  await context.setGeolocation({ latitude: 42.33, longitude: -88.08 });
+  await page.waitForTimeout(2000);
+  await expect(field).toBeInViewport();
+});

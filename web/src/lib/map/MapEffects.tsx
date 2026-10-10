@@ -62,6 +62,12 @@ export function FocusOn({ point, zoom }: { point: { lat: number; lon: number } |
   const map = useMap();
   useEffect(() => {
     if (!point) return;
+    // The map gone to the place: own ship stops pulling it back to the
+    // position, as a route's fit and Nearest's stop it (MapShell, FitTo),
+    // until the location arrow is tapped -- an airport's card went back
+    // to own ship at the GPS's next fix, the field out of sight under it.
+    const ownShip = useOwnShip.getState();
+    if (ownShip.enabled && ownShip.follow) ownShip.setFollow(false);
     const to = Math.max(map.getZoom(), zoom);
     // Flown there in the sheet's time, as Maps moves to a place picked:
     // set at once, the chart jumped under the pilot's finger.
