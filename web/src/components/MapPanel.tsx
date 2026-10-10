@@ -59,10 +59,16 @@ const ROUTE_HEAD_REM = 18.25;
  *  read once, as the page has it. Read at each of the panel's renders as
  *  the page opened, it made the browser work out the page's styles there
  *  and then, 45 ms of a phone's (4x, 2026-10-10). Read again after a
- *  resize or a turn of the phone, when the reader's text size is most
- *  likely to have changed with it. */
+ *  resize or a turn of the phone, and when the page comes back to the
+ *  front or out of the back-forward cache, which is how a text size set
+ *  in iOS's Settings or Safari's aA reaches a page with no resize. */
 let rootFont: number | null = null;
-if (typeof window !== "undefined") window.addEventListener("resize", () => { rootFont = null; });
+if (typeof window !== "undefined") {
+  const forget = () => { rootFont = null; };
+  window.addEventListener("resize", forget);
+  window.addEventListener("pageshow", forget);
+  document.addEventListener("visibilitychange", forget);
+}
 const rootPx = () => (rootFont ??= parseFloat(getComputedStyle(document.documentElement).fontSize) || 16);
 
 /** A card's width from `md` up: 24rem. */
