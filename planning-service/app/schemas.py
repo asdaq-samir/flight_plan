@@ -1232,15 +1232,25 @@ class AirportPin(BaseModel):
     airspace_class: Literal["B", "C", "D", "E", "G"] | None = None
 
 
+class InboundRadio(BaseModel):
+    """The frequency a pilot calls a field on, inbound: `kind` "TWR",
+    "CTAF" or "UNICOM", and the frequency in MHz."""
+
+    kind: Literal["TWR", "CTAF", "UNICOM"]
+    mhz: float
+
+
 class NearestAirport(AirportPin):
     """A field near a position: how far and which way (true), its town,
-    elevation and longest open runway."""
+    elevation and longest open runway, and the frequency to call it on
+    (None where OurAirports lists none)."""
 
     municipality: str | None = None
     elevation_ft: float | None = None
     distance_nm: float
     bearing_deg: float
     longest_runway_ft: int | None = None
+    radio: InboundRadio | None = None
 
 
 class NearestAirports(BaseModel):

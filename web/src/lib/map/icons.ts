@@ -258,6 +258,20 @@ const UNKNOWN_GREY = "#6b7280";
 export const airportMarkIcon = made(function airportMarkIcon(
   ident: string, space: AirspaceClass | null, weather: string, use: "military" | "private" | null = null,
 ) {
+  const half = AIRPORT_MARK / 2;
+  return L.divIcon({
+    className: "",
+    iconSize: [AIRPORT_MARK, AIRPORT_MARK], iconAnchor: [half, half],
+    html:
+      airportMarkSvg(space, weather, use, "absolute inset-0 overflow-visible drop-shadow-[0_1px_1px_rgba(0,0,0,.35)]") +
+      `<span class="absolute top-1/2 left-[calc(100%+1px)] -translate-y-1/2 whitespace-nowrap text-[11px] leading-none font-bold text-[#1c1a17] [text-shadow:0_0_2px_#fff,0_0_2px_#fff,0_0_3px_#fff,0_0_4px_#fff]">${text(ident)}</span>`,
+  });
+});
+
+/** The mark itself, as an SVG's markup (airportMarkIcon's, without the
+ *  ident beside it): the same symbol off the map, as Nearest's rows lead
+ *  with it. */
+export function airportMarkSvg(space: AirspaceClass | null, weather: string, use: "military" | "private" | null, className: string): string {
   const blue = space === "B" || space === "D";
   const ink = space ? (blue ? BLUE : MAGENTA) : UNKNOWN_GREY;
   const casing = `stroke="#fff" stroke-linecap="round"`;
@@ -277,12 +291,6 @@ export const airportMarkIcon = made(function airportMarkIcon(
         `<circle data-weather="" r="3.6" fill="${text(weather)}" ${casing} stroke-width="1.4"/>`;
     })();
   const half = AIRPORT_MARK / 2;
-  return L.divIcon({
-    className: "",
-    iconSize: [AIRPORT_MARK, AIRPORT_MARK], iconAnchor: [half, half],
-    html:
-      `<svg data-airport-mark="" data-airspace="${space ?? ""}"${use ? ` data-use="${use}"` : ""} aria-hidden="true" class="absolute inset-0 overflow-visible drop-shadow-[0_1px_1px_rgba(0,0,0,.35)]"` +
-      ` width="${AIRPORT_MARK}" height="${AIRPORT_MARK}" viewBox="${-half} ${-half} ${AIRPORT_MARK} ${AIRPORT_MARK}">${symbol}</svg>` +
-      `<span class="absolute top-1/2 left-[calc(100%+1px)] -translate-y-1/2 whitespace-nowrap text-[11px] leading-none font-bold text-[#1c1a17] [text-shadow:0_0_2px_#fff,0_0_2px_#fff,0_0_3px_#fff,0_0_4px_#fff]">${text(ident)}</span>`,
-  });
-});
+  return `<svg data-airport-mark="" data-airspace="${space ?? ""}"${use ? ` data-use="${use}"` : ""} aria-hidden="true" class="${className}"` +
+    ` width="${AIRPORT_MARK}" height="${AIRPORT_MARK}" viewBox="${-half} ${-half} ${AIRPORT_MARK} ${AIRPORT_MARK}">${symbol}</svg>`;
+}

@@ -98,6 +98,7 @@ export type Tfr = Schemas["Tfr"];
 export type Tfrs = Schemas["Tfrs"];
 /** The fields nearest a position: how far, which way, the longest runway. */
 export type NearestAirports = Schemas["NearestAirports"];
+export type NearestAirport = Schemas["NearestAirport"];
 export type PlaceFound = Schemas["PlaceFound"];
 export type PlacesFound = Schemas["PlacesFound"];
 /** The route from the side: the ground and the controlled airspace. */

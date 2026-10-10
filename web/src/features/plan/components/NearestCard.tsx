@@ -1,15 +1,18 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { LocateFixed, MapPin, X } from "lucide-react";
+import { LocateFixed, MapPin, Navigation2, X } from "lucide-react";
 import { cn } from "cn";
 import { CardHead, PanelCard } from "../../../components/PanelCard";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
 import { api } from "../../../lib/api/client";
-import type { PlaceFound } from "../../../lib/api/types";
+import type { NearestAirport, PlaceFound } from "../../../lib/api/types";
 import { compassPoint } from "../../../lib/compass";
+import { colourOf } from "../../../lib/map/flightCategory";
 import { glideRangeNm } from "../../../lib/map/glide";
+import { airportMarkSvg } from "../../../lib/map/icons";
 import { positionNow, useOwnShip } from "../../../lib/map/ownShip";
 import { nearestQuery } from "../../../lib/queryClient";
+import { inkOn } from "../../../lib/scoreScale";
 import { TEXT } from "../../../lib/text";
 import { altFt } from "../../../lib/units";
 
@@ -106,6 +109,80 @@ function NearField({ from, onFrom }: { from: NearFrom | null; onFrom: (from: Nea
   );
 }
 
+/** A frequency as pilots write it: 120.7, 122.95, 124.475. */
+const mhz = (value: number) => value.toFixed(3).replace(/0{1,2}$/, "");
+
+/** Faster than this over the ground, the airplane is going somewhere and
+ *  its GPS track is steady enough to point the rows' arrows from. */
+const MOVING_KT = 30;
+
+/**
+ * One field of Nearest's, at the pilot's ask for a list that reads as an
+ * EFB's: the map's own mark for it (its airspace, its weather's dot), the
+ * ident and the name, then its weather, longest runway and the frequency
+ * to call it on; at the right how far, with an arrow the way to it -- from
+ * the airplane's track when it is moving, north up otherwise -- and the
+ * compass point. A row that opens the field's card, so its words are the
+ * text's and it ends in a chevron, as iOS's do.
+ */
+function NearestRow({ field, ahead, reach, onOpen }: {
+  field: NearestAirport;
+  /** The airplane's track, true, when it is moving; else null. */
+  ahead: number | null;
+  /** Within a still-air glide. */
+  reach: boolean;
+  onOpen: () => void;
+}) {
+  const category = field.flight_category;
+  const use = field.military === "military" ? "military" : field.private ? "private" : null;
+  const parts = [
+    field.longest_runway_ft ? `${altFt(field.longest_runway_ft)} ft` : null,
+    field.radio ? `${field.radio.kind} ${mhz(field.radio.mhz)}` : null,
+    // Listed whoever owns it, and said: in an emergency the pilot in
+    // command lands where the emergency needs (14 CFR 91.3(b)), and a
+    // military or a private field may be it.
+    field.military === "military" ? "military" : field.military === "joint" ? "joint use" : field.private ? "private" : null,
+  ].filter(Boolean);
+  const point = compassPoint(field.bearing_deg);
+  return (
+    <ListRow
+      media={<span className="block size-[26px]" dangerouslySetInnerHTML={{ __html: airportMarkSvg(field.airspace_class ?? null, colourOf(category), use, "overflow-visible") }} />}
+      title={<span className="line-clamp-2"><span className="font-semibold">{field.ident}</span> {field.name}</span>}
+      // One run of words, the weather's chip at its head, wrapping between
+      // its parts and never inside one ("TWR 123.675" kept whole).
+      description={
+        <>
+          {category && (
+            <span
+              className={cn("mr-1.5 inline-block rounded-[5px] px-1.5 align-[0.05em] font-bold tracking-wide", TEXT.note)}
+              style={{ backgroundColor: colourOf(category), color: inkOn(colourOf(category)) }}
+            >
+              {category}
+            </span>
+          )}
+          {parts.map((part, i) => (
+            <span key={part}>{i > 0 && " · "}<span className="whitespace-nowrap">{part}</span></span>
+          ))}
+          {reach && <>{parts.length > 0 && " · "}<span className="font-semibold whitespace-nowrap text-green-700 dark:text-green-400">within glide</span></>}
+        </>
+      }
+      chevron onClick={onOpen} data-testid="nearest-airport"
+    >
+      <span className="flex items-center gap-2" aria-label={`${field.distance_nm} nautical miles ${point}`}>
+        <Navigation2
+          aria-hidden="true" strokeWidth={0} data-testid="nearest-arrow"
+          className="size-5 shrink-0 fill-current text-foreground"
+          style={{ transform: `rotate(${field.bearing_deg - (ahead ?? 0)}deg)` }}
+        />
+        <span className="flex flex-col items-end">
+          <span className={cn("font-semibold text-foreground tabular-nums", TEXT.row)}>{field.distance_nm} nm</span>
+          <span className={cn("text-muted-foreground", TEXT.note)}>{point}</span>
+        </span>
+      </span>
+    </ListRow>
+  );
+}
+
 /**
  * Nearest, as an EFB's, a card in the panel at the pilot's ask -- half
  * way up with the map fitted to the fields above it (RouteMap's FitTo),
@@ -137,6 +214,9 @@ export default function NearestCard({ onOpen, onClose, from, onFrom }: {
   }, []);
   // A glide only from where the airplane is, with its altitude.
   const glide = !from && fix ? glideRangeNm(fix, data?.[0]?.elevation_ft) : null;
+  // The arrows from the airplane's track, where it is moving and the list
+  // is from where it is.
+  const ahead = !from && fix?.headingDeg != null && (fix.speedKt ?? 0) >= MOVING_KT ? fix.headingDeg : null;
   return (
     <PanelCard testId="nearest-card">
       <CardHead
@@ -154,34 +234,19 @@ export default function NearestCard({ onOpen, onClose, from, onFrom }: {
           </ListGroup>
         ) : (
           <ListGroup
-            footer={from
-              ? `From ${from.label}. Clear the field for the nearest to your position.`
-              : glide != null
-                ? `Within a still-air glide: about ${Math.round(glide)} nm from here, at 1.5 nm for every 1,000 ft over the nearest field -- the dashed ring.`
-                : "In the air, the ones within a glide are marked."}
+            footer={[
+              from
+                ? `From ${from.label}. Clear the field for the nearest to your position.`
+                : glide != null
+                  ? `Within a still-air glide: about ${Math.round(glide)} nm from here, at 1.5 nm for every 1,000 ft over the nearest field -- the dashed ring.`
+                  : "In the air, the ones within a glide are marked.",
+              ahead != null ? "The arrows point the way from your track." : null,
+              "Each field's longest runway and the frequency to call it on: its tower's, else its CTAF, else UNICOM.",
+            ].filter(Boolean).join(" ")}
           >
-            {(data ?? []).map(a => {
-              const reach = glide != null && a.distance_nm <= glide;
-              return (
-                <ListRow
-                  key={a.ident}
-                  title={<><span className="font-mono font-semibold">{a.ident}</span> · {a.name}</>}
-                  description={[
-                    `${a.distance_nm} nm ${compassPoint(a.bearing_deg)}`,
-                    a.longest_runway_ft ? `${altFt(a.longest_runway_ft)} ft runway` : null,
-                    // Listed whoever owns it, and said: in an emergency the
-                    // pilot in command lands where the emergency needs
-                    // (14 CFR 91.3(b)), and a military field may be it.
-                    a.military === "military" ? "military" : a.military === "joint" ? "joint use" : null,
-                    reach ? "within glide" : null,
-                  ].filter(Boolean).join(" · ")}
-                  value={a.flight_category ?? undefined}
-                  onClick={() => onOpen(a.ident)}
-                  className={cn(reach && "font-medium")}
-                  data-testid="nearest-airport"
-                />
-              );
-            })}
+            {(data ?? []).map(a => (
+              <NearestRow key={a.ident} field={a} ahead={ahead} reach={glide != null && a.distance_nm <= glide} onOpen={() => onOpen(a.ident)} />
+            ))}
             {!data && <ListRow title={<span className={cn("text-muted-foreground", TEXT.detail)}>Looking…</span>} />}
           </ListGroup>
         )}

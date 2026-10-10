@@ -250,13 +250,29 @@ def test_the_nearest_fields_are_the_nearest_first_with_their_way_and_runway(monk
     monkeypatch.setattr(airports, "get_runways", lambda ident: [
         {"ends": "06/24", "length_ft": 3573, "closed": False}, {"ends": "09/27", "length_ft": 3270, "closed": False},
     ])
+    monkeypatch.setattr(airports, "get_frequencies", lambda ident: [
+        {"type": "CTAF", "description": "CTAF", "frequency_mhz": 122.7}, {"type": "UNIC", "description": "UNICOM", "frequency_mhz": 122.7},
+    ])
     monkeypatch.setattr(weather, "metar_for_idents", lambda idents: {i: None for i in idents})
     body = client.get("/api/airports/nearest", params={"lat": 42.3, "lon": -88.1}).json()
     assert body["airports"][0] == {
         "ident": "C81", "name": "Campbell", "lat": 42.32, "lon": -88.07, "kind": "small", "flight_category": None,
         "municipality": "Grayslake", "elevation_ft": 788.0, "distance_nm": 2.1, "bearing_deg": 45, "longest_runway_ft": 3573,
-        "military": None, "private": False, "airspace_class": "G",
+        "military": None, "private": False, "airspace_class": "G", "radio": {"kind": "CTAF", "mhz": 122.7},
     }
+
+
+def test_a_field_is_called_on_its_tower_else_its_ctaf_else_unicom():
+    from app.routers.airports import _inbound_radio
+    unicom = {"type": "UNIC", "description": "UNICOM", "frequency_mhz": 122.95}
+    ctaf = {"type": "CTAF", "description": "CTAF", "frequency_mhz": 120.7}
+    tower = {"type": "TWR", "description": "TWR", "frequency_mhz": 120.7}
+    ground = {"type": "GND", "description": "GND", "frequency_mhz": 121.6}
+    assert _inbound_radio([unicom, ctaf, tower, ground]) == {"kind": "TWR", "mhz": 120.7}
+    assert _inbound_radio([unicom, ctaf]) == {"kind": "CTAF", "mhz": 120.7}
+    assert _inbound_radio([ground, unicom]) == {"kind": "UNICOM", "mhz": 122.95}
+    assert _inbound_radio([ground]) is None
+    assert _inbound_radio([]) is None
 
 
 def test_the_card_names_the_cycle_its_diagram_is_drawn_from(monkeypatch):

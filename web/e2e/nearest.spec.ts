@@ -17,7 +17,7 @@ test("Nearest opens as a card half way up, a field over it as a layer, and its c
   await page.route(url => url.pathname.endsWith("/api/planner/airports/nearest"), route => route.fulfill({
     status: 200, contentType: "application/json", body: JSON.stringify({ airports: [
       { ...FIELD, ident: "C81", name: "Campbell", lat: 42.3246, lon: -88.0741, distance_nm: 0.1, bearing_deg: 0 },
-      { ...FIELD, ident: "KUGN", name: "Waukegan National", lat: 42.4222, lon: -87.8679, distance_nm: 11, bearing_deg: 55 },
+      { ...FIELD, ident: "KUGN", name: "Waukegan National", lat: 42.4222, lon: -87.8679, distance_nm: 11, bearing_deg: 55, radio: { kind: "TWR", mhz: 120.4 } },
       { ...FIELD, ident: "KFHU", name: "Libby AAF", lat: 42.45, lon: -88.2, distance_nm: 9, bearing_deg: 320, military: "joint" },
     ] }),
   }));
@@ -32,6 +32,14 @@ test("Nearest opens as a card half way up, a field over it as a layer, and its c
   const rows = card.getByTestId("nearest-airport");
   await expect(rows).toHaveCount(3, { timeout: slow(15000) });
   await expect(rows.nth(2)).toContainText("joint use");
+  // Each row its weather, its runway and the frequency to call it on, and
+  // how far and which way, its arrow pointing there (north up, the
+  // airplane not moving).
+  await expect(rows.nth(1)).toContainText("VFR");
+  await expect(rows.nth(1)).toContainText("3,500 ft · TWR 120.4");
+  await expect(rows.nth(1)).toContainText("11 nm");
+  await expect(rows.nth(1)).toContainText("NE");
+  await expect(rows.nth(1).getByTestId("nearest-arrow")).toHaveAttribute("style", /rotate\(55deg\)/);
 
   await rows.nth(1).click();
   await expect(sideDrawer(page).getByTestId("place-card")).toBeVisible();
