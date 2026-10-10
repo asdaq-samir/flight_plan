@@ -237,9 +237,13 @@ export default function RouteBox({
         if (typedNow.current.trim()) commitTyped();
         if (atNow.current !== null) { setAt(null); onAddingChange(false); }
       }, 200)}
-      // Empty, the route, from its departure (put); then each end it lacks.
-      placeholder={!points.length ? "Route" : at === null && !hasDest ? "Destination" : at === 0 && !hasDep ? "Departure" : ""}
-      aria-label={!points.length ? "The route, from its departure" : at === null ? (hasDest ? "Change the destination" : "The destination") : at === 0 && !hasDep ? "The departure" : "A stop here"}
+      // Empty, the route, from its departure (put); then each end it lacks;
+      // a whole route, Add stop after its destination, as Maps' directions
+      // say it -- what is typed there the new destination, the old one a
+      // stop on the way, as Maps' Add Stop does -- where the line after the
+      // last point was blank and read as no place to type.
+      placeholder={!points.length ? "Route" : at === null ? (hasDest ? "Add stop" : "Destination") : at === 0 && !hasDep ? "Departure" : ""}
+      aria-label={!points.length ? "The route, from its departure" : at === null ? (hasDest ? "Add stop, the new destination" : "The destination") : at === 0 && !hasDep ? "The departure" : "A stop here"}
       enterKeyHint="done" autoCapitalize="characters" autoCorrect="off" spellCheck={false}
       // 16 at the least below md, as every field is: under 16 iOS zooms
       // the page in on it (checkpoints.spec checks every field). Not
@@ -249,7 +253,9 @@ export default function RouteBox({
         "h-8 bg-transparent font-mono text-base uppercase outline-none placeholder:font-sans placeholder:normal-case placeholder:text-muted-foreground md:text-sm pointer-coarse:text-[1.0625rem]",
         // The departure's field wide enough for its word: at a stop's width
         // it read "Departu".
-        at === null ? "min-w-12 flex-1" : cn("shrink-0 rounded-full bg-background/60 px-2", at === 0 && !hasDep ? "w-28" : "w-20"),
+        // After the last point, clear of it, as a field's words are of
+        // its edge: "Add stop" ran into the destination's pill.
+        at === null ? "min-w-12 flex-1 pl-2" : cn("shrink-0 rounded-full bg-background/60 px-2", at === 0 && !hasDep ? "w-28" : "w-20"),
       )}
       data-testid="route-type"
     />
@@ -291,11 +297,14 @@ export default function RouteBox({
         <PopoverAnchor asChild>
           {/* The search bar's field, as Maps' is with no route: its grey,
               no line round it, its corners round, the pills on it in the
-              sheet's own colour -- two lines tall however short the route,
-              room to type the next point, beside the route's close and the
-              console's button stacked (PlanWorkspace). */}
+              sheet's own colour -- one line, the search field's 41 points,
+              while the route fits on one, and a line more for each it
+              wraps onto, at the pilot's ask: two lines tall however short
+              the route left a grey line empty under "C81 -> KDLH" and the
+              tabs that much lower. Beside it the route's Procedures and its
+              close, on its first line (PlanWorkspace). */}
           <InputGroup
-            className="h-auto min-h-[5.25rem] items-start rounded-[20.5px] border-0 bg-foreground/8 py-0 pr-1.5 pl-1 shadow-none dark:bg-foreground/8 has-[[data-slot=input-group-control]:focus-visible]:ring-0"
+            className="h-auto min-h-[2.5625rem] items-start rounded-[20.5px] border-0 bg-foreground/8 py-0 pr-1.5 pl-1 shadow-none dark:bg-foreground/8 has-[[data-slot=input-group-control]:focus-visible]:ring-0"
             data-testid="route-box" data-tip="route"
           >
             {/* The pills wrap, two lines of them in sight and the top of a
