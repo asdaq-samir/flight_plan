@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useId, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
 import { Command as CommandPrimitive } from "cmdk";
-import { ArrowRight, MoveVertical, Trash2, TriangleAlert } from "lucide-react";
+import { ArrowRight, MoveVertical, PlaneLanding, PlaneTakeoff, Route, Trash2, TriangleAlert } from "lucide-react";
 import {
   DndContext, KeyboardSensor, MouseSensor, TouchSensor, closestCenter, useDndMonitor, useSensor, useSensors, type DragEndEvent,
 } from "@dnd-kit/core";
@@ -19,11 +19,25 @@ import { useAirportSearch } from "../../../lib/useAirportSearch";
 import { AIRSPACE_PILL, pillLook, useAirspace } from "../../../lib/useAirspace";
 import { inkOn } from "../../../lib/scoreScale";
 import { altFt, flightLevel } from "../../../lib/units";
+import { sameField } from "../../../lib/procedures";
+import { TEXT } from "../../../lib/text";
 import PointAltitudeDialog, { type EditedPoint, type PointAltitude } from "./PointAltitudeDialog";
 
 /** The route as the box changes it: either end may be missing (half a
  *  route, the other end still to be typed), and neither means none. */
 export interface RouteParts { dep: string; stops: string[]; dest: string }
+
+/** An instrument procedure picked at a point of the route (the route's
+ *  Procedures), said in the box after the point's pill: its field, its
+ *  kind, its chart's title made short ("ILS Y 08 · LAX") and in full. */
+export interface RouteProcedure {
+  ident: string;
+  kind: "approach" | "arrival" | "departure";
+  label: string;
+  spoken: string;
+}
+
+const PROCEDURE_GLYPH = { approach: PlaneLanding, arrival: Route, departure: PlaneTakeoff } as const;
 
 /**
  * The route as ForeFlight's is: one box, every point of it a pill in the
@@ -49,6 +63,7 @@ export interface RouteParts { dep: string; stops: string[]; dest: string }
  */
 export default function RouteBox({
   dep, stops, dest, waypoints, airspaceOf, metarColourOf, altitudeAt, onAltitudeChange, onChange, adding, onAddingChange, via,
+  procedures = NO_PROCEDURES, onProcedures,
 }: RouteParts & {
   /** Which points are waypoints, flown through: in the sectional's magenta. */
   waypoints: Set<string>;
@@ -68,6 +83,10 @@ export default function RouteBox({
   onAddingChange: (adding: boolean) => void;
   /** Fly via's waypoints round the Class B, best first. */
   via?: Detour[];
+  /** The procedures picked, after their fields' pills, and the way to the
+   *  route's Procedures from one. */
+  procedures?: RouteProcedure[];
+  onProcedures?: () => void;
 }) {
   const hasDep = !!dep, hasDest = !!dest;
   const points = [...(hasDep ? [dep] : []), ...stops, ...(hasDest ? [dest] : [])];
@@ -194,8 +213,14 @@ export default function RouteBox({
   const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
       // The first suggestion, once they answer what is typed (cmdk's own
-      // Enter, on its highlighted row); else what was typed.
-      if (open && answered && rows.length > 0) return;
+      // Enter, on its highlighted row); else what was typed -- but what is
+      // no row's ident (a town's name, "madison", or a short one, "reno",
+      // which stopOf takes for an ident) takes the first airport shown at
+      // once, before the planner's waypoints answer: it was put in as
+      // typed, which is nothing, and the box emptied.
+      const word = typed.trim().toUpperCase();
+      const exact = rows.some(r => r.ident === word);
+      if (open && rows.length > 0 && (answered || !exact)) return;
       e.preventDefault();
       e.stopPropagation();
       if (typed.trim()) commitTyped();
@@ -340,6 +365,13 @@ export default function RouteBox({
                         onEditAltitude={() => setEditing({ ident: point, waypoint: waypoints.has(point), altitude: altitudeAt(point, waypoints.has(point)) })}
                         onRemove={() => remove(i)}
                       />
+                      {/* Its procedures, after it, at the pilot's ask: the
+                          approach to fly into it, its arrival, its departure
+                          -- a tap opens the Procedures they were picked in.
+                          Not points of the route: not dragged, not typed. */}
+                      {(i === points.findIndex(p => p === point)) && procedures.filter(p => sameField(p.ident, point)).map(p => (
+                        <ProcedureChip key={`${p.kind}-${p.label}`} procedure={p} onOpen={onProcedures} />
+                      ))}
                     </Fragment>
                   ))}
                 </SortableContext>
@@ -399,6 +431,28 @@ export default function RouteBox({
  *  right-click with a mouse -- or Delete with it focused: a cross on every
  *  pill was a row of targets crowded between them, at the pilot's ask. Any
  *  of them, the ends too (RouteBox's `remove`). */
+const NO_PROCEDURES: RouteProcedure[] = [];
+
+/** A procedure picked at a point, after its pill: its kind's glyph and its
+ *  short title in the approaches' indigo, as the map draws it
+ *  (ProcedureLayer). */
+function ProcedureChip({ procedure, onOpen }: { procedure: RouteProcedure; onOpen?: () => void }) {
+  const Glyph = PROCEDURE_GLYPH[procedure.kind];
+  return (
+    <button
+      type="button" onClick={onOpen} data-testid="route-procedure"
+      aria-label={`${procedure.spoken}: the route's procedures`}
+      className={cn(
+        "relative ml-1 inline-flex h-7 shrink-0 after:absolute after:-inset-y-2 after:inset-x-0 after:content-[''] items-center gap-1 rounded-full border-[1.5px] border-[#5b5bd6] bg-background/70 px-2 font-semibold whitespace-nowrap text-[#4343b8] outline-none focus-visible:ring-2 focus-visible:ring-ring dark:border-[#9d9df0] dark:text-[#c3c3fa]",
+        TEXT.note,
+      )}
+    >
+      <Glyph className="size-3.5 shrink-0" aria-hidden="true" />
+      {procedure.label}
+    </button>
+  );
+}
+
 function Pill({ id, ident, waypoint, index, role, stopNumber, airspaceOf, metarColourOf, altitude, onChange, onEditAltitude, onRemove }: {
   id: string; ident: string; waypoint: boolean; index: number; role: "dep" | "stop" | "dest"; stopNumber: number;
   airspaceOf: (ident: string) => AirspaceClass | undefined;

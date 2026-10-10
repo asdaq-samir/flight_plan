@@ -39,7 +39,9 @@ export interface ProcedureAirport {
  * ForeFlight draws it (ProcedureLayer), at the pilot's ask. And the
  * destination's approach charts, as the button opened before.
  */
-export default function ProceduresButton({ airports, picked, onPick, onCharts, chartsDisabled, procedures, onProcedures }: {
+export default function ProceduresButton({
+  airports, picked, onPick, onCharts, chartsDisabled, procedures, onProcedures, open: asked, onOpenChange,
+}: {
   airports: ProcedureAirport[];
   /** The runway end picked for each field's pattern. */
   picked: Map<string, string>;
@@ -52,8 +54,14 @@ export default function ProceduresButton({ airports, picked, onPick, onCharts, c
   /** All of them as they are to be, and the one just picked, for the map
    *  to go to. */
   onProcedures: (next: PickedProcedure[], picked: PickedProcedure | null) => void;
+  /** Opened from elsewhere too -- a procedure's chip in the route's box --
+   *  where these are given. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const [own, setOwn] = useState(false);
+  const open = asked ?? own;
+  const setOpen = (next: boolean) => { setOwn(next); onOpenChange?.(next); };
   const destination = airports.find(a => a.role === "Destination");
   // Each field's procedures, asked for once the button is opened.
   const lists = useQueries({

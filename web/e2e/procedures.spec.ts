@@ -90,6 +90,14 @@ test("a field's approach is picked with its transition, kept in the address and 
   await expect(page.locator("path.instrument-procedure-missed")).toHaveCount(1);
   await expect(page.locator("path.instrument-procedure-hold")).toHaveCount(1);
   await expect(page.locator("[data-procedure-fix]")).toHaveCount(3);
+  // Said in the route's box after the destination's pill, and a tap there
+  // opens the Procedures.
+  const chip = sideDrawer(page).getByTestId("route-procedure");
+  await expect(chip).toHaveText("ILS 09 · DLH");
+  await expect(chip).toHaveAccessibleName(/ILS RWY 09 via DLH/);
+  await chip.click();
+  await expect(page.getByTestId("procedures")).toBeVisible();
+  await page.keyboard.press("Escape");
 
   // None takes it off the map and the address.
   await sideDrawer(page).getByTestId("route-approaches").click();

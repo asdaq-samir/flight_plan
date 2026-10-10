@@ -39,7 +39,7 @@ import { patternsOf, patternsParam, trafficPattern, type TrafficPattern } from "
 import { proceduresOf, proceduresParam, type PickedProcedure } from "../../lib/procedures";
 import { runwayNumber } from "../../lib/pattern";
 import NearestCard from "./components/NearestCard";
-import type { RouteParts } from "./components/RouteBox";
+import type { RouteParts, RouteProcedure } from "./components/RouteBox";
 import type { PointAltitude } from "./components/PointAltitudeDialog";
 import { navlogQuery, usePlan } from "./hooks/usePlan";
 import { useVerdict, type VerdictItem } from "../../lib/verdict";
@@ -386,6 +386,15 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     })),
     combine: drawnOnly,
   });
+  // Those drawn, said in the route's box after their fields (RouteBox's
+  // chips), each a tap from the Procedures it was picked in.
+  const routeProcedures = useMemo<RouteProcedure[]>(() => procedureDrawings.map(d => ({
+    ident: d.airport, kind: d.kind,
+    label: `${d.name.replace(/ RWY /, " ")}${d.transition ? ` · ${d.transition}` : ""}`,
+    spoken: `${d.name}${d.transition ? ` via ${d.transition}` : ""}`,
+  })), [procedureDrawings]);
+  const [proceduresOpen, setProceduresOpen] = useState(false);
+  const openProcedures = useCallback(() => setProceduresOpen(true), []);
   const selectPlaceOnChart = useCallback((ident: string | null) => {
     if (!ident && nearOpen && !place) {
       showNearest(false);
@@ -1326,6 +1335,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
             onChange={setRoute}
             adding={!!addingStop} onAddingChange={addingChange}
             via={addingStop === "via" ? s.unflyable?.detours : undefined}
+            procedures={routeProcedures} onProcedures={openProcedures}
           />
           </SearchNear.Provider>
           </Suspense>
@@ -1348,6 +1358,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           <ProceduresButton
             airports={procedureAirports} picked={pickedPatterns} onPick={pickPattern}
             procedures={pickedProcedures} onProcedures={pickProcedures}
+            open={proceduresOpen} onOpenChange={setProceduresOpen}
             onCharts={() => { if (planned.dest) { setApproachesOf(planned.dest); selectPlace(planned.dest); } }}
             chartsDisabled={!planned.dest || noApproaches}
           />
