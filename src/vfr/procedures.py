@@ -259,9 +259,9 @@ def altitude_limits(leg: Leg) -> tuple[int | None, int | None]:
     code, first, second = leg.altitude_code, leg.altitude1, leg.altitude2
     if first is None:
         return None, None
-    if code in "+HJV":
+    if code and code in "+HJV":
         return first, None
-    if code in "-Y":
+    if code and code in "-Y":
         return None, first
     if code == "B":
         return second, first
@@ -617,8 +617,11 @@ def _note_fix(fixes: dict, leg: Leg, place: tuple[float, float], missed: bool) -
 
 def _fix_roles(leg: Leg) -> list[str]:
     """What a fix is on its approach, by its waypoint description's
-    fourth character (ARINC 424-18 5.17): an initial approach fix, an
-    intermediate fix, the final approach fix, the missed approach point;
-    and a hold where its leg holds."""
-    roles = {"A": ["IAF"], "B": ["IF"], "C": ["IAF"], "D": ["IAF"], "I": ["IF"], "F": ["FAF"], "M": ["MAP"]}.get(leg.description[3:4], [])
+    fourth character (ARINC 424-18 5.17): an initial approach fix (A, C
+    with a hold, D also the final approach course fix), an intermediate
+    fix (B), the final approach course fix (I), the final approach fix,
+    the missed approach point; and a hold where its leg holds."""
+    roles = {
+        "A": ["IAF"], "B": ["IF"], "C": ["IAF"], "D": ["IAF", "FACF"], "I": ["FACF"], "F": ["FAF"], "M": ["MAP"],
+    }.get(leg.description[3:4], [])
     return [*roles, "hold"] if leg.path in HOLDS else roles

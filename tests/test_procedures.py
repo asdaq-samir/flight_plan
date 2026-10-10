@@ -76,7 +76,8 @@ def test_the_ils_y_08_via_lax_is_its_transition_its_final_and_its_missed_approac
     assert near(missed["points"][0], RW08) and near(missed["points"][-1], VTU)
     fixes = {f["ident"]: f for f in drawn["fixes"]}
     assert fixes["BUDDE"]["roles"] == ["FAF"] and (fixes["BUDDE"]["min_ft"], fixes["BUDDE"]["max_ft"]) == (3000, 3000)
-    assert {"IAF", "IF", "hold"} <= set(fixes["SILEX"]["roles"])
+    # SILEX is coded D (5.17): an initial approach fix that is also the final approach course fix.
+    assert {"IAF", "FACF", "hold"} <= set(fixes["SILEX"]["roles"])
     # The final's limit where it starts, at or above 3,700 (code J).
     assert (fixes["SILEX"]["min_ft"], fixes["SILEX"]["max_ft"]) == (3700, None)
     # No altitude at the missed approach point: the chart's is its minimums.
@@ -147,3 +148,28 @@ def test_a_speed_says_whether_it_is_at_a_minimum_or_a_maximum():
     limits = {f["speed_limit"] for f in drawing["fixes"] if f["speed_kt"]}
     assert limits <= {"at", "min", "max"}
     assert all(f["speed_limit"] is None for f in drawing["fixes"] if not f["speed_kt"])
+
+
+def _leg(**given) -> procedures.Leg:
+    fields = dict(
+        route="I08-Y", transition="", seq=1, fix="FIX", fix_icao="K2", fix_section="EA", description="    ", turn="",
+        path="TF", navaid="", arc_nm=None, theta=None, rho=None, course=None, course_true=False, distance_nm=None,
+        minutes=None, altitude_code="", altitude1=None, altitude2=None, speed_kt=None, speed_code="", center="",
+        center_icao="", center_section="",
+    )
+    return procedures.Leg(**{**fields, **given})
+
+
+@pytest.mark.parametrize("code, roles", [
+    ("A", ["IAF"]), ("B", ["IF"]), ("C", ["IAF"]), ("D", ["IAF", "FACF"]),
+    ("I", ["FACF"]), ("F", ["FAF"]), ("M", ["MAP"]), ("E", []),
+])
+def test_a_fix_is_named_for_its_waypoint_description(code, roles):
+    """ARINC 424-18 5.17: I is the final approach course fix, B the intermediate fix."""
+    leg = _leg(description=f"   {code}")
+    assert procedures._fix_roles(leg) == roles
+
+
+def test_a_leg_with_no_altitude_code_has_no_limit_read_into_it():
+    leg = _leg(altitude_code="", altitude1=3000)
+    assert procedures.altitude_limits(leg) == (3000, 3000)
