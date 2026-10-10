@@ -69,10 +69,15 @@ export default defineConfig({
           // The app icon (docs/brand/appicon.svg) rendered to PNG: rounded
           // for the installers that show it as it is (Android's 192 and
           // 512), full bleed for the ones that mask it themselves (the
-          // maskable 512; iOS's 180, linked from index.html).
-          { src: "/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
-          { src: "/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
-          { src: "/icon-maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
+          // maskable 512; iOS's 180, linked from index.html). Beside the
+          // manifest, under /app/ with the rest of the build: the page's
+          // own links get the base put in front of them (index.html), the
+          // manifest's do not, and "/icon-192.png" asked the server's root,
+          // which answered 401 -- no icon to install with, and an error
+          // in the console Lighthouse counts.
+          { src: "icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
+          { src: "icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
+          { src: "icon-maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
         ],
       },
       workbox: {

@@ -194,6 +194,13 @@ public class SecurityConfig {
                             // The iOS app's native Apple sheet, before any
                             // session exists (AppleNativeSignInController).
                             .requestMatchers(HttpMethod.POST, "/api/auth/apple/native").permitAll()
+                            // Who is signed in, asked by every page as it
+                            // opens: signed out is an answer (204), not a
+                            // refusal -- a 401 here was an error in the
+                            // browser's console on every signed-out visit,
+                            // which Lighthouse's best practices count
+                            // (PilotController).
+                            .requestMatchers(HttpMethod.GET, "/api/me").permitAll()
                             // Asked before any session exists, to decide
                             // whether a sign-in button is worth showing
                             // at all (SignInCapabilitiesController).

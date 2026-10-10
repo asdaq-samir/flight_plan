@@ -49,8 +49,17 @@ class SecurityRulesTest {
     void anAnonymousCallerIsRefusedWith401RatherThanRedirected() throws Exception {
         // A redirect here is the trap: fetch() follows it and reports a
         // 200 carrying a login page.
-        mockMvc.perform(get("/api/me"))
+        mockMvc.perform(get("/api/flights"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    /** Who is signed in, asked by every page: signed out is an empty
+     *  answer, not a 401 the browser logs as an error on every visit. */
+    @Test
+    void signedOutTheSignInCheckAnswersNoOne() throws Exception {
+        mockMvc.perform(get("/api/me"))
+                .andExpect(status().isNoContent())
+                .andExpect(result -> assertThat(result.getResponse().getContentAsString()).isEmpty());
     }
 
     @Test
