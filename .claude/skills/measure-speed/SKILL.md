@@ -23,6 +23,8 @@ Profile before guessing. Every speed claim needs a before number, an after numbe
   - Temporarily alias `react-dom/client` to `react-dom/profiling` and set `minify: false` in `vite.config.ts`.
   - Wrap the suspect in `<Profiler>` and read each commit's duration.
   - Revert both changes afterwards, and restart `web-build` after any `vite.config.ts` change.
+- **Lighthouse,** as the nightly runs it (`ci.yml`), in the Playwright image: pass Chrome `--disable-dev-shm-usage`. A container's /dev/shm is 64 MB, and without the flag about a third of the runs end NO_FCP (a script failed with ERR_INSUFFICIENT_RESOURCES) or TARGET_CRASHED. The runs that do finish may have lost a resource and timed less than the page. Take the median of six; `-GA=<dir>` keeps each run's trace.
+- **A first load's main thread:** a Chrome trace (`browser.startTracing`), summing each task over 50 ms after `firstContentfulPaint`. A `longtask` PerformanceObserver missed a 1.1 s task that was all promise callbacks.
 - **The planner:** `curl -s -o /dev/null -w '%{time_total}\n' 'http://localhost:8084/api/…'`. Run the same call warm and cold, five times each.
 
 ## Known costs, check these first
