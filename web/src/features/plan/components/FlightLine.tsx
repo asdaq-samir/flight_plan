@@ -15,7 +15,8 @@ import { type Figure, fitFigures, tripFigures } from "../figures";
  * Fuel 23.4 gal") read past at a glance. The arrival from the departure
  * time picked, or from now while it is "Now"; one airport to itself, the
  * time aloft and the time back. Where nothing flies, why, in red, in the
- * strip's place and its height, so the panel keeps its shape.
+ * strip's place and at least its height, so the panel keeps its shape
+ * and a long reason is shown whole.
  *
  * Each figure as it is while it fits its column; where one does not (a
  * long trip's "2636.8 nm" at a large text size, an iPhone SE's narrow
@@ -46,15 +47,16 @@ export default function FlightLine({ totals, estimate, depart, local, problem }:
   const widthOf = (f: Figure) => !space ? 0
     : (textWidth(f.value, space.font) ?? 0) + (f.unit && unitSpace ? textWidth(` ${f.unit}`, unitSpace.font) ?? 0 : 0);
   // Each figure on its own: the one too wide rounded, the rest as they are.
+  const unitAt = exact.findIndex(f => f.unit);
   const shown = fitFigures(exact, tripFigures({ totals, estimate, depart, local }, true), f => !space || widthOf(f) <= space.width);
   return (
     // What the planner is working on is the toast's (useProgressToast), at
     // the pilot's ask: the strip keeps the figures, as soon as there are
     // any, and with none yet their names over dashes -- it keeps its
     // place, as the panel's controls do.
-    <div className="relative" data-slot="section-summary" data-tip="flight-line">
+    <div className="grid" data-slot="section-summary" data-tip="flight-line">
       <dl
-        className={cn("grid gap-3", shown.length === 3 ? "grid-cols-3" : "grid-cols-4", problem && "invisible")}
+        className={cn("col-start-1 row-start-1 grid gap-3", shown.length === 3 ? "grid-cols-3" : "grid-cols-4", problem && "invisible")}
         aria-hidden={problem ? true : undefined}
       >
         {shown.map((f, i) => (
@@ -62,14 +64,14 @@ export default function FlightLine({ totals, estimate, depart, local, problem }:
             <dt className={cn(GROUP_HEADING, "truncate")}>{f.name}</dt>
             <dd ref={i === 0 ? room : undefined} className={cn(TEXT.heading, "truncate font-semibold tabular-nums")} data-testid={f.testId}>
               {f.value}
-              {f.unit && <span ref={i === 0 ? unitRoom : undefined} className={cn(TEXT.note, "font-normal text-muted-foreground")}> {f.unit}</span>}
+              {f.unit && <span ref={i === unitAt ? unitRoom : undefined} className={cn(TEXT.note, "font-normal text-muted-foreground")}> {f.unit}</span>}
             </dd>
           </div>
         ))}
       </dl>
       {problem && (
-        <p className={cn(TEXT.prose, "absolute inset-0 flex items-center text-red-700 dark:text-red-300")}>
-          <span className="line-clamp-2" data-testid="navlog-problem">{problem}</span>
+        <p className={cn(TEXT.prose, "col-start-1 row-start-1 flex items-center text-red-700 dark:text-red-300")}>
+          <span data-testid="navlog-problem">{problem}</span>
         </p>
       )}
     </div>
