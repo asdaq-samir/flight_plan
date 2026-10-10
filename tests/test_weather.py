@@ -148,7 +148,7 @@ def test_metar_for_idents_reads_the_newest_report_per_station_from_the_cache_fil
     assert result["KORD"] == {
         "raw": "KORD 200151Z 09008KT 2SM BR OVC006 14/13 A2998", "observed_at": "2026-09-20T01:51:00.000Z",
         "flight_category": "IFR", "ceiling_ft": 600, "visibility_sm": 2.0, "wind_dir_true_deg": None, "wind_speed_kt": None,
-        "wind_gust_kt": None, "altimeter_in_hg": None, "temp_c": None, "dewpoint_c": None,
+        "wind_gust_kt": None, "altimeter_in_hg": None, "temp_c": None, "dewpoint_c": None, "lat": None, "lon": None,
     }
     assert result["C81"] is None
 
@@ -615,3 +615,22 @@ def test_the_weather_is_in_use_once_a_request_asks_for_it(monkeypatch):
     monkeypatch.setitem(weather._DATASETS, "metars", weather._Record(at=time.time(), data={}, attempted=time.time(), error=None))
     weather._dataset("metars")
     assert weather.in_use()
+
+
+def test_a_field_with_no_report_is_given_the_nearest_and_told_whether_it_is_near(monkeypatch):
+    # One station 6 nm north of the point, one 12 nm east -- past ten
+    # statute miles (8.7 nm), within thirty -- and one with no place.
+    reports = {
+        "KNEAR": {"flight_category": "MVFR", "lat": 42.4, "lon": -88.0},
+        "KFAR": {"flight_category": "VFR", "lat": 42.3, "lon": -88.0 + 12 / 60 / 0.7396},
+        "KNONE": {"flight_category": "VFR", "lat": None, "lon": None},
+    }
+    monkeypatch.setattr(weather, "_dataset", lambda name: reports)
+    near = weather.nearest_report(42.3, -88.0)
+    assert near["ident"] == "KNEAR" and near["distance_nm"] == 6.0 and near["bearing_deg"] == 0 and near["near"]
+    assert near["metar"]["flight_category"] == "MVFR"
+    # The nearest past ten statute miles: given, and not near.
+    far = weather.nearest_report(42.3, -88.0, exclude="KNEAR")
+    assert far["ident"] == "KFAR" and abs(far["distance_nm"] - 12) < 0.2 and far["bearing_deg"] == 90 and not far["near"]
+    # None within thirty.
+    assert weather.nearest_report(45.0, -100.0) is None

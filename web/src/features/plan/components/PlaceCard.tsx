@@ -66,13 +66,13 @@ function windLine(metar: NonNullable<AirportPlace["metar"]>): string {
 }
 
 /** When the report was made: "Observed 1255Z, 14 minutes ago". */
-function observedLine(at: string): string {
+function observedLine(at: string, wind = true): string {
   const when = new Date(at);
   if (Number.isNaN(when.getTime())) return "";
   const zulu = `${String(when.getUTCHours()).padStart(2, "0")}${String(when.getUTCMinutes()).padStart(2, "0")}Z`;
   const minutes = Math.max(0, Math.round((Date.now() - when.getTime()) / 60_000));
   const ago = minutes < 1 ? "just now" : minutes < 90 ? `${minutes} minute${minutes === 1 ? "" : "s"} ago` : `${Math.round(minutes / 60)} hours ago`;
-  return `Observed ${zulu}, ${ago}. Wind true, as reported.`;
+  return `Observed ${zulu}, ${ago}.${wind ? " Wind true, as reported." : ""}`;
 }
 
 /** The field's name alone, at the pilot's ask, its ident taken off to
@@ -327,15 +327,28 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
   const weather = place
     ? { status: place.weather_unavailable ? "unavailable" : metar ? "reported" : "no-report", category: metar?.flight_category ?? null }
     : known && { status: known.category ? "reported" : "no-report", category: known.category };
-  const chip = weather && (
+  // A field with no report of its own: the nearest station's within 30
+  // nm (vfr.weather.nearest_report), at the pilot's ask -- its category
+  // the card's chip, "≈", only within the ten statute miles a report is
+  // said of (`near`).
+  const nearby = place && !metar ? place.nearby_metar ?? null : null;
+  const nearbyCategory = nearby?.metar.flight_category ?? null;
+  const nearCategory = nearby?.near ? nearbyCategory : null;
+  // A flight category only, at the pilot's ask: its own, or with none the
+  // nearest station's marked "≈" -- and none at all where neither is had,
+  // the Weather tab saying why. Under the star, in the column of buttons.
+  const category = weather?.category ?? nearCategory;
+  const chipColour = category ? chipColourOf({ status: "reported", category }) : null;
+  const chip = category && chipColour && (
     <span
       // The words in whichever ink reads on the colour (inkOn), as the
       // map's chips are: white on a field's no-report grey was 2.6:1.
-      className={cn("mt-1 shrink-0 rounded-md px-2 py-0.5 font-bold tracking-wide", TEXT.note)}
-      style={{ backgroundColor: chipColourOf(weather), color: inkOn(chipColourOf(weather)) }}
+      className={cn("mt-1 shrink-0 rounded-md px-1.5 py-0.5 font-bold tracking-wide", TEXT.note)}
+      style={{ backgroundColor: chipColour, color: inkOn(chipColour) }}
       data-testid="place-category"
+      aria-label={weather?.category ? undefined : `About ${category}, from ${nearby?.ident}`}
     >
-      {weather.category ?? (place?.weather_unavailable ? "Unavailable" : "No report")}
+      {weather?.category ? category : `≈${category}`}
     </span>
   );
   return (
@@ -355,20 +368,18 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
         data-to-edge=""
       >
         {place || !error ? (
-          // The runways' sketch to the right of the name, at the pilot's
-          // ask, under the weather's chip, the star and the close and down
-          // to the tiles, the width of Call and Address, the field's
-          // elevation in its top left ("Elev 788 ft"); the name alone,
-          // and how far it is under it.
-          // Four columns as the tiles' are, where the tiles are three too:
-          // the name its half of the card. Its rows the same for every
-          // field, at the pilot's ask -- the close's row, and the sketch's
-          // all that the tiles and the tabs leave down to the card's foot --
-          // so the card keeps its layout whatever the field: a long name is
-          // set smaller to fit its half (FitText), where it wrapped to four
-          // lines and pushed the tiles and the tabs down.
-          <div className="grid min-h-0 flex-1 grid-cols-4 grid-rows-[36px_minmax(0,1fr)] gap-x-2">
-            <div className="col-span-2 row-span-2 flex min-h-0 min-w-0 flex-col">
+          // Three columns, at the pilot's ask: the name, the runways'
+          // sketch, and at the right the close, the star and the weather's
+          // chip one over another, the close where every panel's is
+          // (MapPanel's --corner-line). The sketch between the name and
+          // them, from the card's top down to the tiles, the field's
+          // elevation in its top left ("Elev 788 ft"); the name alone, and
+          // how far it is under it. The same for every field, so the card
+          // keeps its layout whatever the field: a long name is set smaller
+          // to fit its column (FitText), where it wrapped to four lines and
+          // pushed the tiles and the tabs down.
+          <div className="flex min-h-0 flex-1 gap-2">
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col">
               <h2
                 tabIndex={-1} data-testid="place-name"
                 className={cn("min-h-0 flex-1 font-bold tracking-tight break-words text-foreground outline-none", TEXT.card)}
@@ -382,15 +393,10 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
               </h2>
               {line && <p className={cn("line-clamp-2 text-muted-foreground", TEXT.note)} data-testid="place-line">{line}</p>}
             </div>
-            <div className="col-span-2 flex items-start justify-end gap-2">
-              {chip}
-              {place && <FavoriteButton place={place} />}
-              <CloseButton onClick={onClose} className="-mr-1" data-testid="place-close" />
-            </div>
             {/* The box there from the first frame, empty until the card's
                 answer is in, and for a field with no runway to draw, so
                 the card is the one shape for every field. */}
-            <div className={cn("relative col-span-2 mt-2 min-h-0 overflow-hidden rounded-xl text-foreground", GLASS_BUTTON)}>
+            <div className={cn("relative min-h-0 min-w-0 flex-1 overflow-hidden rounded-xl text-foreground", GLASS_BUTTON)}>
               {/* A button only where the Runways tab has something to show
                   (rows for runways whose ends are unsurveyed, a pattern
                   altitude); otherwise the tap would open an empty tab. */}
@@ -448,6 +454,13 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
                   <span className="sr-only">Elevation </span>{feet(place.elevation_ft)}
                 </span>
               )}
+            </div>
+            {/* Eight apart, so the buttons' 44-point hit areas (index.css)
+                meet. */}
+            <div className="-mr-1 flex w-[3.75rem] shrink-0 flex-col items-end gap-2">
+              <CloseButton onClick={onClose} data-testid="place-close" />
+              {place && <FavoriteButton place={place} />}
+              {chip}
             </div>
             {diagramOpen && place?.airport_diagram_url && (
               <FaaChart
@@ -600,6 +613,23 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
                 <ListRow title={place.weather_unavailable ? "The weather service could not be reached" : "No weather station reports from this field"} />
               )}
             </ListGroup>
+            {/* Its nearest station's, for one with none of its own: where
+                it is from it, its category and the report as sent -- the
+                card's "≈" chip is this. */}
+            {nearby && (
+              <div className="pt-5" data-testid="place-nearby-metar">
+                <ListGroup
+                  title={`Nearest report, ${nearby.distance_nm} nm ${compassPoint(nearby.bearing_deg)}`}
+                  footer={`${nearby.metar.observed_at ? `${observedLine(nearby.metar.observed_at, false)} ` : ""}Not this field's own: the weather can differ over a few miles.`}
+                >
+                  <ListRow
+                    title={<span className="font-semibold">{nearby.ident}</span>}
+                    value={nearbyCategory ? <span className="font-semibold text-foreground">{nearbyCategory}</span> : undefined}
+                  />
+                  {nearby.metar.raw && <ListRow title={<span className="font-mono break-words">{nearby.metar.raw}</span>} />}
+                </ListGroup>
+              </div>
+            )}
           </TabsContent>
 
           <TabsContent value="radio" className="pt-4">

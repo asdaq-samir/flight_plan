@@ -22,7 +22,10 @@ async function withDiagram(page: Page, picture: "drawn" | "missing", pdf = true)
   await page.route(url => url.pathname.endsWith("/api/planner/airport/KDLH"), async route => {
     const answer = await route.fetch();
     const place = await answer.json();
-    await route.fulfill({ response: answer, json: { ...place, airport_diagram_url: pdf ? PDF : null, airport_diagram_cycle: "2610" } });
+    // A report of its own, so the card wears its weather's chip whatever
+    // aviationweather.gov says of KDLH today.
+    const metar = { raw: "KDLH 102155Z 27008KT 10SM CLR 12/02 A3001", flight_category: "VFR" };
+    await route.fulfill({ response: answer, json: { ...place, metar, weather_unavailable: false, airport_diagram_url: pdf ? PDF : null, airport_diagram_cycle: "2610" } });
   });
   await page.route(url => url.pathname.includes("/api/planner/airport-diagram/"), route =>
     (picture === "drawn"
@@ -64,7 +67,7 @@ test("an airport's card has its diagram as a row, and a tap shows it full screen
   await expect(card(page)).toBeVisible();
 });
 
-test("the card's sketch of the runways sits right of the name, under its close, over Call and Address, with the elevation at its top left", async ({ page }) => {
+test("the card's sketch of the runways sits between the name and the close, star and weather chip stacked at the right, over the tiles, with the elevation at its top left", async ({ page }) => {
   await withDiagram(page, "drawn");
   await withChartPages(page);
   await page.goto("/app/plan?place=KDLH");
@@ -84,16 +87,21 @@ test("the card's sketch of the runways sits right of the name, under its close, 
   // "Elev 788 ft" to the eye, "Elevation 788 ft" to a screen reader.
   await expect(elevation).toHaveText(/Elevation [\d,]+ ft$/);
   await expect(elevation.locator('[aria-hidden="true"]')).toHaveText("Elev");
-  const [height, box, named, close, call, address] = await Promise.all([
-    elevation, sketch, name, card(page).getByTestId("place-close"),
-    card(page).getByTestId("place-call"), card(page).getByTestId("place-address"),
+  const [height, box, named, close, star, chip, call] = await Promise.all([
+    elevation, sketch, name, card(page).getByTestId("place-close"), card(page).getByTestId("place-favorite"),
+    card(page).getByTestId("place-category"), card(page).getByTestId("place-call"),
   ].map(async l => (await l.boundingBox())!));
+  // The name, then the sketch from the card's top, then the column: the
+  // close, the star under it and the weather's chip under that, their
+  // right edges one.
   expect(box.x).toBeGreaterThan(named.x + named.width - 1);
-  expect(box.y).toBeGreaterThan(close.y + close.height - 1);
+  expect(Math.abs(box.y - close.y)).toBeLessThan(1);
+  expect(box.x + box.width).toBeLessThan(Math.min(close.x, star.x, chip.x));
+  expect(star.y).toBeGreaterThan(close.y + close.height - 1);
+  expect(chip.y).toBeGreaterThan(star.y + star.height - 1);
+  for (const b of [star, chip]) expect(Math.abs(b.x + b.width - (close.x + close.width))).toBeLessThan(1.5);
   expect(height.x).toBeLessThan(box.x + 12);
   expect(height.y).toBeLessThan(box.y + 12);
-  expect(Math.abs(box.x - call.x)).toBeLessThan(1);
-  expect(Math.abs(box.x + box.width - (address.x + address.width))).toBeLessThan(1);
   expect(box.y + box.height).toBeLessThanOrEqual(call.y);
 
   await sketch.click();

@@ -17,7 +17,7 @@ DULUTH = {
 }
 
 
-def stub_place(monkeypatch, place=DULUTH, frequencies=(), runways=(), metar=None, surface_class="C"):
+def stub_place(monkeypatch, place=DULUTH, frequencies=(), runways=(), metar=None, surface_class="C", nearby=None):
     monkeypatch.setattr(airports, "find_place", lambda ident: place if ident.upper() in ("KDLH", "DLH") else None)
     monkeypatch.setattr(airports, "get_frequencies", lambda ident: list(frequencies))
     monkeypatch.setattr(airports, "get_runways", lambda ident: list(runways))
@@ -34,6 +34,7 @@ def stub_place(monkeypatch, place=DULUTH, frequencies=(), runways=(), metar=None
         monkeypatch.setattr(weather, "metar_for_idents", fail)
     else:
         monkeypatch.setattr(weather, "metar_for_idents", lambda idents: {i: metar for i in idents})
+    monkeypatch.setattr(weather, "nearest_report", lambda lat, lon, exclude=None: nearby)
 
 
 def test_an_airports_card_names_its_class_tower_runways_radio_and_weather(monkeypatch):
@@ -59,6 +60,19 @@ def test_an_airports_card_names_its_class_tower_runways_radio_and_weather(monkey
     # cockpit, with no count of clicks of their own.
     assert body["lighting"] == ["Activate MIRL runway 09/27 - CTAF."]
     assert body["standard_keying"] is True
+
+
+def test_a_field_with_no_station_is_given_its_nearest_report(monkeypatch):
+    nearby = {"ident": "KDYT", "distance_nm": 6.2, "bearing_deg": 118, "near": True,
+              "metar": {"raw": "KDYT 102153Z AUTO 25007KT 10SM OVC025 12/04 A3001", "flight_category": "MVFR", "lat": 46.72, "lon": -92.04}}
+    stub_place(monkeypatch, nearby=nearby)
+    body = client.get("/api/airport/KDLH").json()
+    assert body["metar"] is None
+    assert body["nearby_metar"]["ident"] == "KDYT" and body["nearby_metar"]["near"] is True
+    assert body["nearby_metar"]["metar"]["flight_category"] == "MVFR"
+    # A field with a report of its own is given none.
+    stub_place(monkeypatch, metar={"raw": "KDLH 102155Z 27008KT 10SM CLR", "flight_category": "VFR"}, nearby=nearby)
+    assert client.get("/api/airport/KDLH").json()["nearby_metar"] is None
 
 
 def test_a_field_with_no_tower_or_station_says_so_rather_than_failing(monkeypatch):
