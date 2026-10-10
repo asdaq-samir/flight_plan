@@ -7,6 +7,7 @@
  */
 import type { AcsTable } from "./checkride";
 import { lookUp } from "./checkride";
+import { grouped } from "./units";
 
 export interface PlanFacts {
   route: { ident: string; name?: string | null; airspaceClass?: string | null; patternFt?: number | null; runway?: string | null }[];
@@ -25,7 +26,7 @@ export interface PlanFacts {
   tfrs: number;
 }
 
-const ft = (n: number) => `${Math.round(n).toLocaleString("en-US")} ft`;
+const ft = (n: number) => `${grouped(n)} ft`;
 
 /** The flight as the examiner is told it: a line a fact, nothing it
  *  cannot be told plainly. */

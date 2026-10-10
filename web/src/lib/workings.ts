@@ -7,6 +7,7 @@
  * student's own figures against them within an E6B's accuracy.
  */
 import type { Leg } from "./api/types";
+import { grouped } from "./units";
 
 /** An angle as -180 to 180. */
 function wrap(deg: number): number {
@@ -66,10 +67,10 @@ export function workingsOf(leg: Leg): Workings | null {
     { name: "True course", sum: "measured on the chart", result: heading(tc) },
     {
       name: "Wind",
-      sum: leg.wind ? `forecast at ${Math.round(leg.altitude_ft).toLocaleString()} ft, from true north` : "no forecast near: calm",
+      sum: leg.wind ? `forecast at ${grouped(leg.altitude_ft)} ft, from true north` : "no forecast near: calm",
       result: `${heading(windDir)} at ${Math.round(windKt)} kt`,
     },
-    { name: "True airspeed", sum: `${Math.round(leg.power_pct)}% power at a density altitude of ${Math.round(leg.density_altitude_ft).toLocaleString()} ft`, result: `${Math.round(tas)} kt` },
+    { name: "True airspeed", sum: `${Math.round(leg.power_pct)}% power at a density altitude of ${grouped(leg.density_altitude_ft)} ft`, result: `${Math.round(tas)} kt` },
     {
       name: "Wind correction",
       sum: `sin⁻¹(${Math.round(windKt)} × sin(${heading(windDir)} − ${heading(tc)}) ÷ ${Math.round(tas)})`,

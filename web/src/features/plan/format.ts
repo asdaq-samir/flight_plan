@@ -121,21 +121,15 @@ export function cruiseByAltitude(legs: Leg[], cruisePowerPct: number | null | un
   });
 }
 
-/** A clock time, "09:05", in the browser's own zone -- an ETA. One
- *  formatter, made the first time it is asked for: toLocaleTimeString
- *  made one at every time written, a row's ETA and the flight's line at
- *  every render -- 75 ms of a phone's (CPU 4x slower) as a route came in
- *  (measured 2026-10-08). */
-let clock: Intl.DateTimeFormat | null = null;
-// Made in the page's idle time after it loads, as units' number one is.
-if (typeof window !== "undefined") {
-  (window.requestIdleCallback ?? ((go: () => void) => window.setTimeout(go, 2000)))(() => {
-    clock ??= new Intl.DateTimeFormat([], { hour: "2-digit", minute: "2-digit", hour12: false });
-  });
-}
+/** A clock time, "09:05", 24-hour in the browser's own zone -- an ETA.
+ *  Written from the hours and minutes, not by Intl.DateTimeFormat: one
+ *  made at each time written (toLocaleTimeString) was 75 ms of a phone's
+ *  (CPU 4x) as a route came in (2026-10-08), and the one made in the
+ *  page's idle time instead was a task of 164 ms of its own as the
+ *  planner opened (2026-10-10), the browser reading its date data. It
+ *  also wrote midnight "24:05" where hour12 was off in some browsers. */
 export function clockTime(at: Date): string {
-  clock ??= new Intl.DateTimeFormat([], { hour: "2-digit", minute: "2-digit", hour12: false });
-  return clock.format(at);
+  return `${String(at.getHours()).padStart(2, "0")}:${String(at.getMinutes()).padStart(2, "0")}`;
 }
 
 /** When a leg ends: the departure instant plus the minutes flown to

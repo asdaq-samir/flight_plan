@@ -3,24 +3,25 @@
  *  never write the same figure two ways. A missing figure is an em dash
  *  -- nothing reported, which is not the same as zero. */
 
-// One formatter for the page, made once: toLocaleString() makes one for
-// every figure it writes, and a nav log writes hundreds -- 0.1 s of a
-// phone's as the Brief opened (measured 2026-10-07). Made the first time
-// a figure is written, not as the page loads: the browser's number data
-// read then was a quarter of a second of the app's opening on a phone
-// (CPU 6x slower), on a search screen that writes none (2026-10-08).
-let whole: Intl.NumberFormat | null = null;
-// And then made as soon as the page is idle, so the first figure written
-// after a tap does not pay for it: an airport's card opened from the
-// search, its elevation the first, took 0.2 s longer (2026-10-08).
-if (typeof window !== "undefined") {
-  (window.requestIdleCallback ?? ((go: () => void) => window.setTimeout(go, 2000)))(() => { whole ??= new Intl.NumberFormat(); });
+/**
+ * A whole number with a comma between each three figures, "12,500", as
+ * the FAA writes altitudes, distances and weights -- written here rather
+ * than by the browser's Intl.NumberFormat, whose number data, read the
+ * first time one is made, was a task of its own of 0.1 s on a phone's CPU
+ * (4x, 2026-10-10): one long task more as the planner opened, made then
+ * so the first figure after a tap did not pay for it, and paid again by
+ * every toLocaleString() that made its own.
+ */
+export function grouped(n: number): string {
+  // Rounded on the magnitude, halves away from zero, as Intl.NumberFormat did.
+  const magnitude = Math.round(Math.abs(n));
+  const digits = String(magnitude).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  return n < 0 && magnitude > 0 ? `-${digits}` : digits;
 }
 
 /** A whole-number altitude with a thousands separator: "12,500". */
 export function altFt(ft: number | null | undefined): string {
-  whole ??= new Intl.NumberFormat();
-  return ft === null || ft === undefined ? "—" : whole.format(Math.round(ft));
+  return ft === null || ft === undefined ? "—" : grouped(ft);
 }
 
 /** The same with its unit: "12,500 ft". */

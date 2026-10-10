@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Leg, Totals } from "../../lib/api/types";
 import { inkOn, SCORE_STEPS } from "../../lib/scoreScale";
-import { cruiseByAltitude, decimalHours, deg, elapsed, hhmm, one, runwayWind, scoreColor, signed, totalsParts } from "./format";
+import { clockTime, cruiseByAltitude, decimalHours, deg, elapsed, hhmm, one, runwayWind, scoreColor, signed, totalsParts } from "./format";
 
 describe("scoreColor", () => {
   it("bands on the boundary, not just inside it", () => {
@@ -117,5 +117,13 @@ describe("runwayWind", () => {
     expect(runwayWind({ end: "9", headwind_kt: -3, crosswind_kt: -12, gust_crosswind_kt: null }))
       .toBe("Favors 9: 3 kt tailwind, 12 kt crosswind from the left");
     expect(runwayWind({ end: "18", headwind_kt: 0, crosswind_kt: 0, gust_crosswind_kt: null })).toBe("Calm on 18");
+  });
+});
+
+describe("clockTime", () => {
+  it("writes a time as the 24-hour clock does, two figures each, midnight as 00", () => {
+    expect(clockTime(new Date(2026, 9, 10, 9, 5))).toBe("09:05");
+    expect(clockTime(new Date(2026, 9, 10, 17, 42))).toBe("17:42");
+    expect(clockTime(new Date(2026, 9, 10, 0, 7))).toBe("00:07");
   });
 });

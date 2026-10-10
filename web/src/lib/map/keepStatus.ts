@@ -5,6 +5,7 @@ import type { Course } from "../api/types";
 import { usePreferences } from "../preferences";
 import { keep, keepKey, keepingAvailable, keptAlready, stopKeeping, useKeepJob } from "./keepRoute";
 import { chartPair } from "./tiles";
+import { grouped } from "../units";
 
 /**
  * Keep Charts Offline, a setting under Map: while it is on, each route
@@ -45,7 +46,7 @@ export function useKeepRouteToast() {
     was.current = job.status;
     if (job.status === "keeping") {
       clearProblem(TOAST_ID);
-      const counted = job.progress ? ` ${job.progress.done.toLocaleString()} of ${job.progress.total.toLocaleString()} tiles` : "";
+      const counted = job.progress ? ` ${grouped(job.progress.done)} of ${grouped(job.progress.total)} tiles` : "";
       toast.loading(`Keeping charts offline…${counted}`, { id: TOAST_ID });
     } else if (before === "keeping" && job.status === "kept") {
       const { total, failed } = job.progress;
@@ -55,7 +56,7 @@ export function useKeepRouteToast() {
       } else {
         toast.success("Charts kept offline", {
           id: TOAST_ID,
-          description: `${(total - failed).toLocaleString()} tiles${failed ? ` (${failed} not available)` : ""}: the route draws without a connection now.`,
+          description: `${grouped(total - failed)} tiles${failed ? ` (${failed} not available)` : ""}: the route draws without a connection now.`,
         });
       }
     } else if (before === "keeping" && job.status === "failed") {

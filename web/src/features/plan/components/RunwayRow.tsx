@@ -7,6 +7,7 @@ import { runwayNumber } from "../../../lib/pattern";
 import { RowBadge } from "../../../components/RowBadge";
 import { BADGE } from "../../../lib/rowBadges";
 import { TEXT } from "../../../lib/text";
+import { grouped } from "../../../lib/units";
 
 /** A runway drawn on its badge, laid along its true heading as the
  *  chart lays it (north up), its centre line dashed; upright where its
@@ -58,7 +59,7 @@ export function RunwayRow({ runway }: { runway: Runway }) {
       // own colour, as Nearest has a field's distance; how wide under it.
       value={runway.length_ft ? (
         <span className="flex flex-col items-end">
-          <span className="font-semibold text-foreground">{runway.length_ft.toLocaleString()} ft</span>
+          <span className="font-semibold text-foreground">{grouped(runway.length_ft)} ft</span>
           {runway.width_ft != null && <span className={cn("text-muted-foreground", TEXT.note)}>{runway.width_ft} ft wide</span>}
         </span>
       ) : "—"}
