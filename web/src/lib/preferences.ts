@@ -63,6 +63,10 @@ interface Preferences {
    *  (lib/map/ahead): airspace, special-use areas and TFRs the track goes
    *  into, and the ground or an obstacle it comes near. On by default. */
   alerts: boolean;
+  /** Whether the airplanes ADS-B receivers hear about the map are drawn
+   *  (TrafficLayer, from adsb.lol). Off by default: it asks a third
+   *  party every five seconds. */
+  traffic: boolean;
   /** Whether the fields the armed services own and keep to themselves
    *  are drawn (AirportsLayer), at the pilot's ask: off by default, as a
    *  civil airplane lands there only with the service's permission (the
@@ -104,6 +108,7 @@ interface Preferences {
   setClassB: (classB: boolean) => void;
   setTfrs: (tfrs: boolean) => void;
   setAlerts: (alerts: boolean) => void;
+  setTraffic: (traffic: boolean) => void;
   setMilitary: (military: boolean) => void;
   setMinimum: (key: keyof Minimums, value: number | null) => void;
   setLoad: (aircraft: string, load: Load) => void;
@@ -153,6 +158,7 @@ export const usePreferences = create<Preferences>()(
       classB: false,
       tfrs: true,
       alerts: true,
+      traffic: false,
       military: false,
       minimums: NO_MINIMUMS,
       loads: {},
@@ -173,6 +179,7 @@ export const usePreferences = create<Preferences>()(
       setClassB: classB => set({ classB }),
       setTfrs: tfrs => set({ tfrs }),
       setAlerts: alerts => set({ alerts }),
+      setTraffic: traffic => set({ traffic }),
       setMilitary: military => set({ military }),
       setMinimum: (key, value) => set(s => ({ minimums: { ...s.minimums, [key]: value } })),
       setLoad: (aircraft, load) => set(s => ({ loads: { ...s.loads, [aircraft]: load } })),
@@ -208,7 +215,7 @@ export const usePreferences = create<Preferences>()(
       name: "vfr.preferences",
       // The functions are not state; only the values are written.
       partialize: s => ({
-        base: s.base, tac: s.tac, waypoints: s.waypoints, classB: s.classB, tfrs: s.tfrs, alerts: s.alerts, military: s.military, minimums: s.minimums, loads: s.loads, keepOffline: s.keepOffline, aircraft: s.aircraft, filters: s.filters, devTab: s.devTab, pilotTab: s.pilotTab, navBar: s.navBar, routeColours: s.routeColours, narrative: s.narrative,
+        base: s.base, tac: s.tac, waypoints: s.waypoints, classB: s.classB, tfrs: s.tfrs, alerts: s.alerts, traffic: s.traffic, military: s.military, minimums: s.minimums, loads: s.loads, keepOffline: s.keepOffline, aircraft: s.aircraft, filters: s.filters, devTab: s.devTab, pilotTab: s.pilotTab, navBar: s.navBar, routeColours: s.routeColours, narrative: s.narrative,
         recentAirports: s.recentAirports, homeAirport: s.homeAirport, favoriteAirports: s.favoriteAirports,
       }),
     },

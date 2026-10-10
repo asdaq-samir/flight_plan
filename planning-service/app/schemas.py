@@ -876,6 +876,36 @@ class AlertsAhead(BaseModel):
     unavailable: list[str] = []
 
 
+class TrafficAircraft(BaseModel):
+    """One airplane in the air near the point (vfr.traffic): who, where,
+    how high -- the GNSS height where it sends one, else its pressure
+    altitude (`pressure_altitude`) -- its track, speed and climb, and how
+    many seconds old its position is."""
+
+    hex: str
+    callsign: str | None = None
+    registration: str | None = None
+    type: str | None = None
+    lat: float
+    lon: float
+    altitude_ft: float | None = None
+    pressure_altitude: bool = False
+    track_deg: float | None = None
+    speed_kt: float | None = None
+    vertical_fpm: float | None = None
+    seen_s: float | None = None
+
+
+class Traffic(BaseModel):
+    """The airplanes ADS-B receivers hear near a point, from adsb.lol's
+    open data, under the Open Database License 1.0, which asks that the
+    map say so where it draws them."""
+
+    aircraft: list[TrafficAircraft]
+    source: str = "adsb.lol"
+    license: str = "ODbL 1.0"
+
+
 class ProfileGround(BaseModel):
     along_nm: float
     ground_ft: float
