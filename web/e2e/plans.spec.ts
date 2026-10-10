@@ -136,8 +136,9 @@ test("plan page: a departure time gives every checkpoint an ETA, and the nav log
   expect(etaIndex).toBeGreaterThan(0);
   // The departure row's own ETA is the departure time itself.
   await expect(table.locator("tbody tr[tabindex='0']").first().locator("td").nth(etaIndex)).toHaveText("15:00");
-  // The section's own line says when it arrives, the time en route after it.
-  await expect(page.getByTestId("navlog-eta")).toContainText(/^ETA \d\d:\d\d \(\d+h \d\dm\)$/, { timeout: slow(60000) });
+  // The route's figures say when it arrives, and the time en route.
+  await expect(page.getByTestId("navlog-eta")).toHaveText(/^\d\d:\d\d$/, { timeout: slow(60000) });
+  await expect(page.getByTestId("navlog-ete")).toHaveText(/^\d+h \d\dm$/);
   // Every later row has a time once its leg is in.
   await expect.poll(async () => (await table.locator("tbody tr[tabindex='0']").last().locator("td").nth(etaIndex).textContent())?.trim(), { timeout: slow(60000) }).toMatch(/^\d\d:\d\d$/);
   // And the fuel check, against the stock C172's 40 usable gallons,

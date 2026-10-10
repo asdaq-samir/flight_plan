@@ -14,14 +14,15 @@ test("plan page: a route from an airport to itself is a local flight: the field'
   await openPanel(page);
   // Its tab where the nav log's is, up as the panel opens.
   await expect(sideDrawer(page).getByRole("tab", { name: "Local" })).toHaveAttribute("aria-selected", "true");
-  await expect(sideDrawer(page).locator('[data-slot="section-summary"]').first()).toContainText(/Aloft 1h 00m/, { timeout: slow(30000) });
+  await expect(sideDrawer(page).getByTestId("navlog-ete")).toHaveText("1h 00m", { timeout: slow(30000) });
+  await expect(sideDrawer(page).locator('[data-slot="section-summary"] dt').first()).toHaveText("Aloft");
   await expect(page.getByTestId("fuel-check")).toContainText("Fuel required");
 
   // Longer aloft: in the address, and more fuel.
   await page.getByTestId("local-duration").click();
   await page.getByRole("option", { name: "2 h", exact: true }).click();
   await expect(page).toHaveURL(/[?&]local_min=120/);
-  await expect(sideDrawer(page).locator('[data-slot="section-summary"]').first()).toContainText(/Aloft 2h 00m/, { timeout: slow(30000) });
+  await expect(sideDrawer(page).getByTestId("navlog-ete")).toHaveText("2h 00m", { timeout: slow(30000) });
 });
 
 test("plan page: every popup the map opens dismisses the same way", async ({ page }) => {

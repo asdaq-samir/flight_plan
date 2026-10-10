@@ -1283,8 +1283,8 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     route: started ? (
       <div className="flex items-start gap-2">
         <div className="min-w-0 flex-1">
-          {/* Its room while its code comes: the box's own two lines. */}
-          <Suspense fallback={<div className="min-h-[5.25rem] rounded-[20.5px] bg-foreground/8" />}>
+          {/* Its room while its code comes: the box's own line. */}
+          <Suspense fallback={<div className="min-h-[2.5625rem] rounded-[20.5px] bg-foreground/8" />}>
           <SearchNear.Provider value={searchNear}>
           <RouteBox
             dep={planned.dep} stops={planned.stops} dest={planned.dest} waypoints={waypointStops} airspaceOf={airspaceOf} metarColourOf={metarColour}
@@ -1296,28 +1296,29 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           </SearchNear.Provider>
           </Suspense>
         </div>
-        {/* The route's close, and under it Nearest: round glass buttons
+        {/* The route's Procedures and its close: round glass buttons
             (RoundButton) the size of Save, Share and Print under them, at
             the pilot's ask -- 36 points, 20-point glyphs, one line weight,
-            a finger's 44 round each (index.css) -- the box's two lines tall.
-            The close where every panel's top-right button is, the search's
-            gear and a card's close (MapPanel's --corner-line), so it does not
-            move under the pilot's finger from one panel to the next; eight
-            apart at the least, so the two's hit areas meet. */}
-        <div className="flex shrink-0 flex-col gap-[max(8px,calc(0.75rem-var(--corner-line)))] pt-[var(--corner-line)]">
-          <CloseButton label={hasPoints ? "Clear the route" : "Close"} onClick={clearRoute} data-testid="route-clear" />
-          {/* Approaches under it, at the pilot's ask, where Nearest was --
-              Nearest is among the map's buttons on its left now: the
-              destination's card open on its Diagrams tab at its approaches
-              (PlaceCard), greyed for a field whose card lists none. */}
-          {/* The route's Procedures there now, at the pilot's ask: each
+            a finger's 44 round each (index.css) -- side by side on the
+            box's first line, as Maps' card has its share and its close,
+            now the box is one line tall (RouteBox); they were stacked
+            beside its two. The close where every panel's top-right button
+            is, the search's gear and a card's close (MapPanel's
+            --corner-line), so it does not move under the pilot's finger
+            from one panel to the next; eight apart, so the two's hit areas
+            meet. */}
+        <div className="flex shrink-0 items-center gap-2 pt-[var(--corner-line)]">
+          {/* Procedures beside it, at the pilot's ask, where Nearest was --
+              Nearest is among the map's buttons on its left now: each
               field's traffic pattern to draw, and the destination's
-              approach charts as the button opened before. */}
+              approach charts (PlaceCard), greyed for a field whose card
+              lists none. */}
           <ProceduresButton
             airports={procedureAirports} picked={pickedPatterns} onPick={pickPattern}
             onCharts={() => { if (planned.dest) { setApproachesOf(planned.dest); selectPlace(planned.dest); } }}
             chartsDisabled={!planned.dest || noApproaches}
           />
+          <CloseButton label={hasPoints ? "Clear the route" : "Close"} onClick={clearRoute} data-testid="route-clear" />
         </div>
       </div>
     ) : undefined,
@@ -1356,7 +1357,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           // hit areas (index.css) meet.
           <div className="ml-auto flex shrink-0 items-center gap-2">{routeActions}</div>
         )}
-        {/* The flight in one line, the last of the route's panel, just over
+        {/* The flight's figures, the last of the route's panel, just over
             the separator and the tabs, at the pilot's ask: the quick figures
             read with the route, the detail under the tabs. */}
         <div className="w-full basis-full px-1" data-testid="flight-line">

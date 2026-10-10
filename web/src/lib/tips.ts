@@ -22,7 +22,7 @@ export const TIPS: TipSpec[] = [
   },
   {
     id: "flight-line", title: "The quick numbers",
-    message: "Distance, arrival time and fuel, worked out as you plan. Pull the panel up past the line for the detail.",
+    message: "Distance, time en route, arrival time and fuel, worked out as you plan. Pull the panel up past the line for the detail.",
   },
   {
     id: "altitude", title: "Why this altitude",
