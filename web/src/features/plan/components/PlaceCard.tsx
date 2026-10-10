@@ -338,14 +338,22 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
           // pilot's ask -- the close's row and the sketch's -- so the card
           // keeps its layout whatever the field: a long name is set smaller
           // to fit its half (FitText), where it wrapped to four lines and
-          // pushed the tiles and the tabs down.
-          <div className="grid grid-cols-4 grid-rows-[36px_4.5rem] gap-x-2">
+          // pushed the tiles and the tabs down. The sketch's row 5.25rem, at
+          // the pilot's ask for a bigger name, where it was 4.5: the tiles
+          // and the tabs moved down into what the half sheet had left under
+          // them -- the tabs' foot now about a point above the home
+          // indicator's inset on an iPhone 16 Pro, as low as a control on
+          // the sheet may go (HIG, the iOS audit's P12).
+          <div className="grid grid-cols-4 grid-rows-[36px_5.25rem] gap-x-2">
             <div className="col-span-2 row-span-2 flex min-h-0 min-w-0 flex-col">
               <h2
                 tabIndex={-1} data-testid="place-name"
                 className={cn("min-h-0 flex-1 font-bold tracking-tight break-words text-foreground outline-none", TEXT.card)}
               >
-                <FitText className="h-full" data-testid="place-name-fit">
+                {/* From iOS's Title 1, 28 on 34, where the name fits its
+                    box at that, as Maps sets a place's: the cards' own 22
+                    (TEXT.card) left a short name small in a box with room. */}
+                <FitText className="h-full text-[1.75rem] leading-[2.125rem]" data-testid="place-name-fit">
                   <NameWithIdent
                     name={place?.name ?? known?.name ?? kept?.name ?? ident} ident={place?.ident ?? ident}
                     airspace={place ? place.airspace_class : kept?.airspace}
@@ -362,7 +370,7 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
             {/* The box there from the first frame, empty until the card's
                 answer is in, and for a field with no runway to draw, so
                 the card is the one shape for every field. */}
-            <div className={cn("relative col-span-2 mt-2 h-16 overflow-hidden rounded-xl text-foreground", GLASS_BUTTON)}>
+            <div className={cn("relative col-span-2 mt-2 min-h-0 overflow-hidden rounded-xl text-foreground", GLASS_BUTTON)}>
               {/* A button only where the Runways tab has something to show
                   (rows for runways whose ends are unsurveyed, a pattern
                   altitude); otherwise the tap would open an empty tab. */}
@@ -473,7 +481,7 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
           // finger -- 44 points at any text size.
           <TabsList
             ref={tabsRef} variant="line"
-            className="mt-1 w-full scroll-mt-3 gap-0 border-b border-border p-0 group-data-[orientation=horizontal]/tabs:h-9 pointer-coarse:group-data-[orientation=horizontal]/tabs:h-[44px]"
+            className="w-full scroll-mt-3 gap-0 border-b border-border p-0 group-data-[orientation=horizontal]/tabs:h-9 pointer-coarse:group-data-[orientation=horizontal]/tabs:h-[44px]"
           >
             {CARD_TABS.map(t => (
               // Tapped, the panel comes all the way up, the tab already
