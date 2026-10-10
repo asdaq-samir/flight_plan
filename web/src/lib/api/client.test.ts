@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 import { describeError, detailOf, GatewayRequest } from "./client";
 
 describe("GatewayRequest", () => {
@@ -44,5 +44,36 @@ describe("describeError", () => {
     expect(describeError(new Error("planner service unreachable\n    at fetch"))).toBe("planner service unreachable");
     expect(describeError(new TypeError("x is not a function"))).toBe("x is not a function");
     expect(describeError("nope", "request failed")).toBe("request failed");
+  });
+});
+
+describe("me", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  // The client takes its Request and fetch when the module loads, and Node
+  // cannot make a Request of "/api/me" as the browser does against the
+  // page, so the module is loaded afresh under both stubbed.
+  const meAnswering = async (res: Response) => {
+    const NodeRequest = Request;
+    vi.stubGlobal("Request", class extends NodeRequest {
+      constructor(input: RequestInfo | URL, init?: RequestInit) {
+        super(typeof input === "string" ? new URL(input, "http://localhost").href : input, init);
+      }
+    });
+    vi.stubGlobal("fetch", vi.fn(async () => res));
+    vi.resetModules();
+    return (await import("./client")).api.me();
+  };
+
+  test("signed out, the open 204 with no body is null, not undefined", async () => {
+    expect(await meAnswering(new Response(null, { status: 204 }))).toBeNull();
+  });
+
+  test("a 401, from a server before the 204, is null too", async () => {
+    expect(await meAnswering(new Response(null, { status: 401, statusText: "Unauthorized" }))).toBeNull();
+  });
+
+  test("any other failure still throws", async () => {
+    await expect(meAnswering(new Response(null, { status: 500, statusText: "Server Error" }))).rejects.toMatchObject({ status: 500 });
   });
 });

@@ -43,7 +43,7 @@ test("Delete account asks, then deletes the account and everything in it, and si
 
   // Signed out, here and on the server.
   await expect(page).toHaveURL(/\/app\/plan/);
-  await expect.poll(async () => (await page.request.get("/api/me")).status()).toBe(401);
+  await expect.poll(async () => (await page.request.get("/api/me")).status()).toBe(204);
 
   // The same address again is a new pilot, with no airplanes.
   await signInByEmail(page, address);

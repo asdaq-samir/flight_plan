@@ -36,7 +36,12 @@ def _chart_tile(kind: charts.ChartKind, z: int, x: int, y: int) -> Response:
         raise HTTPException(404, f"{kind.key} tiles exist for zoom {kind.min_zoom}-{kind.max_zoom}")
     png = charts.tile_png(x, y, z, kind.key)
     if png is None:
-        raise HTTPException(404, "no chart coverage for this tile")
+        # No sheet covers it -- the sea, Canada, Mexico round the country
+        # as it opens: nothing to draw, which is no failure, so 204, kept
+        # as long as a tile is. A 404 was an error in the browser's
+        # console for every one, which Lighthouse's best practices count
+        # (18 on the planner's first view, 2026-10-10).
+        return Response(status_code=204, headers={"Cache-Control": f"public, max-age={_CHART_TILE_MAX_AGE_S}"})
     return Response(
         content=png,
         media_type="image/png",
@@ -44,7 +49,8 @@ def _chart_tile(kind: charts.ChartKind, z: int, x: int, y: int) -> Response:
     )
 
 
-@router.get("/api/chart-tile/{kind}/{z}/{x}/{y}.png")
+@router.get("/api/chart-tile/{kind}/{z}/{x}/{y}.png",
+            responses={200: {"content": {"image/png": {}}}, 204: {"description": "No sheet covers the tile"}})
 def chart_tile(kind: str, z: int, x: int, y: int) -> Response:
     """Any kind of chart by its key (`chart_layers` on the course lists
     them): `sec`, `tac`, `ifr_low`, `ifr_high`, `ifr_area`. What the
@@ -55,7 +61,7 @@ def chart_tile(kind: str, z: int, x: int, y: int) -> Response:
     cached on disk; the same tiles the detector reads. A tile pyramid is
     what makes each chart a plain Leaflet tile layer: edge-only fetches
     on a pan, the previous zoom's tiles scaled under the zoom animation,
-    a prefetch ring. 404 where no sheet covers the tile, which the layer
+    a prefetch ring. 204 where no sheet covers the tile, which the layer
     leaves blank. The sectional and the TAC had routes of their own
     under older names, which nothing called any more."""
     if kind not in charts.KINDS:

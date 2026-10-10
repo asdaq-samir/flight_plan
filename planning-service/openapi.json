@@ -8842,7 +8842,7 @@
     },
     "/api/chart-tile/{kind}/{z}/{x}/{y}.png": {
       "get": {
-        "description": "Any kind of chart by its key (`chart_layers` on the course lists\nthem): `sec`, `tac`, `ifr_low`, `ifr_high`, `ifr_area`. What the\nmap's layers draw from.\n\nThe FAA's own GeoTIFF of each sheet, rendered into a {z}/{x}/{y} tile\npyramid (vfr.charts -- downloaded once per 56-day chart cycle) and\ncached on disk; the same tiles the detector reads. A tile pyramid is\nwhat makes each chart a plain Leaflet tile layer: edge-only fetches\non a pan, the previous zoom's tiles scaled under the zoom animation,\na prefetch ring. 404 where no sheet covers the tile, which the layer\nleaves blank. The sectional and the TAC had routes of their own\nunder older names, which nothing called any more.",
+        "description": "Any kind of chart by its key (`chart_layers` on the course lists\nthem): `sec`, `tac`, `ifr_low`, `ifr_high`, `ifr_area`. What the\nmap's layers draw from.\n\nThe FAA's own GeoTIFF of each sheet, rendered into a {z}/{x}/{y} tile\npyramid (vfr.charts -- downloaded once per 56-day chart cycle) and\ncached on disk; the same tiles the detector reads. A tile pyramid is\nwhat makes each chart a plain Leaflet tile layer: edge-only fetches\non a pan, the previous zoom's tiles scaled under the zoom animation,\na prefetch ring. 204 where no sheet covers the tile, which the layer\nleaves blank. The sectional and the TAC had routes of their own\nunder older names, which nothing called any more.",
         "operationId": "chart_tile_api_chart_tile__kind___z___x___y__png_get",
         "parameters": [
           {
@@ -8887,9 +8887,13 @@
             "content": {
               "application/json": {
                 "schema": {}
-              }
+              },
+              "image/png": {}
             },
             "description": "Successful Response"
+          },
+          "204": {
+            "description": "No sheet covers the tile"
           },
           "422": {
             "content": {

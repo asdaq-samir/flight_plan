@@ -200,8 +200,14 @@ export const useOwnShip = create<OwnShip>()(
 /**
  * The planner opened fresh, on no route: the map on the pilot's position,
  * as Maps opens on yours -- own ship on and the map brought to it
- * (OwnShipLayer), the browser asking first if it has not been told. Not
- * where this site has been refused the position, which is not asked
+ * (OwnShipLayer) -- where the position has been given before: the
+ * browser says it is granted, or this browser has had a fix (`lastFix`,
+ * kept), as Safari, which asks again on a later day, does not say. On a
+ * first visit nothing is asked as the page opens, at the pilot's ask and
+ * as Apple's guidelines have it (ask for location when it is needed):
+ * the map is on the country, and the location arrow asks. A prompt on
+ * opening was also a mark against the page in Lighthouse's best
+ * practices. Not where this site has been refused, which is not asked
  * again; and quietly: a refusal now leaves own ship off, the map on the
  * country, with no error over it (a tap on the arrow still says why).
  */
@@ -210,6 +216,7 @@ export async function locateOnOpen() {
   const permission = await navigator.permissions?.query({ name: "geolocation" })
     .then(status => status.state).catch(() => "prompt" as const) ?? "prompt";
   if (permission === "denied") return;
+  if (permission !== "granted" && !useOwnShip.getState().lastFix) return;
   const { enabled, setEnabled, recentre } = useOwnShip.getState();
   if (!enabled) {
     quiet = true;

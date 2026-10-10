@@ -424,13 +424,13 @@ export const api = {
 
   /**
    * The signed-in pilot, or null when signed out -- a Spring Boot
-   * endpoint, not proxied through the planner. A 401 here is the normal
-   * signed-out case, not a failure, so this resolves to null instead of
-   * throwing.
+   * endpoint, not proxied through the planner. Signed out it answers 204,
+   * nothing (PilotController); a 401, from a server before that, is the
+   * same answer, so this resolves to null instead of throwing.
    */
   async me(): Promise<Pilot | null> {
     try {
-      return await webapp.GET("/api/me").then(data<Pilot>);
+      return (await webapp.GET("/api/me").then(data<Pilot>)) ?? null;
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) return null;
       throw err;

@@ -330,3 +330,22 @@ def test_a_failure_is_held_for_the_dev_console_with_its_words(monkeypatch):
     held = errors.recent()
     assert [(e["path"].split("?")[0], e["status"]) for e in held] == [("/api/tfrs", 502)]
     assert held[0]["detail"].startswith("Bad gateway")
+
+
+# --- /api/chart-tile ---
+
+
+def test_a_chart_tile_no_sheet_covers_is_an_empty_204_kept_as_long_as_a_drawn_one(monkeypatch):
+    # It was a 404: an error in the browser's console for every tile of sea
+    # or Canada round the country as the planner opens.
+    from vfr import charts
+    monkeypatch.setattr(charts, "tile_png", lambda x, y, z, kind: None)
+    empty = client.get("/api/chart-tile/sec/4/1/8.png")
+    assert empty.status_code == 204 and empty.content == b""
+    monkeypatch.setattr(charts, "tile_png", lambda x, y, z, kind: b"\x89PNG")
+    drawn = client.get("/api/chart-tile/sec/4/3/6.png")
+    assert drawn.status_code == 200 and drawn.headers["content-type"] == "image/png"
+    assert empty.headers["cache-control"] == drawn.headers["cache-control"]
+    # Outside the chart's zooms, and a kind there is none of, are still 404s.
+    assert client.get("/api/chart-tile/sec/2/0/0.png").status_code == 404
+    assert client.get("/api/chart-tile/wac/4/3/6.png").status_code == 404

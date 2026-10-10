@@ -90,7 +90,7 @@ class SecurityRulesWithSignInTest {
      *  sessions kept in Postgres for 30 days, a row there for each. */
     @Test
     void aRefusedRequestIsNotSavedForLater() throws Exception {
-        mockMvc.perform(get("/api/me"))
+        mockMvc.perform(get("/api/flights"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(result -> {
                     var session = result.getRequest().getSession(false);

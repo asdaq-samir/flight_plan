@@ -131,11 +131,45 @@ test("opened fresh, the map is on the pilot's position in the middle of what the
   await expect(page.locator('[data-own-ship="on"]')).toHaveCount(0);
 });
 
-test("opened fresh with no position to have, the map stays on the country and nothing complains", async ({ page }) => {
+/** Counts the page's asks for the position, on window.__asks. */
+async function countAsks(page: Page) {
+  await page.addInitScript(() => {
+    const w = window as unknown as { __asks: number };
+    w.__asks = 0;
+    for (const name of ["watchPosition", "getCurrentPosition"] as const) {
+      const own = Geolocation.prototype[name];
+      Geolocation.prototype[name] = function (this: Geolocation, ...args: Parameters<typeof own>) {
+        w.__asks++;
+        return (own as (...a: unknown[]) => number | void).apply(this, args);
+      } as typeof own;
+    }
+  });
+  return () => page.evaluate(() => (window as unknown as { __asks: number }).__asks);
+}
+
+test("opened fresh with no position to have, the map stays on the country, nothing is asked as it opens and nothing complains; the location arrow asks", async ({ page }) => {
+  const asks = await countAsks(page);
   await page.goto("/app/plan");
   await settle(page);
   await expect(page.getByTestId("my-position-button")).toHaveAttribute("aria-pressed", "false", { timeout: slow(10_000) });
   await expect(page.getByTestId("error-alert")).toHaveCount(0);
+  // A first visit is asked nothing as the page opens (ownShip's
+  // locateOnOpen): Apple's guidelines ask for location when it is needed,
+  // and Lighthouse marks a prompt on load.
+  expect(await asks()).toBe(0);
+  await page.locator("[data-map-controls]").getByTestId("my-position-button").click();
+  await expect.poll(asks).toBe(1);
+});
+
+test("opened fresh where the position was given before, it is asked for again as the page opens", async ({ page }) => {
+  // A fix kept from an earlier visit, as Safari, which asks again on a
+  // later day, leaves the permission at "prompt".
+  await page.addInitScript(() => localStorage.setItem("vfr.ownship",
+    JSON.stringify({ state: { enabled: false, follow: true, lastFix: { lat: 42.325, lon: -88.074 } }, version: 0 })));
+  const asks = await countAsks(page);
+  await page.goto("/app/plan");
+  await settle(page);
+  await expect.poll(asks, { timeout: slow(10_000) }).toBe(1);
 });
 
 test("a route entered is fitted above the half sheet, to the whole screen at the capsule, and above the sheet again", async ({ page }) => {

@@ -1540,7 +1540,7 @@
         "tags" : [ "pilot-controller" ]
       },
       "get" : {
-        "description" : "Creates the pilot record on first sign-in. 401 when no session exists.",
+        "description" : "Creates the pilot record on first sign-in. 204, with nothing, when no one is signed in: the ordinary answer for a signed-out page, not a refusal.",
         "operationId" : "me",
         "responses" : {
           "200" : {
@@ -1553,7 +1553,7 @@
             },
             "description" : "The signed-in pilot"
           },
-          "401" : {
+          "204" : {
             "content" : {
               "*/*" : {
                 "schema" : {
@@ -1561,7 +1561,7 @@
                 }
               }
             },
-            "description" : "No session"
+            "description" : "No one is signed in"
           }
         },
         "summary" : "The signed-in pilot",

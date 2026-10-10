@@ -42,17 +42,18 @@ public class PilotController {
     }
 
     @Operation(summary = "The signed-in pilot",
-            description = "Creates the pilot record on first sign-in. 401 when no session exists.")
+            description = "Creates the pilot record on first sign-in. 204, with nothing, when no one is signed in: "
+                    + "the ordinary answer for a signed-out page, not a refusal.")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "The signed-in pilot"),
-        @ApiResponse(responseCode = "401", description = "No session")
+        @ApiResponse(responseCode = "204", description = "No one is signed in")
     })
     @GetMapping
     public ResponseEntity<PilotDto> me(Authentication authentication) {
         return pilots.current(authentication)
                 .map(PilotController::toDto)
                 .map(ResponseEntity::ok)
-                .orElseGet(() -> ResponseEntity.status(401).build());
+                .orElseGet(() -> ResponseEntity.noContent().build());
     }
 
     @Operation(summary = "Delete the signed-in pilot's account",

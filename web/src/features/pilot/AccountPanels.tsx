@@ -52,6 +52,13 @@ const optionalPercent = (label: string) => z.string().trim().refine(
 /** A form field as the request carries it: blank is null. */
 const orNull = (value: string) => (value.trim() ? Number(value) : null);
 
+// Zod checks once whether it may compile its parsers with Function(),
+// which the page's Content-Security-Policy (script-src 'self', no eval)
+// refuses -- and the refusal is a violation the browser reports, which
+// Lighthouse's best practices count. Its parsers without that work the
+// same, a little slower on schemas far bigger than these.
+z.config({ jitless: true });
+
 const aircraftSchema = z.object({
   // The server's limits, which are the columns': longer was refused there
   // as though it were a tail number already on file.
