@@ -1290,6 +1290,87 @@ class TerminalChart(BaseModel):
     url: str
 
 
+class ProcedureSummary(BaseModel):
+    """One of a field's instrument procedures in the FAA's CIFP
+    (vfr.procedures): `id` its coded identifier ("I08-Y"), `name` its
+    chart's title ("ILS Y RWY 08"), `runway` an approach's, and the
+    transitions a pilot picks from -- an approach's, an arrival's or a
+    departure's enroute ones -- and an arrival's or departure's runway
+    transitions, which are drawn with it."""
+
+    kind: Literal["approach", "arrival", "departure"]
+    id: str
+    name: str
+    runway: str | None = None
+    transitions: list[str]
+    runway_transitions: list[str]
+
+
+class ProcedureList(BaseModel):
+    """A field's instrument procedures, approaches first, from the CIFP
+    of the AIRAC cycle that took effect on `cycle` (YYMMDD); none for a
+    field with none."""
+
+    airport: str
+    cycle: str
+    procedures: list[ProcedureSummary]
+
+
+class ProcedureLine(BaseModel):
+    """A line of a drawn procedure, its points latitude and longitude:
+    an approach's `transition`, its `final` and its `missed` approach; an
+    arrival's or departure's enroute `transition`, `common` route, or a
+    `runway` transition, `name` the transition's ("RW08")."""
+
+    role: Literal["transition", "final", "missed", "common", "runway"]
+    name: str | None = None
+    points: list[tuple[float, float]]
+
+
+class ProcedureHold(BaseModel):
+    """A holding pattern of a drawn procedure: at `fix`, its inbound
+    course `inbound_deg` true, its turns right or left (`turn`), drawn to
+    a light airplane's size (vfr.procedures.HOLD_SPEED_KT)."""
+
+    fix: str
+    turn: Literal["L", "R"]
+    inbound_deg: int
+    missed: bool
+    points: list[tuple[float, float]]
+
+
+class ProcedureFix(BaseModel):
+    """A fix of a drawn procedure: its `roles` on an approach (IAF, IF,
+    FAF, MAP, hold), the altitudes it is crossed at -- at or above
+    `min_ft`, at or below `max_ft`, at both where they are one -- and the
+    speed it is crossed at or below. `missed` where it is on the missed
+    approach alone."""
+
+    ident: str
+    lat: float
+    lon: float
+    roles: list[str]
+    min_ft: int | None = None
+    max_ft: int | None = None
+    speed_kt: int | None = None
+    missed: bool
+
+
+class ProcedureDrawing(BaseModel):
+    """One procedure drawn with the transition picked (vfr.procedures):
+    its lines, holds and fixes, from the CIFP of `cycle`."""
+
+    airport: str
+    kind: Literal["approach", "arrival", "departure"]
+    id: str
+    name: str
+    transition: str | None = None
+    cycle: str
+    lines: list[ProcedureLine]
+    holds: list[ProcedureHold]
+    fixes: list[ProcedureFix]
+
+
 class ChartPage(BaseModel):
     """One page of one of the FAA's charts, to show in the app: its
     picture is /api/faa-chart/page/{source}/{edition}/{pdf}/{page}.png,

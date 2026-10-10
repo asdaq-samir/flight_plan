@@ -5,7 +5,7 @@ import { Badge } from "../../../components/ui/badge";
 import { useQuery } from "@tanstack/react-query";
 import { classBQuery } from "../../../lib/queryClient";
 import { pointName } from "../../../lib/identSchema";
-import type { Candidate, ClassBAirport, Course, Leg } from "../../../lib/api/types";
+import type { Candidate, ClassBAirport, Course, Leg, ProcedureDrawing } from "../../../lib/api/types";
 import type { BriefingState } from "../hooks/usePlan";
 import type { AirportWeather } from "../../../lib/map/AirportCard";
 import { AirportsLayer } from "../../../lib/map/AirportsLayer";
@@ -13,10 +13,13 @@ import NearestButton from "../../../components/NearestButton";
 import { WaypointsLayer } from "../../../lib/map/WaypointsLayer";
 import { TfrLayer } from "../../../lib/map/TfrLayer";
 import { PatternLayer } from "../../../lib/map/PatternLayer";
+import { ProcedureLayer } from "../../../lib/map/ProcedureLayer";
+import { proceduresOf, sameField } from "../../../lib/procedures";
 import type { TrafficPattern } from "../../../lib/trafficPattern";
 
 const NO_PATTERNS: TrafficPattern[] = [];
 const NO_POINTS: { lat: number; lon: number }[] = [];
+const NO_PROCEDURES: ProcedureDrawing[] = [];
 import { chipColourOf } from "../../../lib/map/flightCategory";
 import { CourseLine } from "../../../lib/map/CourseLine";
 import { FlownTrackLayer } from "../../../lib/map/FlownTrackLayer";
@@ -56,6 +59,11 @@ interface Props {
   patterns?: TrafficPattern[];
   /** The one just picked ("KDLH:27:<when>"), for the map to go to it. */
   patternFocus?: string | null;
+  /** The instrument procedures picked there, as the planner draws them. */
+  procedures?: ProcedureDrawing[];
+  /** The one just picked ("KBUR:I08-Y:LAX@<when>"), for the map to go to
+   *  it once it is drawn. */
+  procedureFocus?: string | null;
   /** The airport whose card is open, and the way to open one from the
    *  chart (AirportsLayer) -- or, with null, to put it away. */
   place: { ident: string; lat: number; lon: number } | null;
@@ -411,6 +419,7 @@ const PLACE_ZOOM = 9;
 export default memo(function RouteMap({
   course, candidates, selected, focus, onSelectCandidate, onSelectPoint,
   airportWeather, place, onSelectPlace, onAddStop, legs, heldPoint, onHoldPoint, nearest = null, onNearest, patterns = NO_PATTERNS, patternFocus = null,
+  procedures = NO_PROCEDURES, procedureFocus = null,
 }: Props) {
   const focusZoom = course?.max_zoom ?? 12;
   // The pattern just picked, its corners and its entry, to bring in.
@@ -419,6 +428,12 @@ export default memo(function RouteMap({
     const p = patterns.find(q => q.ident === ident && q.runway === end);
     return p ? [...p.legs.map(l => l.from), p.entry.from] : NO_POINTS;
   }, [patterns, patternFocus]);
+  // The procedure just picked, every line and hold of it, to bring in.
+  const focusedProcedure = useMemo(() => {
+    const picked = proceduresOf((procedureFocus ?? "").split("@")[0] ?? null)[0];
+    const d = picked && procedures.find(q => sameField(q.airport, picked.ident) && q.id === picked.id && q.transition === picked.transition);
+    return d ? [...d.lines, ...d.holds].flatMap(l => l.points.map(([lat, lon]) => ({ lat, lon }))) : NO_POINTS;
+  }, [procedures, procedureFocus]);
   // Nearest among the map's buttons on its left, one element while its
   // callback is the same.
   const nearestButton = useMemo(() => <NearestButton onOpen={onNearest} />, [onNearest]);
@@ -475,6 +490,9 @@ export default memo(function RouteMap({
           {/* A saved flight's flown track over it, from its debrief. */}
           <FlownTrackLayer course={course} />
           <PatternLayer patterns={patterns} />
+          <ProcedureLayer drawings={procedures} />
+          {/* A procedure just picked, all of it in sight clear of the panel. */}
+          <FitTo points={focusedProcedure} fitKey={focusedProcedure.length ? procedureFocus : null} maxZoom={12} />
           {/* A pattern just picked, all of it in sight clear of the panel. */}
           <FitTo points={focusedPattern} fitKey={focusedPattern.length ? patternFocus : null} maxZoom={13} />
           <Endpoints course={course} weather={airportWeather} onSelectPoint={onSelectPoint} onSelectPlace={onSelectPlace} />

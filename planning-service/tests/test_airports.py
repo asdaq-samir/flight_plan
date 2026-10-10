@@ -434,3 +434,45 @@ def test_turf_is_found_under_the_faa_identifier_of_a_k_ident(monkeypatch):
     monkeypatch.setattr(remarks, "runway_turf", turf)
     runway = client.get("/api/airport/KDLH").json()["runways"][0]
     assert "DLH" in asked and runway["turf"] == [{"end": "6", "from_ft": 0, "to_ft": 1000}]
+
+
+def test_a_fields_procedures_are_listed_and_one_drawn_from_the_cifp(monkeypatch):
+    from vfr import procedures
+
+    listed = {"airport": "KBUR", "cycle": "261001", "procedures": [{
+        "kind": "approach", "id": "I08-Y", "name": "ILS Y RWY 08", "runway": "08",
+        "transitions": ["LAX"], "runway_transitions": [],
+    }]}
+    drawn = {
+        "airport": "KBUR", "kind": "approach", "id": "I08-Y", "name": "ILS Y RWY 08", "transition": "LAX", "cycle": "261001",
+        "lines": [{"role": "transition", "name": "LAX", "points": [[33.93, -118.43], [34.2, -118.61]]}],
+        "holds": [{"fix": "SILEX", "turn": "R", "inbound_deg": 91, "missed": False, "points": [[34.2, -118.61], [34.19, -118.6]]}],
+        "fixes": [{"ident": "SILEX", "lat": 34.2, "lon": -118.61, "roles": ["IAF"], "min_ft": 3700, "max_ft": None,
+                   "speed_kt": None, "missed": False}],
+    }
+    asked = []
+    monkeypatch.setattr(procedures, "procedures_at", lambda ident: listed if ident == "KBUR" else None)
+
+    def drawing(ident, proc, transition=None):
+        asked.append((ident, proc, transition))
+        return drawn if proc == "I08-Y" else None
+    monkeypatch.setattr(procedures, "procedure_drawing", drawing)
+
+    assert client.get("/api/airport/KBUR/procedures").json() == listed
+    # A field with none has an empty list, not a 404: most small ones.
+    none = client.get("/api/airport/C81/procedures").json()
+    assert none["airport"] == "C81" and none["procedures"] == []
+    got = client.get("/api/airport/KBUR/procedures/I08-Y", params={"transition": "LAX"})
+    assert got.status_code == 200 and got.json()["holds"][0]["fix"] == "SILEX"
+    assert asked == [("KBUR", "I08-Y", "LAX")]
+    assert client.get("/api/airport/KBUR/procedures/I99").status_code == 404
+
+
+def test_the_procedures_say_when_the_faas_file_cannot_be_had(monkeypatch):
+    from vfr import procedures
+
+    def unreachable(ident):
+        raise RuntimeError("Download of the CIFP failed")
+    monkeypatch.setattr(procedures, "procedures_at", unreachable)
+    got = client.get("/api/airport/KBUR/procedures")
+    assert got.status_code == 503 and "could not be had" in got.json()["detail"]

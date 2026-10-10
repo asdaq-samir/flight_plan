@@ -5903,6 +5903,334 @@
         "title": "Plan",
         "type": "object"
       },
+      "ProcedureDrawing": {
+        "description": "One procedure drawn with the transition picked (vfr.procedures):\nits lines, holds and fixes, from the CIFP of `cycle`.",
+        "properties": {
+          "airport": {
+            "title": "Airport",
+            "type": "string"
+          },
+          "cycle": {
+            "title": "Cycle",
+            "type": "string"
+          },
+          "fixes": {
+            "items": {
+              "$ref": "#/components/schemas/ProcedureFix"
+            },
+            "title": "Fixes",
+            "type": "array"
+          },
+          "holds": {
+            "items": {
+              "$ref": "#/components/schemas/ProcedureHold"
+            },
+            "title": "Holds",
+            "type": "array"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "approach",
+              "arrival",
+              "departure"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/ProcedureLine"
+            },
+            "title": "Lines",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "transition": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transition"
+          }
+        },
+        "required": [
+          "airport",
+          "kind",
+          "id",
+          "name",
+          "cycle",
+          "lines",
+          "holds",
+          "fixes"
+        ],
+        "title": "ProcedureDrawing",
+        "type": "object"
+      },
+      "ProcedureFix": {
+        "description": "A fix of a drawn procedure: its `roles` on an approach (IAF, IF,\nFAF, MAP, hold), the altitudes it is crossed at -- at or above\n`min_ft`, at or below `max_ft`, at both where they are one -- and the\nspeed it is crossed at or below. `missed` where it is on the missed\napproach alone.",
+        "properties": {
+          "ident": {
+            "title": "Ident",
+            "type": "string"
+          },
+          "lat": {
+            "title": "Lat",
+            "type": "number"
+          },
+          "lon": {
+            "title": "Lon",
+            "type": "number"
+          },
+          "max_ft": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Ft"
+          },
+          "min_ft": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Ft"
+          },
+          "missed": {
+            "title": "Missed",
+            "type": "boolean"
+          },
+          "roles": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Roles",
+            "type": "array"
+          },
+          "speed_kt": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Speed Kt"
+          }
+        },
+        "required": [
+          "ident",
+          "lat",
+          "lon",
+          "roles",
+          "missed"
+        ],
+        "title": "ProcedureFix",
+        "type": "object"
+      },
+      "ProcedureHold": {
+        "description": "A holding pattern of a drawn procedure: at `fix`, its inbound\ncourse `inbound_deg` true, its turns right or left (`turn`), drawn to\na light airplane's size (vfr.procedures.HOLD_SPEED_KT).",
+        "properties": {
+          "fix": {
+            "title": "Fix",
+            "type": "string"
+          },
+          "inbound_deg": {
+            "title": "Inbound Deg",
+            "type": "integer"
+          },
+          "missed": {
+            "title": "Missed",
+            "type": "boolean"
+          },
+          "points": {
+            "items": {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            "title": "Points",
+            "type": "array"
+          },
+          "turn": {
+            "enum": [
+              "L",
+              "R"
+            ],
+            "title": "Turn",
+            "type": "string"
+          }
+        },
+        "required": [
+          "fix",
+          "turn",
+          "inbound_deg",
+          "missed",
+          "points"
+        ],
+        "title": "ProcedureHold",
+        "type": "object"
+      },
+      "ProcedureLine": {
+        "description": "A line of a drawn procedure, its points latitude and longitude:\nan approach's `transition`, its `final` and its `missed` approach; an\narrival's or departure's enroute `transition`, `common` route, or a\n`runway` transition, `name` the transition's (\"RW08\").",
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "points": {
+            "items": {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            "title": "Points",
+            "type": "array"
+          },
+          "role": {
+            "enum": [
+              "transition",
+              "final",
+              "missed",
+              "common",
+              "runway"
+            ],
+            "title": "Role",
+            "type": "string"
+          }
+        },
+        "required": [
+          "role",
+          "points"
+        ],
+        "title": "ProcedureLine",
+        "type": "object"
+      },
+      "ProcedureList": {
+        "description": "A field's instrument procedures, approaches first, from the CIFP\nof the AIRAC cycle that took effect on `cycle` (YYMMDD); none for a\nfield with none.",
+        "properties": {
+          "airport": {
+            "title": "Airport",
+            "type": "string"
+          },
+          "cycle": {
+            "title": "Cycle",
+            "type": "string"
+          },
+          "procedures": {
+            "items": {
+              "$ref": "#/components/schemas/ProcedureSummary"
+            },
+            "title": "Procedures",
+            "type": "array"
+          }
+        },
+        "required": [
+          "airport",
+          "cycle",
+          "procedures"
+        ],
+        "title": "ProcedureList",
+        "type": "object"
+      },
+      "ProcedureSummary": {
+        "description": "One of a field's instrument procedures in the FAA's CIFP\n(vfr.procedures): `id` its coded identifier (\"I08-Y\"), `name` its\nchart's title (\"ILS Y RWY 08\"), `runway` an approach's, and the\ntransitions a pilot picks from -- an approach's, an arrival's or a\ndeparture's enroute ones -- and an arrival's or departure's runway\ntransitions, which are drawn with it.",
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "approach",
+              "arrival",
+              "departure"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "runway": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Runway"
+          },
+          "runway_transitions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Runway Transitions",
+            "type": "array"
+          },
+          "transitions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Transitions",
+            "type": "array"
+          }
+        },
+        "required": [
+          "kind",
+          "id",
+          "name",
+          "transitions",
+          "runway_transitions"
+        ],
+        "title": "ProcedureSummary",
+        "type": "object"
+      },
       "ProfileAirspace": {
         "description": "A Class B, C or D the route passes through: where along it, from\nits floor to its ceiling (feet MSL; the ceiling None where the FAA's\nfile has none).",
         "properties": {
@@ -7966,6 +8294,120 @@
           }
         },
         "summary": "Airport Place"
+      }
+    },
+    "/api/airport/{ident}/procedures": {
+      "get": {
+        "description": "The field's instrument procedures -- its approaches, arrivals and\ndepartures, with the transitions of each -- from the FAA's CIFP for\nthe AIRAC cycle in force (vfr.procedures), for the route's Procedures\nto offer. None for a field the CIFP has none for, as most small ones.",
+        "operationId": "airport_procedures_api_airport__ident__procedures_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ident",
+            "required": true,
+            "schema": {
+              "title": "Ident",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProcedureList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "503": {
+            "description": "The FAA's procedure file could not be had"
+          }
+        },
+        "summary": "Airport Procedures"
+      }
+    },
+    "/api/airport/{ident}/procedures/{procedure}": {
+      "get": {
+        "description": "One of the field's procedures drawn for the map, with the\ntransition picked (`transition`, one of its `transitions`; none for an\napproach from vectors): its lines, holds and fixes, each fix with the\naltitudes and speed it is crossed at (vfr.procedures.procedure_drawing).",
+        "operationId": "airport_procedure_api_airport__ident__procedures__procedure__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ident",
+            "required": true,
+            "schema": {
+              "title": "Ident",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "procedure",
+            "required": true,
+            "schema": {
+              "title": "Procedure",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "transition",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Transition"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProcedureDrawing"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "No such procedure at the field"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "503": {
+            "description": "The FAA's procedure file could not be had"
+          }
+        },
+        "summary": "Airport Procedure"
       }
     },
     "/api/airports/in-view": {
