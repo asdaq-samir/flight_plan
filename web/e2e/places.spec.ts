@@ -12,10 +12,11 @@ const card = (page: Page) => sideDrawer(page).getByTestId("place-card");
 
 /** The card's answer for `ident` with its weather as given: its own
  *  report, or none and the nearest station's. */
-async function cardWeather(page: Page, ident: string, weather: { metar?: object | null; nearby_metar?: object | null }) {
+async function cardWeather(page: Page, ident: string, weather: { metar?: object | null; nearby_metar?: object | null; modelled_weather?: object | null }) {
   await page.route(url => url.pathname.endsWith(`/api/planner/airport/${ident}`), async route => {
     const answer = await route.fetch();
-    await route.fulfill({ response: answer, json: { ...(await answer.json()), weather_unavailable: false, ...weather } });
+    // Nothing modelled unless the test says: NOMADS' hour is not the suite's.
+    await route.fulfill({ response: answer, json: { ...(await answer.json()), weather_unavailable: false, modelled_weather: null, ...weather } });
   });
 }
 
@@ -85,6 +86,30 @@ test("a field with no report wears the nearest station's category as \"≈\" wit
   await expect(card(page).getByTestId("place-name")).toBeVisible({ timeout: slow(15000) });
   await expect(card(page).getByTestId("place-runway-sketch")).toBeVisible();
   await expect(card(page).getByTestId("place-category")).toHaveCount(0);
+});
+test("a field with no report wears the category modelled there, before a near station's, and its Weather tab says it is a model's", async ({ page }) => {
+  const nearby = {
+    ident: "KUGN", distance_nm: 6.2, bearing_deg: 70, near: true,
+    metar: { raw: "KUGN 102152Z 18006KT 10SM BKN025 14/06 A3002", flight_category: "MVFR", observed_at: new Date().toISOString() },
+  };
+  const modelled = { ceiling_ft: 900, visibility_sm: 4, flight_category: "IFR", valid_at: "2026-10-10T22:00:00Z" };
+  await cardWeather(page, "C81", { metar: null, nearby_metar: nearby, modelled_weather: modelled });
+  await page.goto("/app/plan?place=C81");
+  await settle(page);
+  const chip = card(page).getByTestId("place-category");
+  await expect(chip).toContainText("≈IFR", { timeout: slow(15000) });
+  await expect(chip.locator(".sr-only")).toHaveText("About IFR, modelled for this field by the National Weather Service, not a report");
+  await grabberTo(page, "full");
+  await card(page).getByTestId("place-tab-weather").click();
+  const model = card(page).getByTestId("place-modelled-weather");
+  await expect(model).toContainText("Modelled for the hour");
+  await expect(model).toContainText("IFR");
+  await expect(model).toContainText("900 ft");
+  await expect(model).toContainText("4 sm");
+  await expect(model).toContainText("Gridded LAMP for 2200Z");
+  await expect(model).toContainText("not an observation");
+  // The near station's report is still there, under it.
+  await expect(card(page).getByTestId("place-nearby-metar")).toContainText("KUGN 102152Z");
 });
 test("an airport's card calls the field and finds it in Maps, from the FAA's airport file", async ({ page }) => {
   await page.route(url => url.pathname.endsWith("/api/planner/airport/KDLH"), async route => {

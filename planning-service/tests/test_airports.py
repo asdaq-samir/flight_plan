@@ -5,7 +5,7 @@ import gzip
 import json
 
 from fastapi.testclient import TestClient
-from vfr import airports, airspace, faa_data, geocode, pattern, publications, remarks, weather
+from vfr import airports, airspace, faa_data, geocode, glmp, pattern, publications, remarks, weather
 
 from app.main import app
 
@@ -17,7 +17,7 @@ DULUTH = {
 }
 
 
-def stub_place(monkeypatch, place=DULUTH, frequencies=(), runways=(), metar=None, surface_class="C", nearby=None):
+def stub_place(monkeypatch, place=DULUTH, frequencies=(), runways=(), metar=None, surface_class="C", nearby=None, modelled=None):
     monkeypatch.setattr(airports, "find_place", lambda ident: place if ident.upper() in ("KDLH", "DLH") else None)
     monkeypatch.setattr(airports, "get_frequencies", lambda ident: list(frequencies))
     monkeypatch.setattr(airports, "get_runways", lambda ident: list(runways))
@@ -35,6 +35,12 @@ def stub_place(monkeypatch, place=DULUTH, frequencies=(), runways=(), metar=None
     else:
         monkeypatch.setattr(weather, "metar_for_idents", lambda idents: {i: metar for i in idents})
     monkeypatch.setattr(weather, "nearest_report", lambda lat, lon, exclude=None: nearby)
+    if isinstance(modelled, Exception):
+        def down(lat, lon):
+            raise modelled
+        monkeypatch.setattr(glmp, "at", down)
+    else:
+        monkeypatch.setattr(glmp, "at", lambda lat, lon: modelled)
 
 
 def test_an_airports_card_names_its_class_tower_runways_radio_and_weather(monkeypatch):
@@ -73,6 +79,19 @@ def test_a_field_with_no_station_is_given_its_nearest_report(monkeypatch):
     # A field with a report of its own is given none.
     stub_place(monkeypatch, metar={"raw": "KDLH 102155Z 27008KT 10SM CLR", "flight_category": "VFR"}, nearby=nearby)
     assert client.get("/api/airport/KDLH").json()["nearby_metar"] is None
+
+
+def test_a_field_with_no_station_is_given_the_weather_modelled_there(monkeypatch):
+    modelled = {"ceiling_ft": 1800.0, "visibility_sm": 10.0, "flight_category": "MVFR", "valid_at": "2026-10-10T21:00Z"}
+    stub_place(monkeypatch, modelled=modelled)
+    assert client.get("/api/airport/KDLH").json()["modelled_weather"] == modelled
+    # Not where the field reports its own.
+    stub_place(monkeypatch, metar={"raw": "KDLH 102155Z 27008KT 10SM CLR", "flight_category": "VFR"}, modelled=modelled)
+    assert client.get("/api/airport/KDLH").json()["modelled_weather"] is None
+    # NOMADS out: the card all the same, with none.
+    stub_place(monkeypatch, modelled=glmp.GlmpUnavailable("down"))
+    body = client.get("/api/airport/KDLH").json()
+    assert body["modelled_weather"] is None and body["name"] == "Duluth International Airport"
 
 
 def test_a_field_with_no_tower_or_station_says_so_rather_than_failing(monkeypatch):

@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
-import { Cloud, Eye, Gauge, Lightbulb, Loader2, MapPin, MapPinPlus, Phone, PlaneLanding, PlaneTakeoff, Radio, Repeat, Route, Star, Thermometer, Wind } from "lucide-react";
+import { Cloud, CloudSun, Eye, Gauge, Lightbulb, Loader2, MapPin, MapPinPlus, Phone, PlaneLanding, PlaneTakeoff, Radio, Repeat, Route, Star, Thermometer, Wind } from "lucide-react";
 import DirectToIcon from "../../../components/DirectToIcon";
 import { cn } from "cn";
 import { useKeptAirport, usePreferences } from "../../../lib/preferences";
@@ -67,11 +67,17 @@ function windLine(metar: NonNullable<AirportPlace["metar"]>): string {
   return `${from} at ${Math.round(metar.wind_speed_kt)} kt${metar.wind_gust_kt ? `, gusts ${Math.round(metar.wind_gust_kt)}` : ""}`;
 }
 
+/** A time as reports give it: "1255Z". */
+function zuluOf(at: string): string {
+  const when = new Date(at);
+  return Number.isNaN(when.getTime()) ? "" : `${String(when.getUTCHours()).padStart(2, "0")}${String(when.getUTCMinutes()).padStart(2, "0")}Z`;
+}
+
 /** When the report was made: "Observed 1255Z, 14 minutes ago". */
 function observedLine(at: string, wind = true): string {
   const when = new Date(at);
   if (Number.isNaN(when.getTime())) return "";
-  const zulu = `${String(when.getUTCHours()).padStart(2, "0")}${String(when.getUTCMinutes()).padStart(2, "0")}Z`;
+  const zulu = zuluOf(at);
   const minutes = Math.max(0, Math.round((Date.now() - when.getTime()) / 60_000));
   const ago = minutes < 1 ? "just now" : minutes < 90 ? `${minutes} minute${minutes === 1 ? "" : "s"} ago` : `${Math.round(minutes / 60)} hours ago`;
   return `Observed ${zulu}, ${ago}.${wind ? " Wind true, as reported." : ""}`;
@@ -338,10 +344,18 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
   const nearby = place && !metar ? place.nearby_metar ?? null : null;
   const nearbyCategory = nearby?.metar.flight_category ?? null;
   const nearCategory = nearby?.near ? nearbyCategory : null;
+  // And the weather the National Weather Service's Gridded LAMP models at
+  // the field itself for the hour (vfr.glmp), at the pilot's ask: the
+  // chip's before a near station's, the model being of this field.
+  const modelled = place && !metar ? place.modelled_weather ?? null : null;
   // A flight category only, at the pilot's ask: its own, or with none the
-  // nearest station's marked "≈" -- and none at all where neither is had,
-  // the Weather tab saying why. Under the star, in the column of buttons.
-  const category = weather?.category ?? nearCategory;
+  // modelled one or the nearest station's, marked "≈" -- and none at all
+  // where neither is had, the Weather tab saying why. Under the star, in
+  // the column of buttons.
+  const approximate = modelled
+    ? { category: modelled.flight_category, said: "modelled for this field by the National Weather Service, not a report" }
+    : nearCategory ? { category: nearCategory, said: `from the report of ${nearby?.ident}, another station, not this field's own` } : null;
+  const category = weather?.category ?? approximate?.category ?? null;
   const chipColour = category ? chipColourOf({ status: "reported", category }) : null;
   const chip = category && chipColour && (
     <span
@@ -359,7 +373,7 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
           {/* Words for VoiceOver, which may read a bare "≈" as a symbol;
               an aria-label on a role-less span may be ignored. */}
           <span aria-hidden className="flex flex-col items-center"><span>≈</span><span>{category}</span></span>
-          <span className="sr-only">About {category}, from the report of {nearby?.ident}, another station, not this field's own</span>
+          <span className="sr-only">About {category}, {approximate?.said}</span>
         </>
       )}
     </span>
@@ -634,9 +648,34 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
                 <ListRow title={place.weather_unavailable ? "The weather service could not be reached" : "No weather station reports from this field"} />
               )}
             </ListGroup>
+            {/* For one with no report of its own, the weather modelled at
+                it for the hour (vfr.glmp): its category -- the card's "≈"
+                chip -- ceiling and visibility, and that it is a model's. */}
+            {modelled && (
+              <div className="pt-5" data-testid="place-modelled-weather">
+                <ListGroup
+                  title="Modelled for the hour"
+                  footer={`The National Weather Service's Gridded LAMP for ${zuluOf(modelled.valid_at)}: planning guidance from a model, not an observation.`}
+                >
+                  <ListRow
+                    media={<RowBadge colour={BADGE.weather}><CloudSun /></RowBadge>} title="Flight category"
+                    value={<span className="font-semibold text-foreground">{modelled.flight_category}</span>}
+                  />
+                  <ListRow
+                    media={<RowBadge colour={BADGE.weather}><Eye /></RowBadge>} title="Visibility"
+                    // GLMP's most is 10 sm, as a METAR's "10SM" is.
+                    value={<span className="font-semibold text-foreground">{modelled.visibility_sm >= 10 ? "10+ sm" : miles(modelled.visibility_sm)}</span>}
+                  />
+                  <ListRow
+                    media={<RowBadge colour={BADGE.weather}><Cloud /></RowBadge>} title="Ceiling"
+                    value={<span className="font-semibold text-foreground">{modelled.ceiling_ft == null ? "None" : feet(modelled.ceiling_ft)}</span>}
+                  />
+                </ListGroup>
+              </div>
+            )}
             {/* Its nearest station's, for one with none of its own: where
                 it is from it, its category and the report as sent -- the
-                card's "≈" chip is this. */}
+                card's "≈" chip where nothing is modelled. */}
             {nearby && (
               <div className="pt-5" data-testid="place-nearby-metar">
                 <ListGroup
