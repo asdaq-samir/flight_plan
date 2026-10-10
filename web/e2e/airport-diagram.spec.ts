@@ -99,7 +99,11 @@ test("the card's sketch of the runways sits between the name and the close, star
   expect(box.x + box.width).toBeLessThan(Math.min(close.x, star.x, chip.x));
   expect(star.y).toBeGreaterThan(close.y + close.height - 1);
   expect(chip.y).toBeGreaterThan(star.y + star.height - 1);
-  for (const b of [star, chip]) expect(Math.abs(b.x + b.width - (close.x + close.width))).toBeLessThan(1.5);
+  // One width, the star's, so the sketch reaches as far right as it can.
+  for (const b of [star, chip]) {
+    expect(Math.abs(b.x + b.width - (close.x + close.width))).toBeLessThan(1.5);
+    expect(Math.abs(b.width - close.width)).toBeLessThan(1);
+  }
   expect(height.x).toBeLessThan(box.x + 12);
   expect(height.y).toBeLessThan(box.y + 12);
   expect(box.y + box.height).toBeLessThanOrEqual(call.y);

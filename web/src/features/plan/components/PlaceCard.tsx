@@ -343,7 +343,10 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
     <span
       // The words in whichever ink reads on the colour (inkOn), as the
       // map's chips are: white on a field's no-report grey was 2.6:1.
-      className={cn("mt-1 shrink-0 rounded-md px-1.5 py-0.5 font-bold tracking-wide", TEXT.note)}
+      // The star's width, at the pilot's ask, so the diagram beside the
+      // column reaches as far right as it can: iOS's Caption 2, 11 on 13,
+      // "MVFR" whole in it; an approximate one's "≈" on a line over it.
+      className="mt-1 flex w-9 shrink-0 flex-col items-center rounded-md py-0.5 text-[0.6875rem] leading-[0.8125rem] font-bold"
       style={{ backgroundColor: chipColour, color: inkOn(chipColour) }}
       data-testid="place-category"
     >
@@ -351,7 +354,7 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
         <>
           {/* Words for VoiceOver, which may read a bare "≈" as a symbol;
               an aria-label on a role-less span may be ignored. */}
-          <span aria-hidden>≈{category}</span>
+          <span aria-hidden className="flex flex-col items-center"><span>≈</span><span>{category}</span></span>
           <span className="sr-only">About {category}, from {nearby?.ident}</span>
         </>
       )}
@@ -463,7 +466,7 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
             </div>
             {/* Eight apart, so the buttons' 44-point hit areas (index.css)
                 meet. */}
-            <div className="-mr-1 flex w-[3.75rem] shrink-0 flex-col items-end gap-2">
+            <div className="-mr-1 flex w-9 shrink-0 flex-col items-center gap-2">
               <CloseButton onClick={onClose} data-testid="place-close" />
               {place && <FavoriteButton place={place} />}
               {chip}

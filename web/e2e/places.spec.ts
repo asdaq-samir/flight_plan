@@ -68,7 +68,8 @@ test("a field with no report wears the nearest station's category as \"≈\" wit
   await settle(page);
   const chip = card(page).getByTestId("place-category");
   await expect(chip).toContainText("≈MVFR",{ timeout: slow(15000) });
-  await expect(chip).toHaveAccessibleName("About MVFR, from KUGN");
+  // In words to a reader: a role-less span has no name of its own.
+  await expect(chip.locator(".sr-only")).toHaveText("About MVFR, from KUGN");
   await grabberTo(page, "full");
   await card(page).getByTestId("place-tab-weather").click();
   const from = card(page).getByTestId("place-nearby-metar");
