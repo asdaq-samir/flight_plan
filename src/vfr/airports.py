@@ -94,9 +94,14 @@ def _airport_rows(path: str, _mtime: float) -> dict:
     route looks up its airports."""
     df = _read_table(path, _mtime)
     rows: dict = {}
-    for i, (ident, local) in enumerate(zip(df["ident"].astype(str).str.upper(), df["local_code"].astype(str).str.upper())):
-        rows.setdefault(ident, i)
-        rows.setdefault(local, i)
+    # A missing local code is no code: as "NAN" it would answer a lookup of "NAN".
+    idents = df["ident"].fillna("").astype(str).str.strip().str.upper()
+    locals_ = df["local_code"].fillna("").astype(str).str.strip().str.upper()
+    for i, (ident, local) in enumerate(zip(idents, locals_)):
+        if ident:
+            rows.setdefault(ident, i)
+        if local:
+            rows.setdefault(local, i)
     return rows
 
 
