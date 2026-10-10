@@ -18,6 +18,7 @@ import type { ModelComparisonEntry, Status } from "../../lib/api/types";
 import RatingGuide from "../train/components/RatingGuide";
 import { TEXT } from "../../lib/text";
 import { useRetrain } from "./useRetrain";
+import { grouped } from "../../lib/units";
 
 const mae = (n: number) => n.toFixed(4);
 
@@ -560,7 +561,7 @@ function ChartsSection({ charts, onRefresh, refreshing }: {
       <ListGroup footer="The FAA charts on disk and the map tiles rendered from them.">
         <ListRow title="Serving cycle" value={charts.cycle} />
         <ListRow title="FAA cycle" value={newer ? `${charts.current_cycle} · ${charts.refresh_running ? "rendering" : "not yet"}` : "the same"} />
-        <ListRow title="Tiles" value={charts.tiles_cached.toLocaleString()} />
+        <ListRow title="Tiles" value={grouped(charts.tiles_cached)} />
         <ListRow title="Next render" value={charts.refresh_window ? `${charts.refresh_window}, ${workers}` : `any time, ${workers}`} />
         <ListRow
           title={charts.refresh_running ? "Fetching and rendering…" : "Render now"}
@@ -572,7 +573,7 @@ function ChartsSection({ charts, onRefresh, refreshing }: {
         {kinds.map(k => (
           <ListRow
             key={k} title={CHART_KIND_LABELS[k]}
-            description={`${sheets[k] ?? 0} sheets · ${(charts.pyramid?.[k]?.tiles ?? 0).toLocaleString()} tiles · ${progress(charts.pyramid?.[k])}${
+            description={`${sheets[k] ?? 0} sheets · ${grouped(charts.pyramid?.[k]?.tiles ?? 0)} tiles · ${progress(charts.pyramid?.[k])}${
               newer ? ` · cycle ${charts.current_cycle}: ${progress(charts.building?.[k])}` : ""}`}
           />
         ))}

@@ -17,7 +17,7 @@ import type {
 import type { FrameworkNarrative } from "../../hooks/useNarratives";
 import type { BriefingState } from "../../hooks/usePlan";
 import { altFt, ceilingAndVisibility, clockTime, deg, describeFuel, describeSteps, describeTime } from "../../format";
-import { flightLevel } from "../../../../lib/units";
+import { flightLevel, grouped } from "../../../../lib/units";
 import { withoutAltitude } from "../../../../lib/identSchema";
 import { navLogRows, savedCheckpoints } from "../navlog/rows";
 import { useLoad } from "../../hooks/useLoad";
@@ -499,7 +499,7 @@ export default memo(function FlightBriefingView({
     balance: {
       pending: !nav, worked: !!loading && !!loaded,
       problems: loaded?.problems ?? [],
-      takeoff: loaded ? `${Math.round(loaded.takeoff.weightLb).toLocaleString("en-US")} lb at ${loaded.takeoff.armIn.toFixed(1)} in` : null,
+      takeoff: loaded ? `${grouped(loaded.takeoff.weightLb)} lb at ${loaded.takeoff.armIn.toFixed(1)} in` : null,
     },
     risk: assessment ? { level: assessment.level, line: riskLine(assessment) } : null,
   });

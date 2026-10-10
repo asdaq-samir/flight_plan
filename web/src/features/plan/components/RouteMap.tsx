@@ -9,6 +9,7 @@ import type { Candidate, ClassBAirport, Course, Leg, ProcedureDrawing } from "..
 import type { BriefingState } from "../hooks/usePlan";
 import type { AirportWeather } from "../../../lib/map/AirportCard";
 import { AirportsLayer } from "../../../lib/map/AirportsLayer";
+import { useAfterPaint } from "../../../hooks/use-after-paint";
 import NearestButton from "../../../components/NearestButton";
 import { WaypointsLayer } from "../../../lib/map/WaypointsLayer";
 import { TfrLayer } from "../../../lib/map/TfrLayer";
@@ -462,6 +463,11 @@ export default memo(function RouteMap({
     };
   }, [course]);
 
+  // The chart first, its overlays a frame after: the map's first draw was
+  // one task with every layer in it, 0.2 s of a phone's (4x) as the
+  // planner opened, a third of it the layers' (2026-10-10).
+  const layered = useAfterPaint();
+
   return (
     <MapShell
       course={course} onSelectPlace={onSelectPlace} held={!!focus || !!place || !!heldPoint || !!nearest}
@@ -469,9 +475,9 @@ export default memo(function RouteMap({
     >
       {/* The chart's own airports with no route as well: a tap on a field
           opens its card, and Fly Here makes the route. */}
-      <AirportsLayer selected={place} onSelect={onSelectPlace} exclude={chipped} route={routeBox} />
-      <TfrLayer />
-      <WaypointsLayer exclude={chipped} onAddStop={course ? onAddStop : undefined} />
+      {layered && <AirportsLayer selected={place} onSelect={onSelectPlace} exclude={chipped} route={routeBox} />}
+      {layered && <TfrLayer />}
+      {layered && <WaypointsLayer exclude={chipped} onAddStop={course ? onAddStop : undefined} />}
       {/* The airport whose card opens comes to the middle of the chart
           clear of the panel, in close enough to find it, as a place
           picked in Maps does: from the search bar it was wherever the

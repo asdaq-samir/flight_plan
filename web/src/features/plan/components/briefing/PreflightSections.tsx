@@ -11,13 +11,13 @@ import { FINDING_TONE } from "../../../../lib/status";
 import FindingIcon from "../../../../components/FindingIcon";
 import { runwayWind } from "../../format";
 import { TEXT } from "../../../../lib/text";
-import { altFt } from "../../../../lib/units";
+import { altFt, grouped } from "../../../../lib/units";
 import { useLoad } from "../../hooks/useLoad";
 
 /** The envelope's picture: Recharts, loaded with the section. */
 const EnvelopeChart = lazy(() => import("./EnvelopeChart"));
 
-const pounds = (n: number) => `${Math.round(n).toLocaleString("en-US")} lb`;
+const pounds = (n: number) => `${grouped(n)} lb`;
 
 /** A number typed into a row: the stock field, short, its unit after it. */
 function NumberField({ value, onChange, unit, label, testId }: {

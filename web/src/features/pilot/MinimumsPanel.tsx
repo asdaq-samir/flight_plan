@@ -2,10 +2,11 @@ import { ListGroup, ListRow } from "../../components/GroupedList";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
 import { MINIMUM_CHOICES, type Minimums } from "../../lib/minimums";
 import { usePreferences } from "../../lib/preferences";
+import { grouped } from "../../lib/units";
 
 /** How each minimum reads in its menu. */
 const MINIMUM_ROWS: { key: keyof Minimums; title: string; unit: (n: number) => string }[] = [
-  { key: "ceilingFt", title: "Ceiling", unit: n => `${n.toLocaleString()} ft` },
+  { key: "ceilingFt", title: "Ceiling", unit: n => `${grouped(n)} ft` },
   { key: "visibilitySm", title: "Visibility", unit: n => `${n} sm` },
   { key: "crosswindKt", title: "Crosswind", unit: n => `${n} kt` },
   { key: "windKt", title: "Wind, with gusts", unit: n => `${n} kt` },

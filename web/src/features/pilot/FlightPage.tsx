@@ -15,7 +15,7 @@ import { TEXT } from "../../lib/text";
 import { keepTrack, keptTrack, readTrack, thin, TrackError, type TrackPoint } from "../../lib/track";
 import { useFlownTrack } from "../../lib/map/flownTrack";
 import { routeName } from "../../lib/identSchema";
-import { altFt, feet } from "../../lib/units";
+import { altFt, feet, grouped } from "../../lib/units";
 
 /** Minutes as a nav log writes them: "0:18", "1:35". */
 function hm(min: number): string {
@@ -26,7 +26,7 @@ function hm(min: number): string {
 /** A difference as said, its sign after rounding: "+3 min", "±0 min". */
 function signed(n: number, unit = ""): string {
   const whole = Math.round(n);
-  return `${whole > 0 ? "+" : whole < 0 ? "−" : "±"}${Math.abs(whole).toLocaleString()}${unit}`;
+  return `${whole > 0 ? "+" : whole < 0 ? "−" : "±"}${grouped(Math.abs(whole))}${unit}`;
 }
 
 /** A tolerance met or not, as the drills mark one. */
@@ -227,7 +227,7 @@ function DebriefSection({ flight, planHref }: { flight: Flight; planHref: string
         {track && (
           <ListRow
             title={track.source}
-            description={`${track.points.length.toLocaleString()} points · ${local ? "on this device" : "saved to your account"}${local && onAccount ? " and your account" : ""}`}
+            description={`${grouped(track.points.length)} points · ${local ? "on this device" : "saved to your account"}${local && onAccount ? " and your account" : ""}`}
             data-testid="debrief-source"
           />
         )}

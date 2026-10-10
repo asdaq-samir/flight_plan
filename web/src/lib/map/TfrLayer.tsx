@@ -1,4 +1,4 @@
-import { memo } from "react";
+import { memo, useEffect, useState } from "react";
 import { Ban } from "lucide-react";
 import { RowBadge } from "../../components/RowBadge";
 import { BADGE } from "../rowBadges";
@@ -21,6 +21,9 @@ const TFR_RED = "#dc2626";
 // (Leaflet merges a new style into the old).
 const IN_FORCE: PathOptions = { color: TFR_RED, weight: 2, dashArray: undefined, fillColor: TFR_RED, fillOpacity: 0.14 };
 const NOT_YET: PathOptions = { color: TFR_RED, weight: 1.5, dashArray: "6 5", fillColor: TFR_RED, fillOpacity: 0.06 };
+
+/** How many TFRs are put on the map in one frame (TfrLayer). */
+const TFRS_A_FRAME = 15;
 
 /** Whether a TFR is in force now: one with no times is taken as so. */
 function inForce(tfr: Tfr, now: number): boolean {
@@ -57,10 +60,20 @@ export const TfrLayer = memo(function TfrLayer() {
   // In force as of when they were fetched, ten minutes apart at most
   // (tfrsQuery): the render itself reads no clock.
   const { data, dataUpdatedAt: now } = useQuery({ ...tfrsQuery, enabled: show });
+  // A few at a time, a frame apart: the country's seventy-odd, every one
+  // in sight as the planner opens on the whole country, were one task of
+  // 0.12 s of a phone's (4x) as they were put on the map (2026-10-10).
+  const [drawn, setDrawn] = useState(TFRS_A_FRAME);
+  const count = data?.length ?? 0;
+  useEffect(() => {
+    if (drawn >= count) return;
+    const frame = requestAnimationFrame(() => setDrawn(n => n + TFRS_A_FRAME));
+    return () => cancelAnimationFrame(frame);
+  }, [drawn, count]);
   if (!show || !data) return null;
   return (
     <>
-      {data.map(tfr => <TfrShape key={tfr.notam_id} tfr={tfr} active={inForce(tfr, now)} />)}
+      {data.slice(0, drawn).map(tfr => <TfrShape key={tfr.notam_id} tfr={tfr} active={inForce(tfr, now)} />)}
     </>
   );
 });

@@ -55,8 +55,12 @@ const HALF_KEY = "vfr.panel.half";
  *  points at iOS's default text size, as it measures there with the
  *  route's box two lines tall and its figures' strip (2026-10-10). */
 const ROUTE_HEAD_REM = 18.25;
-/** The root's font size, which the text size the reader has set moves. */
-const rootPx = () => parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+/** The root's font size, which the text size the reader has set moves:
+ *  read once, as the page has it. Read at each of the panel's renders as
+ *  the page opened, it made the browser work out the page's styles there
+ *  and then, 45 ms of a phone's (4x, 2026-10-10). */
+let rootFont: number | null = null;
+const rootPx = () => (rootFont ??= parseFloat(getComputedStyle(document.documentElement).fontSize) || 16);
 
 /** A card's width from `md` up: 24rem. */
 const CARD = 384;

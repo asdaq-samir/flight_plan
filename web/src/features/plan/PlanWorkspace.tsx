@@ -46,6 +46,7 @@ import { useVerdict, type VerdictItem } from "../../lib/verdict";
 import CloseButton from "../../components/CloseButton";
 import type { BriefingPart } from "./components/briefing/sections";
 import { inNativeApp, nativeShare } from "../../lib/native";
+import { grouped } from "../../lib/units";
 
 /** A local flight's times aloft to choose from, in minutes: a menu, not a
  *  slider. */
@@ -952,7 +953,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     const under = tight.band_ceiling_ft === tight.airspace_ceiling_ft ? "the Class B"
       : tight.band_ceiling_ft === tight.cloud_ceiling_ft ? "the cloud clearance" : "the service ceiling";
     const over = Math.round(altitude - tight.floor_ft);
-    return `Tight ${Math.round(tight.from_nm)}–${Math.round(tight.to_nm)} nm along: ${altitude.toLocaleString()} ft, `
+    return `Tight ${Math.round(tight.from_nm)}–${Math.round(tight.to_nm)} nm along: ${grouped(altitude)} ft, `
       + `${Math.round(tight.band_ceiling_ft - altitude)} ft under ${under} and `
       + `${over > 0 ? `${over} ft over` : "right at"} the obstacle minimum.`;
   })() : null;

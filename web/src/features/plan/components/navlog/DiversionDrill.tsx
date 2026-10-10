@@ -14,6 +14,7 @@ import { ALLOWANCES, divert, reasonable, stopwatch, type Diversion, type Estimat
 import { heading } from "../../../../lib/workings";
 import { TEXT } from "../../../../lib/text";
 import { altFt } from "../../format";
+import { grouped } from "../../../../lib/units";
 
 /** A figure as the student would write it. */
 function written(key: EstimateKey, value: number): string {
@@ -128,7 +129,7 @@ export default function DiversionDrill({ leg, at }: { leg: Leg; at: { name: stri
                     media={<Check className={cn("size-4 text-tint", field !== f.ident && "invisible")} aria-hidden />}
                     title={`${f.ident} · ${f.name}`}
                     description={[
-                      f.longest_runway_ft ? `${f.longest_runway_ft.toLocaleString()} ft runway` : "no runway length",
+                      f.longest_runway_ft ? `${grouped(f.longest_runway_ft)} ft runway` : "no runway length",
                       f.flight_category ?? "no weather report",
                     ].join(" · ")}
                     data-testid="diversion-field"

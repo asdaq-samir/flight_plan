@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { cn } from "cn";
 import {
   AlertDialog, AlertDialogAction, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader,
@@ -16,12 +17,19 @@ import { useFailedAction } from "../lib/problems";
  * `showError`), shadcn's AlertDialog in the middle of the screen from
  * `md` up and, on a phone, a sheet from the navigation bar's edge, as the
  * app asks before an action (useConfirm). Mounted once, beside the
- * toaster.
+ * toaster -- and drawn from the first failure on: a phone's drawer reads
+ * the page's scroll as it is put in the page, which made the browser lay
+ * the page out there, 39 ms of a phone's (4x) as the planner opened with
+ * nothing to say (2026-10-10).
  */
 export default function ErrorAlert() {
   const failed = useFailedAction(s => s.failed);
   const onPhone = useIsMobile();
   const edge = useNavEdge();
+  // Kept once it has been, so it closes as it opened.
+  const [needed, setNeeded] = useState(false);
+  if (failed && !needed) setNeeded(true);
+  if (!needed && !failed) return null;
   const close = (open: boolean) => { if (!open) useFailedAction.setState({ failed: null }); };
   // With no words under the title, nothing describes it: said to Radix,
   // which otherwise warns of a missing description.
