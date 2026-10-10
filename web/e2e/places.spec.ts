@@ -161,7 +161,7 @@ test("an airport's card has four tabs under its tiles, in sight at half, the rad
   await expect(sideDrawer(page)).toHaveAttribute("data-panel", "half");
 });
 
-test("the route's Approaches opens its destination's card on its approaches, and Nearest is on the map's left", async ({ page }) => {
+test("the route's Procedures open its destination's card on its approaches, and Nearest is on the map's left", async ({ page }) => {
   await page.route(url => url.pathname.endsWith("/api/planner/airport/KDLH"), async route => {
     const answer = await route.fetch();
     await route.fulfill({ response: answer, json: { ...await answer.json(), procedures: [
@@ -181,7 +181,9 @@ test("the route's Approaches opens its destination's card on its approaches, and
   expect((await nearest.boundingBox())!.x).toBeLessThan(width / 2);
   expect((await settings.boundingBox())!.x).toBeGreaterThan(width / 2);
 
+  // The route's Procedures, its destination's approach charts among them.
   await sideDrawer(page).getByTestId("route-approaches").click();
+  await page.getByTestId("procedure-charts").click();
   await expect(card(page).getByTestId("place-name")).toHaveText("Duluth International Airport KDLH", { timeout: slow(15000) });
   await expect(card(page).getByTestId("place-tab-diagrams")).toHaveAttribute("aria-selected", "true");
   await expect(sideDrawer(page)).toHaveAttribute("data-panel", "full");
