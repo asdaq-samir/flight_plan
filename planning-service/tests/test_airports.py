@@ -250,9 +250,9 @@ def test_the_nearest_fields_are_the_nearest_first_with_their_way_and_runway(monk
     monkeypatch.setattr(airports, "get_runways", lambda ident: [
         {"ends": "06/24", "length_ft": 3573, "closed": False}, {"ends": "09/27", "length_ft": 3270, "closed": False},
     ])
-    monkeypatch.setattr(airports, "get_frequencies", lambda ident: [
+    monkeypatch.setattr(airports, "get_frequencies_for", lambda idents: {"KC81": [
         {"type": "CTAF", "description": "CTAF", "frequency_mhz": 122.7}, {"type": "UNIC", "description": "UNICOM", "frequency_mhz": 122.7},
-    ])
+    ]})
     monkeypatch.setattr(weather, "metar_for_idents", lambda idents: {i: None for i in idents})
     body = client.get("/api/airports/nearest", params={"lat": 42.3, "lon": -88.1}).json()
     assert body["airports"][0] == {
@@ -260,6 +260,22 @@ def test_the_nearest_fields_are_the_nearest_first_with_their_way_and_runway(monk
         "municipality": "Grayslake", "elevation_ft": 788.0, "distance_nm": 2.1, "bearing_deg": 45, "longest_runway_ft": 3573,
         "military": None, "private": False, "airspace_class": "G", "radio": {"kind": "CTAF", "mhz": 122.7},
     }
+
+
+def test_the_nearest_list_survives_the_frequencies_failing(monkeypatch):
+    monkeypatch.setattr(airports, "nearest", lambda lat, lon, limit: [
+        {"ident": "C81", "source_ident": "KC81", "name": "Campbell", "municipality": "Grayslake", "region": "US-IL",
+         "lat": 42.32, "lon": -88.07, "elevation_ft": 788.0, "kind": "small", "distance_nm": 2.1, "bearing_deg": 45},
+    ])
+    monkeypatch.setattr(airports, "get_runways", lambda ident: [])
+
+    def fail(idents):
+        raise OSError("frequencies table unavailable")
+    monkeypatch.setattr(airports, "get_frequencies_for", fail)
+    monkeypatch.setattr(weather, "metar_for_idents", lambda idents: {})
+    resp = client.get("/api/airports/nearest", params={"lat": 42.3, "lon": -88.1})
+    assert resp.status_code == 200
+    assert resp.json()["airports"][0]["radio"] is None
 
 
 def test_a_field_is_called_on_its_tower_else_its_ctaf_else_unicom():

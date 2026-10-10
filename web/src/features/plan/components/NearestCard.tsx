@@ -125,6 +125,10 @@ const MOVING_KT = 30;
  * compass point. A row that opens the field's card, so its words are the
  * text's and it ends in a chevron, as iOS's do.
  */
+const COMPASS_WORDS: Record<string, string> = {
+  N: "north", NE: "northeast", E: "east", SE: "southeast", S: "south", SW: "southwest", W: "west", NW: "northwest",
+};
+
 function NearestRow({ field, ahead, reach, onOpen }: {
   field: NearestAirport;
   /** The airplane's track, true, when it is moving; else null. */
@@ -168,16 +172,20 @@ function NearestRow({ field, ahead, reach, onOpen }: {
       }
       chevron onClick={onOpen} data-testid="nearest-airport"
     >
-      <span className="flex items-center gap-2" aria-label={`${field.distance_nm} nautical miles ${point}`}>
+      <span className="flex items-center gap-2">
         <Navigation2
           aria-hidden="true" strokeWidth={0} data-testid="nearest-arrow"
           className="size-5 shrink-0 fill-current text-foreground"
           style={{ transform: `rotate(${field.bearing_deg - (ahead ?? 0)}deg)` }}
         />
-        <span className="flex flex-col items-end">
+        {/* A label on a plain span has no role and is not spoken, so the
+            spoken form is text in the row: VoiceOver would spell out "nm"
+            and the compass letters. The bearing is true (the footer says so). */}
+        <span className="flex flex-col items-end" aria-hidden="true">
           <span className={cn("font-semibold text-foreground tabular-nums", TEXT.row)}>{field.distance_nm} nm</span>
           <span className={cn("text-muted-foreground", TEXT.note)}>{point}</span>
         </span>
+        <span className="sr-only">{field.distance_nm} nautical miles, true bearing {COMPASS_WORDS[point] ?? point}</span>
       </span>
     </ListRow>
   );
@@ -241,7 +249,7 @@ export default function NearestCard({ onOpen, onClose, from, onFrom }: {
                   ? `Within a still-air glide: about ${Math.round(glide)} nm from here, at 1.5 nm for every 1,000 ft over the nearest field -- the dashed ring.`
                   : "In the air, the ones within a glide are marked.",
               ahead != null ? "The arrows point the way from your track." : null,
-              "Each field's longest runway and its listed tower, CTAF or UNICOM frequency. Check the Chart Supplement for the tower's hours.",
+              "Each field's longest runway and its listed tower, CTAF or UNICOM frequency. Check the Chart Supplement for the tower's hours. Bearings are true.",
             ].filter(Boolean).join(" ")}
           >
             {(data ?? []).map(a => (

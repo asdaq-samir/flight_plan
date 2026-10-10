@@ -141,13 +141,19 @@ def nearest_airports(
         metars = weather.metar_for_idents([p["source_ident"] for p in found])
     except weather.WeatherServiceError:
         metars = {}
+    # Read once for the list, and like the weather, a list without it: the
+    # frequency is on the row for convenience, the fields are the answer.
+    try:
+        frequencies = airports.get_frequencies_for([p["source_ident"] for p in found])
+    except (OSError, RuntimeError, ValueError):
+        frequencies = {}
     out = []
     for p, cls, (military, private) in zip(found, _surface_classes(found), _owners(found)):
         lengths = [r["length_ft"] for r in airports.get_runways(p["source_ident"]) if not r["closed"] and r["length_ft"]]
         out.append({
             **p, "longest_runway_ft": max(lengths) if lengths else None,
             "flight_category": (metars.get(p["source_ident"]) or {}).get("flight_category"), "military": military,
-            "private": private, "airspace_class": cls, "radio": _inbound_radio(airports.get_frequencies(p["source_ident"])),
+            "private": private, "airspace_class": cls, "radio": _inbound_radio(frequencies.get(p["source_ident"].upper(), [])),
         })
     return {"airports": out}
 
