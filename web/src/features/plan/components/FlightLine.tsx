@@ -3,10 +3,7 @@ import type { Totals } from "../../../lib/api/types";
 import { GROUP_HEADING, TEXT } from "../../../lib/text";
 import { textWidth } from "../../../lib/textWidth";
 import { useRoom } from "../../../lib/useRoom";
-import { decimalHours, etaAt, hhmm } from "../format";
-
-/** One of the flight's figures: its name over it, its unit after it. */
-interface Figure { name: string; value: string; unit?: string; testId?: string }
+import { type Figure, fitFigures, tripFigures } from "../figures";
 
 /**
  * The flight's figures, the last of the route's panel over the tabs, at
@@ -41,45 +38,15 @@ export default function FlightLine({ totals, estimate, depart, local, problem }:
   /** What stops the plan, in a few words (no legal altitude's brief). */
   problem: string | null | undefined;
 }) {
-  const guessed = !totals && !local && estimate ? guess(estimate) : null;
-  const from = depart || new Date().toISOString();
-  const figures = (whole: boolean): Figure[] => {
-    if (guessed) {
-      const { distanceNm, minutes, fuelGal } = guessed;
-      return [
-        { name: "Dist", value: whole ? `${Math.ceil(distanceNm)}` : distanceNm.toFixed(1), unit: "nm" },
-        { name: "ETE", value: minutes == null ? "—" : `≈${whole ? decimalHours(minutes) : guessed.time}`, testId: "navlog-ete" },
-        // The arrival with no "≈" of its own, at the pilot's ask: the time
-        // en route beside it carries it, and one is enough for both.
-        { name: "ETA", value: etaAt(from, minutes), testId: "navlog-eta-estimate" },
-        { name: "Fuel", value: fuelGal == null ? "—" : `≈${whole ? Math.ceil(fuelGal) : fuelGal.toFixed(1)}`, unit: fuelGal == null ? undefined : "gal" },
-      ];
-    }
-    const minutes = totals?.ete_min ?? null;
-    const time = minutes === null ? "—" : whole ? decimalHours(minutes) : hhmm(minutes);
-    const fuel = totals?.fuel_gal == null ? null : whole ? `${Math.ceil(totals.fuel_gal)}` : `${totals.fuel_gal}`;
-    const fuelFigure = { name: "Fuel", value: fuel ?? "—", unit: fuel === null ? undefined : "gal" };
-    const arrival = totals ? etaAt(from, minutes) : "—";
-    if (local) {
-      return [{ name: "Aloft", value: time, testId: "navlog-ete" }, { name: "Back", value: arrival, testId: totals ? "navlog-eta" : undefined }, fuelFigure];
-    }
-    return [
-      totals ? { name: "Dist", value: whole ? `${Math.ceil(totals.distance_nm)}` : `${totals.distance_nm}`, unit: "nm" } : { name: "Dist", value: "—" },
-      { name: "ETE", value: time, testId: "navlog-ete" },
-      { name: "ETA", value: arrival, testId: totals ? "navlog-eta" : undefined },
-      fuelFigure,
-    ];
-  };
   // Measured in a figure's own room and font -- the first figure's, as
   // wide as each of the strip's columns -- and its unit in the unit's.
   const [room, space] = useRoom<HTMLElement>();
   const [unitRoom, unitSpace] = useRoom<HTMLElement>();
-  const exact = figures(false);
+  const exact = tripFigures({ totals, estimate, depart, local }, false);
   const widthOf = (f: Figure) => !space ? 0
     : (textWidth(f.value, space.font) ?? 0) + (f.unit && unitSpace ? textWidth(` ${f.unit}`, unitSpace.font) ?? 0 : 0);
   // Each figure on its own: the one too wide rounded, the rest as they are.
-  const rounded = figures(true);
-  const shown = exact.map((f, i) => (space && widthOf(f) > space.width ? rounded[i] ?? f : f));
+  const shown = fitFigures(exact, tripFigures({ totals, estimate, depart, local }, true), f => !space || widthOf(f) <= space.width);
   return (
     // What the planner is working on is the toast's (useProgressToast), at
     // the pilot's ask: the strip keeps the figures, as soon as there are
@@ -107,18 +74,4 @@ export default function FlightLine({ totals, estimate, depart, local, problem }:
       )}
     </div>
   );
-}
-
-/** The figures from the airplane's book alone (FlightLine's `estimate`):
- *  the distance as the course has it, and at cruise speed with no wind
- *  the time, and the fuel at the cruise burn over that time -- each
- *  marked "≈", none of the nav log's climb, wind or legs in it. */
-function guess({ distanceNm, cruiseTasKt, fuelBurnGph }: { distanceNm: number; cruiseTasKt: number | null; fuelBurnGph: number | null }) {
-  const minutes = cruiseTasKt ? (distanceNm / cruiseTasKt) * 60 : null;
-  const hours = minutes == null ? null : Math.floor(minutes / 60);
-  const fuelGal = minutes != null && fuelBurnGph ? (minutes / 60) * fuelBurnGph : null;
-  return {
-    minutes, distanceNm, fuelGal,
-    time: minutes == null ? "—" : `${hours ? `${hours}h ` : ""}${Math.round(minutes - hours! * 60)}m`,
-  };
 }
