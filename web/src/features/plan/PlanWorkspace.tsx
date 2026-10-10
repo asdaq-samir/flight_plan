@@ -1115,6 +1115,10 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     // pans it) but stays off the paper: the drawer is the printed page.
     map: (
       <div className={cn("h-full w-full", panelOpen && "print:hidden")}>
+        {/* Its own boundary: the map's chunk (routeMapChunk) comes after the
+            panel's first script, and without one the page's (MapPage)
+            held the panel back, blank, until it had. */}
+        <Suspense fallback={null}>
         <RouteMap
           course={course}
           candidates={s.candidates}
@@ -1132,6 +1136,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           heldPoint={heldPoint}
           onHoldPoint={holdPoint}
         />
+        </Suspense>
         {/* What to look for, a tip at a time, the first times (lib/tips). */}
         <TipHost />
       </div>
