@@ -10,7 +10,17 @@ import { expectDrawerClosed, expectDrawerOpen, grabberTo, mapStill, openMapSetti
 
 const card = (page: Page) => sideDrawer(page).getByTestId("place-card");
 
+/** The card's answer for `ident` with its weather as given: its own
+ *  report, or none and the nearest station's. */
+async function cardWeather(page: Page, ident: string, weather: { metar?: object | null; nearby_metar?: object | null }) {
+  await page.route(url => url.pathname.endsWith(`/api/planner/airport/${ident}`), async route => {
+    const answer = await route.fetch();
+    await route.fulfill({ response: answer, json: { ...(await answer.json()), weather_unavailable: false, ...weather } });
+  });
+}
+
 test("an airport's card names the field alone, how far it is under it, and the weather there", async ({ page }) => {
+  await cardWeather(page, "KDLH", { metar: { raw: "KDLH 102155Z 27008KT 10SM CLR 12/02 A3001", flight_category: "VFR" } });
   await page.goto("/app/plan?dep=C81&dest=KDLH&place=KDLH");
   await settle(page);
   await expectDrawerOpen(page);
@@ -47,6 +57,35 @@ test("an airport's card names the field alone, how far it is under it, and the w
   await expect(sideDrawer(page).getByTestId("panel-tab-navlog")).toBeVisible();
 });
 
+
+test("a field with no report wears the nearest station's category as \"≈\" within ten statute miles, and none farther; its Weather tab says whose", async ({ page }) => {
+  const nearby = {
+    ident: "KUGN", distance_nm: 6.2, bearing_deg: 70, near: true,
+    metar: { raw: "KUGN 102152Z 18006KT 10SM BKN025 14/06 A3002", flight_category: "MVFR", observed_at: new Date().toISOString() },
+  };
+  await cardWeather(page, "C81", { metar: null, nearby_metar: nearby });
+  await page.goto("/app/plan?place=C81");
+  await settle(page);
+  const chip = card(page).getByTestId("place-category");
+  await expect(chip).toContainText("≈MVFR",{ timeout: slow(15000) });
+  // In words to a reader: a role-less span has no name of its own.
+  await expect(chip.locator(".sr-only")).toHaveText("About MVFR, from the report of KUGN, another station, not this field's own");
+  await grabberTo(page, "full");
+  await card(page).getByTestId("place-tab-weather").click();
+  const from = card(page).getByTestId("place-nearby-metar");
+  await expect(from).toContainText("Nearest report, 6.2 nm E");
+  await expect(from).toContainText("KUGN 102152Z");
+  await expect(from).toContainText("Not this field's own");
+
+  // Twelve miles off: the report still said, no chip.
+  await page.unrouteAll({ behavior: "ignoreErrors" });
+  await cardWeather(page, "C81", { metar: null, nearby_metar: { ...nearby, distance_nm: 12, near: false } });
+  await page.goto("/app/plan?place=C81");
+  await settle(page);
+  await expect(card(page).getByTestId("place-name")).toBeVisible({ timeout: slow(15000) });
+  await expect(card(page).getByTestId("place-runway-sketch")).toBeVisible();
+  await expect(card(page).getByTestId("place-category")).toHaveCount(0);
+});
 test("an airport's card calls the field and finds it in Maps, from the FAA's airport file", async ({ page }) => {
   await page.route(url => url.pathname.endsWith("/api/planner/airport/KDLH"), async route => {
     const answer = await route.fetch();

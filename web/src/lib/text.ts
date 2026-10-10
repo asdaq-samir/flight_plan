@@ -36,6 +36,9 @@ export const TEXT = {
   prose: "text-sm pointer-coarse:text-[0.9375rem]",
   /** A section's line of help, a group's heading and its note, a key: 13, 12. */
   note: "text-xs pointer-coarse:text-[0.8125rem]",
+  /** A chip's category inside a column the width of the star, with
+   *  font-bold: iOS's Caption 2, 11 on 13, the same with a mouse. */
+  caption: "text-[0.6875rem] leading-[0.8125rem]",
 } as const;
 
 /** A group's heading, as iOS's grouped lists set one: a note's size,

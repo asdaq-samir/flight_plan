@@ -242,6 +242,14 @@ def airport_place(ident: str) -> AirportPlace:
     except weather.WeatherServiceError:
         metar, unavailable = None, True
     military, private = _owners([place])[0]
+    # No report of its own: the nearest station's, close enough to say
+    # its weather approximately (vfr.weather.nearest_report).
+    nearby = None
+    if metar is None and not unavailable:
+        try:
+            nearby = weather.nearest_report(place["lat"], place["lon"], exclude=source)
+        except weather.WeatherServiceError:
+            nearby = None
     return {
         **{key: value for key, value in place.items() if key != "source_ident"},
         "airspace_class": airspace.surface_class_at(place["lat"], place["lon"], shp_path),
@@ -255,6 +263,7 @@ def airport_place(ident: str) -> AirportPlace:
             place["ident"], place["lat"], place["lon"]), place["ident"]),
         "frequencies": frequencies,
         "metar": metar,
+        "nearby_metar": nearby,
         "weather_unavailable": unavailable,
         # Its phone and street address, for the card's Call and Address.
         **faa_data.airport_contact(place["ident"], altitude.DEFAULT_FAA_CACHE_DIR),

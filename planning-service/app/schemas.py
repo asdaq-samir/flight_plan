@@ -623,6 +623,19 @@ class Metar(BaseModel):
     dewpoint_c: float | None = None
 
 
+class NearbyMetar(BaseModel):
+    """A field's nearest report within 30 nm, for one with none of its
+    own: the station, how far and which way from the field (true), its
+    METAR, and `near` where it is within 10 statute miles, close enough to
+    say the field's weather by it, approximately (vfr.weather)."""
+
+    ident: str
+    distance_nm: float
+    bearing_deg: int
+    near: bool
+    metar: Metar
+
+
 class RunwayWind(BaseModel):
     """The reported wind on the end of a runway it favours, the one with
     the most headwind (vfr.runway_wind): the headwind negative for a
@@ -1434,6 +1447,10 @@ class AirportPlace(BaseModel):
     runways: list[Runway]
     frequencies: list[Frequency]
     metar: Metar | None = None
+    #: Where it has none, the nearest report within 30 nm
+    #: (vfr.weather.nearest_report): its flight category the card's,
+    #: marked approximate, where it is `near`.
+    nearby_metar: NearbyMetar | None = None
     weather_unavailable: bool = False
     # Its phone and one-line street address, from the FAA's airport file
     # (vfr.faa_data.airport_contact): the manager's, else the owner's; None

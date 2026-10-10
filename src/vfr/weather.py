@@ -606,6 +606,10 @@ def _parse_metars(xml_bytes: bytes) -> dict:
             "altimeter_in_hg": _float(el.findtext("altim_in_hg")),
             "temp_c": _float(el.findtext("temp_c")),
             "dewpoint_c": _float(el.findtext("dewpoint_c")),
+            # Where the station is, for a field with no report of its own
+            # (nearest_report).
+            "lat": _float(el.findtext("latitude")),
+            "lon": _float(el.findtext("longitude")),
         })
     return {ident: report for ident, (_, report) in latest.items()}
 
@@ -622,6 +626,56 @@ def metar_for_idents(idents: list) -> dict:
     station)."""
     metars = _dataset("metars")
     return {ident: metars.get(ident) for ident in idents}
+
+
+#: How far a station's report is said of a field, approximately: a design
+#: choice, not a rule. AC 00-45H (Aviation Weather Services) takes a METAR's
+#: "VC" to be 5 to 10 statute miles from the station for the phenomena it
+#: reports, and does not say a station's flight category holds at another
+#: field; the top of that range is where the card's "≈" chip stops, and
+#: farther only the report and how far it is are given.
+NEAR_REPORT_SM = 10.0
+#: The oldest report given as the nearest: METARs come hourly, so this
+#: allows one missed cycle; the server keeps a held copy for hours when a
+#: refresh fails, and an older report is not "current".
+NEAREST_REPORT_MAX_AGE_S = 2 * 3600
+#: How far the nearest report is looked for at all, as an EFB lists a
+#: field's nearest METAR: about a quarter hour's flight in a light
+#: airplane.
+NEAREST_REPORT_NM = 30.0
+_NM_PER_SM = 0.868976
+
+
+def nearest_report(lat: float, lon: float, exclude: str | None = None, within_nm: float = NEAREST_REPORT_NM) -> dict | None:
+    """The nearest station with a current METAR within `within_nm` of a
+    point, for a field with no report of its own, as {"ident",
+    "distance_nm", "bearing_deg" (true, from the point), "near" (within
+    NEAR_REPORT_SM, close enough to say the field's weather by it,
+    approximately), "metar"}; None with none that close."""
+    best = None
+    coslat = np.cos(np.radians(lat))
+    for ident, report in _dataset("metars").items():
+        s_lat, s_lon = report.get("lat"), report.get("lon")
+        if ident == exclude or s_lat is None or s_lon is None:
+            continue
+        # Before the distance test, so an old near station does not hide a
+        # current farther one; a report with no readable time is not known
+        # to be current.
+        observed = _unix(report.get("observed_at"))
+        if observed is None or time.time() - observed > NEAREST_REPORT_MAX_AGE_S:
+            continue
+        # Flat-earth nautical miles: within thirty the error is yards.
+        north, east = (s_lat - lat) * 60, (s_lon - lon) * 60 * coslat
+        nm = float(np.hypot(north, east))
+        if nm <= within_nm and (best is None or nm < best[0]):
+            best = (nm, ident, report, float(np.degrees(np.arctan2(east, north))) % 360)
+    if best is None:
+        return None
+    nm, ident, report, bearing = best
+    return {
+        "ident": ident, "distance_nm": round(nm, 1), "bearing_deg": round(bearing),
+        "near": nm <= NEAR_REPORT_SM * _NM_PER_SM, "metar": report,
+    }
 
 
 # --- Ceiling/visibility, from the TAFs ---

@@ -648,6 +648,16 @@
             "title": "Name",
             "type": "string"
           },
+          "nearby_metar": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NearbyMetar"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "pattern": {
             "anyOf": [
               {
@@ -4652,6 +4662,39 @@
           "detail"
         ],
         "title": "NavLogStage",
+        "type": "object"
+      },
+      "NearbyMetar": {
+        "description": "A field's nearest report within 30 nm, for one with none of its\nown: the station, how far and which way from the field (true), its\nMETAR, and `near` where it is within 10 statute miles, close enough to\nsay the field's weather by it, approximately (vfr.weather).",
+        "properties": {
+          "bearing_deg": {
+            "title": "Bearing Deg",
+            "type": "integer"
+          },
+          "distance_nm": {
+            "title": "Distance Nm",
+            "type": "number"
+          },
+          "ident": {
+            "title": "Ident",
+            "type": "string"
+          },
+          "metar": {
+            "$ref": "#/components/schemas/Metar"
+          },
+          "near": {
+            "title": "Near",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ident",
+          "distance_nm",
+          "bearing_deg",
+          "near",
+          "metar"
+        ],
+        "title": "NearbyMetar",
         "type": "object"
       },
       "NearestAirport": {
