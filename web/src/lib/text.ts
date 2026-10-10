@@ -38,6 +38,12 @@ export const TEXT = {
   note: "text-xs pointer-coarse:text-[0.8125rem]",
 } as const;
 
+/** The number in a checkpoint's dot, on the map (checkpointIcon) and in the
+ *  nav log's rows (PointMark), bold: 11 on a 13 line (iOS Caption 2, whose
+ *  line the iPhone audit holds a number to). One place, so the log's dot and
+ *  the map's cannot drift apart. */
+export const MARK_NUMBER = "text-[11px] leading-[13px] font-bold tracking-tight";
+
 /** A group's heading, as iOS's grouped lists set one: a note's size,
  *  semibold, in capitals, spaced out and grey. Over a list's box
  *  (ListGroup), the nav log's columns, a popover's parts -- one look,

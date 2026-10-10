@@ -2,6 +2,7 @@ import { TrendingDown, TrendingUp } from "lucide-react";
 import { colourOf } from "../../../../lib/map/flightCategory";
 import { AIRPORT_MARK, airportMarkSvg } from "../../../../lib/map/icons";
 import { inkOn } from "../../../../lib/scoreScale";
+import { MARK_NUMBER } from "../../../../lib/text";
 import { scoreColor } from "../../format";
 import type { NavLogRow } from "./rows";
 
@@ -31,8 +32,8 @@ export function PointMark({ row, number, weather }: {
     const fill = scoreColor(row.cp.predicted_score);
     return (
       <span
-        aria-hidden="true" data-mark="checkpoint"
-        className="grid size-6 shrink-0 place-items-center rounded-full border-2 border-background text-[11px] leading-[13px] font-bold tracking-tight shadow-[0_1px_3px_rgba(0,0,0,.35)] outline outline-1 outline-[rgba(10,20,28,.45)]"
+        data-mark="checkpoint" role="img" aria-label={`Checkpoint ${number}`}
+        className={`grid size-6 shrink-0 place-items-center rounded-full border-2 border-background ${MARK_NUMBER} shadow-[0_1px_3px_rgba(0,0,0,.35)] outline outline-1 outline-[rgba(10,20,28,.45)]`}
         style={{ backgroundColor: fill, color: inkOn(fill) }}
       >
         {number}
@@ -62,7 +63,7 @@ export function PointMark({ row, number, weather }: {
   return (
     <span
       aria-hidden="true" data-mark="airport" className="block shrink-0" style={{ width: AIRPORT_MARK, height: AIRPORT_MARK }}
-      dangerouslySetInnerHTML={{ __html: airportMarkSvg(airport.airspace_class ?? null, weather(airport.ident) ?? colourOf(null), null, "overflow-visible") }}
+      dangerouslySetInnerHTML={{ __html: airportMarkSvg(airport.airspace_class ?? null, weather(airport.ident) ?? colourOf(null), airport.military === "military" ? "military" : airport.private ? "private" : null, "overflow-visible") }}
     />
   );
 }

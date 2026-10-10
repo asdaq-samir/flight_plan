@@ -274,6 +274,21 @@
             "title": "Lon",
             "type": "number"
           },
+          "military": {
+            "anyOf": [
+              {
+                "enum": [
+                  "military",
+                  "joint"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Military"
+          },
           "name": {
             "title": "Name",
             "type": "string"
@@ -288,6 +303,17 @@
               }
             ],
             "title": "Pattern Altitude Ft"
+          },
+          "private": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Private"
           }
         },
         "required": [

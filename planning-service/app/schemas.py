@@ -40,6 +40,11 @@ class AirportEnd(BaseModel):
     #: hundred feet (the TPA the FAA publishes, else 1,000 ft over the
     #: field): what the route's box offers as the altitude there.
     pattern_altitude_ft: float | None = None
+    #: An airport's owner, as AirportPin has it (the FAA's airport file,
+    #: vfr.faa_data): for the nav log's mark to be the map's M or R disc
+    #: and not a public field's symbol.
+    military: Literal["military", "joint"] | None = None
+    private: bool | None = None
 
 
 class ChartSheet(BaseModel):

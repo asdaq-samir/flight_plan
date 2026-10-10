@@ -1,6 +1,7 @@
 import L from "leaflet";
 import type { AirspaceClass } from "../preferences";
 import { inkOn } from "../scoreScale";
+import { MARK_NUMBER } from "../text";
 import { textWidth } from "../textWidth";
 import { BLUE, MAGENTA } from "../useAirspace";
 
@@ -78,7 +79,7 @@ export const dotIcon = made(function dotIcon(fill: string, label?: string | numb
   // read; these were 8, and they are the numbers a pilot matches to
   // the nav log.
   const size = withLabel
-    ? "grid h-[24px] w-[24px] place-items-center text-[11px] font-bold leading-none tracking-tight"
+    ? `grid h-[24px] w-[24px] place-items-center ${MARK_NUMBER}`
     : "h-4 w-4";
   return L.divIcon({
     className: "",

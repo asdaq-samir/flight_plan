@@ -522,11 +522,16 @@ def course(dep: str, dest: str, stops: str = "") -> Course:
     first = r.hops[0]
     shp = airspace.ensure_class_airspace_shapefile(altitude.DEFAULT_FAA_CACHE_DIR)
 
+    owned = faa_data.military_fields(altitude.DEFAULT_FAA_CACHE_DIR)
+    closed = faa_data.private_fields(altitude.DEFAULT_FAA_CACHE_DIR)
+
     def classed(end: dict) -> dict:
         if end.get("kind", "airport") != "airport":
             return end
+        ident = end["ident"].upper()
         return {**end, "airspace_class": airspace.surface_class_at(end["lat"], end["lon"], shp),
-                "pattern_altitude_ft": field_pattern_ft(end["ident"], end)}
+                "pattern_altitude_ft": field_pattern_ft(end["ident"], end),
+                "military": owned.get(ident), "private": ident in closed}
 
     return Course(
         departure=classed(r.departure),
