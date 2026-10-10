@@ -16,6 +16,7 @@ import ConsoleHeader from "../pilot/ConsoleHeader";
 import LinkSignIn from "../pilot/LinkSignIn";
 import PlanWorkspace from "../plan/PlanWorkspace";
 import type { WorkspacePieces } from "./workspace";
+import { fromChunk } from "../../lib/fromChunk";
 
 /**
  * The training workspace on its own chunk. It carries the developer's
@@ -28,8 +29,10 @@ import type { WorkspacePieces } from "./workspace";
 const TrainWorkspace = lazy(() => import("../train/TrainWorkspace"));
 
 /** The settings, the console's last tab, on their own chunk for the same
- *  reason: nothing on the map needs them until the console opens. */
-const SettingsPanel = lazy(() => import("../../components/SettingsPanel"));
+ *  reason: nothing on the map needs them until the console opens. Asked
+ *  for once the page has drawn (MapPage), and drawn straight from the
+ *  chunk then (fromChunk): opened on Settings, the console waited on it. */
+const { Part: SettingsPanel, prefetch: prefetchSettings } = fromChunk(() => import("../../components/SettingsPanel"), m => m.default);
 
 export type Mode = "pilot" | "dev";
 
@@ -85,6 +88,13 @@ export default function MapPage({ mode }: { mode: Mode }) {
   const dest = typed?.dest ?? addressDest;
   const setDep = useCallback((d: string) => setDraft({ of: addressKey, dep: d, dest }), [addressKey, dest]);
   const setDest = useCallback((a: string) => setDraft({ of: addressKey, dep, dest: a }), [addressKey, dep]);
+
+  // The settings' chunk, once the page has drawn (the console's own is
+  // PlanWorkspace's to ask for).
+  useEffect(() => {
+    const later = window.setTimeout(prefetchSettings, 2000);
+    return () => window.clearTimeout(later);
+  }, []);
 
   // A Google or Apple sign-in the webapp refused comes back here: an
   // address the provider has not verified can be nobody's pilot. Said

@@ -6,6 +6,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { foreflightRoute, fplOf, gpxOf, shareFile, type PlanPoint } from "../../lib/flightPlanFiles";
 import { markPackSent, openInForeFlight, packOrigin, packPath, packSent } from "../../lib/foreflightPack";
 import { navLogRows } from "./components/navlog/rows";
+import { fromChunk } from "../../lib/fromChunk";
 import { toast } from "sonner";
 import { showError } from "../../lib/problems";
 import { cn } from "cn";
@@ -56,9 +57,9 @@ const LOCAL_MINUTES = [30, 45, 60, 90, 120, 150, 180, 240];
 // The pilot console on a chunk of its own: the account forms (react-hook-
 // form, zod), the flights, the logbook and the guide are no part of a
 // first load. Asked for once the page has drawn (below), so the gear
-// opens it at once; MapPage's AfterTheSheet holds its place meanwhile.
-const loadPilotPanel = () => import("../pilot/PilotPanel");
-const PilotPanel = lazy(() => loadPilotPanel().then(m => ({ default: m.PilotPanel })));
+// opens it at once, drawn straight from the chunk (fromChunk); MapPage's
+// AfterTheSheet holds its place meanwhile.
+const { Part: PilotPanel, prefetch: prefetchPilotPanel } = fromChunk(() => import("../pilot/PilotPanel"), m => m.PilotPanel);
 // The route's own panel, a chunk of its own (routePanel), fetched once
 // the page is idle and drawn where a route is. Its parts drawn straight
 // from the chunk once it is in hand, and waited for (lazy) only until
@@ -121,7 +122,7 @@ function altitudeChoiceOf(value: string | null): AltitudeChoice {
  */
 export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: WorkspaceProps) {
   useEffect(() => {
-    const later = window.setTimeout(() => void loadPilotPanel(), 2000);
+    const later = window.setTimeout(prefetchPilotPanel, 2000);
     return () => window.clearTimeout(later);
   }, []);
   // The panel out at all: the nav log is in sight, and a checkpoint
