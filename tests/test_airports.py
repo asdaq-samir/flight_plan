@@ -9,7 +9,7 @@ import pandas as pd
 import pytest
 
 from vfr import airports
-from vfr.airports import find_place, get_airport, get_frequencies, get_runways, places_in, search_airports
+from vfr.airports import _among, _place_of, _places_of, find_place, get_airport, get_frequencies, get_runways, places_in, search_airports
 
 
 @pytest.fixture
@@ -198,6 +198,18 @@ def test_the_places_in_a_box_are_landing_fields_biggest_first(us_airports_csv):
     # drops the bigger fields with no weather, not the small one with it.
     first = places_in(40, -95, 47, -87, limit=2, cache_path=us_airports_csv, first={"KC81"})
     assert [p["ident"] for p in first] == ["C81", "KMSP"]
+
+
+def test_the_box_helpers_answer_as_isin_and_iterrows_did(us_airports_csv):
+    from vfr.airports import _us_airports
+    df = _us_airports(us_airports_csv)
+    for chosen in ({"KDLH", "nowhere"}, set()):
+        assert _among(df["ident"], chosen).tolist() == df["ident"].isin(list(chosen)).tolist()
+    assert _places_of(df) == [_place_of(row) for _, row in df.iterrows()]
+    # A box with no fields in it, with `only` and with `first`.
+    assert places_in(0, 0, 1, 1, cache_path=us_airports_csv) == []
+    assert places_in(40, -95, 47, -87, cache_path=us_airports_csv, only=set()) == []
+    assert _places_of(df.iloc[0:0]) == []
 
 
 def test_a_search_finds_a_word_of_the_name_not_only_its_start(us_airports_csv):
