@@ -255,3 +255,31 @@ export const airportMarkIcon = made(function airportMarkIcon(
       `<span class="absolute top-1/2 left-[calc(100%+1px)] -translate-y-1/2 whitespace-nowrap text-[11px] leading-none font-bold text-[#1c1a17] [text-shadow:0_0_2px_#fff,0_0_2px_#fff,0_0_3px_#fff,0_0_4px_#fff]">${text(ident)}</span>`,
   });
 });
+
+/** An airplane of the traffic (TrafficLayer): a chevron turned to its
+ *  track in its colour with a white casing, and under it its height
+ *  (trafficLabel) and its callsign where the map is close enough for
+ *  them (TrafficLayer). Track to five degrees,
+ *  so the icons made once are a few hundred. */
+export const trafficIcon = made((trackDeg: number | null, colour: string, label: string, callsign: string | null) => L.divIcon({
+  className: "",
+  iconSize: [22, 22],
+  iconAnchor: [11, 11],
+  html:
+    `<svg viewBox="0 0 22 22" width="22" height="22" aria-hidden="true" data-traffic=""` +
+    ` class="absolute left-0 top-0 drop-shadow-[0_1px_2px_rgba(0,0,0,.5)]"` +
+    ` style="transform:rotate(${trackDeg == null ? 0 : Math.round(trackDeg / 5) * 5}deg)">` +
+    (trackDeg == null
+      ? `<circle cx="11" cy="11" r="5" fill="${text(colour)}" stroke="#ffffff" stroke-width="2"/>`
+      : `<path d="M11 2 L18 19 L11 14.5 L4 19 Z" fill="${text(colour)}" stroke="#ffffff" stroke-width="2" stroke-linejoin="round"/>`) +
+    `</svg>` +
+    (label || callsign
+      ? `<span class="pointer-events-none absolute left-1/2 top-[22px] -translate-x-1/2 whitespace-nowrap rounded bg-[#1f2933]/80 px-1 text-center text-[11px] font-bold leading-[14px] text-white tabular-nums"` +
+        ` style="color:${text(colour === TRAFFIC_COLOURS.near ? "#fcd34d" : "#ffffff")}">` +
+        `${text(label)}${callsign ? `<br><span class="font-semibold text-white/85">${text(callsign)}</span>` : ""}</span>`
+      : ""),
+}));
+
+/** Traffic's colours: within 1,000 ft of own ship's height amber, the
+ *  rest the ADS-B displays' cyan. */
+export const TRAFFIC_COLOURS = { near: "#f59e0b", far: "#06b6d4" } as const;

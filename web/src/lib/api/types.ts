@@ -113,6 +113,9 @@ export type AirspaceAt = Schemas["AirspaceAt"];
 /** What is ahead of own ship (vfr.alerts). */
 export type AlertsAhead = Schemas["AlertsAhead"];
 export type AheadAlert = Schemas["AheadAlert"];
+/** The airplanes ADS-B receivers hear near a point (vfr.traffic). */
+export type Traffic = Schemas["Traffic"];
+export type TrafficAircraft = Schemas["TrafficAircraft"];
 export type AirspaceBand = Schemas["AirspaceBand"];
 export type VfrMinimums = Schemas["VfrMinimums"];
 /** `available` is false where the planner has no Docker API to talk

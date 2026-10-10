@@ -18,6 +18,7 @@ import { centreClear } from "./clear";
 import "./pinch";
 import { OwnShipLayer } from "./OwnShipLayer";
 import { AheadLayer } from "./AheadLayer";
+import { TrafficLayer } from "./TrafficLayer";
 import { OPEN_ZOOM, useOwnShip } from "./ownShip";
 import { underway } from "./glide";
 
@@ -238,6 +239,8 @@ export function MapShell({ course, onReady, children, onSelectPlace, held = fals
           <OwnShipLayer />
           {/* What is ahead of it in the air, where it is (lib/map/ahead). */}
           <AheadLayer />
+          {/* The airplanes about, where the map's settings show them. */}
+          <TrafficLayer />
         </MapContainer>
       ) : (
         <div className="h-full w-full bg-slate-100 dark:bg-slate-900" />

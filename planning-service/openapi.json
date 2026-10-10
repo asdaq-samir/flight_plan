@@ -8092,6 +8092,150 @@
         "title": "Totals",
         "type": "object"
       },
+      "Traffic": {
+        "description": "The airplanes ADS-B receivers hear near a point, from adsb.lol's\nopen data, under the Open Database License 1.0, which asks that the\nmap say so where it draws them.",
+        "properties": {
+          "aircraft": {
+            "items": {
+              "$ref": "#/components/schemas/TrafficAircraft"
+            },
+            "title": "Aircraft",
+            "type": "array"
+          },
+          "license": {
+            "default": "ODbL 1.0",
+            "title": "License",
+            "type": "string"
+          },
+          "source": {
+            "default": "adsb.lol",
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "aircraft"
+        ],
+        "title": "Traffic",
+        "type": "object"
+      },
+      "TrafficAircraft": {
+        "description": "One airplane in the air near the point (vfr.traffic): who, where,\nhow high -- the GNSS height where it sends one, else its pressure\naltitude (`pressure_altitude`) -- its track, speed and climb, and how\nmany seconds old its position is.",
+        "properties": {
+          "altitude_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Altitude Ft"
+          },
+          "callsign": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Callsign"
+          },
+          "hex": {
+            "title": "Hex",
+            "type": "string"
+          },
+          "lat": {
+            "title": "Lat",
+            "type": "number"
+          },
+          "lon": {
+            "title": "Lon",
+            "type": "number"
+          },
+          "pressure_altitude": {
+            "default": false,
+            "title": "Pressure Altitude",
+            "type": "boolean"
+          },
+          "registration": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Registration"
+          },
+          "seen_s": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seen S"
+          },
+          "speed_kt": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Speed Kt"
+          },
+          "track_deg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Track Deg"
+          },
+          "type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Type"
+          },
+          "vertical_fpm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vertical Fpm"
+          }
+        },
+        "required": [
+          "hex",
+          "lat",
+          "lon"
+        ],
+        "title": "TrafficAircraft",
+        "type": "object"
+      },
       "TrafficPattern": {
         "description": "How high a field's traffic pattern is flown (vfr.pattern):\n`agl_ft` above the field, the FAA's own where `published`, else AC\n90-66C's 1,000 ft for a propeller aeroplane; `altitude_ft` above sea\nlevel where the field's elevation is known.",
         "properties": {
@@ -11001,6 +11145,73 @@
           }
         },
         "summary": "Tfrs"
+      }
+    },
+    "/api/traffic": {
+      "get": {
+        "description": "The airplanes in the air within `radius` nm of a point, from\nadsb.lol (Open Database License 1.0): for knowing what is about, not\nfor avoiding it. A 503 where adsb.lol does not answer.",
+        "operationId": "traffic_near_api_traffic_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "lat",
+            "required": true,
+            "schema": {
+              "maximum": 90,
+              "minimum": -90,
+              "title": "Lat",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "lon",
+            "required": true,
+            "schema": {
+              "maximum": 180,
+              "minimum": -180,
+              "title": "Lon",
+              "type": "number"
+            }
+          },
+          {
+            "description": "Nautical miles",
+            "in": "query",
+            "name": "radius",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "description": "Nautical miles",
+              "exclusiveMinimum": 0,
+              "maximum": 250,
+              "title": "Radius",
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Traffic"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Traffic Near"
       }
     },
     "/api/waypoints/in-view": {

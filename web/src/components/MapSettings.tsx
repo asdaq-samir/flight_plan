@@ -1,4 +1,4 @@
-import { Bell, BellOff, CloudSun, Download, Eye, EyeOff, Map as MapIcon } from "lucide-react";
+import { Bell, BellOff, CloudSun, Download, Eye, EyeOff, Map as MapIcon, Plane } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { ListGroup, ListRow } from "./GroupedList";
@@ -21,7 +21,8 @@ function editionOf(cycle: string): string {
  * (MapSettingsButton), as Maps' map button holds its map's -- moved out
  * of the console's Settings at the pilot's ask: the chart, Class B's
  * weather and terminal sheet, the waypoints, the TFRs, the alerts in
- * flight, and keeping charts offline, with the charts' edition under them.
+ * flight, the traffic, and keeping charts offline, with the charts' edition
+ * under them.
  */
 export default function MapSettings() {
   const base = usePreferences(s => s.base);
@@ -33,6 +34,8 @@ export default function MapSettings() {
   const tfrs = usePreferences(s => s.tfrs);
   const setTfrs = usePreferences(s => s.setTfrs);
   const alerts = usePreferences(s => s.alerts);
+  const traffic = usePreferences(s => s.traffic);
+  const setTraffic = usePreferences(s => s.setTraffic);
   const setAlerts = usePreferences(s => s.setAlerts);
   const military = usePreferences(s => s.military);
   const setMilitary = usePreferences(s => s.setMilitary);
@@ -49,7 +52,7 @@ export default function MapSettings() {
   return (
     <ListGroup
       title="Map"
-      footer={chart ? `Charts from the FAA, the ${editionOf(chart.chart_cycle)} edition.` : "Charts from the FAA."}
+      footer={`${chart ? `Charts from the FAA, the ${editionOf(chart.chart_cycle)} edition.` : "Charts from the FAA."}${traffic ? " Traffic from adsb.lol, under the Open Database License: seconds old, for knowing what is about, not for avoiding it." : ""}`}
     >
       <ListRow title="Chart">
         <Segmented
@@ -87,6 +90,12 @@ export default function MapSettings() {
           on unless turned off. */}
       <ListRow title="Alerts">
         <TogglePill pressed={alerts} onPressedChange={setAlerts} icon={alerts ? <Bell /> : <BellOff />} label="In flight" testId="alerts-toggle" />
+      </ListRow>
+      {/* The airplanes ADS-B receivers hear about the map (TrafficLayer),
+          from adsb.lol: off unless turned on, as it asks a third party
+          every five seconds. */}
+      <ListRow title="Traffic">
+        <TogglePill pressed={traffic} onPressedChange={setTraffic} icon={<Plane />} label="Show" testId="traffic-toggle" />
       </ListRow>
       {/* The fields the armed services own and keep to themselves, at the
           pilot's ask: off by default, as most pilots may not land there
