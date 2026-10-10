@@ -47,6 +47,10 @@ describe("a runway's traffic pattern", () => {
     expect(trafficPattern("KTST", unsurveyed, "09", 1800)).toBeNull();
   });
 
+  test("is not drawn for a closed runway, which the list leaves out", () => {
+    expect(trafficPattern("KTST", { ...RUNWAY, closed: true }, "09", 1800)).toBeNull();
+  });
+
   test("is kept in the address by field", () => {
     const picked = patternsOf("kdlh:27, C81:24,bad,KX:9Q");
     expect([...picked]).toEqual([["KDLH", "27"], ["C81", "24"]]);

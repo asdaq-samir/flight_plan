@@ -61,7 +61,8 @@ export function trafficPattern(ident: string, runway: Runway, endIdent: string, 
   const ends = runway.runway_ends ?? [];
   const end = ends.find(e => e.ident === endIdent);
   const threshold = at(end);
-  if (!end || !threshold || end.heading_true_deg == null) return null;
+  // A closed runway is not listed, so a stale link must not draw it.
+  if (runway.closed || !end || !threshold || end.heading_true_deg == null) return null;
   const other = ends.find(e => e !== end);
   const heading = end.heading_true_deg;
   const far = at(other) ?? (runway.length_ft ? destination(threshold, heading, runway.length_ft / 6076.12) : null);
