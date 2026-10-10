@@ -51,16 +51,19 @@ export interface AheadAsk {
 /**
  * What to ask the planner, rounded so that it is asked again as the
  * airplane moves a third of a mile, turns five degrees or changes height
- * by 100 ft, not at every fix; null on the ground, with no track, or
+ * by 100 ft (the altitude rounded down), not at every fix; null on the ground, with no track, or
  * with own ship off.
  */
 export function askFor(fix: Fix | null, vs: number): AheadAsk | null {
   if (!fix || !underway(fix) || fix.headingDeg == null || fix.speedKt == null) return null;
   const round = (n: number, step: number) => Math.round(n / step) * step;
+  // Down for the altitude: the cautious side for the ground and a
+  // structure, which are alerted against it.
+  const down = (n: number, step: number) => Math.floor(n / step) * step;
   return {
     lat: round(fix.lat, 0.005), lon: round(fix.lon, 0.005),
     track: round(fix.headingDeg, 5) % 360, gs: round(fix.speedKt, 10),
-    ...(fix.altitudeFt != null ? { alt: round(fix.altitudeFt, 100) } : {}),
+    ...(fix.altitudeFt != null ? { alt: down(fix.altitudeFt, 100) } : {}),
     vs: round(vs, 200),
   };
 }

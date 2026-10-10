@@ -41,14 +41,15 @@ def _obstacles(rows=()):
 def ahead(monkeypatch):
     """alerts.ahead over what each test puts in `world`."""
     world = {"volumes": [], "areas": [], "tfrs": [], "ground_ft": lambda lat, lon: 800.0,
-             "obstacles": _obstacles(), "nearest_nm": 20.0}
+             "obstacles": _obstacles(), "nearest_nm": 20.0, "field_ft": 800.0}
     monkeypatch.setattr(airspace, "load_controlled_airspace", lambda shp, bbox: world["volumes"])
     monkeypatch.setattr(sua, "areas_in", lambda bbox: world["areas"])
     monkeypatch.setattr(tfr, "all_tfrs", lambda: world["tfrs"])
     monkeypatch.setattr(elevation, "ground_m", lambda lat, lon: world["ground_ft"](lat, lon) / 3.28084)
     monkeypatch.setattr(faa_data, "ensure_nasr_file", lambda name, cache_dir: "DOF.DAT")
     monkeypatch.setattr(faa_data, "load_obstacles", lambda path, bbox, min_agl_ft=0: world["obstacles"])
-    monkeypatch.setattr(airports, "nearest", lambda lat, lon, limit=1: [{"ident": "C81", "distance_nm": world["nearest_nm"]}])
+    monkeypatch.setattr(airports, "nearest", lambda lat, lon, limit=1: [
+        {"ident": "C81", "distance_nm": world["nearest_nm"], "elevation_ft": world["field_ft"]}])
 
     def run(alt=3000.0, vs=0.0, gs=120.0, track=90.0):
         return alerts.ahead(LAT, LON, track, gs, alt, vs, shp_path="Class_Airspace.shp", faa_cache_dir="faa", now=NOW)
@@ -153,12 +154,36 @@ def test_descending_into_the_ground_is_seen_before_it_is_reached(ahead):
 
 def test_near_a_field_the_ground_is_not_alerted_but_obstacles_are(ahead):
     ahead.world["nearest_nm"] = 2.0
+    ahead.world["field_ft"] = 2400.0
     ahead.world["ground_ft"] = lambda lat, lon: 2600.0
     ahead.world["obstacles"] = _obstacles([(LAT, LON + 1.0 * MILE, "X", "TOWER", 1900.0, 2700.0, True)])
     (alert,) = ahead()["alerts"]
     assert alert["kind"] == "obstacle" and alert["name"] == "TOWER"
     assert alert["top_ft"] == 2700.0 and alert["clearance_ft"] == 300.0
     assert alert["seconds"] == pytest.approx(30, abs=1)
+
+
+def test_passing_high_over_a_field_the_ground_is_still_alerted(ahead):
+    ahead.world["nearest_nm"] = 2.0
+    ahead.world["field_ft"] = 800.0
+    ahead.world["ground_ft"] = lambda lat, lon: 2600.0 if lon > LON + 0.9 * MILE else 800.0
+    (alert,) = ahead()["alerts"]
+    assert alert["kind"] == "terrain"
+
+
+def test_an_agl_ceiling_is_over_the_ground_under_the_area_and_no_limit_where_unread(ahead, monkeypatch):
+    ahead.world["areas"] = [_area("HIGH MOA", "MOA", _east(3, 5), floor=0.0, ceiling=1000.0, ceiling_ref="AGL")]
+    # 1,000 AGL over 2,500 ft ground is 3,500 MSL: the airplane at 3,000 is in it.
+    ahead.world["ground_ft"] = lambda lat, lon: 2500.0 if lon > LON + 2.0 * MILE else 800.0
+    assert [a["name"] for a in ahead()["alerts"] if a["kind"] == "special_use"] == ["HIGH MOA"]
+    # At 4,300 it is above that ceiling; with the ground unread there is no saying, so it is alerted.
+    assert [a for a in ahead(alt=4300.0)["alerts"] if a["kind"] == "special_use"] == []
+    monkeypatch.setattr(alerts, "_ground_ft", lambda lat, lon: None)
+    assert [a["name"] for a in ahead(alt=4300.0)["alerts"] if a["kind"] == "special_use"] == ["HIGH MOA"]
+
+
+def test_without_an_altitude_the_ground_is_said_not_read(ahead):
+    assert ahead(alt=None)["unavailable"] == ["terrain and obstacles, with no GPS altitude"]
 
 
 def test_an_obstacle_off_the_track_or_well_below_is_not_said(ahead):

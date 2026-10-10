@@ -44,8 +44,11 @@ TERRAIN_LOOK_AHEAD_S = 60
 TERRAIN_WARNING_S = 30
 TERRAIN_STEP_S = 2
 #: 14 CFR 91.119(c): 500 ft above the surface away from congested areas,
-#: and no closer than 500 ft to any structure. TSO-C151d's en route
-#: terrain clearance for a Class B TAWS is the same 500 ft (RTCA SC-231).
+#: and no closer than 500 ft to any structure. That is a rule about how
+#: close one may operate, not a TAWS alert threshold (TSO-C151's required
+#: terrain clearance differs, and is not read here); 500 ft is a design
+#: choice borrowed from it, so that the alert comes before the rule is
+#: broken.
 TERRAIN_CLEARANCE_FT = 500.0
 #: A warning: the ground or an obstacle's top within this of the
 #: projected altitude, which the terrain tiles' 38 m cells and a phone's
@@ -55,9 +58,13 @@ WARNING_CLEARANCE_FT = 100.0
 #: a track that wanders a few degrees: 0.25 nm is some 1,500 ft.
 SWATH_NM = 0.25
 #: 91.119's minimums hold "except when necessary for takeoff or landing":
-#: within this of a field the ground is not alerted (obstacles still are).
+#: within this of a field, and no higher than NEAR_FIELD_AGL_FT over it,
+#: the ground is not alerted (obstacles still are). The exception is for
+#: the airplane's own takeoff or landing, not for passing a field: a
+#: ridge ahead of an airplane well above the field is still alerted.
 #: A 3-degree approach is about 950 ft above the field at 3 nm.
 NEAR_FIELD_NM = 3.0
+NEAR_FIELD_AGL_FT = 1000.0
 #: Slower than this the airplane is on the ground (lib/map/glide's
 #: AIRBORNE_KT): nothing is alerted.
 AIRBORNE_KT = 40.0
@@ -161,14 +168,27 @@ def _classes(track: _Track, shp_path) -> list[dict]:
 
 
 def _height_msl(value: float | None, ref: str | None, ground_ft: float | None, missing: float) -> float:
-    """A floor or ceiling in feet MSL: an AGL one over the ground under
-    the airplane, or as MSL (lower, so the cautious way) where the ground
-    is not known; `missing` where there is none."""
+    """A floor or ceiling in feet MSL: an AGL one over `ground_ft`, the
+    ground under the area; `missing` where there is none. Where the
+    ground is not known an AGL height is taken the cautious way: a floor
+    as low as it can be (the value as MSL), a ceiling as high (`missing`,
+    which for a ceiling is no limit)."""
     if value is None:
         return missing
     if ref == "AGL":
-        return value + (ground_ft or 0.0)
+        if ground_ft is not None:
+            return value + ground_ft
+        return value if missing <= 0 else missing
     return value
+
+
+def _ground_under(geometry, fallback_ft: float | None) -> float | None:
+    """The ground at a point within an area, for its AGL heights: the
+    airplane's own ground is miles from a ridge or valley the area may
+    lie over. One point per area; `fallback_ft` where it cannot be read."""
+    point = geometry.representative_point()
+    found = _ground_ft(point.y, point.x)
+    return fallback_ft if found is None else found
 
 
 def _special_use(track: _Track, ground_ft: float | None) -> list[dict]:
@@ -177,8 +197,10 @@ def _special_use(track: _Track, ground_ft: float | None) -> list[dict]:
     for area, geometry in sua.areas_in(track.bbox(1.0)):
         if area["type"] not in _SPECIAL_USE_NEEDS:
             continue
-        floor = _height_msl(area["floor_ft"], area["floor_ref"], ground_ft, 0.0)
-        ceiling = _height_msl(area["ceiling_ft"], area["ceiling_ref"], ground_ft, math.inf)
+        under = (_ground_under(geometry, ground_ft) if "AGL" in (area["floor_ref"], area["ceiling_ref"])
+                 else ground_ft)
+        floor = _height_msl(area["floor_ft"], area["floor_ref"], under, 0.0)
+        ceiling = _height_msl(area["ceiling_ft"], area["ceiling_ref"], under, math.inf)
         inside, index = _entry(track, geometry, floor, ceiling)
         if index is None:
             continue
@@ -208,8 +230,10 @@ def _tfrs(track: _Track, ground_ft: float | None, now: datetime) -> list[dict]:
             geometry = shape(restriction["geometry"])
         except (KeyError, TypeError, ValueError):
             continue
-        floor = _height_msl(restriction.get("floor_ft"), restriction.get("floor_ref"), ground_ft, 0.0)
-        ceiling = _height_msl(restriction.get("ceiling_ft"), restriction.get("ceiling_ref"), ground_ft, math.inf)
+        refs = (restriction.get("floor_ref"), restriction.get("ceiling_ref"))
+        under = _ground_under(geometry, ground_ft) if "AGL" in refs else ground_ft
+        floor = _height_msl(restriction.get("floor_ft"), restriction.get("floor_ref"), under, 0.0)
+        ceiling = _height_msl(restriction.get("ceiling_ft"), restriction.get("ceiling_ref"), under, math.inf)
         inside, index = _entry(track, geometry, floor, ceiling)
         if index is None:
             continue
@@ -308,13 +332,18 @@ def _obstacles(track: _Track, faa_cache_dir) -> list[dict]:
     return sorted(alerts, key=lambda a: a["seconds"])[:3]
 
 
-def _near_field(lat: float, lon: float) -> bool:
-    """Whether the airplane is within NEAR_FIELD_NM of a landing field."""
+def _near_field(lat: float, lon: float, alt_ft: float) -> bool:
+    """Whether the airplane is within NEAR_FIELD_NM of a landing field
+    and low enough over it (NEAR_FIELD_AGL_FT) to be taking off or
+    landing there. A field with no elevation on file counts as low."""
     try:
         nearest = airports.nearest(lat, lon, limit=1)
     except (OSError, ValueError):
         return False
-    return bool(nearest) and nearest[0]["distance_nm"] <= NEAR_FIELD_NM
+    if not nearest or nearest[0]["distance_nm"] > NEAR_FIELD_NM:
+        return False
+    field_ft = nearest[0].get("elevation_ft")
+    return field_ft is None or alt_ft <= field_ft + NEAR_FIELD_AGL_FT
 
 
 def _ground_ft(lat: float, lon: float) -> float | None:
@@ -353,7 +382,7 @@ def ahead(lat: float, lon: float, track_deg: float, gs_kt: float, alt_ft: float 
         except tfr.TfrUnavailable:
             unavailable.append("TFRs")
     if alt_ft is not None:
-        if not _near_field(lat, lon):
+        if not _near_field(lat, lon, alt_ft):
             try:
                 alerts += _terrain(near)
             except (requests.RequestException, OSError, ValueError):
@@ -362,5 +391,8 @@ def ahead(lat: float, lon: float, track_deg: float, gs_kt: float, alt_ft: float 
             alerts += _obstacles(near, faa_cache_dir or terrain.DEFAULT_FAA_CACHE_DIR)
         except (requests.RequestException, OSError, ValueError):
             unavailable.append("obstacles")
+    else:
+        # Said rather than left to read as a clear sky.
+        unavailable.append("terrain and obstacles, with no GPS altitude")
     alerts.sort(key=lambda a: (a["level"] != "warning", a["seconds"]))
     return {"alerts": alerts, "unavailable": unavailable}
