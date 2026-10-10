@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { expectDrawerClosed, expectDrawerOpen, grabberTo, openMapSettings, openPanel, settle, sideDrawer, slow, tapTheChart } from "./helpers";
+import { expectDrawerClosed, expectDrawerOpen, grabberTo, mapStill, openMapSettings, openPanel, settle, sideDrawer, slow, tapTheChart } from "./helpers";
 
 /**
  * Airports as places, as Maps has them: a tap on one on the chart opens
@@ -405,13 +405,18 @@ test("closer in, the airports that report wear their weather's colour, and a tap
   await expect(page.locator(".leaflet-marker-icon", { hasText: "KDLH" }).first()).toBeVisible({ timeout: slow(30000) });
   expect(await chips.count()).toBe(0);
 
+  // In on the departure, a notch at a time with the map still between
+  // them, as tapTheChart waits: turned while the route was still being
+  // fitted, a wheel's zoom can be undone by the fit. On a loaded machine
+  // the chips never came, three runs of 2026-10-09.
   const departure = page.locator(".leaflet-marker-icon", { hasText: "C81" }).first();
-  const box = (await departure.boundingBox())!;
-  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-  for (let i = 0; i < 3; i++) {
+  for (let notch = 0; notch < 3; notch++) {
+    await mapStill(page);
+    const box = (await departure.boundingBox())!;
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
     await page.mouse.wheel(0, -60);
-    await page.waitForTimeout(400);
   }
+  await mapStill(page);
   await expect.poll(() => chips.count(), { timeout: slow(20000) }).toBeGreaterThan(0);
   // The route's own airports keep their own chips: none drawn twice.
   expect(await chips.filter({ hasText: /^C81$/ }).count()).toBe(0);
