@@ -28,6 +28,7 @@ import { isLegPoint, legOf, navLogRows, rowPoint, type NavLogRow, type RouteEnds
 import LegWorkings from "./LegWorkings";
 import DiversionDrill from "./DiversionDrill";
 import RouteProfileSection from "./RouteProfileSection";
+import { PointMark } from "./PointMark";
 
 
 // TanStack Table's own extension point for arbitrary per-column data --
@@ -106,6 +107,9 @@ interface Props {
    *  "Local Flight" -- the time aloft, the time back and the fuel, and
    *  the fuel check -- in place of the nav log. */
   local?: boolean;
+  /** An airport's weather colour, as its chip on the map: its mark's
+   *  middle in the waypoint column (PointMark). */
+  metarColourOf?: (ident: string) => string | undefined;
   /** Clicking a row focuses that waypoint on the map (pans/zooms to
    *  it, draws the halo) the same way clicking its marker there
    *  selects this row -- keyed by coordinates rather than a row
@@ -308,6 +312,9 @@ function Heading({ name, unit, spoken }: { name: string; unit?: string; spoken: 
   );
 }
 
+/** No weather known: an airport's mark in the no-report grey. */
+const noWeather = () => undefined;
+
 /** The leg's true airspeed, in its own air (the planner's
  *  vfr.performance): it varies with the altitude and the forecast
  *  temperature, so each leg has its own. A dash from a planner that did
@@ -320,7 +327,7 @@ export default function NavLogView({
   totals, nav, depart,
   legs, dep, dest, ends,
   selected, descriptions, onSaveDescription,
-  onGenerateDescriptions, descriptionsLoading, tabContent, children, marks, notice, footer, local = false,
+  onGenerateDescriptions, descriptionsLoading, tabContent, children, marks, notice, footer, local = false, metarColourOf = noWeather,
   selectedPoint, onSelectPoint, onDeselectPoint, drawerOpen,
   aircraftLabel, onTabTap,
 }: Props) {
@@ -378,6 +385,9 @@ export default function NavLogView({
   // `depart`. Kept while they are the same (useMemo): a new list was the
   // profile chart drawn again at every row picked.
   const data = useMemo(() => navLogRows(ends, selected, legs), [ends, selected, legs]);
+  // Each checkpoint's number, as its dot on the map has it (RouteMap):
+  // its place among the chosen, from one.
+  const numbers = useMemo(() => new Map(selected.map((c, i) => [descriptionKey(c.lat, c.lon), i + 1])), [selected]);
   // Whether the clouds the altitude breakdown found (14 CFR 91.155) can be
   // put on legs at all: its segments run fix to fix, as the rows do, so
   // they line up when there is one segment fewer than rows. When they do
@@ -429,11 +439,18 @@ export default function NavLogView({
           Waypoint
         </span>
       ),
-      // The name alone: a leg the clouds leave no legal altitude on is
-      // the briefing's to say (Current Conditions, the Cruise Altitude
+      // The name after the point's mark as the map draws it (PointMark):
+      // a checkpoint's numbered dot, an airport's symbol, a top of climb's
+      // tag. No more: a leg the clouds leave no legal altitude on is the
+      // briefing's to say (Current Conditions, the Cruise Altitude
       // reasoning), not a red mark by the waypoint, which the pilot found
       // one warning too many.
-      cell: ({ row }) => rowPoint(row.original).name,
+      cell: ({ row }) => (
+        <span className="flex items-center gap-2">
+          <PointMark row={row.original} number={row.original.kind === "checkpoint" ? numbers.get(row.original.key) : undefined} weather={metarColourOf} />
+          <span className="min-w-0">{rowPoint(row.original).name}</span>
+        </span>
+      ),
       // On a phone a name wraps, and a long word is hyphenated rather
       // than pushing the figures off the drawer's edge: with a
       // departure time's ETA as a sixth column, "Subdivision" alone was

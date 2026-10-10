@@ -23,6 +23,18 @@ test("plan page: a click or Enter selects a nav log checkpoint, with the briefin
   const selectedRow = table.locator("tbody tr[data-selected]");
   await expect(selectedRow).toHaveCount(0);
 
+  // Each row led by its point's mark as the map draws it: the fields'
+  // symbols at the ends, the checkpoints' dots numbered as the map's are,
+  // from 1 in the order flown, and a top of climb's tag.
+  const marks = await table.locator("tbody tr[tabindex='0'] [data-mark]")
+    .evaluateAll(els => els.map(e => [e.getAttribute("data-mark") ?? "", (e.textContent ?? "").trim()] as const));
+  expect(marks[0]![0]).toBe("airport");
+  expect(marks.at(-1)![0]).toBe("airport");
+  const numbered = marks.filter(([kind]) => kind === "checkpoint").map(([, n]) => Number(n));
+  expect(numbered.length).toBeGreaterThan(0);
+  expect(numbered).toEqual(numbered.map((_, i) => i + 1));
+  expect(marks.some(([kind]) => kind === "toc")).toBe(true);
+
   // A click selects that row, and the map follows it.
   // The one selected is the row clicked, told by its mark rather than
   // by its words: a leg the clouds leave no altitude on gains its
@@ -107,7 +119,9 @@ test("plan page: a checkpoint picked on the map is brought to the middle of the 
   const onScreen = async () => (await neighbour.boundingBox())!.y;
   const before = await onScreen();
   await neighbour.locator("td").first().click();
-  await expect(selectedRow.first().locator("td").first()).toHaveText(await neighbour.locator("td").first().innerText());
+  // By the cell's words: its mark (PointMark) is a box of its own, which
+  // innerText sets on a line apart.
+  await expect(selectedRow.first().locator("td").first()).toHaveText((await neighbour.locator("td").first().textContent()) ?? "");
   await page.waitForTimeout(400);
   expect(Math.abs((await onScreen()) - before)).toBeLessThan(2);
 

@@ -126,4 +126,9 @@ test("the Airports tab is a section for each field, in the order flown, its patt
   await expect(drawer.getByRole("heading", { name: "KDLH · Destination" })).toBeVisible();
   await expect(sections.nth(0).getByTestId("radio-phase")).toContainText("Leaving C81");
   await expect(sections.nth(1).getByTestId("radio-phase")).toContainText("Into KDLH");
+  // Each frequency as the field's card lists it: its name in words and
+  // its glyph, the figure as pilots write it.
+  const tower = sections.nth(1).getByTestId("airport-frequency").filter({ hasText: "Tower" }).first();
+  await expect(tower).toContainText("118.3");
+  await expect(tower.locator("svg").first()).toBeAttached();
 });
