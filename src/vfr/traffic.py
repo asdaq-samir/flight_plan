@@ -16,6 +16,8 @@ from __future__ import annotations
 
 import math
 import threading
+import time
+import weakref
 
 import requests
 from cachetools import TTLCache
@@ -36,7 +38,14 @@ FAILURE_TTL_S = 5
 _CACHE: TTLCache = TTLCache(maxsize=512, ttl=TTL_S)
 _FAILED: TTLCache = TTLCache(maxsize=512, ttl=FAILURE_TTL_S)
 _LOCK = threading.Lock()
-_KEY_LOCKS: dict = {}
+#: A lock per place, kept only while someone holds or waits on it, so no
+#: asker is ever handed a second lock for a place whose first is in use.
+_KEY_LOCKS: weakref.WeakValueDictionary = weakref.WeakValueDictionary()
+#: At most this many asks of adsb.lol at once, whatever places are asked
+#: about: the planner's address is spared a block, and a flood of made-up
+#: places is told the traffic is unavailable instead of passed on.
+MAX_UPSTREAM = 4
+_UPSTREAM = threading.BoundedSemaphore(MAX_UPSTREAM)
 
 
 class TrafficUnavailable(RuntimeError):
@@ -77,6 +86,16 @@ def _aircraft(entry: dict) -> dict | None:
     }
 
 
+def _aged(held: tuple | None) -> list[dict] | None:
+    """A held answer with the seconds it has been held added to each
+    airplane's `seen_s`, so a position is as old as it says."""
+    if held is None:
+        return None
+    since, found = held
+    age = time.monotonic() - since
+    return [{**a, "seen_s": a["seen_s"] + age if a["seen_s"] is not None else None} for a in found]
+
+
 def near(lat: float, lon: float, radius_nm: float) -> list[dict]:
     """The airplanes in the air within `radius_nm` of a point, as
     `_aircraft` gives each. Raises TrafficUnavailable where adsb.lol does
@@ -89,7 +108,7 @@ def near(lat: float, lon: float, radius_nm: float) -> list[dict]:
         with _LOCK:
             if key in _FAILED:
                 raise TrafficUnavailable(_FAILED[key])
-            return _CACHE.get(key)
+            return _aged(_CACHE.get(key))
 
     answer = held()
     if answer is not None:
@@ -101,6 +120,8 @@ def near(lat: float, lon: float, radius_nm: float) -> list[dict]:
         answer = held()
         if answer is not None:
             return answer
+        if not _UPSTREAM.acquire(blocking=False):
+            raise TrafficUnavailable("too many asks of adsb.lol at once")
         try:
             resp = requests.get(URL.format(lat=key[0], lon=key[1], radius=radius), headers=HEADERS, timeout=8)
             resp.raise_for_status()
@@ -110,9 +131,9 @@ def near(lat: float, lon: float, radius_nm: float) -> list[dict]:
             with _LOCK:
                 _FAILED[key] = message
             raise TrafficUnavailable(message) from err
+        finally:
+            _UPSTREAM.release()
         found = [a for a in (_aircraft(e) for e in entries if isinstance(e, dict)) if a is not None]
         with _LOCK:
-            _CACHE[key] = found
-            if len(_KEY_LOCKS) > 1024:
-                _KEY_LOCKS.clear()
+            _CACHE[key] = (time.monotonic(), found)
         return found

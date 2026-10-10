@@ -11,7 +11,7 @@ router = APIRouter()
 @router.get("/api/traffic", response_model=Traffic)
 def traffic_near(
     lat: float = Query(ge=-90, le=90), lon: float = Query(ge=-180, le=180),
-    radius: float = Query(default=25, gt=0, le=250, description="Nautical miles"),
+    radius: float = Query(default=25, gt=0, le=traffic.MAX_RADIUS_NM, description="Nautical miles"),
 ) -> Traffic:
     """The airplanes in the air within `radius` nm of a point, from
     adsb.lol (Open Database License 1.0): for knowing what is about, not

@@ -11235,7 +11235,7 @@
               "default": 25,
               "description": "Nautical miles",
               "exclusiveMinimum": 0,
-              "maximum": 250,
+              "maximum": 100,
               "title": "Radius",
               "type": "number"
             }

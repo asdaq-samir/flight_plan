@@ -36,6 +36,12 @@ it("is near own ship's height within 1,000 ft", () => {
   expect(nearOwnHeight(plane(), null)).toBe(false);
 });
 
+it("does not set a pressure altitude against a GNSS height", () => {
+  const baro = plane({ altitude_ft: 3100, pressure_altitude: true });
+  expect(nearOwnHeight(baro, 3000)).toBe(false);
+  expect(trafficLabel(baro, 3000)).toBe("3,100");
+});
+
 describe("ownShipHex", () => {
   it("knows own ship's own transponder: where it is, as high, the same way, as fast", () => {
     expect(ownShipHex([plane({ altitude_ft: 3100 })], fix())).toBe("a128b9");

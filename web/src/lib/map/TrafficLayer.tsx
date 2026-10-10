@@ -28,8 +28,8 @@ const ATTRIBUTION = 'Traffic <a href="https://adsb.lol" target="_blank" rel="noo
  * adsb.lol's open data), when the map's settings show them: each a
  * chevron on its track, amber within 1,000 ft of own ship's height, cyan
  * otherwise, with, closer in, its height against own ship's under it as
- * TCAS writes it and, closer still, its callsign. About own ship where it
- * is on, else the middle of the map, out to the map's corners (10 to 60
+ * TCAS writes it and, closer still, its callsign. About the middle of the map,
+ * out to its corners (10 to 60
  * nm); asked again every five seconds while it shows. Own ship's own transponder is left
  * out. Seconds old, with holes where no receiver hears: for knowing
  * what is about, never for avoiding it. Nothing to tap: the map's taps
@@ -52,7 +52,10 @@ function Traffic() {
     const credit = L.control.attribution({ prefix: false, position: "bottomleft" }).addAttribution(ATTRIBUTION).addTo(map);
     return () => { credit.remove(); };
   }, [map]);
-  const at = fix ? { lat: fix.lat, lon: fix.lon } : { lat: view.centre.lat, lon: view.centre.lng };
+  // Always the view's own middle, out to its corners: asked about own ship
+  // instead, a pan away from it would leave the view without its traffic.
+  // Own ship in view is within that circle, its transponder with it.
+  const at = { lat: view.centre.lat, lon: view.centre.lng };
   // Asked again as the middle moves a mile or so or the view's size by
   // ten miles, not at every pan.
   const ask = { lat: Math.round(at.lat * 50) / 50, lon: Math.round(at.lon * 50) / 50, radius: Math.ceil(view.radiusNm / 10) * 10 };
@@ -68,7 +71,7 @@ function Traffic() {
     const timer = setTimeout(() => setLateFor(dataUpdatedAt), STALE_MS);
     return () => clearTimeout(timer);
   }, [dataUpdatedAt]);
-  const stale = isError || lateFor === dataUpdatedAt || !data;
+  const stale = isError || (lateFor !== 0 && lateFor === dataUpdatedAt) || !data;
   useEffect(() => {
     if (isError) raiseProblem({ id: PROBLEM, title: "Traffic isn't available right now." });
     else clearProblem(PROBLEM);

@@ -105,3 +105,24 @@ def test_askers_at_once_share_one_request():
         for t in threads:
             t.join()
     assert get.call_count == 1
+
+
+def test_a_held_answer_is_older_by_the_time_it_has_been_held():
+    plane = dict(CESSNA, seen_pos=2.0)
+    with patch("vfr.traffic.requests.get", return_value=_answer([plane])), patch("vfr.traffic.time.monotonic", side_effect=[100.0, 103.0]):
+        first = traffic.near(42.3, -88.1, 25)
+        second = traffic.near(42.3, -88.1, 25)
+    assert first[0]["seen_s"] == 2.0 and second[0]["seen_s"] == 5.0
+
+
+def test_asks_of_adsb_lol_at_once_are_capped():
+    for _ in range(traffic.MAX_UPSTREAM):
+        traffic._UPSTREAM.acquire()
+    try:
+        with patch("vfr.traffic.requests.get") as get:
+            with pytest.raises(traffic.TrafficUnavailable):
+                traffic.near(42.3, -88.1, 25)
+        assert get.call_count == 0
+    finally:
+        for _ in range(traffic.MAX_UPSTREAM):
+            traffic._UPSTREAM.release()
