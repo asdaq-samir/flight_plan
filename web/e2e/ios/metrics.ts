@@ -321,7 +321,10 @@ export function componentFindings(page: Page): Promise<ComponentFinding[]> {
       let inset = Infinity, sample = "";
       const walk = document.createTreeWalker(panel, NodeFilter.SHOW_TEXT);
       for (let n = walk.nextNode(); n; n = walk.nextNode()) {
-        if (!n.textContent!.trim() || n.parentElement!.closest(".sr-only")) continue;
+        // A tab's word is centred in its fifth of the bar, as in iOS's tab
+        // bar: at 320 points "Nav Log" sits 14 from the edge by the width
+        // of the cell, which is the bar's layout, not the content's margin.
+        if (!n.textContent!.trim() || n.parentElement!.closest('.sr-only, [data-slot="tabs-trigger"]')) continue;
         const range = document.createRange();
         range.selectNodeContents(n);
         const t = range.getBoundingClientRect();
