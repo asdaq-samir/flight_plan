@@ -104,7 +104,12 @@ function CheckpointCard({ candidate, number }: { candidate: Candidate; number?: 
       // one of the route's, before its name.
       media={(
         <span
-          aria-hidden="true"
+          // The number is the checkpoint's place in the flight, which the
+          // title no longer carries, so a screen reader hears it here; an
+          // unnumbered candidate has nothing to say.
+          role={number === undefined ? undefined : "img"}
+          aria-label={number === undefined ? undefined : `Checkpoint ${number}`}
+          aria-hidden={number === undefined ? true : undefined}
           className="grid size-7 shrink-0 place-items-center rounded-full border-[2.5px] border-background text-[11px] font-bold leading-none shadow-[0_1px_3px_rgba(0,0,0,.35)] outline outline-1 outline-[rgba(10,20,28,.45)]"
           style={{ backgroundColor: fill, color: inkOn(fill) }}
         >
