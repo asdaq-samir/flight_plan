@@ -357,9 +357,6 @@ export const api = {
    *  algorithm retrain() tried, not just the winner. */
   modelComparison: () => planner.GET("/api/model-comparison").then(data<ModelComparison>),
 
-  /** DEP/DEST's own autocomplete -- airports whose ident or name
-   *  starts with `q`. Empty `q` short-circuits server-side to `[]`, so
-   *  this is safe to call on every keystroke including the first. */
   /** Every US airport the search answers with, for the phone to search
    *  on its own as a pilot types (lib/airportIndex): rows of ident, name,
    *  town, state, size rank and the other idents each is found by. */
@@ -368,6 +365,15 @@ export const api = {
     // a pilot types.
     planner.GET("/api/airports/index", { priority: "low" }).then(r => r.data as unknown as { airports: unknown[][] }),
 
+  /** The same answer's bytes, unread, into the browser's cache and the
+   *  service worker's, where airportIndex finds them when a pilot types:
+   *  the download ahead of time, the reading (a long task) only then. */
+  warmAirportIndex: () =>
+    planner.GET("/api/airports/index", { priority: "low", parseAs: "blob" }).then(() => true),
+
+  /** DEP/DEST's own autocomplete -- airports whose ident or name
+   *  starts with `q`. Empty `q` short-circuits server-side to `[]`, so
+   *  this is safe to call on every keystroke including the first. */
   airportSearch: (q: string, fixes = false, near = "") =>
     planner.GET("/api/airports/search", { params: { query: { q, fixes: fixes || undefined, near: near || undefined } } })
       .then(data<AirportSearch>).then(r => r.airports),

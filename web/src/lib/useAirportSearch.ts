@@ -45,7 +45,7 @@ export function useAirportSearch(text: string, enabled = true, fixes = false) {
   const q = useDebounced(typed, 100);
   const near = useContext(SearchNear);
   const by = fixes ? near : "";
-  const index = useAirportIndex(enabled);
+  const index = useAirportIndex(enabled, typed.length > 0);
   // Once per typed value: the scan covers every row, and the panel
   // re-renders for much besides typing (map moves, weather, sheet drags).
   const local = useMemo(() => (index && typed ? searchIndex(index, typed) : null), [index, typed]);

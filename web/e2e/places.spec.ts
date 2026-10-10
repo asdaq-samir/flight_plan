@@ -443,12 +443,16 @@ test("the airport search answers from the phone's own copy, asking the planner n
   ] } }));
   const asked: string[] = [];
   page.on("request", request => { if (request.url().includes("/airports/search")) asked.push(request.url()); });
-  const index = page.waitForResponse(response => response.url().includes("/api/planner/airports/index"));
+  const index = () => page.waitForResponse(response => response.url().includes("/api/planner/airports/index"));
+  // Downloaded once the page is idle; read once the pilot goes to type.
+  const downloaded = index();
   await page.goto("/app/plan");
   await settle(page);
-  await index;
+  await downloaded;
   const search = page.getByTestId("search-airports");
+  const read = index();
   await search.click();
+  await read;
   await search.pressSequentially("oshk");
   // Wittman by its town, the bigger field first, as the planner would.
   await expect(page.getByTestId("search-result")).toHaveText([/KOSH/, /2WN8/]);
