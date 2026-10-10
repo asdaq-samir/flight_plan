@@ -636,6 +636,19 @@ class NearbyMetar(BaseModel):
     metar: Metar
 
 
+class ModelledWeather(BaseModel):
+    """The weather at a field as the NWS's Gridded LAMP models it for the
+    hour (vfr.glmp), for one with no report of its own: the ceiling above
+    the ground (None with none), the visibility (10 sm and more is "10"),
+    their flight category (AIM 7-1-7), and the hour it is for. Planning
+    guidance, not an observation."""
+
+    ceiling_ft: float | None
+    visibility_sm: float
+    flight_category: Literal["VFR", "MVFR", "IFR", "LIFR"]
+    valid_at: str
+
+
 class RunwayWind(BaseModel):
     """The reported wind on the end of a runway it favours, the one with
     the most headwind (vfr.runway_wind): the headwind negative for a
@@ -1451,6 +1464,10 @@ class AirportPlace(BaseModel):
     #: (vfr.weather.nearest_report): its flight category the card's,
     #: marked approximate, where it is `near`.
     nearby_metar: NearbyMetar | None = None
+    #: Where it has none, the weather the NWS's Gridded LAMP models at the
+    #: field for the hour (vfr.glmp): the card's category, marked
+    #: modelled, before a near station's.
+    modelled_weather: ModelledWeather | None = None
     weather_unavailable: bool = False
     # Its phone and one-line street address, from the FAA's airport file
     # (vfr.faa_data.airport_contact): the manager's, else the owner's; None

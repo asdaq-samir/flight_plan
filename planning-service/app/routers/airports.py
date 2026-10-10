@@ -6,19 +6,26 @@ radio, and the weather there now.
 Everything here is already in memory on this side: the OurAirports
 tables are read once per process (vfr.airports), the airspace polygons
 are parsed once at startup (vfr.airspace), and the METARs are the
-national cache vfr.weather keeps for minutes at a time. A card costs a
-few table lookups and a point-in-polygon test.
+national cache vfr.weather keeps for minutes at a time; a field with
+no report of its own has the weather modelled there for the hour, from
+the gridded LAMP vfr.glmp holds an hour at a time. A card costs a few
+table lookups and a point-in-polygon test.
 """
+import logging
+
 from fastapi import APIRouter, HTTPException, Query, Response
 from fastapi.responses import FileResponse
 from vfr import (
-    airports, airspace, altitude, faa_data, fixes, geocode, pattern, places, procedures, publications, remarks, runway_wind, weather,
+    airports, airspace, altitude, faa_data, fixes, geocode, glmp, pattern, places, procedures, publications, remarks, runway_wind,
+    weather,
 )
 
 from ..common import DIAGRAM_CACHE
 from ..schemas import (
     AirportPlace, AirportsInView, ChartPages, NearestAirports, PlacesFound, ProcedureDrawing, ProcedureList, WaypointsInView,
 )
+
+log = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -250,6 +257,14 @@ def airport_place(ident: str) -> AirportPlace:
             nearby = weather.nearest_report(place["lat"], place["lon"], exclude=source)
         except weather.WeatherServiceError:
             nearby = None
+    # And the weather modelled at the field itself for the hour (vfr.glmp),
+    # whatever the reports' service said: its own source.
+    modelled = None
+    if metar is None:
+        try:
+            modelled = glmp.at(place["lat"], place["lon"])
+        except glmp.GlmpUnavailable as err:
+            log.warning("modelled weather at %s: %s", place["ident"], err)
     return {
         **{key: value for key, value in place.items() if key != "source_ident"},
         "airspace_class": airspace.surface_class_at(place["lat"], place["lon"], shp_path),
@@ -264,6 +279,7 @@ def airport_place(ident: str) -> AirportPlace:
         "frequencies": frequencies,
         "metar": metar,
         "nearby_metar": nearby,
+        "modelled_weather": modelled,
         "weather_unavailable": unavailable,
         # Its phone and street address, for the card's Call and Address.
         **faa_data.airport_contact(place["ident"], altitude.DEFAULT_FAA_CACHE_DIR),
