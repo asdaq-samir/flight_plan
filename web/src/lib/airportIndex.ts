@@ -89,7 +89,8 @@ function useFocused(): boolean {
 
 /**
  * The index, read once the pilot goes to type -- a field focused, or
- * something typed (`wanted`) -- and kept a day, as the planner says it may
+ * something typed (`wanted`), and only where the caller's search is on
+ * (`enabled`; a screen that never searches never reads it) -- and kept a day, as the planner says it may
  * be; none until it is in, when the planner answers as before. Its bytes
  * are downloaded before that, once the page is idle after opening
  * (api.warmAirportIndex), so the reading finds them in the browser's
@@ -97,7 +98,7 @@ function useFocused(): boolean {
  * tasks in the opening -- reading half a megabyte of JSON and building the
  * lookups, 95 and 64 ms at CPU 4x -- for a search the pilot may not make.
  */
-export function useAirportIndex(wanted = false): AirportIndex | null {
+export function useAirportIndex(enabled = true, wanted = false): AirportIndex | null {
   const idle = useIdle();
   const focused = useFocused();
   useQuery({
@@ -111,7 +112,7 @@ export function useAirportIndex(wanted = false): AirportIndex | null {
   const { data } = useQuery({
     queryKey: ["airportIndex"],
     queryFn: async () => indexOf((await api.airportIndex()).airports as Entry[]),
-    enabled: wanted || focused,
+    enabled: enabled && (wanted || focused),
     staleTime: 24 * 60 * 60_000,
     gcTime: Infinity,
     meta: { silent: true },
