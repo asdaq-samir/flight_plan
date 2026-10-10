@@ -290,9 +290,16 @@ test("the route's box is round and two lines tall beside its close and its Proce
   // it, as a stop.
   await sideDrawer(page).getByRole("button", { name: "Type a stop between C81 and KDLH" }).click();
   const field = sideDrawer(page).getByTestId("route-type");
+  // A stop's rows come from the airports' copy at once and the planner's
+  // answer (with the waypoints) a debounce and a request later; Enter
+  // before it keeps what was typed (useAirportSearch `answered`), so on a
+  // slow CI stack the first row showing was not yet the one Enter takes.
+  const answer = page.waitForResponse(r => /\/airports\/search\?/i.test(r.url()) && /madison/i.test(r.url()), { timeout: slow(15000) });
   await field.fill("madison");
   const first = page.getByTestId("route-suggestions").getByRole("option").first();
   await expect(first).toContainText("KMSN", { timeout: slow(10000) });
+  await answer;
+  await page.waitForTimeout(300);
   await field.press("Enter");
   await expect(page).toHaveURL(/[?&]stops=KMSN(&|$)/);
   await expect(page).toHaveURL(/[?&]dest=KDLH(&|$)/);

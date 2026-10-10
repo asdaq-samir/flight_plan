@@ -78,7 +78,10 @@ test("plan page: a checkpoint picked on the map is brought to the middle of the 
   // pick first, at full height: at 420px a phone's map is too short
   // for a marker along the route to be clicked.)
   const viewport = page.viewportSize()!;
-  await page.setViewportSize({ width: viewport.width, height: 420 });
+  // 462: the route's box is two lines tall again (42 points more than the
+  // 420 this was written at), and a scroller left under a row and the
+  // table's sticky heading is too short for a row to stay put.
+  await page.setViewportSize({ width: viewport.width, height: 462 });
   await page.waitForTimeout(300);
   await grabberTo(page, "full");
   // The drawer opens the nav log's own section itself, for the pick:
