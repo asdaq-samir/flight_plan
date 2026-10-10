@@ -44,7 +44,10 @@ const fixIcon = made(function fixIcon(fix: ProcedureFix, words: boolean, stale: 
     const deco = [l.under && "underline", l.over && "overline"].filter(Boolean).join(" ");
     return `<span style="text-decoration:${deco || "none"};text-decoration-thickness:1.5px">${esc(l.text)}</span>`;
   }).join("");
-  const label = words
+  // A runway's threshold (the missed approach point of most approaches)
+  // is under the field's own mark and its ident: its diamond alone, where
+  // "RW08 MAP" covered the field's name (2026-10-10).
+  const label = words && !/^RW\d/.test(fix.ident)
     ? `<span class="absolute top-1/2 left-[14px] flex -translate-y-1/2 flex-col rounded-md bg-white/95 px-1.5 py-0.5 text-[0.8125rem] leading-4 font-bold whitespace-nowrap shadow-sm" style="color:${ink}">` +
       `<span>${esc(fix.ident)}${roles.length ? ` <span class="font-semibold opacity-80">${esc(roles.join(" "))}</span>` : ""}</span>` +
       `${alt ? `<span class="flex flex-col text-[#1c1a17]">${alt}</span>` : ""}` +
