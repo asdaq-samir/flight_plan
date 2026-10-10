@@ -32,7 +32,7 @@ export function PointMark({ row, number, weather }: {
     return (
       <span
         aria-hidden="true" data-mark="checkpoint"
-        className="grid size-6 shrink-0 place-items-center rounded-full border-2 border-background text-[11px] leading-none font-bold tracking-tight shadow-[0_1px_3px_rgba(0,0,0,.35)] outline outline-1 outline-[rgba(10,20,28,.45)]"
+        className="grid size-6 shrink-0 place-items-center rounded-full border-2 border-background text-[11px] leading-[13px] font-bold tracking-tight shadow-[0_1px_3px_rgba(0,0,0,.35)] outline outline-1 outline-[rgba(10,20,28,.45)]"
         style={{ backgroundColor: fill, color: inkOn(fill) }}
       >
         {number}
@@ -53,8 +53,8 @@ export function PointMark({ row, number, weather }: {
   }
   if (row.kind === "stop" && row.airport.kind === "fix") {
     return (
-      <span aria-hidden="true" data-mark="waypoint" className="grid size-6 shrink-0 place-items-center text-[15px] leading-none" style={{ color: WAYPOINT_MAGENTA }}>
-        &#9670;
+      <span aria-hidden="true" data-mark="waypoint" className="grid size-6 shrink-0 place-items-center">
+        <svg viewBox="0 0 12 12" className="size-3.5" fill={WAYPOINT_MAGENTA}><path d="M6 0.5 11.5 6 6 11.5 0.5 6z" /></svg>
       </span>
     );
   }
