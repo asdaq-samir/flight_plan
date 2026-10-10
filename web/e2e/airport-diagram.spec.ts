@@ -234,3 +234,22 @@ test("a field the FAA draws no diagram for has the row all the same, showing the
   await viewer.getByTestId("airport-sketch-close").click();
   await expect(viewer).toHaveCount(0);
 });
+
+test("a tap on the card's sketch of a field the FAA draws no diagram for shows the sketch full screen", async ({ page }) => {
+  await page.route(url => url.pathname.endsWith("/api/planner/airport/C81"), async route => {
+    const answer = await route.fetch();
+    await route.fulfill({ response: answer, json: { ...await answer.json(), airport_diagram_url: null, airport_diagram_cycle: null } });
+  });
+  await page.goto("/app/plan?place=C81");
+  await settle(page);
+  const thumbnail = card(page).getByTestId("place-runway-sketch");
+  await expect(thumbnail).toHaveAccessibleName(/Runways sketch, full screen$/);
+  await thumbnail.click();
+  const viewer = page.getByTestId("airport-sketch-viewer");
+  await expect(viewer.getByRole("heading", { name: "C81 runways" })).toBeVisible();
+  await expect(viewer.getByTestId("runway-sketch").locator("line").first()).toBeVisible();
+  // Not the Runways tab, which the tap used to open.
+  await expect(card(page).getByTestId("place-tab-runways")).not.toHaveAttribute("data-state", "active");
+  await viewer.getByTestId("airport-sketch-close").click();
+  await expect(viewer).toHaveCount(0);
+});
