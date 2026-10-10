@@ -32,7 +32,7 @@ test("Nearest opens as a card half way up, a field over it as a layer, and its c
   const rows = card.getByTestId("nearest-airport");
   await expect(rows).toHaveCount(3, { timeout: slow(15000) });
   await expect(rows.nth(2)).toContainText("joint use");
-  // Each row its weather, its runway and the frequency to call it on, and
+  // Each row its weather, its runway and its listed frequency, and
   // how far and which way, its arrow pointing there (north up, the
   // airplane not moving).
   await expect(rows.nth(1)).toContainText("VFR");

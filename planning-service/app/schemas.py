@@ -1242,7 +1242,7 @@ class InboundRadio(BaseModel):
 
 class NearestAirport(AirportPin):
     """A field near a position: how far and which way (true), its town,
-    elevation and longest open runway, and the frequency to call it on
+    elevation and longest open runway, and a frequency listed for it
     (None where OurAirports lists none)."""
 
     municipality: str | None = None

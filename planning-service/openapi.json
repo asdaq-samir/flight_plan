@@ -4655,7 +4655,7 @@
         "type": "object"
       },
       "NearestAirport": {
-        "description": "A field near a position: how far and which way (true), its town,\nelevation and longest open runway, and the frequency to call it on\n(None where OurAirports lists none).",
+        "description": "A field near a position: how far and which way (true), its town,\nelevation and longest open runway, and a frequency listed for it\n(None where OurAirports lists none).",
         "properties": {
           "airspace_class": {
             "anyOf": [
@@ -8084,7 +8084,7 @@
     },
     "/api/airports/nearest": {
       "get": {
-        "description": "The landing fields nearest a position -- own ship's, for the map's\nNearest -- the nearest first: how far and which way, each one's\nlongest open runway, the frequency to call it on, its flight category\nwhere it reports, and its class of airspace at the surface, as the\nmap's marks have it.",
+        "description": "The landing fields nearest a position -- own ship's, for the map's\nNearest -- the nearest first: how far and which way, each one's\nlongest open runway, a frequency listed for it, its flight category\nwhere it reports, and its class of airspace at the surface, as the\nmap's marks have it.",
         "operationId": "nearest_airports_api_airports_nearest_get",
         "parameters": [
           {

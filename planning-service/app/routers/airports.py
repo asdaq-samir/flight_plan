@@ -107,14 +107,18 @@ def places_search(q: str = "") -> PlacesFound:
     return {"places": found}
 
 
-#: Which of a field's frequencies a pilot calls it on, inbound: its
+#: The one of a field's listed frequencies to show on its row: its
 #: tower's where it has one, else its CTAF, else UNICOM -- OurAirports'
-#: frequencies, as the card's Freq. tab lists them (vfr.airports).
+#: frequencies, as the card's Freq. tab lists them (vfr.airports). It is
+#: a listing, not advice on whom to call: a tower open part of the day
+#: hands the field to its CTAF when closed (AIM 4-1-9), and inbound to a
+#: Class B or C field a pilot calls approach control first (14 CFR
+#: 91.130(c), 91.131(a)). The row names the kind, so the pilot sees which.
 _INBOUND = (("TWR", "TWR"), ("CTAF", "CTAF"), ("UNIC", "UNICOM"))
 
 
 def _inbound_radio(frequencies: list[dict]) -> dict | None:
-    """The frequency to call a field on, inbound, of its frequencies."""
+    """The frequency to list for a field, of its frequencies."""
     for listed, kind in _INBOUND:
         for f in frequencies:
             if f["type"] == listed and f["frequency_mhz"]:
@@ -129,7 +133,7 @@ def nearest_airports(
 ) -> NearestAirports:
     """The landing fields nearest a position -- own ship's, for the map's
     Nearest -- the nearest first: how far and which way, each one's
-    longest open runway, the frequency to call it on, its flight category
+    longest open runway, a frequency listed for it, its flight category
     where it reports, and its class of airspace at the surface, as the
     map's marks have it."""
     found = airports.nearest(lat, lon, limit)

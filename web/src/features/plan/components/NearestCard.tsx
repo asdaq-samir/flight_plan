@@ -120,7 +120,7 @@ const MOVING_KT = 30;
  * One field of Nearest's, at the pilot's ask for a list that reads as an
  * EFB's: the map's own mark for it (its airspace, its weather's dot), the
  * ident and the name, then its weather, longest runway and the frequency
- * to call it on; at the right how far, with an arrow the way to it -- from
+ * listed for it; at the right how far, with an arrow the way to it -- from
  * the airplane's track when it is moving, north up otherwise -- and the
  * compass point. A row that opens the field's card, so its words are the
  * text's and it ends in a chevron, as iOS's do.
@@ -241,7 +241,7 @@ export default function NearestCard({ onOpen, onClose, from, onFrom }: {
                   ? `Within a still-air glide: about ${Math.round(glide)} nm from here, at 1.5 nm for every 1,000 ft over the nearest field -- the dashed ring.`
                   : "In the air, the ones within a glide are marked.",
               ahead != null ? "The arrows point the way from your track." : null,
-              "Each field's longest runway and the frequency to call it on: its tower's, else its CTAF, else UNICOM.",
+              "Each field's longest runway and its listed tower, CTAF or UNICOM frequency. Check the Chart Supplement for the tower's hours.",
             ].filter(Boolean).join(" ")}
           >
             {(data ?? []).map(a => (
