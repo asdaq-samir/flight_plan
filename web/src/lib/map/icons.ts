@@ -11,7 +11,7 @@ import { AIRPORT_MARK, airportMarkSvg, text } from "./airportMark";
  *  route's chips (leaflet's createIcon, measured on the Brief tab's first
  *  opening). Plain data in, so the arguments are the key; a few thousand
  *  kept at most. */
-function made<A extends unknown[]>(make: (...args: A) => L.DivIcon): (...args: A) => L.DivIcon {
+export function made<A extends unknown[]>(make: (...args: A) => L.DivIcon): (...args: A) => L.DivIcon {
   const kept = new Map<string, L.DivIcon>();
   return (...args: A) => {
     const key = JSON.stringify(args);

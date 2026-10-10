@@ -70,6 +70,12 @@ export type ChartInfo = Schemas["ChartInfo"];
 export type AirportSearch = Schemas["AirportSearch"];
 export type AirportPlace = Schemas["AirportPlace"];
 export type TerminalChart = Schemas["TerminalChart"];
+/** A field's instrument procedures from the FAA's CIFP, and one drawn
+ *  with the transition picked (the planner's vfr.procedures). */
+export type ProcedureList = Schemas["ProcedureList"];
+export type ProcedureSummary = Schemas["ProcedureSummary"];
+export type ProcedureDrawing = Schemas["ProcedureDrawing"];
+export type ProcedureFix = Schemas["ProcedureFix"];
 export type ChartPages = Schemas["ChartPages"];
 /** The mock oral's question, its answer graded, and what each is asked with. */
 export type OralQuestion = Schemas["OralQuestion"];

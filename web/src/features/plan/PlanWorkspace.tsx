@@ -1,6 +1,6 @@
 import { Suspense, lazy, memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type ComponentType } from "react";
 import { flushSync } from "react-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQueries, useQuery } from "@tanstack/react-query";
 import { FileArchive, FileDown, Link2, MapPinned, Printer, Send, Share } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../../components/ui/dropdown-menu";
 import { foreflightRoute, fplOf, gpxOf, shareFile, type PlanPoint } from "../../lib/flightPlanFiles";
@@ -12,7 +12,7 @@ import { showError } from "../../lib/problems";
 import { cn } from "cn";
 import { api } from "../../lib/api/client";
 import { checkpointsQuery, courseQuery, nearestQuery, pilotQuery, queryClient } from "../../lib/queryClient";
-import type { AircraftChoice, AirportPlace, AltitudeChoice, Candidate } from "../../lib/api/types";
+import type { AircraftChoice, AirportPlace, AltitudeChoice, Candidate, ProcedureDrawing } from "../../lib/api/types";
 import { aircraftKey, choiceOf } from "../../lib/aircraftChoice";
 import { bestStopIndex } from "../../lib/geo";
 import { useKeepOffline } from "../../lib/map/keepStatus";
@@ -36,6 +36,7 @@ import AirspaceCard from "./components/AirspaceCard";
 import PlaceCard from "./components/PlaceCard";
 import ProceduresButton, { type ProcedureAirport } from "./components/ProceduresButton";
 import { patternsOf, patternsParam, trafficPattern, type TrafficPattern } from "../../lib/trafficPattern";
+import { proceduresOf, proceduresParam, type PickedProcedure } from "../../lib/procedures";
 import { runwayNumber } from "../../lib/pattern";
 import NearestCard from "./components/NearestCard";
 import type { RouteParts } from "./components/RouteBox";
@@ -119,6 +120,10 @@ function altitudeChoiceOf(value: string | null): AltitudeChoice {
  * a key; and the screen is derived from the queries on each render,
  * nothing kept in step by hand.
  */
+/** The procedures drawn so far, for the map: one stable function, so the
+ *  list is made again only as one comes in (useQueries' combine). */
+const drawnOnly = (results: { data?: ProcedureDrawing }[]) => results.flatMap(r => (r.data ? [r.data] : []));
+
 export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: WorkspaceProps) {
   useEffect(() => {
     const later = window.setTimeout(prefetchPilotPanel, 2000);
@@ -210,6 +215,20 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       const next = new URLSearchParams(prev);
       if (picked.size) next.set("pattern", patternsParam(picked)); else next.delete("pattern");
       return next;
+    }, { replace: true });
+  }, [setSearchParams]);
+  // The instrument procedures picked for the route's fields, kept in the
+  // address too: "KBUR:I08-Y:LAX" (lib/procedures).
+  const procedureParam = searchParams.get("procs");
+  const pickedProcedures = useMemo(() => proceduresOf(procedureParam), [procedureParam]);
+  // The procedure just picked, for the map to go to it once it is drawn.
+  const [procedureFocus, setProcedureFocus] = useState<string | null>(null);
+  const pickProcedures = useCallback((next: PickedProcedure[], picked: PickedProcedure | null) => {
+    if (picked) setProcedureFocus(`${proceduresParam([picked])}@${Date.now()}`);
+    setSearchParams(prev => {
+      const params = new URLSearchParams(prev);
+      if (next.length) params.set("procs", proceduresParam(next)); else params.delete("procs");
+      return params;
     }, { replace: true });
   }, [setSearchParams]);
   const changeLocalMin = useCallback((minutes: number) => {
@@ -355,6 +374,17 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     const drawn = runway && ident ? trafficPattern(a.ident, runway, ident, a.patternAltitudeFt) : null;
     return drawn ? [drawn] : [];
   }), [procedureAirports, pickedPatterns]);
+  // Theirs as the planner draws them (vfr.procedures), for the route's
+  // fields alone: a pick kept from a route since changed is not drawn.
+  const procedureDrawings = useQueries({
+    queries: pickedProcedures.filter(p => procedureAirports.some(a => a.ident === p.ident)).map(p => ({
+      queryKey: ["procedure", p.ident, p.id, p.transition],
+      queryFn: () => api.procedure(p.ident, p.id, p.transition),
+      // A cycle's procedures hold for its 28 days.
+      staleTime: 6 * 60 * 60_000,
+    })),
+    combine: drawnOnly,
+  });
   const selectPlaceOnChart = useCallback((ident: string | null) => {
     if (!ident && nearOpen && !place) {
       showNearest(false);
@@ -1177,6 +1207,8 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           airportWeather={s.briefing}
           patterns={patterns}
           patternFocus={patternFocus}
+          procedures={procedureDrawings}
+          procedureFocus={procedureFocus}
           place={placePin}
           nearest={nearOpen ? nearestPoints : null}
           onNearest={openNearest}
@@ -1316,6 +1348,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
               lists none. */}
           <ProceduresButton
             airports={procedureAirports} picked={pickedPatterns} onPick={pickPattern}
+            procedures={pickedProcedures} onProcedures={pickProcedures}
             onCharts={() => { if (planned.dest) { setApproachesOf(planned.dest); selectPlace(planned.dest); } }}
             chartsDisabled={!planned.dest || noApproaches}
           />

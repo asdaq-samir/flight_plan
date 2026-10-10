@@ -116,6 +116,8 @@ public class PlannerProxyController {
             route("GET", "/api/airports/nearest"),
             route("GET", "/api/places/search"),
             route("GET", "/api/airport/{ident}"),
+            route("GET", "/api/airport/{ident}/procedures"),
+            route("GET", "/api/airport/{ident}/procedures/{procedure}"),
             route("GET", DIAGRAM_PATH + "{cycle}/{ident}.png"),
             route("GET", DIAGRAM_PATH + "{cycle}/runways/{ident}.png"),
             route("GET", FAA_CHART_PATH),

@@ -11,10 +11,14 @@ few table lookups and a point-in-polygon test.
 """
 from fastapi import APIRouter, HTTPException, Query, Response
 from fastapi.responses import FileResponse
-from vfr import airports, airspace, altitude, faa_data, fixes, geocode, pattern, places, publications, remarks, runway_wind, weather
+from vfr import (
+    airports, airspace, altitude, faa_data, fixes, geocode, pattern, places, procedures, publications, remarks, runway_wind, weather,
+)
 
 from ..common import DIAGRAM_CACHE
-from ..schemas import AirportPlace, AirportsInView, ChartPages, NearestAirports, PlacesFound, WaypointsInView
+from ..schemas import (
+    AirportPlace, AirportsInView, ChartPages, NearestAirports, PlacesFound, ProcedureDrawing, ProcedureList, WaypointsInView,
+)
 
 router = APIRouter()
 
@@ -259,6 +263,41 @@ def airport_place(ident: str) -> AirportPlace:
         "chart_supplement_url": publications.chart_supplement_url(place["ident"]),
         "procedures": publications.terminal_charts(place["ident"]),
     }
+
+
+@router.get("/api/airport/{ident}/procedures", response_model=ProcedureList,
+            responses={503: {"description": "The FAA's procedure file could not be had"}})
+def airport_procedures(ident: str) -> ProcedureList:
+    """The field's instrument procedures -- its approaches, arrivals and
+    departures, with the transitions of each -- from the FAA's CIFP for
+    the AIRAC cycle in force (vfr.procedures), for the route's Procedures
+    to offer. None for a field the CIFP has none for, as most small ones."""
+    try:
+        found = procedures.procedures_at(ident)
+    except RuntimeError as err:
+        raise HTTPException(503, f"The FAA's procedure file could not be had: {err}") from err
+    if found:
+        return found
+    path = procedures.cifp_path()
+    return {"airport": ident.strip().upper(), "cycle": procedures.cifp_cycle(path),
+            "stale": procedures.cifp_stale(path), "procedures": []}
+
+
+@router.get("/api/airport/{ident}/procedures/{procedure}", response_model=ProcedureDrawing,
+            responses={404: {"description": "No such procedure at the field"},
+                       503: {"description": "The FAA's procedure file could not be had"}})
+def airport_procedure(ident: str, procedure: str, transition: str | None = None) -> ProcedureDrawing:
+    """One of the field's procedures drawn for the map, with the
+    transition picked (`transition`, one of its `transitions`; none for an
+    approach from vectors): its lines, holds and fixes, each fix with the
+    altitudes and speed it is crossed at (vfr.procedures.procedure_drawing)."""
+    try:
+        drawn = procedures.procedure_drawing(ident, procedure, transition)
+    except RuntimeError as err:
+        raise HTTPException(503, f"The FAA's procedure file could not be had: {err}") from err
+    if drawn is None:
+        raise HTTPException(404, f"No procedure {procedure.strip().upper()!r} at {ident.strip().upper()!r}.")
+    return drawn
 
 
 @router.get("/api/airport-diagram/{cycle}/{ident}.png", response_class=FileResponse,

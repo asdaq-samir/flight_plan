@@ -8,7 +8,7 @@ import type {
   AirspaceAt, ClassBResponse, NearestAirports, RouteProfile, Tfrs, DevServices, DevServiceStarted, Pilot, Rating, RetrainStarted, Role, SaveFlightRequest,
   SignInCapabilities, AppleSignedIn, LogbookEntry, LogbookEntryRequest, Currency, CurrencyDatesRequest,
   Status, StreamMessage, Totals, WaypointsInView, Training, SavedTrack,
-  OralQuestion, OralQuestionRequest, OralGrade, OralGradeRequest,
+  OralQuestion, OralQuestionRequest, OralGrade, OralGradeRequest, ProcedureDrawing, ProcedureList,
 } from "./types";
 
 /**
@@ -389,6 +389,15 @@ export const api = {
   },
   airport: (ident: string) =>
     planner.GET("/api/airport/{ident}", { params: { path: { ident } }, priority: "high" }).then(data<AirportPlace>),
+  /** The field's instrument procedures -- approaches, arrivals and
+   *  departures -- from the FAA's CIFP, for the route's Procedures. */
+  procedures: (ident: string) =>
+    planner.GET("/api/airport/{ident}/procedures", { params: { path: { ident } } }).then(data<ProcedureList>),
+  /** One of them drawn for the map, with the transition picked. */
+  procedure: (ident: string, procedure: string, transition: string | null) =>
+    planner.GET("/api/airport/{ident}/procedures/{procedure}", {
+      params: { path: { ident, procedure }, query: transition ? { transition } : {} },
+    }).then(data<ProcedureDrawing>),
   /** The pages of one of the FAA's charts, by its address, drawn by the
    *  planner -- of a booklet, the ones naming `airport`. */
   faaChart: (url: string, airport: string) =>
