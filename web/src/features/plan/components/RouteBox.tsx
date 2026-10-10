@@ -297,14 +297,14 @@ export default function RouteBox({
         <PopoverAnchor asChild>
           {/* The search bar's field, as Maps' is with no route: its grey,
               no line round it, its corners round, the pills on it in the
-              sheet's own colour -- one line, the search field's 41 points,
-              while the route fits on one, and a line more for each it
-              wraps onto, at the pilot's ask: two lines tall however short
-              the route left a grey line empty under "C81 -> KDLH" and the
-              tabs that much lower. Beside it the route's Procedures and its
-              close, on its first line (PlanWorkspace). */}
+              sheet's own colour -- two lines tall however short the route,
+              room to type the next point (Add stop) under a route that
+              fills its first, beside the route's close and its Procedures
+              stacked (PlanWorkspace), at the pilot's ask: one line tall,
+              with the two side by side, the route wrapped onto a second
+              line all the same, the card a line taller than it had been. */}
           <InputGroup
-            className="h-auto min-h-[2.5625rem] items-start rounded-[20.5px] border-0 bg-foreground/8 py-0 pr-1.5 pl-1 shadow-none dark:bg-foreground/8 has-[[data-slot=input-group-control]:focus-visible]:ring-0"
+            className="h-auto min-h-[5.25rem] items-start rounded-[20.5px] border-0 bg-foreground/8 py-0 pr-1.5 pl-1 shadow-none dark:bg-foreground/8 has-[[data-slot=input-group-control]:focus-visible]:ring-0"
             data-testid="route-box" data-tip="route"
           >
             {/* The pills wrap, two lines of them in sight and the top of a

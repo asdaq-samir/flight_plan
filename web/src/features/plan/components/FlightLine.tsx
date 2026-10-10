@@ -1,9 +1,9 @@
+import { useLayoutEffect, useRef, useState } from "react";
 import { cn } from "cn";
 import type { Totals } from "../../../lib/api/types";
 import { GROUP_HEADING, TEXT } from "../../../lib/text";
-import { textWidth } from "../../../lib/textWidth";
 import { useRoom } from "../../../lib/useRoom";
-import { type Figure, fitFigures, tripFigures } from "../figures";
+import { fitFigures, tripFigures } from "../figures";
 
 /**
  * The flight's figures, the last of the route's panel over the tabs, at
@@ -38,15 +38,34 @@ export default function FlightLine({ totals, estimate, depart, local, problem }:
   /** What stops the plan, in a few words (no legal altitude's brief). */
   problem: string | null | undefined;
 }) {
-  // Measured in a figure's own room and font -- the first figure's, as
-  // wide as each of the strip's columns -- and its unit in the unit's.
+  // Each figure on its own: the one too wide for its column rounded, the
+  // rest as they are. Measured as the page sets it, in hidden words of the
+  // figures' own type (the probes below), against the first figure's
+  // room, as wide as each column: measured on a canvas, in the font as it
+  // was named, the iPhone's figures came out narrower than they are, and
+  // a quarter of an hour's "0h 15m" was cut short to "0h 1…" where "0.3h"
+  // fitted (2026-10-10).
   const [room, space] = useRoom<HTMLElement>();
-  const [unitRoom, unitSpace] = useRoom<HTMLElement>();
   const exact = tripFigures({ totals, estimate, depart, local }, false);
-  const widthOf = (f: Figure) => !space ? 0
-    : (textWidth(f.value, space.font) ?? 0) + (f.unit && unitSpace ? textWidth(` ${f.unit}`, unitSpace.font) ?? 0 : 0);
-  // Each figure on its own: the one too wide rounded, the rest as they are.
-  const shown = fitFigures(exact, tripFigures({ totals, estimate, depart, local }, true), f => !space || widthOf(f) <= space.width);
+  const rounded = tripFigures({ totals, estimate, depart, local }, true);
+  const probe = useRef<HTMLSpanElement>(null);
+  const unitProbe = useRef<HTMLSpanElement>(null);
+  const key = exact.map(f => `${f.value}${f.unit ?? ""}`).join("|");
+  const [verdict, setVerdict] = useState<{ key: string; width: number; fits: boolean[] } | null>(null);
+  // Before the frame is painted, and again only as the figures or the
+  // room change.
+  useLayoutEffect(() => {
+    const value = probe.current, unit = unitProbe.current;
+    if (!space || !value || !unit || (verdict?.key === key && verdict.width === space.width)) return;
+    const fits = exact.map(f => {
+      value.textContent = f.value;
+      unit.textContent = f.unit ? ` ${f.unit}` : "";
+      return value.getBoundingClientRect().width + unit.getBoundingClientRect().width <= space.width + 0.5;
+    });
+    setVerdict({ key, width: space.width, fits });
+  }, [space, key, exact, verdict]);
+  const fitting = verdict?.key === key ? verdict.fits : null;
+  const shown = fitFigures(exact, rounded, f => fitting?.[exact.indexOf(f)] ?? true);
   return (
     // What the planner is working on is the toast's (useProgressToast), at
     // the pilot's ask: the strip keeps the figures, as soon as there are
@@ -62,11 +81,17 @@ export default function FlightLine({ totals, estimate, depart, local, problem }:
             <dt className={cn(GROUP_HEADING, "truncate")}>{f.name}</dt>
             <dd ref={i === 0 ? room : undefined} className={cn(TEXT.heading, "truncate font-semibold tabular-nums")} data-testid={f.testId}>
               {f.value}
-              {f.unit && <span ref={i === 0 ? unitRoom : undefined} className={cn(TEXT.note, "font-normal text-muted-foreground")}> {f.unit}</span>}
+              {f.unit && <span className={cn(TEXT.note, "font-normal text-muted-foreground")}> {f.unit}</span>}
             </dd>
           </div>
         ))}
       </dl>
+      {/* The probes: a figure and its unit in their own type, out of
+          sight, for the fit above. */}
+      <span aria-hidden="true" className="pointer-events-none invisible absolute top-0 left-0 whitespace-nowrap">
+        <span ref={probe} className={cn(TEXT.heading, "font-semibold tabular-nums")} />
+        <span ref={unitProbe} className={cn(TEXT.note, "font-normal")} />
+      </span>
       {problem && (
         <p className={cn(TEXT.prose, "absolute inset-0 flex items-center text-red-700 dark:text-red-300")}>
           <span className="line-clamp-2" data-testid="navlog-problem">{problem}</span>

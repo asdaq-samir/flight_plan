@@ -1317,7 +1317,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       <div className="flex items-start gap-2">
         <div className="min-w-0 flex-1">
           {/* Its room while its code comes: the box's own line. */}
-          <Suspense fallback={<div className="min-h-[2.5625rem] rounded-[20.5px] bg-foreground/8" />}>
+          <Suspense fallback={<div className="min-h-[5.25rem] rounded-[20.5px] bg-foreground/8" />}>
           <SearchNear.Provider value={searchNear}>
           <RouteBox
             dep={planned.dep} stops={planned.stops} dest={planned.dest} waypoints={waypointStops} airspaceOf={airspaceOf} metarColourOf={metarColour}
@@ -1329,30 +1329,27 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           </SearchNear.Provider>
           </Suspense>
         </div>
-        {/* The route's Procedures and its close: round glass buttons
-            (RoundButton) the size of Save, Share and Print under them, at
-            the pilot's ask -- 36 points, 20-point glyphs, one line weight,
-            a finger's 44 round each (index.css) -- side by side on the
-            box's first line, as Maps' card has its share and its close,
-            now the box is one line tall (RouteBox); they were stacked
-            beside its two. The close where every panel's top-right button
-            is, the search's gear and a card's close (MapPanel's
-            --corner-line), so it does not move under the pilot's finger
-            from one panel to the next; eight apart, so the two's hit areas
-            meet. */}
-        <div className="flex shrink-0 items-center gap-2 pt-[var(--corner-line)]">
-          {/* Procedures beside it, at the pilot's ask, where Nearest was --
+        {/* The route's close, and under it its Procedures: round glass
+            buttons (RoundButton) the size of Save, Share and Print under
+            them, at the pilot's ask -- 36 points, 20-point glyphs, one line
+            weight, a finger's 44 round each (index.css) -- the box's two
+            lines tall, stacked again at the pilot's ask after a day side by
+            side. The close where every panel's top-right button is, the
+            search's gear and a card's close (MapPanel's --corner-line), so
+            it does not move under the pilot's finger from one panel to the
+            next; eight apart at the least, so the two's hit areas meet. */}
+        <div className="flex shrink-0 flex-col gap-[max(8px,calc(0.75rem-var(--corner-line)))] pt-[var(--corner-line)]">
+          <CloseButton label={hasPoints ? "Clear the route" : "Close"} onClick={clearRoute} data-testid="route-clear" />
+          {/* Procedures under it, at the pilot's ask, where Nearest was --
               Nearest is among the map's buttons on its left now: each
-              field's traffic pattern to draw, and the destination's
-              approach charts (PlaceCard), greyed for a field whose card
-              lists none. */}
+              field's traffic pattern and instrument procedures to draw, and
+              the destination's approach charts (PlaceCard). */}
           <ProceduresButton
             airports={procedureAirports} picked={pickedPatterns} onPick={pickPattern}
             procedures={pickedProcedures} onProcedures={pickProcedures}
             onCharts={() => { if (planned.dest) { setApproachesOf(planned.dest); selectPlace(planned.dest); } }}
             chartsDisabled={!planned.dest || noApproaches}
           />
-          <CloseButton label={hasPoints ? "Clear the route" : "Close"} onClick={clearRoute} data-testid="route-clear" />
         </div>
       </div>
     ) : undefined,

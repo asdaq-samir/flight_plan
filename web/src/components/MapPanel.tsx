@@ -51,9 +51,10 @@ const GRABBER = 16;
 /** Where the route's half -- its head and the tabs' bar -- is kept on
  *  this device, for every half to be that height. */
 const HALF_KEY = "vfr.panel.half";
-/** The same before any route has been out on this device, in rem: 248
- *  points at iOS's default text size, as it measures there. */
-const ROUTE_HEAD_REM = 15.5;
+/** The same before any route has been out on this device, in rem: 292
+ *  points at iOS's default text size, as it measures there with the
+ *  route's box two lines tall and its figures' strip (2026-10-10). */
+const ROUTE_HEAD_REM = 18.25;
 /** The root's font size, which the text size the reader has set moves. */
 const rootPx = () => parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
 
