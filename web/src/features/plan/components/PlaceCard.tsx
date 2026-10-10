@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { Cloud, Eye, Gauge, Lightbulb, Loader2, MapPin, MapPinPlus, Phone, PlaneLanding, PlaneTakeoff, Radio, Repeat, Route, Star, Thermometer, Wind } from "lucide-react";
 import DirectToIcon from "../../../components/DirectToIcon";
@@ -31,6 +31,8 @@ import { RunwaySketch } from "./RunwaySketch";
 import { runwaysLeftOut, stripsOf } from "../../../lib/runwaySketch";
 import { TEXT } from "../../../lib/text";
 import { diagramRunwaysPicture } from "../../../lib/diagram";
+
+const SketchViewer = lazy(() => import("./SketchViewer"));
 
 /** "18 nm NE", from wherever the card is measured from. */
 function away(from: LatLon, to: LatLon): string {
@@ -304,15 +306,17 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
   // A sketch of the runways beside the name, over the Call and Address tiles, at the
   // pilot's ask -- it was the FAA's diagram cropped to that size, a
   // scatter of its lettering -- the lines under the name beside it; for
-  // any field with a runway to draw. A tap shows the diagram full screen,
-  // or the Runways tab where the field has none.
+  // any field with a runway to draw. A tap shows it full screen: the FAA's
+  // diagram, or for a field the FAA draws none for the sketch, as the
+  // Diagrams tab's row does (SketchViewer) -- at the pilot's ask, where it
+  // opened the Runways tab.
   // Named on the button, whose label hides what is inside it from a screen reader.
   const { sketchedRunways, leftOut } = useMemo(() => {
     const strips = place ? stripsOf(place.runways, place.lat, place.lon) : [];
     return { sketchedRunways: strips.map(r => r.ends.join("/")), leftOut: place ? runwaysLeftOut(place.runways, strips) : 0 };
   }, [place]);
   const sketched = sketchedRunways.length > 0;
-  const [diagramOpen, setDiagramOpen] = useState(false);
+  const [diagramOpen, setDiagramOpen] = useState<"faa" | "sketch" | null>(null);
   const [noRunwaysPicture, setNoRunwaysPicture] = useState(false);
   const [elevationPane, setElevationPane] = useState<HTMLElement | null>(null);
   // The ident is in the name's head (NameWithIdent), so not here again;
@@ -426,8 +430,8 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
               ))}
               {place && sketched && (<button
                 type="button" data-testid="place-runway-sketch"
-                aria-label={`${place.ident} runways ${sketchedRunways.join(", ")}, north up${leftOut ? `, ${leftOut} more not drawn, their ends unsurveyed` : ""}. ${place.airport_diagram_url ? "Airport diagram, full screen" : "Show runways"}`}
-                onClick={() => (place.airport_diagram_url ? setDiagramOpen(true) : open("runways"))}
+                aria-label={`${place.ident} runways ${sketchedRunways.join(", ")}, north up${leftOut ? `, ${leftOut} more not drawn, their ends unsurveyed` : ""}. ${place.airport_diagram_url ? "Airport diagram" : "Runways sketch"}, full screen`}
+                onClick={() => setDiagramOpen(place.airport_diagram_url ? "faa" : "sketch")}
                 className="absolute inset-0 block rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
               >
                 {/* The FAA's own diagram, cropped to its runways, where the field
@@ -471,11 +475,19 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
               {place && <FavoriteButton place={place} />}
               {chip}
             </div>
-            {diagramOpen && place?.airport_diagram_url && (
+            {diagramOpen === "faa" && place?.airport_diagram_url && (
               <FaaChart
                 title={`${place.ident} airport diagram`} url={place.airport_diagram_url} airport={place.ident}
-                onClose={() => setDiagramOpen(false)}
+                onClose={() => setDiagramOpen(null)}
               />
+            )}
+            {diagramOpen === "sketch" && place && (
+              <Suspense fallback={null}>
+                <SketchViewer
+                  ident={place.ident} runways={place.runways} lat={place.lat} lon={place.lon}
+                  onClose={() => setDiagramOpen(null)}
+                />
+              </Suspense>
             )}
           </div>
         ) : (
