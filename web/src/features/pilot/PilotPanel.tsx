@@ -63,10 +63,12 @@ function Personal({ pilot }: { pilot: PilotState }) {
   };
   return (
     <div className="pt-1.5">
-      {/* Keyed on the sign-in so a page open when the pilot signs out, or
-          the session ends, goes back to the list: its panel would fetch
-          signed out and show 401s with no word of why. */}
-      <ConsolePages key={String(signedIn)} back="Personal" pages={pages}>
+      {/* Keyed on being signed out so a page open when the pilot signs out,
+          or the session ends, goes back to the list: its panel would fetch
+          signed out and show 401s with no word of why. "loading" is left
+          out of the key, so the session check finishing does not throw
+          away Minimums, which needs no sign-in, or an edit in it. */}
+      <ConsolePages key={pilot === null || pilot === "error" ? "out" : "in"} back="Personal" pages={pages}>
         <div className="space-y-4">
           {account}
           <div data-testid="library-section">
