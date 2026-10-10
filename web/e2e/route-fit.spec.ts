@@ -188,6 +188,17 @@ test("a route the pilot has moved is fitted again as the sheet goes up and down 
   expect(await mapAt(page)).toBe(before);
 });
 
+/** The field's marker on the screen and not under the card: in the map's
+ *  box is not enough, the card covers part of it. */
+async function fieldClearOfCard(page: Page, field: Locator) {
+  await expect(field).toBeInViewport({ timeout: slow(10_000) });
+  await expect(async () => {
+    const mark = (await field.boundingBox())!;
+    const sheet = (await sideDrawer(page).boundingBox())!;
+    expect(apart(mark, sheet), `field ${JSON.stringify(mark)} under the card ${JSON.stringify(sheet)}`).toBe(true);
+  }).toPass({ timeout: slow(10_000) });
+}
+
 test("an airport's card keeps its field in sight: the next position the GPS gives does not take the map back to own ship", async ({ page, context }) => {
   await context.grantPermissions(["geolocation"], { origin });
   await context.setGeolocation({ latitude: 42.3247, longitude: -88.0742 });
@@ -203,11 +214,11 @@ test("an airport's card keeps its field in sight: the next position the GPS give
   await page.getByTestId("search-result").filter({ hasText: "KDLH" }).first().click();
   await expect(sideDrawer(page).getByTestId("place-card")).toBeVisible();
   const field = page.locator(".leaflet-marker-icon", { hasText: /^KDLH$/ }).first();
-  await expect(field).toBeInViewport({ timeout: slow(10_000) });
+  await fieldClearOfCard(page, field);
 
   // The GPS moves on: the map stays on the field, as Maps' does once a
   // place is picked, until the location arrow is tapped.
   await context.setGeolocation({ latitude: 42.33, longitude: -88.08 });
   await page.waitForTimeout(2000);
-  await expect(field).toBeInViewport();
+  await fieldClearOfCard(page, field);
 });
