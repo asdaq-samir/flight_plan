@@ -217,7 +217,10 @@ test("the card's sketch draws a runway's turf green, C81's south-west 1,000 ft o
   expect(y06).toBeGreaterThan(ay);
   expect(x24).toBeGreaterThan(bx);
   expect(y24).toBeLessThan(by);
-  await expect(sketch.locator("[data-runway-end]")).toHaveText(["06", "24", "09", "27"]);
+  // Looked up by end, not read in order: the order they are written in
+  // is the longest runway's first, which is no business of the pilot's.
+  for (const end of ["06", "24", "09", "27"]) await expect(sketch.locator(`[data-runway-end="${end}"]`)).toHaveText(end);
+  await expect(sketch.locator("[data-runway-end]")).toHaveCount(4);
 });
 
 
