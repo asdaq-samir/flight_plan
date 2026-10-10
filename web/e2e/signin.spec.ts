@@ -1,6 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { DEVELOPER, openLinkFor, signInByEmail } from "./emailSignIn";
-import { closeConsole, roleMenu, noTips } from "./helpers";
+import { closeConsole, library, roleMenu, noTips } from "./helpers";
 
 /**
  * Signing in and out on the running stack, from a browser with no
@@ -46,10 +46,12 @@ test("signed out, Personal says once what signing in keeps, its minimums need no
   const sheet = consoleSheet(page);
   await sheet.getByRole("tab", { name: "Personal" }).click();
   await expect(sheet.getByText("Not Signed In")).toBeVisible();
-  // The minimums are kept on the device: no sign-in for them.
-  await sheet.getByTestId("library-section").getByRole("radio", { name: "Minimums" }).click();
+  // The minimums are kept on the device: no sign-in for them; the
+  // account's three wait for one.
+  await expect(sheet.getByTestId("library-section").getByRole("button", { name: "Aircraft" })).toBeDisabled();
+  await library(sheet, "Minimums");
   await expect(sheet.getByTestId("minimum-ceilingFt")).toBeVisible();
-  await sheet.getByTestId("library-section").getByRole("radio", { name: "Aircraft" }).click();
+  await sheet.getByRole("button", { name: "Personal", exact: true }).click();
   await expect(sheet.getByText("Not Signed In")).toBeVisible();
   // This stack registers neither Google nor Apple: their buttons opened a blank 401.
   await sheet.getByRole("tabpanel").getByRole("button", { name: "Sign in" }).click();

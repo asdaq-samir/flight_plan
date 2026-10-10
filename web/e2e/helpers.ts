@@ -187,10 +187,15 @@ export async function closeConsole(page: Page) {
 export const consoleSheet = (page: Page) => page.getByTestId("console-sheet");
 
 /** The pilot console's Personal tab (it was Library), on one of its
- *  four: the tab, then the segment. */
+ *  four pages: the tab, back to its list from a page open on it, then
+ *  the page's row. */
 export async function library(scope: Page | Locator, section: "Aircraft" | "Flights" | "Logbook" | "Minimums") {
   await scope.getByRole("tab", { name: "Personal" }).click();
-  await scope.getByTestId("library-section").getByRole("radio", { name: section }).click();
+  const list = scope.getByTestId("library-section");
+  const back = scope.getByRole("button", { name: "Personal", exact: true });
+  await expect(list.or(back)).toBeVisible();
+  if (!(await list.isVisible())) await back.click();
+  await list.getByRole("button", { name: new RegExp(`^${section}`) }).click();
 }
 
 /** At rest: only its head in sight. */

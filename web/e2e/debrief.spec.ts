@@ -77,10 +77,12 @@ test("a saved flight's page, and its debrief from a GPX track: kept on the devic
   await library(page, "Flights");
   await page.getByRole("button", { name: /C81 → KUGN/ }).click();
 
-  const flightPage = page.getByTestId("console-page");
+  // The flight's page, over the Flights page it was opened from.
+  const flightPage = page.getByTestId("console-page").last();
   await expect(flightPage.getByRole("heading", { name: "C81 → KUGN" })).toBeVisible();
-  // The Library's sections step aside for the page, as a pushed page covers them.
-  await expect(page.getByTestId("library-section")).toBeHidden();
+  // Its way back is to the Flights, the Flights page's own back to
+  // Personal stepping aside, as one pushed page covers another.
+  await expect(page.getByRole("button", { name: "Personal", exact: true })).toBeHidden();
   await expect(flightPage).toContainText("Under 100 hours in your logbook");
   await expect(flightPage.getByTestId("flight-open")).toBeVisible();
 
@@ -99,7 +101,7 @@ test("a saved flight's page, and its debrief from a GPX track: kept on the devic
 
   // Kept on the device: back to the list and in again, it is still there.
   await page.getByRole("button", { name: "Flights", exact: true }).click();
-  await expect(page.getByTestId("library-section")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Personal", exact: true })).toBeVisible();
   await page.getByRole("button", { name: /C81 → KUGN/ }).click();
   await expect(flightPage.getByTestId("debrief-source")).toContainText("on this device");
 

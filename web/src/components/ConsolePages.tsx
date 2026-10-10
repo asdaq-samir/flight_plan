@@ -41,12 +41,21 @@ export function ConsolePages({ back, pages, children }: {
   return (
     <div ref={top}>
       {page ? (
-        <div key={open} className="space-y-4 duration-200 animate-in fade-in slide-in-from-right-4" data-slot="console-page" data-testid="console-page">
-          <Button type="button" variant="ghost" size="sm" className="-ml-2 gap-0.5 px-1.5" onClick={() => setOpen(null)}>
-            <ChevronLeft className="size-5" />
-            {back}
-          </Button>
-          <h3 ref={title} tabIndex={-1} className={cn("font-bold tracking-tight outline-none", TEXT.card)}>{page.title}</h3>
+        // A page of a page -- Personal's Flights, then a flight -- has
+        // its own way back, to the page under it, as iOS's navigation
+        // does one level at a time: this page's head steps aside while
+        // one is open in it, so there is one back button, not two.
+        <div
+          key={open} data-slot="console-page" data-testid="console-page"
+          className="space-y-4 duration-200 animate-in fade-in slide-in-from-right-4 [&:has([data-slot=console-page])>[data-slot=page-head]]:hidden"
+        >
+          <div className="space-y-4" data-slot="page-head">
+            <Button type="button" variant="ghost" size="sm" className="-ml-2 gap-0.5 px-1.5" onClick={() => setOpen(null)}>
+              <ChevronLeft className="size-5" />
+              {back}
+            </Button>
+            <h3 ref={title} tabIndex={-1} className={cn("font-bold tracking-tight outline-none", TEXT.card)}>{page.title}</h3>
+          </div>
           {page.content}
         </div>
       ) : (
