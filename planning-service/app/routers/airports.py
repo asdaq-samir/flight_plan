@@ -107,6 +107,25 @@ def places_search(q: str = "") -> PlacesFound:
     return {"places": found}
 
 
+#: The one of a field's listed frequencies to show on its row: its
+#: tower's where it has one, else its CTAF, else UNICOM -- OurAirports'
+#: frequencies, as the card's Freq. tab lists them (vfr.airports). It is
+#: a listing, not advice on whom to call: a tower open part of the day
+#: hands the field to its CTAF when closed (AIM 4-1-9), and inbound to a
+#: Class B or C field a pilot calls approach control first (14 CFR
+#: 91.130(c), 91.131(a)). The row names the kind, so the pilot sees which.
+_INBOUND = (("TWR", "TWR"), ("CTAF", "CTAF"), ("UNIC", "UNICOM"))
+
+
+def _inbound_radio(frequencies: list[dict]) -> dict | None:
+    """The frequency to list for a field, of its frequencies."""
+    for listed, kind in _INBOUND:
+        for f in frequencies:
+            if f["type"] == listed and f["frequency_mhz"]:
+                return {"kind": kind, "mhz": f["frequency_mhz"]}
+    return None
+
+
 @router.get("/api/airports/nearest", response_model=NearestAirports)
 def nearest_airports(
     lat: float = Query(ge=-90, le=90), lon: float = Query(ge=-180, le=180),
@@ -114,20 +133,27 @@ def nearest_airports(
 ) -> NearestAirports:
     """The landing fields nearest a position -- own ship's, for the map's
     Nearest -- the nearest first: how far and which way, each one's
-    longest open runway, its flight category where it reports, and its
-    class of airspace at the surface, as the map's marks have it."""
+    longest open runway, a frequency listed for it, its flight category
+    where it reports, and its class of airspace at the surface, as the
+    map's marks have it."""
     found = airports.nearest(lat, lon, limit)
     try:
         metars = weather.metar_for_idents([p["source_ident"] for p in found])
     except weather.WeatherServiceError:
         metars = {}
+    # Read once for the list, and like the weather, a list without it: the
+    # frequency is on the row for convenience, the fields are the answer.
+    try:
+        frequencies = airports.get_frequencies_for([p["source_ident"] for p in found])
+    except (OSError, RuntimeError, ValueError):
+        frequencies = {}
     out = []
     for p, cls, (military, private) in zip(found, _surface_classes(found), _owners(found)):
         lengths = [r["length_ft"] for r in airports.get_runways(p["source_ident"]) if not r["closed"] and r["length_ft"]]
         out.append({
             **p, "longest_runway_ft": max(lengths) if lengths else None,
             "flight_category": (metars.get(p["source_ident"]) or {}).get("flight_category"), "military": military,
-            "private": private, "airspace_class": cls,
+            "private": private, "airspace_class": cls, "radio": _inbound_radio(frequencies.get(p["source_ident"].upper(), [])),
         })
     return {"airports": out}
 

@@ -3510,6 +3510,30 @@
         "title": "HopTotals",
         "type": "object"
       },
+      "InboundRadio": {
+        "description": "The frequency a pilot calls a field on, inbound: `kind` \"TWR\",\n\"CTAF\" or \"UNICOM\", and the frequency in MHz.",
+        "properties": {
+          "kind": {
+            "enum": [
+              "TWR",
+              "CTAF",
+              "UNICOM"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "mhz": {
+            "title": "Mhz",
+            "type": "number"
+          }
+        },
+        "required": [
+          "kind",
+          "mhz"
+        ],
+        "title": "InboundRadio",
+        "type": "object"
+      },
       "Index": {
         "properties": {
           "service": {
@@ -4631,7 +4655,7 @@
         "type": "object"
       },
       "NearestAirport": {
-        "description": "A field near a position: how far and which way (true), its town,\nelevation and longest open runway.",
+        "description": "A field near a position: how far and which way (true), its town,\nelevation and longest open runway, and a frequency listed for it\n(None where OurAirports lists none).",
         "properties": {
           "airspace_class": {
             "anyOf": [
@@ -4748,6 +4772,16 @@
             "default": false,
             "title": "Private",
             "type": "boolean"
+          },
+          "radio": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/InboundRadio"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -8050,7 +8084,7 @@
     },
     "/api/airports/nearest": {
       "get": {
-        "description": "The landing fields nearest a position -- own ship's, for the map's\nNearest -- the nearest first: how far and which way, each one's\nlongest open runway, its flight category where it reports, and its\nclass of airspace at the surface, as the map's marks have it.",
+        "description": "The landing fields nearest a position -- own ship's, for the map's\nNearest -- the nearest first: how far and which way, each one's\nlongest open runway, a frequency listed for it, its flight category\nwhere it reports, and its class of airspace at the surface, as the\nmap's marks have it.",
         "operationId": "nearest_airports_api_airports_nearest_get",
         "parameters": [
           {

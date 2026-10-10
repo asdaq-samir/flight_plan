@@ -434,14 +434,9 @@ def get_runways(ident: str, cache_path: Path = RUNWAYS_CACHE_PATH) -> list[dict]
     return runways
 
 
-def get_frequencies(ident: str, cache_path: Path = FREQUENCIES_CACHE_PATH) -> list[dict]:
-    """This airport's radio frequencies (CTAF, tower, ATIS, ...), sorted
-    with CTAF/UNICOM first since that's what a VFR pilot needs before
-    anything else."""
-    ident = ident.strip().upper()
-    df = _load_table(FREQUENCIES_URL, cache_path)
-    rows = df[df["airport_ident"].str.upper() == ident]
-
+def _frequency_list(rows: pd.DataFrame) -> list[dict]:
+    """One airport's rows of the frequencies table as dicts, CTAF/UNICOM
+    first."""
     def sort_key(freq_type: str) -> int:
         try:
             return _FREQUENCY_TYPE_ORDER.index(freq_type)
@@ -457,3 +452,22 @@ def get_frequencies(ident: str, cache_path: Path = FREQUENCIES_CACHE_PATH) -> li
         for _, row in rows.iterrows()
     ]
     return sorted(frequencies, key=lambda f: sort_key(f["type"] or ""))
+
+
+def get_frequencies(ident: str, cache_path: Path = FREQUENCIES_CACHE_PATH) -> list[dict]:
+    """This airport's radio frequencies (CTAF, tower, ATIS, ...), sorted
+    with CTAF/UNICOM first since that's what a VFR pilot needs before
+    anything else."""
+    ident = ident.strip().upper()
+    df = _load_table(FREQUENCIES_URL, cache_path)
+    return _frequency_list(df[df["airport_ident"].str.upper() == ident])
+
+
+def get_frequencies_for(idents: list[str], cache_path: Path = FREQUENCIES_CACHE_PATH) -> dict[str, list[dict]]:
+    """The frequencies of several airports from one pass over the table,
+    by ident (as given, upper-cased), for a list that would otherwise
+    scan the whole table once per row."""
+    wanted = {i.strip().upper() for i in idents}
+    df = _load_table(FREQUENCIES_URL, cache_path)
+    rows = df[df["airport_ident"].str.upper().isin(wanted)]
+    return {ident: _frequency_list(group) for ident, group in rows.groupby(rows["airport_ident"].str.upper())}
