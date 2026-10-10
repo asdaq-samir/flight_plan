@@ -1,17 +1,12 @@
-// @vitest-environment jsdom
-//
-// Leaflet reaches for `window` the moment it is imported, and the
-// project default is the node environment (vite.config.ts). This file
-// is the one unit test that touches the map library.
 import { describe, expect, it } from "vitest";
 import { corridorTiles, CORRIDOR_NM } from "./keepRoute";
 
 /**
  * The tiles a route keeps for the air.
  *
- * Which tile a point falls in is now Leaflet's projection rather than
- * two formulas written out here. That is only safe if it picks exactly
- * the tiles the slippy-map scheme defines, because the service worker
+ * Which tile a point falls in is the Web Mercator formula written out
+ * in keepRoute, not Leaflet's projection. It has to pick exactly the
+ * tiles the slippy-map scheme defines, because the service worker
  * matches on URL: a tile computed one way and requested another is a
  * tile that was fetched for nothing and is missing when the connection
  * goes.

@@ -1,4 +1,7 @@
 import L from "leaflet";
+// With the map, not the page's first script: its stylesheet has Leaflet's
+// chunk preloaded for everyone (issue #87).
+import "leaflet/dist/leaflet.css";
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { MapContainer } from "react-leaflet";

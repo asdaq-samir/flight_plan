@@ -1,6 +1,6 @@
 import { TrendingDown, TrendingUp } from "lucide-react";
 import { colourOf } from "../../../../lib/map/flightCategory";
-import { AIRPORT_MARK, airportMarkSvg } from "../../../../lib/map/icons";
+import { AIRPORT_MARK, airportMarkSvg } from "../../../../lib/map/airportMark";
 import { inkOn } from "../../../../lib/scoreScale";
 import { scoreColor } from "../../format";
 import type { NavLogRow } from "./rows";

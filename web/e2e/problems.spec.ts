@@ -110,7 +110,10 @@ test("a problem goes with the route it was about", async ({ page }) => {
   await page.route("**/api/planner/course**", (route: Route) =>
     route.fulfill({ status: 404, contentType: "application/json", body: JSON.stringify({ detail: "unknown airport KZZZ" }) }));
   await page.goto("/app/plan?dep=C81&dest=KZZZ");
-  await expect(page.getByTestId("problem-banner-title")).toHaveText("unknown airport KZZZ", { timeout: 20000 });
+  // Among what is said: the nav log and the checkpoints fail on the same
+  // field in words of their own, a moment after or with it, as the page's
+  // parts come in.
+  await expect.poll(async () => (await problemTitles(page)).some(t => t.includes("unknown airport KZZZ")), { timeout: 20000 }).toBe(true);
 
   // The route cleared from the panel, where its close is.
   await page.getByTestId("capsule-detail").click();

@@ -23,5 +23,5 @@ export function fromChunk<M, P extends object>(load: () => Promise<M>, pick: (mo
     const [Drawn] = useState(() => (loaded ? pick(loaded) : Waited));
     return <Drawn {...props} />;
   }
-  return { Part, prefetch: () => void fetch() };
+  return { Part, prefetch: () => void fetch().catch(() => {}) };
 }

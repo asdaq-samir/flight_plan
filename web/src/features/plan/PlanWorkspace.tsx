@@ -21,10 +21,7 @@ import { pointOf } from "../../lib/airspace";
 import { MAX_STOPS, altitudesOf, altitudesParam, departureOf, identOf, positionIdent, routeName, routeOf, stopsOf } from "../../lib/identSchema";
 import { useKeptAirport, usePreferences, type RecentAirport } from "../../lib/preferences";
 import { SearchNear, useAirportSearch } from "../../lib/useAirportSearch";
-// Without this Leaflet's tiles, markers and controls have no
-// positioning at all -- this is the library's own stylesheet, not
-// app styling.
-import "leaflet/dist/leaflet.css";
+import { RouteMap } from "./routeMapChunk";
 import { useProgressToast } from "../../lib/useProgressToast";
 import { useSearchParamsNow } from "../../lib/useSearchParamsNow";
 import type { WorkspaceProps } from "../page/workspace";
@@ -43,7 +40,6 @@ import { runwayNumber } from "../../lib/pattern";
 import NearestCard from "./components/NearestCard";
 import type { RouteParts } from "./components/RouteBox";
 import type { PointAltitude } from "./components/PointAltitudeDialog";
-import RouteMap from "./components/RouteMap";
 import { navlogQuery, usePlan } from "./hooks/usePlan";
 import { useVerdict, type VerdictItem } from "../../lib/verdict";
 import CloseButton from "../../components/CloseButton";
@@ -1167,6 +1163,10 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     // pans it) but stays off the paper: the drawer is the printed page.
     map: (
       <div className={cn("h-full w-full", panelOpen && "print:hidden")}>
+        {/* Its own boundary: the map's chunk (routeMapChunk) comes after the
+            panel's first script, and without one the page's (MapPage)
+            held the panel back, blank, until it had. */}
+        <Suspense fallback={null}>
         <RouteMap
           course={course}
           candidates={s.candidates}
@@ -1186,6 +1186,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           heldPoint={heldPoint}
           onHoldPoint={holdPoint}
         />
+        </Suspense>
         {/* What to look for, a tip at a time, the first times (lib/tips). */}
         <TipHost />
       </div>
