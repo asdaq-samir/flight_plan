@@ -780,6 +780,16 @@
             ],
             "title": "Military"
           },
+          "modelled_weather": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ModelledWeather"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "municipality": {
             "anyOf": [
               {
@@ -4460,6 +4470,48 @@
           "cv_mae"
         ],
         "title": "ModelVersion",
+        "type": "object"
+      },
+      "ModelledWeather": {
+        "description": "The weather at a field as the NWS's Gridded LAMP models it for the\nhour (vfr.glmp), for one with no report of its own: the ceiling above\nthe ground (None with none), the visibility (10 sm and more is \"10\"),\ntheir flight category (AIM 7-1-7), and the hour it is for. Planning\nguidance, not an observation.",
+        "properties": {
+          "ceiling_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ceiling Ft"
+          },
+          "flight_category": {
+            "enum": [
+              "VFR",
+              "MVFR",
+              "IFR",
+              "LIFR"
+            ],
+            "title": "Flight Category",
+            "type": "string"
+          },
+          "valid_at": {
+            "title": "Valid At",
+            "type": "string"
+          },
+          "visibility_sm": {
+            "title": "Visibility Sm",
+            "type": "number"
+          }
+        },
+        "required": [
+          "ceiling_ft",
+          "visibility_sm",
+          "flight_category",
+          "valid_at"
+        ],
+        "title": "ModelledWeather",
         "type": "object"
       },
       "NavLogAltitude": {
