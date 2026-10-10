@@ -290,19 +290,25 @@ export async function openTab(page: Page, name: "Brief" | "Nav Log" | "Local" | 
   await expect(tab).toHaveAttribute("aria-selected", "true");
 }
 
-/** A tap on the chart itself, somewhere nothing else is: not a marker,
- *  a popup, the panel over the map or its buttons -- found by asking the
- *  browser what is under each candidate point. */
-export async function tapTheChart(page: Page) {
-  // Once the map has stopped moving: a card closing or opening moves it
-  // to keep the route clear of the panel, and a spot found empty in the
-  // move had a field's chip slide under it before the tap (KCWI, on CI's
-  // desktop).
+/** Once the map has stopped moving: its panes where they were 300 ms
+ *  before, and no zoom animating. A route being fitted, or a card
+ *  moving the map to keep the route clear of the panel, moves it after
+ *  the page looks settled. */
+export async function mapStill(page: Page) {
   await expect.poll(() => page.locator(".leaflet-map-pane").evaluate(async pane => {
     const before = (pane as HTMLElement).style.transform;
     await new Promise(r => setTimeout(r, 300));
     return before === (pane as HTMLElement).style.transform && !pane.closest(".leaflet-zoom-anim");
-  }), { timeout: 10000 }).toBe(true);
+  }), { timeout: slow(10000) }).toBe(true);
+}
+
+/** A tap on the chart itself, somewhere nothing else is: not a marker,
+ *  a popup, the panel over the map or its buttons -- found by asking the
+ *  browser what is under each candidate point. */
+export async function tapTheChart(page: Page) {
+  // Once the map is still: a spot found empty in a move had a field's
+  // chip slide under it before the tap (KCWI, on CI's desktop).
+  await mapStill(page);
   const at = await page.locator(".leaflet-container").evaluate(map => {
     const r = map.getBoundingClientRect();
     // Clear of every mark by more than a near miss (AirportsLayer's 22),
