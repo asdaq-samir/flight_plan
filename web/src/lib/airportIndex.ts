@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "./api/client";
 import type { AirportSearchRow } from "./useAirportSearch";
@@ -9,45 +10,27 @@ type Entry = [ident: string, name: string, town: string, state: string, size: nu
 
 export interface AirportIndex {
   rows: Entry[];
-  /** Every ident a row goes by, whole. */
-  exact: Map<string, number[]>;
-  /** Every ident and every word of a name and its town, each with its
-   *  row, sorted for a prefix to be found by bisection. */
-  idents: [string, number][];
-  words: [string, number][];
+  /** Each row's idents, upper-cased: the one shown and the others. */
+  keys: string[][];
+  /** Each row's name and town upper-cased, a space before every word, so
+   *  a word's start is a space and what is typed. */
+  words: string[];
 }
 
-const byKey = (a: [string, number], b: [string, number]) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : a[1] - b[1]);
-
-/** The index's lookups, made once as it arrives: the planner's own
- *  (_search_index_of), so the phone answers as it does. */
+/**
+ * The index's lookups: each row's idents and its words, upper-cased, and
+ * nothing sorted -- a search reads every row (searchIndex). The planner's
+ * own sorted lists (_search_index_of), copied here at first, took a third
+ * of a second of a phone's main thread to sort as the page opened, its
+ * longest task (measured 2026-10-09, CPU 4x); these take a tenth of that,
+ * and a search through them some 8 to 13 ms (on this Mac, unthrottled).
+ */
 export function indexOf(rows: Entry[]): AirportIndex {
-  const exact = new Map<string, number[]>();
-  const idents: [string, number][] = [];
-  const words: [string, number][] = [];
-  rows.forEach(([ident, name, town, , , ...others], row) => {
-    for (const key of new Set([ident.toUpperCase(), ...others])) {
-      exact.set(key, [...(exact.get(key) ?? []), row]);
-      idents.push([key, row]);
-    }
-    for (const word of new Set(`${name} ${town}`.toUpperCase().split(/\s+/).filter(Boolean))) words.push([word, row]);
-  });
-  idents.sort(byKey);
-  words.sort(byKey);
-  return { rows, exact, idents, words };
-}
-
-/** The rows of `keys` whose key starts with `query`. */
-function prefixed(keys: [string, number][], query: string): Set<number> {
-  let low = 0, high = keys.length;
-  while (low < high) {
-    const middle = (low + high) >> 1;
-    if (keys[middle]![0] < query) low = middle + 1;
-    else high = middle;
-  }
-  const found = new Set<number>();
-  for (let at = low; at < keys.length && keys[at]![0].startsWith(query); at++) found.add(keys[at]![1]);
-  return found;
+  return {
+    rows,
+    keys: rows.map(([ident, , , , , ...others]) => [ident.toUpperCase(), ...others]),
+    words: rows.map(([, name, town]) => ` ${name} ${town}`.toUpperCase()),
+  };
 }
 
 /**
@@ -61,23 +44,13 @@ export function searchIndex(index: AirportIndex, typed: string, limit = 8): Airp
   const query = typed.trim().toUpperCase();
   if (!query) return [];
   const ranked: [number, number, string, number][] = [];
-  const add = (rank: number, row: number) => ranked.push([rank, index.rows[row]![4], index.rows[row]![0], row]);
-  if (!query.includes(" ")) {
-    const exact = new Set(index.exact.get(query) ?? []);
-    const ident = new Set([...prefixed(index.idents, query)].filter(row => !exact.has(row)));
-    const word = [...prefixed(index.words, query)].filter(row => !exact.has(row) && !ident.has(row));
-    exact.forEach(row => add(0, row));
-    ident.forEach(row => add(1, row));
-    word.forEach(row => add(2, row));
-  } else {
-    // More than a word: a scan, as the planner's, of each row's idents
-    // whole and from their start, and its name and town from a word's.
-    index.rows.forEach(([ident, name, town, , , ...others], row) => {
-      const keys = [ident.toUpperCase(), ...others];
-      if (keys.includes(query)) add(0, row);
-      else if (keys.some(key => key.startsWith(query))) add(1, row);
-      else if (` ${name} ${town}`.toUpperCase().includes(` ${query}`)) add(2, row);
-    });
+  const word = ` ${query}`;
+  for (let row = 0; row < index.rows.length; row++) {
+    const keys = index.keys[row]!;
+    const rank = keys.includes(query) ? 0
+      : keys.some(key => key.startsWith(query)) ? 1
+        : index.words[row]!.includes(word) ? 2 : -1;
+    if (rank >= 0) ranked.push([rank, index.rows[row]![4], index.rows[row]![0], row]);
   }
   ranked.sort((a, b) => a[0] - b[0] || a[1] - b[1] || (a[2] < b[2] ? -1 : a[2] > b[2] ? 1 : 0));
   return ranked.slice(0, limit).map(([, , , row]) => {
@@ -86,14 +59,59 @@ export function searchIndex(index: AirportIndex, typed: string, limit = 8): Airp
   });
 }
 
-/** The index, asked for once a search is about and kept a day, as the
- *  planner says it may be; none until it is in, when the planner answers
- *  as before. */
-export function useAirportIndex(enabled = true): AirportIndex | null {
+/** Once the page has nothing else to do: what is put off until then.
+ *  Safari has no requestIdleCallback; two seconds stand in for it there. */
+function useIdle(): boolean {
+  const [idle, setIdle] = useState(false);
+  useEffect(() => {
+    const wait = window.requestIdleCallback ?? ((go: () => void) => window.setTimeout(go, 2000));
+    const stop = window.cancelIdleCallback ?? window.clearTimeout;
+    const id = wait(() => setIdle(true), { timeout: 4000 });
+    return () => stop(id);
+  }, []);
+  return idle;
+}
+
+/** Once the pilot goes to type: a field of the page focused, the
+ *  keyboard on its way up. */
+function useFocused(): boolean {
+  const [focused, setFocused] = useState(false);
+  useEffect(() => {
+    if (focused) return;
+    const go = (e: FocusEvent) => {
+      if (e.target instanceof HTMLInputElement) setFocused(true);
+    };
+    document.addEventListener("focusin", go);
+    return () => document.removeEventListener("focusin", go);
+  }, [focused]);
+  return focused;
+}
+
+/**
+ * The index, read once the pilot goes to type -- a field focused, or
+ * something typed (`wanted`) -- and kept a day, as the planner says it may
+ * be; none until it is in, when the planner answers as before. Its bytes
+ * are downloaded before that, once the page is idle after opening
+ * (api.warmAirportIndex), so the reading finds them in the browser's
+ * cache. Asked for and read as the page opened (#156), it put two long
+ * tasks in the opening -- reading half a megabyte of JSON and building the
+ * lookups, 95 and 64 ms at CPU 4x -- for a search the pilot may not make.
+ */
+export function useAirportIndex(wanted = false): AirportIndex | null {
+  const idle = useIdle();
+  const focused = useFocused();
+  useQuery({
+    queryKey: ["airportIndexWarm"],
+    queryFn: api.warmAirportIndex,
+    enabled: idle,
+    staleTime: Infinity,
+    gcTime: Infinity,
+    meta: { silent: true },
+  });
   const { data } = useQuery({
     queryKey: ["airportIndex"],
     queryFn: async () => indexOf((await api.airportIndex()).airports as Entry[]),
-    enabled,
+    enabled: wanted || focused,
     staleTime: 24 * 60 * 60_000,
     gcTime: Infinity,
     meta: { silent: true },

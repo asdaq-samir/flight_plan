@@ -12,7 +12,7 @@ import { beforeEach, describe, expect, test, vi } from "vitest";
 
 vi.mock("./api/client", async importOriginal => ({
   ...(await importOriginal<typeof import("./api/client")>()),
-  api: { airportIndex: vi.fn(), airportSearch: vi.fn() },
+  api: { airportIndex: vi.fn(), airportSearch: vi.fn(), warmAirportIndex: vi.fn() },
 }));
 
 const { api } = await import("./api/client");
@@ -24,9 +24,30 @@ function wrapper() {
 }
 
 beforeEach(() => {
+  vi.clearAllMocks();
+  vi.mocked(api.warmAirportIndex).mockResolvedValue(true);
   vi.mocked(api.airportIndex).mockResolvedValue({
     airports: [["KOSH", "Wittman Regional", "Oshkosh", "WI", 1]],
   } as never);
+});
+
+describe("the phone's own copy", () => {
+  test("is downloaded once the page is idle, and read only once the pilot goes to type", async () => {
+    vi.stubGlobal("requestIdleCallback", (go: () => void) => setTimeout(go, 0));
+    try {
+      const { result } = renderHook(() => useAirportSearch("", true), { wrapper: wrapper() });
+      await waitFor(() => expect(api.warmAirportIndex).toHaveBeenCalledTimes(1));
+      expect(api.airportIndex).not.toHaveBeenCalled();
+      // A field focused: the keyboard on its way up.
+      const field = document.body.appendChild(document.createElement("input"));
+      field.focus();
+      await waitFor(() => expect(api.airportIndex).toHaveBeenCalledTimes(1));
+      expect(result.current.rows).toEqual([]);
+      field.remove();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
 });
 
 describe("useAirportSearch with fixes and the copy in", () => {
