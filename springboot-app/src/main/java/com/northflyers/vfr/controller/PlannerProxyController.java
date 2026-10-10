@@ -4,6 +4,7 @@ import com.northflyers.vfr.service.PilotService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import java.net.URI;
 import java.net.http.HttpRequest;
 import java.nio.charset.StandardCharsets;
@@ -169,24 +170,25 @@ public class PlannerProxyController {
     @Operation(summary = "Any planner GET",
             description = "course, detect/stream, classify, picks, checkpoints, navlog, routes, build status")
     @GetMapping("/**")
-    public ResponseEntity<StreamingResponseBody> get(HttpServletRequest request) {
-        return forward(request, "GET", null);
+    public ResponseEntity<StreamingResponseBody> get(HttpServletRequest request, HttpServletResponse servletResponse) {
+        return forward(request, servletResponse, "GET", null);
     }
 
     @Operation(summary = "Any planner POST", description = "picks, build")
     @PostMapping("/**")
-    public ResponseEntity<StreamingResponseBody> post(HttpServletRequest request,
+    public ResponseEntity<StreamingResponseBody> post(HttpServletRequest request, HttpServletResponse servletResponse,
                                                       @RequestBody(required = false) String body) {
-        return forward(request, "POST", body);
+        return forward(request, servletResponse, "POST", body);
     }
 
     @Operation(summary = "Any planner DELETE", description = "picks")
     @DeleteMapping("/**")
-    public ResponseEntity<StreamingResponseBody> delete(HttpServletRequest request) {
-        return forward(request, "DELETE", null);
+    public ResponseEntity<StreamingResponseBody> delete(HttpServletRequest request, HttpServletResponse servletResponse) {
+        return forward(request, servletResponse, "DELETE", null);
     }
 
-    private ResponseEntity<StreamingResponseBody> forward(HttpServletRequest request, String method, String body) {
+    private ResponseEntity<StreamingResponseBody> forward(HttpServletRequest request, HttpServletResponse servletResponse,
+                                                          String method, String body) {
         String path = upstreamPath(request);
         if (!isForwarded(method, path)) {
             return StreamingProxy.error(404, "no such planner endpoint: " + method + " " + path);
@@ -234,20 +236,33 @@ public class PlannerProxyController {
             // on saved state, live weather or a request body, so a
             // Cache-Control it happened to emit must not be echoed the
             // same way: Spring Security's no-store stands.
+            // Set on the response itself, replacing that no-store, which
+            // Spring Security has written by now (SecurityConfig: written
+            // as the request comes in); a header of the ResponseEntity's
+            // is added beside it, and the two read as no-store. Its Pragma
+            // and Expires are emptied, as Spring's static resources do.
             if (path.startsWith(TILE_PATH) || path.startsWith(DIAGRAM_PATH) || path.startsWith(FAA_CHART_PATH)
                     || SHARED_PATHS.contains(path)) {
-                response.headers().firstValue(HttpHeaders.CACHE_CONTROL)
-                        .ifPresent(value -> builder.header(HttpHeaders.CACHE_CONTROL, value));
+                response.headers().firstValue(HttpHeaders.CACHE_CONTROL).ifPresent(value -> {
+                    servletResponse.setHeader(HttpHeaders.CACHE_CONTROL, value);
+                    for (String stale : new String[] {HttpHeaders.PRAGMA, HttpHeaders.EXPIRES}) {
+                        if (servletResponse.containsHeader(stale)) {
+                            servletResponse.setHeader(stale, "");
+                        }
+                    }
+                });
             }
-            // The pack's file name, which a download (and ForeFlight's
-            // list of packs) shows, and what a download manager needs to
-            // fetch it in pieces: its size, and the range each answer is.
-            // ForeFlight would not install a pack sent without its size.
+            // The airport search's index, gzipped by the planner: what it
+            // is encoded in, and that the encoding varies with the ask.
             if (path.equals(INDEX_PATH)) {
                 for (String name : new String[] {HttpHeaders.CONTENT_ENCODING, HttpHeaders.VARY}) {
                     response.headers().firstValue(name).ifPresent(value -> builder.header(name, value));
                 }
             }
+            // The pack's file name, which a download (and ForeFlight's
+            // list of packs) shows, and what a download manager needs to
+            // fetch it in pieces: its size, and the range each answer is.
+            // ForeFlight would not install a pack sent without its size.
             if (path.startsWith(PACK_PATH)) {
                 for (String name : new String[] {HttpHeaders.CONTENT_DISPOSITION, HttpHeaders.CONTENT_LENGTH,
                         HttpHeaders.CONTENT_RANGE, HttpHeaders.ACCEPT_RANGES}) {

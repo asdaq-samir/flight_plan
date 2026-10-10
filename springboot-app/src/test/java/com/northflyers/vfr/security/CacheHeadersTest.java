@@ -6,9 +6,11 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 
 import com.sun.net.httpserver.HttpServer;
+import jakarta.servlet.Filter;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -17,8 +19,11 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.mock.web.MockHttpServletResponse;
+import org.springframework.security.web.FilterChainProxy;
+import org.springframework.security.web.header.HeaderWriterFilter;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.testcontainers.containers.PostgreSQLContainer;
@@ -49,6 +54,9 @@ class CacheHeadersTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private FilterChainProxy filterChains;
 
     @BeforeAll
     static void startPlanner() throws IOException {
@@ -84,6 +92,27 @@ class CacheHeadersTest {
         MockHttpServletResponse search = planner("/api/planner/airports/search?q=KD");
         assertThat(search.getStatus()).isEqualTo(200);
         assertThat(search.getHeaders("Cache-Control")).containsExactly("public, max-age=300, s-maxage=3600");
+        // Nothing of the no-store it replaced (SecurityConfig writes it as
+        // the request comes in) is left to contradict it.
+        for (String stale : new String[] {"Pragma", "Expires"}) {
+            assertThat(String.join("", search.getHeaders(stale))).as(stale).isEmpty();
+        }
+    }
+
+    /**
+     * The security headers are written as a request comes in, so nothing
+     * writes them after a planner answer starts down its own thread: the
+     * request's thread leaving the filter chain wrote them as that thread
+     * committed the response, and Tomcat's header table, two threads in it
+     * at once, threw (SecurityConfig). Not observable from one request in
+     * a test, so the setting itself is held to.
+     */
+    @Test
+    void theSecurityHeadersAreWrittenBeforeAnAnswerIsPiped() {
+        List<Filter> filters = filterChains.getFilterChains().getFirst().getFilters();
+        assertThat(filters).filteredOn(HeaderWriterFilter.class::isInstance).singleElement()
+                .extracting(filter -> ReflectionTestUtils.getField(filter, "shouldWriteHeadersEagerly"))
+                .isEqualTo(true);
     }
 
     @Test
