@@ -16,6 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../../components/ui
 import { Button } from "../../../components/ui/button";
 import { ApiError, api } from "../../../lib/api/client";
 import type { AirportPin, AirportPlace, ClassBAirport, TerminalChart } from "../../../lib/api/types";
+import { observedLine, windLine } from "../../../lib/metarText";
 import { compassPoint } from "../../../lib/compass";
 import { bearingDeg, distanceNm, type LatLon } from "../../../lib/geo";
 import { chipColourOf } from "../../../lib/map/flightCategory";
@@ -61,24 +62,6 @@ function subtitleOf(place: AirportPlace, from: { point: LatLon; name: string | n
 const FREQUENCY_GLYPH: Record<FrequencyKind, ReactNode> = {
   tower: <TowerControl />, ground: <Headset />, weather: <CloudSun />, approach: <Radar />, traffic: <RadioTower />, other: <Radio />,
 };
-
-/** The wind as reported, true: "140° at 10 kt", "calm", "variable at 4
- *  kt, gusts 18". */
-function windLine(metar: NonNullable<AirportPlace["metar"]>): string {
-  if (!metar.wind_speed_kt) return "Calm";
-  const from = metar.wind_dir_true_deg == null ? "Variable" : `${String(Math.round(metar.wind_dir_true_deg)).padStart(3, "0")}°`;
-  return `${from} at ${Math.round(metar.wind_speed_kt)} kt${metar.wind_gust_kt ? `, gusts ${Math.round(metar.wind_gust_kt)}` : ""}`;
-}
-
-/** When the report was made: "Observed 1255Z, 14 minutes ago". */
-function observedLine(at: string): string {
-  const when = new Date(at);
-  if (Number.isNaN(when.getTime())) return "";
-  const zulu = `${String(when.getUTCHours()).padStart(2, "0")}${String(when.getUTCMinutes()).padStart(2, "0")}Z`;
-  const minutes = Math.max(0, Math.round((Date.now() - when.getTime()) / 60_000));
-  const ago = minutes < 1 ? "just now" : minutes < 90 ? `${minutes} minute${minutes === 1 ? "" : "s"} ago` : `${Math.round(minutes / 60)} hours ago`;
-  return `Observed ${zulu}, ${ago}. Wind true, as reported.`;
-}
 
 /** The field's name alone, at the pilot's ask, its ident taken off to
  *  give the name the room (it was a pill in its airspace's look at the
