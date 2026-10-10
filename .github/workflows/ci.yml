@@ -1074,6 +1074,13 @@ jobs:
       # already runs: Core Web Vitals, accessibility and best practices,
       # the industry's yardstick, read by the standards job below. Nightly
       # (or "standards" by hand); never fails the run itself.
+      # Chrome kept off /dev/shm, which is 64 MB in a container: there one
+      # of the page's scripts failed with ERR_INSUFFICIENT_RESOURCES, so
+      # nothing was drawn (NO_FCP, the nightlies of 2026-10-09 and -10),
+      # or the tab crashed, a third of the runs on a Mac; and a run that
+      # finished could have lost a script or a tile and been timed on less
+      # than the page. Six runs of six then finished, within a few percent
+      # of each other. Playwright passes the same flag to its own Chrome.
       - name: Lighthouse
         if: always() && matrix.shard == 1 && (github.event_name == 'schedule' || inputs.standards) && (steps.tests.outcome == 'success' || steps.tests.outcome == 'failure')
         continue-on-error: true
@@ -1083,7 +1090,7 @@ jobs:
             npx --yes lighthouse@13.5.0 http://localhost:8080/app/plan --quiet \
               --only-categories=performance,accessibility,best-practices \
               --output=json --output-path=/out/lighthouse.json \
-              --chrome-flags="--headless=new --no-sandbox --disable-gpu"'
+              --chrome-flags="--headless=new --no-sandbox --disable-gpu --disable-dev-shm-usage"'
       - name: Keep Lighthouse's report
         if: always() && matrix.shard == 1 && (github.event_name == 'schedule' || inputs.standards)
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
