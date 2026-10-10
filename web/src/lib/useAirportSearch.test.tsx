@@ -50,6 +50,28 @@ describe("the phone's own copy", () => {
   });
 });
 
+describe("the phone's own copy, where the search is off or only typed into", () => {
+  test("is neither downloaded nor read when the search is off, even with a field focused", async () => {
+    vi.stubGlobal("requestIdleCallback", (go: () => void) => setTimeout(go, 0));
+    const field = document.body.appendChild(document.createElement("input"));
+    try {
+      renderHook(() => useAirportSearch("osh", false), { wrapper: wrapper() });
+      field.focus();
+      await new Promise(r => setTimeout(r, 50));
+      expect(api.warmAirportIndex).not.toHaveBeenCalled();
+      expect(api.airportIndex).not.toHaveBeenCalled();
+    } finally {
+      field.remove();
+      vi.unstubAllGlobals();
+    }
+  });
+
+  test("is read when something is typed, with no field focused", async () => {
+    renderHook(() => useAirportSearch("osh", true), { wrapper: wrapper() });
+    await waitFor(() => expect(api.airportIndex).toHaveBeenCalledTimes(1));
+  });
+});
+
 describe("useAirportSearch with fixes and the copy in", () => {
   test("is answered by the copy's airports once the planner's request fails", async () => {
     vi.mocked(api.airportSearch).mockRejectedValue(new Error("offline"));

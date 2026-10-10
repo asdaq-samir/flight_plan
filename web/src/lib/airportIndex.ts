@@ -90,8 +90,8 @@ function useFocused(): boolean {
 /**
  * The index, read once the pilot goes to type -- a field focused, or
  * something typed (`wanted`), and only where the caller's search is on
- * (`enabled`; a screen that never searches never reads it) -- and kept a day, as the planner says it may
- * be; none until it is in, when the planner answers as before. Its bytes
+ * (`enabled`; a screen that never searches never downloads or reads it)
+ * -- and kept a day, as the planner says it may be; none until it is in, when the planner answers as before. Its bytes
  * are downloaded before that, once the page is idle after opening
  * (api.warmAirportIndex), so the reading finds them in the browser's
  * cache. Asked for and read as the page opened (#156), it put two long
@@ -104,7 +104,7 @@ export function useAirportIndex(enabled = true, wanted = false): AirportIndex | 
   useQuery({
     queryKey: ["airportIndexWarm"],
     queryFn: api.warmAirportIndex,
-    enabled: idle,
+    enabled: enabled && idle,
     staleTime: Infinity,
     gcTime: Infinity,
     meta: { silent: true },
