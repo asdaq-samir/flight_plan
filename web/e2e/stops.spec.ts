@@ -323,6 +323,24 @@ test("a town's name typed with the airports shown takes the first of them at Ent
   await expect(page).toHaveURL(/[?&]stops=KMSN(&|$)/);
 });
 
+test("a short town's name (four letters) takes the first airport shown at Enter, as a long one does", async ({ page }) => {
+  // "reno" is two to five letters and digits, which stopOf takes for an
+  // ident; it is no row's ident, so Enter takes the first row all the same.
+  await recordedStops(page);
+  await page.route(url => url.pathname.includes("/airports/search"), () => new Promise(() => undefined));
+  await page.goto("/app/plan?dep=C81&dest=KDLH");
+  await settle(page);
+  await openPanel(page);
+  await sideDrawer(page).getByRole("button", { name: "Type a stop between C81 and KDLH" }).click();
+  const field = sideDrawer(page).getByTestId("route-type");
+  await field.fill("reno");
+  const first = page.getByTestId("route-suggestions").getByRole("option").first();
+  await expect(first).toBeVisible({ timeout: slow(10000) });
+  const ident = (await first.innerText()).match(/\b[A-Z0-9]{3,4}\b/)?.[0];
+  await field.press("Enter");
+  await expect(page).toHaveURL(new RegExp(`[?&]stops=${ident}(&|$)`));
+});
+
 test("a long route's box wraps its points onto two lines and scrolls down to the rest, never sideways", async ({ page }) => {
   // Nothing past the course asked of the planner: the box is the claim.
   await page.route(url => /\/(checkpoints|navlog|briefing)$/.test(url.pathname), route => route.abort());

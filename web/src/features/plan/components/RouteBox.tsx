@@ -213,12 +213,14 @@ export default function RouteBox({
   const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
       // The first suggestion, once they answer what is typed (cmdk's own
-      // Enter, on its highlighted row); else what was typed -- but what
-      // can be no point's ident (a town's name, "madison") takes the first
-      // airport shown at once, before the planner's waypoints answer: it
-      // was put in as typed, which is nothing, and the box emptied.
-      const nameOnly = typed.split(/[\s,]+/).some(word => word && !stopOf(word));
-      if (open && rows.length > 0 && (answered || nameOnly)) return;
+      // Enter, on its highlighted row); else what was typed -- but what is
+      // no row's ident (a town's name, "madison", or a short one, "reno",
+      // which stopOf takes for an ident) takes the first airport shown at
+      // once, before the planner's waypoints answer: it was put in as
+      // typed, which is nothing, and the box emptied.
+      const word = typed.trim().toUpperCase();
+      const exact = rows.some(r => r.ident === word);
+      if (open && rows.length > 0 && (answered || !exact)) return;
       e.preventDefault();
       e.stopPropagation();
       if (typed.trim()) commitTyped();
@@ -441,7 +443,7 @@ function ProcedureChip({ procedure, onOpen }: { procedure: RouteProcedure; onOpe
       type="button" onClick={onOpen} data-testid="route-procedure"
       aria-label={`${procedure.spoken}: the route's procedures`}
       className={cn(
-        "ml-1 inline-flex h-7 shrink-0 items-center gap-1 rounded-full border-[1.5px] border-[#5b5bd6] bg-background/70 px-2 font-semibold whitespace-nowrap text-[#4343b8] outline-none focus-visible:ring-2 focus-visible:ring-ring dark:border-[#9d9df0] dark:text-[#c3c3fa]",
+        "relative ml-1 inline-flex h-7 shrink-0 after:absolute after:-inset-y-2 after:inset-x-0 after:content-[''] items-center gap-1 rounded-full border-[1.5px] border-[#5b5bd6] bg-background/70 px-2 font-semibold whitespace-nowrap text-[#4343b8] outline-none focus-visible:ring-2 focus-visible:ring-ring dark:border-[#9d9df0] dark:text-[#c3c3fa]",
         TEXT.note,
       )}
     >
