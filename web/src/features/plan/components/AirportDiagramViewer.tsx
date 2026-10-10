@@ -1,4 +1,8 @@
 import L from "leaflet";
+// This viewer builds its own MapContainer, not MapShell's, so it names
+// the stylesheet itself rather than lean on the RouteMap chunk having
+// loaded; Vite emits it once.
+import "leaflet/dist/leaflet.css";
 import { useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ImageOverlay, MapContainer, useMap } from "react-leaflet";

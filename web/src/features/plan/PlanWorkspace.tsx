@@ -21,9 +21,6 @@ import { pointOf } from "../../lib/airspace";
 import { MAX_STOPS, altitudesOf, altitudesParam, departureOf, identOf, positionIdent, routeName, routeOf, stopsOf } from "../../lib/identSchema";
 import { useKeptAirport, usePreferences, type RecentAirport } from "../../lib/preferences";
 import { SearchNear, useAirportSearch } from "../../lib/useAirportSearch";
-// Without this Leaflet's tiles, markers and controls have no
-// positioning at all -- this is the library's own stylesheet, not
-// app styling.
 import { RouteMap } from "./routeMapChunk";
 import { useProgressToast } from "../../lib/useProgressToast";
 import { useSearchParamsNow } from "../../lib/useSearchParamsNow";
