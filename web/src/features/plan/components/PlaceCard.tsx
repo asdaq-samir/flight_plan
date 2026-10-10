@@ -346,7 +346,7 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
       // The star's width, at the pilot's ask, so the diagram beside the
       // column reaches as far right as it can: iOS's Caption 2, 11 on 13,
       // "MVFR" whole in it; an approximate one's "≈" on a line over it.
-      className="mt-1 flex w-9 shrink-0 flex-col items-center rounded-md py-0.5 text-[0.6875rem] leading-[0.8125rem] font-bold"
+      className={cn("mt-1 flex w-9 shrink-0 flex-col items-center rounded-md py-0.5 font-bold", TEXT.caption)}
       style={{ backgroundColor: chipColour, color: inkOn(chipColour) }}
       data-testid="place-category"
     >
@@ -355,7 +355,7 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
           {/* Words for VoiceOver, which may read a bare "≈" as a symbol;
               an aria-label on a role-less span may be ignored. */}
           <span aria-hidden className="flex flex-col items-center"><span>≈</span><span>{category}</span></span>
-          <span className="sr-only">About {category}, from {nearby?.ident}</span>
+          <span className="sr-only">About {category}, from the report of {nearby?.ident}, another station, not this field's own</span>
         </>
       )}
     </span>
