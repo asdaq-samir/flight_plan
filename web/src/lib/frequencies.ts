@@ -11,7 +11,7 @@ const KINDS: Record<string, FrequencyKind> = {
   TWR: "tower",
   GND: "ground", CLD: "ground", CLNC: "ground", CD: "ground", GCCD: "ground", "GND/CD": "ground",
   ATIS: "weather", AWOS: "weather", ASOS: "weather",
-  APP: "approach", DEP: "approach", "A/D": "approach", "APP/DEP": "approach",
+  APP: "approach", APCH: "approach", DEP: "approach", "A/D": "approach", "APP/DEP": "approach",
   CTAF: "traffic", UNIC: "traffic", UNICOM: "traffic", MULT: "traffic", MULTICOM: "traffic",
 };
 
@@ -20,7 +20,7 @@ const NAMES: Record<string, string> = {
   TWR: "Tower", GND: "Ground", CLD: "Clearance delivery", CLNC: "Clearance delivery", CD: "Clearance delivery",
   GCCD: "Ground and clearance", "GND/CD": "Ground and clearance",
   ATIS: "ATIS", AWOS: "AWOS", ASOS: "ASOS",
-  APP: "Approach", DEP: "Departure", "A/D": "Approach and departure", "APP/DEP": "Approach and departure",
+  APP: "Approach", APCH: "Approach", DEP: "Departure", "A/D": "Approach and departure", "APP/DEP": "Approach and departure",
   CTAF: "CTAF", UNIC: "UNICOM", UNICOM: "UNICOM", MULT: "MULTICOM", MULTICOM: "MULTICOM",
   RDO: "Radio", FSS: "Flight service", RCO: "Remote outlet",
   PTD: "Pilot to dispatch", OPS: "Operations", EMR: "Emergency", AFIS: "Flight information",

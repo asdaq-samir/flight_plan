@@ -994,6 +994,14 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     />
   ), [course, s.logSelected, s.legs, s.totals, s.nav, s.briefing, depart, aircraft.label, landings]);
   const kneeboardLater = useDeferredValue(kneeboard, null);
+  // An airport's METAR colour, as its chip on the map: its flight category
+  // once the briefing has it, grey until then (the route's pills, coloured
+  // by the weather in the settings).
+  const metars = s.briefing.state === "ready" ? s.briefing.data.metars : null;
+  const metarColour = useCallback((ident: string) => {
+    const metar = metars?.[ident];
+    return chipColourOf({ status: metar ? "reported" : "no-report", category: metar?.flight_category ?? null });
+  }, [metars]);
   // Made again only when the plan does, so the nav log and its tabs are
   // drawn again only then (fromRoutePanel's memo), not at each render of
   // the page as the route's answers stream in.
@@ -1016,7 +1024,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       tabContent={tabContent}
       notice={<BriefingNotices briefing={s.briefing} />}
       footer={<PlanningAidNote />}
-      local={s.local}
+      local={s.local} metarColourOf={metarColour}
     >
       {/* Out of the tabs, drawing nothing: the risk assessment and the
           Go / No-Go's findings published once, for Save and the tabs' marks. */}
@@ -1030,7 +1038,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     </Suspense>
   ), [s.totals, s.nav, s.legs, depart, planned.dep, planned.dest, course, s.logSelected, s.descriptions, s.saveDescription,
     s.generateDescriptions, descriptionsLoading, selectedPoint, selectPointAt, deselectPoint, drawerOpen, tabTap, aircraft.label,
-    marks, tabContent, s.briefing, s.local, landedStops, s.langgraphNarrative, s.crewaiNarrative, unflyableBrief, kneeboardLater]);
+    marks, tabContent, s.briefing, s.local, landedStops, s.langgraphNarrative, s.crewaiNarrative, unflyableBrief, kneeboardLater, metarColour]);
 
   // The airplane, the altitude and the time, made again only when one of
   // them changes, as the chips are drawn again only then (fromRoutePanel's
@@ -1084,14 +1092,6 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     return { feet: ownAltitudes[ident] ?? planned ?? null, own: ident in ownAltitudes, caution };
   }, [altitudes, s.legs, s.nav, routeAirport]);
 
-  // An airport's METAR colour, as its chip on the map: its flight category
-  // once the briefing has it, grey until then (the route's pills, coloured
-  // by the weather in the settings).
-  const metars = s.briefing.state === "ready" ? s.briefing.data.metars : null;
-  const metarColour = useCallback((ident: string) => {
-    const metar = metars?.[ident];
-    return chipColourOf({ status: metar ? "reported" : "no-report", category: metar?.flight_category ?? null });
-  }, [metars]);
   const addingChange = useCallback((open: boolean) => setAddingStop(open ? "stop" : false), []);
 
   // The route shared: a link, a file for another app or the panel's GPS,

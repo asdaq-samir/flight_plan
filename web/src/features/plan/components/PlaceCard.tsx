@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
-import { Cloud, CloudSun, Eye, Gauge, Headset, Lightbulb, Loader2, MapPin, MapPinPlus, Phone, PlaneLanding, PlaneTakeoff, Radar, Radio, RadioTower, Repeat, Route, Star, Thermometer, TowerControl, Wind } from "lucide-react";
+import { Cloud, Eye, Gauge, Lightbulb, Loader2, MapPin, MapPinPlus, Phone, PlaneLanding, PlaneTakeoff, Radio, Repeat, Route, Star, Thermometer, Wind } from "lucide-react";
 import DirectToIcon from "../../../components/DirectToIcon";
 import { cn } from "cn";
 import { useKeptAirport, usePreferences } from "../../../lib/preferences";
@@ -21,9 +21,9 @@ import { bearingDeg, distanceNm, type LatLon } from "../../../lib/geo";
 import { chipColourOf } from "../../../lib/map/flightCategory";
 import { inkOn } from "../../../lib/scoreScale";
 import { feet, miles } from "../../../lib/units";
-import { frequencyLine, mhzText, type FrequencyKind } from "../../../lib/frequencies";
 import { ChartBadge, RowBadge } from "../../../components/RowBadge";
 import { BADGE } from "../../../lib/rowBadges";
+import { FrequencyRow } from "./FrequencyRow";
 import { RunwayRow } from "./RunwayRow";
 import { PublicationRows } from "./PublicationRows";
 import { ChartRow, FaaChart } from "./AirportDiagram";
@@ -56,11 +56,6 @@ function subtitleOf(place: AirportPlace, from: { point: LatLon; name: string | n
     place.military === "military" ? "Military, permission required" : place.military === "joint" ? "Joint use" : place.private ? "Private, permission required" : null,
   ].filter(Boolean).join(" · ");
 }
-
-/** A frequency's glyph by its kind (lib/frequencies). */
-const FREQUENCY_GLYPH: Record<FrequencyKind, ReactNode> = {
-  tower: <TowerControl />, ground: <Headset />, weather: <CloudSun />, approach: <Radar />, traffic: <RadioTower />, other: <Radio />,
-};
 
 /** The wind as reported, true: "140° at 10 kt", "calm", "variable at 4
  *  kt, gusts 18". */
@@ -609,22 +604,12 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
 
           <TabsContent value="radio" className="pt-4">
             <ListGroup>
-              {place.frequencies.length ? place.frequencies.map((f, i) => {
-                // Named in words, a glyph by its kind, the frequency as
-                // pilots write it, at the right in the text's own colour,
-                // as Nearest has a field's distance (the pilot's ask for
-                // every card to read as Nearest's does).
-                const line = frequencyLine(f.type, f.description);
-                return (
-                  <ListRow
-                    key={`${f.type}-${f.frequency_mhz}-${i}`}
-                    media={<RowBadge colour={BADGE[line.kind]}>{FREQUENCY_GLYPH[line.kind]}</RowBadge>}
-                    title={line.name} description={line.detail ?? undefined}
-                    value={f.frequency_mhz != null ? <span className="font-semibold text-foreground">{mhzText(f.frequency_mhz)}</span> : "—"}
-                    data-testid="place-frequency"
-                  />
-                );
-              }) : <ListRow title="None listed" />}
+              {place.frequencies.length ? place.frequencies.map((f, i) => (
+                <FrequencyRow
+                  key={`${f.type}-${f.frequency_mhz}-${i}`} type={f.type} description={f.description} mhz={f.frequency_mhz}
+                  testId="place-frequency"
+                />
+              )) : <ListRow title="None listed" />}
               {/* What some fields read out on so many clicks of the mic on
                   the CTAF: the weather, a radio check (vfr.remarks). */}
               {place.radio_notes.map(note => (
