@@ -24,7 +24,9 @@ export interface Fix {
   /** True heading from the GPS, degrees, or null while stationary. */
   headingDeg: number | null;
   speedKt: number | null;
-  /** The GPS's altitude, feet MSL, where it gives one (a phone does). */
+  /** The GPS's altitude, feet, where it gives one (a phone does). Taken as
+   *  MSL: the web spec says WGS84 ellipsoid, some 80-100 ft off over the US,
+   *  and iOS's CoreLocation gives MSL; the alerts' 200 ft buffer is wider. */
   altitudeFt: number | null;
   at: number;
 }

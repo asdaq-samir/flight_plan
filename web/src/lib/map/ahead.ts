@@ -28,7 +28,10 @@ useOwnShip.subscribe(s => {
   const fix = s.fix;
   if (!fix || fix.altitudeFt == null || recent.at(-1)?.at === fix.at) return;
   recent.push(fix);
-  while (recent.length > 2 && fix.at - recent[1]!.at >= VS_WINDOW_MS) recent.shift();
+  // Fixes older than the window go, however few are left: after a gap
+  // (GPS lost, app in the background) the rate is read from the new fixes
+  // alone, not across minutes of climb or descent nobody saw.
+  while (recent.length > 1 && fix.at - recent[0]!.at > VS_WINDOW_MS) recent.shift();
 });
 
 /** Feet a minute, from the oldest fix in the window to the newest; 0
@@ -70,6 +73,12 @@ export function askFor(fix: Fix | null, vs: number): AheadAsk | null {
 
 /** The alerts the pilot has acknowledged, by id: not shown again until
  *  each has gone from what is ahead (and so comes back if it does). */
+/** How long an alert may be missing from the answers before it is
+ *  forgotten: the planner's answers shift with the rounded ask, and one near
+ *  its threshold drops out and returns without having been passed. */
+const FORGET_AFTER_MS = 30_000;
+const missingSince = new Map<string, number>();
+
 export const useAcknowledged = create<{ ids: string[] }>(() => ({ ids: [] }));
 
 export function acknowledge(ids: string[]) {
@@ -105,12 +114,19 @@ export function useAhead(): Ahead | null {
     meta: { silent: true },
   });
   const acknowledged = useAcknowledged(s => s.ids);
-  // An acknowledged alert gone from what is ahead is forgotten: met again,
-  // it is said again.
+  // An acknowledged alert gone from what is ahead for half a minute is
+  // forgotten: met again, it is said again.
   useEffect(() => {
     if (!data) return;
     const ahead = new Set(data.alerts.map(a => a.id));
-    if (acknowledged.some(id => !ahead.has(id))) useAcknowledged.setState({ ids: acknowledged.filter(id => ahead.has(id)) });
+    const now = Date.now();
+    for (const id of acknowledged) {
+      if (ahead.has(id)) missingSince.delete(id);
+      else if (!missingSince.has(id)) missingSince.set(id, now);
+    }
+    const gone = acknowledged.filter(id => now - (missingSince.get(id) ?? now) >= FORGET_AFTER_MS);
+    for (const id of gone) missingSince.delete(id);
+    if (gone.length) useAcknowledged.setState({ ids: acknowledged.filter(id => !gone.includes(id)) });
   }, [data, acknowledged]);
   if (!ask) return null;
   return {

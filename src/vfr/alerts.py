@@ -55,8 +55,10 @@ TERRAIN_CLEARANCE_FT = 500.0
 #: altitude cannot tell from the ground itself. A design choice.
 WARNING_CLEARANCE_FT = 100.0
 #: Either side of the track the ground and obstacles are looked at, for
-#: a track that wanders a few degrees: 0.25 nm is some 1,500 ft.
-SWATH_NM = 0.25
+#: a track that wanders a few degrees: 0.25 nm is some 1,500 ft, and 0.15
+#: nm more for the web app's position, asked rounded to 0.005 degree
+#: (up to 0.15 nm off), so a structure at the swath's edge is not missed.
+SWATH_NM = 0.4
 #: 91.119's minimums hold "except when necessary for takeoff or landing":
 #: within this of a field, and no higher than NEAR_FIELD_AGL_FT over it,
 #: the ground is not alerted (obstacles still are). The exception is for

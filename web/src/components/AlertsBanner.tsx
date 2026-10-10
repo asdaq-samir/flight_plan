@@ -77,7 +77,7 @@ export default function AlertsBanner() {
         </button>
         {alerts.length > 0 && (
           <Button
-            type="button" size="sm" variant="ghost" className={cn("shrink-0 rounded-full text-tint", open && "self-start")}
+            type="button" size="sm" variant="ghost" className={cn("relative shrink-0 rounded-full text-tint after:absolute after:-inset-x-1 after:-inset-y-1.5", open && "self-start")}
             data-testid="alerts-acknowledge"
             onClick={() => { acknowledge(alerts.map(a => a.id)); setOpen(false); }}
           >
