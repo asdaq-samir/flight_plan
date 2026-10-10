@@ -13,9 +13,10 @@
  * every toLocaleString() that made its own.
  */
 export function grouped(n: number): string {
-  const whole = Math.round(n);
-  const digits = String(Math.abs(whole)).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-  return whole < 0 ? `-${digits}` : digits;
+  // Rounded on the magnitude, halves away from zero, as Intl.NumberFormat did.
+  const magnitude = Math.round(Math.abs(n));
+  const digits = String(magnitude).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  return n < 0 && magnitude > 0 ? `-${digits}` : digits;
 }
 
 /** A whole-number altitude with a thousands separator: "12,500". */

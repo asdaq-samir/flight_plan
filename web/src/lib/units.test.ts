@@ -10,6 +10,8 @@ describe("figures written as the FAA writes them", () => {
     expect(grouped(1234567.4)).toBe("1,234,567");
     expect(grouped(-1500)).toBe("-1,500");
     expect(grouped(2699.5)).toBe("2,700");
+    expect(grouped(-2699.5)).toBe("-2,700");
+    expect(grouped(-0.4)).toBe("0");
   });
 
   it("writes an altitude with it, and none as a dash", () => {

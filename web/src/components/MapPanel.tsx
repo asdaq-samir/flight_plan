@@ -58,8 +58,11 @@ const ROUTE_HEAD_REM = 18.25;
 /** The root's font size, which the text size the reader has set moves:
  *  read once, as the page has it. Read at each of the panel's renders as
  *  the page opened, it made the browser work out the page's styles there
- *  and then, 45 ms of a phone's (4x, 2026-10-10). */
+ *  and then, 45 ms of a phone's (4x, 2026-10-10). Read again after a
+ *  resize or a turn of the phone, when the reader's text size is most
+ *  likely to have changed with it. */
 let rootFont: number | null = null;
+if (typeof window !== "undefined") window.addEventListener("resize", () => { rootFont = null; });
 const rootPx = () => (rootFont ??= parseFloat(getComputedStyle(document.documentElement).fontSize) || 16);
 
 /** A card's width from `md` up: 24rem. */
