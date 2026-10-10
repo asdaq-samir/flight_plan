@@ -502,7 +502,10 @@ export type InsetFinding = { control: string; box: string };
 /** P12: controls pinned to the screen that reach into an inset. Pinned:
  *  in a fixed or sticky box with no scroll container between (content
  *  that scrolls is not pinned, and the map's own markers and popups are
- *  the map's). Covered at its centre: not on show, not judged. */
+ *  the map's). Covered at its centre: not on show, not judged. One
+ *  exception, the pilot's (2026-10-10): an airport card's tiles and tabs
+ *  run down to the sheet's own edge, over the home indicator's inset
+ *  ([data-to-edge], MapPanel's toEdge) -- the bottom inset only. */
 export function outsideSafeArea(page: Page, insets: Insets): Promise<InsetFinding[]> {
   return page.evaluate(({ insets, tappable }) => {
     const pinned = (el: HTMLElement) => {
@@ -519,7 +522,8 @@ export function outsideSafeArea(page: Page, insets: Insets): Promise<InsetFindin
       if (r.width < 2 || r.height < 2 || el.closest(".leaflet-pane") || !pinned(el)) continue;
       const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
       if (!hit || !(hit === el || el.contains(hit))) continue;
-      if (r.top >= insets.top && r.left >= insets.left && r.right <= innerWidth - insets.right && r.bottom <= innerHeight - insets.bottom) continue;
+      const toEdge = !!el.closest("[data-to-edge]");
+      if (r.top >= insets.top && r.left >= insets.left && r.right <= innerWidth - insets.right && (toEdge || r.bottom <= innerHeight - insets.bottom)) continue;
       const name = (el.getAttribute("aria-label") ?? el.textContent ?? "").trim().replace(/\s+/g, " ").slice(0, 40);
       found.push({
         control: `${el.tagName.toLowerCase()}${el.dataset.testid ? `[${el.dataset.testid}]` : ""} "${name}"`,

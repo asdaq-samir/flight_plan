@@ -1203,6 +1203,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     // it again when it is closed; without, the search bar and the gear
     // over it gone while it is open, at the pilot's ask.
     alone: !!place || !!heldPoint || nearOpen,
+    toEdge: !!place,
     // At rest, Maps' capsule: the route with share and close either side
     // and the airplane and time under it, which opens the panel to them;
     // with no route, the search bar.

@@ -38,6 +38,10 @@ export interface WorkspacePieces {
    *  controls over it: an airport's card opened over a route,
    *  as a place in Maps takes the sheet from the directions. */
   alone?: boolean;
+  /** The panel's body down to the sheet's own edge, over the home
+   *  indicator (MapPanel's toEdge): an airport's card, its tiles and tabs
+   *  at its foot. */
+  toEdge?: boolean;
 }
 
 export interface WorkspaceProps {

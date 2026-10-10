@@ -3,11 +3,10 @@ import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-quer
 import { FileText, Lightbulb, Loader2, MapPin, MapPinPlus, Phone, Radio, Star } from "lucide-react";
 import DirectToIcon from "../../../components/DirectToIcon";
 import { cn } from "cn";
-import { useKeptAirport, usePreferences, type AirspaceClass } from "../../../lib/preferences";
-import { AIRSPACE, AIRSPACE_PILL, pillLook } from "../../../lib/useAirspace";
+import { useKeptAirport, usePreferences } from "../../../lib/preferences";
 import { useOwnShip } from "../../../lib/map/ownShip";
 import RoundButton from "../../../components/RoundButton";
-import { FILLS_HALF, GLASS_BUTTON } from "../../../components/mapChrome";
+import { GLASS_BUTTON } from "../../../components/mapChrome";
 import CloseButton from "../../../components/CloseButton";
 import { FitText } from "../../../components/FitText";
 import { CardHead, PanelCard } from "../../../components/PanelCard";
@@ -41,8 +40,8 @@ function away(from: LatLon, to: LatLon): string {
 const NOTE_LEADING = "leading-4 pointer-coarse:leading-[1.125rem]";
 
 /** The line under the name, how far the field is alone at the pilot's
- *  ask -- "18 nm NE of C81" -- the ident at the end of the name
- *  (NameWithIdent), and its class and frequencies left to the tabs.
+ *  ask -- "18 nm NE of C81" -- the name alone over it (NameAlone),
+ *  and its class and frequencies left to the tabs.
  *  Nothing where there is nothing to measure from; the elevation is the
  *  runways' box's. */
 function subtitleOf(place: AirportPlace, from: { point: LatLon; name: string | null } | null): string {
@@ -55,21 +54,12 @@ function subtitleOf(place: AirportPlace, from: { point: LatLon; name: string | n
   ].filter(Boolean).join(" · ");
 }
 
-/** The field's name with its ident at its end, at the pilot's ask, in
- *  the route's box's pill (AIRSPACE_PILL) in its airspace's look -- the
- *  plain pill until the class is known -- a size down from the route's,
- *  so the name wraps less; the pill alone while the name is not known. */
-function NameWithIdent({ name, ident, airspace }: { name: string; ident: string; airspace?: AirspaceClass | null }) {
-  const look = airspace ? pillLook(AIRSPACE[airspace]) : undefined;
-  const pill = (
-    <span
-      style={look} data-airspace={airspace ?? undefined} data-testid="place-ident"
-      className={cn(AIRSPACE_PILL, "h-6 px-1.5 align-[0.1em] font-semibold tracking-normal uppercase", TEXT.note, !look && "text-foreground")}
-    >
-      {ident}
-    </span>
-  );
-  return name === ident ? pill : <>{name}{" "}{pill}</>;
+/** The field's name alone, at the pilot's ask, its ident taken off to
+ *  give the name the room (it was a pill in its airspace's look at the
+ *  name's end): the map's mark carries the ident, and a screen reader
+ *  still hears it. The ident in its place while the name is not known. */
+function NameAlone({ name, ident }: { name: string; ident: string }) {
+  return name === ident ? <>{ident}</> : <>{name}<span className="sr-only"> {ident}</span></>;
 }
 
 /** An airport's name and weather from whatever the map has already
@@ -323,28 +313,33 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
   return (
     <PanelCard testId="place-card">
       <Tabs value={tab} onValueChange={next => setPicked(next as CardTab)} className="gap-0">
-      {/* The name, the actions and the tabs' bar the panel's half, less the
-          card's own top: a tab's content starts under it, out of sight
-          there (FILLS_HALF). */}
-      <div className={cn("min-h-[calc(var(--half-body,0px)_-_var(--corner-inset,0.75rem))]", FILLS_HALF)}>
+      {/* The name, the actions and the tabs' bar the panel's half: a
+          tab's content starts under it, out of sight there. */}
+      <div
+        // As tall as the half sheet's body and its foot over the home
+        // indicator (MapPanel's toEdge), less the card's own top and the
+        // sheet's round corner at the bottom, at the pilot's ask: the
+        // tiles and the tabs at the card's foot, the name's rows taking
+        // what they leave. The same height all the way up, so the card is
+        // one layout at every height; never less than the tiles, the tabs
+        // and the close's row need (a card with no half sheet's body).
+        className="flex h-[max(11.5rem,calc(var(--half-body,0px)_+_var(--half-foot,0px)_-_var(--corner-inset,0.75rem)_-_0.5rem))] flex-col"
+        data-to-edge=""
+      >
         {place || !error ? (
           // The runways' sketch to the right of the name, at the pilot's
           // ask, under the weather's chip, the star and the close and down
           // to the tiles, the width of Call and Address, the field's
-          // elevation in its top left ("Elev 788 ft"); the ident at
-          // the end of the name, and how far it is under it.
+          // elevation in its top left ("Elev 788 ft"); the name alone,
+          // and how far it is under it.
           // Four columns as the tiles' are, where the tiles are three too:
-          // the name its half of the card. Its rows a fixed height, at the
-          // pilot's ask -- the close's row and the sketch's -- so the card
-          // keeps its layout whatever the field: a long name is set smaller
-          // to fit its half (FitText), where it wrapped to four lines and
-          // pushed the tiles and the tabs down. The sketch's row 5.25rem, at
-          // the pilot's ask for a bigger name, where it was 4.5: the tiles
-          // and the tabs moved down into what the half sheet had left under
-          // them -- the tabs' foot now about a point above the home
-          // indicator's inset on an iPhone 16 Pro, as low as a control on
-          // the sheet may go (HIG, the iOS audit's P12).
-          <div className="grid grid-cols-4 grid-rows-[36px_5.25rem] gap-x-2">
+          // the name its half of the card. Its rows the same for every
+          // field, at the pilot's ask -- the close's row, and the sketch's
+          // all that the tiles and the tabs leave down to the card's foot --
+          // so the card keeps its layout whatever the field: a long name is
+          // set smaller to fit its half (FitText), where it wrapped to four
+          // lines and pushed the tiles and the tabs down.
+          <div className="grid min-h-0 flex-1 grid-cols-4 grid-rows-[36px_minmax(0,1fr)] gap-x-2">
             <div className="col-span-2 row-span-2 flex min-h-0 min-w-0 flex-col">
               <h2
                 tabIndex={-1} data-testid="place-name"
@@ -354,10 +349,7 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
                     box at that, as Maps sets a place's: the cards' own 22
                     (TEXT.card) left a short name small in a box with room. */}
                 <FitText className="h-full text-[1.75rem] leading-[2.125rem]" data-testid="place-name-fit">
-                  <NameWithIdent
-                    name={place?.name ?? known?.name ?? kept?.name ?? ident} ident={place?.ident ?? ident}
-                    airspace={place ? place.airspace_class : kept?.airspace}
-                  />
+                  <NameAlone name={place?.name ?? known?.name ?? kept?.name ?? ident} ident={place?.ident ?? ident} />
                 </FitText>
               </h2>
               {line && <p className={cn("line-clamp-2 text-muted-foreground", TEXT.note)} data-testid="place-line">{line}</p>}

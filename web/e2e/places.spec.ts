@@ -10,11 +10,15 @@ import { expectDrawerClosed, expectDrawerOpen, grabberTo, mapStill, openMapSetti
 
 const card = (page: Page) => sideDrawer(page).getByTestId("place-card");
 
-test("an airport's card names the field with its ident's airspace pill at the end, how far it is under it, and the weather there", async ({ page }) => {
+test("an airport's card names the field alone, how far it is under it, and the weather there", async ({ page }) => {
   await page.goto("/app/plan?dep=C81&dest=KDLH&place=KDLH");
   await settle(page);
   await expectDrawerOpen(page);
+  // The name alone in sight, at the pilot's ask, the ident to a screen
+  // reader only.
   await expect(card(page).getByTestId("place-name")).toHaveText("Duluth International Airport KDLH");
+  await expect(card(page).getByTestId("place-name").locator(".sr-only")).toHaveText("KDLH");
+  await expect(card(page).getByTestId("place-ident")).toHaveCount(0);
   // Measured from the route's departure while the pilot's own position
   // is not known.
   // Under the name, how far it is alone: its class and frequencies are
@@ -84,8 +88,9 @@ test("an airport's card keeps one layout whatever the field: a long name set sma
   expect(long.tiles).toBe(short.tiles);
   expect(long.tabs).toBe(short.tabs);
   expect(long.size).toBeLessThan(short.size);
-  // The name whole in its box, not cut at its foot.
-  await expect(card(page).getByTestId("place-name-fit")).toHaveJSProperty("scrollHeight", await card(page).getByTestId("place-name-fit").evaluate(el => el.clientHeight));
+  // The name whole in its box, not cut at its foot: within the point
+  // FitText allows for a box whose height is not a whole pixel.
+  expect(await card(page).getByTestId("place-name-fit").evaluate(el => el.scrollHeight - el.clientHeight)).toBeLessThanOrEqual(1);
 
   // No runway the sketch can draw: the box there all the same, saying so.
   await page.route(url => url.pathname.endsWith("/api/planner/airport/3CK"), async route => {
@@ -97,21 +102,20 @@ test("an airport's card keeps one layout whatever the field: a long name set sma
   await expect(card(page).getByTestId("place-runway-sketch")).toHaveText("No runways to draw");
 });
 
-test("the card's ident is in the route's pill for the field, in its airspace's look", async ({ page }) => {
+test("the card's tiles and tabs run down to the sheet's foot, over the home indicator's inset, at the pilot's ask", async ({ page, isMobile }) => {
+  test.skip(!isMobile, "a phone's sheet: the card on a larger screen has no foot to run to");
   await page.goto("/app/plan?dep=C81&dest=KDLH&place=KDLH");
   await settle(page);
-  const pill = card(page).getByTestId("place-ident");
-  await expect(pill).toHaveText("KDLH", { timeout: slow(15000) });
-  await expect(pill).toHaveAttribute("data-airspace", /^[BCDEG]$/);
-  const lookOf = (el: Element) => {
-    const s = getComputedStyle(el);
-    return [s.backgroundColor, s.outlineStyle, s.outlineColor, s.color].join(" ");
-  };
-  const look = await pill.evaluate(lookOf);
-  // The route under the card, once the card is put away: its destination's
-  // pill the same, once it has its class too (AIRSPACE_PILL).
-  await card(page).getByTestId("place-close").click();
-  await expect(async () => expect(await page.getByTestId("route-dest").evaluate(lookOf)).toBe(look)).toPass({ timeout: slow(10_000) });
+  await expect(card(page).getByRole("tablist")).toBeVisible({ timeout: slow(15000) });
+  // At half, the tabs' bar ends within a few points of the sheet's own
+  // foot: the body runs to it (MapPanel's toEdge), no room kept under it.
+  await expect(sideDrawer(page)).toHaveAttribute("data-panel", "half");
+  await expect(async () => {
+    const [tabs, sheet] = await Promise.all([card(page).getByRole("tablist").boundingBox(), sideDrawer(page).boundingBox()]);
+    const gap = sheet!.y + sheet!.height - (tabs!.y + tabs!.height);
+    expect(gap).toBeGreaterThanOrEqual(4);
+    expect(gap).toBeLessThanOrEqual(12);
+  }).toPass({ timeout: slow(10_000) });
 });
 
 test("an airport's card has four tabs under its tiles, in sight at half, the radio first; a tab takes the panel up, and again, down", async ({ page }) => {
