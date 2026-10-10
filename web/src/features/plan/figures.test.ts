@@ -51,4 +51,11 @@ describe("tripFigures", () => {
     expect(ete!.value.startsWith("≈")).toBe(true);
     expect(fuel!.value.startsWith("≈")).toBe(true);
   });
+
+  it("writes an estimate's time as the nav log's is: minutes alone under an hour, else h and mm", () => {
+    const at = (distanceNm: number) => tripFigures({ totals: null, depart: "", local: false, estimate: { distanceNm, cruiseTasKt: 100, fuelBurnGph: 10 } }, false)[1]!.value;
+    expect(at(25)).toBe("≈15m");
+    expect(at(99.6)).toBe("≈1h 00m");
+    expect(at(125)).toBe("≈1h 15m");
+  });
 });
