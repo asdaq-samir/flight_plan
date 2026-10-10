@@ -111,14 +111,25 @@ export const SCREENS: Screen[] = [
     },
   },
   {
-    // Aircraft, Flights and Logbook, one tab: its segmented control and
-    // the section it opens on.
+    // Aircraft, Flights, Logbook and Minimums, one tab: its list of the
+    // four, each opening its page.
     name: "pilot console, Personal tab",
     ready: async page => {
       await page.goto("/app/plan");
       await page.getByTestId("settings-button").click();
       await page.getByRole("tab", { name: "Personal" }).click();
       await expect(page.getByTestId("library-section")).toBeVisible();
+    },
+  },
+  {
+    // One of them open: its way back, its title and its rows.
+    name: "pilot console, Personal's Aircraft page",
+    ready: async page => {
+      await page.goto("/app/plan");
+      await page.getByTestId("settings-button").click();
+      await page.getByRole("tab", { name: "Personal" }).click();
+      await page.getByTestId("library-section").getByRole("button", { name: /^Aircraft/ }).click();
+      await expect(page.getByRole("heading", { name: "Aircraft", exact: true })).toBeVisible();
     },
   },
   // The Guide's Practice pages: a drill's card with its answer shown, the

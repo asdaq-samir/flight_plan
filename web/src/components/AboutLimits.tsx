@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { ListGroup, ListRow } from "./GroupedList";
@@ -17,16 +17,14 @@ function editionOf(cycle: string): string {
 
 /** Settings' About & limits: a row (rows carry no descriptions) that opens
  *  a sheet with the words of lib/limits, the data sources and the chart's
- *  edition. */
-export default function AboutLimits() {
+ *  edition -- in the About group (SettingsPanel), with its glyph. */
+export default function AboutLimits({ media }: { media?: ReactNode }) {
   const [open, setOpen] = useState(false);
   const edge = useNavEdge();
   const { data: chart } = useQuery(chartQuery);
   return (
     <>
-      <ListGroup title="About">
-        <ListRow title="About & limits" chevron onClick={() => setOpen(true)} data-testid="about-limits" />
-      </ListGroup>
+      <ListRow media={media} title="About & limits" chevron onClick={() => setOpen(true)} data-testid="about-limits" />
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent side={edge} className="max-h-[85dvh] overflow-y-auto" data-testid="about-limits-sheet">
           <SheetHeader>

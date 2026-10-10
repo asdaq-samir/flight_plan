@@ -1,10 +1,13 @@
 import { usePreferences } from "../../lib/preferences";
 import { useQuery } from "@tanstack/react-query";
-import { UserRound } from "lucide-react";
+import { BookOpen, Plane, Route, ShieldCheck, UserRound } from "lucide-react";
 import { cn } from "cn";
 import ConsoleTabs from "../../components/ConsoleTabs";
+import { ConsolePages, PageRow } from "../../components/ConsolePages";
 import EmptyState from "../../components/EmptyState";
-import Segmented from "../../components/Segmented";
+import { ListGroup, ListRow } from "../../components/GroupedList";
+import { RowBadge } from "../../components/RowBadge";
+import { SETTING_BADGE } from "../../lib/rowBadges";
 import type { Pilot } from "../../lib/api/types";
 import { pilotQuery } from "../../lib/queryClient";
 import { shortName } from "../../lib/aircraftChoice";
@@ -20,45 +23,68 @@ import SignInModal from "./SignInModal";
 type PilotState = Pilot | null | "loading" | "error";
 
 const SECTIONS = [
-  { value: "aircraft", label: "Aircraft" },
-  { value: "flights", label: "Flights" },
-  { value: "logbook", label: "Logbook" },
-  { value: "minimums", label: "Minimums" },
+  { value: "aircraft", label: "Aircraft", icon: <Plane />, colour: SETTING_BADGE.aircraft },
+  { value: "flights", label: "Flights", icon: <Route />, colour: SETTING_BADGE.flights },
+  { value: "logbook", label: "Logbook", icon: <BookOpen />, colour: SETTING_BADGE.logbook },
+  { value: "minimums", label: "Minimums", icon: <ShieldCheck />, colour: SETTING_BADGE.minimums },
 ];
 
 /**
  * The pilot's own things in one tab, Personal (it was Library, at the
  * pilot's ask): their airplanes, their filed flights, their logbook and
- * their personal minimums, picked with a segmented control as iOS picks
- * between views of one place. The first three need a sign-in, and signed
- * out say once what signing in keeps, with the way in; the minimums are
- * kept on this device and need none. The control steps aside while one
- * of them has a page open (ConsolePages), as a pushed page covers it.
+ * their personal minimums, a row each that opens its page, as iOS's
+ * Settings lists its parts -- each with its glyph in a colour of its own
+ * -- at the pilot's ask: they were a segmented control under the
+ * console's tabs, tabs inside tabs. A page's own pages (a flight, an
+ * entry) open over it with the way back to it (ConsolePages). The first
+ * three need a sign-in: signed out, what signing in keeps is said once
+ * over the list with the way in, and their rows wait greyed; the
+ * minimums are kept on this device and need none.
  */
 function Personal({ pilot }: { pilot: PilotState }) {
-  const saved = usePreferences(s => s.librarySection);
-  const choose = usePreferences(s => s.setLibrarySection);
-  // The airplane picked for planning, for a logbook entry's.
+  // The airplane picked for planning, for a logbook entry's, and said on
+  // its row.
   const aircraft = usePreferences(s => s.aircraft);
-  const section = SECTIONS.some(s => s.value === saved) ? saved : "aircraft";
-
   const signedIn = pilot !== "loading" && pilot !== "error" && pilot !== null;
+  // Signed out, said once over the list, as iOS's Settings asks to sign
+  // in at its top: what signing in keeps, and the way in.
+  const account = pilot === "loading" ? <p role="status" className={cn("px-1 text-muted-foreground", TEXT.note)}>Checking your sign-in…</p>
+    : pilot === "error" ? <EmptyState icon={<UserRound />} title="Sign-in Unknown">Your sign-in status could not be checked.</EmptyState>
+      : !signedIn ? (
+        <EmptyState icon={<UserRound />} title="Not Signed In" action={<SignInModal />}>
+          Sign in to keep your aircraft for the nav log, the flights you plan, and a logbook with your currency.
+        </EmptyState>
+      ) : null;
+  const pages = {
+    aircraft: { title: "Aircraft", content: <AircraftPanel /> },
+    flights: { title: "Flights", content: <FlightsPanel /> },
+    logbook: { title: "Logbook", content: <LogbookPanel aircraft={shortName(aircraft.label)} /> },
+    minimums: { title: "Minimums", content: <MinimumsPanel /> },
+  };
   return (
-    <div className="group/library space-y-4 pt-1.5">
-      <Segmented
-        label="Personal" value={section} onChange={choose} options={SECTIONS} testId="library-section"
-        className="w-full group-has-[[data-slot=console-page]]/library:hidden [&>*]:flex-1"
-      />
-      {section === "minimums" ? <MinimumsPanel />
-        : pilot === "loading" ? <p role="status" className={cn("px-1 text-muted-foreground", TEXT.note)}>Checking your sign-in…</p>
-          : pilot === "error" ? <EmptyState icon={<UserRound />} title="Sign-in Unknown">Your sign-in status could not be checked.</EmptyState>
-            : !signedIn ? (
-              <EmptyState icon={<UserRound />} title="Not Signed In" action={<SignInModal />}>
-                Sign in to keep your aircraft for the nav log, the flights you plan, and a logbook with your currency.
-              </EmptyState>
-            ) : section === "flights" ? <FlightsPanel />
-              : section === "logbook" ? <LogbookPanel aircraft={shortName(aircraft.label)} />
-                : <AircraftPanel />}
+    <div className="pt-1.5">
+      <ConsolePages back="Personal" pages={pages}>
+        <div className="space-y-4">
+          {account}
+          <div data-testid="library-section">
+            <ListGroup>
+              {SECTIONS.map(s => {
+                const badge = <RowBadge colour={s.colour}>{s.icon}</RowBadge>;
+                // The account's three greyed until there is one; the
+                // minimums are this device's.
+                return s.value === "minimums" || signedIn ? (
+                  <PageRow
+                    key={s.value} page={s.value} title={s.label} media={badge}
+                    value={s.value === "aircraft" && aircraft.label ? shortName(aircraft.label) : undefined}
+                  />
+                ) : (
+                  <ListRow key={s.value} title={s.label} media={badge} chevron disabled onClick={() => undefined} />
+                );
+              })}
+            </ListGroup>
+          </div>
+        </div>
+      </ConsolePages>
     </div>
   );
 }
