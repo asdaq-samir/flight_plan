@@ -1,7 +1,10 @@
+import { closeTopCard } from "./openCards";
+
 /**
- * A device's own Back -- Android's gesture or button -- on the site:
- * what Escape does, the topmost thing closed, a menu, a dialog, a card,
- * the layers (each takes the key and says so, preventDefault), else the
+ * A device's own Back -- Android's gesture or button, a TV remote's --
+ * on the site: what Escape does, the topmost thing closed, a menu, a
+ * dialog, the layers (each takes the key and says so, preventDefault), else the
+ * top card closed (an airport's, Nearest's: lib/openCards), else the
  * panel lowered (its own Escape, MapPanel). Answers whether anything was
  * open to close; with nothing, the caller puts the app away. Not the web
  * view's history: the planner keeps its state in the address with each
@@ -10,6 +13,7 @@
  */
 export function closeTopmost(): boolean {
   if (escapeAt(document.activeElement ?? document.body)) return true;
+  if (closeTopCard()) return true;
   const panel = document.querySelector<HTMLElement>('[data-slot="map-panel"]');
   if (panel && panel.dataset.panel !== "peek") {
     escapeAt(panel);

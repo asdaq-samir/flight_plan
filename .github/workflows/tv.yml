@@ -1,0 +1,57 @@
+name: TV
+
+# The TV apps (tv/, docs/TV.md): on every change, LG's webOS app packaged
+# as an .ipk (LG signs it when it is submitted to the LG Content Store)
+# and Samsung's Tizen app as a widget to sign with the owner's Samsung
+# certificate, both kept with the run for the owner to install on a TV in
+# developer mode or submit. Nothing here signs or submits.
+#
+# Actions are pinned as in ci.yml (its opening comment says why).
+on:
+  pull_request:
+    paths:
+      - tv/**
+      - docs/brand/**
+      - .github/workflows/tv.yml
+  push:
+    branches: [main]
+    paths:
+      - tv/**
+      - docs/brand/**
+      - .github/workflows/tv.yml
+  workflow_dispatch:
+
+concurrency:
+  group: tv-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+    env:
+      # The site the apps open, and Samsung's package id for the app: the
+      # repo variables once they exist, stand-ins before.
+      WINGTIP_URL: ${{ vars.WINGTIP_URL || 'https://wingtipmaps.app/app/plan' }}
+      TIZEN_PACKAGE: ${{ vars.TIZEN_PACKAGE || 'WngtpMaps1' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v7
+        with:
+          node-version-file: .nvmrc
+      - name: Their files as their stores read them
+        run: |
+          python3 -c 'import json; json.load(open("tv/webos/appinfo.json"))'
+          python3 -c 'import xml.dom.minidom as m; m.parse("tv/tizen/config.xml")'
+      - name: Packaged
+        run: bash tv/package.sh
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: wingtip-maps-tv
+          path: |
+            tv/out/*.ipk
+            tv/out/*.wgt
+          retention-days: 30

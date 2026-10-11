@@ -17,10 +17,16 @@ import MapPage from "./features/page/MapPage";
 import { prefetchRouteMap } from "./features/plan/routeMapChunk";
 import "./index.css";
 import { followAppLinks, followBackButton, inNativeApp, nativePlatform } from "./lib/native";
+import { startTv, tvPlatform } from "./lib/tv";
 
 // The reader's text size from the iPhone's Settings, before the first
 // render, so the page is never drawn at the wrong size first.
 followDynamicType();
+
+// On a Samsung or LG TV (tv/, lib/tv), the page made for its remote and
+// its distance, before the first render.
+const tv = tvPlatform();
+if (tv) startTv(tv);
 
 // The map's chunk (routeMapChunk),fetched while the page draws.
 prefetchRouteMap();
