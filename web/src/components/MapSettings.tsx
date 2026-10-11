@@ -7,8 +7,12 @@ import TogglePill from "./TogglePill";
 import { Button } from "./ui/button";
 import { clearOwnTrail, useOwnTrail } from "../lib/map/ownTrail";
 import { keepingAvailable } from "../lib/map/keepRoute";
-import { BASE_CHARTS, usePreferences, type BaseChart } from "../lib/preferences";
-import { chartQuery } from "../lib/queryClient";
+import { BASE_CHARTS, usePreferences, type BaseChart, type MapOverlay, type OverlayStrength } from "../lib/preferences";
+import { useShownOverlay } from "../lib/map/useShownOverlay";
+import { useGoogleSession } from "../lib/map/googleSession";
+import { cn } from "../lib/utils";
+import { TEXT } from "../lib/text";
+import { chartQuery, googleMapsQuery } from "../lib/queryClient";
 
 /** "09-03-2026", the FAA's cycle as the chart server names it, as "3 Sep
  *  2026"; the cycle as it is where it reads otherwise. */
@@ -21,8 +25,8 @@ function editionOf(cycle: string): string {
 /**
  * The map's settings, the whole of the map's own button's sheet
  * (MapSettingsButton), as Maps' map button holds its map's -- moved out
- * of the console's Settings at the pilot's ask: the chart, Class B's
- * weather and terminal sheet, the waypoints, the TFRs, the alerts in
+ * of the console's Settings at the pilot's ask: the chart, what is drawn
+ * over it, Class B's weather and terminal sheet, the waypoints, the TFRs, the alerts in
  * flight, the traffic, and keeping charts offline, with the charts' edition
  * under them.
  */
@@ -44,6 +48,14 @@ export default function MapSettings() {
   const setMilitary = usePreferences(s => s.setMilitary);
   const waypoints = usePreferences(s => s.waypoints);
   const setWaypoints = usePreferences(s => s.setWaypoints);
+  // A Google choice without a key is none (useShownOverlay).
+  const overlay = useShownOverlay();
+  const setOverlay = usePreferences(s => s.setOverlay);
+  const strength = usePreferences(s => s.overlayStrength);
+  const setStrength = usePreferences(s => s.setOverlayStrength);
+  // Google's only where the deployment has a key for it.
+  const { data: google } = useQuery(googleMapsQuery);
+  const googleSession = useGoogleSession(overlay === "google-satellite" ? "satellite" : "map", overlay.startsWith("google"));
   const keepOffline = usePreferences(s => s.keepOffline);
   const setKeepOffline = usePreferences(s => s.setKeepOffline);
   const available = keepingAvailable();
@@ -63,6 +75,40 @@ export default function MapSettings() {
           options={BASE_CHARTS.map(b => ({ value: b.kind, label: b.label }))}
         />
       </ListRow>
+      {/* Over the chart, at the pilot's ask (OverlayTiles): the USGS's
+          aerial imagery, or Google's map or its satellite imagery where
+          this deployment has a Google key; and how strongly it covers the
+          chart, the route and the marks over it either way. */}
+      <ListRow title="Overlay">
+        <Segmented
+          label="Overlay" value={overlay.startsWith("google") ? "google" : overlay} testId="overlay-select"
+          onChange={v => setOverlay((v === "google" ? "google-map" : v) as MapOverlay)}
+          options={[{ value: "none", label: "Off" }, { value: "usgs", label: "Imagery" }, ...(google ? [{ value: "google", label: "Google" }] : [])]}
+        />
+      </ListRow>
+      {overlay.startsWith("google") && google && (
+        <ListRow title="Google">
+          <Segmented
+            label="Google" value={overlay} onChange={v => setOverlay(v as MapOverlay)} testId="google-overlay-select"
+            options={[{ value: "google-map", label: "Map" }, { value: "google-satellite", label: "Satellite" }]}
+          />
+        </ListRow>
+      )}
+      {overlay.startsWith("google") && googleSession.isError && (
+        // Where it happens: a key restricted to another site, the Map Tiles
+        // API off or no quota leave Google's map blank otherwise.
+        <p role="alert" className={cn("px-4 text-destructive-ink", TEXT.note)} data-testid="google-problem">
+          Google's map didn't load. Check that this site and the Map Tiles API are allowed for the key.
+        </p>
+      )}
+      {overlay !== "none" && (
+        <ListRow title="Strength">
+          <Segmented
+            label="Strength" value={strength} onChange={v => setStrength(v as OverlayStrength)} testId="overlay-strength"
+            options={[{ value: "faint", label: "Faint" }, { value: "half", label: "Half" }, { value: "full", label: "Full" }]}
+          />
+        </ListRow>
+      )}
       {/* The Class B airports' two things, on one line: their weather
           now, as chips on the map, and the terminal sheet over the base
           wherever there is one -- the TAC over the sectional, the IFR

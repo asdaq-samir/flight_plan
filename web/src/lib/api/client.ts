@@ -5,7 +5,7 @@ import type {
   Aircraft, AircraftChoice, AircraftProfiles, AircraftRequest, AirportPlace, AirportSearch, AirportsInView, AltitudeChoice, Briefing,
   ChartInfo, ChartPages, ChartRefreshStarted, PlacesFound, CheckpointDescriptionMessage, CheckpointNoteSaved, Checkpoints, Classification, Course, Detour,
   Flight, FlightSummary, ModelComparison, NarrativeMessage, NarrativeRequest, NavLogMessage, PickDeleted, PickSaved,
-  AirspaceAt, AlertsAhead, ClassBResponse, FlightDetail, FlightRoute, Traffic, TrafficFound, NearestAirports, RouteProfile, Tfrs, DevServices, DevServiceStarted, Pilot, Rating, RetrainStarted, Role, SaveFlightRequest,
+  AirspaceAt, AlertsAhead, ClassBResponse, FlightDetail, FlightRoute, GoogleMaps, Traffic, TrafficFound, NearestAirports, RouteProfile, Tfrs, DevServices, DevServiceStarted, Pilot, Rating, RetrainStarted, Role, SaveFlightRequest,
   SignInCapabilities, AppleSignedIn, LogbookEntry, LogbookEntryRequest, Currency, CurrencyDatesRequest,
   Status, StreamMessage, Totals, WaypointsInView, Training, SavedTrack,
   OralQuestion, OralQuestionRequest, OralGrade, OralGradeRequest, ProcedureDrawing, ProcedureList,
@@ -438,6 +438,10 @@ export const api = {
    *  and a US airplane's FAA registration. */
   trafficFlight: (hex: string) =>
     planner.GET("/api/traffic/flight/{hex_id}", { params: { path: { hex_id: hex } } }).then(data<FlightDetail>),
+
+  /** The deployment's key for Google's map tiles; a 404 where it has
+   *  none (OverlayTiles). */
+  googleMaps: () => planner.GET("/api/map/google").then(data<GoogleMaps>),
 
   /** The route a flight number is scheduled to fly, and whether the
    *  airplane where it is now is on it; null for none known. */

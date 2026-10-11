@@ -199,6 +199,9 @@ services:
       # /api/checkpoint-notes: one Claude call per checkpoint that has
       # no saved note yet.
       ANTHROPIC_API_KEY: *anthropic-api-key
+      # The map's Google overlay (routers/basemaps): a browser key for
+      # Google's Map Tiles API, none by default.
+      GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY:-}
       # /api/status probes these; /api/retrain starts the training DAG.
       # All optional -- the AWS task sets none of them.
       NAV_LOG_AGENT_URL: http://nav-log-agent:8000
