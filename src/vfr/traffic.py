@@ -19,11 +19,16 @@ so the map can carry each airplane on from where it was (TrafficLayer).
 """
 from __future__ import annotations
 
+import math
+import re
 import threading
 import time
 
 import numpy as np
 import requests
+from cachetools import TTLCache
+
+from . import airports
 
 URL = "https://api.adsb.lol/v2/point/{lat:.2f}/{lon:.2f}/{radius}"
 HEADERS = {"User-Agent": "wingtip-maps/0.1 (VFR flight planner; traffic for pilots' situational awareness)"}
@@ -98,6 +103,10 @@ def _aircraft(entry: dict) -> dict | None:
         "speed_kt": _number(entry.get("gs")),
         "vertical_fpm": _number(entry.get("geom_rate") if entry.get("geom_rate") is not None else entry.get("baro_rate")),
         "seen_s": seen,
+        # What its transponder is set to, and an emergency it declares
+        # (7500, 7600, 7700 are "unlawful", "nordo", "general").
+        "squawk": entry.get("squawk") or None,
+        "emergency": entry.get("emergency") if entry.get("emergency") not in (None, "", "none") else None,
     }
 
 
@@ -191,3 +200,136 @@ def near(lat: float, lon: float, radius_nm: float) -> dict:
         nm = np.hypot((lats - lat) * _NM_PER_DEG, (lons - lon) * _NM_PER_DEG * np.cos(np.radians(lat)))
         planes = [p for p, d in zip(planes, nm) if d <= radius]
     return {"aircraft": planes, "age_s": round(_clock() - at, 1)}
+
+
+# --- One airplane: found by what a pilot knows it by, and its flight ---
+
+FIND_URL = "https://api.adsb.lol/v2/{by}/{value}"
+#: The day's track of an airplane, by its ICAO address: readsb's trace,
+#: on the same open data's globe (adsb.lol's tar1090), gzip JSON.
+TRACE_URL = "https://globe.adsb.lol/data/traces/{last2}/trace_full_{hex}.json"
+#: A trace is read again after this long, s: the map adds the reports
+#: between (TrafficLayer).
+TRACE_TTL_S = 60
+#: At most this many points of a trail are sent: enough for a line on a
+#: phone, a fraction of a long flight's.
+TRAIL_POINTS = 600
+#: A field within this of where a flight began on the ground is where it
+#: departed from.
+DEPARTED_WITHIN_NM = 3.0
+#: readsb's trace flag for a point that starts a new leg.
+_NEW_LEG = 2
+
+_HEX = re.compile(r"^~?[0-9a-f]{6}$")
+_N_NUMBER = re.compile(r"^N[1-9][0-9A-Z]{0,4}$")
+_TRACES: TTLCache = TTLCache(maxsize=64, ttl=TRACE_TTL_S)
+
+
+def _paced(url: str) -> dict:
+    """adsb.lol's answer to one request, taken in its turn between the
+    region requests (never two within MIN_GAP_S, as `_region_answer`
+    keeps them): waited for up to two gaps, else TrafficUnavailable."""
+    with _LOCK:
+        now = _clock()
+        slot = max(now, _STATE["next_ask"])
+        if slot - now > 2 * MIN_GAP_S:
+            raise TrafficUnavailable("adsb.lol has not answered for a while")
+        _STATE["next_ask"] = slot + MIN_GAP_S
+    if slot > now:
+        _sleep(slot - now)
+    try:
+        resp = requests.get(url, headers=HEADERS, timeout=TIMEOUT_S)
+        resp.raise_for_status()
+        return resp.json()
+    except (requests.RequestException, ValueError) as err:
+        with _LOCK:
+            _STATE["next_ask"] = _clock() + BACKOFF_S
+        raise TrafficUnavailable(f"adsb.lol did not answer: {err}") from err
+
+
+def find(query: str) -> list[dict]:
+    """The airplanes in the air a pilot names: by callsign ("UAL2088"),
+    registration ("N174HA") or ICAO address ("a0b7d8"), as `_aircraft`
+    gives each. Empty where none is in the air and heard now."""
+    text = re.sub(r"\s+", "", query).upper()
+    if not text or not re.fullmatch(r"[~A-Z0-9-]{2,10}", text):
+        return []
+    if _HEX.fullmatch(text.lower()):
+        tries = [("hex", text.lower()), ("callsign", text)]
+    elif _N_NUMBER.fullmatch(text) or "-" in text:
+        tries = [("reg", text)]
+    else:
+        tries = [("callsign", text), ("reg", text)]
+    for by, value in tries:
+        found = [a for a in (_aircraft(e) for e in _paced(FIND_URL.format(by=by, value=value)).get("ac") or []
+                             if isinstance(e, dict)) if a is not None]
+        if found:
+            return found
+    return []
+
+
+def _trace(hex_id: str) -> dict | None:
+    """An airplane's trace today, read once a minute; None where there is
+    none or it cannot be had (the flight is then drawn without its past)."""
+    with _LOCK:
+        if hex_id in _TRACES:
+            return _TRACES[hex_id]
+    try:
+        resp = requests.get(TRACE_URL.format(last2=hex_id[-2:], hex=hex_id), headers=HEADERS, timeout=TIMEOUT_S)
+        trace = resp.json() if resp.status_code == 200 else None
+    except (requests.RequestException, ValueError):
+        trace = None
+    with _LOCK:
+        _TRACES[hex_id] = trace
+    return trace
+
+
+def _altitude_ft(point: list) -> float | None:
+    """A trace point's height: its GNSS height where it has one, as the
+    map's live reports are, else its pressure altitude; None on the ground."""
+    if point[3] == "ground":
+        return None
+    geometric = point[10] if len(point) > 10 else None
+    return _number(geometric) if geometric is not None else _number(point[3])
+
+
+def flight(hex_id: str) -> dict:
+    """An airplane's flight today, from its trace: {"hex", "registration",
+    "type", "description", "operator", "year", "departed" ({"ident",
+    "name", "at"} -- the field it took off from, where its trace shows it
+    on the ground at one, else None), "trail" ([{"t", "lat", "lon",
+    "alt_ft"}], this flight's track from its takeoff or the start of its
+    leg, at most TRAIL_POINTS)}."""
+    hex_id = hex_id.lower()
+    trace = _trace(hex_id) or {}
+    points = trace.get("trace") or []
+    base = _number(trace.get("timestamp")) or 0.0
+    # This flight: from its last time on the ground, or where readsb
+    # started its leg, whichever is later.
+    start = 0
+    for i, point in enumerate(points):
+        if point[3] == "ground" or (isinstance(point[6], int) and point[6] & _NEW_LEG):
+            start = i
+    leg = points[start:]
+    departed = None
+    if leg and leg[0][3] == "ground":
+        nearest = airports.nearest(leg[0][1], leg[0][2], limit=1)
+        if nearest and nearest[0]["distance_nm"] <= DEPARTED_WITHIN_NM:
+            # When it left the ground: the first point in the air after it.
+            off = next((p for p in leg if p[3] != "ground"), leg[0])
+            departed = {"ident": nearest[0]["ident"], "name": nearest[0].get("name"), "at": round(base + off[0])}
+    step = max(1, math.ceil(len(leg) / TRAIL_POINTS))
+    kept = leg[::step] + ([leg[-1]] if leg and (len(leg) - 1) % step else [])
+    return {
+        "hex": hex_id,
+        "registration": trace.get("r") or None,
+        "type": trace.get("t") or None,
+        "description": trace.get("desc") or None,
+        "operator": trace.get("ownOp") or None,
+        "year": trace.get("year") or None,
+        "departed": departed,
+        "trail": [
+            {"t": round(base + p[0], 1), "lat": round(p[1], 5), "lon": round(p[2], 5), "alt_ft": _altitude_ft(p)}
+            for p in kept
+        ],
+    }

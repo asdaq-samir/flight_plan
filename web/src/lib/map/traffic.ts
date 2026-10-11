@@ -88,3 +88,56 @@ export function trendPx(speedKt: number | null | undefined, lat: number, zoom: n
   const metresPerPoint = (156543.03392 * Math.cos((lat * Math.PI) / 180)) / 2 ** zoom;
   return Math.min(160, metres / metresPerPoint);
 }
+
+/** A flown path's colour by its height, as FlightAware colours a track:
+ *  green on the way up from the ground through yellow and orange to red
+ *  at 30,000 ft and purple at 40,000 and above; grey on the ground. */
+export function heightColour(altFt: number | null): string {
+  if (altFt == null) return "#8e8e93";
+  const t = Math.min(1, Math.max(0, altFt / 40000));
+  const hue = (120 - 180 * t + 360) % 360;
+  return `hsl(${Math.round(hue)} 85% 45%)`;
+}
+
+/** A path in runs of one colour (heightColour, its height to 1,000 ft),
+ *  each run starting where the last ended, so the line is whole: one
+ *  line a run, not a line a point. */
+export function colourRuns(path: { lat: number; lon: number; altFt: number | null }[]): { colour: string; points: [number, number][] }[] {
+  const runs: { colour: string; points: [number, number][] }[] = [];
+  path.forEach((p, i) => {
+    const colour = heightColour(p.altFt == null ? null : Math.round(p.altFt / 1000) * 1000);
+    const last = runs[runs.length - 1];
+    if (last && last.colour === colour) last.points.push([p.lat, p.lon]);
+    else runs.push({ colour, points: i > 0 ? [[path[i - 1]!.lat, path[i - 1]!.lon], [p.lat, p.lon]] : [[p.lat, p.lon]] });
+  });
+  return runs;
+}
+
+/** How far ahead a closest approach is looked for, minutes. */
+const CPA_MIN = 10;
+
+/**
+ * When and how near an airplane comes to own ship, both carried on
+ * straight at their ground speeds -- what a traffic display's closing
+ * figures say: {inMin, nm, aboveFt} at the closest within ten minutes,
+ * now's where they are already drawing apart; with its height then
+ * against own ship's (its vertical speed carried on, own ship's height
+ * held). Null without own ship's track and speed or the airplane's.
+ * Seconds-old internet data: for knowing what is coming, not for
+ * avoiding it.
+ */
+export function closestApproach(own: Fix, plane: TrafficAircraft): { inMin: number; nm: number; aboveFt: number | null } | null {
+  if (own.headingDeg == null || own.speedKt == null || plane.track_deg == null || plane.speed_kt == null) return null;
+  const rad = (deg: number) => (deg * Math.PI) / 180;
+  const cosLat = Math.cos(rad(own.lat));
+  // Nautical miles east and north of own ship, and knots each way.
+  const rx = (plane.lon - own.lon) * 60 * cosLat, ry = (plane.lat - own.lat) * 60;
+  const vx = plane.speed_kt * Math.sin(rad(plane.track_deg)) - own.speedKt * Math.sin(rad(own.headingDeg));
+  const vy = plane.speed_kt * Math.cos(rad(plane.track_deg)) - own.speedKt * Math.cos(rad(own.headingDeg));
+  const closing = vx * vx + vy * vy;
+  const hours = closing > 0 ? Math.min(CPA_MIN / 60, Math.max(0, -(rx * vx + ry * vy) / closing)) : 0;
+  const nm = Math.hypot(rx + vx * hours, ry + vy * hours);
+  const aboveFt = plane.altitude_ft == null || own.altitudeFt == null ? null
+    : plane.altitude_ft + (plane.vertical_fpm ?? 0) * hours * 60 - own.altitudeFt;
+  return { inMin: hours * 60, nm, aboveFt };
+}

@@ -3305,6 +3305,123 @@
         "title": "DistanceTable",
         "type": "object"
       },
+      "FlightDeparted": {
+        "description": "The field a flight took off from, and when (Unix seconds).",
+        "properties": {
+          "at": {
+            "title": "At",
+            "type": "number"
+          },
+          "ident": {
+            "title": "Ident",
+            "type": "string"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          }
+        },
+        "required": [
+          "ident",
+          "at"
+        ],
+        "title": "FlightDeparted",
+        "type": "object"
+      },
+      "FlightDetail": {
+        "description": "An airplane and its flight today (vfr.traffic.flight): what it is,\nwho flies it, where it took off from where its track shows that, and\nits track since, from adsb.lol's open data (ODbL 1.0).",
+        "properties": {
+          "departed": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FlightDeparted"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "hex": {
+            "title": "Hex",
+            "type": "string"
+          },
+          "operator": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Operator"
+          },
+          "registration": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Registration"
+          },
+          "trail": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/TrailPoint"
+            },
+            "title": "Trail",
+            "type": "array"
+          },
+          "type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Type"
+          },
+          "year": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Year"
+          }
+        },
+        "required": [
+          "hex"
+        ],
+        "title": "FlightDetail",
+        "type": "object"
+      },
       "Forecast": {
         "properties": {
           "min_ceiling_ft": {
@@ -8201,6 +8318,17 @@
             ],
             "title": "Callsign"
           },
+          "emergency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Emergency"
+          },
           "hex": {
             "title": "Hex",
             "type": "string"
@@ -8251,6 +8379,17 @@
             ],
             "title": "Speed Kt"
           },
+          "squawk": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Squawk"
+          },
           "track_deg": {
             "anyOf": [
               {
@@ -8293,6 +8432,23 @@
         "title": "TrafficAircraft",
         "type": "object"
       },
+      "TrafficFound": {
+        "description": "The airplanes in the air a pilot named by callsign, registration\nor ICAO address (vfr.traffic.find).",
+        "properties": {
+          "aircraft": {
+            "items": {
+              "$ref": "#/components/schemas/TrafficAircraft"
+            },
+            "title": "Aircraft",
+            "type": "array"
+          }
+        },
+        "required": [
+          "aircraft"
+        ],
+        "title": "TrafficFound",
+        "type": "object"
+      },
       "TrafficPattern": {
         "description": "How high a field's traffic pattern is flown (vfr.pattern):\n`agl_ft` above the field, the FAA's own where `published`, else AC\n90-66C's 1,000 ft for a propeller aeroplane; `altitude_ft` above sea\nlevel where the field's elevation is known.",
         "properties": {
@@ -8321,6 +8477,41 @@
           "agl_ft"
         ],
         "title": "TrafficPattern",
+        "type": "object"
+      },
+      "TrailPoint": {
+        "description": "Where an airplane was: Unix seconds, its position, its height (None\non the ground).",
+        "properties": {
+          "alt_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alt Ft"
+          },
+          "lat": {
+            "title": "Lat",
+            "type": "number"
+          },
+          "lon": {
+            "title": "Lon",
+            "type": "number"
+          },
+          "t": {
+            "title": "T",
+            "type": "number"
+          }
+        },
+        "required": [
+          "t",
+          "lat",
+          "lon"
+        ],
+        "title": "TrailPoint",
         "type": "object"
       },
       "TrainingReadiness": {
@@ -11269,6 +11460,91 @@
           }
         },
         "summary": "Traffic Near"
+      }
+    },
+    "/api/traffic/find": {
+      "get": {
+        "description": "The airplanes in the air a pilot names -- UAL2088, N174HA, a0b7d8 --\nto track one. A 503 where adsb.lol cannot be asked now.",
+        "operationId": "traffic_find_api_traffic_find_get",
+        "parameters": [
+          {
+            "description": "Callsign, registration or ICAO address",
+            "in": "query",
+            "name": "q",
+            "required": true,
+            "schema": {
+              "description": "Callsign, registration or ICAO address",
+              "maxLength": 12,
+              "minLength": 2,
+              "title": "Q",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrafficFound"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Traffic Find"
+      }
+    },
+    "/api/traffic/flight/{hex_id}": {
+      "get": {
+        "description": "An airplane being tracked: what it is, the field it took off from\nand its track today (vfr.traffic.flight); no track where its trace\ncannot be had.",
+        "operationId": "traffic_flight_api_traffic_flight__hex_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "hex_id",
+            "required": true,
+            "schema": {
+              "pattern": "^~?[0-9a-fA-F]{6}$",
+              "title": "Hex Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FlightDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Traffic Flight"
       }
     },
     "/api/waypoints/in-view": {

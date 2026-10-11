@@ -10,7 +10,7 @@ client = TestClient(app)
 def test_the_airplanes_near_a_point_with_their_source_and_licence(monkeypatch):
     plane = {"hex": "a128b9", "callsign": "N174HA", "registration": "N174HA", "type": "C172", "lat": 42.0, "lon": -88.1,
              "altitude_ft": 1325.0, "pressure_altitude": False, "track_deg": 320.0, "speed_kt": 94.0, "vertical_fpm": -384.0,
-             "seen_s": 0.3}
+             "seen_s": 0.3, "squawk": "1200", "emergency": None}
     monkeypatch.setattr(traffic, "near", lambda lat, lon, radius: {"aircraft": [plane], "age_s": 2.5})
     body = client.get("/api/traffic", params={"lat": 42.3, "lon": -88.1, "radius": 25}).json()
     assert body == {"aircraft": [plane], "age_s": 2.5, "source": "adsb.lol", "license": "ODbL 1.0"}
@@ -23,3 +23,15 @@ def test_adsb_lol_out_is_a_503(monkeypatch):
     monkeypatch.setattr(traffic, "near", down)
     response = client.get("/api/traffic", params={"lat": 42.3, "lon": -88.1})
     assert response.status_code == 503 and "adsb.lol" in response.json()["detail"]
+
+
+def test_an_airplane_named_is_found_and_its_flight_given(monkeypatch):
+    plane = {"hex": "a0b7d8", "callsign": "UAL2088", "lat": 42.0, "lon": -88.1, "squawk": "3324"}
+    monkeypatch.setattr(traffic, "find", lambda q: [plane] if q == "UAL2088" else [])
+    assert client.get("/api/traffic/find", params={"q": "UAL2088"}).json()["aircraft"][0]["callsign"] == "UAL2088"
+    monkeypatch.setattr(traffic, "flight", lambda hex_id: {"hex": hex_id, "registration": "N14511", "departed": None,
+                                                           "trail": [{"t": 1.0, "lat": 42.0, "lon": -88.0, "alt_ft": None}]})
+    body = client.get("/api/traffic/flight/a0b7d8").json()
+    assert body["registration"] == "N14511" and body["trail"][0]["alt_ft"] is None
+    # Not an ICAO address: refused, nothing asked of adsb.lol.
+    assert client.get("/api/traffic/flight/nothex").status_code == 422

@@ -1,9 +1,11 @@
-import { Bell, BellOff, CloudSun, Download, Eye, EyeOff, Map as MapIcon, Plane } from "lucide-react";
+import { Bell, BellOff, CloudSun, Download, Eye, EyeOff, Map as MapIcon, Plane, Trash2 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { ListGroup, ListRow } from "./GroupedList";
 import Segmented from "./Segmented";
 import TogglePill from "./TogglePill";
+import { Button } from "./ui/button";
+import { clearOwnTrail, useOwnTrail } from "../lib/map/ownTrail";
 import { keepingAvailable } from "../lib/map/keepRoute";
 import { BASE_CHARTS, usePreferences, type BaseChart } from "../lib/preferences";
 import { chartQuery } from "../lib/queryClient";
@@ -35,6 +37,7 @@ export default function MapSettings() {
   const setTfrs = usePreferences(s => s.setTfrs);
   const alerts = usePreferences(s => s.alerts);
   const traffic = usePreferences(s => s.traffic);
+  const trailed = useOwnTrail(s => s.path.length > 1);
   const setTraffic = usePreferences(s => s.setTraffic);
   const setAlerts = usePreferences(s => s.setAlerts);
   const military = usePreferences(s => s.military);
@@ -96,6 +99,16 @@ export default function MapSettings() {
           every five seconds. */}
       <ListRow title="Traffic">
         <TogglePill pressed={traffic} onPressedChange={setTraffic} icon={<Plane />} label="Show" testId="traffic-toggle" />
+      </ListRow>
+      {/* Own ship's path flown (OwnTrailLayer), put away here: it starts
+          again by itself with the next flight. */}
+      <ListRow title="Your path">
+        <Button
+          type="button" size="sm" variant="ghost" className="rounded-full text-tint" disabled={!trailed}
+          onClick={clearOwnTrail} data-testid="own-trail-clear"
+        >
+          <Trash2 /> Clear
+        </Button>
       </ListRow>
       {/* The fields the armed services own and keep to themselves, at the
           pilot's ask: off by default, as most pilots may not land there

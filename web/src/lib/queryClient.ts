@@ -200,6 +200,14 @@ export const nearestQuery = (lat: number, lon: number) => {
   });
 };
 
+/** A tracked flight's airplane, where it took off and its path today
+ *  (vfr.traffic.flight): read again every minute while it is tracked, by
+ *  its card and the map's path alike. Quiet: the card says what it has. */
+export const flightQuery = (hex: string) => queryOptions({
+  queryKey: ["flight", hex], queryFn: () => api.trafficFlight(hex), staleTime: 60_000, refetchInterval: 60_000,
+  meta: { silent: true },
+});
+
 export const classBQuery = queryOptions({
   queryKey: ["classB"], queryFn: () => api.classB(), staleTime: 5 * 60_000, meta: { silent: true },
 });
