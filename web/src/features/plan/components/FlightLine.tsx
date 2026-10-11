@@ -14,8 +14,10 @@ import { fitFigures, tripFigures } from "../figures";
  * where they were one grey line ("Dist 323.6 nm · ETA 17:07 (2h 45m) ·
  * Fuel 23.4 gal") read past at a glance. The arrival from the departure
  * time picked, or from now while it is "Now"; one airport to itself, the
- * time aloft and the time back. Where nothing flies, why, in red, in the
- * strip's place and its height, so the panel keeps its shape.
+ * time aloft and the time back. Where no legal altitude can be had, the
+ * figures stay -- the book's, marked "≈" -- and why is the Brief's (its Go
+ * / No-Go, red) and the altitude chip's, at the pilot's ask: in red in the
+ * strip's place, it hid the distance, the time and the fuel.
  *
  * Each figure as it is while it fits its column; where one does not (a
  * long trip's "2636.8 nm" at a large text size, an iPhone SE's narrow
@@ -23,7 +25,7 @@ import { fitFigures, tripFigures } from "../figures";
  * the time en route in decimal hours, at the pilot's ask -- up, so none
  * is ever said short of what it is -- and past that cut short.
  */
-export default function FlightLine({ totals, estimate, depart, local, problem }: {
+export default function FlightLine({ totals, estimate, depart, local }: {
   totals: Totals | null;
   /** Before the nav log's totals, at the pilot's ask for the figures as
    *  soon as can be: the course's distance at once, and the time and fuel
@@ -35,8 +37,6 @@ export default function FlightLine({ totals, estimate, depart, local, problem }:
   depart: string;
   /** One airport to itself: the time aloft and the time back. */
   local: boolean;
-  /** What stops the plan, in a few words (no legal altitude's brief). */
-  problem: string | null | undefined;
 }) {
   // Each figure on its own: the one too wide for its column rounded, the
   // rest as they are. Measured as the page sets it, in hidden words of the
@@ -75,10 +75,7 @@ export default function FlightLine({ totals, estimate, depart, local, problem }:
     // any, and with none yet their names over dashes -- it keeps its
     // place, as the panel's controls do.
     <div className="relative" data-slot="section-summary" data-tip="flight-line">
-      <dl
-        className={cn("grid gap-3", shown.length === 3 ? "grid-cols-3" : "grid-cols-4", problem && "invisible")}
-        aria-hidden={problem ? true : undefined}
-      >
+      <dl className={cn("grid gap-3", shown.length === 3 ? "grid-cols-3" : "grid-cols-4")}>
         {shown.map((f, i) => (
           <div key={f.name} className="min-w-0">
             <dt className={cn(GROUP_HEADING, "truncate")}>{f.name}</dt>
@@ -95,11 +92,6 @@ export default function FlightLine({ totals, estimate, depart, local, problem }:
         <span ref={probe} className={cn(TEXT.heading, "font-semibold tabular-nums")} />
         <span ref={unitProbe} className={cn(TEXT.note, "font-normal")} />
       </span>
-      {problem && (
-        <p className={cn(TEXT.prose, "absolute inset-0 flex items-center text-red-700 dark:text-red-300")}>
-          <span className="line-clamp-2" data-testid="navlog-problem">{problem}</span>
-        </p>
-      )}
     </div>
   );
 }

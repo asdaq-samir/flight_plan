@@ -1252,7 +1252,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const flightLine = (
     <div className="w-full basis-full px-1" data-testid="flight-line">
       <FlightLine
-        totals={s.totals} estimate={estimate} depart={depart} local={s.local} problem={s.unflyable?.brief}
+        totals={s.totals} estimate={estimate} depart={depart} local={s.local}
       />
     </div>
   );
@@ -1377,8 +1377,9 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
         // One line, as the search bar is, at the pilot's ask: Share at its
         // start, as it was, the route, a tap on it the panel, and the
         // console's button at its end. What is wrong with it is a red mark
-        // beside it (the cruising altitude's chip says what); the airplane
-        // and the time are in the panel, the sharing too, under More.
+        // beside its figures, which it does not hide (the Brief and the
+        // cruising altitude's chip say what); the airplane and the time
+        // are in the panel, the sharing too, under More.
         warning={!routed ? (planned.dep ? "No destination yet" : "No departure yet") : s.unflyable ? "No legal altitude" : undefined}
         onDetail={() => setPanel("half")}
         leading={routed ? shareMenu("start") : undefined}

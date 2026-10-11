@@ -207,12 +207,23 @@ test("plan page: no legal altitude is the route's own problem: its chip says so 
   await expect(chip).toHaveAttribute("data-tone", "destructive");
   await expect(page.locator("[data-problem-banner]")).toHaveCount(0);
   await expect(page.locator("[data-sonner-toast]", { hasText: "No legal" })).toHaveCount(0);
+  // Its mark beside where to, how far and how long, which it does not
+  // hide, at the pilot's ask: the book's time, marked "≈".
+  await expect(page.getByTestId("capsule-title")).toContainText(/^KDLH · ≈\d+ nm · ≈/);
 
   // Its tap opens the panel: the cruising altitude's chip red, and no
   // line under the route.
   await chip.click();
-  // On the flight's line under the route, in a few words, in red.
-  await expect(sideDrawer(page).getByTestId("navlog-problem")).toHaveText("Aircraft ceiling restricts mountainous flying");
+  // The figures stay, the book's marked "≈", where why stood in their
+  // place in red; why is the Brief's, its Go / No-Go's altitude red.
+  await expect(sideDrawer(page).getByTestId("navlog-eta-estimate")).toBeVisible();
+  await expect(sideDrawer(page).getByTestId("navlog-ete")).toHaveText(/^≈/);
+  await openTab(page, "Brief");
+  const altitude = sideDrawer(page).getByTestId("verdict-altitude");
+  await expect(altitude).toHaveAttribute("data-finding", "stop");
+  await expect(altitude).toContainText("Aircraft ceiling restricts mountainous flying");
+  await openTab(page, "Nav Log");
+  await controlsInSight(page);
   const mark = page.getByTestId("altitude-why");
   await expect(mark).toHaveAccessibleName(/no legal altitude/);
   await expect(mark).toHaveText("FL---");
