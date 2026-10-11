@@ -288,6 +288,9 @@ def _trace(hex_id: str) -> dict | None:
             resp = requests.get(TRACE_URL.format(last2=hex_id[-2:], hex=hex_id), headers=HEADERS, timeout=TIMEOUT_S)
             if resp.status_code == 200:
                 trace = resp.json()
+                # Anything but an object is not a trace: no past, not a 500.
+                if not isinstance(trace, dict):
+                    trace = None
             elif resp.status_code == 404:
                 trace = None
             else:
@@ -319,7 +322,9 @@ def flight(hex_id: str) -> dict:
     leg, at most TRAIL_POINTS)}."""
     hex_id = hex_id.lower()
     trace = _trace(hex_id) or {}
-    points = trace.get("trace") or []
+    # A point is [seconds, lat, lon, altitude, ground speed, track, flags,
+    # ...]; one too short to hold them is not used.
+    points = [p for p in trace.get("trace") or [] if isinstance(p, list) and len(p) > 6]
     base = _number(trace.get("timestamp")) or 0.0
     # This flight: from its last time on the ground before its last point
     # in the air, or where readsb started its leg, whichever is later. An

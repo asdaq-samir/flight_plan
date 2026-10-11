@@ -289,3 +289,14 @@ def test_a_trace_that_could_not_be_had_is_asked_again_not_kept(clock, monkeypatc
         traffic.flight("a0b7d8")
         traffic.flight("a0b7d8")
     assert get.call_count == 2
+
+
+def test_a_trace_that_is_not_an_object_or_has_short_points_is_drawn_without_its_past(clock, monkeypatch):
+    monkeypatch.setattr(traffic, "_TRACES", {})
+    with patch("vfr.traffic.requests.get", return_value=Mock(status_code=200, json=Mock(return_value=[1, 2]))):
+        assert traffic.flight("a0b7d8")["trail"] == []
+    monkeypatch.setattr(traffic, "_TRACES", {})
+    monkeypatch.setattr(traffic.airports, "nearest", lambda lat, lon, limit=1: [])
+    short = {**TRACE, "trace": [[0.0, 41.9, -87.9], *TRACE["trace"]]}
+    with patch("vfr.traffic.requests.get", return_value=Mock(status_code=200, json=Mock(return_value=short))):
+        assert len(traffic.flight("a0b7d8")["trail"]) == 3
