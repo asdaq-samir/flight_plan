@@ -69,6 +69,10 @@ interface Preferences {
    *  (lib/map/ahead): airspace, special-use areas and TFRs the track goes
    *  into, and the ground or an obstacle it comes near. On by default. */
   alerts: boolean;
+  /** Whether those alerts are said aloud as each comes ahead
+   *  (lib/map/speak). Off by default: a phone that starts talking
+   *  unasked is a surprise; turned on, it says so. */
+  speakAlerts: boolean;
   /** Whether the airplanes ADS-B receivers hear about the map are drawn
    *  (TrafficLayer, from adsb.lol). Off by default: it asks a third
    *  party every five seconds. */
@@ -117,6 +121,7 @@ interface Preferences {
   setClassB: (classB: boolean) => void;
   setTfrs: (tfrs: boolean) => void;
   setAlerts: (alerts: boolean) => void;
+  setSpeakAlerts: (speakAlerts: boolean) => void;
   setTraffic: (traffic: boolean) => void;
   setMilitary: (military: boolean) => void;
   setOverlay: (overlay: MapOverlay) => void;
@@ -169,6 +174,7 @@ export const usePreferences = create<Preferences>()(
       classB: false,
       tfrs: true,
       alerts: true,
+      speakAlerts: false,
       traffic: false,
       military: false,
       overlay: "none",
@@ -192,6 +198,7 @@ export const usePreferences = create<Preferences>()(
       setClassB: classB => set({ classB }),
       setTfrs: tfrs => set({ tfrs }),
       setAlerts: alerts => set({ alerts }),
+      setSpeakAlerts: speakAlerts => set({ speakAlerts }),
       setTraffic: traffic => set({ traffic }),
       setMilitary: military => set({ military }),
       setOverlay: overlay => set({ overlay }),
@@ -230,7 +237,7 @@ export const usePreferences = create<Preferences>()(
       name: "vfr.preferences",
       // The functions are not state; only the values are written.
       partialize: s => ({
-        base: s.base, tac: s.tac, waypoints: s.waypoints, classB: s.classB, tfrs: s.tfrs, alerts: s.alerts, traffic: s.traffic, military: s.military, minimums: s.minimums, loads: s.loads, keepOffline: s.keepOffline, aircraft: s.aircraft, filters: s.filters, devTab: s.devTab, pilotTab: s.pilotTab, navBar: s.navBar, routeColours: s.routeColours, narrative: s.narrative,
+        base: s.base, tac: s.tac, waypoints: s.waypoints, classB: s.classB, tfrs: s.tfrs, alerts: s.alerts, speakAlerts: s.speakAlerts, traffic: s.traffic, military: s.military, minimums: s.minimums, loads: s.loads, keepOffline: s.keepOffline, aircraft: s.aircraft, filters: s.filters, devTab: s.devTab, pilotTab: s.pilotTab, navBar: s.navBar, routeColours: s.routeColours, narrative: s.narrative,
         recentAirports: s.recentAirports, homeAirport: s.homeAirport, favoriteAirports: s.favoriteAirports,
       }),
     },

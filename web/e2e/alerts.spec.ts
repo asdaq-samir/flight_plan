@@ -1,5 +1,5 @@
 import { test, expect, type Page, type Route } from "@playwright/test";
-import { settle, slow } from "./helpers";
+import { openMapSettings, settle, slow } from "./helpers";
 
 /**
  * What is ahead of own ship in the air (lib/map/ahead), said over the map
@@ -124,4 +124,44 @@ test("switched off in the map's settings, nothing is asked", async ({ page }) =>
   await page.waitForTimeout(1500);
   expect(asks).toHaveLength(0);
   await expect(banner(page)).toHaveCount(0);
+});
+
+/** A voice that keeps what it is asked to say, in `window.said`. */
+async function listening(page: Page) {
+  await page.addInitScript(() => {
+    const said: string[] = [];
+    (window as unknown as { said: string[] }).said = said;
+    Object.defineProperty(window, "speechSynthesis", {
+      configurable: true,
+      value: { speak: (line: SpeechSynthesisUtterance) => said.push(line.text), cancel() {}, getVoices: () => [] },
+    });
+  });
+  return () => page.evaluate(() => (window as unknown as { said: string[] }).said);
+}
+
+test("spoken, each alert ahead is said once as it comes, and turned on it says so", async ({ page }) => {
+  await flying(page);
+  const said = await listening(page);
+  let answer = [CLASS_B];
+  await ahead(page, route => route.fulfill({ json: { alerts: answer, unavailable: [] } }));
+  await page.goto("/app/plan");
+  await settle(page);
+  await expect(banner(page).getByTestId("alerts-banner-title")).toContainText("Chicago Class B", { timeout: slow(15_000) });
+  // Off by default: nothing said.
+  expect(await said()).toEqual([]);
+
+  await openMapSettings(page);
+  const spoken = page.getByTestId("speak-alerts-toggle");
+  await expect(spoken).toHaveAttribute("aria-pressed", "false");
+  await spoken.click();
+  await expect(spoken).toHaveAttribute("aria-pressed", "true");
+  await page.keyboard.press("Escape");
+  // Turned on in the air: it says so, then what is ahead.
+  await expect.poll(said).toEqual(["Alerts will be spoken.", "Chicago Class B, in 2 minutes."]);
+
+  // The next answer adds the tower: it alone is said.
+  answer = [CLASS_B, TOWER];
+  await expect.poll(said, { timeout: slow(30_000) }).toEqual([
+    "Alerts will be spoken.", "Chicago Class B, in 2 minutes.", "Tower 2,700 feet, 300 feet below you, in 40 seconds.",
+  ]);
 });
