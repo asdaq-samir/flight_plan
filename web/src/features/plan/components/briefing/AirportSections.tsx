@@ -1,6 +1,7 @@
 import AccordionSection from "../../../../components/AccordionSection";
 import { ListGroup, ListRow } from "../../../../components/GroupedList";
 import type { Briefing, Leg } from "../../../../lib/api/types";
+import { isPosition } from "../../../../lib/identSchema";
 import { altFt } from "../../format";
 import { FrequencyRow } from "../FrequencyRow";
 import { PublicationRows } from "../PublicationRows";
@@ -14,6 +15,9 @@ import PatternRadio, { RadioNote } from "./PatternRadio";
  * sections each going through every field (the frequencies and runways,
  * then the patterns and calls), so a field's pattern was a screen away
  * from its runways; the Weather tab goes place by place the same way.
+ * A route from the pilot's position (Fly Here's Direct-To) has no section
+ * for the position, at the pilot's ask: a point in the air has no radio,
+ * runways or pattern to list.
  */
 export default function AirportSections({ briefing, landings, legs, callSign }: {
   briefing: Briefing;
@@ -25,6 +29,7 @@ export default function AirportSections({ briefing, landings, legs, callSign }: 
   return (
     <>
       {landings.map((ident, i) => {
+        if (isPosition(ident)) return null;
         const info = briefing.airports[ident];
         const role = landings.length === 1 ? "Local" : i === 0 ? "Departure" : i === landings.length - 1 ? "Destination" : "Stop";
         const about = [
