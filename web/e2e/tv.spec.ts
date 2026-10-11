@@ -64,6 +64,17 @@ test("on a TV the remote's arrows move from control to control, Back closes what
   // And Back takes the remote off the map, the app still open.
   await back(page);
   await expect.poll(() => page.evaluate(() => document.activeElement?.classList.contains("leaflet-container"))).toBe(false);
+
+  // OK on the map's own "-" button is the button's, not a zoom in; and
+  // Back from it takes the remote off the map rather than leaving the app.
+  const zoomed = await mapZoom(page);
+  await page.locator(".leaflet-control-zoom-out").focus();
+  await page.keyboard.press("Enter");
+  await expect.poll(() => mapZoom(page), { timeout: slow(15000) }).toBe(zoomed - 1);
+  await page.locator(".leaflet-control-zoom-out").focus();
+  await back(page);
+  await expect.poll(() => page.evaluate(() => !!document.activeElement?.closest(".leaflet-container"))).toBe(false);
+  await expect(page.locator(".leaflet-container").first()).toBeVisible();
 });
 
 test("off a TV the page is as it was: no ring of its own, no zoom buttons", async ({ page }) => {

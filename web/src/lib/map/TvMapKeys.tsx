@@ -10,6 +10,8 @@ export default function TvMapKeys() {
   useEffect(() => {
     const container = map.getContainer();
     const onKey = (event: KeyboardEvent) => {
+      // Only the map itself: OK on its zoom buttons or a marker is theirs.
+      if (event.target !== container) return;
       if (zoomInKey(event)) map.zoomIn();
       else if (zoomOutKey(event)) map.zoomOut();
       else return;

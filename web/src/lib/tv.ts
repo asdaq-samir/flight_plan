@@ -41,10 +41,11 @@ export const zoomInKey = (event: KeyboardEvent) =>
 export const zoomOutKey = (event: KeyboardEvent) =>
   event.key === "PageDown" || event.key === "ChannelDown" || event.keyCode === 428;
 
-/** Whether the remote is on the map: Leaflet's container focused. */
+/** Whether the remote is on the map: focus on Leaflet's container or
+ *  anything in it (its zoom buttons, a marker). */
 function onMap(): boolean {
   const active = document.activeElement;
-  return active instanceof HTMLElement && active.classList.contains("leaflet-container");
+  return active instanceof HTMLElement && active.closest(".leaflet-container") !== null;
 }
 
 const DIRECTIONS: Record<string, "left" | "up" | "right" | "down"> = {
@@ -118,7 +119,7 @@ export function startTv(platform: TvPlatform) {
     // Off the map first, to the panel's first control (or the page's), so
     // the arrows move between controls again.
     if (onMap()) {
-      const next = document.querySelector<HTMLElement>('[data-slot="map-panel"] button, [data-slot="map-panel"] input, button');
+      const next = document.querySelector<HTMLElement>('[data-slot="map-panel"] button, [data-slot="map-panel"] input, button:not(.leaflet-container *)');
       (next ?? document.body).focus();
       return;
     }
