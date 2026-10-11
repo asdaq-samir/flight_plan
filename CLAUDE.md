@@ -13,6 +13,9 @@ It is headed for an iOS app. README.md has the services and the layout.
   moves, Sync merges it back into maps-layout.
 - Never push to `main`. Never force-push. Pull before pushing to
   maps-layout: Sync may have added a merge.
+- Write to GitHub gently, as the `ship` skill says: one write at a time,
+  ten seconds apart, a long list as one issue's checklist. A burst of API
+  writes got the owner's account suspended in October 2026.
 - Every week the Audit workflow checks design, code, speed and aviation,
   and once a month the market, the launch and the marketing. It opens
   `claude/audit-*` pull requests, and issues labelled "audit".
