@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-16 -16 96 96">
+  <!-- The Android app icon's foreground layer: appicon.svg's mark, the
+       dashed ring and the chevron, on nothing, at the same size over the
+       background layer's chart; well inside the 66 dp every launcher's
+       mask keeps. -->
+  <circle cx="32" cy="32" r="19" fill="none" stroke="#A3266F" stroke-width="3.2" stroke-dasharray="6.9 3.05" transform="rotate(-100.4 32 32)"/>
+  <path d="M32 18.5 L41.4 41 L32 35.8 L22.6 41 Z" fill="#FFFFFF" stroke="#FFFFFF" stroke-width="5.5" stroke-linejoin="round"/>
+  <path d="M32 18.5 L41.4 41 L32 35.8 L22.6 41 Z" fill="#14284B" stroke="#14284B" stroke-width="2.2" stroke-linejoin="round"/>
+</svg>

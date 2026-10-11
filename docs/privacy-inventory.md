@@ -1,8 +1,9 @@
 # What Wingtip Maps collects
 
 This list is read from the code and is the one source for the privacy
-policy (`web/src/lib/legal`), App Store Connect's App Privacy answers
-and the iOS app's privacy manifest (`PrivacyInfo.xcprivacy`). Change it
+policy (`web/src/lib/legal`), App Store Connect's App Privacy answers,
+Google Play's Data safety form and the iOS app's privacy manifest
+(`PrivacyInfo.xcprivacy`). Change it
 whenever the code changes what leaves a device or what the server keeps.
 Last checked against the code on 2026-10-08.
 
@@ -26,7 +27,7 @@ longer than it takes to answer the request.
   device's position goes to the planner to answer and is not kept: the
   planner writes no access log in production (`docker-compose.prod.yml`),
   and nothing stores it (the webapp's log of a planner outage names the path only). The position itself is read on the device, with
-  the permission the browser or iOS asks for.
+  the permission the browser, iOS or Android asks for.
 - **A route's airports and stops**, to plan it. Kept only as a pilot's
   saved flight (above).
 
@@ -38,6 +39,7 @@ longer than it takes to answer the request.
 | Amazon SES | The address a sign-in link is sent to, and the link | Yes, to deliver it |
 | Google, Apple | Their own sign-in, when a pilot uses it | Their own |
 | FAA, NOAA (aviationweather.gov) | Chart and data downloads, weather for airports | None: the server asks, not the device |
+| adsb.lol | For the traffic on the map, the middle of the area asked about (rounded to a half-degree cell) and, for an airplane a pilot tracks, its transponder's address | None: the server asks, not the device; the device's position itself is not sent |
 | US Census Bureau (geocoding.geo.census.gov) | A street address typed in Nearest's field, to place it; its gazetteer of towns is downloaded once | The address typed, from the server, not the device; not stored, but the text typed is in request logs, and a place picked is in the page address (`nearName`, `nearAt`) |
 | Amazon Web Services | Hosting all of the above (us-east-1) | As above |
 
@@ -51,6 +53,18 @@ longer than it takes to answer the request.
 - Deleting an account (`DELETE /api/me`) removes everything linked to it
   above, its sessions and its sign-in links, and the device's own copies.
   The unlinked error lines age out of CloudWatch in 30 days.
+
+## Google Play's Data safety form
+
+The same rows, in Google's words: **Personal info** (email address,
+name, user IDs), **Location** (precise, a saved flight's track),
+**App activity** (other user-generated content: aircraft, flights,
+logbook, notes) and **App info and performance** (crash logs, not
+linked). All collected for app functionality and account management,
+none shared with third parties as Google defines sharing (the
+recipients above process data for the app), all encrypted in transit,
+and all deleted with the account. The Android app asks for location
+while it is open only, never in the background.
 
 ## The iOS app's privacy manifest
 

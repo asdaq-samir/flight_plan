@@ -1,15 +1,26 @@
 /**
- * The iOS app's shell (Capacitor, capacitor.config.ts): the site in a
- * web view, with the device's own location, share sheet and links. In
- * Safari or any other browser none of this runs: the shell injects
- * window.Capacitor, and the plugins are imported only when it is there,
- * so the site's own first load carries none of them.
+ * The iOS and Android apps' shell (Capacitor, capacitor.config.ts): the
+ * site in a web view, with the device's own location, share sheet and
+ * links. In Safari or any other browser none of this runs: the shell
+ * injects window.Capacitor, and the plugins are imported only when it is
+ * there, so the site's own first load carries none of them.
  */
 
-/** Whether this page is running in the iOS app. */
+import { closeTopmost } from "./back";
+
+interface CapacitorGlobal { isNativePlatform?: () => boolean; getPlatform?: () => string }
+const capacitor = () => (window as { Capacitor?: CapacitorGlobal }).Capacitor;
+
+/** Whether this page is running in the iOS or the Android app. */
 export function inNativeApp(): boolean {
-  const capacitor = (window as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
-  return capacitor?.isNativePlatform?.() === true;
+  return capacitor()?.isNativePlatform?.() === true;
+}
+
+/** Which app this page is running in, or null in a browser. */
+export function nativePlatform(): "ios" | "android" | null {
+  if (!inNativeApp()) return null;
+  const platform = capacitor()?.getPlatform?.();
+  return platform === "ios" || platform === "android" ? platform : null;
 }
 
 /** A position as the browser's Geolocation gives one: the plugin's has the same shape. */
@@ -20,9 +31,10 @@ export interface NativePosition {
 }
 
 /**
- * Own ship's fixes through iOS's location, asked for with the app's own
- * permission sheet (Info.plist's reason) rather than the web view's
- * second prompt for the site. Answers a function that stops watching.
+ * Own ship's fixes through the device's location, asked for with the
+ * app's own permission sheet (iOS's Info.plist reason, Android's
+ * permission dialog) rather than the web view's second prompt for the
+ * site. Answers a function that stops watching.
  */
 export async function watchNativePosition(onFix: (position: NativePosition) => void,
   onError: (message: string, refused: boolean) => void): Promise<() => void> {
@@ -52,9 +64,10 @@ export async function nativeShare(title: string, url: string): Promise<void> {
 
 /**
  * A link to the site tapped elsewhere -- the sign-in link in Mail, a
- * shared route in Messages -- opens the app (Associated Domains, the
- * webapp's apple-app-site-association), which then goes there: the
- * sign-in lands in the app's own session.
+ * shared route in Messages -- opens the app (iOS's Associated Domains
+ * and the webapp's apple-app-site-association; Android's App Links and
+ * its assetlinks.json), which then goes there: the sign-in lands in the
+ * app's own session.
  */
 export async function followAppLinks(): Promise<void> {
   const { App } = await import("@capacitor/app");
@@ -64,6 +77,18 @@ export async function followAppLinks(): Promise<void> {
     } catch {
       // Not a URL: nothing to follow.
     }
+  });
+}
+
+/**
+ * Android's back, the gesture or the button: the topmost thing open
+ * closed (lib/back), and with nothing left to close the app put away, as
+ * Android's own apps are from their first screen.
+ */
+export async function followBackButton(): Promise<void> {
+  const { App } = await import("@capacitor/app");
+  await App.addListener("backButton", () => {
+    if (!closeTopmost()) void App.minimizeApp();
   });
 }
 

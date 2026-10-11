@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-16 -16 96 96">
+  <!-- The Android app icon's background layer (web/android, adaptive
+       icon): appicon.svg's piece of sectional chart without the mark,
+       carried out to the layer's 108 dp, whose middle 72 dp is the icon's
+       64 units. The launcher masks it to its own shape and moves it a
+       little under the mark. -->
+  <rect x="-16" y="-16" width="96" height="96" fill="#D7E8C6"/>
+  <path d="M-16 -16 H36 C34 -9 32 -4 30 0 C26 8 18 13 9 15 C5 16 2 18 0 21 C-4 27 -10 29 -16 30 Z" fill="#A9CDEB"/>
+  <path d="M33 80 C35 74 36 69 38 64 C42 54 50 49 64 47 C70 46 75 46 80 46 V80 Z" fill="#E9DDBF"/>
+  <path d="M-18 55 C-10 52 -6 51 -2 50 C14 44 22 52 34 46 S54 30 66 32 S76 34 82 35" fill="none" stroke="#FFFFFF" stroke-width="1.6" opacity="0.9"/>
+</svg>
