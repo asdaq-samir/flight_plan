@@ -1,6 +1,8 @@
 package com.northflyers.vfr.controller;
 
+import com.northflyers.vfr.domain.PaidFeature;
 import com.northflyers.vfr.service.PilotService;
+import com.northflyers.vfr.service.SubscriptionService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
@@ -11,6 +13,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
@@ -163,15 +166,27 @@ public class PlannerProxyController {
      *  call per checkpoint without a note, which this app pays for. */
     private final SlidingWindowLimiter noteGenerations = new SlidingWindowLimiter(Duration.ofDays(1));
     private final int noteGenerationsPerDay;
+    private final SubscriptionService subscriptions;
+
+    /** The planner's paid features, each a Claude call this app pays for:
+     *  checked against the pilot's subscription and its monthly cap
+     *  (SubscriptionService) before the planner is asked. Saving a
+     *  pilot's own note is free. */
+    static final Map<String, PaidFeature> PAID_PATHS = Map.of(
+            "/api/checkpoint-notes/generate", PaidFeature.CHECKPOINT_NOTES,
+            "/api/oral/question", PaidFeature.ORAL,
+            "/api/oral/grade", PaidFeature.ORAL);
 
     public PlannerProxyController(
             StreamingProxy proxy,
             @Value("${planner-service.base-url:http://planning-service:8000}") String plannerBaseUrl,
             PilotService pilots,
+            SubscriptionService subscriptions,
             @Value("${app.paid-calls.per-day:40}") int noteGenerationsPerDay) {
         this.proxy = proxy;
         this.plannerBaseUrl = plannerBaseUrl.replaceAll("/+$", "");
         this.pilots = pilots;
+        this.subscriptions = subscriptions;
         this.noteGenerationsPerDay = noteGenerationsPerDay;
     }
 
@@ -200,6 +215,13 @@ public class PlannerProxyController {
         String path = upstreamPath(request);
         if (!isForwarded(method, path)) {
             return StreamingProxy.error(404, "no such planner endpoint: " + method + " " + path);
+        }
+        PaidFeature paid = "POST".equals(method) ? PAID_PATHS.get(path) : null;
+        if (paid != null) {
+            var refused = subscriptions.refusal(SecurityContextHolder.getContext().getAuthentication(), paid);
+            if (refused.isPresent()) {
+                return StreamingProxy.error(refused.get().status(), refused.get().detail());
+            }
         }
         if ("POST".equals(method) && path.equals("/api/checkpoint-notes/generate")
                 && !noteGenerations.allow(SlidingWindowLimiter.callerOf(request), noteGenerationsPerDay, Instant.now())) {

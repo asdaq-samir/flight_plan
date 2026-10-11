@@ -5,7 +5,7 @@ policy (`web/src/lib/legal`), App Store Connect's App Privacy answers,
 Google Play's Data safety form and the iOS app's privacy manifest
 (`PrivacyInfo.xcprivacy`). Change it
 whenever the code changes what leaves a device or what the server keeps.
-Last checked against the code on 2026-10-08.
+Last checked against the code on 2026-10-11.
 
 "Collected" is App Store Connect's meaning: sent off the device and kept
 longer than it takes to answer the request.
@@ -19,6 +19,8 @@ longer than it takes to answer the request.
 | Identifiers, User ID | The account's id; Google's and Apple's subject for that sign-in | Yes | App Functionality | `pilots`, the session |
 | User Content, Other | Aircraft (tail number, type, performance), saved flights and their nav logs, the logbook, endorsements and currency dates, checkpoint notes a pilot writes for themselves | Yes | App Functionality | Postgres; notes in the planner's `data/labels` |
 | Location, Precise | A flight's track, when a pilot saves it to a flight | Yes | App Functionality | `flight_tracks` |
+| Purchases, Purchase History | The subscription: when the free month started and ends, and a paid plan's term, its store and the store's own id for it | Yes | App Functionality (the paid features) | `subscriptions` |
+| Usage Data, Product Interaction | How many of each Claude-written feature (the written briefing, checkpoint descriptions, the mock oral) a pilot used this month, a count, for its monthly cap | Yes | App Functionality (the cap) | `paid_feature_uses` |
 | Diagnostics, Crash Data | An uncaught error on the device: its message, stack, the page's path, the browser's name (`lib/errorReports`) | No | App Functionality (finding faults) | The server's log in CloudWatch, 30 days |
 
 ## Data that leaves the device but is not collected
@@ -50,8 +52,10 @@ longer than it takes to answer the request.
 - **No tracking**, in Apple's sense: no advertising, no analytics SDK, no
   data broker, nothing joined with others' data. App Store Connect:
   "Data Not Used to Track You".
-- **No usage data or analytics.**
-- **No purchases.**
+- **No analytics**: the only usage kept is the month's count of each
+  Claude-written feature, for its cap (above).
+- **Purchases** are the stores' own: the app keeps only the plan's term
+  and the store's id for it (above), never a card.
 - Deleting an account (`DELETE /api/me`) removes everything linked to it
   above, its sessions and its sign-in links, and the device's own copies.
   The unlinked error lines age out of CloudWatch in 30 days.

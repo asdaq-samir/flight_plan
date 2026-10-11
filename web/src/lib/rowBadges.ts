@@ -23,6 +23,7 @@ export const SETTING_BADGE = {
   flights: BADGE.ground,
   logbook: BADGE.traffic,
   minimums: BADGE.hazard,
+  subscription: "#be185d",
   theme: BADGE.approach,
   layout: BADGE.weather,
   route: BADGE.ground,

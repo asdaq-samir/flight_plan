@@ -261,6 +261,29 @@
         "required" : [ "have", "key", "label", "met", "need", "rule", "unit" ],
         "type" : "object"
       },
+      "FeatureUse" : {
+        "description" : "One paid feature's uses this month (UTC)",
+        "properties" : {
+          "cap" : {
+            "description" : "The month's allowance",
+            "example" : 60,
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "feature" : {
+            "enum" : [ "NARRATIVE", "CHECKPOINT_NOTES", "ORAL", "DEBRIEF" ],
+            "example" : "NARRATIVE",
+            "type" : "string"
+          },
+          "used" : {
+            "example" : 3,
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "cap", "feature", "used" ],
+        "type" : "object"
+      },
       "FlightCheckpointDto" : {
         "properties" : {
           "alongTrackNm" : {
@@ -805,6 +828,57 @@
       "StreamingResponseBody" : {
         "type" : "object"
       },
+      "SubscriptionDto" : {
+        "description" : "The signed-in pilot's subscription to the paid features",
+        "properties" : {
+          "entitled" : {
+            "description" : "Whether the paid features are theirs now",
+            "example" : true,
+            "type" : "boolean"
+          },
+          "plan" : {
+            "description" : "MONTHLY or YEARLY, when paid for",
+            "enum" : [ "MONTHLY", "YEARLY" ],
+            "type" : [ "string", "null" ]
+          },
+          "state" : {
+            "description" : "FREE (none), TRIAL (the free month), SUBSCRIBED (paid for), or COMPED (given: a developer's, an instructor's)",
+            "enum" : [ "FREE", "TRIAL", "SUBSCRIBED", "COMPED" ],
+            "example" : "TRIAL",
+            "type" : "string"
+          },
+          "store" : {
+            "description" : "Where it was bought, when paid for",
+            "enum" : [ "APP_STORE", "PLAY", "WEB", "GRANT" ],
+            "type" : [ "string", "null" ]
+          },
+          "trialAvailable" : {
+            "description" : "Whether the free month is still theirs to start: once an account",
+            "example" : false,
+            "type" : "boolean"
+          },
+          "trialDays" : {
+            "description" : "The free month's length, days",
+            "example" : 30,
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "until" : {
+            "description" : "When the free month or the paid time runs out; null for FREE and COMPED",
+            "format" : "date-time",
+            "type" : [ "string", "null" ]
+          },
+          "uses" : {
+            "description" : "This month's uses of each paid feature Claude writes, against its cap",
+            "items" : {
+              "$ref" : "#/components/schemas/FeatureUse"
+            },
+            "type" : "array"
+          }
+        },
+        "required" : [ "entitled", "plan", "state", "store", "trialAvailable", "trialDays", "until", "uses" ],
+        "type" : "object"
+      },
       "TrackDto" : {
         "properties" : {
           "points" : {
@@ -1256,7 +1330,7 @@
         "tags" : [ "flight-controller" ]
       },
       "get" : {
-        "operationId" : "get_2",
+        "operationId" : "get_3",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -1633,6 +1707,45 @@
         "tags" : [ "Planner" ]
       }
     },
+    "/api/subscription" : {
+      "get" : {
+        "operationId" : "get_2",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SubscriptionDto"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "summary" : "The pilot's subscription, with this month's uses against each cap",
+        "tags" : [ "Subscription" ]
+      }
+    },
+    "/api/subscription/trial" : {
+      "post" : {
+        "description" : "Once an account: 409 once it has been started, even after it ended. On the website; in the iOS and Android apps the free month is the store's introductory offer.",
+        "operationId" : "startTrial",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SubscriptionDto"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "summary" : "Start the free month",
+        "tags" : [ "Subscription" ]
+      }
+    },
     "/api/training" : {
       "get" : {
         "operationId" : "get_1",
@@ -1756,5 +1869,8 @@
   }, {
     "description" : "Chart vision, course and nav log, proxied from the planner service",
     "name" : "Planner"
+  }, {
+    "description" : "The paid features: the free month, and what is paid for",
+    "name" : "Subscription"
   } ]
 }
