@@ -301,9 +301,25 @@ export async function openTab(page: Page, name: "Brief" | "Nav Log" | "Local" | 
   }
   // Not the tab up already: tapped again all the way up, it lowers the
   // panel to half (PanelTabs).
-  const tab = sideDrawer(page).getByRole("tab", { name, exact: true });
+  const tab = panelTabs(page).getByRole("tab", { name, exact: true });
   if ((await tab.getAttribute("aria-selected")) !== "true") await tab.click();
   await expect(tab).toHaveAttribute("aria-selected", "true");
+}
+
+/** The planning panel's own tabs, not the pills of a tab's sections. */
+export const panelTabs = (page: Page) => sideDrawer(page).locator('[role="tablist"][data-tip="tabs"]');
+
+/** The pill of a section of the tab up, by its title (SectionTabs). */
+export const sectionTab = (page: Page, title: string) =>
+  sideDrawer(page).locator(`[role="tabpanel"][data-state="active"] [data-testid="section-tab"][data-section="${title}"]`);
+
+/** A section of the tab up, by its title: its pill tapped (SectionTabs),
+ *  where the tab has more than one. */
+export async function openSection(page: Page, title: string) {
+  const pill = sectionTab(page, title);
+  if (!(await pill.count())) return;
+  if ((await pill.getAttribute("aria-pressed")) !== "true") await pill.click();
+  await expect(pill).toHaveAttribute("aria-pressed", "true");
 }
 
 /** Once the map has stopped moving: its panes where they were 300 ms

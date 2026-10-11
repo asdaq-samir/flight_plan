@@ -54,6 +54,7 @@ export function WeightBalanceSection({ aircraft, tripFuelGal }: { aircraft: Airc
   return (
     <AccordionSection
       title="Weight & Balance" summary={summary}
+      finding={result && result.problems.length > 0 ? "stop" : undefined}
       aside={result && result.problems.length > 0 ? (
         <span className={cn("inline-flex items-center gap-1 font-semibold", FINDING_TONE.stop, TEXT.note)} data-testid="wb-flag">
           <OctagonAlert className="size-3.5" aria-hidden />
@@ -149,6 +150,7 @@ export function TakeoffLandingSection({ aircraft, briefing, course, landing: lan
   return (
     <AccordionSection
       title="Takeoff & Landing" summary={summary}
+      finding={short.length ? "stop" : gusty.length ? "caution" : undefined}
       aside={short.length ? (
         <span className={cn("inline-flex items-center gap-1 font-semibold", FINDING_TONE.stop, TEXT.note)} data-testid="tl-flag">
           <OctagonAlert className="size-3.5" aria-hidden />

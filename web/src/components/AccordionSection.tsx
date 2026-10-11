@@ -1,8 +1,8 @@
-import { useContext, useId, type ComponentProps, type ReactNode } from "react";
+import { useContext, useId, useLayoutEffect, useRef, type ComponentProps, type ReactNode } from "react";
 import { cn } from "cn";
 import { AccordionContent, AccordionItem, AccordionTrigger } from "./ui/accordion";
 import { TEXT } from "../lib/text";
-import { SectionsOpen } from "./sectionLayout";
+import { SectionTabsContext, SectionsOpen } from "./sectionLayout";
 
 /**
  * One section of a folded list -- the flight planning drawer's, and
@@ -25,13 +25,18 @@ import { SectionsOpen } from "./sectionLayout";
  *
  * Inside the planning panel's tabs (SectionsOpen) a section is laid open
  * instead -- its title, its aside and its content, no fold: a tab is one
- * thing already, and a fold in it was a second tap to read it.
+ * thing already, and a fold in it was a second tap to read it. There each
+ * is a tab of its tab's (SectionTabs), at the pilot's ask: shown only
+ * while picked, its title the pill's and its heading's to a reader alone.
  */
-export default function AccordionSection({ title, description, aside, summary, children, ...props }: {
+export default function AccordionSection({ title, description, aside, finding, summary, children, ...props }: {
   title: string; description?: string;
   /** Beside the title, shown folded or open: what a folded section
    *  must say without being opened (the briefing's VFR-not-recommended). */
   aside?: ReactNode;
+  /** What that flag is, red or amber: marked on the section's pill too,
+   *  seen while another section is up. */
+  finding?: "stop" | "caution";
   /** Under the title, folded or open: the section in one line (the
    *  briefing's "KDLH 500 ft · 3 sm"). */
   summary?: ReactNode;
@@ -40,19 +45,36 @@ export default function AccordionSection({ title, description, aside, summary, c
   const titleId = useId();
   const summaryId = useId();
   const laidOpen = useContext(SectionsOpen);
+  const tabs = useContext(SectionTabsContext);
+  const own = useRef<HTMLElement>(null);
+  const register = tabs?.register;
+  useLayoutEffect(
+    () => (laidOpen && register && own.current ? register(title, own.current, finding) : undefined),
+    [laidOpen, register, title, finding],
+  );
   if (laidOpen) {
+    const tabbed = !!tabs?.shown;
     return (
       // Laid out and painted only near the screen (content-visibility): a
       // tab of them -- the weather's five, the airports' lists -- drew all
-      // of its length on opening.
+      // of its length on opening. Not under its own pill, shown alone: there
+      // the others are not drawn at all, and one shown again from hidden
+      // was left skipped, its rows unpainted and untappable, until
+      // something made the browser look again.
       <section
-        aria-labelledby={titleId} data-slot="open-section" data-title={title}
-        className={cn("border-b py-4 [contain-intrinsic-size:auto_24rem] [content-visibility:auto] last:border-b-0 print:[content-visibility:visible]", TEXT.prose)}
+        ref={own} aria-labelledby={titleId} data-slot="open-section" data-title={title}
+        hidden={tabbed && tabs.shown !== title}
+        className={cn(
+          "border-b py-4 last:border-b-0", TEXT.prose,
+          tabbed ? "border-b-0 pt-2" : "[contain-intrinsic-size:auto_24rem] [content-visibility:auto] print:[content-visibility:visible]",
+        )}
       >
         {/* The heading its title alone, the flag beside it: inside it, a
-            flag's words ("Risk raised") became part of the heading's name. */}
-        <div className={cn("mb-2 flex flex-wrap items-center gap-x-2 gap-y-1", TEXT.row)}>
-          <h3 id={titleId} className={cn("font-semibold", TEXT.heading)}>{title}</h3>
+            flag's words ("Risk raised") became part of the heading's name.
+            Under its own pill (SectionTabs) the heading is a reader's: the
+            pill shows the title. */}
+        <div className={cn("mb-2 flex flex-wrap items-center gap-x-2 gap-y-1", TEXT.row, tabbed && !aside && "mb-0")}>
+          <h3 id={titleId} className={cn("font-semibold", TEXT.heading, tabbed && "sr-only")}>{title}</h3>
           {aside}
         </div>
         {description && <div className={cn("text-muted-foreground", TEXT.note)}>{description}</div>}

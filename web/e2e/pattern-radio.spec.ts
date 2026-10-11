@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { settle, sideDrawer, slow, openTab } from "./helpers";
+import { settle, sideDrawer, slow, openTab, openSection } from "./helpers";
 
 /**
  * The briefing's Pattern & Radio (PatternRadio, lib/pattern, lib/radio):
@@ -31,6 +31,7 @@ test("each field's pattern for the runway into the wind, and its calls in order"
   await expect(phases.nth(0)).toContainText("Leaving C81");
   await expect(phases.nth(1)).toContainText("Into KDLH");
   await expect(phases.nth(1).getByTestId("pattern-runway")).toContainText("Runway 27 · right traffic");
+  await openSection(page, "KDLH · Destination");
   await expect(phases.nth(1).getByTestId("pattern-diagram")).toBeVisible();
   // Arriving from the south-southeast: the pattern's side of 27 right is
   // the north, so the way in is over the field.

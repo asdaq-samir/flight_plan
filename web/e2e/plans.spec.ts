@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { slow, settle, sideDrawer, expectDrawerOpen, openTab, openPanel, grabberTo, controlsInSight } from "./helpers";
+import { slow, settle, sideDrawer, expectDrawerOpen, openTab, openSection, openPanel, grabberTo, controlsInSight } from "./helpers";
 
 /**
  * What the nav log is computed from: the altitude plans and a pilot's
@@ -93,7 +93,8 @@ test("plan page: the nav log's altitude opens the planner's own reasoning, and t
   // view, carries the same steps.
   const drawer = sideDrawer(page);
   await openTab(page, "Nav Log");
-  await expect(drawer.getByRole("heading", { name: "Cruise Altitude" })).toBeVisible();
+  await openSection(page, "Cruise Altitude");
+  await expect(drawer.locator('[data-title="Cruise Altitude"]')).toBeVisible();
   await expect(drawer.getByText("14 CFR 91.159")).toBeVisible();
 });
 

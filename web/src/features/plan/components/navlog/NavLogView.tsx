@@ -9,7 +9,8 @@ import { NoteRow, SelectableRow } from "../../../../components/SelectableRows";
 import { PanelHalfContext } from "../../../../components/mapChrome";
 import PanelTabs from "./PanelTabs";
 import { usePrinting } from "../../../../lib/usePrinting";
-import type { PanelTab } from "./panelTab";
+import { LEGS, type PanelTab } from "./panelTab";
+import { SectionPane } from "../../../../components/SectionTabs";
 import { ListGroup, ListRow } from "../../../../components/GroupedList";
 import IconButton from "../../../../components/IconButton";
 import { Textarea } from "../../../../components/ui/textarea";
@@ -857,10 +858,12 @@ export default function NavLogView({
       contents={{
         navlog: (
           <section aria-label={local ? "Local Flight" : "Nav Log"} className={TEXT.prose}>
-            {!local && summary}
-            {!local && navLogTable}
-            {fuelNote}
-            {!local && hopsNote}
+            <SectionPane title={LEGS}>
+              {!local && summary}
+              {!local && navLogTable}
+              {fuelNote}
+              {!local && hopsNote}
+            </SectionPane>
             {/* The same legs from the side, and the figures the altitude was
                 chosen within: asked for once the log is whole, so its
                 terrain read does not hold up the legs' (the planner is one
