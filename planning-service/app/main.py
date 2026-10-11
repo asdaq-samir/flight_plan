@@ -35,7 +35,7 @@ from fastapi import FastAPI, Request
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
 from pydantic import TypeAdapter
-from vfr import airspace, altitude, charts, faa_data, fixes, geocode, places, publications, remarks, weather
+from vfr import airspace, altitude, charts, faa_data, fixes, geocode, places, publications, registry, remarks, weather
 from vfr import airports as airport_table
 
 from . import chart_model, chart_refresh, errors, tracing
@@ -160,6 +160,15 @@ def _warm_reference_data() -> None:
         geocode.preload()
     except Exception:  # noqa: BLE001
         log.exception("towns warm-up failed")
+    # And the FAA's aircraft registry (vfr.registry), for a tracked
+    # airplane's card: 73 MB from the FAA and half a minute's read, once a
+    # day; a card before it is in shows no registration. Not on a test
+    # stack (CHARTS_AUTO_REFRESH=0), which downloads nothing it need not.
+    if chart_refresh.AUTO_REFRESH:
+        try:
+            registry.refresh()
+        except Exception:  # noqa: BLE001 -- the next day's check tries again
+            log.exception("aircraft registry not read")
 
     if chart_refresh.AUTO_REFRESH:
         chart_refresh.maybe_refresh()
@@ -195,6 +204,11 @@ def _warm_reference_data() -> None:
                     fixes.preload()
             except Exception:  # noqa: BLE001 -- the FAA's index out of reach: the next check tries again
                 log.warning("FAA editions not checked", exc_info=True)
+            # The aircraft registry, read again once it is a day old.
+            try:
+                registry.refresh()
+            except Exception:  # noqa: BLE001 -- the next check tries again; the held copy is served
+                log.warning("aircraft registry not refreshed", exc_info=True)
         time.sleep(WEATHER_REFRESH_S)
         try:
             if weather.in_use():

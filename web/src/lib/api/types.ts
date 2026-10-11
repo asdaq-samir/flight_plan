@@ -119,6 +119,10 @@ export type TrafficAircraft = Schemas["TrafficAircraft"];
 export type TrafficFound = Schemas["TrafficFound"];
 /** A tracked flight: its airplane, where it took off, its path today. */
 export type FlightDetail = Schemas["FlightDetail"];
+/** A US airplane's record in the FAA's registry (vfr.registry). */
+export type AircraftRegistration = Schemas["AircraftRegistration"];
+/** The route a flight number is scheduled to fly (vfr.traffic.route). */
+export type FlightRoute = Schemas["FlightRoute"];
 export type AirspaceBand = Schemas["AirspaceBand"];
 export type VfrMinimums = Schemas["VfrMinimums"];
 /** `available` is false where the planner has no Docker API to talk

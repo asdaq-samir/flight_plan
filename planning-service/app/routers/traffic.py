@@ -3,7 +3,7 @@ receivers hear there now, from adsb.lol's open data."""
 from fastapi import APIRouter, HTTPException, Path, Query
 from vfr import traffic
 
-from ..schemas import FlightDetail, Traffic, TrafficFound
+from ..schemas import FlightDetail, FlightRoute, Traffic, TrafficFound
 
 router = APIRouter()
 
@@ -40,3 +40,17 @@ def traffic_flight(hex_id: str = Path(pattern=r"^~?[0-9a-fA-F]{6}$")) -> FlightD
     and its track today (vfr.traffic.flight); no track where its trace
     cannot be had."""
     return FlightDetail(**traffic.flight(hex_id))
+
+
+@router.get("/api/traffic/route", response_model=FlightRoute | None)
+def traffic_route(
+    callsign: str = Query(min_length=2, max_length=10),
+    lat: float | None = Query(default=None, ge=-90, le=90), lon: float | None = Query(default=None, ge=-180, le=180),
+) -> FlightRoute | None:
+    """The route a flight number is scheduled to fly -- TJSJ to KORD for
+    UAL2088 -- and whether the airplane at lat/lon is on or near it, from
+    Virtual Radar Server's route database (CC0); null for a callsign that
+    is not an airline's flight number or one it does not know. Not the
+    flight plan filed for today's flight."""
+    found = traffic.route(callsign, lat, lon)
+    return FlightRoute(**found) if found else None

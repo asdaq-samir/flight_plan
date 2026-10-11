@@ -368,6 +368,293 @@
         "title": "AircraftProfiles",
         "type": "object"
       },
+      "AircraftRegistration": {
+        "description": "A US airplane's record in the FAA's aircraft registry (vfr.registry,\nthe Releasable Aircraft Database): who it is registered to and where,\nwhat it is, its engine, and its registration's and airworthiness\ncertificates. The owner's town, never the street; an owner who asked\nthe FAA to withhold their name (49 U.S.C. 44114(b)) is not in it.",
+        "properties": {
+          "aircraft_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Aircraft Type"
+          },
+          "airworthiness": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Airworthiness"
+          },
+          "airworthiness_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Airworthiness Date"
+          },
+          "certificate_issued": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Certificate Issued"
+          },
+          "city": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "City"
+          },
+          "co_owners": {
+            "default": 0,
+            "title": "Co Owners",
+            "type": "integer"
+          },
+          "country": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country"
+          },
+          "engine": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Engine"
+          },
+          "engine_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Engine Type"
+          },
+          "engines": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Engines"
+          },
+          "expires": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires"
+          },
+          "fractional": {
+            "default": false,
+            "title": "Fractional",
+            "type": "boolean"
+          },
+          "horsepower": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Horsepower"
+          },
+          "kit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kit"
+          },
+          "manufacturer": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Manufacturer"
+          },
+          "mode_s_hex": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mode S Hex"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "n_number": {
+            "title": "N Number",
+            "type": "string"
+          },
+          "owner": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner"
+          },
+          "owner_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Type"
+          },
+          "seats": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seats"
+          },
+          "serial": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Serial"
+          },
+          "standing": {
+            "default": "other",
+            "enum": [
+              "valid",
+              "lapsed",
+              "other"
+            ],
+            "title": "Standing",
+            "type": "string"
+          },
+          "state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "State"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "thrust_lb": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thrust Lb"
+          },
+          "year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Year"
+          }
+        },
+        "required": [
+          "n_number"
+        ],
+        "title": "AircraftRegistration",
+        "type": "object"
+      },
       "AirportEnd": {
         "description": "A point of the route: an airport, or -- a stop only -- a named fix\nflown through (`kind` \"fix\": a VFR or GPS waypoint, its `name` the\nkind of fix it is, no elevation).",
         "properties": {
@@ -3336,7 +3623,7 @@
         "type": "object"
       },
       "FlightDetail": {
-        "description": "An airplane and its flight today (vfr.traffic.flight): what it is,\nwho flies it, where it took off from where its track shows that, and\nits track since, from adsb.lol's open data (ODbL 1.0).",
+        "description": "An airplane and its flight today (vfr.traffic.flight): what it is,\nwho flies it, where it took off from where its track shows that, and\nits track since, from adsb.lol's open data (ODbL 1.0); and a US\nairplane's FAA registration.",
         "properties": {
           "departed": {
             "anyOf": [
@@ -3358,6 +3645,16 @@
               }
             ],
             "title": "Description"
+          },
+          "faa": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AircraftRegistration"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "hex": {
             "title": "Hex",
@@ -3420,6 +3717,34 @@
           "hex"
         ],
         "title": "FlightDetail",
+        "type": "object"
+      },
+      "FlightRoute": {
+        "description": "The route a flight number is scheduled to fly (vfr.traffic.route),\nfrom Virtual Radar Server's route database (CC0): the airports in\norder, and whether the airplane is on or near it now. Not the flight\nplan filed for today's flight.",
+        "properties": {
+          "airports": {
+            "items": {
+              "$ref": "#/components/schemas/RouteAirport"
+            },
+            "title": "Airports",
+            "type": "array"
+          },
+          "plausible": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plausible"
+          }
+        },
+        "required": [
+          "airports"
+        ],
+        "title": "FlightRoute",
         "type": "object"
       },
       "Forecast": {
@@ -6874,6 +7199,41 @@
           "state"
         ],
         "title": "RetrainStarted",
+        "type": "object"
+      },
+      "RouteAirport": {
+        "properties": {
+          "ident": {
+            "title": "Ident",
+            "type": "string"
+          },
+          "location": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          }
+        },
+        "required": [
+          "ident"
+        ],
+        "title": "RouteAirport",
         "type": "object"
       },
       "RouteProfile": {
@@ -11545,6 +11905,92 @@
           }
         },
         "summary": "Traffic Flight"
+      }
+    },
+    "/api/traffic/route": {
+      "get": {
+        "description": "The route a flight number is scheduled to fly -- TJSJ to KORD for\nUAL2088 -- and whether the airplane at lat/lon is on or near it, from\nVirtual Radar Server's route database (CC0); null for a callsign that\nis not an airline's flight number or one it does not know. Not the\nflight plan filed for today's flight.",
+        "operationId": "traffic_route_api_traffic_route_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "callsign",
+            "required": true,
+            "schema": {
+              "maxLength": 10,
+              "minLength": 2,
+              "title": "Callsign",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "lat",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 90,
+                  "minimum": -90,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Lat"
+            }
+          },
+          {
+            "in": "query",
+            "name": "lon",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 180,
+                  "minimum": -180,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Lon"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/FlightRoute"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Response Traffic Route Api Traffic Route Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Traffic Route"
       }
     },
     "/api/waypoints/in-view": {
