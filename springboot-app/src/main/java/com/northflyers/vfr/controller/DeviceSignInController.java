@@ -3,6 +3,7 @@ package com.northflyers.vfr.controller;
 import com.northflyers.vfr.domain.Pilot;
 import com.northflyers.vfr.dto.ErrorResponse;
 import com.northflyers.vfr.security.MagicLinkAuthenticationToken;
+import com.northflyers.vfr.security.SessionSignIn;
 import com.northflyers.vfr.security.SignInLanding;
 import com.northflyers.vfr.service.PilotService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -34,12 +35,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContext;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.web.authentication.session.SessionAuthenticationStrategy;
-import org.springframework.security.web.authentication.session.SessionFixationProtectionStrategy;
-import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
-import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -108,10 +103,6 @@ public class DeviceSignInController {
     static final int TRIES_PER_PILOT = 10;
     static final int TRIES_PER_PLACE = 20;
     static final int TRIES_IN_ALL = 300;
-    private final SecurityContextRepository securityContextRepository = new HttpSessionSecurityContextRepository();
-    // As MagicLinkController: the TV's session before the sign-in is not
-    // the one it is signed in on.
-    private final SessionAuthenticationStrategy sessionAuthenticationStrategy = new SessionFixationProtectionStrategy();
 
     @Autowired
     public DeviceSignInController(PilotService pilots) {
@@ -245,11 +236,7 @@ public class DeviceSignInController {
         byUser.remove(pending.userCode);
         Pilot pilot = pilots.fromVerifiedEmail(approvedEmail);
         Authentication authentication = new MagicLinkAuthenticationToken(pilot.getEmail());
-        sessionAuthenticationStrategy.onAuthentication(authentication, request, response);
-        SecurityContext context = SecurityContextHolder.createEmptyContext();
-        context.setAuthentication(authentication);
-        SecurityContextHolder.setContext(context);
-        securityContextRepository.saveContext(context, request, response);
+        SessionSignIn.signIn(authentication, request, response);
         return ResponseEntity.ok(new SignedIn(SignInLanding.after(pilot)));
     }
 

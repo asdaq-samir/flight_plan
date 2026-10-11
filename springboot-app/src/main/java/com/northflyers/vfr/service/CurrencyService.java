@@ -61,7 +61,7 @@ public class CurrencyService {
                 passengersUntil(entries, e -> e.getDayLandings() + e.getNightLandings()),
                 passengersUntil(entries, LogbookEntry::getNightLandings),
                 flightReviewOn,
-                flightReviewOn == null ? null : YearMonth.from(flightReviewOn).plusMonths(FLIGHT_REVIEW_MONTHS).atEndOfMonth(),
+                CalendarMonths.endOfMonthAfter(flightReviewOn, FLIGHT_REVIEW_MONTHS),
                 medicalExpiresOn,
                 round(entries.stream().mapToDouble(LogbookEntry::getTotalHours).sum()),
                 round(entries.stream().mapToDouble(LogbookEntry::getNightHours).sum()),
@@ -70,7 +70,7 @@ public class CurrencyService {
                 entries.size(),
                 instrumentUntil,
                 ipcOn,
-                instrumentUntil == null ? null : YearMonth.from(instrumentUntil).plusMonths(INSTRUMENT_MONTHS).atEndOfMonth(),
+                CalendarMonths.endOfMonthAfter(instrumentUntil, INSTRUMENT_MONTHS),
                 window.stream().mapToInt(LogbookEntry::getApproaches).sum(),
                 window.stream().anyMatch(LogbookEntry::isHolding),
                 window.stream().anyMatch(LogbookEntry::isTracking));

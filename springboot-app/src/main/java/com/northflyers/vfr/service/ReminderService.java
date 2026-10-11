@@ -15,7 +15,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mail.SimpleMailMessage;
-import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -48,10 +47,10 @@ public class ReminderService {
     private final CurrencyService currency;
     private final JdbcTemplate jdbc;
     private final TransactionTemplate transaction;
-    private final JavaMailSender mail;
+    private final Mailer mail;
 
     public ReminderService(PilotRepository pilots, LogbookRepository logbook, CurrencyService currency, JdbcTemplate jdbc,
-                           TransactionTemplate transaction, JavaMailSender mail) {
+                           TransactionTemplate transaction, Mailer mail) {
         this.pilots = pilots;
         this.logbook = logbook;
         this.currency = currency;

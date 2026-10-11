@@ -4,7 +4,9 @@ import com.northflyers.vfr.domain.MagicLink;
 import com.northflyers.vfr.dto.MagicLinkRequest;
 import com.northflyers.vfr.repository.MagicLinkRepository;
 import com.northflyers.vfr.security.MagicLinkAuthenticationToken;
+import com.northflyers.vfr.security.SessionSignIn;
 import com.northflyers.vfr.security.SignInLanding;
+import com.northflyers.vfr.service.Mailer;
 import com.northflyers.vfr.service.PilotService;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.servlet.http.HttpServletRequest;
@@ -27,14 +29,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mail.SimpleMailMessage;
-import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContext;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.web.authentication.session.SessionAuthenticationStrategy;
-import org.springframework.security.web.authentication.session.SessionFixationProtectionStrategy;
-import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
-import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -67,8 +62,7 @@ public class MagicLinkController {
 
     private final MagicLinkRepository magicLinks;
     private final PilotService pilots;
-    private final JavaMailSender mailSender;
-    private final String fromAddress;
+    private final Mailer mailer;
     /** Where the emailed link points, e.g. https://planner.example.com.
      *  Never the request's own Host or X-Forwarded-Host: those are the
      *  caller's to set, and a link built from them sends the victim's
@@ -78,28 +72,15 @@ public class MagicLinkController {
     private final int perClientPerHour;
     private final SlidingWindowLimiter recentRequests = new SlidingWindowLimiter(THROTTLE_WINDOW);
     private final SecureRandom random = new SecureRandom();
-    private final SecurityContextRepository securityContextRepository = new HttpSessionSecurityContextRepository();
-    // A new session, not the old one renamed. Sessions live in Postgres
-    // (spring-session-jdbc), and a request still running on the old
-    // session when this one signs in -- the planner's nav log stream,
-    // left open in the tab the pilot asked for the link from -- saves
-    // its copy when it ends, writing the old id back over the renamed
-    // row: the new cookie then names no session, and the pilot reads as
-    // signed out. A migrated session has a row of its own, so the old
-    // request's late save finds nothing to overwrite.
-    private final SessionAuthenticationStrategy sessionAuthenticationStrategy =
-            new SessionFixationProtectionStrategy();
 
-    public MagicLinkController(MagicLinkRepository magicLinks, PilotService pilots, JavaMailSender mailSender,
-            @Value("${MAIL_FROM:no-reply@northflyers.com}") String fromAddress,
+    public MagicLinkController(MagicLinkRepository magicLinks, PilotService pilots, Mailer mailer,
             @Value("${spring.mail.host:}") String mailHost,
             @Value("${app.public-base-url:}") String publicBaseUrl,
             @Value("${app.magic-link.per-address-per-hour:5}") int perAddressPerHour,
             @Value("${app.magic-link.per-client-per-hour:20}") int perClientPerHour) {
         this.magicLinks = magicLinks;
         this.pilots = pilots;
-        this.mailSender = mailSender;
-        this.fromAddress = fromAddress;
+        this.mailer = mailer;
         this.publicBaseUrl = publicBaseUrl.replaceAll("/+$", "");
         this.perAddressPerHour = perAddressPerHour;
         this.perClientPerHour = perClientPerHour;
@@ -175,25 +156,7 @@ public class MagicLinkController {
         var pilot = pilots.fromVerifiedEmail(link.getEmail());
         Authentication authentication = new MagicLinkAuthenticationToken(pilot.getEmail());
 
-        // Spring Security's own session-fixation strategy, run by hand
-        // because this endpoint is outside the filter chain that would
-        // otherwise run it. A session that existed before the click --
-        // one a pilot arrived with, or one someone else planted in their
-        // browser -- must not be the session they end up signed in on.
-        // oauth2Login gets this from AbstractAuthenticationProcessingFilter;
-        // this flow has no such filter, so it asks for the same thing
-        // directly rather than going without.
-        sessionAuthenticationStrategy.onAuthentication(authentication, request, response);
-
-        SecurityContext context = SecurityContextHolder.createEmptyContext();
-        context.setAuthentication(authentication);
-        SecurityContextHolder.setContext(context);
-        // Explicit save, not just setContext above -- outside Spring
-        // Security's own filter chain (there is no
-        // AuthenticationSuccessHandler here, this endpoint *is* the
-        // success handler), nothing else persists the context into the
-        // session for the next request.
-        securityContextRepository.saveContext(context, request, response);
+        SessionSignIn.signIn(authentication, request, response);
         return ResponseEntity.status(HttpStatus.FOUND)
                 .location(URI.create(SignInLanding.after(pilot)))
                 .build();
@@ -202,14 +165,13 @@ public class MagicLinkController {
     private void sendEmail(String to, String verifyUrl) {
         try {
             SimpleMailMessage message = new SimpleMailMessage();
-            message.setFrom(fromAddress);
             message.setTo(to);
             message.setSubject("Sign in to Wingtip Maps");
             // The link last, alone on its line: what reads the email for it
             // (the tests, the e2e sign-in) takes it from there to the end.
             message.setText("Sign in to Wingtip Maps with this link. It works once, for 15 minutes. "
                     + "If you did not ask to sign in, you can ignore this email.\n\n" + verifyUrl);
-            mailSender.send(message);
+            mailer.send(message);
         } catch (Exception e) {
             // An unreachable or unconfigured mail server (MAIL_HOST
             // unset, see application.yml) is a real, expected state in

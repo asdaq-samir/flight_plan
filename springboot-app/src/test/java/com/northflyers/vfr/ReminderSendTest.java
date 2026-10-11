@@ -16,6 +16,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -44,6 +45,7 @@ class ReminderSendTest {
     @Autowired private PilotRepository pilots;
     @Autowired private JdbcTemplate jdbc;
     @MockitoBean private JavaMailSender mail;
+    @Value("${MAIL_FROM:no-reply@northflyers.com}") private String from;
 
     private static final LocalDate TODAY = LocalDate.of(2026, 10, 11);
 
@@ -63,6 +65,7 @@ class ReminderSendTest {
         ArgumentCaptor<SimpleMailMessage> sent = ArgumentCaptor.forClass(SimpleMailMessage.class);
         verify(mail).send(sent.capture());
         assertThat(sent.getValue().getTo()).containsExactly(pilot.getEmail());
+        assertThat(sent.getValue().getFrom()).isEqualTo(from);
         assertThat(sent.getValue().getText()).contains("in 20 days (14 CFR 61.23)");
         // The same day again, and the next: the 30-day reminder is not sent twice.
         assertThat(reminders.sendTo(pilot, TODAY)).isZero();

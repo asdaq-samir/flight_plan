@@ -4,11 +4,13 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.northflyers.vfr.repository.MagicLinkRepository;
+import com.northflyers.vfr.service.Mailer;
 import com.northflyers.vfr.service.PilotService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -23,6 +25,7 @@ import org.springframework.web.filter.ForwardedHeaderFilter;
  * a throttled address says nothing about whether it has an account.
  */
 @WebMvcTest(MagicLinkController.class)
+@Import(Mailer.class)
 @AutoConfigureMockMvc(addFilters = false)
 class MagicLinkThrottleTest {
 
