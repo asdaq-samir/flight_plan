@@ -435,9 +435,10 @@ export default memo(function FlightBriefingView({
   // button, which files it with the flight.
   const { data: pilot } = useQuery(pilotQuery);
   const { data: currency } = useQuery({ queryKey: ["currency"], queryFn: api.logbook.currency, enabled: !!pilot, staleTime: 60_000 });
-  // The pilot's own airplane being flown, for its VOR check under IFR.
+  // The pilot's own airplane being flown, for its inspections and, under
+  // IFR, its VOR check.
   const flyingId = usePreferences(p => p.aircraft.aircraftId);
-  const { data: ownAircraft } = useQuery({ queryKey: ["aircraft"], queryFn: api.aircraft.list, enabled: !!pilot && ifr && flyingId != null, staleTime: 60_000 });
+  const { data: ownAircraft } = useQuery({ queryKey: ["aircraft"], queryFn: api.aircraft.list, enabled: !!pilot && flyingId != null, staleTime: 60_000 });
   const flownOwn = flyingId == null ? undefined : ownAircraft?.find(a => a.id === flyingId);
   const ticked = useRisk(s => s.ticked);
   const setAssessment = useRisk(s => s.setAssessment);
@@ -456,6 +457,7 @@ export default memo(function FlightBriefingView({
     ifr,
     vorCheck: flownOwn === undefined ? undefined : flownOwn.vorCheck
       ? { goodThrough: flownOwn.vorCheck.goodThrough, withinLimit: flownOwn.vorCheck.withinLimit } : null,
+    inspections: flownOwn?.inspections,
     currency: currency ?? null,
     day: format(new Date(depart || opened), "yyyy-MM-dd"),
     ticked,

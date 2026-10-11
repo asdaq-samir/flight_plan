@@ -3,6 +3,7 @@ package com.northflyers.vfr.service;
 import com.northflyers.vfr.domain.Aircraft;
 import com.northflyers.vfr.domain.Pilot;
 import com.northflyers.vfr.domain.VorCheck;
+import com.northflyers.vfr.dto.InspectionsRequest;
 import com.northflyers.vfr.repository.AircraftRepository;
 import java.time.LocalDate;
 import java.util.List;
@@ -49,6 +50,12 @@ public class AircraftService {
     public Optional<Aircraft> recordVorCheck(Pilot pilot, Long id, LocalDate on, VorCheck kind, String place, double errorDeg) {
         return get(pilot, id).map(a -> aircraft.save(a.recordVorCheck(on, kind, place == null || place.isBlank() ? null : place.strip(),
                 errorDeg)));
+    }
+
+    /** The airplane's inspections and tests, as its owner records them. */
+    public Optional<Aircraft> recordInspections(Pilot pilot, Long id, InspectionsRequest r) {
+        return get(pilot, id).map(a -> aircraft.save(a.recordInspections(r.annualOn(), r.hundredHourAtHours(), r.hoursNow(),
+                r.staticCheckOn(), r.transponderCheckOn(), r.eltInspectedOn(), r.eltBatteryDueOn())));
     }
 
     /** @return true if an aircraft was actually deleted */

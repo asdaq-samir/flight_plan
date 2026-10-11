@@ -4,6 +4,7 @@
  * points for what raises the risk of this flight -- from the briefing
  * (VFR not recommended, the pilot's own minimums, a TFR on the route,
  * SIGMETs and G-AIRMETs, night), from the nav log's fuel check, from the
+ * pilot's own airplane's inspections (lib/airworthiness), from the
  * pilot's logbook (the flight review, the medical, recent landings) --
  * and for what only the pilot knows: IMSAFE, and the pressures on the
  * day.
@@ -12,10 +13,11 @@
  * planner's own guide, not the FAA's and not a rule: the decision is
  * the pilot in command's (91.3, 91.103). What makes a flight unlawful --
  * alcohol within 8 hours, a lapsed flight review or medical, tanks that
- * do not hold the fuel -- is high whatever else is.
+ * do not hold the fuel, an annual past due -- is high whatever else is.
  */
 import { create } from "zustand";
-import type { Currency } from "./api/types";
+import type { Currency, Inspections } from "./api/types";
+import { inspectionFactors } from "./airworthiness";
 
 export type RiskLevel = "low" | "caution" | "high";
 
@@ -64,6 +66,9 @@ export interface FratInput {
    *  good day and whether its error was within limits (91.171), or null
    *  with none recorded; undefined for a stock profile, which has none. */
   vorCheck?: { goodThrough: string; withinLimit: boolean } | null;
+  /** In one of the pilot's own airplanes: its inspections and tests as
+   *  recorded (lib/airworthiness); undefined for a stock profile. */
+  inspections?: Inspections | null;
   /** The pilot's currency, where they keep a logbook here. */
   currency: Currency | null;
   /** The day of the flight, yyyy-MM-dd, to read the currency's dates on. */
@@ -91,6 +96,7 @@ export function found(input: FratInput): RiskFactor[] {
   if (input.ifr && input.vorCheck !== undefined && !(input.vorCheck && input.vorCheck.withinLimit && input.vorCheck.goodThrough >= input.day)) {
     factors.push({ key: "vor", label: "No VOR check in the last 30 days", why: "91.171: to navigate IFR by VOR", points: 2 });
   }
+  if (input.inspections) factors.push(...inspectionFactors(input.inspections, input.day, !!input.ifr));
   if (input.fuelMarginGal != null && input.fuelMarginGal < 0) {
     factors.push({ key: "fuel", label: "The tanks do not hold the fuel and its reserve", why: input.ifr ? "91.167" : "91.151", points: 0, stop: true });
   }

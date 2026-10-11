@@ -91,6 +91,20 @@ public class Aircraft {
     private String vorCheckPlace;
     private Double vorCheckErrorDeg;
 
+    /** Its inspections and tests, as its owner records them from its
+     *  maintenance records (V21): the annual (14 CFR 91.409(a)), the time in
+     *  service at the last annual or 100-hour and now (91.409(b)), the
+     *  altimeter and static test (91.411), the transponder test (91.413),
+     *  the ELT's inspection (91.207(d)) and the date its battery is to be
+     *  replaced by (91.207(c)). Each null until recorded. */
+    private LocalDate annualOn;
+    private Double hundredHourAtHours;
+    private Double hoursNow;
+    private LocalDate staticCheckOn;
+    private LocalDate transponderCheckOn;
+    private LocalDate eltInspectedOn;
+    private LocalDate eltBatteryDueOn;
+
     protected Aircraft() {
         // JPA
     }
@@ -122,6 +136,19 @@ public class Aircraft {
         this.climbTasKt = climbTasKt;
         this.climbFuelBurnGph = climbFuelBurnGph;
         this.usableFuelGal = usableFuelGal;
+        return this;
+    }
+
+    /** Its inspections and tests, all at once, as the form has them. */
+    public Aircraft recordInspections(LocalDate annualOn, Double hundredHourAtHours, Double hoursNow, LocalDate staticCheckOn,
+                                      LocalDate transponderCheckOn, LocalDate eltInspectedOn, LocalDate eltBatteryDueOn) {
+        this.annualOn = annualOn;
+        this.hundredHourAtHours = hundredHourAtHours;
+        this.hoursNow = hoursNow;
+        this.staticCheckOn = staticCheckOn;
+        this.transponderCheckOn = transponderCheckOn;
+        this.eltInspectedOn = eltInspectedOn;
+        this.eltBatteryDueOn = eltBatteryDueOn;
         return this;
     }
 

@@ -21,7 +21,7 @@ import { ConsolePages, PageRow } from "../../components/ConsolePages";
 import FlightPage from "./FlightPage";
 import { aircraftKey, choiceOf } from "../../lib/aircraftChoice";
 import { api } from "../../lib/api/client";
-import type { Aircraft, AircraftRequest, FlightSummary, VorCheckRequest } from "../../lib/api/types";
+import type { Aircraft, AircraftRequest, FlightSummary, InspectionsRequest, VorCheckRequest } from "../../lib/api/types";
 import { CRUISE_REFERENCE_FT } from "../../lib/performance";
 import { usePreferences } from "../../lib/preferences";
 import { TEXT } from "../../lib/text";
@@ -155,6 +155,106 @@ function VorCheckGroup({ aircraft }: { aircraft: Aircraft }) {
       <ListRow
         title={<span className="font-medium text-tint">Record check</span>}
         onClick={() => record.mutate()} disabled={record.isPending || !check.checkedOn} data-testid="vor-check-record"
+      />
+    </ListGroup>
+  );
+}
+
+/** The inspections' dates, each with the rule that asks for it. */
+const DATED: { key: "annualOn" | "staticCheckOn" | "transponderCheckOn" | "eltInspectedOn"; through: "annualGoodThrough" | "staticCheckGoodThrough" | "transponderCheckGoodThrough" | "eltInspectionGoodThrough"; title: string; rule: string }[] = [
+  { key: "annualOn", through: "annualGoodThrough", title: "Annual", rule: "12 calendar months, 14 CFR 91.409(a)" },
+  { key: "staticCheckOn", through: "staticCheckGoodThrough", title: "Altimeter and static", rule: "24 calendar months, for IFR, 91.411" },
+  { key: "transponderCheckOn", through: "transponderCheckGoodThrough", title: "Transponder", rule: "24 calendar months, 91.413" },
+  { key: "eltInspectedOn", through: "eltInspectionGoodThrough", title: "ELT inspection", rule: "12 calendar months, 91.207(d)" },
+];
+
+/** How a last good day stands today: in green to it, red past it. */
+function Standing({ through, testId }: { through: string | null | undefined; testId: string }) {
+  if (!through) return null;
+  const today = new Date().toISOString().slice(0, 10);
+  const good = through >= today;
+  return (
+    <span className={cn(good ? "text-green-700 dark:text-green-400" : "text-red-700 dark:text-red-400")} data-testid={testId}>
+      {good ? `To ${through}` : `Past due since ${through}`}
+    </span>
+  );
+}
+
+/**
+ * The airplane's inspections and tests, as its owner records them from its
+ * maintenance records, each with the last day it is good for (the webapp
+ * works it out by the rule's calendar months) -- what the risk assessment
+ * reads for whether it may be flown (lib/airworthiness). Saved together.
+ */
+function InspectionsGroup({ aircraft }: { aircraft: Aircraft }) {
+  const queryClient = useQueryClient();
+  const id = useId();
+  const recorded = aircraft.inspections;
+  const [form, setForm] = useState<InspectionsRequest>({
+    annualOn: recorded?.annualOn ?? null, hundredHourAtHours: recorded?.hundredHourAtHours ?? null, hoursNow: recorded?.hoursNow ?? null,
+    staticCheckOn: recorded?.staticCheckOn ?? null, transponderCheckOn: recorded?.transponderCheckOn ?? null,
+    eltInspectedOn: recorded?.eltInspectedOn ?? null, eltBatteryDueOn: recorded?.eltBatteryDueOn ?? null,
+  });
+  const save = useMutation({
+    mutationFn: () => api.aircraft.inspections(aircraft.id, form),
+    onSuccess: () => { toast.success("Inspections saved"); void queryClient.invalidateQueries({ queryKey: ["aircraft"] }); },
+  });
+  const today = new Date().toISOString().slice(0, 10);
+  const hours = (value: string) => (value === "" ? null : Number(value));
+  const due = recorded?.hundredHourDueAtHours;
+  return (
+    <ListGroup
+      title="Inspections"
+      footer="From the airplane's maintenance records. The 100-hour is owed only when it is flown for hire, or for instruction in it by the one who provides it (91.409(b)); the ELT's are not owed on a training flight within 50 nm of its departure (91.207(f))."
+    >
+      {DATED.map(d => (
+        <ListRow
+          key={d.key} id={`${id}-${d.key}`} title={d.title}
+          description={<>{d.rule}{recorded?.[d.through] && <> · <Standing through={recorded[d.through]} testId={`inspection-${d.key}`} /></>}</>}
+        >
+          <Input
+            id={`${id}-${d.key}`} type="date" className="h-8 w-40" value={form[d.key] ?? ""} max={today}
+            onChange={e => setForm({ ...form, [d.key]: e.target.value || null })} data-testid={`inspection-${d.key}-date`}
+          />
+        </ListRow>
+      ))}
+      <ListRow
+        id={`${id}-battery`} title="ELT battery replace by"
+        description={<>As marked on the transmitter, 91.207(c){recorded?.eltBatteryDueOn && (
+          <> · <span className={cn(recorded.eltBatteryDueOn > today ? "text-green-700 dark:text-green-400" : "text-red-700 dark:text-red-400")} data-testid="inspection-eltBattery">
+            {recorded.eltBatteryDueOn > today ? `By ${recorded.eltBatteryDueOn}` : `Due since ${recorded.eltBatteryDueOn}`}
+          </span></>
+        )}</>}
+      >
+        <Input
+          id={`${id}-battery`} type="date" className="h-8 w-40" value={form.eltBatteryDueOn ?? ""}
+          onChange={e => setForm({ ...form, eltBatteryDueOn: e.target.value || null })} data-testid="inspection-eltBattery-date"
+        />
+      </ListRow>
+      <ListRow
+        id={`${id}-at`} title="Hours at last 100-hour"
+        description={due != null ? <>Due at {due.toFixed(1)} h{recorded?.hoursNow != null && (
+          <span className={cn(recorded.hoursNow < due ? "text-green-700 dark:text-green-400" : "text-red-700 dark:text-red-400")} data-testid="inspection-hundredHour">
+            {recorded.hoursNow < due ? `, ${(due - recorded.hoursNow).toFixed(1)} h to go` : ", due now"}
+          </span>
+        )}</> : "Time in service, at the last annual or 100-hour"}
+      >
+        <Input
+          id={`${id}-at`} type="number" inputMode="decimal" step="any" min={0} className="h-8 w-28 text-right"
+          value={form.hundredHourAtHours ?? ""} onChange={e => setForm({ ...form, hundredHourAtHours: hours(e.target.value) })}
+          data-testid="inspection-hundredHourAt"
+        />
+      </ListRow>
+      <ListRow id={`${id}-now`} title="Hours now">
+        <Input
+          id={`${id}-now`} type="number" inputMode="decimal" step="any" min={0} className="h-8 w-28 text-right"
+          value={form.hoursNow ?? ""} onChange={e => setForm({ ...form, hoursNow: hours(e.target.value) })}
+          data-testid="inspection-hoursNow"
+        />
+      </ListRow>
+      <ListRow
+        title={<span className="font-medium text-tint">Save inspections</span>}
+        onClick={() => save.mutate()} disabled={save.isPending} data-testid="inspections-save"
       />
     </ListGroup>
   );
@@ -395,6 +495,7 @@ export function AircraftPanel() {
                   field={register("usableFuelGal")} error={errors.usableFuelGal?.message}
                 />
               </ListGroup>
+              {editing && <InspectionsGroup key={editing.id} aircraft={editing} />}
               {editing && <VorCheckGroup aircraft={editing} />}
               {editingId !== null && (
                 <ListGroup>

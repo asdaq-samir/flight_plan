@@ -3,10 +3,13 @@ package com.northflyers.vfr.controller;
 import com.northflyers.vfr.domain.Aircraft;
 import com.northflyers.vfr.dto.AircraftDto;
 import com.northflyers.vfr.dto.AircraftRequest;
+import com.northflyers.vfr.dto.InspectionsRequest;
 import com.northflyers.vfr.dto.VorCheckRequest;
 import com.northflyers.vfr.service.AircraftService;
 import com.northflyers.vfr.service.PilotService;
 import jakarta.validation.Valid;
+import java.time.LocalDate;
+import java.time.temporal.TemporalAdjusters;
 import java.util.List;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -75,6 +78,16 @@ public class AircraftController {
                 .orElse(ResponseEntity.notFound().build()));
     }
 
+    /** The airplane's inspections and tests, recorded all at once. */
+    @PutMapping("/{id}/inspections")
+    public ResponseEntity<AircraftDto> inspections(
+            Authentication authentication, @PathVariable Long id, @Valid @RequestBody InspectionsRequest request) {
+        return PilotResponses.withPilot(pilots, authentication, pilot -> aircraftService
+                .recordInspections(pilot, id, request)
+                .map(a -> ResponseEntity.ok(toDto(a)))
+                .orElse(ResponseEntity.notFound().build()));
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(Authentication authentication, @PathVariable Long id) {
         return PilotResponses.withPilot(pilots, authentication, pilot ->
@@ -84,7 +97,30 @@ public class AircraftController {
     private static AircraftDto toDto(Aircraft a) {
         return new AircraftDto(a.getId(), a.getTailNumber(), a.getTypeDesignator(), a.getCruiseTasKt(),
                 a.getFuelBurnGph(), a.getCruisePowerPct(), a.getClimbTasKt(), a.getClimbFuelBurnGph(), a.getUsableFuelGal(),
-                a.getCreatedAt(), vorCheckOf(a));
+                a.getCreatedAt(), vorCheckOf(a), inspectionsOf(a));
+    }
+
+    /** The last day of the calendar month `months` after the one `on` is
+     *  in: what "within the preceding N calendar months" leaves an
+     *  inspection good through -- an annual on 5 October 2025 to 31 October
+     *  2026. */
+    static LocalDate endOfCalendarMonths(LocalDate on, int months) {
+        return on == null ? null : on.plusMonths(months).with(TemporalAdjusters.lastDayOfMonth());
+    }
+
+    /** 91.409(a): the annual, 12 calendar months; 91.409(b): the 100-hour,
+     *  100 hours of time in service; 91.411(a)(1) and 91.413(a): the static
+     *  and transponder tests, 24 calendar months; 91.207(d): the ELT's
+     *  inspection, 12 calendar months after the last. */
+    static AircraftDto.InspectionsDto inspectionsOf(Aircraft a) {
+        return new AircraftDto.InspectionsDto(
+                a.getAnnualOn(), endOfCalendarMonths(a.getAnnualOn(), 12),
+                a.getHundredHourAtHours(), a.getHoursNow(),
+                a.getHundredHourAtHours() == null ? null : a.getHundredHourAtHours() + 100,
+                a.getStaticCheckOn(), endOfCalendarMonths(a.getStaticCheckOn(), 24),
+                a.getTransponderCheckOn(), endOfCalendarMonths(a.getTransponderCheckOn(), 24),
+                a.getEltInspectedOn(), endOfCalendarMonths(a.getEltInspectedOn(), 12),
+                a.getEltBatteryDueOn());
     }
 
     /** 91.171(a)(2): good for 30 days, the error within its check's limit. */

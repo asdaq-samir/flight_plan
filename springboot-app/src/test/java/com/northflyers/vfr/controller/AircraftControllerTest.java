@@ -17,6 +17,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.northflyers.vfr.domain.Aircraft;
 import com.northflyers.vfr.domain.Pilot;
+import com.northflyers.vfr.dto.AircraftDto;
 import com.northflyers.vfr.service.AircraftService;
 import com.northflyers.vfr.service.PilotService;
 import java.util.List;
@@ -204,5 +205,49 @@ class AircraftControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"checkedOn\":\"2999-01-01\",\"kind\":\"VOT\",\"errorDeg\":1}"))
                 .andExpect(status().isBadRequest());
+    }
+
+    /** 14 CFR 91.409(a), 91.411(a), 91.413(a), 91.207(d): each good to the
+     *  end of its calendar month 12 or 24 months on -- an annual on
+     *  5 October 2025 to 31 October 2026, an annual on 31 January 2026 to
+     *  31 January 2027 -- and the 100-hour due 100 hours of time in service
+     *  after the last (91.409(b)). */
+    @Test
+    void theInspectionsAreRecordedEachWithTheLastDayItIsGoodFor() throws Exception {
+        given(pilotService.current(any())).willReturn(Optional.of(samplePilot()));
+        given(aircraftService.recordInspections(any(), eq(7L), any())).willReturn(Optional.of(
+                sampleAircraft().recordInspections(java.time.LocalDate.of(2025, 10, 5), 1200.5, 1290.0,
+                        java.time.LocalDate.of(2024, 11, 30), java.time.LocalDate.of(2025, 2, 1),
+                        java.time.LocalDate.of(2026, 1, 31), java.time.LocalDate.of(2028, 6, 1))));
+
+        mockMvc.perform(put("/api/aircraft/7/inspections").with(oidcLogin()).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"annualOn\":\"2025-10-05\",\"hundredHourAtHours\":1200.5,\"hoursNow\":1290,"
+                                + "\"staticCheckOn\":\"2024-11-30\",\"transponderCheckOn\":\"2025-02-01\","
+                                + "\"eltInspectedOn\":\"2026-01-31\",\"eltBatteryDueOn\":\"2028-06-01\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.inspections.annualGoodThrough").value("2026-10-31"))
+                .andExpect(jsonPath("$.inspections.hundredHourDueAtHours").value(1300.5))
+                .andExpect(jsonPath("$.inspections.staticCheckGoodThrough").value("2026-11-30"))
+                .andExpect(jsonPath("$.inspections.transponderCheckGoodThrough").value("2027-02-28"))
+                .andExpect(jsonPath("$.inspections.eltInspectionGoodThrough").value("2027-01-31"))
+                .andExpect(jsonPath("$.inspections.eltBatteryDueOn").value("2028-06-01"));
+
+        // An inspection to come is not one done; negative hours are no hours.
+        mockMvc.perform(put("/api/aircraft/7/inspections").with(oidcLogin()).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"annualOn\":\"2999-01-01\"}"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(put("/api/aircraft/7/inspections").with(oidcLogin()).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"hoursNow\":-1}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    /** An airplane whose owner has said nothing is neither current nor overdue. */
+    @Test
+    void noInspectionsRecordedIsNoDates() {
+        AircraftDto.InspectionsDto none = AircraftController.inspectionsOf(sampleAircraft());
+        org.assertj.core.api.Assertions.assertThat(none.annualGoodThrough()).isNull();
+        org.assertj.core.api.Assertions.assertThat(none.hundredHourDueAtHours()).isNull();
+        org.assertj.core.api.Assertions.assertThat(none.eltBatteryDueOn()).isNull();
     }
 }

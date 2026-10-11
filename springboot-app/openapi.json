@@ -31,6 +31,10 @@
             "format" : "int64",
             "type" : "integer"
           },
+          "inspections" : {
+            "$ref" : "#/components/schemas/InspectionsDto",
+            "description" : "Its inspections and tests, as recorded, each with the last day it is good for"
+          },
           "tailNumber" : {
             "type" : "string"
           },
@@ -50,7 +54,7 @@
             "description" : "Its last VOR check for IFR (14 CFR 91.171): when, how, where, the bearing error, and the last day it is good for -- 30 days on, if the error was within the check's limit"
           }
         },
-        "required" : [ "climbFuelBurnGph", "climbTasKt", "createdAt", "cruisePowerPct", "cruiseTasKt", "fuelBurnGph", "id", "tailNumber", "typeDesignator", "usableFuelGal", "vorCheck" ],
+        "required" : [ "climbFuelBurnGph", "climbTasKt", "createdAt", "cruisePowerPct", "cruiseTasKt", "fuelBurnGph", "id", "inspections", "tailNumber", "typeDesignator", "usableFuelGal", "vorCheck" ],
         "type" : "object"
       },
       "AircraftRequest" : {
@@ -479,6 +483,96 @@
           }
         },
         "required" : [ "aircraftTailNumber", "altitudes", "createdAt", "cruiseAltitudeFt", "departureIdent", "destinationIdent", "id", "plannedFor", "risk", "stops", "totalDistanceNm", "totalEteMin", "totalFuelGal" ],
+        "type" : "object"
+      },
+      "InspectionsDto" : {
+        "description" : "An airplane's inspections and tests as recorded, each with the last day it is good for: the annual to the end of the 12th calendar month after (14 CFR 91.409(a)), the altimeter and static test and the transponder test to the end of the 24th (91.411(a), 91.413(a)), the ELT's inspection to the end of the 12th (91.207(d)); the 100-hour due at 100 hours of time in service after the last (91.409(b)). Null where not recorded",
+        "properties" : {
+          "annualGoodThrough" : {
+            "format" : "date",
+            "type" : [ "string", "null" ]
+          },
+          "annualOn" : {
+            "format" : "date",
+            "type" : [ "string", "null" ]
+          },
+          "eltBatteryDueOn" : {
+            "description" : "The date the ELT's battery is to be replaced by, as marked on it (91.207(c))",
+            "format" : "date",
+            "type" : [ "string", "null" ]
+          },
+          "eltInspectedOn" : {
+            "format" : "date",
+            "type" : [ "string", "null" ]
+          },
+          "eltInspectionGoodThrough" : {
+            "format" : "date",
+            "type" : [ "string", "null" ]
+          },
+          "hoursNow" : {
+            "format" : "double",
+            "type" : [ "number", "null" ]
+          },
+          "hundredHourAtHours" : {
+            "format" : "double",
+            "type" : [ "number", "null" ]
+          },
+          "hundredHourDueAtHours" : {
+            "format" : "double",
+            "type" : [ "number", "null" ]
+          },
+          "staticCheckGoodThrough" : {
+            "format" : "date",
+            "type" : [ "string", "null" ]
+          },
+          "staticCheckOn" : {
+            "format" : "date",
+            "type" : [ "string", "null" ]
+          },
+          "transponderCheckGoodThrough" : {
+            "format" : "date",
+            "type" : [ "string", "null" ]
+          },
+          "transponderCheckOn" : {
+            "format" : "date",
+            "type" : [ "string", "null" ]
+          }
+        },
+        "required" : [ "annualGoodThrough", "annualOn", "eltBatteryDueOn", "eltInspectedOn", "eltInspectionGoodThrough", "hoursNow", "hundredHourAtHours", "hundredHourDueAtHours", "staticCheckGoodThrough", "staticCheckOn", "transponderCheckGoodThrough", "transponderCheckOn" ],
+        "type" : "object"
+      },
+      "InspectionsRequest" : {
+        "properties" : {
+          "annualOn" : {
+            "format" : "date",
+            "type" : [ "string", "null" ]
+          },
+          "eltBatteryDueOn" : {
+            "format" : "date",
+            "type" : [ "string", "null" ]
+          },
+          "eltInspectedOn" : {
+            "format" : "date",
+            "type" : [ "string", "null" ]
+          },
+          "hoursNow" : {
+            "format" : "double",
+            "type" : [ "number", "null" ]
+          },
+          "hundredHourAtHours" : {
+            "format" : "double",
+            "type" : [ "number", "null" ]
+          },
+          "staticCheckOn" : {
+            "format" : "date",
+            "type" : [ "string", "null" ]
+          },
+          "transponderCheckOn" : {
+            "format" : "date",
+            "type" : [ "string", "null" ]
+          }
+        },
+        "required" : [ "annualOn", "eltBatteryDueOn", "eltInspectedOn", "hoursNow", "hundredHourAtHours", "staticCheckOn", "transponderCheckOn" ],
         "type" : "object"
       },
       "KnowledgeTestRequest" : {
@@ -1086,6 +1180,43 @@
             "application/json" : {
               "schema" : {
                 "$ref" : "#/components/schemas/AircraftRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AircraftDto"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "aircraft-controller" ]
+      }
+    },
+    "/api/aircraft/{id}/inspections" : {
+      "put" : {
+        "operationId" : "inspections",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/InspectionsRequest"
               }
             }
           },

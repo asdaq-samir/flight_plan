@@ -17,7 +17,7 @@ longer than it takes to answer the request.
 | Contact Info, Email Address | The address a pilot signs in with | Yes | App Functionality (sign-in, the sign-in link) | `pilots`, `magic_links` (Postgres) |
 | Contact Info, Name | The name Google or Apple gives at sign-in (otherwise the address) | Yes | App Functionality | `pilots` |
 | Identifiers, User ID | The account's id; Google's and Apple's subject for that sign-in | Yes | App Functionality | `pilots`, the session |
-| User Content, Other | Aircraft (tail number, type, performance, the last VOR check), saved flights and their nav logs, the logbook (its instrument approaches, holding and tracking among it), endorsements and currency dates (the instrument proficiency check's too), checkpoint notes a pilot writes for themselves | Yes | App Functionality | Postgres; notes in the planner's `data/labels` |
+| User Content, Other | Aircraft (tail number, type, performance, the last VOR check, the inspections' and tests' dates and its hours), saved flights and their nav logs, the logbook (its instrument approaches, holding and tracking among it), endorsements and currency dates (the instrument proficiency check's too), checkpoint notes a pilot writes for themselves | Yes | App Functionality | Postgres; notes in the planner's `data/labels` |
 | Location, Precise | A flight's track, when a pilot saves it to a flight | Yes | App Functionality | `flight_tracks` |
 | Diagnostics, Crash Data | An uncaught error on the device: its message, stack, the page's path, the browser's name (`lib/errorReports`) | No | App Functionality (finding faults) | The server's log in CloudWatch, 30 days |
 
