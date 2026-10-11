@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { settle, slow } from "./helpers";
+import { settle, slow, controlsInSight } from "./helpers";
 
 /**
  * Print's Kneeboard card (Kneeboard, printKneeboard): offered beside the
@@ -25,6 +25,7 @@ test("Print offers the kneeboard card, and prints it alone on half-letter paper"
   await expect.poll(() => card.locator("tbody tr").count()).toBeGreaterThan(5);
   await expect(card).toContainText("KDLH · Duluth");
 
+  await controlsInSight(page);
   await page.getByTestId("print-button").click();
   await expect(page.getByTestId("print-briefing")).toBeVisible();
   await page.getByTestId("print-kneeboard").click();

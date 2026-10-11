@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { slow, settle, sideDrawer, expectDrawerClosed, expectDrawerOpen, closeSidebarWithTheStockKey, openedDrawerBox, openBriefing, openTab, openSettings, closeConsole, grabberTo } from "./helpers";
+import { slow, settle, sideDrawer, expectDrawerClosed, expectDrawerOpen, closeSidebarWithTheStockKey, openedDrawerBox, openBriefing, openTab, openSettings, closeConsole, grabberTo, controlsInSight } from "./helpers";
 
 /**
  * The flight planning panel: how it opens -- from its grabber, a pasted
@@ -38,6 +38,7 @@ test("plan page: the flight planning drawer opens the way the Model Training dra
   // The panel's controls are the two inputs the log is computed from
   // -- the airplane and the departure time -- and nothing else of the
   // log's: neither is inside a section.
+  await controlsInSight(page);
   await expect(drawer.getByTestId("aircraft-select")).toBeVisible();
   await expect(drawer.getByTestId("depart-date")).toBeVisible();
   // And, signed in, Save this flight beside More.
@@ -69,9 +70,13 @@ test("plan page: the flight planning drawer opens the way the Model Training dra
   await expect(drawer.getByRole("heading", { name: "Adverse Conditions" })).toBeVisible();
   await expect(drawer.getByRole("table", { name: /Navigation log from/i })).toHaveCount(0);
 
-  // The panel's head is still in sight: the route's box, and under the
+  // All the way up, the panel's head is the route's figures alone over
+  // the tabs, at the pilot's ask; half way, the route's box, and under the
   // route's close Approaches, where Nearest was; the console's button is
   // the capsule's, the route lowered.
+  await expect(page.locator("header").getByTestId("flight-line")).toBeVisible();
+  expect(await page.locator("header").getByLabel("Departure", { exact: true }).count()).toBe(0);
+  await controlsInSight(page);
   expect(await page.locator("header").getByLabel("Departure", { exact: true }).count()).toBe(1);
   await expect(page.locator("header").getByTestId("route-approaches")).toBeVisible();
   expect(await page.locator("header").getByTestId("settings-button").count()).toBe(0);
@@ -170,7 +175,10 @@ test("plan page: a pasted briefing link opens the panel, and its grabber closes 
   await settle(page);
   const drawer = sideDrawer(page);
   await expect(drawer).toBeVisible();
-  await expect(drawer.getByTestId("print-button")).toBeVisible();
+  // All the way up its figures and tabs alone (MapPanel's `figures`);
+  // half way, the route's controls with Print.
+  await expect(drawer.getByTestId("flight-line")).toBeVisible();
+  await expect(drawer.getByTestId("print-button")).toHaveCount(0);
 
   // No letter shortcuts on this page any more: the arrows walk the
   // checkpoints and everything else has a button. `n` used to toggle
@@ -185,6 +193,7 @@ test("plan page: a pasted briefing link opens the panel, and its grabber closes 
   await grabber.click();
   await expect(drawer).toHaveAttribute("data-panel", "half");
   await expect(page).not.toHaveURL(/[?&]view=briefing/);
+  await expect(drawer.getByTestId("print-button")).toBeVisible();
   await grabber.click();
   await expectDrawerClosed(page);
 
@@ -192,7 +201,7 @@ test("plan page: a pasted briefing link opens the panel, and its grabber closes 
   await expect(drawer).toHaveAttribute("data-panel", "half");
   await grabber.click();
   await expect(page).toHaveURL(/[?&]view=briefing/);
-  await expect(drawer.getByTestId("print-button")).toBeVisible();
+  await expect(drawer.getByTestId("flight-line")).toBeVisible();
 });
 
 // A tap on the grabber cycles the panel's heights, small to big and

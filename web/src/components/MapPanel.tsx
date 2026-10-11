@@ -19,6 +19,10 @@ interface Props {
   /** The row under it, in sight at rest too: the airplane and the
    *  departure time, the rating's progress. */
   controls?: ReactNode;
+  /** The head all the way up, in place of the top row and the controls,
+   *  at the pilot's ask: the route's figures alone over its tabs, the
+   *  route and its chips the half's. */
+  figures?: ReactNode;
   /** What the panel holds at rest, in place of the route's row and the
    *  controls: a capsule floating over the chart, as Maps' is -- the
    *  route with a way to its options, or a search bar while there is no
@@ -107,7 +111,7 @@ const RANK: Record<PanelState, number> = { peek: 0, half: 1, full: 2 };
  * drawer that never closes held the keyboard's focus inside itself and
  * hid the map, and any dialog opened before it, from a screen reader.
  */
-export default function MapPanel({ label, top, controls, compact, children, state, onStateChange, onInsetsChange, toEdge = false }: Props) {
+export default function MapPanel({ label, top, controls, figures, compact, children, state, onStateChange, onInsetsChange, toEdge = false }: Props) {
   const onPhone = useIsMobile();
   const edge = useNavEdge();
   const safe = useSafeArea();
@@ -169,9 +173,16 @@ export default function MapPanel({ label, top, controls, compact, children, stat
   // edges as Maps' does: in from the sides, above the home indicator
   // (into its inset a little, as Maps sits) or under the status bar.
   const capsule = !!compact && state === "peek" && dragged === null;
+  // All the way up and settled, the head is the figures alone (`figures`);
+  // what is measured of it for the lowest detent, the half and the half's
+  // body is the head as it is at half, kept from when it last was.
+  const figuresOnly = !!figures && state === "full" && dragged === null;
+  const [halfHead, setHalfHead] = useState(headHeight);
+  if (!figuresOnly && halfHead !== headHeight) setHalfHead(headHeight);
+  const steadyHead = figuresOnly ? halfHead : headHeight;
   const capsuleGap = fromBottom ? Math.max(12, Math.round(safe.bottom) - 6) : Math.round(safe.top) + SHEET_MARGIN;
   // The capsule is its head alone, the grabber over its padding.
-  const peek = capsule ? headHeight : Math.round(headHeight + (fromBottom ? edgeInset : GRABBER));
+  const peek = capsule ? headHeight : Math.round(steadyHead + (fromBottom ? edgeInset : GRABBER));
   // The capsule's height, kept while it rests, for the lowest detent once
   // it is the sheet: dragged, the sheet's head is measured where the
   // capsule's was, and the lowest detent came out as tall as the half
@@ -197,7 +208,7 @@ export default function MapPanel({ label, top, controls, compact, children, stat
       return null;
     }
   });
-  const routeNow = tabsAt !== null && !!controls && !capsule && dragged === null && measured ? headHeight + tabsAt : null;
+  const routeNow = tabsAt !== null && !!controls && !capsule && !figuresOnly && dragged === null && measured ? headHeight + tabsAt : null;
   if (routeNow !== null && routeNow !== routeHead) setRouteHead(routeNow);
   useEffect(() => {
     try {
@@ -220,7 +231,7 @@ export default function MapPanel({ label, top, controls, compact, children, stat
   // The body's height at half, for what it shows first to fill and no
   // more (--half-body): the search's Favorites, an airport's name and
   // actions.
-  const halfBody = Math.max(0, detents.half - headHeight - halfChrome);
+  const halfBody = Math.max(0, detents.half - steadyHead - halfChrome);
   // Where the panel's top-right button sits -- the search's gear, the
   // route's close, an airport's or the airspace's card's close -- one
   // place in every panel, at the pilot's ask, so a finger or a pointer
@@ -461,9 +472,9 @@ export default function MapPanel({ label, top, controls, compact, children, stat
                 : cn("px-3 pb-1", fromBottom ? "pt-1" : onPhone ? "pt-[max(0.5rem,env(safe-area-inset-top))]" : "pt-2"),
           )}
         >
-          {capsule ? compact : top}
+          {capsule ? compact : figuresOnly ? figures : top}
         </header>
-        {!capsule && controls && (
+        {!capsule && !figuresOnly && controls && (
           // Wrapped onto two lines (a 320-point Slide Over), the two
           // twelve apart, and twelve and more under the top row, so their
           // hit areas (index.css) meet rather than overlap.

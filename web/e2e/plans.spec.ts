@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { slow, settle, sideDrawer, expectDrawerOpen, openTab, openPanel, grabberTo } from "./helpers";
+import { slow, settle, sideDrawer, expectDrawerOpen, openTab, openPanel, grabberTo, controlsInSight } from "./helpers";
 
 /**
  * What the nav log is computed from: the altitude plans and a pilot's
@@ -21,6 +21,7 @@ test("plan page: the nav log's altitude opens the planner's own reasoning, and t
   // checkpoints: its chip beside the airplane, named with the figure as a
   // flight level. The figure alone: which plan it is shows as the pressed
   // row in the popover, not as a word after every altitude.
+  await controlsInSight(page);
   const why = page.getByTestId("altitude-why");
   await expect(why).toHaveAccessibleName(/FL\d{3}/, { timeout: slow(60000) });
   await expect(why).not.toHaveAccessibleName(/·/);
@@ -117,6 +118,7 @@ test("plan page: a departure time gives every checkpoint an ETA, and the nav log
   // (the next month's, when the day after tomorrow falls there), then
   // the time in the box beside it. No native datetime-local control.
   expect(await page.locator('input[type="datetime-local"]').count()).toBe(0);
+  await controlsInSight(page);
   await page.getByTestId("depart-date").click();
   const calendar = page.locator('[data-slot="calendar"]');
   await expect(calendar).toBeVisible();
@@ -157,6 +159,7 @@ test("plan page: the nav log is computed for an airplane the pilot picks in its 
   await settle(page);
   // All the way up, which the address keeps (`view`), for the reload below.
   await grabberTo(page, "full");
+  await controlsInSight(page);
   const picker = page.getByTestId("aircraft-select");
   await expect(picker).toBeVisible();
   await expect(picker).toContainText("C172");
@@ -165,10 +168,13 @@ test("plan page: the nav log is computed for an airplane the pilot picks in its 
   await expect(picker).toContainText("PA28");
   // Remembered per browser: the same airplane with the plan opened
   // again from its address -- on which the drawer is already open, since
-  // the address kept it. (A reload forgets the route: lib/freshLoad.)
+  // the address kept it all the way up. (A reload forgets the route:
+  // lib/freshLoad.)
+  await grabberTo(page, "full");
   await page.goto(page.url());
   await settle(page);
   await expectDrawerOpen(page);
+  await controlsInSight(page);
   await expect(page.getByTestId("aircraft-select")).toContainText("PA28");
 });
 

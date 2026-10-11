@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Totals } from "../../lib/api/types";
-import { fitFigures, tripFigures } from "./figures";
+import { fitFigures, restingSummary, tripFigures } from "./figures";
 
 const totals = { distance_nm: 323.6, ete_min: 165, fuel_gal: 23.4 } as Totals;
 const input = { totals, depart: "2026-01-01T14:22:00Z", local: false };
@@ -50,5 +50,31 @@ describe("tripFigures", () => {
     expect(dist!.value).toBe("101");
     expect(ete!.value.startsWith("≈")).toBe(true);
     expect(fuel!.value.startsWith("≈")).toBe(true);
+  });
+});
+
+describe("restingSummary", () => {
+  const base = { totals: null, depart: "", local: false };
+  const estimate = { distanceNm: 277.4, cruiseTasKt: 120, fuelBurnGph: 9 };
+
+  it("says the nav log's distance rounded up, and its time", () => {
+    expect(restingSummary("C81 → KDLH", "KDLH", { ...base, totals })).toBe("KDLH · 324 nm · 2h 45m");
+  });
+
+  it("marks the book's distance and time with ≈, the distance rounded up", () => {
+    expect(restingSummary("r", "KDLH", { ...base, estimate })).toBe("KDLH · ≈278 nm · ≈2h 19m");
+  });
+
+  it("leaves the time out of an estimate with no cruise speed", () => {
+    expect(restingSummary("r", "KDLH", { ...base, estimate: { ...estimate, cruiseTasKt: null } })).toBe("KDLH · ≈278 nm");
+  });
+
+  it("says a local flight's name and, with a nav log, its time aloft", () => {
+    expect(restingSummary("Local", "KDLH", { ...base, local: true, totals })).toBe("Local · 2h 45m");
+    expect(restingSummary("Local", "KDLH", { ...base, local: true })).toBe("Local");
+  });
+
+  it("is the destination alone before either figure", () => {
+    expect(restingSummary("r", "KDLH", base)).toBe("KDLH");
   });
 });

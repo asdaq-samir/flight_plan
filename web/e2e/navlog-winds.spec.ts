@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { openTab } from "./helpers";
+import { openTab, controlsInSight } from "./helpers";
 
 /**
  * A nav log the winds could not be read for. The planner's own stream is
@@ -26,6 +26,7 @@ test("a winds outage never reads as an altitude the pilot typed", async ({ page 
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await page.getByTestId("sidebar-trigger-button").click();
   await openTab(page, "Nav Log");
+  await controlsInSight(page);
 
   const why = page.getByTestId("altitude-why");
   await expect(why).toHaveAccessibleName(/no altitude/, { timeout: 60000 });

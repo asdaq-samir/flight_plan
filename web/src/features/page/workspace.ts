@@ -17,6 +17,10 @@ export interface WorkspacePieces {
   /** The panel's second row, in sight at rest: the airplane and the
    *  departure time, the rating's progress. */
   controls?: ReactNode;
+  /** The panel's head all the way up, in place of the top row and the
+   *  controls: the route's figures alone over its tabs, at the pilot's
+   *  ask (MapPanel's `figures`). */
+  figures?: ReactNode;
   /** Beside the route form, in sight at rest: the workspace's own few
    *  actions (save, the narrative and print; filter, undo and more). */
   actions?: ReactNode;
