@@ -9,9 +9,11 @@ import { usePreferences } from "../preferences";
 import { flightQuery } from "../queryClient";
 import { centreClear } from "./clear";
 import { TRAFFIC_COLOURS, trafficIcon } from "./icons";
-import { useOwnShip, type Fix } from "./ownShip";
-import { CARRY_S, agedBy, carriedOn, colourRuns, nearOwnHeight, ownShipHex, trafficLabel, trendPx } from "./traffic";
+import { useOwnShip } from "./ownShip";
+import { CARRY_S, agedBy, carriedOn, colourRuns, mergeTraffic, nearOwnHeight, ownShipHex, trafficLabel, trendPx } from "./traffic";
 import { reported, useTracking, type Report } from "./tracking";
+import { listen, useReceiver } from "./receiver";
+import { inNativeApp } from "../native";
 
 /** How often the traffic is asked for again, ms: the planner asks
  *  adsb.lol about a region at most every five seconds (vfr.traffic). */
@@ -108,20 +110,36 @@ function Traffic() {
     // Said here, in words of its own, not as the planner's failure.
     meta: { silent: true },
   });
+  // A cockpit receiver, heard in the app while the traffic is drawn
+  // (lib/map/receiver, #191): its airplanes merged with the internet's.
+  useEffect(() => {
+    if (!inNativeApp()) return;
+    let stop: (() => void) | null = null;
+    let live = true;
+    void listen().then(done => {
+      if (live) stop = done;
+      else done();
+    });
+    return () => {
+      live = false;
+      stop?.();
+    };
+  }, []);
+  const cockpit = useReceiver(s => s.traffic);
+  const receiverOwn = useReceiver(s => s.ownHex);
+  const receiving = useReceiver(s => s.connected);
   // The planner answers 503 only once adsb.lol has given nothing for a
   // minute (vfr.traffic): then the map says so, and the airplanes, carried
-  // on no further than half a minute, have gone.
+  // on no further than half a minute, have gone -- unless a receiver in
+  // the cockpit is heard, whose traffic is drawn without the internet.
   useEffect(() => {
-    if (isError) raiseProblem({ id: PROBLEM, title: "Traffic isn't available right now." });
+    if (isError && !receiving) raiseProblem({ id: PROBLEM, title: "Traffic isn't available right now." });
     else clearProblem(PROBLEM);
-  }, [isError]);
+  }, [isError, receiving]);
   useEffect(() => () => clearProblem(PROBLEM), []);
 
   const targets = useRef(new Map<string, Target>());
   const layer = useMemo(() => L.layerGroup(), []);
-  // Own ship's fix as an answer comes, to leave its own transponder out.
-  const fixNow = useRef<Fix | null>(null);
-  useEffect(() => { fixNow.current = fix; }, [fix]);
   useEffect(() => {
     layer.addTo(map);
     const drawn = targets.current;
@@ -132,18 +150,34 @@ function Traffic() {
   }, [map, layer]);
 
   // Each answer: its airplanes, when each was where it is given (now, less
-  // the answer's age and each one's own), into the targets.
+  // the answer's age and each one's own). The last view's answer is held
+  // while this one's is asked, already in.
+  // State adjusted during render, React's own pattern for keeping what a
+  // change brought.
+  const [answer, setAnswer] = useState<{ data: NonNullable<typeof data>; at: number } | null>(null);
+  if (data && !isPlaceholderData && answer?.at !== dataUpdatedAt) setAnswer({ data, at: dataUpdatedAt });
+  const own = useMemo(
+    () => (answer ? ownShipHex(agedBy(answer.data.aircraft, answer.data.age_s ?? 0), fix) : null),
+    // Own ship's fix as each answer comes, not with every fix.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [answer],
+  );
+  const internet = useMemo(() => (answer
+    ? answer.data.aircraft.filter(plane => plane.hex !== own)
+      .map(plane => ({ plane, at: answer.at - ((answer.data.age_s ?? 0) + (plane.seen_s ?? 0)) * 1000 }))
+    : null), [answer, own]);
+  // And the receiver's, merged by address: the fresher report of an
+  // airplane both hear, keeping the internet's registration and type,
+  // which GDL 90 does not send; own ship's echo, by its address, left out.
+  const merged = useMemo(() => mergeTraffic(internet, Object.values(cockpit), receiverOwn), [internet, cockpit, receiverOwn]);
+
+  // Each airplane's report into the targets.
   useEffect(() => {
-    // The last view's answer, held while this one's is asked: already in.
-    if (!data || isPlaceholderData) return;
-    const received = dataUpdatedAt;
-    const own = ownShipHex(agedBy(data.aircraft, data.age_s ?? 0), fixNow.current);
+    if (!merged) return;
     const seen = new Set<string>();
     const reports: Report[] = [];
-    for (const plane of data.aircraft) {
-      if (plane.hex === own) continue;
+    for (const { plane, at } of merged) {
       seen.add(plane.hex);
-      const at = received - ((data.age_s ?? 0) + (plane.seen_s ?? 0)) * 1000;
       reports.push({ plane, at });
       reported({ plane, at });
       const held = targets.current.get(plane.hex);
@@ -173,7 +207,7 @@ function Traffic() {
     }
     // The airplanes heard, for the Aircraft card's list.
     useTracking.setState({ seen: reports });
-  }, [data, isPlaceholderData, dataUpdatedAt, layer]);
+  }, [merged, layer]);
 
   // The icons, as the reports, own ship's height and the zoom change.
   const ownFt = fix?.altitudeFt ?? null;
@@ -194,7 +228,7 @@ function Traffic() {
       }
       target.marker.setZIndexOffset(tracked ? 900 : 0);
     }
-  }, [data, ownFt, view.zoom, hex]);
+  }, [merged, ownFt, view.zoom, hex]);
 
   // Following a flight: own ship's following ends (the map can keep one
   // in the middle), and the map goes to it -- in a little where it was
