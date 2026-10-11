@@ -88,9 +88,23 @@ def test_get_runways_returns_nothing_for_an_airport_with_none_listed(runways_csv
 
 
 def test_get_frequencies_sorts_ctaf_first(frequencies_csv):
-    frequencies = get_frequencies("KDLH", cache_path=frequencies_csv)
+    frequencies = get_frequencies("KDLH", cache_path=frequencies_csv, faa_cache_dir=None)
 
     assert [f["type"] for f in frequencies] == ["CTAF", "TWR", "ATIS"]
+
+
+def test_the_faas_frequencies_come_first_with_ourairports_weather_beside_them(frequencies_csv, monkeypatch):
+    from vfr import faa_data
+
+    monkeypatch.setattr(faa_data, "airport_frequencies", lambda ident, cache_dir: [
+        {"type": "ATIS", "description": None, "frequency_mhz": 124.1},
+        {"type": "TWR", "description": "DULUTH", "frequency_mhz": 118.3},
+    ] if ident == "KDLH" else None)
+    frequencies = get_frequencies("KDLH", cache_path=frequencies_csv, faa_cache_dir="faa")
+    assert [(f["type"], f["frequency_mhz"]) for f in frequencies] == [("TWR", 118.3), ("ATIS", 124.1)]
+    # A field the FAA's file lists nothing for: OurAirports' own.
+    monkeypatch.setattr(faa_data, "airport_frequencies", lambda ident, cache_dir: None)
+    assert [f["type"] for f in get_frequencies("KDLH", cache_path=frequencies_csv, faa_cache_dir="faa")] == ["CTAF", "TWR", "ATIS"]
 
 
 def test_two_stages_asking_for_a_table_at_once_download_it_once_and_both_read_it_whole(tmp_path, monkeypatch):

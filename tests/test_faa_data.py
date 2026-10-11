@@ -181,3 +181,62 @@ def test_no_contacts_file_is_a_card_without_them_not_a_failure(monkeypatch, tmp_
         raise RuntimeError("the FAA is down")
     monkeypatch.setattr(faa_data, "ensure_nasr_file", unreachable)
     assert faa_data.airport_contact("KBUR", tmp_path) == {"phone": None, "address": None}
+
+
+_FRQ_HEADER = ('"EFF_DATE","FACILITY","FAC_NAME","FACILITY_TYPE","ARTCC_OR_FSS_ID","CPDLC","TOWER_HRS","SERVICED_FACILITY",'
+               '"SERVICED_FAC_NAME","SERVICED_SITE_TYPE","LAT_DECIMAL","LONG_DECIMAL","SERVICED_CITY","SERVICED_STATE",'
+               '"SERVICED_COUNTRY","TOWER_OR_COMM_CALL","PRIMARY_APPROACH_RADIO_CALL","FREQ","SECTORIZATION","FREQ_USE","REMARK"\n')
+
+
+def _frq(facility, served, freq, use, tower_call="", approach_call="", sector=""):
+    return (f'"2026/10/01","{facility}","X","NON-ATCT","","","","{served}","X","AIRPORT",0,0,"X","IN","US",'
+            f'"{tower_call}","{approach_call}","{freq}","{sector}","{use}",""\n')
+
+
+def test_a_fields_frequencies_are_the_faas_as_the_chart_supplement_lists_them(tmp_path):
+    (tmp_path / "FRQ.csv").write_text(_FRQ_HEADER + "".join([
+        # Salem (I83): its CTAF and UNICOM on one frequency, Louisville's
+        # approach, and its UHF, which a light airplane cannot tune.
+        _frq("I83", "I83", "123.0", "CTAF"),
+        _frq("I83", "I83", "123.0", "UNICOM"),
+        _frq("SDF", "I83", "123.675", "APCH/P DEP/P", approach_call="LOUISVILLE"),
+        _frq("SDF", "I83", "327.0", "APCH/P DEP/P", approach_call="LOUISVILLE"),
+        # Duluth: tower, ground, ATIS, its own UNICOM, a sectored approach,
+        # and what is not a pilot's to call -- the emergency frequency, a
+        # command post, the VORTAC's own -- left off.
+        _frq("DLH", "DLH", "118.3", "LCL/P", tower_call="DULUTH", approach_call="MINNEAPOLIS"),
+        _frq("DLH", "DLH", "121.9", "GND/P", tower_call="DULUTH", approach_call="MINNEAPOLIS"),
+        _frq("DLH", "DLH", "124.1", "ATIS", tower_call="DULUTH"),
+        _frq("DLH", "DLH", "122.95", "UNICOM"),
+        _frq("DLH", "DLH", "125.45", "APCH/P DEP/P", approach_call="DULUTH", sector="360-179"),
+        _frq("DLH", "DLH", "121.5", "EMERG", tower_call="DULUTH"),
+        _frq("DLH", "DLH", "139.9", "ANG COMD POST", tower_call="DULUTH"),
+        _frq("DLH", "DLH", "112.6/73X", "DLH VORTAC"),
+        _frq("PRINCETON", "DLH", "122.5", "DULUTH RCO", tower_call="DULUTH"),
+        # Madison's Class C frequency is its approach's east sector: once.
+        _frq("MSN", "MSN", "120.1", "APCH/P DEP/P", approach_call="MADISON", sector="EAST"),
+        _frq("MSN", "MSN", "120.1", "CLASS C", approach_call="MADISON", sector="EAST"),
+        _frq("MSN", "MSN", "132.0", "CLASS C", approach_call="MADISON", sector="SOUTH"),
+    ]))
+    (tmp_path / "APT_BASE.csv").write_text("ARPT_ID,ICAO_ID,TPA\nI83,,\nDLH,KDLH,\nMSN,KMSN,\n")
+    assert faa_data.airport_frequencies("I83", tmp_path) == [
+        {"type": "CTAF", "description": "CTAF/UNICOM", "frequency_mhz": 123.0},
+        {"type": "A/D", "description": "Louisville", "frequency_mhz": 123.675},
+    ]
+    duluth = faa_data.airport_frequencies("KDLH", tmp_path)
+    assert duluth == faa_data.airport_frequencies("dlh", tmp_path)
+    assert [(f["type"], f["frequency_mhz"], f["description"]) for f in duluth] == [
+        ("TWR", 118.3, "Duluth"), ("GND", 121.9, "Duluth"), ("ATIS", 124.1, None), ("UNICOM", 122.95, None),
+        ("A/D", 125.45, "Duluth 360-179"), ("RCO", 122.5, "Duluth RCO"),
+    ]
+    assert [(f["type"], f["frequency_mhz"], f["description"]) for f in faa_data.airport_frequencies("KMSN", tmp_path)] == [
+        ("A/D", 120.1, "Madison east"), ("APP", 132.0, "Class C Madison south"),
+    ]
+    assert faa_data.airport_frequencies("ZZZ", tmp_path) is None
+
+
+def test_no_frequency_file_is_the_callers_own_list_not_a_failure(monkeypatch, tmp_path):
+    def unreachable(name, cache_dir):
+        raise RuntimeError("the FAA is down")
+    monkeypatch.setattr(faa_data, "ensure_nasr_file", unreachable)
+    assert faa_data.airport_frequencies("I83", tmp_path) is None

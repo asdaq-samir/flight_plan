@@ -155,6 +155,10 @@ _NASR_FILES = {
     # the VFR waypoints charted on the sectionals (VPBNG) -- what a route
     # may fly through on the way (vfr.fixes).
     "FIX_BASE.csv": lambda: find_download_link(find_current_cycle_page(NASR_INDEX_URL), r'href="([^"]*FIX_CSV\.zip)"'),
+    # Every facility's frequencies, by the field each serves: the CTAF,
+    # UNICOM, tower, ground, ATIS and approach the Chart Supplement lists
+    # (airport_frequencies).
+    "FRQ.csv": lambda: find_download_link(find_current_cycle_page(NASR_INDEX_URL), r'href="([^"]*FRQ_CSV\.zip)"'),
 }
 
 
@@ -193,6 +197,7 @@ _EDITIONS = {
     "NAV_CSV": (("NAV_BASE.csv",), None, r'href="([^"]*NAV_CSV\.zip)"'),
     "APT_CSV": (("APT_BASE.csv", "APT_RMK.csv", "APT_RWY_END.csv", "APT_CON.csv"), None, r'href="([^"]*APT_CSV\.zip)"'),
     "FIX_CSV": (("FIX_BASE.csv",), None, r'href="([^"]*FIX_CSV\.zip)"'),
+    "FRQ_CSV": (("FRQ.csv",), None, r'href="([^"]*FRQ_CSV\.zip)"'),
     # The Class B, C and D shapes (vfr.airspace), from the same cycle.
     "Class_Airspace": (
         # The .shp last, which vfr.airspace keys its parse on: its
@@ -454,6 +459,114 @@ def airport_contact(ident: str, cache_dir) -> dict:
         log.warning("No APT_CON.csv for airport contacts; %s gets none", ident, exc_info=True)
         return {"phone": None, "address": None}
     return contacts.get(ident.strip().upper(), {"phone": None, "address": None})
+
+
+# NASR's FREQ_USE for what a VFR pilot calls on, as the card's types
+# (lib/frequencies) name them; the rest -- emergency, military command
+# posts, operations, dispatch, the navaids' own -- are left off.
+_FREQUENCY_USES = {
+    "CTAF": "CTAF", "UNICOM": "UNICOM",
+    "LCL/P": "TWR", "LCL/S": "TWR",
+    "GND/P": "GND", "GND/S": "GND",
+    "CD/P": "CLD", "CD/S": "CLD", "CD": "CLD",
+    "ATIS": "ATIS", "D-ATIS": "ATIS",
+    "APCH/P DEP/P": "A/D", "APCH/S DEP/S": "A/D", "APCH/P DEP/P IC": "A/D",
+    "APCH/P": "APP", "APCH/S": "APP", "APCH/P IC": "APP",
+    "DEP/P": "DEP", "DEP/S": "DEP",
+    # Who to call before a Class B, C or a TRSA, and its sector.
+    "CLASS B": "APP", "CLASS C": "APP", "TRSA": "APP",
+}
+#: The civil aviation VHF band, MHz: what a light airplane's radio tunes.
+_VHF = (118.0, 137.0)
+
+
+def _name_case(text: str) -> str:
+    """A facility's name in the FAA's capitals as a name is written:
+    "CHICAGO" as "Chicago", "DULUTH RCO" as "Duluth RCO"."""
+    return " ".join(w if w in ("RCO", "TWR") else w.capitalize() for w in text.split())
+
+
+def _sector_case(text: str) -> str:
+    """A sector as the Chart Supplement gives it, its words in lower case
+    and its codes kept -- bearings ("360-179"), runways ("RWY 04R/22L")
+    and idents of three letters ("VNY 280-BUR 050, north")."""
+    return re.sub(r"[A-Z]{4,}", lambda m: m.group(0).lower(), text.strip())
+
+
+@lru_cache(maxsize=2)
+def _frequencies_of(path: str, _mtime: float, base: str, _base_mtime: float) -> dict:
+    """FRQ.csv's frequencies by the field they serve, by its FAA and its
+    ICAO identifier: [{"type", "description", "frequency_mhz"}]."""
+    frq = pd.read_csv(path, dtype=str, low_memory=False, keep_default_na=False)
+    by_id: dict = {}
+    for row in frq.to_dict("records"):
+        use = row["FREQ_USE"].strip().upper()
+        kind = _FREQUENCY_USES.get(use)
+        if kind is None and use.endswith(" RCO"):
+            # A Flight Service remote outlet near the field, named for it.
+            kind = "RCO"
+        try:
+            mhz = float(row["FREQ"])
+        except ValueError:
+            continue
+        if kind is None or not _VHF[0] <= mhz < _VHF[1]:
+            continue
+        # Who answers and the sector, as the Chart Supplement sets them:
+        # the approach control's name for an approach ("CHICAGO 360-179"),
+        # the tower's for the tower, ground and clearance ("O HARE"). A
+        # Class B's or C's own words where it is one.
+        approach = kind in ("APP", "DEP", "A/D")
+        call = (row["PRIMARY_APPROACH_RADIO_CALL"] if approach else row["TOWER_OR_COMM_CALL"]).strip()
+        words = " ".join(w for w in (
+            {"CLASS B": "Class B", "CLASS C": "Class C", "TRSA": "TRSA"}.get(use, ""),
+            _name_case(use) if kind == "RCO" else "",
+            _name_case(call) if kind in ("APP", "DEP", "A/D", "TWR", "GND", "CLD") else "",
+            _sector_case(row["SECTORIZATION"]),
+        ) if w)
+        entries = by_id.setdefault(row["SERVICED_FACILITY"].strip().upper(), [])
+        entry = {"type": kind, "description": words or None, "frequency_mhz": mhz}
+        if entry not in entries:
+            entries.append(entry)
+    # A CTAF and a UNICOM on one frequency are one row, as the Chart
+    # Supplement writes them: "CTAF/UNICOM 123.0"; and a Class B's or C's
+    # frequency that is also the approach's sector is that sector's row
+    # alone (Madison's 120.1, both "MADISON EAST" and "CLASS C").
+    for entries in by_id.values():
+        ctaf = {e["frequency_mhz"] for e in entries if e["type"] == "CTAF"}
+        approach = {e["frequency_mhz"] for e in entries if e["type"] in ("A/D", "DEP") or (
+            e["type"] == "APP" and not (e["description"] or "").startswith(("Class", "TRSA")))}
+        for e in entries:
+            if e["type"] == "CTAF" and any(u["type"] == "UNICOM" and u["frequency_mhz"] == e["frequency_mhz"] for u in entries):
+                e["description"] = "CTAF/UNICOM"
+        entries[:] = [e for e in entries if not (
+            (e["type"] == "UNICOM" and e["frequency_mhz"] in ctaf)
+            or ((e["description"] or "").startswith(("Class", "TRSA")) and e["frequency_mhz"] in approach))]
+    apt = _read_apt_base_cached(base, _base_mtime)
+    for arpt_id, icao_id in zip(apt["ARPT_ID"], apt["ICAO_ID"]):
+        if isinstance(icao_id, str) and icao_id.strip() and isinstance(arpt_id, str) and arpt_id.strip().upper() in by_id:
+            by_id.setdefault(icao_id.strip().upper(), by_id[arpt_id.strip().upper()])
+    return by_id
+
+
+def airport_frequencies(ident: str, cache_dir) -> list[dict] | None:
+    """A field's frequencies from the FAA's own file (NASR's FRQ, what
+    the Chart Supplement and the sectional's airport data are made from),
+    by its FAA or ICAO identifier: its CTAF and UNICOM, tower, ground,
+    clearance, ATIS, the approach and departure that serve it (with their
+    sectors) and the Flight Service outlets named for it, each a VHF
+    frequency, as [{"type", "description", "frequency_mhz"}]. OurAirports'
+    copy, which the card read, had none for Salem (I83), whose 123.0 is on
+    the chart. None where the file cannot be had or lists nothing for the
+    field, for the caller's own fallback."""
+    try:
+        path = ensure_nasr_file("FRQ.csv", cache_dir)
+        base = ensure_nasr_file("APT_BASE.csv", cache_dir)
+        by_id = _frequencies_of(str(path), path.stat().st_mtime, str(base), base.stat().st_mtime)
+    except Exception:  # noqa: BLE001 -- the FAA out or the file damaged: the caller's own list instead
+        log.warning("No FRQ.csv for frequencies; %s gets the fallback", ident, exc_info=True)
+        return None
+    found = by_id.get(ident.strip().upper())
+    return [dict(f) for f in found] if found else None
 
 
 def pattern_agl_ft(ident: str, cache_dir) -> float:

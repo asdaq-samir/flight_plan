@@ -13,7 +13,7 @@ import numpy as np
 import pandas as pd
 import requests
 
-from . import geo
+from . import faa_data, geo
 from .routecsv import locked
 
 OURAIRPORTS_URL = "https://davidmegginson.github.io/ourairports-data/airports.csv"
@@ -29,7 +29,11 @@ FREQUENCIES_CACHE_PATH = _RAW_DIR / "airport-frequencies.csv"
 # anything else -- then tower/ground/approach/departure, then the
 # rest. Anything not listed here sorts after, in whatever order the
 # source data had it.
-_FREQUENCY_TYPE_ORDER = ["CTAF", "UNIC", "TWR", "GND", "APP", "DEP", "ATIS", "AWOS"]
+_FREQUENCY_TYPE_ORDER = ["CTAF", "UNIC", "UNICOM", "TWR", "GND", "CLD", "ATIS", "AWOS", "ASOS", "A/D", "APP", "DEP", "RCO"]
+#: The FAA's files, where the frequencies the card lists come from first (faa_data.airport_frequencies).
+FAA_CACHE_DIR = _RAW_DIR / "faa_nasr"
+#: OurAirports' weather frequencies, which the FAA's frequency file does not list: kept beside the FAA's.
+_WEATHER_TYPES = {"AWOS", "ASOS", "AWOS-3", "AWOS-3PT", "AWOS-A", "ASOS/AWOS"}
 
 
 def _ensure_cached(url: str, cache_path: Path) -> Path:
@@ -470,15 +474,21 @@ def get_runways(ident: str, cache_path: Path = RUNWAYS_CACHE_PATH) -> list[dict]
     return runways
 
 
-def _frequency_list(rows: pd.DataFrame) -> list[dict]:
-    """One airport's rows of the frequencies table as dicts, CTAF/UNICOM
-    first."""
-    def sort_key(freq_type: str) -> int:
+def _sorted_frequencies(frequencies: list[dict]) -> list[dict]:
+    """CTAF/UNICOM first, then the tower and the ground, the weather, the
+    approach -- what a VFR pilot needs first, first."""
+    def sort_key(f: dict) -> int:
         try:
-            return _FREQUENCY_TYPE_ORDER.index(freq_type)
+            return _FREQUENCY_TYPE_ORDER.index((f["type"] or "").upper())
         except ValueError:
             return len(_FREQUENCY_TYPE_ORDER)
 
+    return sorted(frequencies, key=sort_key)
+
+
+def _frequency_list(rows: pd.DataFrame) -> list[dict]:
+    """One airport's rows of the frequencies table as dicts, CTAF/UNICOM
+    first."""
     frequencies = [
         {
             "type": row.get("type") if pd.notna(row.get("type")) else None,
@@ -487,23 +497,40 @@ def _frequency_list(rows: pd.DataFrame) -> list[dict]:
         }
         for _, row in rows.iterrows()
     ]
-    return sorted(frequencies, key=lambda f: sort_key(f["type"] or ""))
+    return _sorted_frequencies(frequencies)
 
 
-def get_frequencies(ident: str, cache_path: Path = FREQUENCIES_CACHE_PATH) -> list[dict]:
+def _with_faa(ident: str, ours: list[dict], faa_cache_dir) -> list[dict]:
+    """The FAA's frequencies for the field where its file lists any (the
+    Chart Supplement's), with OurAirports' weather ones it lacks beside
+    them; OurAirports' alone where it lists none, or cannot be had."""
+    faa = faa_data.airport_frequencies(ident, faa_cache_dir) if faa_cache_dir else None
+    if not faa:
+        return ours
+    have = {f["frequency_mhz"] for f in faa}
+    weather = [f for f in ours if (f["type"] or "").upper() in _WEATHER_TYPES and f["frequency_mhz"] not in have]
+    return _sorted_frequencies(faa + weather)
+
+
+def get_frequencies(ident: str, cache_path: Path = FREQUENCIES_CACHE_PATH, faa_cache_dir=FAA_CACHE_DIR) -> list[dict]:
     """This airport's radio frequencies (CTAF, tower, ATIS, ...), sorted
     with CTAF/UNICOM first since that's what a VFR pilot needs before
-    anything else."""
+    anything else: the FAA's where it lists them, OurAirports' otherwise
+    (_with_faa)."""
     ident = ident.strip().upper()
     df = _load_table(FREQUENCIES_URL, cache_path)
-    return _frequency_list(df[df["airport_ident"].str.upper() == ident])
+    return _with_faa(ident, _frequency_list(df[df["airport_ident"].str.upper() == ident]), faa_cache_dir)
 
 
-def get_frequencies_for(idents: list[str], cache_path: Path = FREQUENCIES_CACHE_PATH) -> dict[str, list[dict]]:
+def get_frequencies_for(
+    idents: list[str], cache_path: Path = FREQUENCIES_CACHE_PATH, faa_cache_dir=FAA_CACHE_DIR,
+) -> dict[str, list[dict]]:
     """The frequencies of several airports from one pass over the table,
     by ident (as given, upper-cased), for a list that would otherwise
-    scan the whole table once per row."""
+    scan the whole table once per row; the FAA's first, as get_frequencies'."""
     wanted = {i.strip().upper() for i in idents}
     df = _load_table(FREQUENCIES_URL, cache_path)
     rows = df[df["airport_ident"].str.upper().isin(wanted)]
-    return {ident: _frequency_list(group) for ident, group in rows.groupby(rows["airport_ident"].str.upper())}
+    ours = {ident: _frequency_list(group) for ident, group in rows.groupby(rows["airport_ident"].str.upper())}
+    found = {ident: _with_faa(ident, ours.get(ident, []), faa_cache_dir) for ident in wanted}
+    return {ident: freqs for ident, freqs in found.items() if freqs}
