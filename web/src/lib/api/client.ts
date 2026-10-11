@@ -8,7 +8,7 @@ import type {
   AirspaceAt, AlertsAhead, ClassBResponse, FlightDetail, FlightRoute, GoogleMaps, Traffic, TrafficFound, NearestAirports, RouteProfile, Tfrs, DevServices, DevServiceStarted, Pilot, Rating, RetrainStarted, Role, SaveFlightRequest,
   SignInCapabilities, AppleSignedIn, LogbookEntry, LogbookEntryRequest, Currency, CurrencyDatesRequest,
   Status, StreamMessage, Totals, WaypointsInView, Training, SavedTrack,
-  OralQuestion, OralQuestionRequest, OralGrade, OralGradeRequest, ProcedureDrawing, ProcedureList,
+  OralQuestion, OralQuestionRequest, OralGrade, OralGradeRequest, ProcedureDrawing, ProcedureList, SpeedDay,
 } from "./types";
 
 /**
@@ -562,6 +562,10 @@ export const api = {
       await webapp.DELETE("/api/aircraft/{id}", { params: { path: { id } } });
     },
   },
+
+  /** The web app's speed, a day at a time (SpeedController): the
+   *  developer's Speed tab. */
+  speedTrend: (days = 90) => webapp.GET("/api/speed", { params: { query: { days } } }).then(data<SpeedDay[]>),
 
   /** A signed-in pilot's logbook and currency. */
   logbook: {

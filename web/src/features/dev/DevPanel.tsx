@@ -18,6 +18,7 @@ import type { ModelComparisonEntry, Status } from "../../lib/api/types";
 import RatingGuide from "../train/components/RatingGuide";
 import { TEXT } from "../../lib/text";
 import { useRetrain } from "./useRetrain";
+import SpeedTab from "./SpeedTab";
 import { grouped } from "../../lib/units";
 
 const mae = (n: number) => n.toFixed(4);
@@ -94,6 +95,8 @@ export function DevPanel() {
           label: "Performance",
           content: <PerformanceTab status={status} failed={statusFailed} />,
         },
+        // The web app's speed over time (SpeedTab).
+        { value: "speed", label: "Speed", content: <SpeedTab /> },
         {
           value: "system", label: "System",
           content: <SystemTab status={status} failed={statusFailed} onRefresh={refreshAll} refreshing={isFetching} />,

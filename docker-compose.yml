@@ -447,6 +447,8 @@ services:
       # as (web/e2e/auth.setup.ts), and whichever APP_DEVELOPER_EMAILS in
       # .env adds -- yours, comma-separated.
       APP_DEVELOPER_EMAILS: developer@example.com,${APP_DEVELOPER_EMAILS:-}
+      # The speed lab's token, for a lab run sent to this stack (SpeedController).
+      APP_SPEED_LAB_TOKEN: ${APP_SPEED_LAB_TOKEN:-}
       # The emailed link's throttle, per address and per caller, loose
       # here: a Playwright run asks for a handful, and a morning of runs
       # would meet the deployed limits of 5 and 20 an hour.

@@ -261,6 +261,31 @@
         "required" : [ "have", "key", "label", "met", "need", "rule", "unit" ],
         "type" : "object"
       },
+      "FieldReport" : {
+        "properties" : {
+          "device" : {
+            "pattern" : "phone|tablet|desktop",
+            "type" : "string"
+          },
+          "metrics" : {
+            "additionalProperties" : {
+              "format" : "double",
+              "type" : "number"
+            },
+            "type" : "object"
+          },
+          "page" : {
+            "pattern" : "[a-z][a-z0-9-]{0,39}",
+            "type" : "string"
+          },
+          "version" : {
+            "pattern" : "[A-Za-z0-9._-]{1,40}",
+            "type" : "string"
+          }
+        },
+        "required" : [ "device", "metrics", "page", "version" ],
+        "type" : "object"
+      },
       "FlightCheckpointDto" : {
         "properties" : {
           "alongTrackNm" : {
@@ -454,6 +479,31 @@
           }
         },
         "required" : [ "codes" ],
+        "type" : "object"
+      },
+      "LabReport" : {
+        "properties" : {
+          "commit" : {
+            "pattern" : "[A-Za-z0-9._-]{1,40}",
+            "type" : "string"
+          },
+          "device" : {
+            "pattern" : "phone|tablet|desktop",
+            "type" : "string"
+          },
+          "metrics" : {
+            "additionalProperties" : {
+              "format" : "double",
+              "type" : "number"
+            },
+            "type" : "object"
+          },
+          "page" : {
+            "pattern" : "[a-z][a-z0-9-]{0,39}",
+            "type" : "string"
+          }
+        },
+        "required" : [ "commit", "device", "metrics", "page" ],
         "type" : "object"
       },
       "LogbookEntryDto" : {
@@ -800,6 +850,39 @@
           }
         },
         "required" : [ "next" ],
+        "type" : "object"
+      },
+      "SpeedDay" : {
+        "properties" : {
+          "count" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "day" : {
+            "type" : "string"
+          },
+          "device" : {
+            "type" : "string"
+          },
+          "metric" : {
+            "type" : "string"
+          },
+          "p50" : {
+            "format" : "double",
+            "type" : "number"
+          },
+          "p75" : {
+            "format" : "double",
+            "type" : "number"
+          },
+          "source" : {
+            "type" : "string"
+          },
+          "version" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "count", "day", "device", "metric", "p50", "p75", "source", "version" ],
         "type" : "object"
       },
       "StreamingResponseBody" : {
@@ -1633,6 +1716,102 @@
         "tags" : [ "Planner" ]
       }
     },
+    "/api/speed" : {
+      "get" : {
+        "description" : "Each day's median and 75th percentile by source, metric and device, oldest first; the developer's.",
+        "operationId" : "trend",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "days",
+          "required" : false,
+          "schema" : {
+            "default" : 90,
+            "format" : "int32",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/SpeedDay"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "summary" : "The speed trend, a day at a time",
+        "tags" : [ "Speed" ]
+      }
+    },
+    "/api/speed/field" : {
+      "post" : {
+        "description" : "Core Web Vitals and timings, nothing of the pilot's; 60 an hour per caller, the rest dropped.",
+        "operationId" : "field",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/FieldReport"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "204" : {
+            "description" : "Kept, or dropped past the hour's allowance"
+          },
+          "400" : {
+            "description" : "Not a speed report"
+          }
+        },
+        "summary" : "Report a page's speed from a pilot's browser",
+        "tags" : [ "Speed" ]
+      }
+    },
+    "/api/speed/lab" : {
+      "post" : {
+        "description" : "Only with the deployment's lab token in X-Speed-Token.",
+        "operationId" : "lab",
+        "parameters" : [ {
+          "in" : "header",
+          "name" : "X-Speed-Token",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/LabReport"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "204" : {
+            "description" : "Kept"
+          },
+          "400" : {
+            "description" : "Not a lab report"
+          },
+          "403" : {
+            "description" : "No token, the wrong one, or none set here"
+          }
+        },
+        "summary" : "Report the nightly lab measurement",
+        "tags" : [ "Speed" ]
+      }
+    },
     "/api/training" : {
       "get" : {
         "operationId" : "get_1",
@@ -1753,6 +1932,9 @@
   }, {
     "description" : "Errors on pilots' devices, logged for the owner",
     "name" : "Client errors"
+  }, {
+    "description" : "The web app's speed over time, from pilots' browsers and the nightly lab run",
+    "name" : "Speed"
   }, {
     "description" : "Chart vision, course and nav log, proxied from the planner service",
     "name" : "Planner"

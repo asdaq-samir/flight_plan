@@ -5,7 +5,7 @@ policy (`web/src/lib/legal`), App Store Connect's App Privacy answers,
 Google Play's Data safety form and the iOS app's privacy manifest
 (`PrivacyInfo.xcprivacy`). Change it
 whenever the code changes what leaves a device or what the server keeps.
-Last checked against the code on 2026-10-08.
+Last checked against the code on 2026-10-11.
 
 "Collected" is App Store Connect's meaning: sent off the device and kept
 longer than it takes to answer the request.
@@ -20,6 +20,7 @@ longer than it takes to answer the request.
 | User Content, Other | Aircraft (tail number, type, performance), saved flights and their nav logs, the logbook, endorsements and currency dates, checkpoint notes a pilot writes for themselves | Yes | App Functionality | Postgres; notes in the planner's `data/labels` |
 | Location, Precise | A flight's track, when a pilot saves it to a flight | Yes | App Functionality | `flight_tracks` |
 | Diagnostics, Crash Data | An uncaught error on the device: its message, stack, the page's path, the browser's name (`lib/errorReports`) | No | App Functionality (finding faults) | The server's log in CloudWatch, 30 days |
+| Diagnostics, Performance Data | How fast a page was on the device: Core Web Vitals (LCP, INP, CLS, FCP, TTFB), the page's name, phone, tablet or desktop, and the app's build; nothing of the pilot's (`lib/speed`, SpeedController) | No | App Functionality (keeping the app fast) | `speed_samples` (Postgres), 400 days |
 
 ## Data that leaves the device but is not collected
 
@@ -62,14 +63,15 @@ The same rows, in Google's words: **Personal info** (email address,
 name, user IDs), **Location** (precise, only a saved flight's track; the
 device's live position is not kept, see above),
 **App activity** (other user-generated content: aircraft, flights,
-logbook, notes) and **App info and performance** (crash logs, not
-linked: not tied to the account, and gone from the log after 30 days).
+logbook, notes) and **App info and performance** (crash logs and
+diagnostics, not linked: not tied to the account; crash logs gone from
+the log after 30 days, speed measurements after 400).
 All collected for app functionality and account management,
 none shared with third parties as Google defines sharing (the
 recipients above process data for the app), all encrypted in transit,
-and all but the crash logs deleted with the account (the crash logs
-carry no account, so a deletion request cannot reach them; they expire
-on their own). The Android app asks for location
+and all but the crash logs and speed measurements deleted with the
+account (they carry no account, so a deletion request cannot reach
+them; they expire on their own). The Android app asks for location
 while it is open only, never in the background.
 
 ## The iOS app's privacy manifest
@@ -77,7 +79,7 @@ while it is open only, never in the background.
 When the iOS project exists (#102), `PrivacyInfo.xcprivacy` declares:
 
 - `NSPrivacyTracking`: false, with no tracking domains;
-- `NSPrivacyCollectedDataTypes`: the six rows of the first table, with
+- `NSPrivacyCollectedDataTypes`: the seven rows of the first table, with
   their linkage and purposes as above;
 - `NSPrivacyAccessedAPITypes`: the required-reason APIs the native shell
   and its plugins use, at least `NSPrivacyAccessedAPICategoryUserDefaults`

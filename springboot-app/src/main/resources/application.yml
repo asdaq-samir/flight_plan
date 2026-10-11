@@ -186,6 +186,11 @@ app:
   # request. docker-compose.yml lists the e2e suite's own address; add
   # yours in .env. See PilotService.
   developer-emails: ${APP_DEVELOPER_EMAILS:}
+  # The token the nightly lab run sends with its speed measurements
+  # (SpeedController, X-Speed-Token); blank refuses them. CI's secret
+  # SPEED_LAB_TOKEN holds the same value.
+  speed:
+    lab-token: ${APP_SPEED_LAB_TOKEN:}
   # The emailed link's own throttle (MagicLinkController): requests an
   # hour per address and per caller. docker-compose.yml loosens both for
   # the local stack, where the e2e suite signs in.
