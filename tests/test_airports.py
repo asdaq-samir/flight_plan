@@ -9,7 +9,10 @@ import pandas as pd
 import pytest
 
 from vfr import airports
-from vfr.airports import _among, _place_of, _places_of, find_place, get_airport, get_frequencies, get_runways, places_in, search_airports
+from vfr.airports import (
+    _among, _place_of, _places_of, find_place, get_airport, get_frequencies, get_frequencies_for, get_runways,
+    places_in, search_airports,
+)
 
 
 @pytest.fixture
@@ -88,9 +91,36 @@ def test_get_runways_returns_nothing_for_an_airport_with_none_listed(runways_csv
 
 
 def test_get_frequencies_sorts_ctaf_first(frequencies_csv):
-    frequencies = get_frequencies("KDLH", cache_path=frequencies_csv)
+    frequencies = get_frequencies("KDLH", cache_path=frequencies_csv, faa_cache_dir=None)
 
     assert [f["type"] for f in frequencies] == ["CTAF", "TWR", "ATIS"]
+
+
+def test_the_faas_frequencies_come_first_with_ourairports_weather_beside_them(frequencies_csv, monkeypatch):
+    from vfr import faa_data
+
+    monkeypatch.setattr(faa_data, "airport_frequencies", lambda ident, cache_dir: [
+        {"type": "ATIS", "description": None, "frequency_mhz": 124.1},
+        {"type": "TWR", "description": "DULUTH", "frequency_mhz": 118.3},
+    ] if ident == "KDLH" else None)
+    frequencies = get_frequencies("KDLH", cache_path=frequencies_csv, faa_cache_dir="faa")
+    assert [(f["type"], f["frequency_mhz"]) for f in frequencies] == [("TWR", 118.3), ("ATIS", 124.1)]
+    # A field the FAA's file lists nothing for: OurAirports' own.
+    monkeypatch.setattr(faa_data, "airport_frequencies", lambda ident, cache_dir: None)
+    assert [f["type"] for f in get_frequencies("KDLH", cache_path=frequencies_csv, faa_cache_dir="faa")] == ["CTAF", "TWR", "ATIS"]
+
+
+def test_ourairports_ctaf_stays_where_the_faa_lists_only_the_approach(frequencies_csv, monkeypatch):
+    from vfr import faa_data
+
+    only_approach = [{"type": "A/D", "description": "Duluth", "frequency_mhz": 125.45}]
+    monkeypatch.setattr(faa_data, "airport_frequencies", lambda ident, cache_dir: only_approach)
+    monkeypatch.setattr(faa_data, "airport_frequencies_for", lambda idents, cache_dir: {"KDLH": only_approach})
+    for frequencies in (
+        get_frequencies("KDLH", cache_path=frequencies_csv, faa_cache_dir="faa"),
+        get_frequencies_for(["KDLH"], cache_path=frequencies_csv, faa_cache_dir="faa")["KDLH"],
+    ):
+        assert [f["type"] for f in frequencies] == ["CTAF", "TWR", "ATIS", "A/D"]
 
 
 def test_two_stages_asking_for_a_table_at_once_download_it_once_and_both_read_it_whole(tmp_path, monkeypatch):

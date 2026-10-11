@@ -152,6 +152,12 @@ def _warm_reference_data() -> None:
         faa_data.airport_contact("KORD", altitude.DEFAULT_FAA_CACHE_DIR)
     except Exception:  # noqa: BLE001
         log.exception("airport contacts warm-up failed")
+    # And their frequencies (vfr.faa_data.airport_frequencies), the
+    # same: 2.6 s the first card would wait.
+    try:
+        faa_data.airport_frequencies("KORD", altitude.DEFAULT_FAA_CACHE_DIR)
+    except Exception:  # noqa: BLE001
+        log.exception("airport frequencies warm-up failed")
 
     if chart_refresh.AUTO_REFRESH:
         chart_refresh.maybe_refresh()
