@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { TrafficAircraft } from "../api/types";
-import { carriedOn, ownShipHex, nearOwnHeight, trafficLabel, trendPx } from "./traffic";
+import { agedBy, carriedOn, ownShipHex, nearOwnHeight, trafficLabel, trendPx } from "./traffic";
 import type { Fix } from "./ownShip";
 
 const plane = (over: Partial<TrafficAircraft> = {}): TrafficAircraft => ({
@@ -37,6 +37,12 @@ it("is near own ship's height within 1,000 ft", () => {
 });
 
 describe("ownShipHex", () => {
+  it("still knows it when the answer is old: 40 s at 112 kt is 1.2 nm, taken back with the age", () => {
+    const behind = plane({ lon: -88.0741 - 0.0268, altitude_ft: 3100 });
+    expect(ownShipHex([behind], fix())).toBeNull();
+    expect(ownShipHex(agedBy([behind], 40), fix())).toBe("a128b9");
+  });
+
   it("knows own ship's own transponder: where it is, as high, the same way, as fast", () => {
     expect(ownShipHex([plane({ altitude_ft: 3100 })], fix())).toBe("a128b9");
   });

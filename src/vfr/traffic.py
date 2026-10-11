@@ -59,6 +59,8 @@ _LOCK = threading.Lock()
 _REGIONS: dict = {}
 #: When adsb.lol may next be asked, monotonic.
 _STATE = {"next_ask": 0.0}
+#: Regions being asked for now; the rest of a region's askers wait on this.
+_FLIGHTS: dict = {}
 
 
 class TrafficUnavailable(RuntimeError):
@@ -119,35 +121,59 @@ def _region_answer(region: tuple[float, float]) -> tuple[float, list[dict]]:
     """(when it came, airplanes) for a region: its last answer while fresh,
     or while adsb.lol may not be asked yet; else adsb.lol's -- for a
     region with none, after waiting out the gap between requests -- else,
-    turned away, its last answer while not too old. One asker at a time:
-    the rest wait for its answer and are given it."""
-    with _LOCK:
-        held = _REGIONS.get(region)
-        now = _clock()
-        kept = held is not None and now - held[0] < KEEP_S
-        if held and now - held[0] < FRESH_S:
-            return held
-        wait = _STATE["next_ask"] - now
-        if wait > 0 and kept:
-            return held
-        if 0 < wait <= MIN_GAP_S:
-            _sleep(wait)
+    turned away, its last answer while not too old. One asker at a time
+    per region: the rest wait for its answer and are given it. The lock
+    is held only to decide and to store, never across the wait or the
+    request, so a phone whose region has an answer is never kept behind
+    another's request."""
+    while True:
+        with _LOCK:
+            held = _REGIONS.get(region)
             now = _clock()
-        if now >= _STATE["next_ask"]:
-            _STATE["next_ask"] = now + MIN_GAP_S
-            try:
-                answer = (now, _ask(region))
-            except TrafficUnavailable:
-                _STATE["next_ask"] = now + BACKOFF_S
+            kept = held is not None and now - held[0] < KEEP_S
+            if held and now - held[0] < FRESH_S:
+                return held
+            wait = _STATE["next_ask"] - now
+            if wait > 0 and kept:
+                return held
+            flight = _FLIGHTS.get(region)
+            if flight is None:
+                # Past two gaps is a back-off, not a queue of regions.
+                if wait > 2 * MIN_GAP_S:
+                    raise TrafficUnavailable("adsb.lol has not answered for a while")
+                # Take the next free place between requests now, so the
+                # next asker's place is a gap after this one's.
+                slot = max(now, _STATE["next_ask"])
+                _STATE["next_ask"] = slot + MIN_GAP_S
+                flight = _FLIGHTS[region] = threading.Event()
+                break
+        # Another phone is asking for this region: wait for it, then look again.
+        flight.wait(TIMEOUT_S + 2 * MIN_GAP_S + 1)
+    try:
+        if slot > now:
+            _sleep(slot - now)
+        asked = _clock()
+        try:
+            answer = (asked, _ask(region))
+        except TrafficUnavailable:
+            answer = None
+        with _LOCK:
+            if answer is None:
+                _STATE["next_ask"] = asked + BACKOFF_S
             else:
                 _REGIONS[region] = answer
                 if len(_REGIONS) > 256:
-                    for gone in [r for r, (at, _) in _REGIONS.items() if now - at > KEEP_S]:
+                    for gone in [r for r, (at, _) in _REGIONS.items() if asked - at > KEEP_S]:
                         del _REGIONS[gone]
-                return answer
-        if kept:
-            return held
-        raise TrafficUnavailable("adsb.lol has not answered for a while")
+    finally:
+        with _LOCK:
+            _FLIGHTS.pop(region, None)
+        flight.set()
+    if answer is not None:
+        return answer
+    if kept:
+        return held
+    raise TrafficUnavailable("adsb.lol has not answered for a while")
 
 
 def near(lat: float, lon: float, radius_nm: float) -> dict:

@@ -30,12 +30,18 @@ export function nearOwnHeight(plane: TrafficAircraft, ownFt: number | null): boo
   return ownFt != null && plane.altitude_ft != null && Math.abs(plane.altitude_ft - ownFt) <= NEAR_FT;
 }
 
+/** The airplanes as they were `ageS` seconds before the answer was
+ *  given: each `seen_s` that much more, as `ownShipHex` takes it. */
+export function agedBy(planes: TrafficAircraft[], ageS: number): TrafficAircraft[] {
+  return planes.map((p) => ({ ...p, seen_s: (p.seen_s ?? 0) + ageS }));
+}
+
 /**
  * Which airplane, if any, is own ship itself, heard by the receivers on
  * the ground from its own transponder: the one nearest the GPS's fix --
  * within half a mile and 400 ft of it, going the same way at about the
  * same speed -- and only that one, so an airplane in formation or just
- * ahead is not lost with it. The feed's position is `seen_s` old, so the
+ * ahead is not lost with it. The feed's position is `seen_s` old (the answer's age too: `agedBy`), so the
  * fix is taken back along its heading by as much. A design choice, as an
  * EFB asks for the airplane's own address instead, which this app does
  * not know.

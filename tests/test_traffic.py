@@ -30,6 +30,7 @@ def clock(monkeypatch):
     clock = Clock()
     monkeypatch.setattr(traffic, "_REGIONS", {})
     monkeypatch.setattr(traffic, "_STATE", {"next_ask": 0.0})
+    monkeypatch.setattr(traffic, "_FLIGHTS", {})
     monkeypatch.setattr(traffic, "_clock", clock)
     monkeypatch.setattr(traffic, "_sleep", clock.sleep)
     return clock
@@ -155,3 +156,24 @@ def test_askers_at_once_share_one_request(clock):
         for t in threads:
             t.join()
     assert get.call_count == 1
+
+
+def test_a_region_with_an_answer_is_not_kept_behind_another_regions_request(clock):
+    with patch("vfr.traffic.requests.get", return_value=_answer([CESSNA])):
+        traffic.near(42.3, -88.1, 25)
+    started, release = threading.Event(), threading.Event()
+
+    def slow(*args, **kwargs):
+        started.set()
+        release.wait(5)
+        return _answer([])
+
+    with patch("vfr.traffic.requests.get", side_effect=slow):
+        clock.now += 6
+        other = threading.Thread(target=traffic.near, args=(45.0, -93.0, 25))
+        other.start()
+        assert started.wait(5)
+        # Its own answer is a second old, fresh: given while the other asks.
+        traffic.near(42.3, -88.1, 25)
+        release.set()
+        other.join()

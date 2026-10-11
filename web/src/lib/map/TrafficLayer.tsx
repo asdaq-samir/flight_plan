@@ -8,7 +8,7 @@ import { clearProblem, raiseProblem } from "../problems";
 import { usePreferences } from "../preferences";
 import { TRAFFIC_COLOURS, trafficIcon } from "./icons";
 import { useOwnShip, type Fix } from "./ownShip";
-import { CARRY_S, carriedOn, nearOwnHeight, ownShipHex, trafficLabel, trendPx } from "./traffic";
+import { CARRY_S, agedBy, carriedOn, nearOwnHeight, ownShipHex, trafficLabel, trendPx } from "./traffic";
 
 /** How often the traffic is asked for again, ms: the planner asks
  *  adsb.lol about a region at most every five seconds (vfr.traffic). */
@@ -114,7 +114,7 @@ function Traffic() {
     // The last view's answer, held while this one's is asked: already in.
     if (!data || isPlaceholderData) return;
     const received = dataUpdatedAt;
-    const own = ownShipHex(data.aircraft, fixNow.current);
+    const own = ownShipHex(agedBy(data.aircraft, data.age_s ?? 0), fixNow.current);
     const seen = new Set<string>();
     for (const plane of data.aircraft) {
       if (plane.hex === own) continue;
