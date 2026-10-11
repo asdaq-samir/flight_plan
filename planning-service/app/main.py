@@ -195,7 +195,9 @@ def _warm_reference_data() -> None:
     # and a check is three page reads. Off with the charts' own refresh
     # (CHARTS_AUTO_REFRESH=0: a test stack).
     last_editions_check = 0.0
-    last_registry_check = time.time()
+    # 0.0 as above: a startup read that failed is tried again on the first
+    # pass, and after a good one refresh() sees a fresh file and does nothing.
+    last_registry_check = 0.0
     while True:
         if chart_refresh.AUTO_REFRESH and time.time() - last_editions_check >= EDITIONS_CHECK_EVERY_S:
             last_editions_check = time.time()
