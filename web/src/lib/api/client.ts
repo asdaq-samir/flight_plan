@@ -8,7 +8,7 @@ import type {
   AirspaceAt, AlertsAhead, ClassBResponse, FlightDetail, FlightRoute, GoogleMaps, Traffic, TrafficFound, NearestAirports, RouteProfile, Tfrs, DevServices, DevServiceStarted, Pilot, Rating, RetrainStarted, Role, SaveFlightRequest,
   SignInCapabilities, AppleSignedIn, LogbookEntry, LogbookEntryRequest, Currency, CurrencyDatesRequest, Subscription, Alternates, VorCheckRequest, InspectionsRequest, ChecklistDto, Squawk, SquawkRequest, Reminders, LogbookImportResult, FlightPlanFilingRequest, FlightServiceStatus, FlightPlanFiled, DeviceCode,
   Status, StreamMessage, Totals, WaypointsInView, Training, SavedTrack,
-  OralQuestion, OralQuestionRequest, OralGrade, OralGradeRequest, ProcedureDrawing, ProcedureList,
+  OralQuestion, OralQuestionRequest, OralGrade, OralGradeRequest, ProcedureDrawing, ProcedureList, SpeedDay,
 } from "./types";
 
 /**
@@ -634,6 +634,10 @@ export const api = {
     file: (plan: FlightPlanFilingRequest) =>
       webapp.POST("/api/flight-service/flight-plans", { body: plan }).then(data<FlightPlanFiled>),
   },
+
+  /** The web app's speed, a day at a time (SpeedController): the
+   *  developer's Speed tab. */
+  speedTrend: (days = 90) => webapp.GET("/api/speed", { params: { query: { days } } }).then(data<SpeedDay[]>),
 
   /** A signed-in pilot's logbook and currency. */
   logbook: {

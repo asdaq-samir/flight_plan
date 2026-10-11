@@ -241,6 +241,10 @@ export type LogbookImportResult = Webapp["LogbookImportResult"];
 export type FlightPlanFilingRequest = Webapp["FlightPlanFilingRequest"];
 export type FlightServiceStatus = Webapp["FlightServiceStatus"];
 export type FlightPlanFiled = Webapp["FlightPlanFiled"];
+/** One day of one speed metric from one source and kind of device (SpeedController). */
+export type SpeedDay = Webapp["SpeedDay"];
+/** A page's Core Web Vitals from this browser (SpeedController, lib/speed). */
+export type SpeedFieldReport = Webapp["FieldReport"];
 
 /** One row of "My Flights" -- totals only; `Flight` carries the full
  *  filed nav log, fetched one flight at a time. */

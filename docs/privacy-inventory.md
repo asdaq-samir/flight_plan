@@ -22,6 +22,7 @@ longer than it takes to answer the request.
 | Purchases, Purchase History | The subscription: when the free month started and ends, and a paid plan's term, its store and the store's own id for it | Yes | App Functionality (the paid features) | `subscriptions` |
 | Usage Data, Product Interaction | How many of each Claude-written feature (the written briefing, checkpoint descriptions, the mock oral) a pilot used this month, a count, for its monthly cap | Yes | App Functionality (the cap) | `paid_feature_uses` |
 | Diagnostics, Crash Data | An uncaught error on the device: its message, stack, the page's path, the browser's name (`lib/errorReports`) | No | App Functionality (finding faults) | The server's log in CloudWatch, 30 days |
+| Diagnostics, Performance Data | How fast a page was on the device: Core Web Vitals (LCP, INP, CLS, FCP, TTFB), the page's name, phone, tablet or desktop, and the app's build; nothing of the pilot's (`lib/speed`, SpeedController) | No | App Functionality (keeping the app fast) | `speed_samples` (Postgres), 400 days |
 
 ## Data that leaves the device but is not collected
 
@@ -69,14 +70,15 @@ The same rows, in Google's words: **Personal info** (email address,
 name, user IDs), **Location** (precise, only a saved flight's track; the
 device's live position is not kept, see above),
 **App activity** (other user-generated content: aircraft, flights,
-logbook, notes) and **App info and performance** (crash logs, not
-linked: not tied to the account, and gone from the log after 30 days).
+logbook, notes) and **App info and performance** (crash logs and
+diagnostics, not linked: not tied to the account; crash logs gone from
+the log after 30 days, speed measurements after 400).
 All collected for app functionality and account management,
 none shared with third parties as Google defines sharing (the
 recipients above process data for the app), all encrypted in transit,
-and all but the crash logs deleted with the account (the crash logs
-carry no account, so a deletion request cannot reach them; they expire
-on their own). The Android app asks for location
+and all but the crash logs and speed measurements deleted with the
+account (they carry no account, so a deletion request cannot reach
+them; they expire on their own). The Android app asks for location
 while it is open only, never in the background.
 
 ## The iOS app's privacy manifest
@@ -84,7 +86,7 @@ while it is open only, never in the background.
 When the iOS project exists (#102), `PrivacyInfo.xcprivacy` declares:
 
 - `NSPrivacyTracking`: false, with no tracking domains;
-- `NSPrivacyCollectedDataTypes`: the six rows of the first table, with
+- `NSPrivacyCollectedDataTypes`: the seven rows of the first table, with
   their linkage and purposes as above;
 - `NSPrivacyAccessedAPITypes`: the required-reason APIs the native shell
   and its plugins use, at least `NSPrivacyAccessedAPICategoryUserDefaults`

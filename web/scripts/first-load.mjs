@@ -45,6 +45,8 @@ for (const [file, bytes] of [...seen].sort((a, b) => b[1] - a[1])) {
   console.log(`${(bytes / 1e3).toFixed(0).padStart(6)} KB  ${file}`);
 }
 console.log(`first load: ${mb(total)} of JavaScript in ${seen.size} chunks` + (budget ? `, budget ${mb(budget)}` : ""));
+// The exact count, for the nightly speed trend (ci.yml, Speed lab).
+console.log(`first load bytes: ${total}`);
 if (budget && total > budget) {
   console.error(`::error title=First load over budget::${mb(total)} of JavaScript, over the ${mb(budget)} budget. Find what grew with this script's list against main's, and see the measure-speed skill.`);
   process.exit(1);

@@ -154,7 +154,9 @@ public class SecurityConfig {
                             // question and an answer, and the developer's
                             // until a CFI has reviewed what it says.
                             .requestMatchers(HttpMethod.POST, "/api/planner/oral/**").access(developer)
-                            .requestMatchers("/api/planner/status", "/api/planner/dev/**").access(developer);
+                            .requestMatchers("/api/planner/status", "/api/planner/dev/**").access(developer)
+                            // The web app's speed over time (SpeedController).
+                            .requestMatchers(HttpMethod.GET, "/api/speed").access(developer);
                     // Reading from the planner: planning a route needs no
                     // account.
                     auth.requestMatchers(HttpMethod.GET, "/api/planner/**").permitAll();
@@ -219,6 +221,10 @@ public class SecurityConfig {
                             // An error on a pilot's phone, before sign-in as
                             // much as after (ClientErrorController).
                             .requestMatchers(HttpMethod.POST, "/api/client-errors").permitAll()
+                            // A page's speed from a pilot's browser, signed in
+                            // or not, and the nightly lab run's, which carries
+                            // its own token (SpeedController).
+                            .requestMatchers(HttpMethod.POST, "/api/speed/field", "/api/speed/lab").permitAll()
                             .requestMatchers(HttpMethod.GET, "/", "/error").permitAll()
                             // What iOS and Android read to open this site's
                             // links in the app (AppSiteAssociationController,
@@ -238,8 +244,10 @@ public class SecurityConfig {
                         .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
                         .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler())
                         // sendBeacon carries no header, and a forged report
-                        // can only add a line to the log (ClientErrorController).
-                        .ignoringRequestMatchers("/api/client-errors"))
+                        // can only add a line to the log (ClientErrorController)
+                        // or a sample to the speed trend; the lab run has no
+                        // session to forge, only its token (SpeedController).
+                        .ignoringRequestMatchers("/api/client-errors", "/api/speed/field", "/api/speed/lab"))
                 // The handler above resolves the token lazily and nothing
                 // server-rendered ever forces it, so without this filter
                 // the XSRF-TOKEN cookie is never written and every POST
