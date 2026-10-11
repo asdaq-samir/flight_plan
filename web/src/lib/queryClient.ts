@@ -209,10 +209,12 @@ export const flightQuery = (hex: string) => queryOptions({
 });
 
 /** The route a tracked flight's number is scheduled to fly, asked once a
- *  callsign (vfr.traffic.route): where the airplane is when first asked
- *  says whether it is on it. Quiet, as the flight's. */
+ *  callsign (vfr.traffic.route; the planner keeps it six hours): where the
+ *  airplane is says whether it is on it, so the position, to a degree, is
+ *  in the key and a diversion or a reused callsign is asked again. Quiet,
+ *  as the flight's. */
 export const routeQuery = (callsign: string | null, at: { lat: number; lon: number } | null) => queryOptions({
-  queryKey: ["route", callsign], queryFn: () => api.trafficRoute({ callsign: callsign!, ...at }),
+  queryKey: ["route", callsign, at ? Math.round(at.lat) : null, at ? Math.round(at.lon) : null], queryFn: () => api.trafficRoute({ callsign: callsign!, ...at }),
   enabled: !!callsign, staleTime: 30 * 60_000, meta: { silent: true },
 });
 

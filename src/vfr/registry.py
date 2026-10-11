@@ -257,8 +257,10 @@ def lookup(hex_id: str | None = None, n_number: str | None = None, directory: Pa
     with sqlite3.connect(f"file:{db_path}?mode=ro", uri=True) as db:
         db.row_factory = sqlite3.Row
         row = None
-        if hex_id:
-            row = db.execute("SELECT * FROM aircraft WHERE mode_s_hex = ?", (hex_id.lower().lstrip("~"),)).fetchone()
+        # adsb.lol marks a TIS-B / ADS-R pseudo-address with "~": it is not a
+        # Mode S code the FAA assigned, so it must not match an owner's.
+        if hex_id and not hex_id.startswith("~"):
+            row = db.execute("SELECT * FROM aircraft WHERE mode_s_hex = ?", (hex_id.lower(),)).fetchone()
         if row is None and re.fullmatch(r"N[1-9][0-9A-Z]{0,4}", n):
             row = db.execute("SELECT * FROM aircraft WHERE n_number = ?", (n,)).fetchone()
     if row is None:

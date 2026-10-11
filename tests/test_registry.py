@@ -87,3 +87,11 @@ def test_none_where_the_registry_is_not_read_or_has_no_such_airplane(archive, tm
     assert registry.lookup(hex_id="000001", directory=tmp_path) is None
     # Not an N-number: a foreign registration is not looked for.
     assert registry.lookup(n_number="G-EUPT", directory=tmp_path) is None
+
+
+def test_a_tis_b_pseudo_address_is_not_matched_to_an_owners_address(archive, tmp_path):
+    registry.build(archive, tmp_path / registry.DB_NAME)
+    # adsb.lol's "~" marks an address the FAA did not assign: no owner by it.
+    assert registry.lookup(hex_id="~a89c1e", directory=tmp_path) is None
+    # Its self-reported registration can still be looked up.
+    assert registry.lookup(hex_id="~a89c1e", n_number="N654FL", directory=tmp_path)["n_number"] == "N654FL"
