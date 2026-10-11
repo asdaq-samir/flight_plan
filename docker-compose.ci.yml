@@ -72,6 +72,9 @@ services:
       # planner prepares at startup, are all the suite needs. The daily
       # refresh is the local stack's and AWS's job, not a test run's.
       CHARTS_AUTO_REFRESH: "0"
+      # Nor the FAA's aircraft registry (73 MB a run): the suite stubs a
+      # tracked airplane's card.
+      REGISTRY_REFRESH: "0"
       # And a tile never sends for a sheet: the warm-up's are all it
       # draws on (vfr.charts.FETCH_FOR_TILES). A zoomed-out view used to
       # send for 29 sheets past the corridor's 10 -- minutes of downloads
