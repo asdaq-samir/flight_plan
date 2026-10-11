@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Wingtip Maps on Samsung's TVs (docs/TV.md): a web app whose page
+     (index.html) goes to the site, which it is allowed to show
+     (allow-navigation, access) and reach (the internet privilege).
+     __HOST__ and the package id are written as it is packaged
+     (tv/package.sh); Samsung's certificate signs it (Tizen Studio). -->
+<widget xmlns="http://www.w3.org/ns/widgets" xmlns:tizen="http://tizen.org/ns/widgets"
+        id="https://__HOST__/tv" version="1.0.0" viewmodes="maximized">
+    <tizen:application id="__PACKAGE__.WingtipMaps" package="__PACKAGE__" required_version="3.0"/>
+    <tizen:profile name="tv-samsung"/>
+    <name>Wingtip Maps</name>
+    <description>VFR flight planning on the FAA chart</description>
+    <content src="index.html"/>
+    <icon src="icon.png"/>
+    <access origin="https://__HOST__" subdomains="true"/>
+    <tizen:allow-navigation>__HOST__</tizen:allow-navigation>
+    <tizen:privilege name="http://tizen.org/privilege/internet"/>
+    <tizen:setting screen-orientation="landscape" context-menu="enable" background-support="disable"
+                   encryption="disable" install-location="auto" hwkey-event="enable"/>
+</widget>

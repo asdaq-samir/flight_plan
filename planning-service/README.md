@@ -170,7 +170,9 @@ clock, `01:00-06:00` by default, blank for any time; set `TZ` for a
 local clock), niced, with `CHARTS_REFRESH_WORKERS` processes (one by
 default) -- unless nothing complete is on disk at all, when it starts
 at once. `refresh now` in the Dev console starts one at once with two
-workers, and `CHARTS_AUTO_REFRESH=0` turns the check off. All of that
+workers, and `CHARTS_AUTO_REFRESH=0` turns the check off. (The FAA aircraft
+registry has its own switch: `REGISTRY_REFRESH=0` turns off its daily
+download, which is on otherwise, whatever the charts do.) All of that
 policy -- the window, the due check, the worker counts -- is
 `app/chart_refresh.py`; `vfr.charts` does the work it asks for. `python -m
 vfr.charts check` looks for daylight between adjacent sheets, which is

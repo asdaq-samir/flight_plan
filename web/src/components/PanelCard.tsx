@@ -1,6 +1,7 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { cn } from "cn";
 import CloseButton from "./CloseButton";
+import { holdOpenCard } from "../lib/openCards";
 import { TEXT } from "../lib/text";
 
 /**
@@ -58,6 +59,11 @@ export function CardHead({ name, line, nameTestId, lineClassName, lineTestId, on
   /** Between the name and the close. */
   children?: ReactNode;
 }) {
+  // Its close for a device's Back (lib/openCards, lib/back), the latest
+  // one given.
+  const close = useRef(onClose);
+  useEffect(() => { close.current = onClose; });
+  useEffect(() => holdOpenCard({ close: () => close.current() }), []);
   return (
     <div className="flex items-start gap-2">
       <div className="min-w-0 flex-1">

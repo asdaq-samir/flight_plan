@@ -64,6 +64,9 @@ log = logging.getLogger(__name__)
 WEATHER_REFRESH_S = 240
 # How often the FAA's files are checked for a new edition.
 EDITIONS_CHECK_EVERY_S = 6 * 3600
+#: Whether the FAA's aircraft registry is downloaded and read here
+#: (vfr.registry): on, but on a test stack (docker-compose.ci.yml).
+REGISTRY_REFRESH = os.environ.get("REGISTRY_REFRESH", "1") != "0"
 # Set once the reference data below is loaded: the health probe reports
 # it, so a test run against a fresh stack can wait for a planner that
 # answers at full speed rather than one still parsing airspace under
@@ -163,9 +166,12 @@ def _warm_reference_data() -> None:
         log.exception("towns warm-up failed")
     # And the FAA's aircraft registry (vfr.registry), for a tracked
     # airplane's card: 73 MB from the FAA and half a minute's read, once a
-    # day; a card before it is in shows no registration. Not on a test
-    # stack (CHARTS_AUTO_REFRESH=0), which downloads nothing it need not.
-    if chart_refresh.AUTO_REFRESH:
+    # day; a card before it is in shows no registration. Its own switch
+    # (REGISTRY_REFRESH), not the charts': the server draws no charts
+    # (CHARTS_AUTO_REFRESH=0 there too), and gated on that, it never read
+    # the registry at all. Off on a test stack, which downloads nothing it
+    # need not.
+    if REGISTRY_REFRESH:
         try:
             registry.refresh()
         except Exception:  # noqa: BLE001 -- the next day's check tries again
@@ -190,6 +196,9 @@ def _warm_reference_data() -> None:
     # and a check is three page reads. Off with the charts' own refresh
     # (CHARTS_AUTO_REFRESH=0: a test stack).
     last_editions_check = 0.0
+    # 0.0 as above: a startup read that failed is tried again on the first
+    # pass, and after a good one refresh() sees a fresh file and does nothing.
+    last_registry_check = 0.0
     while True:
         if chart_refresh.AUTO_REFRESH and time.time() - last_editions_check >= EDITIONS_CHECK_EVERY_S:
             last_editions_check = time.time()
@@ -205,7 +214,10 @@ def _warm_reference_data() -> None:
                     fixes.preload()
             except Exception:  # noqa: BLE001 -- the FAA's index out of reach: the next check tries again
                 log.warning("FAA editions not checked", exc_info=True)
-            # The aircraft registry, read again once it is a day old.
+        # The aircraft registry, read again once it is a day old (each
+        # check a look at the file's age).
+        if REGISTRY_REFRESH and time.time() - last_registry_check >= EDITIONS_CHECK_EVERY_S:
+            last_registry_check = time.time()
             try:
                 registry.refresh()
             except Exception:  # noqa: BLE001 -- the next check tries again; the held copy is served
