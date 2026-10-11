@@ -213,25 +213,16 @@ def published_floors(legs: int, airway: dict) -> list[LegFloor]:
 
 def _pixel_lat_lon(z: int, x: int, y: int, size: int) -> tuple[np.ndarray, np.ndarray]:
     """Each pixel's centre in a slippy-map tile, as (lat, lon) grids."""
-    n = 2 ** z
-    lons = ((np.arange(size) + 0.5) / size + x) / n * 360.0 - 180.0
-    rows = (np.arange(size) + 0.5) / size + y
-    lats = np.degrees(np.arctan(np.sinh(math.pi * (1 - 2 * rows / n))))
+    within = (np.arange(size) + 0.5) / size
+    lats, lons = geo.tile_lat_lon(within + x, within + y, z)
     return np.meshgrid(lats, lons, indexing="ij")
 
 
 def _tiles_over(bbox: tuple, z: int) -> list[tuple[int, int]]:
     """The tiles at zoom z that cover (min_lat, min_lon, max_lat, max_lon)."""
     min_lat, min_lon, max_lat, max_lon = bbox
-    n = 2 ** z
-
-    def xy(lat: float, lon: float) -> tuple[int, int]:
-        fx = (lon + 180.0) / 360.0 * n
-        fy = (1.0 - math.asinh(math.tan(math.radians(lat))) / math.pi) / 2.0 * n
-        return int(fx), int(fy)
-
-    x0, y0 = xy(max_lat, min_lon)
-    x1, y1 = xy(min_lat, max_lon)
+    x0, y0 = (int(v) for v in geo.tile_xy(max_lat, min_lon, z))
+    x1, y1 = (int(v) for v in geo.tile_xy(min_lat, max_lon, z))
     return [(x, y) for x in range(x0, x1 + 1) for y in range(y0, y1 + 1)]
 
 

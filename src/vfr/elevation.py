@@ -19,7 +19,7 @@ import numpy as np
 import requests
 from cachetools import LRUCache
 
-from .geo import destination_point
+from .geo import destination_point, tile_xy
 from .retry import with_retries
 from .routecsv import locked
 
@@ -310,9 +310,7 @@ def _terrain_tile(z: int, x: int, y: int) -> np.ndarray:
 def ground_m(lat: float, lon: float, zoom: int = TERRAIN_TILE_ZOOM) -> float:
     """The ground's height at a point, in metres, from the terrain tiles.
     Raises requests.RequestException where they cannot be fetched."""
-    n = 2 ** zoom
-    fx = (lon + 180.0) / 360.0 * n
-    fy = (1.0 - math.asinh(math.tan(math.radians(lat))) / math.pi) / 2.0 * n
+    fx, fy = tile_xy(lat, lon, zoom)
     x, y = int(fx), int(fy)
     heights = _terrain_tile(zoom, x, y)
     size = heights.shape[0]

@@ -90,6 +90,7 @@ from .config import (
     VFR_TAC_MIN_ZOOM,
 )
 from . import chart_faces
+from .geo import tile_lat_lon, tile_xy
 
 log = logging.getLogger(__name__)
 
@@ -453,13 +454,9 @@ def tile_bbox_3857(x: int, y: int, zoom: int) -> tuple:
 
 def tile_bbox_wgs84(x: int, y: int, zoom: int) -> Box:
     """The same tile as (west, south, east, north) degrees."""
-    n = 2 ** zoom
-    west, east = x / n * 360.0 - 180.0, (x + 1) / n * 360.0 - 180.0
-
-    def lat(row: int) -> float:
-        return math.degrees(math.atan(math.sinh(math.pi * (1 - 2 * row / n))))
-
-    return west, lat(y + 1), east, lat(y)
+    north, west = tile_lat_lon(x, y, zoom)
+    south, east = tile_lat_lon(x + 1, y + 1, zoom)
+    return west, south, east, north
 
 
 def _intersects(a: Box, b: Box) -> bool:
@@ -1138,13 +1135,11 @@ def _tile_range(face: Box, zoom: int) -> tuple:
     """(x0, x1, y0, y1), inclusive, of the tiles a face touches."""
     n = 2 ** zoom
     west, south, east, north = face
-
-    def row(lat: float) -> int:
-        lat = max(-85.05, min(85.05, lat))
-        return int((1 - math.asinh(math.tan(math.radians(lat))) / math.pi) / 2 * n)
-
-    x0, x1 = int((west + 180) / 360 * n), int((east + 180) / 360 * n)
-    return max(0, x0), min(n - 1, x1), max(0, row(north)), min(n - 1, row(south))
+    # Web Mercator ends short of the poles; a face's edge past that
+    # would be off the grid.
+    x0, y0 = tile_xy(max(-85.05, min(85.05, north)), west, zoom)
+    x1, y1 = tile_xy(max(-85.05, min(85.05, south)), east, zoom)
+    return max(0, int(x0)), min(n - 1, int(x1)), max(0, int(y0)), min(n - 1, int(y1))
 
 
 def _render_row(args: tuple) -> int:

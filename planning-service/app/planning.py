@@ -490,14 +490,17 @@ def no_altitude(
     KDLH"), else how far along. `class_b` says Class B airspace is
     what stops it, for the page to offer a clearance or a way round:
     `via`, the best waypoint round it (class_b_detours), when there is one."""
-    if selection.get("rules") == "ifr":
-        return _no_ifr_altitude(selection, between, where)
+    ifr = selection.get("rules") == "ifr"
+    kind = "IFR" if ifr else "legal VFR"
+    # Prohibited airspace is closed whatever the rules or the altitude:
+    # nobody flies in it without its using agency's authorization (14 CFR
+    # 73.83), which an ATC clearance is not.
     prohibited = [a["name"] for a in selection.get("special_use", []) if a.get("type") == "P"]
     if prohibited:
         return {
             "title": "The route crosses prohibited airspace",
             "brief": f"{prohibited[0]} is prohibited airspace",
-            "reasons": [f"{name} is closed to every VFR altitude." for name in prohibited],
+            "reasons": [f"{name} is closed to every altitude." for name in prohibited],
             "advice": "Plan around it.",
             "class_b": False,
         }
@@ -506,13 +509,18 @@ def no_altitude(
     floor, top = (stuck or {}).get("floor_ft"), (stuck or {}).get("band_ceiling_ft")
     if stuck is None or None in (course, floor, top):
         return {
-            "title": (f"No legal VFR cruising altitude fits {between[0]} to {between[1]} in this aircraft" if between
-                      else "No legal VFR cruising altitude fits this route in this aircraft"),
-            "brief": "No VFR altitude fits this aircraft",
+            "title": (f"No {kind} cruising altitude fits {between[0]} to {between[1]} in this aircraft" if between
+                      else f"No {kind} cruising altitude fits this route in this aircraft"),
+            "brief": f"No {'IFR' if ifr else 'VFR'} altitude fits this aircraft",
             "reasons": [],
             "advice": "Set a cruise altitude of your own to plan it anyway.",
             "class_b": False,
         }
+    place = where or f"{(stuck['from_nm'] + stuck['to_nm']) / 2:,.0f} nm along"
+    title = f"No {kind} cruising altitude {stuck['from_nm']:.0f}-{stuck['to_nm']:.0f} nm " + (
+        f"out of {between[0]} toward {between[1]}" if between else "along the route")
+    if ifr:
+        return _no_ifr_altitude(stuck, course, floor, top, title, place)
     # The first altitude the band would have taken: the same rule as the
     # band's own (legal_cruising_altitudes) -- any 500 ft under 3,000 ft
     # above the ground, the course's own thousands-plus-500 over it. It
@@ -532,7 +540,6 @@ def no_altitude(
     # altitude it needs ("Ceiling 11,700 ft: terrain 540 nm past KDLH needs
     # 12,500"), as the pilot asked -- "over the terrain" said nothing of
     # which.
-    place = where or f"{(stuck['from_nm'] + stuck['to_nm']) / 2:,.0f} nm along"
     need = f"terrain {place} needs {first:,.0f}"
     brief = f"Clouds at {top:,.0f} ft: {need}"
     if top == stuck.get("service_ceiling_ft"):
@@ -550,8 +557,6 @@ def no_altitude(
                   else "Add a stop to route around it") + ", or plan it with a Class B clearance."
     else:
         stops = f"The cloud base stops at {top:,.0f} ft."
-    title = f"No legal VFR cruising altitude {stuck['from_nm']:.0f}-{stuck['to_nm']:.0f} nm " + (
-        f"out of {between[0]} toward {between[1]}" if between else "along the route")
     if top <= 0:
         # Airspace from the ground up leaves no altitude whatever the
         # terrain: the floor and the first altitude over it were noise.
@@ -565,39 +570,15 @@ def no_altitude(
     }
 
 
-def _no_ifr_altitude(selection: dict, between: tuple[str, str] | None, where: str | None) -> dict:
-    """no_altitude for a flight under IFR: the minimum IFR altitude where it
-    fails (14 CFR 91.177(a)(2)) and the first IFR altitude over it by the
-    direction of flight (91.179(b)), against the aircraft's service ceiling
-    -- or prohibited airspace, which no clearance opens."""
-    prohibited = [a["name"] for a in selection.get("special_use", []) if a.get("type") == "P"]
-    if prohibited:
-        return {
-            "title": "The route crosses prohibited airspace",
-            "brief": f"{prohibited[0]} is prohibited airspace",
-            "reasons": [f"{name} is closed to every altitude." for name in prohibited],
-            "advice": "Plan around it.",
-            "class_b": False,
-        }
-    stuck = next((s for s in selection.get("segments", []) if not s.get("candidates_ft")), None)
-    course = (stuck or {}).get("course_magnetic_deg", selection.get("course_magnetic_deg"))
-    floor, top = (stuck or {}).get("floor_ft"), (stuck or {}).get("band_ceiling_ft")
-    if stuck is None or None in (course, floor, top):
-        return {
-            "title": (f"No IFR cruising altitude fits {between[0]} to {between[1]} in this aircraft" if between
-                      else "No IFR cruising altitude fits this route in this aircraft"),
-            "brief": "No IFR altitude fits this aircraft",
-            "reasons": [],
-            "advice": "Set a cruise altitude of your own to plan it anyway.",
-            "class_b": False,
-        }
+def _no_ifr_altitude(stuck: dict, course: float, floor: float, top: float, title: str, place: str) -> dict:
+    """no_altitude for a flight under IFR, at the segment it fails on: the
+    minimum IFR altitude there (14 CFR 91.177(a)(2)) and the first IFR
+    altitude over it by the direction of flight (91.179(b)), against the
+    aircraft's service ceiling."""
     first = (ifr_module.cruising_altitudes(floor, None, course) or [floor])[0]
     heading = "eastbound" if stuck.get("eastbound") else "westbound"
-    place = where or f"{(stuck['from_nm'] + stuck['to_nm']) / 2:,.0f} nm along"
     clearance = stuck.get("obstacle_clearance_ft") or ifr_module.CLEARANCE_FT
     over = " over a mountainous area" if stuck.get("mountainous") else ""
-    title = f"No IFR cruising altitude {stuck['from_nm']:.0f}-{stuck['to_nm']:.0f} nm " + (
-        f"out of {between[0]} toward {between[1]}" if between else "along the route")
     return {
         "title": title,
         "brief": f"Ceiling {top:,.0f} ft: the minimum IFR altitude {place} is {floor:,.0f}",

@@ -187,6 +187,33 @@ def corridor_bbox(route_start: tuple, route_end: tuple, buffer_nm: float) -> tup
     return (min(lats) - pad_deg, min(lons) - pad_deg, max(lats) + pad_deg, max(lons) + pad_deg)
 
 
+# --- Web Mercator tiles ---
+#
+# The slippy-map grid every tile here is cut on -- the charts, the
+# terrain heights, the chart reader's pixels: spherical Web Mercator
+# (EPSG:3857), 2**zoom tiles a side, x east from 180 W and y south from
+# 85.0511 N. One place for its two formulas, the OpenStreetMap wiki's
+# "Slippy map tilenames", which tests/test_geo.py pins against PROJ's
+# EPSG:3857. Scalars or arrays, as above.
+
+
+def tile_xy(lat, lon, zoom: int) -> tuple:
+    """Where a point falls in the tile grid at `zoom`, as fractional
+    (x, y): the tile is their floor, the place within it the rest."""
+    n = 2 ** zoom
+    x = (lon + 180.0) / 360.0 * n
+    y = (1.0 - np.arcsinh(np.tan(np.radians(lat))) / np.pi) / 2.0 * n
+    return _plain(x), _plain(y)
+
+
+def tile_lat_lon(x, y, zoom: int) -> tuple:
+    """The (lat, lon) at fractional tile coordinates (x, y): a tile's
+    north-west corner at whole ones."""
+    n = 2 ** zoom
+    lat = np.degrees(np.arctan(np.sinh(np.pi * (1.0 - 2.0 * y / n))))
+    return _plain(lat), _plain(x / n * 360.0 - 180.0)
+
+
 # --- Neighbourhood questions, answered with a KD-tree on the unit sphere ---
 #
 # Chord length rises monotonically with great-circle distance, so a
