@@ -562,6 +562,7 @@ export default memo(function FlightBriefingView({
               with when the flight gets to each against its times of use. */}
           <AccordionSection
             title="TFRs & Special Use"
+            finding={tfrsCrossed.length > 0 ? "stop" : specialUse.some(s => s.when === "active") ? "caution" : undefined}
             aside={tfrsCrossed.length > 0 ? <Flag finding="stop" testId="tfr-flag">TFR on the route</Flag>
               : specialUse.some(s => s.when === "active") ? <Flag finding="caution" testId="sua-flag">Area in use</Flag> : undefined}
           >
@@ -632,6 +633,7 @@ export default memo(function FlightBriefingView({
               (lib/frat). */}
           <AccordionSection
             title="Risk Assessment"
+            finding={assessment && assessment.level !== "low" ? (assessment.level === "high" ? "stop" : "caution") : undefined}
             aside={assessment && assessment.level !== "low" ? (
               <Flag finding={assessment.level === "high" ? "stop" : "caution"} testId="risk-flag">
                 {assessment.level === "high" ? "High risk" : "Risk raised"}
@@ -692,6 +694,7 @@ export default memo(function FlightBriefingView({
         <>
           <AccordionSection
             title="Adverse Conditions"
+            finding={vnrReasons.length > 0 || underMine.length > 0 ? "stop" : hazardNames.length > 0 ? "caution" : undefined}
             // On the title, seen before anything under it: VFR not
             // recommended, or short of that, under the pilot's own minimums.
             aside={vnrReasons.length > 0 ? <Flag finding="stop" testId="vnr-flag">VFR not recommended</Flag>

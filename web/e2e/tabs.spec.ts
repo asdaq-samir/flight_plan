@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { settle, sideDrawer, slow, openTab } from "./helpers";
+import { settle, sideDrawer, slow, openTab, openSection, panelTabs, sectionTab } from "./helpers";
 
 /**
  * The planning panel's tabs, each opening on its conclusion: the Brief's
@@ -42,15 +42,19 @@ test("the Brief opens on its Go / No-Go: VFR not recommended is no-go, marked on
   await expect(drawer.locator("[data-testid^='verdict-'][data-finding]")).toHaveCount(8);
 
   await weather.click();
-  await expect(drawer.getByRole("tab", { name: "Weather", exact: true })).toHaveAttribute("aria-selected", "true");
-  await expect(drawer.getByRole("heading", { name: "Adverse Conditions" })).toBeInViewport();
+  await expect(panelTabs(page).getByRole("tab", { name: "Weather", exact: true })).toHaveAttribute("aria-selected", "true");
+  // On its section's pill (SectionTabs), the section under it, flagged.
+  await expect(sectionTab(page, "Adverse Conditions")).toHaveAttribute("aria-selected", "true");
+  await expect(sectionTab(page, "Adverse Conditions").getByTestId("section-tab-mark")).toHaveAttribute("data-finding", "stop");
+  await expect(drawer.locator('[data-tab="weather"] [data-title="Adverse Conditions"]')).toBeInViewport();
   await expect(drawer.getByTestId("vnr-flag")).toBeVisible();
 
   // And the runways' row opens the Performance tab at its runway check.
   await openTab(page, "Brief");
   await drawer.getByTestId("verdict-runways").click();
-  await expect(drawer.getByRole("tab", { name: "Performance", exact: true })).toHaveAttribute("aria-selected", "true");
-  await expect(drawer.getByRole("heading", { name: "Takeoff & Landing" })).toBeInViewport();
+  await expect(panelTabs(page).getByRole("tab", { name: "Performance", exact: true })).toHaveAttribute("aria-selected", "true");
+  await expect(sectionTab(page, "Takeoff & Landing")).toHaveAttribute("aria-selected", "true");
+  await expect(drawer.locator('[data-tab="performance"] [data-title="Takeoff & Landing"]')).toBeInViewport();
   await page.unrouteAll({ behavior: "ignoreErrors" });
 });
 
@@ -58,6 +62,7 @@ test("preflight action is 14 CFR 91.103's list to tick, with what the planner fo
   await planned(page);
   const drawer = sideDrawer(page);
   await openTab(page, "Brief");
+  await openSection(page, "Preflight Action");
   await expect(drawer.getByTestId("preflight-count")).toHaveText("0 of 7 reviewed");
   await expect(drawer.getByTestId("preflight-runways")).toContainText(/C81 [\d,]+ ft · KDLH [\d,]+ ft/);
   await expect(drawer.getByTestId("preflight-distances")).toContainText("91.103(b)");
@@ -81,8 +86,14 @@ test("the Weather goes place by place, each TAF read for when the flight is ther
   });
   await planned(page);
   await openTab(page, "Weather");
+  // The Weather's parts as its section tabs; the places, in the order
+  // flown, under Along the Route.
+  await expect(sideDrawer(page).locator('[data-tab="weather"] [data-testid="section-tab"]'))
+    .toHaveText(["Adverse Conditions", "Along the Route", "Winds Aloft"]);
+  await openSection(page, "Along the Route");
   const places = sideDrawer(page).getByTestId("weather-places");
-  await expect(places.getByRole("heading", { level: 3 })).toHaveText(["C81 · Departure", "En route", "KDLH · Destination"]);
+  await expect(places).toBeVisible();
+  await expect(places.locator("h3")).toHaveText(["C81 · Departure", "En route", "KDLH · Destination"]);
   // The pilot report 120 nm along before the TAF 210 nm along.
   await expect(places.locator("[data-testid='pirep'], [data-testid='enroute-taf']")).toHaveText([/PIREP · 5,500 ft/, /KHYR/]);
   const destination = places.getByTestId("place-taf").last();
@@ -122,8 +133,11 @@ test("the Airports tab is a section for each field, in the order flown, its patt
   await openTab(page, "Airports");
   const sections = drawer.getByTestId("airport-section");
   await expect(sections).toHaveCount(2);
-  await expect(drawer.getByRole("heading", { name: "C81 · Departure" })).toBeVisible();
-  await expect(drawer.getByRole("heading", { name: "KDLH · Destination" })).toBeVisible();
+  // Each field a section tab, the first up.
+  await expect(sectionTab(page, "C81 · Departure")).toHaveAttribute("aria-selected", "true");
+  await expect(sectionTab(page, "KDLH · Destination")).toHaveAttribute("aria-selected", "false");
+  await expect(sections.nth(0)).toBeVisible();
+  await expect(sections.nth(1)).toBeHidden();
   await expect(sections.nth(0).getByTestId("radio-phase")).toContainText("Leaving C81");
   await expect(sections.nth(1).getByTestId("radio-phase")).toContainText("Into KDLH");
   // Each frequency as the field's card lists it: its name in words and

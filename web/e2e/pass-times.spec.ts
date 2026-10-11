@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { settle, sideDrawer, slow, openTab } from "./helpers";
+import { settle, sideDrawer, slow, openTab, openSection, sectionTab } from "./helpers";
 
 /**
  * When the flight gets to each TFR and special-use area on the route,
@@ -43,6 +43,9 @@ test("a TFR in force when the flight gets there is flagged, one that starts late
   // The Brief's tab marked for it, and the flag on its section inside.
   await expect(page.getByTestId("panel-tab-mark-brief")).toBeVisible();
   await openTab(page, "Brief");
+  // Its section's pill marked red while another section is up.
+  await expect(sectionTab(page, "TFRs & Special Use").getByTestId("section-tab-mark")).toHaveAttribute("data-finding", "stop");
+  await openSection(page, "TFRs & Special Use");
   await expect(page.getByTestId("tfr-flag")).toBeVisible();
   const passes = sideDrawer(page).getByTestId("tfr-pass");
   await expect(passes.nth(0)).toContainText("in force then");

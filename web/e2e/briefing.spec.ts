@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { slow, settle, sideDrawer, expectDrawerClosed, expectDrawerOpen, closeSidebarWithTheStockKey, openedDrawerBox, openBriefing, openTab, openSettings, closeConsole, grabberTo } from "./helpers";
+import { slow, settle, sideDrawer, expectDrawerClosed, expectDrawerOpen, closeSidebarWithTheStockKey, openedDrawerBox, openBriefing, openTab, panelTabs, openSettings, closeConsole, grabberTo } from "./helpers";
 
 /**
  * The flight planning panel: how it opens -- from its grabber, a pasted
@@ -48,16 +48,16 @@ test("plan page: the flight planning drawer opens the way the Model Training dra
   // The panel's tabs, in the pilot's order, the nav log's up: it holds
   // the totals and the descriptions button above the table.
   // "Perf" on its tab, its name whole (PanelTabs).
-  await expect(drawer.getByRole("tab")).toHaveText(["Nav Log", "Brief", "Weather", "Perf", "Airports"]);
-  await expect(drawer.getByRole("tab", { name: "Performance" })).toHaveCount(1);
+  await expect(panelTabs(page).getByRole("tab")).toHaveText(["Nav Log", "Brief", "Weather", "Perf", "Airports"]);
+  await expect(panelTabs(page).getByRole("tab", { name: "Performance" })).toHaveCount(1);
   // All five on the panel's line, none past its edge.
-  const tabsBox = (await drawer.getByRole("tablist").boundingBox())!;
-  for (const tab of await drawer.getByRole("tab").all()) {
+  const tabsBox = (await panelTabs(page).boundingBox())!;
+  for (const tab of await panelTabs(page).getByRole("tab").all()) {
     const box = (await tab.boundingBox())!;
     expect(box.x).toBeGreaterThanOrEqual(tabsBox.x - 1);
     expect(box.x + box.width).toBeLessThanOrEqual(tabsBox.x + tabsBox.width + 1);
   }
-  await expect(drawer.getByRole("tab", { name: "Nav Log" })).toHaveAttribute("aria-selected", "true");
+  await expect(panelTabs(page).getByRole("tab", { name: "Nav Log" })).toHaveAttribute("aria-selected", "true");
   await expect(drawer.getByRole("table", { name: /Navigation log from/i })).toBeVisible();
   await expect(drawer.locator('[role="tabpanel"] [data-testid="generate-descriptions-button"]')).toBeVisible();
   // The altitude, its chip beside the airplane, once the log has
@@ -128,7 +128,7 @@ test("plan page: the Brief is a tab after the Nav Log, its narrative from LangGr
   // nothing billed.
   const asked: string[] = [];
   page.on("request", r => { if (r.url().includes("/api/comparison")) asked.push(new URL(r.url()).searchParams.get("framework") ?? ""); });
-  await expect(sideDrawer(page).getByRole("tab", { name: "Nav Log" })).toHaveAttribute("aria-selected", "true");
+  await expect(panelTabs(page).getByRole("tab", { name: "Nav Log" })).toHaveAttribute("aria-selected", "true");
   expect(asked).toEqual([]);
   await openTab(page, "Brief");
   const narrative = page.getByTestId("brief-narrative");

@@ -1,5 +1,5 @@
 import { test, expect, type Locator, type Page } from "@playwright/test";
-import { grabberTo, openPanel, settle, sideDrawer } from "./helpers";
+import { grabberTo, openPanel, panelTabs, settle, sideDrawer } from "./helpers";
 
 /**
  * The map's panel dragged by a finger from anywhere on its body, as an
@@ -42,7 +42,7 @@ test("the panel follows a finger from anywhere on its body: out to the top, and 
   // Up from half, on the tabs' bar -- all of the body half way up shows
   // -- the sheet comes all the way out, and the tab under the finger is
   // not picked by the release.
-  const tabs = panel.getByRole("tablist");
+  const tabs = panelTabs(page);
   const picked = await tabs.getByRole("tab", { selected: true }).textContent();
   await fingerDrag(page, await middleOf(tabs), -400);
   await expect(panel).toHaveAttribute("data-panel", "full");
