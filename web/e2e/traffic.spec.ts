@@ -49,6 +49,32 @@ test("shown in the map's settings, the airplanes about are drawn on their tracks
   await expect.poll(() => asks.length, { timeout: slow(12_000) }).toBeGreaterThan(first);
 });
 
+test("between reports each airplane is carried on along its track, as ForeFlight's and FlightAware's are", async ({ page }) => {
+  await page.addInitScript(() => {
+    const kept = JSON.parse(localStorage.getItem("vfr.preferences") ?? '{"state":{},"version":0}');
+    localStorage.setItem("vfr.preferences", JSON.stringify({ ...kept, state: { ...kept.state, traffic: true } }));
+  });
+  // One report, the planner's held answer growing older as adsb.lol is
+  // not asked again (vfr.traffic): UAL1023 east at 450 kt.
+  const reported = Date.now();
+  const jet = { ...TRAFFIC.aircraft[1], speed_kt: 450 };
+  await page.route(url => url.pathname.endsWith("/api/planner/traffic"), route =>
+    route.fulfill({ json: { ...TRAFFIC, aircraft: [jet], age_s: (Date.now() - reported) / 1000 } }));
+  await page.goto("/app/plan?place=C81");
+  await settle(page);
+  const mark = page.locator("svg[data-traffic]");
+  await expect(mark).toHaveCount(1, { timeout: slow(15_000) });
+  // Its line out to where it will be in a minute.
+  await expect(mark.locator("[data-trend]")).toHaveCount(1);
+  const first = (await mark.boundingBox())!;
+  await page.waitForTimeout(3000);
+  const later = (await mark.boundingBox())!;
+  // East, some 0.4 nm in three seconds: points to the right at this
+  // zoom, and no jump back as the same report comes again.
+  expect(later.x - first.x).toBeGreaterThan(2);
+  expect(Math.abs(later.y - first.y)).toBeLessThan(2);
+});
+
 test("off, as it is unless shown, nothing is asked and nothing drawn", async ({ page }) => {
   const asks = await showTraffic(page, false);
   await page.goto("/app/plan?place=C81");

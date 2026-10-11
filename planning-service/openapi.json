@@ -8147,6 +8147,11 @@
       "Traffic": {
         "description": "The airplanes ADS-B receivers hear near a point, from adsb.lol's\nopen data, under the Open Database License 1.0, which asks that the\nmap say so where it draws them.",
         "properties": {
+          "age_s": {
+            "default": 0.0,
+            "title": "Age S",
+            "type": "number"
+          },
           "aircraft": {
             "items": {
               "$ref": "#/components/schemas/TrafficAircraft"
@@ -11201,7 +11206,7 @@
     },
     "/api/traffic": {
       "get": {
-        "description": "The airplanes in the air within `radius` nm of a point, from\nadsb.lol (Open Database License 1.0): for knowing what is about, not\nfor avoiding it. A 503 where adsb.lol does not answer.",
+        "description": "The airplanes in the air within `radius` nm of a point (at most 60),\nfrom adsb.lol (Open Database License 1.0), and how many seconds old\nthe answer is: for knowing what is about, not for avoiding it. A 503\nwhere adsb.lol has not answered for a minute.",
         "operationId": "traffic_near_api_traffic_get",
         "parameters": [
           {

@@ -257,18 +257,23 @@ export const airportMarkIcon = made(function airportMarkIcon(
 });
 
 /** An airplane of the traffic (TrafficLayer): a chevron turned to its
- *  track in its colour with a white casing, and under it its height
- *  (trafficLabel) and its callsign where the map is close enough for
- *  them (TrafficLayer). Track to five degrees,
- *  so the icons made once are a few hundred. */
-export const trafficIcon = made((trackDeg: number | null, colour: string, label: string, callsign: string | null) => L.divIcon({
+ *  track in its colour with a white casing, a line out ahead of it to
+ *  where it will be in a minute (`trendPx` long, as ForeFlight's
+ *  TrafficTrend vector), and under it its height (trafficLabel) and its
+ *  callsign where the map is close enough for them. Track to five
+ *  degrees and the line to four points, so the icons made once are a
+ *  few hundred. */
+export const trafficIcon = made((trackDeg: number | null, colour: string, label: string, callsign: string | null, trendPx: number) => L.divIcon({
   className: "",
   iconSize: [22, 22],
   iconAnchor: [11, 11],
   html:
-    `<svg viewBox="0 0 22 22" width="22" height="22" aria-hidden="true" data-traffic=""` +
-    ` class="absolute left-0 top-0 drop-shadow-[0_1px_2px_rgba(0,0,0,.5)]"` +
+    `<svg viewBox="0 0 22 22" width="22" height="22" aria-hidden="true" data-traffic="" overflow="visible"` +
+    ` class="absolute left-0 top-0 overflow-visible drop-shadow-[0_1px_2px_rgba(0,0,0,.5)]"` +
     ` style="transform:rotate(${trackDeg == null ? 0 : Math.round(trackDeg / 5) * 5}deg)">` +
+    (trackDeg != null && trendPx > 0
+      ? `<line x1="11" y1="4" x2="11" y2="${4 - Math.round(trendPx / 4) * 4}" stroke="${text(colour)}" stroke-width="2" stroke-linecap="round" data-trend=""/>`
+      : "") +
     (trackDeg == null
       ? `<circle cx="11" cy="11" r="5" fill="${text(colour)}" stroke="#ffffff" stroke-width="2"/>`
       : `<path d="M11 2 L18 19 L11 14.5 L4 19 Z" fill="${text(colour)}" stroke="#ffffff" stroke-width="2" stroke-linejoin="round"/>`) +
