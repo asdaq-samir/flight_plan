@@ -206,6 +206,8 @@ export type Pilot = Webapp["PilotDto"];
 export type SignInCapabilities = Webapp["Capabilities"];
 /** The iOS app's Apple sign-in, done: where to go next. */
 export type AppleSignedIn = Webapp["SignedIn"];
+/** A TV's code to be signed in with from a phone (DeviceSignInController). */
+export type DeviceCode = Webapp["DeviceCode"];
 
 /** A pilot's own airplane, from `/api/aircraft`. `usableFuelGal` is
  *  null when the owner has not said, and then the nav log makes no

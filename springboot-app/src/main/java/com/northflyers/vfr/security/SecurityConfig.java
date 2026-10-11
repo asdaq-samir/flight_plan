@@ -198,6 +198,13 @@ public class SecurityConfig {
                             // The iOS app's native Apple sheet, before any
                             // session exists (AppleNativeSignInController).
                             .requestMatchers(HttpMethod.POST, "/api/auth/apple/native").permitAll()
+                            // A TV asking for its code and whether it has
+                            // been typed in, before it has a session; the
+                            // phone's approval is a signed-in pilot's
+                            // (DeviceSignInController). And /tv, the short
+                            // address the TV shows, a redirect into the app.
+                            .requestMatchers(HttpMethod.POST, "/api/auth/device", "/api/auth/device/token").permitAll()
+                            .requestMatchers(HttpMethod.GET, "/tv").permitAll()
                             // Who is signed in, asked by every page as it
                             // opens: signed out is an answer (204), not a
                             // refusal -- a 401 here was an error in the

@@ -31,11 +31,11 @@ route, the nav log, the weather and the brief.
   internet, and the site registers ChannelUp and ChannelDown
   (`tizen.tvinputdevice`), which a page is not sent otherwise; OK and the
   + and − buttons zoom without them.
-- **Sign-in** is the site's, by the emailed link. The link opens on the
-  phone where the mail is read, not on the TV. Until there is a TV
-  sign-in (owner issue), the TV plans signed out. Planning, charts,
-  weather and the brief work signed out; saving flights and airplanes
-  needs an account.
+- **Sign-in** is a code (`DeviceSignInController`, `TvCode`). The TV
+  shows a code such as `BCDF-GHJK` and the address `<the domain>/tv`. On
+  a phone signed in to Wingtip Maps, open that address and type the code
+  (`TvLink`); within a few seconds the TV signs in as you. The code is
+  good for ten minutes, works once, and a new one replaces it on the TV.
 - **The TV has no GPS**, so own ship finds no position there.
 
 ## The build
@@ -91,8 +91,6 @@ from the `WINGTIP_URL` variable, and Samsung's package id from
 
 ### Both
 
-- **Sign-in on a TV.** Decide whether the TV signs in by a code shown on
-  it and typed on a phone, as streaming apps do (the owner issue).
 - **Leaving the app.** Check on a real TV that Back on the map's first
   screen leaves it. LG's webOS 6 and later ask first; the page uses
   `window.close()` there, as it does not load LG's webOSTV.js. On Samsung
