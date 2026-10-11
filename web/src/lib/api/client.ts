@@ -6,7 +6,7 @@ import type {
   ChartInfo, ChartPages, ChartRefreshStarted, PlacesFound, CheckpointDescriptionMessage, CheckpointNoteSaved, Checkpoints, Classification, Course, Detour,
   Flight, FlightSummary, ModelComparison, NarrativeMessage, NarrativeRequest, NavLogMessage, PickDeleted, PickSaved,
   AirspaceAt, AlertsAhead, ClassBResponse, FlightDetail, FlightRoute, GoogleMaps, Traffic, TrafficFound, NearestAirports, RouteProfile, Tfrs, DevServices, DevServiceStarted, Pilot, Rating, RetrainStarted, Role, SaveFlightRequest,
-  SignInCapabilities, AppleSignedIn, LogbookEntry, LogbookEntryRequest, Currency, CurrencyDatesRequest,
+  SignInCapabilities, AppleSignedIn, LogbookEntry, LogbookEntryRequest, Currency, CurrencyDatesRequest, Subscription,
   Status, StreamMessage, Totals, WaypointsInView, Training, SavedTrack,
   OralQuestion, OralQuestionRequest, OralGrade, OralGradeRequest, ProcedureDrawing, ProcedureList,
 } from "./types";
@@ -561,6 +561,13 @@ export const api = {
     remove: async (id: number): Promise<void> => {
       await webapp.DELETE("/api/aircraft/{id}", { params: { path: { id } } });
     },
+  },
+
+  /** The signed-in pilot's subscription to the paid features, and the
+   *  free month started: once an account, a 409 after. */
+  subscription: {
+    get: () => webapp.GET("/api/subscription").then(data<Subscription>),
+    startTrial: () => webapp.POST("/api/subscription/trial").then(data<Subscription>),
   },
 
   /** A signed-in pilot's logbook and currency. */

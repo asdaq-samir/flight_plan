@@ -25,8 +25,8 @@ public interface PilotRepository extends JpaRepository<Pilot, Long> {
 
     /** The pilot's row, deleted by the database itself, whose ON DELETE
      *  CASCADE takes their aircraft, their flights with each one's nav log
-     *  and track, their logbook and their endorsements with it (V3, V12,
-     *  V13, V15) -- rather than by Hibernate, which knows none of those as
+     *  and track, their logbook, their endorsements and their subscription
+     *  with it (V3, V12, V13, V15, V19) -- rather than by Hibernate, which knows none of those as
      *  the pilot's. */
     @Modifying
     @Query("DELETE FROM Pilot p WHERE p.id = :id")

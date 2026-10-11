@@ -3,6 +3,8 @@ import { cn } from "cn";
 import AccordionSection from "../../../../components/AccordionSection";
 import { TEXT } from "../../../../lib/text";
 import { usePreferences, type NarrativeFramework } from "../../../../lib/preferences";
+import { mayUse, useEntitlement, usesLeft } from "../../../../lib/subscription";
+import PaidPrompt from "../../../../components/PaidPrompt";
 import type { FrameworkNarrative } from "../../hooks/useNarratives";
 
 const FRAMEWORK_LABEL: Record<NarrativeFramework, string> = {
@@ -20,6 +22,10 @@ const FRAMEWORK_LABEL: Record<NarrativeFramework, string> = {
  * framework, never again for the same plan; the text streams in under a
  * "generating" line until its first words. On screen only:
  * FlightBriefingView keeps a printed copy.
+ *
+ * It comes with the subscription (lib/subscription): without it, the
+ * narrative's place says so (PaidPrompt) and nothing is asked for; with
+ * it, what is left of the month's briefings is said under the text.
  */
 export default function BriefNarrative({ ready, onGenerateNarrative, langgraphNarrative, crewaiNarrative }: {
   /** The whole nav log is in: a narrative is written from all of it. */
@@ -31,18 +37,24 @@ export default function BriefNarrative({ ready, onGenerateNarrative, langgraphNa
   const framework = usePreferences(s => s.narrative);
   const narrative = framework === "langgraph" ? langgraphNarrative : crewaiNarrative;
   const asked = useRef(new Set<NarrativeFramework>());
+  const entitlement = useEntitlement();
+  const allowed = mayUse(entitlement);
   useEffect(() => {
-    if (!ready || asked.current.has(framework) || narrative.text || narrative.loading) return;
+    if (!ready || !allowed || asked.current.has(framework) || narrative.text || narrative.loading) return;
     asked.current.add(framework);
     onGenerateNarrative(framework);
-  }, [ready, framework, narrative.text, narrative.loading, onGenerateNarrative]);
+  }, [ready, allowed, framework, narrative.text, narrative.loading, onGenerateNarrative]);
+  const left = usesLeft(entitlement, "NARRATIVE");
   return (
     <div className="print:hidden">
       {/* Which agent wrote it is the settings' (Brief, Narrative), not the
           heading's: "Narrative LangGraph" read as jargon to a pilot. */}
       <AccordionSection title="Narrative">
         <div aria-label="Briefing narrative" data-testid="brief-narrative">
-          {!ready && !narrative.text && (
+          {!allowed && !narrative.text && (
+            <PaidPrompt feature="NARRATIVE">The flight told in a page of plain words, from the whole nav log and the weather.</PaidPrompt>
+          )}
+          {allowed && !ready && !narrative.text && (
             <p className="text-muted-foreground">Written from the whole nav log, once it is in.</p>
           )}
           {narrative.loading && !narrative.text && (
@@ -50,7 +62,7 @@ export default function BriefNarrative({ ready, onGenerateNarrative, langgraphNa
           )}
           {narrative.error && <p className="text-destructive" role="alert">Narrative unavailable: {narrative.error}</p>}
           {narrative.text && <p className="whitespace-pre-wrap">{narrative.text}</p>}
-          {narrative.text && <p className={cn("pt-2 text-muted-foreground", TEXT.note)}>Written by the {FRAMEWORK_LABEL[framework]} agent; Settings, Brief to change it.</p>}
+          {narrative.text && <p className={cn("pt-2 text-muted-foreground", TEXT.note)}>Written by the {FRAMEWORK_LABEL[framework]} agent; Settings, Brief to change it.{left && ` ${left}.`}</p>}
         </div>
       </AccordionSection>
     </div>

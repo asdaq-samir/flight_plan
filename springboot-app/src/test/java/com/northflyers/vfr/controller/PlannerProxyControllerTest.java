@@ -37,6 +37,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MvcResult;
 import com.northflyers.vfr.domain.Pilot;
 import com.northflyers.vfr.service.PilotService;
+import com.northflyers.vfr.service.SubscriptionService;
 import java.util.Optional;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
@@ -74,6 +75,9 @@ class PlannerProxyControllerTest {
 
     @MockitoBean
     private PilotService pilotService;
+
+    @MockitoBean
+    private SubscriptionService subscriptions;
 
     @BeforeAll
     static void startUpstream() throws IOException {
@@ -396,7 +400,7 @@ class PlannerProxyControllerTest {
     /** A second MockMvc whose planner points at a port nothing is on. */
     private MockMvc unreachablePlanner() {
         PlannerProxyController controller =
-                new PlannerProxyController(new StreamingProxy(), "http://127.0.0.1:1", pilotService, 40);
+                new PlannerProxyController(new StreamingProxy(), "http://127.0.0.1:1", pilotService, subscriptions, 40);
         return standaloneSetup(controller)
                 .build();
     }

@@ -204,6 +204,14 @@ export type Pilot = Webapp["PilotDto"];
 /** How this deployment is reached -- SIGN_IN, OPEN or CLOSED -- asked
  *  before anyone has signed in (`/api/auth/capabilities`). */
 export type SignInCapabilities = Webapp["Capabilities"];
+/** `GET /api/subscription`: the signed-in pilot's subscription to the
+ *  paid features (SubscriptionService) -- FREE, TRIAL, SUBSCRIBED or
+ *  COMPED, until when, whether the free month is still theirs to start,
+ *  and this month's uses of each Claude-written feature against its cap.
+ *  For showing: the server checks it again on every paid call. */
+export type Subscription = Webapp["SubscriptionDto"];
+/** What the subscription unlocks: NARRATIVE, CHECKPOINT_NOTES, ORAL, DEBRIEF. */
+export type PaidFeature = Subscription["uses"][number]["feature"];
 /** The iOS app's Apple sign-in, done: where to go next. */
 export type AppleSignedIn = Webapp["SignedIn"];
 

@@ -1,6 +1,6 @@
 import { usePreferences } from "../../lib/preferences";
 import { useQuery } from "@tanstack/react-query";
-import { BookOpen, Plane, Route, ShieldCheck, UserRound } from "lucide-react";
+import { BookOpen, Plane, Route, ShieldCheck, Sparkles, UserRound } from "lucide-react";
 import { cn } from "cn";
 import ConsoleTabs from "../../components/ConsoleTabs";
 import { ConsolePages, PageRow } from "../../components/ConsolePages";
@@ -15,6 +15,8 @@ import { TEXT } from "../../lib/text";
 import { AircraftPanel, FlightsPanel } from "./AccountPanels";
 import { LogbookPanel } from "./LogbookPanel";
 import MinimumsPanel from "./MinimumsPanel";
+import SubscriptionPanel from "./SubscriptionPanel";
+import { standing, subscriptionQuery } from "../../lib/subscription";
 import PilotGuide from "./PilotGuide";
 import SignInModal from "./SignInModal";
 
@@ -60,6 +62,7 @@ function Personal({ pilot }: { pilot: PilotState }) {
     flights: { title: "Flights", content: <FlightsPanel /> },
     logbook: { title: "Logbook", content: <LogbookPanel aircraft={shortName(aircraft.label)} /> },
     minimums: { title: "Minimums", content: <MinimumsPanel /> },
+    subscription: { title: "Subscription", content: <SubscriptionPanel /> },
   };
   return (
     <div className="pt-1.5">
@@ -71,6 +74,9 @@ function Personal({ pilot }: { pilot: PilotState }) {
       <ConsolePages key={pilot === null || pilot === "error" ? "out" : "in"} back="Personal" pages={pages}>
         <div className="space-y-4">
           {account}
+          {/* What the pilot has of the paid features, a row of its own over
+              their things, as iOS's Settings puts the account's at the top. */}
+          {signedIn && <SubscriptionRow />}
           <div data-testid="library-section">
             <ListGroup>
               {SECTIONS.map(s => {
@@ -91,6 +97,19 @@ function Personal({ pilot }: { pilot: PilotState }) {
         </div>
       </ConsolePages>
     </div>
+  );
+}
+
+/** The Subscription page's row, with what the pilot has in a few words. */
+function SubscriptionRow() {
+  const { data: subscription } = useQuery(subscriptionQuery);
+  return (
+    <ListGroup>
+      <PageRow
+        page="subscription" title="Subscription" value={subscription ? standing(subscription) : undefined}
+        media={<RowBadge colour={SETTING_BADGE.subscription}><Sparkles /></RowBadge>}
+      />
+    </ListGroup>
   );
 }
 

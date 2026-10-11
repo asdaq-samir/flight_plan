@@ -50,6 +50,8 @@ import { useVerdict, type VerdictItem } from "../../lib/verdict";
 import CloseButton from "../../components/CloseButton";
 import type { BriefingPart } from "./components/briefing/sections";
 import { inNativeApp, nativeShare } from "../../lib/native";
+import { mayUse, useEntitlement } from "../../lib/subscription";
+import PaidPrompt from "../../components/PaidPrompt";
 import { grouped } from "../../lib/units";
 
 /** A local flight's times aloft to choose from, in minutes: a menu, not a
@@ -1092,6 +1094,15 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // Made again only when the plan does, so the nav log and its tabs are
   // drawn again only then (fromRoutePanel's memo), not at each render of
   // the page as the route's answers stream in.
+  // Checkpoint descriptions come with the subscription: without it, the
+  // wand says so where it is (PaidPrompt), and writes nothing.
+  // A flag, not the entitlement, which is a new object at every render:
+  // the nav log below is drawn again only when this changes.
+  const entitlement = useEntitlement();
+  const paywalled = !mayUse(entitlement) && entitlement.kind !== "loading";
+  const descriptionsPaywall = useMemo(() => (paywalled ? (
+    <PaidPrompt feature="CHECKPOINT_NOTES">A line for each checkpoint on what to look for from the air.</PaidPrompt>
+  ) : undefined), [paywalled]);
   const navLog = useMemo(() => (
     <Suspense fallback={<div className="min-h-0 flex-1" />}>
     <NavLogView
@@ -1104,6 +1115,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       onSaveDescription={s.saveDescription}
       onGenerateDescriptions={s.generateDescriptions}
       descriptionsLoading={descriptionsLoading}
+      descriptionsPaywall={descriptionsPaywall}
       selectedPoint={selectedPoint} onSelectPoint={selectPointAt} onDeselectPoint={deselectPoint}
       drawerOpen={drawerOpen} onTabTap={tabTap}
       aircraftLabel={aircraft.label}
@@ -1124,7 +1136,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     </NavLogView>
     </Suspense>
   ), [s.totals, s.nav, s.legs, depart, planned.dep, planned.dest, course, s.logSelected, s.descriptions, s.saveDescription,
-    s.generateDescriptions, descriptionsLoading, selectedPoint, selectPointAt, deselectPoint, drawerOpen, tabTap, aircraft.label,
+    s.generateDescriptions, descriptionsLoading, descriptionsPaywall, selectedPoint, selectPointAt, deselectPoint, drawerOpen, tabTap, aircraft.label,
     marks, tabContent, s.briefing, s.local, landedStops, s.langgraphNarrative, s.crewaiNarrative, unflyableBrief, kneeboardLater, metarColour]);
 
   // The airplane, the altitude and the time, made again only when one of

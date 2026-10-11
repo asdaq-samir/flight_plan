@@ -1,7 +1,8 @@
 import { useCallback, useMemo, useState } from "react";
-import { experimental_streamedQuery as streamedQuery, useMutation, useQuery } from "@tanstack/react-query";
+import { experimental_streamedQuery as streamedQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../../../lib/api/client";
 import { pilotQuery } from "../../../lib/queryClient";
+import { subscriptionQuery } from "../../../lib/subscription";
 
 /** How to spot one checkpoint from the air. "saved" means a pilot's own
  *  earlier edit, not a fresh LLM generation; "error" means that one
@@ -49,10 +50,13 @@ export function useCheckpointNotes(dep: string, dest: string, stops: string[] = 
   // every render: so was this, and with it the nav log drawn again at
   // every render of the page (as useNarratives).
   const { isFetching, isFetched, refetch } = descriptions;
+  // One of the month's runs (the subscription's cap): its count, asked
+  // again once the run is done.
+  const queryClient = useQueryClient();
   const generateDescriptions = useCallback(() => {
     if (isFetching || isFetched) return;
-    void refetch();
-  }, [isFetching, isFetched, refetch]);
+    void refetch().then(() => queryClient.invalidateQueries({ queryKey: subscriptionQuery.queryKey }));
+  }, [isFetching, isFetched, refetch, queryClient]);
 
   // The pilot's own edits, shown the moment they are made: an overlay
   // on the stream, scoped the same way. Written when the save starts;

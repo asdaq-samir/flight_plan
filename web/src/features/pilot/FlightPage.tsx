@@ -16,6 +16,8 @@ import { keepTrack, keptTrack, readTrack, thin, TrackError, type TrackPoint } fr
 import { useFlownTrack } from "../../lib/map/flownTrack";
 import { routeName } from "../../lib/identSchema";
 import { altFt, feet, grouped } from "../../lib/units";
+import { mayUse, useEntitlement } from "../../lib/subscription";
+import PaidPrompt from "../../components/PaidPrompt";
 
 /** Minutes as a nav log writes them: "0:18", "1:35". */
 function hm(min: number): string {
@@ -287,6 +289,8 @@ function Row({ title, value }: { title: string; value: ReactNode }) {
  */
 export default function FlightPage({ summary, planHref }: { summary: FlightSummary; planHref: string }) {
   const { data: flight, isPending, error } = useQuery({ queryKey: ["flight", summary.id], queryFn: () => api.flights.get(summary.id) });
+  // The debrief comes with the subscription: without it, its place says so.
+  const entitlement = useEntitlement();
   return (
     <div className="space-y-4">
       <ListGroup footer={`Filed ${format(new Date(summary.createdAt), "d MMM yyyy")}.`}>
@@ -311,8 +315,12 @@ export default function FlightPage({ summary, planHref }: { summary: FlightSumma
         <p role="status" className={cn("px-1 text-muted-foreground", TEXT.note)}>Fetching its nav log…</p>
       ) : error || !flight ? (
         <p className={cn("px-1 text-red-700 dark:text-red-400", TEXT.prose)}>Its nav log could not be fetched ({error?.message ?? "not found"}).</p>
-      ) : (
+      ) : mayUse(entitlement) ? (
         <DebriefSection flight={flight} planHref={planHref} />
+      ) : (
+        <PaidPrompt feature="DEBRIEF">
+          Your track from ForeFlight, Garmin Pilot or a GPS, measured against this flight's nav log as an examiner would.
+        </PaidPrompt>
       )}
     </div>
   );

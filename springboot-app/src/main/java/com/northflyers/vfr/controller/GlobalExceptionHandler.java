@@ -2,6 +2,7 @@ package com.northflyers.vfr.controller;
 
 import com.northflyers.vfr.dto.ErrorResponse;
 import com.northflyers.vfr.service.NoSuchAircraftException;
+import com.northflyers.vfr.service.SubscriptionService;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.List;
@@ -93,6 +94,12 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(NoSuchAircraftException.class)
     public ResponseEntity<ErrorResponse> handleNoSuchAircraft(NoSuchAircraftException ex) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ErrorResponse(ex.getMessage()));
+    }
+
+    /** The free month asked for again: once an account (SubscriptionService). */
+    @ExceptionHandler(SubscriptionService.TrialUsedException.class)
+    public ResponseEntity<ErrorResponse> handleTrialUsed(SubscriptionService.TrialUsedException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(new ErrorResponse(ex.getMessage()));
     }
 
     /**

@@ -196,6 +196,20 @@ app:
   # that says when there are more.
   paid-calls:
     per-day: ${APP_PAID_CALLS_PER_DAY:40}
+  # The subscription to the paid features (SubscriptionService): the free
+  # month's length, once an account; each Claude-written feature's monthly
+  # allowance per subscriber, so the heaviest user costs less than they
+  # pay (the mock oral's 60 calls, 30 questions asked and graded, are
+  # about $0.90 on Opus at the cap); and the addresses given it without
+  # paying, comma-separated (an instructor, a tester). A developer always
+  # has it, uncounted.
+  subscription:
+    trial-days: ${APP_SUBSCRIPTION_TRIAL_DAYS:30}
+    caps:
+      narrative: ${APP_SUBSCRIPTION_CAP_NARRATIVE:60}
+      checkpoint-notes: ${APP_SUBSCRIPTION_CAP_CHECKPOINT_NOTES:60}
+      oral: ${APP_SUBSCRIPTION_CAP_ORAL:60}
+    comped-emails: ${APP_SUBSCRIPTION_COMPED_EMAILS:}
   magic-link:
     per-address-per-hour: ${APP_MAGIC_LINK_PER_ADDRESS_PER_HOUR:5}
     per-client-per-hour: ${APP_MAGIC_LINK_PER_CLIENT_PER_HOUR:20}

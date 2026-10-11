@@ -14,6 +14,7 @@ import com.northflyers.vfr.domain.FlightTrack;
 import com.northflyers.vfr.domain.LogbookEntry;
 import com.northflyers.vfr.domain.MagicLink;
 import com.northflyers.vfr.domain.Pilot;
+import com.northflyers.vfr.domain.Subscription;
 import com.northflyers.vfr.repository.AircraftRepository;
 import com.northflyers.vfr.repository.EndorsementRepository;
 import com.northflyers.vfr.repository.FlightRepository;
@@ -21,6 +22,7 @@ import com.northflyers.vfr.repository.FlightTrackRepository;
 import com.northflyers.vfr.repository.LogbookRepository;
 import com.northflyers.vfr.repository.MagicLinkRepository;
 import com.northflyers.vfr.repository.PilotRepository;
+import com.northflyers.vfr.repository.SubscriptionRepository;
 import com.northflyers.vfr.security.MagicLinkAuthenticationToken;
 import com.sun.net.httpserver.HttpServer;
 import java.io.IOException;
@@ -79,6 +81,7 @@ class AccountDeletionTest {
     @Autowired private LogbookRepository logbook;
     @Autowired private EndorsementRepository endorsements;
     @Autowired private MagicLinkRepository magicLinks;
+    @Autowired private SubscriptionRepository subscriptions;
     @Autowired private FindByIndexNameSessionRepository<? extends Session> sessions;
     @Autowired private JdbcTemplate jdbc;
 
@@ -127,6 +130,10 @@ class AccountDeletionTest {
         logbook.save(new LogbookEntry(pilot).set(LocalDate.of(2026, 10, 1), "N12345", "C172", "C81-KDLH",
                 2.5, 0, 2.5, 1, 0, null));
         endorsements.save(new Endorsement(pilot.getId(), "A.1", LocalDate.of(2026, 9, 1)));
+        // The free month started, and a written briefing counted against its cap.
+        subscriptions.save(new Subscription(pilot.getId(), Instant.now()));
+        jdbc.update("INSERT INTO paid_feature_uses (pilot_id, month, feature, uses) VALUES (?, ?, 'NARRATIVE', 1)",
+                pilot.getId(), LocalDate.of(2026, 10, 1));
         magicLinks.save(new MagicLink(email, UUID.randomUUID().toString().replace("-", ""), Instant.now().plusSeconds(600)));
         // Two devices by address, and one by Google.
         signIn(email);
@@ -160,6 +167,8 @@ class AccountDeletionTest {
                         + "WHERE f.pilot_id = ?", Integer.class, id),
                 jdbc.queryForObject("SELECT count(*) FROM logbook_entries WHERE pilot_id = ?", Integer.class, id),
                 jdbc.queryForObject("SELECT count(*) FROM pilot_endorsements WHERE pilot_id = ?", Integer.class, id),
+                jdbc.queryForObject("SELECT count(*) FROM subscriptions WHERE pilot_id = ?", Integer.class, id),
+                jdbc.queryForObject("SELECT count(*) FROM paid_feature_uses WHERE pilot_id = ?", Integer.class, id),
                 jdbc.queryForObject("SELECT count(*) FROM magic_links WHERE email = ?", Integer.class, pilot.getEmail()),
                 sessions.findByPrincipalName(pilot.getEmail()).size(),
                 sessions.findByPrincipalName(pilot.getGoogleSubject()).size());

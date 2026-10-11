@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.northflyers.vfr.service.PilotService;
+import com.northflyers.vfr.service.SubscriptionService;
 import java.time.Duration;
 import java.time.Instant;
 import org.junit.jupiter.api.Test;
@@ -47,6 +48,9 @@ class PaidCallAllowanceTest {
 
     @MockitoBean
     private PilotService pilots;
+
+    @MockitoBean
+    private SubscriptionService subscriptions;
 
     @Test
     void aNarrativePastTheDaysAllowanceIsA429ThatSaysSo() throws Exception {

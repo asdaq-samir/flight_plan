@@ -13,6 +13,7 @@ import { LEGS, type PanelTab } from "./panelTab";
 import { SectionPane } from "../../../../components/SectionTabs";
 import { ListGroup, ListRow } from "../../../../components/GroupedList";
 import IconButton from "../../../../components/IconButton";
+import { Popover, PopoverContent, PopoverTrigger } from "../../../../components/ui/popover";
 import { Textarea } from "../../../../components/ui/textarea";
 import {
   Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow,
@@ -91,6 +92,9 @@ interface Props {
    *  been clicked. */
   onGenerateDescriptions: () => void;
   descriptionsLoading: boolean;
+  /** Where the pilot has no subscription, what the wand shows in place of
+   *  writing descriptions (PaidPrompt): they come with it. */
+  descriptionsPaywall?: ReactNode;
   /** The briefing's sections for each tab but the nav log's own
    *  (FlightBriefingView's parts, and the Brief's narrative). */
   tabContent: (part: BriefingPart) => ReactNode;
@@ -328,7 +332,7 @@ export default function NavLogView({
   totals, nav, depart,
   legs, dep, dest, ends,
   selected, descriptions, onSaveDescription,
-  onGenerateDescriptions, descriptionsLoading, tabContent, children, marks, notice, footer, local = false, metarColourOf = noWeather,
+  onGenerateDescriptions, descriptionsLoading, descriptionsPaywall, tabContent, children, marks, notice, footer, local = false, metarColourOf = noWeather,
   selectedPoint, onSelectPoint, onDeselectPoint, drawerOpen,
   aircraftLabel, onTabTap,
 }: Props) {
@@ -410,6 +414,25 @@ export default function NavLogView({
   // view and the rest off its edge. On paper, every column. The heading
   // kept is the one a pilot steers: it was the true heading, with the
   // magnetic one only under the row.
+  const wand = (
+    <IconButton
+      // relative z-10: its 44-point hit area (index.css) over the
+      // "Waypoint" beside it, which painted over the area's right.
+      // -ml-2: the button's own clear padding laid over the cell's,
+      // so its glyph lines up with the names under it and the
+      // column is no wider than it was with a 24-point button --
+      // the phone's five columns still fit their drawer.
+      label="Generate descriptions" className="relative z-10 -ml-2 print:hidden"
+      onClick={descriptionsPaywall ? undefined : onGenerateDescriptions}
+      disabled={descriptionsLoading || selected.length === 0}
+      data-testid="generate-descriptions-button"
+    >
+      {/* The icon buttons' one size, 20 in 36 (it was 20 in 24, crowded). */}
+      {descriptionsLoading
+        ? <Loader2 className="size-5 animate-spin" />
+        : <WandSparkles className="size-5" />}
+    </IconButton>
+  );
   const columns: ColumnDef<typeof navLogTableFeatures, NavLogRow>[] = [
     {
       id: "waypoint",
@@ -421,22 +444,14 @@ export default function NavLogView({
       // its own.
       header: () => (
         <span className="inline-flex items-center">
-          <IconButton
-            // relative z-10: its 44-point hit area (index.css) over the
-            // "Waypoint" beside it, which painted over the area's right.
-            // -ml-2: the button's own clear padding laid over the cell's,
-            // so its glyph lines up with the names under it and the
-            // column is no wider than it was with a 24-point button --
-            // the phone's five columns still fit their drawer.
-            label="Generate descriptions" className="relative z-10 -ml-2 print:hidden"
-            onClick={onGenerateDescriptions} disabled={descriptionsLoading || selected.length === 0}
-            data-testid="generate-descriptions-button"
-          >
-            {/* The icon buttons' one size, 20 in 36 (it was 20 in 24, crowded). */}
-            {descriptionsLoading
-              ? <Loader2 className="size-5 animate-spin" />
-              : <WandSparkles className="size-5" />}
-          </IconButton>
+          {/* Without the subscription the wand says what it would do and
+              how to have it, beside it (PaidPrompt), rather than writing. */}
+          {descriptionsPaywall ? (
+            <Popover>
+              <PopoverTrigger asChild>{wand}</PopoverTrigger>
+              <PopoverContent className="w-80 p-0" data-testid="descriptions-paywall">{descriptionsPaywall}</PopoverContent>
+            </Popover>
+          ) : wand}
           Waypoint
         </span>
       ),

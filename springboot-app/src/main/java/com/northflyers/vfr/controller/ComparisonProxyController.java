@@ -2,6 +2,8 @@ package com.northflyers.vfr.controller;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.northflyers.vfr.domain.PaidFeature;
+import com.northflyers.vfr.service.SubscriptionService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -21,6 +23,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -87,14 +90,19 @@ public class ComparisonProxyController {
      *  without end. */
     private final SlidingWindowLimiter narratives = new SlidingWindowLimiter(Duration.ofDays(1));
     private final int narrativesPerDay;
+    /** The written briefing is a paid feature, counted against its
+     *  monthly cap (SubscriptionService). */
+    private final SubscriptionService subscriptions;
 
     public ComparisonProxyController(
             StreamingProxy proxy,
+            SubscriptionService subscriptions,
             @Value("${nav-log-agent.base-url}") String navLogAgentBaseUrl,
             @Value("${nav-log-agent.api-key}") String navLogAgentApiKey,
             @Value("${crewai-agent.base-url}") String crewaiAgentBaseUrl,
             @Value("${app.paid-calls.per-day:40}") int narrativesPerDay) {
         this.proxy = proxy;
+        this.subscriptions = subscriptions;
         this.narrativesPerDay = narrativesPerDay;
         this.navLogAgentBaseUrl = navLogAgentBaseUrl.replaceAll("/+$", "");
         this.navLogAgentApiKey = navLogAgentApiKey;
@@ -117,6 +125,12 @@ public class ComparisonProxyController {
         byte[] body = request.getInputStream().readNBytes(BODY_LIMIT + 1);
         if (body.length > BODY_LIMIT) {
             return StreamingProxy.error(413, "a nav log is at most " + (BODY_LIMIT / 1024) + " KB");
+        }
+        // The subscription before the day's allowance, so a refusal for
+        // want of one spends none of it.
+        var refused = subscriptions.refusal(SecurityContextHolder.getContext().getAuthentication(), PaidFeature.NARRATIVE);
+        if (refused.isPresent()) {
+            return StreamingProxy.error(refused.get().status(), refused.get().detail());
         }
         if (!narratives.allow(SlidingWindowLimiter.callerOf(request), narrativesPerDay, Instant.now())) {
             return StreamingProxy.error(429, "That is today's " + narrativesPerDay
