@@ -486,11 +486,12 @@ def _name_case(text: str) -> str:
     return " ".join(w if w in ("RCO", "TWR") else w.capitalize() for w in text.split())
 
 
-def _sector_case(text: str) -> str:
+def _sector_case(text: str, idents: frozenset = frozenset()) -> str:
     """A sector as the Chart Supplement gives it, its words in lower case
-    and its codes kept -- bearings ("360-179"), runways ("RWY 04R/22L")
-    and idents of three letters ("VNY 280-BUR 050, north")."""
-    return re.sub(r"[A-Z]{4,}", lambda m: m.group(0).lower(), text.strip())
+    and its codes kept -- bearings ("360-179"), runways ("RWY 04R/22L"),
+    idents of three letters ("VNY 280-BUR 050, north") and an airport's
+    own ICAO ident ("KBUR 050"), which `idents` names."""
+    return re.sub(r"[A-Z]{4,}", lambda m: m.group(0) if m.group(0) in idents else m.group(0).lower(), text.strip())
 
 
 @lru_cache(maxsize=2)
@@ -498,6 +499,8 @@ def _frequencies_of(path: str, _mtime: float, base: str, _base_mtime: float) -> 
     """FRQ.csv's frequencies by the field they serve, by its FAA and its
     ICAO identifier: [{"type", "description", "frequency_mhz"}]."""
     frq = pd.read_csv(path, dtype=str, low_memory=False, keep_default_na=False)
+    apt = _read_apt_base_cached(base, _base_mtime)
+    idents = frozenset(i.strip().upper() for i in apt["ICAO_ID"] if isinstance(i, str) and i.strip())
     by_id: dict = {}
     for row in frq.to_dict("records"):
         use = row["FREQ_USE"].strip().upper()
@@ -521,7 +524,7 @@ def _frequencies_of(path: str, _mtime: float, base: str, _base_mtime: float) -> 
             {"CLASS B": "Class B", "CLASS C": "Class C", "TRSA": "TRSA"}.get(use, ""),
             _name_case(use) if kind == "RCO" else "",
             _name_case(call) if kind in ("APP", "DEP", "A/D", "TWR", "GND", "CLD") else "",
-            _sector_case(row["SECTORIZATION"]),
+            _sector_case(row["SECTORIZATION"], idents),
         ) if w)
         entries = by_id.setdefault(row["SERVICED_FACILITY"].strip().upper(), [])
         entry = {"type": kind, "description": words or None, "frequency_mhz": mhz}
@@ -541,11 +544,33 @@ def _frequencies_of(path: str, _mtime: float, base: str, _base_mtime: float) -> 
         entries[:] = [e for e in entries if not (
             (e["type"] == "UNICOM" and e["frequency_mhz"] in ctaf)
             or ((e["description"] or "").startswith(("Class", "TRSA")) and e["frequency_mhz"] in approach))]
-    apt = _read_apt_base_cached(base, _base_mtime)
     for arpt_id, icao_id in zip(apt["ARPT_ID"], apt["ICAO_ID"]):
         if isinstance(icao_id, str) and icao_id.strip() and isinstance(arpt_id, str) and arpt_id.strip().upper() in by_id:
             by_id.setdefault(icao_id.strip().upper(), by_id[arpt_id.strip().upper()])
     return by_id
+
+
+def _frequency_table(cache_dir) -> dict | None:
+    """FRQ.csv's frequencies by field (_frequencies_of), or None where the
+    file cannot be had, for the caller's own fallback."""
+    try:
+        path = ensure_nasr_file("FRQ.csv", cache_dir)
+        base = ensure_nasr_file("APT_BASE.csv", cache_dir)
+        return _frequencies_of(str(path), path.stat().st_mtime, str(base), base.stat().st_mtime)
+    except Exception:  # noqa: BLE001 -- the FAA out or the file damaged: the caller's own list instead
+        log.warning("No FRQ.csv for frequencies; the fallback is used", exc_info=True)
+        return None
+
+
+def airport_frequencies_for(idents, cache_dir) -> dict[str, list[dict]]:
+    """airport_frequencies for several fields from one look at the file
+    (one fetch, one warning where it cannot be had), by ident as given,
+    upper-cased; the fields the file lists nothing for are left out."""
+    by_id = _frequency_table(cache_dir)
+    if by_id is None:
+        return {}
+    wanted = {i.strip().upper() for i in idents}
+    return {i: [dict(f) for f in by_id[i]] for i in wanted if by_id.get(i)}
 
 
 def airport_frequencies(ident: str, cache_dir) -> list[dict] | None:
@@ -558,14 +583,8 @@ def airport_frequencies(ident: str, cache_dir) -> list[dict] | None:
     copy, which the card read, had none for Salem (I83), whose 123.0 is on
     the chart. None where the file cannot be had or lists nothing for the
     field, for the caller's own fallback."""
-    try:
-        path = ensure_nasr_file("FRQ.csv", cache_dir)
-        base = ensure_nasr_file("APT_BASE.csv", cache_dir)
-        by_id = _frequencies_of(str(path), path.stat().st_mtime, str(base), base.stat().st_mtime)
-    except Exception:  # noqa: BLE001 -- the FAA out or the file damaged: the caller's own list instead
-        log.warning("No FRQ.csv for frequencies; %s gets the fallback", ident, exc_info=True)
-        return None
-    found = by_id.get(ident.strip().upper())
+    by_id = _frequency_table(cache_dir)
+    found = (by_id or {}).get(ident.strip().upper())
     return [dict(f) for f in found] if found else None
 
 

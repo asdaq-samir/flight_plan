@@ -235,6 +235,25 @@ def test_a_fields_frequencies_are_the_faas_as_the_chart_supplement_lists_them(tm
     assert faa_data.airport_frequencies("ZZZ", tmp_path) is None
 
 
+def test_a_sector_keeps_its_airport_idents_and_lowers_its_words(tmp_path):
+    (tmp_path / "FRQ.csv").write_text(_FRQ_HEADER + "".join([
+        _frq("BUR", "BUR", "119.0", "APCH/P DEP/P", approach_call="SOCAL", sector="KBUR 050 EAST"),
+    ]))
+    (tmp_path / "APT_BASE.csv").write_text("ARPT_ID,ICAO_ID,TPA\nBUR,KBUR,\n")
+    assert faa_data.airport_frequencies("BUR", tmp_path)[0]["description"] == "Socal KBUR 050 east"
+
+
+def test_several_fields_frequencies_are_read_from_one_look_at_the_file(tmp_path, monkeypatch):
+    (tmp_path / "FRQ.csv").write_text(_FRQ_HEADER + _frq("I83", "I83", "123.0", "CTAF"))
+    (tmp_path / "APT_BASE.csv").write_text("ARPT_ID,ICAO_ID,TPA\nI83,,\n")
+    assert faa_data.airport_frequencies_for(["i83", "ZZZ"], tmp_path) == {
+        "I83": [{"type": "CTAF", "description": None, "frequency_mhz": 123.0}]}
+    calls = []
+    monkeypatch.setattr(faa_data, "ensure_nasr_file", lambda *a: calls.append(a) or (_ for _ in ()).throw(OSError("out")))
+    assert faa_data.airport_frequencies_for(["A", "B", "C"], tmp_path) == {}
+    assert len(calls) == 1
+
+
 def test_no_frequency_file_is_the_callers_own_list_not_a_failure(monkeypatch, tmp_path):
     def unreachable(name, cache_dir):
         raise RuntimeError("the FAA is down")

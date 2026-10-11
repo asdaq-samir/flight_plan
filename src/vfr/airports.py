@@ -500,16 +500,25 @@ def _frequency_list(rows: pd.DataFrame) -> list[dict]:
     return _sorted_frequencies(frequencies)
 
 
-def _with_faa(ident: str, ours: list[dict], faa_cache_dir) -> list[dict]:
+#: What a pilot tunes first, by family: a CTAF and a UNICOM answer the same
+#: question, so the FAA's row of either covers OurAirports' of either.
+_FAMILY = {"CTAF": "CTAF", "UNIC": "CTAF", "UNICOM": "CTAF", "TWR": "TWR", "GND": "GND", "ATIS": "ATIS"}
+
+
+def _with_faa(ours: list[dict], faa: list[dict] | None) -> list[dict]:
     """The FAA's frequencies for the field where its file lists any (the
     Chart Supplement's), with OurAirports' weather ones it lacks beside
-    them; OurAirports' alone where it lists none, or cannot be had."""
-    faa = faa_data.airport_frequencies(ident, faa_cache_dir) if faa_cache_dir else None
+    them, and OurAirports' CTAF, tower, ground or ATIS where the FAA lists
+    none of that kind (a field with only its approach there must not lose
+    its CTAF); OurAirports' alone where the FAA lists none, or cannot be had."""
     if not faa:
         return ours
     have = {f["frequency_mhz"] for f in faa}
-    weather = [f for f in ours if (f["type"] or "").upper() in _WEATHER_TYPES and f["frequency_mhz"] not in have]
-    return _sorted_frequencies(faa + weather)
+    covered = {_FAMILY[t] for t in ((f["type"] or "").upper() for f in faa) if t in _FAMILY}
+    gaps = [f for f in ours if f["frequency_mhz"] not in have and (
+        (f["type"] or "").upper() in _WEATHER_TYPES
+        or _FAMILY.get((f["type"] or "").upper(), "") not in covered | {""})]
+    return _sorted_frequencies(faa + gaps)
 
 
 def get_frequencies(ident: str, cache_path: Path = FREQUENCIES_CACHE_PATH, faa_cache_dir=FAA_CACHE_DIR) -> list[dict]:
@@ -519,7 +528,8 @@ def get_frequencies(ident: str, cache_path: Path = FREQUENCIES_CACHE_PATH, faa_c
     (_with_faa)."""
     ident = ident.strip().upper()
     df = _load_table(FREQUENCIES_URL, cache_path)
-    return _with_faa(ident, _frequency_list(df[df["airport_ident"].str.upper() == ident]), faa_cache_dir)
+    faa = faa_data.airport_frequencies(ident, faa_cache_dir) if faa_cache_dir else None
+    return _with_faa(_frequency_list(df[df["airport_ident"].str.upper() == ident]), faa)
 
 
 def get_frequencies_for(
@@ -532,5 +542,6 @@ def get_frequencies_for(
     df = _load_table(FREQUENCIES_URL, cache_path)
     rows = df[df["airport_ident"].str.upper().isin(wanted)]
     ours = {ident: _frequency_list(group) for ident, group in rows.groupby(rows["airport_ident"].str.upper())}
-    found = {ident: _with_faa(ident, ours.get(ident, []), faa_cache_dir) for ident in wanted}
+    faa = faa_data.airport_frequencies_for(wanted, faa_cache_dir) if faa_cache_dir else {}
+    found = {ident: _with_faa(ours.get(ident, []), faa.get(ident)) for ident in wanted}
     return {ident: freqs for ident, freqs in found.items() if freqs}
