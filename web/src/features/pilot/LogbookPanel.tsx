@@ -1,7 +1,7 @@
 import { useId, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format, parseISO } from "date-fns";
-import { CircleMinus, GraduationCap, Plus } from "lucide-react";
+import { CircleMinus, GraduationCap, Mail, MailX, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "cn";
 import { ConsolePages, PageRow } from "../../components/ConsolePages";
@@ -138,6 +138,13 @@ export function LogbookPanel({ aircraft }: { aircraft?: string }) {
     confirmLabel: "Delete", destructive: true, onConfirm: () => { if (toDelete) remove.mutate(toDelete.id); },
   });
 
+  // Emailed 30 and 7 days before each of these runs out (ReminderService),
+  // at the pilot's ask.
+  const { data: reminders } = useQuery({ queryKey: ["reminders"], queryFn: api.logbook.reminders });
+  const remind = useMutation({
+    mutationFn: (on: boolean) => api.logbook.setReminders(on),
+    onSuccess: r => queryClient.setQueryData(["reminders"], r),
+  });
   const reviewOn = currency?.flightReviewOn ?? null;
   const medicalOn = currency?.medicalExpiresOn ?? null;
   const ipcOn = currency?.ipcOn ?? null;
@@ -168,6 +175,12 @@ export function LogbookPanel({ aircraft }: { aircraft?: string }) {
         </ListRow>
         <ListRow title="Medical" description={medicalOn ? <Until date={medicalOn} what="medical" /> : "The day it expires"}>
           <DateField value={medicalOn} label="Medical expires" testId="medical-date" onChange={v => setDates({ medicalExpiresOn: v })} />
+        </ListRow>
+        <ListRow title="Reminders" description="An email 30 and 7 days before each runs out">
+          <TogglePill
+            pressed={!!reminders?.on} onPressedChange={on => remind.mutate(on)} disabled={!reminders || remind.isPending}
+            icon={reminders?.on ? <Mail /> : <MailX />} label="Email" testId="reminders-toggle"
+          />
         </ListRow>
       </ListGroup>
 

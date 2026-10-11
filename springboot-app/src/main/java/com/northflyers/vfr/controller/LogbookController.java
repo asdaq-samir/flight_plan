@@ -6,6 +6,7 @@ import com.northflyers.vfr.dto.CurrencyDatesRequest;
 import com.northflyers.vfr.dto.CurrencyDto;
 import com.northflyers.vfr.dto.LogbookEntryDto;
 import com.northflyers.vfr.dto.LogbookEntryRequest;
+import com.northflyers.vfr.dto.RemindersDto;
 import com.northflyers.vfr.service.CurrencyService;
 import com.northflyers.vfr.service.LogbookService;
 import com.northflyers.vfr.service.PilotService;
@@ -72,6 +73,19 @@ public class LogbookController {
     @GetMapping("/currency")
     public ResponseEntity<CurrencyDto> currency(Authentication authentication) {
         return PilotResponses.withPilot(pilots, authentication, pilot -> ResponseEntity.ok(currencyOf(pilot)));
+    }
+
+    /** Whether the pilot is emailed before their currency runs out
+     *  (ReminderService). */
+    @GetMapping("/reminders")
+    public ResponseEntity<RemindersDto> reminders(Authentication authentication) {
+        return PilotResponses.withPilot(pilots, authentication, pilot -> ResponseEntity.ok(new RemindersDto(pilot.isReminders())));
+    }
+
+    @PutMapping("/reminders")
+    public ResponseEntity<RemindersDto> setReminders(Authentication authentication, @RequestBody RemindersDto request) {
+        return PilotResponses.withPilot(pilots, authentication, pilot ->
+                ResponseEntity.ok(new RemindersDto(logbook.setReminders(pilot, request.on()).isReminders())));
     }
 
     @PutMapping("/currency")

@@ -81,3 +81,27 @@ test("an airplane's VOR check is recorded with its kind and error, and says how 
   await page.getByTestId("vor-check-record").click();
   await expect.poll(() => recorded.at(-1)).toMatchObject({ kind: "VOT", errorDeg: -3 });
 });
+
+test("the Logbook's reminders are turned on, and kept", async ({ page }) => {
+  let on = false;
+  const sent: boolean[] = [];
+  await page.route(url => url.pathname === "/api/logbook/reminders", async route => {
+    if (route.request().method() === "PUT") {
+      on = (route.request().postDataJSON() as { on: boolean }).on;
+      sent.push(on);
+    }
+    await route.fulfill({ json: { on } });
+  });
+  await page.route(url => url.pathname === "/api/logbook/currency", route => route.fulfill({ json: CURRENCY }));
+  await page.route(url => url.pathname === "/api/logbook", route => route.fulfill({ json: [] }));
+  await page.route(url => url.pathname === "/api/training", route => route.fulfill({ json: { experience: [], knowledgeTestCodes: [], endorsements: [] } }));
+  await page.goto("/app/plan");
+  await page.getByTestId("settings-button").click();
+  const console = page.getByTestId("console-sheet");
+  await library(console, "Logbook");
+  const toggle = console.getByTestId("reminders-toggle");
+  await expect(toggle).toHaveAttribute("aria-pressed", "false");
+  await toggle.click();
+  await expect(toggle).toHaveAttribute("aria-pressed", "true");
+  expect(sent).toEqual([true]);
+});

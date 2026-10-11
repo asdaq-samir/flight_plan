@@ -71,6 +71,11 @@ public class Pilot {
      *  61.57(d)), as they give it (V20); null until they say. */
     private LocalDate ipcOn;
 
+    /** Whether they have asked to be emailed before their currency runs
+     *  out (ReminderService, V23); off until they turn it on. */
+    @Column(nullable = false)
+    private boolean reminders;
+
     /** The ACS codes on their Airman Knowledge Test Report, space
      *  separated (V13); null until they give them. */
     @Column(length = 2000)
@@ -122,6 +127,10 @@ public class Pilot {
         this.flightReviewOn = flightReviewOn;
         this.medicalExpiresOn = medicalExpiresOn;
         this.ipcOn = ipcOn;
+    }
+
+    public void setReminders(boolean reminders) {
+        this.reminders = reminders;
     }
 
     /** The knowledge test report's ACS codes, as the pilot gives them. */
