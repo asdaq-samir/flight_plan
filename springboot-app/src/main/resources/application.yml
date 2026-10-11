@@ -205,3 +205,9 @@ app:
   # to let images load from there. Empty locally, where the tiles are
   # same-origin through the planner proxy.
   chart-tiles-origin: ${APP_CHART_TILES_ORIGIN:}
+  # Flight Service's filing and briefing through the app
+  # (FlightServiceGateway): "none" until the owner's agreement with a
+  # provider (Leidos, in the contiguous U.S.) is in place and its
+  # implementation is written.
+  flight-service:
+    provider: ${APP_FLIGHT_SERVICE_PROVIDER:none}

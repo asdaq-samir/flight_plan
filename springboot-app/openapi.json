@@ -422,6 +422,105 @@
         "required" : [ "aircraftTailNumber", "altitudes", "checkpoints", "createdAt", "cruiseAltitudeFt", "departureIdent", "destinationIdent", "id", "plannedFor", "risk", "stops", "totalDistanceNm", "totalEteMin", "totalFuelGal" ],
         "type" : "object"
       },
+      "FlightPlanFiled" : {
+        "properties" : {
+          "reference" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "reference" ],
+        "type" : "object"
+      },
+      "FlightPlanFilingRequest" : {
+        "description" : "A flight plan, FAA Form 7233-4's items",
+        "properties" : {
+          "aircraftId" : {
+            "minLength" : 1,
+            "pattern" : "[A-Z0-9]{2,7}",
+            "type" : "string"
+          },
+          "aircraftType" : {
+            "minLength" : 1,
+            "pattern" : "[A-Z0-9]{2,4}(/[LMHJ])?",
+            "type" : "string"
+          },
+          "alternate" : {
+            "pattern" : "[A-Z0-9]{2,11}",
+            "type" : [ "string", "null" ]
+          },
+          "cruisingLevel" : {
+            "minLength" : 1,
+            "pattern" : "[AF]\\d{3}",
+            "type" : "string"
+          },
+          "cruisingSpeed" : {
+            "minLength" : 1,
+            "pattern" : "N\\d{4}",
+            "type" : "string"
+          },
+          "departure" : {
+            "minLength" : 1,
+            "pattern" : "[A-Z0-9]{2,11}",
+            "type" : "string"
+          },
+          "departureTime" : {
+            "description" : "The departure time, an instant (item 13, UTC)",
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "destination" : {
+            "minLength" : 1,
+            "pattern" : "[A-Z0-9]{2,11}",
+            "type" : "string"
+          },
+          "eetMinutes" : {
+            "format" : "int32",
+            "maximum" : 2400,
+            "minimum" : 1,
+            "type" : "integer"
+          },
+          "enduranceMinutes" : {
+            "format" : "int32",
+            "maximum" : 2400,
+            "minimum" : 1,
+            "type" : "integer"
+          },
+          "otherInformation" : {
+            "maxLength" : 500,
+            "minLength" : 0,
+            "type" : [ "string", "null" ]
+          },
+          "personsOnBoard" : {
+            "format" : "int32",
+            "maximum" : 999,
+            "minimum" : 1,
+            "type" : [ "integer", "null" ]
+          },
+          "route" : {
+            "maxLength" : 1000,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "rules" : {
+            "pattern" : "IFR|VFR",
+            "type" : "string"
+          }
+        },
+        "required" : [ "aircraftId", "aircraftType", "alternate", "cruisingLevel", "cruisingSpeed", "departure", "departureTime", "destination", "eetMinutes", "enduranceMinutes", "otherInformation", "personsOnBoard", "route", "rules" ],
+        "type" : "object"
+      },
+      "FlightServiceStatus" : {
+        "properties" : {
+          "connected" : {
+            "type" : "boolean"
+          },
+          "provider" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "connected", "provider" ],
+        "type" : "object"
+      },
       "FlightSummaryDto" : {
         "properties" : {
           "aircraftTailNumber" : {
@@ -1345,6 +1444,80 @@
         },
         "summary" : "Stream one framework's narrative for the nav log in the body",
         "tags" : [ "Comparison" ]
+      }
+    },
+    "/api/flight-service" : {
+      "get" : {
+        "operationId" : "status",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/FlightServiceStatus"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "flight-service-controller" ]
+      }
+    },
+    "/api/flight-service/briefings" : {
+      "post" : {
+        "operationId" : "brief",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/FlightPlanFilingRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "type" : "string"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "flight-service-controller" ]
+      }
+    },
+    "/api/flight-service/flight-plans" : {
+      "post" : {
+        "operationId" : "file",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/FlightPlanFilingRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/FlightPlanFiled"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "flight-service-controller" ]
       }
     },
     "/api/flights" : {

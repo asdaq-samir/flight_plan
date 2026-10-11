@@ -1,4 +1,4 @@
-import type { Leg, Totals } from "./api/types";
+import type { FlightPlanFilingRequest, Leg, Totals } from "./api/types";
 
 /**
  * The FAA's flight plan form filled in from a plan: FAA Form 7233-4, the
@@ -27,6 +27,9 @@ export interface FlightPlanForm {
   departure: string;
   destination: string;
   items: FormItem[];
+  /** The form as Flight Service is sent it (FlightServiceController),
+   *  where the plan says every item it needs; null where it does not. */
+  filing: FlightPlanFilingRequest | null;
 }
 
 /** A departure (SID) or an arrival (STAR) picked in the route's
@@ -207,7 +210,18 @@ export function flightPlanForms(input: FormInput): FlightPlanForm[] {
     add("19", "endurance", "Endurance", fuel != null && burn ? hoursMinutes(Math.floor((fuel / burn) * 60)) : null,
       fuel != null && burn ? `${Math.round(fuel * 10) / 10} gal at ${Math.round(burn * 10) / 10} gph.` : undefined);
 
-    return { departure: hop.departure, destination: hop.destination, items };
+    const value = (key: string) => items.find(f => f.key === key)?.value ?? null;
+    const needed = ["ident", "type", "speed", "level", "route"].map(value);
+    const eetMinutes = totals?.ete_min != null ? Math.ceil(totals.ete_min) : null;
+    const enduranceMinutes = fuel != null && burn ? Math.floor((fuel / burn) * 60) : null;
+    const filing: FlightPlanFilingRequest | null = depart && eetMinutes && enduranceMinutes && needed.every(Boolean) ? {
+      rules: ifr ? "IFR" : "VFR", aircraftId: value("ident")!, aircraftType: value("type")!,
+      departure: hop.departure, departureTime: depart.toISOString(),
+      cruisingSpeed: value("speed")!, cruisingLevel: value("level")!, route: value("route")!,
+      destination: hop.destination, eetMinutes, alternate: value("alternate"), otherInformation: value("other"),
+      enduranceMinutes, personsOnBoard: null,
+    } : null;
+    return { departure: hop.departure, destination: hop.destination, items, filing };
   });
 }
 

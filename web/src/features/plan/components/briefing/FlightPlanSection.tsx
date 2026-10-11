@@ -1,15 +1,21 @@
 import { useEffect, useState } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import AccordionSection from "../../../../components/AccordionSection";
 import { ListGroup, ListRow } from "../../../../components/GroupedList";
 import { formText, type FlightPlanForm } from "../../../../lib/flightPlanForm";
 import { showError } from "../../../../lib/problems";
+import { api, describeError } from "../../../../lib/api/client";
+import type { FlightPlanFilingRequest } from "../../../../lib/api/types";
+import { pilotQuery } from "../../../../lib/queryClient";
 
 /**
  * The Brief tab's Flight Plan: the FAA's form (FAA Form 7233-4) filled in
  * from the plan, a flight to a group (lib/flightPlanForm), to copy into a
  * filing service or read to Flight Service. Filing itself is theirs:
  * 1800wxbrief.com and Flight Service are the FAA's, at no charge, and
- * ForeFlight and Garmin Pilot file through them.
+ * ForeFlight and Garmin Pilot file through them. Where the app has Flight
+ * Service connected (FlightServiceController, the owner's agreement with
+ * its provider), each form is filed from here too, in the pilot's name.
  */
 export default function FlightPlanSection({ forms, ifr }: { forms: FlightPlanForm[]; ifr: boolean }) {
   // "Copied" on the row tapped, for a moment, where it was tapped.
@@ -19,6 +25,16 @@ export default function FlightPlanSection({ forms, ifr }: { forms: FlightPlanFor
     const done = setTimeout(() => setCopied(null), 2000);
     return () => clearTimeout(done);
   }, [copied]);
+  // Filing from here, where Flight Service is connected: never until the
+  // owner's agreement with its provider, and then signed in.
+  const { data: pilot } = useQuery(pilotQuery);
+  const { data: flightService } = useQuery({ queryKey: ["flightService"], queryFn: api.flightService.status, enabled: !!pilot, staleTime: 5 * 60_000 });
+  const [filed, setFiled] = useState<Record<number, string>>({});
+  const file = useMutation({
+    mutationFn: ({ plan }: { i: number; plan: FlightPlanFilingRequest }) => api.flightService.file(plan),
+    onSuccess: (done, { i }) => setFiled(f => ({ ...f, [i]: done.reference })),
+    onError: err => showError("Could not file the flight plan", describeError(err)),
+  });
   const copy = async (key: string, text: string) => {
     try {
       await navigator.clipboard.writeText(text);
@@ -58,6 +74,15 @@ export default function FlightPlanSection({ forms, ifr }: { forms: FlightPlanFor
                 onClick={() => void copy(`form-${i}`, formText(form))}
                 data-testid="flight-plan-copy"
               />
+              {flightService?.connected && (
+                <ListRow
+                  title={filed[i] ? "Filed with Flight Service" : "File with Flight Service"}
+                  description={filed[i] ? `Reference ${filed[i]}` : !form.filing ? "Needs your airplane's registration, its type and a departure time" : undefined}
+                  onClick={() => form.filing && file.mutate({ i, plan: form.filing })}
+                  disabled={!form.filing || !!filed[i] || file.isPending}
+                  data-testid="flight-plan-file-fss"
+                />
+              )}
             </ListGroup>
           );
         })}

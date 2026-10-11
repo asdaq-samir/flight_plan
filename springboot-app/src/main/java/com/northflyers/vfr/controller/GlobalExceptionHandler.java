@@ -1,6 +1,7 @@
 package com.northflyers.vfr.controller;
 
 import com.northflyers.vfr.dto.ErrorResponse;
+import com.northflyers.vfr.flightservice.FlightServiceNotConnectedException;
 import com.northflyers.vfr.service.NoSuchAircraftException;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
@@ -108,6 +109,18 @@ public class GlobalExceptionHandler {
         log.warn("Data integrity violation", ex);
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(new ErrorResponse("That tail number is already registered"));
+    }
+
+    /**
+     * Handles a filing or a briefing asked of Flight Service with no
+     * provider connected (FlightServiceGateway).
+     *
+     * @param ex says where to file instead
+     * @return 503 with that detail
+     */
+    @ExceptionHandler(FlightServiceNotConnectedException.class)
+    public ResponseEntity<ErrorResponse> handleFlightServiceNotConnected(FlightServiceNotConnectedException ex) {
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(new ErrorResponse(ex.getMessage()));
     }
 
     /**
