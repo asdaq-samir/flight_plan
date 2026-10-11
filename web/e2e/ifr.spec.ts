@@ -140,3 +140,49 @@ test("under IFR the Weather tab says whether an alternate is needed, files one w
   await openSection(page, "Flight Plan");
   await expect(page.getByTestId("flight-plan-alternate")).toContainText("KMSN");
 });
+
+test("under IFR a leg in cloud at or above the freezing level is icing possible, in the Go / No-Go and the adverse conditions", async ({ page }) => {
+  test.slow();
+  await page.addInitScript(() => {
+    const kept = JSON.parse(localStorage.getItem("vfr.preferences") ?? '{"state":{},"version":0}');
+    localStorage.setItem("vfr.preferences", JSON.stringify({ ...kept, state: { ...kept.state, flightRules: "ifr", waypoints: false } }));
+  });
+  // The day's weather pinned: the freezing level at 2,000 ft with cloud,
+  // under any IFR altitude out of C81, a report of moderate icing, and no
+  // hazard or alternate to say anything first.
+  await page.route("**/api/planner/navlog?*", async route => {
+    const response = await route.fetch();
+    const body = (await response.text()).split("\n").map(line => {
+      if (!line.trim()) return line;
+      const message = JSON.parse(line);
+      if (message.type === "altitude") Object.assign(message.altitude_selection, { freezing_level_ft: 2000, freezing_level_at_or_below: false, icing_possible: true });
+      return JSON.stringify(message);
+    }).join("\n");
+    await route.fulfill({ response, body });
+  });
+  await page.route("**/api/planner/briefing?*", async route => {
+    const response = await route.fetch();
+    const json = await response.json();
+    Object.assign(json, {
+      hazards: [], gairmets: [], vfr_not_recommended: [],
+      pireps: [{ observed_at: null, altitude_ft: 6000, aircraft: "C172", urgent: false, turbulence: null, icing: "MOD", raw: "UA /OV DLH/FL060/TP C172/IC MOD RIME", along_track_nm: 120 }],
+    });
+    await route.fulfill({ response, json });
+  });
+  await page.route(url => url.pathname.endsWith("/api/planner/alternate"), route => route.fulfill({ json: {
+    destination: { ident: "KDLH", approach: true, ceiling_ft: null, visibility_sm: 6, taf: "TAF KDLH ...", required: false, reasons: [] },
+    alternate: null, suggestions: [],
+  } }));
+  await page.goto("/app/plan?dep=C81&dest=KDLH");
+  await settle(page);
+  await page.getByTestId("sidebar-trigger-button").click();
+  await openTab(page, "Brief");
+  const weather = page.getByTestId("verdict-weather");
+  await expect(weather).toContainText(/Icing possible at [\d,]+ ft: the freezing level at 2,000 ft, in cloud; 1 pilot report of icing/, { timeout: slow(90000) });
+  await expect(weather).toHaveAttribute("data-finding", "caution");
+  await openTab(page, "Weather");
+  await openSection(page, "Adverse Conditions");
+  const alert = page.getByTestId("icing-alert");
+  await expect(alert).toContainText("14 CFR 91.9(a)");
+  await expect(page.getByTestId("icing-flag")).toBeVisible();
+});

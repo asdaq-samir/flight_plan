@@ -40,6 +40,7 @@ import AlternateSection from "./AlternateSection";
 import FlightPlanSection from "./FlightPlanSection";
 import { flightPlanForms } from "../../../../lib/flightPlanForm";
 import { alternateFinding, useAlternate } from "../../hooks/useAlternate";
+import { icingAtAltitude, icingLine } from "../../../../lib/icing";
 import RiskAssessment from "./RiskAssessment";
 import FindingIcon from "../../../../components/FindingIcon";
 import MockOral from "./MockOral";
@@ -439,6 +440,8 @@ export default memo(function FlightBriefingView({
   const setAssessment = useRisk(s => s.setAssessment);
   const margins = [totals?.fuel_margin_gal, ...(totals?.hops ?? []).map(h => h.totals.fuel_margin_gal)]
     .filter((n): n is number => n != null);
+  // Under IFR, in cloud at or above the freezing level (lib/icing).
+  const icing = ifr && nav && briefing ? icingAtAltitude(nav.altitude_selection, legs.map(l => l.altitude_ft), briefing.pireps) : null;
   const hazardNames = briefing ? [...briefing.hazards.map(h => sigmetHazard(h.hazard, h.type ?? "SIGMET")), ...briefing.gairmets.map(gairmetTitle)] : [];
   const assessment = briefing ? assess({
     vfrNotRecommended: vnrReasons.length > 0,
@@ -493,7 +496,7 @@ export default memo(function FlightBriefingView({
   const verdictFound: VerdictItem[] = verdictItems({
     weather: {
       pending: !briefing && !failed, failed,
-      vfrNotRecommended: vnrReasons, underMinimums: underMine, hazards: hazardNames,
+      vfrNotRecommended: vnrReasons, underMinimums: underMine, icing: icing && icingLine(icing), hazards: hazardNames,
       unchecked: (briefing?.weather_unavailable ?? []).filter(w => w !== "tfrs").map(w => WEATHER_SOURCE_LABEL[w]),
       worst: briefing && (briefing.forecast.min_ceiling_ft != null || briefing.forecast.min_visibility_sm != null)
         ? ceilingAndVisibility(briefing.forecast.min_ceiling_ft, briefing.forecast.min_visibility_sm) : null,
@@ -750,11 +753,12 @@ export default memo(function FlightBriefingView({
         <>
           <AccordionSection
             title="Adverse Conditions"
-            finding={vnrReasons.length > 0 || underMine.length > 0 ? "stop" : hazardNames.length > 0 ? "caution" : undefined}
+            finding={vnrReasons.length > 0 || underMine.length > 0 ? "stop" : icing || hazardNames.length > 0 ? "caution" : undefined}
             // On the title, seen before anything under it: VFR not
             // recommended, or short of that, under the pilot's own minimums.
             aside={vnrReasons.length > 0 ? <Flag finding="stop" testId="vnr-flag">VFR not recommended</Flag>
               : underMine.length > 0 ? <Flag finding="stop" testId="minimums-flag">Under your minimums</Flag>
+                : icing ? <Flag finding="caution" testId="icing-flag">Icing possible</Flag>
                 : hazardNames.length > 0 ? <Flag finding="caution" testId="hazards-flag">{hazardNames.length === 1 ? "A hazard" : `${hazardNames.length} hazards`}</Flag> : undefined}
           >
             {/* Its own standard element (AIM 7-1-5(b)), stated first, the
@@ -776,6 +780,22 @@ export default memo(function FlightBriefingView({
                 <ul className="col-start-2 list-disc space-y-0.5 pl-4 [&>li]:first-letter:uppercase">
                   {underMine.map(reason => <li key={reason}>{reason}</li>)}
                 </ul>
+              </Alert>
+            )}
+            {icing && (
+              // Under IFR, in cloud at or above the freezing level.
+              <Alert className={cn("mb-2 border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200", TEXT.prose)} data-testid="icing-alert">
+                <TriangleAlert />
+                <AlertTitle>Icing possible at {altFt(icing.altitudeFt)} ft</AlertTitle>
+                <AlertDescription className={cn("text-amber-900 dark:text-amber-200", TEXT.prose)}>
+                  <p>
+                    The freezing level is {icing.atOrBelow ? "at or below" : "at"} {altFt(icing.freezingLevelFt)} ft, with cloud
+                    or an icing AIRMET forecast along the route{icing.reports
+                      ? `, and ${icing.reports} pilot report${icing.reports === 1 ? "" : "s"} of icing near it` : ""}.
+                    Most light airplanes&apos; flight manuals prohibit flight into known icing, and the manual&apos;s
+                    limitations bind (14 CFR 91.9(a)): plan below the freezing level, or an airplane certified for it.
+                  </p>
+                </AlertDescription>
               </Alert>
             )}
             {!briefing ? <Pending>{briefingPendingMessage}</Pending>
