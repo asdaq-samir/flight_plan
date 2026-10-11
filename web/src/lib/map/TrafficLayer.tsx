@@ -73,7 +73,7 @@ export function TrafficLayer() {
   return (
     <>
       <Traffic />
-      {hex && <TrackedPath hex={hex} />}
+      {hex && <TrackedPath key={hex} hex={hex} />}
     </>
   );
 }
