@@ -18,7 +18,8 @@ import { bestStopIndex } from "../../lib/geo";
 import { useKeepOffline } from "../../lib/map/keepStatus";
 import { locateOnOpen, positionNow, useOwnShip, useOwnShipNear } from "../../lib/map/ownShip";
 import { pointOf } from "../../lib/airspace";
-import { MAX_STOPS, altitudesOf, altitudesParam, departureOf, identOf, positionIdent, routeName, routeOf, stopsOf } from "../../lib/identSchema";
+import { MAX_STOPS, altitudesOf, altitudesParam, departureOf, identOf, pointName, positionIdent, routeName, routeOf, stopsOf } from "../../lib/identSchema";
+import { restingSummary } from "./figures";
 import { useKeptAirport, usePreferences, type RecentAirport } from "../../lib/preferences";
 import { SearchNear, useAirportSearch } from "../../lib/useAirportSearch";
 import { RouteMap } from "./routeMapChunk";
@@ -1198,6 +1199,14 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     </>
   );
 
+  const flightLine = (
+    <div className="w-full basis-full px-1" data-testid="flight-line">
+      <FlightLine
+        totals={s.totals} estimate={estimate} depart={depart} local={s.local} problem={s.unflyable?.brief}
+      />
+    </div>
+  );
+
   return children({
     // The map stays mounted beside the briefing (the arrow walk still
     // pans it) but stays off the paper: the drawer is the printed page.
@@ -1307,6 +1316,12 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     compact: hasPoints ? (
       <RouteCapsule
         title={routeName(planned.dep || "?", planned.dest || "?", planned.stops)}
+        // Where to, how far and how long, at the pilot's ask, where it was
+        // the route's airports: the route whole is its name to a reader,
+        // and the panel half way up has it.
+        summary={routed ? restingSummary(routeName(planned.dep, planned.dest, planned.stops), pointName(planned.dest), {
+          totals: s.totals, estimate, local: s.local,
+        }) : undefined}
         // One line, as the search bar is, at the pilot's ask: Share at its
         // start, as it was, the route, a tap on it the panel, and the
         // console's button at its end. What is wrong with it is a red mark
@@ -1403,13 +1418,12 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
         {/* The flight's figures, the last of the route's panel, just over
             the separator and the tabs, at the pilot's ask: the quick figures
             read with the route, the detail under the tabs. */}
-        <div className="w-full basis-full px-1" data-testid="flight-line">
-          <FlightLine
-            totals={s.totals} estimate={estimate} depart={depart} local={s.local} problem={s.unflyable?.brief}
-          />
-        </div>
+        {flightLine}
       </div>
     ),
+    // All the way up, the panel's head is the figures alone over the tabs,
+    // at the pilot's ask: the route and its chips are the half's.
+    figures: started && flightLine,
     console: <PilotPanel />,
     submit,
     loading: s.stage !== null,

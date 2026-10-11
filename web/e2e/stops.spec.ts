@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { test, expect, type Locator, type Page } from "@playwright/test";
-import { openPanel, settle, sideDrawer, slow, openTab, openSettings, closeConsole, grabberTo } from "./helpers";
+import { openPanel, settle, sideDrawer, slow, openTab, openSettings, closeConsole, grabberTo, controlsInSight } from "./helpers";
 
 /**
  * A route that lands on the way, as Maps' Add Stop: a stop added in the
@@ -66,7 +66,8 @@ test("a stop added in the panel lands the route there: the capsule, the nav log 
 
   // Lowered, the capsule names the route through it.
   await grabberTo(page, "peek");
-  await expect(page.getByTestId("capsule-title")).toHaveText("C81 → KMSN → KDLH");
+  await expect(page.getByTestId("capsule-detail")).toHaveAccessibleName(/^C81 → KMSN → KDLH/);
+  await expect(page.getByTestId("capsule-title")).toHaveText(/^KDLH · \d+ nm · /);
 
   // Taken off again from its menu -- a right-click with a mouse, a press
   // and hold on a phone: the route as it was.
@@ -238,7 +239,7 @@ test("a cleared route's box takes the departure first, then asks for the destina
 test("a link with a stop opens on the route through it", async ({ page }) => {
   await recordedStops(page);
   await page.goto("/app/plan?dep=C81&dest=KDLH&stops=KMSN");
-  await expect(page.getByTestId("capsule-title")).toHaveText("C81 → KMSN → KDLH", { timeout: slow(15000) });
+  await expect(page.getByTestId("capsule-detail")).toHaveAccessibleName(/^C81 → KMSN → KDLH/, { timeout: slow(15000) });
   // Its airport on the map, as the route's two ends are.
   await expect(page.locator(".leaflet-marker-icon", { hasText: "KMSN" }).first()).toBeVisible({ timeout: slow(15000) });
 });
@@ -257,6 +258,7 @@ test("a flight saved with a stop is filed with it and the altitude set there, an
   });
   await page.goto("/app/plan?dep=C81&dest=KDLH&stops=KMSN&altitudes=KMSN:2400&view=briefing");
   const save = page.getByRole("button", { name: "Save this flight" });
+  await controlsInSight(page);
   await expect(save).toBeEnabled({ timeout: slow(30000) });
   await save.click();
 

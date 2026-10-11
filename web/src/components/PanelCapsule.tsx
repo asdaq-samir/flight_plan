@@ -20,8 +20,11 @@ import { ConsoleButtonContext } from "./mapChrome";
  * progress), as Maps' Options does, and a button either side. Drag it or
  * its grabber and it opens into the sheet.
  */
-export function RouteCapsule({ title, detail, warning, onDetail, leading }: {
+export function RouteCapsule({ title, summary, detail, warning, onDetail, leading }: {
   title: string;
+  /** What the pill says in place of the route, at the pilot's ask --
+   *  "KMSP · 278 nm · 2h 24m" -- the route whole still its button's name. */
+  summary?: string;
   /** A chip's words under the route, and what a tap on it does. */
   detail?: string;
   /** One line's: what is wrong with the route, a red mark beside it. */
@@ -38,14 +41,16 @@ export function RouteCapsule({ title, detail, warning, onDetail, leading }: {
             in its middle, the panel shows it whole. */}
         <button
           type="button" onClick={onDetail} data-testid="capsule-detail" data-tone={warning ? "destructive" : "default"}
-          aria-label={warning ? `${title}, ${warning}` : title}
+          aria-label={[title, summary, warning].filter(Boolean).join(", ")}
           // Over the grabber's hit area (index.css), which reached down
           // across its top: the route is what a tap there means, the
           // grabber's own the drag.
           className="z-10 flex h-[2.5625rem] min-w-0 flex-1 items-center justify-center gap-1.5 rounded-full px-3 outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           {warning && <CircleAlert className="size-4 shrink-0 text-destructive" aria-hidden="true" />}
-          <FittedRoute title={title} marked={!!warning} />
+          {summary && !warning
+            ? <span className={cn("truncate font-semibold tabular-nums", TEXT.row)} data-testid="capsule-title">{summary}</span>
+            : <FittedRoute title={title} marked={!!warning} />}
         </button>
         <div className="flex shrink-0 justify-end">{consoleButton}</div>
       </div>

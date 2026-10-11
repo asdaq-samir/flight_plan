@@ -588,7 +588,7 @@ test("with no route the panel is a search bar: Home is set from Favorites, an ai
   // it was flown to from. The panel the height it was throughout; the
   // card's own close, the search.
   await grabberTo(page, "peek");
-  await expect(page.getByTestId("capsule-title")).toHaveText("C81 → KDLH");
+  await expect(page.getByTestId("capsule-detail")).toHaveAccessibleName(/^C81 → KDLH/);
   await page.getByTestId("capsule-detail").click();
   await sideDrawer(page).getByTestId("route-clear").click();
   await expect(page).not.toHaveURL(/dep=/);

@@ -67,6 +67,17 @@ export async function grabberTo(page: Page, state: "peek" | "half" | "full") {
   await expect(panel).toHaveAttribute("data-panel", state);
 }
 
+/** The route's controls in sight -- its box, the airplane, the time, Save
+ *  and Print -- which all the way up give way to its figures alone over
+ *  the tabs, at the pilot's ask (MapPanel's `figures`): the panel half way. */
+export async function controlsInSight(page: Page) {
+  const panel = sideDrawer(page);
+  await panel.waitFor();
+  if ((await panel.getAttribute("data-panel")) !== "full") return;
+  await grabberTo(page, "half");
+  await settled(panel);
+}
+
 /** The panel all the way out, as a finger takes it: a drag on its
  *  grabber to the screen's far edge. At half it ends at the tabs' bar;
  *  from the pill, two taps on the grabber. */
