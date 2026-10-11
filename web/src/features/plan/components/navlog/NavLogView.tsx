@@ -447,16 +447,21 @@ export default function NavLogView({
       // reasoning), not a red mark by the waypoint, which the pilot found
       // one warning too many.
       cell: ({ row }) => (
-        <span className="flex items-center gap-2">
+        <span className="flex min-w-[5.5rem] items-center gap-2">
           <PointMark row={row.original} number={row.original.kind === "checkpoint" ? numbers.get(row.original.key) : undefined} weather={metarColourOf} />
-          <span className="min-w-0">{rowPoint(row.original).name}</span>
+          <span className="min-w-0 [overflow-wrap:anywhere]">{rowPoint(row.original).name}</span>
         </span>
       ),
       // On a phone a name wraps, and a long word is hyphenated rather
       // than pushing the figures off the drawer's edge: with a
       // departure time's ETA as a sixth column, "Subdivision" alone was
-      // wider than the room left. At a syllable, not anywhere: broken
-      // anywhere, a name went "Clyma / n / Subdiv / ision".
+      // wider than the room left. At a syllable where the browser can
+      // hyphenate; where it cannot (no dictionary: CI's audit found the
+      // log seven points past an iPhone 16 Pro's panel for "Meadowbrook"
+      // at 10,500 ft), broken at the column's edge as a last resort. The
+      // column is never narrower than 5.5 rem, its mark and some ten
+      // letters: broken anywhere with no floor, the table squeezed it, and
+      // a name went "Clyma / n / Subdiv / ision".
       meta: { className: "text-left whitespace-normal hyphens-auto" },
     },
     {
@@ -652,7 +657,7 @@ export default function NavLogView({
       </TableCaption>
       {/* Over the rows as they scroll, the sheet's own frosted glass
           rather than a band of white across it. */}
-      <TableHeader className="sticky top-0 z-10 bg-background/75 backdrop-blur-xl print:static print:bg-transparent print:backdrop-blur-none dark:bg-popover/75">
+      <TableHeader className="sticky top-[var(--section-tabs,0px)] z-10 bg-background/75 backdrop-blur-xl print:static print:bg-transparent print:backdrop-blur-none dark:bg-popover/75">
         {table.getHeaderGroups().map(headerGroup => (
           <TableRow key={headerGroup.id}>
             {headerGroup.headers.map(header => (
