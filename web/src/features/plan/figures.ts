@@ -81,10 +81,10 @@ function guess({ distanceNm, cruiseTasKt, fuelBurnGph }: { distanceNm: number; c
  */
 export function restingSummary(name: string, dest: string, { totals, estimate, local }: Omit<TripInput, "depart">): string {
   if (local) return totals?.ete_min != null ? `${name} · ${enRoute(totals.ete_min)}` : name;
-  if (totals) return `${dest} · ${Math.round(totals.distance_nm)} nm · ${totals.ete_min == null ? "—" : enRoute(totals.ete_min)}`;
+  if (totals) return `${dest} · ${Math.ceil(totals.distance_nm)} nm · ${totals.ete_min == null ? "—" : enRoute(totals.ete_min)}`;
   if (estimate) {
     const { minutes } = guess(estimate);
-    return `${dest} · ${Math.round(estimate.distanceNm)} nm${minutes == null ? "" : ` · ≈${enRoute(minutes)}`}`;
+    return `${dest} · ${Math.ceil(estimate.distanceNm)} nm${minutes == null ? "" : ` · ≈${enRoute(minutes)}`}`;
   }
   return dest;
 }
