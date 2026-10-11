@@ -1,7 +1,7 @@
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format, parseISO } from "date-fns";
-import { CircleMinus, GraduationCap, Mail, MailX, Plus } from "lucide-react";
+import { CircleMinus, FileDown, FileUp, GraduationCap, Mail, MailX, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "cn";
 import { ConsolePages, PageRow } from "../../components/ConsolePages";
@@ -12,7 +12,10 @@ import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { useConfirm } from "../../components/useConfirm";
 import TogglePill from "../../components/TogglePill";
-import { api } from "../../lib/api/client";
+import { api, describeError } from "../../lib/api/client";
+import { shareFile } from "../../lib/flightPlanFiles";
+import { importLogbook, logbookCsv } from "../../lib/logbookCsv";
+import { showError } from "../../lib/problems";
 import type { Currency, LogbookEntry, LogbookEntryRequest } from "../../lib/api/types";
 import { TEXT } from "../../lib/text";
 import CheckridePage from "./CheckridePage";
@@ -154,6 +157,35 @@ export function LogbookPanel({ aircraft }: { aircraft?: string }) {
   // Lapsed more than six calendar months: only a check restores it (61.57(d)).
   const ipcNeeded = !!currency?.ipcNeededAfter && currency.ipcNeededAfter < today();
   const met = training?.experience.filter(i => i.met).length ?? 0;
+  // The logbook to and from a file (lib/logbookCsv): ForeFlight's export,
+  // or this one's own, read on the device and sent as entries; what was
+  // left out, and why, said under the rows.
+  const fileInput = useRef<HTMLInputElement>(null);
+  const [imported, setImported] = useState<string | null>(null);
+  const bringIn = useMutation({
+    mutationFn: async (file: File) => {
+      const read = importLogbook(await file.text());
+      if (!read.entries.length) return { read, result: { added: 0, duplicates: 0 } };
+      return { read, result: await api.logbook.importAll(read.entries) };
+    },
+    onSuccess: ({ read, result }) => {
+      const left = read.skipped.slice(0, 3).map(s => `line ${s.line}: ${s.reason}`).join("; ");
+      setImported([
+        `${result.added} flight${result.added === 1 ? "" : "s"} added`,
+        result.duplicates ? `${result.duplicates} already in your logbook` : "",
+        read.skipped.length ? `${read.skipped.length} row${read.skipped.length === 1 ? "" : "s"} left out (${left}${read.skipped.length > 3 ? "; …" : ""})` : "",
+      ].filter(Boolean).join(", ") + ".");
+      refresh();
+    },
+    onError: err => showError("Could not import the logbook", describeError(err)),
+  });
+  const exportFile = async () => {
+    try {
+      await shareFile(`logbook-${today()}.csv`, "text/csv", logbookCsv(entries ?? []));
+    } catch (err) {
+      if ((err as Error).name !== "AbortError") showError("Could not export the logbook", (err as Error).message);
+    }
+  };
   return (
     <ConsolePages
       back="Logbook"
@@ -210,6 +242,28 @@ export function LogbookPanel({ aircraft }: { aircraft?: string }) {
           <ListRow title="Landings" value={currency.landings} />
         </ListGroup>
       )}
+
+      <input
+        ref={fileInput} type="file" accept=".csv,text/csv" className="hidden" data-testid="logbook-import-file"
+        onChange={e => {
+          const file = e.target.files?.[0];
+          e.target.value = "";
+          if (file) bringIn.mutate(file);
+        }}
+      />
+      <ListGroup
+        title="File"
+        footer={imported ?? "A CSV file: ForeFlight's logbook export, or this logbook's own. A flight already here -- the same day, airplane, route and time -- is not added twice."}
+      >
+        <ListRow
+          title="Import a logbook" media={<FileUp className="size-5" />}
+          onClick={() => fileInput.current?.click()} disabled={bringIn.isPending} data-testid="logbook-import"
+        />
+        <ListRow
+          title="Export as CSV" media={<FileDown className="size-5" />}
+          onClick={() => void exportFile()} disabled={!entries?.length} data-testid="logbook-export"
+        />
+      </ListGroup>
 
       {/* A row opens its flight's form, placed by the list. */}
       <ResponsivePopover open={!!changing} onOpenChange={open => { if (!open) setChanging(null); }}>

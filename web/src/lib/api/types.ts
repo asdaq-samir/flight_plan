@@ -234,6 +234,7 @@ export type ChecklistDto = Webapp["ChecklistDto"];
 export type Squawk = Webapp["SquawkDto"];
 export type SquawkRequest = Webapp["SquawkRequest"];
 export type Reminders = Webapp["RemindersDto"];
+export type LogbookImportResult = Webapp["LogbookImportResult"];
 
 /** One row of "My Flights" -- totals only; `Flight` carries the full
  *  filed nav log, fetched one flight at a time. */

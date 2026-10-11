@@ -3,12 +3,18 @@ package com.northflyers.vfr.service;
 import com.northflyers.vfr.domain.LogbookEntry;
 import com.northflyers.vfr.domain.Pilot;
 import com.northflyers.vfr.dto.LogbookEntryRequest;
+import com.northflyers.vfr.dto.LogbookImportResult;
 import com.northflyers.vfr.repository.LogbookRepository;
 import com.northflyers.vfr.repository.PilotRepository;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 /** A pilot's logbook -- CRUD scoped by pilot at the repository
  *  ({@link LogbookRepository#findByIdAndPilotId}) -- and the two dates on
@@ -34,6 +40,31 @@ public class LogbookService {
 
     public Optional<LogbookEntry> update(Pilot pilot, Long id, LogbookEntryRequest r) {
         return entries.findByIdAndPilotId(id, pilot.getId()).map(e -> entries.save(fill(e, r)));
+    }
+
+    /** Entries brought in from a file, all or none: each not already in the
+     *  logbook -- the same day, airplane, route and total time, as a file
+     *  imported twice would give -- added, the rest counted. */
+    @Transactional
+    public LogbookImportResult importAll(Pilot pilot, List<LogbookEntryRequest> requests) {
+        Set<String> seen = new HashSet<>();
+        for (LogbookEntry e : list(pilot)) {
+            seen.add(sameFlight(e.getFlownOn(), e.getAircraft(), e.getRoute(), e.getTotalHours()));
+        }
+        List<LogbookEntry> added = new ArrayList<>();
+        for (LogbookEntryRequest r : requests) {
+            if (seen.add(sameFlight(r.flownOn(), blankToNull(r.aircraft()), blankToNull(r.route()), r.totalHours()))) {
+                added.add(fill(new LogbookEntry(pilot), r));
+            }
+        }
+        entries.saveAll(added);
+        return new LogbookImportResult(added.size(), requests.size() - added.size());
+    }
+
+    /** What makes two entries one flight, for an import. */
+    private static String sameFlight(LocalDate on, String aircraft, String route, double totalHours) {
+        return on + "|" + Objects.toString(aircraft, "").toUpperCase() + "|" + Objects.toString(route, "").toUpperCase()
+                + "|" + Math.round(totalHours * 10);
     }
 
     /** @return true if an entry was actually deleted */
