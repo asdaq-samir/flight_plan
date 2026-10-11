@@ -32,6 +32,7 @@ import { runwaysLeftOut, stripsOf } from "../../../lib/runwaySketch";
 import { TEXT } from "../../../lib/text";
 import { diagramRunwaysPicture } from "../../../lib/diagram";
 import { useHeardMetar } from "../../../lib/map/receiver";
+import { zuluTime } from "../../../lib/clock";
 
 const SketchViewer = lazy(() => import("./SketchViewer"));
 
@@ -71,7 +72,7 @@ function windLine(metar: NonNullable<AirportPlace["metar"]>): string {
 /** A time as reports give it: "1255Z". */
 function zuluOf(at: string): string {
   const when = new Date(at);
-  return Number.isNaN(when.getTime()) ? "" : `${String(when.getUTCHours()).padStart(2, "0")}${String(when.getUTCMinutes()).padStart(2, "0")}Z`;
+  return Number.isNaN(when.getTime()) ? "" : zuluTime(when);
 }
 
 /** When the report was made: "Observed 1255Z, 14 minutes ago". */

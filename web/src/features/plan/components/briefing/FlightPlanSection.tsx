@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import AccordionSection from "../../../../components/AccordionSection";
 import { ListGroup, ListRow } from "../../../../components/GroupedList";
 import { formText, type FlightPlanForm } from "../../../../lib/flightPlanForm";
 import { showError } from "../../../../lib/problems";
+import { useCopied } from "../../../../lib/share";
 import { api, describeError } from "../../../../lib/api/client";
 import type { FlightPlanFilingRequest } from "../../../../lib/api/types";
 import { pilotQuery } from "../../../../lib/queryClient";
@@ -19,12 +20,7 @@ import { pilotQuery } from "../../../../lib/queryClient";
  */
 export default function FlightPlanSection({ forms, ifr }: { forms: FlightPlanForm[]; ifr: boolean }) {
   // "Copied" on the row tapped, for a moment, where it was tapped.
-  const [copied, setCopied] = useState<string | null>(null);
-  useEffect(() => {
-    if (!copied) return;
-    const done = setTimeout(() => setCopied(null), 2000);
-    return () => clearTimeout(done);
-  }, [copied]);
+  const [copied, setCopied] = useCopied();
   // Filing from here, where Flight Service is connected: never until the
   // owner's agreement with its provider, and then signed in.
   const { data: pilot } = useQuery(pilotQuery);

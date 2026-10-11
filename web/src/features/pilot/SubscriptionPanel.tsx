@@ -5,6 +5,7 @@ import PaidPrompt from "../../components/PaidPrompt";
 import type { PaidFeature } from "../../lib/api/types";
 import { PRICE, standing, subscriptionQuery } from "../../lib/subscription";
 import { TEXT } from "../../lib/text";
+import { FINDING_TONE } from "../../lib/status";
 
 /** Each Claude-written feature's month, as the row names it. */
 const COUNTED: Record<PaidFeature, string> = {
@@ -28,7 +29,7 @@ export default function SubscriptionPanel() {
   const { data: subscription, isPending, error } = useQuery(subscriptionQuery);
   if (isPending) return <p role="status" className={cn("px-1 text-muted-foreground", TEXT.note)}>Checking your subscription…</p>;
   if (error || !subscription) {
-    return <p role="alert" className={cn("px-1 text-red-700 dark:text-red-400", TEXT.prose)}>Your subscription could not be checked.</p>;
+    return <p role="alert" className={cn("px-1", FINDING_TONE.stop, TEXT.prose)}>Your subscription could not be checked.</p>;
   }
   return (
     <div className="space-y-4" data-testid="subscription-panel">

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { renderHook } from "@testing-library/react";
+import { renderHook, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { TEXT_PRODUCT } from "../fisb";
 import { apduOf, toDlac, uplink } from "../fisbFixtures";
@@ -68,7 +68,7 @@ describe("a cockpit receiver", () => {
     expect(mergeTraffic(null, [], null)).toBeNull();
   });
 
-  it("keeps each station's latest METAR and TAF heard over FIS-B, not an older one heard after", () => {
+  it("keeps each station's latest METAR and TAF heard over FIS-B, not an older one heard after", async () => {
     const heard = (...records: string[]) =>
       frame(Uint8Array.from([0x07, 0, 0, 0, ...uplink(apduOf(TEXT_PRODUCT, toDlac(`${records.join("\x1e")}\x1e\x03`)))]));
     const now = Date.parse("2026-10-11T16:20:00Z");
@@ -83,7 +83,7 @@ describe("a cockpit receiver", () => {
     // The card's field by its FAA identifier finds the station's latest,
     // read; one never heard, nothing.
     const { result } = renderHook(() => useHeardMetar("DLH"));
-    expect(result.current).toMatchObject({ observed_at: "2026-10-11T16:12:00Z", visibility_sm: 3, ceiling_ft: 800, flight_category: "IFR" });
+    await waitFor(() => expect(result.current).toMatchObject({ observed_at: "2026-10-11T16:12:00Z", visibility_sm: 3, ceiling_ft: 800, flight_category: "IFR" }));
     expect(renderHook(() => useHeardMetar("KOSH")).result.current).toBeNull();
   });
 });

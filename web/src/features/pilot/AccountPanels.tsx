@@ -29,6 +29,8 @@ import { usePreferences } from "../../lib/preferences";
 import { TEXT } from "../../lib/text";
 import { altFt, feet } from "../../lib/units";
 import { LEVEL_TONE, riskLine, type RiskLevel } from "../../lib/frat";
+import { localDay } from "../../lib/clock";
+import { FINDING_TONE } from "../../lib/status";
 
 // Mirrors springboot-app's own AircraftRequest validation
 // (@NotBlank/@Positive in dto/AircraftRequest.java) so a bad value is
@@ -111,14 +113,14 @@ function VorCheckGroup({ aircraft }: { aircraft: Aircraft }) {
   const queryClient = useQueryClient();
   const id = useId();
   const [check, setCheck] = useState<VorCheckRequest>({
-    checkedOn: new Date().toISOString().slice(0, 10), kind: "VOT", place: "", errorDeg: 0,
+    checkedOn: localDay(), kind: "VOT", place: "", errorDeg: 0,
   });
   const record = useMutation({
     mutationFn: () => api.aircraft.vorCheck(aircraft.id, { ...check, place: check.place || null }),
     onSuccess: () => { toast.success("VOR check recorded"); void queryClient.invalidateQueries({ queryKey: ["aircraft"] }); },
   });
   const last = aircraft.vorCheck;
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localDay();
   const good = !!last && last.withinLimit && last.goodThrough >= today;
   return (
     <ListGroup
@@ -129,7 +131,7 @@ function VorCheckGroup({ aircraft }: { aircraft: Aircraft }) {
         title="Last check"
         description={last ? `${last.checkedOn} · ${VOR_CHECKS.find(k => k.value === last.kind)?.label ?? last.kind}${last.place ? ` · ${last.place}` : ""} · ${last.errorDeg}°` : "None recorded"}
         value={!last ? undefined : (
-          <span className={cn(good ? "text-green-700 dark:text-green-400" : "text-red-700 dark:text-red-400")} data-testid="vor-check-standing">
+          <span className={cn(good ? FINDING_TONE.ok : FINDING_TONE.stop)} data-testid="vor-check-standing">
             {!last.withinLimit ? `Over ${last.limitDeg}°` : good ? `To ${last.goodThrough}` : `Ended ${last.goodThrough}`}
           </span>
         )}
@@ -173,10 +175,10 @@ const DATED: { key: "annualOn" | "staticCheckOn" | "transponderCheckOn" | "eltIn
 /** How a last good day stands today: in green to it, red past it. */
 function Standing({ through, testId }: { through: string | null | undefined; testId: string }) {
   if (!through) return null;
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localDay();
   const good = through >= today;
   return (
-    <span className={cn(good ? "text-green-700 dark:text-green-400" : "text-red-700 dark:text-red-400")} data-testid={testId}>
+    <span className={cn(good ? FINDING_TONE.ok : FINDING_TONE.stop)} data-testid={testId}>
       {good ? `To ${through}` : `Past due since ${through}`}
     </span>
   );
@@ -201,7 +203,7 @@ function InspectionsGroup({ aircraft }: { aircraft: Aircraft }) {
     mutationFn: () => api.aircraft.inspections(aircraft.id, form),
     onSuccess: () => { toast.success("Inspections saved"); void queryClient.invalidateQueries({ queryKey: ["aircraft"] }); },
   });
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localDay();
   const hours = (value: string) => (value === "" ? null : Number(value));
   const due = recorded?.hundredHourDueAtHours;
   return (
@@ -223,7 +225,7 @@ function InspectionsGroup({ aircraft }: { aircraft: Aircraft }) {
       <ListRow
         id={`${id}-battery`} title="ELT battery replace by"
         description={<>As marked on the transmitter, 91.207(c){recorded?.eltBatteryDueOn && (
-          <> · <span className={cn(recorded.eltBatteryDueOn > today ? "text-green-700 dark:text-green-400" : "text-red-700 dark:text-red-400")} data-testid="inspection-eltBattery">
+          <> · <span className={cn(recorded.eltBatteryDueOn > today ? FINDING_TONE.ok : FINDING_TONE.stop)} data-testid="inspection-eltBattery">
             {recorded.eltBatteryDueOn > today ? `By ${recorded.eltBatteryDueOn}` : `Due since ${recorded.eltBatteryDueOn}`}
           </span></>
         )}</>}
@@ -236,7 +238,7 @@ function InspectionsGroup({ aircraft }: { aircraft: Aircraft }) {
       <ListRow
         id={`${id}-at`} title="Hours at last 100-hour"
         description={due != null ? <>Due at {due.toFixed(1)} h{recorded?.hoursNow != null && (
-          <span className={cn(recorded.hoursNow < due ? "text-green-700 dark:text-green-400" : "text-red-700 dark:text-red-400")} data-testid="inspection-hundredHour">
+          <span className={cn(recorded.hoursNow < due ? FINDING_TONE.ok : FINDING_TONE.stop)} data-testid="inspection-hundredHour">
             {recorded.hoursNow < due ? `, ${(due - recorded.hoursNow).toFixed(1)} h to go` : ", due now"}
           </span>
         )}</> : "Time in service, at the last annual or 100-hour"}

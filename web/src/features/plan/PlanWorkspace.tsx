@@ -49,7 +49,7 @@ import { navlogQuery, usePlan } from "./hooks/usePlan";
 import { useVerdict, type VerdictItem } from "../../lib/verdict";
 import CloseButton from "../../components/CloseButton";
 import type { BriefingPart } from "./components/briefing/sections";
-import { inNativeApp, nativeShare } from "../../lib/native";
+import { cancelled, shareOrCopy } from "../../lib/share";
 import { mayUse, useEntitlement } from "../../lib/subscription";
 import PaidPrompt from "../../components/PaidPrompt";
 import { grouped } from "../../lib/units";
@@ -880,14 +880,9 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     const url = window.location.href;
     const title = routeName(planned.dep, planned.dest, planned.stops);
     try {
-      if (inNativeApp()) await nativeShare(title, url);
-      else if (navigator.share) await navigator.share({ title, url });
-      else {
-        await navigator.clipboard.writeText(url);
-        toast.success("Link copied");
-      }
+      if (await shareOrCopy({ title, url }) === "copied") toast.success("Link copied");
     } catch (err) {
-      if ((err as Error).name !== "AbortError") showError("Could not share the route", (err as Error).message);
+      if (!cancelled(err)) showError("Could not share the route", (err as Error).message);
     }
   }, [planned.dep, planned.dest, planned.stops]);
 

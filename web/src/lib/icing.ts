@@ -1,4 +1,5 @@
 import type { AltitudeBreakdown, Briefing } from "./api/types";
+import { grouped } from "./units";
 
 /**
  * Under IFR, whether the flight is planned into icing: a leg flown at or
@@ -30,7 +31,7 @@ export function icingAtAltitude(
   return { altitudeFt: highest, freezingLevelFt: level, atOrBelow: !!selection.freezing_level_at_or_below, reports };
 }
 
-const ft = (n: number) => `${Math.round(n).toLocaleString("en-US")} ft`;
+const ft = (n: number) => `${grouped(n)} ft`;
 
 /** In a line, for the Go / No-Go. */
 export function icingLine(icing: IcingAtAltitude): string {

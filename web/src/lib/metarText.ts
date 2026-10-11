@@ -1,16 +1,20 @@
+import { parseMetar } from "metar-taf-parser";
 import type { Metar } from "./api/types";
+import { observedAt } from "./reportTime";
+
+export { observedAt };
 
 /**
  * A METAR read from its text, for one heard over FIS-B (lib/fisb), which
- * comes as sent, not parsed as the planner's are: the figures the card
- * shows, read as FAA Order JO 7900.5 (Surface Weather Observing) codes
- * them -- the wind true (dddffGggKT, VRB, calm 00000KT), the visibility
- * in statute miles (10SM, 1/2SM, 1 1/2SM, M1/4SM), the sky (FEW, SCT,
- * BKN, OVC and VV, hundreds of feet above the ground), the temperature
- * and dew point (M for minus) and the altimeter (A3002) -- the remarks
- * after RMK left alone. The ceiling is 14 CFR 1.1's: the lowest layer
- * broken or overcast, or the vertical visibility into an obscuration;
- * the flight category AIM 7-1-7's, as the planner's (vfr.glmp).
+ * comes as sent, not parsed as the planner's are: read by
+ * metar-taf-parser (the codes as FAA Order JO 7900.5 (Surface Weather
+ * Observing) sets them: the wind true, VRB and calm, the visibility in
+ * statute miles with its fractions and M, the sky's layers and vertical
+ * visibility in feet above the ground, the temperature, dew point and
+ * altimeter), and turned into the figures the card shows. The ceiling is
+ * 14 CFR 1.1's: the lowest layer broken or overcast, or the vertical
+ * visibility into an obscuration; the flight category AIM 7-1-7's, as
+ * the planner's (vfr.glmp).
  */
 
 /** AIM 7-1-7's categories, as vfr.glmp.flight_category has them: LIFR
@@ -25,73 +29,42 @@ export function flightCategory(ceilingFt: number | null, visibilitySm: number | 
   return "VFR";
 }
 
-/** A fraction or a whole number of miles: "1/2", "3", "M1/4". Less than
- *  a quarter (M1/4) is the quarter, as the planner's reports from
- *  aviationweather.gov give it; the report under the figures says "M". */
-function miles(word: string): number | null {
-  const bare = word.replace(/^[MP]/, "");
-  const [top, bottom] = bare.split("/");
-  const value = bottom ? Number(top) / Number(bottom) : Number(bare);
-  return Number.isFinite(value) ? value : null;
-}
+/** Knots and inches of mercury, from a station that reports in metres a
+ *  second or hectopascals. */
+const KT_PER_MPS = 1.943844;
+const INHG_PER_HPA = 0.0295300;
+const SM_PER_M = 1 / 1609.344;
 
-/** When a report made on day DD at HH:MM UTC was made: this month's, or
- *  last month's where that day is still to come. */
-export function observedAt(time: string, now: Date): string | null {
-  const m = /^(\d{2})(\d{2})(\d{2})Z$/.exec(time);
-  if (!m) return null;
-  const [day, hour, minute] = [Number(m[1]), Number(m[2]), Number(m[3])];
-  let when = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), day, hour, minute);
-  // An hour's grace for a clock a little behind the station's.
-  if (when > now.getTime() + 3_600_000) when = Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, day, hour, minute);
-  return new Date(when).toISOString().replace(".000Z", "Z");
-}
-
-/** A METAR's or SPECI's text, read; null where it is not one. */
+/** A METAR's or SPECI's text, read; null where it is not one, or where
+ *  it cannot be read. */
 export function metarOf(text: string, now: Date = new Date()): Metar | null {
-  const words = text.replace(/=\s*$/, "").trim().split(/\s+/);
-  if (words[0] !== "METAR" && words[0] !== "SPECI") return null;
-  const body = words.slice(0, words.includes("RMK") ? words.indexOf("RMK") : words.length);
-  const metar: Metar = {
-    raw: text.replace(/\s+/g, " ").trim(),
-    observed_at: observedAt(body[2] ?? "", now),
-    flight_category: null, ceiling_ft: null, visibility_sm: null,
-    wind_dir_true_deg: null, wind_speed_kt: null, wind_gust_kt: null,
-    altimeter_in_hg: null, temp_c: null, dewpoint_c: null,
-  };
-  for (let i = 3; i < body.length; i++) {
-    const word = body[i]!;
-    const wind = /^(\d{3}|VRB)(\d{2,3})(?:G(\d{2,3}))?KT$/.exec(word);
-    if (wind) {
-      metar.wind_dir_true_deg = wind[1] === "VRB" ? null : Number(wind[1]);
-      metar.wind_speed_kt = Number(wind[2]);
-      metar.wind_gust_kt = wind[3] ? Number(wind[3]) : null;
-      continue;
-    }
-    if (/^[MP]?\d+(\/\d+)?SM$/.test(word)) {
-      let sm = miles(word.slice(0, -2));
-      // "1 1/2SM": the whole mile before it.
-      const before = body[i - 1];
-      if (sm != null && word.includes("/") && before && /^\d$/.test(before)) sm += Number(before);
-      metar.visibility_sm = sm;
-      continue;
-    }
-    const sky = /^(FEW|SCT|BKN|OVC|VV)(\d{3})/.exec(word);
-    if (sky) {
-      const base = Number(sky[2]) * 100;
-      if ((sky[1] === "BKN" || sky[1] === "OVC" || sky[1] === "VV") && metar.ceiling_ft == null) metar.ceiling_ft = base;
-      continue;
-    }
-    const temps = /^(M?\d{2})\/(M?\d{2})?$/.exec(word);
-    if (temps) {
-      const c = (s: string) => (s.startsWith("M") ? -Number(s.slice(1)) : Number(s));
-      metar.temp_c = c(temps[1]!);
-      metar.dewpoint_c = temps[2] ? c(temps[2]) : null;
-      continue;
-    }
-    const altimeter = /^A(\d{4})$/.exec(word);
-    if (altimeter) metar.altimeter_in_hg = Number(altimeter[1]) / 100;
+  const raw = text.replace(/\s+/g, " ").trim();
+  if (!/^(METAR|SPECI) /.test(raw)) return null;
+  let parsed;
+  try {
+    parsed = parseMetar(raw.replace(/=$/, ""));
+  } catch {
+    return null;
   }
-  metar.flight_category = flightCategory(metar.ceiling_ft ?? null, metar.visibility_sm ?? null);
-  return metar;
+  const { wind, visibility, altimeter } = parsed;
+  const speed = (kt: number | undefined) => (kt == null ? null : wind?.unit === "MPS" ? Math.round(kt * KT_PER_MPS) : kt);
+  const layers = parsed.clouds.filter(c => (c.quantity === "BKN" || c.quantity === "OVC") && c.height != null).map(c => c.height!);
+  if (parsed.verticalVisibility != null) layers.push(parsed.verticalVisibility);
+  const ceiling = layers.length ? Math.min(...layers) : null;
+  const sm = visibility == null ? null : visibility.unit === "m" ? Math.round(visibility.value * SM_PER_M * 100) / 100 : visibility.value;
+  const time = parsed.day != null && parsed.hour != null && parsed.minute != null
+    ? `${String(parsed.day).padStart(2, "0")}${String(parsed.hour).padStart(2, "0")}${String(parsed.minute).padStart(2, "0")}Z` : "";
+  return {
+    raw,
+    observed_at: observedAt(time, now),
+    flight_category: flightCategory(ceiling, sm),
+    ceiling_ft: ceiling,
+    visibility_sm: sm,
+    wind_dir_true_deg: wind?.degrees ?? null,
+    wind_speed_kt: speed(wind?.speed),
+    wind_gust_kt: speed(wind?.gust),
+    altimeter_in_hg: altimeter == null ? null : altimeter.unit === "inHg" ? altimeter.value : Math.round(altimeter.value * INHG_PER_HPA * 100) / 100,
+    temp_c: parsed.temperature ?? null,
+    dewpoint_c: parsed.dewPoint ?? null,
+  };
 }

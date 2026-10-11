@@ -1,3 +1,4 @@
+import Papa from "papaparse";
 import type { LogbookEntry, LogbookEntryRequest } from "./api/types";
 
 /**
@@ -17,34 +18,16 @@ import type { LogbookEntry, LogbookEntryRequest } from "./api/types";
  * night) beside the night full-stop ones (61.57(b)).
  */
 
-/** RFC 4180's CSV: commas, quotes doubled inside quotes, and a quoted
- *  field's own commas and line breaks. */
+/** RFC 4180's CSV, papaparse's reading of it: commas, quotes doubled
+ *  inside quotes, and a quoted field's own commas and line breaks; a row
+ *  to each record, empty ones kept so a row's place is its line. */
 export function parseCsv(text: string): string[][] {
-  const rows: string[][] = [];
-  let row: string[] = [];
-  let field = "";
-  let quoted = false;
-  for (let i = 0; i < text.length; i++) {
-    const c = text[i]!;
-    if (quoted) {
-      if (c === '"' && text[i + 1] === '"') { field += '"'; i++; }
-      else if (c === '"') quoted = false;
-      else field += c;
-    } else if (c === '"') quoted = true;
-    else if (c === ",") { row.push(field); field = ""; }
-    else if (c === "\n" || c === "\r") {
-      if (c === "\r" && text[i + 1] === "\n") i++;
-      row.push(field); rows.push(row); row = []; field = "";
-    } else field += c;
-  }
-  if (field || row.length) { row.push(field); rows.push(row); }
-  return rows;
+  return Papa.parse<string[]>(text, { skipEmptyLines: false }).data;
 }
 
-const cell = (value: string | number | boolean | null | undefined) => {
-  const text = value == null ? "" : typeof value === "boolean" ? (value ? "x" : "") : String(value);
-  return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
-};
+/** A boolean as ForeFlight's template writes one: "x" for yes. */
+const cell = (value: string | number | boolean | null | undefined) =>
+  value == null ? "" : typeof value === "boolean" ? (value ? "x" : "") : value;
 
 /** The columns written, ForeFlight's names where it has the field. */
 const OUT: [string, (e: LogbookEntry) => string | number | boolean | null | undefined][] = [
@@ -72,8 +55,7 @@ const OUT: [string, (e: LogbookEntry) => string | number | boolean | null | unde
 /** The logbook as a CSV file, oldest flight first. */
 export function logbookCsv(entries: LogbookEntry[]): string {
   const sorted = [...entries].sort((a, b) => a.flownOn.localeCompare(b.flownOn));
-  return [OUT.map(([name]) => name), ...sorted.map(e => OUT.map(([, of]) => of(e)))]
-    .map(row => row.map(cell).join(",")).join("\r\n") + "\r\n";
+  return Papa.unparse([OUT.map(([name]) => name), ...sorted.map(e => OUT.map(([, of]) => cell(of(e))))], { newline: "\r\n" }) + "\r\n";
 }
 
 /** A field's name as compared: "Total Time" and "TotalTime" are one. */

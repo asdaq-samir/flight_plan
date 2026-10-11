@@ -19,15 +19,17 @@ import { showError } from "../../lib/problems";
 import type { Currency, LogbookEntry, LogbookEntryRequest } from "../../lib/api/types";
 import { TEXT } from "../../lib/text";
 import CheckridePage from "./CheckridePage";
+import { localDay } from "../../lib/clock";
+import { FINDING_TONE } from "../../lib/status";
 
 const day = (iso: string) => format(parseISO(iso), "d MMM yyyy");
-const today = () => format(new Date(), "yyyy-MM-dd");
+const today = () => localDay();
 
 /** "To 19 Dec 2026" in the tint's green, or "Not current" in red. */
 function Until({ date, what }: { date: string | null | undefined; what: string }) {
   const current = !!date && date >= today();
   return (
-    <span className={cn("tabular-nums", current ? "text-green-700 dark:text-green-400" : "text-red-700 dark:text-red-400")} data-testid={`currency-${what}`}>
+    <span className={cn("tabular-nums", current ? FINDING_TONE.ok : FINDING_TONE.stop)} data-testid={`currency-${what}`}>
       {!date ? "Not current" : current ? `To ${day(date)}` : `Ended ${day(date)}`}
     </span>
   );
@@ -226,7 +228,7 @@ export function LogbookPanel({ aircraft }: { aircraft?: string }) {
           title="Instrument currency"
           description={`${currency?.approachesInWindow ?? 0} of 6 approaches${currency?.holdingInWindow ? ", holding" : ""}${currency?.trackingInWindow ? ", tracking" : ""} in the window`}
         >
-          {ipcNeeded ? <span className="text-red-700 dark:text-red-400" data-testid="currency-instrument">IPC needed</span>
+          {ipcNeeded ? <span className={FINDING_TONE.stop} data-testid="currency-instrument">IPC needed</span>
             : <Until date={currency?.instrumentCurrentUntil} what="instrument" />}
         </ListRow>
         <ListRow title="Proficiency check" description={ipcOn ? `On ${day(ipcOn)}` : "The day of your last IPC"}>

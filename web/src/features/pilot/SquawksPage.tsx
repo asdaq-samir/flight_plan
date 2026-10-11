@@ -10,8 +10,9 @@ import { Textarea } from "../../components/ui/textarea";
 import { api } from "../../lib/api/client";
 import type { Aircraft, Squawk, SquawkRequest } from "../../lib/api/types";
 import { TEXT } from "../../lib/text";
+import { localDay } from "../../lib/clock";
 
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => localDay();
 
 /** The kinds of flight a 91.213(d) determination can be made for, in the
  *  rule's order (91.205(b)-(d)). */

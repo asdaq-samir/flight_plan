@@ -1,4 +1,5 @@
 import type { Loading } from "./api/types";
+import { grouped } from "./units";
 
 /** What the pilot loads: the airplane's own empty weight and arm (from
  *  its weight and balance record), each station's pounds in the
@@ -53,7 +54,7 @@ function limitsAt(envelope: [number, number][], weight: number): [number, number
   return arms.length ? [Math.min(...arms), Math.max(...arms)] : null;
 }
 
-const pounds = (n: number) => `${Math.round(n).toLocaleString("en-US")} lb`;
+const pounds = (n: number) => `${grouped(n)} lb`;
 
 /**
  * The weight and centre of gravity at takeoff -- the ramp's, less the

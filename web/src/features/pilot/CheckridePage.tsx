@@ -12,6 +12,8 @@ import type { ExperienceItem, Training } from "../../lib/api/types";
 import { acsCodesIn, ENDORSEMENTS, endorsementUntil, lookUp } from "../../lib/checkride";
 import { useAcsTable } from "../../lib/useAcsTable";
 import { TEXT } from "../../lib/text";
+import { localDay } from "../../lib/clock";
+import { FINDING_TONE } from "../../lib/status";
 
 const day = (iso: string) => format(parseISO(iso), "d MMM yyyy");
 
@@ -84,7 +86,7 @@ export default function CheckridePage({ training }: { training: Training | undef
   });
   if (!training) return <p className={cn("text-muted-foreground", TEXT.prose)}>Fetching your record…</p>;
   const given = new Map(training.endorsements.map(e => [e.code, e.endorsedOn]));
-  const today = format(new Date(), "yyyy-MM-dd");
+  const today = localDay();
   return (
     <div className="space-y-5">
       <ListGroup
@@ -95,7 +97,7 @@ export default function CheckridePage({ training }: { training: Training | undef
           <ListRow
             key={item.key}
             media={item.met
-              ? <Check className="size-5 text-green-700 dark:text-green-400" aria-label="Met" />
+              ? <Check className={cn("size-5", FINDING_TONE.ok)} aria-label="Met" />
               : <Circle className="size-5 text-muted-foreground" aria-label="Not yet" />}
             title={item.label}
             description={item.rule}
@@ -119,7 +121,7 @@ export default function CheckridePage({ training }: { training: Training | undef
                 <>
                   <span className="block">{kind.rule}</span>
                   {until && (
-                    <span className={cn("block", until < today && "text-red-700 dark:text-red-400")}>
+                    <span className={cn("block", until < today && FINDING_TONE.stop)}>
                       {until < today ? `Ran out ${day(until)}` : `Good to ${day(until)}`}
                     </span>
                   )}

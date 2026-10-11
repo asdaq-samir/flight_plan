@@ -11,6 +11,7 @@ import { Input } from "../../../../components/ui/input";
 import type { Leg } from "../../../../lib/api/types";
 import { ANSWERS, checks, heading, workingsOf, type AnswerKey, type Workings } from "../../../../lib/workings";
 import { TEXT } from "../../../../lib/text";
+import { FINDING_TONE } from "../../../../lib/status";
 
 /** A figure as the student would write it: a heading round the compass,
  *  the correction signed, the rest to its unit's precision. */
@@ -63,8 +64,8 @@ function TryIt({ workings }: { workings: Workings }) {
             >
               <span className="flex items-center gap-1.5">
                 {marked && (right
-                  ? <Check className="size-4 text-green-700 dark:text-green-400" aria-label="Right" />
-                  : <X className="size-4 text-red-700 dark:text-red-400" aria-label="Not right" />)}
+                  ? <Check className={cn("size-4", FINDING_TONE.ok)} aria-label="Right" />
+                  : <X className={cn("size-4", FINDING_TONE.stop)} aria-label="Not right" />)}
                 <Input
                   id={`${id}-${answer.key}`} inputMode="decimal" className="h-8 w-20 text-right tabular-nums"
                   value={value ?? ""} data-testid={`try-${answer.key}-input`}

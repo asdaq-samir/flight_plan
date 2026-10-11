@@ -3,6 +3,7 @@ import type { AheadAlert } from "../api/types";
 import { usePreferences } from "../preferences";
 import { say } from "../speech";
 import { alertTitle, alertWhen, type Ahead } from "./ahead";
+import { grouped } from "../units";
 
 /**
  * The alerts ahead (lib/map/ahead) said aloud, at the pilot's ask, as a
@@ -27,7 +28,7 @@ export function spokenAlert(a: AheadAlert): string {
     .replace(/^In (\d+) min$/, "in $1 minutes")
     .toLowerCase();
   const below = a.clearance_ft != null
-    ? `${Math.abs(Math.round(a.clearance_ft)).toLocaleString("en-US")} feet ${a.clearance_ft >= 0 ? "below" : "above"} you`
+    ? `${grouped(Math.abs(a.clearance_ft))} feet ${a.clearance_ft >= 0 ? "below" : "above"} you`
     : null;
   return [title, below, when].filter(Boolean).join(", ");
 }

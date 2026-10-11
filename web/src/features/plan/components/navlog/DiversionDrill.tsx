@@ -15,6 +15,7 @@ import { heading } from "../../../../lib/workings";
 import { TEXT } from "../../../../lib/text";
 import { altFt } from "../../format";
 import { grouped } from "../../../../lib/units";
+import { FINDING_TONE } from "../../../../lib/status";
 
 /** A figure as the student would write it. */
 function written(key: EstimateKey, value: number): string {
@@ -152,8 +153,8 @@ export default function DiversionDrill({ leg, at }: { leg: Leg; at: { name: stri
                     >
                       <span className="flex items-center gap-1.5">
                         {marked && (right
-                          ? <Check className="size-4 text-green-700 dark:text-green-400" aria-label="Reasonable" />
-                          : <X className="size-4 text-red-700 dark:text-red-400" aria-label="Not reasonable" />)}
+                          ? <Check className={cn("size-4", FINDING_TONE.ok)} aria-label="Reasonable" />
+                          : <X className={cn("size-4", FINDING_TONE.stop)} aria-label="Not reasonable" />)}
                         <Input
                           id={`${id}-${a.key}`} inputMode="decimal" className="h-8 w-20 text-right tabular-nums"
                           value={typed[a.key] ?? ""} disabled={checked} data-testid={`diversion-${a.key}-input`}
@@ -167,7 +168,7 @@ export default function DiversionDrill({ leg, at }: { leg: Leg; at: { name: stri
               </ListGroup>
               {checked && chosen && (exact
                 ? <Answer ident={chosen.ident} d={exact} />
-                : <p className={cn("text-red-700 dark:text-red-400", TEXT.prose)}>The wind is too strong for a heading to {chosen.ident} to hold.</p>)}
+                : <p className={cn(FINDING_TONE.stop, TEXT.prose)}>The wind is too strong for a heading to {chosen.ident} to hold.</p>)}
               {checked && chosen && fields[0] && fields[0].ident !== chosen.ident && (
                 <p className={cn("text-muted-foreground", TEXT.note)} data-testid="diversion-nearest">
                   The nearest was {fields[0].ident}, {fields[0].distance_nm.toFixed(0)} nm: was {chosen.ident} the better choice?

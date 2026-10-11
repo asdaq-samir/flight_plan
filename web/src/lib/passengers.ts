@@ -1,4 +1,5 @@
 import type { Where } from "./verdict";
+import { clockTime, zuluTime } from "./clock";
 
 /**
  * The passengers' briefing on the Brief, ticked off before engine start:
@@ -34,15 +35,13 @@ export function passengerMessage(f: {
   /** The destination's report now, in words ("VFR, 10 sm"). */
   weather: string | null;
 }): string {
-  const clock = (d: Date) => `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-  const utc = (d: Date) => `${String(d.getUTCHours()).padStart(2, "0")}${String(d.getUTCMinutes()).padStart(2, "0")}Z`;
   const minutes = f.eteMin == null ? null : Math.round(f.eteMin);
   const flying = minutes == null ? null : minutes < 60 ? `${minutes} min` : `${Math.floor(minutes / 60)} h ${String(minutes % 60).padStart(2, "0")} min`;
   const lands = f.depart && minutes != null ? new Date(f.depart.getTime() + minutes * 60_000) : null;
   return [
     `${f.dep} to ${f.destName ? `${f.destName} (${f.dest})` : f.dest}`,
     f.depart
-      ? `Leaving ${clock(f.depart)} (${utc(f.depart)})${flying ? `, about ${flying} in the air` : ""}${lands ? `, landing about ${clock(lands)}` : ""}.`
+      ? `Leaving ${clockTime(f.depart)} (${zuluTime(f.depart)})${flying ? `, about ${flying} in the air` : ""}${lands ? `, landing about ${clockTime(lands)}` : ""}.`
       : flying ? `About ${flying} in the air.` : null,
     f.weather ? `Weather at ${f.dest} now: ${f.weather}.` : null,
   ].filter(Boolean).join("\n");

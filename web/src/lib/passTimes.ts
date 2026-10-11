@@ -6,6 +6,7 @@
  * there.
  */
 import type { Leg } from "./api/types";
+import { clockTime, utcFigures } from "./clock";
 
 /** The minutes either side of a pass time a TFR's window is widened by:
  *  an ETA is an estimate, and a few minutes early is still inside. */
@@ -82,7 +83,6 @@ export function suaWhen(timesOfUse: string | null | undefined, pass: Date): SuaW
 /** A pass time in this device's own time, as the briefing writes a
  *  TFR's, and in UTC: "09:20 (14:20Z)". */
 export function passLine(pass: Date): string {
-  const z = `${String(pass.getUTCHours()).padStart(2, "0")}:${String(pass.getUTCMinutes()).padStart(2, "0")}Z`;
-  const local = `${String(pass.getHours()).padStart(2, "0")}:${String(pass.getMinutes()).padStart(2, "0")}`;
-  return `${local} (${z})`;
+  const z = utcFigures(pass);
+  return `${clockTime(pass)} (${z.slice(0, 2)}:${z.slice(2)}Z)`;
 }

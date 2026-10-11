@@ -56,16 +56,10 @@ export async function watchNativePosition(onFix: (position: NativePosition) => v
   return () => void Geolocation.clearWatch({ id });
 }
 
-/** The share sheet, from the app. */
-export async function nativeShare(title: string, url: string): Promise<void> {
+/** The share sheet, from the app: a link, or words (lib/share). */
+export async function nativeShare(item: { title: string; text?: string; url?: string }): Promise<void> {
   const { Share } = await import("@capacitor/share");
-  await Share.share({ title, url });
-}
-
-/** The share sheet with words rather than a link. */
-export async function nativeShareText(title: string, text: string): Promise<void> {
-  const { Share } = await import("@capacitor/share");
-  await Share.share({ title, text });
+  await Share.share(item);
 }
 
 /**

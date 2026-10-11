@@ -1,4 +1,6 @@
 import type { FlightPlanFilingRequest, Leg, Totals } from "./api/types";
+import { utcFigures } from "./clock";
+import { grouped } from "./units";
 
 /**
  * The FAA's flight plan form filled in from a plan: FAA Form 7233-4, the
@@ -122,7 +124,7 @@ function zzzz(ident: string, slot: "DEP" | "DEST" | "ALTN"): string | undefined 
     : undefined;
 }
 
-const altitude = (ft: number) => `${Math.round(ft).toLocaleString("en-US")} ft`;
+const altitude = (ft: number) => `${grouped(ft)} ft`;
 
 /** The route's flights, landing to landing, with the stops each flies
  *  through and the legs that fly it. */
@@ -170,7 +172,7 @@ export function flightPlanForms(input: FormInput): FlightPlanForm[] {
     // Item 13's time is UTC, four figures; a later flight's is when the
     // airplane leaves the stop, which the plan does not know.
     const depart = i === 0 ? input.depart : null;
-    add("13", "time", "Departure time (UTC)", depart ? `${pad(depart.getUTCHours(), 2)}${pad(depart.getUTCMinutes(), 2)}` : null,
+    add("13", "time", "Departure time (UTC)", depart ? utcFigures(depart) : null,
       i > 0 ? `When you leave ${hop.departure}.` : depart ? undefined : "No departure time picked.");
 
     add("15", "speed", "Cruising speed", first ? cruisingSpeed(first.tas_kt) : null);

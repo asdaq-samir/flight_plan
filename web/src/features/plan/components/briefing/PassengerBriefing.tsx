@@ -1,8 +1,7 @@
-import { useEffect, useState } from "react";
 import AccordionSection from "../../../../components/AccordionSection";
 import { ListGroup, ListRow } from "../../../../components/GroupedList";
 import TickBox from "../../../../components/TickBox";
-import { inNativeApp, nativeShareText } from "../../../../lib/native";
+import { cancelled, shareOrCopy, useCopied } from "../../../../lib/share";
 import { PASSENGER_ITEMS } from "../../../../lib/passengers";
 import { usePreflight, useTicked } from "../../../../lib/preflight";
 import { showError } from "../../../../lib/problems";
@@ -17,22 +16,12 @@ import { showError } from "../../../../lib/problems";
 export default function PassengerBriefing({ flight, message }: { flight: string; message: string }) {
   const ticked = useTicked(flight);
   const tick = usePreflight(s => s.tick);
-  const [copied, setCopied] = useState(false);
-  useEffect(() => {
-    if (!copied) return;
-    const done = setTimeout(() => setCopied(false), 2000);
-    return () => clearTimeout(done);
-  }, [copied]);
+  const [copied, markCopied] = useCopied();
   const send = async () => {
     try {
-      if (inNativeApp()) await nativeShareText("Our flight", message);
-      else if (navigator.share) await navigator.share({ title: "Our flight", text: message });
-      else {
-        await navigator.clipboard.writeText(message);
-        setCopied(true);
-      }
+      if (await shareOrCopy({ title: "Our flight", text: message }) === "copied") markCopied("message");
     } catch (err) {
-      if ((err as Error).name !== "AbortError") showError("Could not send the flight", (err as Error).message);
+      if (!cancelled(err)) showError("Could not send the flight", (err as Error).message);
     }
   };
   const done = PASSENGER_ITEMS.filter(i => ticked[i.key]).length;
@@ -54,7 +43,7 @@ export default function PassengerBriefing({ flight, message }: { flight: string;
           ))}
         </ListGroup>
         <ListGroup footer={message.split("\n").join(" ")}>
-          <ListRow title={copied ? "Copied" : "Send the flight to your passengers"} onClick={() => void send()} data-testid="passenger-send" />
+          <ListRow title={copied === "message" ? "Copied" : "Send the flight to your passengers"} onClick={() => void send()} data-testid="passenger-send" />
         </ListGroup>
       </div>
     </AccordionSection>

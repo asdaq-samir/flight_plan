@@ -15,6 +15,7 @@ import { nearestQuery } from "../../../lib/queryClient";
 import { inkOn } from "../../../lib/scoreScale";
 import { TEXT } from "../../../lib/text";
 import { altFt } from "../../../lib/units";
+import { FINDING_TONE } from "../../../lib/status";
 
 export interface NearFrom {
   label: string;
@@ -167,7 +168,7 @@ function NearestRow({ field, ahead, reach, onOpen }: {
           {parts.map((part, i) => (
             <span key={part}>{i > 0 && " · "}<span className="whitespace-nowrap">{part}</span></span>
           ))}
-          {reach && <>{parts.length > 0 && " · "}<span className="font-semibold whitespace-nowrap text-green-700 dark:text-green-400">within glide</span></>}
+          {reach && <>{parts.length > 0 && " · "}<span className={cn("font-semibold whitespace-nowrap", FINDING_TONE.ok)}>within glide</span></>}
         </>
       }
       chevron onClick={onOpen} data-testid="nearest-airport"

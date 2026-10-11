@@ -18,6 +18,7 @@ import { routeName } from "../../lib/identSchema";
 import { altFt, feet, grouped } from "../../lib/units";
 import { mayUse, useEntitlement } from "../../lib/subscription";
 import PaidPrompt from "../../components/PaidPrompt";
+import { FINDING_TONE } from "../../lib/status";
 
 /** Minutes as a nav log writes them: "0:18", "1:35". */
 function hm(min: number): string {
@@ -34,8 +35,8 @@ function signed(n: number, unit = ""): string {
 /** A tolerance met or not, as the drills mark one. */
 function Mark({ ok }: { ok: boolean }) {
   return ok
-    ? <Check className="size-4 text-green-700 dark:text-green-400" aria-label="Within" />
-    : <X className="size-4 text-red-700 dark:text-red-400" aria-label="Outside" />;
+    ? <Check className={cn("size-4", FINDING_TONE.ok)} aria-label="Within" />
+    : <X className={cn("size-4", FINDING_TONE.stop)} aria-label="Outside" />;
 }
 
 /**
@@ -264,7 +265,7 @@ function DebriefSection({ flight, planHref }: { flight: Flight; planHref: string
         data-testid="debrief-file"
       />
       {(problem || save.error || unsave.error) && (
-        <p className={cn("px-1 text-red-700 dark:text-red-400", TEXT.prose)} role="alert" data-testid="debrief-problem">
+        <p className={cn("px-1", FINDING_TONE.stop, TEXT.prose)} role="alert" data-testid="debrief-problem">
           {problem ?? (save.error ?? unsave.error)?.message}
         </p>
       )}
@@ -314,7 +315,7 @@ export default function FlightPage({ summary, planHref }: { summary: FlightSumma
       {isPending ? (
         <p role="status" className={cn("px-1 text-muted-foreground", TEXT.note)}>Fetching its nav log…</p>
       ) : error || !flight ? (
-        <p className={cn("px-1 text-red-700 dark:text-red-400", TEXT.prose)}>Its nav log could not be fetched ({error?.message ?? "not found"}).</p>
+        <p className={cn("px-1", FINDING_TONE.stop, TEXT.prose)}>Its nav log could not be fetched ({error?.message ?? "not found"}).</p>
       ) : mayUse(entitlement) ? (
         <DebriefSection flight={flight} planHref={planHref} />
       ) : (

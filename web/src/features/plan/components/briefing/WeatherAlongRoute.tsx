@@ -10,6 +10,7 @@ import { passTime } from "../../../../lib/passTimes";
 import { TEXT } from "../../../../lib/text";
 import { altFt, ceilingAndVisibility, clockTime } from "../../format";
 import CategoryBadge from "./CategoryBadge";
+import { FINDING_TONE } from "../../../../lib/status";
 
 type Station = Briefing["forecast"]["stations"][number];
 type Pirep = Briefing["pireps"][number];
@@ -68,7 +69,7 @@ function PirepRow({ p }: { p: Pirep }) {
   return (
     <ListRow
       title={(
-        <span className={cn(p.urgent && "font-semibold text-red-700 dark:text-red-400")}>
+        <span className={cn(p.urgent && cn("font-semibold", FINDING_TONE.stop))}>
           {[p.urgent ? "Urgent PIREP" : "PIREP", p.altitude_ft != null && `${altFt(p.altitude_ft)} ft`, p.aircraft].filter(Boolean).join(" · ")}
         </span>
       )}

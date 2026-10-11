@@ -18,7 +18,7 @@ import type { AircraftRegistration } from "../../../lib/api/types";
 import { flightQuery, routeQuery } from "../../../lib/queryClient";
 import { BADGE } from "../../../lib/rowBadges";
 import { TEXT } from "../../../lib/text";
-import { altFt } from "../../../lib/units";
+import { altFt, grouped } from "../../../lib/units";
 import { clockTime } from "../format";
 
 /** What a squawk says, where it says more than a code: the three a
@@ -211,8 +211,8 @@ export default function FlightCard({ hex, onClose }: { hex: string; onClose: () 
  */
 function FaaRegistration({ faa }: { faa: AircraftRegistration }) {
   const place = [faa.city, faa.state ?? (faa.country !== "US" ? faa.country : null)].filter(Boolean).join(", ");
-  const power = faa.horsepower ? `${faa.horsepower.toLocaleString("en-US")} hp`
-    : faa.thrust_lb ? `${faa.thrust_lb.toLocaleString("en-US")} lb thrust` : null;
+  const power = faa.horsepower ? `${grouped(faa.horsepower)} hp`
+    : faa.thrust_lb ? `${grouped(faa.thrust_lb)} lb thrust` : null;
   return (
     <ListGroup
       title="FAA registration"

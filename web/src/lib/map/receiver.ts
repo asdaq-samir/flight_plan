@@ -1,9 +1,9 @@
-import { useMemo } from "react";
+import { useEffect, useState } from "react";
 import { create } from "zustand";
 import type { Metar, TrafficAircraft } from "../api/types";
 import { uplinkReports, type TextReport } from "../fisb";
 import { read, type Gdl90Report } from "../gdl90";
-import { metarOf, observedAt } from "../metarText";
+import { observedAt } from "../reportTime";
 import { sameField } from "../procedures";
 import type { Report } from "./tracking";
 
@@ -176,5 +176,16 @@ export async function listen(): Promise<() => void> {
  *  ICAO station (KDLH). */
 export function useHeardMetar(ident: string | null | undefined): Metar | null {
   const heard = useReceiver(s => (ident ? Object.values(s.metars).find(h => sameField(h.report.station, ident)) ?? null : null));
-  return useMemo(() => (heard ? metarOf(heard.report.text, new Date(heard.at)) : null), [heard]);
+  // The reader (metar-taf-parser) loads when a report is first heard:
+  // only the apps with a receiver ever need it.
+  const [read, setRead] = useState<{ heard: HeardReport; metar: Metar | null } | null>(null);
+  useEffect(() => {
+    if (!heard) return;
+    let live = true;
+    void import("../metarText").then(m => {
+      if (live) setRead({ heard, metar: m.metarOf(heard.report.text, new Date(heard.at)) });
+    });
+    return () => { live = false; };
+  }, [heard]);
+  return heard && read?.heard === heard ? read.metar : null;
 }
