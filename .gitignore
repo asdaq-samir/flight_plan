@@ -57,3 +57,6 @@ infra/local-https/certs/
 # vfr.routecsv's lock files and the temporary files it renames into place.
 data/labels/*.lock
 data/labels/.*.tmp
+
+# The TV apps built by tv/package.sh.
+tv/out/

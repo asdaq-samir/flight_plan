@@ -90,6 +90,7 @@ Everything else — `ml`, `airflow`, `nav-log-agent`, `crewai-agent`, and the fu
 | [`docs/README.md`](docs/README.md) | Architecture, service reference, data design, developer guide |
 | [`docs/README-AWS.md`](docs/README-AWS.md) | AWS target architecture and deployment |
 | [`docs/IOS.md`](docs/IOS.md) | The iOS app: the native shell, its build to TestFlight, and the owner's Apple steps |
+| [`docs/TV.md`](docs/TV.md) | The TV apps for Samsung (Tizen) and LG (webOS): the site made for a remote, their packages, and the owner's store steps |
 | [`docs/ANDROID.md`](docs/ANDROID.md) | The Android app: the same shell, its build to Google Play's internal track, and the owner's Google steps |
 | [`docs/LEARNING-GUIDE.md`](docs/LEARNING-GUIDE.md) | Guided walkthrough of the system, section by section |
 

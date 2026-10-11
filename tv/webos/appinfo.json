@@ -1,0 +1,16 @@
+{
+  "id": "app.wingtipmaps.tv",
+  "version": "1.0.0",
+  "vendor": "Wingtip Maps",
+  "type": "web",
+  "main": "index.html",
+  "title": "Wingtip Maps",
+  "appDescription": "VFR flight planning on the FAA chart",
+  "icon": "icon.png",
+  "largeIcon": "largeIcon.png",
+  "splashBackground": "splash.png",
+  "resolution": "1280x720",
+  "disableBackHistoryAPI": true,
+  "iconColor": "#d7e8c6",
+  "requiredACG": []
+}

@@ -4,7 +4,7 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { MapContainer } from "react-leaflet";
+import { MapContainer, ZoomControl } from "react-leaflet";
 import MapControls, { MapControlsLeft } from "../../components/MapControls";
 import MapBanners from "../../components/MapBanners";
 import { MapInsetsContext, NO_INSETS, SHEET_SECONDS } from "../../components/mapChrome";
@@ -21,6 +21,8 @@ import { OwnTrailLayer } from "./OwnTrailLayer";
 import { AheadLayer } from "./AheadLayer";
 import { TrafficLayer } from "./TrafficLayer";
 import { OPEN_ZOOM, useOwnShip } from "./ownShip";
+import TvMapKeys from "./TvMapKeys";
+import { tvPlatform } from "../tv";
 import { underway } from "./glide";
 
 interface Props {
@@ -59,6 +61,8 @@ const COUNTRY_ZOOM = 4;
 const MIN_FIT_M = 18_520;
 
 export function MapShell({ course, onReady, children, onSelectPlace, held = false, leftControls }: Props) {
+  // Once: a page is on a TV or not for its whole visit.
+  const [onTv] = useState(() => tvPlatform() !== null);
   // With no route, where the pilot's position last was, at the zoom the
   // planner opens on it (ownShip's OPEN_ZOOM) -- that region's chart drawn
   // while the GPS finds the position, and only a short pan once it has --
@@ -221,10 +225,15 @@ export function MapShell({ course, onReady, children, onSelectPlace, held = fals
           {...(bounds ? { bounds, boundsOptions: { padding: [30, 30] } } : opening)}
           // zoomControl off drops the +/- buttons, not zooming itself;
           // minZoom 3 is where the whole country fits a phone screen,
-          // and as far out as the chart layer has tiles.
-          zoomControl={false} minZoom={3} keyboard={false} attributionControl={false}
+          // and as far out as the chart layer has tiles. On a TV (lib/tv)
+          // the map takes the remote's arrows while it is focused, to pan.
+          zoomControl={false} minZoom={3} keyboard={onTv} attributionControl={false}
           className="h-full w-full bg-slate-100 dark:bg-slate-900"
         >
+          {/* A remote has no pinch: Leaflet's own + and - to reach with
+              its arrows, and OK and the channel keys on the map. */}
+          {onTv && <ZoomControl position="bottomright" />}
+          {onTv && <TvMapKeys />}
           <ResizeAware />
           <ChartTiles chart={chart} previewing={previewing} />
           {/* Both maps get it: a Class B is worth seeing whether
