@@ -268,3 +268,12 @@ def test_a_field_ourairports_names_with_a_k_is_found_by_its_faa_ident(tmp_path):
     (tmp_path / "APT_BASE.csv").write_text("ARPT_ID,ICAO_ID,TPA\nC81,,\n")
     assert faa_data.airport_frequencies("KC81", tmp_path) == [{"type": "CTAF", "description": "CTAF/UNICOM", "frequency_mhz": 122.7}]
     assert faa_data.airport_frequencies_for(["KC81"], tmp_path)["KC81"][0]["frequency_mhz"] == 122.7
+
+
+def test_a_k_ident_with_its_own_icao_field_does_not_read_another_airports_list(tmp_path):
+    # KXYZ is a real ICAO ident with no frequencies filed; XYZ is another
+    # field, whose ICAO ident is its own, and must not answer for it.
+    (tmp_path / "FRQ.csv").write_text(_FRQ_HEADER + _frq("XYZ", "XYZ", "122.7", "CTAF"))
+    (tmp_path / "APT_BASE.csv").write_text("ARPT_ID,ICAO_ID,TPA\nXYZ,PXYZ,\nQQQ,KXYZ,\n")
+    assert faa_data.airport_frequencies("KXYZ", tmp_path) is None
+    assert "KXYZ" not in faa_data.airport_frequencies_for(["KXYZ"], tmp_path)

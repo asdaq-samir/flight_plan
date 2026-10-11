@@ -495,9 +495,11 @@ def _sector_case(text: str, idents: frozenset = frozenset()) -> str:
 
 
 @lru_cache(maxsize=2)
-def _frequencies_of(path: str, _mtime: float, base: str, _base_mtime: float) -> dict:
+def _frequencies_of(path: str, _mtime: float, base: str, _base_mtime: float) -> tuple[dict, frozenset]:
     """FRQ.csv's frequencies by the field they serve, by its FAA and its
-    ICAO identifier: [{"type", "description", "frequency_mhz"}]."""
+    ICAO identifier: [{"type", "description", "frequency_mhz"}]; and the
+    FAA identifiers of the fields that have no ICAO identifier of their
+    own, the only ones a "K" is OurAirports' addition to."""
     frq = pd.read_csv(path, dtype=str, low_memory=False, keep_default_na=False)
     apt = _read_apt_base_cached(base, _base_mtime)
     idents = frozenset(i.strip().upper() for i in apt["ICAO_ID"] if isinstance(i, str) and i.strip())
@@ -547,10 +549,13 @@ def _frequencies_of(path: str, _mtime: float, base: str, _base_mtime: float) -> 
     for arpt_id, icao_id in zip(apt["ARPT_ID"], apt["ICAO_ID"]):
         if isinstance(icao_id, str) and icao_id.strip() and isinstance(arpt_id, str) and arpt_id.strip().upper() in by_id:
             by_id.setdefault(icao_id.strip().upper(), by_id[arpt_id.strip().upper()])
-    return by_id
+    no_icao = frozenset(
+        a.strip().upper() for a, i in zip(apt["ARPT_ID"], apt["ICAO_ID"])
+        if isinstance(a, str) and not (isinstance(i, str) and i.strip()))
+    return by_id, no_icao
 
 
-def _frequency_table(cache_dir) -> dict | None:
+def _frequency_table(cache_dir) -> tuple[dict, frozenset] | None:
     """FRQ.csv's frequencies by field (_frequencies_of), or None where the
     file cannot be had, for the caller's own fallback."""
     try:
@@ -562,13 +567,17 @@ def _frequency_table(cache_dir) -> dict | None:
         return None
 
 
-def _listed(by_id: dict, ident: str) -> list[dict] | None:
+def _listed(table: tuple[dict, frozenset], ident: str) -> list[dict] | None:
     """A field's frequencies by the ident asked for, or by its FAA one
     under a "K" OurAirports puts before it: the card asks for Campbell
-    Airport as KC81, which the FAA files as C81 and gives no ICAO ident."""
+    Airport as KC81, which the FAA files as C81 and gives no ICAO ident.
+    Only a field with no ICAO ident of its own is taken that way, so a
+    real ICAO ident the file lacks (KXYZ, no frequencies) never reads
+    another airport's list, the one filed as XYZ."""
+    by_id, no_icao = table
     ident = ident.strip().upper()
     found = by_id.get(ident)
-    if not found and len(ident) == 4 and ident.startswith("K"):
+    if not found and len(ident) == 4 and ident.startswith("K") and ident[1:] in no_icao:
         found = by_id.get(ident[1:])
     return found
 
@@ -577,11 +586,11 @@ def airport_frequencies_for(idents, cache_dir) -> dict[str, list[dict]]:
     """airport_frequencies for several fields from one look at the file
     (one fetch, one warning where it cannot be had), by ident as given,
     upper-cased; the fields the file lists nothing for are left out."""
-    by_id = _frequency_table(cache_dir)
-    if by_id is None:
+    table = _frequency_table(cache_dir)
+    if table is None:
         return {}
     wanted = {i.strip().upper() for i in idents}
-    found = {i: _listed(by_id, i) for i in wanted}
+    found = {i: _listed(table, i) for i in wanted}
     return {i: [dict(f) for f in listed] for i, listed in found.items() if listed}
 
 
@@ -595,8 +604,8 @@ def airport_frequencies(ident: str, cache_dir) -> list[dict] | None:
     copy, which the card read, had none for Salem (I83), whose 123.0 is on
     the chart. None where the file cannot be had or lists nothing for the
     field, for the caller's own fallback."""
-    by_id = _frequency_table(cache_dir)
-    found = _listed(by_id or {}, ident)
+    table = _frequency_table(cache_dir)
+    found = _listed(table, ident) if table else None
     return [dict(f) for f in found] if found else None
 
 
