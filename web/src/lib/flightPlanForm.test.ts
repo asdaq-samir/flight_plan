@@ -117,6 +117,18 @@ describe("the FAA flight plan form, filled in from a plan", () => {
     expect(value(forms[1]!, "endurance")).toBe("0734");
   });
 
+  it("as Flight Service is sent it, where every item it needs is known", () => {
+    const [form] = flightPlanForms(BASE);
+    expect(form!.filing).toEqual({
+      rules: "IFR", aircraftId: "N12345", aircraftType: "C172/L", departure: "C81", departureTime: "2026-10-11T15:05:00.000Z",
+      cruisingSpeed: "N0112", cruisingLevel: "A060", route: "BAE V191 OSH", destination: "KATW", eetMinutes: 65,
+      alternate: "KMSN", otherInformation: null, enduranceMinutes: 268, personsOnBoard: null,
+    });
+    // No registration (a stock profile), or no departure time: not to be filed.
+    expect(flightPlanForms({ ...BASE, aircraft: { ...BASE.aircraft, ident: null } })[0]!.filing).toBeNull();
+    expect(flightPlanForms({ ...BASE, depart: null })[0]!.filing).toBeNull();
+  });
+
   it("what the plan cannot say is left blank: a stock profile's registration, a wake category not known", () => {
     const [form] = flightPlanForms({ ...BASE, aircraft: { ident: null, type: "P28A", maxTakeoffLb: null }, depart: null });
     expect(value(form!, "ident")).toBeNull();

@@ -6,7 +6,7 @@ import type {
   ChartInfo, ChartPages, ChartRefreshStarted, PlacesFound, CheckpointDescriptionMessage, CheckpointNoteSaved, Checkpoints, Classification, Course, Detour,
   Flight, FlightSummary, ModelComparison, NarrativeMessage, NarrativeRequest, NavLogMessage, PickDeleted, PickSaved,
   AirspaceAt, AlertsAhead, ClassBResponse, FlightDetail, FlightRoute, GoogleMaps, Traffic, TrafficFound, NearestAirports, RouteProfile, Tfrs, DevServices, DevServiceStarted, Pilot, Rating, RetrainStarted, Role, SaveFlightRequest,
-  SignInCapabilities, AppleSignedIn, LogbookEntry, LogbookEntryRequest, Currency, CurrencyDatesRequest, Subscription, Alternates, VorCheckRequest, InspectionsRequest, ChecklistDto, Squawk, SquawkRequest, Reminders, LogbookImportResult,
+  SignInCapabilities, AppleSignedIn, LogbookEntry, LogbookEntryRequest, Currency, CurrencyDatesRequest, Subscription, Alternates, VorCheckRequest, InspectionsRequest, ChecklistDto, Squawk, SquawkRequest, Reminders, LogbookImportResult, FlightPlanFilingRequest, FlightServiceStatus, FlightPlanFiled,
   Status, StreamMessage, Totals, WaypointsInView, Training, SavedTrack,
   OralQuestion, OralQuestionRequest, OralGrade, OralGradeRequest, ProcedureDrawing, ProcedureList,
 } from "./types";
@@ -601,6 +601,14 @@ export const api = {
   subscription: {
     get: () => webapp.GET("/api/subscription").then(data<Subscription>),
     startTrial: () => webapp.POST("/api/subscription/trial").then(data<Subscription>),
+  },
+
+  /** Flight Service's filing through the app (FlightServiceController):
+   *  whether it is connected, and a flight plan filed in the pilot's name. */
+  flightService: {
+    status: () => webapp.GET("/api/flight-service").then(data<FlightServiceStatus>),
+    file: (plan: FlightPlanFilingRequest) =>
+      webapp.POST("/api/flight-service/flight-plans", { body: plan }).then(data<FlightPlanFiled>),
   },
 
   /** A signed-in pilot's logbook and currency. */
