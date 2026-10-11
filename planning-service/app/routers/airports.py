@@ -125,7 +125,7 @@ def places_search(q: str = "") -> PlacesFound:
 #: hands the field to its CTAF when closed (AIM 4-1-9), and inbound to a
 #: Class B or C field a pilot calls approach control first (14 CFR
 #: 91.130(c), 91.131(a)). The row names the kind, so the pilot sees which.
-_INBOUND = (("TWR", "TWR"), ("CTAF", "CTAF"), ("UNIC", "UNICOM"))
+_INBOUND = (("TWR", "TWR"), ("CTAF", "CTAF"), ("UNIC", "UNICOM"), ("UNICOM", "UNICOM"))
 
 
 def _inbound_radio(frequencies: list[dict]) -> dict | None:

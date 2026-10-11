@@ -320,6 +320,9 @@ def test_a_field_is_called_on_its_tower_else_its_ctaf_else_unicom():
     assert _inbound_radio([unicom, ctaf, tower, ground]) == {"kind": "TWR", "mhz": 120.7}
     assert _inbound_radio([unicom, ctaf]) == {"kind": "CTAF", "mhz": 120.7}
     assert _inbound_radio([ground, unicom]) == {"kind": "UNICOM", "mhz": 122.95}
+    # The FAA's own type name for a UNICOM is "UNICOM", OurAirports' "UNIC".
+    faa_unicom = {"type": "UNICOM", "frequency_mhz": 122.8}
+    assert _inbound_radio([ground, faa_unicom]) == {"kind": "UNICOM", "mhz": 122.8}
     assert _inbound_radio([ground]) is None
     assert _inbound_radio([]) is None
 
