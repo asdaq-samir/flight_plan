@@ -28,6 +28,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -84,7 +86,7 @@ public class DeviceSignInController {
     private static final class Pending {
         final String userCode;
         final Instant expiresAt;
-        volatile String approvedEmail;
+        final AtomicReference<String> approvedEmail = new AtomicReference<>();
 
         Pending(String userCode, Instant expiresAt) {
             this.userCode = userCode;
@@ -181,12 +183,22 @@ public class DeviceSignInController {
         }
         String typed = body.userCode().toUpperCase(Locale.ROOT).replaceAll("[^A-Z0-9]", "");
         String hash = byUser.get(typed);
-        Pending pending = hash == null ? null : byDevice.get(hash);
-        if (pending == null || pending.expiresAt.isBefore(now) || pending.approvedEmail != null) {
+        // Inside the map's own lock for the key, so the first approver wins
+        // and a TV that has just collected its sign-in (token() removes the
+        // entry) is not approved for nothing.
+        AtomicBoolean approved = new AtomicBoolean();
+        if (hash != null) {
+            byDevice.computeIfPresent(hash, (key, pending) -> {
+                if (!pending.expiresAt.isBefore(now)) {
+                    approved.set(pending.approvedEmail.compareAndSet(null, pilot.get().getEmail()));
+                }
+                return pending;
+            });
+        }
+        if (!approved.get()) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(new ErrorResponse("No TV is showing that code now. Check it, or ask the TV for a new one."));
         }
-        pending.approvedEmail = pilot.get().getEmail();
         return ResponseEntity.noContent().build();
     }
 
@@ -210,7 +222,8 @@ public class DeviceSignInController {
             forget(hash);
             return ResponseEntity.status(HttpStatus.GONE).body(new ErrorResponse("This code has run out. Ask for a new one."));
         }
-        if (pending.approvedEmail == null) {
+        String approvedEmail = pending.approvedEmail.get();
+        if (approvedEmail == null) {
             return ResponseEntity.status(HttpStatus.ACCEPTED).body(new Waiting("pending", INTERVAL_S));
         }
         // Spent before the sign-in, so two asks at once cannot both sign in.
@@ -218,7 +231,7 @@ public class DeviceSignInController {
             return ResponseEntity.status(HttpStatus.GONE).body(new ErrorResponse("This code has run out. Ask for a new one."));
         }
         byUser.remove(pending.userCode);
-        Pilot pilot = pilots.fromVerifiedEmail(pending.approvedEmail);
+        Pilot pilot = pilots.fromVerifiedEmail(approvedEmail);
         Authentication authentication = new MagicLinkAuthenticationToken(pilot.getEmail());
         sessionAuthenticationStrategy.onAuthentication(authentication, request, response);
         SecurityContext context = SecurityContextHolder.createEmptyContext();

@@ -42,7 +42,7 @@ export default function TvLink() {
       <DialogContent data-testid="tv-link">
         <DialogHeader>
           <DialogTitle>Sign in a TV</DialogTitle>
-          <DialogDescription>Enter the code the TV shows, and it signs in as you.</DialogDescription>
+          <DialogDescription>Enter the code the TV shows, and it signs in as you. Only enter a code from a TV you are looking at: anyone who has it can use your account.</DialogDescription>
         </DialogHeader>
         {isLoading ? null : !pilot ? (
           <div className="flex flex-col items-start gap-3">

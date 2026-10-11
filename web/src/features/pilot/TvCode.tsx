@@ -39,7 +39,10 @@ export default function TvCode() {
         setCode(fresh);
         ask(fresh);
       } catch {
-        if (live) setFailed(true);
+        // No keyboard on a TV to reload with: asked again, as the poll is.
+        if (!live) return;
+        setFailed(true);
+        timer = window.setTimeout(begin, 10_000);
       }
     };
     void begin();
