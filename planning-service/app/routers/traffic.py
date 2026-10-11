@@ -50,7 +50,11 @@ def traffic_route(
     """The route a flight number is scheduled to fly -- TJSJ to KORD for
     UAL2088 -- and whether the airplane at lat/lon is on or near it, from
     Virtual Radar Server's route database (CC0); null for a callsign that
-    is not an airline's flight number or one it does not know. Not the
+    is not an airline's flight number or one it does not know; a 503 where
+    the database could not be asked. Not the
     flight plan filed for today's flight."""
-    found = traffic.route(callsign, lat, lon)
+    try:
+        found = traffic.route(callsign, lat, lon)
+    except traffic.TrafficUnavailable as err:
+        raise HTTPException(503, "The route isn't available right now: the route database could not be asked.") from err
     return FlightRoute(**found) if found else None

@@ -14,6 +14,7 @@ town are given here, not the street.
 from __future__ import annotations
 
 import csv
+import datetime
 import io
 import logging
 import os
@@ -269,5 +270,12 @@ def lookup(hex_id: str | None = None, n_number: str | None = None, directory: Pa
     code = found.pop("status_code") or ""
     found["standing"] = "valid" if code in _VALID else "lapsed" if code in _LAPSED else "other"
     found["status"] = _STATUS.get(code) or (f"FAA status {code}" if code else None)
+    # A registration lapses at its expiration date whether or not the FAA has
+    # moved its status off "Valid" yet: 14 CFR 47.40 (seven years, since the
+    # 2023 rule) and 47.31(c), no operating on an expired one. It runs
+    # through the date itself, so only an earlier date is past.
+    if found["standing"] == "valid" and found["expires"] and found["expires"] < datetime.date.today().isoformat():
+        found["standing"] = "lapsed"
+        found["status"] = f"Registration expired {found['expires']}"
     found["fractional"] = bool(found["fractional"])
     return found

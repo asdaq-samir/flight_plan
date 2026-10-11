@@ -403,3 +403,12 @@ def test_a_flight_numbers_route_and_whether_the_airplane_is_on_it(clock, monkeyp
         assert traffic.route("DAL1") is None
     # Each asked once: the route kept, and a 404 too.
     assert asked == ["UA/UAL2088.json", "DA/DAL1.json"]
+
+
+def test_a_route_database_that_cannot_be_asked_is_not_no_route(clock, monkeypatch):
+    monkeypatch.setattr(traffic, "_ROUTES", traffic.TTLCache(maxsize=16, ttl=60, timer=clock))
+    with patch("vfr.traffic.requests.get", side_effect=traffic.requests.ConnectionError("down")):
+        with pytest.raises(traffic.TrafficUnavailable):
+            traffic.route("UAL2088", 37.5, -84.9)
+    # Nothing was kept: the next ask goes to the database again.
+    assert "UAL2088" not in traffic._ROUTES

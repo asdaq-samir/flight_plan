@@ -35,6 +35,8 @@ def archive(tmp_path):
                     "1T", "5", "5", "V", "20240408", "20310430", "A0B7D8"),
             _master("1000W", "CCX-2300-0073", "05639MP", "42714", "2023", "1", "JOE SMITH", "MIDLAND", "TX", "20230302",
                     "42", "4", "1", "13", "20230411", "20260301", "A0001F", kit=("VANS", "RV-7")),
+            _master("2020A", "1", "7102802", "41508", "1990", "7", "OLD OWNER", "MIDLAND", "TX", "20130101",
+                    "1NU", "4", "1", "V", "20130101", "20200101", "A0002F"),
         ]) + "\r\n")
         z.writestr("ACFTREF.txt", "﻿CODE,MFR,MODEL,TYPE-ACFT,TYPE-ENG,AC-CAT,BUILD-CERT-IND,NO-ENG,NO-SEATS,AC-WEIGHT,SPEED,"
                    "TC-DATA-SHEET,TC-DATA-HOLDER,\r\n"
@@ -49,7 +51,7 @@ def archive(tmp_path):
 
 
 def test_an_airplane_is_found_by_its_address_or_its_n_number(archive, tmp_path):
-    assert registry.build(archive, tmp_path / registry.DB_NAME) == 3
+    assert registry.build(archive, tmp_path / registry.DB_NAME) == 4
     by_hex = registry.lookup(hex_id="a89c1e", directory=tmp_path)
     assert by_hex == registry.lookup(n_number="n654fl", directory=tmp_path)
     assert by_hex["n_number"] == "N654FL"
@@ -95,3 +97,11 @@ def test_a_tis_b_pseudo_address_is_not_matched_to_an_owners_address(archive, tmp
     assert registry.lookup(hex_id="~a89c1e", directory=tmp_path) is None
     # Its self-reported registration can still be looked up.
     assert registry.lookup(hex_id="~a89c1e", n_number="N654FL", directory=tmp_path)["n_number"] == "N654FL"
+
+
+def test_a_valid_status_past_its_expiration_date_is_lapsed(archive, tmp_path):
+    registry.build(archive, tmp_path / registry.DB_NAME)
+    # The FAA has not moved its code off "V", but 14 CFR 47.40 has run out.
+    rv = registry.lookup(n_number="N2020A", directory=tmp_path)
+    assert (rv["standing"], rv["status"]) == ("lapsed", "Registration expired 2020-01-01")
+    assert registry.lookup(n_number="N654FL", directory=tmp_path)["standing"] == "valid"

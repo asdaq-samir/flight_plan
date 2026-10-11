@@ -93,6 +93,20 @@ def _prepare_corridor_charts() -> None:
                                     kinds=("sec", "tac", "ifr_low", "ifr_area"))
 
 
+def _refresh_registry() -> None:
+    """The FAA's aircraft registry, read again once it is a day old, in a
+    thread of its own: 73 MB from the FAA and half a minute's read, and a
+    slow download must not hold up the weather refresh below (a request's
+    timeout is per read, not a deadline). registry.refresh lets one run at
+    a time; a card before it is in shows no registration."""
+    def run() -> None:
+        try:
+            registry.refresh()
+        except Exception:  # noqa: BLE001 -- the next check tries again; the held copy is served
+            log.warning("aircraft registry not refreshed", exc_info=True)
+    threading.Thread(target=run, name="registry-refresh", daemon=True).start()
+
+
 def _warm_reference_data() -> None:
     """Every altitude selection needs the controlled-airspace polygons
     and the obstacle table, and both are slow to load cold (about thirty
@@ -161,14 +175,10 @@ def _warm_reference_data() -> None:
     except Exception:  # noqa: BLE001
         log.exception("towns warm-up failed")
     # And the FAA's aircraft registry (vfr.registry), for a tracked
-    # airplane's card: 73 MB from the FAA and half a minute's read, once a
-    # day; a card before it is in shows no registration. Not on a test
-    # stack (CHARTS_AUTO_REFRESH=0), which downloads nothing it need not.
+    # airplane's card: see _refresh_registry. Not on a test stack
+    # (CHARTS_AUTO_REFRESH=0), which downloads nothing it need not.
     if chart_refresh.AUTO_REFRESH:
-        try:
-            registry.refresh()
-        except Exception:  # noqa: BLE001 -- the next day's check tries again
-            log.exception("aircraft registry not read")
+        _refresh_registry()
 
     if chart_refresh.AUTO_REFRESH:
         chart_refresh.maybe_refresh()
@@ -205,10 +215,7 @@ def _warm_reference_data() -> None:
             except Exception:  # noqa: BLE001 -- the FAA's index out of reach: the next check tries again
                 log.warning("FAA editions not checked", exc_info=True)
             # The aircraft registry, read again once it is a day old.
-            try:
-                registry.refresh()
-            except Exception:  # noqa: BLE001 -- the next check tries again; the held copy is served
-                log.warning("aircraft registry not refreshed", exc_info=True)
+            _refresh_registry()
         time.sleep(WEATHER_REFRESH_S)
         try:
             if weather.in_use():

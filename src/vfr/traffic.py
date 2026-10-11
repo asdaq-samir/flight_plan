@@ -474,7 +474,8 @@ _CALLSIGN = re.compile(r"^[A-Z]{3}[0-9][0-9A-Z]{0,4}$")
 def _route_airports(callsign: str) -> list[dict] | None:
     """The airports a flight number's route joins, in order; None where the
     database has none (a private airplane's callsign, an unknown flight).
-    Only an answer or a 404 is kept: a refusal is asked again next time."""
+    Only an answer or a 404 is kept: a refusal is asked again next time,
+    and raises TrafficUnavailable so that it is not mistaken for "no route"."""
     with _LOCK:
         if callsign in _ROUTES:
             return _ROUTES[callsign]
@@ -490,8 +491,8 @@ def _route_airports(callsign: str) -> list[dict] | None:
                 for a in resp.json().get("_airports") or [] if isinstance(a, dict)
             ]
             found = [a for a in found if a["ident"] and a["lat"] is not None and a["lon"] is not None] or None
-    except (requests.RequestException, ValueError):
-        return None
+    except (requests.RequestException, ValueError) as err:
+        raise TrafficUnavailable("the route database could not be asked") from err
     with _LOCK:
         _ROUTES[callsign] = found
     return found

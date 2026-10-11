@@ -1,4 +1,4 @@
-import { MutationCache, QueryCache, QueryClient, queryOptions } from "@tanstack/react-query";
+import { keepPreviousData, MutationCache, QueryCache, QueryClient, queryOptions } from "@tanstack/react-query";
 import { ApiError, api, describeError } from "./api/client";
 import type { ChartInfo } from "./api/types";
 import { clearProblem, raiseProblem, showError } from "./problems";
@@ -215,7 +215,7 @@ export const flightQuery = (hex: string) => queryOptions({
  *  as the flight's. */
 export const routeQuery = (callsign: string | null, at: { lat: number; lon: number } | null) => queryOptions({
   queryKey: ["route", callsign, at ? Math.round(at.lat) : null, at ? Math.round(at.lon) : null], queryFn: () => api.trafficRoute({ callsign: callsign!, ...at }),
-  enabled: !!callsign, staleTime: 30 * 60_000, meta: { silent: true },
+  enabled: !!callsign, staleTime: 30 * 60_000, placeholderData: keepPreviousData, meta: { silent: true },
 });
 
 export const classBQuery = queryOptions({

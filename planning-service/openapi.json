@@ -11909,7 +11909,7 @@
     },
     "/api/traffic/route": {
       "get": {
-        "description": "The route a flight number is scheduled to fly -- TJSJ to KORD for\nUAL2088 -- and whether the airplane at lat/lon is on or near it, from\nVirtual Radar Server's route database (CC0); null for a callsign that\nis not an airline's flight number or one it does not know. Not the\nflight plan filed for today's flight.",
+        "description": "The route a flight number is scheduled to fly -- TJSJ to KORD for\nUAL2088 -- and whether the airplane at lat/lon is on or near it, from\nVirtual Radar Server's route database (CC0); null for a callsign that\nis not an airline's flight number or one it does not know; a 503 where\nthe database could not be asked. Not the\nflight plan filed for today's flight.",
         "operationId": "traffic_route_api_traffic_route_get",
         "parameters": [
           {
