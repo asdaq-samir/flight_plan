@@ -13,6 +13,8 @@ import { useShownOverlay } from "../lib/map/useShownOverlay";
 import { useGoogleSession } from "../lib/map/googleSession";
 import { cn } from "../lib/utils";
 import { TEXT } from "../lib/text";
+import { inNativeApp } from "../lib/native";
+import { useReceiver } from "../lib/map/receiver";
 import { chartQuery, googleMapsQuery } from "../lib/queryClient";
 
 /** "09-03-2026", the FAA's cycle as the chart server names it, as "3 Sep
@@ -159,6 +161,9 @@ export default function MapSettings() {
       <ListRow title="Traffic">
         <TogglePill pressed={traffic} onPressedChange={setTraffic} icon={<Plane />} label="Show" testId="traffic-toggle" />
       </ListRow>
+      {/* A cockpit receiver's traffic (lib/map/receiver), heard in the app
+          while the traffic is shown: what it is doing, in words. */}
+      {inNativeApp() && <ListRow title="Receiver" value={<ReceiverStatus on={traffic} />} />}
       {/* Own ship's path flown (OwnTrailLayer), put away here: it starts
           again by itself with the next flight. */}
       <ListRow title="Your path">
@@ -187,4 +192,17 @@ export default function MapSettings() {
       </ListRow>
     </ListGroup>
   );
+}
+
+/** The cockpit receiver, in a few words: whether it is heard, and what. */
+function ReceiverStatus({ on }: { on: boolean }) {
+  const listening = useReceiver(s => s.listening);
+  const connected = useReceiver(s => s.connected);
+  const count = useReceiver(s => Object.keys(s.traffic).length);
+  const error = useReceiver(s => s.error);
+  const words = !on ? "With Traffic on"
+    : error ? "Can't listen on the Wi-Fi"
+      : connected ? `Connected · ${count} ${count === 1 ? "airplane" : "airplanes"}`
+        : listening ? "Listening on the Wi-Fi" : "Starting…";
+  return <span className={connected && on ? "font-semibold text-foreground" : "text-muted-foreground"} data-testid="receiver-status">{words}</span>;
 }

@@ -60,6 +60,11 @@
          While the app is open only: no background location. -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <!-- A cockpit ADS-B receiver's GDL 90 on the cockpit's Wi-Fi
+         (Gdl90Plugin): the Wi-Fi's state, and the lock that lets its
+         broadcast datagrams through while the app listens. -->
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
     <!-- A tablet without GPS still installs it, and plans without own ship. -->
     <uses-feature android:name="android.hardware.location.gps" android:required="false" />
 </manifest>

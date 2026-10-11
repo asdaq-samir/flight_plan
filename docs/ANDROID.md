@@ -11,6 +11,11 @@ the shell adds is the device:
   the pilot turns own ship on, while the app is open only
   (`@capacitor/geolocation`, `web/src/lib/native.ts`).
 - **The share sheet** for a route (`@capacitor/share`).
+- **A cockpit ADS-B receiver's traffic** (Stratux, SkyEcho, Sentry): with
+  Traffic on, the app listens on the cockpit's Wi-Fi for GDL 90 on port
+  4000 (`Gdl90Plugin.java`, `web/src/lib/map/receiver.ts`), broadcast
+  datagrams too (a multicast lock while it listens), and draws what the
+  receiver hears with the internet's traffic, by ICAO address.
 - **Links open in the app.** The sign-in link tapped in Gmail, or a
   shared route, opens the app rather than Chrome (App Links, verified
   against the webapp's `/.well-known/assetlinks.json`,

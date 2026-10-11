@@ -66,6 +66,8 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Wingtip Maps listens on the cockpit's Wi-Fi for your ADS-B receiver (Stratux, SkyEcho, Sentry) to show the traffic it hears.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Wingtip Maps shows your airplane on the chart and measures to the airports and airspace around you.</string>
 	<key>WKAppBoundDomains</key>

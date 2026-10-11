@@ -10,6 +10,14 @@ as it does in Safari. What the shell adds is the device:
   (`NSLocationWhenInUseUsageDescription`), not a web view's second
   prompt (`@capacitor/geolocation`, `web/src/lib/native.ts`).
 - **The share sheet** for a route (`@capacitor/share`).
+- **A cockpit ADS-B receiver's traffic** (Stratux, SkyEcho, Sentry): with
+  Traffic on, the app listens on the cockpit's Wi-Fi for GDL 90 on port
+  4000 (`Gdl90Plugin.swift`, `web/src/lib/map/receiver.ts`) and draws what
+  the receiver hears with the internet's traffic, by ICAO address; where
+  it hears 978 MHz, the METARs FIS-B's ground stations broadcast are the
+  airport card's weather when the internet's is older or out of reach
+  (`web/src/lib/fisb.ts`). iOS asks the pilot once for the local network
+  (`NSLocalNetworkUsageDescription`).
 - **Links open in the app.** The sign-in link tapped in Mail, or a shared
   route, opens the app rather than Safari (Associated Domains, and the
   webapp's `/.well-known/apple-app-site-association`), so signing in by
@@ -58,6 +66,12 @@ reviewer can sign in with their own Apple ID.
    stack's AppSecret (`infra/server/env.example`) and run `deploy.sh`,
    so the site names the app for its links and accepts its Apple
    sign-in.
-7. **TestFlight:** add yourself as an internal tester. The next push to
+7. **Broadcast receivers (optional):** a receiver that sends GDL 90 to
+   the network's broadcast address rather than to each phone needs
+   Apple's multicast networking entitlement. Request it at
+   developer.apple.com/contact/request/networking-multicast, and once it
+   is granted, add `com.apple.developer.networking.multicast` to
+   `App.entitlements`. Stratux sends to each phone and needs none.
+8. **TestFlight:** add yourself as an internal tester. The next push to
    `main` that changes the app (or Run workflow on the iOS workflow)
    uploads a build; it appears in TestFlight after Apple processes it.
