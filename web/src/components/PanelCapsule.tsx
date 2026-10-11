@@ -27,7 +27,8 @@ export function RouteCapsule({ title, summary, detail, warning, onDetail, leadin
   summary?: string;
   /** A chip's words under the route, and what a tap on it does. */
   detail?: string;
-  /** One line's: what is wrong with the route, a red mark beside it. */
+  /** One line's: what is wrong with the route, a red mark beside it --
+   *  beside the summary, which it does not hide, where there is one. */
   warning?: string;
   onDetail?: () => void;
   leading?: ReactNode;
@@ -48,7 +49,7 @@ export function RouteCapsule({ title, summary, detail, warning, onDetail, leadin
           className="z-10 flex h-[2.5625rem] min-w-0 flex-1 items-center justify-center gap-1.5 rounded-full px-3 outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           {warning && <CircleAlert className="size-4 shrink-0 text-destructive" aria-hidden="true" />}
-          {summary && !warning
+          {summary
             ? <span className={cn("truncate font-semibold tabular-nums", TEXT.row)} data-testid="capsule-title">{summary}</span>
             : <FittedRoute title={title} marked={!!warning} />}
         </button>
