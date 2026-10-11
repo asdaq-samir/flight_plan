@@ -562,6 +562,17 @@ def _frequency_table(cache_dir) -> dict | None:
         return None
 
 
+def _listed(by_id: dict, ident: str) -> list[dict] | None:
+    """A field's frequencies by the ident asked for, or by its FAA one
+    under a "K" OurAirports puts before it: the card asks for Campbell
+    Airport as KC81, which the FAA files as C81 and gives no ICAO ident."""
+    ident = ident.strip().upper()
+    found = by_id.get(ident)
+    if not found and len(ident) == 4 and ident.startswith("K"):
+        found = by_id.get(ident[1:])
+    return found
+
+
 def airport_frequencies_for(idents, cache_dir) -> dict[str, list[dict]]:
     """airport_frequencies for several fields from one look at the file
     (one fetch, one warning where it cannot be had), by ident as given,
@@ -570,7 +581,8 @@ def airport_frequencies_for(idents, cache_dir) -> dict[str, list[dict]]:
     if by_id is None:
         return {}
     wanted = {i.strip().upper() for i in idents}
-    return {i: [dict(f) for f in by_id[i]] for i in wanted if by_id.get(i)}
+    found = {i: _listed(by_id, i) for i in wanted}
+    return {i: [dict(f) for f in listed] for i, listed in found.items() if listed}
 
 
 def airport_frequencies(ident: str, cache_dir) -> list[dict] | None:
@@ -584,7 +596,7 @@ def airport_frequencies(ident: str, cache_dir) -> list[dict] | None:
     the chart. None where the file cannot be had or lists nothing for the
     field, for the caller's own fallback."""
     by_id = _frequency_table(cache_dir)
-    found = (by_id or {}).get(ident.strip().upper())
+    found = _listed(by_id or {}, ident)
     return [dict(f) for f in found] if found else None
 
 

@@ -259,3 +259,12 @@ def test_no_frequency_file_is_the_callers_own_list_not_a_failure(monkeypatch, tm
         raise RuntimeError("the FAA is down")
     monkeypatch.setattr(faa_data, "ensure_nasr_file", unreachable)
     assert faa_data.airport_frequencies("I83", tmp_path) is None
+
+
+def test_a_field_ourairports_names_with_a_k_is_found_by_its_faa_ident(tmp_path):
+    # Campbell Airport is C81 to the FAA, with no ICAO ident; OurAirports,
+    # which the card's place comes from, calls it KC81.
+    (tmp_path / "FRQ.csv").write_text(_FRQ_HEADER + _frq("C81", "C81", "122.7", "CTAF") + _frq("C81", "C81", "122.7", "UNICOM"))
+    (tmp_path / "APT_BASE.csv").write_text("ARPT_ID,ICAO_ID,TPA\nC81,,\n")
+    assert faa_data.airport_frequencies("KC81", tmp_path) == [{"type": "CTAF", "description": "CTAF/UNICOM", "frequency_mhz": 122.7}]
+    assert faa_data.airport_frequencies_for(["KC81"], tmp_path)["KC81"][0]["frequency_mhz"] == 122.7
