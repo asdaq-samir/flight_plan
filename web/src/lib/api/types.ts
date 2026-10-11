@@ -218,6 +218,8 @@ export type AppleSignedIn = Webapp["SignedIn"];
  *  fuel check. */
 export type Aircraft = Webapp["AircraftDto"];
 export type AircraftRequest = Webapp["AircraftRequest"];
+/** A VOR check for IFR as the pilot records it (14 CFR 91.171(d)). */
+export type VorCheckRequest = Webapp["VorCheckRequest"];
 
 /** One row of "My Flights" -- totals only; `Flight` carries the full
  *  filed nav log, fetched one flight at a time. */

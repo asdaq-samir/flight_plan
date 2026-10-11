@@ -40,9 +40,17 @@
           "usableFuelGal" : {
             "format" : "double",
             "type" : [ "number", "null" ]
+          },
+          "vorCheck" : {
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/VorCheckDto"
+            }, {
+              "type" : "null"
+            } ],
+            "description" : "Its last VOR check for IFR (14 CFR 91.171): when, how, where, the bearing error, and the last day it is good for -- 30 days on, if the error was within the check's limit"
           }
         },
-        "required" : [ "climbFuelBurnGph", "climbTasKt", "createdAt", "cruisePowerPct", "cruiseTasKt", "fuelBurnGph", "id", "tailNumber", "typeDesignator", "usableFuelGal" ],
+        "required" : [ "climbFuelBurnGph", "climbTasKt", "createdAt", "cruisePowerPct", "cruiseTasKt", "fuelBurnGph", "id", "tailNumber", "typeDesignator", "usableFuelGal", "vorCheck" ],
         "type" : "object"
       },
       "AircraftRequest" : {
@@ -155,16 +163,25 @@
             "format" : "date",
             "type" : [ "string", "null" ]
           },
+          "ipcOn" : {
+            "format" : "date",
+            "type" : [ "string", "null" ]
+          },
           "medicalExpiresOn" : {
             "format" : "date",
             "type" : [ "string", "null" ]
           }
         },
-        "required" : [ "flightReviewOn", "medicalExpiresOn" ],
+        "required" : [ "flightReviewOn", "ipcOn", "medicalExpiresOn" ],
         "type" : "object"
       },
       "CurrencyDto" : {
         "properties" : {
+          "approachesInWindow" : {
+            "description" : "Approaches logged in the 6 calendar months before this one",
+            "format" : "int32",
+            "type" : "integer"
+          },
           "crossCountryHours" : {
             "format" : "double",
             "type" : "number"
@@ -185,6 +202,25 @@
             "format" : "int32",
             "type" : "integer"
           },
+          "holdingInWindow" : {
+            "description" : "Holding logged in them",
+            "type" : "boolean"
+          },
+          "instrumentCurrentUntil" : {
+            "description" : "The last day of instrument currency (14 CFR 61.57(c)(1), or 61.57(d)'s check); in the past where it has lapsed, null where none is logged",
+            "format" : "date",
+            "type" : [ "string", "null" ]
+          },
+          "ipcNeededAfter" : {
+            "description" : "The day after which only an instrument proficiency check restores it (61.57(d))",
+            "format" : "date",
+            "type" : [ "string", "null" ]
+          },
+          "ipcOn" : {
+            "description" : "The last instrument proficiency check, as the pilot gives it",
+            "format" : "date",
+            "type" : [ "string", "null" ]
+          },
           "landings" : {
             "format" : "int32",
             "type" : "integer"
@@ -204,9 +240,13 @@
           "totalHours" : {
             "format" : "double",
             "type" : "number"
+          },
+          "trackingInWindow" : {
+            "description" : "Intercepting and tracking courses logged in them",
+            "type" : "boolean"
           }
         },
-        "required" : [ "crossCountryHours", "dayPassengersUntil", "flightReviewOn", "flightReviewUntil", "flights", "landings", "medicalExpiresOn", "nightHours", "nightPassengersUntil", "totalHours" ],
+        "required" : [ "approachesInWindow", "crossCountryHours", "dayPassengersUntil", "flightReviewOn", "flightReviewUntil", "flights", "holdingInWindow", "instrumentCurrentUntil", "ipcNeededAfter", "ipcOn", "landings", "medicalExpiresOn", "nightHours", "nightPassengersUntil", "totalHours", "trackingInWindow" ],
         "type" : "object"
       },
       "EndorsementDto" : {
@@ -464,6 +504,10 @@
           "aircraftType" : {
             "type" : [ "string", "null" ]
           },
+          "approaches" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
           "crossCountryHours" : {
             "format" : "double",
             "type" : "number"
@@ -483,6 +527,9 @@
           "flownOn" : {
             "format" : "date",
             "type" : "string"
+          },
+          "holding" : {
+            "type" : "boolean"
           },
           "id" : {
             "format" : "int64",
@@ -521,9 +568,12 @@
           "toweredLandings" : {
             "format" : "int32",
             "type" : "integer"
+          },
+          "tracking" : {
+            "type" : "boolean"
           }
         },
-        "required" : [ "aircraft", "aircraftType", "crossCountryHours", "dayLandings", "distanceNm", "dualHours", "flownOn", "id", "instrumentHours", "longestLegNm", "nightHours", "nightLandings", "remarks", "route", "soloHours", "totalHours", "toweredLandings" ],
+        "required" : [ "aircraft", "aircraftType", "approaches", "crossCountryHours", "dayLandings", "distanceNm", "dualHours", "flownOn", "holding", "id", "instrumentHours", "longestLegNm", "nightHours", "nightLandings", "remarks", "route", "soloHours", "totalHours", "toweredLandings", "tracking" ],
         "type" : "object"
       },
       "LogbookEntryRequest" : {
@@ -537,6 +587,10 @@
             "maxLength" : 16,
             "minLength" : 0,
             "type" : [ "string", "null" ]
+          },
+          "approaches" : {
+            "format" : "int32",
+            "type" : "integer"
           },
           "crossCountryHours" : {
             "format" : "double",
@@ -557,6 +611,9 @@
           "flownOn" : {
             "format" : "date",
             "type" : "string"
+          },
+          "holding" : {
+            "type" : "boolean"
           },
           "instrumentHours" : {
             "format" : "double",
@@ -596,9 +653,12 @@
           "toweredLandings" : {
             "format" : "int32",
             "type" : "integer"
+          },
+          "tracking" : {
+            "type" : "boolean"
           }
         },
-        "required" : [ "aircraft", "aircraftType", "crossCountryHours", "dayLandings", "distanceNm", "dualHours", "flownOn", "instrumentHours", "longestLegNm", "nightHours", "nightLandings", "remarks", "route", "soloHours", "totalHours", "toweredLandings" ],
+        "required" : [ "aircraft", "aircraftType", "approaches", "crossCountryHours", "dayLandings", "distanceNm", "dualHours", "flownOn", "holding", "instrumentHours", "longestLegNm", "nightHours", "nightLandings", "remarks", "route", "soloHours", "totalHours", "toweredLandings", "tracking" ],
         "type" : "object"
       },
       "MagicLinkRequest" : {
@@ -873,6 +933,67 @@
         },
         "required" : [ "endorsements", "experience", "knowledgeTestCodes" ],
         "type" : "object"
+      },
+      "VorCheckDto" : {
+        "description" : "A VOR check for IFR (14 CFR 91.171)",
+        "properties" : {
+          "checkedOn" : {
+            "format" : "date",
+            "type" : "string"
+          },
+          "errorDeg" : {
+            "format" : "double",
+            "type" : "number"
+          },
+          "goodThrough" : {
+            "description" : "The last day it is good for: 30 days on (91.171(a)(2))",
+            "format" : "date",
+            "type" : "string"
+          },
+          "kind" : {
+            "enum" : [ "VOT", "REPAIR_STATION", "GROUND", "AIRBORNE", "RADIAL", "DUAL" ],
+            "type" : "string"
+          },
+          "limitDeg" : {
+            "description" : "The largest error 91.171 allows for this kind of check, degrees",
+            "format" : "double",
+            "type" : "number"
+          },
+          "place" : {
+            "type" : [ "string", "null" ]
+          },
+          "withinLimit" : {
+            "description" : "Within the limit",
+            "type" : "boolean"
+          }
+        },
+        "required" : [ "checkedOn", "errorDeg", "goodThrough", "kind", "limitDeg", "place", "withinLimit" ],
+        "type" : "object"
+      },
+      "VorCheckRequest" : {
+        "properties" : {
+          "checkedOn" : {
+            "format" : "date",
+            "type" : "string"
+          },
+          "errorDeg" : {
+            "format" : "double",
+            "maximum" : 30,
+            "minimum" : -30,
+            "type" : "number"
+          },
+          "kind" : {
+            "enum" : [ "VOT", "REPAIR_STATION", "GROUND", "AIRBORNE", "RADIAL", "DUAL" ],
+            "type" : "string"
+          },
+          "place" : {
+            "maxLength" : 80,
+            "minLength" : 0,
+            "type" : [ "string", "null" ]
+          }
+        },
+        "required" : [ "checkedOn", "errorDeg", "kind", "place" ],
+        "type" : "object"
       }
     }
   },
@@ -965,6 +1086,43 @@
             "application/json" : {
               "schema" : {
                 "$ref" : "#/components/schemas/AircraftRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AircraftDto"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "aircraft-controller" ]
+      }
+    },
+    "/api/aircraft/{id}/vor-check" : {
+      "put" : {
+        "operationId" : "vorCheck",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/VorCheckRequest"
               }
             }
           },

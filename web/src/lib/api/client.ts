@@ -6,7 +6,7 @@ import type {
   ChartInfo, ChartPages, ChartRefreshStarted, PlacesFound, CheckpointDescriptionMessage, CheckpointNoteSaved, Checkpoints, Classification, Course, Detour,
   Flight, FlightSummary, ModelComparison, NarrativeMessage, NarrativeRequest, NavLogMessage, PickDeleted, PickSaved,
   AirspaceAt, AlertsAhead, ClassBResponse, FlightDetail, FlightRoute, GoogleMaps, Traffic, TrafficFound, NearestAirports, RouteProfile, Tfrs, DevServices, DevServiceStarted, Pilot, Rating, RetrainStarted, Role, SaveFlightRequest,
-  Alternates, SignInCapabilities, AppleSignedIn, LogbookEntry, LogbookEntryRequest, Currency, CurrencyDatesRequest,
+  Alternates, VorCheckRequest, SignInCapabilities, AppleSignedIn, LogbookEntry, LogbookEntryRequest, Currency, CurrencyDatesRequest,
   Status, StreamMessage, Totals, WaypointsInView, Training, SavedTrack,
   OralQuestion, OralQuestionRequest, OralGrade, OralGradeRequest, ProcedureDrawing, ProcedureList,
 } from "./types";
@@ -573,6 +573,9 @@ export const api = {
     remove: async (id: number): Promise<void> => {
       await webapp.DELETE("/api/aircraft/{id}", { params: { path: { id } } });
     },
+    /** Its VOR check for IFR, recorded (14 CFR 91.171(d)). */
+    vorCheck: (id: number, request: VorCheckRequest) =>
+      webapp.PUT("/api/aircraft/{id}/vor-check", { params: { path: { id } }, body: request }).then(data<Aircraft>),
   },
 
   /** A signed-in pilot's logbook and currency. */

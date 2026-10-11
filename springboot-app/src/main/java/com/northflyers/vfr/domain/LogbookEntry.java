@@ -66,6 +66,12 @@ public class LogbookEntry {
     private double distanceNm;
     private double longestLegNm;
 
+    // What instrument currency is reckoned from (V20, 14 CFR 61.57(c)):
+    // the approaches flown, and whether it held and tracked courses.
+    private int approaches;
+    private boolean holding;
+    private boolean tracking;
+
     @Column(nullable = false)
     private Instant createdAt;
 
@@ -103,6 +109,14 @@ public class LogbookEntry {
         this.toweredLandings = toweredLandings;
         this.distanceNm = distanceNm;
         this.longestLegNm = longestLegNm;
+        return this;
+    }
+
+    /** The instrument columns, as the entry's form sends them. */
+    public LogbookEntry instrument(int approaches, boolean holding, boolean tracking) {
+        this.approaches = approaches;
+        this.holding = holding;
+        this.tracking = tracking;
         return this;
     }
 }

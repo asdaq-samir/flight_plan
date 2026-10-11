@@ -2,6 +2,8 @@ package com.northflyers.vfr.domain;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -11,6 +13,7 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import java.time.Instant;
+import java.time.LocalDate;
 import lombok.Getter;
 
 /**
@@ -78,6 +81,16 @@ public class Aircraft {
     @Column(nullable = false)
     private Instant createdAt;
 
+    /** Its last VOR check for IFR (14 CFR 91.171, V20): when, how, where
+     *  and the bearing error found; null until one is recorded. */
+    private LocalDate vorCheckOn;
+    @Enumerated(EnumType.STRING)
+    @Column(length = 16)
+    private VorCheck vorCheckKind;
+    @Column(length = 80)
+    private String vorCheckPlace;
+    private Double vorCheckErrorDeg;
+
     protected Aircraft() {
         // JPA
     }
@@ -109,6 +122,15 @@ public class Aircraft {
         this.climbTasKt = climbTasKt;
         this.climbFuelBurnGph = climbFuelBurnGph;
         this.usableFuelGal = usableFuelGal;
+        return this;
+    }
+
+    /** A VOR check, as the pilot records it (91.171(d)). */
+    public Aircraft recordVorCheck(LocalDate on, VorCheck kind, String place, double errorDeg) {
+        this.vorCheckOn = on;
+        this.vorCheckKind = kind;
+        this.vorCheckPlace = place;
+        this.vorCheckErrorDeg = errorDeg;
         return this;
     }
 }

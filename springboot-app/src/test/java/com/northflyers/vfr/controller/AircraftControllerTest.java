@@ -181,4 +181,28 @@ class AircraftControllerTest {
         mockMvc.perform(delete("/api/aircraft/999").with(oidcLogin()).with(csrf()))
                 .andExpect(status().isNotFound());
     }
+
+    /** 14 CFR 91.171: a VOR check recorded with its date, kind, place and
+     *  error; good for 30 days, and within 4 degrees at a VOT. */
+    @Test
+    void aVorCheckIsRecordedAndSaysHowLongItIsGoodFor() throws Exception {
+        given(pilotService.current(any())).willReturn(Optional.of(samplePilot()));
+        given(aircraftService.recordVorCheck(any(), eq(7L), any(), any(), any(), anyDouble())).willReturn(Optional.of(
+                sampleAircraft().recordVorCheck(java.time.LocalDate.of(2026, 10, 1), com.northflyers.vfr.domain.VorCheck.VOT,
+                        "KDLH VOT", -5.0)));
+
+        mockMvc.perform(put("/api/aircraft/7/vor-check").with(oidcLogin()).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"checkedOn\":\"2026-10-01\",\"kind\":\"VOT\",\"place\":\"KDLH VOT\",\"errorDeg\":-5}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.vorCheck.goodThrough").value("2026-10-31"))
+                .andExpect(jsonPath("$.vorCheck.limitDeg").value(4.0))
+                // 5 degrees off at a VOT is over its 4.
+                .andExpect(jsonPath("$.vorCheck.withinLimit").value(false));
+
+        mockMvc.perform(put("/api/aircraft/7/vor-check").with(oidcLogin()).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"checkedOn\":\"2999-01-01\",\"kind\":\"VOT\",\"errorDeg\":1}"))
+                .andExpect(status().isBadRequest());
+    }
 }

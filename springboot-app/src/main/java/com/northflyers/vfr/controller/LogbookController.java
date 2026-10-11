@@ -10,6 +10,7 @@ import com.northflyers.vfr.service.CurrencyService;
 import com.northflyers.vfr.service.LogbookService;
 import com.northflyers.vfr.service.PilotService;
 import jakarta.validation.Valid;
+import java.time.LocalDate;
 import java.util.List;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -76,17 +77,18 @@ public class LogbookController {
     @PutMapping("/currency")
     public ResponseEntity<CurrencyDto> setCurrencyDates(Authentication authentication, @RequestBody CurrencyDatesRequest request) {
         return PilotResponses.withPilot(pilots, authentication, pilot -> ResponseEntity.ok(currencyOf(
-                logbook.setCurrencyDates(pilot, request.flightReviewOn(), request.medicalExpiresOn()))));
+                logbook.setCurrencyDates(pilot, request.flightReviewOn(), request.medicalExpiresOn(), request.ipcOn()))));
     }
 
     private CurrencyDto currencyOf(Pilot pilot) {
-        return currency.currency(logbook.list(pilot), pilot.getFlightReviewOn(), pilot.getMedicalExpiresOn());
+        return currency.currency(logbook.list(pilot), pilot.getFlightReviewOn(), pilot.getMedicalExpiresOn(),
+                pilot.getIpcOn(), LocalDate.now());
     }
 
     private static LogbookEntryDto toDto(LogbookEntry e) {
         return new LogbookEntryDto(e.getId(), e.getFlownOn(), e.getAircraft(), e.getAircraftType(), e.getRoute(),
                 e.getTotalHours(), e.getNightHours(), e.getCrossCountryHours(), e.getDayLandings(), e.getNightLandings(),
                 e.getRemarks(), e.getDualHours(), e.getSoloHours(), e.getInstrumentHours(), e.getToweredLandings(),
-                e.getDistanceNm(), e.getLongestLegNm());
+                e.getDistanceNm(), e.getLongestLegNm(), e.getApproaches(), e.isHolding(), e.isTracking());
     }
 }

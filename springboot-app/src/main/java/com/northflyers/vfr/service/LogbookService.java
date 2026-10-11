@@ -44,8 +44,8 @@ public class LogbookService {
         }).orElse(false);
     }
 
-    public Pilot setCurrencyDates(Pilot pilot, LocalDate flightReviewOn, LocalDate medicalExpiresOn) {
-        pilot.setCurrencyDates(flightReviewOn, medicalExpiresOn);
+    public Pilot setCurrencyDates(Pilot pilot, LocalDate flightReviewOn, LocalDate medicalExpiresOn, LocalDate ipcOn) {
+        pilot.setCurrencyDates(flightReviewOn, medicalExpiresOn, ipcOn);
         return pilots.save(pilot);
     }
 
@@ -54,7 +54,8 @@ public class LogbookService {
                 r.totalHours(), r.nightHours(), r.crossCountryHours(), r.dayLandings(), r.nightLandings(),
                 blankToNull(r.remarks()))
                 .training(r.dualHours(), r.soloHours(), r.instrumentHours(), r.toweredLandings(), r.distanceNm(),
-                        r.longestLegNm());
+                        r.longestLegNm())
+                .instrument(r.approaches(), r.holding(), r.tracking());
     }
 
     private static String blankToNull(String s) {

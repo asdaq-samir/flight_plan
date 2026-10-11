@@ -3,6 +3,7 @@ package com.northflyers.vfr.controller;
 import com.northflyers.vfr.domain.Aircraft;
 import com.northflyers.vfr.dto.AircraftDto;
 import com.northflyers.vfr.dto.AircraftRequest;
+import com.northflyers.vfr.dto.VorCheckRequest;
 import com.northflyers.vfr.service.AircraftService;
 import com.northflyers.vfr.service.PilotService;
 import jakarta.validation.Valid;
@@ -64,6 +65,16 @@ public class AircraftController {
                 .orElse(ResponseEntity.notFound().build()));
     }
 
+    /** The airplane's VOR check for IFR, recorded (14 CFR 91.171(d)). */
+    @PutMapping("/{id}/vor-check")
+    public ResponseEntity<AircraftDto> vorCheck(
+            Authentication authentication, @PathVariable Long id, @Valid @RequestBody VorCheckRequest request) {
+        return PilotResponses.withPilot(pilots, authentication, pilot -> aircraftService
+                .recordVorCheck(pilot, id, request.checkedOn(), request.kind(), request.place(), request.errorDeg())
+                .map(a -> ResponseEntity.ok(toDto(a)))
+                .orElse(ResponseEntity.notFound().build()));
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(Authentication authentication, @PathVariable Long id) {
         return PilotResponses.withPilot(pilots, authentication, pilot ->
@@ -73,6 +84,16 @@ public class AircraftController {
     private static AircraftDto toDto(Aircraft a) {
         return new AircraftDto(a.getId(), a.getTailNumber(), a.getTypeDesignator(), a.getCruiseTasKt(),
                 a.getFuelBurnGph(), a.getCruisePowerPct(), a.getClimbTasKt(), a.getClimbFuelBurnGph(), a.getUsableFuelGal(),
-                a.getCreatedAt());
+                a.getCreatedAt(), vorCheckOf(a));
+    }
+
+    /** 91.171(a)(2): good for 30 days, the error within its check's limit. */
+    static AircraftDto.VorCheckDto vorCheckOf(Aircraft a) {
+        if (a.getVorCheckOn() == null || a.getVorCheckKind() == null || a.getVorCheckErrorDeg() == null) {
+            return null;
+        }
+        double limit = a.getVorCheckKind().limitDeg();
+        return new AircraftDto.VorCheckDto(a.getVorCheckOn(), a.getVorCheckKind(), a.getVorCheckPlace(),
+                a.getVorCheckErrorDeg(), limit, Math.abs(a.getVorCheckErrorDeg()) <= limit, a.getVorCheckOn().plusDays(30));
     }
 }

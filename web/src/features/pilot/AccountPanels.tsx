@@ -13,6 +13,7 @@ import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText } from "../../components/ui/input-group";
 import { Spinner } from "../../components/ui/spinner";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
 import { ListGroup, ListRow } from "../../components/GroupedList";
 import { ResponsivePopover, ResponsivePopoverContent, ResponsivePopoverTrigger } from "../../components/ResponsivePopover";
 import { useConfirm } from "../../components/useConfirm";
@@ -20,7 +21,7 @@ import { ConsolePages, PageRow } from "../../components/ConsolePages";
 import FlightPage from "./FlightPage";
 import { aircraftKey, choiceOf } from "../../lib/aircraftChoice";
 import { api } from "../../lib/api/client";
-import type { Aircraft, AircraftRequest, FlightSummary } from "../../lib/api/types";
+import type { Aircraft, AircraftRequest, FlightSummary, VorCheckRequest } from "../../lib/api/types";
 import { CRUISE_REFERENCE_FT } from "../../lib/performance";
 import { usePreferences } from "../../lib/preferences";
 import { TEXT } from "../../lib/text";
@@ -87,6 +88,78 @@ const EMPTY_AIRCRAFT_FORM: AircraftFormValues = {
  *  form as a new one's), and delete. The picker under the route offers
  *  the same choice. The Library's (PilotPanel), shown only to someone
  *  signed in: it says once, for all three, what signing in keeps. */
+const VOR_CHECKS: { value: VorCheckRequest["kind"]; label: string; limit: number }[] = [
+  { value: "VOT", label: "VOT", limit: 4 },
+  { value: "REPAIR_STATION", label: "Repair station signal", limit: 4 },
+  { value: "GROUND", label: "Ground checkpoint", limit: 4 },
+  { value: "AIRBORNE", label: "Airborne checkpoint", limit: 6 },
+  { value: "RADIAL", label: "Airway radial in flight", limit: 6 },
+  { value: "DUAL", label: "Dual receivers", limit: 4 },
+];
+
+/**
+ * The airplane's VOR check for IFR (14 CFR 91.171): the last one and how
+ * long it is good for -- 30 days, its error within its kind's limit (4
+ * degrees at a VOT, a repair station's signal, a ground checkpoint or
+ * between two receivers; 6 at an airborne checkpoint or on a radial) --
+ * and the next recorded with the date, kind, place and error 91.171(d)
+ * asks for. Its own Record, apart from the airplane's Save.
+ */
+function VorCheckGroup({ aircraft }: { aircraft: Aircraft }) {
+  const queryClient = useQueryClient();
+  const id = useId();
+  const [check, setCheck] = useState<VorCheckRequest>({
+    checkedOn: new Date().toISOString().slice(0, 10), kind: "VOT", place: "", errorDeg: 0,
+  });
+  const record = useMutation({
+    mutationFn: () => api.aircraft.vorCheck(aircraft.id, { ...check, place: check.place || null }),
+    onSuccess: () => { toast.success("VOR check recorded"); void queryClient.invalidateQueries({ queryKey: ["aircraft"] }); },
+  });
+  const last = aircraft.vorCheck;
+  const today = new Date().toISOString().slice(0, 10);
+  const good = !!last && last.withinLimit && last.goodThrough >= today;
+  return (
+    <ListGroup
+      title="VOR check"
+      footer="For IFR by VOR: every 30 days, within 4° at a VOT, a repair station's signal, a ground checkpoint or between two receivers, within 6° at an airborne checkpoint or on an airway's radial (14 CFR 91.171)."
+    >
+      <ListRow
+        title="Last check"
+        description={last ? `${last.checkedOn} · ${VOR_CHECKS.find(k => k.value === last.kind)?.label ?? last.kind}${last.place ? ` · ${last.place}` : ""} · ${last.errorDeg}°` : "None recorded"}
+        value={!last ? undefined : (
+          <span className={cn(good ? "text-green-700 dark:text-green-400" : "text-red-700 dark:text-red-400")} data-testid="vor-check-standing">
+            {!last.withinLimit ? `Over ${last.limitDeg}°` : good ? `To ${last.goodThrough}` : `Ended ${last.goodThrough}`}
+          </span>
+        )}
+      />
+      <ListRow id={`${id}-on`} title="Checked on">
+        <Input id={`${id}-on`} type="date" className="h-8 w-40" value={check.checkedOn} max={today}
+          onChange={e => setCheck({ ...check, checkedOn: e.target.value })} aria-label="VOR check date" data-testid="vor-check-date" />
+      </ListRow>
+      <ListRow title="How">
+        <Select value={check.kind} onValueChange={kind => setCheck({ ...check, kind: kind as VorCheckRequest["kind"] })}>
+          <SelectTrigger size="sm" aria-label="How the VOR was checked" data-testid="vor-check-kind"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {VOR_CHECKS.map(k => <SelectItem key={k.value} value={k.value}>{k.label} (±{k.limit}°)</SelectItem>)}
+          </SelectContent>
+        </Select>
+      </ListRow>
+      <ListRow id={`${id}-place`} title="Where">
+        <Input id={`${id}-place`} className="h-8 w-40 text-right" placeholder="KDLH VOT" value={check.place ?? ""}
+          onChange={e => setCheck({ ...check, place: e.target.value })} aria-label="Where the VOR was checked" />
+      </ListRow>
+      <ListRow id={`${id}-error`} title="Bearing error">
+        <Input id={`${id}-error`} type="number" inputMode="decimal" step="any" className="h-8 w-24 text-right" value={String(check.errorDeg)}
+          onChange={e => setCheck({ ...check, errorDeg: Number(e.target.value || 0) })} aria-label="Bearing error in degrees" data-testid="vor-check-error" />
+      </ListRow>
+      <ListRow
+        title={<span className="font-medium text-tint">Record check</span>}
+        onClick={() => record.mutate()} disabled={record.isPending || !check.checkedOn} data-testid="vor-check-record"
+      />
+    </ListGroup>
+  );
+}
+
 export function AircraftPanel() {
   const queryClient = useQueryClient();
   const { data: list, isLoading } = useQuery({ queryKey: ["aircraft"], queryFn: api.aircraft.list });
@@ -322,6 +395,7 @@ export function AircraftPanel() {
                   field={register("usableFuelGal")} error={errors.usableFuelGal?.message}
                 />
               </ListGroup>
+              {editing && <VorCheckGroup aircraft={editing} />}
               {editingId !== null && (
                 <ListGroup>
                   <ListRow
