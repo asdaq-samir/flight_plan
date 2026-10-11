@@ -141,6 +141,9 @@ test("an airport's card keeps one layout whatever the field: a long name set sma
     await settle(page);
     await expect(card(page).getByTestId("place-call")).toBeVisible({ timeout: slow(15000) });
     await expect(card(page).getByRole("tablist")).toBeVisible();
+    // The answer in: the tabs and tiles are there before it now, the name
+    // set to fit only once the answer's own name is.
+    await expect(card(page).getByTestId("fly-here")).toBeEnabled({ timeout: slow(15000) });
     const [tiles, tabs] = await Promise.all([card(page).getByTestId("fly-here"), card(page).getByRole("tablist")].map(async l => (await l.boundingBox())!));
     const size = await card(page).getByTestId("place-name-fit").evaluate(el => parseFloat(getComputedStyle(el).fontSize));
     return { tiles: Math.round(tiles.y), tabs: Math.round(tabs.y), size };
