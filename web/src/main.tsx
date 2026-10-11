@@ -16,7 +16,7 @@ import { installErrorReports, reportOf, sendReport } from "./lib/errorReports";
 import MapPage from "./features/page/MapPage";
 import { prefetchRouteMap } from "./features/plan/routeMapChunk";
 import "./index.css";
-import { followAppLinks, inNativeApp } from "./lib/native";
+import { followAppLinks, followBackButton, inNativeApp, nativePlatform } from "./lib/native";
 
 // The reader's text size from the iPhone's Settings, before the first
 // render, so the page is never drawn at the wrong size first.
@@ -57,9 +57,11 @@ registerSW({
 });
 startFresh();
 
-// In the iOS app, a link to the site tapped elsewhere -- the sign-in
-// link in Mail -- opens here (lib/native).
+// In the iOS and Android apps, a link to the site tapped elsewhere -- the
+// sign-in link in Mail -- opens here, and Android's back closes what is
+// open (lib/native).
 if (inNativeApp()) void followAppLinks();
+if (nativePlatform() === "android") void followBackButton();
 
 // Three views, one app -- which is the point of the port. As separate
 // HTML files they drifted: one grew a basemap fix the other never

@@ -209,9 +209,11 @@ public class SecurityConfig {
                             // much as after (ClientErrorController).
                             .requestMatchers(HttpMethod.POST, "/api/client-errors").permitAll()
                             .requestMatchers(HttpMethod.GET, "/", "/error").permitAll()
-                            // What iOS reads to open this site's links in the
-                            // app (AppSiteAssociationController).
-                            .requestMatchers(HttpMethod.GET, "/.well-known/apple-app-site-association").permitAll()
+                            // What iOS and Android read to open this site's
+                            // links in the app (AppSiteAssociationController,
+                            // AssetLinksController).
+                            .requestMatchers(HttpMethod.GET, "/.well-known/apple-app-site-association",
+                                    "/.well-known/assetlinks.json").permitAll()
                             // Everything else that exists is pilot-scoped.
                             .anyRequest().authenticated();
                 })

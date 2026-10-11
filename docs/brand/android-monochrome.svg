@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-16 -16 96 96">
+  <!-- The Android app icon's monochrome layer, for the themed icons of
+       Android 13 and later: the mark alone, its shape only (the launcher
+       tints it). -->
+  <circle cx="32" cy="32" r="19" fill="none" stroke="#000000" stroke-width="3.2" stroke-dasharray="6.9 3.05" transform="rotate(-100.4 32 32)"/>
+  <path d="M32 18.5 L41.4 41 L32 35.8 L22.6 41 Z" fill="#000000" stroke="#000000" stroke-width="2.2" stroke-linejoin="round"/>
+</svg>

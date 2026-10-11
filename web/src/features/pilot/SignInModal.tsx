@@ -14,7 +14,7 @@ import { ApiError, api } from "../../lib/api/client";
 import { LEGAL_PAGES } from "../../lib/legal";
 import { capabilitiesQuery } from "../../lib/queryClient";
 import { TEXT } from "../../lib/text";
-import { inNativeApp, nativeAppleIdentityToken } from "../../lib/native";
+import { inNativeApp, nativeAppleIdentityToken, nativePlatform } from "../../lib/native";
 
 /**
  * Three ways in, the standard shape every "sign in" prompt (Auth.js,
@@ -33,10 +33,12 @@ export default function SignInModal() {
   const [email, setEmail] = useState("");
   // In the iOS app, Apple's own sheet and the emailed link (whose link
   // opens the app, lib/native): Google refuses to sign in inside an
-  // app's web view, and Apple's web page does not load in it.
-  const native = inNativeApp();
+  // app's web view, and Apple's web page does not load in it. In the
+  // Android app the emailed link alone: Apple's sheet is iOS's.
+  const inApp = inNativeApp();
+  const native = nativePlatform() === "ios";
   const offered = useQuery(capabilitiesQuery).data?.providers ?? [];
-  const providers = native ? [] : offered;
+  const providers = inApp ? [] : offered;
   const appleSheet = useMutation({
     mutationFn: async () => {
       const token = await nativeAppleIdentityToken();

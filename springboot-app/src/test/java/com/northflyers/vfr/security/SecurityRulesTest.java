@@ -10,6 +10,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.northflyers.vfr.controller.AppSiteAssociationController;
+import com.northflyers.vfr.controller.AssetLinksController;
 import com.northflyers.vfr.controller.PilotController;
 import com.northflyers.vfr.controller.SignInCapabilitiesController;
 import com.northflyers.vfr.domain.Pilot;
@@ -32,7 +34,8 @@ import org.springframework.test.web.servlet.MockMvc;
  * {@code permitAll}. Each case here fails loudly if the split between
  * shared and pilot-scoped data moves.
  */
-@WebMvcTest({PilotController.class, SignInCapabilitiesController.class})
+@WebMvcTest({PilotController.class, SignInCapabilitiesController.class, AppSiteAssociationController.class,
+        AssetLinksController.class})
 @Import(SecurityConfig.class)
 class SecurityRulesTest {
 
@@ -142,6 +145,16 @@ class SecurityRulesTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.access").value("CLOSED"))
                 .andExpect(jsonPath("$.providers").isEmpty());
+    }
+
+    /** What iOS and Android fetch to open this site's links in the apps,
+     *  read signed out as they read it: here, with no app named, the
+     *  controllers' own 404, not the 401 of a pilot-scoped path. */
+    @Test
+    void theAppsLinkFilesAreReadSignedOut() throws Exception {
+        for (String path : new String[] {"/.well-known/apple-app-site-association", "/.well-known/assetlinks.json"}) {
+            mockMvc.perform(get(path)).andExpect(status().isNotFound());
+        }
     }
 
     /** Nobody can sign in and nothing opened it: the developer's

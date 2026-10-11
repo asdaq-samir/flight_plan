@@ -1,0 +1,81 @@
+apply plugin: 'com.android.application'
+
+// The Android app (docs/ANDROID.md, .github/workflows/android.yml): the
+// site in Capacitor's web view. What changes per build comes in from
+// outside -- the package name the owner registers on Google Play, the
+// site's host its links open the app for, the build number, and the
+// upload key -- as Gradle properties (-P) or the environment, so nothing
+// of the owner's is kept in the repository.
+def setting = { String name, String fallback ->
+    project.findProperty(name) ?: System.getenv(name) ?: fallback
+}
+// The site the app wraps (capacitor.config.ts reads the same variable).
+def siteHost = new URI(setting("WINGTIP_URL", "https://wingtipmaps.app/app/plan")).host
+
+android {
+    namespace = "app.wingtipmaps"
+    compileSdk = rootProject.ext.compileSdkVersion
+    defaultConfig {
+        // Fixed once the app is on Google Play.
+        applicationId setting("ANDROID_APP_ID", "app.wingtipmaps.android")
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        // Google Play wants each upload's higher than the last: the
+        // workflow's run number.
+        versionCode setting("ANDROID_VERSION_CODE", "1") as Integer
+        versionName "1.0"
+        // The host App Links verify (AndroidManifest.xml).
+        manifestPlaceholders = [wingtipHost: siteHost]
+        aaptOptions {
+             // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
+             // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
+            ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+        }
+    }
+    // Signed with the owner's upload key where the workflow has it (Google
+    // Play re-signs with the app signing key it keeps); unsigned otherwise.
+    def keystore = setting("ANDROID_KEYSTORE", "")
+    signingConfigs {
+        if (keystore) {
+            upload {
+                storeFile file(keystore)
+                storePassword setting("ANDROID_KEYSTORE_PASSWORD", "")
+                keyAlias setting("ANDROID_KEY_ALIAS", "upload")
+                keyPassword setting("ANDROID_KEY_PASSWORD", setting("ANDROID_KEYSTORE_PASSWORD", ""))
+            }
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            if (keystore) signingConfig signingConfigs.upload
+        }
+    }
+}
+
+repositories {
+    flatDir{
+        dirs '../capacitor-cordova-android-plugins/src/main/libs', 'libs'
+    }
+}
+
+dependencies {
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
+    implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
+    implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
+    implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
+    implementation project(':capacitor-android')
+    implementation project(':capacitor-cordova-android-plugins')
+}
+
+apply from: 'capacitor.build.gradle'
+
+try {
+    def servicesJSON = file('google-services.json')
+    if (servicesJSON.text) {
+        apply plugin: 'com.google.gms.google-services'
+    }
+} catch(Exception e) {
+    logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
+}
