@@ -341,6 +341,16 @@ def find(query: str) -> list[dict]:
         return found
 
 
+def registered(query: str) -> dict | None:
+    """The FAA's record of the airplane a pilot names (vfr.registry), by its
+    N-number or its ICAO address: for one not in the air or not heard now,
+    which a search finds nothing for, its card all the same."""
+    text = re.sub(r"\s+", "", query).upper()
+    if _HEX.fullmatch(text.lower()):
+        return registry.lookup(hex_id=text.lower())
+    return registry.lookup(n_number=text) if _N_NUMBER.fullmatch(text) else None
+
+
 def _asked(text: str) -> list[dict]:
     """adsb.lol's answer to a search: by address, callsign or
     registration, as the text reads, the next way where one finds none."""

@@ -50,3 +50,13 @@ def test_a_flights_faa_registration_and_its_flight_numbers_route(monkeypatch):
     route = client.get("/api/traffic/route", params={"callsign": "UAL2088", "lat": 37.5, "lon": -84.9}).json()
     assert [a["ident"] for a in route["airports"]] == ["TJSJ", "KORD"] and route["plausible"] is True
     assert client.get("/api/traffic/route", params={"callsign": "N174HA"}).json() is None
+
+
+def test_an_airplane_not_in_the_air_is_found_in_the_faa_registry(monkeypatch):
+    faa = {"n_number": "N654FL", "mode_s_hex": "a89c1e", "manufacturer": "Piper", "model": "PA-28-140", "status": "Valid",
+           "standing": "valid"}
+    monkeypatch.setattr(traffic, "find", lambda q: [])
+    monkeypatch.setattr(traffic, "registered", lambda q: faa if q == "N654FL" else None)
+    body = client.get("/api/traffic/find", params={"q": "N654FL"}).json()
+    assert body["aircraft"] == [] and body["registered"]["mode_s_hex"] == "a89c1e"
+    assert client.get("/api/traffic/find", params={"q": "UAL2088"}).json()["registered"] is None

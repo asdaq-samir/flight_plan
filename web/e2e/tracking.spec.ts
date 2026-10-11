@@ -144,6 +144,29 @@ test("a search finds the airplanes about as it is typed, and asks the planner on
   expect(asked.filter(q => q === "N654" || q === "N654F")).toEqual([]);
 });
 
+test("an airplane not in the air is found by its registration, and its card says when it was last heard", async ({ page }) => {
+  const piper = {
+    ...FAA, n_number: "N654FL", mode_s_hex: "a89c1e", manufacturer: "Piper", model: "PA-28-140", year: 1971, engines: 1, seats: 4,
+    engine: "Lycoming 0-320 Series", engine_type: "Reciprocating", horsepower: 180, thrust_lb: null, owner: "Roca Roja LLC", owner_type: "LLC",
+    city: "Meridian", state: "ID",
+  };
+  const landed = Date.now() / 1000 - 3600;
+  await sky(page, { hex: "a89c1e", faa: piper, registration: "N654FL", departed: null,
+    trail: [{ t: landed - 600, lat: 43.5, lon: -116.3, alt_ft: 3000 }, { t: landed, lat: 43.56, lon: -116.22, alt_ft: null }] });
+  await page.route(url => url.pathname.endsWith("/api/planner/traffic/find"), route => route.fulfill({ json: { aircraft: [], registered: piper } }));
+  await page.goto("/app/plan?aircraft=1");
+  await settle(page);
+  await page.getByTestId("aircraft-search").fill("N654FL");
+  const row = page.getByTestId("aircraft-card").getByTestId("aircraft-registered");
+  await expect(row).toContainText("N654FL", { timeout: slow(15_000) });
+  await expect(row).toContainText("Piper PA-28-140 · not in the air now");
+  await row.click();
+  await expect(page).toHaveURL(/[?&]flight=a89c1e/);
+  const card = page.getByTestId("flight-card");
+  await expect(card.getByTestId("flight-not-heard")).toContainText("Last heard");
+  await expect(card.getByTestId("faa-owner")).toContainText("Roca Roja LLC · LLC · Meridian, ID");
+});
+
 test("in the air, own ship's path flown is drawn behind it", async ({ page }) => {
   await page.context().grantPermissions(["geolocation"]);
   await page.addInitScript(() => {

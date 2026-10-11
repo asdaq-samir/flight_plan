@@ -52,8 +52,11 @@ function AircraftRow({ plane, from, ownFt, onPick, testId = "aircraft-row" }: {
  * coverage, and the airplanes about, nearest first; a tap tracks one
  * (FlightCard). The traffic is drawn on the map while it is open.
  */
-export default function AircraftCard({ onPick, onClose }: {
+export default function AircraftCard({ onPick, onPickHex, onClose }: {
   onPick: (plane: TrafficAircraft) => void;
+  /** One not in the air or not heard now, by its address: its card from
+   *  the FAA's record and its last flight (FlightCard). */
+  onPickHex: (hex: string) => void;
   onClose: () => void;
 }) {
   const [typed, setTyped] = useState("");
@@ -91,8 +94,12 @@ export default function AircraftCard({ onPick, onClose }: {
     return seen.map(r => r.plane).filter(plane => named(plane, wanted))
       .sort((a, b) => Number(whole(b)) - Number(whole(a))).slice(0, 8);
   }, [seen, wanted, searching]);
-  const answer = asked === wanted ? found : undefined;
+  const answer = asked === wanted ? found?.aircraft : undefined;
   const listed = [...heard, ...(answer ?? []).filter(plane => !heard.some(h => h.hex === plane.hex))];
+  // None in the air by that name: the FAA's record of a US airplane named
+  // by its N-number or address, its card opened all the same (FlightCard:
+  // its registration, and its last flight where it flew today).
+  const registered = asked === wanted && !listed.length ? found?.registered ?? null : null;
   const from = fix ? { lat: fix.lat, lon: fix.lon } : null;
   const about = useMemo(() => {
     const planes = seen.map(r => r.plane);
@@ -115,6 +122,7 @@ export default function AircraftCard({ onPick, onClose }: {
               if (e.key !== "Enter") return;
               // The first found, or the search asked now rather than at the pause.
               if (listed[0]) onPick(listed[0]);
+              else if (registered?.mode_s_hex) onPickHex(registered.mode_s_hex);
               else if (!isFetching) setAsked(wanted);
             }}
             placeholder="Callsign, registration or ICAO address" aria-label="Find an aircraft" data-testid="aircraft-search"
@@ -134,7 +142,16 @@ export default function AircraftCard({ onPick, onClose }: {
             {listed.map(plane => (
               <AircraftRow key={plane.hex} plane={plane} from={from} ownFt={ownFt} onPick={() => onPick(plane)} testId="aircraft-found" />
             ))}
-            {searching && answer && !listed.length && (
+            {registered && (
+              <ListRow
+                media={<Plane className="size-5 text-muted-foreground" />} data-testid="aircraft-registered"
+                title={<span className="font-semibold">{registered.n_number}</span>}
+                description={[[registered.manufacturer, registered.model].filter(Boolean).join(" "), "not in the air now"].filter(Boolean).join(" · ")}
+                chevron={!!registered.mode_s_hex}
+                onClick={registered.mode_s_hex ? () => onPickHex(registered.mode_s_hex!) : undefined}
+              />
+            )}
+            {searching && answer && !listed.length && !registered && (
               <ListRow title={<span className="text-muted-foreground">None in the air by that name is heard now</span>} />
             )}
             {searching && !answer && isError && asked === wanted && (

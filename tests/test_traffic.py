@@ -403,3 +403,15 @@ def test_a_flight_numbers_route_and_whether_the_airplane_is_on_it(clock, monkeyp
         assert traffic.route("DAL1") is None
     # Each asked once: the route kept, and a 404 too.
     assert asked == ["UA/UAL2088.json", "DA/DAL1.json"]
+
+
+def test_the_faa_record_of_an_airplane_named_by_its_n_number_or_address(clock, monkeypatch):
+    asked = []
+    monkeypatch.setattr(traffic.registry, "lookup", lambda **kw: asked.append(kw) or {"n_number": "N654FL"})
+    assert traffic.registered("n654fl") == {"n_number": "N654FL"}
+    assert traffic.registered("A89C1E") == {"n_number": "N654FL"}
+    # Not an N-number or an address: a callsign has no registration to look up.
+    assert traffic.registered("UAL2088") is None
+    # adsb.lol's "~" pseudo-address goes on unstripped, for registry.lookup to refuse.
+    traffic.registered("~a89c1e")
+    assert asked == [{"n_number": "N654FL"}, {"hex_id": "a89c1e"}, {"hex_id": "~a89c1e"}]

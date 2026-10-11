@@ -442,9 +442,10 @@ export const api = {
     planner.GET("/api/traffic", { params: { query: ask } }).then(data<Traffic>),
 
   /** The airplanes in the air a pilot names, by callsign, registration or
-   *  ICAO address, to track one (AircraftCard). */
+   *  ICAO address, to track one (AircraftCard); with none in the air, the
+   *  FAA's record of the one named, to open its card all the same. */
   trafficFind: (q: string) =>
-    planner.GET("/api/traffic/find", { params: { query: { q } } }).then(data<TrafficFound>).then(r => r.aircraft),
+    planner.GET("/api/traffic/find", { params: { query: { q } } }).then(data<TrafficFound>),
 
   /** A tracked flight's airplane, where it took off and its path today,
    *  and a US airplane's FAA registration. */
