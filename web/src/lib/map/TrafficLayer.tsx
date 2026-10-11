@@ -280,6 +280,9 @@ const pathStyle = (colour: string) => {
   return style;
 };
 
+// How long a trace waits for a first report before the map goes to its end.
+const NOT_HEARD_WAIT_MS = 4000;
+
 /**
  * The path a tracked flight has flown today, as FlightAware draws one:
  * from its takeoff (or where its trace begins) to its last report, in
@@ -292,16 +295,22 @@ function TrackedPath({ hex }: { hex: string }) {
   const { data } = useQuery(flightQuery(hex));
   // An airplane not heard now -- landed, or found by its registration --
   // has no report for the map to follow: the map goes to where its trace
-  // ends, once, clear of the panel.
+  // ends, once, clear of the panel. The trace can arrive before the first
+  // report of one in the air, which the map follows instead, so the move
+  // waits a few seconds for a report and is dropped if one comes.
   const live = useTracking(s => s.latest?.plane.hex === hex);
   const shown = useRef(false);
   useEffect(() => {
     const end = data?.trail?.at(-1);
     if (shown.current || live || !end) return;
-    shown.current = true;
-    const zoom = Math.max(map.getZoom(), 9);
-    map.setView(centreClear(map, [end.lat, end.lon], zoom), zoom, { animate: true });
-  }, [data, live, map]);
+    const timer = setTimeout(() => {
+      if (shown.current || useTracking.getState().latest?.plane.hex === hex) return;
+      shown.current = true;
+      const zoom = Math.max(map.getZoom(), 9);
+      map.setView(centreClear(map, [end.lat, end.lon], zoom), zoom, { animate: true });
+    }, NOT_HEARD_WAIT_MS);
+    return () => clearTimeout(timer);
+  }, [data, live, map, hex]);
   const since = useTracking(s => s.path);
   const path = useMemo(() => {
     const trail = (data?.trail ?? []).map(p => ({ t: p.t * 1000, lat: p.lat, lon: p.lon, altFt: p.alt_ft ?? null }));

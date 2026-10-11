@@ -412,4 +412,6 @@ def test_the_faa_record_of_an_airplane_named_by_its_n_number_or_address(clock, m
     assert traffic.registered("A89C1E") == {"n_number": "N654FL"}
     # Not an N-number or an address: a callsign has no registration to look up.
     assert traffic.registered("UAL2088") is None
-    assert asked == [{"n_number": "N654FL"}, {"hex_id": "a89c1e"}]
+    # adsb.lol's "~" pseudo-address goes on unstripped, for registry.lookup to refuse.
+    traffic.registered("~a89c1e")
+    assert asked == [{"n_number": "N654FL"}, {"hex_id": "a89c1e"}, {"hex_id": "~a89c1e"}]
