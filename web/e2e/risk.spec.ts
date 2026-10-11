@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { settle, sideDrawer, slow, openTab, openSection } from "./helpers";
+import { settle, sideDrawer, slow, openTab, openSection, controlsInSight, grabberTo } from "./helpers";
 
 /**
  * The briefing's Risk Assessment (lib/frat): what the briefing raises
@@ -53,12 +53,14 @@ test("a quiet day is low, what the pilot ticks raises it, and Save files it with
   await expect(drawer.getByTestId("risk-level")).toContainText("High");
   await expect(drawer.getByTestId("risk-flag")).toContainText("High risk");
 
+  await controlsInSight(page);
   await drawer.getByTestId("save-flight-button").click();
   await expect.poll(() => filed?.risk?.level).toBe("high");
   expect(filed!.risk!.factors).toEqual(expect.arrayContaining([
     "Somewhere to be by a time, or people counting on it", "Alcohol in the last 8 hours, or still feeling it",
   ]));
   // About the pilot today, not the route: put back for the next test.
+  await grabberTo(page, "full");
   await drawer.getByTestId("risk-check-alcohol").click();
   await page.unrouteAll({ behavior: "ignoreErrors" });
 });

@@ -72,3 +72,19 @@ function guess({ distanceNm, cruiseTasKt, fuelBurnGph }: { distanceNm: number; c
     time: minutes == null ? "—" : `${hours ? `${hours}h ` : ""}${Math.round(minutes - hours! * 60)}m`,
   };
 }
+
+/**
+ * The route's pill at rest, at the pilot's ask: where to, how far and how
+ * long -- "KMSP · 278 nm · 2h 24m" -- the nav log's figures, or before
+ * them the book's, marked "≈"; a local flight's own name and its time
+ * aloft. The destination alone until either is had.
+ */
+export function restingSummary(name: string, dest: string, { totals, estimate, local }: Omit<TripInput, "depart">): string {
+  if (local) return totals?.ete_min != null ? `${name} · ${enRoute(totals.ete_min)}` : name;
+  if (totals) return `${dest} · ${Math.ceil(totals.distance_nm)} nm · ${totals.ete_min == null ? "—" : enRoute(totals.ete_min)}`;
+  if (estimate) {
+    const { minutes } = guess(estimate);
+    return `${dest} · ≈${Math.ceil(estimate.distanceNm)} nm${minutes == null ? "" : ` · ≈${enRoute(minutes)}`}`;
+  }
+  return dest;
+}

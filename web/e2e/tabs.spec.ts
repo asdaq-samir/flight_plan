@@ -88,8 +88,10 @@ test("the Weather goes place by place, each TAF read for when the flight is ther
   await openTab(page, "Weather");
   // The Weather's parts as its section tabs; the places, in the order
   // flown, under Along the Route.
-  await expect(sideDrawer(page).locator('[data-tab="weather"] [data-testid="section-tab"]'))
-    .toHaveText(["Adverse Conditions", "Along the Route", "Winds Aloft"]);
+  // By their titles: a flagged pill's words say its flag to a reader too.
+  await expect.poll(() => sideDrawer(page).locator('[data-tab="weather"] [data-testid="section-tab"]')
+    .evaluateAll(pills => pills.map(pill => pill.getAttribute("data-section"))))
+    .toEqual(["Adverse Conditions", "Along the Route", "Winds Aloft"]);
   await openSection(page, "Along the Route");
   const places = sideDrawer(page).getByTestId("weather-places");
   await expect(places).toBeVisible();

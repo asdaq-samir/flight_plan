@@ -42,7 +42,10 @@ test.describe("/app/plan", () => {
     await expect(page.getByTestId("search-airports")).toBeVisible();
     await page.goto("/app/plan?dep=C81&dest=KDLH");
     await settle(page);
-    await expect(page.getByTestId("capsule-title")).toHaveText("C81 → KDLH");
+    // Where to, how far and how long, the route whole its name, at the
+    // pilot's ask.
+    await expect(page.getByTestId("capsule-detail")).toHaveAccessibleName(/^C81 → KDLH, KDLH · \d+ nm · /, { timeout: slow(30000) });
+    await expect(page.getByTestId("capsule-title")).toHaveText(/^KDLH · \d+ nm · /);
     await openPanel(page);
     await expect(page.getByLabel("Departure", { exact: true })).toBeVisible();
     expect(await page.getByTestId("toolbar-trigger").count()).toBe(0);
@@ -63,7 +66,8 @@ test.describe("/app/plan", () => {
 
     await page.goto("/app/plan?dep=C81&dest=KDLH");
     await settle(page);
-    await expect(page.getByTestId("capsule-title")).toHaveText("C81 → KDLH");
+    await expect(page.getByTestId("capsule-detail")).toHaveAccessibleName(/^C81 → KDLH, KDLH · \d+ nm · /, { timeout: slow(30000) });
+    await expect(page.getByTestId("capsule-title")).toHaveText(/^KDLH · \d+ nm · /);
     await expectDrawerClosed(page);
     // At rest, Share at the capsule's start and the console's button at
     // its end, the route between them.
