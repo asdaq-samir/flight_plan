@@ -874,6 +874,15 @@
         "required" : [ "developer", "displayName", "email", "id" ],
         "type" : "object"
       },
+      "RemindersDto" : {
+        "properties" : {
+          "on" : {
+            "type" : "boolean"
+          }
+        },
+        "required" : [ "on" ],
+        "type" : "object"
+      },
       "RiskAssessmentDto" : {
         "properties" : {
           "factors" : {
@@ -2116,6 +2125,50 @@
               "*/*" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/CurrencyDto"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "logbook-controller" ]
+      }
+    },
+    "/api/logbook/reminders" : {
+      "get" : {
+        "operationId" : "reminders",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/RemindersDto"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "logbook-controller" ]
+      },
+      "put" : {
+        "operationId" : "setReminders",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/RemindersDto"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/RemindersDto"
                 }
               }
             },

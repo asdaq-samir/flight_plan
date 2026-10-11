@@ -14,7 +14,7 @@ longer than it takes to answer the request.
 
 | App Store category | What exactly | Linked to the pilot | Why | Where it is kept |
 |---|---|---|---|---|
-| Contact Info, Email Address | The address a pilot signs in with | Yes | App Functionality (sign-in, the sign-in link) | `pilots`, `magic_links` (Postgres) |
+| Contact Info, Email Address | The address a pilot signs in with | Yes | App Functionality (sign-in, the sign-in link; currency reminders where the pilot turns them on) | `pilots`, `magic_links`, `reminders_sent` (Postgres) |
 | Contact Info, Name | The name Google or Apple gives at sign-in (otherwise the address) | Yes | App Functionality | `pilots` |
 | Identifiers, User ID | The account's id; Google's and Apple's subject for that sign-in | Yes | App Functionality | `pilots`, the session |
 | User Content, Other | Aircraft (tail number, type, performance, the last VOR check, the inspections' and tests' dates and its hours, its checklist and its squawks), saved flights and their nav logs, the logbook (its instrument approaches, holding and tracking among it), endorsements and currency dates (the instrument proficiency check's too), checkpoint notes a pilot writes for themselves | Yes | App Functionality | Postgres; notes in the planner's `data/labels` |

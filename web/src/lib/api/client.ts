@@ -6,7 +6,7 @@ import type {
   ChartInfo, ChartPages, ChartRefreshStarted, PlacesFound, CheckpointDescriptionMessage, CheckpointNoteSaved, Checkpoints, Classification, Course, Detour,
   Flight, FlightSummary, ModelComparison, NarrativeMessage, NarrativeRequest, NavLogMessage, PickDeleted, PickSaved,
   AirspaceAt, AlertsAhead, ClassBResponse, FlightDetail, FlightRoute, GoogleMaps, Traffic, TrafficFound, NearestAirports, RouteProfile, Tfrs, DevServices, DevServiceStarted, Pilot, Rating, RetrainStarted, Role, SaveFlightRequest,
-  SignInCapabilities, AppleSignedIn, LogbookEntry, LogbookEntryRequest, Currency, CurrencyDatesRequest, Subscription, Alternates, VorCheckRequest, InspectionsRequest, ChecklistDto, Squawk, SquawkRequest,
+  SignInCapabilities, AppleSignedIn, LogbookEntry, LogbookEntryRequest, Currency, CurrencyDatesRequest, Subscription, Alternates, VorCheckRequest, InspectionsRequest, ChecklistDto, Squawk, SquawkRequest, Reminders,
   Status, StreamMessage, Totals, WaypointsInView, Training, SavedTrack,
   OralQuestion, OralQuestionRequest, OralGrade, OralGradeRequest, ProcedureDrawing, ProcedureList,
 } from "./types";
@@ -614,6 +614,9 @@ export const api = {
     },
     currency: () => webapp.GET("/api/logbook/currency").then(data<Currency>),
     setCurrencyDates: (request: CurrencyDatesRequest) => webapp.PUT("/api/logbook/currency", { body: request }).then(data<Currency>),
+    /** Whether the pilot is emailed before their currency runs out. */
+    reminders: () => webapp.GET("/api/logbook/reminders").then(data<Reminders>),
+    setReminders: (on: boolean) => webapp.PUT("/api/logbook/reminders", { body: { on } }).then(data<Reminders>),
   },
 
   /** A student's way to the checkride, beside the logbook. */

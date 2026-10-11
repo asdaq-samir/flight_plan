@@ -1,6 +1,7 @@
 package com.northflyers.vfr.repository;
 
 import com.northflyers.vfr.domain.Pilot;
+import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.repository.query.Param;
@@ -16,6 +17,9 @@ import org.springframework.data.jpa.repository.Modifying;
  * through that particular provider.
  */
 public interface PilotRepository extends JpaRepository<Pilot, Long> {
+
+    /** The pilots who have asked for reminders (ReminderService). */
+    List<Pilot> findByRemindersTrue();
 
     Optional<Pilot> findByGoogleSubject(String googleSubject);
 

@@ -44,6 +44,12 @@ public class LogbookService {
         }).orElse(false);
     }
 
+    /** Whether the pilot is emailed before their currency runs out. */
+    public Pilot setReminders(Pilot pilot, boolean on) {
+        pilot.setReminders(on);
+        return pilots.save(pilot);
+    }
+
     public Pilot setCurrencyDates(Pilot pilot, LocalDate flightReviewOn, LocalDate medicalExpiresOn, LocalDate ipcOn) {
         pilot.setCurrencyDates(flightReviewOn, medicalExpiresOn, ipcOn);
         return pilots.save(pilot);
