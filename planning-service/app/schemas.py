@@ -366,6 +366,25 @@ class AltitudeSegment(BaseModel):
     highest_is_obstacle: bool | None = None
     mountainous: bool | None = None
     obstacle_clearance_ft: float | None = None
+    #: Under IFR along an airway (vfr.airways): the segment's published
+    #: altitudes, its MEA the floor (14 CFR 91.177(a)(1)) and its MAA a
+    #: ceiling.
+    airway: "AirwayAltitudes | None" = None
+
+
+class AirwayAltitudes(BaseModel):
+    """An airway segment's published altitudes, feet MSL (NASR AWY_SEG_ALT):
+    the MEA, the GNSS MEA, the MOCA and the MAA; `from_` the fix it starts
+    at."""
+
+    id: str
+    from_: str = Field(alias="from")
+    mea_ft: float | None = None
+    gnss_mea_ft: float | None = None
+    moca_ft: float | None = None
+    maa_ft: float | None = None
+
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class AltitudeCaution(BaseModel):

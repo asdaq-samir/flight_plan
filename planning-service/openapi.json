@@ -1468,6 +1468,73 @@
         "title": "AirspaceTransit",
         "type": "object"
       },
+      "AirwayAltitudes": {
+        "description": "An airway segment's published altitudes, feet MSL (NASR AWY_SEG_ALT):\nthe MEA, the GNSS MEA, the MOCA and the MAA; `from_` the fix it starts\nat.",
+        "properties": {
+          "from": {
+            "title": "From",
+            "type": "string"
+          },
+          "gnss_mea_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Gnss Mea Ft"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "maa_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Maa Ft"
+          },
+          "mea_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Mea Ft"
+          },
+          "moca_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Moca Ft"
+          }
+        },
+        "required": [
+          "id",
+          "from"
+        ],
+        "title": "AirwayAltitudes",
+        "type": "object"
+      },
       "AlertsAhead": {
         "description": "What is ahead of the airplane, warnings first, then the soonest;\n`unavailable` names what could not be read (special-use airspace,\nTFRs, terrain, obstacles), said rather than shown as nothing there.",
         "properties": {
@@ -1885,6 +1952,17 @@
               }
             ],
             "title": "Airspace Ceiling Ft"
+          },
+          "airway": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AirwayAltitudes"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
           },
           "band_ceiling_ft": {
             "anyOf": [

@@ -19,7 +19,7 @@ import { useKeepOffline } from "../../lib/map/keepStatus";
 import { locateOnOpen, positionNow, useOwnShip, useOwnShipNear } from "../../lib/map/ownShip";
 import { track, useTracking } from "../../lib/map/tracking";
 import { pointOf } from "../../lib/airspace";
-import { MAX_STOPS, altitudesOf, altitudesParam, departureOf, identOf, pointName, positionIdent, routeName, routeOf, stopsOf } from "../../lib/identSchema";
+import { MAX_STOPS, altitudesOf, altitudesParam, departureOf, identOf, isAirwayToken, pointName, positionIdent, routeName, routeOf, stopsOf } from "../../lib/identSchema";
 import { restingSummary } from "./figures";
 import { useKeptAirport, usePreferences, type RecentAirport } from "../../lib/preferences";
 import { SearchNear, useAirportSearch } from "../../lib/useAirportSearch";
@@ -742,8 +742,11 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const routed = routeOf(planned.dep, planned.dest, planned.stops) !== null || local;
   // The stops flown through rather than landed at: the course's own word
   // for each, and before it answers, any ident too long for an airport.
+  // An airway (V100) is flown through too, fix by fix, unless the course
+  // says the stop is an airport whose identifier has an airway's form.
   const waypointStops = useMemo(() => new Set(planned.stops.filter(stop =>
-    course?.stops?.some(a => a.ident === stop && a.kind === "fix") || !identOf(stop))), [planned.stops, course]);
+    course?.stops?.some(a => a.ident === stop && a.kind === "fix") || !identOf(stop)
+    || (isAirwayToken(stop) && !course?.stops?.some(a => a.ident === stop)))), [planned.stops, course]);
   // A route cleared from its close with the panel out keeps its empty box
   // to type another in (clearRoute); the panel lowered, the search again,
   // and no card under it any more.

@@ -156,6 +156,10 @@ export default function AltitudeReasoning({ nav, legs }: Props) {
   // is over a mountainous area (14 CFR Part 95).
   const highest = s.segments.reduce<AltitudeSegment | null>(
     (top, seg) => (seg.highest_ft != null && (top === null || (seg.highest_ft ?? 0) > (top.highest_ft ?? 0)) ? seg : top), null);
+  // The airways flown, each with its published altitudes, once: a V100
+  // flown over three segments of the same MEA is one line.
+  const airways = s.segments.flatMap(seg => (seg.airway ? [seg.airway] : []))
+    .filter((a, i, all) => all.findIndex(b => b.id === a.id && b.mea_ft === a.mea_ft && b.maa_ft === a.maa_ft) === i);
   const ifrSteps: { key: string; head: ReactNode; body: ReactNode }[] = [
     {
       key: "floor",
@@ -166,8 +170,13 @@ export default function AltitudeReasoning({ nav, legs }: Props) {
           designates (14 CFR 91.177(a)(2), Part 95){s.mountainous ? ", as part of this route is" : ""}, rounded up to
           the next 100 ft: the ground from USGS heights, and the FAA&apos;s obstacle file.
           {highest && ` The highest, ${altFt(highest.highest_ft ?? 0)} ft, is ${highest.highest_is_obstacle ? "a charted obstacle" : "the ground"} from ${highest.from_nm} to ${highest.to_nm} nm.`}
-          {" "}Worked out leg by leg, so a leg over lower ground may fly lower. The route is planned direct: on an
-          airway, its published MEA governs (91.177(a)(1)).
+          {" "}Worked out leg by leg, so a leg over lower ground may fly lower.
+          {airways.length > 0
+            ? airways.map(a => ` Along ${a.id} from ${a.from} the published MEA, ${altFt(a.mea_ft ?? a.gnss_mea_ft ?? 0)} ft${
+              a.mea_ft == null ? " (GNSS)" : ""}, is the floor instead (91.177(a)(1))${
+              a.moca_ft != null ? `; its MOCA, ${altFt(a.moca_ft)} ft, is legal within 22 nm of the VOR, not planned` : ""}${
+              a.maa_ft != null ? `; nothing above its MAA, ${altFt(a.maa_ft)} ft` : ""}.`).join("")
+            : " Off an airway the route is planned direct: on one, its published MEA governs (91.177(a)(1))."}
         </>
       ),
     },

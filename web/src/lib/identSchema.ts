@@ -133,3 +133,9 @@ export function altitudesOf(value: string | null | undefined): Record<string, nu
 /** And back, for the address: "" with none. */
 export const altitudesParam = (altitudes: Record<string, number>) =>
   Object.entries(altitudes).map(([ident, ft]) => `${ident}:${ft}`).join(",");
+
+/** An airway as a route's stop, "V100" or "T254" (the planner's
+ *  vfr.airways): flown fix by fix between the stops either side of it. By
+ *  its form, as the planner first reads it -- an airport whose identifier
+ *  has the same form the course names as one. */
+export const isAirwayToken = (ident: string) => /^[VTJQ]\d{1,4}$/.test(ident);

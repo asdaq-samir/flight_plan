@@ -259,6 +259,7 @@ def select_cruise_altitude(
     window: tuple | None = None,
     class_b_cleared: bool = False,
     rules: str = "vfr",
+    airway: dict | None = None,
 ) -> dict:
     """Returns a dict with the recommended altitude (None if no legal VFR
     altitude exists for this route/aircraft) plus the floor/ceiling
@@ -270,7 +271,9 @@ def select_cruise_altitude(
     course; its altitudes are 91.179(b)'s and ATC's by direction of flight,
     odd or even thousands; and neither Class B, the clouds nor Class A caps
     them -- an IFR clearance takes the flight into all three. Only the
-    service ceiling and prohibited airspace do.
+    service ceiling and prohibited airspace do. `airway`, the published
+    altitudes of the airway segment the hop is flown along (vfr.airways):
+    under IFR its MEA is the floor (91.177(a)(1)) and its MAA a ceiling.
 
     `fixes`, the nav log's (lat, lon) fixes from departure to destination,
     adds `segments`: the floor, ceiling and legal altitudes of each leg
@@ -330,8 +333,11 @@ def select_cruise_altitude(
     mid_lon = (route_start[1] + route_end[1]) / 2
 
     under_ifr = rules == "ifr"
+    on_airway = under_ifr and airway is not None and ifr.published_floor(airway) is not None
     with ThreadPoolExecutor(max_workers=5) as pool:
         floor_future = pool.submit(
+            ifr.published_floors, len(fixes or [route_start, route_end]) - 1, airway,
+        ) if on_airway else pool.submit(
             timed("ifr.floor_profile", ifr.floor_profile), fixes or [route_start, route_end], faa_cache_dir,
         ) if under_ifr else pool.submit(
             timed("terrain.floor_profile", terrain.floor_profile),
@@ -452,8 +458,11 @@ def select_cruise_altitude(
         none, the band without them, and False. Under IFR, the IFR
         altitudes from the floor to the service ceiling alone."""
         if under_ifr:
-            found = [a for a in ifr.cruising_altitudes(floor, service_ceiling, course) if not sua.blocked(a, areas)]
-            return service_ceiling, found, True, False
+            # No airway above its MAA (vfr.airways).
+            maa = airway.get("maa_ft") if on_airway else None
+            top = service_ceiling if maa is None else min(service_ceiling, maa)
+            found = [a for a in ifr.cruising_altitudes(floor, top, course) if not sua.blocked(a, areas)]
+            return top, found, True, False
 
         def legal(ceiling):
             found = [a for a in legal_cruising_altitudes(floor, ceiling, course, rule_from) if not sua.blocked(a, areas)]
@@ -593,12 +602,15 @@ def select_cruise_altitude(
         "segments": segments,
         # Under IFR: whether any leg is over a designated mountainous
         # area (14 CFR Part 95), its floor 2,000 ft over the obstacles.
-        "mountainous": under_ifr and any(f.mountainous for f in floors),
+        "mountainous": under_ifr and any(bool(f.mountainous) for f in floors),
     }
 
 
 def _ifr_floor(floor: "ifr.LegFloor") -> dict:
-    """What a leg's minimum IFR altitude was found from, for its segment."""
+    """What a leg's minimum IFR altitude was found from, for its segment:
+    the obstacles under it, or the airway it is flown along."""
+    if floor.airway is not None:
+        return {"airway": floor.airway}
     return {
         "highest_ft": floor.highest_ft,
         "highest_is_obstacle": floor.highest_is_obstacle,

@@ -262,11 +262,13 @@ _ALTITUDE_CACHE = SingleFlightTTLCache(maxsize=512, ttl=_ALTITUDE_TTL_S)
 
 
 def _altitude_key(start: tuple, end: tuple, aircraft: str, fixes: list | None, fcst_hr: str,
-                  window: tuple | None = None, class_b_cleared: bool = False, rules: str = "vfr") -> tuple:
+                  window: tuple | None = None, class_b_cleared: bool = False, rules: str = "vfr",
+                  airway: dict | None = None) -> tuple:
     return (
         round(start[0], 4), round(start[1], 4), round(end[0], 4), round(end[1], 4), aircraft,
         tuple((round(lat, 4), round(lon, 4)) for lat, lon in fixes) if fixes else None, fcst_hr,
         (round(window[0]), round(window[1])) if window else None, class_b_cleared, rules,
+        tuple(sorted(airway.items())) if airway else None,
     )
 
 
@@ -286,14 +288,15 @@ def flight_window(depart: datetime | None, distance_nm: float, cruise_tas_kt: fl
 
 def cruise_altitude(
     start: tuple, end: tuple, profile: dict, aircraft: str, fixes: list | None = None, fcst_hr: str = "06",
-    window: tuple | None = None, class_b_cleared: bool = False, rules: str = "vfr",
+    window: tuple | None = None, class_b_cleared: bool = False, rules: str = "vfr", airway: dict | None = None,
 ) -> dict:
     """`fixes`, the nav log's own (lat, lon) fixes, add the leg-by-leg
     segments the stepped plans need; they are part of the key, since a
     different set of checkpoints is a different set of legs. So is the
     forecast period, since the freezing level is read from it, and
-    `class_b_cleared`, a pilot who will have a Class B clearance, and
-    `rules`, "ifr" for a flight under IFR (vfr.altitude).
+    `class_b_cleared`, a pilot who will have a Class B clearance,
+    `rules`, "ifr" for a flight under IFR, and `airway`, the airway segment
+    a hop is flown along (vfr.altitude).
     Raises StillComputing when the same selection has been running longer
     than COMPUTE_LIMIT_S."""
     pending: set = set()
@@ -312,21 +315,25 @@ def cruise_altitude(
             extra["class_b_cleared"] = True
         if rules != "vfr":
             extra["rules"] = rules
+        if airway:
+            extra["airway"] = airway
         return altitude_module.select_cruise_altitude(start, end, profile, pending=pending, **extra)
 
     return _ALTITUDE_CACHE.get_or_compute(
-        _altitude_key(start, end, aircraft, fixes, fcst_hr, window, class_b_cleared, rules), compute, COMPUTE_LIMIT_S,
+        _altitude_key(start, end, aircraft, fixes, fcst_hr, window, class_b_cleared, rules, airway), compute,
+        COMPUTE_LIMIT_S,
         pending,
     )
 
 
 def altitude_waiting_on(start: tuple, end: tuple, aircraft: str, fixes: list | None, fcst_hr: str,
-                        window: tuple | None = None, class_b_cleared: bool = False, rules: str = "vfr") -> str:
+                        window: tuple | None = None, class_b_cleared: bool = False, rules: str = "vfr",
+                        airway: dict | None = None) -> str:
     """What the selection cruise_altitude() would be joining is still
     waiting on, in words -- "" when nothing of it is running, which is
     also the case once it is done and the plans' winds are what remains."""
     running = _ALTITUDE_CACHE.running(
-        _altitude_key(start, end, aircraft, fixes, fcst_hr, window, class_b_cleared, rules))
+        _altitude_key(start, end, aircraft, fixes, fcst_hr, window, class_b_cleared, rules, airway))
     return "" if running is None else describe_stages(running[1])
 
 

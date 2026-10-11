@@ -229,7 +229,7 @@ def resolve_altitude(
     The four plans are made beside a pilot's own altitude as well, as
     what the planner would have flown."""
     selection = cruise_altitude(r.start, r.end, profile, aircraft, fixes=_fixes(fix_list), fcst_hr=fcst_hr, window=window,
-                                class_b_cleared=class_b_cleared, rules=rules)
+                                class_b_cleared=class_b_cleared, rules=rules, airway=r.dest_airport.get("airway"))
     try:
         plans = altitude_plans(fix_list, selection, profile, aircraft, fcst_hr, departure_elevation(r))
         failure = None
@@ -476,7 +476,7 @@ def _running_stages(run: HopRun, q: "PlanQuery") -> list:
 def _waiting_on(run: HopRun, q: "PlanQuery") -> str:
     return altitude_waiting_on(
         run.hop.start, run.hop.end, q.aircraft, _fixes(run.fixes), run.fcst_hr, run.window, q.class_b_clearance,
-        q.rules)
+        q.rules, run.hop.dest_airport.get("airway"))
 
 
 def _chart_info() -> dict:

@@ -354,3 +354,41 @@ def test_a_direct_to_climbs_from_the_gps_altitude_and_with_none_starts_level(alt
     assert legs("@42.3246,-88.0741,1000")[0]["climb_min"] > 0
     assert legs("@42.3246,-88.0741")[0]["climb_min"] == 0
     assert legs("@42.3246,-88.0741,0")[0] == legs("@42.3246,-88.0741,1000")[0]
+
+
+def test_an_airway_among_the_stops_is_flown_fix_by_fix_with_its_altitudes(monkeypatch):
+    """"BAE V900 DDD" is BAE, the fixes V900 passes, DDD (vfr.airways): each
+    one a waypoint, each hop into one carrying its segment's MEA."""
+    from vfr import airways
+
+    from app import common
+
+    segments = [airways.Segment("V900", "BAE", "CCC", 4000.0, None, 2600.0, 17500.0),
+                airways.Segment("V900", "CCC", "DDD", 5000.0, None, None, 17500.0)]
+    monkeypatch.setattr(airways, "is_airway", lambda token: token == "V900")
+    monkeypatch.setattr(airways, "along", lambda airway, a, b: segments)
+    idents, flown = common.with_airways(["C81", "BAE", "V900", "DDD", "KDLH"])
+    assert idents == ["C81", "BAE", "CCC", "DDD", "KDLH"]
+    assert flown == {2: segments[0], 3: segments[1]}
+
+
+def test_an_airway_that_cannot_be_flown_as_written_is_a_422_that_says_why(monkeypatch):
+    from fastapi import HTTPException
+    from vfr import airways
+
+    from app import common
+
+    def nowhere(airway, a, b):
+        raise airways.AirwayError(f"{a} is not on {airway}: an airway is joined at one of its own fixes.")
+
+    monkeypatch.setattr(airways, "is_airway", lambda token: token in ("V900", "V901"))
+    monkeypatch.setattr(airways, "along", nowhere)
+    monkeypatch.setattr(common, "_is_place", lambda ident: False)
+    with pytest.raises(HTTPException) as err:
+        common.with_airways(["C81", "V900", "DDD", "KDLH"])
+    assert err.value.status_code == 422 and err.value.detail == "C81 is not on V900: an airway is joined at one of its own fixes."
+    with pytest.raises(HTTPException, match="follow each other"):
+        common.with_airways(["C81", "BAE", "V900", "V901", "DDD", "KDLH"])
+    # An airport whose identifier reads as an airway is a place.
+    monkeypatch.setattr(common, "_is_place", lambda ident: True)
+    assert common.with_airways(["C81", "V900", "KDLH"])[0] == ["C81", "V900", "KDLH"]

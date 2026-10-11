@@ -189,12 +189,26 @@ def cruising_altitudes(floor_ft: float, ceiling_ft: float | None, course_magneti
 class LegFloor(NamedTuple):
     """One leg's minimum IFR altitude (14 CFR 91.177(a)(2)), with what it
     was found from: the highest obstacle within 4 nm, ground or a DOF
-    obstacle, its height, and whether the leg is over a mountainous area."""
+    obstacle, its height, and whether the leg is over a mountainous area.
+    Or, on an airway, its published MEA (91.177(a)(1)), `airway` its
+    segment's published altitudes and the rest None."""
 
     floor_ft: float
-    highest_ft: float
-    highest_is_obstacle: bool
-    mountainous: bool
+    highest_ft: float | None
+    highest_is_obstacle: bool | None
+    mountainous: bool | None
+    airway: dict | None = None
+
+
+def published_floor(airway: dict) -> float | None:
+    """An airway segment's minimum IFR altitude (14 CFR 91.177(a)(1)): its
+    MEA, or its GNSS MEA where it publishes no other (a T route's)."""
+    return airway.get("mea_ft") or airway.get("gnss_mea_ft")
+
+
+def published_floors(legs: int, airway: dict) -> list[LegFloor]:
+    """Each leg of a hop flown along an airway segment: its MEA."""
+    return [LegFloor(float(published_floor(airway)), None, None, None, airway) for _ in range(legs)]
 
 
 def _pixel_lat_lon(z: int, x: int, y: int, size: int) -> tuple[np.ndarray, np.ndarray]:

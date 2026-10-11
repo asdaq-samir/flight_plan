@@ -328,3 +328,20 @@ def test_under_vfr_the_same_route_keeps_its_own_rules(ifr_floors):
     (leg,) = result["segments"]
     assert "mountainous" not in leg
     assert max(leg["candidates_ft"]) <= 3000.0
+
+
+def test_under_ifr_along_an_airway_the_mea_is_the_floor_and_the_maa_a_ceiling(ifr_floors):
+    """14 CFR 91.177(a)(1): on an airway the minimum IFR altitude is its
+    MEA; none of the airway above its MAA."""
+    airway = {"id": "V100", "from": "BAE", "mea_ft": 5500.0, "gnss_mea_ft": None, "moca_ft": 2600.0, "maa_ft": 9000.0}
+    profile = {**PROFILE, "service_ceiling_ft": 25000}
+
+    result = altitude.select_cruise_altitude(DEP, DEST, profile, fixes=[DEP, DEST], rules="ifr", airway=airway)
+
+    (leg,) = result["segments"]
+    assert leg["floor_ft"] == 5500.0 and leg["airway"] == airway
+    assert leg["band_ceiling_ft"] == 9000.0
+    assert leg["candidates_ft"] == [7000.0, 9000.0]
+    # Under VFR the airway's altitudes are nobody's floor.
+    vfr = altitude.select_cruise_altitude(DEP, DEST, profile, fixes=[DEP, DEST], airway=airway)
+    assert "airway" not in vfr["segments"][0]
