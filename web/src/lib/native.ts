@@ -71,13 +71,19 @@ export async function nativeShare(title: string, url: string): Promise<void> {
  */
 export async function followAppLinks(): Promise<void> {
   const { App } = await import("@capacitor/app");
-  await App.addListener("appUrlOpen", ({ url }) => {
+  const follow = (url: string) => {
     try {
       if (new URL(url).origin === window.location.origin) window.location.assign(url);
     } catch {
       // Not a URL: nothing to follow.
     }
-  });
+  };
+  await App.addListener("appUrlOpen", ({ url }) => follow(url));
+  // Android gives a link that started the app to getLaunchUrl, not to
+  // appUrlOpen (which is for an app already running): the emailed
+  // sign-in link is usually tapped with the app closed.
+  const launch = await App.getLaunchUrl();
+  if (launch?.url) follow(launch.url);
 }
 
 /**
