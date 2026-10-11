@@ -4,6 +4,12 @@ import { useQuery } from "@tanstack/react-query";
 import { TileLayer, useMap, useMapEvents } from "react-leaflet";
 import { googleMapsQuery } from "../queryClient";
 import { usePreferences, type MapOverlay, type OverlayStrength } from "../preferences";
+import { useShownOverlay } from "./useShownOverlay";
+
+/** Above the base chart (1) and the terminal sheet (5, ChartTiles): a
+ *  pilot who asks for imagery sees it whole, with the sheet's airspace
+ *  under it at Faint and Half. */
+const OVERLAY_Z = 6;
 
 /** How much of the overlay shows over the chart, by its strength. */
 const OPACITY: Record<OverlayStrength, number> = { faint: 0.35, half: 0.6, full: 1 };
@@ -61,7 +67,7 @@ async function googleSession(key: string, kind: "map" | "satellite"): Promise<Se
  * service worker leaves them to the network), as its terms ask.
  */
 export function OverlayTiles() {
-  const overlay = usePreferences(s => s.overlay);
+  const overlay = useShownOverlay();
   const strength = usePreferences(s => s.overlayStrength);
   if (overlay === "none") return null;
   return overlay === "usgs"
@@ -75,7 +81,7 @@ function Usgs({ opacity }: { opacity: number }) {
     const credit = L.control.attribution({ prefix: false, position: "bottomleft" }).addAttribution(USGS_CREDIT).addTo(map);
     return () => { credit.remove(); };
   }, [map]);
-  return <TileLayer url={USGS_URL} maxNativeZoom={16} maxZoom={20} opacity={opacity} zIndex={3} />;
+  return <TileLayer url={USGS_URL} maxNativeZoom={16} maxZoom={20} opacity={opacity} zIndex={OVERLAY_Z} />;
 }
 
 function Google({ kind, opacity, overlay }: { kind: "map" | "satellite"; opacity: number; overlay: MapOverlay }) {
@@ -116,7 +122,7 @@ function Google({ kind, opacity, overlay }: { kind: "map" | "satellite"; opacity
     <TileLayer
       key={`${overlay}-${session.session}`}
       url={`${GOOGLE}/v1/2dtiles/{z}/{x}/{y}?session=${encodeURIComponent(session.session)}&key=${encodeURIComponent(google.key)}`}
-      maxNativeZoom={kind === "map" ? 22 : 20} maxZoom={22} opacity={opacity} zIndex={3}
+      maxNativeZoom={kind === "map" ? 22 : 20} maxZoom={22} opacity={opacity} zIndex={OVERLAY_Z}
     />
   );
 }

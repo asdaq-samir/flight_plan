@@ -50,6 +50,8 @@ test("the USGS's imagery over the chart, credited, at the strength picked; no Go
   // Half to begin with, then full.
   const layer = page.locator(".leaflet-layer", { has: page.locator('img[src*="USGSImageryOnly"]') });
   await expect(layer).toHaveCSS("opacity", "0.6");
+  // Above the base chart and the terminal sheet (zIndex 5), on purpose.
+  await expect(layer).toHaveCSS("z-index", "6");
   await page.getByTestId("overlay-strength").getByRole("radio", { name: "Full" }).click();
   await expect(layer).toHaveCSS("opacity", "1");
   // Off: gone, its credit too.
@@ -70,4 +72,20 @@ test("Google's map or its satellite over the chart where the deployment has a ke
   // Its satellite: a session of its own, with Google's roads over it.
   await page.getByTestId("google-overlay-select").getByRole("radio", { name: "Satellite" }).click();
   await expect.poll(() => asked.filter(u => u.includes("/v1/createSession")).length).toBe(2);
+});
+
+test("a saved Google overlay where there is no key is off, with no Strength row left", async ({ page }) => {
+  await servers(page, null);
+  await page.addInitScript(() => {
+    const kept = localStorage.getItem("vfr.preferences");
+    const saved = kept ? JSON.parse(kept) : { state: {}, version: 0 };
+    saved.state.overlay = "google-satellite";
+    localStorage.setItem("vfr.preferences", JSON.stringify(saved));
+  });
+  await page.goto("/app/plan");
+  await settle(page);
+  await openMapSettings(page);
+  await expect(page.getByTestId("overlay-select").getByRole("radio", { name: "Off" })).toBeChecked();
+  await expect(page.getByTestId("overlay-strength")).toHaveCount(0);
+  await expect(page.getByTestId("google-overlay-select")).toHaveCount(0);
 });

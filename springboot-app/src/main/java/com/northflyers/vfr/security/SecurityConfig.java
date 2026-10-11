@@ -65,6 +65,10 @@ import org.springframework.security.web.savedrequest.NullRequestCache;
 @EnableWebSecurity
 public class SecurityConfig {
 
+    /** The overlay's tile hosts (see the headers below). */
+    private static final String OVERLAY_IMAGES = "https://basemap.nationalmap.gov https://tile.googleapis.com";
+    private static final String OVERLAY_CONNECT = "https://tile.googleapis.com";
+
     private final boolean oauthConfigured;
     private final String chartTilesOrigin;
     // HSTS is right behind a TLS-terminating load balancer and wrong on
@@ -263,6 +267,13 @@ public class SecurityConfig {
                 // secure) and only takes effect once behind a
                 // TLS-terminating ALB with
                 // server.forward-headers-strategy: framework set.
+                // The map's overlay (web/src/lib/map/OverlayTiles.tsx)
+                // is the one place the browser asks others directly:
+                // the USGS's imagery tiles and Google's Map Tiles API,
+                // whose terms have the browser draw its tiles and ask
+                // for its session and viewport itself. Only those two
+                // hosts, and Google's works only with a key the
+                // deployment sets, so both are allowed always.
                 .headers(headers -> headers
                         .frameOptions(frame -> frame.deny())
                         .httpStrictTransportSecurity(strict -> { if (!hsts) strict.disable(); })
@@ -276,10 +287,10 @@ public class SecurityConfig {
                         .referrerPolicy(referrer -> referrer.policy(ReferrerPolicy.NO_REFERRER))
                         .contentSecurityPolicy(csp -> csp.policyDirectives(
                                 "default-src 'self'; "
-                                        + "img-src 'self' data:" + chartTilesOrigin + "; "
+                                        + "img-src 'self' data:" + chartTilesOrigin + " " + OVERLAY_IMAGES + "; "
                                         + "style-src 'self' 'unsafe-inline'; "
                                         + "script-src 'self'; "
-                                        + "connect-src 'self'; "
+                                        + "connect-src 'self' " + OVERLAY_CONNECT + "; "
                                         + "object-src 'none'; "
                                         + "base-uri 'self'; "
                                         + "frame-ancestors 'none'")));

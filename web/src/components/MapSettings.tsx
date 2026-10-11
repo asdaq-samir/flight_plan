@@ -8,6 +8,7 @@ import { Button } from "./ui/button";
 import { clearOwnTrail, useOwnTrail } from "../lib/map/ownTrail";
 import { keepingAvailable } from "../lib/map/keepRoute";
 import { BASE_CHARTS, usePreferences, type BaseChart, type MapOverlay, type OverlayStrength } from "../lib/preferences";
+import { useShownOverlay } from "../lib/map/useShownOverlay";
 import { chartQuery, googleMapsQuery } from "../lib/queryClient";
 
 /** "09-03-2026", the FAA's cycle as the chart server names it, as "3 Sep
@@ -44,7 +45,8 @@ export default function MapSettings() {
   const setMilitary = usePreferences(s => s.setMilitary);
   const waypoints = usePreferences(s => s.waypoints);
   const setWaypoints = usePreferences(s => s.setWaypoints);
-  const overlay = usePreferences(s => s.overlay);
+  // A Google choice without a key is none (useShownOverlay).
+  const overlay = useShownOverlay();
   const setOverlay = usePreferences(s => s.setOverlay);
   const strength = usePreferences(s => s.overlayStrength);
   const setStrength = usePreferences(s => s.setOverlayStrength);

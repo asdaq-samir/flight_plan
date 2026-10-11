@@ -48,6 +48,17 @@ class SecurityRulesTest {
     @MockitoBean
     private AccountService accountService;
 
+    /** The map's overlay draws the USGS's and Google's tiles and asks
+     *  Google for a session from the browser: the policy must let it, and
+     *  nothing wider. */
+    @Test
+    void thePolicyLetsTheOverlayReachTheUsgsAndGoogleOnly() throws Exception {
+        String policy = mockMvc.perform(get("/api/me")).andReturn().getResponse().getHeader("Content-Security-Policy");
+        assertThat(policy).containsPattern("img-src 'self' data:[^;]* https://basemap\\.nationalmap\\.gov https://tile\\.googleapis\\.com;");
+        assertThat(policy).contains("connect-src 'self' https://tile.googleapis.com;");
+        assertThat(policy).doesNotContain("*");
+    }
+
     @Test
     void anAnonymousCallerIsRefusedWith401RatherThanRedirected() throws Exception {
         // A redirect here is the trap: fetch() follows it and reports a
