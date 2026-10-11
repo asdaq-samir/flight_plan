@@ -109,4 +109,21 @@ class LogbookControllerTest {
                 .andExpect(jsonPath("$.flightReviewUntil").value("2027-06-30"))
                 .andExpect(jsonPath("$.instrumentCurrentUntil").value("2027-03-31"));
     }
+
+    /** A file's flights, each checked as one sent alone: a day of more than
+     *  24 hours is a 400, and the import's counts come back. */
+    @Test
+    void import_checksEachEntryAndAnswersItsCounts() throws Exception {
+        given(pilotService.current(any())).willReturn(Optional.of(PILOT));
+        given(logbook.importAll(any(), any())).willReturn(new com.northflyers.vfr.dto.LogbookImportResult(3, 1));
+
+        mockMvc.perform(post("/api/logbook/import").with(oidcLogin()).with(csrf()).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"entries\": [" + ENTRY + "]}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.added").value(3))
+                .andExpect(jsonPath("$.duplicates").value(1));
+        mockMvc.perform(post("/api/logbook/import").with(oidcLogin()).with(csrf()).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"entries\": [" + ENTRY + "," + ENTRY.replace("\"totalHours\": 3.4", "\"totalHours\": 1500") + "]}"))
+                .andExpect(status().isBadRequest());
+    }
 }

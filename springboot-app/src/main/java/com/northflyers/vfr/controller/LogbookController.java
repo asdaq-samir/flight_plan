@@ -6,6 +6,8 @@ import com.northflyers.vfr.dto.CurrencyDatesRequest;
 import com.northflyers.vfr.dto.CurrencyDto;
 import com.northflyers.vfr.dto.LogbookEntryDto;
 import com.northflyers.vfr.dto.LogbookEntryRequest;
+import com.northflyers.vfr.dto.LogbookImportRequest;
+import com.northflyers.vfr.dto.LogbookImportResult;
 import com.northflyers.vfr.service.CurrencyService;
 import com.northflyers.vfr.service.LogbookService;
 import com.northflyers.vfr.service.PilotService;
@@ -53,6 +55,12 @@ public class LogbookController {
     @PostMapping
     public ResponseEntity<LogbookEntryDto> add(Authentication authentication, @Valid @RequestBody LogbookEntryRequest request) {
         return PilotResponses.withPilot(pilots, authentication, pilot -> ResponseEntity.ok(toDto(logbook.add(pilot, request))));
+    }
+
+    /** A logbook brought in from a file, its flights not already here added. */
+    @PostMapping("/import")
+    public ResponseEntity<LogbookImportResult> importAll(Authentication authentication, @Valid @RequestBody LogbookImportRequest request) {
+        return PilotResponses.withPilot(pilots, authentication, pilot -> ResponseEntity.ok(logbook.importAll(pilot, request.entries())));
     }
 
     @PutMapping("/{id}")

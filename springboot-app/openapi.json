@@ -661,6 +661,34 @@
         "required" : [ "aircraft", "aircraftType", "approaches", "crossCountryHours", "dayLandings", "distanceNm", "dualHours", "flownOn", "holding", "instrumentHours", "longestLegNm", "nightHours", "nightLandings", "remarks", "route", "soloHours", "totalHours", "toweredLandings", "tracking" ],
         "type" : "object"
       },
+      "LogbookImportRequest" : {
+        "properties" : {
+          "entries" : {
+            "items" : {
+              "$ref" : "#/components/schemas/LogbookEntryRequest"
+            },
+            "maxItems" : 5000,
+            "minItems" : 0,
+            "type" : "array"
+          }
+        },
+        "required" : [ "entries" ],
+        "type" : "object"
+      },
+      "LogbookImportResult" : {
+        "properties" : {
+          "added" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "duplicates" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "added", "duplicates" ],
+        "type" : "object"
+      },
       "MagicLinkRequest" : {
         "properties" : {
           "email" : {
@@ -1594,6 +1622,34 @@
               "*/*" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/CurrencyDto"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "logbook-controller" ]
+      }
+    },
+    "/api/logbook/import" : {
+      "post" : {
+        "operationId" : "importAll",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/LogbookImportRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/LogbookImportResult"
                 }
               }
             },
