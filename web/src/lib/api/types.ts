@@ -69,6 +69,7 @@ export type Briefing = Schemas["Briefing"];
 export type ChartInfo = Schemas["ChartInfo"];
 export type AirportSearch = Schemas["AirportSearch"];
 export type AirportPlace = Schemas["AirportPlace"];
+export type Metar = Schemas["Metar"];
 export type TerminalChart = Schemas["TerminalChart"];
 /** A field's instrument procedures from the FAA's CIFP, and one drawn
  *  with the transition picked (the planner's vfr.procedures). */

@@ -1,6 +1,10 @@
+import { useMemo } from "react";
 import { create } from "zustand";
-import type { TrafficAircraft } from "../api/types";
+import type { Metar, TrafficAircraft } from "../api/types";
+import { uplinkReports, type TextReport } from "../fisb";
 import { read, type Gdl90Report } from "../gdl90";
+import { metarOf, observedAt } from "../metarText";
+import { sameField } from "../procedures";
 import type { Report } from "./tracking";
 
 /**
@@ -18,6 +22,11 @@ import type { Report } from "./tracking";
  * reports own ship's pressure and geometric altitudes both (§3.4, §3.8),
  * each airplane's is given as geometric by their difference, as own
  * ship's GPS height is, so the two compare as like with like.
+ *
+ * And the weather the FAA's ground stations broadcast on UAT, FIS-B
+ * (lib/fisb), where the receiver hears 978 MHz: each station's latest
+ * METAR and TAF as sent, for the card's weather where the internet's is
+ * older or cannot be had (lib/metarText).
  */
 interface Receiver {
   /** The app is listening for one (Traffic on, in the app). */
@@ -34,7 +43,17 @@ interface Receiver {
   ownPressureFt: number | null;
   ownGeometricFt: number | null;
   traffic: Record<string, Report>;
+  /** FIS-B's text reports, each station's latest of a kind: METAR (a
+   *  SPECI among them) and TAF, by station as sent ("KDLH"). */
+  metars: Record<string, HeardReport>;
+  tafs: Record<string, HeardReport>;
   error: string | null;
+}
+
+/** A text report heard, with when it was heard. */
+export interface HeardReport {
+  report: TextReport;
+  at: number;
 }
 
 /** Heard within this long, a receiver is connected. */
@@ -44,8 +63,22 @@ const KEEP_MS = 20_000;
 
 export const useReceiver = create<Receiver>(() => ({
   listening: false, connected: false, heardAt: null, gpsValid: false, ownHex: null,
-  ownPressureFt: null, ownGeometricFt: null, traffic: {}, error: null,
+  ownPressureFt: null, ownGeometricFt: null, traffic: {}, metars: {}, tafs: {}, error: null,
 }));
+
+/** Each station's latest, the reports heard put in: a newer one is never
+ *  replaced by an older one heard after, as the ground stations repeat
+ *  theirs. */
+function latest(kept: Record<string, HeardReport>, heard: TextReport[], now: number) {
+  const when = (r: TextReport) => observedAt(r.time, new Date(now)) ?? "";
+  let out = kept;
+  for (const report of heard) {
+    const held = out[report.station];
+    if (held && when(held.report) > when(report)) continue;
+    out = { ...out, [report.station]: { report, at: now } };
+  }
+  return out;
+}
 
 /** A report as the map draws an airplane (TrafficAircraft): its height
  *  geometric where own ship's two heights give the difference. */
@@ -65,10 +98,14 @@ export function ingest(datagram: Uint8Array, now = Date.now()) {
   const said = read(datagram);
   if (!said.length) return;
   useReceiver.setState(s => {
-    let { ownHex, ownPressureFt, ownGeometricFt, gpsValid } = s;
+    let { ownHex, ownPressureFt, ownGeometricFt, gpsValid, metars, tafs } = s;
     const traffic = { ...s.traffic };
     for (const message of said) {
-      if (message.kind === "heartbeat") gpsValid = message.gpsValid;
+      if (message.kind === "uplink") {
+        const reports = uplinkReports(message.payload);
+        metars = latest(metars, reports.filter(r => r.kind === "METAR" || r.kind === "SPECI"), now);
+        tafs = latest(tafs, reports.filter(r => r.kind.startsWith("TAF")), now);
+      } else if (message.kind === "heartbeat") gpsValid = message.gpsValid;
       else if (message.kind === "ownship") {
         ownHex = message.report.hex;
         ownPressureFt = message.report.altitudeFt;
@@ -83,7 +120,7 @@ export function ingest(datagram: Uint8Array, now = Date.now()) {
       traffic[report.hex] = { plane: aircraftOf(report, offset), at: now };
     }
     for (const [hex, held] of Object.entries(traffic)) if (now - held.at > KEEP_MS) delete traffic[hex];
-    return { heardAt: now, connected: true, gpsValid, ownHex, ownPressureFt, ownGeometricFt, traffic };
+    return { heardAt: now, connected: true, gpsValid, ownHex, ownPressureFt, ownGeometricFt, traffic, metars, tafs };
   });
 }
 
@@ -132,4 +169,12 @@ export async function listen(): Promise<() => void> {
     void plugin.stop();
     useReceiver.setState({ listening: false, connected: false, traffic: {} });
   };
+}
+
+/** The receiver's latest METAR of a field, read (lib/metarText); null
+ *  where none has been heard. A field's FAA identifier (DLH) finds its
+ *  ICAO station (KDLH). */
+export function useHeardMetar(ident: string | null | undefined): Metar | null {
+  const heard = useReceiver(s => (ident ? Object.values(s.metars).find(h => sameField(h.report.station, ident)) ?? null : null));
+  return useMemo(() => (heard ? metarOf(heard.report.text, new Date(heard.at)) : null), [heard]);
 }

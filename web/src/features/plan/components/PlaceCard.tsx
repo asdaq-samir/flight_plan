@@ -31,6 +31,7 @@ import { RunwaySketch } from "./RunwaySketch";
 import { runwaysLeftOut, stripsOf } from "../../../lib/runwaySketch";
 import { TEXT } from "../../../lib/text";
 import { diagramRunwaysPicture } from "../../../lib/diagram";
+import { useHeardMetar } from "../../../lib/map/receiver";
 
 const SketchViewer = lazy(() => import("./SketchViewer"));
 
@@ -333,9 +334,16 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
   // None from a planner older than the list (a card kept by the worker,
   // a deploy under way), not a page that fails.
   const procedures = place?.procedures ?? [];
-  const metar = place?.metar ?? null;
+  // A cockpit receiver's report of the field over FIS-B (lib/fisb), where
+  // it is newer than the planner's or the planner's could not be had: in
+  // the air the internet is often out of reach, and the ground stations'
+  // broadcast is what there is.
+  const heard = useHeardMetar(ident);
+  const ownMetar = place?.metar ?? null;
+  const viaReceiver = !!heard?.observed_at && (!ownMetar?.observed_at || heard.observed_at > ownMetar.observed_at);
+  const metar = viaReceiver ? heard : ownMetar;
   const weather = place
-    ? { status: place.weather_unavailable ? "unavailable" : metar ? "reported" : "no-report", category: metar?.flight_category ?? null }
+    ? { status: place.weather_unavailable && !viaReceiver ? "unavailable" : metar ? "reported" : "no-report", category: metar?.flight_category ?? null }
     : known && { status: known.category ? "reported" : "no-report", category: known.category };
   // A field with no report of its own: the nearest station's within 30
   // nm (vfr.weather.nearest_report), at the pilot's ask -- its category
@@ -617,7 +625,11 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
           </TabsContent>
 
           <TabsContent value="weather" className="pt-4">
-            <ListGroup footer={metar?.observed_at ? observedLine(metar.observed_at) : undefined}>
+            <ListGroup
+              footer={metar?.observed_at
+                ? `${observedLine(metar.observed_at)}${viaReceiver ? " Heard from your ADS-B receiver (FIS-B)." : ""}`
+                : undefined}
+            >
               {metar ? (
                 <>
                   {/* Each figure with its glyph, its value at the right in

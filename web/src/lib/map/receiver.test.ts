@@ -1,6 +1,10 @@
+// @vitest-environment jsdom
+import { renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
+import { TEXT_PRODUCT } from "../fisb";
+import { apduOf, toDlac, uplink } from "../fisbFixtures";
 import { frame } from "../gdl90";
-import { ingest, useReceiver } from "./receiver";
+import { ingest, useHeardMetar, useReceiver } from "./receiver";
 import { mergeTraffic } from "./traffic";
 import type { Report } from "./tracking";
 
@@ -22,7 +26,7 @@ function ownship(hex: number, pressureFt: number) {
 const geometric = (feet: number) => Uint8Array.from([0x0b, (feet / 5) >> 8, (feet / 5) & 0xff, 0x00, 0x0a]);
 
 describe("a cockpit receiver", () => {
-  afterEach(() => useReceiver.setState({ traffic: {}, ownHex: null, ownPressureFt: null, ownGeometricFt: null, connected: false, heardAt: null }));
+  afterEach(() => useReceiver.setState({ traffic: {}, metars: {}, tafs: {}, ownHex: null, ownPressureFt: null, ownGeometricFt: null, connected: false, heardAt: null }));
 
   it("hears traffic, its height a pressure altitude until own ship's two heights give the difference", () => {
     ingest(frame(N825V), 1000);
@@ -62,5 +66,24 @@ describe("a cockpit receiver", () => {
     // An older receiver report gives way to the internet's fresher one.
     expect(mergeTraffic(internet, [{ ...cockpit[0]!, at: 500 }], null)!.find(r => r.plane.hex === "ab4549")!.plane.altitude_ft).toBe(5100);
     expect(mergeTraffic(null, [], null)).toBeNull();
+  });
+
+  it("keeps each station's latest METAR and TAF heard over FIS-B, not an older one heard after", () => {
+    const heard = (...records: string[]) =>
+      frame(Uint8Array.from([0x07, 0, 0, 0, ...uplink(apduOf(TEXT_PRODUCT, toDlac(`${records.join("\x1e")}\x1e\x03`)))]));
+    const now = Date.parse("2026-10-11T16:20:00Z");
+    ingest(heard("METAR KDLH 111555Z 25012KT 10SM BKN090 13/M02 A3012", "TAF KDLH 111130Z 1112/1212 25012KT P6SM SCT050"), now);
+    ingest(heard("SPECI KDLH 111612Z 25015KT 3SM BR OVC008 12/10 A3010", "METAR KMSN 111553Z 00000KT 10SM CLR 15/05 A3015"), now + 1000);
+    // KDLH's older METAR again, as stations repeat theirs.
+    ingest(heard("METAR KDLH 111555Z 25012KT 10SM BKN090 13/M02 A3012"), now + 2000);
+    const { metars, tafs } = useReceiver.getState();
+    expect(metars.KDLH!.report.text).toContain("SPECI KDLH 111612Z");
+    expect(metars.KMSN!.report.time).toBe("111553Z");
+    expect(tafs.KDLH!.report.kind).toBe("TAF");
+    // The card's field by its FAA identifier finds the station's latest,
+    // read; one never heard, nothing.
+    const { result } = renderHook(() => useHeardMetar("DLH"));
+    expect(result.current).toMatchObject({ observed_at: "2026-10-11T16:12:00Z", visibility_sm: 3, ceiling_ft: 800, flight_category: "IFR" });
+    expect(renderHook(() => useHeardMetar("KOSH")).result.current).toBeNull();
   });
 });

@@ -6,8 +6,9 @@
  * with 0x7D escaping a flag or itself inside (XOR 0x20), each its message
  * ID, its data and a CRC-16-CCITT over both, least significant byte
  * first (spec §2.2). Read here: the heartbeat (§3.1), the ownship report
- * (§3.4) and its geometric altitude (§3.8), and the traffic report
- * (§3.5), whose fields the ownship report shares.
+ * (§3.4) and its geometric altitude (§3.8), the traffic report (§3.5),
+ * whose fields the ownship report shares, and the uplink (§3.3), FIS-B's
+ * broadcast from the ground stations (lib/fisb).
  */
 
 /** The spec's CRC table (§2.2.3): polynomial 0x1021, no reflection. */
@@ -134,7 +135,8 @@ export type Gdl90Message =
   | { kind: "heartbeat"; gpsValid: boolean }
   | { kind: "ownship"; report: Gdl90Report }
   | { kind: "ownship-altitude"; geometricFt: number }
-  | { kind: "traffic"; report: Gdl90Report };
+  | { kind: "traffic"; report: Gdl90Report }
+  | { kind: "uplink"; payload: Uint8Array };
 
 /** A datagram read: the messages this app uses, the rest left out. */
 export function read(datagram: Uint8Array): Gdl90Message[] {
@@ -162,6 +164,11 @@ export function read(datagram: Uint8Array): Gdl90Message[] {
         if (traffic) out.push({ kind: "traffic", report: traffic });
         break;
       }
+      case 0x07:
+        // The time it was heard (3 bytes), then the UAT uplink payload's
+        // 432 bytes (§3.3).
+        if (body.length >= 436) out.push({ kind: "uplink", payload: body.subarray(4, 436) });
+        break;
     }
   }
   return out;
