@@ -19,6 +19,7 @@ import { ResponsivePopover, ResponsivePopoverContent, ResponsivePopoverTrigger }
 import { useConfirm } from "../../components/useConfirm";
 import { ConsolePages, PageRow } from "../../components/ConsolePages";
 import FlightPage from "./FlightPage";
+import ChecklistPage from "./ChecklistPage";
 import { aircraftKey, choiceOf } from "../../lib/aircraftChoice";
 import { api } from "../../lib/api/client";
 import type { Aircraft, AircraftRequest, FlightSummary, InspectionsRequest, VorCheckRequest } from "../../lib/api/types";
@@ -351,9 +352,15 @@ export function AircraftPanel() {
   const formElementId = `${formId}-form`;
   const problem = (message?: string) => (message ? <span className="text-destructive">{message}</span> : undefined);
 
+  // The airplane's checklist, a page of the form's (ChecklistPage).
+  const checklistPages = editing
+    ? { [`checklist-${editing.id}`]: { title: `${editing.tailNumber} checklist`, content: <ChecklistPage aircraft={editing} /> } }
+    : {};
+
   // The tab says what this is: no heading over the list, only the
   // group's own, as an iOS page under a segmented control has.
   return (
+    <ConsolePages back="Aircraft" pages={checklistPages}>
     <section aria-label="Aircraft">
       {isLoading ? (
         <p role="status" className={cn("px-1 text-muted-foreground", TEXT.note)}>Fetching your aircraft…</p>
@@ -495,6 +502,11 @@ export function AircraftPanel() {
                   field={register("usableFuelGal")} error={errors.usableFuelGal?.message}
                 />
               </ListGroup>
+              {editing && (
+                <ListGroup>
+                  <PageRow page={`checklist-${editing.id}`} title="Checklist" description="Yours, from its flight manual, to run" />
+                </ListGroup>
+              )}
               {editing && <InspectionsGroup key={editing.id} aircraft={editing} />}
               {editing && <VorCheckGroup aircraft={editing} />}
               {editingId !== null && (
@@ -511,6 +523,7 @@ export function AircraftPanel() {
         </ResponsivePopover>
       )}
     </section>
+    </ConsolePages>
   );
 }
 

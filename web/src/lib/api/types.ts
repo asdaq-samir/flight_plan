@@ -222,6 +222,7 @@ export type AircraftRequest = Webapp["AircraftRequest"];
 export type VorCheckRequest = Webapp["VorCheckRequest"];
 export type InspectionsRequest = Webapp["InspectionsRequest"];
 export type Inspections = Webapp["InspectionsDto"];
+export type ChecklistDto = Webapp["ChecklistDto"];
 
 /** One row of "My Flights" -- totals only; `Flight` carries the full
  *  filed nav log, fetched one flight at a time. */

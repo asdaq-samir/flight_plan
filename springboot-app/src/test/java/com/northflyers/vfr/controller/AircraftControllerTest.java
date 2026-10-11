@@ -19,6 +19,7 @@ import com.northflyers.vfr.domain.Aircraft;
 import com.northflyers.vfr.domain.Pilot;
 import com.northflyers.vfr.dto.AircraftDto;
 import com.northflyers.vfr.service.AircraftService;
+import com.northflyers.vfr.service.ChecklistService;
 import com.northflyers.vfr.service.PilotService;
 import java.util.List;
 import java.util.Optional;
@@ -47,6 +48,9 @@ class AircraftControllerTest {
 
     @MockitoBean
     private PilotService pilotService;
+
+    @MockitoBean
+    private ChecklistService checklistService;
 
     private static Pilot samplePilot() {
         return new Pilot("pilot@example.com", "A. Pilot", "sub-1");
@@ -249,5 +253,24 @@ class AircraftControllerTest {
         org.assertj.core.api.Assertions.assertThat(none.annualGoodThrough()).isNull();
         org.assertj.core.api.Assertions.assertThat(none.hundredHourDueAtHours()).isNull();
         org.assertj.core.api.Assertions.assertThat(none.eltBatteryDueOn()).isNull();
+    }
+
+    /** The checklist: someone else's airplane is a 404, a challenge left
+     *  blank a 400, and a good one comes back as it was sent. */
+    @Test
+    void theChecklistIsTheOwnersAndEachItemNeedsItsChallenge() throws Exception {
+        given(pilotService.current(any())).willReturn(Optional.of(samplePilot()));
+        given(checklistService.get(any(), eq(9L))).willReturn(Optional.empty());
+        mockMvc.perform(get("/api/aircraft/9/checklist").with(oidcLogin())).andExpect(status().isNotFound());
+
+        String body = "{\"sections\":[{\"title\":\"Before takeoff\",\"items\":[{\"challenge\":\"Fuel selector\",\"response\":\"Both\"}]}]}";
+        given(checklistService.replace(any(), eq(7L), any())).willAnswer(call -> Optional.of(call.getArgument(2)));
+        mockMvc.perform(put("/api/aircraft/7/checklist").with(oidcLogin()).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.sections[0].items[0].response").value("Both"));
+        mockMvc.perform(put("/api/aircraft/7/checklist").with(oidcLogin()).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON).content(body.replace("Fuel selector", " ")))
+                .andExpect(status().isBadRequest());
     }
 }

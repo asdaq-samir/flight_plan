@@ -3,9 +3,11 @@ package com.northflyers.vfr.controller;
 import com.northflyers.vfr.domain.Aircraft;
 import com.northflyers.vfr.dto.AircraftDto;
 import com.northflyers.vfr.dto.AircraftRequest;
+import com.northflyers.vfr.dto.ChecklistDto;
 import com.northflyers.vfr.dto.InspectionsRequest;
 import com.northflyers.vfr.dto.VorCheckRequest;
 import com.northflyers.vfr.service.AircraftService;
+import com.northflyers.vfr.service.ChecklistService;
 import com.northflyers.vfr.service.PilotService;
 import jakarta.validation.Valid;
 import java.time.LocalDate;
@@ -38,10 +40,12 @@ import org.springframework.web.bind.annotation.RestController;
 public class AircraftController {
 
     private final AircraftService aircraftService;
+    private final ChecklistService checklists;
     private final PilotService pilots;
 
-    public AircraftController(AircraftService aircraftService, PilotService pilots) {
+    public AircraftController(AircraftService aircraftService, ChecklistService checklists, PilotService pilots) {
         this.aircraftService = aircraftService;
+        this.checklists = checklists;
         this.pilots = pilots;
     }
 
@@ -85,6 +89,23 @@ public class AircraftController {
         return PilotResponses.withPilot(pilots, authentication, pilot -> aircraftService
                 .recordInspections(pilot, id, request)
                 .map(a -> ResponseEntity.ok(toDto(a)))
+                .orElse(ResponseEntity.notFound().build()));
+    }
+
+    /** The airplane's checklist, its sections in order. */
+    @GetMapping("/{id}/checklist")
+    public ResponseEntity<ChecklistDto> checklist(Authentication authentication, @PathVariable Long id) {
+        return PilotResponses.withPilot(pilots, authentication, pilot -> checklists.get(pilot, id)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build()));
+    }
+
+    /** The airplane's checklist, replaced whole as its editor saves it. */
+    @PutMapping("/{id}/checklist")
+    public ResponseEntity<ChecklistDto> saveChecklist(
+            Authentication authentication, @PathVariable Long id, @Valid @RequestBody ChecklistDto request) {
+        return PilotResponses.withPilot(pilots, authentication, pilot -> checklists.replace(pilot, id, request)
+                .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build()));
     }
 

@@ -6,7 +6,7 @@ import type {
   ChartInfo, ChartPages, ChartRefreshStarted, PlacesFound, CheckpointDescriptionMessage, CheckpointNoteSaved, Checkpoints, Classification, Course, Detour,
   Flight, FlightSummary, ModelComparison, NarrativeMessage, NarrativeRequest, NavLogMessage, PickDeleted, PickSaved,
   AirspaceAt, AlertsAhead, ClassBResponse, FlightDetail, FlightRoute, GoogleMaps, Traffic, TrafficFound, NearestAirports, RouteProfile, Tfrs, DevServices, DevServiceStarted, Pilot, Rating, RetrainStarted, Role, SaveFlightRequest,
-  Alternates, VorCheckRequest, InspectionsRequest, SignInCapabilities, AppleSignedIn, LogbookEntry, LogbookEntryRequest, Currency, CurrencyDatesRequest,
+  Alternates, VorCheckRequest, InspectionsRequest, ChecklistDto, SignInCapabilities, AppleSignedIn, LogbookEntry, LogbookEntryRequest, Currency, CurrencyDatesRequest,
   Status, StreamMessage, Totals, WaypointsInView, Training, SavedTrack,
   OralQuestion, OralQuestionRequest, OralGrade, OralGradeRequest, ProcedureDrawing, ProcedureList,
 } from "./types";
@@ -580,6 +580,11 @@ export const api = {
      *  91.411, 91.413, 91.207). */
     inspections: (id: number, request: InspectionsRequest) =>
       webapp.PUT("/api/aircraft/{id}/inspections", { params: { path: { id } }, body: request }).then(data<Aircraft>),
+    /** Its checklist, as its owner wrote it, and that replaced whole. */
+    checklist: (id: number) =>
+      webapp.GET("/api/aircraft/{id}/checklist", { params: { path: { id } } }).then(data<ChecklistDto>),
+    saveChecklist: (id: number, checklist: ChecklistDto) =>
+      webapp.PUT("/api/aircraft/{id}/checklist", { params: { path: { id } }, body: checklist }).then(data<ChecklistDto>),
   },
 
   /** A signed-in pilot's logbook and currency. */

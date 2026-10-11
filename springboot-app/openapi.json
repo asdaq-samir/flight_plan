@@ -130,6 +130,56 @@
         "required" : [ "access", "providers" ],
         "type" : "object"
       },
+      "ChecklistDto" : {
+        "description" : "An airplane's checklist, as its owner writes it from its flight manual",
+        "properties" : {
+          "sections" : {
+            "items" : {
+              "$ref" : "#/components/schemas/ChecklistSection"
+            },
+            "maxItems" : 20,
+            "minItems" : 0,
+            "type" : "array"
+          }
+        },
+        "required" : [ "sections" ],
+        "type" : "object"
+      },
+      "ChecklistEntry" : {
+        "properties" : {
+          "challenge" : {
+            "maxLength" : 80,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "response" : {
+            "maxLength" : 80,
+            "minLength" : 0,
+            "type" : [ "string", "null" ]
+          }
+        },
+        "required" : [ "challenge", "response" ],
+        "type" : "object"
+      },
+      "ChecklistSection" : {
+        "properties" : {
+          "items" : {
+            "items" : {
+              "$ref" : "#/components/schemas/ChecklistEntry"
+            },
+            "maxItems" : 80,
+            "minItems" : 0,
+            "type" : "array"
+          },
+          "title" : {
+            "maxLength" : 40,
+            "minLength" : 0,
+            "type" : "string"
+          }
+        },
+        "required" : [ "items", "title" ],
+        "type" : "object"
+      },
       "ClientError" : {
         "properties" : {
           "kind" : {
@@ -1191,6 +1241,68 @@
               "*/*" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/AircraftDto"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "aircraft-controller" ]
+      }
+    },
+    "/api/aircraft/{id}/checklist" : {
+      "get" : {
+        "operationId" : "checklist",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ChecklistDto"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "aircraft-controller" ]
+      },
+      "put" : {
+        "operationId" : "saveChecklist",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/ChecklistDto"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ChecklistDto"
                 }
               }
             },
