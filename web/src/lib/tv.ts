@@ -30,7 +30,7 @@ export function tvPlatform(): TvPlatform | null {
 
 /** The remotes' Back: Samsung's Return (10009, "XF86Back") and LG's Back
  *  (461, "GoBack"), as their makers' guides give them. */
-const isBack = (event: KeyboardEvent) =>
+export const isBack = (event: KeyboardEvent) =>
   event.keyCode === 10009 || event.keyCode === 461 || event.key === "XF86Back" || event.key === "GoBack" || event.key === "BrowserBack";
 
 /** The keys that zoom the map in and out where a remote has no + and -:
@@ -55,7 +55,7 @@ const DIRECTIONS: Record<string, "left" | "up" | "right" | "down"> = {
 /** An arrow moving the focus, as the polyfill's own handler does: not
  *  one a control took first (a menu, a slider, the map), and in a field
  *  only from its ends, its caret moving inside it. */
-function arrow(event: KeyboardEvent) {
+export function arrow(event: KeyboardEvent) {
   const direction = DIRECTIONS[event.key];
   if (!direction || event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
   const field = document.activeElement;
@@ -69,14 +69,29 @@ function arrow(event: KeyboardEvent) {
   (window as { navigate?: (direction: string) => void }).navigate?.(direction);
 }
 
-/** The app put away: LG's own exit (webOS 6 and later ask first), else
- *  the window closed, which a TV's runtime takes as leaving the app. */
-function leave(platform: TvPlatform) {
+/** The app put away: Samsung's own exit where the runtime gives it, else
+ *  the window closed, which a TV's runtime takes as leaving the app (webOS
+ *  6 and later ask first; the shell does not load LG's webOSTV.js, so
+ *  there is no platformBack to call). */
+export function leave(platform: TvPlatform) {
   const tizen = (window as { tizen?: { application?: { getCurrentApplication?: () => { exit: () => void } } } }).tizen;
-  const webOS = (window as { webOS?: { platformBack?: () => void } }).webOS;
   if (platform === "tizen" && tizen?.application?.getCurrentApplication) tizen.application.getCurrentApplication().exit();
-  else if (platform === "webos" && webOS?.platformBack) webOS.platformBack();
   else window.close();
+}
+
+/** Samsung sends a page only a few keys; the channel keys zoom the map
+ *  only once the app asks for them (tizen.tvinputdevice.registerKey, with
+ *  the key's name from Samsung's TV input device guide). */
+function registerChannelKeys(platform: TvPlatform) {
+  if (platform !== "tizen") return;
+  const input = (window as { tizen?: { tvinputdevice?: { registerKey?: (name: string) => void } } }).tizen?.tvinputdevice;
+  for (const name of ["ChannelUp", "ChannelDown"]) {
+    try {
+      input?.registerKey?.(name);
+    } catch {
+      // A key this TV does not have: OK and the + and - buttons still zoom.
+    }
+  }
 }
 
 /**
@@ -91,6 +106,7 @@ function leave(platform: TvPlatform) {
  */
 export function startTv(platform: TvPlatform) {
   document.documentElement.dataset.tv = platform;
+  registerChannelKeys(platform);
   const viewport = document.querySelector<HTMLMetaElement>('meta[name="viewport"]');
   if (viewport) viewport.content = "width=1280, initial-scale=1, user-scalable=no";
   void import("spatial-navigation-polyfill").then(() => {
@@ -119,8 +135,9 @@ export function startTv(platform: TvPlatform) {
     // Off the map first, to the panel's first control (or the page's), so
     // the arrows move between controls again.
     if (onMap()) {
-      const next = document.querySelector<HTMLElement>('[data-slot="map-panel"] button, [data-slot="map-panel"] input, button:not(.leaflet-container *)');
-      (next ?? document.body).focus();
+      const next = document.querySelector<HTMLElement>('[data-slot="map-panel"] button, [data-slot="map-panel"] input');
+      const outside = [...document.querySelectorAll<HTMLElement>("button")].find(button => !button.closest(".leaflet-container"));
+      (next ?? outside ?? document.body).focus();
       return;
     }
     if (!closeTopmost()) leave(platform);

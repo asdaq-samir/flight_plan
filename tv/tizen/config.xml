@@ -15,7 +15,6 @@
     <access origin="https://__HOST__" subdomains="true"/>
     <tizen:allow-navigation>__HOST__</tizen:allow-navigation>
     <tizen:privilege name="http://tizen.org/privilege/internet"/>
-    <feature name="http://tizen.org/feature/screen.size.normal.1080.1920"/>
     <tizen:setting screen-orientation="landscape" context-menu="enable" background-support="disable"
                    encryption="disable" install-location="auto" hwkey-event="enable"/>
 </widget>

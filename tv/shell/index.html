@@ -32,14 +32,29 @@
   // address and the TV's platform.
   var site = window.WINGTIP_URL || "https://wingtipmaps.app/app/plan";
   var platform = window.WINGTIP_TV || "webos";
+  function offline() {
+    document.getElementById("opening").style.display = "none";
+    document.getElementById("offline").style.display = "block";
+    document.getElementById("again").focus();
+  }
+  // A TV on a network without the internet, or with the site down, still
+  // says it is online, and the engine's own error page has no Try again:
+  // so the site is asked first (no-cors: only whether it answers matters).
   function go() {
-    if (navigator.onLine === false) {
-      document.getElementById("opening").style.display = "none";
-      document.getElementById("offline").style.display = "block";
-      document.getElementById("again").focus();
-      return;
+    if (navigator.onLine === false) return offline();
+    var done = false;
+    var timer = setTimeout(function () { settle(offline); }, 8000);
+    function settle(next) {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      next();
     }
-    location.replace(site + (site.indexOf("?") < 0 ? "?" : "&") + "tv=" + platform);
+    function open() {
+      location.replace(site + (site.indexOf("?") < 0 ? "?" : "&") + "tv=" + platform);
+    }
+    if (window.fetch) fetch(site, { mode: "no-cors", cache: "no-store" }).then(function () { settle(open); }, function () { settle(offline); });
+    else settle(open);
   }
   document.getElementById("again").onclick = go;
   window.addEventListener("online", go);

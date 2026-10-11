@@ -26,9 +26,11 @@ route, the nav log, the weather and the brief.
     TV, for remotes without channel keys. Back takes the remote off the
     map.
 - **Remote keys:** Samsung's Return is key 10009 and LG's Back is 461.
-  LG's app takes Back itself (`disableBackHistoryAPI`). Neither app uses
-  the TVs' own APIs: LG's `requiredACG` is empty, and Samsung's app asks
-  only for the internet.
+  LG's app takes Back itself (`disableBackHistoryAPI`). LG's app uses
+  no Luna API (`requiredACG` is empty). Samsung's app asks for the
+  internet, and the site registers ChannelUp and ChannelDown
+  (`tizen.tvinputdevice`), which a page is not sent otherwise; OK and the
+  + and − buttons zoom without them.
 - **Sign-in** is the site's, by the emailed link. The link opens on the
   phone where the mail is read, not on the TV. Until there is a TV
   sign-in (owner issue), the TV plans signed out. Planning, charts,
@@ -92,6 +94,7 @@ from the `WINGTIP_URL` variable, and Samsung's package id from
 - **Sign-in on a TV.** Decide whether the TV signs in by a code shown on
   it and typed on a phone, as streaming apps do (the owner issue).
 - **Leaving the app.** Check on a real TV that Back on the map's first
-  screen leaves it. LG's webOS 6 and later ask first. For Samsung, the
-  page uses `window.close()`, as the Tizen app API is not the site's.
+  screen leaves it. LG's webOS 6 and later ask first; the page uses
+  `window.close()` there, as it does not load LG's webOSTV.js. On Samsung
+  the site calls Tizen's `application.exit()` where the runtime gives it.
   Samsung's review asks that Return on the first screen offers to leave.

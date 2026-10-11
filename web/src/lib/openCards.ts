@@ -17,7 +17,7 @@ export function holdOpenCard(entry: { close: () => void }): () => void {
 
 /** The top card closed; whether there was one. */
 export function closeTopCard(): boolean {
-  const top = open.at(-1);
+  const top = open[open.length - 1];
   if (!top) return false;
   top.close();
   return true;
