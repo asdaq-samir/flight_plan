@@ -15,6 +15,8 @@ import { LEGAL_PAGES } from "../../lib/legal";
 import { capabilitiesQuery } from "../../lib/queryClient";
 import { TEXT } from "../../lib/text";
 import { inNativeApp, nativeAppleIdentityToken, nativePlatform } from "../../lib/native";
+import { tvPlatform } from "../../lib/tv";
+import TvCode from "./TvCode";
 
 /**
  * Three ways in, the standard shape every "sign in" prompt (Auth.js,
@@ -36,6 +38,7 @@ export default function SignInModal() {
   // app's web view, and Apple's web page does not load in it. In the
   // Android app the emailed link alone: Apple's sheet is iOS's.
   const inApp = inNativeApp();
+  const onTv = tvPlatform() !== null;
   const native = nativePlatform() === "ios";
   const offered = useQuery(capabilitiesQuery).data?.providers ?? [];
   const providers = inApp ? [] : offered;
@@ -88,6 +91,10 @@ export default function SignInModal() {
           <DialogTitle>Sign in to Wingtip Maps</DialogTitle>
           <DialogDescription>Save your airplanes and filed flights to your own account.</DialogDescription>
         </DialogHeader>
+        {/* On a TV, a code to type in on a phone (TvCode): the emailed
+            link opens where the mail is read, and Google's and Apple's
+            pages want a keyboard. */}
+        {onTv ? <TvCode /> : (<>
         {(providers.length > 0 || native) && (
           <>
             <div className="flex flex-col gap-2">
@@ -160,6 +167,7 @@ export default function SignInModal() {
             {linkFailure && <p className={`text-destructive ${TEXT.prose}`} role="alert" data-testid="sign-in-error">{linkFailure}</p>}
           </form>
         )}
+        </>)}
         {/* One row of links, not links in a sentence: each gets its 44-point
             area from a pseudo-element, and a wrapped sentence would put
             those areas on top of each other. */}

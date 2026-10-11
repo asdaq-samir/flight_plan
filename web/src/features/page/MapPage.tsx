@@ -14,6 +14,7 @@ import { useNavEdge } from "../../hooks/use-nav-edge";
 import { usePreferences } from "../../lib/preferences";
 import ConsoleHeader from "../pilot/ConsoleHeader";
 import LinkSignIn from "../pilot/LinkSignIn";
+import TvLink from "../pilot/TvLink";
 import PlanWorkspace from "../plan/PlanWorkspace";
 import type { WorkspacePieces } from "./workspace";
 import { fromChunk } from "../../lib/fromChunk";
@@ -295,6 +296,7 @@ export default function MapPage({ mode }: { mode: Mode }) {
           {/* An emailed sign-in link lands here (#signin=…) and is
               finished in the app's own dialog. */}
           <LinkSignIn />
+          <TvLink />
           {/* Dev mode's refusal: someone it is not for, on the dev page,
               is taken to the map (the switch itself is in the settings). */}
           <DevGuard />

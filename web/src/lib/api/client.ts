@@ -6,7 +6,7 @@ import type {
   ChartInfo, ChartPages, ChartRefreshStarted, PlacesFound, CheckpointDescriptionMessage, CheckpointNoteSaved, Checkpoints, Classification, Course, Detour,
   Flight, FlightSummary, ModelComparison, NarrativeMessage, NarrativeRequest, NavLogMessage, PickDeleted, PickSaved,
   AirspaceAt, AlertsAhead, ClassBResponse, FlightDetail, FlightRoute, GoogleMaps, Traffic, TrafficFound, NearestAirports, RouteProfile, Tfrs, DevServices, DevServiceStarted, Pilot, Rating, RetrainStarted, Role, SaveFlightRequest,
-  SignInCapabilities, AppleSignedIn, LogbookEntry, LogbookEntryRequest, Currency, CurrencyDatesRequest, Subscription, Alternates, VorCheckRequest, InspectionsRequest, ChecklistDto, Squawk, SquawkRequest, Reminders, LogbookImportResult, FlightPlanFilingRequest, FlightServiceStatus, FlightPlanFiled,
+  SignInCapabilities, AppleSignedIn, LogbookEntry, LogbookEntryRequest, Currency, CurrencyDatesRequest, Subscription, Alternates, VorCheckRequest, InspectionsRequest, ChecklistDto, Squawk, SquawkRequest, Reminders, LogbookImportResult, FlightPlanFilingRequest, FlightServiceStatus, FlightPlanFiled, DeviceCode,
   Status, StreamMessage, Totals, WaypointsInView, Training, SavedTrack,
   OralQuestion, OralQuestionRequest, OralGrade, OralGradeRequest, ProcedureDrawing, ProcedureList,
 } from "./types";
@@ -484,6 +484,29 @@ export const api = {
    *  session (AppleNativeSignInController); answers where to go next. */
   signInWithAppleNative: (identityToken: string) =>
     webapp.POST("/api/auth/apple/native", { body: { identityToken } }).then(data<AppleSignedIn>),
+
+  /** A code for this TV to be signed in with from a phone
+   *  (DeviceSignInController): shown, with the address to type it at. */
+  deviceCode: () => webapp.POST("/api/auth/device").then(data<DeviceCode>),
+
+  /** Whether this TV's code has been typed in on a phone: not yet
+   *  ("waiting"), signed in now with where to go, or run out ("gone"),
+   *  for which the TV asks for a new one. */
+  deviceToken: async (deviceCode: string): Promise<AppleSignedIn | "waiting" | "gone"> => {
+    try {
+      const { data: answer, response } = await webapp.POST("/api/auth/device/token", { body: { deviceCode } });
+      return response.status === 202 ? "waiting" : answer as AppleSignedIn;
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 410) return "gone";
+      throw err;
+    }
+  },
+
+  /** The code a TV shows, typed in by the pilot signed in here: the TV
+   *  is signed in as them at its next ask. */
+  approveDevice: async (userCode: string): Promise<void> => {
+    await webapp.POST("/api/auth/device/approve", { body: { userCode } });
+  },
 
   /** Deletes the signed-in pilot's account and everything that was
    *  theirs, on every device, and signs them out (a 204). A 502 deleted
