@@ -157,6 +157,7 @@ export default function PanelTabs({ rootRef, before, contents, notice, footer, c
         {TABS.map(t => (
           <TabsTrigger
             key={t.value} value={t.value} data-testid={`panel-tab-${t.value}`} aria-label={t.short ? t.label : undefined}
+            aria-description={marks?.[t.value] ? (marks[t.value] === "stop" ? "Warning" : "Caution") : undefined}
             onPointerDown={() => { upWhenPressed.current = tab; }} onKeyDown={() => { upWhenPressed.current = tab; }}
             onClick={() => onTap?.(upWhenPressed.current === t.value)}
             className={cn(LINE_TAB, "min-w-0 flex-1 flex-col gap-1 px-0.5 py-2 text-[13px] leading-[18px] pointer-coarse:text-[13px] pointer-coarse:max-[374px]:text-[11px] pointer-coarse:max-[374px]:leading-[13px] max-[374px]:px-0 [&_svg:not([class*='size-'])]:size-6")}
@@ -165,6 +166,7 @@ export default function PanelTabs({ rootRef, before, contents, notice, footer, c
               {t.icon}
               {marks?.[t.value] && (
                 <span
+                  aria-hidden="true"
                   className={cn("absolute -top-0.5 -right-1 size-2 rounded-full", marks[t.value] === "stop" ? "bg-destructive" : "bg-amber-500")}
                   data-testid={`panel-tab-mark-${t.value}`} data-finding={marks[t.value]}
                 />

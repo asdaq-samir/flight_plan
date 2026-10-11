@@ -307,8 +307,8 @@ export const sectionTab = (page: Page, title: string) =>
 export async function openSection(page: Page, title: string) {
   const pill = sectionTab(page, title);
   if (!(await pill.count())) return;
-  if ((await pill.getAttribute("aria-selected")) !== "true") await pill.click();
-  await expect(pill).toHaveAttribute("aria-selected", "true");
+  if ((await pill.getAttribute("aria-pressed")) !== "true") await pill.click();
+  await expect(pill).toHaveAttribute("aria-pressed", "true");
 }
 
 /** Once the map has stopped moving: its panes where they were 300 ms

@@ -20,6 +20,8 @@ const inPageOrder = (entries: Entry[]) =>
  * is picked. A section whose title flags something (the TFR on the
  * route, VFR not recommended) carries the flag's red or amber mark on its
  * pill, as the panel's tabs do theirs: out of sight, it still shows.
+ * The pills are buttons pressed or not, not tab roles: they have no
+ * arrow-key roving or tabpanel to keep the promise a tab role makes.
  */
 export default function SectionTabs({ all, want, children }: {
   all: boolean;
@@ -61,12 +63,12 @@ export default function SectionTabs({ all, want, children }: {
       <div ref={top} aria-hidden="true" />
       {shown !== null && (
         <div
-          role="tablist" aria-label="Sections" data-testid="section-tabs"
+          role="group" aria-label="Sections" data-testid="section-tabs"
           className="sticky top-0 z-10 -mr-4 -ml-[max(1rem,env(safe-area-inset-left))] flex gap-2 overflow-x-auto bg-background/90 py-2.5 pr-4 pl-[max(1rem,env(safe-area-inset-left))] backdrop-blur [scrollbar-width:none] print:hidden [&::-webkit-scrollbar]:hidden"
         >
           {titles.map(title => (
             <button
-              key={title} type="button" role="tab" aria-selected={title === shown} data-testid="section-tab" data-section={title}
+              key={title} type="button" aria-pressed={title === shown} data-testid="section-tab" data-section={title}
               onClick={e => pick(title, e.currentTarget)}
               className={cn(
                 // 32 points, its hit area the 44 of a row (index.css's rule,
@@ -78,13 +80,18 @@ export default function SectionTabs({ all, want, children }: {
             >
               {title}
               {marks.has(title) && (
-                <span
-                  className={cn(
-                    "absolute -top-0.5 right-0.5 size-2 rounded-full ring-2 ring-background",
-                    marks.get(title) === "stop" ? "bg-destructive" : "bg-amber-500",
-                  )}
-                  data-testid="section-tab-mark" data-finding={marks.get(title)}
-                />
+                <>
+                  <span
+                    aria-hidden="true"
+                    className={cn(
+                      "absolute -top-0.5 right-0.5 size-2 rounded-full ring-2 ring-background",
+                      marks.get(title) === "stop" ? "bg-destructive" : "bg-amber-500",
+                    )}
+                    data-testid="section-tab-mark" data-finding={marks.get(title)}
+                  />
+                  {/* The mark is colour only; this is what it says to VoiceOver. */}
+                  <span className="sr-only">{marks.get(title) === "stop" ? ", warning" : ", caution"}</span>
+                </>
               )}
             </button>
           ))}

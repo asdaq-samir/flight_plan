@@ -44,7 +44,7 @@ test("the Brief opens on its Go / No-Go: VFR not recommended is no-go, marked on
   await weather.click();
   await expect(panelTabs(page).getByRole("tab", { name: "Weather", exact: true })).toHaveAttribute("aria-selected", "true");
   // On its section's pill (SectionTabs), the section under it, flagged.
-  await expect(sectionTab(page, "Adverse Conditions")).toHaveAttribute("aria-selected", "true");
+  await expect(sectionTab(page, "Adverse Conditions")).toHaveAttribute("aria-pressed", "true");
   await expect(sectionTab(page, "Adverse Conditions").getByTestId("section-tab-mark")).toHaveAttribute("data-finding", "stop");
   await expect(drawer.locator('[data-tab="weather"] [data-title="Adverse Conditions"]')).toBeInViewport();
   await expect(drawer.getByTestId("vnr-flag")).toBeVisible();
@@ -53,7 +53,7 @@ test("the Brief opens on its Go / No-Go: VFR not recommended is no-go, marked on
   await openTab(page, "Brief");
   await drawer.getByTestId("verdict-runways").click();
   await expect(panelTabs(page).getByRole("tab", { name: "Performance", exact: true })).toHaveAttribute("aria-selected", "true");
-  await expect(sectionTab(page, "Takeoff & Landing")).toHaveAttribute("aria-selected", "true");
+  await expect(sectionTab(page, "Takeoff & Landing")).toHaveAttribute("aria-pressed", "true");
   await expect(drawer.locator('[data-tab="performance"] [data-title="Takeoff & Landing"]')).toBeInViewport();
   await page.unrouteAll({ behavior: "ignoreErrors" });
 });
@@ -134,8 +134,8 @@ test("the Airports tab is a section for each field, in the order flown, its patt
   const sections = drawer.getByTestId("airport-section");
   await expect(sections).toHaveCount(2);
   // Each field a section tab, the first up.
-  await expect(sectionTab(page, "C81 · Departure")).toHaveAttribute("aria-selected", "true");
-  await expect(sectionTab(page, "KDLH · Destination")).toHaveAttribute("aria-selected", "false");
+  await expect(sectionTab(page, "C81 · Departure")).toHaveAttribute("aria-pressed", "true");
+  await expect(sectionTab(page, "KDLH · Destination")).toHaveAttribute("aria-pressed", "false");
   await expect(sections.nth(0)).toBeVisible();
   await expect(sections.nth(1)).toBeHidden();
   await expect(sections.nth(0).getByTestId("radio-phase")).toContainText("Leaving C81");
