@@ -62,5 +62,5 @@ test("where Flight Service is connected, the form is filed from here in the pilo
   await fileIt.click();
   await expect(fileIt).toContainText("Filed with Flight Service");
   await expect(fileIt).toContainText("Reference FP-123");
-  expect(filed[0]).toMatchObject({ rules: "VFR", aircraftId: "N12345", aircraftType: "C172", departure: "KMSN", destination: "KOSH" });
+  expect(filed[0]).toMatchObject({ rules: "VFR", aircraftId: "N12345", aircraftType: "C172/L", departure: "KMSN", destination: "KOSH" });
 });
