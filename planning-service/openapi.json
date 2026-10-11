@@ -215,6 +215,18 @@
             "title": "Cruise Tas Kt",
             "type": "number"
           },
+          "designator": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Designator"
+          },
           "fuel_burn_gph": {
             "title": "Fuel Burn Gph",
             "type": "number"

@@ -54,8 +54,9 @@ test("under IFR the altitude is chosen from the minimum IFR altitude by directio
   await expect.poll(() => asked[0], { timeout: slow(30000) }).toBe("ifr");
 });
 
-test("under IFR an airway in the route is flown fix by fix, its published MEA the floor", async ({ page }) => {
+test("under IFR an airway in the route is flown fix by fix, its published MEA the floor, and filed between its fixes", async ({ page, context }) => {
   test.slow();
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   // IFR, and the legs point to point: no chart read for checkpoints.
   await page.addInitScript(() => {
     const kept = JSON.parse(localStorage.getItem("vfr.preferences") ?? '{"state":{},"version":0}');
@@ -77,6 +78,23 @@ test("under IFR an airway in the route is flown fix by fix, its published MEA th
   const popover = page.locator("[data-slot=popover-content], [data-slot=drawer-content]");
   await popover.getByRole("button", { name: /Minimum IFR altitude/ }).click();
   await expect(popover).toContainText(/Along V191 from BAE the published MEA, [\d,]+ ft/);
+  await page.keyboard.press("Escape");
+
+  // The flight plan's form (FAA Form 7233-4): the airway between the
+  // fixes it is joined and left at, the level in hundreds of feet.
+  await openTab(page, "Brief");
+  await openSection(page, "Flight Plan");
+  const form = page.getByTestId("flight-plan");
+  await expect(form.getByTestId("flight-plan-route")).toContainText("BAE V191 OSH", { timeout: slow(30000) });
+  await expect(form.getByTestId("flight-plan-rules")).toContainText("IFR");
+  await expect(form.getByTestId("flight-plan-level")).toContainText(/A\d[02468]0/);
+  await expect(form.getByTestId("flight-plan-speed")).toContainText(/N0\d{3}/);
+  await expect(form.getByTestId("flight-plan-destination")).toContainText("KATW");
+  // C81 has no four-letter indicator.
+  await expect(form.getByTestId("flight-plan-departure")).toContainText("DEP/C81");
+  await form.getByTestId("flight-plan-copy-route").click();
+  await expect(form.getByTestId("flight-plan-copy-route")).toHaveText("Copied");
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe("BAE V191 OSH");
 });
 
 test("under IFR the Weather tab says whether an alternate is needed, files one with a tap, and the fuel flies on to it", async ({ page }) => {
@@ -117,4 +135,8 @@ test("under IFR the Weather tab says whether an alternate is needed, files one w
   await expect.poll(() => navlogs.at(-1), { timeout: slow(30000) }).toBe("KMSN");
   await openTab(page, "Nav Log");
   await expect(page.getByTestId("fuel-check")).toContainText("on to KMSN", { timeout: slow(90000) });
+  // And the flight plan's alternate (item 16).
+  await openTab(page, "Brief");
+  await openSection(page, "Flight Plan");
+  await expect(page.getByTestId("flight-plan-alternate")).toContainText("KMSN");
 });

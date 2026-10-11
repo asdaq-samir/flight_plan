@@ -592,6 +592,10 @@ class AircraftProfile(BaseModel):
     fuel_burn_gph: float
     service_ceiling_ft: float
     type: str | None = None
+    #: Its type designator as FAA Order JO 7360.1 lists it, what a flight
+    #: plan's item 9 takes: C172 for the Cessna 172, P28A for the PA-28s
+    #: from the -140 to the -181.
+    designator: str | None = None
     #: The power `cruise_tas_kt` and `fuel_burn_gph` are at, in percent,
     #: at vfr.performance's reference altitude on a standard day; its
     #: default where None.

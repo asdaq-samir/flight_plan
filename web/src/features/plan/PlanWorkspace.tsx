@@ -1059,13 +1059,13 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       part={part} nav={s.nav} legs={s.legs}
       dep={planned.dep} dest={planned.dest}
       // The airports landed at: a waypoint has no weather of its own.
-      stops={landedStops}
+      stops={landedStops} route={planned.stops}
       briefing={s.briefing} course={course} totals={s.totals} depart={depart}
       langgraphNarrative={s.langgraphNarrative} crewaiNarrative={s.crewaiNarrative}
       problem={unflyableBrief}
       narrative={part === "brief" ? narrative : undefined}
     />
-  ), [s.nav, s.legs, planned.dep, planned.dest, landedStops, s.briefing, course, s.totals, depart,
+  ), [s.nav, s.legs, planned.dep, planned.dest, landedStops, planned.stops, s.briefing, course, s.totals, depart,
     s.langgraphNarrative, s.crewaiNarrative, unflyableBrief, narrative]);
   // A tab tapped takes the panel all the way up to show it; the tab up
   // tapped again there takes it back to half, at the pilot's ask.

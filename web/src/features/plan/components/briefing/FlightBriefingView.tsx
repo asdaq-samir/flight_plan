@@ -18,7 +18,7 @@ import type { FrameworkNarrative } from "../../hooks/useNarratives";
 import type { BriefingState } from "../../hooks/usePlan";
 import { altFt, ceilingAndVisibility, clockTime, deg, describeFuel, describeSteps, describeTime } from "../../format";
 import { flightLevel, grouped } from "../../../../lib/units";
-import { withoutAltitude } from "../../../../lib/identSchema";
+import { identOf, isAirwayToken, withoutAltitude } from "../../../../lib/identSchema";
 import { navLogRows, savedCheckpoints } from "../navlog/rows";
 import { useLoad } from "../../hooks/useLoad";
 import { TakeoffLandingSection, WeightBalanceSection } from "./PreflightSections";
@@ -37,6 +37,8 @@ import BriefVerdict from "./BriefVerdict";
 import PreflightAction from "./PreflightAction";
 import WeatherAlongRoute from "./WeatherAlongRoute";
 import AlternateSection from "./AlternateSection";
+import FlightPlanSection from "./FlightPlanSection";
+import { flightPlanForms } from "../../../../lib/flightPlanForm";
 import { alternateFinding, useAlternate } from "../../hooks/useAlternate";
 import RiskAssessment from "./RiskAssessment";
 import FindingIcon from "../../../../components/FindingIcon";
@@ -61,6 +63,9 @@ interface Props {
   dest: string;
   /** The airports landed at on the way, in order. */
   stops?: string[];
+  /** Every stop as the route has it, flown through or landed at, airways
+   *  among them: the flight plan's route. */
+  route?: string[];
   /** The course, for the airports' elevations, and the trip's totals,
    *  for the fuel burned by the landing (Weight & Balance). */
   course?: Course | null;
@@ -368,12 +373,12 @@ const NO_STOPS: string[] = [];
 // Drawn again only when its plan changes (memo): every tab is one of
 // these, and the page draws again at every row picked in the nav log.
 export default memo(function FlightBriefingView({
-  part, publish = false, nav, legs, dep, dest, stops = NO_STOPS, course = null, totals = null, depart = "",
+  part, publish = false, nav, legs, dep, dest, stops = NO_STOPS, route = NO_STOPS, course = null, totals = null, depart = "",
   briefing: briefingState,
   langgraphNarrative, crewaiNarrative, narrative, problem = null,
 }: Props) {
   // The load's weights, for the takeoff and landing distances.
-  const { loading, result: loaded } = useLoad(nav?.aircraft, totals?.fuel_gal ?? null);
+  const { loading, load, result: loaded } = useLoad(nav?.aircraft, totals?.fuel_gal ?? null);
   // Every airport the flight lands at, each once: a round trip's
   // departure is its destination.
   const landings = [...new Set([dep, ...stops, dest])];
@@ -540,6 +545,26 @@ export default memo(function FlightBriefingView({
 
   if (part === null) return null;
 
+  // The flight plan's airplane: the pilot's own by its registration and
+  // the type designator they gave it, or a stock profile's type; item 9's
+  // wake category from the profile's maximum takeoff weight only where
+  // the profile is that type's.
+  const ownType = flying.aircraftId != null ? flying.label.split(" · ")[1] ?? null : null;
+  const profileType = nav?.aircraft.designator ?? null;
+  const planType = flying.aircraftId != null ? ownType : profileType;
+  const planForms = part === "brief" ? flightPlanForms({
+    rules: ifr ? "ifr" : "vfr", dep, dest, route, landings: stops,
+    isAirway: stop => isAirwayToken(stop) && !course?.stops?.some(s => s.ident === stop),
+    legs, totals, depart: depart ? new Date(depart) : null, now: new Date(opened),
+    aircraft: {
+      ident: flying.aircraftId != null ? shortName(flying.label) : null,
+      type: planType,
+      maxTakeoffLb: planType && planType === profileType ? nav?.aircraft.loading?.max_takeoff_lb ?? null : null,
+    },
+    fuelGal: load?.fuelGal ?? null,
+    alternate: totals?.alternate?.ident ?? null,
+  }) : [];
+
   // Preflight action (14 CFR 91.103): what the planner found for each.
   const finding = (key: VerdictItem["key"]) => {
     const item = items.find(i => i.key === key)!;
@@ -669,6 +694,12 @@ export default memo(function FlightBriefingView({
           </AccordionSection>
 
           <PreflightAction flight={`${landings.join("-")}|${depart}`} found={found} />
+
+          {/* The FAA's flight plan form filled in from the plan, from an
+              airport: a present position is a flight already flying. */}
+          {identOf(dep) && totals && (
+            <FlightPlanSection forms={planForms} ifr={ifr} />
+          )}
 
           {/* The mock oral, the developer's until a CFI has reviewed its
               answers; never on paper. */}
