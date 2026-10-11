@@ -57,13 +57,17 @@ longer than it takes to answer the request.
 ## Google Play's Data safety form
 
 The same rows, in Google's words: **Personal info** (email address,
-name, user IDs), **Location** (precise, a saved flight's track),
+name, user IDs), **Location** (precise, only a saved flight's track; the
+device's live position is not kept, see above),
 **App activity** (other user-generated content: aircraft, flights,
 logbook, notes) and **App info and performance** (crash logs, not
-linked). All collected for app functionality and account management,
+linked: not tied to the account, and gone from the log after 30 days).
+All collected for app functionality and account management,
 none shared with third parties as Google defines sharing (the
 recipients above process data for the app), all encrypted in transit,
-and all deleted with the account. The Android app asks for location
+and all but the crash logs deleted with the account (the crash logs
+carry no account, so a deletion request cannot reach them; they expire
+on their own). The Android app asks for location
 while it is open only, never in the background.
 
 ## The iOS app's privacy manifest
