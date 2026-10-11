@@ -17,6 +17,7 @@ import { centreClear } from "./clear";
 // The marks held to the chart under a pinch: a patch to Leaflet's markers.
 import "./pinch";
 import { OwnShipLayer } from "./OwnShipLayer";
+import { OwnTrailLayer } from "./OwnTrailLayer";
 import { AheadLayer } from "./AheadLayer";
 import { TrafficLayer } from "./TrafficLayer";
 import { OPEN_ZOOM, useOwnShip } from "./ownShip";
@@ -236,6 +237,8 @@ export function MapShell({ course, onReady, children, onSelectPlace, held = fals
           {children}
           {/* Own ship on both maps, with the location arrow among the
               map's buttons: the training page's as well as the planner's. */}
+          {/* Where own ship has flown, under the arrow, at the pilot's ask. */}
+          <OwnTrailLayer />
           <OwnShipLayer />
           {/* What is ahead of it in the air, where it is (lib/map/ahead). */}
           <AheadLayer />

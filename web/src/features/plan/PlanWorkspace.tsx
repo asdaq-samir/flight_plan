@@ -12,11 +12,12 @@ import { showError } from "../../lib/problems";
 import { cn } from "cn";
 import { api } from "../../lib/api/client";
 import { checkpointsQuery, courseQuery, nearestQuery, pilotQuery, queryClient } from "../../lib/queryClient";
-import type { AircraftChoice, AirportPlace, AltitudeChoice, Candidate, ProcedureDrawing } from "../../lib/api/types";
+import type { AircraftChoice, AirportPlace, AltitudeChoice, Candidate, ProcedureDrawing, TrafficAircraft } from "../../lib/api/types";
 import { aircraftKey, choiceOf } from "../../lib/aircraftChoice";
 import { bestStopIndex } from "../../lib/geo";
 import { useKeepOffline } from "../../lib/map/keepStatus";
 import { locateOnOpen, positionNow, useOwnShip, useOwnShipNear } from "../../lib/map/ownShip";
+import { track, useTracking } from "../../lib/map/tracking";
 import { pointOf } from "../../lib/airspace";
 import { MAX_STOPS, altitudesOf, altitudesParam, departureOf, identOf, positionIdent, routeName, routeOf, stopsOf } from "../../lib/identSchema";
 import { useKeptAirport, usePreferences, type RecentAirport } from "../../lib/preferences";
@@ -39,6 +40,8 @@ import { patternsOf, patternsParam, trafficPattern, type TrafficPattern } from "
 import { proceduresOf, proceduresParam, type PickedProcedure } from "../../lib/procedures";
 import { runwayNumber } from "../../lib/pattern";
 import NearestCard from "./components/NearestCard";
+import AircraftCard from "./components/AircraftCard";
+import FlightCard from "./components/FlightCard";
 import type { RouteParts, RouteProcedure } from "./components/RouteBox";
 import type { PointAltitude } from "./components/PointAltitudeDialog";
 import { navlogQuery, usePlan } from "./hooks/usePlan";
@@ -271,6 +274,13 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // the map fitted to them, at the pilot's ask. An airport opened from it
   // is a layer over it, its close back to the list.
   const nearOpen = searchParams.get("near") === "1";
+  // Or the aircraft about and a search for one (AircraftCard), from the
+  // map's button under Nearest: `?aircraft=1`; and one airplane tracked
+  // (FlightCard), by its ICAO address: `?flight=a0b7d8` -- a layer over
+  // the list where it was picked from it, as an airport's over Nearest.
+  const aircraftOpen = searchParams.get("aircraft") === "1";
+  const flightParam = searchParams.get("flight");
+  const flight = flightParam && /^~?[0-9a-f]{6}$/i.test(flightParam) ? flightParam.toLowerCase() : null;
   // Or near a place the pilot typed in it -- a town, an address, an
   // airport -- at the pilot's ask, where it was own ship's alone:
   // `?nearAt=43.0731,-89.4012&nearName=Madison, WI`.
@@ -334,12 +344,52 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       }
       next.delete("place");
       next.delete("at");
-      if (open) next.delete("view");
+      // Opened, the Aircraft list and a tracked flight's card make way.
+      if (open) {
+        next.delete("view");
+        next.delete("aircraft");
+        next.delete("flight");
+      }
       return next;
     }, { replace: true });
     if (open) setPanel("half");
   }, [setSearchParams, setPanel]);
   const openNearest = useCallback(() => showNearest(true), [showNearest]);
+  const showAircraft = useCallback((open: boolean) => {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      if (open) next.set("aircraft", "1");
+      else next.delete("aircraft");
+      for (const key of ["place", "at", "near", "nearAt", "nearName"]) next.delete(key);
+      if (open) next.delete("view");
+      return next;
+    }, { replace: true });
+    if (open) setPanel("half");
+  }, [setSearchParams, setPanel]);
+  const openAircraft = useCallback(() => showAircraft(true), [showAircraft]);
+  const selectFlight = useCallback((hex: string | null, plane?: TrafficAircraft) => {
+    track(hex, plane);
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      if (hex) next.set("flight", hex);
+      else next.delete("flight");
+      for (const key of ["place", "at", "near", "nearAt", "nearName"]) next.delete(key);
+      if (hex) next.delete("view");
+      return next;
+    }, { replace: true });
+    if (hex) setPanel("half");
+  }, [setSearchParams, setPanel]);
+  // The address's flight and list into the tracking the map draws from
+  // (lib/map/tracking), and the map's tap on an airplane back to here.
+  useEffect(() => { track(flight); }, [flight]);
+  useEffect(() => { useTracking.setState({ listing: aircraftOpen }); }, [aircraftOpen]);
+  useEffect(() => {
+    useTracking.setState({ pick: (hex, plane) => selectFlight(hex, plane) });
+    return () => useTracking.setState({ pick: null, listing: false });
+  }, [selectFlight]);
+  const flightCard = flight ? <FlightCard key={flight} hex={flight} onClose={() => selectFlight(null)} /> : null;
+  const aircraftCard = aircraftOpen
+    ? <AircraftCard onPick={plane => selectFlight(plane.hex, plane)} onClose={() => showAircraft(false)} /> : null;
   const { data: destCard } = useQuery({
     queryKey: ["airport", planned.dest], queryFn: () => api.airport(planned.dest!), enabled: !!planned.dest, staleTime: 5 * 60_000,
     meta: { silent: true },
@@ -1222,6 +1272,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           place={placePin}
           nearest={nearOpen ? nearestPoints : null}
           onNearest={openNearest}
+          onAircraft={openAircraft}
           onSelectPlace={selectPlaceOnChart}
           onAddStop={addStopAt}
           legs={s.legs}
@@ -1245,7 +1296,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
         />
       ) : heldPoint ? (
         <AirspaceCard key={atParam} point={heldPoint} onClose={() => selectPlace(null)} />
-      ) : nearOpen ? (
+      ) : flightCard ?? aircraftCard ?? (nearOpen ? (
         <NearestCard onOpen={selectPlace} onClose={() => showNearest(false)} from={nearFrom} onFrom={setNearFrom} />
       ) : favoritesOpen ? (
         <div className="min-h-0 flex-1 overflow-y-auto px-4 pt-2 pb-4">
@@ -1274,7 +1325,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
             )}
           />
         </div>
-      )
+      ))
     ) : (
       <>
         {place && (
@@ -1287,15 +1338,16 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           />
         )}
         {!place && heldPoint && <AirspaceCard key={atParam} point={heldPoint} onClose={() => selectPlace(null)} />}
-        {!place && !heldPoint && nearOpen && <NearestCard onOpen={selectPlace} onClose={() => showNearest(false)} from={nearFrom} onFrom={setNearFrom} />}
-        <div className={cn("flex min-h-0 flex-1 flex-col print:flex", (place || heldPoint || nearOpen) && "hidden")}>{navLog}</div>
+        {!place && !heldPoint && (flightCard ?? aircraftCard)}
+        {!place && !heldPoint && !flight && !aircraftOpen && nearOpen && <NearestCard onOpen={selectPlace} onClose={() => showNearest(false)} from={nearFrom} onFrom={setNearFrom} />}
+        <div className={cn("flex min-h-0 flex-1 flex-col print:flex", (place || heldPoint || nearOpen || flight || aircraftOpen) && "hidden")}>{navLog}</div>
       </>
     ),
     head: started ? undefined : searchField,
     // An airport tapped: its card alone -- with a route, the route under
     // it again when it is closed; without, the search bar and the gear
     // over it gone while it is open, at the pilot's ask.
-    alone: !!place || !!heldPoint || nearOpen,
+    alone: !!place || !!heldPoint || nearOpen || !!flight || aircraftOpen,
     toEdge: !!place,
     // At rest, Maps' capsule: the route with share and close either side
     // and the airplane and time under it, which opens the panel to them;

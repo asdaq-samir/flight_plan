@@ -894,6 +894,9 @@ class TrafficAircraft(BaseModel):
     speed_kt: float | None = None
     vertical_fpm: float | None = None
     seen_s: float | None = None
+    #: Its transponder code, and the emergency it declares, if any.
+    squawk: str | None = None
+    emergency: str | None = None
 
 
 class Traffic(BaseModel):
@@ -907,6 +910,46 @@ class Traffic(BaseModel):
     age_s: float = 0.0
     source: str = "adsb.lol"
     license: str = "ODbL 1.0"
+
+
+class TrafficFound(BaseModel):
+    """The airplanes in the air a pilot named by callsign, registration
+    or ICAO address (vfr.traffic.find)."""
+
+    aircraft: list[TrafficAircraft]
+
+
+class FlightDeparted(BaseModel):
+    """The field a flight took off from, and when (Unix seconds)."""
+
+    ident: str
+    name: str | None = None
+    at: float
+
+
+class TrailPoint(BaseModel):
+    """Where an airplane was: Unix seconds, its position, its height (None
+    on the ground)."""
+
+    t: float
+    lat: float
+    lon: float
+    alt_ft: float | None = None
+
+
+class FlightDetail(BaseModel):
+    """An airplane and its flight today (vfr.traffic.flight): what it is,
+    who flies it, where it took off from where its track shows that, and
+    its track since, from adsb.lol's open data (ODbL 1.0)."""
+
+    hex: str
+    registration: str | None = None
+    type: str | None = None
+    description: str | None = None
+    operator: str | None = None
+    year: str | None = None
+    departed: FlightDeparted | None = None
+    trail: list[TrailPoint] = []
 
 
 class ProfileGround(BaseModel):

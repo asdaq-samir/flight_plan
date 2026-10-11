@@ -116,6 +116,9 @@ export type AheadAlert = Schemas["AheadAlert"];
 /** The airplanes ADS-B receivers hear near a point (vfr.traffic). */
 export type Traffic = Schemas["Traffic"];
 export type TrafficAircraft = Schemas["TrafficAircraft"];
+export type TrafficFound = Schemas["TrafficFound"];
+/** A tracked flight: its airplane, where it took off, its path today. */
+export type FlightDetail = Schemas["FlightDetail"];
 export type AirspaceBand = Schemas["AirspaceBand"];
 export type VfrMinimums = Schemas["VfrMinimums"];
 /** `available` is false where the planner has no Docker API to talk

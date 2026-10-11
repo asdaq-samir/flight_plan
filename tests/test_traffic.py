@@ -58,7 +58,7 @@ def test_an_airplane_in_the_air_as_the_map_draws_it(clock):
         "hex": "a128b9", "callsign": "N174HA", "registration": "N174HA", "type": "C172", "lat": 42.30128, "lon": -88.14525,
         # The GNSS height, as the phone's own is, and its climb.
         "altitude_ft": 1325.0, "pressure_altitude": False, "track_deg": 320.19, "speed_kt": 93.7, "vertical_fpm": -384.0,
-        "seen_s": 0.291,
+        "seen_s": 0.291, "squawk": None, "emergency": None,
     }]}
 
 
@@ -177,3 +177,126 @@ def test_a_region_with_an_answer_is_not_kept_behind_another_regions_request(cloc
         traffic.near(42.3, -88.1, 25)
         release.set()
         other.join()
+
+
+def _routed(answers):
+    """requests.get answering each URL from `answers` (a substring to an
+    answer), and the URLs asked."""
+    asked = []
+
+    def get(url, *args, **kwargs):
+        asked.append(url)
+        for part, answer in answers.items():
+            if part in url:
+                return answer
+        raise AssertionError(f"unexpected {url}")
+    return get, asked
+
+
+def test_an_airplane_is_found_by_its_callsign_registration_or_address(clock):
+    get, asked = _routed({"/callsign/UAL2088": _answer([{**CESSNA, "flight": "UAL2088 ", "squawk": "3324"}]),
+                          "/reg/N174HA": _answer([CESSNA]), "/hex/a128b9": _answer([CESSNA])})
+    with patch("vfr.traffic.requests.get", side_effect=get):
+        (ual,) = traffic.find("ual 2088")
+        assert ual["callsign"] == "UAL2088" and ual["squawk"] == "3324" and ual["emergency"] is None
+        assert [a["hex"] for a in traffic.find("N174HA")] == ["a128b9"]
+        assert [a["hex"] for a in traffic.find("A128B9")] == ["a128b9"]
+    assert [u.rsplit("v2/", 1)[1] for u in asked] == ["callsign/UAL2088", "reg/N174HA", "hex/a128b9"]
+
+
+def test_a_search_takes_its_turn_between_requests(clock):
+    get, asked = _routed({"/point/": _answer([]), "/callsign/": _answer([]), "/reg/": _answer([])})
+    asked_at = []
+    with patch("vfr.traffic.requests.get", side_effect=lambda url, **kw: (asked_at.append(clock.now), get(url))[1]):
+        traffic.near(42.3, -88.1, 25)
+        # A callsign with nothing, then the same as a registration: each
+        # five seconds after the one before.
+        assert traffic.find("FOO123") == []
+    assert asked_at == [1000.0, 1005.0, 1010.0]
+
+
+TRACE = {
+    "icao": "a0b7d8", "r": "N14511", "t": "A21N", "desc": "AIRBUS A-321neo", "ownOp": "UNITED AIRLINES INC", "year": "2024",
+    "timestamp": 1791656000.0,
+    "trace": [
+        # Yesterday's leg into the field, then this one: on the ground at
+        # O'Hare, off, and climbing out west.
+        [0.0, 20.17, -67.03, 33600, 466.7, 127.9, 2, -3136, None, "adsb_icao", 35825],
+        [600.0, 41.97, -87.90, "ground", 12.0, 270.0, 0, 0, None, "adsb_icao", None],
+        [660.0, 41.976, -87.93, 400, 150.0, 270.0, 0, 2000, None, "adsb_icao", 525],
+        [720.0, 41.98, -88.00, 2500, 220.0, 270.0, 0, 2000, None, "adsb_icao", 2650],
+    ],
+}
+
+
+def test_a_tracked_flight_is_what_it_is_where_it_took_off_and_its_track_since(clock, monkeypatch):
+    monkeypatch.setattr(traffic, "_TRACES", {})
+    monkeypatch.setattr(traffic.airports, "nearest", lambda lat, lon, limit=1: [
+        {"ident": "KORD", "name": "Chicago O'Hare International Airport", "distance_nm": 0.4}])
+    with patch("vfr.traffic.requests.get", return_value=Mock(status_code=200, json=Mock(return_value=TRACE))) as get:
+        found = traffic.flight("A0B7D8")
+        traffic.flight("a0b7d8")
+    assert get.call_args.args[0] == "https://globe.adsb.lol/data/traces/d8/trace_full_a0b7d8.json"
+    assert get.call_count == 1
+    assert {k: found[k] for k in ("registration", "type", "description", "operator", "year")} == {
+        "registration": "N14511", "type": "A21N", "description": "AIRBUS A-321neo", "operator": "UNITED AIRLINES INC", "year": "2024"}
+    # Off the ground at its first point in the air, 660 s in.
+    assert found["departed"] == {"ident": "KORD", "name": "Chicago O'Hare International Airport", "at": 1791656660}
+    # This leg alone, from the ground; GNSS heights as the live reports'.
+    assert [(p["lat"], p["alt_ft"]) for p in found["trail"]] == [(41.97, None), (41.976, 525.0), (41.98, 2650.0)]
+
+
+def test_a_flight_whose_track_begins_in_the_air_or_away_from_a_field_says_no_departure(clock, monkeypatch):
+    monkeypatch.setattr(traffic, "_TRACES", {})
+    monkeypatch.setattr(traffic.airports, "nearest", lambda lat, lon, limit=1: [{"ident": "C81", "distance_nm": 7.0}])
+    airborne = {**TRACE, "trace": [TRACE["trace"][0], TRACE["trace"][3]]}
+    with patch("vfr.traffic.requests.get", return_value=Mock(status_code=200, json=Mock(return_value=airborne))):
+        assert traffic.flight("a0b7d8")["departed"] is None
+    monkeypatch.setattr(traffic, "_TRACES", {})
+    with patch("vfr.traffic.requests.get", return_value=Mock(status_code=200, json=Mock(return_value=TRACE))):
+        # On the ground seven miles from the nearest field: no airport.
+        assert traffic.flight("a0b7d8")["departed"] is None
+
+
+def test_a_flight_with_no_trace_is_drawn_without_its_past(clock, monkeypatch):
+    monkeypatch.setattr(traffic, "_TRACES", {})
+    with patch("vfr.traffic.requests.get", return_value=Mock(status_code=404)):
+        found = traffic.flight("a0b7d8")
+    assert found["trail"] == [] and found["departed"] is None and found["registration"] is None
+
+
+def test_a_flight_that_has_landed_is_its_flight_to_the_landing_not_the_parked_tail(clock, monkeypatch):
+    monkeypatch.setattr(traffic, "_TRACES", {})
+    monkeypatch.setattr(traffic.airports, "nearest", lambda lat, lon, limit=1: [
+        {"ident": "KORD", "name": "Chicago O'Hare International Airport", "distance_nm": 0.4}])
+    parked = {**TRACE, "trace": TRACE["trace"] + [
+        [800.0, 41.97, -87.90, "ground", 10.0, 90.0, 0, 0, None, "adsb_icao", None],
+        [900.0, 41.97, -87.90, "ground", 0.0, 90.0, 0, 0, None, "adsb_icao", None]]}
+    with patch("vfr.traffic.requests.get", return_value=Mock(status_code=200, json=Mock(return_value=parked))):
+        found = traffic.flight("a0b7d8")
+    # Departed when it left the ground, 660 s in; the trail ends at its landing.
+    assert found["departed"]["at"] == 1791656660
+    assert [p["t"] for p in found["trail"]] == [1791656600.0, 1791656660.0, 1791656720.0, 1791656800.0]
+
+
+def test_a_trace_that_could_not_be_had_is_asked_again_not_kept(clock, monkeypatch):
+    monkeypatch.setattr(traffic, "_TRACES", {})
+    with patch("vfr.traffic.requests.get", side_effect=requests.Timeout("slow")) as get:
+        assert traffic.flight("a0b7d8")["trail"] == []
+        assert traffic.flight("a0b7d8")["trail"] == []
+    assert get.call_count == 2
+    with patch("vfr.traffic.requests.get", return_value=Mock(status_code=429)) as get:
+        traffic.flight("a0b7d8")
+        traffic.flight("a0b7d8")
+    assert get.call_count == 2
+
+
+def test_a_trace_that_is_not_an_object_or_has_short_points_is_drawn_without_its_past(clock, monkeypatch):
+    monkeypatch.setattr(traffic, "_TRACES", {})
+    with patch("vfr.traffic.requests.get", return_value=Mock(status_code=200, json=Mock(return_value=[1, 2]))):
+        assert traffic.flight("a0b7d8")["trail"] == []
+    monkeypatch.setattr(traffic, "_TRACES", {})
+    monkeypatch.setattr(traffic.airports, "nearest", lambda lat, lon, limit=1: [])
+    short = {**TRACE, "trace": [[0.0, 41.9, -87.9], *TRACE["trace"]]}
+    with patch("vfr.traffic.requests.get", return_value=Mock(status_code=200, json=Mock(return_value=short))):
+        assert len(traffic.flight("a0b7d8")["trail"]) == 3

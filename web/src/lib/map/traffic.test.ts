@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { TrafficAircraft } from "../api/types";
-import { agedBy, carriedOn, ownShipHex, nearOwnHeight, trafficLabel, trendPx } from "./traffic";
+import { agedBy, carriedOn, closestApproach, colourRuns, heightColour, ownShipHex, nearOwnHeight, trafficLabel, trendPx } from "./traffic";
 import type { Fix } from "./ownShip";
 
 const plane = (over: Partial<TrafficAircraft> = {}): TrafficAircraft => ({
@@ -95,5 +95,44 @@ describe("trendPx", () => {
     expect(trendPx(0, 42, 10)).toBe(0);
     expect(trendPx(null, 42, 10)).toBe(0);
     expect(trendPx(500, 42, 14)).toBe(160);
+  });
+});
+
+describe("heightColour and colourRuns", () => {
+  it("colours a path by its height, grey on the ground", () => {
+    expect(heightColour(null)).toBe("#8e8e93");
+    expect(heightColour(0)).toBe("hsl(120 85% 45%)");
+    expect(heightColour(40000)).toBe("hsl(300 85% 45%)");
+    expect(heightColour(60000)).toBe("hsl(300 85% 45%)");
+  });
+
+  it("runs the path in one line a colour, each starting where the last ended", () => {
+    const runs = colourRuns([
+      { lat: 1, lon: 1, altFt: 1000 }, { lat: 2, lon: 2, altFt: 1100 }, { lat: 3, lon: 3, altFt: 9000 },
+    ]);
+    expect(runs.map(r => r.points)).toEqual([[[1, 1], [2, 2]], [[2, 2], [3, 3]]]);
+  });
+});
+
+describe("closestApproach", () => {
+  const own = fix({ lat: 42, lon: -88, headingDeg: 90, speedKt: 120, altitudeFt: 3000 });
+
+  it("finds when and how near one coming head on passes", () => {
+    // Ten miles east, coming west at 120 kt, 500 ft above: they meet in
+    // 2.5 minutes, closing at 240 kt.
+    const cpa = closestApproach(own, plane({ lat: 42, lon: -88 + 10 / (60 * Math.cos((42 * Math.PI) / 180)), track_deg: 270, speed_kt: 120, altitude_ft: 3500, vertical_fpm: 0 }))!;
+    expect(cpa.inMin).toBeCloseTo(2.5, 1);
+    expect(cpa.nm).toBeCloseTo(0, 1);
+    expect(cpa.aboveFt).toBeCloseTo(500, 0);
+  });
+
+  it("is now where they are drawing apart", () => {
+    const cpa = closestApproach(own, plane({ lat: 42, lon: -88.1, track_deg: 270, speed_kt: 120, altitude_ft: 3000 }))!;
+    expect(cpa.inMin).toBe(0);
+  });
+
+  it("is nothing without a track or speed", () => {
+    expect(closestApproach(fix({ headingDeg: null }), plane())).toBeNull();
+    expect(closestApproach(own, plane({ speed_kt: null }))).toBeNull();
   });
 });

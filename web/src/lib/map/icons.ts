@@ -260,16 +260,24 @@ export const airportMarkIcon = made(function airportMarkIcon(
  *  track in its colour with a white casing, a line out ahead of it to
  *  where it will be in a minute (`trendPx` long, as ForeFlight's
  *  TrafficTrend vector), and under it its height (trafficLabel) and its
- *  callsign where the map is close enough for them. Track to five
- *  degrees and the line to four points, so the icons made once are a
- *  few hundred. */
-export const trafficIcon = made((trackDeg: number | null, colour: string, label: string, callsign: string | null, trendPx: number) => L.divIcon({
+ *  callsign where the map is close enough for them. The one being
+ *  tracked (`tracked`) larger, ringed in the tint, its callsign always
+ *  under it. A tap anywhere in the 44 points round it picks it. Track to
+ *  five degrees and the line to four points, so the icons made once are
+ *  a few hundred. */
+export const trafficIcon = made((
+  trackDeg: number | null, colour: string, label: string, callsign: string | null, trendPx: number, tracked: boolean,
+) => L.divIcon({
   className: "",
   iconSize: [22, 22],
   iconAnchor: [11, 11],
   html:
+    // The hit area: 44 points round the 22 of the mark, as every tap
+    // target's (index.css), the mark not grown for it.
+    `<span class="absolute -inset-[11px] rounded-full" data-traffic-hit=""></span>` +
+    (tracked ? `<span class="pointer-events-none absolute -inset-[7px] rounded-full border-[2.5px] border-[var(--tint)] bg-white/70 shadow-[0_1px_4px_rgba(0,0,0,.4)]" data-traffic-tracked=""></span>` : "") +
     `<svg viewBox="0 0 22 22" width="22" height="22" aria-hidden="true" data-traffic="" overflow="visible"` +
-    ` class="absolute left-0 top-0 overflow-visible drop-shadow-[0_1px_2px_rgba(0,0,0,.5)]"` +
+    ` class="pointer-events-none absolute left-0 top-0 overflow-visible drop-shadow-[0_1px_2px_rgba(0,0,0,.5)]"` +
     ` style="transform:rotate(${trackDeg == null ? 0 : Math.round(trackDeg / 5) * 5}deg)">` +
     (trackDeg != null && trendPx > 0
       ? `<line x1="11" y1="4" x2="11" y2="${4 - Math.round(trendPx / 4) * 4}" stroke="${text(colour)}" stroke-width="2" stroke-linecap="round" data-trend=""/>`
@@ -279,9 +287,9 @@ export const trafficIcon = made((trackDeg: number | null, colour: string, label:
       : `<path d="M11 2 L18 19 L11 14.5 L4 19 Z" fill="${text(colour)}" stroke="#ffffff" stroke-width="2" stroke-linejoin="round"/>`) +
     `</svg>` +
     (label || callsign
-      ? `<span class="pointer-events-none absolute left-1/2 top-[22px] -translate-x-1/2 whitespace-nowrap rounded bg-[#1f2933]/80 px-1 text-center text-[11px] font-bold leading-[14px] text-white tabular-nums"` +
+      ? `<span class="pointer-events-none absolute left-1/2 ${tracked ? "top-[28px]" : "top-[22px]"} -translate-x-1/2 whitespace-nowrap rounded bg-[#1f2933]/80 px-1 text-center text-[11px] font-bold leading-[14px] text-white tabular-nums"` +
         ` style="color:${text(colour === TRAFFIC_COLOURS.near ? "#fcd34d" : "#ffffff")}">` +
-        `${text(label)}${callsign ? `<br><span class="font-semibold text-white/85">${text(callsign)}</span>` : ""}</span>`
+        `${text(label)}${callsign ? `${label ? "<br>" : ""}<span class="font-semibold text-white/85">${text(callsign)}</span>` : ""}</span>`
       : ""),
 }));
 
