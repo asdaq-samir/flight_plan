@@ -58,6 +58,8 @@ export interface FratInput {
   /** The nav log's fuel margin, gallons; below zero the tanks do not
    *  hold the fuel and its reserve. */
   fuelMarginGal: number | null;
+  /** Planned under IFR: its reserve is 14 CFR 91.167's. */
+  ifr?: boolean;
   /** The pilot's currency, where they keep a logbook here. */
   currency: Currency | null;
   /** The day of the flight, yyyy-MM-dd, to read the currency's dates on. */
@@ -81,7 +83,7 @@ export function found(input: FratInput): RiskFactor[] {
   if (input.hazards > 0) factors.push({ key: "hazards", label: `${input.hazards} SIGMET or G-AIRMET${input.hazards === 1 ? "" : "s"} along the route`, why: "Adverse conditions", points: Math.min(6, 2 * input.hazards) });
   if (input.night) factors.push({ key: "night", label: "At night", why: "PAVE: environment", points: 3 });
   if (input.fuelMarginGal != null && input.fuelMarginGal < 0) {
-    factors.push({ key: "fuel", label: "The tanks do not hold the fuel and its reserve", why: "91.151", points: 0, stop: true });
+    factors.push({ key: "fuel", label: "The tanks do not hold the fuel and its reserve", why: input.ifr ? "91.167" : "91.151", points: 0, stop: true });
   }
   const c = input.currency;
   if (c && c.flights > 0) {

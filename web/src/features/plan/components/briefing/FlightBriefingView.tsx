@@ -381,7 +381,11 @@ export default memo(function FlightBriefingView({
   // in one place; this page states them.
   const briefing = briefingState.state === "ready" ? briefingState.data : null;
   const failed = briefingState.state === "failed" ? briefingState.detail : null;
-  const vnrReasons = briefing?.vfr_not_recommended ?? [];
+  // Under IFR "VFR flight not recommended" is no reason not to go: its
+  // weather check is the destination's and the alternate's (14 CFR
+  // 91.169), not VFR's minimums.
+  const ifr = usePreferences(p => p.flightRules) === "ifr";
+  const vnrReasons = ifr ? [] : briefing?.vfr_not_recommended ?? [];
   const briefingPendingMessage =
     briefingState.state === "waiting" ? "The briefing follows once the route's course is drawn."
       : failed ? `Briefing data is unavailable (${failed}).`
@@ -432,6 +436,7 @@ export default memo(function FlightBriefingView({
     hazards: unchecked("hazards") && unchecked("gairmets") ? 0 : hazardNames.length,
     night: totals?.night === true,
     fuelMarginGal: margins.length ? Math.min(...margins) : null,
+    ifr,
     currency: currency ?? null,
     day: format(new Date(depart || opened), "yyyy-MM-dd"),
     ticked,
@@ -490,6 +495,7 @@ export default memo(function FlightBriefingView({
       marginGal: margins.length ? Math.min(...margins) : null,
       requiredGal: totals?.fuel_required_gal ?? (hops.length ? Math.max(...hops.map(h => h.totals.fuel_required_gal ?? 0)) : null),
       reserveMin: totals?.reserve_min ?? hops[0]?.totals.reserve_min ?? null,
+      ifr,
     },
     runways: {
       pending: !nav || !briefing, worked: !nav || (!!nav.aircraft.takeoff && !!nav.aircraft.landing),

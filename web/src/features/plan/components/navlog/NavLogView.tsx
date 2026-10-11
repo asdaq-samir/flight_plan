@@ -786,7 +786,8 @@ export default function NavLogView({
 
   // The fuel check (14 CFR 91.151): the legs' fuel plus the reserve --
   // 30 minutes by day, 45 at night, the day one assumed and said so
-  // without a departure time -- against the airplane's usable fuel
+  // without a departure time; under IFR 45 whatever the hour (91.167) --
+  // against the airplane's usable fuel
   // when it has one, red when the tanks do not hold it. Under the
   // table, where the fuel column it sums ends, rather than among the
   // totals above it: rows like theirs, each figure at its row's end and
@@ -820,7 +821,8 @@ export default function NavLogView({
         <ListRow
           title="Fuel required"
           description={`With ${one(totals.taxi_gal)} gal to start, taxi and take off, and a ${totals.reserve_min} min ${
-            totals.night == null ? "day reserve (no departure time)" : totals.night ? "night reserve" : "day reserve"}`}
+            totals.rules === "ifr" ? "IFR reserve (14 CFR 91.167)"
+              : totals.night == null ? "day reserve (no departure time)" : totals.night ? "night reserve" : "day reserve"}`}
           value={`${one(totals.fuel_required_gal)} gal`}
         />
         {totals.usable_fuel_gal != null && (

@@ -1671,6 +1671,11 @@
             ],
             "title": "Min Visibility Sm"
           },
+          "mountainous": {
+            "default": false,
+            "title": "Mountainous",
+            "type": "boolean"
+          },
           "recommended_ft": {
             "anyOf": [
               {
@@ -1681,6 +1686,15 @@
               }
             ],
             "title": "Recommended Ft"
+          },
+          "rules": {
+            "default": "vfr",
+            "enum": [
+              "vfr",
+              "ifr"
+            ],
+            "title": "Rules",
+            "type": "string"
           },
           "segments": {
             "default": [],
@@ -1974,6 +1988,54 @@
             ],
             "default": null,
             "title": "Hemispheric Rule From Ft"
+          },
+          "highest_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Highest Ft"
+          },
+          "highest_is_obstacle": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Highest Is Obstacle"
+          },
+          "mountainous": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Mountainous"
+          },
+          "obstacle_clearance_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Obstacle Clearance Ft"
           },
           "service_ceiling_ft": {
             "anyOf": [
@@ -8596,6 +8658,15 @@
             "default": null,
             "title": "Reserve Min"
           },
+          "rules": {
+            "default": "vfr",
+            "enum": [
+              "vfr",
+              "ifr"
+            ],
+            "title": "Rules",
+            "type": "string"
+          },
           "taxi_gal": {
             "anyOf": [
               {
@@ -10871,6 +10942,20 @@
           },
           {
             "in": "query",
+            "name": "rules",
+            "required": false,
+            "schema": {
+              "default": "vfr",
+              "enum": [
+                "vfr",
+                "ifr"
+              ],
+              "title": "Rules",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
             "name": "altitudes",
             "required": false,
             "schema": {
@@ -11155,6 +11240,20 @@
               "default": false,
               "title": "Class B Clearance",
               "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "rules",
+            "required": false,
+            "schema": {
+              "default": "vfr",
+              "enum": [
+                "vfr",
+                "ifr"
+              ],
+              "title": "Rules",
+              "type": "string"
             }
           },
           {
@@ -11624,6 +11723,20 @@
               "default": false,
               "title": "Class B Clearance",
               "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "rules",
+            "required": false,
+            "schema": {
+              "default": "vfr",
+              "enum": [
+                "vfr",
+                "ifr"
+              ],
+              "title": "Rules",
+              "type": "string"
             }
           },
           {

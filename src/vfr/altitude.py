@@ -25,7 +25,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from itertools import pairwise
 
-from . import airspace, performance, sua, terrain, weather
+from . import airspace, ifr, performance, sua, terrain, weather
 from .geo import along_track_distance_nm, bearing_deg, distance_nm, track_distances_nm
 from .magnetic import magnetic_variation_deg
 from .terrain import DEFAULT_FAA_CACHE_DIR
@@ -258,10 +258,19 @@ def select_cruise_altitude(
     pending: set | None = None,
     window: tuple | None = None,
     class_b_cleared: bool = False,
+    rules: str = "vfr",
 ) -> dict:
     """Returns a dict with the recommended altitude (None if no legal VFR
     altitude exists for this route/aircraft) plus the floor/ceiling
     components and weather go/no-go flags that produced it.
+
+    `rules` "ifr" plans the flight under IFR instead (vfr.ifr): each leg's
+    floor is 14 CFR 91.177(a)(2)'s minimum IFR altitude, 1,000 ft (2,000
+    over a mountainous area) above the highest obstacle within 4 nm of its
+    course; its altitudes are 91.179(b)'s and ATC's by direction of flight,
+    odd or even thousands; and neither Class B, the clouds nor Class A caps
+    them -- an IFR clearance takes the flight into all three. Only the
+    service ceiling and prohibited airspace do.
 
     `fixes`, the nav log's (lat, lon) fixes from departure to destination,
     adds `segments`: the floor, ceiling and legal altitudes of each leg
@@ -320,15 +329,19 @@ def select_cruise_altitude(
     mid_lat = (route_start[0] + route_end[0]) / 2
     mid_lon = (route_start[1] + route_end[1]) / 2
 
+    under_ifr = rules == "ifr"
     with ThreadPoolExecutor(max_workers=5) as pool:
         floor_future = pool.submit(
+            timed("ifr.floor_profile", ifr.floor_profile), fixes or [route_start, route_end], faa_cache_dir,
+        ) if under_ifr else pool.submit(
             timed("terrain.floor_profile", terrain.floor_profile),
             route_start, route_end, breaks_nm, faa_cache_dir=faa_cache_dir,
         )
         # The legs flown, or the direct line as the one leg: one path
         # for the Class B rule, where two functions of different shapes
-        # used to be chosen between and the answer coerced back.
-        airspace_future = None if class_b_cleared else pool.submit(
+        # used to be chosen between and the answer coerced back. Under
+        # IFR no shelf is a ceiling: the clearance takes the flight in.
+        airspace_future = None if class_b_cleared or under_ifr else pool.submit(
             timed("airspace.airspace_ceiling_profile", airspace.airspace_ceiling_profile),
             route_start, route_end, fixes or [route_start, route_end], shp_path,
         )
@@ -403,8 +416,9 @@ def select_cruise_altitude(
 
     floors_ft = [segment.floor_ft for segment in floors]
     # Where the hemispheric rule begins, over each leg and over the whole
-    # route: 3,000 ft above the lowest ground under it.
-    rules_from_ft = [segment.lowest_ground_ft + HEMISPHERIC_RULE_AGL_FT for segment in floors]
+    # route: 3,000 ft above the lowest ground under it. Under IFR the
+    # direction of flight decides at every altitude (91.179(b)).
+    rules_from_ft = [0.0 if under_ifr else segment.lowest_ground_ft + HEMISPHERIC_RULE_AGL_FT for segment in floors]
 
     # Each leg's lowest forecast cloud base (MSL), from the TAFs near it:
     # the legs flown, or the direct line as the one leg.
@@ -435,7 +449,12 @@ def select_cruise_altitude(
         clouds' included, none through a prohibited area -- or, where no
         500 ft step fits, the one tight altitude under the ceiling
         (tight_cruising_altitude), and True -- or, where the clouds leave
-        none, the band without them, and False."""
+        none, the band without them, and False. Under IFR, the IFR
+        altitudes from the floor to the service ceiling alone."""
+        if under_ifr:
+            found = [a for a in ifr.cruising_altitudes(floor, service_ceiling, course) if not sua.blocked(a, areas)]
+            return service_ceiling, found, True, False
+
         def legal(ceiling):
             found = [a for a in legal_cruising_altitudes(floor, ceiling, course, rule_from) if not sua.blocked(a, areas)]
             if found:
@@ -510,6 +529,7 @@ def select_cruise_altitude(
                 "hemispheric_rule_from_ft": round(rules_from_ft[i]),
                 "candidates_ft": segment_candidates_ft,
                 "tight": segment_tight,
+                **(_ifr_floor(floors[i]) if under_ifr else {}),
             })
 
     # Icing: an altitude this could recommend reaching the freezing level
@@ -536,6 +556,7 @@ def select_cruise_altitude(
     log.info("select_cruise_altitude: %.2fs total", time.time() - request_started)
 
     return {
+        "rules": "ifr" if under_ifr else "vfr",
         "recommended_ft": recommended_ft,
         "candidates_ft": candidates_ft,
         "course_magnetic_deg": round(course_magnetic_deg, 1),
@@ -570,4 +591,17 @@ def select_cruise_altitude(
         "low_ceiling_or_visibility": low_ceiling_vis,
         "weather_unavailable": weather_unavailable,
         "segments": segments,
+        # Under IFR: whether any leg is over a designated mountainous
+        # area (14 CFR Part 95), its floor 2,000 ft over the obstacles.
+        "mountainous": under_ifr and any(f.mountainous for f in floors),
+    }
+
+
+def _ifr_floor(floor: "ifr.LegFloor") -> dict:
+    """What a leg's minimum IFR altitude was found from, for its segment."""
+    return {
+        "highest_ft": floor.highest_ft,
+        "highest_is_obstacle": floor.highest_is_obstacle,
+        "mountainous": floor.mountainous,
+        "obstacle_clearance_ft": ifr.MOUNTAINOUS_CLEARANCE_FT if floor.mountainous else ifr.CLEARANCE_FT,
     }

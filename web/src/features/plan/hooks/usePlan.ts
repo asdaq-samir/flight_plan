@@ -7,6 +7,7 @@ import { ended } from "../../../lib/api/streams";
 import type {
   AircraftChoice, AltitudeChoice, Briefing, Candidate, Detour, Leg, NavLogAltitude, NavLogMessage, Totals,
 } from "../../../lib/api/types";
+import type { FlightRules } from "../../../lib/preferences";
 import { useCheckpointNotes } from "./useCheckpointNotes";
 import { useNarratives } from "./useNarratives";
 
@@ -69,6 +70,9 @@ export interface PlanParams {
   checkpoints?: boolean;
   /** A local flight's time aloft, in minutes (one airport to itself). */
   localMin?: number;
+  /** The flight rules it is planned under: IFR's minimum altitudes,
+   *  thousands and reserve, or VFR's (the default). */
+  rules?: FlightRules;
 }
 
 /** Where the route's briefing stands -- one value, read by the map's
@@ -101,12 +105,13 @@ const NONE: Candidate[] = [];
 /** Everything the nav log is computed from -- the narratives are keyed
  *  on the same, so a narrative is always about the log on screen. */
 function planKeyOf(
-  { dep, dest, stops, altitudeFt, altitudeChoice, depart, aircraft, load, classBClearance = false, altitudes = "", checkpoints = true }: PlanParams,
+  { dep, dest, stops, altitudeFt, altitudeChoice, depart, aircraft, load, classBClearance = false, altitudes = "", checkpoints = true,
+    rules = "vfr" }: PlanParams,
 ) {
   return [
     dep, dest, stops.join(","), altitudeFt, altitudeChoice, depart, load, classBClearance, altitudes, checkpoints,
     aircraft.profile, aircraft.cruiseTasKt ?? null, aircraft.fuelBurnGph ?? null, aircraft.usableFuelGal ?? null,
-    aircraft.climbTasKt ?? null, aircraft.climbFuelBurnGph ?? null, aircraft.cruisePowerPct ?? null,
+    aircraft.climbTasKt ?? null, aircraft.climbFuelBurnGph ?? null, aircraft.cruisePowerPct ?? null, rules,
   ];
 }
 
@@ -114,7 +119,7 @@ function planKeyOf(
  *  own (usePlan), and Fly Here's, asked for at the tap before the page
  *  has drawn the route (PlanWorkspace). */
 export function navlogQuery(plan: PlanParams, checkpointsToo: boolean) {
-  const { dep, dest, stops, altitudeFt, altitudeChoice, depart, aircraft, classBClearance = false, altitudes = "" } = plan;
+  const { dep, dest, stops, altitudeFt, altitudeChoice, depart, aircraft, classBClearance = false, altitudes = "", rules = "vfr" } = plan;
   const planKey = planKeyOf(plan);
   return {
     // The same key as the checkpoints' with them off, so the route as
@@ -122,7 +127,8 @@ export function navlogQuery(plan: PlanParams, checkpointsToo: boolean) {
     queryKey: ["navlog", ...planKey.slice(0, 9), checkpointsToo, ...planKey.slice(10)],
     queryFn: streamedQuery({
       streamFn: ({ signal }: { signal: AbortSignal }) => ended(
-        api.navlog(dep, dest, altitudeFt || undefined, aircraft, altitudeChoice, depart || undefined, signal, stops, classBClearance, altitudes, checkpointsToo),
+        api.navlog(dep, dest, altitudeFt || undefined, aircraft, altitudeChoice, depart || undefined, signal, stops, classBClearance, altitudes, checkpointsToo,
+          rules),
         "nav log",
       ),
     }),
@@ -136,7 +142,7 @@ export function navlogQuery(plan: PlanParams, checkpointsToo: boolean) {
 export function usePlan(
   {
     dep, dest, stops, altitudeFt, altitudeChoice, depart, aircraft, load, classBClearance = false, altitudes = "",
-    checkpoints: withCheckpoints = true, localMin = 60,
+    checkpoints: withCheckpoints = true, localMin = 60, rules = "vfr",
   }: PlanParams,
 ) {
   const routeKnown = routeOf(dep, dest, stops) !== null;
@@ -152,8 +158,8 @@ export function usePlan(
   // charted, so the map is never taken down between routes.
   const course = useQuery({ ...courseQuery(dep, dest, stops), enabled: briefable, placeholderData: keepPreviousData });
   const localFlight = useQuery({
-    queryKey: ["localFlight", dep, localMin, depart, aircraft.profile, aircraft.fuelBurnGph ?? null, aircraft.usableFuelGal ?? null],
-    queryFn: () => api.localFlight(dep, localMin, aircraft, depart || undefined),
+    queryKey: ["localFlight", dep, localMin, depart, aircraft.profile, aircraft.fuelBurnGph ?? null, aircraft.usableFuelGal ?? null, rules],
+    queryFn: () => api.localFlight(dep, localMin, aircraft, depart || undefined, rules),
     enabled: local, placeholderData: keepPreviousData,
   });
 
@@ -166,7 +172,7 @@ export function usePlan(
   const checkpoints = useQuery({ ...checkpointsQuery(dep, dest, stops), enabled: routeKnown && withCheckpoints });
 
   const plan = {
-    dep, dest, stops, altitudeFt, altitudeChoice, depart, aircraft, load, classBClearance, altitudes, checkpoints: withCheckpoints,
+    dep, dest, stops, altitudeFt, altitudeChoice, depart, aircraft, load, classBClearance, altitudes, checkpoints: withCheckpoints, rules,
   };
   const planKey = planKeyOf(plan);
   const navlog = useQuery({ ...navlogQuery(plan, withCheckpoints), enabled: routeKnown });

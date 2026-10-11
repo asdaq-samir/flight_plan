@@ -35,6 +35,7 @@ from ..planning import (
 )
 from ..schemas import (
     AltitudeChoice,
+    FlightRules,
     AltitudeOption,
     ChartLayer,
     ChartSheet,
@@ -87,6 +88,10 @@ class PlanQuery:
     #: The pilot will have a Class B clearance: its shelves are no
     #: ceiling, and the route is planned through it (vfr.altitude).
     class_b_clearance: bool = False
+    #: The flight rules: "ifr" plans it under IFR -- 14 CFR 91.177's
+    #: minimum altitudes, 91.179's by direction of flight, 91.167's
+    #: reserve (vfr.ifr) -- where "vfr", the default, plans it as before.
+    rules: FlightRules = "vfr"
     #: Points' own altitudes, feet above sea level: "VPBNG:4500,KMSN:1900".
     #: A waypoint's is flown to it, the hop into it at that altitude (where
     #: a pilot crosses it); an airport's is its pattern, which a flight
@@ -107,11 +112,13 @@ class PlanQuery:
     def own_altitudes(self) -> dict[str, float]:
         """`altitudes` by ident; a 422 for one that is not "IDENT:FEET",
         or not a VFR altitude: under 18,000 ft MSL, the floor of Class A
-        (14 CFR 71.33), where no flight is VFR (14 CFR 91.135)."""
+        (14 CFR 71.33), where no flight is VFR (14 CFR 91.135). Under IFR,
+        up to FL410, the highest 91.179(b)(4) names."""
+        top = 41_000 if self.rules == "ifr" else 17_999
         out = {}
         for part in filter(None, (p.strip() for p in self.altitudes.split(","))):
             ident, _, feet = part.partition(":")
-            if not POINT_ALTITUDE.fullmatch(part) or not 0 < float(feet) < 18_000:
+            if not POINT_ALTITUDE.fullmatch(part) or not 0 < float(feet) <= top:
                 raise HTTPException(422, f"{part!r} is not a point's altitude: an ident and feet, as VPBNG:4500.")
             out[ident.upper()] = float(feet)
         return out
@@ -208,7 +215,7 @@ class NoWinds:
 
 def resolve_altitude(
     r, fix_list: list, profile: dict, aircraft: str, altitude_ft: float | None, choice: AltitudeChoice,
-    fcst_hr: str = "06", window: tuple | None = None, class_b_cleared: bool = False,
+    fcst_hr: str = "06", window: tuple | None = None, class_b_cleared: bool = False, rules: str = "vfr",
 ) -> Flown | Unflyable | NoWinds:
     """What the log flies, decided once for /api/plan and /api/navlog
     alike. It used to be a 4-tuple (selection, options, plan, failure)
@@ -222,7 +229,7 @@ def resolve_altitude(
     The four plans are made beside a pilot's own altitude as well, as
     what the planner would have flown."""
     selection = cruise_altitude(r.start, r.end, profile, aircraft, fixes=_fixes(fix_list), fcst_hr=fcst_hr, window=window,
-                                class_b_cleared=class_b_cleared)
+                                class_b_cleared=class_b_cleared, rules=rules)
     try:
         plans = altitude_plans(fix_list, selection, profile, aircraft, fcst_hr, departure_elevation(r))
         failure = None
@@ -291,7 +298,7 @@ def resolve_run(run: HopRun, profile: dict, q: "PlanQuery") -> "Flown | Unflyabl
     own = None if run.hop.lands else q.own_altitudes().get(run.hop.dest_ident)
     return resolve_altitude(
         run.hop, run.fixes, profile, q.aircraft, q.altitude_ft if own is None else own, q.altitude_choice,
-        run.fcst_hr, run.window, q.class_b_clearance,
+        run.fcst_hr, run.window, q.class_b_clearance, q.rules,
     )
 
 
@@ -421,7 +428,7 @@ def _where(ident: str) -> str | None:
     return places.describe(fix["lat"], fix["lon"]) if fix else None
 
 
-def totals_of(r: Route, runs: list[HopRun], outcome: "Flown", profile: dict) -> dict:
+def totals_of(r: Route, runs: list[HopRun], outcome: "Flown", profile: dict, rules: str = "vfr") -> dict:
     """The trip's totals: each flight's own, from one landing to the next
     through any waypoints (Route.flights), with its fuel check, joined
     (app.planning.route_totals)."""
@@ -429,7 +436,7 @@ def totals_of(r: Route, runs: list[HopRun], outcome: "Flown", profile: dict) -> 
     for flight in r.flights:
         hops = len(flight.idents) - 1
         legs = [leg for legs in outcome.hop_legs[at:at + hops] for leg in legs]
-        per_flight.append(flight_totals(legs, profile, flight, runs[at].depart))
+        per_flight.append(flight_totals(legs, profile, flight, runs[at].depart, rules))
         at += hops
     return route_totals(per_flight, r.flights)
 
@@ -468,7 +475,8 @@ def _running_stages(run: HopRun, q: "PlanQuery") -> list:
 
 def _waiting_on(run: HopRun, q: "PlanQuery") -> str:
     return altitude_waiting_on(
-        run.hop.start, run.hop.end, q.aircraft, _fixes(run.fixes), run.fcst_hr, run.window, q.class_b_clearance)
+        run.hop.start, run.hop.end, q.aircraft, _fixes(run.fixes), run.fcst_hr, run.window, q.class_b_clearance,
+        q.rules)
 
 
 def _chart_info() -> dict:
@@ -672,7 +680,7 @@ def plan(q: Annotated[PlanQuery, Depends()]) -> Plan:
         candidates=scored,
         selected=selected,
         legs=leg_list,
-        totals=totals_of(r, runs, outcome, profile),
+        totals=totals_of(r, runs, outcome, profile, q.rules),
         altitude_ft=outcome.altitude_ft,
         altitude_selection=outcome.selection,
         altitude_options=outcome.options,
@@ -707,7 +715,7 @@ def local_flight(q: Annotated[PlanQuery, Depends()], duration_min: LocalMinutes 
         night = sun.is_night(*r.start, depart) or sun.is_night(*r.start, depart + timedelta(minutes=duration_min))
     return Totals(
         distance_nm=0.0, ete_min=duration_min, fuel_gal=fuel, unflyable_legs=0, legs_without_wind=0,
-        **navlog.fuel_plan(fuel, profile, night),
+        **navlog.fuel_plan(fuel, profile, night, q.rules),
     )
 
 
@@ -824,6 +832,6 @@ def navlog_stream(q: Annotated[PlanQuery, Depends()]) -> StreamingResponse:
         for leg in flown_legs(r, runs, outcome, own):
             yield line(NavLogLeg.model_validate(leg))
 
-        yield line(NavLogDone(totals=totals_of(r, runs, outcome, profile)))
+        yield line(NavLogDone(totals=totals_of(r, runs, outcome, profile, q.rules)))
 
     return ndjson(lines(), NavLogError)

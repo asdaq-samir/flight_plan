@@ -70,6 +70,8 @@ export interface VerdictInput {
     marginGal: number | null;
     requiredGal: number | null;
     reserveMin: number | null;
+    /** Under IFR: the reserve is 14 CFR 91.167's, not 91.151's. */
+    ifr?: boolean;
   };
   runways: {
     pending: boolean;
@@ -137,7 +139,7 @@ export function verdictItems(input: VerdictInput): VerdictItem[] {
     key: "fuel", label: "Fuel", tab: "navlog",
     ...(fuel.pending ? { finding: "pending", detail: "Working out the fuel…" }
       : fuel.marginGal != null && fuel.marginGal < 0
-        ? { finding: "stop", detail: `${one(-fuel.marginGal)} gal short of the fuel and its ${fuel.reserveMin ?? 30} min reserve (14 CFR 91.151)` }
+        ? { finding: "stop", detail: `${one(-fuel.marginGal)} gal short of the fuel and its ${fuel.reserveMin ?? 30} min reserve (14 CFR ${fuel.ifr ? "91.167" : "91.151"})` }
         : fuel.marginGal == null
           ? { finding: "unknown", detail: fuel.requiredGal != null ? `${one(fuel.requiredGal)} gal needed; the tanks' usable fuel not known` : "Not worked out" }
           : { finding: "ok", detail: `Needs ${one(fuel.requiredGal ?? 0)} gal with taxi and a ${fuel.reserveMin ?? 30} min reserve; ${one(fuel.marginGal)} gal spare` }),

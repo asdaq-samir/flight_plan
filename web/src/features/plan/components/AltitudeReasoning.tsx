@@ -66,6 +66,9 @@ function limit(ft: number | null | undefined, ref: string | null | undefined): s
 
 export default function AltitudeReasoning({ nav, legs }: Props) {
   const s = nav.altitude_selection;
+  // Under IFR the floor, the ceiling and the rule are IFR's (the
+  // planner's vfr.ifr): said in their words below.
+  const ifr = s.rules === "ifr";
   const [open, setOpen] = useState<string[]>([]);
   const printing = usePrinting();
 
@@ -149,8 +152,57 @@ export default function AltitudeReasoning({ nav, legs }: Props) {
   // reached folds under it (the stock accordion), so the steps read in a
   // glance and a pilot opens the one they doubt. They were paragraphs of
   // seven to fifteen lines each. On paper every step is open.
-  const steps: { key: string; head: ReactNode; body: ReactNode }[] = [
+  // The highest obstacle a leg's IFR floor rests on, and whether any leg
+  // is over a mountainous area (14 CFR Part 95).
+  const highest = s.segments.reduce<AltitudeSegment | null>(
+    (top, seg) => (seg.highest_ft != null && (top === null || (seg.highest_ft ?? 0) > (top.highest_ft ?? 0)) ? seg : top), null);
+  const ifrSteps: { key: string; head: ReactNode; body: ReactNode }[] = [
     {
+      key: "floor",
+      head: <>Minimum IFR altitude {altFt(s.floor_ft)} ft</>,
+      body: (
+        <>
+          1,000 ft above the highest obstacle within 4 nm of the course, 2,000 ft over a mountainous area the FAA
+          designates (14 CFR 91.177(a)(2), Part 95){s.mountainous ? ", as part of this route is" : ""}, rounded up to
+          the next 100 ft: the ground from USGS heights, and the FAA&apos;s obstacle file.
+          {highest && ` The highest, ${altFt(highest.highest_ft ?? 0)} ft, is ${highest.highest_is_obstacle ? "a charted obstacle" : "the ground"} from ${highest.from_nm} to ${highest.to_nm} nm.`}
+          {" "}Worked out leg by leg, so a leg over lower ground may fly lower. The route is planned direct: on an
+          airway, its published MEA governs (91.177(a)(1)).
+        </>
+      ),
+    },
+    {
+      key: "ceiling",
+      head: <>Ceiling {s.band_ceiling_ft !== null ? `${altFt(s.band_ceiling_ft)} ft` : "none"}</>,
+      body: (
+        <>
+          {ceilingToday != null && Math.abs(ceilingToday - bookCeiling) >= 100
+            ? `The ${nav.aircraft.name.toUpperCase()}'s service ceiling, ${altFt(bookCeiling)} ft density altitude, which is ${altFt(ceilingToday)} ft in the forecast temperatures. `
+            : `The ${nav.aircraft.name.toUpperCase()}'s service ceiling of ${altFt(bookCeiling)} ft. `}
+          Under IFR no Class B shelf, cloud or Class A caps it: the clearance takes the flight into each.
+        </>
+      ),
+    },
+    {
+      key: "rule",
+      head: <>{s.eastbound ? "Eastbound: odd" : "Westbound: even"} thousands (14 CFR 91.179)</>,
+      body: (
+        <>
+          {`A magnetic course of ${deg(s.course_magnetic_deg)} is ${s.eastbound ? "eastbound (000–179°)" : "westbound (180–359°)"}. `}
+          ATC assigns the altitude in controlled airspace (91.179(a)), by this same direction of flight (FAA Order JO
+          7110.65, 4-5-2); in uncontrolled airspace it is the rule (91.179(b)).{" "}
+          {s.candidates_ft.length > 0
+            ? `Legal for the whole route: ${s.candidates_ft.map(a => altFt(a)).join(", ")} ft`
+            : "No one altitude is legal for the whole route"}
+          {otherHalf.length > 0 &&
+            `. ${otherHalf.length === 1 ? "One leg flies" : `${otherHalf.length} legs fly`} a magnetic course in the other half and ${otherHalf.length === 1 ? "is" : "are"} rounded to its altitudes`}
+          .
+        </>
+      ),
+    },
+  ];
+  const steps: { key: string; head: ReactNode; body: ReactNode }[] = [
+    ...(ifr ? ifrSteps : [{
       key: "floor",
       head: <>Floor {altFt(s.floor_ft)} ft</>,
       body: (
@@ -209,7 +261,7 @@ export default function AltitudeReasoning({ nav, legs }: Props) {
             : "."}
         </>
       ),
-    },
+    }]),
     nav.options.length > 0 ? {
       key: "plans",
       head: (
@@ -264,10 +316,10 @@ export default function AltitudeReasoning({ nav, legs }: Props) {
       body: (
         <>
           {s.weather_unavailable.includes("ceiling_visibility")
-            ? "The forecast ceiling and visibility could not be checked, so no altitude is kept under the clouds. "
+            ? `The forecast ceiling and visibility could not be checked${ifr ? ". " : ", so no altitude is kept under the clouds. "}`
             : `Forecast for the flight, its temporary changes included: ceiling ${
               s.min_ceiling_ft === null ? "none" : `${altFt(s.min_ceiling_ft)} ft`}, visibility ${s.min_visibility_sm ?? "—"} sm${
-              s.low_ceiling_or_visibility ? ", below VFR minimums (1,000 ft, 3 sm) somewhere on the way" : ""
+              s.low_ceiling_or_visibility && !ifr ? ", below VFR minimums (1,000 ft, 3 sm) somewhere on the way" : ""
             }. `}
           {hazards.charAt(0).toUpperCase() + hazards.slice(1)}. {freezing}
         </>

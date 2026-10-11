@@ -29,6 +29,8 @@ describe("the risk assessment", () => {
   test("what makes the flight unlawful is high whatever the points", () => {
     expect(assess({ ...QUIET, ticked: { alcohol: true } })).toMatchObject({ score: 0, level: "high" });
     expect(assess({ ...QUIET, fuelMarginGal: -0.5 }).level).toBe("high");
+    expect(assess({ ...QUIET, fuelMarginGal: -0.5 }).factors[0]!.why).toBe("91.151");
+    expect(assess({ ...QUIET, fuelMarginGal: -0.5, ifr: true }).factors[0]!.why).toBe("91.167");
     expect(assess({ ...QUIET, currency: { ...CURRENT, flightReviewUntil: "2026-09-30" } }).level).toBe("high");
   });
 

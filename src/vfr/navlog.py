@@ -13,7 +13,7 @@ don't carry one). Magnetic heading is as far as this goes for now.
 import math
 from itertools import accumulate, pairwise
 
-from . import performance
+from . import ifr, performance
 from .geo import bearing_deg, destination_point, distance_nm
 from .magnetic import magnetic_variation_deg
 from .weather import temperature_at_altitude, wind_at_altitude
@@ -193,14 +193,17 @@ NIGHT_RESERVE_MIN = 45.0
 DEFAULT_TAXI_FUEL_GAL = 1.4
 
 
-def fuel_plan(total_fuel_gal: float | None, aircraft_profile: dict, night: bool | None) -> dict:
+def fuel_plan(total_fuel_gal: float | None, aircraft_profile: dict, night: bool | None, rules: str = "vfr") -> dict:
     """The fuel the flight needs -- the start, taxi and takeoff allowance,
     the legs' own total, and the VFR reserve at the profile's cruise burn
     -- against the profile's usable fuel when it has one. `night` None
     means no departure time was given, so the day reserve is assumed and
     said so. Every figure None that cannot be known: no total while a leg
-    is unflyable, no margin without a usable-fuel figure."""
-    reserve_min = NIGHT_RESERVE_MIN if night else DAY_RESERVE_MIN
+    is unflyable, no margin without a usable-fuel figure. Under IFR
+    (`rules` "ifr") the reserve is 14 CFR 91.167(a)(3)'s 45 minutes, day
+    or night (vfr.ifr.RESERVE_MIN); the leg to an alternate, where 91.169
+    asks for one, comes with the alternate."""
+    reserve_min = ifr.RESERVE_MIN if rules == "ifr" else NIGHT_RESERVE_MIN if night else DAY_RESERVE_MIN
     reserve_gal = round(reserve_min / 60 * aircraft_profile["fuel_burn_gph"], 2)
     taxi_gal = aircraft_profile.get("taxi_fuel_gal", DEFAULT_TAXI_FUEL_GAL)
     required = None if total_fuel_gal is None else round(total_fuel_gal + taxi_gal + reserve_gal, 1)
@@ -214,6 +217,7 @@ def fuel_plan(total_fuel_gal: float | None, aircraft_profile: dict, night: bool 
         "usable_fuel_gal": usable,
         "fuel_margin_gal": margin,
         "night": night,
+        "rules": rules,
     }
 
 

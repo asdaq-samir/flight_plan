@@ -206,7 +206,7 @@ export const api = {
   async *navlog(
     dep: string, dest: string, altitudeFt?: string, aircraft?: AircraftChoice, altitudeChoice?: AltitudeChoice,
     depart?: string, signal?: AbortSignal, stops?: string[], classBClearance?: boolean, altitudes?: string,
-    checkpoints = true,
+    checkpoints = true, rules: "vfr" | "ifr" = "vfr",
   ): AsyncGenerator<NavLogMessage> {
     const result = await planner.GET("/api/navlog", {
       params: {
@@ -225,6 +225,8 @@ export const api = {
           class_b_clearance: classBClearance || undefined,
           altitudes: altitudes || undefined,
           checkpoints: checkpoints ? undefined : false,
+          // Under IFR (the planner's vfr.ifr); VFR, the default, unsaid.
+          rules: rules === "ifr" ? rules : undefined,
         },
       },
       parseAs: "stream", signal,
@@ -259,7 +261,7 @@ export const api = {
   /** A flight from one airport back to it, with no stops -- the pattern,
    *  practice approaches: its time aloft at the airplane's burn, and the
    *  fuel check. */
-  localFlight: (ident: string, durationMin: number, aircraft?: AircraftChoice, depart?: string) =>
+  localFlight: (ident: string, durationMin: number, aircraft?: AircraftChoice, depart?: string, rules: "vfr" | "ifr" = "vfr") =>
     planner.GET("/api/local-flight", {
       params: {
         query: {
@@ -267,6 +269,7 @@ export const api = {
           cruise_tas_kt: aircraft?.cruiseTasKt, fuel_burn_gph: aircraft?.fuelBurnGph, usable_fuel_gal: aircraft?.usableFuelGal,
           climb_tas_kt: aircraft?.climbTasKt, climb_fuel_burn_gph: aircraft?.climbFuelBurnGph,
           cruise_power_pct: aircraft?.cruisePowerPct, depart: depart || undefined,
+          rules: rules === "ifr" ? rules : undefined,
         },
       },
     }).then(data<Totals>),

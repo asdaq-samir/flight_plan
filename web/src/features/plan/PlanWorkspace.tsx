@@ -177,6 +177,9 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const remembered = usePreferences(p => p.aircraft);
   const showWaypoints = usePreferences(p => p.waypoints);
   const setAircraft = usePreferences(p => p.setAircraft);
+  // VFR or IFR, kept from flight to flight (the altitude's popover).
+  const flightRules = usePreferences(p => p.flightRules);
+  const setFlightRules = usePreferences(p => p.setFlightRules);
 
   // The stock profiles, plus a signed-in pilot's own airplanes on top
   // of them -- the same ["pilot"]/["aircraft"] queries the pilot
@@ -200,7 +203,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const aircraft = aircraftOptions.find(o => aircraftKey(o) === aircraftKey(remembered)) ?? remembered;
   const s = usePlan({
     dep: planned.dep, dest: planned.dest, stops: planned.stops, altitudeFt, altitudeChoice, depart, aircraft, load, classBClearance,
-    altitudes, localMin,
+    altitudes, localMin, rules: flightRules,
     // Checkpoints as the map shows them: the settings' Waypoints off, the
     // nav log runs from point to point, at the pilot's ask.
     checkpoints: showWaypoints,
@@ -585,7 +588,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     if (from) {
       const plan = {
         dep: from, dest: to.ident, stops: [], altitudeFt: "", altitudeChoice: "fastest" as const, depart, aircraft, load: load + 1,
-        checkpoints: showWaypoints,
+        checkpoints: showWaypoints, rules: flightRules,
       };
       void queryClient.prefetchQuery(courseQuery(from, to.ident));
       if (showWaypoints) void queryClient.prefetchQuery(checkpointsQuery(from, to.ident));
@@ -613,7 +616,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       if (panel !== "full") setPanel("half");
       setSearchParams(next, { replace: true, flushSync: true });
     });
-  }, [fromFor, depart, panel, setSearchParams, setPanel, showWaypoints, aircraft, load]);
+  }, [fromFor, depart, panel, setSearchParams, setPanel, showWaypoints, aircraft, load, flightRules]);
 
   const submit = useCallback(() => {
     const route = routeOf(dep, dest, planned.stops);
@@ -1154,12 +1157,13 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           tight={unflyable ? null : tightLeg}
           classB={!unflyable && classBClearance ? () => acceptClassB(false) : null}
           alt={alt} onAltChange={setAlt} onSubmit={submit} disabled={!routed}
+          rules={flightRules} onRulesChange={setFlightRules}
         />
       )}
       depart={depart} onDepartChange={changeDepart}
     />
   ), [aircraftValue, aircraftChoices, changeAircraft, s.local, s.nav, s.legs, changeAltitudeChoice, unflyable, acceptClassB, tightLeg,
-    classBClearance, alt, setAlt, submit, routed, depart, changeDepart]);
+    classBClearance, alt, setAlt, submit, routed, depart, changeDepart, flightRules, setFlightRules]);
 
   // Saving the flight, the narrative and Print.
   // The route's airports' airspace classes, as the course came with them:

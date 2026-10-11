@@ -276,3 +276,55 @@ def test_nothing_tight_where_nothing_fits_or_the_rule_applies():
     assert tight_cruising_altitude(1850.0, 1900.0, 3600.0) is None   # no hundred between
     assert tight_cruising_altitude(1800.0, None, 3600.0) is None     # no ceiling to be tight under
     assert tight_cruising_altitude(3800.0, 4000.0, 3600.0) is None   # 91.159's altitudes up there
+
+
+# --- Under IFR (vfr.ifr) -------------------------------------------------
+
+@pytest.fixture
+def ifr_floors(sources, monkeypatch):
+    """IFR floors of 3,100 ft over every leg, the first over a mountainous
+    area; and an airspace ceiling that would cap a VFR flight at 3,000."""
+    from vfr import ifr
+
+    def floors(fixes, faa_cache_dir=None):
+        return [ifr.LegFloor(3100.0, 2050.0, False, i == 0) for i in range(len(fixes) - 1)]
+
+    monkeypatch.setattr(ifr, "floor_profile", floors)
+    monkeypatch.setattr(airspace, "airspace_ceiling_profile", lambda start, end, fixes, shp: [3000.0] * (len(fixes) - 1))
+    return sources
+
+
+def test_under_ifr_each_leg_flies_thousands_by_its_own_course_from_its_minimum_ifr_altitude(ifr_floors):
+    result = altitude.select_cruise_altitude(DEP, DEST, PROFILE, fixes=[DEP, DOGLEG, DEST], rules="ifr")
+
+    assert result["rules"] == "ifr"
+    first, second = result["segments"]
+    # 91.179(b): odd thousands on 000-179, even on 180-359, from the floor.
+    assert first["candidates_ft"][:3] == [5000.0, 7000.0, 9000.0]
+    assert second["candidates_ft"][:3] == [4000.0, 6000.0, 8000.0]
+    assert first["mountainous"] is True and first["obstacle_clearance_ft"] == 2000
+    assert second["mountainous"] is False and second["obstacle_clearance_ft"] == 1000
+    assert result["mountainous"] is True
+
+
+def test_under_ifr_no_shelf_cloud_or_class_a_caps_the_altitudes_only_the_service_ceiling(ifr_floors):
+    ifr_floors["cv"] = {"min_ceiling_ft": 2200, "min_visibility_sm": 2.0,
+                        "stations": [_station("KXYZ", 45.5, -90.0, 2200)]}
+    profile = {**PROFILE, "service_ceiling_ft": 25000}
+
+    result = altitude.select_cruise_altitude(DEP, DEST, profile, fixes=[DEP, DEST], rules="ifr")
+
+    (leg,) = result["segments"]
+    assert leg["airspace_ceiling_ft"] is None
+    assert leg["candidates_ft"][0] == 5000.0 and leg["candidates_ft"][-1] == 25000.0
+    assert 19000.0 in leg["candidates_ft"]
+    assert result["recommended_ft"] == 5000.0
+
+
+def test_under_vfr_the_same_route_keeps_its_own_rules(ifr_floors):
+    result = altitude.select_cruise_altitude(DEP, DEST, PROFILE, fixes=[DEP, DEST])
+
+    assert result["rules"] == "vfr" and result["mountainous"] is False
+    (leg,) = result["segments"]
+    assert "mountainous" not in leg
+    assert max(leg["candidates_ft"]) <= 3000.0
