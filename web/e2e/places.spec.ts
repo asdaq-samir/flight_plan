@@ -345,9 +345,18 @@ test("a Favorite's card names it and the map goes to it before the card's answer
   await expect(card(page).getByTestId("place-name")).toHaveText("Hollywood Burbank/Bob Hope Airport KBUR");
   await expect(card(page).getByTestId("fly-here")).toBeDisabled();
   await expect(page.locator("[data-selected-airport]")).toBeInViewport({ timeout: slow(10_000) });
+  // Its own shape already, at the pilot's ask: the tabs and the star in
+  // their places, the star a Favorite's, waiting on the answer.
+  await expect(card(page).getByTestId("place-tab-radio")).toBeVisible();
+  await expect(card(page).getByTestId("place-favorite")).toHaveAttribute("aria-pressed", "true");
+  await expect(card(page).getByTestId("place-favorite")).toBeDisabled();
+  const tabsBefore = (await card(page).getByTestId("place-tab-radio").boundingBox())!;
 
   answer();
   await expect(card(page).getByTestId("fly-here")).toBeEnabled({ timeout: slow(15_000) });
+  await expect(card(page).getByTestId("place-favorite")).toBeEnabled();
+  // And the tabs where they were: nothing grew or moved as it came.
+  expect(Math.abs((await card(page).getByTestId("place-tab-radio").boundingBox())!.y - tabsBefore.y)).toBeLessThan(2);
   // Nothing to measure from: no line under the name, where it said "…".
   await expect(card(page).getByTestId("place-line")).toHaveCount(0);
 });
