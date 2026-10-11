@@ -117,6 +117,17 @@
         "required" : [ "identityToken" ],
         "type" : "object"
       },
+      "Approval" : {
+        "properties" : {
+          "userCode" : {
+            "maxLength" : 20,
+            "minLength" : 0,
+            "type" : "string"
+          }
+        },
+        "required" : [ "userCode" ],
+        "type" : "object"
+      },
       "Capabilities" : {
         "properties" : {
           "access" : {
@@ -308,6 +319,29 @@
           }
         },
         "required" : [ "approachesInWindow", "crossCountryHours", "dayPassengersUntil", "flightReviewOn", "flightReviewUntil", "flights", "holdingInWindow", "instrumentCurrentUntil", "ipcNeededAfter", "ipcOn", "landings", "medicalExpiresOn", "nightHours", "nightPassengersUntil", "totalHours", "trackingInWindow" ],
+        "type" : "object"
+      },
+      "DeviceCode" : {
+        "properties" : {
+          "deviceCode" : {
+            "type" : "string"
+          },
+          "expiresIn" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "interval" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "userCode" : {
+            "type" : "string"
+          },
+          "verificationPath" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "deviceCode", "expiresIn", "interval", "userCode", "verificationPath" ],
         "type" : "object"
       },
       "EndorsementDto" : {
@@ -934,6 +968,34 @@
         "required" : [ "aircraft", "aircraftType", "approaches", "crossCountryHours", "dayLandings", "distanceNm", "dualHours", "flownOn", "holding", "instrumentHours", "longestLegNm", "nightHours", "nightLandings", "remarks", "route", "soloHours", "totalHours", "toweredLandings", "tracking" ],
         "type" : "object"
       },
+      "LogbookImportRequest" : {
+        "properties" : {
+          "entries" : {
+            "items" : {
+              "$ref" : "#/components/schemas/LogbookEntryRequest"
+            },
+            "maxItems" : 5000,
+            "minItems" : 0,
+            "type" : "array"
+          }
+        },
+        "required" : [ "entries" ],
+        "type" : "object"
+      },
+      "LogbookImportResult" : {
+        "properties" : {
+          "added" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "duplicates" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "added", "duplicates" ],
+        "type" : "object"
+      },
       "MagicLinkRequest" : {
         "properties" : {
           "email" : {
@@ -1260,6 +1322,17 @@
         "required" : [ "entitled", "plan", "state", "store", "trialAvailable", "trialDays", "until", "uses" ],
         "type" : "object"
       },
+      "TokenRequest" : {
+        "properties" : {
+          "deviceCode" : {
+            "maxLength" : 100,
+            "minLength" : 0,
+            "type" : "string"
+          }
+        },
+        "required" : [ "deviceCode" ],
+        "type" : "object"
+      },
       "TrackDto" : {
         "properties" : {
           "points" : {
@@ -1388,6 +1461,19 @@
           }
         },
         "required" : [ "checkedOn", "errorDeg", "kind", "place" ],
+        "type" : "object"
+      },
+      "Waiting" : {
+        "properties" : {
+          "interval" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "status" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "interval", "status" ],
         "type" : "object"
       }
     }
@@ -1840,6 +1926,146 @@
         },
         "summary" : "Whether anyone can sign in here",
         "tags" : [ "Auth" ]
+      }
+    },
+    "/api/auth/device" : {
+      "post" : {
+        "description" : "The TV shows `userCode` and the address `verificationPath` on this site, and asks /api/auth/device/token with `deviceCode` every `interval` seconds until a pilot signed in on a phone types the code in. 429 past twenty an hour from one place.",
+        "operationId" : "start",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/DeviceCode"
+                }
+              }
+            },
+            "description" : "OK"
+          },
+          "429" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "type" : "object"
+                }
+              }
+            },
+            "description" : "Too many codes asked for from here"
+          }
+        },
+        "summary" : "A code for a TV to sign in with",
+        "tags" : [ "device-sign-in-controller" ]
+      }
+    },
+    "/api/auth/device/approve" : {
+      "post" : {
+        "description" : "From the phone, signed in. 404 for a code no TV is showing now (mistyped, used or ten minutes old); 429 past ten tries in ten minutes.",
+        "operationId" : "approve",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/Approval"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "204" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "type" : "object"
+                }
+              }
+            },
+            "description" : "The TV will be signed in at its next ask"
+          },
+          "401" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "type" : "object"
+                }
+              }
+            },
+            "description" : "Not signed in on this phone"
+          },
+          "404" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "type" : "object"
+                }
+              }
+            },
+            "description" : "No TV is showing that code now"
+          },
+          "429" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "type" : "object"
+                }
+              }
+            },
+            "description" : "Too many tries"
+          }
+        },
+        "summary" : "Sign in the TV showing this code as the pilot signed in here",
+        "tags" : [ "device-sign-in-controller" ]
+      }
+    },
+    "/api/auth/device/token" : {
+      "post" : {
+        "description" : "202 while not yet; 200 once it has, the TV then signed in on this session, the code spent; 410 for a code ten minutes old or unknown, for which the TV asks for a new one.",
+        "operationId" : "token",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/TokenRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SignedIn"
+                }
+              }
+            },
+            "description" : "Signed in; `next` is where to go"
+          },
+          "202" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Waiting"
+                }
+              }
+            },
+            "description" : "Not yet; ask again in `interval` seconds"
+          },
+          "410" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "type" : "object"
+                }
+              }
+            },
+            "description" : "The code is spent, too old or unknown"
+          }
+        },
+        "summary" : "The TV asking whether its code has been typed in",
+        "tags" : [ "device-sign-in-controller" ]
       }
     },
     "/api/auth/magic-link" : {
@@ -2298,6 +2524,34 @@
               "*/*" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/CurrencyDto"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "logbook-controller" ]
+      }
+    },
+    "/api/logbook/import" : {
+      "post" : {
+        "operationId" : "importAll",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/LogbookImportRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/LogbookImportResult"
                 }
               }
             },
