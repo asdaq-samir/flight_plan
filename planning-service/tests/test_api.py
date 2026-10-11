@@ -349,3 +349,34 @@ def test_a_chart_tile_no_sheet_covers_is_an_empty_204_kept_as_long_as_a_drawn_on
     # Outside the chart's zooms, and a kind there is none of, are still 404s.
     assert client.get("/api/chart-tile/sec/2/0/0.png").status_code == 404
     assert client.get("/api/chart-tile/wac/4/3/6.png").status_code == 404
+
+
+def test_registry_has_its_own_thread_and_switch(monkeypatch):
+    """The registry download runs off the weather loop, on REGISTRY_REFRESH
+    alone (not the charts' flag), and a failed read is tried again."""
+    from app import main
+
+    calls = []
+    sleeps = []
+
+    def refresh():
+        calls.append(1)
+        if len(calls) == 1:
+            raise OSError("FAA out of reach")
+
+    def stop(seconds):
+        sleeps.append(seconds)
+        if len(sleeps) == 2:
+            monkeypatch.setattr(main, "REGISTRY_REFRESH", False)
+
+    monkeypatch.setattr(main.registry, "refresh", refresh)
+    monkeypatch.setattr(main.time, "sleep", stop)
+    monkeypatch.setattr(main, "REGISTRY_REFRESH", True)
+    monkeypatch.setattr(main.chart_refresh, "AUTO_REFRESH", False)
+    main._keep_registry_current()
+    assert len(calls) == 2  # the failed first read was tried again
+
+    calls.clear()
+    monkeypatch.setattr(main, "REGISTRY_REFRESH", False)
+    main._keep_registry_current()
+    assert calls == []

@@ -163,19 +163,6 @@ def _warm_reference_data() -> None:
         geocode.preload()
     except Exception:  # noqa: BLE001
         log.exception("towns warm-up failed")
-    # And the FAA's aircraft registry (vfr.registry), for a tracked
-    # airplane's card: 73 MB from the FAA and half a minute's read, once a
-    # day; a card before it is in shows no registration. Its own switch
-    # (REGISTRY_REFRESH), not the charts': the server draws no charts
-    # (CHARTS_AUTO_REFRESH=0 there too), and gated on that, it never read
-    # the registry at all. Off on a test stack, which downloads nothing it
-    # need not.
-    if REGISTRY_REFRESH:
-        try:
-            registry.refresh()
-        except Exception:  # noqa: BLE001 -- the next day's check tries again
-            log.exception("aircraft registry not read")
-
     if chart_refresh.AUTO_REFRESH:
         chart_refresh.maybe_refresh()
 
@@ -195,9 +182,6 @@ def _warm_reference_data() -> None:
     # and a check is three page reads. Off with the charts' own refresh
     # (CHARTS_AUTO_REFRESH=0: a test stack).
     last_editions_check = 0.0
-    # 0.0 as above: a startup read that failed is tried again on the first
-    # pass, and after a good one refresh() sees a fresh file and does nothing.
-    last_registry_check = 0.0
     while True:
         if chart_refresh.AUTO_REFRESH and time.time() - last_editions_check >= EDITIONS_CHECK_EVERY_S:
             last_editions_check = time.time()
@@ -213,14 +197,6 @@ def _warm_reference_data() -> None:
                     fixes.preload()
             except Exception:  # noqa: BLE001 -- the FAA's index out of reach: the next check tries again
                 log.warning("FAA editions not checked", exc_info=True)
-        # The aircraft registry, read again once it is a day old (each
-        # check a look at the file's age).
-        if REGISTRY_REFRESH and time.time() - last_registry_check >= EDITIONS_CHECK_EVERY_S:
-            last_registry_check = time.time()
-            try:
-                registry.refresh()
-            except Exception:  # noqa: BLE001 -- the next check tries again; the held copy is served
-                log.warning("aircraft registry not refreshed", exc_info=True)
         time.sleep(WEATHER_REFRESH_S)
         try:
             if weather.in_use():
@@ -233,9 +209,29 @@ def _warm_reference_data() -> None:
             chart_refresh.maybe_refresh()
 
 
+def _keep_registry_current() -> None:
+    """The FAA's aircraft registry (vfr.registry), for a tracked airplane's
+    card: 73 MB from the FAA and half a minute's read, looked at every six
+    hours and downloaded when the file is a day old. A thread of its own, so
+    a slow FAA (the download waits up to five minutes) never holds the
+    weather loop's refresh. A read that failed is tried again on the next
+    pass. Its own switch (REGISTRY_REFRESH), not the charts': the server
+    draws no charts (CHARTS_AUTO_REFRESH=0 there too), and gated on that, it
+    never read the registry at all. Off on a test stack, which downloads
+    nothing it need not."""
+    while REGISTRY_REFRESH:
+        try:
+            registry.refresh()
+        except Exception:  # noqa: BLE001 -- the next check tries again; the held copy is served
+            log.warning("aircraft registry not refreshed", exc_info=True)
+        time.sleep(EDITIONS_CHECK_EVERY_S)
+
+
 @asynccontextmanager
 async def _lifespan(app: FastAPI):
     threading.Thread(target=_warm_reference_data, name="reference-data-warm-up", daemon=True).start()
+    if REGISTRY_REFRESH:
+        threading.Thread(target=_keep_registry_current, name="aircraft-registry", daemon=True).start()
     yield
 
 
