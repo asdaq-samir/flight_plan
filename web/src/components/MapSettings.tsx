@@ -1,4 +1,4 @@
-import { Bell, BellOff, CloudSun, Download, Eye, EyeOff, Map as MapIcon, Plane, Trash2 } from "lucide-react";
+import { Bell, BellOff, CloudSun, Download, Eye, EyeOff, Map as MapIcon, Plane, Trash2, Volume2, VolumeX } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { ListGroup, ListRow } from "./GroupedList";
@@ -6,6 +6,7 @@ import Segmented from "./Segmented";
 import TogglePill from "./TogglePill";
 import { Button } from "./ui/button";
 import { clearOwnTrail, useOwnTrail } from "../lib/map/ownTrail";
+import { say } from "../lib/speech";
 import { keepingAvailable } from "../lib/map/keepRoute";
 import { BASE_CHARTS, usePreferences, type BaseChart, type MapOverlay, type OverlayStrength } from "../lib/preferences";
 import { useShownOverlay } from "../lib/map/useShownOverlay";
@@ -44,6 +45,8 @@ export default function MapSettings() {
   const trailed = useOwnTrail(s => s.path.length > 1);
   const setTraffic = usePreferences(s => s.setTraffic);
   const setAlerts = usePreferences(s => s.setAlerts);
+  const speakAlerts = usePreferences(s => s.speakAlerts);
+  const setSpeakAlerts = usePreferences(s => s.setSpeakAlerts);
   const military = usePreferences(s => s.military);
   const setMilitary = usePreferences(s => s.setMilitary);
   const waypoints = usePreferences(s => s.waypoints);
@@ -136,9 +139,19 @@ export default function MapSettings() {
         <TogglePill pressed={tfrs} onPressedChange={setTfrs} icon={tfrs ? <Eye /> : <EyeOff />} label="Show" testId="tfrs-toggle" />
       </ListRow>
       {/* What is ahead of own ship in the air, over the map (AlertsBanner):
-          on unless turned off. */}
+          on unless turned off; and said aloud (lib/map/speak), off unless
+          turned on. Turned on, it says so: a voice heard then is one the
+          pilot knows to expect, and on an iPhone the tap lets the page
+          speak at all. */}
       <ListRow title="Alerts">
-        <TogglePill pressed={alerts} onPressedChange={setAlerts} icon={alerts ? <Bell /> : <BellOff />} label="In flight" testId="alerts-toggle" />
+        <div className="flex gap-2" role="group" aria-label="Alerts">
+          <TogglePill pressed={alerts} onPressedChange={setAlerts} icon={alerts ? <Bell /> : <BellOff />} label="In flight" testId="alerts-toggle" />
+          <TogglePill
+            pressed={alerts && speakAlerts} disabled={!alerts}
+            onPressedChange={on => { setSpeakAlerts(on); if (on) say("Alerts will be spoken."); }}
+            icon={alerts && speakAlerts ? <Volume2 /> : <VolumeX />} label="Spoken" testId="speak-alerts-toggle"
+          />
+        </div>
       </ListRow>
       {/* The airplanes ADS-B receivers hear about the map (TrafficLayer),
           from adsb.lol: off unless turned on, as it asks a third party

@@ -6,6 +6,7 @@ import { Button } from "./ui/button";
 import { GLASS } from "./mapChrome";
 import { TEXT } from "../lib/text";
 import { acknowledge, alertTitle, alertWhen, alertWhere, useAhead } from "../lib/map/ahead";
+import { useSpokenAlerts } from "../lib/map/speak";
 
 /** A warning's red and a caution's amber, as a cockpit's are. */
 const INK = {
@@ -25,6 +26,8 @@ const INK = {
  */
 export default function AlertsBanner() {
   const ahead = useAhead();
+  // Said aloud too, where the pilot has asked for it.
+  useSpokenAlerts(ahead);
   const [open, setOpen] = useState(false);
   if (!ahead) return null;
   const { alerts, unavailable, failed } = ahead;
