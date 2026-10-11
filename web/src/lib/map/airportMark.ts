@@ -30,13 +30,17 @@ export function airportMarkSvg(space: AirspaceClass | null, weather: string, use
       `<text y="4" text-anchor="middle" font-size="11" font-weight="800" fill="#fff">${use === "military" ? "M" : "R"}</text>` +
       `<circle data-weather="" cx="8" cy="8" r="3.4" fill="${text(weather)}" ${casing} stroke-width="1.4"/>`
     : (() => {
-      const ticks = [[0, -8.5, 0, -12], [8.5, 0, 12, 0], [0, 8.5, 0, 12], [-8.5, 0, -12, 0]]
-        .map(([x1, y1, x2, y2]) => `x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"`);
+      // The four ticks, and the white casing round ticks and ring, each one
+      // path: drawn as eight lines and a circle they were eleven elements a
+      // mark, and the opening map's 131 marks were 1,800 of the page's
+      // 2,000 elements, each restyled at every change of the page's styles
+      // (measured 2026-10-11). The same shapes, strokes and caps.
+      const ticks = "M0 -8.5V-12M8.5 0H12M0 8.5V12M-8.5 0H-12";
+      const ring = "M-8 0a8 8 0 1 0 16 0a8 8 0 1 0 -16 0";
       const filled = space === "B" || space === "C";
       const dashed = space === "D" || space === "E";
-      return ticks.map(t => `<line ${t} ${casing} stroke-width="5"/>`).join("") +
-        `<circle r="8" fill="#fff" ${casing} stroke-width="5"/>` +
-        ticks.map(t => `<line ${t} stroke="${ink}" stroke-width="2.5" stroke-linecap="round"/>`).join("") +
+      return `<path d="${ticks}${ring}" fill="#fff" ${casing} stroke-width="5"/>` +
+        `<path d="${ticks}" fill="none" stroke="${ink}" stroke-width="2.5" stroke-linecap="round"/>` +
         `<circle r="8" fill="${filled ? ink : "#fff"}" stroke="${ink}" stroke-width="${space === "G" ? 1.6 : 2.5}"${dashed ? ` stroke-dasharray="3.1 2"` : ""}/>` +
         `<circle data-weather="" r="3.6" fill="${text(weather)}" ${casing} stroke-width="1.4"/>`;
     })();
