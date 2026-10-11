@@ -486,7 +486,9 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
                 meet. */}
             <div className="-mr-1 flex w-9 shrink-0 flex-col items-center gap-2">
               <CloseButton onClick={onClose} data-testid="place-close" />
-              {place && <FavoriteButton place={place} />}
+              {/* From the first frame, as the tabs are: the card one shape
+                  while its answer comes, at the pilot's ask. */}
+              <FavoriteButton ident={kept?.ident ?? ident} place={place ?? null} />
               {chip}
             </div>
             {diagramOpen === "faa" && place?.airport_diagram_url && (
@@ -543,7 +545,11 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
             />
           </div>
         )}
-        {place && (
+        {/* From the first frame too, its tabs' contents coming with the
+            card's answer, at the pilot's ask: the card was a shorter shape
+            until then, no tabs and no star, and grew into its own as the
+            answer came. Not over a card that could not be had. */}
+        {!(error && !place) && (
           // The stock line tabs, the consoles' (ConsoleTabs): words over a
           // hairline, the chosen one in the tint, a 44-point bar to a
           // finger -- 44 points at any text size.
@@ -557,9 +563,11 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
               // open one tapped again up there, back to half, as the
               // route's tabs do (PanelTabs) -- which one was open read as
               // it is pressed, since Radix picks the tab on the press,
-              // before the click.
+              // before the click. Greyed until the answer comes, as the
+              // star and the actions are: a tap would raise the sheet over
+              // panels with nothing in them yet.
               <TabsTrigger
-                key={t.value} value={t.value} className={LINE_TAB} data-testid={`place-tab-${t.value}`}
+                key={t.value} value={t.value} className={LINE_TAB} disabled={!place} data-testid={`place-tab-${t.value}`}
                 onPointerDown={() => { openWhenPressed.current = tab; }} onKeyDown={() => { openWhenPressed.current = tab; }}
                 onPointerCancel={() => { openWhenPressed.current = null; }} onBlur={() => { openWhenPressed.current = null; }}
                 onClick={() => {
@@ -762,18 +770,21 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
 }
 
 /** The star that adds an airport to Favorites (components/Favorites),
- *  filled while it is one, as Maps' are. */
-function FavoriteButton({ place }: { place: AirportPlace }) {
-  const kept = usePreferences(s => s.favoriteAirports.some(a => a.ident === place.ident));
+ *  filled while it is one, as Maps' are. It is there from the card's first
+ *  frame, as a Favorite or not by the ident asked for, and a tap is kept
+ *  for when the card's answer has the field's name and place to keep. */
+function FavoriteButton({ ident, place }: { ident: string; place: AirportPlace | null }) {
+  const mine = (place?.ident ?? ident).toUpperCase();
+  const kept = usePreferences(s => s.favoriteAirports.some(a => a.ident.toUpperCase() === mine));
   const toggle = usePreferences(s => s.toggleFavoriteAirport);
   return (
     // A round pane of glass, as the gear is.
     <RoundButton
-      label={kept ? "Remove from Favorites" : "Add to Favorites"} aria-pressed={kept}
+      label={kept ? "Remove from Favorites" : "Add to Favorites"} aria-pressed={kept} disabled={!place}
       // Filled in iOS's yellow while it is a favorite, as a starred thing
       // is everywhere on iOS, at the pilot's ask (it was the tint).
       className={cn(kept && "text-[#ffcc00] hover:text-[#ffcc00] dark:text-[#ffd60a] dark:hover:text-[#ffd60a]")}
-      onClick={() => toggle({ ident: place.ident, name: place.name, municipality: place.municipality, lat: place.lat, lon: place.lon })}
+      onClick={() => { if (place) toggle({ ident: place.ident, name: place.name, municipality: place.municipality, lat: place.lat, lon: place.lon }); }}
       data-testid="place-favorite"
     >
       <Star className={cn("size-5", kept && "fill-current")} strokeWidth={2} />

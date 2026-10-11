@@ -141,6 +141,9 @@ test("an airport's card keeps one layout whatever the field: a long name set sma
     await settle(page);
     await expect(card(page).getByTestId("place-call")).toBeVisible({ timeout: slow(15000) });
     await expect(card(page).getByRole("tablist")).toBeVisible();
+    // The answer in: the tabs and tiles are there before it now, the name
+    // set to fit only once the answer's own name is.
+    await expect(card(page).getByTestId("fly-here")).toBeEnabled({ timeout: slow(15000) });
     const [tiles, tabs] = await Promise.all([card(page).getByTestId("fly-here"), card(page).getByRole("tablist")].map(async l => (await l.boundingBox())!));
     const size = await card(page).getByTestId("place-name-fit").evaluate(el => parseFloat(getComputedStyle(el).fontSize));
     return { tiles: Math.round(tiles.y), tabs: Math.round(tabs.y), size };
@@ -345,9 +348,21 @@ test("a Favorite's card names it and the map goes to it before the card's answer
   await expect(card(page).getByTestId("place-name")).toHaveText("Hollywood Burbank/Bob Hope Airport KBUR");
   await expect(card(page).getByTestId("fly-here")).toBeDisabled();
   await expect(page.locator("[data-selected-airport]")).toBeInViewport({ timeout: slow(10_000) });
+  // Its own shape already, at the pilot's ask: the tabs and the star in
+  // their places, the star a Favorite's, waiting on the answer.
+  await expect(card(page).getByTestId("place-tab-radio")).toBeVisible();
+  await expect(card(page).getByTestId("place-favorite")).toHaveAttribute("aria-pressed", "true");
+  await expect(card(page).getByTestId("place-favorite")).toBeDisabled();
+  // The tabs wait too: a tap would raise the sheet over empty panels.
+  await expect(card(page).getByTestId("place-tab-radio")).toBeDisabled();
+  const tabsBefore = (await card(page).getByTestId("place-tab-radio").boundingBox())!;
 
   answer();
   await expect(card(page).getByTestId("fly-here")).toBeEnabled({ timeout: slow(15_000) });
+  await expect(card(page).getByTestId("place-favorite")).toBeEnabled();
+  await expect(card(page).getByTestId("place-tab-radio")).toBeEnabled();
+  // And the tabs where they were: nothing grew or moved as it came.
+  expect(Math.abs((await card(page).getByTestId("place-tab-radio").boundingBox())!.y - tabsBefore.y)).toBeLessThan(2);
   // Nothing to measure from: no line under the name, where it said "…".
   await expect(card(page).getByTestId("place-line")).toHaveCount(0);
 });
@@ -362,6 +377,9 @@ test("an airport's card that could not be had says so, and Try again brings it",
   await page.goto("/app/plan?place=KDLH");
   await settle(page);
   await expect(card(page)).toContainText("Could not be looked up", { timeout: slow(30_000) });
+  // No star and no tabs on a card that could not be had: a greyed star
+  // that never enables would have nothing to say why.
+  await expect(card(page).getByTestId("place-favorite")).toHaveCount(0);
   down = false;
   await card(page).getByTestId("place-retry").click();
   await expect(card(page).getByTestId("place-name")).toHaveText("Duluth International Airport KDLH");

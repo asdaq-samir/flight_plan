@@ -127,6 +127,20 @@ def _warm_reference_data() -> None:
             log.exception("%s warm-up failed", name)
     WARM.set()
 
+    # First after warm, as every airport's card reads them: the fields'
+    # contacts (vfr.faa_data.airport_contact) and frequencies
+    # (airport_frequencies), each read once a cycle -- three and two and a
+    # half seconds the first card after a restart waited on (KRFD's 4.8 s,
+    # 2026-10-10), while the place names and indexes below were read first.
+    try:
+        faa_data.airport_contact("KORD", altitude.DEFAULT_FAA_CACHE_DIR)
+    except Exception:  # noqa: BLE001
+        log.exception("airport contacts warm-up failed")
+    try:
+        faa_data.airport_frequencies("KORD", altitude.DEFAULT_FAA_CACHE_DIR)
+    except Exception:  # noqa: BLE001
+        log.exception("airport frequencies warm-up failed")
+
     # After warm, not before it: the first start downloads the USGS's
     # place names (vfr.places), and nothing waits on them -- a waypoint
     # is only left undescribed until they are in.
@@ -146,18 +160,6 @@ def _warm_reference_data() -> None:
         geocode.preload()
     except Exception:  # noqa: BLE001
         log.exception("towns warm-up failed")
-    # And the fields' contacts (vfr.faa_data.airport_contact), read once a
-    # cycle: two seconds a card would otherwise wait the first time.
-    try:
-        faa_data.airport_contact("KORD", altitude.DEFAULT_FAA_CACHE_DIR)
-    except Exception:  # noqa: BLE001
-        log.exception("airport contacts warm-up failed")
-    # And their frequencies (vfr.faa_data.airport_frequencies), the
-    # same: 2.6 s the first card would wait.
-    try:
-        faa_data.airport_frequencies("KORD", altitude.DEFAULT_FAA_CACHE_DIR)
-    except Exception:  # noqa: BLE001
-        log.exception("airport frequencies warm-up failed")
 
     if chart_refresh.AUTO_REFRESH:
         chart_refresh.maybe_refresh()
