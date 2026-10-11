@@ -1,4 +1,4 @@
-import { useCallback, useContext, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useContext, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { cn } from "cn";
 import { SectionTabsContext } from "./sectionLayout";
 import { TEXT } from "../lib/text";
@@ -106,7 +106,12 @@ export default function SectionTabs({ all, want, children }: {
           </div>
         </div>
       )}
-      {children}
+      {/* What sticks at the top under the pills -- the nav log's
+          headings -- sticks below them (--section-tabs, their bar's 3.25
+          rem: a 32-point pill and its padding), not under them. */}
+      <div className="contents" style={shown !== null ? ({ "--section-tabs": "3.25rem" } as CSSProperties) : undefined}>
+        {children}
+      </div>
     </SectionTabsContext.Provider>
   );
 }
