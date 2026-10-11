@@ -3,7 +3,7 @@ import type { SpeedFieldReport } from "./api/types";
 
 /**
  * How fast the page is on this pilot's device, sent to the server
- * (SpeedController) for the trend in the developer console's Speed tab:
+ * (SpeedController) for the trend in the developer console's Speed page:
  * Google's Core Web Vitals -- LCP, INP, CLS -- and FCP and TTFB, measured
  * by Google's own web-vitals library (web.dev/articles/vitals), with the
  * page, the kind of device and the build.

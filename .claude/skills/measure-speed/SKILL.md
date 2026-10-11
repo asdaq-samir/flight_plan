@@ -14,7 +14,7 @@ Profile before guessing. Every speed claim needs a before number, an after numbe
 - **Keep it quiet:** nothing heavy beside the measurement, such as a chart re-render, an image build or the test suite.
 
 ## Tools
-- **The trend:** the developer console's Speed tab charts pilots' Core Web Vitals (75th percentile, by device) beside the nightly lab run, for 400 days (SpeedController). Look there first for when something got slower and at which commit. The lab is `e2e/speed-lab.spec.ts` (`SPEED_LAB=1`, phone project); run it the same way to compare a change locally.
+- **The trend:** the developer console's Speed page (System, then Speed) charts pilots' Core Web Vitals (75th percentile, by device) beside the nightly lab run, for 400 days (SpeedController). Look there first for when something got slower and at which commit. The lab is `e2e/speed-lab.spec.ts` (`SPEED_LAB=1`, phone project); run it the same way to compare a change locally.
 - **Bundle:**
   - Build into a throwaway directory, never into the `dist` the phone is being served: `docker run --rm -v "$PWD":/repo -w /repo/web node:24-slim npx vite build --outDir /tmp/out`. It prints the chunk table.
   - The first load was 1.12 MB of JavaScript in October 2026. Re-measure after anything that adds an import to `MapPage`, `PlanWorkspace` or what they reach.

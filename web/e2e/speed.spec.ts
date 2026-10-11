@@ -2,7 +2,8 @@ import { test, expect, type Page } from "@playwright/test";
 import { expandConsole, noTips } from "./helpers";
 
 /**
- * The speed trend (SpeedController): the Dev console's Speed tab charts
+ * The speed trend (SpeedController): the Dev console's Speed page, under
+ * System, charts
  * each Core Web Vital from pilots' browsers beside the nightly lab run,
  * and a pilot's browser reports its own as the page is put away, with
  * nothing of the pilot's in it.
@@ -21,13 +22,15 @@ const DAYS = [
   { day: "2026-10-11", source: "lab", metric: "open_app", device: "phone", p50: 1060, p75: 1060, count: 1, version: "2cafd50" },
 ];
 
-test("the Speed tab charts pilots' figures beside the lab's, by device", async ({ page }) => {
+test("the Speed page, under System, charts pilots' figures beside the lab's, by device", async ({ page }) => {
   await page.route(url => url.pathname === "/api/speed", route =>
     route.fulfill({ contentType: "application/json", body: JSON.stringify(DAYS) }));
   await page.goto("/app/dev");
   await page.getByTestId("settings-button").click();
-  await consoleSheet(page).getByRole("tab", { name: "Speed" }).click();
+  await consoleSheet(page).getByRole("tab", { name: "System" }).click();
   await expandConsole(page);
+  await consoleSheet(page).getByRole("button", { name: "Speed" }).click();
+  await expect(consoleSheet(page).getByTestId("console-page").getByRole("heading", { name: "Speed" })).toBeVisible();
 
   const lcp = consoleSheet(page).getByTestId("speed-chart-LCP");
   await expect(lcp).toBeVisible();

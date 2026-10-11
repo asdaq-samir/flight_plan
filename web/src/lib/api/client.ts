@@ -636,7 +636,7 @@ export const api = {
   },
 
   /** The web app's speed, a day at a time (SpeedController): the
-   *  developer's Speed tab. */
+   *  developer's Speed page. */
   speedTrend: (days = 90) => webapp.GET("/api/speed", { params: { query: { days } } }).then(data<SpeedDay[]>),
 
   /** A signed-in pilot's logbook and currency. */

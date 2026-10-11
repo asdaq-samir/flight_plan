@@ -1532,7 +1532,7 @@ jobs:
           EOF
 
       # The night's figures to the deployment's speed trend (SpeedController,
-      # the developer console's Speed tab): Lighthouse's, the speed lab's
+      # the developer console's Speed page, under System): Lighthouse's, the speed lab's
       # and the first load's, with this commit. Only where the deployment is
       # named (the SPEED_URL variable) and its lab token is a secret
       # (SPEED_LAB_TOKEN, the deployment's APP_SPEED_LAB_TOKEN). One request.

@@ -29,12 +29,13 @@ const DAY = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric",
 const dayLabel = (day: string) => DAY.format(new Date(`${day}T00:00:00Z`));
 
 /**
- * The web app's speed over time, in the developer console: each Core Web
- * Vital as pilots' browsers measured it (lib/speed) beside the nightly lab
- * run (ci.yml's Speed trend), and the lab's own timings, against where
- * "good" ends. Kept by the webapp (SpeedController) for 400 days.
+ * The web app's speed over time, a page of the developer console's System
+ * tab (DevPanel): each Core Web Vital as pilots' browsers measured it
+ * (lib/speed) beside the nightly lab run (ci.yml's Speed trend), and the
+ * lab's own timings, against where "good" ends. Kept by the webapp
+ * (SpeedController) for 400 days.
  */
-export default function SpeedTab() {
+export default function SpeedPage() {
   const [device, setDevice] = useState("phone");
   const [span, setSpan] = useState("90");
   const { data, error } = useQuery({
@@ -48,7 +49,7 @@ export default function SpeedTab() {
   );
   return (
     <div className="space-y-6">
-      <ListGroup title="Speed" footer="Pilots' browsers report as they leave a page; the lab run measures every night, as a phone.">
+      <ListGroup footer="Pilots' browsers report as they leave a page; the lab run measures every night, as a phone.">
         <ListRow title="Device">
           <Segmented label="Device" value={device} onChange={setDevice} options={DEVICES} testId="speed-device" />
         </ListRow>

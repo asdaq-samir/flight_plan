@@ -18,7 +18,7 @@ import type { ModelComparisonEntry, Status } from "../../lib/api/types";
 import RatingGuide from "../train/components/RatingGuide";
 import { TEXT } from "../../lib/text";
 import { useRetrain } from "./useRetrain";
-import SpeedTab from "./SpeedTab";
+import SpeedPage from "./SpeedPage";
 import { grouped } from "../../lib/units";
 
 const mae = (n: number) => n.toFixed(4);
@@ -57,8 +57,9 @@ const CHART_KIND_LABELS: Record<string, string> = {
  * it failed, Retrain), then every algorithm compared, the model serving
  * and (a page of its own) the versions before it, and the routes
  * collected. System -- which services answer, then a page each for how
- * fresh the FAA and weather data is, the charts, and the doors into
- * the rest of the stack. All of it from one
+ * fresh the FAA and weather data is, the charts, the planner's recent
+ * errors, the web app's speed over time, and the doors into the rest of
+ * the stack. All of it from one
  * `/api/status` snapshot, refreshed while open. The pilot's page has
  * the same drawer in the same place, holding the pilot's things
  * instead (see PilotPanel).
@@ -95,8 +96,6 @@ export function DevPanel() {
           label: "Performance",
           content: <PerformanceTab status={status} failed={statusFailed} />,
         },
-        // The web app's speed over time (SpeedTab).
-        { value: "speed", label: "Speed", content: <SpeedTab /> },
         {
           value: "system", label: "System",
           content: <SystemTab status={status} failed={statusFailed} onRefresh={refreshAll} refreshing={isFetching} />,
@@ -725,6 +724,9 @@ function SystemTab({ status, failed, onRefresh, refreshing }: {
             </ListGroup>
           ),
         },
+        // The web app's speed over time, under System at the owner's ask
+        // (2026-10-11), where it was a tab of its own.
+        speed: { title: "Speed", content: <SpeedPage /> },
         elsewhere: {
           title: "Elsewhere in the stack",
           content: (
@@ -775,6 +777,7 @@ function SystemTab({ status, failed, onRefresh, refreshing }: {
           <PageRow page="data" title="Reference data" value={status ? `${datasets.length} files` : undefined} />
           <PageRow page="charts" title="Charts" value={status?.charts ? `cycle ${status.charts.cycle}` : undefined} />
           <PageRow page="errors" title="Recent errors" value={status ? (status.recent_errors ?? []).length : undefined} />
+          <PageRow page="speed" title="Speed" />
           <PageRow page="elsewhere" title="Elsewhere in the stack" value={shown.length} />
         </ListGroup>
         {/* The services and the data are probed on a 30-second tick, and

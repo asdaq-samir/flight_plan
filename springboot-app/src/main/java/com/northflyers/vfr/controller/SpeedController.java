@@ -31,7 +31,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * How fast the web app is, kept so the trend can be seen in the developer
- * console's Speed tab (SpeedService, V25). Two sources:
+ * console's Speed page (SpeedService, V25). Two sources:
  *
  * <ul>
  *   <li><b>field</b>, from pilots' browsers (web/src/lib/speed.ts): Google's

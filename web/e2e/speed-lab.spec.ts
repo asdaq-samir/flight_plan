@@ -6,7 +6,7 @@ import { noTips } from "./helpers";
  * The nightly lab run for the speed trend (ci.yml, SpeedController): the
  * same steps a pilot takes, timed the same way every night on the same
  * kind of machine at a phone's speed (CPU 4x slower), so a change that
- * slows the app shows as a step in the developer console's Speed tab with
+ * slows the app shows as a step in the developer console's Speed page with
  * its commit. Each step three times and the median kept: single samples
  * of the same build spread by a fifth (the measure-speed skill).
  *
