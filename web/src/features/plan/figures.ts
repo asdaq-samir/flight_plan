@@ -84,7 +84,7 @@ export function restingSummary(name: string, dest: string, { totals, estimate, l
   if (totals) return `${dest} · ${Math.ceil(totals.distance_nm)} nm · ${totals.ete_min == null ? "—" : enRoute(totals.ete_min)}`;
   if (estimate) {
     const { minutes } = guess(estimate);
-    return `${dest} · ${Math.ceil(estimate.distanceNm)} nm${minutes == null ? "" : ` · ≈${enRoute(minutes)}`}`;
+    return `${dest} · ≈${Math.ceil(estimate.distanceNm)} nm${minutes == null ? "" : ` · ≈${enRoute(minutes)}`}`;
   }
   return dest;
 }

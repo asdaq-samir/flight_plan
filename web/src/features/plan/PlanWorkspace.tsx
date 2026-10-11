@@ -1423,7 +1423,16 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     ),
     // All the way up, the panel's head is the figures alone over the tabs,
     // at the pilot's ask: the route and its chips are the half's.
-    figures: started && flightLine,
+    // The close stays at the corner it is in at half, so the route can be
+    // cleared from the tallest detent too.
+    figures: started && (
+      <div className="flex w-full items-start gap-2">
+        <div className="min-w-0 flex-1">{flightLine}</div>
+        <div className="shrink-0 pt-[var(--corner-line)]">
+          <CloseButton label={hasPoints ? "Clear the route" : "Close"} onClick={clearRoute} data-testid="route-clear" />
+        </div>
+      </div>
+    ),
     console: <PilotPanel />,
     submit,
     loading: s.stage !== null,
