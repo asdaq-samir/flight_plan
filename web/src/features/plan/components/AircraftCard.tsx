@@ -61,7 +61,7 @@ export default function AircraftCard({ onPick, onClose }: {
   const input = useRef<HTMLInputElement>(null);
   const wanted = typed.replace(/\s+/g, "").toUpperCase();
   const searching = wanted.length >= 3;
-  const { data: found, isFetching, isError } = useQuery({
+  const { data: found, isFetching, isError, refetch } = useQuery({
     queryKey: ["trafficFind", asked], queryFn: () => api.trafficFind(asked), enabled: asked.length >= 3, staleTime: 30_000,
     meta: { silent: true },
   });
@@ -113,9 +113,13 @@ export default function AircraftCard({ onPick, onClose }: {
             value={typed} onChange={e => setTyped(e.target.value)}
             onKeyDown={e => {
               if (e.key !== "Enter") return;
-              // The first found, or the search asked now rather than at the pause.
+              // The first found, or the search asked now rather than at the pause,
+              // or asked again when it failed: the name is the same, so setAsked
+              // would change nothing and the pilot would have to edit the text.
               if (listed[0]) onPick(listed[0]);
-              else if (!isFetching) setAsked(wanted);
+              else if (isFetching) return;
+              else if (isError && asked === wanted) void refetch();
+              else setAsked(wanted);
             }}
             placeholder="Callsign, registration or ICAO address" aria-label="Find an aircraft" data-testid="aircraft-search"
             className="min-w-0 flex-1 bg-transparent text-foreground outline-none placeholder:text-muted-foreground [&::-webkit-search-cancel-button]:hidden"
