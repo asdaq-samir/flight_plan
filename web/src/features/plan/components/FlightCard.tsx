@@ -96,7 +96,18 @@ export default function FlightCard({ hex, onClose }: { hex: string; onClose: () 
       </CardHead>
       <div className="space-y-5 pt-4">
         <ListGroup title="Now">
-          {!plane && <ListRow title={<span className="text-muted-foreground">Not heard by a receiver now</span>} />}
+          {/* Not heard now -- on the ground, out of a receiver's reach, or
+              found by its registration: when it was last, from its trace. */}
+          {!plane && (() => {
+            const last = detail?.trail?.at(-1);
+            return (
+              <ListRow
+                data-testid="flight-not-heard"
+                title={<span className="text-muted-foreground">Not heard by a receiver now</span>}
+                description={last ? `Last heard ${clockTime(new Date(last.t * 1000))}${last.alt_ft != null ? ` at ${altFt(Math.round(last.alt_ft / 100) * 100)} ft` : ""}` : undefined}
+              />
+            );
+          })()}
           {plane && (
             <>
               <ListRow

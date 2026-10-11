@@ -390,7 +390,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   }, [selectFlight]);
   const flightCard = flight ? <FlightCard key={flight} hex={flight} onClose={() => selectFlight(null)} /> : null;
   const aircraftCard = aircraftOpen
-    ? <AircraftCard onPick={plane => selectFlight(plane.hex, plane)} onClose={() => showAircraft(false)} /> : null;
+    ? <AircraftCard onPick={plane => selectFlight(plane.hex, plane)} onPickHex={hex => selectFlight(hex)} onClose={() => showAircraft(false)} /> : null;
   const { data: destCard } = useQuery({
     queryKey: ["airport", planned.dest], queryFn: () => api.airport(planned.dest!), enabled: !!planned.dest, staleTime: 5 * 60_000,
     meta: { silent: true },

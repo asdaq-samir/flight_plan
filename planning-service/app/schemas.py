@@ -912,13 +912,6 @@ class Traffic(BaseModel):
     license: str = "ODbL 1.0"
 
 
-class TrafficFound(BaseModel):
-    """The airplanes in the air a pilot named by callsign, registration
-    or ICAO address (vfr.traffic.find)."""
-
-    aircraft: list[TrafficAircraft]
-
-
 class FlightDeparted(BaseModel):
     """The field a flight took off from, and when (Unix seconds)."""
 
@@ -971,6 +964,16 @@ class AircraftRegistration(BaseModel):
     fractional: bool = False
     status: str | None = None
     standing: Literal["valid", "lapsed", "other"] = "other"
+
+
+class TrafficFound(BaseModel):
+    """The airplanes in the air a pilot named by callsign, registration
+    or ICAO address (vfr.traffic.find); and, where none is in the air or
+    heard now, the FAA's record of the one named (vfr.traffic.registered),
+    to open its card all the same."""
+
+    aircraft: list[TrafficAircraft]
+    registered: AircraftRegistration | None = None
 
 
 class FlightDetail(BaseModel):

@@ -288,7 +288,20 @@ const pathStyle = (colour: string) => {
  * and the reports since (lib/map/tracking's `path`).
  */
 function TrackedPath({ hex }: { hex: string }) {
+  const map = useMap();
   const { data } = useQuery(flightQuery(hex));
+  // An airplane not heard now -- landed, or found by its registration --
+  // has no report for the map to follow: the map goes to where its trace
+  // ends, once, clear of the panel.
+  const live = useTracking(s => s.latest?.plane.hex === hex);
+  const shown = useRef(false);
+  useEffect(() => {
+    const end = data?.trail?.at(-1);
+    if (shown.current || live || !end) return;
+    shown.current = true;
+    const zoom = Math.max(map.getZoom(), 9);
+    map.setView(centreClear(map, [end.lat, end.lon], zoom), zoom, { animate: true });
+  }, [data, live, map]);
   const since = useTracking(s => s.path);
   const path = useMemo(() => {
     const trail = (data?.trail ?? []).map(p => ({ t: p.t * 1000, lat: p.lat, lon: p.lon, altFt: p.alt_ft ?? null }));

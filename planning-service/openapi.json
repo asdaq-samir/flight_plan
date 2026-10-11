@@ -8807,7 +8807,7 @@
         "type": "object"
       },
       "TrafficFound": {
-        "description": "The airplanes in the air a pilot named by callsign, registration\nor ICAO address (vfr.traffic.find).",
+        "description": "The airplanes in the air a pilot named by callsign, registration\nor ICAO address (vfr.traffic.find); and, where none is in the air or\nheard now, the FAA's record of the one named (vfr.traffic.registered),\nto open its card all the same.",
         "properties": {
           "aircraft": {
             "items": {
@@ -8815,6 +8815,16 @@
             },
             "title": "Aircraft",
             "type": "array"
+          },
+          "registered": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AircraftRegistration"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -11857,7 +11867,7 @@
     },
     "/api/traffic/find": {
       "get": {
-        "description": "The airplanes in the air a pilot names -- UAL2088, N174HA, a0b7d8 --\nto track one. A 503 where adsb.lol cannot be asked now.",
+        "description": "The airplanes in the air a pilot names -- UAL2088, N174HA, a0b7d8 --\nto track one; with none in the air or heard now, the FAA's record of a\nUS airplane named by its N-number or address, its card opened all the\nsame (`registered`). A 503 where adsb.lol cannot be asked now.",
         "operationId": "traffic_find_api_traffic_find_get",
         "parameters": [
           {
