@@ -8,7 +8,7 @@ import type { Report } from "./tracking";
  *  traffic to look for first. A design choice: 1,000 ft is the vertical
  *  spacing VFR cruising altitudes keep between opposite directions'
  *  (91.159), the nearest another airplane is meant to be passing. */
-export const NEAR_FT = 1000;
+const NEAR_FT = 1000;
 /** A vertical rate this or more gets an arrow by the height, as a TCAS
  *  display draws one (the FAA's Introduction to TCAS II, version 7.1). */
 const ARROW_FPM = 500;
@@ -69,7 +69,7 @@ export function ownShipHex(planes: TrafficAircraft[], fix: Fix | null): string |
 export const CARRY_S = 30;
 /** How far ahead its line reaches, seconds: ForeFlight's TrafficTrend
  *  vector shows where a target will be in the next 60. */
-export const TREND_S = 60;
+const TREND_S = 60;
 
 /** Where an airplane is `seconds` after its report, carried on along its
  *  track at its ground speed, as ForeFlight carries internet traffic on

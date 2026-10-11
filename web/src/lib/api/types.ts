@@ -27,7 +27,6 @@ export type Course = Schemas["Course"];
 export type Detour = Schemas["Detour"];
 /** An altitude the pilot set for a hop and what is wrong with it (the
  *  planner's own_altitude_caution): a warning, not a refusal. */
-export type AltitudeCaution = Schemas["AltitudeCaution"];
 /** One chart kind the map may draw, with its zooms -- and, for an
  *  overlay, its sheets and where each is. */
 export type ChartLayer = Schemas["ChartLayer"];
@@ -35,7 +34,6 @@ export type ChartSheet = Schemas["ChartSheet"];
 /** A scored OSM candidate. `selected` is set by the server's greedy pass. */
 export type Candidate = Schemas["Candidate"];
 export type Checkpoints = Schemas["Checkpoints"];
-export type Wind = Schemas["Wind"];
 /** One dead-reckoning leg. `wind` is null when no winds-aloft station is
  *  near enough, which is not the same as calm; groundspeed/ETE/fuel are
  *  null when the wind exceeds true airspeed and the leg cannot be flown. */
@@ -46,7 +44,6 @@ export type TopOfClimb = Schemas["TopOfClimb"];
 /** Where a leg's descent starts (TOD), to what and at what rate. */
 export type TopOfDescent = Schemas["TopOfDescent"];
 export type Totals = Schemas["Totals"];
-export type Hazard = Schemas["Hazard"];
 export type AltitudeBreakdown = Schemas["AltitudeBreakdown"];
 export type AltitudeSegment = Schemas["AltitudeSegment"];
 /** One of the four plans: lowest, highest, fastest for the winds, and
@@ -62,7 +59,6 @@ export type ShortField = Schemas["ShortField"];
  *  "altitude" the moment that's decided, one "leg" per leg, then "done"
  *  with the totals; "error" for an unflyable route. */
 export type NavLogMessage = Schemas["NavLogMessage"];
-export type Forecast = Schemas["Forecast"];
 export type Runway = Schemas["Runway"];
 export type Frequency = Schemas["Frequency"];
 export type Briefing = Schemas["Briefing"];

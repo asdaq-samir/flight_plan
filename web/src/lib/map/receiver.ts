@@ -57,7 +57,7 @@ export interface HeardReport {
 }
 
 /** Heard within this long, a receiver is connected. */
-export const CONNECTED_MS = 5000;
+const CONNECTED_MS = 5000;
 /** An airplane not reported for this long is dropped. */
 const KEEP_MS = 20_000;
 

@@ -86,7 +86,7 @@ export interface Assessment {
 }
 
 /** What the briefing, the nav log and the logbook raise. */
-export function found(input: FratInput): RiskFactor[] {
+function found(input: FratInput): RiskFactor[] {
   const factors: RiskFactor[] = [];
   if (input.vfrNotRecommended) factors.push({ key: "vnr", label: "VFR flight not recommended", why: "The briefing (AIM 7-1-5)", points: HIGH_FROM });
   if (input.underMinimums.length) factors.push({ key: "minimums", label: "Under your personal minimums", why: input.underMinimums[0], points: HIGH_FROM });

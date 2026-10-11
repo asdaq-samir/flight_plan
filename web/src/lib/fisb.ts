@@ -64,7 +64,7 @@ export function apdu(frame: Uint8Array): Apdu | null {
 }
 
 /** A UAT uplink payload's FIS-B APDUs, frame by frame. */
-export function apdus(payload: Uint8Array): Apdu[] {
+function apdus(payload: Uint8Array): Apdu[] {
   // The header's application data valid bit (byte 6, 0x20): without it
   // no frames follow.
   if (payload.length < 8 || !(payload[6]! & 0x20)) return [];
@@ -96,7 +96,7 @@ export interface TextReport {
 }
 
 /** The text product's records, each a report. */
-export function textReports(data: Uint8Array): TextReport[] {
+function textReports(data: Uint8Array): TextReport[] {
   // The record separator and ETX, DLAC's own characters 29 and 0.
   const ends = new RegExp(`[${DLAC[29]}${DLAC[0]}]`);
   return dlac(data).split(ends).flatMap(record => {

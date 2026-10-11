@@ -29,7 +29,7 @@ export const MAGENTA = "#b02e7c";
  * --airspace-*-ink): the sectional's own blue on its wash, over the glass,
  * was 4.2:1 in the light and 2:1 in the dark, under WCAG's 4.5.
  */
-export const AIRSPACE: Record<Space, { name: string; style: CSSProperties }> = {
+const AIRSPACE: Record<Space, { name: string; style: CSSProperties }> = {
   B: { name: "Class B", style: { backgroundColor: BLUE, color: "#ffffff" } },
   C: { name: "Class C", style: { backgroundColor: MAGENTA, color: "#ffffff" } },
   D: { name: "Class D", style: { outline: `2.5px dashed ${BLUE}`, outlineOffset: -2.5, backgroundColor: `${BLUE}1f`, color: "var(--airspace-blue-ink)" } },

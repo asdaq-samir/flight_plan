@@ -26,7 +26,7 @@ export function stopOf(value: string | null | undefined): string {
 /** A present position as a route's departure, "@42.3246,-88.0741" (the
  *  planner's app.common.position_of): Fly Here's Direct-To from where the
  *  airplane is; or "". */
-export function positionOf(value: string | null | undefined): string {
+function positionOf(value: string | null | undefined): string {
   const point = (value ?? "").trim();
   return /^@-?\d{1,2}(\.\d{1,6})?,-?\d{1,3}(\.\d{1,6})?(,\d{1,5})?$/.test(point) ? point : "";
 }
