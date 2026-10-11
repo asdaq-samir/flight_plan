@@ -89,3 +89,20 @@ test("a saved Google overlay where there is no key is off, with no Strength row 
   await expect(page.getByTestId("overlay-strength")).toHaveCount(0);
   await expect(page.getByTestId("google-overlay-select")).toHaveCount(0);
 });
+
+test("Google's session refused says so in the settings; a kept session of another key is not reused", async ({ page }) => {
+  const asked = await servers(page, "AIza-new");
+  await page.addInitScript(() => {
+    localStorage.setItem("vfr.googleSession.map", JSON.stringify({ session: "old-session", expiry: Math.round(Date.now() / 1000) + 14 * 86400, key: "AIza-old" }));
+  });
+  await page.goto("/app/plan");
+  await settle(page);
+  await openMapSettings(page);
+  await page.getByTestId("overlay-select").getByRole("radio", { name: "Google" }).click();
+  await expect.poll(() => asked.some(u => u.includes("/v1/createSession?key=AIza-new")), { timeout: slow(15000) }).toBe(true);
+  expect(asked.some(u => u.includes("session=old-session"))).toBe(false);
+  // The key refused for the satellite: the settings say so, beside the choice.
+  await page.route(url => url.hostname === "tile.googleapis.com", route => route.fulfill({ status: 403, json: {} }));
+  await page.getByTestId("google-overlay-select").getByRole("radio", { name: "Satellite" }).click();
+  await expect(page.getByTestId("google-problem")).toBeVisible({ timeout: slow(30000) });
+});

@@ -9,6 +9,9 @@ import { clearOwnTrail, useOwnTrail } from "../lib/map/ownTrail";
 import { keepingAvailable } from "../lib/map/keepRoute";
 import { BASE_CHARTS, usePreferences, type BaseChart, type MapOverlay, type OverlayStrength } from "../lib/preferences";
 import { useShownOverlay } from "../lib/map/useShownOverlay";
+import { useGoogleSession } from "../lib/map/googleSession";
+import { cn } from "../lib/utils";
+import { TEXT } from "../lib/text";
 import { chartQuery, googleMapsQuery } from "../lib/queryClient";
 
 /** "09-03-2026", the FAA's cycle as the chart server names it, as "3 Sep
@@ -52,6 +55,7 @@ export default function MapSettings() {
   const setStrength = usePreferences(s => s.setOverlayStrength);
   // Google's only where the deployment has a key for it.
   const { data: google } = useQuery(googleMapsQuery);
+  const googleSession = useGoogleSession(overlay === "google-satellite" ? "satellite" : "map", overlay.startsWith("google"));
   const keepOffline = usePreferences(s => s.keepOffline);
   const setKeepOffline = usePreferences(s => s.setKeepOffline);
   const available = keepingAvailable();
@@ -89,6 +93,13 @@ export default function MapSettings() {
             options={[{ value: "google-map", label: "Map" }, { value: "google-satellite", label: "Satellite" }]}
           />
         </ListRow>
+      )}
+      {overlay.startsWith("google") && googleSession.isError && (
+        // Where it happens: a key restricted to another site, the Map Tiles
+        // API off or no quota leave Google's map blank otherwise.
+        <p role="alert" className={cn("px-4 text-destructive-ink", TEXT.note)} data-testid="google-problem">
+          Google's map didn't load. Check that this site and the Map Tiles API are allowed for the key.
+        </p>
       )}
       {overlay !== "none" && (
         <ListRow title="Strength">

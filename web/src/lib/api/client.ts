@@ -439,12 +439,12 @@ export const api = {
   trafficFlight: (hex: string) =>
     planner.GET("/api/traffic/flight/{hex_id}", { params: { path: { hex_id: hex } } }).then(data<FlightDetail>),
 
-  /** The route a flight number is scheduled to fly, and whether the
-   *  airplane where it is now is on it; null for none known. */
   /** The deployment's key for Google's map tiles; a 404 where it has
    *  none (OverlayTiles). */
   googleMaps: () => planner.GET("/api/map/google").then(data<GoogleMaps>),
 
+  /** The route a flight number is scheduled to fly, and whether the
+   *  airplane where it is now is on it; null for none known. */
   trafficRoute: (ask: { callsign: string; lat?: number; lon?: number }) =>
     planner.GET("/api/traffic/route", { params: { query: ask } }).then(data<FlightRoute | null>),
 

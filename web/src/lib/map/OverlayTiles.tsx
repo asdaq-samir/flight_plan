@@ -1,9 +1,10 @@
 import L from "leaflet";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { TileLayer, useMap, useMapEvents } from "react-leaflet";
 import { googleMapsQuery } from "../queryClient";
+import { TileLayer, useMap, useMapEvents } from "react-leaflet";
 import { usePreferences, type MapOverlay, type OverlayStrength } from "../preferences";
+import { GOOGLE, useGoogleSession } from "./googleSession";
 import { useShownOverlay } from "./useShownOverlay";
 
 /** Above the base chart (1) and the terminal sheet (5, ChartTiles): a
@@ -19,42 +20,6 @@ const OPACITY: Record<OverlayStrength, number> = { faint: 0.35, half: 0.6, full:
  *  chart's upscaling past it. */
 const USGS_URL = "https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryOnly/MapServer/tile/{z}/{y}/{x}";
 const USGS_CREDIT = 'Imagery <a href="https://www.usgs.gov/programs/national-geospatial-program/national-map" target="_blank" rel="noopener">USGS The National Map</a>';
-
-/** Google's Map Tiles API: a session for a kind of map, then its tiles. */
-const GOOGLE = "https://tile.googleapis.com";
-
-interface Session { session: string; expiry: number }
-
-/**
- * A Google map session for a kind of map, kept in the browser until a day
- * before it runs out (two weeks, Google says): a session's tiles are one
- * set, asked for once rather than with every page. The satellite's has
- * Google's roads and names over it, as its Satellite view does.
- */
-async function googleSession(key: string, kind: "map" | "satellite"): Promise<Session> {
-  const kept = `vfr.googleSession.${kind}`;
-  try {
-    const held = JSON.parse(localStorage.getItem(kept) ?? "null") as Session | null;
-    if (held && held.expiry * 1000 - Date.now() > 24 * 3600_000) return held;
-  } catch {
-    // No storage: a new session.
-  }
-  const resp = await fetch(`${GOOGLE}/v1/createSession?key=${encodeURIComponent(key)}`, {
-    method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(kind === "map"
-      ? { mapType: "roadmap", language: "en-US", region: "US", imageFormat: "png" }
-      : { mapType: "satellite", language: "en-US", region: "US", layerTypes: ["layerRoadmap"] }),
-  });
-  if (!resp.ok) throw new Error(`Google's map session: ${resp.status}`);
-  const answer = await resp.json() as { session: string; expiry: string };
-  const session = { session: answer.session, expiry: Number(answer.expiry) };
-  try {
-    localStorage.setItem(kept, JSON.stringify(session));
-  } catch {
-    // Kept for this page only.
-  }
-  return session;
-}
 
 /**
  * What is drawn over the chart, at the pilot's ask (the map's settings):
@@ -87,10 +52,7 @@ function Usgs({ opacity }: { opacity: number }) {
 function Google({ kind, opacity, overlay }: { kind: "map" | "satellite"; opacity: number; overlay: MapOverlay }) {
   const map = useMap();
   const { data: google } = useQuery(googleMapsQuery);
-  const { data: session } = useQuery({
-    queryKey: ["googleSession", kind], queryFn: () => googleSession(google!.key, kind), enabled: !!google,
-    staleTime: 24 * 3600_000, meta: { silent: true },
-  });
+  const { data: session } = useGoogleSession(kind);
   // The data's copyright for what is in view, asked again as the view
   // settles (Google's viewport service), and "Google Maps" before it.
   const [copyright, setCopyright] = useState("");
