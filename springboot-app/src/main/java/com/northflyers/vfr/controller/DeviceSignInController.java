@@ -69,7 +69,8 @@ import org.springframework.web.bind.annotation.RestController;
  * link keeps its token's. The user code is eight letters and figures from
  * twenty-eight, no vowels (no word is spelled) and none read as another
  * (no 0, O, 1, I): 28^8, near four hundred billion, against the
- * approvals one pilot may try, ten in ten minutes.
+ * approvals one pilot may try, ten in ten minutes, one place twenty, and
+ * the whole server three hundred.
  */
 @RestController
 @RequestMapping("/api/auth/device")
@@ -103,6 +104,10 @@ public class DeviceSignInController {
     private final Map<String, String> byUser = new ConcurrentHashMap<>();
     private final SlidingWindowLimiter starts = new SlidingWindowLimiter(Duration.ofHours(1));
     private final SlidingWindowLimiter approvals = new SlidingWindowLimiter(Duration.ofMinutes(10));
+    /** Tries at user codes in ten minutes: by pilot, by place, and all together. */
+    static final int TRIES_PER_PILOT = 10;
+    static final int TRIES_PER_PLACE = 20;
+    static final int TRIES_IN_ALL = 300;
     private final SecurityContextRepository securityContextRepository = new HttpSessionSecurityContextRepository();
     // As MagicLinkController: the TV's session before the sign-in is not
     // the one it is signed in on.
@@ -172,13 +177,20 @@ public class DeviceSignInController {
         @ApiResponse(responseCode = "429", description = "Too many tries")
     })
     @PostMapping("/approve")
-    public ResponseEntity<?> approve(@Valid @RequestBody Approval body, Authentication authentication) {
+    public ResponseEntity<?> approve(@Valid @RequestBody Approval body, HttpServletRequest request,
+            Authentication authentication) {
         Optional<Pilot> pilot = pilots.current(authentication);
         if (pilot.isEmpty()) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ErrorResponse("Sign in on this phone first."));
         }
         Instant now = clock.instant();
-        if (!approvals.allow("pilot:" + pilot.get().getId(), 10, now)) {
+        // A pilot account costs an email address, so ten tries each is no
+        // ceiling on a person with many: the place the tries come from and
+        // the server as a whole are capped too. Real pilots approve a
+        // handful of codes an hour.
+        if (!approvals.allow("pilot:" + pilot.get().getEmail(), TRIES_PER_PILOT, now)
+                || !approvals.allow("client:" + SlidingWindowLimiter.clientOf(request), TRIES_PER_PLACE, now)
+                || !approvals.allow("all", TRIES_IN_ALL, now)) {
             return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(new ErrorResponse("Too many tries. Wait a few minutes."));
         }
         String typed = body.userCode().toUpperCase(Locale.ROOT).replaceAll("[^A-Z0-9]", "");
