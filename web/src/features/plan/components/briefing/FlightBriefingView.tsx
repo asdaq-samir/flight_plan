@@ -35,6 +35,8 @@ import { shortName } from "../../../../lib/aircraftChoice";
 import AirportSections from "./AirportSections";
 import BriefVerdict from "./BriefVerdict";
 import PreflightAction from "./PreflightAction";
+import PassengerBriefing from "./PassengerBriefing";
+import { passengerMessage } from "../../../../lib/passengers";
 import WeatherAlongRoute from "./WeatherAlongRoute";
 import AlternateSection from "./AlternateSection";
 import FlightPlanSection from "./FlightPlanSection";
@@ -710,6 +712,18 @@ export default memo(function FlightBriefingView({
           {identOf(dep) && totals && (
             <FlightPlanSection forms={planForms} ifr={ifr} />
           )}
+
+          {/* The passengers' briefing (91.107), and the flight to send them. */}
+          <PassengerBriefing
+            flight={`${landings.join("-")}|${depart}`}
+            message={passengerMessage({
+              dep, dest, destName: briefing?.airports[dest]?.name ?? null,
+              depart: depart ? new Date(depart) : null, eteMin: totals?.ete_min ?? null,
+              weather: briefing?.metars[dest] ? [briefing.metars[dest]!.flight_category,
+                ceilingAndVisibility(briefing.metars[dest]!.ceiling_ft ?? null, briefing.metars[dest]!.visibility_sm ?? null)]
+                .filter(Boolean).join(", ") : null,
+            })}
+          />
 
           {/* The mock oral, the developer's until a CFI has reviewed its
               answers; never on paper. */}

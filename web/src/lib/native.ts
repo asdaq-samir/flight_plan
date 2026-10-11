@@ -62,6 +62,12 @@ export async function nativeShare(title: string, url: string): Promise<void> {
   await Share.share({ title, url });
 }
 
+/** The share sheet with words rather than a link. */
+export async function nativeShareText(title: string, text: string): Promise<void> {
+  const { Share } = await import("@capacitor/share");
+  await Share.share({ title, text });
+}
+
 /**
  * A link to the site tapped elsewhere -- the sign-in link in Mail, a
  * shared route in Messages -- opens the app (iOS's Associated Domains
