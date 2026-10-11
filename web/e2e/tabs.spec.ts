@@ -132,3 +132,14 @@ test("the Airports tab is a section for each field, in the order flown, its patt
   await expect(tower).toContainText("118.3");
   await expect(tower.locator("svg").first()).toBeAttached();
 });
+
+test("a route from the pilot's position has a section for its airports alone, none for the position", async ({ page }) => {
+  await page.goto("/app/plan?dep=%4042.2340%2C-87.9877%2C700&dest=KDLH&view=briefing");
+  await settle(page);
+  await expect(page.getByTestId("navlog-eta")).toBeVisible({ timeout: slow(120000) });
+  const drawer = sideDrawer(page);
+  await openTab(page, "Airports");
+  await expect(drawer.getByRole("heading", { name: "KDLH · Destination" })).toBeVisible();
+  await expect(drawer.getByTestId("airport-section")).toHaveCount(1);
+  await expect(drawer.getByRole("heading", { name: /Departure/ })).toHaveCount(0);
+});
