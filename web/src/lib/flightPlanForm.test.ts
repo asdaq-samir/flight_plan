@@ -43,6 +43,14 @@ describe("the FAA flight plan form, filled in from a plan", () => {
     expect(routeItem([], airway)).toBe("DCT");
   });
 
+  it("a departure procedure first, left at its transition's fix, and an arrival last, joined at its own", () => {
+    // AIM Appendix 4's own example.
+    expect(routeItem(["EIC", "V18", "MEI"], airway, { id: "DALL3", transition: "EIC" }, { id: "LGC4", transition: "MEI" }))
+      .toBe("DALL3 EIC V18 MEI LGC4");
+    expect(routeItem(["XYZ"], airway, { id: "DALL3", transition: "EIC" }, null)).toBe("DALL3 EIC DCT XYZ");
+    expect(routeItem([], airway, { id: "JANNY5", transition: null }, { id: "SADDE8", transition: "GMN" })).toBe("JANNY5 GMN SADDE8");
+  });
+
   it("an IFR flight: the airplane, the time in UTC, the route, the EET, the alternate and the endurance", () => {
     const [form] = flightPlanForms(BASE);
     expect(form!.items.map(f => `${f.item} ${f.value}`)).toEqual([
@@ -69,6 +77,14 @@ describe("the FAA flight plan form, filled in from a plan", () => {
     const [form] = flightPlanForms({ ...BASE, legs: [leg("C81", "BAE", 6000), leg("BAE", "OSH", 8000), leg("OSH", "KATW", 8000)] });
     expect(value(form!, "level")).toBe("A060");
     expect(form!.items.find(f => f.key === "level")!.note).toBe("Then 8,000 ft from BAE, asked of ATC on the way.");
+  });
+
+  it("the procedures picked are filed under IFR alone, and said where they came from", () => {
+    const picked = { departureProcedure: { id: "DALL3", transition: "BAE" }, arrivalProcedure: { id: "LGC4", transition: "OSH" } };
+    const [form] = flightPlanForms({ ...BASE, ...picked });
+    expect(value(form!, "route")).toBe("DALL3 BAE V191 OSH LGC4");
+    expect(form!.items.find(f => f.key === "route")!.note).toBe("DALL3 and LGC4 as picked in the route's Procedures.");
+    expect(value(flightPlanForms({ ...BASE, ...picked, rules: "vfr" })[0]!, "route")).toBe("BAE V191 OSH");
   });
 
   it("a T route says what it asks of the airplane", () => {

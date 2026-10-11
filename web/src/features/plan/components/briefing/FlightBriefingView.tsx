@@ -38,7 +38,7 @@ import PreflightAction from "./PreflightAction";
 import WeatherAlongRoute from "./WeatherAlongRoute";
 import AlternateSection from "./AlternateSection";
 import FlightPlanSection from "./FlightPlanSection";
-import { flightPlanForms } from "../../../../lib/flightPlanForm";
+import { flightPlanForms, type FiledProcedure } from "../../../../lib/flightPlanForm";
 import { alternateFinding, useAlternate } from "../../hooks/useAlternate";
 import { icingAtAltitude, icingLine } from "../../../../lib/icing";
 import RiskAssessment from "./RiskAssessment";
@@ -67,6 +67,9 @@ interface Props {
   /** Every stop as the route has it, flown through or landed at, airways
    *  among them: the flight plan's route. */
   route?: string[];
+  /** The departure and the arrival picked at the route's ends, for the
+   *  flight plan's route under IFR. */
+  procedures?: { departure: FiledProcedure | null; arrival: FiledProcedure | null };
   /** The course, for the airports' elevations, and the trip's totals,
    *  for the fuel burned by the landing (Weight & Balance). */
   course?: Course | null;
@@ -374,7 +377,7 @@ const NO_STOPS: string[] = [];
 // Drawn again only when its plan changes (memo): every tab is one of
 // these, and the page draws again at every row picked in the nav log.
 export default memo(function FlightBriefingView({
-  part, publish = false, nav, legs, dep, dest, stops = NO_STOPS, route = NO_STOPS, course = null, totals = null, depart = "",
+  part, publish = false, nav, legs, dep, dest, stops = NO_STOPS, route = NO_STOPS, procedures, course = null, totals = null, depart = "",
   briefing: briefingState,
   langgraphNarrative, crewaiNarrative, narrative, problem = null,
 }: Props) {
@@ -566,6 +569,7 @@ export default memo(function FlightBriefingView({
     },
     fuelGal: load?.fuelGal ?? null,
     alternate: totals?.alternate?.ident ?? null,
+    departureProcedure: procedures?.departure, arrivalProcedure: procedures?.arrival,
   }) : [];
 
   // Preflight action (14 CFR 91.103): what the planner found for each.

@@ -29,6 +29,14 @@ export interface FlightPlanForm {
   items: FormItem[];
 }
 
+/** A departure (SID) or an arrival (STAR) picked in the route's
+ *  Procedures: its coded identifier, as filed, and its enroute
+ *  transition's fix. */
+export interface FiledProcedure {
+  id: string;
+  transition: string | null;
+}
+
 export interface FormInput {
   rules: "vfr" | "ifr";
   dep: string;
@@ -50,6 +58,10 @@ export interface FormInput {
   fuelGal: number | null;
   /** Under IFR, the alternate filed, for the last flight. */
   alternate: string | null;
+  /** Under IFR, the departure procedure picked at the departure and the
+   *  arrival at the destination. */
+  departureProcedure?: FiledProcedure | null;
+  arrivalProcedure?: FiledProcedure | null;
 }
 
 const pad = (n: number, width: number) => String(n).padStart(width, "0");
@@ -75,13 +87,24 @@ export function hoursMinutes(minutes: number): string {
 
 /** Item 15's route between the departure and the destination: airways
  *  between the fixes they are joined and left at, and DCT between two
- *  fixes flown direct (AIM Appendix 4: "DALL3 EIC V18 MEI LGC4", "FLACK
- *  DCT IRW"); DCT alone for a flight direct from one to the other. */
-export function routeItem(stops: string[], isAirway: (stop: string) => boolean): string {
+ *  fixes flown direct; a departure procedure first, with the fix its
+ *  transition leaves it at, and an arrival last, after the fix its
+ *  transition joins it at (AIM Appendix 4: "DALL3 EIC V18 MEI LGC4",
+ *  "FLACK DCT IRW"); DCT alone for a flight direct from one to the
+ *  other. */
+export function routeItem(stops: string[], isAirway: (stop: string) => boolean,
+  departure: FiledProcedure | null = null, arrival: FiledProcedure | null = null): string {
+  const points = [
+    ...(departure ? [departure.id, ...(departure.transition && departure.transition !== stops[0] ? [departure.transition] : [])] : []),
+    ...stops,
+    ...(arrival ? [...(arrival.transition && arrival.transition !== stops.at(-1) ? [arrival.transition] : []), arrival.id] : []),
+  ];
+  // A procedure, as an airway, is joined and left at its fixes.
+  const joined = (word: string) => isAirway(word) || word === departure?.id || word === arrival?.id;
   const words: string[] = [];
-  stops.forEach((stop, i) => {
-    if (i > 0 && !isAirway(stop) && !isAirway(stops[i - 1]!)) words.push("DCT");
-    words.push(stop);
+  points.forEach((point, i) => {
+    if (i > 0 && !joined(point) && !joined(points[i - 1]!)) words.push("DCT");
+    words.push(point);
   });
   return words.length ? words.join(" ") : "DCT";
 }
@@ -158,8 +181,13 @@ export function flightPlanForms(input: FormInput): FlightPlanForm[] {
     // A T route, or a Q route, asks for GNSS and RNAV 2 (AIM Appendix 4,
     // TBL 4-13): filed only where the airplane is equipped and approved.
     const rnav = hop.via.some(stop => input.isAirway(stop) && /^[TQ]/.test(stop));
-    add("15", "route", "Route", routeItem(hop.via, input.isAirway),
-      rnav ? "A T or Q route asks for G and R in item 10a and PBN/C2 in item 18, where the airplane has them (AIM Appendix 4)." : undefined);
+    const departure = ifr && i === 0 ? input.departureProcedure ?? null : null;
+    const arrival = ifr && last ? input.arrivalProcedure ?? null : null;
+    const procedures = [departure?.id, arrival?.id].filter(Boolean);
+    add("15", "route", "Route", routeItem(hop.via, input.isAirway, departure, arrival), [
+      procedures.length ? `${procedures.join(" and ")} as picked in the route's Procedures.` : "",
+      rnav ? "A T or Q route asks for G and R in item 10a and PBN/C2 in item 18, where the airplane has them (AIM Appendix 4)." : "",
+    ].filter(Boolean).join(" ") || undefined);
 
     add("16", "destination", "Destination", hop.destination, zzzz(hop.destination, "DEST"));
     add("16", "eet", "Total EET", totals?.ete_min != null ? hoursMinutes(Math.ceil(totals.ete_min)) : null);

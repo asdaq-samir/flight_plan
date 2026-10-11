@@ -57,6 +57,16 @@ test("under IFR the altitude is chosen from the minimum IFR altitude by directio
 test("under IFR an airway in the route is flown fix by fix, its published MEA the floor, and filed between its fixes", async ({ page, context }) => {
   test.slow();
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  // A departure and an arrival picked at the ends, made up: neither field
+  // publishes one. Drawn as the planner would answer, with no lines.
+  await page.route(url => /\/api\/planner\/airport\/[^/]+\/procedures\/[^/]+$/.test(url.pathname), route => {
+    const [, , , , airport, , id] = new URL(route.request().url()).pathname.split("/");
+    const departure = id === "BAEE1";
+    return route.fulfill({ json: {
+      airport, kind: departure ? "departure" : "arrival", id, name: departure ? "BAEE ONE" : "OSHH TWO",
+      transition: departure ? "BAE" : "OSH", cycle: "261001", stale: false, lines: [], holds: [], fixes: [],
+    } });
+  });
   // IFR, and the legs point to point: no chart read for checkpoints.
   await page.addInitScript(() => {
     const kept = JSON.parse(localStorage.getItem("vfr.preferences") ?? '{"state":{},"version":0}');
@@ -64,7 +74,7 @@ test("under IFR an airway in the route is flown fix by fix, its published MEA th
   });
   // Milwaukee's VOR to Oshkosh's along V191, by its fix CORIR, then
   // Appleton.
-  await page.goto("/app/plan?dep=C81&dest=KATW&stops=BAE,V191,OSH");
+  await page.goto("/app/plan?dep=C81&dest=KATW&stops=BAE,V191,OSH&procs=C81:BAEE1:BAE,KATW:OSHH2:OSH");
   await settle(page);
   await page.getByTestId("sidebar-trigger-button").click();
   await openTab(page, "Nav Log");
@@ -81,11 +91,12 @@ test("under IFR an airway in the route is flown fix by fix, its published MEA th
   await page.keyboard.press("Escape");
 
   // The flight plan's form (FAA Form 7233-4): the airway between the
-  // fixes it is joined and left at, the level in hundreds of feet.
+  // fixes it is joined and left at, the departure and the arrival picked
+  // at its ends, the level in hundreds of feet.
   await openTab(page, "Brief");
   await openSection(page, "Flight Plan");
   const form = page.getByTestId("flight-plan");
-  await expect(form.getByTestId("flight-plan-route")).toContainText("BAE V191 OSH", { timeout: slow(30000) });
+  await expect(form.getByTestId("flight-plan-route")).toContainText("BAEE1 BAE V191 OSH OSHH2", { timeout: slow(30000) });
   await expect(form.getByTestId("flight-plan-rules")).toContainText("IFR");
   await expect(form.getByTestId("flight-plan-level")).toContainText(/A\d[02468]0/);
   await expect(form.getByTestId("flight-plan-speed")).toContainText(/N0\d{3}/);
@@ -94,7 +105,7 @@ test("under IFR an airway in the route is flown fix by fix, its published MEA th
   await expect(form.getByTestId("flight-plan-departure")).toContainText("DEP/C81");
   await form.getByTestId("flight-plan-copy-route").click();
   await expect(form.getByTestId("flight-plan-copy-route")).toHaveText("Copied");
-  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe("BAE V191 OSH");
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe("BAEE1 BAE V191 OSH OSHH2");
 });
 
 test("under IFR the Weather tab says whether an alternate is needed, files one with a tap, and the fuel flies on to it", async ({ page }) => {

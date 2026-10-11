@@ -38,7 +38,7 @@ import AirspaceCard from "./components/AirspaceCard";
 import PlaceCard from "./components/PlaceCard";
 import ProceduresButton, { type ProcedureAirport } from "./components/ProceduresButton";
 import { patternsOf, patternsParam, trafficPattern, type TrafficPattern } from "../../lib/trafficPattern";
-import { proceduresOf, proceduresParam, type PickedProcedure } from "../../lib/procedures";
+import { proceduresOf, proceduresParam, sameField, type PickedProcedure } from "../../lib/procedures";
 import { runwayNumber } from "../../lib/pattern";
 import NearestCard from "./components/NearestCard";
 import AircraftCard from "./components/AircraftCard";
@@ -449,6 +449,15 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     label: `${d.name.replace(/ RWY /, " ")}${d.transition ? ` · ${d.transition}` : ""}`,
     spoken: `${d.name}${d.transition ? ` via ${d.transition}` : ""}`,
   })), [procedureDrawings]);
+  // The departure and the arrival picked at the route's ends, filed in
+  // the flight plan's route (lib/flightPlanForm).
+  const filedProcedures = useMemo(() => {
+    const at = (ident: string, kind: "departure" | "arrival") => {
+      const d = procedureDrawings.find(p => p.kind === kind && sameField(p.airport, ident));
+      return d ? { id: d.id, transition: d.transition ?? null } : null;
+    };
+    return { departure: at(planned.dep, "departure"), arrival: at(planned.dest, "arrival") };
+  }, [procedureDrawings, planned.dep, planned.dest]);
   const [proceduresOpen, setProceduresOpen] = useState(false);
   const openProcedures = useCallback(() => setProceduresOpen(true), []);
   const selectPlaceOnChart = useCallback((ident: string | null) => {
@@ -1059,13 +1068,13 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       part={part} nav={s.nav} legs={s.legs}
       dep={planned.dep} dest={planned.dest}
       // The airports landed at: a waypoint has no weather of its own.
-      stops={landedStops} route={planned.stops}
+      stops={landedStops} route={planned.stops} procedures={filedProcedures}
       briefing={s.briefing} course={course} totals={s.totals} depart={depart}
       langgraphNarrative={s.langgraphNarrative} crewaiNarrative={s.crewaiNarrative}
       problem={unflyableBrief}
       narrative={part === "brief" ? narrative : undefined}
     />
-  ), [s.nav, s.legs, planned.dep, planned.dest, landedStops, planned.stops, s.briefing, course, s.totals, depart,
+  ), [s.nav, s.legs, planned.dep, planned.dest, landedStops, planned.stops, filedProcedures, s.briefing, course, s.totals, depart,
     s.langgraphNarrative, s.crewaiNarrative, unflyableBrief, narrative]);
   // A tab tapped takes the panel all the way up to show it; the tab up
   // tapped again there takes it back to half, at the pilot's ask.
