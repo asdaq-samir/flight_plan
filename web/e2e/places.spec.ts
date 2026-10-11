@@ -374,6 +374,9 @@ test("an airport's card that could not be had says so, and Try again brings it",
   await page.goto("/app/plan?place=KDLH");
   await settle(page);
   await expect(card(page)).toContainText("Could not be looked up", { timeout: slow(30_000) });
+  // No star and no tabs on a card that could not be had: a greyed star
+  // that never enables would have nothing to say why.
+  await expect(card(page).getByTestId("place-favorite")).toHaveCount(0);
   down = false;
   await card(page).getByTestId("place-retry").click();
   await expect(card(page).getByTestId("place-name")).toHaveText("Duluth International Airport KDLH");
