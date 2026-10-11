@@ -358,6 +358,25 @@ body:is([data-map-panel="half"], [data-map-panel="full"], [data-scroll-locked]) 
 #root {
   --removed-body-scroll-bar-size: 0px;
 }
+/* The same for the page's taps. A stock menu, select or dialog keeps
+   them from the page under it by setting <body>'s pointer-events to none
+   as it opens (Radix's DismissableLayer), and that being inherited too,
+   every element of the page had its style worked out again opening and
+   closing: 100 ms of a phone's each way, the most of what opening the
+   Share menu cost (measured 2026-10-11). Here the body keeps its own,
+   and a sheet over the whole screen under the open layer, behind the
+   scroll lock's attribute that layer sets, takes the taps instead: one
+   element restyled, not the page. A tap on it is outside the layer, so
+   it closes the layer as before, and reaches nothing under it. */
+body {
+  pointer-events: auto !important;
+}
+body[data-scroll-locked]::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+}
 
 /* Touch targets. Apple asks for 44 points on both sides of anything a
    finger taps; the stock controls are smaller than that -- an icon
