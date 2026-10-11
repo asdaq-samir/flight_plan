@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { consoleSheet, library, openPanel, openMapSettings, grabberTo } from "./helpers";
+import { consoleSheet, controlsInSight, library, openPanel, openMapSettings, grabberTo } from "./helpers";
 
 /**
  * "Save this flight", at the head of the briefing drawer's sections, for
@@ -30,6 +30,8 @@ test("a flight is filed once, whole, and a new plan is offered for saving again"
   const filed: Record<string, unknown>[] = [];
   await signedIn(page, filed);
   await page.goto("/app/plan?dep=C81&dest=KDLH&view=briefing");
+  // Save is the half panel's: all the way up the head is the figures.
+  await controlsInSight(page);
   const save = page.getByRole("button", { name: /Save this flight|Saved|Saving/ });
 
   // Offered once the nav log is whole -- it used to be enabled
@@ -65,6 +67,7 @@ test("a flight from a present position is filed from that position", async ({ pa
   const filed: Record<string, unknown>[] = [];
   await signedIn(page, filed);
   await page.goto("/app/plan?dep=%4042.2340%2C-87.9877&dest=KDLH&view=briefing");
+  await controlsInSight(page);
   const save = page.getByRole("button", { name: /Save this flight|Saved|Saving/ });
   await expect(save).toBeEnabled({ timeout: 90_000 });
   await save.click();
@@ -76,6 +79,7 @@ test("a flight from a present position is filed from that position", async ({ pa
 test("signed out, there is nothing to save", async ({ page }) => {
   await page.route("**/api/me", route => route.fulfill({ status: 401, body: "" }));
   await page.goto("/app/plan?dep=C81&dest=KDLH&view=briefing");
+  await controlsInSight(page);
   // More showing means the page is not hidden behind a console: while
   // one is up, the page under it is out of reach of the queries below.
   await expect(page.getByTestId("print-button")).toBeVisible({ timeout: 30_000 });
