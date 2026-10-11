@@ -331,11 +331,13 @@ def find(query: str) -> list[dict]:
                 return _FOUND[text]
         try:
             found = _asked(text)
+            # The answer is stored in the same lock section the gate is
+            # dropped in, so a search arriving between finds one or the other.
+            with _LOCK:
+                _FOUND[text] = found
         finally:
             with _LOCK:
                 _FIND_GATES.pop(text, None)
-        with _LOCK:
-            _FOUND[text] = found
         return found
 
 

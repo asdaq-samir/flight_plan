@@ -79,10 +79,18 @@ export default function AircraftCard({ onPick, onClose }: {
   const seen = useTracking(s => s.seen);
   // The airplanes about whose name begins with what is typed: found as it
   // is typed, asking nothing, before adsb.lol's answer for the rest.
-  const heard = useMemo(
-    () => (wanted.length < 2 ? [] : seen.map(r => r.plane).filter(plane => named(plane, wanted))),
-    [seen, wanted],
-  );
+  // Three letters at least, as the planner search wants: two match scores
+  // of ICAO addresses. A whole name goes first, so Enter on a full
+  // registration picks it and not a longer one that begins with it; eight
+  // rows at most.
+  const heard = useMemo(() => {
+    if (!searching) return [];
+    const bare = wanted.replace(/-/g, "");
+    const whole = (p: TrafficAircraft) => (p.callsign ?? "").toUpperCase() === wanted
+      || (p.registration ?? "").replace(/-/g, "").toUpperCase() === bare || p.hex.toUpperCase() === wanted;
+    return seen.map(r => r.plane).filter(plane => named(plane, wanted))
+      .sort((a, b) => Number(whole(b)) - Number(whole(a))).slice(0, 8);
+  }, [seen, wanted, searching]);
   const answer = asked === wanted ? found : undefined;
   const listed = [...heard, ...(answer ?? []).filter(plane => !heard.some(h => h.hex === plane.hex))];
   const from = fix ? { lat: fix.lat, lon: fix.lon } : null;
