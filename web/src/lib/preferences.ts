@@ -25,6 +25,12 @@ export const BASE_CHARTS: { kind: BaseChart; label: string }[] = [
   { kind: "ifr_high", label: "IFR high" },
 ];
 
+/** What is drawn over the chart, at the pilot's ask (OverlayTiles): the
+ *  USGS's aerial imagery, Google's map or its satellite imagery, or none. */
+export type MapOverlay = "none" | "usgs" | "google-map" | "google-satellite";
+/** How strongly the overlay covers the chart. */
+export type OverlayStrength = "faint" | "half" | "full";
+
 /** The screen edge the map panel is on -- and so what the consoles and
  *  panels come in from, and which edge the map's buttons keep clear
  *  of (useNavEdge). */
@@ -72,6 +78,9 @@ interface Preferences {
    *  civil airplane lands there only with the service's permission (the
    *  planner's `military`). Joint-use fields are always drawn. */
   military: boolean;
+  /** What is drawn over the chart (OverlayTiles), and how strongly. */
+  overlay: MapOverlay;
+  overlayStrength: OverlayStrength;
   /** The pilot's personal minimums (lib/minimums), each off until set. */
   minimums: Minimums;
   /** Each airplane's load as last set (lib/weightBalance), by its name. */
@@ -110,6 +119,8 @@ interface Preferences {
   setAlerts: (alerts: boolean) => void;
   setTraffic: (traffic: boolean) => void;
   setMilitary: (military: boolean) => void;
+  setOverlay: (overlay: MapOverlay) => void;
+  setOverlayStrength: (overlayStrength: OverlayStrength) => void;
   setMinimum: (key: keyof Minimums, value: number | null) => void;
   setLoad: (aircraft: string, load: Load) => void;
   setKeepOffline: (keepOffline: boolean) => void;
@@ -160,6 +171,8 @@ export const usePreferences = create<Preferences>()(
       alerts: true,
       traffic: false,
       military: false,
+      overlay: "none",
+      overlayStrength: "half",
       minimums: NO_MINIMUMS,
       loads: {},
       keepOffline: false,
@@ -181,6 +194,8 @@ export const usePreferences = create<Preferences>()(
       setAlerts: alerts => set({ alerts }),
       setTraffic: traffic => set({ traffic }),
       setMilitary: military => set({ military }),
+      setOverlay: overlay => set({ overlay }),
+      setOverlayStrength: overlayStrength => set({ overlayStrength }),
       setMinimum: (key, value) => set(s => ({ minimums: { ...s.minimums, [key]: value } })),
       setLoad: (aircraft, load) => set(s => ({ loads: { ...s.loads, [aircraft]: load } })),
       setKeepOffline: keepOffline => set({ keepOffline }),

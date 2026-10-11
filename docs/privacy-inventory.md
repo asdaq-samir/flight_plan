@@ -40,6 +40,8 @@ longer than it takes to answer the request.
 | Google, Apple | Their own sign-in, when a pilot uses it | Their own |
 | FAA, NOAA (aviationweather.gov) | Chart and data downloads, weather for airports | None: the server asks, not the device |
 | adsb.lol | For the traffic on the map, the middle of the area asked about (rounded to a half-degree cell) and, for an airplane a pilot tracks, its transponder's address | None: the server asks, not the device; the device's position itself is not sent |
+| USGS (basemap.nationalmap.gov) | With its imagery overlay on, the map's tiles in view, asked by the device | None: the tiles' coordinates, as any web map's |
+| Google (tile.googleapis.com) | With a Google overlay on, a session and the map's tiles in view, asked by the device with the site's key | None of the pilot's: the tiles' coordinates and the view, as any Google map's; Google's own terms and privacy policy apply to the request |
 | US Census Bureau (geocoding.geo.census.gov) | A street address typed in Nearest's field, to place it; its gazetteer of towns is downloaded once | The address typed, from the server, not the device; not stored, but the text typed is in request logs, and a place picked is in the page address (`nearName`, `nearAt`) |
 | Amazon Web Services | Hosting all of the above (us-east-1) | As above |
 

@@ -11,6 +11,7 @@ import { MapInsetsContext, NO_INSETS, SHEET_SECONDS } from "../../components/map
 import type { Course } from "../api/types";
 import { chartQuery } from "../queryClient";
 import { ChartTiles } from "./ChartTiles";
+import { OverlayTiles } from "./OverlayTiles";
 import { ClassBLayer } from "./ClassBLayer";
 import { ResizeAware } from "./MapEffects";
 import { centreClear } from "./clear";
@@ -227,6 +228,7 @@ export function MapShell({ course, onReady, children, onSelectPlace, held = fals
         >
           <ResizeAware />
           <ChartTiles chart={chart} previewing={previewing} />
+          <OverlayTiles />
           {/* Both maps get it: a Class B is worth seeing whether
               planning a route past it or rating chart detections
               near it. Draws nothing unless switched on. */}

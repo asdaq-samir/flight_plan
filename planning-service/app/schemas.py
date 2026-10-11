@@ -1006,6 +1006,12 @@ class FlightRoute(BaseModel):
     plausible: bool | None = None
 
 
+class GoogleMaps(BaseModel):
+    """The browser key for Google's Map Tiles API (routers/basemaps)."""
+
+    key: str
+
+
 class ProfileGround(BaseModel):
     along_nm: float
     ground_ft: float

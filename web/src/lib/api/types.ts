@@ -123,6 +123,8 @@ export type FlightDetail = Schemas["FlightDetail"];
 export type AircraftRegistration = Schemas["AircraftRegistration"];
 /** The route a flight number is scheduled to fly (vfr.traffic.route). */
 export type FlightRoute = Schemas["FlightRoute"];
+/** The deployment's browser key for Google's map tiles (routers/basemaps). */
+export type GoogleMaps = Schemas["GoogleMaps"];
 export type AirspaceBand = Schemas["AirspaceBand"];
 export type VfrMinimums = Schemas["VfrMinimums"];
 /** `available` is false where the planner has no Docker API to talk

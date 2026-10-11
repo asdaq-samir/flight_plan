@@ -95,6 +95,14 @@ export default defineConfig({
         })] : [],
         runtimeCaching: [
           {
+            // Google's map tiles and its map services (OverlayTiles):
+            // never kept, as Google's Map Tiles API terms ask (no
+            // prefetching or storing); the browser's own cache follows
+            // their Cache-Control.
+            urlPattern: ({ url }) => url.hostname === "tile.googleapis.com",
+            handler: "NetworkOnly",
+          },
+          {
             // The chart tiles, served by the planner (…/chart-tile/…) or
             // from the CDN (…/tiles/<cycle>/…): cache first, they are
             // the same for the whole 56-day cycle, and a miss offline

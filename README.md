@@ -90,6 +90,7 @@ Everything else — `ml`, `airflow`, `nav-log-agent`, `crewai-agent`, and the fu
 | [`docs/README.md`](docs/README.md) | Architecture, service reference, data design, developer guide |
 | [`docs/README-AWS.md`](docs/README-AWS.md) | AWS target architecture and deployment |
 | [`docs/IOS.md`](docs/IOS.md) | The iOS app: the native shell, its build to TestFlight, and the owner's Apple steps |
+| [`docs/GOOGLE-MAPS.md`](docs/GOOGLE-MAPS.md) | The map's overlays over the chart: the USGS's imagery, and Google's map and satellite with the owner's key |
 | [`docs/ANDROID.md`](docs/ANDROID.md) | The Android app: the same shell, its build to Google Play's internal track, and the owner's Google steps |
 | [`docs/LEARNING-GUIDE.md`](docs/LEARNING-GUIDE.md) | Guided walkthrough of the system, section by section |
 

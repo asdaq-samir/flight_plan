@@ -4041,6 +4041,20 @@
         "title": "GenerateNotesRequest",
         "type": "object"
       },
+      "GoogleMaps": {
+        "description": "The browser key for Google's Map Tiles API (routers/basemaps).",
+        "properties": {
+          "key": {
+            "title": "Key",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key"
+        ],
+        "title": "GoogleMaps",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -10899,6 +10913,25 @@
           }
         },
         "summary": "Local Flight"
+      }
+    },
+    "/api/map/google": {
+      "get": {
+        "description": "The deployment's Google Maps Platform key for the Map Tiles API,\nfor the browser's own session and tile requests (a browser key,\nrestricted to this site's address in Google Cloud); a 404 where there\nis none, and the map offers no Google overlay.",
+        "operationId": "google_maps_api_map_google_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GoogleMaps"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Google Maps"
       }
     },
     "/api/model-comparison": {

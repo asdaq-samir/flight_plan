@@ -218,6 +218,13 @@ export const routeQuery = (callsign: string | null, at: { lat: number; lon: numb
   enabled: !!callsign, staleTime: 30 * 60_000, meta: { silent: true },
 });
 
+/** The deployment's key for Google's map tiles (routers/basemaps), asked
+ *  once a visit; an error, quiet, where it has none and the map offers
+ *  no Google overlay (OverlayTiles, MapSettings). */
+export const googleMapsQuery = queryOptions({
+  queryKey: ["googleMaps"], queryFn: () => api.googleMaps(), staleTime: Infinity, retry: false, meta: { silent: true },
+});
+
 export const classBQuery = queryOptions({
   queryKey: ["classB"], queryFn: () => api.classB(), staleTime: 5 * 60_000, meta: { silent: true },
 });
