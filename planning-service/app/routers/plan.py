@@ -20,7 +20,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import Response, StreamingResponse
-from vfr import airspace, altitude, chartlabels, charts, elevation, faa_data, fixes, geo, navlog, places, sun
+from vfr import airports, airspace, altitude, chartlabels, charts, elevation, faa_data, fixes, geo, navlog, places, sun
 from vfr.profile import route_profile as side_view
 from vfr.terrain import M_TO_FT
 from vfr.config import DATA_DIR, VFR_SECTIONAL_MAX_ZOOM, VFR_SECTIONAL_MIN_ZOOM
@@ -29,6 +29,7 @@ from vfr.weather import WeatherServiceError
 from .. import chart_model, foreflight, prefetch
 from ..common import CHART_CACHE, DEFAULT_AIRCRAFT, Route, line, load_route, ndjson
 from ..planning import (
+    alternate_leg,
     COMPUTE_LIMIT_S, StillComputing, aircraft_profile, altitude_plans, altitude_waiting_on, class_b_detours,
     cruise_altitude, flight_totals, flight_window, forecast_hour_for, join_selections, no_altitude, no_altitude_detail,
     own_altitude_caution, route_line, route_totals,
@@ -92,6 +93,9 @@ class PlanQuery:
     #: minimum altitudes, 91.179's by direction of flight, 91.167's
     #: reserve (vfr.ifr) -- where "vfr", the default, plans it as before.
     rules: FlightRules = "vfr"
+    #: Under IFR, the alternate filed: the fuel on to it after the
+    #: destination (14 CFR 91.167(a)(2)), in the totals.
+    alternate: str = ""
     #: Points' own altitudes, feet above sea level: "VPBNG:4500,KMSN:1900".
     #: A waypoint's is flown to it, the hop into it at that altitude (where
     #: a pilot crosses it); an airport's is its pattern, which a flight
@@ -428,15 +432,26 @@ def _where(ident: str) -> str | None:
     return places.describe(fix["lat"], fix["lon"]) if fix else None
 
 
-def totals_of(r: Route, runs: list[HopRun], outcome: "Flown", profile: dict, rules: str = "vfr") -> dict:
+def totals_of(r: Route, runs: list[HopRun], outcome: "Flown", profile: dict, rules: str = "vfr",
+              alternate: str = "") -> dict:
     """The trip's totals: each flight's own, from one landing to the next
     through any waypoints (Route.flights), with its fuel check, joined
-    (app.planning.route_totals)."""
+    (app.planning.route_totals). Under IFR with an `alternate` filed, the
+    last flight's check carries the leg on to it (alternate_leg)."""
     per_flight, at = [], 0
-    for flight in r.flights:
+    for i, flight in enumerate(r.flights):
         hops = len(flight.idents) - 1
         legs = [leg for legs in outcome.hop_legs[at:at + hops] for leg in legs]
-        per_flight.append(flight_totals(legs, profile, flight, runs[at].depart, rules))
+        leg_on = None
+        if rules == "ifr" and alternate.strip() and i == len(r.flights) - 1 and legs:
+            try:
+                alt = airports.get_airport(alternate)
+            except ValueError as err:
+                raise HTTPException(404, f"No airport goes by {alternate!r}.") from err
+            dest = {"ident": r.dest_ident, "lat": r.end[0], "lon": r.end[1]}
+            leg_on = alternate_leg(dest, {**alt, "ident": alternate.strip().upper()}, legs[-1]["altitude_ft"], profile,
+                                   runs[-1].fcst_hr)
+        per_flight.append(flight_totals(legs, profile, flight, runs[at].depart, rules, leg_on))
         at += hops
     return route_totals(per_flight, r.flights)
 
@@ -680,7 +695,7 @@ def plan(q: Annotated[PlanQuery, Depends()]) -> Plan:
         candidates=scored,
         selected=selected,
         legs=leg_list,
-        totals=totals_of(r, runs, outcome, profile, q.rules),
+        totals=totals_of(r, runs, outcome, profile, q.rules, q.alternate),
         altitude_ft=outcome.altitude_ft,
         altitude_selection=outcome.selection,
         altitude_options=outcome.options,
@@ -832,6 +847,6 @@ def navlog_stream(q: Annotated[PlanQuery, Depends()]) -> StreamingResponse:
         for leg in flown_legs(r, runs, outcome, own):
             yield line(NavLogLeg.model_validate(leg))
 
-        yield line(NavLogDone(totals=totals_of(r, runs, outcome, profile, q.rules)))
+        yield line(NavLogDone(totals=totals_of(r, runs, outcome, profile, q.rules, q.alternate)))
 
     return ndjson(lines(), NavLogError)

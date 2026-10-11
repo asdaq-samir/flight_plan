@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { slow, settle, openTab, controlsInSight } from "./helpers";
+import { slow, settle, openTab, openSection, controlsInSight } from "./helpers";
 
 /**
  * Planning under IFR (the planner's vfr.ifr): the flight rules are the
@@ -77,4 +77,44 @@ test("under IFR an airway in the route is flown fix by fix, its published MEA th
   const popover = page.locator("[data-slot=popover-content], [data-slot=drawer-content]");
   await popover.getByRole("button", { name: /Minimum IFR altitude/ }).click();
   await expect(popover).toContainText(/Along V191 from BAE the published MEA, [\d,]+ ft/);
+});
+
+test("under IFR the Weather tab says whether an alternate is needed, files one with a tap, and the fuel flies on to it", async ({ page }) => {
+  test.slow();
+  await page.addInitScript(() => {
+    const kept = JSON.parse(localStorage.getItem("vfr.preferences") ?? '{"state":{},"version":0}');
+    localStorage.setItem("vfr.preferences", JSON.stringify({ ...kept, state: { ...kept.state, flightRules: "ifr", waypoints: false } }));
+  });
+  // The TAFs are the day's: the planner's answer is stubbed, its fuel is not.
+  const madison = {
+    ident: "KMSN", approach: true, precision: true, minimums: { ceiling_ft: 600, visibility_sm: 2 }, alternate_minimums_url: null,
+    ceiling_ft: 2500, visibility_sm: 6, taf: "TAF KMSN ...", good: true, meets_standard: true, reasons: [], distance_nm: 230.4,
+  };
+  const navlogs: string[] = [];
+  page.on("request", r => {
+    const url = new URL(r.url());
+    if (url.pathname.endsWith("/api/planner/navlog")) navlogs.push(url.searchParams.get("alternate") ?? "");
+  });
+  await page.route(url => url.pathname.endsWith("/api/planner/alternate"), route => {
+    const filed = new URL(route.request().url()).searchParams.get("alternate");
+    return route.fulfill({ json: {
+      destination: { ident: "KDLH", approach: true, ceiling_ft: 1500, visibility_sm: 4, taf: "TAF KDLH ...", required: true,
+        reasons: ["The TAF has a 1,500 ft ceiling within an hour of the ETA: under 2,000 ft."] },
+      alternate: filed === "KMSN" ? madison : null,
+      suggestions: [madison],
+    } });
+  });
+  await page.goto("/app/plan?dep=C81&dest=KDLH");
+  await settle(page);
+  await page.getByTestId("sidebar-trigger-button").click();
+  await openTab(page, "Weather");
+  await openSection(page, "Alternate");
+  const section = page.getByTestId("alternate");
+  await expect(section.getByTestId("alternate-destination")).toContainText("An alternate is required", { timeout: slow(90000) });
+  await section.getByTestId("alternate-suggestion-KMSN").click();
+  await expect(page).toHaveURL(/[?&]alternate=KMSN/);
+  await expect(section.getByTestId("alternate-filed")).toContainText("Meets 600-2");
+  await expect.poll(() => navlogs.at(-1), { timeout: slow(30000) }).toBe("KMSN");
+  await openTab(page, "Nav Log");
+  await expect(page.getByTestId("fuel-check")).toContainText("on to KMSN", { timeout: slow(90000) });
 });

@@ -36,6 +36,8 @@ import AirportSections from "./AirportSections";
 import BriefVerdict from "./BriefVerdict";
 import PreflightAction from "./PreflightAction";
 import WeatherAlongRoute from "./WeatherAlongRoute";
+import AlternateSection from "./AlternateSection";
+import { alternateFinding, useAlternate } from "../../hooks/useAlternate";
 import RiskAssessment from "./RiskAssessment";
 import FindingIcon from "../../../../components/FindingIcon";
 import MockOral from "./MockOral";
@@ -472,7 +474,12 @@ export default memo(function FlightBriefingView({
   // Performance tab and the Go / No-Go.
   const checks = runwayChecks(nav?.aircraft, briefing, course, loaded?.takeoff.weightLb ?? null, loaded?.landing.weightLb ?? null);
   const hops = totals?.hops ?? [];
-  const items: VerdictItem[] = verdictItems({
+  // Under IFR, the alternate (AlternateSection): its ETA the nav log's.
+  const etaIso = totals?.ete_min != null ? new Date(new Date(depart || opened).getTime() + totals.ete_min * 60_000).toISOString() : null;
+  const alternateWhere = { dest, eta: ifr ? etaIso : null, tasKt: nav?.aircraft.cruise_tas_kt ?? 110 };
+  const alternateCheck = useAlternate(alternateWhere);
+  const alternateFound = ifr ? alternateFinding(alternateCheck.data) : null;
+  const verdictFound: VerdictItem[] = verdictItems({
     weather: {
       pending: !briefing && !failed, failed,
       vfrNotRecommended: vnrReasons, underMinimums: underMine, hazards: hazardNames,
@@ -511,6 +518,12 @@ export default memo(function FlightBriefingView({
   });
   // Published once, for the tabs' marks (PlanWorkspace), as the risk is.
   const setItems = useVerdict(v => v.setItems);
+  // The alternate is the weather's to say, where the weather says nothing
+  // worse: a caution or a stop of its own, opening its section.
+  const items: VerdictItem[] = alternateFound
+    ? verdictFound.map(i => (i.key === "weather" && (i.finding === "ok" || (alternateFound.finding === "stop" && i.finding !== "stop"))
+      ? { ...i, ...alternateFound, section: "Alternate" } : i))
+    : verdictFound;
   const itemsKey = items.map(i => `${i.key}:${i.finding}:${i.detail}`).join("|");
   useEffect(() => {
     if (publish) setItems(items);
@@ -768,6 +781,8 @@ export default memo(function FlightBriefingView({
               </p>
             )}
           </AccordionSection>
+
+          {ifr && <AlternateSection {...alternateWhere} />}
 
           {briefing && course ? (
             <WeatherAlongRoute briefing={briefing} course={course} legs={legs} departIso={depart || opened} unchecked={unchecked} />

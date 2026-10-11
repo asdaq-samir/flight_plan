@@ -820,7 +820,9 @@ export default function NavLogView({
       <ListGroup>
         <ListRow
           title="Fuel required"
-          description={`With ${one(totals.taxi_gal)} gal to start, taxi and take off, and a ${totals.reserve_min} min ${
+          description={`With ${one(totals.taxi_gal)} gal to start, taxi and take off, ${
+            totals.alternate ? `${one(totals.alternate.fuel_gal)} gal on to ${totals.alternate.ident}${totals.alternate.still_air ? " in still air" : ""}, ` : ""
+          }and a ${totals.reserve_min} min ${
             totals.rules === "ifr" ? "IFR reserve (14 CFR 91.167)"
               : totals.night == null ? "day reserve (no departure time)" : totals.night ? "night reserve" : "day reserve"}`}
           value={`${one(totals.fuel_required_gal)} gal`}

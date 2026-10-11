@@ -541,3 +541,19 @@ def test_no_ifr_altitude_says_the_minimum_ifr_altitude_and_the_service_ceiling()
         "The first westbound IFR altitude above that is 18,000 ft.",
         "The aircraft's service ceiling stops at 11,800 ft.",
     ]
+
+
+def test_under_ifr_the_fuel_on_to_the_alternate_is_flown_before_the_reserve(messages):
+    """14 CFR 91.167(a): to the destination, on to the alternate, then 45
+    minutes: KMSN filed as the alternate for C81 to KDLH."""
+    params = {"dep": "C81", "dest": "KDLH", "rules": "ifr"}
+    without = messages(client.get("/api/navlog", params=params))[-1]["totals"]
+    filed = messages(client.get("/api/navlog", params={**params, "alternate": "KMSN"}))[-1]["totals"]
+    leg = filed["alternate"]
+    assert without["alternate"] is None
+    # The leg in its winds, as every leg here is stubbed (_leg): 10 nm, 0.8 gal.
+    assert leg["ident"] == "KMSN" and leg["distance_nm"] == 10.0 and leg["fuel_gal"] == 0.8 and not leg["still_air"]
+    assert filed["fuel_required_gal"] == round(filed["fuel_gal"] + filed["taxi_gal"] + leg["fuel_gal"] + filed["reserve_gal"], 1)
+    # Under VFR an alternate means nothing to the fuel.
+    vfr = messages(client.get("/api/navlog", params={"dep": "C81", "dest": "KDLH", "alternate": "KMSN"}))[-1]["totals"]
+    assert vfr["alternate"] is None

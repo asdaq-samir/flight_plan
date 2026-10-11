@@ -193,7 +193,8 @@ NIGHT_RESERVE_MIN = 45.0
 DEFAULT_TAXI_FUEL_GAL = 1.4
 
 
-def fuel_plan(total_fuel_gal: float | None, aircraft_profile: dict, night: bool | None, rules: str = "vfr") -> dict:
+def fuel_plan(total_fuel_gal: float | None, aircraft_profile: dict, night: bool | None, rules: str = "vfr",
+              alternate_gal: float = 0.0) -> dict:
     """The fuel the flight needs -- the start, taxi and takeoff allowance,
     the legs' own total, and the VFR reserve at the profile's cruise burn
     -- against the profile's usable fuel when it has one. `night` None
@@ -201,12 +202,12 @@ def fuel_plan(total_fuel_gal: float | None, aircraft_profile: dict, night: bool 
     said so. Every figure None that cannot be known: no total while a leg
     is unflyable, no margin without a usable-fuel figure. Under IFR
     (`rules` "ifr") the reserve is 14 CFR 91.167(a)(3)'s 45 minutes, day
-    or night (vfr.ifr.RESERVE_MIN); the leg to an alternate, where 91.169
-    asks for one, comes with the alternate."""
+    or night (vfr.ifr.RESERVE_MIN), after `alternate_gal`, the fuel from
+    the destination to the alternate (91.167(a)(2)), where one is filed."""
     reserve_min = ifr.RESERVE_MIN if rules == "ifr" else NIGHT_RESERVE_MIN if night else DAY_RESERVE_MIN
     reserve_gal = round(reserve_min / 60 * aircraft_profile["fuel_burn_gph"], 2)
     taxi_gal = aircraft_profile.get("taxi_fuel_gal", DEFAULT_TAXI_FUEL_GAL)
-    required = None if total_fuel_gal is None else round(total_fuel_gal + taxi_gal + reserve_gal, 1)
+    required = None if total_fuel_gal is None else round(total_fuel_gal + taxi_gal + alternate_gal + reserve_gal, 1)
     usable = aircraft_profile.get("usable_fuel_gal")
     margin = None if required is None or usable is None else round(usable - required, 1)
     return {

@@ -204,6 +204,8 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const s = usePlan({
     dep: planned.dep, dest: planned.dest, stops: planned.stops, altitudeFt, altitudeChoice, depart, aircraft, load, classBClearance,
     altitudes, localMin, rules: flightRules,
+    // Under IFR, the alternate filed in the Weather tab (AlternateSection).
+    alternate: searchParams.get("alternate") ?? "",
     // Checkpoints as the map shows them: the settings' Waypoints off, the
     // nav log runs from point to point, at the pilot's ask.
     checkpoints: showWaypoints,

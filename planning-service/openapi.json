@@ -1560,6 +1560,207 @@
         "title": "AlertsAhead",
         "type": "object"
       },
+      "AlternateCheck": {
+        "description": "A field as the IFR alternate (14 CFR 91.169(c)): its forecast at the\nETA there against its minimums -- 600 and 2 with a precision approach,\n800 and 2 without -- `good` True or False, or None where the pilot has\nto look (its own published alternate minimums, no approach, no TAF).",
+        "properties": {
+          "alternate_minimums_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alternate Minimums Url"
+          },
+          "approach": {
+            "title": "Approach",
+            "type": "boolean"
+          },
+          "ceiling_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ceiling Ft"
+          },
+          "distance_nm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Distance Nm"
+          },
+          "good": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Good"
+          },
+          "ident": {
+            "title": "Ident",
+            "type": "string"
+          },
+          "meets_standard": {
+            "default": false,
+            "title": "Meets Standard",
+            "type": "boolean"
+          },
+          "minimums": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AlternateMinimums"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "precision": {
+            "title": "Precision",
+            "type": "boolean"
+          },
+          "reasons": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Reasons",
+            "type": "array"
+          },
+          "taf": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Taf"
+          },
+          "visibility_sm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Visibility Sm"
+          }
+        },
+        "required": [
+          "ident",
+          "approach",
+          "precision"
+        ],
+        "title": "AlternateCheck",
+        "type": "object"
+      },
+      "AlternateLeg": {
+        "description": "The leg from the destination on to the IFR alternate: flown at the\nroute's last altitude in its winds, or in still air where they could\nnot be read (`still_air`).",
+        "properties": {
+          "altitude_ft": {
+            "title": "Altitude Ft",
+            "type": "number"
+          },
+          "distance_nm": {
+            "title": "Distance Nm",
+            "type": "number"
+          },
+          "ete_min": {
+            "title": "Ete Min",
+            "type": "number"
+          },
+          "fuel_gal": {
+            "title": "Fuel Gal",
+            "type": "number"
+          },
+          "ident": {
+            "title": "Ident",
+            "type": "string"
+          },
+          "still_air": {
+            "default": false,
+            "title": "Still Air",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ident",
+          "distance_nm",
+          "ete_min",
+          "fuel_gal",
+          "altitude_ft"
+        ],
+        "title": "AlternateLeg",
+        "type": "object"
+      },
+      "AlternateMinimums": {
+        "properties": {
+          "ceiling_ft": {
+            "title": "Ceiling Ft",
+            "type": "number"
+          },
+          "visibility_sm": {
+            "title": "Visibility Sm",
+            "type": "number"
+          }
+        },
+        "required": [
+          "ceiling_ft",
+          "visibility_sm"
+        ],
+        "title": "AlternateMinimums",
+        "type": "object"
+      },
+      "Alternates": {
+        "description": "GET /api/alternate: the destination's check, the pilot's alternate's\nand the nearest fields that will do.",
+        "properties": {
+          "alternate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AlternateCheck"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "destination": {
+            "$ref": "#/components/schemas/DestinationCheck"
+          },
+          "suggestions": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/AlternateCheck"
+            },
+            "title": "Suggestions",
+            "type": "array"
+          }
+        },
+        "required": [
+          "destination"
+        ],
+        "title": "Alternates",
+        "type": "object"
+      },
       "AltitudeBreakdown": {
         "description": "The full reasoning behind one recommended cruise altitude.\n`low_ceiling_or_visibility` is None, not False, when the forecast\ncall itself failed: unknown must not read as confirmed fine.\n`candidates_ft` are every legal altitude for the whole route;\n`segments` the same leg by leg, present when the nav log's fixes\nwere known.",
         "properties": {
@@ -3329,6 +3530,71 @@
           "source"
         ],
         "title": "DemonstratedCrosswind",
+        "type": "object"
+      },
+      "DestinationCheck": {
+        "description": "The destination against 14 CFR 91.169(b)'s \"1-2-3\": an instrument\napproach published, and its TAF an hour either side of the ETA a\nceiling of 2,000 ft or more and 3 sm or more -- else an alternate is\n`required`, `reasons` saying why (vfr.alternates).",
+        "properties": {
+          "approach": {
+            "title": "Approach",
+            "type": "boolean"
+          },
+          "ceiling_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ceiling Ft"
+          },
+          "ident": {
+            "title": "Ident",
+            "type": "string"
+          },
+          "reasons": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Reasons",
+            "type": "array"
+          },
+          "required": {
+            "title": "Required",
+            "type": "boolean"
+          },
+          "taf": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Taf"
+          },
+          "visibility_sm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Visibility Sm"
+          }
+        },
+        "required": [
+          "ident",
+          "approach",
+          "required"
+        ],
+        "title": "DestinationCheck",
         "type": "object"
       },
       "DetectBlock": {
@@ -8638,6 +8904,17 @@
       "Totals": {
         "description": "The trip's sums, and the fuel check: the legs' fuel plus the VFR\nreserve (30 minutes by day, 45 at night -- `night` is None when no\ndeparture time said which) against the aeroplane's usable fuel,\nwhen it has one. `fuel_margin_gal` below zero is a flight the tanks\ndo not hold.",
         "properties": {
+          "alternate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AlternateLeg"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
           "distance_nm": {
             "title": "Distance Nm",
             "type": "number"
@@ -9972,6 +10249,76 @@
         "summary": "Airspace At Point"
       }
     },
+    "/api/alternate": {
+      "get": {
+        "description": "The IFR alternate for a flight arriving at `dest` at `eta` (UTC when\nnaive): whether the destination needs one (14 CFR 91.169(b), the\n\"1-2-3\" rule, from its TAF an hour either side of the ETA), the\npilot's `alternate` checked against its minimums at the ETA there\n(91.169(c)), and the nearest fields with a TAF that will do, each\nreached at `tas_kt` from the destination (vfr.alternates).",
+        "operationId": "alternate_api_alternate_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "dest",
+            "required": true,
+            "schema": {
+              "title": "Dest",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "eta",
+            "required": true,
+            "schema": {
+              "format": "date-time",
+              "title": "Eta",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tas_kt",
+            "required": false,
+            "schema": {
+              "default": 110.0,
+              "title": "Tas Kt",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "alternate",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Alternate",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Alternates"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Alternate"
+      }
+    },
     "/api/briefing": {
       "get": {
         "description": "Everything the nav log's own leg math doesn't cover: adverse\nconditions (SIGMET/AIRMET), current conditions (METAR) and\nforecast (TAF-derived ceiling/visibility) along the route, and\neach airport's runways and radio frequencies, its traffic pattern\n(vfr.pattern) and the class of the airspace over it, for its\npattern card and the radio calls.\n\nThe forecast is for the flight: from `depart` (now when not given;\nUTC when naive) to an hour past arrival, `ete_min` after it (two\nhours when not given). It used to be read at the moment of asking,\nwhatever time the pilot was planning to go. With stops (`stops`,\n\"KDSM,KLNK\"), along every hop and for every airport landed at.",
@@ -11034,6 +11381,16 @@
           },
           {
             "in": "query",
+            "name": "alternate",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Alternate",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
             "name": "altitudes",
             "required": false,
             "schema": {
@@ -11331,6 +11688,16 @@
                 "ifr"
               ],
               "title": "Rules",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "alternate",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Alternate",
               "type": "string"
             }
           },
@@ -11814,6 +12181,16 @@
                 "ifr"
               ],
               "title": "Rules",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "alternate",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Alternate",
               "type": "string"
             }
           },

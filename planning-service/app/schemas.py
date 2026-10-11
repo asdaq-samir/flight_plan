@@ -235,6 +235,19 @@ class Leg(BaseModel):
     tod: TopOfDescent | None = None
 
 
+class AlternateLeg(BaseModel):
+    """The leg from the destination on to the IFR alternate: flown at the
+    route's last altitude in its winds, or in still air where they could
+    not be read (`still_air`)."""
+
+    ident: str
+    distance_nm: float
+    ete_min: float
+    fuel_gal: float
+    altitude_ft: float
+    still_air: bool = False
+
+
 class Totals(BaseModel):
     """The trip's sums, and the fuel check: the legs' fuel plus the VFR
     reserve (30 minutes by day, 45 at night -- `night` is None when no
@@ -258,6 +271,9 @@ class Totals(BaseModel):
     #: The rules the reserve is under: IFR's 45 minutes day or night
     #: (14 CFR 91.167(a)(3)), VFR's 30 by day and 45 at night (91.151).
     rules: FlightRules = "vfr"
+    #: Under IFR with an alternate filed: the leg on to it, whose fuel is
+    #: in `fuel_required_gal` before the reserve (14 CFR 91.167(a)(2)).
+    alternate: "AlternateLeg | None" = None
     #: A route with stops: each flight between two landings with its own
     #: fuel check, the tanks filled at each stop -- the route's own fuel
     #: figures are None then (app.planning.route_totals). Empty without.
@@ -2112,3 +2128,54 @@ class OralGrade(BaseModel):
     feedback: str
     missed: list[str]
     citations: list[OralCitation]
+
+
+class DestinationCheck(BaseModel):
+    """The destination against 14 CFR 91.169(b)'s "1-2-3": an instrument
+    approach published, and its TAF an hour either side of the ETA a
+    ceiling of 2,000 ft or more and 3 sm or more -- else an alternate is
+    `required`, `reasons` saying why (vfr.alternates)."""
+
+    ident: str
+    approach: bool
+    ceiling_ft: float | None = None
+    visibility_sm: float | None = None
+    taf: str | None = None
+    required: bool
+    reasons: list[str] = []
+
+
+class AlternateMinimums(BaseModel):
+    ceiling_ft: float
+    visibility_sm: float
+
+
+class AlternateCheck(BaseModel):
+    """A field as the IFR alternate (14 CFR 91.169(c)): its forecast at the
+    ETA there against its minimums -- 600 and 2 with a precision approach,
+    800 and 2 without -- `good` True or False, or None where the pilot has
+    to look (its own published alternate minimums, no approach, no TAF)."""
+
+    ident: str
+    approach: bool
+    precision: bool
+    minimums: AlternateMinimums | None = None
+    alternate_minimums_url: str | None = None
+    ceiling_ft: float | None = None
+    visibility_sm: float | None = None
+    taf: str | None = None
+    good: bool | None = None
+    #: Its forecast meets the standard minimums; where `good` is None for
+    #: minimums of its own, the pilot checks those.
+    meets_standard: bool = False
+    reasons: list[str] = []
+    distance_nm: float | None = None
+
+
+class Alternates(BaseModel):
+    """GET /api/alternate: the destination's check, the pilot's alternate's
+    and the nearest fields that will do."""
+
+    destination: DestinationCheck
+    alternate: AlternateCheck | None = None
+    suggestions: list[AlternateCheck] = []

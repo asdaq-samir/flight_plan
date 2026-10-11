@@ -66,6 +66,12 @@ export type Forecast = Schemas["Forecast"];
 export type Runway = Schemas["Runway"];
 export type Frequency = Schemas["Frequency"];
 export type Briefing = Schemas["Briefing"];
+/** `GET /api/alternate`: under IFR, whether the destination needs an
+ *  alternate (14 CFR 91.169(b)), the pilot's alternate checked against its
+ *  minimums at its ETA (91.169(c)), and the nearest fields that will do. */
+export type Alternates = Schemas["Alternates"];
+export type AlternateCheck = Schemas["AlternateCheck"];
+
 export type ChartInfo = Schemas["ChartInfo"];
 export type AirportSearch = Schemas["AirportSearch"];
 export type AirportPlace = Schemas["AirportPlace"];

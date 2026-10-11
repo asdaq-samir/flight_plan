@@ -6,7 +6,7 @@ import type {
   ChartInfo, ChartPages, ChartRefreshStarted, PlacesFound, CheckpointDescriptionMessage, CheckpointNoteSaved, Checkpoints, Classification, Course, Detour,
   Flight, FlightSummary, ModelComparison, NarrativeMessage, NarrativeRequest, NavLogMessage, PickDeleted, PickSaved,
   AirspaceAt, AlertsAhead, ClassBResponse, FlightDetail, FlightRoute, GoogleMaps, Traffic, TrafficFound, NearestAirports, RouteProfile, Tfrs, DevServices, DevServiceStarted, Pilot, Rating, RetrainStarted, Role, SaveFlightRequest,
-  SignInCapabilities, AppleSignedIn, LogbookEntry, LogbookEntryRequest, Currency, CurrencyDatesRequest,
+  Alternates, SignInCapabilities, AppleSignedIn, LogbookEntry, LogbookEntryRequest, Currency, CurrencyDatesRequest,
   Status, StreamMessage, Totals, WaypointsInView, Training, SavedTrack,
   OralQuestion, OralQuestionRequest, OralGrade, OralGradeRequest, ProcedureDrawing, ProcedureList,
 } from "./types";
@@ -206,7 +206,7 @@ export const api = {
   async *navlog(
     dep: string, dest: string, altitudeFt?: string, aircraft?: AircraftChoice, altitudeChoice?: AltitudeChoice,
     depart?: string, signal?: AbortSignal, stops?: string[], classBClearance?: boolean, altitudes?: string,
-    checkpoints = true, rules: "vfr" | "ifr" = "vfr",
+    checkpoints = true, rules: "vfr" | "ifr" = "vfr", alternate = "",
   ): AsyncGenerator<NavLogMessage> {
     const result = await planner.GET("/api/navlog", {
       params: {
@@ -227,6 +227,8 @@ export const api = {
           checkpoints: checkpoints ? undefined : false,
           // Under IFR (the planner's vfr.ifr); VFR, the default, unsaid.
           rules: rules === "ifr" ? rules : undefined,
+          // The IFR alternate filed, whose fuel is in the totals.
+          alternate: rules === "ifr" && alternate ? alternate : undefined,
         },
       },
       parseAs: "stream", signal,
@@ -258,6 +260,13 @@ export const api = {
       .then(data<DevServiceStarted>),
 
   /** The stock performance profiles the nav log can be computed for. */
+  /** Under IFR: the destination's "1-2-3" (14 CFR 91.169(b)) for an ETA,
+   *  the pilot's alternate checked at its own (91.169(c)), and the nearest
+   *  fields that will do, reached at `tasKt`. */
+  alternate: (dest: string, eta: string, tasKt: number, alternate?: string) =>
+    planner.GET("/api/alternate", { params: { query: { dest, eta, tas_kt: tasKt, alternate: alternate || undefined } } })
+      .then(data<Alternates>),
+
   /** A flight from one airport back to it, with no stops -- the pattern,
    *  practice approaches: its time aloft at the airplane's burn, and the
    *  fuel check. */
