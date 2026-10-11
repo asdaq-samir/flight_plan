@@ -62,39 +62,46 @@ export default function SectionTabs({ all, want, children }: {
     <SectionTabsContext.Provider value={api}>
       <div ref={top} aria-hidden="true" />
       {shown !== null && (
-        <div
-          role="group" aria-label="Sections" data-testid="section-tabs"
-          className="sticky top-0 z-10 -mr-4 -ml-[max(1rem,env(safe-area-inset-left))] flex gap-2 overflow-x-auto bg-background/90 py-2.5 pr-4 pl-[max(1rem,env(safe-area-inset-left))] backdrop-blur [scrollbar-width:none] print:hidden [&::-webkit-scrollbar]:hidden"
-        >
-          {titles.map(title => (
-            <button
-              key={title} type="button" aria-pressed={title === shown} data-testid="section-tab" data-section={title}
-              onClick={e => pick(title, e.currentTarget)}
-              className={cn(
-                // 32 points, its hit area the 44 of a row (index.css's rule,
-                // not the pill grown to it).
-                "relative h-8 shrink-0 rounded-full px-3.5 font-medium whitespace-nowrap outline-none after:absolute after:inset-x-0 after:-inset-y-1.5 focus-visible:ring-2 focus-visible:ring-ring",
-                TEXT.detail,
-                title === shown ? "bg-primary text-primary-foreground" : "bg-foreground/8 text-foreground",
-              )}
-            >
-              {title}
-              {marks.has(title) && (
-                <>
-                  <span
-                    aria-hidden="true"
-                    className={cn(
-                      "absolute -top-0.5 right-0.5 size-2 rounded-full ring-2 ring-background",
-                      marks.get(title) === "stop" ? "bg-destructive" : "bg-amber-500",
-                    )}
-                    data-testid="section-tab-mark" data-finding={marks.get(title)}
-                  />
-                  {/* The mark is colour only; this is what it says to VoiceOver. */}
-                  <span className="sr-only">{marks.get(title) === "stop" ? ", warning" : ", caution"}</span>
-                </>
-              )}
-            </button>
-          ))}
+        // Held at the top, and inside it a line made to slide (data-slides,
+        // as the route's pills are): a tab of more sections than a phone's
+        // width fits, the Brief's six, is one line to swipe along, its pills
+        // scrolled out of sight there rather than pinned past the screen's
+        // edge.
+        <div className="sticky top-0 z-10 -mr-4 -ml-[max(1rem,env(safe-area-inset-left))] bg-background/90 backdrop-blur print:hidden">
+          <div
+            role="group" aria-label="Sections" data-testid="section-tabs" data-slides
+            className="flex gap-2 overflow-x-auto py-2.5 pr-4 pl-[max(1rem,env(safe-area-inset-left))] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          >
+            {titles.map(title => (
+              <button
+                key={title} type="button" aria-pressed={title === shown} data-testid="section-tab" data-section={title}
+                onClick={e => pick(title, e.currentTarget)}
+                className={cn(
+                  // 32 points, its hit area the 44 of a row (index.css's rule,
+                  // not the pill grown to it).
+                  "relative h-8 shrink-0 rounded-full px-3.5 font-medium whitespace-nowrap outline-none after:absolute after:inset-x-0 after:-inset-y-1.5 focus-visible:ring-2 focus-visible:ring-ring",
+                  TEXT.detail,
+                  title === shown ? "bg-primary text-primary-foreground" : "bg-foreground/8 text-foreground",
+                )}
+              >
+                {title}
+                {marks.has(title) && (
+                  <>
+                    <span
+                      aria-hidden="true"
+                      className={cn(
+                        "absolute -top-0.5 right-0.5 size-2 rounded-full ring-2 ring-background",
+                        marks.get(title) === "stop" ? "bg-destructive" : "bg-amber-500",
+                      )}
+                      data-testid="section-tab-mark" data-finding={marks.get(title)}
+                    />
+                    {/* The mark is colour only; this is what it says to VoiceOver. */}
+                    <span className="sr-only">{marks.get(title) === "stop" ? ", warning" : ", caution"}</span>
+                  </>
+                )}
+              </button>
+            ))}
+          </div>
         </div>
       )}
       {children}

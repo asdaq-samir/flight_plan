@@ -1,5 +1,5 @@
 import { expect, type Page } from "@playwright/test";
-import { controlsInSight, openSettings, openTab, settle, sideDrawer, slow } from "../helpers";
+import { controlsInSight, openSection, openSettings, openTab, settle, sideDrawer, slow } from "../helpers";
 
 /** One state of the app as a pilot sees it, reached from a fresh page. */
 export type Screen = { name: string; ready: (page: Page) => Promise<void> };
@@ -73,6 +73,8 @@ export const SCREENS: Screen[] = [
       await page.goto(`/app/plan?${ROUTE}&view=briefing`);
       await page.getByTestId("navlog-eta").waitFor({ timeout: slow(120000) });
       await openTab(page, tab);
+      // The Weather's places are under their own pill (SectionTabs).
+      if (tab === "Weather") await openSection(page, "Along the Route");
       await expect(sideDrawer(page).getByTestId(shown).first()).toBeVisible({ timeout: slow(30000) });
       // And the briefing in: the Brief's Go / No-Go says what it found, and
       // the mock oral's button is enabled once its question table loads --
