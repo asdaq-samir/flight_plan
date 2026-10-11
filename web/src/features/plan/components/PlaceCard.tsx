@@ -563,9 +563,11 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
               // open one tapped again up there, back to half, as the
               // route's tabs do (PanelTabs) -- which one was open read as
               // it is pressed, since Radix picks the tab on the press,
-              // before the click.
+              // before the click. Greyed until the answer comes, as the
+              // star and the actions are: a tap would raise the sheet over
+              // panels with nothing in them yet.
               <TabsTrigger
-                key={t.value} value={t.value} className={LINE_TAB} data-testid={`place-tab-${t.value}`}
+                key={t.value} value={t.value} className={LINE_TAB} disabled={!place} data-testid={`place-tab-${t.value}`}
                 onPointerDown={() => { openWhenPressed.current = tab; }} onKeyDown={() => { openWhenPressed.current = tab; }}
                 onPointerCancel={() => { openWhenPressed.current = null; }} onBlur={() => { openWhenPressed.current = null; }}
                 onClick={() => {
@@ -768,10 +770,9 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
 }
 
 /** The star that adds an airport to Favorites (components/Favorites),
- *  filled while it is one, as Maps' are. */
-/** The card's star: there from the card's first frame, as a Favorite or
- *  not by the ident asked for, and a tap kept for when the card's answer
- *  has the field's name and place to keep with it. */
+ *  filled while it is one, as Maps' are. It is there from the card's first
+ *  frame, as a Favorite or not by the ident asked for, and a tap is kept
+ *  for when the card's answer has the field's name and place to keep. */
 function FavoriteButton({ ident, place }: { ident: string; place: AirportPlace | null }) {
   const mine = (place?.ident ?? ident).toUpperCase();
   const kept = usePreferences(s => s.favoriteAirports.some(a => a.ident.toUpperCase() === mine));

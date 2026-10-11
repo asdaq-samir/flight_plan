@@ -350,11 +350,14 @@ test("a Favorite's card names it and the map goes to it before the card's answer
   await expect(card(page).getByTestId("place-tab-radio")).toBeVisible();
   await expect(card(page).getByTestId("place-favorite")).toHaveAttribute("aria-pressed", "true");
   await expect(card(page).getByTestId("place-favorite")).toBeDisabled();
+  // The tabs wait too: a tap would raise the sheet over empty panels.
+  await expect(card(page).getByTestId("place-tab-radio")).toBeDisabled();
   const tabsBefore = (await card(page).getByTestId("place-tab-radio").boundingBox())!;
 
   answer();
   await expect(card(page).getByTestId("fly-here")).toBeEnabled({ timeout: slow(15_000) });
   await expect(card(page).getByTestId("place-favorite")).toBeEnabled();
+  await expect(card(page).getByTestId("place-tab-radio")).toBeEnabled();
   // And the tabs where they were: nothing grew or moved as it came.
   expect(Math.abs((await card(page).getByTestId("place-tab-radio").boundingBox())!.y - tabsBefore.y)).toBeLessThan(2);
   // Nothing to measure from: no line under the name, where it said "…".
