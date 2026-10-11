@@ -35,6 +35,13 @@
             "$ref" : "#/components/schemas/InspectionsDto",
             "description" : "Its inspections and tests, as recorded, each with the last day it is good for"
           },
+          "openSquawks" : {
+            "description" : "Its squawks not yet fixed, newest first",
+            "items" : {
+              "$ref" : "#/components/schemas/SquawkDto"
+            },
+            "type" : "array"
+          },
           "tailNumber" : {
             "type" : "string"
           },
@@ -54,7 +61,7 @@
             "description" : "Its last VOR check for IFR (14 CFR 91.171): when, how, where, the bearing error, and the last day it is good for -- 30 days on, if the error was within the check's limit"
           }
         },
-        "required" : [ "climbFuelBurnGph", "climbTasKt", "createdAt", "cruisePowerPct", "cruiseTasKt", "fuelBurnGph", "id", "inspections", "tailNumber", "typeDesignator", "usableFuelGal", "vorCheck" ],
+        "required" : [ "climbFuelBurnGph", "climbTasKt", "createdAt", "cruisePowerPct", "cruiseTasKt", "fuelBurnGph", "id", "inspections", "openSquawks", "tailNumber", "typeDesignator", "usableFuelGal", "vorCheck" ],
         "type" : "object"
       },
       "AircraftRequest" : {
@@ -1006,6 +1013,68 @@
         "required" : [ "next" ],
         "type" : "object"
       },
+      "SquawkDto" : {
+        "properties" : {
+          "deferredFor" : {
+            "enum" : [ "VFR_DAY", "VFR", "ALL" ],
+            "type" : [ "string", "null" ]
+          },
+          "fixNote" : {
+            "type" : [ "string", "null" ]
+          },
+          "fixedOn" : {
+            "format" : "date",
+            "type" : [ "string", "null" ]
+          },
+          "id" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "inoperative" : {
+            "type" : "boolean"
+          },
+          "reportedOn" : {
+            "format" : "date",
+            "type" : "string"
+          },
+          "text" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "deferredFor", "fixNote", "fixedOn", "id", "inoperative", "reportedOn", "text" ],
+        "type" : "object"
+      },
+      "SquawkRequest" : {
+        "properties" : {
+          "deferredFor" : {
+            "enum" : [ "VFR_DAY", "VFR", "ALL" ],
+            "type" : [ "string", "null" ]
+          },
+          "fixNote" : {
+            "maxLength" : 500,
+            "minLength" : 0,
+            "type" : [ "string", "null" ]
+          },
+          "fixedOn" : {
+            "format" : "date",
+            "type" : [ "string", "null" ]
+          },
+          "inoperative" : {
+            "type" : "boolean"
+          },
+          "reportedOn" : {
+            "format" : "date",
+            "type" : "string"
+          },
+          "text" : {
+            "maxLength" : 500,
+            "minLength" : 0,
+            "type" : "string"
+          }
+        },
+        "required" : [ "deferredFor", "fixNote", "fixedOn", "inoperative", "reportedOn", "text" ],
+        "type" : "object"
+      },
       "StreamingResponseBody" : {
         "type" : "object"
       },
@@ -1340,6 +1409,142 @@
               "*/*" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/AircraftDto"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "aircraft-controller" ]
+      }
+    },
+    "/api/aircraft/{id}/squawks" : {
+      "get" : {
+        "operationId" : "squawks",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/SquawkDto"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "aircraft-controller" ]
+      },
+      "post" : {
+        "operationId" : "addSquawk",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/SquawkRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SquawkDto"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "aircraft-controller" ]
+      }
+    },
+    "/api/aircraft/{id}/squawks/{squawkId}" : {
+      "delete" : {
+        "operationId" : "deleteSquawk",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        }, {
+          "in" : "path",
+          "name" : "squawkId",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "aircraft-controller" ]
+      },
+      "put" : {
+        "operationId" : "updateSquawk",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        }, {
+          "in" : "path",
+          "name" : "squawkId",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/SquawkRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/SquawkDto"
                 }
               }
             },

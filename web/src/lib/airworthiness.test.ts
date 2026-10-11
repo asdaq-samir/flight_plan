@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
-import type { Inspections } from "./api/types";
-import { inspectionFactors } from "./airworthiness";
+import type { Inspections, Squawk } from "./api/types";
+import { inspectionFactors, squawkFactors } from "./airworthiness";
 import { assess, type FratInput } from "./frat";
 
 /** Each recorded, each good on 5 October 2026. */
@@ -40,6 +40,22 @@ describe("the airplane's inspections, on the day", () => {
     expect(inspectionFactors({ ...GOOD, transponderCheckGoodThrough: "2026-09-30" }, DAY, false)).toMatchObject([{ key: "transponder", points: 3 }]);
     expect(keys({ ...GOOD, hoursNow: 1300.5 })).toEqual(["hundredHour"]);
     expect(keys({ ...GOOD, hoursNow: 1300.4 })).toEqual([]);
+  });
+
+  test("an inoperative item not deferred for this kind of flight stops it; other squawks are a caution", () => {
+    const squawk = (over: Partial<Squawk>): Squawk => ({ id: 1, reportedOn: DAY, text: "Landing light out", inoperative: true, deferredFor: null, fixedOn: null, fixNote: null, ...over } as Squawk);
+    const light = squawk({ deferredFor: "VFR_DAY" });
+    // Deferred for VFR by day: by day it is an open squawk to read; at
+    // night or under IFR it stops the flight.
+    expect(squawkFactors([light], false, false).map(f => f.key)).toEqual(["squawks"]);
+    expect(squawkFactors([light], true, false)).toMatchObject([{ key: "inoperative", stop: true, why: "91.213(d)" }]);
+    expect(squawkFactors([light], false, true)[0]!.label).toBe("Inoperative and not deferred for this flight: Landing light out");
+    expect(squawkFactors([squawk({ deferredFor: "ALL" })], true, true).map(f => f.key)).toEqual(["squawks"]);
+    // Inoperative and not deferred at all, and a paint chip beside it.
+    const both = squawkFactors([squawk({}), squawk({ id: 2, text: "Paint chip", inoperative: false })], false, false);
+    expect(both.map(f => f.key)).toEqual(["inoperative", "squawks"]);
+    expect(both[1]).toMatchObject({ label: "1 open squawk: read it before flight", points: 1 });
+    expect(assess({ ...QUIET, squawks: [squawk({})] }).level).toBe("high");
   });
 
   test("a stock profile has none to say", () => {

@@ -223,6 +223,8 @@ export type VorCheckRequest = Webapp["VorCheckRequest"];
 export type InspectionsRequest = Webapp["InspectionsRequest"];
 export type Inspections = Webapp["InspectionsDto"];
 export type ChecklistDto = Webapp["ChecklistDto"];
+export type Squawk = Webapp["SquawkDto"];
+export type SquawkRequest = Webapp["SquawkRequest"];
 
 /** One row of "My Flights" -- totals only; `Flight` carries the full
  *  filed nav log, fetched one flight at a time. */

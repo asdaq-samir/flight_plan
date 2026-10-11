@@ -5,10 +5,13 @@ import com.northflyers.vfr.dto.AircraftDto;
 import com.northflyers.vfr.dto.AircraftRequest;
 import com.northflyers.vfr.dto.ChecklistDto;
 import com.northflyers.vfr.dto.InspectionsRequest;
+import com.northflyers.vfr.dto.SquawkDto;
+import com.northflyers.vfr.dto.SquawkRequest;
 import com.northflyers.vfr.dto.VorCheckRequest;
 import com.northflyers.vfr.service.AircraftService;
 import com.northflyers.vfr.service.ChecklistService;
 import com.northflyers.vfr.service.PilotService;
+import com.northflyers.vfr.service.SquawkService;
 import jakarta.validation.Valid;
 import java.time.LocalDate;
 import java.time.temporal.TemporalAdjusters;
@@ -41,18 +44,21 @@ public class AircraftController {
 
     private final AircraftService aircraftService;
     private final ChecklistService checklists;
+    private final SquawkService squawks;
     private final PilotService pilots;
 
-    public AircraftController(AircraftService aircraftService, ChecklistService checklists, PilotService pilots) {
+    public AircraftController(AircraftService aircraftService, ChecklistService checklists, SquawkService squawks,
+                              PilotService pilots) {
         this.aircraftService = aircraftService;
         this.checklists = checklists;
+        this.squawks = squawks;
         this.pilots = pilots;
     }
 
     @GetMapping
     public ResponseEntity<List<AircraftDto>> list(Authentication authentication) {
         return PilotResponses.withPilot(pilots, authentication, pilot ->
-                ResponseEntity.ok(aircraftService.list(pilot).stream().map(AircraftController::toDto).toList()));
+                ResponseEntity.ok(aircraftService.list(pilot).stream().map(this::toDto).toList()));
     }
 
     @PostMapping
@@ -109,16 +115,47 @@ public class AircraftController {
                 .orElse(ResponseEntity.notFound().build()));
     }
 
+    /** The airplane's squawks, newest first. */
+    @GetMapping("/{id}/squawks")
+    public ResponseEntity<List<SquawkDto>> squawks(Authentication authentication, @PathVariable Long id) {
+        return PilotResponses.withPilot(pilots, authentication, pilot -> squawks.list(pilot, id)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build()));
+    }
+
+    @PostMapping("/{id}/squawks")
+    public ResponseEntity<SquawkDto> addSquawk(
+            Authentication authentication, @PathVariable Long id, @Valid @RequestBody SquawkRequest request) {
+        return PilotResponses.withPilot(pilots, authentication, pilot -> squawks.add(pilot, id, request)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build()));
+    }
+
+    /** A squawk changed, or fixed. */
+    @PutMapping("/{id}/squawks/{squawkId}")
+    public ResponseEntity<SquawkDto> updateSquawk(Authentication authentication, @PathVariable Long id,
+                                                  @PathVariable Long squawkId, @Valid @RequestBody SquawkRequest request) {
+        return PilotResponses.withPilot(pilots, authentication, pilot -> squawks.update(pilot, id, squawkId, request)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build()));
+    }
+
+    @DeleteMapping("/{id}/squawks/{squawkId}")
+    public ResponseEntity<Void> deleteSquawk(Authentication authentication, @PathVariable Long id, @PathVariable Long squawkId) {
+        return PilotResponses.withPilot(pilots, authentication, pilot ->
+                squawks.delete(pilot, id, squawkId) ? ResponseEntity.noContent().build() : ResponseEntity.notFound().build());
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(Authentication authentication, @PathVariable Long id) {
         return PilotResponses.withPilot(pilots, authentication, pilot ->
                 aircraftService.delete(pilot, id) ? ResponseEntity.noContent().build() : ResponseEntity.notFound().build());
     }
 
-    private static AircraftDto toDto(Aircraft a) {
+    private AircraftDto toDto(Aircraft a) {
         return new AircraftDto(a.getId(), a.getTailNumber(), a.getTypeDesignator(), a.getCruiseTasKt(),
                 a.getFuelBurnGph(), a.getCruisePowerPct(), a.getClimbTasKt(), a.getClimbFuelBurnGph(), a.getUsableFuelGal(),
-                a.getCreatedAt(), vorCheckOf(a), inspectionsOf(a));
+                a.getCreatedAt(), vorCheckOf(a), inspectionsOf(a), a.getId() == null ? List.of() : squawks.open(a.getId()));
     }
 
     /** The last day of the calendar month `months` after the one `on` is

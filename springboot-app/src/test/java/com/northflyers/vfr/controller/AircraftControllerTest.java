@@ -20,6 +20,7 @@ import com.northflyers.vfr.domain.Pilot;
 import com.northflyers.vfr.dto.AircraftDto;
 import com.northflyers.vfr.service.AircraftService;
 import com.northflyers.vfr.service.ChecklistService;
+import com.northflyers.vfr.service.SquawkService;
 import com.northflyers.vfr.service.PilotService;
 import java.util.List;
 import java.util.Optional;
@@ -51,6 +52,9 @@ class AircraftControllerTest {
 
     @MockitoBean
     private ChecklistService checklistService;
+
+    @MockitoBean
+    private SquawkService squawkService;
 
     private static Pilot samplePilot() {
         return new Pilot("pilot@example.com", "A. Pilot", "sub-1");
@@ -271,6 +275,30 @@ class AircraftControllerTest {
                 .andExpect(jsonPath("$.sections[0].items[0].response").value("Both"));
         mockMvc.perform(put("/api/aircraft/7/checklist").with(oidcLogin()).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON).content(body.replace("Fuel selector", " ")))
+                .andExpect(status().isBadRequest());
+    }
+
+    /** Squawks: another pilot's airplane's a 404; one with no words, or
+     *  found in the future, a 400; a good one back with its determination. */
+    @Test
+    void aSquawkIsTheOwnersAndSaysWhatWasFound() throws Exception {
+        given(pilotService.current(any())).willReturn(Optional.of(samplePilot()));
+        given(squawkService.list(any(), eq(9L))).willReturn(Optional.empty());
+        mockMvc.perform(get("/api/aircraft/9/squawks").with(oidcLogin())).andExpect(status().isNotFound());
+
+        given(squawkService.add(any(), eq(7L), any())).willReturn(Optional.of(new com.northflyers.vfr.dto.SquawkDto(3L,
+                java.time.LocalDate.of(2026, 10, 10), "Landing light out", true, com.northflyers.vfr.domain.DeferredFor.VFR_DAY,
+                null, null)));
+        String body = "{\"reportedOn\":\"2026-10-10\",\"text\":\"Landing light out\",\"inoperative\":true,\"deferredFor\":\"VFR_DAY\"}";
+        mockMvc.perform(post("/api/aircraft/7/squawks").with(oidcLogin()).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.deferredFor").value("VFR_DAY"));
+        mockMvc.perform(post("/api/aircraft/7/squawks").with(oidcLogin()).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON).content(body.replace("Landing light out", " ")))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(post("/api/aircraft/7/squawks").with(oidcLogin()).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON).content(body.replace("2026-10-10", "2999-01-01")))
                 .andExpect(status().isBadRequest());
     }
 }

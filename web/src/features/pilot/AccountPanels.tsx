@@ -20,6 +20,7 @@ import { useConfirm } from "../../components/useConfirm";
 import { ConsolePages, PageRow } from "../../components/ConsolePages";
 import FlightPage from "./FlightPage";
 import ChecklistPage from "./ChecklistPage";
+import SquawksPage from "./SquawksPage";
 import { aircraftKey, choiceOf } from "../../lib/aircraftChoice";
 import { api } from "../../lib/api/client";
 import type { Aircraft, AircraftRequest, FlightSummary, InspectionsRequest, VorCheckRequest } from "../../lib/api/types";
@@ -354,7 +355,10 @@ export function AircraftPanel() {
 
   // The airplane's checklist, a page of the form's (ChecklistPage).
   const checklistPages = editing
-    ? { [`checklist-${editing.id}`]: { title: `${editing.tailNumber} checklist`, content: <ChecklistPage aircraft={editing} /> } }
+    ? {
+      [`checklist-${editing.id}`]: { title: `${editing.tailNumber} checklist`, content: <ChecklistPage aircraft={editing} /> },
+      [`squawks-${editing.id}`]: { title: `${editing.tailNumber} squawks`, content: <SquawksPage aircraft={editing} /> },
+    }
     : {};
 
   // The tab says what this is: no heading over the list, only the
@@ -505,6 +509,10 @@ export function AircraftPanel() {
               {editing && (
                 <ListGroup>
                   <PageRow page={`checklist-${editing.id}`} title="Checklist" description="Yours, from its flight manual, to run" />
+                  <PageRow
+                    page={`squawks-${editing.id}`} title="Squawks" description="What was found, and its fix"
+                    value={editing.openSquawks?.length ? `${editing.openSquawks.length} open` : undefined}
+                  />
                 </ListGroup>
               )}
               {editing && <InspectionsGroup key={editing.id} aircraft={editing} />}

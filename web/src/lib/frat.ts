@@ -16,8 +16,8 @@
  * do not hold the fuel, an annual past due -- is high whatever else is.
  */
 import { create } from "zustand";
-import type { Currency, Inspections } from "./api/types";
-import { inspectionFactors } from "./airworthiness";
+import type { Currency, Inspections, Squawk } from "./api/types";
+import { inspectionFactors, squawkFactors } from "./airworthiness";
 
 export type RiskLevel = "low" | "caution" | "high";
 
@@ -69,6 +69,8 @@ export interface FratInput {
   /** In one of the pilot's own airplanes: its inspections and tests as
    *  recorded (lib/airworthiness); undefined for a stock profile. */
   inspections?: Inspections | null;
+  /** Its squawks not yet fixed (lib/airworthiness). */
+  squawks?: Squawk[] | null;
   /** The pilot's currency, where they keep a logbook here. */
   currency: Currency | null;
   /** The day of the flight, yyyy-MM-dd, to read the currency's dates on. */
@@ -97,6 +99,7 @@ export function found(input: FratInput): RiskFactor[] {
     factors.push({ key: "vor", label: "No VOR check in the last 30 days", why: "91.171: to navigate IFR by VOR", points: 2 });
   }
   if (input.inspections) factors.push(...inspectionFactors(input.inspections, input.day, !!input.ifr));
+  if (input.squawks) factors.push(...squawkFactors(input.squawks, input.night, !!input.ifr));
   if (input.fuelMarginGal != null && input.fuelMarginGal < 0) {
     factors.push({ key: "fuel", label: "The tanks do not hold the fuel and its reserve", why: input.ifr ? "91.167" : "91.151", points: 0, stop: true });
   }

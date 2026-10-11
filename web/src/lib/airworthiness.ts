@@ -1,4 +1,4 @@
-import type { Inspections } from "./api/types";
+import type { Inspections, Squawk } from "./api/types";
 import type { RiskFactor } from "./frat";
 
 /**
@@ -45,6 +45,35 @@ export function inspectionFactors(i: Inspections, day: string, ifr: boolean): Ri
   }
   if (i.hundredHourDueAtHours != null && i.hoursNow != null && i.hoursNow >= i.hundredHourDueAtHours) {
     factors.push({ key: "hundredHour", label: "The 100-hour inspection is due", why: "91.409(b): for hire, or instruction in an airplane you provide", points: 2 });
+  }
+  return factors;
+}
+
+/** How far a 91.213(d) determination reaches: VFR by day, by day and
+ *  night, or every kind of flight (91.205(b)-(d)). */
+const REACH = { VFR_DAY: 0, VFR: 1, ALL: 2 } as const;
+
+/**
+ * The airplane's open squawks on the day: an instrument or equipment that
+ * does not work stops the flight unless its 91.213(d) determination --
+ * not required, removed or deactivated and placarded, no hazard -- was
+ * made for this kind of flight (by day, at night, under IFR: what 91.205
+ * does not ask by day it may at night or under IFR); the others are a
+ * caution to read before flight.
+ */
+export function squawkFactors(open: Squawk[], night: boolean, ifr: boolean): RiskFactor[] {
+  const needs = ifr ? REACH.ALL : night ? REACH.VFR : REACH.VFR_DAY;
+  const grounding = open.filter(s => s.inoperative && (s.deferredFor == null || REACH[s.deferredFor] < needs));
+  const factors: RiskFactor[] = [];
+  if (grounding.length) {
+    factors.push({
+      key: "inoperative", label: `Inoperative and not deferred for this flight: ${grounding.map(s => s.text).join("; ")}`,
+      why: "91.213(d)", points: 0, stop: true,
+    });
+  }
+  const others = open.length - grounding.length;
+  if (others > 0) {
+    factors.push({ key: "squawks", label: `${others} open squawk${others === 1 ? "" : "s"}: read ${others === 1 ? "it" : "them"} before flight`, why: "91.7(b)", points: 1 });
   }
   return factors;
 }

@@ -4,6 +4,7 @@ import com.northflyers.vfr.domain.VorCheck;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.List;
 import org.springframework.lang.Nullable;
 
 /** An aeroplane as the API returns it. The cruise power, the climb's
@@ -24,7 +25,9 @@ public record AircraftDto(
                 + "the last day it is good for -- 30 days on, if the error was within the check's limit")
         @Nullable VorCheckDto vorCheck,
         @Schema(description = "Its inspections and tests, as recorded, each with the last day it is good for")
-        InspectionsDto inspections) {
+        InspectionsDto inspections,
+        @Schema(description = "Its squawks not yet fixed, newest first")
+        List<SquawkDto> openSquawks) {
 
     @Schema(description = "A VOR check for IFR (14 CFR 91.171)")
     public record VorCheckDto(

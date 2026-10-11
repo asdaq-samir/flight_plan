@@ -458,6 +458,7 @@ export default memo(function FlightBriefingView({
     vorCheck: flownOwn === undefined ? undefined : flownOwn.vorCheck
       ? { goodThrough: flownOwn.vorCheck.goodThrough, withinLimit: flownOwn.vorCheck.withinLimit } : null,
     inspections: flownOwn?.inspections,
+    squawks: flownOwn?.openSquawks,
     currency: currency ?? null,
     day: format(new Date(depart || opened), "yyyy-MM-dd"),
     ticked,
