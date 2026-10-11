@@ -18,6 +18,15 @@ import { altFt } from "../../../lib/units";
  *  about: each search is a request adsb.lol paces (vfr.traffic). */
 const TYPING_MS = 500;
 
+/** Whether an airplane's callsign, registration or ICAO address begins
+ *  with what is typed (spaces and a registration's hyphen aside). */
+function named(plane: TrafficAircraft, text: string): boolean {
+  const bare = text.replace(/-/g, "");
+  return (plane.callsign ?? "").toUpperCase().startsWith(text)
+    || (plane.registration ?? "").replace(/-/g, "").toUpperCase().startsWith(bare)
+    || plane.hex.toUpperCase().startsWith(text);
+}
+
 /** One airplane in a list: its name, what it is and how it flies, and
  *  how far and which way it is from `from`. */
 function AircraftRow({ plane, from, ownFt, onPick, testId = "aircraft-row" }: {
@@ -50,17 +59,40 @@ export default function AircraftCard({ onPick, onClose }: {
   const [typed, setTyped] = useState("");
   const [asked, setAsked] = useState("");
   const input = useRef<HTMLInputElement>(null);
-  useEffect(() => {
-    const later = window.setTimeout(() => setAsked(typed.replace(/\s+/g, "").toUpperCase()), TYPING_MS);
-    return () => window.clearTimeout(later);
-  }, [typed]);
-  const searching = asked.length >= 3;
+  const wanted = typed.replace(/\s+/g, "").toUpperCase();
+  const searching = wanted.length >= 3;
   const { data: found, isFetching, isError } = useQuery({
-    queryKey: ["trafficFind", asked], queryFn: () => api.trafficFind(asked), enabled: searching, staleTime: 30_000,
+    queryKey: ["trafficFind", asked], queryFn: () => api.trafficFind(asked), enabled: asked.length >= 3, staleTime: 30_000,
     meta: { silent: true },
   });
+  // Asked once the typing pauses, and one search at a time: what is typed
+  // while one is out is asked when it is back, the letters between never.
+  // A search asked at each pause ("N65", "N654", "N654F") queued its
+  // requests behind each other's at adsb.lol's pace, and the name typed
+  // last waited for all of them.
+  useEffect(() => {
+    if (isFetching || wanted === asked) return;
+    const later = window.setTimeout(() => setAsked(wanted), TYPING_MS);
+    return () => window.clearTimeout(later);
+  }, [wanted, asked, isFetching]);
   const fix = useOwnShip(s => (s.enabled ? s.fix : null));
   const seen = useTracking(s => s.seen);
+  // The airplanes about whose name begins with what is typed: found as it
+  // is typed, asking nothing, before adsb.lol's answer for the rest.
+  // Three letters at least, as the planner search wants: two match scores
+  // of ICAO addresses. A whole name goes first, so Enter on a full
+  // registration picks it and not a longer one that begins with it; eight
+  // rows at most.
+  const heard = useMemo(() => {
+    if (!searching) return [];
+    const bare = wanted.replace(/-/g, "");
+    const whole = (p: TrafficAircraft) => (p.callsign ?? "").toUpperCase() === wanted
+      || (p.registration ?? "").replace(/-/g, "").toUpperCase() === bare || p.hex.toUpperCase() === wanted;
+    return seen.map(r => r.plane).filter(plane => named(plane, wanted))
+      .sort((a, b) => Number(whole(b)) - Number(whole(a))).slice(0, 8);
+  }, [seen, wanted, searching]);
+  const answer = asked === wanted ? found : undefined;
+  const listed = [...heard, ...(answer ?? []).filter(plane => !heard.some(h => h.hex === plane.hex))];
   const from = fix ? { lat: fix.lat, lon: fix.lon } : null;
   const about = useMemo(() => {
     const planes = seen.map(r => r.plane);
@@ -79,7 +111,12 @@ export default function AircraftCard({ onPick, onClose }: {
           <input
             ref={input} type="search" enterKeyHint="search" autoComplete="off" autoCorrect="off" autoCapitalize="characters" spellCheck={false}
             value={typed} onChange={e => setTyped(e.target.value)}
-            onKeyDown={e => { if (e.key === "Enter" && found?.[0]) onPick(found[0]); }}
+            onKeyDown={e => {
+              if (e.key !== "Enter") return;
+              // The first found, or the search asked now rather than at the pause.
+              if (listed[0]) onPick(listed[0]);
+              else if (!isFetching) setAsked(wanted);
+            }}
             placeholder="Callsign, registration or ICAO address" aria-label="Find an aircraft" data-testid="aircraft-search"
             className="min-w-0 flex-1 bg-transparent text-foreground outline-none placeholder:text-muted-foreground [&::-webkit-search-cancel-button]:hidden"
           />
@@ -92,16 +129,20 @@ export default function AircraftCard({ onPick, onClose }: {
             </button>
           )}
         </label>
-        {searching && (
+        {(searching || heard.length > 0) && (
           <ListGroup title="Found">
-            {(found ?? []).map(plane => (
+            {listed.map(plane => (
               <AircraftRow key={plane.hex} plane={plane} from={from} ownFt={ownFt} onPick={() => onPick(plane)} testId="aircraft-found" />
             ))}
-            {found && !found.length && !isFetching && (
+            {searching && answer && !listed.length && (
               <ListRow title={<span className="text-muted-foreground">None in the air by that name is heard now</span>} />
             )}
-            {isError && <ListRow title={<span className={cn("text-destructive", TEXT.detail)}>Couldn't search. Try again in a moment.</span>} />}
-            {!found && !isError && <ListRow title={<span className={cn("text-muted-foreground", TEXT.detail)}>Looking…</span>} />}
+            {searching && !answer && isError && asked === wanted && (
+              <ListRow title={<span className={cn("text-destructive", TEXT.detail)}>Couldn't search. Try again in a moment.</span>} />
+            )}
+            {searching && !answer && !(isError && asked === wanted) && !listed.length && (
+              <ListRow title={<span className={cn("text-muted-foreground", TEXT.detail)}>Looking…</span>} />
+            )}
           </ListGroup>
         )}
         <ListGroup

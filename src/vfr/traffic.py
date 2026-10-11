@@ -16,6 +16,9 @@ requests within five seconds of each other whatever the region, and
 waits fifteen after being turned away; between times every phone is
 given the region's last answer, cut to its own view, with how old it is,
 so the map can carry each airplane on from where it was (TrafficLayer).
+A pilot's search for one airplane goes ahead of the regions' turns, which
+are given their last answer meanwhile, and one already heard about any
+region is found at once, with no request at all.
 """
 from __future__ import annotations
 
@@ -62,8 +65,10 @@ _sleep = time.sleep
 _LOCK = threading.Lock()
 #: Each region's last answer: (when it came, monotonic, airplanes).
 _REGIONS: dict = {}
-#: When adsb.lol may next be asked, monotonic.
-_STATE = {"next_ask": 0.0}
+#: When adsb.lol may next be asked for a region (the regions' turns are
+#: taken in order from it), when the last request went, when a search's
+#: turn is, and until when nothing is asked after a refusal; monotonic.
+_STATE = {"next_ask": 0.0, "last_ask": -math.inf, "search_at": -math.inf, "blocked_until": -math.inf}
 #: Regions being asked for now; the rest of a region's askers wait on this.
 _FLIGHTS: dict = {}
 
@@ -126,6 +131,16 @@ def _ask(region: tuple[float, float]) -> list[dict]:
     return [a for a in (_aircraft(e) for e in entries if isinstance(e, dict)) if a is not None]
 
 
+def _region_turn(now: float) -> float:
+    """The next region's turn to ask adsb.lol, taken: the first free one,
+    a gap clear of a search's. Called with the lock held."""
+    slot = max(now, _STATE["next_ask"])
+    if abs(_STATE["search_at"] - slot) < MIN_GAP_S:
+        slot = _STATE["search_at"] + MIN_GAP_S
+    _STATE["next_ask"] = slot + MIN_GAP_S
+    return slot
+
+
 def _region_answer(region: tuple[float, float]) -> tuple[float, list[dict]]:
     """(when it came, airplanes) for a region: its last answer while fresh,
     or while adsb.lol may not be asked yet; else adsb.lol's -- for a
@@ -152,16 +167,30 @@ def _region_answer(region: tuple[float, float]) -> tuple[float, list[dict]]:
                     raise TrafficUnavailable("adsb.lol has not answered for a while")
                 # Take the next free place between requests now, so the
                 # next asker's place is a gap after this one's.
-                slot = max(now, _STATE["next_ask"])
-                _STATE["next_ask"] = slot + MIN_GAP_S
+                slot = _region_turn(now)
                 flight = _FLIGHTS[region] = threading.Event()
                 break
         # Another phone is asking for this region: wait for it, then look again.
         flight.wait(TIMEOUT_S + 2 * MIN_GAP_S + 1)
     try:
-        if slot > now:
-            _sleep(slot - now)
-        asked = _clock()
+        while True:
+            if slot > now:
+                _sleep(slot - now)
+            with _LOCK:
+                now = _clock()
+                # A search took a turn within a gap of this one since it
+                # was taken: it goes first, and the region is given its
+                # last answer, or waits for a turn after the search's.
+                go = abs(_STATE["search_at"] - slot) >= MIN_GAP_S
+                if go:
+                    _STATE["last_ask"] = now
+                    break
+                if kept:
+                    break
+                slot = _region_turn(now)
+        if not go:
+            return held
+        asked = now
         try:
             answer = (asked, _ask(region))
         except TrafficUnavailable:
@@ -169,6 +198,7 @@ def _region_answer(region: tuple[float, float]) -> tuple[float, list[dict]]:
         with _LOCK:
             if answer is None:
                 _STATE["next_ask"] = asked + BACKOFF_S
+                _STATE["blocked_until"] = asked + BACKOFF_S
             else:
                 _REGIONS[region] = answer
                 if len(_REGIONS) > 256:
@@ -223,38 +253,97 @@ _NEW_LEG = 2
 _HEX = re.compile(r"^~?[0-9a-f]{6}$")
 _N_NUMBER = re.compile(r"^N[1-9][0-9A-Z]{0,4}$")
 _TRACES: TTLCache = TTLCache(maxsize=64, ttl=TRACE_TTL_S)
+#: A search's answer from adsb.lol is given again this long, s.
+FOUND_TTL_S = 15
+_FOUND: TTLCache = TTLCache(maxsize=256, ttl=FOUND_TTL_S)
+_FIND_GATES: dict[str, threading.Lock] = {}
 _TRACE_GATES: dict[str, threading.Lock] = {}
 
 
 def _paced(url: str) -> dict:
-    """adsb.lol's answer to one request, taken in its turn between the
-    region requests (never two within MIN_GAP_S, as `_region_answer`
-    keeps them): waited for up to two gaps, else TrafficUnavailable."""
+    """adsb.lol's answer to a pilot's search, asked ahead of the regions'
+    turns: a gap after the last request that went and the last search's,
+    never two within MIN_GAP_S still (a region whose turn it falls near
+    gives way, `_region_answer`). Behind a refusal's back-off it is not
+    asked: TrafficUnavailable."""
     with _LOCK:
         now = _clock()
-        slot = max(now, _STATE["next_ask"])
+        slot = max(now, _STATE["last_ask"] + MIN_GAP_S, _STATE["search_at"] + MIN_GAP_S, _STATE["blocked_until"])
         if slot - now > 2 * MIN_GAP_S:
             raise TrafficUnavailable("adsb.lol has not answered for a while")
-        _STATE["next_ask"] = slot + MIN_GAP_S
+        _STATE["search_at"] = slot
     if slot > now:
         _sleep(slot - now)
+    with _LOCK:
+        _STATE["last_ask"] = max(_STATE["last_ask"], _clock())
     try:
         resp = requests.get(url, headers=HEADERS, timeout=TIMEOUT_S)
         resp.raise_for_status()
         return resp.json()
     except (requests.RequestException, ValueError) as err:
         with _LOCK:
-            _STATE["next_ask"] = _clock() + BACKOFF_S
+            _STATE["next_ask"] = _STATE["blocked_until"] = _clock() + BACKOFF_S
         raise TrafficUnavailable(f"adsb.lol did not answer: {err}") from err
+
+
+def _heard(text: str) -> list[dict]:
+    """The airplanes a region's last answer (any phone's, a minute at
+    most) has by this callsign, registration or ICAO address, freshest
+    first, each `seen_s` counted from now. Called with the lock held."""
+    now = _clock()
+    bare = text.replace("-", "")
+    best: dict[str, dict] = {}
+    for at, planes in _REGIONS.values():
+        if now - at >= KEEP_S:
+            continue
+        for plane in planes:
+            if text.lower() not in (plane["hex"], plane["hex"].lstrip("~")) and (plane["callsign"] or "").upper() != text \
+                    and (plane["registration"] or "").replace("-", "").upper() != bare:
+                continue
+            aged = {**plane, "seen_s": round((plane["seen_s"] or 0.0) + now - at, 1)}
+            if plane["hex"] not in best or aged["seen_s"] < best[plane["hex"]]["seen_s"]:
+                best[plane["hex"]] = aged
+    return sorted(best.values(), key=lambda plane: plane["seen_s"])
 
 
 def find(query: str) -> list[dict]:
     """The airplanes in the air a pilot names: by callsign ("UAL2088"),
     registration ("N174HA") or ICAO address ("a0b7d8"), as `_aircraft`
-    gives each. Empty where none is in the air and heard now."""
+    gives each. Empty where none is in the air and heard now. One heard
+    about a region in the last minute is found there, at once; else
+    adsb.lol is asked, in a search's turn, and its answer kept for
+    FOUND_TTL_S so the same search again -- a second phone's, a tap back --
+    asks nothing."""
     text = re.sub(r"\s+", "", query).upper()
     if not text or not re.fullmatch(r"[~A-Z0-9-]{2,10}", text):
         return []
+    with _LOCK:
+        heard = _heard(text)
+        if heard:
+            return heard
+        if text in _FOUND:
+            return _FOUND[text]
+        gate = _FIND_GATES.setdefault(text, threading.Lock())
+    # One search for a name at a time: the rest wait and are given its answer.
+    with gate:
+        with _LOCK:
+            if text in _FOUND:
+                return _FOUND[text]
+        try:
+            found = _asked(text)
+            # The answer is stored in the same lock section the gate is
+            # dropped in, so a search arriving between finds one or the other.
+            with _LOCK:
+                _FOUND[text] = found
+        finally:
+            with _LOCK:
+                _FIND_GATES.pop(text, None)
+        return found
+
+
+def _asked(text: str) -> list[dict]:
+    """adsb.lol's answer to a search: by address, callsign or
+    registration, as the text reads, the next way where one finds none."""
     if _HEX.fullmatch(text.lower()):
         tries = [("hex", text.lower()), ("callsign", text)]
     elif _N_NUMBER.fullmatch(text) or "-" in text:

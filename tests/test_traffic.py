@@ -29,8 +29,10 @@ class Clock:
 def clock(monkeypatch):
     clock = Clock()
     monkeypatch.setattr(traffic, "_REGIONS", {})
-    monkeypatch.setattr(traffic, "_STATE", {"next_ask": 0.0})
+    monkeypatch.setattr(traffic, "_STATE", {"next_ask": 0.0, "last_ask": -1e9, "search_at": -1e9, "blocked_until": -1e9})
     monkeypatch.setattr(traffic, "_FLIGHTS", {})
+    monkeypatch.setattr(traffic, "_FOUND", traffic.TTLCache(maxsize=256, ttl=traffic.FOUND_TTL_S, timer=clock))
+    monkeypatch.setattr(traffic, "_FIND_GATES", {})
     monkeypatch.setattr(traffic, "_clock", clock)
     monkeypatch.setattr(traffic, "_sleep", clock.sleep)
     return clock
@@ -213,6 +215,68 @@ def test_a_search_takes_its_turn_between_requests(clock):
         # five seconds after the one before.
         assert traffic.find("FOO123") == []
     assert asked_at == [1000.0, 1005.0, 1010.0]
+
+
+def test_an_airplane_heard_about_a_region_is_found_there_at_once(clock):
+    with patch("vfr.traffic.requests.get", return_value=_answer([CESSNA])):
+        traffic.near(42.3, -88.1, 25)
+    clock.now += 20
+    with patch("vfr.traffic.requests.get") as get:
+        (by_reg,) = traffic.find("N174HA")
+        (by_hex,) = traffic.find("a128b9")
+        (by_callsign,) = traffic.find("n174ha")
+    assert get.call_count == 0
+    assert by_reg["hex"] == by_hex["hex"] == by_callsign["hex"] == "a128b9"
+    # How old its position is, counted from now: the region's answer is 20 s old.
+    assert by_reg["seen_s"] == 20.3
+
+
+def test_a_search_goes_ahead_of_the_regions_turns(clock):
+    get, asked = _routed({"/point/": _answer([]), "/callsign/": _answer([]), "/reg/": _answer([])})
+    asked_at = []
+    def timed(url, **kwargs):
+        asked_at.append((clock.now, url.split("/v2/")[1].split("/")[0]))
+        return get(url)
+
+    with patch("vfr.traffic.requests.get", side_effect=timed):
+        traffic.near(42.3, -88.1, 25)
+        clock.now += 1
+        assert traffic.find("FOO123") == []
+        # A region with nothing of its own takes the turn after the search's.
+        traffic.near(45.0, -93.0, 25)
+    assert asked_at == [(1000.0, "point"), (1005.0, "callsign"), (1010.0, "reg"), (1015.0, "point")]
+
+
+def test_a_region_whose_turn_a_search_took_gives_way(clock, monkeypatch):
+    with patch("vfr.traffic.requests.get", return_value=_answer([CESSNA])):
+        traffic.near(42.3, -88.1, 25)
+    asked_at = []
+    sleeps = []
+
+    def sleep(seconds):
+        # While the region waits for its turn, a search takes one a second after it.
+        if not sleeps:
+            traffic._STATE["search_at"] = clock.now + seconds + 1
+        sleeps.append(seconds)
+        clock.sleep(seconds)
+
+    monkeypatch.setattr(traffic, "_sleep", sleep)
+    with patch("vfr.traffic.requests.get", side_effect=lambda *a, **kw: (asked_at.append(clock.now), _answer([]))[1]):
+        clock.now += 1
+        # Another region, with no answer to give: it waits for a turn after the search's.
+        traffic.near(45.0, -93.0, 25)
+    assert asked_at == [1011.0]
+
+
+def test_a_search_answer_is_given_again_for_a_few_seconds(clock):
+    with patch("vfr.traffic.requests.get", return_value=_answer([{**CESSNA, "flight": "UAL2088 ", "r": "N14511", "hex": "a0b7d8"}])) as get:
+        assert [a["hex"] for a in traffic.find("UAL2088")] == ["a0b7d8"]
+        clock.now += 10
+        assert [a["hex"] for a in traffic.find("UAL2088")] == ["a0b7d8"]
+        assert get.call_count == 1
+        clock.now += traffic.FOUND_TTL_S
+        traffic.find("UAL2088")
+        assert get.call_count == 2
 
 
 TRACE = {
