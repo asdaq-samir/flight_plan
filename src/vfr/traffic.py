@@ -223,6 +223,7 @@ _NEW_LEG = 2
 _HEX = re.compile(r"^~?[0-9a-f]{6}$")
 _N_NUMBER = re.compile(r"^N[1-9][0-9A-Z]{0,4}$")
 _TRACES: TTLCache = TTLCache(maxsize=64, ttl=TRACE_TTL_S)
+_TRACE_GATES: dict[str, threading.Lock] = {}
 
 
 def _paced(url: str) -> dict:
@@ -270,17 +271,33 @@ def find(query: str) -> list[dict]:
 
 def _trace(hex_id: str) -> dict | None:
     """An airplane's trace today, read once a minute; None where there is
-    none or it cannot be had (the flight is then drawn without its past)."""
+    none or it cannot be had (the flight is then drawn without its past).
+    Only an answer is kept -- a 404 is the airplane having no trace today
+    -- never a timeout or a refusal, which is asked again at the next
+    read. One read per airplane at a time: a second asker waits for it
+    and is given what it kept."""
     with _LOCK:
         if hex_id in _TRACES:
             return _TRACES[hex_id]
-    try:
-        resp = requests.get(TRACE_URL.format(last2=hex_id[-2:], hex=hex_id), headers=HEADERS, timeout=TIMEOUT_S)
-        trace = resp.json() if resp.status_code == 200 else None
-    except (requests.RequestException, ValueError):
-        trace = None
-    with _LOCK:
-        _TRACES[hex_id] = trace
+        gate = _TRACE_GATES.setdefault(hex_id, threading.Lock())
+    with gate:
+        with _LOCK:
+            if hex_id in _TRACES:
+                return _TRACES[hex_id]
+        try:
+            resp = requests.get(TRACE_URL.format(last2=hex_id[-2:], hex=hex_id), headers=HEADERS, timeout=TIMEOUT_S)
+            if resp.status_code == 200:
+                trace = resp.json()
+            elif resp.status_code == 404:
+                trace = None
+            else:
+                return None
+        except (requests.RequestException, ValueError):
+            return None
+        with _LOCK:
+            _TRACES[hex_id] = trace
+            if len(_TRACE_GATES) > 256:
+                _TRACE_GATES.clear()
     return trace
 
 
@@ -304,19 +321,22 @@ def flight(hex_id: str) -> dict:
     trace = _trace(hex_id) or {}
     points = trace.get("trace") or []
     base = _number(trace.get("timestamp")) or 0.0
-    # This flight: from its last time on the ground, or where readsb
-    # started its leg, whichever is later.
+    # This flight: from its last time on the ground before its last point
+    # in the air, or where readsb started its leg, whichever is later. An
+    # airplane that has landed and is parked is given the flight it just
+    # flew, to its landing, not the parked tail.
+    last_air = max((i for i, p in enumerate(points) if p[3] != "ground"), default=-1)
     start = 0
-    for i, point in enumerate(points):
+    for i, point in enumerate(points[:last_air + 1]):
         if point[3] == "ground" or (isinstance(point[6], int) and point[6] & _NEW_LEG):
             start = i
-    leg = points[start:]
+    leg = points[start:last_air + 2] if last_air >= 0 else []
     departed = None
     if leg and leg[0][3] == "ground":
         nearest = airports.nearest(leg[0][1], leg[0][2], limit=1)
         if nearest and nearest[0]["distance_nm"] <= DEPARTED_WITHIN_NM:
             # When it left the ground: the first point in the air after it.
-            off = next((p for p in leg if p[3] != "ground"), leg[0])
+            off = next(p for p in leg if p[3] != "ground")
             departed = {"ident": nearest[0]["ident"], "name": nearest[0].get("name"), "at": round(base + off[0])}
     step = max(1, math.ceil(len(leg) / TRAIL_POINTS))
     kept = leg[::step] + ([leg[-1]] if leg and (len(leg) - 1) % step else [])

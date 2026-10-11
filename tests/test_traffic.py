@@ -263,3 +263,29 @@ def test_a_flight_with_no_trace_is_drawn_without_its_past(clock, monkeypatch):
     with patch("vfr.traffic.requests.get", return_value=Mock(status_code=404)):
         found = traffic.flight("a0b7d8")
     assert found["trail"] == [] and found["departed"] is None and found["registration"] is None
+
+
+def test_a_flight_that_has_landed_is_its_flight_to_the_landing_not_the_parked_tail(clock, monkeypatch):
+    monkeypatch.setattr(traffic, "_TRACES", {})
+    monkeypatch.setattr(traffic.airports, "nearest", lambda lat, lon, limit=1: [
+        {"ident": "KORD", "name": "Chicago O'Hare International Airport", "distance_nm": 0.4}])
+    parked = {**TRACE, "trace": TRACE["trace"] + [
+        [800.0, 41.97, -87.90, "ground", 10.0, 90.0, 0, 0, None, "adsb_icao", None],
+        [900.0, 41.97, -87.90, "ground", 0.0, 90.0, 0, 0, None, "adsb_icao", None]]}
+    with patch("vfr.traffic.requests.get", return_value=Mock(status_code=200, json=Mock(return_value=parked))):
+        found = traffic.flight("a0b7d8")
+    # Departed when it left the ground, 660 s in; the trail ends at its landing.
+    assert found["departed"]["at"] == 1791656660
+    assert [p["t"] for p in found["trail"]] == [1791656600.0, 1791656660.0, 1791656720.0, 1791656800.0]
+
+
+def test_a_trace_that_could_not_be_had_is_asked_again_not_kept(clock, monkeypatch):
+    monkeypatch.setattr(traffic, "_TRACES", {})
+    with patch("vfr.traffic.requests.get", side_effect=requests.Timeout("slow")) as get:
+        assert traffic.flight("a0b7d8")["trail"] == []
+        assert traffic.flight("a0b7d8")["trail"] == []
+    assert get.call_count == 2
+    with patch("vfr.traffic.requests.get", return_value=Mock(status_code=429)) as get:
+        traffic.flight("a0b7d8")
+        traffic.flight("a0b7d8")
+    assert get.call_count == 2
