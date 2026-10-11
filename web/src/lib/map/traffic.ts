@@ -1,5 +1,5 @@
 import type { TrafficAircraft } from "../api/types";
-import { destination, distanceNm } from "../geo";
+import { destination, distanceNm, type LatLon } from "../geo";
 import { grouped } from "../units";
 import type { Fix } from "./ownShip";
 
@@ -55,3 +55,30 @@ export function ownShipHex(planes: TrafficAircraft[], fix: Fix | null): string |
   return best?.hex ?? null;
 }
 
+
+/** How long after its report an airplane is carried on along its track:
+ *  past this it may have turned anywhere, and is not drawn (the planner
+ *  leaves out positions as old, vfr.traffic's STALE_S). */
+export const CARRY_S = 30;
+/** How far ahead its line reaches, seconds: ForeFlight's TrafficTrend
+ *  vector shows where a target will be in the next 60. */
+export const TREND_S = 60;
+
+/** Where an airplane is `seconds` after its report, carried on along its
+ *  track at its ground speed, as ForeFlight carries internet traffic on
+ *  between reports; where it was where it gives no track or speed. */
+export function carriedOn(plane: TrafficAircraft, seconds: number): LatLon {
+  const at = { lat: plane.lat, lon: plane.lon };
+  if (plane.track_deg == null || plane.speed_kt == null || seconds <= 0) return at;
+  return destination(at, plane.track_deg, (plane.speed_kt * seconds) / 3600);
+}
+
+/** How long its trend line is on the screen, points: TREND_S at its
+ *  ground speed, at the map's scale there (Web Mercator's 156,543 m a
+ *  point at zoom 0 on the equator), at most 160. */
+export function trendPx(speedKt: number | null | undefined, lat: number, zoom: number): number {
+  if (!speedKt) return 0;
+  const metres = ((speedKt * TREND_S) / 3600) * 1852;
+  const metresPerPoint = (156543.03392 * Math.cos((lat * Math.PI) / 180)) / 2 ** zoom;
+  return Math.min(160, metres / metresPerPoint);
+}

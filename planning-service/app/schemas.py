@@ -902,6 +902,9 @@ class Traffic(BaseModel):
     map say so where it draws them."""
 
     aircraft: list[TrafficAircraft]
+    #: How many seconds before this answer the airplanes were where it
+    #: gives them, each `seen_s` more: the map carries each on from there.
+    age_s: float = 0.0
     source: str = "adsb.lol"
     license: str = "ODbL 1.0"
 

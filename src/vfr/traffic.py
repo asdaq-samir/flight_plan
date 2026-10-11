@@ -7,40 +7,62 @@ Seconds old by the time it is drawn, with holes where no receiver hears:
 for knowing what is about, not for avoiding it. 14 CFR 91.113(b) asks
 the pilot to see and avoid whatever the screen shows.
 
-One answer is shared for five seconds by everyone asking about the same
-place (to a hundredth of a degree, the radius to ten miles), so many
-phones over one field cost adsb.lol one request, whose API asks to be
-spared (its rate limits follow its load).
+adsb.lol answers one request every few seconds from one address and
+turns the rest away (429 Too Many Requests: of twelve asked 1.5 s apart
+on 2026-10-10, three were answered). So the planner asks it about a
+region -- half a degree square, out to 80 nm, which holds any view of 60
+nm whose middle is in it -- at most once in five seconds, never two
+requests within five seconds of each other whatever the region, and
+waits fifteen after being turned away; between times every phone is
+given the region's last answer, cut to its own view, with how old it is,
+so the map can carry each airplane on from where it was (TrafficLayer).
 """
 from __future__ import annotations
 
-import math
 import threading
+import time
 
+import numpy as np
 import requests
-from cachetools import TTLCache
 
-URL = "https://api.adsb.lol/v2/point/{lat}/{lon}/{radius}"
+URL = "https://api.adsb.lol/v2/point/{lat:.2f}/{lon:.2f}/{radius}"
 HEADERS = {"User-Agent": "wingtip-maps/0.1 (VFR flight planner; traffic for pilots' situational awareness)"}
-#: How long one answer serves: about an ADS-B receiver's own refresh.
-TTL_S = 5
-#: The radius asked for is kept between these, nm: adsb.lol's own most is 250.
-MIN_RADIUS_NM, MAX_RADIUS_NM = 10, 100
+#: A region's side, degrees, and how far round its middle it is asked
+#: for: a view's middle is at most a quarter degree from the region's
+#: (15 nm north and south, less east and west), so 80 nm holds a view of 60.
+REGION_DEG = 0.5
+REGION_RADIUS_NM = 80
+#: The furthest a view is asked about, nm.
+MAX_RADIUS_NM = 60
+#: A region's answer is given again, not asked for, this long.
+FRESH_S = 5.0
+#: Never two requests to adsb.lol closer together than this.
+MIN_GAP_S = 5.0
+#: Turned away or not answered, nothing is asked for this long.
+BACKOFF_S = 15.0
+#: A region's last answer is given while adsb.lol cannot be asked, until
+#: it is this old; then traffic is said to be unavailable.
+KEEP_S = 60.0
 #: A position older than this is left out: the airplane is somewhere else.
 STALE_S = 30.0
+#: How long one request may take.
+TIMEOUT_S = 5.0
 
-#: How long a failure is remembered, so phones asking every five seconds
-#: do not each wait out an adsb.lol that is slow or down.
-FAILURE_TTL_S = 5
+_NM_PER_DEG = 60.0
 
-_CACHE: TTLCache = TTLCache(maxsize=512, ttl=TTL_S)
-_FAILED: TTLCache = TTLCache(maxsize=512, ttl=FAILURE_TTL_S)
+# Monotonic clock and sleep, through the module so the tests can stand in.
+_clock = time.monotonic
+_sleep = time.sleep
+
 _LOCK = threading.Lock()
-_KEY_LOCKS: dict = {}
+#: Each region's last answer: (when it came, monotonic, airplanes).
+_REGIONS: dict = {}
+#: When adsb.lol may next be asked, monotonic.
+_STATE = {"next_ask": 0.0}
 
 
 class TrafficUnavailable(RuntimeError):
-    """adsb.lol did not answer."""
+    """adsb.lol has not answered for a while."""
 
 
 def _number(value) -> float | None:
@@ -77,42 +99,69 @@ def _aircraft(entry: dict) -> dict | None:
     }
 
 
-def near(lat: float, lon: float, radius_nm: float) -> list[dict]:
-    """The airplanes in the air within `radius_nm` of a point, as
-    `_aircraft` gives each. Raises TrafficUnavailable where adsb.lol does
-    not answer."""
-    # Rounded up, so the answer always reaches the edge of what was asked.
-    radius = int(min(MAX_RADIUS_NM, max(MIN_RADIUS_NM, math.ceil(radius_nm / 10) * 10)))
-    key = (round(lat, 2), round(lon, 2), radius)
+def _region(lat: float, lon: float) -> tuple[float, float]:
+    return round(lat / REGION_DEG) * REGION_DEG, round(lon / REGION_DEG) * REGION_DEG
 
-    def held():
-        with _LOCK:
-            if key in _FAILED:
-                raise TrafficUnavailable(_FAILED[key])
-            return _CACHE.get(key)
 
-    answer = held()
-    if answer is not None:
-        return answer
-    # One asker at a time per place: the rest wait, then read its answer.
+def _ask(region: tuple[float, float]) -> list[dict]:
+    """adsb.lol's airplanes round a region's middle. Raises
+    TrafficUnavailable where it turns the request away or does not answer."""
+    try:
+        resp = requests.get(URL.format(lat=region[0], lon=region[1], radius=REGION_RADIUS_NM), headers=HEADERS, timeout=TIMEOUT_S)
+        resp.raise_for_status()
+        entries = resp.json().get("ac") or []
+    except (requests.RequestException, ValueError) as err:
+        raise TrafficUnavailable(f"adsb.lol did not answer: {err}") from err
+    return [a for a in (_aircraft(e) for e in entries if isinstance(e, dict)) if a is not None]
+
+
+def _region_answer(region: tuple[float, float]) -> tuple[float, list[dict]]:
+    """(when it came, airplanes) for a region: its last answer while fresh,
+    or while adsb.lol may not be asked yet; else adsb.lol's -- for a
+    region with none, after waiting out the gap between requests -- else,
+    turned away, its last answer while not too old. One asker at a time:
+    the rest wait for its answer and are given it."""
     with _LOCK:
-        key_lock = _KEY_LOCKS.setdefault(key, threading.Lock())
-    with key_lock:
-        answer = held()
-        if answer is not None:
-            return answer
-        try:
-            resp = requests.get(URL.format(lat=key[0], lon=key[1], radius=radius), headers=HEADERS, timeout=8)
-            resp.raise_for_status()
-            entries = resp.json().get("ac") or []
-        except (requests.RequestException, ValueError) as err:
-            message = f"adsb.lol did not answer: {err}"
-            with _LOCK:
-                _FAILED[key] = message
-            raise TrafficUnavailable(message) from err
-        found = [a for a in (_aircraft(e) for e in entries if isinstance(e, dict)) if a is not None]
-        with _LOCK:
-            _CACHE[key] = found
-            if len(_KEY_LOCKS) > 1024:
-                _KEY_LOCKS.clear()
-        return found
+        held = _REGIONS.get(region)
+        now = _clock()
+        kept = held is not None and now - held[0] < KEEP_S
+        if held and now - held[0] < FRESH_S:
+            return held
+        wait = _STATE["next_ask"] - now
+        if wait > 0 and kept:
+            return held
+        if 0 < wait <= MIN_GAP_S:
+            _sleep(wait)
+            now = _clock()
+        if now >= _STATE["next_ask"]:
+            _STATE["next_ask"] = now + MIN_GAP_S
+            try:
+                answer = (now, _ask(region))
+            except TrafficUnavailable:
+                _STATE["next_ask"] = now + BACKOFF_S
+            else:
+                _REGIONS[region] = answer
+                if len(_REGIONS) > 256:
+                    for gone in [r for r, (at, _) in _REGIONS.items() if now - at > KEEP_S]:
+                        del _REGIONS[gone]
+                return answer
+        if kept:
+            return held
+        raise TrafficUnavailable("adsb.lol has not answered for a while")
+
+
+def near(lat: float, lon: float, radius_nm: float) -> dict:
+    """The airplanes in the air within `radius_nm` (at most 60) of a point,
+    as `_aircraft` gives each, and `age_s`, how many seconds before now
+    they were where they are given (each `seen_s` more): {"aircraft",
+    "age_s"}. Raises TrafficUnavailable where adsb.lol has not answered
+    for a minute."""
+    at, planes = _region_answer(_region(lat, lon))
+    radius = min(MAX_RADIUS_NM, radius_nm)
+    if planes:
+        lats = np.array([p["lat"] for p in planes])
+        lons = np.array([p["lon"] for p in planes])
+        # Flat-earth miles: within 60 the error is a fraction of one.
+        nm = np.hypot((lats - lat) * _NM_PER_DEG, (lons - lon) * _NM_PER_DEG * np.cos(np.radians(lat)))
+        planes = [p for p, d in zip(planes, nm) if d <= radius]
+    return {"aircraft": planes, "age_s": round(_clock() - at, 1)}
