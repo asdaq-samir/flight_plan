@@ -91,6 +91,35 @@ test("an airplane is found by its callsign, and a tap on one on the map tracks i
   await expect(page.getByTestId("flight-card").getByTestId("flight-name")).toHaveText("N174HA");
 });
 
+test("a search finds the airplanes about as it is typed, and asks the planner one name at a time, the last typed", async ({ page }) => {
+  await sky(page);
+  // The planner's search held two seconds, as adsb.lol's pace can.
+  const asked: string[] = [];
+  await page.route(url => url.pathname.endsWith("/api/planner/traffic/find"), async route => {
+    const q = new URL(route.request().url()).searchParams.get("q")!;
+    asked.push(q);
+    await new Promise(done => setTimeout(done, 2000));
+    await route.fulfill({ json: { aircraft: q === "N654FL" ? [{ ...CESSNA, hex: "a89c1e", callsign: "N654FL", registration: "N654FL" }] : [] } });
+  });
+  await page.goto("/app/plan?aircraft=1");
+  await settle(page);
+  const card = page.getByTestId("aircraft-card");
+  await expect(card.getByTestId("aircraft-row")).toHaveCount(2, { timeout: slow(15_000) });
+  const search = page.getByTestId("aircraft-search");
+  // On the map already: found as it is typed, before any answer.
+  await search.fill("N17");
+  await expect(card.getByTestId("aircraft-found")).toHaveText([/N174HA/]);
+  // A name typed with pauses, as on a phone's keyboard: only the first and
+  // the last are asked about, never the ones between.
+  for (const typed of ["N65", "N654", "N654F", "N654FL"]) {
+    await search.fill(typed);
+    await page.waitForTimeout(700);
+  }
+  await expect(card.getByTestId("aircraft-found")).toHaveText([/N654FL/], { timeout: slow(15_000) });
+  expect(asked.at(-1)).toBe("N654FL");
+  expect(asked.filter(q => q === "N654" || q === "N654F")).toEqual([]);
+});
+
 test("in the air, own ship's path flown is drawn behind it", async ({ page }) => {
   await page.context().grantPermissions(["geolocation"]);
   await page.addInitScript(() => {
