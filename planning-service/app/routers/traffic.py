@@ -16,9 +16,9 @@ def traffic_near(
     """The airplanes in the air within `radius` nm of a point (at most 60),
     from adsb.lol (Open Database License 1.0), and how many seconds old
     the answer is: for knowing what is about, not for avoiding it. A 503
-    where adsb.lol has not answered for a minute."""
+    where adsb.lol has not answered for half a minute."""
     try:
         found = traffic.near(lat, lon, radius)
     except traffic.TrafficUnavailable as err:
-        raise HTTPException(503, "Traffic isn't available right now: adsb.lol has not answered for a minute.") from err
+        raise HTTPException(503, "Traffic isn't available right now: adsb.lol has not answered for half a minute.") from err
     return Traffic(**found)

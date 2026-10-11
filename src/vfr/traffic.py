@@ -13,7 +13,11 @@ on 2026-10-10, three were answered). So the planner asks it about a
 region -- half a degree square, out to 80 nm, which holds any view of 60
 nm whose middle is in it -- at most once in five seconds, never two
 requests within five seconds of each other whatever the region, and
-waits fifteen after being turned away; between times every phone is
+waits fifteen after being turned away (so about twelve regions a
+minute for the whole service, and a region with no answer of its own
+that would wait over ten seconds for its turn is told traffic is
+unavailable, not queued; phones at three fields in the same five seconds
+are all served); between times every phone is
 given the region's last answer, cut to its own view, with how old it is,
 so the map can carry each airplane on from where it was (TrafficLayer).
 """
@@ -40,11 +44,14 @@ FRESH_S = 5.0
 MIN_GAP_S = 5.0
 #: Turned away or not answered, nothing is asked for this long.
 BACKOFF_S = 15.0
-#: A region's last answer is given while adsb.lol cannot be asked, until
-#: it is this old; then traffic is said to be unavailable.
-KEEP_S = 60.0
 #: A position older than this is left out: the airplane is somewhere else.
+#: The map stops drawing at the same age (CARRY_S in lib/map/traffic).
 STALE_S = 30.0
+#: A region's last answer is given while adsb.lol cannot be asked, until
+#: it is this old; then traffic is said to be unavailable. Not longer than
+#: the map draws an answer (STALE_S), or it would show an empty map, with
+#: no word why, for what looks like no traffic about.
+KEEP_S = STALE_S
 #: How long one request may take.
 TIMEOUT_S = 5.0
 
@@ -154,7 +161,11 @@ def _region_answer(region: tuple[float, float]) -> tuple[float, list[dict]]:
             _sleep(slot - now)
         asked = _clock()
         try:
-            answer = (asked, _ask(region))
+            planes = _ask(region)
+            # The airplanes were heard some time during the request; its
+            # middle is the least wrong age (the full wait would carry
+            # them further than they have gone).
+            answer = ((asked + _clock()) / 2, planes)
         except TrafficUnavailable:
             answer = None
         with _LOCK:
@@ -163,7 +174,7 @@ def _region_answer(region: tuple[float, float]) -> tuple[float, list[dict]]:
             else:
                 _REGIONS[region] = answer
                 if len(_REGIONS) > 256:
-                    for gone in [r for r, (at, _) in _REGIONS.items() if asked - at > KEEP_S]:
+                    for gone in [r for r, (at, _) in _REGIONS.items() if _clock() - at > KEEP_S]:
                         del _REGIONS[gone]
     finally:
         with _LOCK:
@@ -181,7 +192,7 @@ def near(lat: float, lon: float, radius_nm: float) -> dict:
     as `_aircraft` gives each, and `age_s`, how many seconds before now
     they were where they are given (each `seen_s` more): {"aircraft",
     "age_s"}. Raises TrafficUnavailable where adsb.lol has not answered
-    for a minute."""
+    for half a minute."""
     at, planes = _region_answer(_region(lat, lon))
     radius = min(MAX_RADIUS_NM, radius_nm)
     if planes:

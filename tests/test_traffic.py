@@ -127,7 +127,7 @@ def test_turned_away_the_last_answer_is_given_and_nothing_asked_for_fifteen_seco
     assert get.call_count == 1
 
 
-def test_with_nothing_for_a_minute_traffic_is_unavailable(clock):
+def test_with_nothing_for_half_a_minute_traffic_is_unavailable(clock):
     with patch("vfr.traffic.requests.get", return_value=_answer([CESSNA])):
         traffic.near(42.3, -88.1, 25)
     with patch("vfr.traffic.requests.get", side_effect=requests.ConnectionError("down")):
@@ -138,7 +138,7 @@ def test_with_nothing_for_a_minute_traffic_is_unavailable(clock):
             except traffic.TrafficUnavailable:
                 break
         else:
-            pytest.fail("an answer over a minute old was still given")
+            pytest.fail("an answer over half a minute old was still given")
     assert clock.now - 1000.0 >= traffic.KEEP_S
 
 
@@ -177,3 +177,33 @@ def test_a_region_with_an_answer_is_not_kept_behind_another_regions_request(cloc
         traffic.near(42.3, -88.1, 25)
         release.set()
         other.join()
+
+
+def test_the_answers_age_is_from_the_middle_of_its_request(clock):
+    def slow(*args, **kwargs):
+        clock.now += 4
+        return _answer([CESSNA])
+
+    with patch("vfr.traffic.requests.get", side_effect=slow):
+        traffic.near(42.3, -88.1, 25)
+    assert traffic.near(42.3, -88.1, 25)["age_s"] == 2.0
+
+
+def test_the_map_is_never_given_an_answer_older_than_it_draws(clock):
+    # CARRY_S in web/src/lib/map/traffic.ts; past it the map is empty.
+    assert traffic.KEEP_S <= 30.0
+
+
+def test_five_fields_in_the_same_five_seconds_three_are_served_and_two_told(clock, monkeypatch):
+    monkeypatch.setattr(traffic, "_sleep", lambda s: None)
+    fields = [(42.3, -88.1), (45.0, -93.0), (40.0, -100.0), (35.0, -90.0), (33.0, -112.0)]
+    served, told = 0, 0
+    with patch("vfr.traffic.requests.get", return_value=_answer([])) as get:
+        for lat, lon in fields:
+            try:
+                traffic.near(lat, lon, 25)
+                served += 1
+            except traffic.TrafficUnavailable:
+                told += 1
+    assert (served, told) == (3, 2)
+    assert get.call_count == 3

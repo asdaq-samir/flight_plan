@@ -11206,7 +11206,7 @@
     },
     "/api/traffic": {
       "get": {
-        "description": "The airplanes in the air within `radius` nm of a point (at most 60),\nfrom adsb.lol (Open Database License 1.0), and how many seconds old\nthe answer is: for knowing what is about, not for avoiding it. A 503\nwhere adsb.lol has not answered for a minute.",
+        "description": "The airplanes in the air within `radius` nm of a point (at most 60),\nfrom adsb.lol (Open Database License 1.0), and how many seconds old\nthe answer is: for knowing what is about, not for avoiding it. A 503\nwhere adsb.lol has not answered for half a minute.",
         "operationId": "traffic_near_api_traffic_get",
         "parameters": [
           {
