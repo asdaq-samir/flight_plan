@@ -19,7 +19,7 @@ import { useKeepOffline } from "../../lib/map/keepStatus";
 import { locateOnOpen, positionNow, useOwnShip, useOwnShipNear } from "../../lib/map/ownShip";
 import { track, useTracking } from "../../lib/map/tracking";
 import { pointOf } from "../../lib/airspace";
-import { MAX_STOPS, altitudesOf, altitudesParam, departureOf, identOf, pointName, positionIdent, routeName, routeOf, stopsOf } from "../../lib/identSchema";
+import { MAX_STOPS, altitudesOf, altitudesParam, departureOf, identOf, isAirwayToken, pointName, positionIdent, routeName, routeOf, stopsOf } from "../../lib/identSchema";
 import { restingSummary } from "./figures";
 import { useKeptAirport, usePreferences, type RecentAirport } from "../../lib/preferences";
 import { SearchNear, useAirportSearch } from "../../lib/useAirportSearch";
@@ -38,7 +38,7 @@ import AirspaceCard from "./components/AirspaceCard";
 import PlaceCard from "./components/PlaceCard";
 import ProceduresButton, { type ProcedureAirport } from "./components/ProceduresButton";
 import { patternsOf, patternsParam, trafficPattern, type TrafficPattern } from "../../lib/trafficPattern";
-import { proceduresOf, proceduresParam, type PickedProcedure } from "../../lib/procedures";
+import { proceduresOf, proceduresParam, sameField, type PickedProcedure } from "../../lib/procedures";
 import { runwayNumber } from "../../lib/pattern";
 import NearestCard from "./components/NearestCard";
 import AircraftCard from "./components/AircraftCard";
@@ -179,6 +179,9 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const remembered = usePreferences(p => p.aircraft);
   const showWaypoints = usePreferences(p => p.waypoints);
   const setAircraft = usePreferences(p => p.setAircraft);
+  // VFR or IFR, kept from flight to flight (the altitude's popover).
+  const flightRules = usePreferences(p => p.flightRules);
+  const setFlightRules = usePreferences(p => p.setFlightRules);
 
   // The stock profiles, plus a signed-in pilot's own airplanes on top
   // of them -- the same ["pilot"]/["aircraft"] queries the pilot
@@ -202,7 +205,9 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const aircraft = aircraftOptions.find(o => aircraftKey(o) === aircraftKey(remembered)) ?? remembered;
   const s = usePlan({
     dep: planned.dep, dest: planned.dest, stops: planned.stops, altitudeFt, altitudeChoice, depart, aircraft, load, classBClearance,
-    altitudes, localMin,
+    altitudes, localMin, rules: flightRules,
+    // Under IFR, the alternate filed in the Weather tab (AlternateSection).
+    alternate: searchParams.get("alternate") ?? "",
     // Checkpoints as the map shows them: the settings' Waypoints off, the
     // nav log runs from point to point, at the pilot's ask.
     checkpoints: showWaypoints,
@@ -446,6 +451,15 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     label: `${d.name.replace(/ RWY /, " ")}${d.transition ? ` · ${d.transition}` : ""}`,
     spoken: `${d.name}${d.transition ? ` via ${d.transition}` : ""}`,
   })), [procedureDrawings]);
+  // The departure and the arrival picked at the route's ends, filed in
+  // the flight plan's route (lib/flightPlanForm).
+  const filedProcedures = useMemo(() => {
+    const at = (ident: string, kind: "departure" | "arrival") => {
+      const d = procedureDrawings.find(p => p.kind === kind && sameField(p.airport, ident));
+      return d ? { id: d.id, transition: d.transition ?? null } : null;
+    };
+    return { departure: at(planned.dep, "departure"), arrival: at(planned.dest, "arrival") };
+  }, [procedureDrawings, planned.dep, planned.dest]);
   const [proceduresOpen, setProceduresOpen] = useState(false);
   const openProcedures = useCallback(() => setProceduresOpen(true), []);
   const selectPlaceOnChart = useCallback((ident: string | null) => {
@@ -587,7 +601,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     if (from) {
       const plan = {
         dep: from, dest: to.ident, stops: [], altitudeFt: "", altitudeChoice: "fastest" as const, depart, aircraft, load: load + 1,
-        checkpoints: showWaypoints,
+        checkpoints: showWaypoints, rules: flightRules,
       };
       void queryClient.prefetchQuery(courseQuery(from, to.ident));
       if (showWaypoints) void queryClient.prefetchQuery(checkpointsQuery(from, to.ident));
@@ -615,7 +629,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       if (panel !== "full") setPanel("half");
       setSearchParams(next, { replace: true, flushSync: true });
     });
-  }, [fromFor, depart, panel, setSearchParams, setPanel, showWaypoints, aircraft, load]);
+  }, [fromFor, depart, panel, setSearchParams, setPanel, showWaypoints, aircraft, load, flightRules]);
 
   const submit = useCallback(() => {
     const route = routeOf(dep, dest, planned.stops);
@@ -741,8 +755,11 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const routed = routeOf(planned.dep, planned.dest, planned.stops) !== null || local;
   // The stops flown through rather than landed at: the course's own word
   // for each, and before it answers, any ident too long for an airport.
+  // An airway (V100) is flown through too, fix by fix, unless the course
+  // says the stop is an airport whose identifier has an airway's form.
   const waypointStops = useMemo(() => new Set(planned.stops.filter(stop =>
-    course?.stops?.some(a => a.ident === stop && a.kind === "fix") || !identOf(stop))), [planned.stops, course]);
+    course?.stops?.some(a => a.ident === stop && a.kind === "fix") || !identOf(stop)
+    || (isAirwayToken(stop) && !course?.stops?.some(a => a.ident === stop)))), [planned.stops, course]);
   // A route cleared from its close with the panel out keeps its empty box
   // to type another in (clearRoute); the panel lowered, the search again,
   // and no card under it any more.
@@ -1053,13 +1070,13 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       part={part} nav={s.nav} legs={s.legs}
       dep={planned.dep} dest={planned.dest}
       // The airports landed at: a waypoint has no weather of its own.
-      stops={landedStops}
+      stops={landedStops} route={planned.stops} procedures={filedProcedures}
       briefing={s.briefing} course={course} totals={s.totals} depart={depart}
       langgraphNarrative={s.langgraphNarrative} crewaiNarrative={s.crewaiNarrative}
       problem={unflyableBrief}
       narrative={part === "brief" ? narrative : undefined}
     />
-  ), [s.nav, s.legs, planned.dep, planned.dest, landedStops, s.briefing, course, s.totals, depart,
+  ), [s.nav, s.legs, planned.dep, planned.dest, landedStops, planned.stops, filedProcedures, s.briefing, course, s.totals, depart,
     s.langgraphNarrative, s.crewaiNarrative, unflyableBrief, narrative]);
   // A tab tapped takes the panel all the way up to show it; the tab up
   // tapped again there takes it back to half, at the pilot's ask.
@@ -1166,12 +1183,13 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           tight={unflyable ? null : tightLeg}
           classB={!unflyable && classBClearance ? () => acceptClassB(false) : null}
           alt={alt} onAltChange={setAlt} onSubmit={submit} disabled={!routed}
+          rules={flightRules} onRulesChange={setFlightRules}
         />
       )}
       depart={depart} onDepartChange={changeDepart}
     />
   ), [aircraftValue, aircraftChoices, changeAircraft, s.local, s.nav, s.legs, changeAltitudeChoice, unflyable, acceptClassB, tightLeg,
-    classBClearance, alt, setAlt, submit, routed, depart, changeDepart]);
+    classBClearance, alt, setAlt, submit, routed, depart, changeDepart, flightRules, setFlightRules]);
 
   // Saving the flight, the narrative and Print.
   // The route's airports' airspace classes, as the course came with them:

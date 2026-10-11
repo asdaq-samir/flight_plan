@@ -17,7 +17,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.northflyers.vfr.domain.Aircraft;
 import com.northflyers.vfr.domain.Pilot;
+import com.northflyers.vfr.dto.AircraftDto;
 import com.northflyers.vfr.service.AircraftService;
+import com.northflyers.vfr.service.ChecklistService;
+import com.northflyers.vfr.service.SquawkService;
 import com.northflyers.vfr.service.PilotService;
 import java.util.List;
 import java.util.Optional;
@@ -46,6 +49,12 @@ class AircraftControllerTest {
 
     @MockitoBean
     private PilotService pilotService;
+
+    @MockitoBean
+    private ChecklistService checklistService;
+
+    @MockitoBean
+    private SquawkService squawkService;
 
     private static Pilot samplePilot() {
         return new Pilot("pilot@example.com", "A. Pilot", "sub-1");
@@ -180,5 +189,116 @@ class AircraftControllerTest {
 
         mockMvc.perform(delete("/api/aircraft/999").with(oidcLogin()).with(csrf()))
                 .andExpect(status().isNotFound());
+    }
+
+    /** 14 CFR 91.171: a VOR check recorded with its date, kind, place and
+     *  error; good for 30 days, and within 4 degrees at a VOT. */
+    @Test
+    void aVorCheckIsRecordedAndSaysHowLongItIsGoodFor() throws Exception {
+        given(pilotService.current(any())).willReturn(Optional.of(samplePilot()));
+        given(aircraftService.recordVorCheck(any(), eq(7L), any(), any(), any(), anyDouble())).willReturn(Optional.of(
+                sampleAircraft().recordVorCheck(java.time.LocalDate.of(2026, 10, 1), com.northflyers.vfr.domain.VorCheck.VOT,
+                        "KDLH VOT", -5.0)));
+
+        mockMvc.perform(put("/api/aircraft/7/vor-check").with(oidcLogin()).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"checkedOn\":\"2026-10-01\",\"kind\":\"VOT\",\"place\":\"KDLH VOT\",\"errorDeg\":-5}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.vorCheck.goodThrough").value("2026-10-31"))
+                .andExpect(jsonPath("$.vorCheck.limitDeg").value(4.0))
+                // 5 degrees off at a VOT is over its 4.
+                .andExpect(jsonPath("$.vorCheck.withinLimit").value(false));
+
+        mockMvc.perform(put("/api/aircraft/7/vor-check").with(oidcLogin()).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"checkedOn\":\"2999-01-01\",\"kind\":\"VOT\",\"errorDeg\":1}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    /** 14 CFR 91.409(a), 91.411(a), 91.413(a), 91.207(d): each good to the
+     *  end of its calendar month 12 or 24 months on -- an annual on
+     *  5 October 2025 to 31 October 2026, an annual on 31 January 2026 to
+     *  31 January 2027 -- and the 100-hour due 100 hours of time in service
+     *  after the last (91.409(b)). */
+    @Test
+    void theInspectionsAreRecordedEachWithTheLastDayItIsGoodFor() throws Exception {
+        given(pilotService.current(any())).willReturn(Optional.of(samplePilot()));
+        given(aircraftService.recordInspections(any(), eq(7L), any())).willReturn(Optional.of(
+                sampleAircraft().recordInspections(java.time.LocalDate.of(2025, 10, 5), 1200.5, 1290.0,
+                        java.time.LocalDate.of(2024, 11, 30), java.time.LocalDate.of(2025, 2, 1),
+                        java.time.LocalDate.of(2026, 1, 31), java.time.LocalDate.of(2028, 6, 1))));
+
+        mockMvc.perform(put("/api/aircraft/7/inspections").with(oidcLogin()).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"annualOn\":\"2025-10-05\",\"hundredHourAtHours\":1200.5,\"hoursNow\":1290,"
+                                + "\"staticCheckOn\":\"2024-11-30\",\"transponderCheckOn\":\"2025-02-01\","
+                                + "\"eltInspectedOn\":\"2026-01-31\",\"eltBatteryDueOn\":\"2028-06-01\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.inspections.annualGoodThrough").value("2026-10-31"))
+                .andExpect(jsonPath("$.inspections.hundredHourDueAtHours").value(1300.5))
+                .andExpect(jsonPath("$.inspections.staticCheckGoodThrough").value("2026-11-30"))
+                .andExpect(jsonPath("$.inspections.transponderCheckGoodThrough").value("2027-02-28"))
+                .andExpect(jsonPath("$.inspections.eltInspectionGoodThrough").value("2027-01-31"))
+                .andExpect(jsonPath("$.inspections.eltBatteryDueOn").value("2028-06-01"));
+
+        // An inspection to come is not one done; negative hours are no hours.
+        mockMvc.perform(put("/api/aircraft/7/inspections").with(oidcLogin()).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"annualOn\":\"2999-01-01\"}"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(put("/api/aircraft/7/inspections").with(oidcLogin()).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"hoursNow\":-1}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    /** An airplane whose owner has said nothing is neither current nor overdue. */
+    @Test
+    void noInspectionsRecordedIsNoDates() {
+        AircraftDto.InspectionsDto none = AircraftController.inspectionsOf(sampleAircraft());
+        org.assertj.core.api.Assertions.assertThat(none.annualGoodThrough()).isNull();
+        org.assertj.core.api.Assertions.assertThat(none.hundredHourDueAtHours()).isNull();
+        org.assertj.core.api.Assertions.assertThat(none.eltBatteryDueOn()).isNull();
+    }
+
+    /** The checklist: someone else's airplane is a 404, a challenge left
+     *  blank a 400, and a good one comes back as it was sent. */
+    @Test
+    void theChecklistIsTheOwnersAndEachItemNeedsItsChallenge() throws Exception {
+        given(pilotService.current(any())).willReturn(Optional.of(samplePilot()));
+        given(checklistService.get(any(), eq(9L))).willReturn(Optional.empty());
+        mockMvc.perform(get("/api/aircraft/9/checklist").with(oidcLogin())).andExpect(status().isNotFound());
+
+        String body = "{\"sections\":[{\"title\":\"Before takeoff\",\"items\":[{\"challenge\":\"Fuel selector\",\"response\":\"Both\"}]}]}";
+        given(checklistService.replace(any(), eq(7L), any())).willAnswer(call -> Optional.of(call.getArgument(2)));
+        mockMvc.perform(put("/api/aircraft/7/checklist").with(oidcLogin()).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.sections[0].items[0].response").value("Both"));
+        mockMvc.perform(put("/api/aircraft/7/checklist").with(oidcLogin()).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON).content(body.replace("Fuel selector", " ")))
+                .andExpect(status().isBadRequest());
+    }
+
+    /** Squawks: another pilot's airplane's a 404; one with no words, or
+     *  found in the future, a 400; a good one back with its determination. */
+    @Test
+    void aSquawkIsTheOwnersAndSaysWhatWasFound() throws Exception {
+        given(pilotService.current(any())).willReturn(Optional.of(samplePilot()));
+        given(squawkService.list(any(), eq(9L))).willReturn(Optional.empty());
+        mockMvc.perform(get("/api/aircraft/9/squawks").with(oidcLogin())).andExpect(status().isNotFound());
+
+        given(squawkService.add(any(), eq(7L), any())).willReturn(Optional.of(new com.northflyers.vfr.dto.SquawkDto(3L,
+                java.time.LocalDate.of(2026, 10, 10), "Landing light out", true, com.northflyers.vfr.domain.DeferredFor.VFR_DAY,
+                null, null)));
+        String body = "{\"reportedOn\":\"2026-10-10\",\"text\":\"Landing light out\",\"inoperative\":true,\"deferredFor\":\"VFR_DAY\"}";
+        mockMvc.perform(post("/api/aircraft/7/squawks").with(oidcLogin()).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.deferredFor").value("VFR_DAY"));
+        mockMvc.perform(post("/api/aircraft/7/squawks").with(oidcLogin()).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON).content(body.replace("Landing light out", " ")))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(post("/api/aircraft/7/squawks").with(oidcLogin()).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON).content(body.replace("2026-10-10", "2999-01-01")))
+                .andExpect(status().isBadRequest());
     }
 }

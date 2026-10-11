@@ -21,5 +21,8 @@ public record LogbookEntryDto(
         double instrumentHours,
         int toweredLandings,
         double distanceNm,
-        double longestLegNm) {
+        double longestLegNm,
+        int approaches,
+        boolean holding,
+        boolean tracking) {
 }

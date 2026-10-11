@@ -67,6 +67,10 @@ public class Pilot {
     private LocalDate flightReviewOn;
     private LocalDate medicalExpiresOn;
 
+    /** The day of their last instrument proficiency check (14 CFR
+     *  61.57(d)), as they give it (V20); null until they say. */
+    private LocalDate ipcOn;
+
     /** The ACS codes on their Airman Knowledge Test Report, space
      *  separated (V13); null until they give them. */
     @Column(length = 2000)
@@ -112,10 +116,12 @@ public class Pilot {
         this.email = email;
     }
 
-    /** The flight review's and the medical's dates, as the pilot gives them. */
-    public void setCurrencyDates(LocalDate flightReviewOn, LocalDate medicalExpiresOn) {
+    /** The flight review's, the medical's and the last instrument
+     *  proficiency check's dates, as the pilot gives them. */
+    public void setCurrencyDates(LocalDate flightReviewOn, LocalDate medicalExpiresOn, LocalDate ipcOn) {
         this.flightReviewOn = flightReviewOn;
         this.medicalExpiresOn = medicalExpiresOn;
+        this.ipcOn = ipcOn;
     }
 
     /** The knowledge test report's ACS codes, as the pilot gives them. */

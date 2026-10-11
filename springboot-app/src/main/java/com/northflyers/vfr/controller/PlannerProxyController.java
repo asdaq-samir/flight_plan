@@ -109,6 +109,7 @@ public class PlannerProxyController {
             route("GET", "/api/local-flight"),
             route("GET", "/api/briefing"),
             route("GET", "/api/tfrs"),
+            route("GET", "/api/alternate"),
             route("GET", "/api/route-profile"),
             route("GET", "/api/class-b"),
             route("GET", "/api/airspace/at"),

@@ -18,7 +18,7 @@ import type { FrameworkNarrative } from "../../hooks/useNarratives";
 import type { BriefingState } from "../../hooks/usePlan";
 import { altFt, ceilingAndVisibility, clockTime, deg, describeFuel, describeSteps, describeTime } from "../../format";
 import { flightLevel, grouped } from "../../../../lib/units";
-import { withoutAltitude } from "../../../../lib/identSchema";
+import { identOf, isAirwayToken, withoutAltitude } from "../../../../lib/identSchema";
 import { navLogRows, savedCheckpoints } from "../navlog/rows";
 import { useLoad } from "../../hooks/useLoad";
 import { TakeoffLandingSection, WeightBalanceSection } from "./PreflightSections";
@@ -36,6 +36,11 @@ import AirportSections from "./AirportSections";
 import BriefVerdict from "./BriefVerdict";
 import PreflightAction from "./PreflightAction";
 import WeatherAlongRoute from "./WeatherAlongRoute";
+import AlternateSection from "./AlternateSection";
+import FlightPlanSection from "./FlightPlanSection";
+import { flightPlanForms, type FiledProcedure } from "../../../../lib/flightPlanForm";
+import { alternateFinding, useAlternate } from "../../hooks/useAlternate";
+import { icingAtAltitude, icingLine } from "../../../../lib/icing";
 import RiskAssessment from "./RiskAssessment";
 import FindingIcon from "../../../../components/FindingIcon";
 import MockOral from "./MockOral";
@@ -59,6 +64,12 @@ interface Props {
   dest: string;
   /** The airports landed at on the way, in order. */
   stops?: string[];
+  /** Every stop as the route has it, flown through or landed at, airways
+   *  among them: the flight plan's route. */
+  route?: string[];
+  /** The departure and the arrival picked at the route's ends, for the
+   *  flight plan's route under IFR. */
+  procedures?: { departure: FiledProcedure | null; arrival: FiledProcedure | null };
   /** The course, for the airports' elevations, and the trip's totals,
    *  for the fuel burned by the landing (Weight & Balance). */
   course?: Course | null;
@@ -366,12 +377,12 @@ const NO_STOPS: string[] = [];
 // Drawn again only when its plan changes (memo): every tab is one of
 // these, and the page draws again at every row picked in the nav log.
 export default memo(function FlightBriefingView({
-  part, publish = false, nav, legs, dep, dest, stops = NO_STOPS, course = null, totals = null, depart = "",
+  part, publish = false, nav, legs, dep, dest, stops = NO_STOPS, route = NO_STOPS, procedures, course = null, totals = null, depart = "",
   briefing: briefingState,
   langgraphNarrative, crewaiNarrative, narrative, problem = null,
 }: Props) {
   // The load's weights, for the takeoff and landing distances.
-  const { loading, result: loaded } = useLoad(nav?.aircraft, totals?.fuel_gal ?? null);
+  const { loading, load, result: loaded } = useLoad(nav?.aircraft, totals?.fuel_gal ?? null);
   // Every airport the flight lands at, each once: a round trip's
   // departure is its destination.
   const landings = [...new Set([dep, ...stops, dest])];
@@ -381,7 +392,11 @@ export default memo(function FlightBriefingView({
   // in one place; this page states them.
   const briefing = briefingState.state === "ready" ? briefingState.data : null;
   const failed = briefingState.state === "failed" ? briefingState.detail : null;
-  const vnrReasons = briefing?.vfr_not_recommended ?? [];
+  // Under IFR "VFR flight not recommended" is no reason not to go: its
+  // weather check is the destination's and the alternate's (14 CFR
+  // 91.169), not VFR's minimums.
+  const ifr = usePreferences(p => p.flightRules) === "ifr";
+  const vnrReasons = ifr ? [] : briefing?.vfr_not_recommended ?? [];
   const briefingPendingMessage =
     briefingState.state === "waiting" ? "The briefing follows once the route's course is drawn."
       : failed ? `Briefing data is unavailable (${failed}).`
@@ -420,10 +435,17 @@ export default memo(function FlightBriefingView({
   // button, which files it with the flight.
   const { data: pilot } = useQuery(pilotQuery);
   const { data: currency } = useQuery({ queryKey: ["currency"], queryFn: api.logbook.currency, enabled: !!pilot, staleTime: 60_000 });
+  // The pilot's own airplane being flown, for its inspections and, under
+  // IFR, its VOR check.
+  const flyingId = usePreferences(p => p.aircraft.aircraftId);
+  const { data: ownAircraft } = useQuery({ queryKey: ["aircraft"], queryFn: api.aircraft.list, enabled: !!pilot && flyingId != null, staleTime: 60_000 });
+  const flownOwn = flyingId == null ? undefined : ownAircraft?.find(a => a.id === flyingId);
   const ticked = useRisk(s => s.ticked);
   const setAssessment = useRisk(s => s.setAssessment);
   const margins = [totals?.fuel_margin_gal, ...(totals?.hops ?? []).map(h => h.totals.fuel_margin_gal)]
     .filter((n): n is number => n != null);
+  // Under IFR, in cloud at or above the freezing level (lib/icing).
+  const icing = ifr && nav && briefing ? icingAtAltitude(nav.altitude_selection, legs.map(l => l.altitude_ft), briefing.pireps) : null;
   const hazardNames = briefing ? [...briefing.hazards.map(h => sigmetHazard(h.hazard, h.type ?? "SIGMET")), ...briefing.gairmets.map(gairmetTitle)] : [];
   const assessment = briefing ? assess({
     vfrNotRecommended: vnrReasons.length > 0,
@@ -432,6 +454,11 @@ export default memo(function FlightBriefingView({
     hazards: unchecked("hazards") && unchecked("gairmets") ? 0 : hazardNames.length,
     night: totals?.night === true,
     fuelMarginGal: margins.length ? Math.min(...margins) : null,
+    ifr,
+    vorCheck: flownOwn === undefined ? undefined : flownOwn.vorCheck
+      ? { goodThrough: flownOwn.vorCheck.goodThrough, withinLimit: flownOwn.vorCheck.withinLimit } : null,
+    inspections: flownOwn?.inspections,
+    squawks: flownOwn?.openSquawks,
     currency: currency ?? null,
     day: format(new Date(depart || opened), "yyyy-MM-dd"),
     ticked,
@@ -467,10 +494,15 @@ export default memo(function FlightBriefingView({
   // Performance tab and the Go / No-Go.
   const checks = runwayChecks(nav?.aircraft, briefing, course, loaded?.takeoff.weightLb ?? null, loaded?.landing.weightLb ?? null);
   const hops = totals?.hops ?? [];
-  const items: VerdictItem[] = verdictItems({
+  // Under IFR, the alternate (AlternateSection): its ETA the nav log's.
+  const etaIso = totals?.ete_min != null ? new Date(new Date(depart || opened).getTime() + totals.ete_min * 60_000).toISOString() : null;
+  const alternateWhere = { dest, eta: ifr ? etaIso : null, tasKt: nav?.aircraft.cruise_tas_kt ?? 110 };
+  const alternateCheck = useAlternate(alternateWhere);
+  const alternateFound = ifr ? alternateFinding(alternateCheck.data) : null;
+  const verdictFound: VerdictItem[] = verdictItems({
     weather: {
       pending: !briefing && !failed, failed,
-      vfrNotRecommended: vnrReasons, underMinimums: underMine, hazards: hazardNames,
+      vfrNotRecommended: vnrReasons, underMinimums: underMine, icing: icing && icingLine(icing), hazards: hazardNames,
       unchecked: (briefing?.weather_unavailable ?? []).filter(w => w !== "tfrs").map(w => WEATHER_SOURCE_LABEL[w]),
       worst: briefing && (briefing.forecast.min_ceiling_ft != null || briefing.forecast.min_visibility_sm != null)
         ? ceilingAndVisibility(briefing.forecast.min_ceiling_ft, briefing.forecast.min_visibility_sm) : null,
@@ -490,6 +522,7 @@ export default memo(function FlightBriefingView({
       marginGal: margins.length ? Math.min(...margins) : null,
       requiredGal: totals?.fuel_required_gal ?? (hops.length ? Math.max(...hops.map(h => h.totals.fuel_required_gal ?? 0)) : null),
       reserveMin: totals?.reserve_min ?? hops[0]?.totals.reserve_min ?? null,
+      ifr,
     },
     runways: {
       pending: !nav || !briefing, worked: !nav || (!!nav.aircraft.takeoff && !!nav.aircraft.landing),
@@ -505,6 +538,12 @@ export default memo(function FlightBriefingView({
   });
   // Published once, for the tabs' marks (PlanWorkspace), as the risk is.
   const setItems = useVerdict(v => v.setItems);
+  // The alternate is the weather's to say, where the weather says nothing
+  // worse: a caution or a stop of its own, opening its section.
+  const items: VerdictItem[] = alternateFound
+    ? verdictFound.map(i => (i.key === "weather" && (i.finding === "ok" || (alternateFound.finding === "stop" && i.finding !== "stop"))
+      ? { ...i, ...alternateFound, section: "Alternate" } : i))
+    : verdictFound;
   const itemsKey = items.map(i => `${i.key}:${i.finding}:${i.detail}`).join("|");
   useEffect(() => {
     if (publish) setItems(items);
@@ -514,6 +553,27 @@ export default memo(function FlightBriefingView({
   useEffect(() => () => { if (publish) setItems([]); }, [setItems, publish]);
 
   if (part === null) return null;
+
+  // The flight plan's airplane: the pilot's own by its registration and
+  // the type designator they gave it, or a stock profile's type; item 9's
+  // wake category from the profile's maximum takeoff weight only where
+  // the profile is that type's.
+  const ownType = flying.aircraftId != null ? flying.label.split(" · ")[1] ?? null : null;
+  const profileType = nav?.aircraft.designator ?? null;
+  const planType = flying.aircraftId != null ? ownType : profileType;
+  const planForms = part === "brief" ? flightPlanForms({
+    rules: ifr ? "ifr" : "vfr", dep, dest, route, landings: stops,
+    isAirway: stop => isAirwayToken(stop) && !course?.stops?.some(s => s.ident === stop),
+    legs, totals, depart: depart ? new Date(depart) : null, now: new Date(opened),
+    aircraft: {
+      ident: flying.aircraftId != null ? shortName(flying.label) : null,
+      type: planType,
+      maxTakeoffLb: planType && planType === profileType ? nav?.aircraft.loading?.max_takeoff_lb ?? null : null,
+    },
+    fuelGal: load?.fuelGal ?? null,
+    alternate: totals?.alternate?.ident ?? null,
+    departureProcedure: procedures?.departure, arrivalProcedure: procedures?.arrival,
+  }) : [];
 
   // Preflight action (14 CFR 91.103): what the planner found for each.
   const finding = (key: VerdictItem["key"]) => {
@@ -645,6 +705,12 @@ export default memo(function FlightBriefingView({
 
           <PreflightAction flight={`${landings.join("-")}|${depart}`} found={found} />
 
+          {/* The FAA's flight plan form filled in from the plan, from an
+              airport: a present position is a flight already flying. */}
+          {identOf(dep) && totals && (
+            <FlightPlanSection forms={planForms} ifr={ifr} />
+          )}
+
           {/* The mock oral, the developer's until a CFI has reviewed its
               answers; never on paper. */}
           {pilot?.developer && briefing && (
@@ -694,11 +760,12 @@ export default memo(function FlightBriefingView({
         <>
           <AccordionSection
             title="Adverse Conditions"
-            finding={vnrReasons.length > 0 || underMine.length > 0 ? "stop" : hazardNames.length > 0 ? "caution" : undefined}
+            finding={vnrReasons.length > 0 || underMine.length > 0 ? "stop" : icing || hazardNames.length > 0 ? "caution" : undefined}
             // On the title, seen before anything under it: VFR not
             // recommended, or short of that, under the pilot's own minimums.
             aside={vnrReasons.length > 0 ? <Flag finding="stop" testId="vnr-flag">VFR not recommended</Flag>
               : underMine.length > 0 ? <Flag finding="stop" testId="minimums-flag">Under your minimums</Flag>
+                : icing ? <Flag finding="caution" testId="icing-flag">Icing possible</Flag>
                 : hazardNames.length > 0 ? <Flag finding="caution" testId="hazards-flag">{hazardNames.length === 1 ? "A hazard" : `${hazardNames.length} hazards`}</Flag> : undefined}
           >
             {/* Its own standard element (AIM 7-1-5(b)), stated first, the
@@ -720,6 +787,22 @@ export default memo(function FlightBriefingView({
                 <ul className="col-start-2 list-disc space-y-0.5 pl-4 [&>li]:first-letter:uppercase">
                   {underMine.map(reason => <li key={reason}>{reason}</li>)}
                 </ul>
+              </Alert>
+            )}
+            {icing && (
+              // Under IFR, in cloud at or above the freezing level.
+              <Alert className={cn("mb-2 border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200", TEXT.prose)} data-testid="icing-alert">
+                <TriangleAlert />
+                <AlertTitle>Icing possible at {altFt(icing.altitudeFt)} ft</AlertTitle>
+                <AlertDescription className={cn("text-amber-900 dark:text-amber-200", TEXT.prose)}>
+                  <p>
+                    The freezing level is {icing.atOrBelow ? "at or below" : "at"} {altFt(icing.freezingLevelFt)} ft, with cloud
+                    or an icing AIRMET forecast along the route{icing.reports
+                      ? `, and ${icing.reports} pilot report${icing.reports === 1 ? "" : "s"} of icing near it` : ""}.
+                    Most light airplanes&apos; flight manuals prohibit flight into known icing, and the manual&apos;s
+                    limitations bind (14 CFR 91.9(a)): plan below the freezing level, or an airplane certified for it.
+                  </p>
+                </AlertDescription>
               </Alert>
             )}
             {!briefing ? <Pending>{briefingPendingMessage}</Pending>
@@ -762,6 +845,8 @@ export default memo(function FlightBriefingView({
               </p>
             )}
           </AccordionSection>
+
+          {ifr && <AlternateSection {...alternateWhere} />}
 
           {briefing && course ? (
             <WeatherAlongRoute briefing={briefing} course={course} legs={legs} departIso={depart || opened} unchecked={unchecked} />

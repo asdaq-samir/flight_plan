@@ -10,6 +10,7 @@ from cachetools import TTLCache
 
 from vfr import aircraft as aircraft_module
 from vfr import altitude as altitude_module
+from vfr import ifr as ifr_module
 from vfr import airspace, geo, navlog, sun, weather
 from vfr.config import PLAN_LIMIT_S
 
@@ -217,11 +218,15 @@ def aircraft_profile(
     return profile
 
 
-def flight_totals(leg_list: list, profile: dict, r, depart: datetime | None) -> dict:
+def flight_totals(leg_list: list, profile: dict, r, depart: datetime | None, rules: str = "vfr",
+                  alternate: dict | None = None) -> dict:
     """navlog.totals plus the fuel check. Night is judged at both ends
     -- the departure at the departure time, the arrival at the
     destination that many minutes later -- and unknown without a
-    departure time, when the day reserve is assumed and said so."""
+    departure time, when the day reserve is assumed and said so. Under
+    IFR the reserve is 45 minutes whatever the hour (navlog.fuel_plan),
+    and `alternate`, the leg on to the alternate (alternate_leg), is flown
+    before it (14 CFR 91.167(a)(2))."""
     t = navlog.totals(leg_list)
     night = None
     if depart is not None:
@@ -231,8 +236,32 @@ def flight_totals(leg_list: list, profile: dict, r, depart: datetime | None) -> 
         if t["ete_min"] is not None:
             arrival = depart + timedelta(minutes=t["ete_min"])
             night = night or sun.is_night(r.end[0], r.end[1], arrival)
-    t.update(navlog.fuel_plan(t["fuel_gal"], profile, night))
+    t.update(navlog.fuel_plan(t["fuel_gal"], profile, night, rules, (alternate or {}).get("fuel_gal") or 0.0))
+    t["alternate"] = alternate
     return t
+
+
+def alternate_leg(dest: dict, alternate: dict, altitude_ft: float, profile: dict, fcst_hr: str) -> dict:
+    """The leg from the destination on to the IFR alternate, for 14 CFR
+    91.167(a)(2)'s fuel: flown at the route's last altitude in its winds
+    (navlog.leg_between), or in still air where the winds cannot be read,
+    which says so."""
+    a = {"name": dest["ident"], "lat": dest["lat"], "lon": dest["lon"]}
+    b = {"name": alternate["ident"], "lat": alternate["lat"], "lon": alternate["lon"]}
+    try:
+        leg = navlog.leg_between(a, b, altitude_ft, profile, fcst_hr)
+        still_air = False
+    except weather.WeatherServiceError:
+        leg, still_air = None, True
+    if leg is None or leg.get("ete_min") is None:
+        distance = geo.distance_nm(a["lat"], a["lon"], b["lat"], b["lon"])
+        minutes = distance / profile["cruise_tas_kt"] * 60
+        leg = {"distance_nm": distance, "ete_min": minutes, "fuel_gal": minutes / 60 * profile["fuel_burn_gph"]}
+        still_air = True
+    return {
+        "ident": alternate["ident"], "distance_nm": round(leg["distance_nm"], 1), "ete_min": round(leg["ete_min"], 1),
+        "fuel_gal": round(leg["fuel_gal"], 2), "altitude_ft": altitude_ft, "still_air": still_air,
+    }
 
 # The altitude selection re-ran its whole stack -- terrain sampling
 # (USGS EPQS, network), the airspace shapefile, and three separate
@@ -260,11 +289,13 @@ _ALTITUDE_CACHE = SingleFlightTTLCache(maxsize=512, ttl=_ALTITUDE_TTL_S)
 
 
 def _altitude_key(start: tuple, end: tuple, aircraft: str, fixes: list | None, fcst_hr: str,
-                  window: tuple | None = None, class_b_cleared: bool = False) -> tuple:
+                  window: tuple | None = None, class_b_cleared: bool = False, rules: str = "vfr",
+                  airway: dict | None = None) -> tuple:
     return (
         round(start[0], 4), round(start[1], 4), round(end[0], 4), round(end[1], 4), aircraft,
         tuple((round(lat, 4), round(lon, 4)) for lat, lon in fixes) if fixes else None, fcst_hr,
-        (round(window[0]), round(window[1])) if window else None, class_b_cleared,
+        (round(window[0]), round(window[1])) if window else None, class_b_cleared, rules,
+        tuple(sorted(airway.items())) if airway else None,
     )
 
 
@@ -284,13 +315,15 @@ def flight_window(depart: datetime | None, distance_nm: float, cruise_tas_kt: fl
 
 def cruise_altitude(
     start: tuple, end: tuple, profile: dict, aircraft: str, fixes: list | None = None, fcst_hr: str = "06",
-    window: tuple | None = None, class_b_cleared: bool = False,
+    window: tuple | None = None, class_b_cleared: bool = False, rules: str = "vfr", airway: dict | None = None,
 ) -> dict:
     """`fixes`, the nav log's own (lat, lon) fixes, add the leg-by-leg
     segments the stepped plans need; they are part of the key, since a
     different set of checkpoints is a different set of legs. So is the
     forecast period, since the freezing level is read from it, and
-    `class_b_cleared`, a pilot who will have a Class B clearance (vfr.altitude).
+    `class_b_cleared`, a pilot who will have a Class B clearance,
+    `rules`, "ifr" for a flight under IFR, and `airway`, the airway segment
+    a hop is flown along (vfr.altitude).
     Raises StillComputing when the same selection has been running longer
     than COMPUTE_LIMIT_S."""
     pending: set = set()
@@ -307,20 +340,27 @@ def cruise_altitude(
             extra["window"] = window
         if class_b_cleared:
             extra["class_b_cleared"] = True
+        if rules != "vfr":
+            extra["rules"] = rules
+        if airway:
+            extra["airway"] = airway
         return altitude_module.select_cruise_altitude(start, end, profile, pending=pending, **extra)
 
     return _ALTITUDE_CACHE.get_or_compute(
-        _altitude_key(start, end, aircraft, fixes, fcst_hr, window, class_b_cleared), compute, COMPUTE_LIMIT_S,
+        _altitude_key(start, end, aircraft, fixes, fcst_hr, window, class_b_cleared, rules, airway), compute,
+        COMPUTE_LIMIT_S,
         pending,
     )
 
 
 def altitude_waiting_on(start: tuple, end: tuple, aircraft: str, fixes: list | None, fcst_hr: str,
-                        window: tuple | None = None, class_b_cleared: bool = False) -> str:
+                        window: tuple | None = None, class_b_cleared: bool = False, rules: str = "vfr",
+                        airway: dict | None = None) -> str:
     """What the selection cruise_altitude() would be joining is still
     waiting on, in words -- "" when nothing of it is running, which is
     also the case once it is done and the plans' winds are what remains."""
-    running = _ALTITUDE_CACHE.running(_altitude_key(start, end, aircraft, fixes, fcst_hr, window, class_b_cleared))
+    running = _ALTITUDE_CACHE.running(
+        _altitude_key(start, end, aircraft, fixes, fcst_hr, window, class_b_cleared, rules, airway))
     return "" if running is None else describe_stages(running[1])
 
 
@@ -371,11 +411,16 @@ def own_altitude_caution(selection: dict, legs: list, between: tuple[str, str]) 
     rule more than 3,000 ft above the ground (14 CFR 91.159), into Class B
     without the clearance planned for (14 CFR 91.131), over the aircraft's
     service ceiling, or inside the cloud clearance under a forecast base
-    (14 CFR 91.155). A warning, never a refusal: the pilot may have reasons
-    the planner cannot see, and it says why rather than stopping them. None
-    when nothing is."""
+    (14 CFR 91.155). Under IFR (the selection's `rules`): under the
+    minimum IFR altitude (14 CFR 91.177(a)), or off the thousands the
+    direction of flight takes (91.179(b)). A warning, never a refusal: the
+    pilot may have reasons the planner cannot see -- ATC may assign
+    otherwise -- and it says why rather than stopping them. None when
+    nothing is."""
     reasons: list[str] = []
     altitude = None
+    if selection.get("rules") == "ifr":
+        return _own_ifr_altitude_caution(selection, legs, between)
     for leg, segment in zip(legs, selection.get("segments", [])):
         altitude = leg["altitude_ft"]
         floor, rule_from = segment.get("floor_ft"), segment.get("hemispheric_rule_from_ft")
@@ -395,6 +440,30 @@ def own_altitude_caution(selection: dict, legs: list, between: tuple[str, str]) 
             found.append(f"Over the aircraft's {ceiling:,.0f} ft service ceiling")
         if clouds is not None and altitude > clouds:
             found.append(f"Inside the cloud clearance under {clouds:,.0f} ft (14 CFR 91.155)")
+        reasons += [r for r in found if r not in reasons]
+    if not reasons or altitude is None:
+        return None
+    return {"from_ident": between[0], "to_ident": between[1], "altitude_ft": altitude, "reasons": reasons}
+
+
+def _own_ifr_altitude_caution(selection: dict, legs: list, between: tuple[str, str]) -> dict | None:
+    """own_altitude_caution for a flight under IFR."""
+    reasons: list[str] = []
+    altitude = None
+    for leg, segment in zip(legs, selection.get("segments", [])):
+        altitude = leg["altitude_ft"]
+        floor, ceiling = segment.get("floor_ft"), segment.get("service_ceiling_ft")
+        found = []
+        if floor is not None and altitude < floor:
+            found.append(f"Under the {floor:,.0f} ft minimum IFR altitude: {segment.get('obstacle_clearance_ft', 1000):,.0f} ft "
+                         f"over the highest obstacle within 4 nm (14 CFR 91.177(a))")
+        if segment.get("eastbound") is not None:
+            east = segment["eastbound"]
+            if altitude % 1000 or (altitude // 1000) % 2 != (1 if east else 0):
+                found.append(f"{'Eastbound' if east else 'Westbound'} under IFR flies {'odd' if east else 'even'} "
+                             f"thousands, unless ATC assigns otherwise (14 CFR 91.179)")
+        if ceiling is not None and altitude > ceiling:
+            found.append(f"Over the aircraft's {ceiling:,.0f} ft service ceiling")
         reasons += [r for r in found if r not in reasons]
     if not reasons or altitude is None:
         return None
@@ -421,6 +490,8 @@ def no_altitude(
     KDLH"), else how far along. `class_b` says Class B airspace is
     what stops it, for the page to offer a clearance or a way round:
     `via`, the best waypoint round it (class_b_detours), when there is one."""
+    if selection.get("rules") == "ifr":
+        return _no_ifr_altitude(selection, between, where)
     prohibited = [a["name"] for a in selection.get("special_use", []) if a.get("type") == "P"]
     if prohibited:
         return {
@@ -491,6 +562,54 @@ def no_altitude(
         "reasons": [f"The terrain and obstacles there need {floor:,.0f} ft.", first_line, stops],
         "advice": advice,
         "class_b": class_b,
+    }
+
+
+def _no_ifr_altitude(selection: dict, between: tuple[str, str] | None, where: str | None) -> dict:
+    """no_altitude for a flight under IFR: the minimum IFR altitude where it
+    fails (14 CFR 91.177(a)(2)) and the first IFR altitude over it by the
+    direction of flight (91.179(b)), against the aircraft's service ceiling
+    -- or prohibited airspace, which no clearance opens."""
+    prohibited = [a["name"] for a in selection.get("special_use", []) if a.get("type") == "P"]
+    if prohibited:
+        return {
+            "title": "The route crosses prohibited airspace",
+            "brief": f"{prohibited[0]} is prohibited airspace",
+            "reasons": [f"{name} is closed to every altitude." for name in prohibited],
+            "advice": "Plan around it.",
+            "class_b": False,
+        }
+    stuck = next((s for s in selection.get("segments", []) if not s.get("candidates_ft")), None)
+    course = (stuck or {}).get("course_magnetic_deg", selection.get("course_magnetic_deg"))
+    floor, top = (stuck or {}).get("floor_ft"), (stuck or {}).get("band_ceiling_ft")
+    if stuck is None or None in (course, floor, top):
+        return {
+            "title": (f"No IFR cruising altitude fits {between[0]} to {between[1]} in this aircraft" if between
+                      else "No IFR cruising altitude fits this route in this aircraft"),
+            "brief": "No IFR altitude fits this aircraft",
+            "reasons": [],
+            "advice": "Set a cruise altitude of your own to plan it anyway.",
+            "class_b": False,
+        }
+    first = (ifr_module.cruising_altitudes(floor, None, course) or [floor])[0]
+    heading = "eastbound" if stuck.get("eastbound") else "westbound"
+    place = where or f"{(stuck['from_nm'] + stuck['to_nm']) / 2:,.0f} nm along"
+    clearance = stuck.get("obstacle_clearance_ft") or ifr_module.CLEARANCE_FT
+    over = " over a mountainous area" if stuck.get("mountainous") else ""
+    title = f"No IFR cruising altitude {stuck['from_nm']:.0f}-{stuck['to_nm']:.0f} nm " + (
+        f"out of {between[0]} toward {between[1]}" if between else "along the route")
+    return {
+        "title": title,
+        "brief": f"Ceiling {top:,.0f} ft: the minimum IFR altitude {place} is {floor:,.0f}",
+        "reasons": [
+            f"The minimum IFR altitude there is {floor:,.0f} ft: {clearance:,.0f} ft over the highest obstacle "
+            f"within 4 nm{over} (14 CFR 91.177(a)).",
+            f"The first {heading} IFR altitude above that is {first:,.0f} ft.",
+            f"The aircraft's service ceiling stops at {top:,.0f} ft.",
+        ],
+        "advice": "Route around the high ground, plan it in an aircraft that climbs higher, "
+                  "or set a cruise altitude of your own to plan it anyway.",
+        "class_b": False,
     }
 
 
@@ -633,6 +752,7 @@ def join_selections(selections: list[dict], offsets: list[float]) -> dict:
         "weather_unavailable": sorted({w for sel in selections for w in sel.get("weather_unavailable", [])}),
         "segments": [seg for sel, offset in zip(selections, offsets)
                      for seg in shifted(sel.get("segments", []), ("from_nm", "to_nm"), offset)],
+        "mountainous": any(sel.get("mountainous") for sel in selections),
     }
 
 
@@ -657,5 +777,7 @@ def route_totals(per_hop: list[dict], hops: list) -> dict:
         "unflyable_legs": sum(t["unflyable_legs"] for t in per_hop),
         "legs_without_wind": sum(t["legs_without_wind"] for t in per_hop),
         "night": _either(t.get("night") for t in per_hop),
+        "rules": per_hop[0].get("rules", "vfr"),
+        "alternate": per_hop[-1].get("alternate"),
         "hops": [{"departure": hop.dep_ident, "destination": hop.dest_ident, "totals": t} for hop, t in zip(hops, per_hop)],
     }

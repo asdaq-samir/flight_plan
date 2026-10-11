@@ -66,6 +66,12 @@ export type Forecast = Schemas["Forecast"];
 export type Runway = Schemas["Runway"];
 export type Frequency = Schemas["Frequency"];
 export type Briefing = Schemas["Briefing"];
+/** `GET /api/alternate`: under IFR, whether the destination needs an
+ *  alternate (14 CFR 91.169(b)), the pilot's alternate checked against its
+ *  minimums at its ETA (91.169(c)), and the nearest fields that will do. */
+export type Alternates = Schemas["Alternates"];
+export type AlternateCheck = Schemas["AlternateCheck"];
+
 export type ChartInfo = Schemas["ChartInfo"];
 export type AirportSearch = Schemas["AirportSearch"];
 export type AirportPlace = Schemas["AirportPlace"];
@@ -220,6 +226,13 @@ export type AppleSignedIn = Webapp["SignedIn"];
  *  fuel check. */
 export type Aircraft = Webapp["AircraftDto"];
 export type AircraftRequest = Webapp["AircraftRequest"];
+/** A VOR check for IFR as the pilot records it (14 CFR 91.171(d)). */
+export type VorCheckRequest = Webapp["VorCheckRequest"];
+export type InspectionsRequest = Webapp["InspectionsRequest"];
+export type Inspections = Webapp["InspectionsDto"];
+export type ChecklistDto = Webapp["ChecklistDto"];
+export type Squawk = Webapp["SquawkDto"];
+export type SquawkRequest = Webapp["SquawkRequest"];
 
 /** One row of "My Flights" -- totals only; `Flight` carries the full
  *  filed nav log, fetched one flight at a time. */

@@ -11,6 +11,7 @@ import { ResponsivePopover, ResponsivePopoverAnchor, ResponsivePopoverContent, R
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { useConfirm } from "../../components/useConfirm";
+import TogglePill from "../../components/TogglePill";
 import { api } from "../../lib/api/client";
 import type { Currency, LogbookEntry, LogbookEntryRequest } from "../../lib/api/types";
 import { TEXT } from "../../lib/text";
@@ -45,6 +46,7 @@ const BLANK: LogbookEntryRequest = {
   flownOn: today(), aircraft: "", aircraftType: "", route: "", totalHours: 0, nightHours: 0, crossCountryHours: 0,
   dayLandings: 1, nightLandings: 0, remarks: "",
   dualHours: 0, soloHours: 0, instrumentHours: 0, toweredLandings: 0, distanceNm: 0, longestLegNm: 0,
+  approaches: 0, holding: false, tracking: false,
 };
 
 /** One entry's form: a paper logbook's columns. */
@@ -80,6 +82,16 @@ function EntryForm({ initial, onSave, saving }: { initial: LogbookEntryRequest; 
       {field("toweredLandings", "Towered landings", "number")}
       {field("distanceNm", "Distance (nm)", "number")}
       {field("longestLegNm", "Longest leg (nm)", "number")}
+      {/* What instrument currency is counted from (14 CFR 61.57(c)): the
+          approaches, holding and tracking courses, actual or simulated. */}
+      {field("approaches", "Approaches", "number")}
+      <div className={cn("grid grid-cols-[8rem_1fr] items-center gap-2", TEXT.detail)}>
+        <span>Also flew</span>
+        <span className="flex gap-2">
+          <TogglePill pressed={entry.holding} onPressedChange={holding => setEntry({ ...entry, holding })} label="Holding" testId="logbook-holding" />
+          <TogglePill pressed={entry.tracking} onPressedChange={tracking => setEntry({ ...entry, tracking })} label="Tracking" testId="logbook-tracking" />
+        </span>
+      </div>
       {field("remarks", "Remarks")}
       <div className="flex justify-end pt-1">
         <Button type="submit" size="sm" disabled={saving || !entry.flownOn} data-testid="logbook-save">Save</Button>
@@ -92,7 +104,8 @@ function EntryForm({ initial, onSave, saving }: { initial: LogbookEntryRequest; 
  * The pilot's logbook and their currency, the Library's Logbook:
  * where they stand first -- passengers by day and at night (14 CFR
  * 61.57), the flight review (61.56) and the medical, with the two dates
- * they give -- then the totals and the flights, newest first. Add opens
+ * they give, and instrument currency (61.57(c)) with the last proficiency
+ * check -- then the totals and the flights, newest first. Add opens
  * the entry's form,
  * filled in with the airplane picked for planning; a row opens it to
  * change; Edit takes one out.
@@ -117,7 +130,7 @@ export function LogbookPanel({ aircraft }: { aircraft?: string }) {
   });
   const remove = useMutation({ mutationFn: (id: number) => api.logbook.remove(id), onSuccess: () => { setToDelete(null); refresh(); } });
   const dates = useMutation({
-    mutationFn: (next: { flightReviewOn: string | null; medicalExpiresOn: string | null }) => api.logbook.setCurrencyDates(next),
+    mutationFn: (next: { flightReviewOn: string | null; medicalExpiresOn: string | null; ipcOn: string | null }) => api.logbook.setCurrencyDates(next),
     onSuccess: (c: Currency) => queryClient.setQueryData(["currency"], c),
   });
   const [askDelete, deleteDialog] = useConfirm({
@@ -127,6 +140,12 @@ export function LogbookPanel({ aircraft }: { aircraft?: string }) {
 
   const reviewOn = currency?.flightReviewOn ?? null;
   const medicalOn = currency?.medicalExpiresOn ?? null;
+  const ipcOn = currency?.ipcOn ?? null;
+  // The dates given, each changed on its own.
+  const setDates = (change: Partial<{ flightReviewOn: string | null; medicalExpiresOn: string | null; ipcOn: string | null }>) =>
+    dates.mutate({ flightReviewOn: reviewOn, medicalExpiresOn: medicalOn, ipcOn, ...change });
+  // Lapsed more than six calendar months: only a check restores it (61.57(d)).
+  const ipcNeeded = !!currency?.ipcNeededAfter && currency.ipcNeededAfter < today();
   const met = training?.experience.filter(i => i.met).length ?? 0;
   return (
     <ConsolePages
@@ -145,10 +164,28 @@ export function LogbookPanel({ aircraft }: { aircraft?: string }) {
         <ListRow title="Passengers by day" description="3 takeoffs and landings in 90 days"><Until date={currency?.dayPassengersUntil} what="day" /></ListRow>
         <ListRow title="Passengers at night" description="3 to a full stop at night in 90 days"><Until date={currency?.nightPassengersUntil} what="night" /></ListRow>
         <ListRow title="Flight review" description={currency?.flightReviewUntil ? <Until date={currency.flightReviewUntil} what="review" /> : "Within 24 calendar months"}>
-          <DateField value={reviewOn} label="Flight review date" testId="flight-review-date" onChange={v => dates.mutate({ flightReviewOn: v, medicalExpiresOn: medicalOn })} />
+          <DateField value={reviewOn} label="Flight review date" testId="flight-review-date" onChange={v => setDates({ flightReviewOn: v })} />
         </ListRow>
         <ListRow title="Medical" description={medicalOn ? <Until date={medicalOn} what="medical" /> : "The day it expires"}>
-          <DateField value={medicalOn} label="Medical expires" testId="medical-date" onChange={v => dates.mutate({ flightReviewOn: reviewOn, medicalExpiresOn: v })} />
+          <DateField value={medicalOn} label="Medical expires" testId="medical-date" onChange={v => setDates({ medicalExpiresOn: v })} />
+        </ListRow>
+      </ListGroup>
+
+      {/* Instrument currency (14 CFR 61.57(c), (d)), from the approaches,
+          holding and tracking logged with each flight, and the last check. */}
+      <ListGroup
+        title="Instrument"
+        footer="Six approaches, holding and tracking courses in the 6 calendar months before the month you fly, actual or simulated; this month's count from next month. More than six months past, only an instrument proficiency check restores it."
+      >
+        <ListRow
+          title="Instrument currency"
+          description={`${currency?.approachesInWindow ?? 0} of 6 approaches${currency?.holdingInWindow ? ", holding" : ""}${currency?.trackingInWindow ? ", tracking" : ""} in the window`}
+        >
+          {ipcNeeded ? <span className="text-red-700 dark:text-red-400" data-testid="currency-instrument">IPC needed</span>
+            : <Until date={currency?.instrumentCurrentUntil} what="instrument" />}
+        </ListRow>
+        <ListRow title="Proficiency check" description={ipcOn ? `On ${day(ipcOn)}` : "The day of your last IPC"}>
+          <DateField value={ipcOn} label="Instrument proficiency check date" testId="ipc-date" onChange={v => setDates({ ipcOn: v })} />
         </ListRow>
       </ListGroup>
 

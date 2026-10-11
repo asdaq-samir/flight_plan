@@ -10,6 +10,7 @@ const QUIET: FratInput = {
 const CURRENT: Currency = {
   dayPassengersUntil: "2026-12-01", nightPassengersUntil: null, flightReviewOn: "2025-06-01", flightReviewUntil: "2027-06-30",
   medicalExpiresOn: "2028-01-31", totalHours: 240, nightHours: 6, crossCountryHours: 40, landings: 300, flights: 120,
+  instrumentCurrentUntil: null, ipcOn: null, ipcNeededAfter: null, approachesInWindow: 0, holdingInWindow: false, trackingInWindow: false,
 };
 
 describe("the risk assessment", () => {
@@ -29,6 +30,18 @@ describe("the risk assessment", () => {
   test("what makes the flight unlawful is high whatever the points", () => {
     expect(assess({ ...QUIET, ticked: { alcohol: true } })).toMatchObject({ score: 0, level: "high" });
     expect(assess({ ...QUIET, fuelMarginGal: -0.5 }).level).toBe("high");
+    expect(assess({ ...QUIET, fuelMarginGal: -0.5 }).factors[0]!.why).toBe("91.151");
+    expect(assess({ ...QUIET, fuelMarginGal: -0.5, ifr: true }).factors[0]!.why).toBe("91.167");
+    // Under IFR, instrument currency too (61.57(c)); a VFR flight does not ask it.
+    expect(assess({ ...QUIET, currency: CURRENT, ifr: true }).factors.map(f => f.key)).toEqual(["instrument"]);
+    expect(assess({ ...QUIET, currency: { ...CURRENT, instrumentCurrentUntil: "2026-10-31" }, ifr: true }).factors).toEqual([]);
+    expect(assess({ ...QUIET, currency: CURRENT }).factors).toEqual([]);
+    // Under IFR in one's own airplane, a VOR check within 30 days (91.171):
+    // a caution without one; nothing asked of a stock profile.
+    expect(assess({ ...QUIET, ifr: true, vorCheck: null }).factors.map(f => f.key)).toEqual(["vor"]);
+    expect(assess({ ...QUIET, ifr: true, vorCheck: { goodThrough: "2026-10-20", withinLimit: true } }).factors).toEqual([]);
+    expect(assess({ ...QUIET, ifr: true, vorCheck: { goodThrough: "2026-10-01", withinLimit: true } }).factors.map(f => f.key)).toEqual(["vor"]);
+    expect(assess({ ...QUIET, ifr: true }).factors).toEqual([]);
     expect(assess({ ...QUIET, currency: { ...CURRENT, flightReviewUntil: "2026-09-30" } }).level).toBe("high");
   });
 

@@ -98,3 +98,14 @@ def test_the_fuel_required_includes_start_taxi_and_takeoff():
     assert plan["taxi_gal"] == navlog.DEFAULT_TAXI_FUEL_GAL
     assert plan["fuel_required_gal"] == round(20.0 + navlog.DEFAULT_TAXI_FUEL_GAL + 4.0, 1)
     assert navlog.fuel_plan(20.0, {"fuel_burn_gph": 8.0, "taxi_fuel_gal": 2.0}, night=False)["fuel_required_gal"] == 26.0
+
+
+def test_under_ifr_the_reserve_is_45_minutes_by_day_and_by_night():
+    """14 CFR 91.167(a)(3): 45 minutes at normal cruise after the
+    destination (or its alternate), where VFR's is 30 by day (91.151)."""
+    from vfr import navlog
+    profile = {"fuel_burn_gph": 8.0}
+    assert navlog.fuel_plan(20.0, profile, night=False)["reserve_min"] == 30.0
+    day = navlog.fuel_plan(20.0, profile, night=False, rules="ifr")
+    assert day["reserve_min"] == 45.0 and day["reserve_gal"] == 6.0 and day["rules"] == "ifr"
+    assert navlog.fuel_plan(20.0, profile, night=None, rules="ifr")["reserve_min"] == 45.0

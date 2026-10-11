@@ -35,6 +35,9 @@ export interface VerdictInput {
     vfrNotRecommended: string[];
     /** Under the pilot's own minimums (lib/minimums). */
     underMinimums: string[];
+    /** Under IFR, icing possible at an altitude flown (lib/icing), in a
+     *  line. */
+    icing?: string | null;
     /** The SIGMETs and G-AIRMETs along the route, by name. */
     hazards: string[];
     /** The sources that did not answer, by name. */
@@ -70,6 +73,8 @@ export interface VerdictInput {
     marginGal: number | null;
     requiredGal: number | null;
     reserveMin: number | null;
+    /** Under IFR: the reserve is 14 CFR 91.167's, not 91.151's. */
+    ifr?: boolean;
   };
   runways: {
     pending: boolean;
@@ -101,6 +106,7 @@ export function verdictItems(input: VerdictInput): VerdictItem[] {
       : weather.pending ? { finding: "pending", detail: "Fetching METARs, TAFs and hazards…" }
         : weather.vfrNotRecommended.length ? { finding: "stop", detail: `VFR not recommended: ${weather.vfrNotRecommended[0]}` }
           : weather.underMinimums.length ? { finding: "stop", detail: `Under your minimums: ${weather.underMinimums[0]}` }
+            : weather.icing ? { finding: "caution", detail: weather.icing }
             : weather.hazards.length ? { finding: "caution", detail: `${weather.hazards.join(", ")} along the route` }
               : weather.unchecked.length ? { finding: "caution", detail: `Not checked: ${weather.unchecked.join(", ")}` }
                 : { finding: "ok", detail: weather.worst ? `No hazards; at worst ${weather.worst}` : "No hazards along the route" }),
@@ -137,7 +143,7 @@ export function verdictItems(input: VerdictInput): VerdictItem[] {
     key: "fuel", label: "Fuel", tab: "navlog",
     ...(fuel.pending ? { finding: "pending", detail: "Working out the fuel…" }
       : fuel.marginGal != null && fuel.marginGal < 0
-        ? { finding: "stop", detail: `${one(-fuel.marginGal)} gal short of the fuel and its ${fuel.reserveMin ?? 30} min reserve (14 CFR 91.151)` }
+        ? { finding: "stop", detail: `${one(-fuel.marginGal)} gal short of the fuel and its ${fuel.reserveMin ?? 30} min reserve (14 CFR ${fuel.ifr ? "91.167" : "91.151"})` }
         : fuel.marginGal == null
           ? { finding: "unknown", detail: fuel.requiredGal != null ? `${one(fuel.requiredGal)} gal needed; the tanks' usable fuel not known` : "Not worked out" }
           : { finding: "ok", detail: `Needs ${one(fuel.requiredGal ?? 0)} gal with taxi and a ${fuel.reserveMin ?? 30} min reserve; ${one(fuel.marginGal)} gal spare` }),

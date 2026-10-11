@@ -25,6 +25,16 @@ import org.springframework.stereotype.Service;
  *     in.</li>
  * <li>The medical: the day it expires, as the pilot gives it (when that
  *     falls depends on its class and the pilot's age).</li>
+ * <li>Instrument currency, 61.57(c)(1): within the 6 calendar months
+ *     preceding the month of the flight, six instrument approaches,
+ *     holding procedures and tasks, and intercepting and tracking courses.
+ *     Read as the rule is written, the month of the flight itself not
+ *     counted -- an approach flown this month counts from next month on,
+ *     the stricter reading, as the FAA has not said otherwise -- so it
+ *     runs to the end of the last month whose six preceding months hold
+ *     all three; or, after an instrument proficiency check (61.57(d)), to
+ *     the end of the sixth month after the check's. More than six
+ *     calendar months past that, only a check restores it (61.57(d)).</li>
  * </ul>
  *
  * <p>A logbook is only as good as what is in it: none of this is
@@ -37,8 +47,16 @@ public class CurrencyService {
     static final int PASSENGER_DAYS = 90;
     /** 61.56's, in calendar months. */
     static final int FLIGHT_REVIEW_MONTHS = 24;
+    /** 61.57(c)(1)'s lookback, and 61.57(d)'s grace after it, in calendar months. */
+    static final int INSTRUMENT_MONTHS = 6;
+    /** 61.57(c)(1)(i). */
+    static final int APPROACHES = 6;
 
-    public CurrencyDto currency(List<LogbookEntry> entries, LocalDate flightReviewOn, LocalDate medicalExpiresOn) {
+    public CurrencyDto currency(List<LogbookEntry> entries, LocalDate flightReviewOn, LocalDate medicalExpiresOn,
+                                LocalDate ipcOn, LocalDate today) {
+        LocalDate instrumentUntil = instrumentUntil(entries, ipcOn);
+        YearMonth month = YearMonth.from(today);
+        List<LogbookEntry> window = inWindow(entries, month);
         return new CurrencyDto(
                 passengersUntil(entries, e -> e.getDayLandings() + e.getNightLandings()),
                 passengersUntil(entries, LogbookEntry::getNightLandings),
@@ -49,7 +67,50 @@ public class CurrencyService {
                 round(entries.stream().mapToDouble(LogbookEntry::getNightHours).sum()),
                 round(entries.stream().mapToDouble(LogbookEntry::getCrossCountryHours).sum()),
                 entries.stream().mapToInt(e -> e.getDayLandings() + e.getNightLandings()).sum(),
-                entries.size());
+                entries.size(),
+                instrumentUntil,
+                ipcOn,
+                instrumentUntil == null ? null : YearMonth.from(instrumentUntil).plusMonths(INSTRUMENT_MONTHS).atEndOfMonth(),
+                window.stream().mapToInt(LogbookEntry::getApproaches).sum(),
+                window.stream().anyMatch(LogbookEntry::isHolding),
+                window.stream().anyMatch(LogbookEntry::isTracking));
+    }
+
+    /** The entries flown in the 6 calendar months preceding `month`. */
+    static List<LogbookEntry> inWindow(List<LogbookEntry> entries, YearMonth month) {
+        YearMonth from = month.minusMonths(INSTRUMENT_MONTHS);
+        return entries.stream().filter(e -> {
+            YearMonth flown = YearMonth.from(e.getFlownOn());
+            return !flown.isBefore(from) && flown.isBefore(month);
+        }).toList();
+    }
+
+    /** The last day of instrument currency (61.57(c)(1), (d)): the end of
+     *  the latest month whose six preceding months hold six approaches,
+     *  holding and tracking, or of the sixth month after an instrument
+     *  proficiency check's; null with neither. In the past where it has
+     *  lapsed. */
+    static LocalDate instrumentUntil(List<LogbookEntry> entries, LocalDate ipcOn) {
+        YearMonth best = ipcOn == null ? null : YearMonth.from(ipcOn).plusMonths(INSTRUMENT_MONTHS);
+        // Each month a logged flight could have made current: the one after
+        // it, up to six after (no month later than that has it in its window).
+        List<YearMonth> flown = entries.stream().map(e -> YearMonth.from(e.getFlownOn())).distinct().toList();
+        for (YearMonth month : flown) {
+            for (int ahead = INSTRUMENT_MONTHS; ahead >= 1; ahead--) {
+                YearMonth candidate = month.plusMonths(ahead);
+                if (best != null && !candidate.isAfter(best)) {
+                    break;
+                }
+                List<LogbookEntry> window = inWindow(entries, candidate);
+                if (window.stream().mapToInt(LogbookEntry::getApproaches).sum() >= APPROACHES
+                        && window.stream().anyMatch(LogbookEntry::isHolding)
+                        && window.stream().anyMatch(LogbookEntry::isTracking)) {
+                    best = candidate;
+                    break;
+                }
+            }
+        }
+        return best == null ? null : best.atEndOfMonth();
     }
 
     /** 90 days after the day the third most recent landing was made on;

@@ -8,7 +8,7 @@ from itertools import pairwise
 from fastapi import HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from vfr import airports, fixes, geo, places, weather
+from vfr import airports, airways, fixes, geo, places, weather
 from vfr.config import PROCESSED_DIR  # noqa: F401  (re-exported for the routers)
 from vfr.config import corridor_paths as paths  # noqa: F401  (the routers' name for it)
 
@@ -245,11 +245,15 @@ def load_route(dep: str, dest: str, stops: str | list | None = None) -> Route:
     at, or waypoints flown through (resolve_stop). A stop that is the
     point before it is a 422, and so are more than MAX_STOPS; the
     destination may be the departure once there is a stop between them,
-    which is a round trip."""
+    which is a round trip. An airway among the stops (V100, T254, between
+    two of its own fixes) is flown fix by fix (with_airways), each fix
+    one more waypoint and each hop into one carrying its segment's
+    published altitudes (`airway`), which IFR's floor is."""
     idents = [*route_key(dep, dest)]
     idents[1:1] = stops_of(stops)
     if len(idents) - 2 > MAX_STOPS:
         raise HTTPException(422, f"A route makes at most {MAX_STOPS} stops.")
+    idents, flown = with_airways(idents)
     for a, b in pairwise(idents):
         if a == b and len(idents) > 2:
             raise HTTPException(422, f"{a} follows itself: a stop is a different airport from the one before it.")
@@ -262,7 +266,61 @@ def load_route(dep: str, dest: str, stops: str | list | None = None) -> Route:
     for (a, pa), (b, pb) in pairwise(zip(idents, points)):
         if len(idents) > 2 and geo.distance_nm(pa["lat"], pa["lon"], pb["lat"], pb["lon"]) < SAME_PLACE_NM:
             raise HTTPException(422, f"{a} and {b} are the same place: a stop is a different airport from the one before it.")
+    # Each point reached along an airway, a copy carrying the segment
+    # flown into it: a record of the airports table is shared.
+    points = tuple({**point, "airway": _published(flown[i])} if i in flown else point for i, point in enumerate(points))
     return Route(tuple(idents), points)
+
+
+def with_airways(idents: list[str]) -> tuple[list[str], dict[int, "airways.Segment"]]:
+    """The route's idents with each airway among them flown fix by fix --
+    "BAE V100 OBH" as BAE, the fixes V100 passes, OBH -- and the segment
+    flown into each point, by its place in the list. A 422 that says why
+    where an airway cannot be flown as written: not joined and left at
+    two of its own fixes, two airways with no fix between, a gap."""
+    out, flown = [idents[0]], {}
+    for k in range(1, len(idents) - 1):
+        token = idents[k]
+        if not airways.AIRWAY.match(token) or not airways.is_airway(token):
+            out.append(token)
+            continue
+        after = idents[k + 1]
+        if airways.AIRWAY.match(after) and airways.is_airway(after):
+            raise HTTPException(422, f"{token} and {after} follow each other: name the fix where one meets the other.")
+        try:
+            segments = airways.along(token, out[-1], after)
+        except airways.AirwayError as err:
+            # An airport's own identifier can read as an airway (T82 is
+            # an airport in Texas and a T route): a place where it is
+            # one and the airway cannot be what is meant.
+            if _is_place(token):
+                out.append(token)
+                continue
+            raise HTTPException(422, str(err)) from err
+        for segment in segments[:-1]:
+            out.append(segment.to_ident)
+            flown[len(out) - 1] = segment
+        # The last segment's end is the next ident itself, appended next.
+        flown[len(out)] = segments[-1]
+    out.append(idents[-1])
+    return out, flown
+
+
+def _is_place(ident: str) -> bool:
+    try:
+        resolve_stop(ident)
+    except HTTPException:
+        return False
+    return True
+
+
+def _published(segment: "airways.Segment") -> dict:
+    """An airway segment's published altitudes, as a hop carries them."""
+    return {
+        "id": segment.airway, "from": segment.from_ident,
+        "mea_ft": segment.mea_ft, "gnss_mea_ft": segment.gnss_mea_ft,
+        "moca_ft": segment.moca_ft, "maa_ft": segment.maa_ft,
+    }
 
 
 def line(message: BaseModel) -> str:

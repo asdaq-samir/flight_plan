@@ -6,7 +6,7 @@ import type {
   ChartInfo, ChartPages, ChartRefreshStarted, PlacesFound, CheckpointDescriptionMessage, CheckpointNoteSaved, Checkpoints, Classification, Course, Detour,
   Flight, FlightSummary, ModelComparison, NarrativeMessage, NarrativeRequest, NavLogMessage, PickDeleted, PickSaved,
   AirspaceAt, AlertsAhead, ClassBResponse, FlightDetail, FlightRoute, GoogleMaps, Traffic, TrafficFound, NearestAirports, RouteProfile, Tfrs, DevServices, DevServiceStarted, Pilot, Rating, RetrainStarted, Role, SaveFlightRequest,
-  SignInCapabilities, AppleSignedIn, LogbookEntry, LogbookEntryRequest, Currency, CurrencyDatesRequest, Subscription,
+  SignInCapabilities, AppleSignedIn, LogbookEntry, LogbookEntryRequest, Currency, CurrencyDatesRequest, Subscription, Alternates, VorCheckRequest, InspectionsRequest, ChecklistDto, Squawk, SquawkRequest,
   Status, StreamMessage, Totals, WaypointsInView, Training, SavedTrack,
   OralQuestion, OralQuestionRequest, OralGrade, OralGradeRequest, ProcedureDrawing, ProcedureList,
 } from "./types";
@@ -206,7 +206,7 @@ export const api = {
   async *navlog(
     dep: string, dest: string, altitudeFt?: string, aircraft?: AircraftChoice, altitudeChoice?: AltitudeChoice,
     depart?: string, signal?: AbortSignal, stops?: string[], classBClearance?: boolean, altitudes?: string,
-    checkpoints = true,
+    checkpoints = true, rules: "vfr" | "ifr" = "vfr", alternate = "",
   ): AsyncGenerator<NavLogMessage> {
     const result = await planner.GET("/api/navlog", {
       params: {
@@ -225,6 +225,10 @@ export const api = {
           class_b_clearance: classBClearance || undefined,
           altitudes: altitudes || undefined,
           checkpoints: checkpoints ? undefined : false,
+          // Under IFR (the planner's vfr.ifr); VFR, the default, unsaid.
+          rules: rules === "ifr" ? rules : undefined,
+          // The IFR alternate filed, whose fuel is in the totals.
+          alternate: rules === "ifr" && alternate ? alternate : undefined,
         },
       },
       parseAs: "stream", signal,
@@ -256,10 +260,17 @@ export const api = {
       .then(data<DevServiceStarted>),
 
   /** The stock performance profiles the nav log can be computed for. */
+  /** Under IFR: the destination's "1-2-3" (14 CFR 91.169(b)) for an ETA,
+   *  the pilot's alternate checked at its own (91.169(c)), and the nearest
+   *  fields that will do, reached at `tasKt`. */
+  alternate: (dest: string, eta: string, tasKt: number, alternate?: string) =>
+    planner.GET("/api/alternate", { params: { query: { dest, eta, tas_kt: tasKt, alternate: alternate || undefined } } })
+      .then(data<Alternates>),
+
   /** A flight from one airport back to it, with no stops -- the pattern,
    *  practice approaches: its time aloft at the airplane's burn, and the
    *  fuel check. */
-  localFlight: (ident: string, durationMin: number, aircraft?: AircraftChoice, depart?: string) =>
+  localFlight: (ident: string, durationMin: number, aircraft?: AircraftChoice, depart?: string, rules: "vfr" | "ifr" = "vfr") =>
     planner.GET("/api/local-flight", {
       params: {
         query: {
@@ -267,6 +278,7 @@ export const api = {
           cruise_tas_kt: aircraft?.cruiseTasKt, fuel_burn_gph: aircraft?.fuelBurnGph, usable_fuel_gal: aircraft?.usableFuelGal,
           climb_tas_kt: aircraft?.climbTasKt, climb_fuel_burn_gph: aircraft?.climbFuelBurnGph,
           cruise_power_pct: aircraft?.cruisePowerPct, depart: depart || undefined,
+          rules: rules === "ifr" ? rules : undefined,
         },
       },
     }).then(data<Totals>),
@@ -560,6 +572,27 @@ export const api = {
       webapp.PUT("/api/aircraft/{id}", { params: { path: { id } }, body: request }).then(data<Aircraft>),
     remove: async (id: number): Promise<void> => {
       await webapp.DELETE("/api/aircraft/{id}", { params: { path: { id } } });
+    },
+    /** Its VOR check for IFR, recorded (14 CFR 91.171(d)). */
+    vorCheck: (id: number, request: VorCheckRequest) =>
+      webapp.PUT("/api/aircraft/{id}/vor-check", { params: { path: { id } }, body: request }).then(data<Aircraft>),
+    /** Its inspections and tests, recorded all at once (14 CFR 91.409,
+     *  91.411, 91.413, 91.207). */
+    inspections: (id: number, request: InspectionsRequest) =>
+      webapp.PUT("/api/aircraft/{id}/inspections", { params: { path: { id } }, body: request }).then(data<Aircraft>),
+    /** Its checklist, as its owner wrote it, and that replaced whole. */
+    checklist: (id: number) =>
+      webapp.GET("/api/aircraft/{id}/checklist", { params: { path: { id } } }).then(data<ChecklistDto>),
+    saveChecklist: (id: number, checklist: ChecklistDto) =>
+      webapp.PUT("/api/aircraft/{id}/checklist", { params: { path: { id } }, body: checklist }).then(data<ChecklistDto>),
+    /** Its squawks, newest first; one written, changed or fixed, or taken out. */
+    squawks: (id: number) => webapp.GET("/api/aircraft/{id}/squawks", { params: { path: { id } } }).then(data<Squawk[]>),
+    addSquawk: (id: number, squawk: SquawkRequest) =>
+      webapp.POST("/api/aircraft/{id}/squawks", { params: { path: { id } }, body: squawk }).then(data<Squawk>),
+    updateSquawk: (id: number, squawkId: number, squawk: SquawkRequest) =>
+      webapp.PUT("/api/aircraft/{id}/squawks/{squawkId}", { params: { path: { id, squawkId } }, body: squawk }).then(data<Squawk>),
+    removeSquawk: async (id: number, squawkId: number): Promise<void> => {
+      await webapp.DELETE("/api/aircraft/{id}/squawks/{squawkId}", { params: { path: { id, squawkId } } });
     },
   },
 

@@ -14,6 +14,8 @@ from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validat
 Rating = Literal[0, 1, 2, 3, 4, 5]
 Role = Literal["dr", "visual"]
 Source = Literal["detected", "added"]
+#: The flight rules a route is planned under: VFR, or IFR (vfr.ifr).
+FlightRules = Literal["vfr", "ifr"]
 
 
 # --- the plan -----------------------------------------------------------
@@ -233,6 +235,19 @@ class Leg(BaseModel):
     tod: TopOfDescent | None = None
 
 
+class AlternateLeg(BaseModel):
+    """The leg from the destination on to the IFR alternate: flown at the
+    route's last altitude in its winds, or in still air where they could
+    not be read (`still_air`)."""
+
+    ident: str
+    distance_nm: float
+    ete_min: float
+    fuel_gal: float
+    altitude_ft: float
+    still_air: bool = False
+
+
 class Totals(BaseModel):
     """The trip's sums, and the fuel check: the legs' fuel plus the VFR
     reserve (30 minutes by day, 45 at night -- `night` is None when no
@@ -253,6 +268,12 @@ class Totals(BaseModel):
     usable_fuel_gal: float | None = None
     fuel_margin_gal: float | None = None
     night: bool | None = None
+    #: The rules the reserve is under: IFR's 45 minutes day or night
+    #: (14 CFR 91.167(a)(3)), VFR's 30 by day and 45 at night (91.151).
+    rules: FlightRules = "vfr"
+    #: Under IFR with an alternate filed: the leg on to it, whose fuel is
+    #: in `fuel_required_gal` before the reserve (14 CFR 91.167(a)(2)).
+    alternate: "AlternateLeg | None" = None
     #: A route with stops: each flight between two landings with its own
     #: fuel check, the tanks filled at each stop -- the route's own fuel
     #: figures are None then (app.planning.route_totals). Empty without.
@@ -352,6 +373,34 @@ class AltitudeSegment(BaseModel):
     #: is the highest whole hundred under it that clears the floor (1,800
     #: ft under a 1,900 ft shelf): legal, but tight (vfr.altitude).
     tight: bool = False
+    #: Under IFR, what the floor is from (vfr.ifr, 14 CFR 91.177(a)(2)):
+    #: the highest obstacle within 4 nm of the leg's course, ground or a
+    #: DOF obstacle, its height MSL, whether the leg is over a mountainous
+    #: area (Part 95), and the clearance over it, 2,000 ft there and
+    #: 1,000 elsewhere. None under VFR.
+    highest_ft: float | None = None
+    highest_is_obstacle: bool | None = None
+    mountainous: bool | None = None
+    obstacle_clearance_ft: float | None = None
+    #: Under IFR along an airway (vfr.airways): the segment's published
+    #: altitudes, its MEA the floor (14 CFR 91.177(a)(1)) and its MAA a
+    #: ceiling.
+    airway: "AirwayAltitudes | None" = None
+
+
+class AirwayAltitudes(BaseModel):
+    """An airway segment's published altitudes, feet MSL (NASR AWY_SEG_ALT):
+    the MEA, the GNSS MEA, the MOCA and the MAA; `from_` the fix it starts
+    at."""
+
+    id: str
+    from_: str = Field(alias="from")
+    mea_ft: float | None = None
+    gnss_mea_ft: float | None = None
+    moca_ft: float | None = None
+    maa_ft: float | None = None
+
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class AltitudeCaution(BaseModel):
@@ -373,6 +422,10 @@ class AltitudeBreakdown(BaseModel):
     `segments` the same leg by leg, present when the nav log's fixes
     were known."""
 
+    #: The rules it was chosen under: "vfr", or "ifr" -- 14 CFR 91.177's
+    #: minimum IFR altitudes for its floors, 91.179(b)'s thousands by
+    #: direction of flight, no Class B, cloud or Class A ceiling (vfr.ifr).
+    rules: FlightRules = "vfr"
     recommended_ft: float | None
     candidates_ft: list[float] = []
     # The magnetic course the hemispheric rule was applied to, and which
@@ -424,6 +477,9 @@ class AltitudeBreakdown(BaseModel):
     low_ceiling_or_visibility: bool | None
     weather_unavailable: list[Literal["freezing_level", "ceiling_visibility", "hazards", "special_use"]] = []
     segments: list[AltitudeSegment] = []
+    #: Under IFR, some leg is over a designated mountainous area (14 CFR
+    #: Part 95): its floor is 2,000 ft over the obstacles, not 1,000.
+    mountainous: bool = False
 
 
 AltitudeChoice = Literal["lowest", "highest", "fastest", "economical"]
@@ -536,6 +592,10 @@ class AircraftProfile(BaseModel):
     fuel_burn_gph: float
     service_ceiling_ft: float
     type: str | None = None
+    #: Its type designator as FAA Order JO 7360.1 lists it, what a flight
+    #: plan's item 9 takes: C172 for the Cessna 172, P28A for the PA-28s
+    #: from the -140 to the -181.
+    designator: str | None = None
     #: The power `cruise_tas_kt` and `fuel_burn_gph` are at, in percent,
     #: at vfr.performance's reference altitude on a standard day; its
     #: default where None.
@@ -2072,3 +2132,54 @@ class OralGrade(BaseModel):
     feedback: str
     missed: list[str]
     citations: list[OralCitation]
+
+
+class DestinationCheck(BaseModel):
+    """The destination against 14 CFR 91.169(b)'s "1-2-3": an instrument
+    approach published, and its TAF an hour either side of the ETA a
+    ceiling of 2,000 ft or more and 3 sm or more -- else an alternate is
+    `required`, `reasons` saying why (vfr.alternates)."""
+
+    ident: str
+    approach: bool
+    ceiling_ft: float | None = None
+    visibility_sm: float | None = None
+    taf: str | None = None
+    required: bool
+    reasons: list[str] = []
+
+
+class AlternateMinimums(BaseModel):
+    ceiling_ft: float
+    visibility_sm: float
+
+
+class AlternateCheck(BaseModel):
+    """A field as the IFR alternate (14 CFR 91.169(c)): its forecast at the
+    ETA there against its minimums -- 600 and 2 with a precision approach,
+    800 and 2 without -- `good` True or False, or None where the pilot has
+    to look (its own published alternate minimums, no approach, no TAF)."""
+
+    ident: str
+    approach: bool
+    precision: bool
+    minimums: AlternateMinimums | None = None
+    alternate_minimums_url: str | None = None
+    ceiling_ft: float | None = None
+    visibility_sm: float | None = None
+    taf: str | None = None
+    good: bool | None = None
+    #: Its forecast meets the standard minimums; where `good` is None for
+    #: minimums of its own, the pilot checks those.
+    meets_standard: bool = False
+    reasons: list[str] = []
+    distance_nm: float | None = None
+
+
+class Alternates(BaseModel):
+    """GET /api/alternate: the destination's check, the pilot's alternate's
+    and the nearest fields that will do."""
+
+    destination: DestinationCheck
+    alternate: AlternateCheck | None = None
+    suggestions: list[AlternateCheck] = []
