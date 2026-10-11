@@ -35,3 +35,18 @@ def test_an_airplane_named_is_found_and_its_flight_given(monkeypatch):
     assert body["registration"] == "N14511" and body["trail"][0]["alt_ft"] is None
     # Not an ICAO address: refused, nothing asked of adsb.lol.
     assert client.get("/api/traffic/flight/nothex").status_code == 422
+
+
+def test_a_flights_faa_registration_and_its_flight_numbers_route(monkeypatch):
+    faa = {"n_number": "N14511", "mode_s_hex": "a0b7d8", "manufacturer": "Airbus S A S", "model": "A321-271NX",
+           "owner": "United Airlines Inc", "city": "Chicago", "state": "IL", "status": "Valid", "standing": "valid"}
+    monkeypatch.setattr(traffic, "flight", lambda hex_id: {"hex": hex_id, "faa": faa, "registration": "N14511", "trail": []})
+    body = client.get("/api/traffic/flight/a0b7d8").json()
+    assert body["faa"]["owner"] == "United Airlines Inc" and body["faa"]["standing"] == "valid" and body["faa"]["co_owners"] == 0
+    monkeypatch.setattr(traffic, "route", lambda callsign, lat, lon: {
+        "airports": [{"ident": "TJSJ", "name": "Luis Munoz Marin International Airport", "location": "San Juan"},
+                     {"ident": "KORD", "name": "Chicago O'Hare International Airport", "location": "Chicago"}],
+        "plausible": lat is not None} if callsign == "UAL2088" else None)
+    route = client.get("/api/traffic/route", params={"callsign": "UAL2088", "lat": 37.5, "lon": -84.9}).json()
+    assert [a["ident"] for a in route["airports"]] == ["TJSJ", "KORD"] and route["plausible"] is True
+    assert client.get("/api/traffic/route", params={"callsign": "N174HA"}).json() is None

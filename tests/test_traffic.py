@@ -33,6 +33,8 @@ def clock(monkeypatch):
     monkeypatch.setattr(traffic, "_FLIGHTS", {})
     monkeypatch.setattr(traffic, "_FOUND", traffic.TTLCache(maxsize=256, ttl=traffic.FOUND_TTL_S, timer=clock))
     monkeypatch.setattr(traffic, "_FIND_GATES", {})
+    # The FAA's registry, wherever a copy is on disk, is not this module's.
+    monkeypatch.setattr(traffic.registry, "lookup", lambda **kwargs: None)
     monkeypatch.setattr(traffic, "_clock", clock)
     monkeypatch.setattr(traffic, "_sleep", clock.sleep)
     return clock
@@ -364,3 +366,40 @@ def test_a_trace_that_is_not_an_object_or_has_short_points_is_drawn_without_its_
     short = {**TRACE, "trace": [[0.0, 41.9, -87.9], *TRACE["trace"]]}
     with patch("vfr.traffic.requests.get", return_value=Mock(status_code=200, json=Mock(return_value=short))):
         assert len(traffic.flight("a0b7d8")["trail"]) == 3
+
+
+UAL2088_ROUTE = {
+    "callsign": "UAL2088", "airport_codes": "TJSJ-KORD",
+    "_airports": [
+        {"name": "Luis Munoz Marin International Airport", "icao": "TJSJ", "iata": "SJU", "location": "San Juan",
+         "lat": 18.4394, "lon": -66.001801},
+        {"name": "Chicago O'Hare International Airport", "icao": "KORD", "iata": "ORD", "location": "Chicago",
+         "lat": 41.9786, "lon": -87.9048},
+    ],
+}
+
+
+def test_a_flight_numbers_route_and_whether_the_airplane_is_on_it(clock, monkeypatch):
+    monkeypatch.setattr(traffic, "_ROUTES", traffic.TTLCache(maxsize=16, ttl=60, timer=clock))
+    asked = []
+
+    def get(url, *args, **kwargs):
+        asked.append(url.rsplit("/routes/", 1)[1])
+        resp = Mock(status_code=404 if "DAL1" in url else 200)
+        resp.raise_for_status = Mock()
+        resp.json = Mock(return_value=UAL2088_ROUTE)
+        return resp
+
+    with patch("vfr.traffic.requests.get", side_effect=get):
+        # Over Kentucky, near the great circle from San Juan to O'Hare.
+        on = traffic.route("ual 2088", 37.5, -84.9)
+        assert [a["ident"] for a in on["airports"]] == ["TJSJ", "KORD"] and on["plausible"] is True
+        # Over Denver it is not flying that route today.
+        assert traffic.route("UAL2088", 39.86, -104.67)["plausible"] is False
+        assert traffic.route("UAL2088")["plausible"] is None
+        # Not an airline's flight number, or one the database does not know.
+        assert traffic.route("N174HA", 42.3, -88.1) is None
+        assert traffic.route("DAL1") is None
+        assert traffic.route("DAL1") is None
+    # Each asked once: the route kept, and a 404 too.
+    assert asked == ["UA/UAL2088.json", "DA/DAL1.json"]

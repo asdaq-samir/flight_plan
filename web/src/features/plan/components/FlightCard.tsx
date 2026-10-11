@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowDownRight, ArrowUpRight, Compass, Crosshair, Gauge, MoveVertical, PlaneTakeoff, Radio, Ruler } from "lucide-react";
+import {
+  ArrowDownRight, ArrowUpRight, BadgeCheck, Compass, Crosshair, Fan, Gauge, IdCard, MoveVertical, Plane, PlaneTakeoff, Radio, Route,
+  Ruler, UserRound,
+} from "lucide-react";
 import { cn } from "cn";
 import { CardHead, PanelCard } from "../../../components/PanelCard";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
@@ -11,7 +14,8 @@ import { bearingDeg, distanceNm } from "../../../lib/geo";
 import { useOwnShip } from "../../../lib/map/ownShip";
 import { carriedOn, closestApproach } from "../../../lib/map/traffic";
 import { useTracking } from "../../../lib/map/tracking";
-import { flightQuery } from "../../../lib/queryClient";
+import type { AircraftRegistration } from "../../../lib/api/types";
+import { flightQuery, routeQuery } from "../../../lib/queryClient";
 import { BADGE } from "../../../lib/rowBadges";
 import { TEXT } from "../../../lib/text";
 import { altFt } from "../../../lib/units";
@@ -26,6 +30,9 @@ const SQUAWKS: Record<string, string> = { "7500": "hijack", "7600": "lost radio"
  *  "AIRBUS A-321neo" as "Airbus A-321neo", "UNITED AIRLINES INC" as
  *  "United Airlines Inc"; its codes (a single letter, a figure) kept. */
 const nameCase = (text: string) => text.replace(/\b[A-Z]{2,}\b/g, word => word[0] + word.slice(1).toLowerCase());
+
+/** An ISO date as a day, in the phone's own way: "Jan 31, 2033". */
+const day = (iso: string) => new Date(`${iso}T00:00:00`).toLocaleDateString([], { day: "numeric", month: "short", year: "numeric" });
 
 /** "4 s ago", "1 min ago". */
 function ago(ms: number): string {
@@ -56,6 +63,11 @@ export default function FlightCard({ hex, onClose }: { hex: string; onClose: () 
   const follow = useTracking(s => s.follow);
   const fix = useOwnShip(s => (s.enabled ? s.fix : null));
   const { data: detail } = useQuery(flightQuery(hex));
+  // Its flight number's route, asked once a callsign is heard, with where
+  // it is then, to say whether it is flying that route today.
+  const callsign = latest?.plane.callsign ?? null;
+  const firstAt = latest ? { lat: latest.plane.lat, lon: latest.plane.lon } : null;
+  const { data: route } = useQuery(routeQuery(callsign, firstAt));
   // The report's age, counted on.
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -138,6 +150,22 @@ export default function FlightCard({ hex, onClose }: { hex: string; onClose: () 
             )}
           </ListGroup>
         )}
+        {route && (
+          <ListGroup
+            title="Route"
+            footer="The route its flight number is scheduled to fly, from Virtual Radar Server's route database: not the flight plan filed for this flight, which the FAA does not publish openly."
+          >
+            <ListRow
+              media={<RowBadge colour={BADGE.approach}><Route /></RowBadge>} data-testid="flight-route"
+              title={<span className="font-semibold">{route.airports.map(a => a.ident).join(" → ")}</span>}
+              description={[
+                route.airports.map(a => a.location ?? a.name).filter(Boolean).join(" to "),
+                route.plausible === false ? "not where it is flying now" : null,
+              ].filter(Boolean).join(" · ")}
+            />
+          </ListGroup>
+        )}
+        {detail?.faa && <FaaRegistration faa={detail.faa} />}
         <ListGroup
           title="Flight"
           footer={`${latest ? `Heard ${ago(now - latest.at)}. ` : ""}From adsb.lol's ADS-B receivers, under the Open Database License: seconds old, with gaps where none hears -- for knowing what is about, not for avoiding it.`}
@@ -160,5 +188,59 @@ export default function FlightCard({ hex, onClose }: { hex: string; onClose: () 
         </ListGroup>
       </div>
     </PanelCard>
+  );
+}
+
+/**
+ * A US airplane's FAA registration, at the pilot's ask: who it is
+ * registered to and where, whether the registration is in effect and
+ * till when, what it is and its engine, and its airworthiness
+ * certificate -- the registry's own record (vfr.registry), as the FAA's
+ * N-number inquiry shows it, the owner's town and never the street.
+ */
+function FaaRegistration({ faa }: { faa: AircraftRegistration }) {
+  const place = [faa.city, faa.state ?? (faa.country !== "US" ? faa.country : null)].filter(Boolean).join(", ");
+  const power = faa.horsepower ? `${faa.horsepower.toLocaleString("en-US")} hp`
+    : faa.thrust_lb ? `${faa.thrust_lb.toLocaleString("en-US")} lb thrust` : null;
+  return (
+    <ListGroup
+      title="FAA registration"
+      footer="From the FAA's aircraft registry, read each day. An owner who asked the FAA to withhold their name (49 U.S.C. 44114) is not in it."
+    >
+      {faa.owner && (
+        <ListRow
+          media={<RowBadge colour={BADGE.ground}><UserRound /></RowBadge>} title="Registered to" data-testid="faa-owner"
+          description={[faa.owner, faa.owner_type, place, faa.co_owners ? `and ${faa.co_owners} more` : null, faa.fractional ? "fractional" : null]
+            .filter(Boolean).join(" · ")}
+        />
+      )}
+      <ListRow
+        media={<RowBadge colour={faa.standing === "lapsed" ? BADGE.hazard : BADGE.ground}><BadgeCheck /></RowBadge>}
+        title={faa.n_number} data-testid="faa-status"
+        description={[faa.certificate_issued && `Issued ${day(faa.certificate_issued)}`, faa.expires && `expires ${day(faa.expires)}`]
+          .filter(Boolean).join(", ") || undefined}
+        value={<span className={cn("font-semibold", faa.standing === "lapsed" ? "text-destructive-ink" : "text-foreground")}>{faa.status ?? "—"}</span>}
+      />
+      {(faa.manufacturer || faa.model) && (
+        <ListRow
+          media={<RowBadge colour={BADGE.tower}><Plane /></RowBadge>} title={[faa.manufacturer, faa.model].filter(Boolean).join(" ")}
+          data-testid="faa-aircraft"
+          description={[faa.year, faa.aircraft_type, faa.seats ? `${faa.seats} seats` : null, faa.kit ? `kit ${faa.kit}` : null,
+            faa.serial ? `serial ${faa.serial}` : null].filter(Boolean).join(" · ")}
+        />
+      )}
+      {faa.engine && (
+        <ListRow
+          media={<RowBadge colour={BADGE.runway}><Fan /></RowBadge>} title={faa.engine} data-testid="faa-engine"
+          description={[faa.engines && faa.engines > 1 ? `${faa.engines} engines` : null, faa.engine_type, power].filter(Boolean).join(" · ")}
+        />
+      )}
+      {faa.airworthiness && (
+        <ListRow
+          media={<RowBadge colour={BADGE.rule}><IdCard /></RowBadge>} title="Airworthiness" data-testid="faa-airworthiness"
+          description={[faa.airworthiness, faa.airworthiness_date && `since ${day(faa.airworthiness_date)}`].filter(Boolean).join(" · ")}
+        />
+      )}
+    </ListGroup>
   );
 }

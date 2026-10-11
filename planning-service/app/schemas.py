@@ -937,12 +937,50 @@ class TrailPoint(BaseModel):
     alt_ft: float | None = None
 
 
+class AircraftRegistration(BaseModel):
+    """A US airplane's record in the FAA's aircraft registry (vfr.registry,
+    the Releasable Aircraft Database): who it is registered to and where,
+    what it is, its engine, and its registration's and airworthiness
+    certificates. The owner's town, never the street; an owner who asked
+    the FAA to withhold their name (49 U.S.C. 44114(b)) is not in it."""
+
+    n_number: str
+    mode_s_hex: str | None = None
+    serial: str | None = None
+    manufacturer: str | None = None
+    model: str | None = None
+    year: int | None = None
+    aircraft_type: str | None = None
+    engines: int | None = None
+    seats: int | None = None
+    engine: str | None = None
+    engine_type: str | None = None
+    horsepower: int | None = None
+    thrust_lb: int | None = None
+    owner: str | None = None
+    owner_type: str | None = None
+    co_owners: int = 0
+    city: str | None = None
+    state: str | None = None
+    country: str | None = None
+    certificate_issued: str | None = None
+    expires: str | None = None
+    airworthiness: str | None = None
+    airworthiness_date: str | None = None
+    kit: str | None = None
+    fractional: bool = False
+    status: str | None = None
+    standing: Literal["valid", "lapsed", "other"] = "other"
+
+
 class FlightDetail(BaseModel):
     """An airplane and its flight today (vfr.traffic.flight): what it is,
     who flies it, where it took off from where its track shows that, and
-    its track since, from adsb.lol's open data (ODbL 1.0)."""
+    its track since, from adsb.lol's open data (ODbL 1.0); and a US
+    airplane's FAA registration."""
 
     hex: str
+    faa: AircraftRegistration | None = None
     registration: str | None = None
     type: str | None = None
     description: str | None = None
@@ -950,6 +988,22 @@ class FlightDetail(BaseModel):
     year: str | None = None
     departed: FlightDeparted | None = None
     trail: list[TrailPoint] = []
+
+
+class RouteAirport(BaseModel):
+    ident: str
+    name: str | None = None
+    location: str | None = None
+
+
+class FlightRoute(BaseModel):
+    """The route a flight number is scheduled to fly (vfr.traffic.route),
+    from Virtual Radar Server's route database (CC0): the airports in
+    order, and whether the airplane is on or near it now. Not the flight
+    plan filed for today's flight."""
+
+    airports: list[RouteAirport]
+    plausible: bool | None = None
 
 
 class ProfileGround(BaseModel):

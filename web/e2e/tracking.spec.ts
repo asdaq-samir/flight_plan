@@ -17,8 +17,22 @@ const CESSNA = {
   hex: "a128b9", callsign: "N174HA", registration: "N174HA", type: "C172", lat: 42.30, lon: -88.12,
   altitude_ft: 2500, pressure_altitude: false, track_deg: 320, speed_kt: 94, vertical_fpm: 0, seen_s: 0.3, squawk: "1200",
 };
+const FAA = {
+  n_number: "N14511", mode_s_hex: "a0b7d8", serial: "11775", manufacturer: "Airbus S A S", model: "A321-271NX", year: 2024,
+  aircraft_type: "Fixed wing multi engine", engines: 2, seats: 246, engine: "IAE PW1133G-JM", engine_type: "Turbo-fan",
+  horsepower: null, thrust_lb: 33110, owner: "United Airlines Inc", owner_type: "Corporation", co_owners: 0, city: "Chicago",
+  state: "IL", country: "US", certificate_issued: "2024-04-05", expires: "2031-04-30", airworthiness: "Standard (transport)",
+  airworthiness_date: "2024-04-08", kit: null, fractional: false, status: "Valid", standing: "valid",
+};
+const ROUTE = {
+  airports: [
+    { ident: "TJSJ", name: "Luis Munoz Marin International Airport", location: "San Juan" },
+    { ident: "KORD", name: "Chicago O'Hare International Airport", location: "Chicago" },
+  ],
+  plausible: true,
+};
 const DETAIL = {
-  hex: "a0b7d8", registration: "N14511", type: "A21N", description: "AIRBUS A-321neo", operator: "UNITED AIRLINES INC", year: "2024",
+  hex: "a0b7d8", faa: FAA, registration: "N14511", type: "A21N", description: "AIRBUS A-321neo", operator: "UNITED AIRLINES INC", year: "2024",
   departed: { ident: "TJSJ", name: "Luis Munoz Marin International Airport", at: Date.now() / 1000 - 4 * 3600 },
   trail: [
     { t: Date.now() / 1000 - 600, lat: 42.35, lon: -88.6, alt_ft: 12000 },
@@ -33,6 +47,8 @@ async function sky(page: Page, detail: object = DETAIL) {
   await page.route(url => url.pathname.endsWith("/api/planner/traffic"), route =>
     route.fulfill({ json: { aircraft: [UAL, CESSNA], age_s: (Date.now() - reported) / 1000, source: "adsb.lol", license: "ODbL 1.0" } }));
   await page.route(url => url.pathname.startsWith("/api/planner/traffic/flight/"), route => route.fulfill({ json: detail }));
+  await page.route(url => url.pathname.endsWith("/api/planner/traffic/route"), route =>
+    route.fulfill({ json: new URL(route.request().url()).searchParams.get("callsign") === "UAL2088" ? ROUTE : null }));
   await page.route(url => url.pathname.endsWith("/api/planner/traffic/find"), route =>
     route.fulfill({ json: { aircraft: new URL(route.request().url()).searchParams.get("q") === "UAL2088" ? [UAL] : [] } }));
 }
@@ -60,6 +76,14 @@ test("Aircraft sits under Nearest, lists the airplanes about, and a tap on one t
   await expect(card.getByTestId("flight-line")).toContainText("Airbus A-321neo · United Airlines Inc");
   await expect(card.getByTestId("flight-departed")).toContainText("TJSJ");
   await expect(card.getByTestId("flight-altitude")).toContainText("7,000 ft");
+  // Its flight number's route, and its FAA registration, at the pilot's ask.
+  await expect(card.getByTestId("flight-route")).toContainText("TJSJ → KORD");
+  await expect(card.getByTestId("flight-route")).toContainText("San Juan to Chicago");
+  await expect(card.getByTestId("faa-owner")).toContainText("United Airlines Inc · Corporation · Chicago, IL");
+  await expect(card.getByTestId("faa-status")).toContainText("Valid");
+  await expect(card.getByTestId("faa-status")).toContainText(/expires (Apr 30, 2031|30 Apr 2031)/);
+  await expect(card.getByTestId("faa-aircraft")).toContainText("Airbus S A S A321-271NX");
+  await expect(card.getByTestId("faa-engine")).toContainText("2 engines · Turbo-fan · 33,110 lb thrust");
   await expect(card.getByTestId("flight-follow")).toHaveAttribute("aria-pressed", "true");
   // Ringed on the map, its path behind it in its heights' colours.
   await expect(page.locator("[data-traffic-tracked]")).toHaveCount(1);

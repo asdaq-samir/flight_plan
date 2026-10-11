@@ -5,7 +5,7 @@ import type {
   Aircraft, AircraftChoice, AircraftProfiles, AircraftRequest, AirportPlace, AirportSearch, AirportsInView, AltitudeChoice, Briefing,
   ChartInfo, ChartPages, ChartRefreshStarted, PlacesFound, CheckpointDescriptionMessage, CheckpointNoteSaved, Checkpoints, Classification, Course, Detour,
   Flight, FlightSummary, ModelComparison, NarrativeMessage, NarrativeRequest, NavLogMessage, PickDeleted, PickSaved,
-  AirspaceAt, AlertsAhead, ClassBResponse, FlightDetail, Traffic, TrafficFound, NearestAirports, RouteProfile, Tfrs, DevServices, DevServiceStarted, Pilot, Rating, RetrainStarted, Role, SaveFlightRequest,
+  AirspaceAt, AlertsAhead, ClassBResponse, FlightDetail, FlightRoute, Traffic, TrafficFound, NearestAirports, RouteProfile, Tfrs, DevServices, DevServiceStarted, Pilot, Rating, RetrainStarted, Role, SaveFlightRequest,
   SignInCapabilities, AppleSignedIn, LogbookEntry, LogbookEntryRequest, Currency, CurrencyDatesRequest,
   Status, StreamMessage, Totals, WaypointsInView, Training, SavedTrack,
   OralQuestion, OralQuestionRequest, OralGrade, OralGradeRequest, ProcedureDrawing, ProcedureList,
@@ -434,9 +434,15 @@ export const api = {
   trafficFind: (q: string) =>
     planner.GET("/api/traffic/find", { params: { query: { q } } }).then(data<TrafficFound>).then(r => r.aircraft),
 
-  /** A tracked flight's airplane, where it took off and its path today. */
+  /** A tracked flight's airplane, where it took off and its path today,
+   *  and a US airplane's FAA registration. */
   trafficFlight: (hex: string) =>
     planner.GET("/api/traffic/flight/{hex_id}", { params: { path: { hex_id: hex } } }).then(data<FlightDetail>),
+
+  /** The route a flight number is scheduled to fly, and whether the
+   *  airplane where it is now is on it; null for none known. */
+  trafficRoute: (ask: { callsign: string; lat?: number; lon?: number }) =>
+    planner.GET("/api/traffic/route", { params: { query: ask } }).then(data<FlightRoute | null>),
 
   /** The VFR waypoints in the map's view (VPBNG), for its diamonds. */
   waypointsInView: (box: { south: number; west: number; north: number; east: number }) =>

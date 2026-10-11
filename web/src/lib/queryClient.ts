@@ -208,6 +208,14 @@ export const flightQuery = (hex: string) => queryOptions({
   meta: { silent: true },
 });
 
+/** The route a tracked flight's number is scheduled to fly, asked once a
+ *  callsign (vfr.traffic.route): where the airplane is when first asked
+ *  says whether it is on it. Quiet, as the flight's. */
+export const routeQuery = (callsign: string | null, at: { lat: number; lon: number } | null) => queryOptions({
+  queryKey: ["route", callsign], queryFn: () => api.trafficRoute({ callsign: callsign!, ...at }),
+  enabled: !!callsign, staleTime: 30 * 60_000, meta: { silent: true },
+});
+
 export const classBQuery = queryOptions({
   queryKey: ["classB"], queryFn: () => api.classB(), staleTime: 5 * 60_000, meta: { silent: true },
 });
