@@ -56,10 +56,10 @@ const CHART_KIND_LABELS: Record<string, string> = {
  * (whether the ratings are enough to learn from, the last run and why
  * it failed, Retrain), then every algorithm compared, the model serving
  * and (a page of its own) the versions before it, and the routes
- * collected. System -- which services answer, then a page each for how
- * fresh the FAA and weather data is, the charts, the planner's recent
- * errors, the web app's speed over time, and the doors into the rest of
- * the stack. All of it from one
+ * collected. System -- a page each for which services answer, how fresh
+ * the FAA and weather data is, the charts, the planner's recent errors,
+ * the web app's speed over time, and the doors into the rest of the
+ * stack. All of it from one
  * `/api/status` snapshot, refreshed while open. The pilot's page has
  * the same drawer in the same place, holding the pilot's things
  * instead (see PilotPanel).
@@ -669,15 +669,43 @@ function SystemTab({ status, failed, onRefresh, refreshing }: {
     })),
   ];
 
-  // Services on the tab's own page, since what answers right now is what
-  // the tab is opened for; the reference data, the charts and the links
-  // a row each that opens a page of its own (ConsolePages), as iOS's
-  // Settings goes deeper. They were sections folded under their titles,
-  // and four tables at once had been a screen and a half of scrolling.
+  // At the services row's end, what is wrong if anything is: how many
+  // are down or did not answer, in red, else how many are up; one the
+  // deployment does not run is neither.
+  const down = rows.filter(r => r.health === "down" || r.health === "no answer").length;
+  const summary = rows.some(r => r.health === "checking") ? HEALTH.checking
+    : down ? { tone: HEALTH.down.tone, label: `${down} down` }
+    : { tone: HEALTH.up.tone, label: `${rows.filter(r => r.health === "up").length} up` };
+
+  // A row each that opens a page of its own (ConsolePages), as iOS's
+  // Settings goes deeper: the services too, at the owner's ask
+  // (2026-10-11), where they were a list on the tab's own page. They were
+  // sections folded under their titles before that, and four tables at
+  // once had been a screen and a half of scrolling.
   return (
     <ConsolePages
       back="System"
       pages={{
+        services: {
+          title: "Services",
+          content: (
+            // As the planner found them a moment ago: the gateway and its
+            // database through Spring's actuator, the model service and
+            // the agents through their own probes, the planner by
+            // answering. A row a service, its role under its name and the
+            // status at its end; when the snapshot was taken under them.
+            <ListGroup
+              className={cn(stale && "opacity-60")}
+              footer={status && <>Checked {ago(status.checked_at)}{stale && " — the planner has not answered since"}.</>}
+            >
+              {rows.map(r => (
+                <ListRow key={r.name} title={r.name} description={r.detail}>
+                  <StatusBadge tone={HEALTH[r.health].tone}>{HEALTH[r.health].label}</StatusBadge>
+                </ListRow>
+              ))}
+            </ListGroup>
+          ),
+        },
         data: {
           title: "Reference data",
           content: (
@@ -753,25 +781,8 @@ function SystemTab({ status, failed, onRefresh, refreshing }: {
             The planner has not answered since this snapshot, {ago(status.checked_at)}: what follows is what was true then.
           </p>
         )}
-        {/* As the planner found them a moment ago: the gateway and its
-            database through Spring's actuator, the model service and the
-            agents through their own probes, the planner by answering. A
-            row a service, its role under its name and the status at its
-            end. */}
-        {/* When the snapshot was taken under them: it was the console's
-            last line on every tab, the Guide's too, where it meant
-            nothing. */}
-        <ListGroup
-          title="Services" className={cn(stale && "opacity-60")}
-          footer={status && <>Checked {ago(status.checked_at)}{stale && " — the planner has not answered since"}.</>}
-        >
-          {rows.map(r => (
-            <ListRow key={r.name} title={r.name} description={r.detail}>
-              <StatusBadge tone={HEALTH[r.health].tone}>{HEALTH[r.health].label}</StatusBadge>
-            </ListRow>
-          ))}
-        </ListGroup>
         <ListGroup>
+          <PageRow page="services" title="Services" value={<StatusBadge tone={summary.tone}>{summary.label}</StatusBadge>} />
           {/* The count alone at the row's end: with the oldest's date as
               well the name wrapped on a phone. The page has the dates. */}
           <PageRow page="data" title="Reference data" value={status ? `${datasets.length} files` : undefined} />

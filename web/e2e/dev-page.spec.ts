@@ -36,6 +36,7 @@ test("dev page: the dev console opens on training, and the waypoint drawer opens
   expect(await devMl.locator("input, textarea, [role=combobox]").count()).toBe(0);
   expect(await devMl.getByRole("button", { name: /Retrain/ }).count()).toBe(0);
   await devMl.getByRole("tab", { name: "System" }).click();
+  await devMl.getByRole("button", { name: /^Services/ }).click();
   await expect(devMl.getByText("planning-service", { exact: true })).toBeVisible();
   await devMl.getByRole("tab", { name: "Performance" }).click();
 
