@@ -56,7 +56,9 @@ export default function SectionTabs({ all, want, children }: {
     button.scrollIntoView({ inline: "nearest", block: "nearest" });
     // Back to the top of the tab, where the picked section starts.
     const scroller = top.current?.closest<HTMLElement>("[data-testid=navlog-scroller]");
-    if (scroller && top.current) scroller.scrollTop = Math.min(scroller.scrollTop, top.current.offsetTop);
+    // Measured against the scroller itself: offsetTop is from the nearest
+    // positioned ancestor, which is not the scroller.
+    if (scroller && top.current) scroller.scrollTop += Math.min(0, top.current.getBoundingClientRect().top - scroller.getBoundingClientRect().top);
   };
   return (
     <SectionTabsContext.Provider value={api}>
