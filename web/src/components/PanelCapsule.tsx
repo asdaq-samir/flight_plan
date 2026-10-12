@@ -7,6 +7,7 @@ import { textWidth } from "../lib/textWidth";
 import { useAirportSearch } from "../lib/useAirportSearch";
 import { usePreferences, type RecentAirport } from "../lib/preferences";
 import { ListGroup, ListRow } from "./GroupedList";
+import { ClearList, SwipeToDelete } from "./SwipeToDelete";
 import { ConsoleButtonContext } from "./mapChrome";
 
 /**
@@ -233,19 +234,28 @@ export function SearchResults({ query, onPick, places }: {
 }) {
   const { typed, rows, answered } = useAirportSearch(query);
   const recents = usePreferences(s => s.recentAirports);
+  const remove = usePreferences(s => s.removeRecentAirport);
+  const clear = usePreferences(s => s.clearRecentAirports);
   if (!typed) {
     return (
       <div className="space-y-6">
         {places}
         {recents.length > 0 ? (
-      <ListGroup title="Recents">
+      // Each taken off by a swipe to the left, or all of them by Clear, at
+      // the pilot's ask, as Maps' Recents are.
+      <ListGroup
+        title="Recents"
+        action={<ClearList title="Clear the Recents?" description="The airports opened last are forgotten in this browser. Favorites stay." onClear={clear} testId="recents-clear" />}
+      >
         {recents.map(a => (
-          <ListRow
-            key={a.ident} media={<History className="size-5 text-muted-foreground" />}
-            title={<><span className="font-mono font-semibold">{a.ident}</span> · {a.name}</>}
-            description={a.municipality ?? undefined}
-            onClick={() => onPick(a)}
-          />
+          <SwipeToDelete key={a.ident} label={`Remove ${a.ident} from Recents`} onDelete={() => remove(a.ident)}>
+            <ListRow
+              media={<History className="size-5 text-muted-foreground" />}
+              title={<><span className="font-mono font-semibold">{a.ident}</span> · {a.name}</>}
+              description={a.municipality ?? undefined}
+              onClick={() => onPick(a)} data-testid="airport-recent"
+            />
+          </SwipeToDelete>
         ))}
       </ListGroup>
         ) : (

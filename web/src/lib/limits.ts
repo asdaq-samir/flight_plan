@@ -17,6 +17,8 @@ export const DATA_SOURCES = [
   "FAA airport, airspace and obstacle data",
   "NOAA winds aloft and magnetic declination",
   "aviationweather.gov METARs, TAFs and SIGMETs",
+  "adsb.lol ADS-B traffic, under the Open Database License (ODbL 1.0)",
+  "FAA aircraft registry, for an airplane's registration and type",
   "OpenStreetMap, for checkpoint candidates",
 ];
 

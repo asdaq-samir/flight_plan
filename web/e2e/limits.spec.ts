@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { openSettings, settle } from "./helpers";
+import { openMapSettings, openSettings, settle } from "./helpers";
 
 /**
  * The first-launch acknowledgement (lib/limits, LimitsDialog): seen once
@@ -35,4 +35,18 @@ test("a fresh device is told what the planner is not, once, and Settings has it 
   const sheet = page.getByTestId("about-limits-sheet");
   await expect(sheet).toContainText("planning aid for VFR flight");
   await expect(sheet).toContainText("Data sources");
+  // The traffic's source among them, as the FAA's are.
+  await expect(sheet).toContainText("adsb.lol ADS-B traffic, under the Open Database License");
+});
+
+// The traffic's source credited under the map's settings beside the
+// FAA's charts, at the owner's ask, whether the traffic is shown or not.
+test("the map's settings credit adsb.lol for the traffic as they credit the FAA for the charts", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("vfr.limits", JSON.stringify({ state: { acknowledged: true }, version: 0 })));
+  await page.goto("/app/plan");
+  await settle(page);
+  await openMapSettings(page);
+  const settings = page.getByTestId("map-settings");
+  await expect(settings).toContainText("Charts from the FAA");
+  await expect(settings).toContainText("Traffic from adsb.lol, under the Open Database License.");
 });
