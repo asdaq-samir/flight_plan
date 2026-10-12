@@ -53,6 +53,25 @@ def test_a_fields_procedures_are_listed_approaches_first_by_their_charts_names()
     assert procedures.procedures_at("KXYZ") is None
 
 
+def test_a_terminal_ndb_kept_apart_from_its_airports_run_takes_in_no_other_fields_procedures(monkeypatch, tmp_path):
+    # As the FAA's file has KDLH's NDB DL: a terminal NDB (section PN, its
+    # subsection in column 6) after another field's records. Read into
+    # KBUR's run, the run took KZZZ's procedures in as KBUR's own.
+    alone = procedures.procedures_at("KBUR")["procedures"]
+    lines = CIFP.read_text(encoding="latin-1").splitlines()
+    # Another field's run, its procedures' idents its own ("Z08-Y").
+    other = [line[:6] + "KZZZ" + line[10:13] + "Z" + line[14:] for line in lines if line[4:6] == "P " and line[6:10] == "KBUR"]
+    ndb = ("SUSAPNKBURK2 DL    K2003790HO W N46504459W092211778" + " " * 23
+           + "W0010" + " " * 11 + "NARPYKLA" + " " * 25 + "582982108")
+    file = tmp_path / "FAACIFP18"
+    file.write_text("\n".join([*lines, *other, ndb]) + "\n", encoding="latin-1")
+    monkeypatch.setattr(procedures, "cifp_path", lambda on=None: file)
+    assert procedures.procedures_at("KBUR")["procedures"] == alone
+    assert all(p["id"].startswith("Z") for p in procedures.procedures_at("KZZZ")["procedures"])
+    # The NDB is the field's own all the same, for a leg that names it.
+    assert near(procedures._airport("KBUR", file).waypoints["DL"], (46.84572, -92.35494))
+
+
 @pytest.mark.parametrize(("kind", "ident", "name"), [
     ("approach", "I08-Y", "ILS Y RWY 08"),
     ("approach", "R26LY", "RNAV (GPS) Y RWY 26L"),

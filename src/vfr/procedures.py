@@ -280,6 +280,9 @@ class _Index:
     #: Enroute waypoints, VHF navaids and NDBs, by ident: (ICAO code,
     #: section, place) for each of that name.
     fixes: dict[str, list[tuple[str, str, tuple[float, float]]]] = field(default_factory=dict)
+    #: Each airport's terminal NDBs, by its ident and theirs: their
+    #: places, which the file keeps apart from the airport's run.
+    terminal_ndbs: dict[str, dict[str, tuple[float, float]]] = field(default_factory=dict)
 
 
 @lru_cache(maxsize=2)
@@ -294,10 +297,20 @@ def _index(path: Path) -> _Index:
             if raw[:1] == b"S":
                 rec = raw.decode("latin-1")
                 section = rec[4:6]
-                if section[0] == "P":
+                if section == "P ":
                     ident = _col(rec, 7, 10).strip()
                     start, size = index.airports.get(ident, (offset, 0))
                     index.airports[ident] = (start, offset + length - start)
+                elif section == "PN":
+                    # A terminal NDB is the airport section's with its
+                    # subsection in column 6, not 13 (ARINC 424-18 4.1.3),
+                    # and the FAA's file keeps them apart from the airports'
+                    # runs: taken into the run, KDLH's NDB made its run 25 MB
+                    # long, every procedure of the airports between read as
+                    # Duluth's (2,235 of them, an LDA-C drawn in Los
+                    # Angeles) -- 173 fields of the 1 Oct 2026 cycle.
+                    if _continuation(rec, 22) and (place := _position(rec)):
+                        index.terminal_ndbs.setdefault(_col(rec, 7, 10).strip(), {})[_col(rec, 14, 17).strip()] = place
                 elif section in ("EA", "D ", "DB") and _continuation(rec, 22) and (place := _navaid_place(rec)):
                     ident = _col(rec, 14, 18).strip()
                     index.fixes.setdefault(ident, []).append((_col(rec, 20, 21), section, place))
@@ -353,7 +366,7 @@ def _airport(ident: str, path: Path) -> _Airport | None:
     if not found:
         return None
     name, records = found
-    airport = _Airport(name, None, 0.0, {}, {}, {})
+    airport = _Airport(name, None, 0.0, dict(_index(path).terminal_ndbs.get(name, {})), {}, {})
     for rec in records:
         sub = _col(rec, 13, 13)
         if sub == "A" and _continuation(rec, 22):
