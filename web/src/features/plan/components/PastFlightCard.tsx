@@ -29,7 +29,7 @@ const LOG_ROWS = 60;
  * (lib/map/pastFlight) -- then its figures (off, on, how long, how high,
  * how far and how fast), then its track log, as FlightAware's: its height
  * and speed over the flight and each report. Its close goes back to the
- * airplane's card, on its Flights.
+ * airplane's card, on its Activity.
  */
 export default function PastFlightCard({ hex, id, onClose }: { hex: string; id: number; onClose: () => void }) {
   // The airplane's list, which this flight was opened from, is held already.

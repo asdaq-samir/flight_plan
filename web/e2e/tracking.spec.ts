@@ -73,14 +73,17 @@ test("Aircraft is a tab, lists the airplanes about, and a tap on one tracks it: 
   await expect(page).toHaveURL(/[?&]flight=a0b7d8/);
   const card = page.getByTestId("flight-card");
   await expect(card.getByTestId("flight-name")).toHaveText("UAL2088");
-  await expect(card.getByTestId("flight-line")).toContainText("Airbus A-321neo · United Airlines Inc");
+  // Its name alone over the tabs, at the owner's ask: what it is is Info's.
+  await expect(card.getByTestId("flight-line")).toHaveCount(0);
   await expect(card.getByTestId("flight-departed")).toContainText("TJSJ");
   await expect(card.getByTestId("flight-altitude")).toContainText("7,000 ft");
   // Its flight number's route, and its FAA registration, at the pilot's ask.
   await expect(card.getByTestId("flight-route")).toContainText("TJSJ → KORD");
   await expect(card.getByTestId("flight-route")).toContainText("San Juan to Chicago");
-  // What it is, under its own tab.
-  await card.getByTestId("flight-tab-airplane").click();
+  // What it is, under Info: its make and model and who flies it first.
+  await card.getByTestId("flight-tab-info").click();
+  await expect(card.getByTestId("flight-model")).toHaveText("Airbus A-321neo");
+  await expect(card.getByTestId("flight-operator")).toHaveText("United Airlines Inc");
   await expect(card.getByTestId("faa-owner")).toContainText("United Airlines Inc · Corporation · Chicago, IL");
   await expect(card.getByTestId("faa-status")).toContainText("Valid");
   await expect(card.getByTestId("faa-status")).toContainText(/expires (Apr 30, 2031|30 Apr 2031)/);
@@ -166,10 +169,10 @@ test("an airplane not in the air is found by its registration, and its card says
   await expect(page).toHaveURL(/[?&]flight=a89c1e/);
   const card = page.getByTestId("flight-card");
   // Not heard now: the card opens on its flights.
-  await expect(card.getByTestId("flight-tab-flights")).toHaveAttribute("data-state", "active");
+  await expect(card.getByTestId("flight-tab-activity")).toHaveAttribute("data-state", "active");
   await card.getByTestId("flight-tab-now").click();
   await expect(card.getByTestId("flight-not-heard")).toContainText("Last heard");
-  await card.getByTestId("flight-tab-airplane").click();
+  await card.getByTestId("flight-tab-info").click();
   await expect(card.getByTestId("faa-owner")).toContainText("Roca Roja LLC · LLC · Meridian, ID");
 });
 
@@ -253,7 +256,7 @@ test("an airplane's past flights are listed on its card, and one is drawn on the
   await page.goto("/app/plan?flight=a0b7d8");
   await settle(page);
   const card = page.getByTestId("flight-card");
-  await card.getByTestId("flight-tab-flights").click();
+  await card.getByTestId("flight-tab-activity").click();
   const rows = card.getByTestId("past-flight");
   await expect(rows).toHaveCount(2, { timeout: slow(15_000) });
   await expect(rows.first()).toContainText("LCI → LWM");
@@ -277,10 +280,10 @@ test("an airplane's past flights are listed on its card, and one is drawn on the
   await expect(flight.getByTestId("replay-now")).toContainText(/ft · 100 kt · S/);
   await flight.getByTestId("replay-stop").click();
   await expect(flight.getByTestId("replay-now")).toHaveCount(0);
-  // Closed: back to the airplane's card on its Flights, the path put away.
+  // Closed: back to the airplane's card on its Activity, the path put away.
   await flight.getByTestId("past-flight-close").click();
   await expect(page).not.toHaveURL(/[?&]past=/);
-  await expect(card.getByTestId("flight-tab-flights")).toHaveAttribute("data-state", "active");
+  await expect(card.getByTestId("flight-tab-activity")).toHaveAttribute("data-state", "active");
   await expect(page.locator("path.past-flight-path")).toHaveCount(0);
 });
 

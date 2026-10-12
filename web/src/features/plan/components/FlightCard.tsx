@@ -28,11 +28,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../../components/ui
 
 /** The card's tabs, at the pilot's ask, where its groups ran one under
  *  another: what it is doing now, its flights of the last days (each
- *  replayed), and what it is. */
+ *  replayed), and what it is -- named Now, Activity and Info at the
+ *  owner's ask. */
 const FLIGHT_TABS = [
   { value: "now", label: "Now" },
-  { value: "flights", label: "Flights" },
-  { value: "airplane", label: "Airplane" },
+  { value: "activity", label: "Activity" },
+  { value: "info", label: "Info" },
 ] as const;
 type FlightTab = (typeof FLIGHT_TABS)[number]["value"];
 /** Each airplane's tab last picked, while the page is open. */
@@ -99,14 +100,14 @@ export default function FlightCard({ hex, onClose, onOpenPast }: {
   const plane = latest?.plane ?? null;
   // Opened on what it is doing now, or, not heard now -- landed, or found
   // by its registration -- on its flights; the pilot's pick kept after.
-  // Back from a past flight's card (PastFlightCard), on the Flights it was
+  // Back from a past flight's card (PastFlightCard), on the Activity it was
   // opened from: the tab picked is kept for the airplane while the page is.
   const [picked, setPickedState] = useState<FlightTab | null>(() => tabOf.get(hex) ?? null);
   const setPicked = (next: FlightTab) => {
     tabOf.set(hex, next);
     setPickedState(next);
   };
-  const tab: FlightTab = picked ?? (plane ? "now" : "flights");
+  const tab: FlightTab = picked ?? (plane ? "now" : "activity");
   // What is kept of it, for the Aircraft card's Recents and Favorites,
   // once it can be named: its registration, else its callsign.
   const keptName = detail?.registration ?? plane?.registration ?? plane?.callsign ?? null;
@@ -116,8 +117,6 @@ export default function FlightCard({ hex, onClose, onOpenPast }: {
     if (kept) usePreferences.getState().addRecentAircraft(kept);
   }, [kept]);
   const name = plane?.callsign ?? detail?.registration ?? plane?.registration ?? hex.toUpperCase();
-  const what = [detail?.description ? nameCase(detail.description) : plane?.type, detail?.operator ? nameCase(detail.operator) : null]
-    .filter(Boolean).join(" · ");
   // Where it is now, carried on from its report, as the map draws it.
   const here = latest ? carriedOn(latest.plane, (now - latest.at) / 1000) : null;
   const cpa = fix && plane && here ? closestApproach(fix, { ...plane, ...here }) : null;
@@ -125,10 +124,9 @@ export default function FlightCard({ hex, onClose, onOpenPast }: {
   const rate = plane?.vertical_fpm ?? 0;
   return (
     <PanelCard testId="flight-card">
-      <CardHead
-        name={name} line={what || " "} nameTestId="flight-name" lineTestId="flight-line"
-        onClose={onClose} closeTestId="flight-close"
-      >
+      {/* Its name alone, at the owner's ask ("you don't need any info
+          below the id"): what it is and who flies it are Info's. */}
+      <CardHead name={name} nameTestId="flight-name" onClose={onClose} closeTestId="flight-close">
         <TogglePill
           pressed={follow} onPressedChange={on => useTracking.setState({ follow: on })}
           icon={<Crosshair />} label="Follow" testId="flight-follow"
@@ -245,12 +243,19 @@ export default function FlightCard({ hex, onClose, onOpenPast }: {
         </ListGroup>
       </TabsContent>
       {/* Its flights of the last days, each replayed on the map. */}
-      <TabsContent value="flights" className="space-y-5 pt-4">
+      <TabsContent value="activity" className="space-y-5 pt-4">
         <PastFlights hex={hex} onOpen={onOpenPast} />
       </TabsContent>
-      {/* What it is: its own registration, and the FAA's record of it. */}
-      <TabsContent value="airplane" className="space-y-5 pt-4">
+      {/* What it is -- its make and model and who flies it, which were the
+          line under its name -- its registration, and the FAA's record. */}
+      <TabsContent value="info" className="space-y-5 pt-4">
         <ListGroup title="Airplane">
+          {detail?.description && (
+            <ListRow title="Model" value={<span className="font-semibold text-foreground" data-testid="flight-model">{nameCase(detail.description)}</span>} />
+          )}
+          {detail?.operator && (
+            <ListRow title="Operator" value={<span className="font-semibold text-foreground" data-testid="flight-operator">{nameCase(detail.operator)}</span>} />
+          )}
           <ListRow title="Registration" value={<span className="font-semibold text-foreground">{detail?.registration ?? plane?.registration ?? "—"}</span>} />
           <ListRow
             title="Type"
