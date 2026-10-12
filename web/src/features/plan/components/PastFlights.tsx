@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useState } from "react";
+import { memo, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Pause, Play, Square } from "lucide-react";
 import { Area, ComposedChart, Line, ReferenceLine, XAxis, YAxis } from "recharts";
@@ -49,14 +49,12 @@ export default function PastFlights({ hex }: { hex: string }) {
     refetchInterval: query => ((query.state.data?.unread_days ?? 0) > 0 && query.state.dataUpdateCount <= 5 ? 60_000 : false),
   });
   const chosen = usePastFlight(s => (s.hex === hex ? s.id : null));
-  // The card closed or another airplane tracked: its past flight goes too.
-  useEffect(() => () => clearPastFlight(), [hex]);
   const flights = data?.flights ?? [];
   const picked = flights.find(f => f.id === chosen) ?? null;
   return (
     <>
       <ListGroup
-        title="Past flights"
+        title="Last seven days"
         footer="The last seven days, from adsb.lol's ADS-B receivers. A flight is taken to start or end at a field where it was heard low near it, or headed for it; where none was, it says where it was last heard."
       >
         {!data && !isError && <ListRow title={<span role="status" className="text-muted-foreground">Looking…</span>} />}

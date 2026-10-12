@@ -21,6 +21,19 @@ import { TEXT } from "../../../lib/text";
 import { altFt, grouped } from "../../../lib/units";
 import { clockTime } from "../format";
 import PastFlights from "./PastFlights";
+import { LINE_TAB } from "../../../components/lineTabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../../components/ui/tabs";
+import { clearPastFlight } from "../../../lib/map/pastFlight";
+
+/** The card's tabs, at the pilot's ask, where its groups ran one under
+ *  another: what it is doing now, its flights of the last days (each
+ *  replayed), and what it is. */
+const FLIGHT_TABS = [
+  { value: "now", label: "Now" },
+  { value: "flights", label: "Flights" },
+  { value: "airplane", label: "Airplane" },
+] as const;
+type FlightTab = (typeof FLIGHT_TABS)[number]["value"];
 
 /** What a squawk says, where it says more than a code: the three a
  *  pilot sets in trouble -- 7700 an emergency (AIM 6-2-2), 7500 unlawful
@@ -76,6 +89,13 @@ export default function FlightCard({ hex, onClose }: { hex: string; onClose: () 
     return () => window.clearInterval(timer);
   }, []);
   const plane = latest?.plane ?? null;
+  // Opened on what it is doing now, or, not heard now -- landed, or found
+  // by its registration -- on its flights; the pilot's pick kept after.
+  const [picked, setPicked] = useState<FlightTab | null>(null);
+  const tab: FlightTab = picked ?? (plane ? "now" : "flights");
+  // The card closed or another airplane tracked: a past flight drawn
+  // from it goes too (kept while its tabs change).
+  useEffect(() => () => clearPastFlight(), [hex]);
   const name = plane?.callsign ?? detail?.registration ?? plane?.registration ?? hex.toUpperCase();
   const what = [detail?.description ? nameCase(detail.description) : plane?.type, detail?.operator ? nameCase(detail.operator) : null]
     .filter(Boolean).join(" · ");
@@ -95,8 +115,19 @@ export default function FlightCard({ hex, onClose }: { hex: string; onClose: () 
           icon={<Crosshair />} label="Follow" testId="flight-follow"
         />
       </CardHead>
-      <div className="space-y-5 pt-4">
-        <ListGroup title="Now">
+      <Tabs value={tab} onValueChange={next => setPicked(next as FlightTab)} className="gap-0 pt-3">
+        {/* The stock line tabs, the airport card's and the consoles': words
+            over a hairline, the chosen one in the tint, 44 points to a finger. */}
+        <TabsList
+          variant="line"
+          className="w-full gap-0 border-b border-border p-0 group-data-[orientation=horizontal]/tabs:h-9 pointer-coarse:group-data-[orientation=horizontal]/tabs:h-[44px]"
+        >
+          {FLIGHT_TABS.map(t => (
+            <TabsTrigger key={t.value} value={t.value} className={LINE_TAB} data-testid={`flight-tab-${t.value}`}>{t.label}</TabsTrigger>
+          ))}
+        </TabsList>
+      <TabsContent value="now" className="space-y-5 pt-4">
+        <ListGroup title="In the air">
           {/* Not heard now -- on the ground, out of a receiver's reach, or
               found by its registration: when it was last, from its trace. */}
           {!plane && (() => {
@@ -177,9 +208,6 @@ export default function FlightCard({ hex, onClose }: { hex: string; onClose: () 
             />
           </ListGroup>
         )}
-        {detail?.faa && <FaaRegistration faa={detail.faa} />}
-        {/* Its flights of the last days, each replayed on the map. */}
-        <PastFlights hex={hex} />
         <ListGroup
           title="Flight"
           footer={`${latest ? `Heard ${ago(now - latest.at)}. ` : ""}From adsb.lol's ADS-B receivers, under the Open Database License: seconds old, with gaps where none hears -- for knowing what is about, not for avoiding it.`}
@@ -193,14 +221,26 @@ export default function FlightCard({ hex, onClose }: { hex: string; onClose: () 
               value={<span className="font-semibold text-foreground">{detail.departed.ident} · {clockTime(new Date(detail.departed.at * 1000))}</span>}
             />
           )}
+          <ListRow title="Callsign" value={<span className="font-semibold text-foreground">{plane?.callsign ?? "—"}</span>} />
+        </ListGroup>
+      </TabsContent>
+      {/* Its flights of the last days, each replayed on the map. */}
+      <TabsContent value="flights" className="space-y-5 pt-4">
+        <PastFlights hex={hex} />
+      </TabsContent>
+      {/* What it is: its own registration, and the FAA's record of it. */}
+      <TabsContent value="airplane" className="space-y-5 pt-4">
+        <ListGroup title="Airplane">
           <ListRow title="Registration" value={<span className="font-semibold text-foreground">{detail?.registration ?? plane?.registration ?? "—"}</span>} />
           <ListRow
-            title="Airplane"
+            title="Type"
             value={<span className="font-semibold text-foreground">{[detail?.type ?? plane?.type, detail?.year].filter(Boolean).join(" · ") || "—"}</span>}
           />
           <ListRow title="ICAO address" value={<span className={cn("font-semibold text-foreground uppercase tabular-nums", TEXT.row)}>{hex}</span>} />
         </ListGroup>
-      </div>
+        {detail?.faa && <FaaRegistration faa={detail.faa} />}
+      </TabsContent>
+      </Tabs>
     </PanelCard>
   );
 }

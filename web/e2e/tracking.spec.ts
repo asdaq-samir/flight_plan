@@ -79,6 +79,8 @@ test("Aircraft sits under Nearest, lists the airplanes about, and a tap on one t
   // Its flight number's route, and its FAA registration, at the pilot's ask.
   await expect(card.getByTestId("flight-route")).toContainText("TJSJ → KORD");
   await expect(card.getByTestId("flight-route")).toContainText("San Juan to Chicago");
+  // What it is, under its own tab.
+  await card.getByTestId("flight-tab-airplane").click();
   await expect(card.getByTestId("faa-owner")).toContainText("United Airlines Inc · Corporation · Chicago, IL");
   await expect(card.getByTestId("faa-status")).toContainText("Valid");
   await expect(card.getByTestId("faa-status")).toContainText(/expires (Apr 30, 2031|30 Apr 2031)/);
@@ -163,7 +165,11 @@ test("an airplane not in the air is found by its registration, and its card says
   await row.click();
   await expect(page).toHaveURL(/[?&]flight=a89c1e/);
   const card = page.getByTestId("flight-card");
+  // Not heard now: the card opens on its flights.
+  await expect(card.getByTestId("flight-tab-flights")).toHaveAttribute("data-state", "active");
+  await card.getByTestId("flight-tab-now").click();
   await expect(card.getByTestId("flight-not-heard")).toContainText("Last heard");
+  await card.getByTestId("flight-tab-airplane").click();
   await expect(card.getByTestId("faa-owner")).toContainText("Roca Roja LLC · LLC · Meridian, ID");
 });
 
@@ -247,6 +253,7 @@ test("an airplane's past flights are listed on its card, and one is drawn on the
   await page.goto("/app/plan?flight=a0b7d8");
   await settle(page);
   const card = page.getByTestId("flight-card");
+  await card.getByTestId("flight-tab-flights").click();
   const rows = card.getByTestId("past-flight");
   await expect(rows).toHaveCount(2, { timeout: slow(15_000) });
   await expect(rows.first()).toContainText("LCI → LWM");
@@ -254,6 +261,10 @@ test("an airplane's past flights are listed on its card, and one is drawn on the
   await rows.first().click();
   // Drawn on the map in its heights' colours, its track log under the replay.
   await expect(page.locator("path.past-flight-path").first()).toBeAttached({ timeout: slow(10_000) });
+  // Another tab and back: still drawn, still picked.
+  await card.getByTestId("flight-tab-airplane").click();
+  await expect(page.locator("path.past-flight-path").first()).toBeAttached();
+  await card.getByTestId("flight-tab-flights").click();
   await expect(card.getByTestId("track-log").locator("tbody tr")).toHaveCount(60);
   await card.getByTestId("track-log-all").click();
   await expect(card.getByTestId("track-log").locator("tbody tr")).toHaveCount(80);
