@@ -259,23 +259,27 @@ test("an airplane's past flights are listed on its card, and one is drawn on the
   await expect(rows.first()).toContainText("LCI → LWM");
   await expect(rows.first()).toContainText("Arrived");
   await rows.first().click();
-  // Drawn on the map in its heights' colours, its track log under the replay.
+  // Its own card over the airplane's, at the pilot's ask: the replay, its
+  // figures and its track log; drawn on the map in its heights' colours.
+  await expect(page).toHaveURL(/[?&]past=\d+/);
+  const flight = page.getByTestId("past-flight-card");
+  await expect(flight.getByTestId("past-flight-name")).toHaveText("LCI → LWM");
+  await expect(flight.getByTestId("past-flight-off")).toContainText("LCI");
+  await expect(flight.getByTestId("past-flight-on")).toContainText("LWM");
+  await expect(flight.getByTestId("past-flight-flown")).toContainText(/\d+ nm/);
   await expect(page.locator("path.past-flight-path").first()).toBeAttached({ timeout: slow(10_000) });
-  // Another tab and back: still drawn, still picked.
-  await card.getByTestId("flight-tab-airplane").click();
-  await expect(page.locator("path.past-flight-path").first()).toBeAttached();
-  await card.getByTestId("flight-tab-flights").click();
-  await expect(card.getByTestId("track-log").locator("tbody tr")).toHaveCount(60);
-  await card.getByTestId("track-log-all").click();
-  await expect(card.getByTestId("track-log").locator("tbody tr")).toHaveCount(80);
-  // Played at 200 times: the airplane on the map, where it is said under the controls.
-  await card.getByTestId("replay-speed").getByText("200×").click();
-  await card.getByTestId("replay-play").click();
-  await expect(card.getByTestId("replay-now")).toContainText(/ft · 100 kt · S/);
-  await expect(page.locator(".leaflet-marker-pane [data-traffic-tracked]").first()).toBeAttached();
-  await card.getByTestId("replay-stop").click();
-  await expect(card.getByTestId("replay-now")).toHaveCount(0);
-  // A second tap puts it away: today's path back.
-  await rows.first().click();
+  await expect(flight.getByTestId("track-log").locator("tbody tr")).toHaveCount(60);
+  await flight.getByTestId("track-log-all").click();
+  await expect(flight.getByTestId("track-log").locator("tbody tr")).toHaveCount(80);
+  // Played at 200 times: where the airplane is, said under the controls.
+  await flight.getByTestId("replay-speed").getByText("200×").click();
+  await flight.getByTestId("replay-play").click();
+  await expect(flight.getByTestId("replay-now")).toContainText(/ft · 100 kt · S/);
+  await flight.getByTestId("replay-stop").click();
+  await expect(flight.getByTestId("replay-now")).toHaveCount(0);
+  // Closed: back to the airplane's card on its Flights, the path put away.
+  await flight.getByTestId("past-flight-close").click();
+  await expect(page).not.toHaveURL(/[?&]past=/);
+  await expect(card.getByTestId("flight-tab-flights")).toHaveAttribute("data-state", "active");
   await expect(page.locator("path.past-flight-path")).toHaveCount(0);
 });

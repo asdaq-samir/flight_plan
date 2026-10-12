@@ -18,6 +18,7 @@ import { bestStopIndex } from "../../lib/geo";
 import { useKeepOffline } from "../../lib/map/keepStatus";
 import { locateOnOpen, positionNow, useOwnShip, useOwnShipNear } from "../../lib/map/ownShip";
 import { track, useTracking } from "../../lib/map/tracking";
+import { choosePastFlight, clearPastFlight } from "../../lib/map/pastFlight";
 import { pointOf } from "../../lib/airspace";
 import { MAX_STOPS, altitudesOf, altitudesParam, departureOf, identOf, isAirwayToken, pointName, positionIdent, routeName, routeOf, stopsOf } from "../../lib/identSchema";
 import { restingSummary } from "./figures";
@@ -43,6 +44,7 @@ import { runwayNumber } from "../../lib/pattern";
 import NearestCard from "./components/NearestCard";
 import AircraftCard from "./components/AircraftCard";
 import FlightCard from "./components/FlightCard";
+import PastFlightCard from "./components/PastFlightCard";
 import type { RouteParts, RouteProcedure } from "./components/RouteBox";
 import type { PointAltitude } from "./components/PointAltitudeDialog";
 import { navlogQuery, usePlan } from "./hooks/usePlan";
@@ -289,6 +291,11 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const aircraftOpen = searchParams.get("aircraft") === "1";
   const flightParam = searchParams.get("flight");
   const flight = flightParam && /^~?[0-9a-f]{6}$/i.test(flightParam) ? flightParam.toLowerCase() : null;
+  // And one of its past flights (PastFlightCard), by its takeoff's time:
+  // `?past=1791723840` -- a layer over the airplane's card, its close back
+  // to it, at the pilot's ask.
+  const pastParam = searchParams.get("past");
+  const past = flight && pastParam && /^\d{9,11}$/.test(pastParam) ? Number(pastParam) : null;
   // Or near a place the pilot typed in it -- a town, an address, an
   // airport -- at the pilot's ask, where it was own ship's alone:
   // `?nearAt=43.0731,-89.4012&nearName=Madison, WI`.
@@ -381,12 +388,27 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       const next = new URLSearchParams(prev);
       if (hex) next.set("flight", hex);
       else next.delete("flight");
-      for (const key of ["place", "at", "near", "nearAt", "nearName"]) next.delete(key);
+      for (const key of ["place", "at", "near", "nearAt", "nearName", "past"]) next.delete(key);
       if (hex) next.delete("view");
       return next;
     }, { replace: true });
     if (hex) setPanel("half");
   }, [setSearchParams, setPanel]);
+  const selectPast = useCallback((id: number | null) => {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      if (id) next.set("past", String(id));
+      else next.delete("past");
+      return next;
+    }, { replace: true });
+    setPanel("half");
+  }, [setSearchParams, setPanel]);
+  // The address's past flight drawn on the map (lib/map/pastFlight), and
+  // let go with its card.
+  useEffect(() => {
+    if (flight && past) choosePastFlight(flight, past);
+    else clearPastFlight();
+  }, [flight, past]);
   // The address's flight and list into the tracking the map draws from
   // (lib/map/tracking), and the map's tap on an airplane back to here.
   useEffect(() => { track(flight); }, [flight]);
@@ -395,7 +417,9 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     useTracking.setState({ pick: (hex, plane) => selectFlight(hex, plane) });
     return () => useTracking.setState({ pick: null, listing: false });
   }, [selectFlight]);
-  const flightCard = flight ? <FlightCard key={flight} hex={flight} onClose={() => selectFlight(null)} /> : null;
+  const flightCard = flight && past
+    ? <PastFlightCard key={`${flight}-${past}`} hex={flight} id={past} onClose={() => selectPast(null)} />
+    : flight ? <FlightCard key={flight} hex={flight} onClose={() => selectFlight(null)} onOpenPast={selectPast} /> : null;
   const aircraftCard = aircraftOpen
     ? <AircraftCard onPick={plane => selectFlight(plane.hex, plane)} onPickHex={hex => selectFlight(hex)} onClose={() => showAircraft(false)} /> : null;
   const { data: destCard } = useQuery({

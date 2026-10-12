@@ -23,7 +23,6 @@ import { clockTime } from "../format";
 import PastFlights from "./PastFlights";
 import { LINE_TAB } from "../../../components/lineTabs";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../../components/ui/tabs";
-import { clearPastFlight } from "../../../lib/map/pastFlight";
 
 /** The card's tabs, at the pilot's ask, where its groups ran one under
  *  another: what it is doing now, its flights of the last days (each
@@ -34,6 +33,8 @@ const FLIGHT_TABS = [
   { value: "airplane", label: "Airplane" },
 ] as const;
 type FlightTab = (typeof FLIGHT_TABS)[number]["value"];
+/** Each airplane's tab last picked, while the page is open. */
+const tabOf = new Map<string, FlightTab>();
 
 /** What a squawk says, where it says more than a code: the three a
  *  pilot sets in trouble -- 7700 an emergency (AIM 6-2-2), 7500 unlawful
@@ -72,7 +73,12 @@ function against(feet: number): string {
  * its heights' colours. Seconds-old internet data from adsb.lol's
  * receivers: for knowing what is about, not for avoiding it.
  */
-export default function FlightCard({ hex, onClose }: { hex: string; onClose: () => void }) {
+export default function FlightCard({ hex, onClose, onOpenPast }: {
+  hex: string;
+  onClose: () => void;
+  /** Opens one of its past flights' own card over this one. */
+  onOpenPast: (id: number) => void;
+}) {
   const latest = useTracking(s => (s.latest?.plane.hex === hex ? s.latest : null));
   const follow = useTracking(s => s.follow);
   const fix = useOwnShip(s => (s.enabled ? s.fix : null));
@@ -91,11 +97,14 @@ export default function FlightCard({ hex, onClose }: { hex: string; onClose: () 
   const plane = latest?.plane ?? null;
   // Opened on what it is doing now, or, not heard now -- landed, or found
   // by its registration -- on its flights; the pilot's pick kept after.
-  const [picked, setPicked] = useState<FlightTab | null>(null);
+  // Back from a past flight's card (PastFlightCard), on the Flights it was
+  // opened from: the tab picked is kept for the airplane while the page is.
+  const [picked, setPickedState] = useState<FlightTab | null>(() => tabOf.get(hex) ?? null);
+  const setPicked = (next: FlightTab) => {
+    tabOf.set(hex, next);
+    setPickedState(next);
+  };
   const tab: FlightTab = picked ?? (plane ? "now" : "flights");
-  // The card closed or another airplane tracked: a past flight drawn
-  // from it goes too (kept while its tabs change).
-  useEffect(() => () => clearPastFlight(), [hex]);
   const name = plane?.callsign ?? detail?.registration ?? plane?.registration ?? hex.toUpperCase();
   const what = [detail?.description ? nameCase(detail.description) : plane?.type, detail?.operator ? nameCase(detail.operator) : null]
     .filter(Boolean).join(" · ");
@@ -226,7 +235,7 @@ export default function FlightCard({ hex, onClose }: { hex: string; onClose: () 
       </TabsContent>
       {/* Its flights of the last days, each replayed on the map. */}
       <TabsContent value="flights" className="space-y-5 pt-4">
-        <PastFlights hex={hex} />
+        <PastFlights hex={hex} onOpen={onOpenPast} />
       </TabsContent>
       {/* What it is: its own registration, and the FAA's record of it. */}
       <TabsContent value="airplane" className="space-y-5 pt-4">
