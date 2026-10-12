@@ -33,13 +33,6 @@ export interface MapInsets {
 export const NO_INSETS: MapInsets = { top: 0, bottom: 0, left: 0, out: false };
 export const MapInsetsContext = createContext<MapInsets>(NO_INSETS);
 
-/** The console's button (MapPage), for the panel's capsule to put at its
- *  end, as Maps puts the account's beside its search bar: the planner's
- *  search bar (SearchField) and the training page's route capsule
- *  (RouteCapsule) read it. Null where the page wants none -- the
- *  planner's route. */
-export const ConsoleButtonContext = createContext<ReactNode>(null);
-
 /** The settings, as the console's last tab (ConsoleTabs): the page's
  *  own (MapPage), the same in either console. */
 export const ConsoleSettingsContext = createContext<ReactNode>(null);

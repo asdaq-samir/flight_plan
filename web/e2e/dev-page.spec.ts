@@ -10,23 +10,21 @@ test("dev page: the dev console opens on training, and the waypoint drawer opens
   await page.goto("/app/dev");
   await settle(page);
   // The training workspace is the page -- the console stays off screen
-  // until its own trigger is opened. At rest, the route in its capsule.
-  await expect(page.getByTestId("capsule-title")).toHaveText("C81 → KDLH");
+  // until its tab is picked. At rest, the tabs' pill: Train, Perf and
+  // Settings, as the developer asked.
+  await expect(sideDrawer(page).getByTestId("tab-bar").getByRole("button")).toHaveText(["Train", "Perf", "Settings"]);
+  await expect(page.getByTestId("tab-train")).toHaveAttribute("aria-current", "page");
   await expectDrawerClosed(page);
   expect(await consoleSheet(page).count()).toBe(0);
 
   await page.getByTestId("settings-button").click();
   const devMl = consoleSheet(page);
   await expect(devMl).toBeVisible();
-  // The developer's drawer opens on training -- the three steps that
-  // change the model -- then how good the models are, then the stack.
+  // The developer's console opens on training -- the three steps that
+  // change the model -- then the stack, the settings and About; how good
+  // the models are is the page's own Perf tab.
   await expect(devMl.getByText("Load a route")).toBeVisible();
-  for (const name of ["Guide", "Performance", "System"]) {
-    await expect(devMl.getByRole("tab", { name })).toBeVisible();
-  }
-  await devMl.getByRole("tab", { name: "Performance" }).click();
-  await expect(devMl.getByText("Model comparison")).toBeVisible();
-  await devMl.getByRole("tab", { name: "Guide" }).click();
+  await expect(devMl.getByRole("tab")).toHaveText(["Guide", "System", "Settings", "About"]);
   await expect(devMl.getByText("Load a route")).toBeVisible();
   await expect(devMl.getByText("Rate its points")).toBeVisible();
   await expect(devMl.getByText("Retrain", { exact: true })).toBeVisible();
@@ -38,12 +36,19 @@ test("dev page: the dev console opens on training, and the waypoint drawer opens
   await devMl.getByRole("tab", { name: "System" }).click();
   await devMl.getByRole("button", { name: /^Services/ }).click();
   await expect(devMl.getByText("planning-service", { exact: true })).toBeVisible();
-  await devMl.getByRole("tab", { name: "Performance" }).click();
 
-  // The console is modal: Escape puts it away, then the waypoint drawer
-  // opens from the header, and Escape closes that too.
+  // Escape puts it away, Train the tab up again; Perf is how good the
+  // models are; then the waypoint drawer opens from its grabber, and
+  // Escape closes that too.
   await page.keyboard.press("Escape");
   await expect(devMl).toHaveCount(0);
+  await expect(page.getByTestId("tab-train")).toHaveAttribute("aria-current", "page");
+  await page.getByTestId("tab-perf").click();
+  await openPanel(page);
+  await expect(sideDrawer(page).getByTestId("perf-panel").getByText("Model comparison")).toBeVisible();
+  await page.getByTestId("tab-train").click();
+  await closeSidebarWithTheStockKey(page);
+  await expectDrawerClosed(page);
   await page.getByTestId("sidebar-trigger-button").click();
   await expectDrawerOpen(page);
   await closeSidebarWithTheStockKey(page);
@@ -92,9 +97,9 @@ test("dev page: the waypoint drawer is a worklist -- every candidate in flight o
   }
 });
 
-test("a retrain confirmed from the panel's More opens the console on Performance, to follow it", async ({ page }) => {
-  // The run's progress is on the Performance tab, with no badge on the
-  // tab's name any more: the tab is where a retrain takes you.
+test("a retrain confirmed from the panel's More opens Perf, to follow it", async ({ page }) => {
+  // The run's progress is on the page's Perf tab: the tab is where a
+  // retrain takes you.
   await page.route("**/api/planner/status", async route => {
     const response = await route.fetch();
     const json = await response.json();
@@ -115,9 +120,9 @@ test("a retrain confirmed from the panel's More opens the console on Performance
   await page.getByTestId("retrain-button").click();
   await page.getByRole("button", { name: "Retrain", exact: true }).click();
 
-  await expect(consoleSheet(page).getByRole("tab", { name: "Performance" })).toHaveAttribute("aria-selected", "true");
-  await expect(consoleSheet(page).getByRole("tab", { name: "Performance" })).toHaveText("Performance");
-  await expect(consoleSheet(page).getByTestId("retrain-row")).toContainText("Retrain");
+  await expect(page.getByTestId("tab-perf")).toHaveAttribute("aria-current", "page");
+  await expect(sideDrawer(page).getByTestId("retrain-row")).toContainText("Retrain");
+  await expect(consoleSheet(page)).toHaveCount(0);
   // The snapshot is polled: a fetch of one still in flight as the page
   // closes is not this test's failure.
   await page.unrouteAll({ behavior: "ignoreErrors" });
@@ -143,9 +148,9 @@ test("Performance: Retrain says why it is off in the planner's words, and the ch
   });
   await page.goto("/app/dev?dep=C81&dest=KDLH");
   await settle(page);
-  await page.getByTestId("settings-button").click();
-  const sheet = consoleSheet(page);
-  await sheet.getByRole("tab", { name: "Performance" }).click();
+  await page.getByTestId("tab-perf").click();
+  await openPanel(page);
+  const sheet = sideDrawer(page).getByTestId("perf-panel");
 
   await expect(sheet.getByTestId("retrain-row")).toBeDisabled();
   await expect(sheet.getByText("Rate 2 more.", { exact: false })).toBeVisible();

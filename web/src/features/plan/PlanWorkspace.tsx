@@ -1,7 +1,7 @@
 import { Suspense, lazy, memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type ComponentType } from "react";
 import { flushSync } from "react-dom";
 import { useQueries, useQuery } from "@tanstack/react-query";
-import { ChevronDown, ChevronUp, FileArchive, FileDown, FileText, Link2, MapPin, MapPinned, Printer, Send, Share, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronUp, FileArchive, FileDown, FileText, Link2, MapPin, MapPinned, Plane, Printer, Radar, Route, Send, Share, TowerControl, Trash2 } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "../../components/ui/dropdown-menu";
 import { foreflightRoute, fplOf, gpxOf, shareFile, type PlanPoint } from "../../lib/flightPlanFiles";
 import { markPackSent, openInForeFlight, packOrigin, packPath, packSent } from "../../lib/foreflightPack";
@@ -20,7 +20,7 @@ import { useKeepOffline } from "../../lib/map/keepStatus";
 import { locateOnOpen, positionNow, useOwnShip, useOwnShipNear } from "../../lib/map/ownShip";
 import { track, useTracking } from "../../lib/map/tracking";
 import { useTabSearch } from "../../lib/tabSearch";
-import TabBar, { type PanelTab } from "../../components/TabBar";
+import TabBar, { type BarTab } from "../../components/TabBar";
 import { useTabAsk } from "./components/navlog/panelTab";
 import { choosePastFlight, clearPastFlight } from "../../lib/map/pastFlight";
 import { pointOf } from "../../lib/airspace";
@@ -131,6 +131,16 @@ function altitudeChoiceOf(value: string | null): AltitudeChoice {
 /** The procedures drawn so far, for the map: one stable function, so the
  *  list is made again only as one comes in (useQueries' combine). */
 const drawnOnly = (results: { data?: ProcedureDrawing }[]) => results.flatMap(r => (r.data ? [r.data] : []));
+
+/** The planner's places, its tab bar's (TabBar): the flight being
+ *  planned, airports, traffic and the nearest fields. */
+type PanelTab = "fpl" | "airport" | "aircraft" | "nrst";
+const PLANNER_TABS: BarTab<PanelTab>[] = [
+  { value: "fpl", label: "FPL", icon: Route },
+  { value: "airport", label: "Airport", icon: TowerControl },
+  { value: "aircraft", label: "Aircraft", icon: Plane },
+  { value: "nrst", label: "NRST", icon: Radar },
+];
 
 export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: WorkspaceProps) {
   useEffect(() => {
@@ -1463,7 +1473,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     // The planner's tabs, the panel's first row, and at rest the pill
     // itself, at the pilot's ask: no search bar or route under them
     // (MapPanel).
-    bar: <TabBar tab={tab} onPick={pickTab} onUp={tabUp} marks={s.unflyable ? { fpl: "stop" } : undefined} />,
+    bar: <TabBar tabs={PLANNER_TABS} tab={tab} onPick={pickTab} onUp={tabUp} marks={s.unflyable ? { fpl: "stop" } : undefined} />,
     // The route's figures -- the distance, the time en route, the arrival
     // and the fuel -- pinned at the card's foot while there is a route, on
     // every tab and at every height, the pill too, at the pilot's ask:

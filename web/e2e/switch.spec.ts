@@ -21,7 +21,7 @@ test("the console's role menu flips to the dev page, the console staying out, an
   // out -- the developer's now.
   await roles.developer.click();
   await page.waitForURL(/\/app\/dev/);
-  await expect(consoleSheet(page).getByRole("tab", { name: "Performance" })).toBeVisible({ timeout: 15000 });
+  await expect(consoleSheet(page).getByRole("tab", { name: "System" })).toBeVisible({ timeout: 15000 });
   roles = await roleMenu(page);
   await expect(roles.developer).toHaveAttribute("aria-checked", "true");
 
@@ -37,12 +37,13 @@ test("the panel's head looks the same on both pages: the console's role says whi
   // At rest, as the dev page opens: the planner opens half way up.
   await closeSidebarWithTheStockKey(page);
   await expectDrawerClosed(page);
-  const pilotBg = await page.locator("header").evaluate(el => getComputedStyle(el).backgroundColor);
+  // The pill on both pages the tab bar alone, no head under it: the panel's own.
+  const pilotBg = await page.locator('[data-slot="map-panel"]').evaluate(el => getComputedStyle(el).backgroundColor);
   await expect(page.locator("[data-mode]")).toHaveAttribute("data-mode", "pilot");
   await expect((await roleMenu(page)).developer).toHaveAttribute("aria-checked", "false");
   await page.goto("/app/dev");
   await settle(page);
-  const devBg = await page.locator("header").evaluate(el => getComputedStyle(el).backgroundColor);
+  const devBg = await page.locator('[data-slot="map-panel"]').evaluate(el => getComputedStyle(el).backgroundColor);
   await expect(page.locator("[data-mode]")).toHaveAttribute("data-mode", "dev");
   await expect((await roleMenu(page)).developer).toHaveAttribute("aria-checked", "true");
   expect(devBg).toBe(pilotBg);

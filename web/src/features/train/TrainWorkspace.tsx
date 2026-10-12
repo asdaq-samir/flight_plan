@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { cn } from "cn";
+import { TEXT } from "../../lib/text";
 import { useSearchParams } from "react-router-dom";
-import { identOf, routeOf, routeName } from "../../lib/identSchema";
+import { identOf, routeOf } from "../../lib/identSchema";
 import { statusQuery } from "../../lib/queryClient";
 // Without this Leaflet's tiles, markers and controls have no
 // positioning at all -- this is the library's own stylesheet, not
@@ -9,7 +11,9 @@ import { statusQuery } from "../../lib/queryClient";
 import "leaflet/dist/leaflet.css";
 import { useProgressToast } from "../../lib/useProgressToast";
 import type { WorkspaceProps } from "../page/workspace";
-import { RouteCapsule } from "../../components/PanelCapsule";
+import { ChartColumn, GraduationCap } from "lucide-react";
+import TabBar, { type BarTab } from "../../components/TabBar";
+import { useDevTab, type DevTab } from "./devTab";
 import ChartMap from "./components/ChartMap";
 import WaypointPanel, { RatingProgress, WaypointActions } from "./components/WaypointPanel";
 import PointPopup from "./components/PointPopup";
@@ -22,6 +26,13 @@ import { centreClear } from "../../lib/map/clear";
 
 const FOCUS_ZOOM = 12;
 
+/** The developer's places (TabBar), at their ask: the ratings, and how
+ *  good the models are; Settings, the console, the bar's own last. */
+const DEV_TABS: BarTab<DevTab>[] = [
+  { value: "train", label: "Train", icon: GraduationCap },
+  { value: "perf", label: "Perf", icon: ChartColumn },
+];
+
 /**
  * the developer's training workspace on the page (MapPage): the
  * corridor's candidates on the chart, walked with the keys and rated
@@ -29,7 +40,7 @@ const FOCUS_ZOOM = 12;
  * console for the training run. The page owns the shell and the route
  * typed into its form; this owns everything about the labels.
  */
-export default function TrainWorkspace({ dep, dest, setPanel, children }: WorkspaceProps) {
+export default function TrainWorkspace({ dep, dest, panel, setPanel, children }: WorkspaceProps) {
   const [searchParams, setSearchParams] = useSearchParams();
   // The address is the route the labels are for -- what the queries
   // read, and what a load writes; the header's form is a draft until
@@ -48,6 +59,8 @@ export default function TrainWorkspace({ dep, dest, setPanel, children }: Worksp
     select, rate, setCategory, removeSelected, addPick,
   } = store;
   const [map, setMap] = useState<L.Map | null>(null);
+  const devTab = useDevTab(s => s.tab);
+  const pickDevTab = useDevTab(s => s.pick);
 
   // The console, its own chunk -- recharts and the model tables, split
   // out so a pilot never downloads them -- fetched the moment this
@@ -244,7 +257,9 @@ export default function TrainWorkspace({ dep, dest, setPanel, children }: Worksp
     // has got and the drawer's actions in a header (the filters in a
     // popover from it), and the walk as one list under it. Rating from the
     // selected row moves on to the next one, the way the digit keys do.
-    sidebar: (
+    sidebar: devTab === "perf" ? (
+      devPanel ? <devPanel.PerformancePanel /> : <div className="h-40" />
+    ) : (
       <WaypointPanel
         entries={walk} selected={point} onFocus={focus}
         onRate={r => void rate(r).then(() => step(1))}
@@ -252,25 +267,24 @@ export default function TrainWorkspace({ dep, dest, setPanel, children }: Worksp
         destinationIdent={store.course?.destination.ident ?? ""}
       />
     ),
+    // Perf's head: its name, the route's form being Train's.
+    head: devTab === "perf" ? (
+      <h2 className={cn("min-w-0 flex-1 px-1 py-2 font-bold tracking-tight", TEXT.card)}>Performance</h2>
+    ) : undefined,
     // Filter, Undo and More, beside the route.
-    actions: (
+    actions: devTab === "perf" ? undefined : (
       <WaypointActions
         rated={picks.length}
         filters={store.filters} counts={counts} onFilterChange={store.setFilter}
         canUndo={store.canUndo} onUndo={() => void store.undo()} onResetAll={() => void store.resetAll()}
       />
     ),
-    // At rest, the capsule the planner's is: the route, and under it how
-    // far its rating has got, which opens the panel to the list.
-    compact: dep && dest ? (
-      <RouteCapsule
-        title={routeName(dep, dest)}
-        detail={`${picks.length} of ${store.detections.length + store.added.length} rated`}
-        onDetail={() => setPanel("half")}
-      />
-    ) : undefined,
+    // The developer's tabs, at their ask -- Train, Perf and Settings --
+    // the panel's first row and at rest the pill itself, as the planner's
+    // (MapPanel): the tab up tapped opens it.
+    bar: <TabBar tabs={DEV_TABS} tab={devTab} onPick={pickDevTab} onUp={() => { if (panel === "peek") setPanel("half"); }} />,
     // How far the rating has got, under the route with the panel out.
-    controls: <RatingProgress rated={picks.length} total={store.detections.length + store.added.length} />,
+    controls: devTab === "perf" ? undefined : <RatingProgress rated={picks.length} total={store.detections.length + store.added.length} />,
     console: devPanel ? <devPanel.DevPanel /> : <div className="h-40" />,
     submit,
     loading: store.loading,

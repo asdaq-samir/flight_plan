@@ -3,9 +3,8 @@ import { showError } from "../../lib/problems";
 import { useSearchParamsNow } from "../../lib/useSearchParamsNow";
 import DevGuard from "../../components/DevGuard";
 import MapPanel from "../../components/MapPanel";
-import { ConsoleButtonContext, ConsoleInPanelContext, ConsoleSettingsContext, useConsoleOpen, MapInsetsContext, NO_INSETS, type MapInsets, type PanelState } from "../../components/mapChrome";
+import { ConsoleInPanelContext, ConsoleSettingsContext, useConsoleOpen, MapInsetsContext, NO_INSETS, type MapInsets, type PanelState } from "../../components/mapChrome";
 import RouteForm from "../../components/RouteForm";
-import SettingsButton from "../../components/SettingsButton";
 import { Sheet, SheetContent } from "../../components/ui/sheet";
 import { Dialog, DialogContent } from "../../components/ui/dialog";
 import { useIsMobile } from "../../hooks/use-mobile";
@@ -176,21 +175,16 @@ export default function MapPage({ mode }: { mode: Mode }) {
   // console stays out, the other page's.
   const consoleOpen = useConsoleOpen(s => s.open);
   const setConsoleOpen = useConsoleOpen(s => s.setOpen);
-  // The sheet is drawn once, with no trigger of its own: its button moves
-  // between the search bar and the map's buttons, and is the one opened
-  // from and given the focus back on closing.
-  const consoleButton = useRef<HTMLButtonElement>(null);
-  const openConsole = useCallback(() => {
-    // In the panel on a phone: half way up from the pill (below), as a
-    // card opens; where the panel is out already, at the height it is.
-    setConsoleOpen(true);
-  }, [setConsoleOpen]);
+  // The sheet is drawn once, with no trigger of its own: its button is the
+  // tab bar's Settings (TabBar), opened from and given the focus back on
+  // closing.
+  const consoleButton = () => document.querySelector<HTMLElement>("[data-console-button]");
   // The layer put away: the one under it shows at the height the panel
-  // is, and the focus goes back to the gear it was opened from.
+  // is, and the focus goes back to the Settings tab it was opened from.
   const closeConsole = useCallback(() => {
     setConsoleOpen(false);
-    // Once the search bar it is on is back.
-    window.setTimeout(() => consoleButton.current?.focus({ preventScroll: true }));
+    // Once the tab bar's row is back over the panel's head.
+    window.setTimeout(() => consoleButton()?.focus({ preventScroll: true }));
   }, [setConsoleOpen]);
   const consoleInPanel = useMemo(() => ({ close: closeConsole }), [closeConsole]);
   // Opened from anywhere -- the gear, or the training's retrain sending
@@ -203,15 +197,8 @@ export default function MapPage({ mode }: { mode: Mode }) {
   }, [consoleOpen, onPhone, onTablet, panel, setPanel]);
   const backToButton = useCallback((event: Event) => {
     event.preventDefault();
-    consoleButton.current?.focus();
+    consoleButton()?.focus();
   }, []);
-  // Round on a pane like the search field's, where Maps has the
-  // account's picture.
-  const settingsButton = (
-    <SettingsButton
-      ref={consoleButton} onClick={openConsole} aria-haspopup="dialog" aria-expanded={consoleOpen}
-    />
-  );
   const consoleOf = (pieces: WorkspacePieces) => {
     // The greeting, the way in or out and the close button on one row;
     // the console's content starts under it.
@@ -327,10 +314,6 @@ export default function MapPage({ mode }: { mode: Mode }) {
             </MapInsetsContext.Provider>
           </main>
           {consoleOf(pieces)}
-          {/* At the end of the training page's route capsule. Not on the
-              planner's, whose tab bar has Settings as a tab of its own, at
-              the pilot's ask: each card has its search bar the whole width. */}
-          <ConsoleButtonContext.Provider value={pieces.bar ? null : settingsButton}>
           <MapPanel
             label={consoleLayer ? consoleLabel : panelLabel} controls={pieces.alone || consoleLayer ? undefined : pieces.controls}
             figures={pieces.alone || consoleLayer ? undefined : pieces.figures}
@@ -357,7 +340,6 @@ export default function MapPage({ mode }: { mode: Mode }) {
             {/* Under the console while it is out, kept as it is. */}
             <div className={consoleLayer ? "hidden" : "contents"}>{pieces.sidebar}</div>
           </MapPanel>
-          </ConsoleButtonContext.Provider>
         </div>
       )}
     </Workspace>

@@ -1,75 +1,19 @@
 import { History, Search } from "lucide-react";
-import { useContext, useRef, type ReactNode, type RefObject } from "react";
+import { useRef, type ReactNode, type RefObject } from "react";
 import { cn } from "cn";
 import { TEXT } from "../lib/text";
 import { useAirportSearch } from "../lib/useAirportSearch";
 import { usePreferences, type RecentAirport } from "../lib/preferences";
 import { ListGroup, ListRow } from "./GroupedList";
 import { ClearList, SwipeToDelete } from "./SwipeToDelete";
-import { ConsoleButtonContext } from "./mapChrome";
 import ClearButton from "./ClearButton";
 
 /**
- * The panel at rest, as Maps' is on an iPhone: a capsule floating over
- * the chart (MapPanel's `compact`) -- the training page's, the route with
- * a chip under it that opens the panel to what it stands for (the
- * rating's progress), as Maps' Options does, and a button either side.
- * Drag it or its grabber and it opens into the sheet. The planner's pill
- * is its tab bar alone (MapPanel's `bar`), at the pilot's ask.
- */
-export function RouteCapsule({ title, detail, onDetail, leading }: {
-  title: string;
-  /** A chip's words under the route, and what a tap on it does. */
-  detail: string;
-  onDetail?: () => void;
-  leading?: ReactNode;
-}) {
-  const consoleButton = useContext(ConsoleButtonContext);
-  return (
-    // The two sides' buttons, or room as wide, so the route is centred.
-    <div className="flex w-full items-center gap-3">
-      <div className="flex w-9 shrink-0 justify-start">{leading}</div>
-      <div className="flex min-w-0 flex-1 flex-col items-center gap-0.5">
-        {/* A route too long for the capsule slides sideways under a
-            finger, where it was cut short ("KDLH → VPBNG → ..."); one that
-            fits sits in the middle, as before. Its own scroller, so the
-            panel's drag, which takes no pan, does not take this one. */}
-        <div className="max-w-full touch-pan-x overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" data-testid="capsule-title-slide" data-slides="">
-          <span className={cn("whitespace-nowrap font-semibold", TEXT.row)} data-testid="capsule-title">{title}</span>
-        </div>
-        {/* The tint's own words on a wash of it, as Maps' Options chip. */}
-        <button
-          type="button" onClick={onDetail} data-testid="capsule-detail"
-          className={cn(
-            // A note's size, the capsule a line thinner, as Maps' Options;
-            // over the title, so its 44-point hit area (index.css) is its
-            // own where it reaches up across the route's line.
-            "relative z-10 max-w-full rounded-full px-2.5 py-px font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring", TEXT.note,
-            "bg-tint/12 text-tint",
-          )}
-        >
-          {/* Cut short inside, not on the button: its overflow hidden
-              would clip its 44-point hit area (index.css) to its box. */}
-          <span className="block truncate">{detail}</span>
-        </button>
-      </div>
-      <div className="flex w-9 shrink-0 justify-end">{consoleButton}</div>
-    </div>
-  );
-}
-
-/**
- * The search bar, as Maps' is: the capsule's while there is no route,
- * and the same field at the top of the sheet once it is out -- one
- * element in both (MapPanel keeps it in place), so a tap that opens
- * the sheet leaves the keyboard up and the field taking what is typed.
- * Focused, the sheet comes all the way up (`onFocus`); the close beside
- * it, while the sheet is all the way out or something is typed, empties
- * it and puts the sheet away; otherwise -- on the capsule, and half way
- * up as a fresh load opens it -- the console's button is there
- * (ConsoleButtonContext), as Maps keeps the account beside
- * its search bar. Enter picks the first airport that answers, or the
- * ident typed.
+ * The search bar, as Maps' is, at the top of a tab's sheet the whole
+ * width (Settings a tab of the bar, not a button beside it). Focused, the
+ * sheet comes all the way up (`onFocus`); what is typed cleared inside it
+ * (ClearButton); Escape puts the search away. Enter picks the first
+ * airport that answers, or the ident typed.
  */
 export function SearchField({
   value, onChange, onFocus, onCancel, onSubmit, placeholder = "Search airports", inputRef, label, testId = "search-airports",
@@ -98,7 +42,6 @@ export function SearchField({
 }) {
   const own = useRef<HTMLInputElement>(null);
   const input = inputRef ?? own;
-  const accessory = useContext(ConsoleButtonContext);
   const Icon = icon;
   return (
     <form
@@ -132,11 +75,6 @@ export function SearchField({
           />
         )}
       </label>
-      {/* The console's button beside it however far out the sheet is, as
-          Maps keeps the account's beside its search: it was a close with
-          the sheet out, at the pilot's ask the console's button. The sheet
-          comes down by its grabber, a drag, or Escape. */}
-      {accessory}
     </form>
   );
 }

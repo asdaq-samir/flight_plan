@@ -45,18 +45,15 @@ const CHART_KIND_LABELS: Record<string, string> = {
   sec: "Sectional", tac: "TAC", ifr_low: "IFR low", ifr_high: "IFR high", ifr_area: "IFR area",
 };
 /**
- * The developer's own console, in a `MapDrawer` dropping down over the
- * training map (see MapPage): what the repo does that a pilot never
- * sees, one tab each, each a page of grouped lists as iOS's Settings
- * is. Guide, first -- the three steps that change the model (load a
- * route, rate its points, retrain), then the rating scale and the keys;
- * no inputs of its own, since the header's route form loads routes and
- * Retrain sits in the Model Training drawer's More menu,
- * beside the ratings it learns from. Performance -- training first
- * (whether the ratings are enough to learn from, the last run and why
- * it failed, Retrain), then every algorithm compared, the model serving
- * and (a page of its own) the versions before it, and the routes
- * collected. System -- a page each for which services answer, how fresh
+ * The developer's own console, the training page's Settings tab (TabBar):
+ * what the repo does that a pilot never sees, one tab each, each a page of
+ * grouped lists as iOS's Settings is. Guide, first -- the three steps that
+ * change the model (load a route, rate its points, retrain), then the
+ * rating scale and the keys; no inputs of its own, since the header's
+ * route form loads routes and Retrain sits in the Model Training drawer's
+ * More menu, beside the ratings it learns from. How good the models are
+ * is the page's own Perf tab (PerformancePanel), at the developer's ask,
+ * not a tab of the console. System -- a page each for which services answer, how fresh
  * the FAA and weather data is, the charts, the planner's recent errors,
  * the web app's speed over time, and the doors into the rest of the
  * stack. All of it from one
@@ -89,13 +86,6 @@ export function DevPanel() {
         // three steps. (The value stays "training", which is what a
         // browser has remembered as its last tab.)
         { value: "training", label: "Guide", content: <TrainingTab /> },
-        {
-          value: "performance",
-          // No badge on the name while a run goes: a confirmed retrain
-          // opens this tab (useRetrain), where the run is followed.
-          label: "Performance",
-          content: <PerformanceTab status={status} failed={statusFailed} />,
-        },
         {
           value: "system", label: "System",
           content: <SystemTab status={status} failed={statusFailed} onRefresh={refreshAll} refreshing={isFetching} />,
@@ -379,6 +369,24 @@ function Versions({ model }: { model: NonNullable<Status["model"]> }) {
  *  replace it, and every algorithm compared -- grouped lists, as iOS's
  *  Settings are, with the versions before the model serving a page of
  *  their own. They were three sections folded under their titles. */
+/**
+ * How good the models are, the training page's Perf tab (TrainWorkspace),
+ * at the developer's ask, where it was a tab of the console: training
+ * first (whether the ratings are enough to learn from, the last run and
+ * why it failed, Retrain), then every algorithm compared, the model
+ * serving and (a page of its own) the versions before it, and the routes
+ * collected. The status snapshot asked for again while it is up, as the
+ * console's is.
+ */
+export function PerformancePanel() {
+  const { data: status, isError } = useQuery(statusQuery);
+  return (
+    <div className="min-h-0 flex-1 overflow-y-auto px-3 pt-3 pb-6" data-testid="perf-panel">
+      <PerformanceTab status={status} failed={isError} />
+    </div>
+  );
+}
+
 function PerformanceTab({ status, failed }: { status: Status | undefined; failed: boolean }) {
   const model = status?.model;
   return (

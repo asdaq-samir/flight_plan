@@ -153,10 +153,11 @@ test.describe("/app/plan", () => {
 // so there's nothing toolbar-specific left to test here that Plan's
 // own suite doesn't already cover for both.
 test.describe("/app/dev", () => {
-  test("the panel rests on the route in a capsule, its chip opening the route form", async ({ page }) => {
+  test("the panel rests as the tabs' pill, the tab up tapped opening the route form", async ({ page }) => {
     await page.goto("/app/dev");
     await settle(page);
-    await expect(page.getByTestId("capsule-title")).toHaveText("C81 → KDLH");
+    await expect(sideDrawer(page)).toHaveAttribute("data-capsule", "true");
+    await expect(page.getByTestId("tab-train")).toHaveAttribute("aria-current", "page");
     await openPanel(page);
     await expect(page.getByLabel("Departure", { exact: true })).toBeVisible();
     expect(await page.getByTestId("toolbar-trigger").count()).toBe(0);
