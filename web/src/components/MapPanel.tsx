@@ -504,8 +504,9 @@ export default function MapPanel({ label, top, controls, figures, compact, child
           <div
             className={cn(
               // In the pill the tabs; out of it on a phone the tab up's name
-              // alone (TabBarMinimized), a row a little lower.
-              "flex shrink-0 px-2", minimized ? "min-h-10" : "h-12",
+              // alone (TabBarMinimized), a row a little lower, as tall as
+              // the name's 44-point hit area so the head under it takes none.
+              "flex shrink-0 px-2", minimized ? "min-h-11" : "h-12",
               // The pill's whole, its line under it only over a head.
               capsule ? cn(fromBottom ? "mt-1.5 mb-1" : "mt-1 mb-1.5") : "border-b border-border/60",
               !fromBottom && onPhone && !capsule && "h-auto pt-[env(safe-area-inset-top)]",

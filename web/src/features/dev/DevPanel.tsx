@@ -127,7 +127,10 @@ function ModelComparison() {
         <div className="px-1 py-3">
         <ChartContainer
           config={modelComparisonChartConfig}
-          className="aspect-auto w-full"
+          // The models' names read in the text's colour: recharts' own
+          // #666 (the stock tick rule no longer reaches recharts 3's
+          // ticks) was 3.1:1 on the panel in the dark.
+          className="aspect-auto w-full [&_.recharts-cartesian-axis-tick-value]:fill-foreground"
           style={{ height: Math.max(rows.length * 36, 120) }}
         >
           {/* right margin: room for each bar's own MAE label past its
@@ -312,7 +315,7 @@ function TrainingGroup() {
         // it and the ratings' count went, the note saying what matters.
         badge={pipeline?.airflow_reachable && (lastRun || running) && <RunBadge state={lastRun?.state} running={running} />}
         footer={!pipeline?.airflow_reachable
-          ? <>{pipeline?.detail ?? "Airflow is not reachable from here"}. Retrain by hand with <code className="rounded bg-muted px-1 py-0.5 font-mono">docker compose run --rm pipeline-training chart-retrain</code>.</>
+          ? <>{pipeline?.detail ?? "Airflow is not reachable from here"}. Retrain by hand with <code className="rounded bg-muted px-1 py-0.5 font-mono text-foreground">docker compose run --rm pipeline-training chart-retrain</code>.</>
           : running ? undefined : blocked}
       >
         <ListRow

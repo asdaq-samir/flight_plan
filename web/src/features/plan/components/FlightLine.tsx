@@ -97,6 +97,8 @@ export default function FlightLine({ totals, estimate, depart, local }: {
   const shown = fitFigures(exact, rounded, f => fitting?.fits[exact.indexOf(f)] ?? true);
   const sized = (px: number | undefined) =>
     fitting && fitting.scale < 1 && px ? { fontSize: `${(px * fitting.scale).toFixed(2)}px` } : undefined;
+  // Marked where it is set smaller to fit, for the iOS audit's type scale.
+  const fitted = fitting && fitting.scale < 1 ? "" : undefined;
   return (
     // What the planner is working on is the toast's (useProgressToast), at
     // the pilot's ask: the strip keeps the figures, as soon as there are
@@ -106,10 +108,12 @@ export default function FlightLine({ totals, estimate, depart, local }: {
       <dl className={cn("grid gap-3", shown.length === 3 ? "grid-cols-3" : "grid-cols-4")}>
         {shown.map((f, i) => (
           <div key={f.name} className="min-w-0">
-            <dt className={cn(GROUP_HEADING, "truncate")}>{f.name}</dt>
+            {/* Its names and units a grey that reads on the pill's glass
+                over any chart (WCAG's 4.5:1), where the muted one did not. */}
+            <dt className={cn(GROUP_HEADING, "truncate text-foreground/65")}>{f.name}</dt>
             <dd ref={i === 0 ? room : undefined} className={cn(TEXT.heading, "truncate font-semibold tabular-nums")} data-testid={f.testId}>
-              <span style={sized(fitting?.px.value)}>{f.value}</span>
-              {f.unit && <span className={cn(TEXT.note, "font-normal text-muted-foreground")} style={sized(fitting?.px.unit)}> {f.unit}</span>}
+              <span style={sized(fitting?.px.value)} data-fitted={fitted}>{f.value}</span>
+              {f.unit && <span className={cn(TEXT.note, "font-normal text-foreground/65")} style={sized(fitting?.px.unit)} data-fitted={fitted}> {f.unit}</span>}
             </dd>
           </div>
         ))}

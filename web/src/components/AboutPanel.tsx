@@ -51,7 +51,7 @@ export default function AboutPanel() {
       <header className="flex flex-col items-center gap-2 pt-2 text-center">
         <img src="/app/icon-192.png" alt="" className="size-16 rounded-[22%] shadow-sm" />
         <h2 className={cn("font-bold text-foreground", TEXT.card)}>Wingtip Maps</h2>
-        <p className={cn("text-muted-foreground", TEXT.detail)}>VFR flight planning on the FAA chart</p>
+        <p className={cn("text-foreground", TEXT.detail)}>VFR flight planning on the FAA chart</p>
       </header>
 
       <ListGroup>

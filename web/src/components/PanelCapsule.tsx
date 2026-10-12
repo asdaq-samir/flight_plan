@@ -51,8 +51,12 @@ export function SearchField({
       {/* 41 tall, as Maps' field is: on the sheet the grey of iOS's
           search field, on the glass capsule a lighter pane of the glass,
           no line round it. The magnifier drawn fine, as SF Symbols'. */}
+      {/* Its 44-point hit area its own, a point and a half past its 41
+          above and below (CLAUDE.md: nothing grows to it), strips that
+          leave the words to the field, where a tap places the caret. */}
       <label className={cn(
-        "flex h-[2.5625rem] min-w-0 flex-1 items-center gap-2 rounded-full bg-foreground/8 px-3.5 text-muted-foreground",
+        "relative flex h-[2.5625rem] min-w-0 flex-1 items-center gap-2 rounded-full bg-foreground/8 px-3.5 text-muted-foreground",
+        "before:absolute before:inset-x-0 before:-top-0.5 before:h-0.5 before:content-[''] after:absolute after:inset-x-0 after:-bottom-0.5 after:h-0.5 after:content-['']",
         "in-data-capsule:bg-white/50 dark:in-data-capsule:bg-white/10",
         TEXT.row,
       )}>

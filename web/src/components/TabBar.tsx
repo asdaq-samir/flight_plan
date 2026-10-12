@@ -99,7 +99,10 @@ export default function TabBar<T extends string>({ tabs, tab, onPick, onUp, mark
             aria-label={mark ? `${label}, ${mark === "stop" ? "warning" : "caution"}` : undefined}
             className={cn(
               "flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring",
-              current ? "text-tint" : "text-muted-foreground hover:text-foreground",
+              // The others a grey that reads on the glass over any chart
+              // (WCAG's 4.5:1 at the words' 11 points), where the muted
+              // one fell to 4.35 there.
+              current ? "text-tint" : "text-foreground/65 hover:text-foreground",
             )}
           >
             <span className="relative">

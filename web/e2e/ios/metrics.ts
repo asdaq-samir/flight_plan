@@ -171,7 +171,10 @@ export function typeFindings(page: Page, scope = "body"): Promise<{ offScale: Ty
         const el = n.parentElement;
         if (!text || !el) continue;
         const rect = el.getBoundingClientRect();
-        if (rect.width <= 1 || rect.height <= 1 || rect.right <= 0 || rect.bottom <= 0 || el.closest(".sr-only")) continue;
+        // Nor a figure set smaller to fit its column, as iOS's
+        // adjustsFontSizeToFitWidth sets one (FlightLine's data-fitted):
+        // off the scale by design, on a screen too narrow for it.
+        if (rect.width <= 1 || rect.height <= 1 || rect.right <= 0 || rect.bottom <= 0 || el.closest(".sr-only, [data-fitted]")) continue;
         const cs = getComputedStyle(el);
         if (cs.visibility !== "visible" || cs.opacity === "0") continue;
         const size = Math.round(parseFloat(cs.fontSize) * 100) / 100;
@@ -253,10 +256,11 @@ export type ComponentFinding = { rule: string; what: string; measured: string };
  *  - a sheet's grabber at iOS's 36 by 5;
  *  - one radius for what floats, the theme's: sheets, pop-ups, dialogs,
  *    map cards, list cards and toasts -- but the map's panel on a phone,
- *    in Maps' own shapes: its capsule at rest a full pill, its medium
- *    sheet 36, and the console's sheet at half the same 36;
+ *    in Maps' own shapes: at rest a rectangle 24 round, its medium sheet
+ *    36, and the console's sheet at half the same 36;
  *  - one icon-only button, 36 with a 20 glyph -- outside the navigation
- *    bar, whose sizes are a decision still open, and the map's markers;
+ *    bar, whose sizes are a decision still open, the map's markers, and
+ *    the route's fold on the separator, small at the pilot's ask;
  *  - a drawer's or a sheet's words at least 16 in from its side, iOS's
  *    margin (a point less for a glyph's own side bearing);
  *  - a switch at iOS's own 51 by 31 to a finger, the pilot's one
@@ -291,18 +295,19 @@ export function componentFindings(page: Page): Promise<ComponentFinding[]> {
       if (!on(box)) continue;
       // A sheet from the top of the screen is rounded at its bottom only.
       const r = Math.max(parseFloat(getComputedStyle(box).borderTopLeftRadius), parseFloat(getComputedStyle(box).borderBottomLeftRadius));
-      // The capsule a full pill, its corners half its height, as Maps'; a
-      // phone's sheet (the map's panel, the console) 36, inset or on the
-      // screen's edges with its far corners round.
+      // The panel at rest a rectangle with its corners 24 round, at the
+      // pilot's ask (mapChrome's PILL_RADIUS); a phone's sheet (the map's
+      // panel, the console) 36, inset or on the screen's edges with its
+      // far corners round.
       const sheet = box.matches('[data-slot="map-panel"][data-sheet], [data-slot="console-sheet"]');
-      const shape = box.matches("[data-capsule]") ? box.getBoundingClientRect().height / 2 : sheet ? 36 : radius;
+      const shape = box.matches("[data-capsule]") ? Math.min(24, box.getBoundingClientRect().height / 2) : sheet ? 36 : radius;
       if (Math.abs(r - shape) > 0.5) found.push({ rule: `one radius, ${Math.round(shape)}`, what: name(box), measured: `${r}` });
     }
     for (const button of document.querySelectorAll<HTMLElement>('button, a[data-slot="button"]')) {
       const svg = button.querySelector("svg");
       // The airport card's runway sketch is a picture as wide as two tiles,
       // not an icon button: its svg is the drawing, not a glyph.
-      if (!svg || !on(button) || button.closest('header, .leaflet-marker-icon, [data-sonner-toaster], [data-slot="tabs-trigger"], [data-testid="place-runway-sketch"]')) continue;
+      if (!svg || !on(button) || button.closest('header, .leaflet-marker-icon, [data-sonner-toaster], [data-slot="tabs-trigger"], [data-testid="place-runway-sketch"], [data-testid="route-fold"]')) continue;
       const words = [...button.querySelectorAll("*"), button].some(n => [...n.childNodes].some(c => c.nodeType === 3 && c.textContent!.trim() && !(n as Element).closest(".sr-only")));
       // A button named by words laid over it -- a section's title over its
       // row-wide accordion trigger (AccordionSection) -- has words: it is

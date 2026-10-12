@@ -307,8 +307,13 @@ export default function RouteBox({
         // The departure's field wide enough for its word: at a stop's width
         // it read "Departu".
         // After the last point, clear of it, as a field's words are of
-        // its edge: its words ran into the destination's pill.
-        at === null ? "min-w-12 flex-1 pl-2" : cn("shrink-0 rounded-full bg-background/60 px-2", at === 0 && !hasDep ? "w-28" : "w-20"),
+        // its edge: its words ran into the destination's pill. With no
+        // words after a whole route, and not being typed in, narrow
+        // enough to stay on the route's line: at 48 it took a second line
+        // of its own, empty, under four points.
+        at === null
+          ? cn("flex-1 pl-2", hasDest && points.length > 0 && !focused && !typed ? "min-w-6" : "min-w-12")
+          : cn("shrink-0 rounded-full bg-background/60 px-2", at === 0 && !hasDep ? "w-28" : "w-20"),
       )}
       data-testid="route-type"
     />

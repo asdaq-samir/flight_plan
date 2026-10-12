@@ -1565,7 +1565,8 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     // route there is nothing to fold: the empty box stays out, where its
     // name read "? local".
     figures: started && hasPoints && !routeOut && (
-      <div className="flex w-full min-w-0 items-center py-1.5">
+      // In from the panel's side by iOS's 16, past the head's 12.
+      <div className="flex w-full min-w-0 items-center px-1 py-1.5">
         <span className={cn("min-w-0 flex-1 truncate font-semibold", TEXT.row)} data-testid="route-folded">
           {routeName(planned.dep || "?", planned.dest || "?", planned.stops)}
         </span>

@@ -39,8 +39,11 @@ const PROBLEM = "traffic";
 /** No answer for this long, ms, and the traffic is said to be unavailable:
  *  the airplanes are not carried on past half a minute (CARRY_S). */
 const STALE_MS = 30_000;
-/** What the Open Database License asks of a map that draws the data. */
-const ATTRIBUTION = 'Traffic <a href="https://adsb.lol" target="_blank" rel="noopener">adsb.lol</a>, ODbL';
+/** What the Open Database License asks of a map that draws the data: its
+ *  source and the licence, named. Not a link: on the map's edge over the
+ *  panel a link has no room for a 44-point hit area, and the console's
+ *  About links adsb.lol with its licence. */
+const ATTRIBUTION = "Traffic adsb.lol, ODbL";
 
 /** One airplane on the map: its report, when that position was (this
  *  phone's clock, ms), and what is left of the step to it from where it
