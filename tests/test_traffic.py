@@ -33,6 +33,7 @@ def clock(monkeypatch):
     monkeypatch.setattr(traffic, "_FLIGHTS", {})
     monkeypatch.setattr(traffic, "_FOUND", traffic.TTLCache(maxsize=256, ttl=traffic.FOUND_TTL_S, timer=clock))
     monkeypatch.setattr(traffic, "_FIND_GATES", {})
+    monkeypatch.setattr(traffic, "_RECENT", traffic.TTLCache(maxsize=256, ttl=traffic.RECENT_TTL_S, timer=clock))
     # The FAA's registry, wherever a copy is on disk, is not this module's.
     monkeypatch.setattr(traffic.registry, "lookup", lambda **kwargs: None)
     # Nor the world's fields, which a past flight's ends fall back to.
@@ -200,14 +201,69 @@ def _routed(answers):
 
 
 def test_an_airplane_is_found_by_its_callsign_registration_or_address(clock):
+    # The recent trace cannot be read here, so an address is asked of the API too.
     get, asked = _routed({"/callsign/UAL2088": _answer([{**CESSNA, "flight": "UAL2088 ", "squawk": "3324"}]),
-                          "/reg/N174HA": _answer([CESSNA]), "/hex/a128b9": _answer([CESSNA])})
+                          "/reg/N174HA": _answer([CESSNA]), "/hex/a128b9": _answer([CESSNA]), "trace_recent_": _status(503)})
     with patch("vfr.traffic.requests.get", side_effect=get):
         (ual,) = traffic.find("ual 2088")
         assert ual["callsign"] == "UAL2088" and ual["squawk"] == "3324" and ual["emergency"] is None
         assert [a["hex"] for a in traffic.find("N174HA")] == ["a128b9"]
         assert [a["hex"] for a in traffic.find("A128B9")] == ["a128b9"]
-    assert [u.rsplit("v2/", 1)[1] for u in asked] == ["callsign/UAL2088", "reg/N174HA", "hex/a128b9"]
+    assert [u.rsplit("/", 2)[-2:] for u in asked] == [
+        ["callsign", "UAL2088"], ["reg", "N174HA"], ["b9", "trace_recent_a128b9.json"], ["hex", "a128b9"]]
+
+
+def _status(code, body=None):
+    resp = Mock()
+    resp.status_code = code
+    resp.json = Mock(return_value=body)
+    return resp
+
+
+#: A Cessna's last minutes as adsb.lol's globe writes them: its callsign
+#: and squawk in the one point that carries details, the last 4 s old.
+RECENT = {
+    "icao": "a128b9", "r": "N174HA", "t": "C172", "timestamp": 1791800000.0,
+    "trace": [
+        [100.0, 42.29, -88.14, 1300, 92.0, 321.0, 0, -320, {"flight": "N174HA  ", "squawk": "1200", "emergency": "none"},
+         "adsb_icao", 1425, -256],
+        [116.0, 42.301282, -88.145246, 1200, 93.7, 320.19, 0, -512, None, "adsb_icao", 1325, -384],
+    ],
+}
+
+
+def test_an_airplane_named_by_its_address_or_n_number_is_found_from_its_recent_trace_without_the_api(clock, monkeypatch):
+    """The owner's searches waited behind the map's requests to the API
+    (2026-10-12): by address, or an N-number the registry gives one, the
+    globe's recent trace answers instead, a static file that takes no turn."""
+    monkeypatch.setattr(traffic, "_wall", lambda: 1791800120.0)
+    monkeypatch.setattr(traffic.registry, "lookup", lambda **kw: {"n_number": "N174HA", "mode_s_hex": "A128B9"})
+    # Behind a refusal's back-off, where the API would not be asked at all.
+    traffic._STATE["blocked_until"] = clock.now + 60
+    get, asked = _routed({"trace_recent_a128b9": _status(200, RECENT)})
+    with patch("vfr.traffic.requests.get", side_effect=get):
+        (plane,) = traffic.find("N174HA")
+        assert traffic.find("a128b9") == [plane]
+    assert plane["hex"] == "a128b9" and plane["callsign"] == "N174HA" and plane["squawk"] == "1200"
+    assert (plane["lat"], plane["lon"], plane["altitude_ft"], plane["speed_kt"]) == (42.30128, -88.14525, 1325, 93.7)
+    assert plane["vertical_fpm"] == -384 and plane["seen_s"] == 4.0
+    # The trace read once: the address's search found the N-number's answer kept.
+    assert asked == ["https://globe.adsb.lol/data/traces/b9/trace_recent_a128b9.json"]
+
+
+@pytest.mark.parametrize("answer", [
+    _status(404),
+    # On the ground at its last point.
+    _status(200, {**RECENT, "trace": [[116.0, 42.3, -88.1, "ground", 3.0, 90.0, 0, 0, None, "adsb_icao", None]]}),
+    # Last heard a minute ago: somewhere else by now.
+    _status(200, {**RECENT, "timestamp": 1791800000.0 - 60}),
+])
+def test_an_airplane_whose_recent_trace_has_it_down_or_gone_is_not_in_the_air(clock, monkeypatch, answer):
+    monkeypatch.setattr(traffic, "_wall", lambda: 1791800120.0)
+    get, asked = _routed({"trace_recent_a128b9": answer})
+    with patch("vfr.traffic.requests.get", side_effect=get):
+        assert traffic.find("A128B9") == []
+    assert len(asked) == 1
 
 
 def test_a_search_takes_its_turn_between_requests(clock):
