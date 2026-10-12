@@ -188,6 +188,7 @@ class PlannerProxyControllerTest {
         assertThat(PlannerProxyController.isForwarded("GET", "/api/alternate")).isTrue();
         assertThat(PlannerProxyController.isForwarded("GET", "/api/traffic")).isTrue();
         assertThat(PlannerProxyController.isForwarded("GET", "/api/traffic/find")).isTrue();
+        assertThat(PlannerProxyController.isForwarded("GET", "/api/traffic/based")).isTrue();
         assertThat(PlannerProxyController.isForwarded("GET", "/api/traffic/flight/a0b7d8")).isTrue();
         // An airplane's past flights, and one of them (PastFlights): a 404
         // here, never asked of the planner, until they were listed.

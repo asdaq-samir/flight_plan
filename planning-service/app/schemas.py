@@ -957,6 +957,9 @@ class TrafficAircraft(BaseModel):
     #: Its transponder code, and the emergency it declares, if any.
     squawk: str | None = None
     emergency: str | None = None
+    #: What it is, as its transponder says: DO-260B's emitter category
+    #: ("A1" light ... "A7" rotorcraft), for the Aircraft tab's filters.
+    category: str | None = None
 
 
 class Traffic(BaseModel):
@@ -2252,3 +2255,12 @@ class Alternates(BaseModel):
     destination: DestinationCheck
     alternate: AlternateCheck | None = None
     suggestions: list[AlternateCheck] = []
+
+
+class AircraftBases(BaseModel):
+    """Where airplanes are based (vfr.traffic.based): the field their last
+    flights keep to, or None where none; those still being looked up are
+    pending, given on a later ask."""
+
+    based: dict[str, PastFlightField | None]
+    pending: list[str]

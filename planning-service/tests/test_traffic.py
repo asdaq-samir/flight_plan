@@ -12,7 +12,7 @@ client = TestClient(app)
 def test_the_airplanes_near_a_point_with_their_source_and_licence(monkeypatch):
     plane = {"hex": "a128b9", "callsign": "N174HA", "registration": "N174HA", "type": "C172", "lat": 42.0, "lon": -88.1,
              "altitude_ft": 1325.0, "pressure_altitude": False, "track_deg": 320.0, "speed_kt": 94.0, "vertical_fpm": -384.0,
-             "seen_s": 0.3, "squawk": "1200", "emergency": None}
+             "seen_s": 0.3, "squawk": "1200", "emergency": None, "category": "A1"}
     monkeypatch.setattr(traffic, "near", lambda lat, lon, radius: {"aircraft": [plane], "age_s": 2.5})
     body = client.get("/api/traffic", params={"lat": 42.3, "lon": -88.1, "radius": 25}).json()
     assert body == {"aircraft": [plane], "age_s": 2.5, "source": "adsb.lol", "license": "ODbL 1.0"}
@@ -102,3 +102,13 @@ def test_an_airplanes_past_flights_and_one_of_them(monkeypatch):
     assert client.get("/api/traffic/flight/a89c1e/history/1791723840").json()["points"][0]["vrate_fpm"] == 844.0
     assert client.get("/api/traffic/flight/a89c1e/history/123").status_code == 404
     assert client.get("/api/traffic/flight/nothex/history").status_code == 422
+
+
+def test_where_airplanes_are_based_known_and_pending(monkeypatch):
+    lwm = {"ident": "LWM", "name": "Lawrence Municipal Airport", "city": "Lawrence", "region": "US-MA"}
+    asked = []
+    answer = {"based": {"a89c1e": lwm, "a0b7d8": None}, "pending": ["a1c2d3"]}
+    monkeypatch.setattr(traffic, "based", lambda hexes: asked.append(hexes) or answer)
+    body = client.get("/api/traffic/based?hex=a89c1e,a0b7d8,a1c2d3").json()
+    assert body["based"]["a89c1e"]["ident"] == "LWM" and body["based"]["a0b7d8"] is None and body["pending"] == ["a1c2d3"]
+    assert asked == [["a89c1e", "a0b7d8", "a1c2d3"]]
