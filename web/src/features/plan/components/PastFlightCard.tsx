@@ -48,10 +48,13 @@ export default function PastFlightCard({ hex, id, onClose }: { hex: string; id: 
         line={flight ? `${dayOf(off)} · ${clockTime(off)}–${clockTime(when(flight.on))} · ${statusOf(flight)}` : dayOf(off)}
         onClose={onClose} closeTestId="past-flight-close"
       />
-      <div className="space-y-5 pt-4">
+      {/* The replay with its graph first, so the graph is in sight as it
+          plays at the half sheet, at the pilot's ask; the figures and each
+          report under. */}
+      <div className="space-y-5 pt-3">
         <Replay />
         {flight && <Figures flight={flight} points={points} />}
-        {points.length > 1 && <TrackLogWithMoment points={points} />}
+        {points.length > 1 && <TrackLog points={points} />}
       </div>
     </PanelCard>
   );
@@ -88,56 +91,62 @@ function Figures({ flight, points }: { flight: PastFlightSummary; points: PastFl
   );
 }
 
-/** The track log, the replay's moment marked on its chart. */
-function TrackLogWithMoment({ points }: { points: PastFlightPoint[] }) {
-  const second = usePastFlight(s => (s.at === null ? null : Math.floor(s.at)));
-  return <TrackLog points={points} at={second} />;
-}
-
 const SPEED_OPTIONS = REPLAY_SPEEDS.map(n => ({ value: String(n), label: `${n}×` }));
 
-/** The replay's controls, and where the airplane is in it. */
+/** The replay's controls: play or pause, stop, and how fast. */
 function Replay() {
   const points = usePastFlight(s => s.points);
   const playing = usePastFlight(s => s.playing);
   const speed = usePastFlight(s => s.speed);
-  // The replay's moment, to the second, for the figures under it.
+  const started = usePastFlight(s => s.at !== null);
+  return (
+    // No title over it: the card's name says what is replayed, and the
+    // room is the graph's at the half sheet.
+    <ListGroup>
+      <ListRow
+        title={
+          <span className="flex items-center gap-2">
+            <RoundButton
+              label={playing ? "Pause" : "Play"} onClick={playing ? pausePastFlight : playPastFlight}
+              disabled={!points.length} data-testid="replay-play"
+            >
+              {playing ? <Pause className="size-4" /> : <Play className="size-4" />}
+            </RoundButton>
+            <RoundButton label="Stop" onClick={stopPastFlight} disabled={!started} data-testid="replay-stop">
+              <Square className="size-4" />
+            </RoundButton>
+          </span>
+        }
+      >
+        <Segmented
+          label="Replay speed" value={String(speed)} onChange={v => usePastFlight.setState({ speed: Number(v) })}
+          options={SPEED_OPTIONS} testId="replay-speed"
+        />
+      </ListRow>
+      {points.length > 1 && <ReplayChart points={points} />}
+    </ListGroup>
+  );
+}
+
+/** Its height and ground speed over the flight, the replay's moment
+ *  marked on it and said over it -- with the controls, so the graph is in
+ *  sight as it plays at the half sheet, at the pilot's ask. */
+function ReplayChart({ points }: { points: PastFlightPoint[] }) {
   const second = usePastFlight(s => (s.at === null ? null : Math.floor(s.at)));
   const here = second === null ? null : positionAt(points, second);
   return (
-    <>
-      <ListGroup title="Replay" footer="Drawn on the map in its heights' colours; the replay keeps the airplane in sight.">
-        <ListRow
-          title={
-            <span className="flex items-center gap-2">
-              <RoundButton
-                label={playing ? "Pause" : "Play"} onClick={playing ? pausePastFlight : playPastFlight}
-                disabled={!points.length} data-testid="replay-play"
-              >
-                {playing ? <Pause className="size-4" /> : <Play className="size-4" />}
-              </RoundButton>
-              <RoundButton label="Stop" onClick={stopPastFlight} disabled={second === null} data-testid="replay-stop">
-                <Square className="size-4" />
-              </RoundButton>
-            </span>
-          }
-        >
-          <Segmented
-            label="Replay speed" value={String(speed)} onChange={v => usePastFlight.setState({ speed: Number(v) })}
-            options={SPEED_OPTIONS} testId="replay-speed"
-          />
-        </ListRow>
-        <ListRow
-          title={here ? clockTime(when(here.t)) : "Not started"}
-          value={here
-            ? <span className="font-semibold text-foreground tabular-nums" data-testid="replay-now">
-              {altFt(here.alt_ft)} ft · {here.gs_kt != null ? `${Math.round(here.gs_kt)} kt` : "—"}
-              {here.track_deg != null ? ` · ${compassPoint(here.track_deg)}` : ""}
-            </span>
-            : <span className="text-muted-foreground">{points.length ? "Play to fly it again" : "Reading its track…"}</span>}
-        />
-      </ListGroup>
-    </>
+    <div className="px-1 pt-1 pb-2" data-testid="track-log-chart">
+      <p className={cn("flex justify-between px-3 pb-1 tabular-nums", TEXT.detail)}>
+        <span className="text-muted-foreground">{here ? clockTime(when(here.t)) : "Altitude, ft · ground speed, kt"}</span>
+        {here && (
+          <span className="font-semibold text-foreground" data-testid="replay-now">
+            {altFt(here.alt_ft)} ft · {here.gs_kt != null ? `${Math.round(here.gs_kt)} kt` : "—"}
+            {here.track_deg != null ? ` · ${compassPoint(here.track_deg)}` : ""}
+          </span>
+        )}
+      </p>
+      <FlightChart points={points} at={second} />
+    </div>
   );
 }
 
@@ -148,28 +157,33 @@ const chartConfig = {
   kt: { label: "Ground speed", color: "#e5a00d" },
 } satisfies ChartConfig;
 
-/** Its height and ground speed over the flight, the replay's moment
- *  marked, and each report under it: as FlightAware's Track Log, in the
- *  figures a pilot uses (feet, knots, degrees, feet a minute). */
-function TrackLog({ points, at }: { points: PastFlightPoint[]; at: number | null }) {
+/** The chart itself: drawn again with each second of a replay, for its mark. */
+const FlightChart = memo(function FlightChart({ points, at }: { points: PastFlightPoint[]; at: number | null }) {
   const data = useMemo(() => points.map(p => ({ t: p.t, alt: p.alt_ft ?? 0, kt: p.gs_kt ?? null })), [points]);
   return (
-    <ListGroup title="Track log" footer={`${grouped(points.length)} reports. Heights are GNSS where the airplane sends one, else pressure altitude.`}>
-      <div className="px-1 py-3" data-testid="track-log-chart">
-        <ChartContainer config={chartConfig} className="aspect-auto h-40 w-full">
-          <ComposedChart data={data} margin={{ left: 0, right: 0, top: 4, bottom: 0 }}>
-            <XAxis dataKey="t" type="number" domain={["dataMin", "dataMax"]} tickLine={false} axisLine={false} minTickGap={32}
-              tickFormatter={(t: number) => clockTime(when(t))} />
-            <YAxis yAxisId="alt" tickLine={false} axisLine={false} width={44} tickFormatter={(v: number) => `${grouped(v)}`} />
-            <YAxis yAxisId="kt" orientation="right" tickLine={false} axisLine={false} width={32} />
-            <Area yAxisId="alt" dataKey="alt" type="monotone" stroke="var(--color-alt)" fill="var(--color-alt)" fillOpacity={0.15}
-              strokeWidth={2} isAnimationActive={false} dot={false} />
-            <Line yAxisId="kt" dataKey="kt" type="monotone" stroke="var(--color-kt)" strokeWidth={1.5} dot={false} isAnimationActive={false} connectNulls />
-            {at !== null && <ReferenceLine yAxisId="alt" x={at} stroke="var(--tint)" strokeWidth={2} />}
-          </ComposedChart>
-        </ChartContainer>
-        <p className={cn("px-3 pt-1 text-muted-foreground", TEXT.note)}>Altitude, ft (left) · ground speed, kt (right)</p>
-      </div>
+    <ChartContainer config={chartConfig} className="aspect-auto h-28 w-full">
+      <ComposedChart data={data} margin={{ left: 0, right: 0, top: 4, bottom: 0 }}>
+        <XAxis dataKey="t" type="number" domain={["dataMin", "dataMax"]} tickLine={false} axisLine={false} minTickGap={32}
+          tickFormatter={(t: number) => clockTime(when(t))} />
+        <YAxis yAxisId="alt" tickLine={false} axisLine={false} width={44} tickFormatter={(v: number) => `${grouped(v)}`} />
+        <YAxis yAxisId="kt" orientation="right" tickLine={false} axisLine={false} width={32} />
+        <Area yAxisId="alt" dataKey="alt" type="monotone" stroke="var(--color-alt)" fill="var(--color-alt)" fillOpacity={0.15}
+          strokeWidth={2} isAnimationActive={false} dot={false} />
+        <Line yAxisId="kt" dataKey="kt" type="monotone" stroke="var(--color-kt)" strokeWidth={1.5} dot={false} isAnimationActive={false} connectNulls />
+        {at !== null && <ReferenceLine yAxisId="alt" x={at} stroke="var(--tint)" strokeWidth={2} />}
+      </ComposedChart>
+    </ChartContainer>
+  );
+});
+
+/** Each report of the flight, as FlightAware's Track Log, in the figures a
+ *  pilot uses (feet, knots, degrees, feet a minute). */
+function TrackLog({ points }: { points: PastFlightPoint[] }) {
+  return (
+    <ListGroup
+      title="Track log"
+      footer={`${grouped(points.length)} reports; green the altitude, amber the ground speed. Heights are GNSS where the airplane sends one, else pressure altitude.`}
+    >
       <LogTable points={points} />
     </ListGroup>
   );
