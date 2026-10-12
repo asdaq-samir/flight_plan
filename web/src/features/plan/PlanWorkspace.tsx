@@ -21,6 +21,7 @@ import { locateOnOpen, positionNow, useOwnShip, useOwnShipNear } from "../../lib
 import { track, useTracking } from "../../lib/map/tracking";
 import { useTabSearch } from "../../lib/tabSearch";
 import TabBar, { type BarTab } from "../../components/TabBar";
+import { Button } from "../../components/ui/button";
 import { useTabAsk } from "./components/navlog/panelTab";
 import { choosePastFlight, clearPastFlight } from "../../lib/map/pastFlight";
 import { pointOf } from "../../lib/airspace";
@@ -457,19 +458,18 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   }, [procedureDrawings, planned.dep, planned.dest]);
   const [proceduresOpen, setProceduresOpen] = useState(false);
   // All the way up, the route's box and chips folded away to its name, or
-  // out as at half: a small button either way, at the pilot's ask.
+  // out as at half: a small button on the separator under them, at the
+  // pilot's ask (MapPanel's `fold`) -- shadcn's Button, small and round,
+  // its 44-point hit area its pseudo-element's.
   const [routeOut, setRouteOut] = useState(false);
-  const routeFold = (out: boolean) => (
-    <button
-      type="button" onClick={() => setRouteOut(out)} aria-expanded={!out}
-      aria-label={out ? "Show the route" : "Hide the route"} data-testid="route-fold"
-      className={cn(
-        "relative grid size-8 shrink-0 place-items-center rounded-full bg-foreground/8 text-tint outline-none focus-visible:ring-2 focus-visible:ring-ring",
-        "after:absolute after:-inset-1.5 after:content-['']",
-      )}
+  const routeFold = (
+    <Button
+      type="button" variant="outline" size="icon-xs" onClick={() => setRouteOut(out => !out)} aria-expanded={routeOut}
+      aria-label={routeOut ? "Hide the route" : "Show the route"} data-testid="route-fold"
+      className="relative rounded-full bg-background text-tint shadow-sm after:absolute after:-inset-2.5 after:content-['']"
     >
-      {out ? <ChevronDown className="size-5" strokeWidth={2} aria-hidden="true" /> : <ChevronUp className="size-5" strokeWidth={2} aria-hidden="true" />}
-    </button>
+      {routeOut ? <ChevronUp aria-hidden="true" /> : <ChevronDown aria-hidden="true" />}
+    </Button>
   );
   const openProcedures = useCallback(() => setProceduresOpen(true), []);
   const selectPlaceOnChart = useCallback((ident: string | null) => {
@@ -1548,24 +1548,22 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
               chartsDisabled={!planned.dest || noApproaches}
             />
           {shareMenu("end")}
-          {/* All the way up, the route folded away again. */}
-          {panel === "full" && routeFold(false)}
         </div>
       </div>
     ),
     // All the way up, the panel's head is the tab bar alone over the
     // route's tabs, its figures at the card's foot, at the pilot's ask:
     // the route and its chips are the half's.
-    // Or, the route shown there by its small button, the route's box and
-    // chips as at half, folded again by the same at the chips' end.
+    // Or, the route shown there by the small button on the separator
+    // under it (`fold`), the route's box and chips as at half.
     figures: started && !routeOut && (
-      <div className="flex w-full min-w-0 items-center gap-2 py-1">
+      <div className="flex w-full min-w-0 items-center py-1.5">
         <span className={cn("min-w-0 flex-1 truncate font-semibold", TEXT.row)} data-testid="route-folded">
           {routeName(planned.dep || "?", planned.dest || "?", planned.stops)}
         </span>
-        {routeFold(true)}
       </div>
     ),
+    fold: started && routeFold,
     console: <PilotPanel />,
     submit,
     loading: s.stage !== null,

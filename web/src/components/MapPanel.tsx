@@ -41,6 +41,9 @@ interface Props {
    *  route's figures, at the pilot's ask, on every tab while there is a
    *  route. Its height is added to each detent. */
   foot?: ReactNode;
+  /** A small button on the separator between the head and the body, all
+   *  the way up: the route folded away or shown (PlanWorkspace). */
+  fold?: ReactNode;
   /** The body down to the sheet's own edge, over the home indicator's
    *  inset, where the rest of the way is kept clear for every other
    *  panel: an airport's card, its tiles and tabs at its foot (PlaceCard),
@@ -122,7 +125,7 @@ const RANK: Record<PanelState, number> = { peek: 0, half: 1, full: 2 };
  * drawer that never closes held the keyboard's focus inside itself and
  * hid the map, and any dialog opened before it, from a screen reader.
  */
-export default function MapPanel({ label, top, controls, figures, compact, children, state, onStateChange, onInsetsChange, toEdge = false, bar, barAlone = false, foot }: Props) {
+export default function MapPanel({ label, top, controls, figures, compact, children, state, onStateChange, onInsetsChange, toEdge = false, bar, barAlone = false, foot, fold }: Props) {
   const onPhone = useIsMobile();
   const edge = useNavEdge();
   const safe = useSafeArea();
@@ -545,6 +548,16 @@ export default function MapPanel({ label, top, controls, figures, compact, child
         </div>
         </div>
         {capsule && !fromBottom && grabber}
+        {/* On the separator under the head, at its middle, as the line it
+            sits on is shown: all the way up. Not a drag of the head. */}
+        {fold && state === "full" && dragged === null && (
+          <div
+            className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex translate-y-1/2 justify-center"
+            onPointerDown={event => event.stopPropagation()}
+          >
+            <div className="pointer-events-auto">{fold}</div>
+          </div>
+        )}
       </div>
       {/* Over a grabber at the bottom, clear of its hit area. */}
       {/* The separator over the body, and its room over a grabber at its

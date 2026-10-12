@@ -48,6 +48,9 @@ export interface WorkspacePieces {
   /** Pinned at the card's foot on every tab and at every height, the pill
    *  too: the route's figures, while there is a route (MapPanel's `foot`). */
   foot?: ReactNode;
+  /** All the way up, a small button on the separator under the head: the
+   *  route folded away or shown (MapPanel's `fold`). */
+  fold?: ReactNode;
   /** The panel's body down to the sheet's own edge, over the home
    *  indicator (MapPanel's toEdge): an airport's card, its tiles and tabs
    *  at its foot. */

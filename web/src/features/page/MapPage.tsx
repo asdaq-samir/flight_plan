@@ -322,6 +322,7 @@ export default function MapPage({ mode }: { mode: Mode }) {
             // tab bar, its own header and tabs.
             compact={consoleLayer ? undefined : pieces.compact} toEdge={!consoleLayer && !!pieces.toEdge}
             bar={pieces.bar} barAlone={consoleLayer} foot={pieces.foot}
+            fold={pieces.alone || consoleLayer ? undefined : pieces.fold}
             top={pieces.alone || consoleLayer ? null : pieces.head ?? (
               <>
                 <div className="min-w-0 flex-1">

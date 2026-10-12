@@ -102,3 +102,25 @@ test("an airport tapped in the route opens its card, and is changed from its men
   await page.getByTestId("change-point").click();
   await expect(page.getByPlaceholder("Search for a destination")).toBeVisible();
 });
+
+test("all the way up, a small button on the separator shows the route's box and folds it away again", async ({ page }) => {
+  await page.goto("/app/plan?dep=C81&dest=KDLH&view=briefing");
+  await settle(page);
+  const panel = sideDrawer(page);
+  await expect(panel).toHaveAttribute("data-panel", "full");
+  // Folded, the route's name alone over the tabs.
+  await expect(panel.getByTestId("route-folded")).toHaveText("C81 → KDLH");
+  await expect(panel.getByTestId("route-box")).toHaveCount(0);
+  // Small, and on the separator: its middle on the line the body starts at.
+  const fold = panel.getByTestId("route-fold");
+  const button = (await fold.boundingBox())!;
+  const body = (await panel.locator("[data-panel-body]").boundingBox())!;
+  expect(button.height).toBeLessThan(30);
+  expect(Math.abs(button.y + button.height / 2 - body.y)).toBeLessThanOrEqual(2);
+  await fold.click();
+  await expect(fold).toHaveAttribute("aria-expanded", "true");
+  await expect(panel.getByTestId("route-box")).toBeVisible();
+  await fold.click();
+  await expect(fold).toHaveAttribute("aria-expanded", "false");
+  await expect(panel.getByTestId("route-box")).toHaveCount(0);
+});
