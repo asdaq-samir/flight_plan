@@ -1,14 +1,12 @@
-import { memo, useMemo, useState } from "react";
+import { Suspense, lazy, memo, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Gauge, MoveVertical, Pause, Play, PlaneLanding, PlaneTakeoff, Route, Square, Timer } from "lucide-react";
-import { Area, ComposedChart, Line, ReferenceLine, XAxis, YAxis } from "recharts";
 import { cn } from "cn";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
 import { CardHead, PanelCard } from "../../../components/PanelCard";
 import RoundButton from "../../../components/RoundButton";
 import { RowBadge } from "../../../components/RowBadge";
 import Segmented from "../../../components/Segmented";
-import { ChartContainer, type ChartConfig } from "../../../components/ui/chart";
 import { api } from "../../../lib/api/client";
 import type { PastFlightPoint, PastFlightSummary } from "../../../lib/api/types";
 import { clockTime } from "../../../lib/clock";
@@ -145,36 +143,18 @@ function ReplayChart({ points }: { points: PastFlightPoint[] }) {
           </span>
         )}
       </p>
-      <FlightChart points={points} at={second} />
+      {/* Its own chunk, recharts with it: this card was imported by the
+          planner's page, so the chart had come with the first load (350 KB
+          of 1.32 MB, measured). The space it takes is kept while it loads. */}
+      <Suspense fallback={<div className="h-28" />}>
+        <FlightChart points={points} at={second} />
+      </Suspense>
     </div>
   );
 }
 
-// Green height and amber speed, as FlightAware's Track Log draws them:
-// the theme's chart greys read as one line.
-const chartConfig = {
-  alt: { label: "Altitude", color: "#2f9e5b" },
-  kt: { label: "Ground speed", color: "#e5a00d" },
-} satisfies ChartConfig;
 
-/** The chart itself: drawn again with each second of a replay, for its mark. */
-const FlightChart = memo(function FlightChart({ points, at }: { points: PastFlightPoint[]; at: number | null }) {
-  const data = useMemo(() => points.map(p => ({ t: p.t, alt: p.alt_ft ?? 0, kt: p.gs_kt ?? null })), [points]);
-  return (
-    <ChartContainer config={chartConfig} className="aspect-auto h-28 w-full">
-      <ComposedChart data={data} margin={{ left: 0, right: 0, top: 4, bottom: 0 }}>
-        <XAxis dataKey="t" type="number" domain={["dataMin", "dataMax"]} tickLine={false} axisLine={false} minTickGap={32}
-          tickFormatter={(t: number) => clockTime(when(t))} />
-        <YAxis yAxisId="alt" tickLine={false} axisLine={false} width={44} tickFormatter={(v: number) => `${grouped(v)}`} />
-        <YAxis yAxisId="kt" orientation="right" tickLine={false} axisLine={false} width={32} />
-        <Area yAxisId="alt" dataKey="alt" type="monotone" stroke="var(--color-alt)" fill="var(--color-alt)" fillOpacity={0.15}
-          strokeWidth={2} isAnimationActive={false} dot={false} />
-        <Line yAxisId="kt" dataKey="kt" type="monotone" stroke="var(--color-kt)" strokeWidth={1.5} dot={false} isAnimationActive={false} connectNulls />
-        {at !== null && <ReferenceLine yAxisId="alt" x={at} stroke="var(--tint)" strokeWidth={2} />}
-      </ComposedChart>
-    </ChartContainer>
-  );
-});
+const FlightChart = lazy(() => import("./PastFlightChart"));
 
 /** Each report of the flight, as FlightAware's Track Log, in the figures a
  *  pilot uses (feet, knots, degrees, feet a minute). */
