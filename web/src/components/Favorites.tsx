@@ -1,9 +1,13 @@
-import { ChevronLeft, ChevronRight, CircleMinus, GripVertical, House, Plane, Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, CircleMinus, GripVertical, House, Plus } from "lucide-react";
 import { useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { cn } from "cn";
+import { api } from "../lib/api/client";
 import { distanceNm } from "../lib/geo";
+import { airportMarkSvg } from "../lib/map/airportMark";
+import { colourOf } from "../lib/map/flightCategory";
 import { useOwnShip } from "../lib/map/ownShip";
-import type { RecentAirport } from "../lib/preferences";
+import type { AirspaceClass, RecentAirport } from "../lib/preferences";
 import { useAirspace } from "../lib/useAirspace";
 import { TEXT } from "../lib/text";
 import { Button } from "./ui/button";
@@ -83,10 +87,12 @@ export function FavoriteTiles({ home, favorites, onOpen, onAddHome, trailing }: 
 
 function AirspaceTile({ airport, detail, onClick }: { airport: RecentAirport; detail: string; onClick: () => void }) {
   const space = useAirspace(airport);
+  // Its chart symbol on the tile, as NRST's fields wear theirs, at the
+  // owner's ask, where it was a plane on the airspace's colour.
   return (
     <PlaceTile
-      icon={<Plane />} title={airport.ident} detail={detail} onClick={onClick}
-      label={`${airport.ident}, ${space.name}`} style={space.style} className={space.className}
+      icon={<KeptChartMark airport={airport} size={32} />} title={airport.ident} detail={detail} onClick={onClick}
+      label={`${airport.ident}, ${space.name}`} className="bg-foreground/8 [&_svg]:size-8"
     />
   );
 }
@@ -123,8 +129,7 @@ function Mark({ icon, className, style }: { icon: ReactNode; className?: string;
 }
 
 function KeptMark({ airport }: { airport: RecentAirport }) {
-  const space = useAirspace(airport);
-  return <Mark icon={<Plane />} style={space.style} className={space.className} />;
+  return <KeptChartMark airport={airport} size={26} />;
 }
 
 /**
@@ -275,11 +280,41 @@ export function SmallMark({ icon, className, style }: { icon: ReactNode; classNa
   return <span className={cn("grid size-7 place-items-center rounded-full [&_svg]:size-3.5", className)} style={style} aria-hidden="true">{icon}</span>;
 }
 
+/** An airport's own chart symbol, small, as the map draws it
+ *  (lib/map/airportMark): its airspace's ring and colour, its METAR's
+ *  dot, a military or private field's letter -- one mark for the pills'
+ *  airports, Favorites' as NRST's, at the owner's ask ("Airports should
+ *  have the same symbols as nearest"). */
+export function ChartMark({ space, category, use, size = 22 }: {
+  space: AirspaceClass | null;
+  category: string | null | undefined;
+  use: "military" | "private" | null;
+  /** Its width in points: the pills' 22, a list row's 26 (NRST's). */
+  size?: number;
+}) {
+  return (
+    <span aria-hidden="true" className="grid shrink-0 place-items-center" style={{ width: Math.max(28, size), height: Math.max(28, size) }}>
+      <span className="block" style={{ width: size, height: size }} dangerouslySetInnerHTML={{ __html: airportMarkSvg(space, colourOf(category), use, "overflow-visible") }} />
+    </span>
+  );
+}
+
+/** A kept airport's chart symbol (ChartMark), from the field as the
+ *  planner has it -- the query useAirspace asks, so none more -- its
+ *  weather and whose it is with its airspace. */
+function KeptChartMark({ airport, size }: { airport: RecentAirport; size?: number }) {
+  const { data } = useQuery({
+    queryKey: ["airport", airport.ident], queryFn: () => api.airport(airport.ident), staleTime: 60 * 60_000, meta: { silent: true },
+  });
+  const use = data?.military === "military" ? "military" : data?.private ? "private" : null;
+  return <ChartMark space={data?.airspace_class ?? airport.airspace ?? null} category={data?.metar?.flight_category} use={use} size={size} />;
+}
+
 function SmallAirportTile({ airport, detail, onClick }: { airport: RecentAirport; detail: string; onClick: () => void }) {
   const space = useAirspace(airport);
   return (
     <SmallTile
-      mark={<SmallMark icon={<Plane />} style={space.style} className={space.className} />}
+      mark={<KeptChartMark airport={airport} />}
       title={airport.ident} detail={detail} label={`${airport.ident}, ${space.name}`} onClick={onClick} testId="pill-favorite"
     />
   );

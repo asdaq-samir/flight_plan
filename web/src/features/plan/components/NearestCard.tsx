@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { LocateFixed, MapPin, Navigation2 } from "lucide-react";
 import { cn } from "cn";
-import { PillStrip, SmallTile } from "../../../components/Favorites";
+import { ChartMark, PillStrip, SmallTile } from "../../../components/Favorites";
 import { PanelCard } from "../../../components/PanelCard";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
 import { api } from "../../../lib/api/client";
@@ -217,12 +217,7 @@ export function NearestStrip({ fields, located, onOpen }: {
           <SmallTile
             key={field.ident} onClick={() => onOpen(field.ident)} testId="nearest-strip-field"
             label={`${field.ident}, ${field.name}, ${Math.round(field.distance_nm)} nm ${compassPoint(field.bearing_deg)}`}
-            mark={<span aria-hidden="true" className="grid size-7 place-items-center">
-              <span
-                className="block size-[22px]"
-                dangerouslySetInnerHTML={{ __html: airportMarkSvg(field.airspace_class ?? null, colourOf(field.flight_category), use, "overflow-visible") }}
-              />
-            </span>}
+            mark={<ChartMark space={field.airspace_class ?? null} category={field.flight_category} use={use} />}
             title={field.ident} detail={`${Math.round(field.distance_nm)} nm`}
           />
         );
