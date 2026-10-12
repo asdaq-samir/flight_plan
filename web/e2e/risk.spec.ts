@@ -54,7 +54,8 @@ test("a quiet day is low, what the pilot ticks raises it, and Save files it with
   await expect(drawer.getByTestId("risk-flag")).toContainText("High risk");
 
   await controlsInSight(page);
-  await drawer.getByTestId("save-flight-button").click();
+  await drawer.getByTestId("share-route").click();
+  await page.getByTestId("save-flight-button").click();
   await expect.poll(() => filed?.risk?.level).toBe("high");
   expect(filed!.risk!.factors).toEqual(expect.arrayContaining([
     "Somewhere to be by a time, or people counting on it", "Alcohol in the last 8 hours, or still feeling it",

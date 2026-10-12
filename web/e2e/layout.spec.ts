@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { PAGES, settle, settled, slow, expectDrawerClosed, openSidebar, sideDrawer, openSettings, openPanel, closeSidebarWithTheStockKey } from "./helpers";
+import { PAGES, settle, settled, slow, expectDrawerClosed, openSidebar, sideDrawer, openSettings, openPanel, closeSidebarWithTheStockKey, clearTheRoute } from "./helpers";
 
 /**
  * The regressions this file exists to catch (see playwright.config.ts
@@ -32,20 +32,20 @@ import { PAGES, settle, settled, slow, expectDrawerClosed, openSidebar, sideDraw
  */
 
 test.describe("/app/plan", () => {
-  // At rest the panel is Maps' capsule: with no route a search bar, with
-  // one the route, its chip opening the panel on the route form.
-  test("the panel rests on a search bar with no route, and on the route in a capsule whose chip opens its form", async ({ page }) => {
+  // At rest the panel is a pill of the tabs alone, at the pilot's ask --
+  // with a route its figures at its foot -- the tab up tapped opening it.
+  test("the panel rests as the tabs' pill, with a route its figures under them, and the tab up tapped opens it", async ({ page }) => {
     await page.goto("/app/plan");
     await settle(page);
     await closeSidebarWithTheStockKey(page);
     await expect(sideDrawer(page)).toHaveAttribute("data-capsule", "true");
-    await expect(page.getByTestId("search-airports")).toBeVisible();
+    await expect(sideDrawer(page).getByTestId("tab-bar")).toBeVisible();
+    await expect(page.getByTestId("search-airports")).toHaveCount(0);
+    await expect(sideDrawer(page).getByTestId("flight-line")).toHaveCount(0);
     await page.goto("/app/plan?dep=C81&dest=KDLH");
     await settle(page);
-    // Where to, how far and how long, the route whole its name, at the
-    // pilot's ask.
-    await expect(page.getByTestId("capsule-detail")).toHaveAccessibleName(/^C81 → KDLH, KDLH · \d+ nm · /, { timeout: slow(30000) });
-    await expect(page.getByTestId("capsule-title")).toHaveText(/^KDLH · \d+ nm · /);
+    await expect(sideDrawer(page)).toHaveAttribute("data-capsule", "true");
+    await expect(sideDrawer(page).getByTestId("flight-line")).toContainText(/\d+ nm/, { timeout: slow(30000) });
     await openPanel(page);
     await expect(page.getByLabel("Departure", { exact: true })).toBeVisible();
     expect(await page.getByTestId("toolbar-trigger").count()).toBe(0);
@@ -60,21 +60,18 @@ test.describe("/app/plan", () => {
     await settle(page);
     await expect(sideDrawer(page)).toHaveAttribute("data-panel", "half");
     await expect(page.getByTestId("search-airports")).toBeVisible();
-    await expect(sideDrawer(page).getByTestId("settings-button")).toBeVisible();
+    // Settings a tab of the bar, not a gear beside the search bar.
+    await expect(sideDrawer(page).getByTestId("tab-bar").getByTestId("settings-button")).toBeVisible();
     await expect(page.getByTestId("search-close")).toHaveCount(0);
     await expect(page.getByTestId("favorite-home")).toBeVisible();
 
     await page.goto("/app/plan?dep=C81&dest=KDLH");
     await settle(page);
-    await expect(page.getByTestId("capsule-detail")).toHaveAccessibleName(/^C81 → KDLH, KDLH · \d+ nm · /, { timeout: slow(30000) });
-    await expect(page.getByTestId("capsule-title")).toHaveText(/^KDLH · \d+ nm · /);
+    await expect(sideDrawer(page).getByTestId("flight-line")).toContainText(/\d+ nm/, { timeout: slow(30000) });
     await expectDrawerClosed(page);
-    // At rest, Share at the capsule's start and the console's button at
-    // its end, the route between them.
-    const [share, title, gear] = await Promise.all(["share-route", "capsule-title", "settings-button"]
-      .map(id => sideDrawer(page).getByTestId(id).boundingBox()));
-    expect(share!.x + share!.width).toBeLessThanOrEqual(title!.x);
-    expect(title!.x + title!.width).toBeLessThanOrEqual(gear!.x);
+    // At rest the tabs alone over the figures; Share in the panel.
+    await expect(sideDrawer(page).getByTestId("share-route")).toHaveCount(0);
+    await openPanel(page);
     await sideDrawer(page).getByTestId("share-route").click();
     await expect(page.getByTestId("export-gpx")).toBeVisible();
     await page.keyboard.press("Escape");
@@ -111,15 +108,18 @@ test.describe("/app/plan", () => {
     const body = (await panel.locator("[data-panel-body]").boundingBox())!;
     expect(Math.abs(tabs.y + tabs.height - (body.y + body.height))).toBeLessThanOrEqual(2);
 
-    await page.getByTestId("route-clear").click();
+    await clearTheRoute(page);
     await expect(page).not.toHaveURL(/[?&]dep=/);
     await expect(page.getByTestId("altitude-why")).toBeDisabled();
-    expect(Math.abs(await height() - half)).toBeLessThanOrEqual(1);
+    // The route's figures gone from the foot with it.
+    await expect(panel.getByTestId("panel-foot")).toHaveCount(0);
+    const cleared = await height();
+    expect(cleared).toBeLessThan(half);
 
-    await page.getByTestId("route-clear").click();
+    await page.getByTestId("tab-airport").click();
     await expect(page.getByTestId("search-airports")).toBeVisible();
     await expect(panel).toHaveAttribute("data-panel", "half");
-    expect(Math.abs(await height() - half)).toBeLessThanOrEqual(1);
+    expect(Math.abs(await height() - cleared)).toBeLessThanOrEqual(1);
     await expect(page.getByTestId("favorite-home")).toBeInViewport();
 
     await page.getByTestId("search-airports").click();
@@ -127,7 +127,7 @@ test.describe("/app/plan", () => {
     await page.getByTestId("search-result").filter({ hasText: "KDLH" }).first().click();
     const card = panel.getByTestId("place-card");
     await expect(card.getByTestId("fly-here")).toBeInViewport({ timeout: slow(15000) });
-    expect(Math.abs(await height() - half)).toBeLessThanOrEqual(1);
+    expect(Math.abs(await height() - cleared)).toBeLessThanOrEqual(1);
     await expect(card.getByRole("heading", { name: "Weather" })).not.toBeInViewport();
   });
 

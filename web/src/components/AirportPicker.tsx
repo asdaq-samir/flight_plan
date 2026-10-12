@@ -12,6 +12,7 @@ import { useAirportSearch, type AirportSearchRow } from "../lib/useAirportSearch
 import { useIsMobile } from "../hooks/use-mobile";
 import { useKeyboardInset } from "../hooks/use-viewport";
 import CloseButton from "./CloseButton";
+import ClearButton from "./ClearButton";
 
 interface Props {
   value: string;
@@ -153,7 +154,7 @@ export default function AirportPicker({
                 aria-label={fixes ? "Search airports and waypoints" : `Search for a ${ariaLabel.toLowerCase()}`}
                 value={query}
                 onValueChange={setQuery}
-                className="min-w-0 flex-1 bg-transparent text-foreground outline-none placeholder:text-muted-foreground"
+                className="min-w-0 flex-1 bg-transparent text-foreground outline-none placeholder:text-muted-foreground [&::-webkit-search-cancel-button]:hidden"
                 onKeyDown={e => {
                   // What was typed goes through when the rows are not the
                   // answer to it yet, and when the lookup has nothing for it
@@ -164,6 +165,7 @@ export default function AirportPicker({
                   }
                 }}
               />
+              {query && <ClearButton label="Clear the search" onClear={() => { setQuery(""); input.current?.focus(); }} />}
             </div>
             <CloseButton onClick={() => { setOpen(false); setQuery(""); }} data-testid="picker-close" />
           </div>

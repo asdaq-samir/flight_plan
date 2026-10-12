@@ -78,7 +78,7 @@ export default function PilotGuide() {
                 </p>
               </Reading>
               <ListGroup title="The map's buttons">
-                <ListRow media={<Settings className="size-5 text-tint" />} title="Settings" description="This, beside the search bar: the guide, your aircraft and flights, and the settings. Close a route to reach it" />
+                <ListRow media={<Settings className="size-5 text-tint" />} title="Settings" description="This, the last tab: the guide, your aircraft and flights, and the settings" />
                 <ListRow media={<Navigation className="size-5 text-tint" />} title="My position" description="Where you are, from the phone's GPS, the map brought in close and kept on you; again to hide it" />
                 <ListRow media={<Maximize className="size-5 text-tint" />} title="Full screen" description="Where your browser allows it" />
               </ListGroup>

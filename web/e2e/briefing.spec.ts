@@ -41,8 +41,6 @@ test("plan page: the flight planning drawer opens the way the Model Training dra
   await controlsInSight(page);
   await expect(drawer.getByTestId("aircraft-select")).toBeVisible();
   await expect(drawer.getByTestId("depart-date")).toBeVisible();
-  // And, signed in, Save this flight beside More.
-  await expect(drawer.getByTestId("save-flight-button")).toBeVisible();
   await expect(drawer.getByTestId("ai-narrative-button")).toHaveCount(0);
   expect(await drawer.locator('[role="tabpanel"] [data-testid="aircraft-select"]').count()).toBe(0);
   expect(await drawer.locator('[role="tabpanel"] [data-testid="depart-date"]').count()).toBe(0);
@@ -71,39 +69,41 @@ test("plan page: the flight planning drawer opens the way the Model Training dra
   await expect(drawer.getByRole("heading", { name: "Adverse Conditions" })).toBeVisible();
   await expect(drawer.getByRole("table", { name: /Navigation log from/i })).toHaveCount(0);
 
-  // All the way up, the panel's head is the route's figures alone over
-  // the tabs, at the pilot's ask; half way, the route's box, and under the
-  // route's close Approaches, where Nearest was; the console's button is
-  // the capsule's, the route lowered.
-  await expect(page.locator("header").getByTestId("flight-line")).toBeVisible();
+  // All the way up, the panel's head is the tab bar alone, the route's
+  // figures under its tabs, at the pilot's ask; half way, the route's box
+  // the top row to itself, and Settings a tab, not a gear in the head.
+  await expect(drawer.getByTestId("flight-line")).toBeVisible();
   expect(await page.locator("header").getByLabel("Departure", { exact: true }).count()).toBe(0);
   await controlsInSight(page);
   expect(await page.locator("header").getByLabel("Departure", { exact: true }).count()).toBe(1);
-  await expect(page.locator("header").getByTestId("route-approaches")).toBeVisible();
   expect(await page.locator("header").getByTestId("settings-button").count()).toBe(0);
 
-  // The panel's actions, Save, Share and Print, round buttons at the end
-  // of the airplane's, the altitude's and the time's line under the
-  // route: the route's box has the top row to itself.
-  const [saveBox, shareBox, printBox] = await Promise.all(["save-flight-button", "share-route", "print-button"]
+  // The route's two buttons, Approaches and Share, at the end of the
+  // airplane's, the altitude's and the time's line, at the pilot's ask;
+  // Save, filing the flight plan, Print and the route's close in Share.
+  const [approachesBox, shareBox] = await Promise.all(["route-approaches", "share-route"]
     .map(async id => (await drawer.getByTestId(id).boundingBox())!));
-  expect(saveBox.x).toBeLessThan(shareBox.x);
-  expect(shareBox.x).toBeLessThan(printBox.x);
-  expect(Math.abs(saveBox.y - printBox.y)).toBeLessThan(2);
-  expect(await page.locator("header").getByTestId("print-button").count()).toBe(0);
+  expect(approachesBox.x).toBeLessThan(shareBox.x);
+  expect(Math.abs(approachesBox.y - shareBox.y)).toBeLessThan(2);
   const departure = (await drawer.getByTestId("depart-date").boundingBox())!;
-  expect(saveBox.x).toBeGreaterThan(departure.x);
-  expect(Math.abs(printBox.y + printBox.height / 2 - (departure.y + departure.height / 2))).toBeLessThan(12);
+  expect(approachesBox.x).toBeGreaterThan(departure.x);
+  expect(Math.abs(shareBox.y + shareBox.height / 2 - (departure.y + departure.height / 2))).toBeLessThan(12);
+  await drawer.getByTestId("share-route").click();
+  // And, signed in, Save this flight among them.
+  for (const id of ["save-flight-button", "file-flight-plan", "print-briefing", "print-kneeboard", "route-clear"]) {
+    await expect(page.getByRole("menu").getByTestId(id)).toBeVisible();
+  }
+  await page.keyboard.press("Escape");
 });
 
-test("plan page: the briefing ends on its 'planning aid only' reminder, with the nav log and the summary on screen", async ({ page }) => {
+test("plan page: the nav log and the summary on screen, the 'planning aid only' reminder no longer under them", async ({ page }) => {
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
 
   await openBriefing(page);
-  // At the foot of the drawer, not a toast: as a toast it covered the
-  // nav log's last rows and hid the route's own warnings behind it.
-  await expect(sideDrawer(page).getByTestId("planning-aid-note")).toContainText("planning aid for VFR flight");
+  // In Settings' About now, at the pilot's ask, not at the foot of the
+  // tabs; never a toast, which covered the nav log's last rows.
+  await expect(sideDrawer(page).getByTestId("planning-aid-note")).toHaveCount(0);
   await expect(page.locator("[data-sonner-toast]", { hasText: "planning aid for VFR flight" })).toHaveCount(0);
 
   // One nav log, its tab up as the panel opens, and the briefing in the
@@ -177,10 +177,10 @@ test("plan page: a pasted briefing link opens the panel, and its grabber closes 
   await settle(page);
   const drawer = sideDrawer(page);
   await expect(drawer).toBeVisible();
-  // All the way up its figures and tabs alone (MapPanel's `figures`);
-  // half way, the route's controls with Print.
+  // All the way up its tabs and figures alone (MapPanel's `figures`);
+  // half way, the route's controls with Share.
   await expect(drawer.getByTestId("flight-line")).toBeVisible();
-  await expect(drawer.getByTestId("print-button")).toHaveCount(0);
+  await expect(drawer.getByTestId("share-route")).toHaveCount(0);
 
   // No letter shortcuts on this page any more: the arrows walk the
   // checkpoints and everything else has a button. `n` used to toggle
@@ -195,7 +195,7 @@ test("plan page: a pasted briefing link opens the panel, and its grabber closes 
   await grabber.click();
   await expect(drawer).toHaveAttribute("data-panel", "half");
   await expect(page).not.toHaveURL(/[?&]view=briefing/);
-  await expect(drawer.getByTestId("print-button")).toBeVisible();
+  await expect(drawer.getByTestId("share-route")).toBeVisible();
   await grabber.click();
   await expectDrawerClosed(page);
 

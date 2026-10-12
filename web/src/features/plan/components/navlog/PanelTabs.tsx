@@ -1,11 +1,11 @@
-import { useCallback, useDeferredValue, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useDeferredValue, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { CloudSun, Gauge, ListOrdered, Sparkles } from "lucide-react";
 import { cn } from "cn";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../../../components/ui/tabs";
 import { SectionsOpen } from "../../../../components/sectionLayout";
 import SectionTabs from "../../../../components/SectionTabs";
 import { LINE_TAB } from "../../../../components/lineTabs";
-import { GoToTab, LEGS, type PanelTab } from "./panelTab";
+import { GoToTab, LEGS, useTabAsk, type PanelTab } from "./panelTab";
 
 /** The panel's tabs, in the pilot's order: the Nav Log (the route's
  *  profile under it: the same legs from the side), the Brief, the Weather
@@ -46,7 +46,7 @@ const PRINTED: PanelTab[] = ["navlog", "weather", "performance", "brief"];
  */
 export default function PanelTabs({ rootRef, before, contents, notice, footer, children, printing, local, marks, pick, onTap, route }: {
   rootRef: (el: HTMLDivElement | null) => void;
-  /** Over the tabs: the printed title and the flight's line. */
+  /** Over the tabs: the printed title. */
   before: ReactNode;
   contents: Record<PanelTab, ReactNode>;
   notice?: ReactNode;
@@ -132,6 +132,18 @@ export default function PanelTabs({ rootRef, before, contents, notice, footer, c
     const frame = requestAnimationFrame(to);
     return () => cancelAnimationFrame(frame);
   }, [tab, asked]);
+  // A tab and section asked for from outside the tabs (useTabAsk): heard
+  // as it is asked, and once drawn, one asked before the tabs were there.
+  useEffect(() => {
+    const hear = () => {
+      const { ask, heard } = useTabAsk.getState();
+      if (!ask) return;
+      heard();
+      goTo(ask.tab, ask.section);
+    };
+    queueMicrotask(hear);
+    return useTabAsk.subscribe(hear);
+  }, [goTo]);
   return (
     // print:h-auto print:overflow-visible: on screen this fills a fixed
     // viewport height and clips to it, deliberately -- on paper there

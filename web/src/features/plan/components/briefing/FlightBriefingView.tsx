@@ -1,9 +1,10 @@
 import { memo, useEffect, useMemo, useState, type ReactNode } from "react";
 import { format } from "date-fns";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useIsMutating, useMutation, useMutationState, useQuery, useQueryClient } from "@tanstack/react-query";
 import { cn } from "cn";
 import { Check, CloudOff, Loader2, OctagonAlert, Save, TriangleAlert } from "lucide-react";
-import RoundButton from "../../../../components/RoundButton";
+import { DropdownMenuItem } from "../../../../components/ui/dropdown-menu";
+import { toast } from "sonner";
 import { Alert, AlertDescription, AlertTitle } from "../../../../components/ui/alert";
 import AccordionSection from "../../../../components/AccordionSection";
 import { ListGroup, ListRow } from "../../../../components/GroupedList";
@@ -211,13 +212,18 @@ function altitudeRange(nav: NavLogAltitude): string {
  * about it from here, and a disabled button with no explanation reads
  * as broken rather than as "sign in first."
  *
- * A round button at the end of the panel's row, beside Share and Print
- * (PlanWorkspace puts it there), its state its glyph and its name: Save,
- * Saving…, Saved. It was a line of its own at the head of the
- * sections, with the airplane the flight would be filed in spelled
- * out beside it; that airplane is the header's own picker, a line
- * above.
+ * An item of the route's Share menu (PlanWorkspace puts it there, at the
+ * pilot's ask, with Print and the rest: beside the chips only the
+ * Approaches and Share), its state its glyph and its name: Save,
+ * Saving…, Saved; said in a note once saved, the menu having gone. It
+ * was a round button beside Share and Print, and before that a line of
+ * its own at the head of the sections, with the airplane the flight would be filed
+ * in spelled out beside it; that airplane is the header's own picker, a
+ * line above.
  */
+/** The flights saved, one mutation key for every Save item (SaveFlightButton). */
+const SAVE_FLIGHT = ["saveFlight"];
+
 export function SaveFlightButton({
   course, totals, nav, legs, selected, aircraftId, depart, altitudes = "",
 }: {
@@ -270,10 +276,19 @@ export function SaveFlightButton({
     };
   }, [course, nav, totals, aircraftId, depart, selected, legs, risk, altitudes]);
 
+  // Kept by the query client, not the item: the menu's content goes when
+  // the menu closes, and with a mutation of the item's own the menu
+  // opened again offered Save for a plan just saved -- a second click
+  // filed it twice.
   const save = useMutation({
+    mutationKey: SAVE_FLIGHT,
     mutationFn: api.flights.save,
-    // The pilot console's list of flights, which it keeps.
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["flights"] }),
+    // The pilot console's list of flights, which it keeps; said in a
+    // note, the menu it was saved from having gone.
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["flights"] });
+      toast.success("Flight saved");
+    },
   });
   // "Saved" belongs to the plan that was saved: another route, time,
   // airplane or altitude is a new request, and Save is offered again.
@@ -284,21 +299,20 @@ export function SaveFlightButton({
   // second or two after Save is offered, and "Saved" went back to Save.
   const planOf = (r: SaveFlightRequest) => JSON.stringify({ ...r, risk: null });
   const plan = useMemo(() => request && planOf(request), [request]);
-  const saved = save.isSuccess && !!save.variables && planOf(save.variables) === plan;
+  const filedPlans = useMutationState({
+    filters: { mutationKey: SAVE_FLIGHT, status: "success" },
+    select: m => planOf(m.state.variables as SaveFlightRequest),
+  });
+  const saving = useIsMutating({ mutationKey: SAVE_FLIGHT }) > 0;
+  const saved = !!plan && filedPlans.includes(plan);
 
   if (!pilot) return null;
 
-  // A round button of glass, as Share and Print beside it and the route's
-  // close are: its state its glyph and its name -- Save, Saving…, Saved.
   return (
-    <RoundButton
-      label={save.isPending ? "Saving…" : saved ? "Saved" : "Save this flight"}
-      onClick={() => request && save.mutate(request)}
-      disabled={!request || save.isPending || saved}
-      data-testid="save-flight-button"
-    >
-      {save.isPending ? <Loader2 className="size-5 animate-spin" /> : saved ? <Check className="size-5" strokeWidth={2} /> : <Save className="size-5" strokeWidth={2} />}
-    </RoundButton>
+    <DropdownMenuItem onSelect={() => request && save.mutate(request)} disabled={!request || saving || saved} data-testid="save-flight-button">
+      {saving ? <Loader2 className="animate-spin" /> : saved ? <Check /> : <Save />}
+      {saving ? "Saving…" : saved ? "Saved" : "Save this flight"}
+    </DropdownMenuItem>
   );
 }
 

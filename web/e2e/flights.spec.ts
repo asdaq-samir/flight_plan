@@ -30,18 +30,22 @@ test("a flight is filed once, whole, and a new plan is offered for saving again"
   const filed: Record<string, unknown>[] = [];
   await signedIn(page, filed);
   await page.goto("/app/plan?dep=C81&dest=KDLH&view=briefing");
-  // Save is the half panel's: all the way up the head is the figures.
+  // Save is in the half panel's Share menu: all the way up the head is
+  // the tab bar.
   await controlsInSight(page);
-  const save = page.getByRole("button", { name: /Save this flight|Saved|Saving/ });
+  const save = page.getByTestId("save-flight-button");
 
   // Offered once the nav log is whole -- it used to be enabled
-  // mid-stream, and filed null totals. An icon button in the drawer's
-  // header, beside the narrative and Print: its state is its name.
+  // mid-stream, and filed null totals. An item of Share's menu, its state
+  // its name, said again in the menu as it changes.
+  await page.getByTestId("share-route").click();
   await expect(save).toHaveAccessibleName("Save this flight", { timeout: 90_000 });
   await expect(save).toBeEnabled({ timeout: 90_000 });
   await save.click();
+  await page.getByTestId("share-route").click();
   await expect(save).toHaveAccessibleName("Saved");
   await expect(save).toBeDisabled();
+  await page.keyboard.press("Escape");
 
   expect(filed).toHaveLength(1);
   const flight = filed[0] as { totalEteMin: number | null; checkpoints: { category: string; sequenceNo: number }[] };
@@ -56,6 +60,7 @@ test("a flight is filed once, whole, and a new plan is offered for saving again"
   await page.locator('[data-slot="calendar"] td button').nth(20).click();
   await page.getByTestId("depart-done").click();
   await expect(page).toHaveURL(/[?&]depart=/);
+  await page.getByTestId("share-route").click();
   await expect(save).toHaveAccessibleName("Save this flight", { timeout: 90_000 });
   await expect(save).toBeEnabled({ timeout: 90_000 });
 });
@@ -68,9 +73,11 @@ test("a flight from a present position is filed from that position", async ({ pa
   await signedIn(page, filed);
   await page.goto("/app/plan?dep=%4042.2340%2C-87.9877&dest=KDLH&view=briefing");
   await controlsInSight(page);
-  const save = page.getByRole("button", { name: /Save this flight|Saved|Saving/ });
+  const save = page.getByTestId("save-flight-button");
+  await page.getByTestId("share-route").click();
   await expect(save).toBeEnabled({ timeout: 90_000 });
   await save.click();
+  await page.getByTestId("share-route").click();
   await expect(save).toHaveAccessibleName("Saved");
   expect(filed).toHaveLength(1);
   expect(filed[0]).toMatchObject({ departureIdent: "@42.2340,-87.9877", destinationIdent: "KDLH" });
@@ -80,10 +87,13 @@ test("signed out, there is nothing to save", async ({ page }) => {
   await page.route("**/api/me", route => route.fulfill({ status: 401, body: "" }));
   await page.goto("/app/plan?dep=C81&dest=KDLH&view=briefing");
   await controlsInSight(page);
-  // More showing means the page is not hidden behind a console: while
+  // Share showing means the page is not hidden behind a console: while
   // one is up, the page under it is out of reach of the queries below.
-  await expect(page.getByTestId("print-button")).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByRole("button", { name: /Save this flight/ })).toHaveCount(0);
+  await expect(page.getByTestId("share-route")).toBeVisible({ timeout: 30_000 });
+  await page.getByTestId("share-route").click();
+  await expect(page.getByTestId("print-briefing")).toBeVisible();
+  await expect(page.getByTestId("save-flight-button")).toHaveCount(0);
+  await page.keyboard.press("Escape");
 });
 
 test("opening a saved flight puts its route in the header, and Load plans that route", async ({ page }) => {
@@ -145,10 +155,10 @@ test("Edit over the saved flights puts a minus before each, and the minus delete
   expect(removed).toEqual(["DELETE"]);
 });
 
-test("Print is a round button beside Share; Keep Charts Offline is a setting under Map, which cannot be on over plain http", async ({ page }) => {
+test("Print is in Share's menu; Keep Charts Offline is a setting under Map, which cannot be on over plain http", async ({ page }) => {
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await openPanel(page);
-  await page.getByTestId("print-button").click();
+  await page.getByTestId("share-route").click();
   await expect(page.getByTestId("print-briefing")).toBeVisible();
   await expect(page.getByTestId("print-kneeboard")).toBeVisible();
   await page.keyboard.press("Escape");

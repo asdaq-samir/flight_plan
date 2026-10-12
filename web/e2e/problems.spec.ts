@@ -1,5 +1,5 @@
 import { test, expect, type Page, type Route } from "@playwright/test";
-import { settled as settledLocator } from "./helpers";
+import { clearTheRoute, settled as settledLocator } from "./helpers";
 
 /**
  * What a pilot meets when things go wrong, and the toasts that are left.
@@ -115,9 +115,8 @@ test("a problem goes with the route it was about", async ({ page }) => {
   // parts come in.
   await expect.poll(async () => (await problemTitles(page)).some(t => t.includes("unknown airport KZZZ")), { timeout: 20000 }).toBe(true);
 
-  // The route cleared from the panel, where its close is.
-  await page.getByTestId("capsule-detail").click();
-  await page.getByTestId("route-clear").click();
+  // The route cleared from the panel, its Share menu's Clear the route.
+  await clearTheRoute(page);
   await expect(banner(page)).toHaveCount(0);
 });
 

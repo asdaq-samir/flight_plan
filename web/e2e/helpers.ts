@@ -41,15 +41,34 @@ export async function settle(page: Page) {
 export const sideDrawer = (page: Page) => page.locator('[data-slot="map-panel"]');
 
 /** The panel out half way, where its head is the route form, the
- *  workspace's actions and the controls: at rest a route is a capsule
- *  (MapPanel's compact), whose chip opens it. Nothing when it is out
- *  already or rests on its form. */
+ *  workspace's actions and the controls. At rest the planner's is its
+ *  tab bar alone, the tab up tapped opening it; the training page's a
+ *  capsule (MapPanel's compact), whose chip opens it. Nothing when it is
+ *  out already or rests on its form. */
 export async function openPanel(page: Page) {
   const panel = sideDrawer(page);
   await panel.waitFor();
   if (await panel.getAttribute("data-capsule") === null) return;
-  await page.getByTestId("capsule-detail").click();
+  const up = panel.locator('[data-testid="tab-bar"] button[aria-current="page"]');
+  if (await up.count()) await up.click();
+  else await page.getByTestId("capsule-detail").click();
   await expect(panel).toHaveAttribute("data-panel", "half");
+}
+
+/** The route's Share menu out, the panel half way: its sharing, Save,
+ *  File flight plan, Print and Clear the route (PlanWorkspace), at the
+ *  pilot's ask all under Share beside the chips. */
+export async function openShareMenu(page: Page) {
+  await openPanel(page);
+  await controlsInSight(page);
+  await sideDrawer(page).getByTestId("share-route").click();
+  await expect(page.getByRole("menu")).toBeVisible();
+}
+
+/** The route cleared, from its Share menu. */
+export async function clearTheRoute(page: Page) {
+  await openShareMenu(page);
+  await page.getByTestId("route-clear").click();
 }
 
 /** The panel to a height by taps on its grabber, which cycle the three

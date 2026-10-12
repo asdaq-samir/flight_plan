@@ -113,7 +113,7 @@ test("the nightly speed lab", async ({ page }, info) => {
 
     // The route's own menus.
     await page.goto("/app/plan?dep=C81&dest=KDLH");
-    await page.getByTestId("capsule-detail").click({ timeout: 60_000 });
+    await page.locator('[data-testid="tab-bar"] button[aria-current="page"]').click({ timeout: 60_000 });
     await page.locator("[data-testid=navlog-eta]").first().waitFor({ state: "attached", timeout: 90_000 });
     await page.waitForTimeout(3000);
     for (const [name, open, shown] of [

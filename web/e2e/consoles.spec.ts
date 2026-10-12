@@ -38,15 +38,12 @@ test("plan page: the pilot console holds the account, airplanes and flights, and
   await page.getByTestId("settings-button").click();
   const pilot = consoleSheet(page);
   await expect(pilot).toBeVisible();
-  // On a phone the console is the panel's layer, in the search bar's
-  // place, the gear with it; elsewhere a sheet the gear says is out.
+  // Settings is a tab of the bar, the tab up while the console is out:
+  // on a phone the console is the panel's layer, under the tab bar, in
+  // the search bar's place; elsewhere a sheet.
   const phone = page.viewportSize()!.width < 768;
-  if (phone) {
-    await expect(page.getByTestId("settings-button")).toHaveCount(0);
-    expect(await pilot.evaluate(el => !!el.closest('[data-slot="map-panel"]'))).toBe(true);
-  } else {
-    await expect(page.getByTestId("settings-button")).toHaveAttribute("aria-expanded", "true");
-  }
+  await expect(page.getByTestId("settings-button")).toHaveAttribute("aria-current", "page");
+  if (phone) expect(await pilot.evaluate(el => !!el.closest('[data-slot="map-panel"]'))).toBe(true);
   // The title is the role, a menu: Pilot (chosen here), Developer for a
   // developer, and Sign out last; who is signed in beside it.
   await expect(page.getByRole("dialog", { name: "Pilot" })).toBeVisible();
@@ -101,25 +98,28 @@ test("the navigation bar's edge is a setting: the panel moves to it, the map's b
   // its height after a load, and the reload below is compared with this.
   await settled(page.locator('[data-slot="map-panel"]'));
 
-  const header = (await page.locator("header").boundingBox())!;
+  // The panel at rest is the tabs' pill (no head of its own): where the
+  // panel is, its box.
+  const header = (await page.locator('[data-slot="map-panel"]').boundingBox())!;
   const buttons = (await page.locator("[data-map-controls] > *").first().boundingBox())!;
   if (phone) {
     expect(header.y).toBeLessThan(40);
     expect(buttons.y).toBeGreaterThan(viewport.height / 2);
   } else {
-    expect(header.y).toBeGreaterThan(viewport.height / 2);
+    expect(header.y + header.height).toBeGreaterThan(viewport.height / 2);
     expect(buttons.y).toBeLessThan(viewport.height / 2);
   }
 
-  // The console, from the search bar, comes in from the same edge: on a
-  // phone half way down from the top, in from the screen's edges.
+  // The console, its tab, comes in from the same edge: on a phone the
+  // panel's layer, the panel half way down from the top, in from the
+  // screen's edges.
   await page.goto("/app/plan");
   await settle(page);
   await page.getByTestId("settings-button").click();
   const pilot = consoleSheet(page);
   await expect(pilot.getByRole("tab", { name: "Guide" })).toBeVisible();
   await pilot.evaluate(el => Promise.all(el.getAnimations({ subtree: true }).map(a => a.finished)));
-  const box = (await pilot.boundingBox())!;
+  const box = (await (phone ? page.locator('[data-slot="map-panel"]') : pilot).boundingBox())!;
   if (phone) expect(Math.round(box.y)).toBe(8);
   else expect(Math.round(box.y + box.height)).toBe(viewport.height);
   await page.keyboard.press("Escape");
@@ -133,7 +133,7 @@ test("the navigation bar's edge is a setting: the panel moves to it, the map's b
   await settle(page);
   // To the pixel, once the panel has settled: it measures its head and
   // eases to its height after a load.
-  await expect.poll(async () => Math.abs((await page.locator("header").boundingBox())!.y - header.y)).toBeLessThan(1);
+  await expect.poll(async () => Math.abs((await page.locator('[data-slot="map-panel"]').boundingBox())!.y - header.y)).toBeLessThan(1);
 });
 
 test("the console holds still as its tabs change: up from the bottom of a phone's screen, down from the top of a desktop's", async ({ page }) => {

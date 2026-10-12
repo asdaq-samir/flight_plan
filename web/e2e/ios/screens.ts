@@ -35,14 +35,16 @@ export const SCREENS: Screen[] = [
     },
   },
   {
-    // Half way: the route's box, the airplane, the time, Save and Print.
+    // Half way: the route's box, the airplane, the time, Approaches and
+    // Share, the figures at the card's foot.
     name: "route panel, half way",
     ready: async page => {
       await page.goto(`/app/plan?${ROUTE}&view=briefing`);
       await expect(page.getByRole("tab", { name: "Nav Log" })).toBeVisible({ timeout: slow(30000) });
       await controlsInSight(page);
-      // Save enabled, as on the map: not judged fading in.
-      await expect(page.getByTestId("save-flight-button")).toBeEnabled({ timeout: slow(30000) });
+      // The plan in, its figures whole: not judged fading in.
+      await expect(page.getByTestId("navlog-eta")).toBeVisible({ timeout: slow(30000) });
+      await expect(page.getByTestId("share-route")).toBeEnabled();
     },
   },
   {
@@ -226,9 +228,9 @@ export const SCREENS: Screen[] = [
       await page.getByTestId("depart-date").click({ timeout: slow(30000) });
       await page.locator('[data-slot="calendar"] td button').nth(20).click();
       await expect(page.getByTestId("depart-time")).toBeVisible();
-      // The plan made again for that day: Save enabled behind the sheet,
+      // The plan made again for that day, its arrival in behind the sheet:
       // not judged greyed out mid-plan.
-      await expect(page.getByTestId("save-flight-button")).toBeEnabled({ timeout: slow(120000) });
+      await expect(page.getByTestId("navlog-eta")).toBeAttached({ timeout: slow(120000) });
     },
   },
   {

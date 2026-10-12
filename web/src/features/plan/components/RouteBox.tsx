@@ -8,6 +8,7 @@ import { SortableContext, arrayMove, rectSortingStrategy, sortableKeyboardCoordi
 import { CSS } from "@dnd-kit/utilities";
 import { cn } from "cn";
 import AirportPicker, { AirportRow, PickerGroup, SearchRows } from "../../../components/AirportPicker";
+import ClearButton from "../../../components/ClearButton";
 import { CommandList } from "../../../components/ui/command";
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuShortcut, ContextMenuTrigger } from "../../../components/ui/context-menu";
 import { InputGroup } from "../../../components/ui/input-group";
@@ -254,6 +255,7 @@ export default function RouteBox({
   // of the line, so a tap anywhere after the destination types there; at
   // an arrow, a stop's width.
   const typing = (
+    <>
     <input
       ref={field} value={typed} onChange={e => setTyped(e.target.value.toUpperCase())} onKeyDown={onKeyDown}
       role="combobox" aria-expanded={open} aria-controls={listId} aria-autocomplete="list"
@@ -289,6 +291,9 @@ export default function RouteBox({
       )}
       data-testid="route-type"
     />
+    {/* What is typed cleared, the field kept, as iOS's fields clear. */}
+    {typed && <ClearButton label="Clear what is typed" onClear={() => { setTyped(""); field.current?.focus(); }} className={at === null ? "mr-1" : undefined} />}
+    </>
   );
   // An arrow between two points, a tap on it the field there; a plain
   // arrow on either side of the field once it is open.

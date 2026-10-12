@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { test, expect, type Locator, type Page } from "@playwright/test";
-import { openPanel, settle, sideDrawer, slow, openTab, openSettings, closeConsole, grabberTo, controlsInSight } from "./helpers";
+import { clearTheRoute, openPanel, settle, sideDrawer, slow, openTab, openSettings, closeConsole, grabberTo, controlsInSight } from "./helpers";
 
 /**
  * A route that lands on the way, as Maps' Add Stop: a stop added in the
@@ -64,10 +64,9 @@ test("a stop added in the panel lands the route there: the capsule, the nav log 
   await expect(fuel).toContainText("C81 → KMSN", { timeout: slow(30000) });
   await expect(fuel).toContainText("KMSN → KDLH");
 
-  // Lowered, the capsule names the route through it.
+  // Lowered, the tabs' pill, the route's figures at its foot.
   await grabberTo(page, "peek");
-  await expect(page.getByTestId("capsule-detail")).toHaveAccessibleName(/^C81 → KMSN → KDLH/);
-  await expect(page.getByTestId("capsule-title")).toHaveText(/^KDLH · \d+ nm · /);
+  await expect(sideDrawer(page).getByTestId("flight-line")).toContainText(/\d+ nm/);
 
   // Taken off again from its menu -- a right-click with a mouse, a press
   // and hold on a phone: the route as it was.
@@ -226,7 +225,7 @@ test("a cleared route's box takes the departure first, then asks for the destina
   await expect(sideDrawer(page).getByTestId("route-arrow-on")).toHaveCount(0);
   await sideDrawer(page).getByTestId("route-type").click();
   await expect(sideDrawer(page).getByTestId("route-arrow-on")).toBeVisible();
-  await sideDrawer(page).getByTestId("route-clear").click();
+  await clearTheRoute(page);
   await expect(page).not.toHaveURL(/[?&]dep=/);
   const field = sideDrawer(page).getByTestId("route-type");
   await expect(field).toHaveAttribute("placeholder", "Route");
@@ -240,7 +239,8 @@ test("a cleared route's box takes the departure first, then asks for the destina
 test("a link with a stop opens on the route through it", async ({ page }) => {
   await recordedStops(page);
   await page.goto("/app/plan?dep=C81&dest=KDLH&stops=KMSN");
-  await expect(page.getByTestId("capsule-detail")).toHaveAccessibleName(/^C81 → KMSN → KDLH/, { timeout: slow(15000) });
+  await openPanel(page);
+  await expect(sideDrawer(page).getByRole("group", { name: "Stop 1 KMSN" })).toBeVisible({ timeout: slow(15000) });
   // Its airport on the map, as the route's two ends are.
   await expect(page.locator(".leaflet-marker-icon", { hasText: "KMSN" }).first()).toBeVisible({ timeout: slow(15000) });
 });
@@ -258,8 +258,10 @@ test("a flight saved with a stop is filed with it and the altitude set there, an
     return route.fulfill({ status: 201, json: { id: 1 } });
   });
   await page.goto("/app/plan?dep=C81&dest=KDLH&stops=KMSN&altitudes=KMSN:2400&view=briefing");
-  const save = page.getByRole("button", { name: "Save this flight" });
+  const save = page.getByTestId("save-flight-button");
   await controlsInSight(page);
+  // Save, in the route's Share menu.
+  await sideDrawer(page).getByTestId("share-route").click();
   await expect(save).toBeEnabled({ timeout: slow(30000) });
   await save.click();
 
@@ -270,7 +272,7 @@ test("a flight saved with a stop is filed with it and the altitude set there, an
   expect(filed[0]!.checkpoints.filter(c => c.category === "stop").map(c => c.name)).toEqual(["KMSN"]);
 });
 
-test("the route's box is round and two lines tall beside its close and its Procedures stacked, Add stop after its destination, with no plus beside it, and Enter takes the first airport offered for what is typed", async ({ page }) => {
+test("the route's box is round, two lines tall and the panel's width, Approaches and Share under it, Add stop after its destination, with no plus beside it, and Enter takes the first airport offered for what is typed", async ({ page }) => {
   await recordedStops(page);
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
@@ -278,15 +280,18 @@ test("the route's box is round and two lines tall beside its close and its Proce
   const box = sideDrawer(page).getByTestId("route-box");
   await expect(box).toBeVisible();
   expect(await sideDrawer(page).getByTestId("add-stop").count()).toBe(0);
-  // Round as the search bar's field is, two lines tall, the route's close
-  // and its Procedures stacked beside it, the close on its first line.
+  // Round as the search bar's field is, two lines tall, the panel's width
+  // to itself, at the pilot's ask; Approaches and Share under it at the
+  // chips' row's end.
   const shape = await box.evaluate(el => ({ radius: parseFloat(getComputedStyle(el).borderTopLeftRadius), height: el.getBoundingClientRect().height }));
   expect(shape.radius).toBeGreaterThanOrEqual(20);
   expect(shape.height).toBeGreaterThanOrEqual(80);
-  const close = (await sideDrawer(page).getByTestId("route-clear").boundingBox())!;
+  const boxAt = (await box.boundingBox())!, panelAt = (await sideDrawer(page).boundingBox())!;
+  expect(panelAt.x + panelAt.width - (boxAt.x + boxAt.width)).toBeLessThanOrEqual(16);
   const procedures = (await sideDrawer(page).getByTestId("route-approaches").boundingBox())!;
-  expect(Math.abs(close.x - procedures.x)).toBeLessThanOrEqual(1);
-  expect(procedures.y).toBeGreaterThan(close.y + close.height);
+  const share = (await sideDrawer(page).getByTestId("share-route").boundingBox())!;
+  expect(procedures.y).toBeGreaterThan(boxAt.y + boxAt.height);
+  expect(share.x).toBeGreaterThan(procedures.x);
   await expect(sideDrawer(page).getByTestId("route-type")).toHaveAttribute("placeholder", "Add stop");
 
   // A town's name at the arrow: its field offered first, and Enter takes
@@ -344,7 +349,7 @@ test("a short town's name (four letters) takes the first airport shown at Enter,
   await expect(page).toHaveURL(new RegExp(`[?&]stops=${ident}(&|$)`));
 });
 
-test("a long route's box wraps its points onto two lines and scrolls down to the rest, never sideways", async ({ page }) => {
+test("a long route's box wraps its points onto lines and scrolls down to the rest, never sideways", async ({ page }) => {
   // Nothing past the course asked of the planner: the box is the claim.
   await page.route(url => /\/(checkpoints|navlog|briefing)$/.test(url.pathname), route => route.abort());
   // The most stops a route takes (MAX_STOPS): ten points.
@@ -358,15 +363,18 @@ test("a long route's box wraps its points onto two lines and scrolls down to the
     tops: [...new Set([...el.querySelectorAll("[role=group]")].map(g => Math.round(g.getBoundingClientRect().top)))].length,
   }));
   expect(box.scrollWidth).toBeLessThanOrEqual(box.clientWidth + 1);
-  expect(box.tops).toBeGreaterThanOrEqual(3);
-  // Two lines in sight and the top of a third, the rest a scroll down: the
-  // destination not whole in sight until then.
+  expect(box.tops).toBeGreaterThanOrEqual(2);
+  // Two lines in sight; where there are more (the box the panel's width
+  // since the pilot asked, ten points take two lines on most screens), the
+  // top of a third and the rest a scroll down, the destination not whole
+  // in sight until then.
   expect(box.clientHeight).toBeLessThanOrEqual(100);
-  expect(box.scrollHeight).toBeGreaterThan(box.clientHeight);
-  const destination = sideDrawer(page).getByTestId("route-dest");
-  await expect(destination).not.toBeInViewport({ ratio: 1 });
-  await lines.evaluate(el => el.scrollTo(0, el.scrollHeight));
-  await expect(destination).toBeInViewport({ ratio: 1 });
+  if (box.scrollHeight > box.clientHeight + 1) {
+    const destination = sideDrawer(page).getByTestId("route-dest");
+    await expect(destination).not.toBeInViewport({ ratio: 1 });
+    await lines.evaluate(el => el.scrollTo(0, el.scrollHeight));
+    await expect(destination).toBeInViewport({ ratio: 1 });
+  }
 
   // A pill dragged from the first line onto the second: the route flown in
   // the new order (a reorder that broke would fly it in the wrong one).

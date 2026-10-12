@@ -200,20 +200,19 @@ test("plan page: no legal altitude is the route's own problem: its chip says so 
   }));
   await page.goto("/app/plan?dep=C81&dest=KDLH");
 
-  // At rest the route says so, a red mark beside it on its one line:
+  // At rest the route says so, a red mark on its tab in the pill:
   // nothing over the map.
-  const chip = page.getByTestId("capsule-detail");
-  await expect(chip).toHaveAttribute("aria-label", /No legal altitude$/, { timeout: slow(30000) });
-  await expect(chip).toHaveAttribute("data-tone", "destructive");
+  await expect(page.getByTestId("tab-mark-fpl")).toHaveAttribute("data-finding", "stop", { timeout: slow(30000) });
+  await expect(page.getByTestId("tab-fpl")).toHaveAccessibleName(/^FPL, warning$/);
   await expect(page.locator("[data-problem-banner]")).toHaveCount(0);
   await expect(page.locator("[data-sonner-toast]", { hasText: "No legal" })).toHaveCount(0);
-  // Its mark beside where to, how far and how long, which it does not
-  // hide, at the pilot's ask: the book's time, marked "≈".
-  await expect(page.getByTestId("capsule-title")).toContainText(/^KDLH · ≈\d+ nm · ≈/);
+  // The figures at the pill's foot, which it does not hide, at the
+  // pilot's ask: the book's time, marked "≈".
+  await expect(sideDrawer(page).getByTestId("navlog-ete")).toHaveText(/^≈/);
 
-  // Its tap opens the panel: the cruising altitude's chip red, and no
-  // line under the route.
-  await chip.click();
+  // Its tab tapped opens the panel: the cruising altitude's chip red, and
+  // no line under the route.
+  await openPanel(page);
   // The figures stay, the book's marked "≈", where why stood in their
   // place in red; why is the Brief's, its Go / No-Go's altitude red.
   await expect(sideDrawer(page).getByTestId("navlog-eta-estimate")).toBeVisible();
@@ -282,9 +281,8 @@ test("plan page: Class B in the way offers the waypoint round it, or accepting t
     });
   });
   await page.goto("/app/plan?dep=C81&dest=KDLH");
-  const chip = page.getByTestId("capsule-detail");
-  await expect(chip).toHaveAttribute("aria-label", /No legal altitude$/, { timeout: slow(30000) });
-  await chip.click();
+  await expect(page.getByTestId("tab-mark-fpl")).toHaveAttribute("data-finding", "stop", { timeout: slow(30000) });
+  await openPanel(page);
   const problem = page.getByTestId("route-problem");
   const mark = page.getByTestId("altitude-why");
   await mark.click();
@@ -334,8 +332,8 @@ test("plan page: no legal altitude's own altitude field takes a tap", async ({ p
       reasons: ["The terrain and obstacles there need 10,600 ft."], advice: "Route around the high ground." }) + "\n",
   }));
   await page.goto("/app/plan?dep=C81&dest=KDLH");
-  await expect(page.getByTestId("capsule-detail")).toHaveAttribute("aria-label", /No legal altitude$/, { timeout: slow(30000) });
-  await page.getByTestId("capsule-detail").click();
+  await expect(page.getByTestId("tab-mark-fpl")).toHaveAttribute("data-finding", "stop", { timeout: slow(30000) });
+  await openPanel(page);
   await page.getByTestId("altitude-why").click();
   const field = page.getByTestId("custom-altitude");
   await expect(field).toBeVisible();

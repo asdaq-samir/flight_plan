@@ -10,10 +10,9 @@ test("plan page: a route from an airport to itself is a local flight: the field'
   // The pattern, practice approaches: it was refused, the page asking for
   // two different airports.
   await page.goto("/app/plan?dep=C81&dest=C81");
-  await expect(page.getByTestId("capsule-title")).toHaveText(/^C81 local( · .+)?$/, { timeout: slow(30000) });
   await openPanel(page);
   // Its tab where the nav log's is, up as the panel opens.
-  await expect(panelTabs(page).getByRole("tab", { name: "Local" })).toHaveAttribute("aria-selected", "true");
+  await expect(panelTabs(page).getByRole("tab", { name: "Local" })).toHaveAttribute("aria-selected", "true", { timeout: slow(30000) });
   await expect(sideDrawer(page).getByTestId("navlog-ete")).toHaveText("1h 00m", { timeout: slow(30000) });
   await expect(sideDrawer(page).locator('[data-slot="section-summary"] dt').first()).toHaveText("Aloft");
   await expect(page.getByTestId("fuel-check")).toContainText("Fuel required");

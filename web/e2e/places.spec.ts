@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { expectDrawerClosed, expectDrawerOpen, grabberTo, mapStill, openMapSettings, openPanel, settle, sideDrawer, slow, tapTheChart } from "./helpers";
+import { clearTheRoute, expectDrawerClosed, expectDrawerOpen, grabberTo, mapStill, openMapSettings, openPanel, settle, sideDrawer, slow, tapTheChart } from "./helpers";
 
 /**
  * Airports as places, as Maps has them: a tap on one on the chart opens
@@ -599,26 +599,22 @@ test("with no route the panel is a search bar: Home is set from Favorites, an ai
   await expect(page).toHaveURL(/dest=KDLH/);
   await expect(page.getByLabel("Departure", { exact: true })).toContainText("C81");
 
-  // Lowered, the route is a capsule; the route's close, in the panel,
-  // clears it -- its box, the controls and the tabs left in their places
-  // for another, what needs a route greyed -- and pressed again puts the
-  // route away for the layer under it, as Maps' directions are: the card
-  // it was flown to from. The panel the height it was throughout; the
-  // card's own close, the search.
+  // Lowered, the route rests as the tabs' pill; Clear the route, in its
+  // Share menu, clears it -- its box, the controls and the tabs left in
+  // their places for another, what needs a route greyed -- and the Airport
+  // tab is the search. The panel the height it was throughout.
   await grabberTo(page, "peek");
-  await expect(page.getByTestId("capsule-detail")).toHaveAccessibleName(/^C81 → KDLH/);
-  await page.getByTestId("capsule-detail").click();
-  await sideDrawer(page).getByTestId("route-clear").click();
+  await expect(sideDrawer(page)).toHaveAttribute("data-capsule", "true");
+  await clearTheRoute(page);
   await expect(page).not.toHaveURL(/dep=/);
   await expect(sideDrawer(page).getByTestId("route-type")).toBeVisible();
   await expect(sideDrawer(page).getByTestId("aircraft-select")).toBeEnabled();
-  await expect(sideDrawer(page).getByTestId("print-button")).toBeDisabled();
+  await sideDrawer(page).getByTestId("share-route").click();
+  await expect(page.getByTestId("print-briefing")).toHaveAttribute("aria-disabled", "true");
+  await page.keyboard.press("Escape");
   await expect(sideDrawer(page).getByTestId("panel-tab-navlog")).toBeVisible();
   await expect(sideDrawer(page)).toHaveAttribute("data-panel", "half");
-  await sideDrawer(page).getByTestId("route-clear").click();
-  await expect(card(page).getByTestId("place-name")).toHaveText("Duluth International Airport KDLH");
-  await expect(sideDrawer(page)).toHaveAttribute("data-panel", "half");
-  await card(page).getByTestId("place-close").click();
+  await page.getByTestId("tab-airport").click();
   await expect(sideDrawer(page)).toHaveAttribute("data-panel", "half");
   await expect(search).toBeVisible();
 

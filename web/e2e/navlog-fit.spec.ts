@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { controlsInSight, openTab, settle, sideDrawer, slow } from "./helpers";
+import { controlsInSight, openPanel, openTab, settle, sideDrawer, slow } from "./helpers";
 
 /**
  * The nav log fits a phone's panel, with a departure time's ETA as its
@@ -76,9 +76,8 @@ test("a long trip's figures are set smaller to fit the strip, not cut short", as
     ].map(m => JSON.stringify(m)).join("\n") + "\n",
   }));
   await page.goto("/app/plan?dep=C81&dest=KLAS");
-  const chip = page.getByTestId("capsule-detail");
-  await expect(chip).toHaveAttribute("aria-label", /No legal altitude$/, { timeout: slow(30000) });
-  await chip.click();
+  await openPanel(page);
+  await expect(sideDrawer(page).getByTestId("altitude-why")).toHaveAccessibleName(/no legal altitude/, { timeout: slow(30000) });
   await expect(sideDrawer(page).getByTestId("navlog-ete")).toHaveText(/^≈/);
   const figures = sideDrawer(page).locator('[data-tip="flight-line"] dd');
   await expect(figures.first()).toHaveText(/^1\d{3}(\.\d)? nm$/);

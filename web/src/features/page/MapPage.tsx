@@ -327,14 +327,18 @@ export default function MapPage({ mode }: { mode: Mode }) {
             </MapInsetsContext.Provider>
           </main>
           {consoleOf(pieces)}
-          {/* On the planner's search bar, under the route's close with the
-              panel out, and at the end of either page's route capsule. */}
-          <ConsoleButtonContext.Provider value={settingsButton}>
+          {/* At the end of the training page's route capsule. Not on the
+              planner's, whose tab bar has Settings as a tab of its own, at
+              the pilot's ask: each card has its search bar the whole width. */}
+          <ConsoleButtonContext.Provider value={pieces.bar ? null : settingsButton}>
           <MapPanel
             label={consoleLayer ? consoleLabel : panelLabel} controls={pieces.alone || consoleLayer ? undefined : pieces.controls}
             figures={pieces.alone || consoleLayer ? undefined : pieces.figures}
             state={panel} onStateChange={setPanel} onInsetsChange={changeInsets}
-            compact={pieces.compact} toEdge={!consoleLayer && !!pieces.toEdge} bar={pieces.bar}
+            // The console's layer (Settings, a tab) has no pill: under the
+            // tab bar, its own header and tabs.
+            compact={consoleLayer ? undefined : pieces.compact} toEdge={!consoleLayer && !!pieces.toEdge}
+            bar={pieces.bar} barAlone={consoleLayer} foot={pieces.foot}
             top={pieces.alone || consoleLayer ? null : pieces.head ?? (
               <>
                 <div className="min-w-0 flex-1">

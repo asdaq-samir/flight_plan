@@ -8,7 +8,6 @@ import {
   GLASS, GLASS_FILL, GLASS_SHEET, GLASS_SHEET_FULL, MATERIAL, PanelHalfContext, SHEET_INSET, SHEET_INSET_RADIUS, SHEET_MARGIN, SHEET_RESHAPE,
   SHEET_SETTLE, type MapInsets, type PanelState,
 } from "./mapChrome";
-import { TAB_BAR } from "./TabBar";
 
 interface Props {
   /** The panel's name -- "Flight Planning", "Model Training" -- for its
@@ -26,15 +25,22 @@ interface Props {
   figures?: ReactNode;
   /** What the panel holds at rest, in place of the route's row and the
    *  controls: a capsule floating over the chart, as Maps' is -- the
-   *  route with a way to its options, or a search bar while there is no
-   *  route. Without it the panel rests with its head in sight. */
+   *  training route with a way to its options. With a tab bar the capsule
+   *  is the bar alone (`bar`). Without either the panel rests with its
+   *  head in sight. */
   compact?: ReactNode;
   /** The body: the nav log and the briefing, the training list. */
   children: ReactNode;
-  /** The planner's tab bar (TabBar): on a phone's sheet from the bottom,
-   *  fixed along the screen's bottom with the sheet above it, as an iOS
-   *  tab bar; elsewhere the panel's first row. */
+  /** The planner's tab bar (TabBar): the panel's first row over the
+   *  sheet, and at rest the pill itself, on a phone as on a larger screen. */
   bar?: ReactNode;
+  /** The bar shown with no top row under it: the console's layer, the
+   *  Settings tab's, which has no head of its own. */
+  barAlone?: boolean;
+  /** Pinned at the card's foot at every height, the pill too: the
+   *  route's figures, at the pilot's ask, on every tab while there is a
+   *  route. Its height is added to each detent. */
+  foot?: ReactNode;
   /** The body down to the sheet's own edge, over the home indicator's
    *  inset, where the rest of the way is kept clear for every other
    *  panel: an airport's card, its tiles and tabs at its foot (PlaceCard),
@@ -116,7 +122,7 @@ const RANK: Record<PanelState, number> = { peek: 0, half: 1, full: 2 };
  * drawer that never closes held the keyboard's focus inside itself and
  * hid the map, and any dialog opened before it, from a screen reader.
  */
-export default function MapPanel({ label, top, controls, figures, compact, children, state, onStateChange, onInsetsChange, toEdge = false, bar }: Props) {
+export default function MapPanel({ label, top, controls, figures, compact, children, state, onStateChange, onInsetsChange, toEdge = false, bar, barAlone = false, foot }: Props) {
   const onPhone = useIsMobile();
   const edge = useNavEdge();
   const safe = useSafeArea();
@@ -128,14 +134,19 @@ export default function MapPanel({ label, top, controls, figures, compact, child
   const keyboard = useKeyboardInset();
   const visualHeight = useVisualHeight();
   const fromBottom = edge === "bottom";
-  // The tab bar along a phone's bottom, over the home indicator's inset:
-  // the sheet stands on it, as an app's sheet stands on its tab bar. Gone
-  // with the keyboard up, as iOS's is.
-  const barBelow = !!bar && onPhone && !keyboard;
-  const barSpace = barBelow ? TAB_BAR + Math.round(safe.bottom) : 0;
-  // What the bar takes from a sheet from the bottom, which stands on it;
-  // a sheet from the top keeps its own height, the bar under the map.
-  const barUnder = fromBottom ? barSpace : 0;
+  // The tab bar as the panel's first row, at rest over the pill as all
+  // the way up, on a phone held upright as on its side, at the pilot's
+  // ask: it was along the screen's bottom with the sheet standing on it.
+  // Not over a card alone (no top row), which covers the tab it was
+  // opened from as it does its head; and gone with the keyboard up, as
+  // iOS's is.
+  // At rest a pill floating over the chart, as Maps' is: with a tab bar
+  // the bar alone, at the pilot's ask -- no search bar or route under it
+  // (a tab tapped there is the tab's, at the pill's height; the tab up
+  // tapped, or the pill dragged, opens it) -- else the capsule's own
+  // content (`compact`).
+  const pillOfTabs = !!bar;
+  const hasPill = pillOfTabs || !!compact;
 
   // The head's own height decides the lowest detent: the top row and the
   // controls in sight, with the grabber. Measured, since a notice or the
@@ -161,6 +172,20 @@ export default function MapPanel({ label, top, controls, figures, compact, child
     observer.observe(head);
     return () => observer.disconnect();
   }, [head]);
+  // The foot's height, measured as the head's is, added to every detent.
+  const [footNode, setFootNode] = useState<HTMLDivElement | null>(null);
+  const [footMeasured, setFootMeasured] = useState(0);
+  const setFoot = useCallback((node: HTMLDivElement | null) => {
+    setFootNode(node);
+    if (node) setFootMeasured(node.offsetHeight);
+  }, []);
+  useEffect(() => {
+    if (!footNode) return;
+    const observer = new ResizeObserver(() => setFootMeasured(footNode.offsetHeight));
+    observer.observe(footNode);
+    return () => observer.disconnect();
+  }, [footNode]);
+  const footHeight = foot ? footMeasured : 0;
   // How tall it can be: a phone's sheet stops eight points short of the
   // far edge's inset (the status bar, the home indicator), as Maps' does;
   // a card keeps a margin at both ends.
@@ -171,12 +196,12 @@ export default function MapPanel({ label, top, controls, figures, compact, child
   const room = keyboard || visualHeight < windowHeight - 1
     ? visualHeight - Math.round(safe.top) - SHEET_MARGIN
     : onPhone
-      ? windowHeight - Math.round(fromBottom ? safe.top : safe.bottom) - SHEET_MARGIN - barUnder
+      ? windowHeight - Math.round(fromBottom ? safe.top : safe.bottom) - SHEET_MARGIN
       : windowHeight - Math.max(SHEET_MARGIN, Math.round(safe.top)) - Math.max(SHEET_MARGIN, Math.round(safe.bottom));
   // A phone's sheet from the bottom runs on to the screen's edge, under
   // the home indicator (or eight points where there is none), so its
   // content sits clear of it -- or on to the keyboard, with it up.
-  const edgeInset = onPhone && fromBottom && !keyboard && !barUnder ? Math.max(Math.round(safe.bottom), SHEET_MARGIN) : 0;
+  const edgeInset = onPhone && fromBottom && !keyboard ? Math.max(Math.round(safe.bottom), SHEET_MARGIN) : 0;
   // A drag (below) that is under way, and the capsule's height when one
   // last started from it: 41 points of field, nine over it and twelve
   // under it, until then.
@@ -185,7 +210,10 @@ export default function MapPanel({ label, top, controls, figures, compact, child
   // At rest with a capsule to show, it floats clear of the screen's
   // edges as Maps' does: in from the sides, above the home indicator
   // (into its inset a little, as Maps sits) or under the status bar.
-  const capsule = !!compact && state === "peek" && dragged === null;
+  const capsule = hasPill && state === "peek" && dragged === null;
+  // The bar shown: over the pill, the sheet's head, or the console's layer
+  // with no head of its own (`barAlone`).
+  const barShown = !!bar && (capsule || top != null || barAlone) && !(onPhone && keyboard);
   // All the way up and settled, the head is the figures alone (`figures`);
   // what is measured of it for the lowest detent, the half and the half's
   // body is the head as it is at half, kept from when it last was.
@@ -193,15 +221,15 @@ export default function MapPanel({ label, top, controls, figures, compact, child
   const [halfHead, setHalfHead] = useState(headHeight);
   if (!figuresOnly && halfHead !== headHeight) setHalfHead(headHeight);
   const steadyHead = figuresOnly ? halfHead : headHeight;
-  const capsuleGap = barUnder ? SHEET_MARGIN : fromBottom ? Math.max(12, Math.round(safe.bottom) - 6) : Math.round(safe.top) + SHEET_MARGIN;
+  const capsuleGap = fromBottom ? Math.max(12, Math.round(safe.bottom) - 6) : Math.round(safe.top) + SHEET_MARGIN;
   // The capsule is its head alone, the grabber over its padding.
-  const peek = capsule ? headHeight : Math.round(steadyHead + (fromBottom ? edgeInset : GRABBER));
+  const peek = (capsule ? headHeight : Math.round(steadyHead + (fromBottom ? edgeInset : GRABBER))) + footHeight;
   // The capsule's height, kept while it rests, for the lowest detent once
   // it is the sheet: dragged, the sheet's head is measured where the
   // capsule's was, and the lowest detent came out as tall as the half
   // that ends at the head -- so a drag let go at the separator went back
   // down to the capsule, the two being one height and the lowest first.
-  if (capsule && capsuleHeight !== headHeight) setCapsuleHeight(headHeight);
+  if (capsule && capsuleHeight !== headHeight + footHeight) setCapsuleHeight(headHeight + footHeight);
   // One half height for every panel, at the pilot's ask: the route's --
   // its box, the controls, the flight's line and the tabs' bar, the tabs'
   // contents above it -- and the search's (its Favorites, the Recents
@@ -237,14 +265,14 @@ export default function MapPanel({ label, top, controls, figures, compact, child
   const halfChrome = fromBottom ? Math.max(0, edgeInset - SHEET_INSET) : GRABBER;
   const detents = useMemo<Record<PanelState, number>>(() => {
     const full = Math.max(peek, room);
-    const half = Math.max(peek, (routeHead ?? Math.round(ROUTE_HEAD_REM * rootPx())) + halfChrome);
-    const lowest = compact && !capsule ? Math.min(capsuleHeight, peek) : peek;
+    const half = Math.max(peek, (routeHead ?? Math.round(ROUTE_HEAD_REM * rootPx())) + halfChrome + footHeight);
+    const lowest = hasPill && !capsule ? Math.min(capsuleHeight, peek) : peek;
     return { peek: lowest, half: Math.min(half, full), full };
-  }, [peek, room, routeHead, halfChrome, compact, capsule, capsuleHeight]);
+  }, [peek, room, routeHead, halfChrome, footHeight, hasPill, capsule, capsuleHeight]);
   // The body's height at half, for what it shows first to fill and no
   // more (--half-body): the search's Favorites, an airport's name and
   // actions.
-  const halfBody = Math.max(0, detents.half - steadyHead - halfChrome);
+  const halfBody = Math.max(0, detents.half - steadyHead - halfChrome - footHeight);
   // Where the panel's top-right button sits -- the search's gear, the
   // route's close, an airport's or the airspace's card's close -- one
   // place in every panel, at the pilot's ask, so a finger or a pointer
@@ -273,7 +301,7 @@ export default function MapPanel({ label, top, controls, figures, compact, child
   const nearFull = shown >= (detents.half + detents.full) / 2;
   const shape: "capsule" | "inset" | "edge" = capsule ? "capsule" : nearFull ? "edge" : "inset";
   const geometry = {
-    capsule: { side: CAPSULE_INSET, gap: capsuleGap, radius: `${headHeight / 2}px` },
+    capsule: { side: CAPSULE_INSET, gap: capsuleGap, radius: `${(headHeight + footHeight) / 2}px` },
     inset: { side: SHEET_INSET, gap: SHEET_INSET, radius: `${SHEET_INSET_RADIUS}px` },
     edge: {
       side: 0, gap: 0,
@@ -286,7 +314,7 @@ export default function MapPanel({ label, top, controls, figures, compact, child
   // glass gave way to an opaque fill for as long as the finger was down.
   // And back: a sheet dragged down to the capsule's height turns into it
   // on the way, rather than at the release.
-  const morphing = !!compact && dragged !== null;
+  const morphing = hasPill && dragged !== null;
   const morph = capsule ? 0 : morphing ? Math.min(1, Math.max(0, (dragged - capsuleHeight) / MORPH)) : 1;
   if (morphing && morph < 1 && shape === "inset") {
     geometry.side = between(CAPSULE_INSET, SHEET_INSET, morph);
@@ -295,19 +323,19 @@ export default function MapPanel({ label, top, controls, figures, compact, child
   }
   // The way on from the body to the screen's edge, under the home
   // indicator: kept clear below the body, or the body's own (toEdge).
-  const foot = Math.max(0, edgeInset - geometry.gap);
+  const edgeRoom = Math.max(0, edgeInset - geometry.gap);
   // The glass the whole way, its fill following the height: the capsule's,
   // the half sheet's, nearly whole all the way up (GLASS_FILL).
   const fill = morph < 1 ? between(GLASS_FILL.capsule, GLASS_FILL.half, morph)
     : between(GLASS_FILL.half, GLASS_FILL.full, Math.min(1, Math.max(0, (shown - detents.half) / Math.max(1, detents.full - detents.half))));
   // While it turns, the capsule's own content fades out over the sheet's
   // head as that fades in -- unless the two are one (the search bar).
-  const crossFade = morphing && morph < 1 && compact !== top;
+  const crossFade = morphing && morph < 1 && !pillOfTabs && compact !== top;
   const { startDrag: drag, swallow, body: dragBody } = useDetentDrag({
     detents, shown, fromBottom, onRelease: onStateChange, setDragged,
     // Down to the capsule's own height, which is less than the sheet's
     // lowest detent: its head alone, no controls.
-    floor: compact ? capsuleHeight : undefined,
+    floor: hasPill ? capsuleHeight : undefined,
   });
   const startDrag = (event: Parameters<typeof drag>[0]) => {
     if (capsule) setCapsuleHeight(shown);
@@ -322,14 +350,14 @@ export default function MapPanel({ label, top, controls, figures, compact, child
   // out, or the corner it rests in while it is not. Not while dragged:
   // the map refits once the panel settles (MapShell).
   const expanded = state !== "peek";
-  const coveredOnPhone = (expanded ? detents.half + SHEET_INSET : peek + (capsule ? capsuleGap : 0)) + barUnder;
+  const coveredOnPhone = expanded ? detents.half + SHEET_INSET : peek + (capsule ? capsuleGap : 0);
   useEffect(() => {
     if (!onPhone && expanded) onInsetsChange({ top: 0, bottom: 0, left: 16 + CARD, out: true });
     else {
       const strip = onPhone ? coveredOnPhone : peek + SHEET_MARGIN;
-      onInsetsChange(fromBottom ? { top: 0, bottom: strip, left: 0, out: expanded } : { top: strip, bottom: barSpace, left: 0, out: expanded });
+      onInsetsChange(fromBottom ? { top: 0, bottom: strip, left: 0, out: expanded } : { top: strip, bottom: 0, left: 0, out: expanded });
     }
-  }, [peek, onPhone, expanded, fromBottom, coveredOnPhone, barSpace, onInsetsChange]);
+  }, [peek, onPhone, expanded, fromBottom, coveredOnPhone, onInsetsChange]);
 
   // Escape lowers it, pressed anywhere in it -- but not in a menu or a
   // list it opened, which is a portal outside it and closes first.
@@ -429,9 +457,9 @@ export default function MapPanel({ label, top, controls, figures, compact, child
         ...(onPhone && dragged !== null ? { "--glass-fill": `${fill}%` } : {}),
         ...(onPhone ? {
           left: geometry.side, right: geometry.side,
-          ...(fromBottom ? { bottom: keyboard && !capsule ? keyboard + geometry.gap : geometry.gap + barUnder } : { top: geometry.gap }),
+          ...(fromBottom ? { bottom: keyboard && !capsule ? keyboard + geometry.gap : geometry.gap } : { top: geometry.gap }),
           borderRadius: geometry.radius,
-        } : capsule ? { borderRadius: headHeight / 2 } : {}),
+        } : capsule ? { borderRadius: (headHeight + footHeight) / 2 } : {}),
       }}
       className={cn(
         // Clipped rather than hidden: a hidden overflow can still be
@@ -454,57 +482,67 @@ export default function MapPanel({ label, top, controls, figures, compact, child
       {/* The head, dragged as the grabber is: the grabber first on a sheet
           from the bottom, the top row, any notice, the controls -- or, at
           rest, the capsule, its grabber on its far edge from the top. */}
-      {crossFade && (
-        <div aria-hidden="true" inert className="pointer-events-none absolute inset-x-0 top-0 z-10 p-[9px]" style={{ opacity: 1 - morph }}>
-          {compact}
-        </div>
-      )}
       <div ref={setHead} className="relative flex shrink-0 touch-none flex-col" onPointerDown={startDrag}>
         {fromBottom && grabber}
-        <div className="flex flex-col" style={crossFade ? { opacity: morph } : undefined}>
-        {/* The tab bar as the head's first row where it is not along a
-            phone's bottom -- a card at the side, a sheet from the top --
-            measured with the head, so every height still fits it. */}
-        {/* Not over a card alone (no top row), which covers the tab it
-            was opened from, as it does its head. */}
-        {bar && !barBelow && top != null && !(onPhone && keyboard) && (
+        <div className="flex flex-col">
+        {/* The tab bar as the head's first row (barShown), measured with
+            the head, so every height still fits it: over the pill as over
+            the sheet, and not faded with the head as the one turns into
+            the other. */}
+        {barShown && (
           <div
-            className={cn("flex h-12 shrink-0 border-b border-border/60 px-2", !fromBottom && onPhone && "h-auto pt-[env(safe-area-inset-top)]")}
+            className={cn(
+              "flex h-12 shrink-0 px-2",
+              // The pill's whole, its line under it only over a head.
+              capsule ? cn(fromBottom ? "mt-1.5 mb-1" : "mt-1 mb-1.5") : "border-b border-border/60",
+              !fromBottom && onPhone && !capsule && "h-auto pt-[env(safe-area-inset-top)]",
+            )}
             onPointerDown={event => event.stopPropagation()}
           >{bar}</div>
         )}
+        <div className="relative flex flex-col">
+        {crossFade && (
+          <div aria-hidden="true" inert className="pointer-events-none absolute inset-x-0 top-0 z-10 p-[9px]" style={{ opacity: 1 - morph }}>
+            {compact}
+          </div>
+        )}
+        <div className="flex flex-col" style={crossFade ? { opacity: morph } : undefined}>
         {/* One header in both shapes, so what the capsule and the sheet
             both show -- the search bar -- stays the same element as the
             one turns into the other, focus and keyboard and all. From
             the top of a phone's screen the sheet's starts under the
             status bar or the island. */}
-        <header
-          className={cn(
-            "@container flex items-center gap-2 print:hidden",
-            // The same glass all round from either edge, and the same size,
-            // at the pilot's ask: from the top it was twelve points taller.
-            // Twelve on the side away from the grabber and nine on the
-            // grabber's -- mirrored, from the top -- so a route's chip's
-            // 44-point hit area (index.css) stays in the capsule, which
-            // clips what is past its edge; the search bar's the same, so
-            // the pill is one height whatever it holds, at the pilot's ask.
-            capsule ? cn("p-[9px]", fromBottom ? "pb-3" : "pt-3")
-              // No top row (a place's card alone): only the room the status
-              // bar takes from the top of a phone's screen.
-              : top == null ? (!fromBottom && onPhone ? "pt-[env(safe-area-inset-top)]" : undefined)
-                // Four under the grabber from the bottom: the band over the
-                // route's box was 36 points, thick beside Maps' 20.
-                : cn("px-3 pb-1", fromBottom ? "pt-1" : onPhone ? "pt-[max(0.5rem,env(safe-area-inset-top))]" : "pt-2"),
-          )}
-        >
-          {capsule ? compact : figuresOnly ? figures : top}
-        </header>
+        {!(capsule && pillOfTabs) && (
+          <header
+            className={cn(
+              "@container flex items-center gap-2 print:hidden",
+              // The same glass all round from either edge, and the same size,
+              // at the pilot's ask: from the top it was twelve points taller.
+              // Twelve on the side away from the grabber and nine on the
+              // grabber's -- mirrored, from the top -- so a route's chip's
+              // 44-point hit area (index.css) stays in the capsule, which
+              // clips what is past its edge; the search bar's the same, so
+              // the pill is one height whatever it holds, at the pilot's ask.
+              capsule ? cn("p-[9px]", fromBottom ? "pb-3" : "pt-3")
+                // No top row (a place's card alone): only the room the status
+                // bar takes from the top of a phone's screen.
+                : top == null ? (!fromBottom && onPhone ? "pt-[env(safe-area-inset-top)]" : undefined)
+                  // Four under the grabber from the bottom: the band over the
+                  // route's box was 36 points, thick beside Maps' 20.
+                  : cn("px-3 pb-1", fromBottom ? "pt-1" : onPhone ? "pt-[max(0.5rem,env(safe-area-inset-top))]" : "pt-2"),
+            )}
+          >
+            {capsule ? compact : figuresOnly ? figures : top}
+          </header>
+        )}
         {!capsule && !figuresOnly && controls && (
           // Wrapped onto two lines (a 320-point Slide Over), the two
           // twelve apart, and twelve and more under the top row, so their
           // hit areas (index.css) meet rather than overlap.
           <div className={cn("flex flex-wrap items-center gap-x-2 gap-y-3 px-3 pt-3 print:hidden", fromBottom ? "pb-2.5" : "pb-5")}>{controls}</div>
         )}
+        </div>
+        </div>
         </div>
         {capsule && !fromBottom && grabber}
       </div>
@@ -524,25 +562,26 @@ export default function MapPanel({ label, top, controls, figures, compact, child
       >
         <PanelHalfContext.Provider value={setTabsAt}>{children}</PanelHalfContext.Provider>
       </div>
+      {/* The route's figures, pinned at the card's foot at every height
+          (`foot`): over the home indicator's room where the body runs to
+          the edge (toEdge), which then runs to the figures. */}
+      {foot && (
+        <div
+          ref={setFoot}
+          className={cn("shrink-0 px-4 pt-2 print:hidden", capsule ? "pb-3" : "border-t border-border/60 pb-2.5")}
+          style={toEdge && !capsule && fromBottom ? { paddingBottom: Math.max(10, edgeRoom) } : undefined}
+          data-testid="panel-foot"
+        >{foot}</div>
+      )}
       {/* The grabber last on a sheet from the top. */}
       {!fromBottom && !capsule && grabber}
       {/* The rest of the way to the screen's edge, under the home
           indicator, below the body -- in the body where it runs to the
           edge (toEdge). */}
-      {foot > 0 && !toEdge && !capsule && (
-        <div className="shrink-0" style={{ height: foot }} aria-hidden="true" />
+      {edgeRoom > 0 && !toEdge && !capsule && (
+        <div className="shrink-0" style={{ height: edgeRoom }} aria-hidden="true" />
       )}
     </section>
-    {barBelow && (
-      // Liquid Glass along the screen's bottom, the home indicator's inset
-      // under its buttons, over the map and under the sheet's own shadow.
-      <div
-        className={cn("fixed inset-x-0 bottom-0 z-40 flex flex-col", GLASS_SHEET_FULL)}
-        style={{ height: barSpace, paddingBottom: Math.round(safe.bottom) }}
-      >
-        <div className="flex px-2" style={{ height: TAB_BAR }}>{bar}</div>
-      </div>
-    )}
     </>
   );
 }
