@@ -1,4 +1,4 @@
-import { Suspense, lazy, memo, useMemo, useState } from "react";
+import { Suspense, lazy, memo, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Gauge, MoveVertical, Pause, Play, PlaneLanding, PlaneTakeoff, Route, Square, Timer } from "lucide-react";
 import { cn } from "cn";
@@ -132,6 +132,8 @@ function Replay() {
 function ReplayChart({ points }: { points: PastFlightPoint[] }) {
   const second = usePastFlight(s => (s.at === null ? null : Math.floor(s.at)));
   const here = second === null ? null : positionAt(points, second);
+  const box = useRef<HTMLDivElement>(null);
+  const height = useHalfFit(box);
   return (
     <div className="px-1 pt-1 pb-2" data-testid="track-log-chart">
       <p className={cn("flex justify-between px-3 pb-1 tabular-nums", TEXT.detail)}>
@@ -146,15 +148,55 @@ function ReplayChart({ points }: { points: PastFlightPoint[] }) {
       {/* Its own chunk, recharts with it: this card was imported by the
           planner's page, so the chart had come with the first load (350 KB
           of 1.32 MB, measured). The space it takes is kept while it loads. */}
-      <Suspense fallback={<div className="h-28" />}>
-        <FlightChart points={points} at={second} />
-      </Suspense>
+      <div ref={box} className={height === null ? "h-28" : undefined} style={height === null ? undefined : { height }} data-testid="replay-chart-box">
+        <Suspense fallback={<div className="h-full" />}>
+          <FlightChart points={points} at={second} />
+        </Suspense>
+      </div>
     </div>
   );
 }
 
 
 const FlightChart = lazy(() => import("./PastFlightChart"));
+
+/** The graph's height bounds, px: under 72 its axis and line crowd each
+ *  other; over 160 it only pushes the figures further down. */
+const CHART_MIN = 72;
+const CHART_MAX = 160;
+/** What the replay's group keeps under the graph, px (its pb-2). */
+const UNDER_CHART = 8;
+
+/**
+ * The graph's height, so that it ends where the half sheet's body does
+ * (MapPanel's --half-body: the body's height at half, the route's figures
+ * at the panel's foot left out), at the owner's ask: at half, with the tab
+ * bar and the figures over and under the card, its time axis was cut off.
+ * From where the graph starts in the body, not from guessed heights of
+ * what is above it, which change with the text size. Measured by a
+ * ResizeObserver, on the body and the card -- never in the middle of a
+ * render; null until then, and where the sheet gives no half.
+ */
+function useHalfFit(box: RefObject<HTMLDivElement | null>): number | null {
+  const [height, setHeight] = useState<number | null>(null);
+  useEffect(() => {
+    const el = box.current;
+    const body = el?.closest<HTMLElement>("[data-panel-body]");
+    if (!el || !body) return;
+    const fit = () => {
+      const half = parseFloat(getComputedStyle(el).getPropertyValue("--half-body"));
+      if (!(half > 0)) return setHeight(null);
+      const top = el.getBoundingClientRect().top - body.getBoundingClientRect().top + body.scrollTop;
+      setHeight(Math.round(Math.min(CHART_MAX, Math.max(CHART_MIN, half - top - UNDER_CHART))));
+    };
+    const watch = new ResizeObserver(fit);
+    watch.observe(body);
+    const card = el.closest("[data-testid='past-flight-card']");
+    if (card) watch.observe(card);
+    return () => watch.disconnect();
+  }, [box]);
+  return height;
+}
 
 /** Each report of the flight, as FlightAware's Track Log, in the figures a
  *  pilot uses (feet, knots, degrees, feet a minute). */

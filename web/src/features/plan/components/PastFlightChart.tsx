@@ -19,7 +19,7 @@ const chartConfig = {
 const FlightChart = memo(function FlightChart({ points, at }: { points: PastFlightPoint[]; at: number | null }) {
   const data = useMemo(() => points.map(p => ({ t: p.t, alt: p.alt_ft ?? 0, kt: p.gs_kt ?? null })), [points]);
   return (
-    <ChartContainer config={chartConfig} className="aspect-auto h-28 w-full">
+    <ChartContainer config={chartConfig} className="aspect-auto h-full w-full">
       <ComposedChart data={data} margin={{ left: 0, right: 0, top: 4, bottom: 0 }}>
         <XAxis dataKey="t" type="number" domain={["dataMin", "dataMax"]} tickLine={false} axisLine={false} minTickGap={32}
           tickFormatter={(t: number) => clockTime(when(t))} />

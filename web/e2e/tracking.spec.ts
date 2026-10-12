@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { settle, slow } from "./helpers";
+import { grabberTo, settle, sideDrawer, slow } from "./helpers";
 
 /**
  * Tracking an airplane, as FlightAware and ForeFlight do, at the pilot's
@@ -271,6 +271,19 @@ test("an airplane's past flights are listed on its card, and one is drawn on the
   await expect(flight.getByTestId("past-flight-on")).toContainText("LWM");
   await expect(flight.getByTestId("past-flight-flown")).toContainText(/\d+ nm/);
   await expect(page.locator("path.past-flight-path").first()).toBeAttached({ timeout: slow(10_000) });
+  // At half, the controls and the whole graph, its time axis too, above
+  // where the half sheet's body ends (--half-body), the route's figures and
+  // the tab bar round it: the axis was cut there on the owner's phone.
+  await grabberTo(page, "half");
+  const body = sideDrawer(page).locator("[data-panel-body]");
+  await expect.poll(async () => {
+    const half = await body.evaluate(el => parseFloat(getComputedStyle(el).getPropertyValue("--half-body")));
+    const [b, chart] = [(await body.boundingBox())!, (await flight.getByTestId("replay-chart-box").boundingBox())!];
+    return chart.height >= 72 && chart.y + chart.height <= b.y + half + 1;
+  }).toBe(true);
+  // The graph drawn to its box, axis and all.
+  await expect.poll(async () => (await flight.getByTestId("replay-chart-box").locator("svg.recharts-surface").boundingBox())?.height)
+    .toBeGreaterThanOrEqual(72);
   await expect(flight.getByTestId("track-log").locator("tbody tr")).toHaveCount(60);
   await flight.getByTestId("track-log-all").click();
   await expect(flight.getByTestId("track-log").locator("tbody tr")).toHaveCount(80);
