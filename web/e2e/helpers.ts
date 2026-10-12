@@ -361,6 +361,10 @@ export const sectionTab = (page: Page, title: string) =>
  *  where the tab has more than one. */
 export async function openSection(page: Page, title: string) {
   const pill = sectionTab(page, title);
+  // A tab's pills come with its sections, some a moment after the rest
+  // (the Brief's Mock Oral): a few seconds for it before taking the tab
+  // to have a single section, with no pills at all.
+  await pill.waitFor({ timeout: 5000 }).catch(() => undefined);
   if (!(await pill.count())) return;
   if ((await pill.getAttribute("aria-pressed")) !== "true") await pill.click();
   await expect(pill).toHaveAttribute("aria-pressed", "true");

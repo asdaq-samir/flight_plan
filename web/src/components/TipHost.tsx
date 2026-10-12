@@ -6,8 +6,12 @@ import { Popover, PopoverAnchor, PopoverContent } from "./ui/popover";
 import { TEXT } from "../lib/text";
 import { TIPS, unseen, useTips, type TipSpec } from "../lib/tips";
 
-/** In sight and not under anything: the point at its middle is its own. */
+/** In sight and not under anything: the point at its middle is its own.
+ *  Not in the panel at rest: there the pill is the tab bar and a strip
+ *  under it, and a tip over the strip (the route's figures') covered the
+ *  tabs -- a tip waits for the panel to be up. */
 function inSight(el: Element): boolean {
+  if (el.closest("[data-capsule]")) return false;
   const r = el.getBoundingClientRect();
   if (r.width < 2 || r.height < 2 || r.bottom <= 0 || r.right <= 0 || r.top >= innerHeight || r.left >= innerWidth) return false;
   if (el.closest("[hidden], [inert], [aria-hidden='true']")) return false;
