@@ -19,7 +19,7 @@ export const DATA_SOURCES = [
   "aviationweather.gov METARs, TAFs and SIGMETs",
   "adsb.lol ADS-B traffic, under the Open Database License (ODbL 1.0)",
   "FAA aircraft registry, for an airplane's registration and type",
-  "OpenStreetMap, for checkpoint candidates",
+  "Checkpoints found on the FAA sectional itself, ranked by the planner's own chart model",
 ];
 
 /** The first-launch acknowledgement, remembered on this device. */

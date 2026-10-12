@@ -1,4 +1,4 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect, type Locator, type Page } from "@playwright/test";
 import { grabberTo, settle, sideDrawer } from "./helpers";
 
 /**
@@ -29,9 +29,21 @@ async function seed(page: Page) {
 }
 
 /** A swipe to the left, as the browser's own scrolling takes it: the row's scroller to its end. */
-async function swipeLeft(row: ReturnType<Page["locator"]>) {
+async function swipeLeft(row: Locator) {
   await row.evaluate(el => el.scrollTo({ left: el.scrollWidth }));
   await expect.poll(() => row.evaluate(el => el.scrollLeft)).toBeGreaterThan(40);
+}
+
+/** A box once it has stopped moving: two reads a frame apart that agree. */
+async function settledBox(locator: Locator) {
+  let last = (await locator.boundingBox())!;
+  await expect.poll(async () => {
+    const now = (await locator.boundingBox())!;
+    const still = Math.abs(now.x - last.x) < 0.01 && Math.abs(now.width - last.width) < 0.01;
+    last = now;
+    return still;
+  }, { intervals: [50] }).toBe(true);
+  return last;
 }
 
 test("a swipe to the left uncovers a Delete that takes an airport off the Recents, and Clear takes them all", async ({ page }) => {
@@ -49,7 +61,9 @@ test("a swipe to the left uncovers a Delete that takes an airport off the Recent
   const hidden = (await first.getByTestId("swipe-delete").boundingBox())!;
   expect(hidden.x).toBeGreaterThanOrEqual(box.x + box.width - 1);
   await swipeLeft(first);
-  const shown = (await first.getByTestId("swipe-delete").boundingBox())!;
+  // Measured once the snap has settled: still moving, it was a fraction
+  // of a pixel past the row's edge.
+  const shown = await settledBox(first.getByTestId("swipe-delete"));
   expect(shown.x + shown.width).toBeLessThanOrEqual(box.x + box.width + 1);
   // As high as the row, so the 44 points are the row's.
   expect(shown.height).toBeGreaterThanOrEqual(44);
