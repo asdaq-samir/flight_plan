@@ -208,7 +208,15 @@ app:
   # about $0.90 on Opus at the cap); and the addresses given it without
   # paying, comma-separated (an instructor, a tester). A developer always
   # has it, uncounted.
+  # Whether this deployment sells the subscription at all: off for the
+  # proof of concept, at the owner's ask -- the page then says nothing of
+  # it, the debrief is everyone's, and the features Claude writes are
+  # claude-features' (OFF, DEVELOPERS or EVERYONE, each within the caps).
+  # Every pilot with an account has them for now, at the owner's ask
+  # ("I can offer the AI features to users with an account, no revenue").
+  claude-features: ${APP_CLAUDE_FEATURES:EVERYONE}
   subscription:
+    enabled: ${APP_SUBSCRIPTION_ENABLED:false}
     trial-days: ${APP_SUBSCRIPTION_TRIAL_DAYS:30}
     caps:
       narrative: ${APP_SUBSCRIPTION_CAP_NARRATIVE:60}

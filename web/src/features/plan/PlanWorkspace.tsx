@@ -1244,7 +1244,9 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // A flag, not the entitlement, which is a new object at every render:
   // the nav log below is drawn again only when this changes.
   const entitlement = useEntitlement();
-  const paywalled = !mayUse(entitlement) && entitlement.kind !== "loading";
+  const paywalled = !mayUse(entitlement) && entitlement.kind !== "loading" && entitlement.kind !== "hidden";
+  // Not offered here at all: no wand (NavLogView).
+  const descriptionsHidden = entitlement.kind === "hidden";
   const descriptionsPaywall = useMemo(() => (paywalled ? (
     <PaidPrompt feature="CHECKPOINT_NOTES">A line for each checkpoint on what to look for from the air.</PaidPrompt>
   ) : undefined), [paywalled]);
@@ -1260,7 +1262,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       onSaveDescription={s.saveDescription}
       onGenerateDescriptions={s.generateDescriptions}
       descriptionsLoading={descriptionsLoading}
-      descriptionsPaywall={descriptionsPaywall}
+      descriptionsPaywall={descriptionsPaywall} descriptionsHidden={descriptionsHidden}
       selectedPoint={selectedPoint} onSelectPoint={selectPointAt} onDeselectPoint={deselectPoint}
       drawerOpen={drawerOpen} onTabTap={tabTap}
       aircraftLabel={aircraft.label}
@@ -1281,7 +1283,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     </NavLogView>
     </Suspense>
   ), [s.totals, s.nav, s.legs, depart, planned.dep, planned.dest, course, s.logSelected, s.descriptions, s.saveDescription,
-    s.generateDescriptions, descriptionsLoading, descriptionsPaywall, selectedPoint, selectPointAt, deselectPoint, drawerOpen, tabTap, aircraft.label,
+    s.generateDescriptions, descriptionsLoading, descriptionsPaywall, descriptionsHidden, selectedPoint, selectPointAt, deselectPoint, drawerOpen, tabTap, aircraft.label,
     marks, tabContent, s.briefing, s.local, landedStops, s.langgraphNarrative, s.crewaiNarrative, unflyableBrief, kneeboardLater, metarColour]);
 
   // The airplane, the altitude and the time, made again only when one of

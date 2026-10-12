@@ -39,6 +39,13 @@ class SubscriptionControllerTest {
     @MockitoBean
     private SubscriptionService subscriptions;
 
+    /** A deployment that sells it, unless a test says not. */
+    @org.junit.jupiter.api.BeforeEach
+    void sold() {
+        given(subscriptions.sold()).willReturn(true);
+    }
+
+
     private static final Pilot PILOT = new Pilot("pilot@example.com", "A. Pilot", "sub-1");
 
     private static SubscriptionDto trial() {
@@ -74,5 +81,12 @@ class SubscriptionControllerTest {
         mockMvc.perform(post("/api/subscription/trial").with(oidcLogin()).with(csrf()))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error").value("Your free month has already been used."));
+    }
+
+    @Test
+    void a_deployment_that_sells_none_says_nothing_of_one() throws Exception {
+        given(subscriptions.sold()).willReturn(false);
+        mockMvc.perform(get("/api/subscription").with(oidcLogin())).andExpect(status().isNotFound());
+        mockMvc.perform(post("/api/subscription/trial").with(oidcLogin()).with(csrf())).andExpect(status().isNotFound());
     }
 }

@@ -28,6 +28,9 @@ const subscription = (state: Standing, over: Record<string, unknown> = {}) => ({
 async function stubSubscription(page: Page, state: Standing, over: Record<string, unknown> = {}) {
   let now = state;
   const asked: string[] = [];
+  // A deployment that sells it: the stack's own, the proof of concept,
+  // sells none (app.subscription.enabled).
+  await sold(page, { subscriptions: true });
   await page.route(url => url.pathname === "/api/subscription", route =>
     route.fulfill({ json: subscription(now, over) }));
   await page.route(url => url.pathname === "/api/subscription/trial", route => {
@@ -40,6 +43,14 @@ async function stubSubscription(page: Page, state: Standing, over: Record<string
     if (path.endsWith("/api/comparison") || path.endsWith("/checkpoint-notes/generate")) asked.push(path);
   });
   return asked;
+}
+
+/** The deployment's capabilities as the stack answers them, changed. */
+async function sold(page: Page, change: Record<string, unknown>) {
+  await page.route(url => url.pathname === "/api/auth/capabilities", async route => {
+    const real = await (await route.fetch()).json();
+    await route.fulfill({ json: { ...real, ...change } });
+  });
 }
 
 test.afterEach(async ({ page }) => {
@@ -100,4 +111,45 @@ test("Personal's Subscription page says what the pilot has, and the month's uses
   await expect(panel.getByTestId("subscription-standing")).toContainText(/Free until \d{1,2} November/);
   await expect(panel.getByTestId("subscription-use-NARRATIVE")).toContainText("1 of 60");
   await expect(panel).toContainText("Planning and flying are free.");
+});
+
+// The proof of concept, at the owner's ask: no subscription sold and no
+// word of one, the features Claude writes every pilot's with an account.
+test.describe("where no subscription is sold", () => {
+  test.use({ storageState: { cookies: [], origins: [] } });
+
+  test("a pilot signed out is asked only to sign in for the narrative, with no price, trial or subscribing", async ({ page }) => {
+    await sold(page, { subscriptions: false, claudeFeatures: "EVERYONE" });
+    await page.addInitScript(() => {
+      localStorage.setItem("vfr.tips", JSON.stringify({ state: { seen: ["*"] }, version: 0 }));
+      localStorage.setItem("vfr.limits", JSON.stringify({ state: { acknowledged: true }, version: 0 }));
+    });
+    await page.goto("/app/plan?dep=C81&dest=KDLH");
+    await settle(page);
+    await openBriefing(page);
+    await openTab(page, "Brief");
+    await openSection(page, "Narrative");
+    const prompt = page.getByTestId("paid-prompt-NARRATIVE");
+    await expect(prompt).toBeVisible({ timeout: slow(30000) });
+    await expect(prompt).toContainText("Sign in to have it.");
+    await expect(prompt).not.toContainText(/subscri|\$|free month/i);
+    await expect(page.getByTestId("start-trial")).toHaveCount(0);
+  });
+
+  test("Personal has no Subscription row, and the terms and the privacy policy no word of one", async ({ page }) => {
+    await sold(page, { subscriptions: false, claudeFeatures: "EVERYONE" });
+    await page.addInitScript(() => {
+      localStorage.setItem("vfr.tips", JSON.stringify({ state: { seen: ["*"] }, version: 0 }));
+      localStorage.setItem("vfr.limits", JSON.stringify({ state: { acknowledged: true }, version: 0 }));
+    });
+    await page.goto("/app/plan");
+    await settle(page);
+    await openConsole(page);
+    await consoleSheet(page).getByRole("tab", { name: "Personal" }).click();
+    await expect(consoleSheet(page).getByText("Subscription", { exact: true })).toHaveCount(0);
+    for (const legal of ["/app/terms.html", "/app/privacy.html"]) {
+      await page.goto(legal);
+      await expect(page.locator("body")).not.toContainText(/subscri|free month/i);
+    }
+  });
 });

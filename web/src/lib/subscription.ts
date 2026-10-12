@@ -1,6 +1,6 @@
 import { queryOptions, useQuery } from "@tanstack/react-query";
 import { api } from "./api/client";
-import type { PaidFeature, Subscription } from "./api/types";
+import type { ClaudeFeatures, PaidFeature, Subscription } from "./api/types";
 import { capabilitiesQuery, pilotQuery } from "./queryClient";
 
 /**
@@ -33,7 +33,10 @@ export type Entitlement =
    *  so where it refuses. */
   | { kind: "unknown" }
   | { kind: "free"; subscription: Subscription }
-  | { kind: "entitled"; subscription: Subscription };
+  | { kind: "entitled"; subscription: Subscription }
+  /** Not offered in this deployment, which sells no subscription and keeps
+   *  this feature from this pilot (app.claude-features): no word of it. */
+  | { kind: "hidden" };
 
 /** The pilot's entitlement, from who is signed in and their subscription. */
 export function entitlementOf(access: string | undefined, signedIn: boolean | undefined,
@@ -46,12 +49,40 @@ export function entitlementOf(access: string | undefined, signedIn: boolean | un
   return subscription.entitled ? { kind: "entitled", subscription } : { kind: "free", subscription };
 }
 
-export function useEntitlement(): Entitlement {
-  const access = useQuery(capabilitiesQuery).data?.access;
+/**
+ * Where no subscription is sold (the proof of concept, at the owner's
+ * ask: "no mention of it at all"): the debrief, which costs nothing a use,
+ * is everyone's; what Claude writes is whoever the deployment says --
+ * every pilot signed in by default ("I can offer the AI features to users
+ * with an account"), the developers, or nobody, the rest not told of it.
+ */
+export function unsoldEntitlement(feature: PaidFeature, claude: ClaudeFeatures | undefined, signedIn: boolean | undefined,
+  developer: boolean): Entitlement {
+  if (feature === "DEBRIEF") return { kind: "open" };
+  if (claude === "OFF") return { kind: "hidden" };
+  if (signedIn === undefined) return { kind: "loading" };
+  if (claude === "DEVELOPERS") return developer ? { kind: "open" } : { kind: "hidden" };
+  return signedIn ? { kind: "open" } : { kind: "signed-out" };
+}
+
+/** The pilot's entitlement to a paid feature (a Claude-written one where
+ *  none is named). */
+export function useEntitlement(feature: PaidFeature = "NARRATIVE"): Entitlement {
+  const capabilities = useQuery(capabilitiesQuery).data;
   const pilot = useQuery(pilotQuery);
   const signedIn = pilot.isPending ? undefined : !!pilot.data;
-  const subscription = useQuery({ ...subscriptionQuery, enabled: !!pilot.data });
-  return entitlementOf(access, signedIn, subscription.data, subscription.isError);
+  const sold = capabilities?.subscriptions !== false;
+  const subscription = useQuery({ ...subscriptionQuery, enabled: !!pilot.data && !!capabilities && sold });
+  if (capabilities?.access === "OPEN") return { kind: "open" };
+  if (!capabilities) return { kind: "loading" };
+  if (!sold) return unsoldEntitlement(feature, capabilities.claudeFeatures, signedIn, !!pilot.data?.developer);
+  return entitlementOf(capabilities.access, signedIn, subscription.data, subscription.isError);
+}
+
+/** Whether this deployment sells the subscription: where not, the
+ *  console's Subscription row and page are not there. */
+export function useSold(): boolean {
+  return useQuery(capabilitiesQuery).data?.subscriptions === true;
 }
 
 /** Whether a paid feature may be asked for now: open, theirs, or not

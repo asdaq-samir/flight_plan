@@ -8,7 +8,7 @@ import { Spinner } from "./ui/spinner";
 import { api, describeError } from "../lib/api/client";
 import type { PaidFeature } from "../lib/api/types";
 import { inNativeApp } from "../lib/native";
-import { PRICE, subscriptionQuery, useEntitlement } from "../lib/subscription";
+import { PRICE, subscriptionQuery, useEntitlement, useSold } from "../lib/subscription";
 import { TEXT } from "../lib/text";
 
 /** Only for a pilot signed out, so not in the planner's first load. */
@@ -47,7 +47,8 @@ export default function PaidPrompt({ feature, title, children, className }: {
   children: ReactNode;
   className?: string;
 }) {
-  const entitlement = useEntitlement();
+  const entitlement = useEntitlement(feature);
+  const sold = useSold();
   const queryClient = useQueryClient();
   const start = useMutation({
     mutationFn: () => api.subscription.startTrial(),
@@ -56,6 +57,17 @@ export default function PaidPrompt({ feature, title, children, className }: {
     meta: { silent: true },
   });
   if (entitlement.kind !== "signed-out" && entitlement.kind !== "free") return null;
+  // No subscription sold here (the proof of concept): an account is all it
+  // takes, and no word of a price, a trial or subscribing.
+  if (!sold) {
+    return (
+      <div data-testid={`paid-prompt-${feature}`} className={className}>
+        <EmptyState icon={ICONS[feature]} title={title ?? TITLES[feature]} action={<Suspense fallback={null}><SignInModal /></Suspense>} className="p-4">
+          {children} Sign in to have it.
+        </EmptyState>
+      </div>
+    );
+  }
   const native = inNativeApp();
   const trial = entitlement.kind === "signed-out" || entitlement.subscription.trialAvailable;
   const action = entitlement.kind === "signed-out" ? <Suspense fallback={null}><SignInModal /></Suspense>

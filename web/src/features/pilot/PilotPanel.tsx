@@ -16,7 +16,7 @@ import { AircraftPanel, FlightsPanel } from "./AccountPanels";
 import { LogbookPanel } from "./LogbookPanel";
 import MinimumsPanel from "./MinimumsPanel";
 import SubscriptionPanel from "./SubscriptionPanel";
-import { standing, subscriptionQuery } from "../../lib/subscription";
+import { standing, subscriptionQuery, useSold } from "../../lib/subscription";
 import PilotGuide from "./PilotGuide";
 import SignInModal from "./SignInModal";
 
@@ -57,6 +57,7 @@ function Personal({ pilot }: { pilot: PilotState }) {
           Sign in to keep your aircraft for the nav log, the flights you plan, and a logbook with your currency.
         </EmptyState>
       ) : null;
+  const sold = useSold();
   const pages = {
     aircraft: { title: "Aircraft", content: <AircraftPanel /> },
     flights: { title: "Flights", content: <FlightsPanel /> },
@@ -76,7 +77,8 @@ function Personal({ pilot }: { pilot: PilotState }) {
           {account}
           {/* What the pilot has of the paid features, a row of its own over
               their things, as iOS's Settings puts the account's at the top. */}
-          {signedIn && <SubscriptionRow />}
+          {/* Not where this deployment sells none (the proof of concept). */}
+          {signedIn && sold && <SubscriptionRow />}
           <div data-testid="library-section">
             <ListGroup>
               {SECTIONS.map(s => {

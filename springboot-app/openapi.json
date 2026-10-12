@@ -136,6 +136,12 @@
             "example" : "SIGN_IN",
             "type" : "string"
           },
+          "claudeFeatures" : {
+            "description" : "Where no subscription is sold, who has the features Claude writes: OFF, DEVELOPERS, or EVERYONE signed in.",
+            "enum" : [ "OFF", "DEVELOPERS", "EVERYONE" ],
+            "example" : "EVERYONE",
+            "type" : "string"
+          },
           "providers" : {
             "description" : "The OIDC providers with real credentials, by registration id: the sign-in buttons to offer. Empty where only the emailed link signs in (the local stack).",
             "example" : [ "google", "apple" ],
@@ -143,9 +149,14 @@
               "type" : "string"
             },
             "type" : "array"
+          },
+          "subscriptions" : {
+            "description" : "Whether this deployment sells the subscription; where not, the page says nothing of one.",
+            "example" : false,
+            "type" : "boolean"
           }
         },
-        "required" : [ "access", "providers" ],
+        "required" : [ "access", "claudeFeatures", "providers", "subscriptions" ],
         "type" : "object"
       },
       "ChecklistDto" : {

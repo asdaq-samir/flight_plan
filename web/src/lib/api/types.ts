@@ -214,6 +214,8 @@ export type Pilot = Webapp["PilotDto"];
 /** How this deployment is reached -- SIGN_IN, OPEN or CLOSED -- asked
  *  before anyone has signed in (`/api/auth/capabilities`). */
 export type SignInCapabilities = Webapp["Capabilities"];
+/** Who has the features Claude writes where no subscription is sold. */
+export type ClaudeFeatures = SignInCapabilities["claudeFeatures"];
 /** `GET /api/subscription`: the signed-in pilot's subscription to the
  *  paid features (SubscriptionService) -- FREE, TRIAL, SUBSCRIBED or
  *  COMPED, until when, whether the free month is still theirs to start,

@@ -95,6 +95,8 @@ interface Props {
   /** Where the pilot has no subscription, what the wand shows in place of
    *  writing descriptions (PaidPrompt): they come with it. */
   descriptionsPaywall?: ReactNode;
+  /** The descriptions not offered in this deployment: no wand at all. */
+  descriptionsHidden?: boolean;
   /** The briefing's sections for each tab but the nav log's own
    *  (FlightBriefingView's parts, and the Brief's narrative). */
   tabContent: (part: BriefingPart) => ReactNode;
@@ -332,7 +334,7 @@ export default function NavLogView({
   totals, nav, depart,
   legs, dep, dest, ends,
   selected, descriptions, onSaveDescription,
-  onGenerateDescriptions, descriptionsLoading, descriptionsPaywall, tabContent, children, marks, notice, footer, local = false, metarColourOf = noWeather,
+  onGenerateDescriptions, descriptionsLoading, descriptionsPaywall, descriptionsHidden = false, tabContent, children, marks, notice, footer, local = false, metarColourOf = noWeather,
   selectedPoint, onSelectPoint, onDeselectPoint, drawerOpen,
   aircraftLabel, onTabTap,
 }: Props) {
@@ -446,7 +448,7 @@ export default function NavLogView({
         <span className="inline-flex items-center">
           {/* Without the subscription the wand says what it would do and
               how to have it, beside it (PaidPrompt), rather than writing. */}
-          {descriptionsPaywall ? (
+          {descriptionsHidden ? null : descriptionsPaywall ? (
             <Popover>
               <PopoverTrigger asChild>{wand}</PopoverTrigger>
               <PopoverContent className="w-80 p-0" data-testid="descriptions-paywall">{descriptionsPaywall}</PopoverContent>

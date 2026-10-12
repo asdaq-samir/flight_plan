@@ -45,6 +45,8 @@ export default function BriefNarrative({ ready, onGenerateNarrative, langgraphNa
     onGenerateNarrative(framework);
   }, [ready, allowed, framework, narrative.text, narrative.loading, onGenerateNarrative]);
   const left = usesLeft(entitlement, "NARRATIVE");
+  // Not offered in this deployment (lib/subscription): no section at all.
+  if (entitlement.kind === "hidden") return null;
   return (
     <div className="print:hidden">
       {/* Which agent wrote it is the settings' (Brief, Narrative), not the

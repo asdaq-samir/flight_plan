@@ -33,6 +33,10 @@ public class SubscriptionController {
     @Operation(summary = "The pilot's subscription, with this month's uses against each cap")
     @GetMapping
     public ResponseEntity<SubscriptionDto> get(Authentication authentication) {
+        // None sold here: nothing to say of one.
+        if (!subscriptions.sold()) {
+            return ResponseEntity.notFound().build();
+        }
         return PilotResponses.withPilot(pilots, authentication, pilot -> ResponseEntity.ok(subscriptions.status(pilot)));
     }
 
@@ -41,6 +45,9 @@ public class SubscriptionController {
                     + "in the iOS and Android apps the free month is the store's introductory offer.")
     @PostMapping("/trial")
     public ResponseEntity<SubscriptionDto> startTrial(Authentication authentication) {
+        if (!subscriptions.sold()) {
+            return ResponseEntity.notFound().build();
+        }
         return PilotResponses.withPilot(pilots, authentication,
                 pilot -> ResponseEntity.ok(subscriptions.startTrial(pilot)));
     }

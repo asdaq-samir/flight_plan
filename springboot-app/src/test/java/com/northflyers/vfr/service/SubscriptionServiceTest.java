@@ -205,4 +205,30 @@ class SubscriptionServiceTest {
         });
         assertThat(service(SignInOptions.Access.OPEN, "").refusal(null, PaidFeature.ORAL)).isEmpty();
     }
+
+    private SubscriptionService unsold(SubscriptionService.ClaudeFeatures claude) {
+        return new SubscriptionService(repository, pilots, new SignInOptions(List.of("email"), SignInOptions.Access.SIGN_IN), clock, 30,
+                Map.of(PaidFeature.NARRATIVE, 2, PaidFeature.CHECKPOINT_NOTES, 60, PaidFeature.ORAL, 60), "",
+                false, claude);
+    }
+
+    @Test
+    void with_no_subscription_sold_every_pilot_signed_in_has_what_claude_writes_within_the_caps() {
+        SubscriptionService service = unsold(SubscriptionService.ClaudeFeatures.EVERYONE);
+        Authentication pilot = someone();
+        assertThat(service.refusal(pilot, PaidFeature.NARRATIVE)).isEmpty();
+        assertThat(service.refusal(pilot, PaidFeature.NARRATIVE)).isEmpty();
+        // The month's cap (2 here) still bounds what one pilot costs.
+        assertThat(service.refusal(pilot, PaidFeature.NARRATIVE)).map(SubscriptionService.Refusal::status).contains(429);
+        // The debrief costs nothing a use: everyone's.
+        assertThat(service.refusal(someone(), PaidFeature.DEBRIEF)).isEmpty();
+        assertThat(service.sold()).isFalse();
+    }
+
+    @Test
+    void with_no_subscription_sold_claude_features_kept_from_pilots_are_not_offered_rather_than_for_sale() {
+        SubscriptionService service = unsold(SubscriptionService.ClaudeFeatures.OFF);
+        assertThat(service.refusal(someone(), PaidFeature.ORAL)).map(SubscriptionService.Refusal::status).contains(404);
+        assertThat(service.refusal(someone(), PaidFeature.DEBRIEF)).isEmpty();
+    }
 }

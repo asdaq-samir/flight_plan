@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Subscription } from "./api/types";
-import { entitlementOf, mayUse, standing, usesLeft } from "./subscription";
+import { entitlementOf, mayUse, standing, unsoldEntitlement, usesLeft } from "./subscription";
 
 const sub = (over: Partial<Subscription>): Subscription => ({
   state: "FREE", entitled: false, until: null, trialAvailable: true, trialDays: 30, plan: null, store: null,
@@ -45,5 +45,17 @@ describe("the subscription as the page shows it", () => {
     expect(standing(sub({ state: "COMPED" }), now)).toBe("Included");
     expect(standing(sub({}), now)).toBe("Not started");
     expect(standing(sub({ trialAvailable: false }), now)).toBe("Ended");
+  });
+});
+
+describe("where no subscription is sold", () => {
+  it("gives the debrief to everyone, and what Claude writes as the deployment says", () => {
+    expect(unsoldEntitlement("DEBRIEF", "OFF", false, false)).toEqual({ kind: "open" });
+    expect(unsoldEntitlement("NARRATIVE", "EVERYONE", true, false)).toEqual({ kind: "open" });
+    expect(unsoldEntitlement("NARRATIVE", "EVERYONE", false, false)).toEqual({ kind: "signed-out" });
+    expect(unsoldEntitlement("ORAL", "DEVELOPERS", true, false)).toEqual({ kind: "hidden" });
+    expect(unsoldEntitlement("ORAL", "DEVELOPERS", true, true)).toEqual({ kind: "open" });
+    expect(unsoldEntitlement("CHECKPOINT_NOTES", "OFF", true, true)).toEqual({ kind: "hidden" });
+    expect(unsoldEntitlement("NARRATIVE", "EVERYONE", undefined, false)).toEqual({ kind: "loading" });
   });
 });

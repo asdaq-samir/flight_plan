@@ -39,6 +39,8 @@ import org.springframework.test.web.servlet.ResultActions;
 @Import(StreamingProxy.class)
 @AutoConfigureMockMvc(addFilters = false)
 @TestPropertySource(properties = {
+        // A deployment that sells the subscription, whose gate these are.
+        "app.subscription.enabled=true",
         "nav-log-agent.base-url=http://127.0.0.1:9",
         "nav-log-agent.api-key=test-key",
         "crewai-agent.base-url=http://127.0.0.1:9",

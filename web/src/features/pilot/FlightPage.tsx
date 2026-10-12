@@ -291,7 +291,7 @@ function Row({ title, value }: { title: string; value: ReactNode }) {
 export default function FlightPage({ summary, planHref }: { summary: FlightSummary; planHref: string }) {
   const { data: flight, isPending, error } = useQuery({ queryKey: ["flight", summary.id], queryFn: () => api.flights.get(summary.id) });
   // The debrief comes with the subscription: without it, its place says so.
-  const entitlement = useEntitlement();
+  const entitlement = useEntitlement("DEBRIEF");
   return (
     <div className="space-y-4">
       <ListGroup footer={`Filed ${format(new Date(summary.createdAt), "d MMM yyyy")}.`}>

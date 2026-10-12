@@ -48,6 +48,16 @@ import org.springframework.util.StringUtils;
  * <p>Where nobody can sign in and writes are open (app.open-writes: one's
  * own machine) there is no pilot to hold a subscription, and every paid
  * feature is open with the rest.
+ *
+ * <p>A deployment may sell no subscription at all ({@code
+ * app.subscription.enabled} false), at the owner's ask for the proof of
+ * concept ("no mention of it at all ... if it picks up, I will go that
+ * route"): the debrief, which costs nothing a use, is then everyone's,
+ * and the features Claude writes are whoever {@code app.claude-features}
+ * says -- nobody, the developers, or every pilot signed in (the default,
+ * at the owner's ask: "I can offer the AI features to users with an
+ * account, no revenue"), each within the monthly caps, which keep what
+ * one pilot can cost in Claude calls bounded.
  */
 @Service
 public class SubscriptionService {
@@ -55,6 +65,9 @@ public class SubscriptionService {
     /** Why a paid call was refused: the status and the pilot's sentence. */
     public record Refusal(int status, String detail) {
     }
+
+    /** Who has the features Claude writes where no subscription is sold. */
+    public enum ClaudeFeatures { OFF, DEVELOPERS, EVERYONE }
 
     /** The trial is already started, or was once: once an account. */
     public static class TrialUsedException extends RuntimeException {
@@ -72,6 +85,8 @@ public class SubscriptionService {
     private final int trialDays;
     private final Map<PaidFeature, Integer> caps;
     private final Set<String> compedEmails;
+    private final boolean sold;
+    private final ClaudeFeatures claude;
 
     @Autowired
     public SubscriptionService(SubscriptionRepository subscriptions, PilotService pilots, SignInOptions signIn,
@@ -79,15 +94,23 @@ public class SubscriptionService {
             @Value("${app.subscription.caps.narrative:60}") int narrativeCap,
             @Value("${app.subscription.caps.checkpoint-notes:60}") int notesCap,
             @Value("${app.subscription.caps.oral:60}") int oralCap,
-            @Value("${app.subscription.comped-emails:}") String compedEmails) {
+            @Value("${app.subscription.comped-emails:}") String compedEmails,
+            @Value("${app.subscription.enabled:false}") boolean sold,
+            @Value("${app.claude-features:EVERYONE}") ClaudeFeatures claude) {
         this(subscriptions, pilots, signIn, Clock.systemUTC(), trialDays,
                 Map.of(PaidFeature.NARRATIVE, narrativeCap, PaidFeature.CHECKPOINT_NOTES, notesCap,
                         PaidFeature.ORAL, oralCap),
-                compedEmails);
+                compedEmails, sold, claude);
+    }
+
+    /** A deployment that sells the subscription, as the tests mostly ask about. */
+    SubscriptionService(SubscriptionRepository subscriptions, PilotService pilots, SignInOptions signIn, Clock clock,
+            int trialDays, Map<PaidFeature, Integer> caps, String compedEmails) {
+        this(subscriptions, pilots, signIn, clock, trialDays, caps, compedEmails, true, ClaudeFeatures.EVERYONE);
     }
 
     SubscriptionService(SubscriptionRepository subscriptions, PilotService pilots, SignInOptions signIn, Clock clock,
-            int trialDays, Map<PaidFeature, Integer> caps, String compedEmails) {
+            int trialDays, Map<PaidFeature, Integer> caps, String compedEmails, boolean sold, ClaudeFeatures claude) {
         this.subscriptions = subscriptions;
         this.pilots = pilots;
         this.signIn = signIn;
@@ -98,6 +121,19 @@ public class SubscriptionService {
                 .map(String::trim).filter(StringUtils::hasText)
                 .map(address -> address.toLowerCase(Locale.ROOT))
                 .collect(Collectors.toUnmodifiableSet());
+        this.sold = sold;
+        this.claude = claude;
+    }
+
+    /** Whether this deployment sells the subscription at all: where not,
+     *  the page says nothing of it (SignInCapabilitiesController). */
+    public boolean sold() {
+        return sold;
+    }
+
+    /** Who has the features Claude writes where no subscription is sold. */
+    public ClaudeFeatures claudeFeatures() {
+        return claude;
     }
 
     /** The pilot's subscription, with this month's uses. */
@@ -165,6 +201,18 @@ public class SubscriptionService {
         }
         Pilot pilot = current.get();
         Instant now = clock.instant();
+        if (!sold) {
+            // No subscription here: the debrief is everyone's; what Claude
+            // writes is whoever the deployment says, said as not offered
+            // (404) rather than as something to buy.
+            if (!feature.capped() || (pilot.getRole().isDeveloper() && claude != ClaudeFeatures.OFF)) {
+                return Optional.empty();
+            }
+            if (claude != ClaudeFeatures.EVERYONE) {
+                return Optional.of(new Refusal(404, feature.comes() + " later; it is not offered yet."));
+            }
+            return counted(pilot, feature, now);
+        }
         Optional<Subscription> held = subscriptions.findById(pilot.getId());
         State state = stateOf(pilot, held, now);
         if (state == State.FREE) {
@@ -173,6 +221,12 @@ public class SubscriptionService {
         if (!feature.capped() || pilot.getRole().isDeveloper()) {
             return Optional.empty();
         }
+        return counted(pilot, feature, now);
+    }
+
+    /** A use of a Claude-written feature, counted against the month's cap;
+     *  past it, refused with when there are more. */
+    private Optional<Refusal> counted(Pilot pilot, PaidFeature feature, Instant now) {
         int cap = caps.getOrDefault(feature, 0);
         int used = usesThisMonth(pilot, now).getOrDefault(feature.name(), 0);
         if (used >= cap) {
