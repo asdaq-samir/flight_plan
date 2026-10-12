@@ -800,9 +800,6 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const { addRecentAirport: addRecent, setHomeAirport, toggleFavoriteAirport, moveFavoriteAirport } = usePreferences.getState();
   const home = usePreferences(p => p.homeAirport);
   const favorites = usePreferences(p => p.favoriteAirports);
-  // Whether each tab has Favorites for its pill (the workspace's `foot`).
-  const airportFavorites = !!home || favorites.length > 0;
-  const aircraftFavorites = usePreferences(p => p.favoriteAircraft.length > 0);
   const pickPlace = useCallback(async (airport: RecentAirport) => {
     setQuery("");
     (document.activeElement as HTMLElement | null)?.blur();
@@ -828,6 +825,14 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     searchInput.current?.focus();
     setPanel("full");
   };
+  // Home's or My Plane's Add on the pill: the panel all the way up and,
+  // once its field is drawn there, the search asked for it.
+  const addFromPill = (what: "home" | "mine") => {
+    if (what === "home") setPicking("home");
+    else useTabSearch.setState({ pickingMine: true });
+    setPanel("full");
+    window.setTimeout(() => (what === "home" ? searchInput.current?.focus() : useTabSearch.getState().focusAircraft?.()), 350);
+  };
   const searchField = (
     <SearchField
       value={query} onChange={setQuery} inputRef={searchInput}
@@ -845,15 +850,24 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // Aircraft's and NRST's fields, the search bar's shape (SearchField) in
   // the same place, what is typed kept in lib/tabSearch for their lists.
   const aircraftTyped = useTabSearch(t => t.aircraft);
+  const pickingMine = useTabSearch(t => t.pickingMine);
+  // My Plane's Add focuses the field (startPickingMine), here or from the
+  // pill once the panel is up and the field is drawn.
+  const aircraftInput = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    useTabSearch.setState({ focusAircraft: () => aircraftInput.current?.focus() });
+    return () => useTabSearch.setState({ focusAircraft: null });
+  }, []);
   const aircraftField = (
     <SearchField
-      value={aircraftTyped} onChange={aircraft => useTabSearch.setState({ aircraft })}
-      placeholder="Callsign, N-number or ICAO" label="Find an aircraft: callsign, registration or ICAO address" testId="aircraft-search" capitals
+      value={aircraftTyped} onChange={aircraft => useTabSearch.setState({ aircraft })} inputRef={aircraftInput}
+      placeholder={pickingMine ? "Search for your airplane" : "Callsign, N-number or ICAO"}
+      label="Find an aircraft: callsign, registration or ICAO address" testId="aircraft-search" capitals
       // Half way up at the least, the list under the field in sight; not
       // all the way, where the map and its traffic -- what is searched
       // among -- would be out of sight.
       onFocus={() => { if (panel === "peek") setPanel("half"); }}
-      onCancel={() => { useTabSearch.setState({ aircraft: "" }); setPanel("peek"); }}
+      onCancel={() => { useTabSearch.setState({ aircraft: "", pickingMine: false }); setPanel("peek"); }}
       onSubmit={() => useTabSearch.getState().submitAircraft?.()}
     />
   );
@@ -1491,7 +1505,9 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     // NRST its nearest fields (each the foot, below).
     // FPL with no route its route box, to type one in, at the owner's ask
     // ("Fpl should show the route box if no route is entered").
-    pillHead: (tab === "fpl" && !routed) || (tab === "airport" && !airportFavorites) || (tab === "aircraft" && !aircraftFavorites),
+    // Airport's and Aircraft's pills their Favorites always, Home and My
+    // Plane listed with Add until kept, at the owner's ask.
+    pillHead: tab === "fpl" && !routed,
     // A card over the tab: its card alone, the tab's head gone while it is
     // open, at the pilot's ask.
     alone: !!place || !!heldPoint || !!flight,
@@ -1513,8 +1529,8 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       </div>
     ) : panel === "peek" && !place && !heldPoint && !flight && (
       tab === "nrst" ? <NearestStrip fields={nearestData} located={!!nearOrigin} onOpen={selectPlace} />
-        : tab === "airport" ? airportFavorites && <FavoriteStrip home={home} favorites={favorites} onOpen={a => selectPlace(a.ident)} />
-          : aircraftFavorites && <AircraftFavoriteStrip onOpen={hex => selectFlight(hex)} />
+        : tab === "airport" ? <FavoriteStrip home={home} favorites={favorites} onOpen={a => selectPlace(a.ident)} onAddHome={() => addFromPill("home")} />
+          : <AircraftFavoriteStrip onOpen={hex => selectFlight(hex)} onAddMine={() => addFromPill("mine")} />
     ),
     // The route as one box of pills, in place of the two airport fields,
     // the top row to itself, at the pilot's ask: its close and its

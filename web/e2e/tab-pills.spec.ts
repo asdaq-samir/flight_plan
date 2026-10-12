@@ -55,9 +55,9 @@ test("each tab's pill shows its own: FPL the route's figures, Airport its Favori
   // A finger's 44 points.
   expect((await tile.boundingBox())!.height).toBeGreaterThanOrEqual(44);
 
-  // Aircraft, with no airplanes starred: its search bar, asking for input.
+  // Aircraft, with no airplane kept: My Plane all the same, with Add.
   await pickAtRest(page, "tab-aircraft");
-  await expect(panel.getByTestId("aircraft-search")).toBeVisible();
+  await expect(panel.getByTestId("pill-aircraft-mine")).toHaveText(/My Plane\s*Add/);
   await expect(panel.getByTestId("flight-line")).toHaveCount(0);
 
   // NRST: the nearest fields, or with no position the way to show it.
@@ -119,4 +119,25 @@ test("on a phone, a card's way back is Back at the top left of the tabs' line, a
   await page.getByTestId("tab-close").click();
   await expect(page).not.toHaveURL(/[?&]place=/);
   await expect(panel).toHaveAttribute("data-panel", "peek");
+});
+
+test("My Plane is first among the Aircraft card's Favorites, with Add until one is kept, and kept from the search's pick", async ({ page }) => {
+  await keep(page, { recentAircraft: [{ hex: "a1c2d3", name: "N200XY", type: "C172" }] });
+  await page.goto("/app/plan?aircraft=1");
+  await settle(page);
+  const card = page.getByTestId("aircraft-card");
+  const mine = card.getByTestId("aircraft-mine");
+  await expect(mine).toContainText("My Plane");
+  await expect(mine).toContainText("Add");
+  // Add: the search asked for the pilot's own airplane, and a recent tapped is kept as it.
+  await mine.click();
+  await expect(card.getByTestId("aircraft-picking-mine")).toBeVisible();
+  await expect(page.getByPlaceholder("Search for your airplane")).toBeVisible();
+  await card.getByTestId("aircraft-recent").click();
+  await expect(mine).toContainText("N200XY");
+  await expect(card.getByTestId("aircraft-picking-mine")).toHaveCount(0);
+  await expect(page).not.toHaveURL(/[?&]flight=/);
+  // Tapped now, its card.
+  await mine.click();
+  await expect(page).toHaveURL(/[?&]flight=a1c2d3/);
 });

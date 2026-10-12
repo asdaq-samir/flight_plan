@@ -40,9 +40,9 @@ test.describe("/app/plan", () => {
     await closeSidebarWithTheStockKey(page);
     await expect(sideDrawer(page)).toHaveAttribute("data-capsule", "true");
     await expect(sideDrawer(page).getByTestId("tab-bar")).toBeVisible();
-    // Airport's pill with no Favorites: its search bar under the tabs,
-    // asking for input, at the owner's ask; no route, no figures.
-    await expect(sideDrawer(page).getByTestId("search-airports")).toBeVisible();
+    // Airport's pill: its Favorites, Home listed with Add until kept, at
+    // the owner's ask; no route, no figures.
+    await expect(sideDrawer(page).getByTestId("pill-home")).toBeVisible();
     await expect(sideDrawer(page).getByTestId("flight-line")).toHaveCount(0);
     await page.goto("/app/plan?dep=C81&dest=KDLH");
     await settle(page);

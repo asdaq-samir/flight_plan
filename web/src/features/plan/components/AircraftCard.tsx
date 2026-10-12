@@ -1,16 +1,16 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plane } from "lucide-react";
+import { Plane, PlaneTakeoff } from "lucide-react";
 import { cn } from "cn";
 import { PanelCard } from "../../../components/PanelCard";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
 import { api } from "../../../lib/api/client";
-import type { TrafficAircraft } from "../../../lib/api/types";
+import type { AircraftRegistration, TrafficAircraft } from "../../../lib/api/types";
 import { compassPoint } from "../../../lib/compass";
 import { bearingDeg, distanceNm, type LatLon } from "../../../lib/geo";
 import { useOwnShip } from "../../../lib/map/ownShip";
-import { usePreferences } from "../../../lib/preferences";
-import { useTabSearch } from "../../../lib/tabSearch";
+import { usePreferences, type KeptAircraft } from "../../../lib/preferences";
+import { startPickingMine, useTabSearch } from "../../../lib/tabSearch";
 import { PillStrip, PlaceTile, SmallMark, SmallTile } from "../../../components/Favorites";
 import { ClearList, SwipeToDelete } from "../../../components/SwipeToDelete";
 import { trafficLabel } from "../../../lib/map/traffic";
@@ -97,6 +97,19 @@ export default function AircraftCard({ onPick, onPickHex }: {
   }, [wanted, asked, isFetching]);
   const fix = useOwnShip(s => (s.enabled ? s.fix : null));
   const favorites = usePreferences(s => s.favoriteAircraft);
+  const mine = usePreferences(s => s.myAircraft);
+  // My Plane's Add asked for the pilot's own airplane: the one picked --
+  // found, its FAA record, a Favorite, a recent -- is kept as theirs
+  // rather than opened, as the airport search's Home is.
+  const pickingMine = useTabSearch(s => s.pickingMine);
+  const keepMine = (kept: KeptAircraft) => {
+    usePreferences.getState().setMyAircraft(kept);
+    useTabSearch.setState({ pickingMine: false, aircraft: "" });
+  };
+  const pickPlane = (plane: TrafficAircraft) => (pickingMine
+    ? keepMine({ hex: plane.hex, name: plane.registration ?? plane.callsign ?? plane.hex.toUpperCase(), type: plane.type ?? null })
+    : onPick(plane));
+  const pickKept = (kept: KeptAircraft) => (pickingMine ? keepMine(kept) : onPickHex(kept.hex));
   const recents = usePreferences(s => s.recentAircraft);
   const removeRecent = usePreferences(s => s.removeRecentAircraft);
   const clearRecents = usePreferences(s => s.clearRecentAircraft);
@@ -130,8 +143,8 @@ export default function AircraftCard({ onPick, onPickHex }: {
   // Return in the field: the first found, or the search asked now rather
   // than at the pause.
   const submit = () => {
-    if (listed[0]) onPick(listed[0]);
-    else if (registered?.mode_s_hex) onPickHex(registered.mode_s_hex);
+    if (listed[0]) pickPlane(listed[0]);
+    else if (registered?.mode_s_hex) pickKept(keptOf(registered));
     else if (!isFetching) setAsked(wanted);
   };
   const submitRef = useRef(submit);
@@ -158,7 +171,7 @@ export default function AircraftCard({ onPick, onPickHex }: {
         {(searching || heard.length > 0) && (
           <ListGroup title="Found">
             {listed.map(plane => (
-              <AircraftRow key={plane.hex} plane={plane} from={from} ownFt={ownFt} onPick={() => onPick(plane)} testId="aircraft-found" />
+              <AircraftRow key={plane.hex} plane={plane} from={from} ownFt={ownFt} onPick={() => pickPlane(plane)} testId="aircraft-found" />
             ))}
             {registered && (
               <ListRow
@@ -167,7 +180,7 @@ export default function AircraftCard({ onPick, onPickHex }: {
                 description={[[registered.manufacturer, registered.model].filter(Boolean).join(" "),
                   unchecked ? "not yet known whether it is flying" : "not in the air now"].filter(Boolean).join(" · ")}
                 chevron={!!registered.mode_s_hex}
-                onClick={registered.mode_s_hex ? () => onPickHex(registered.mode_s_hex!) : undefined}
+                onClick={registered.mode_s_hex ? () => pickKept(keptOf(registered)) : undefined}
               />
             )}
             {searching && answer && !unchecked && !listed.length && !registered && (
@@ -189,14 +202,28 @@ export default function AircraftCard({ onPick, onPickHex }: {
         {/* Before anything is typed, as the airport search has: the
             airplanes starred on their cards, as round tiles, and the ones
             opened last, at the pilot's ask. */}
-        {!searching && favorites.length > 0 && (
+        {/* Asked for the pilot's own airplane: what to do. */}
+        {pickingMine && (
+          <p className={cn("px-1 text-foreground", TEXT.detail)} data-testid="aircraft-picking-mine">
+            Search for your airplane by its N-number, or tap it below, to keep it as My Plane.
+          </p>
+        )}
+        {!searching && (
           <section aria-labelledby="aircraft-favorites-heading">
             <h3 id="aircraft-favorites-heading" className={cn("pb-3 font-bold text-foreground", TEXT.title)}>Favorites</h3>
             <div className="-mx-4 flex gap-4 overflow-x-auto px-4 pb-1 [scrollbar-width:none]" data-testid="aircraft-favorites">
+              {/* My Plane first, as Home is first among the airports',
+                  listed with Add until one is kept, at the owner's ask. */}
+              <PlaceTile
+                icon={<PlaneTakeoff />} className="bg-teal-600 text-white" title="My Plane"
+                detail={mine ? mine.name : "Add"} tinted={!mine} testId="aircraft-mine"
+                label={mine ? `My Plane, ${mine.name}` : "Add My Plane"}
+                onClick={mine && !pickingMine ? () => onPickHex(mine.hex) : startPickingMine}
+              />
               {favorites.map(a => (
                 <PlaceTile
                   key={a.hex} icon={<Plane />} className="bg-sky-600 text-white" title={a.name} detail={a.type ?? undefined}
-                  label={`${a.name}${a.type ? `, ${a.type}` : ""}`} onClick={() => onPickHex(a.hex)} testId="aircraft-favorite"
+                  label={`${a.name}${a.type ? `, ${a.type}` : ""}`} onClick={() => pickKept(a)} testId="aircraft-favorite"
                 />
               ))}
             </div>
@@ -214,7 +241,7 @@ export default function AircraftCard({ onPick, onPickHex }: {
                 <ListRow
                   media={<Plane className="size-5 text-muted-foreground" />} data-testid="aircraft-recent"
                   title={<span className="font-semibold">{a.name}</span>} description={a.type ?? undefined}
-                  chevron onClick={() => onPickHex(a.hex)}
+                  chevron onClick={() => pickKept(a)}
                 />
               </SwipeToDelete>
             ))}
@@ -237,10 +264,20 @@ export default function AircraftCard({ onPick, onPickHex }: {
 
 /** The Aircraft tab's pill, at the owner's ask: the airplanes starred, as
  *  small tiles -- each its name and type -- opening its card. */
-export function AircraftFavoriteStrip({ onOpen }: { onOpen: (hex: string) => void }) {
+export function AircraftFavoriteStrip({ onOpen, onAddMine }: {
+  onOpen: (hex: string) => void;
+  /** My Plane's Add: the panel up and the search asked for it. */
+  onAddMine: () => void;
+}) {
   const favorites = usePreferences(s => s.favoriteAircraft);
+  const mine = usePreferences(s => s.myAircraft);
   return (
     <PillStrip testId="pill-aircraft-favorites">
+      {/* My Plane first, with Add until one is kept, as Home is. */}
+      <SmallTile
+        mark={<SmallMark icon={<PlaneTakeoff />} className="bg-teal-600 text-white" />} title="My Plane" detail={mine?.name ?? "Add"}
+        label={mine ? `My Plane, ${mine.name}` : "Add My Plane"} onClick={mine ? () => onOpen(mine.hex) : onAddMine} testId="pill-aircraft-mine"
+      />
       {favorites.map(a => (
         <SmallTile
           key={a.hex} mark={<SmallMark icon={<Plane />} className="bg-sky-600 text-white" />} title={a.name} detail={a.type ?? undefined}
@@ -249,4 +286,10 @@ export function AircraftFavoriteStrip({ onOpen }: { onOpen: (hex: string) => voi
       ))}
     </PillStrip>
   );
+}
+
+/** What is kept of an airplane the FAA's registry names: its address, its
+ *  N-number and its model. */
+function keptOf(record: AircraftRegistration): KeptAircraft {
+  return { hex: record.mode_s_hex!.toLowerCase(), name: record.n_number, type: record.model ?? null };
 }

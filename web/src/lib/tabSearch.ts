@@ -14,6 +14,20 @@ interface TabSearch {
   submitNear: (() => void) | null;
   /** NRST's clear: back to the position, not only an empty field. */
   clearNear: (() => void) | null;
+  /** The Aircraft search asked for the pilot's own airplane (My Plane's
+   *  Add): the one picked is kept as theirs rather than opened. */
+  pickingMine: boolean;
+  /** The Aircraft field focused, for an Add. */
+  focusAircraft: (() => void) | null;
 }
 
-export const useTabSearch = create<TabSearch>(() => ({ aircraft: "", near: "", submitAircraft: null, submitNear: null, clearNear: null }));
+export const useTabSearch = create<TabSearch>(() => ({
+  aircraft: "", near: "", submitAircraft: null, submitNear: null, clearNear: null, pickingMine: false, focusAircraft: null,
+}));
+
+/** My Plane's Add, here or on the Aircraft tab's pill: the search asked
+ *  for the pilot's own airplane, its field focused. */
+export function startPickingMine() {
+  useTabSearch.setState({ pickingMine: true });
+  useTabSearch.getState().focusAircraft?.();
+}

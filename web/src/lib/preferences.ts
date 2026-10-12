@@ -127,6 +127,10 @@ interface Preferences {
    *  offers before anything is typed (AircraftCard), at the pilot's ask. */
   recentAircraft: KeptAircraft[];
   favoriteAircraft: KeptAircraft[];
+  /** The pilot's own airplane, first among the Aircraft card's Favorites
+   *  as Home is among the airports', at the owner's ask: "My Plane". */
+  myAircraft: KeptAircraft | null;
+  setMyAircraft: (aircraft: KeptAircraft | null) => void;
   addRecentAircraft: (aircraft: KeptAircraft) => void;
   /** One airplane taken off the Recents (a swipe), or all of them (Clear). */
   removeRecentAircraft: (hex: string) => void;
@@ -216,10 +220,13 @@ export const usePreferences = create<Preferences>()(
       favoriteAirports: [],
       recentAircraft: [],
       favoriteAircraft: [],
+      myAircraft: null,
+      setMyAircraft: myAircraft => set({ myAircraft }),
       addRecentAircraft: aircraft => set(s => ({
         recentAircraft: [aircraft, ...s.recentAircraft.filter(a => a.hex !== aircraft.hex)].slice(0, RECENTS),
         // A favourite's name and type kept up to date as it is seen again.
         favoriteAircraft: s.favoriteAircraft.map(a => (a.hex === aircraft.hex ? aircraft : a)),
+        myAircraft: s.myAircraft?.hex === aircraft.hex ? aircraft : s.myAircraft,
       })),
       removeRecentAircraft: hex => set(s => ({ recentAircraft: s.recentAircraft.filter(a => a.hex !== hex) })),
       clearRecentAircraft: () => set({ recentAircraft: [] }),
@@ -279,7 +286,7 @@ export const usePreferences = create<Preferences>()(
         base: s.base, tac: s.tac, waypoints: s.waypoints, classB: s.classB, tfrs: s.tfrs, alerts: s.alerts, speakAlerts: s.speakAlerts, traffic: s.traffic, military: s.military, minimums: s.minimums, loads: s.loads, keepOffline: s.keepOffline, aircraft: s.aircraft, filters: s.filters, devTab: s.devTab, pilotTab: s.pilotTab, navBar: s.navBar, routeColours: s.routeColours, narrative: s.narrative,
         flightRules: s.flightRules,
         recentAirports: s.recentAirports, homeAirport: s.homeAirport, favoriteAirports: s.favoriteAirports,
-        recentAircraft: s.recentAircraft, favoriteAircraft: s.favoriteAircraft,
+        recentAircraft: s.recentAircraft, favoriteAircraft: s.favoriteAircraft, myAircraft: s.myAircraft,
       }),
     },
   ),

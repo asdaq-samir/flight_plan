@@ -287,22 +287,24 @@ function SmallAirportTile({ airport, detail, onClick }: { airport: RecentAirport
 
 /** The Airport tab's pill: Home and the Favorites, small, each opening
  *  its field's card, how far each is from own ship under it. */
-export function FavoriteStrip({ home, favorites, onOpen }: {
+export function FavoriteStrip({ home, favorites, onOpen, onAddHome }: {
   home: RecentAirport | null;
   favorites: RecentAirport[];
   onOpen: (airport: RecentAirport) => void;
+  /** Home's Add, where none is kept yet: listed all the same, as the
+   *  search's Favorites list it (FavoriteTiles). */
+  onAddHome: () => void;
 }) {
   const from = useOwnShip(o => (o.enabled ? o.fix : null));
   const away = (a: RecentAirport) =>
     from && a.lat !== undefined && a.lon !== undefined ? `${Math.round(distanceNm(from, { lat: a.lat, lon: a.lon }))} nm` : undefined;
   return (
     <PillStrip testId="pill-favorites">
-      {home && (
-        <SmallTile
-          mark={<SmallMark icon={<House />} className="bg-teal-600 text-white" />} title="Home" detail={away(home) ?? home.ident}
-          label={`Home, ${home.ident}`} onClick={() => onOpen(home)} testId="pill-home"
-        />
-      )}
+      <SmallTile
+        mark={<SmallMark icon={<House />} className="bg-teal-600 text-white" />} title="Home"
+        detail={home ? away(home) ?? home.ident : "Add"} label={home ? `Home, ${home.ident}` : "Add Home"}
+        onClick={home ? () => onOpen(home) : onAddHome} testId="pill-home"
+      />
       {favorites.map(a => <SmallAirportTile key={a.ident} airport={a} detail={away(a) ?? ""} onClick={() => onOpen(a)} />)}
     </PillStrip>
   );
