@@ -663,8 +663,22 @@ def route(callsign: str, lat: float | None = None, lon: float | None = None) -> 
 #: archive of the globe's traces (the same open data, kept a day at a
 #: time, UTC days): gzip JSON, as today's.
 HISTORY_URL = "https://globe.adsb.lol/globe_history/{day:%Y/%m/%d}/traces/{last2}/trace_full_{hex}.json"
-#: How many days back an airplane's flights are listed, today among them.
-HISTORY_DAYS = 7
+#: How many of an airplane's flights are listed at a time, the newest
+#: found, at the owner's ask ("make it last 10 flights you were able to
+#: find"), where it was the last seven days' whatever their number.
+HISTORY_FLIGHTS = 10
+#: How far back adsb.lol's archive of days goes, days: on 2026-10-13 the
+#: day of 2026-09-01 was there and 2026-08-20's was not (a 404 for an
+#: airliner that flies daily), so about six weeks. Days are read back from
+#: the newest until the flights are found or the archive runs out.
+ARCHIVE_DAYS = 42
+#: Days read side by side, at most, as the search goes back: a day's read
+#: took 1 to 20 s on 2026-10-13, a 404 among the slowest.
+HISTORY_BATCH = 7
+#: Days read for one ask at most, today's among them: past them the list
+#: says there may be more, and the next ask goes on from there, so an
+#: airplane that seldom flies is not a minute's wait.
+HISTORY_DAYS_PER_ASK = 14
 #: A past day's trace is kept this long, s: it no longer changes.
 HISTORY_TTL_S = 12 * 3600
 #: No report for this long, s, ends a flight: the airplane landed out of
@@ -816,26 +830,8 @@ def _legs(points: list[dict]) -> list[list[dict]]:
     return flown
 
 
-def history(hex_id: str, days: int = HISTORY_DAYS, today=None) -> dict:
-    """An airplane's flights of the last `days` UTC days, newest first, as
-    FlightAware lists them: {"hex", "registration", "type", "flights":
-    [{"id" (its takeoff's time, s), "origin", "destination" (each {"ident", "name",
-    "city", "region"}, None where it was first or last heard on its way),
-    "off", "on" (s, when first and last heard in the air), "landed"
-    (whether its end is at a field), "in_air" (heard in the last few
-    minutes, still flying), "max_alt_ft"}]}, from today's trace and the
-    archive's. A day that cannot be had is left out, not an error."""
-    import datetime as dt
-
-    hex_id = hex_id.lower()
-    today = today or dt.datetime.now(dt.timezone.utc).date()
-    # The recent trace, and the archive's days before today's.
-    # Read side by side: a week's days one after another took ten seconds.
-    with ThreadPoolExecutor(max_workers=4) as pool:
-        past = list(pool.map(lambda n: _day_trace(hex_id, today - dt.timedelta(days=n)), range(1, max(1, days))))
-    traces = [_trace(hex_id)] + past
-    points = _merged(traces)
-    named = next((t for t in traces if isinstance(t, dict)), {})
+def _summaries(points: list[dict]) -> list[dict]:
+    """A merged trace's flights, oldest first, as `history` lists them."""
     now = time.time()
     flights = []
     for leg in _legs(points):
@@ -847,26 +843,80 @@ def history(hex_id: str, days: int = HISTORY_DAYS, today=None) -> dict:
             "off": air[0]["t"], "on": air[-1]["t"], "landed": not in_air and end is not None, "in_air": in_air,
             "max_alt_ft": max(p["alt_ft"] for p in air),
         })
+    return flights
+
+
+def history(hex_id: str, limit: int = HISTORY_FLIGHTS, until=None, before: float | None = None, today=None) -> dict:
+    """An airplane's last `limit` flights found, newest first, as FlightAware
+    lists them: {"hex", "registration", "type", "flights": [{"id" (its
+    takeoff's time, s), "origin", "destination" (each {"ident", "name",
+    "city", "region"}, None where it was first or last heard on its way),
+    "off", "on" (s, when first and last heard in the air), "landed"
+    (whether its end is at a field), "in_air" (heard in the last few
+    minutes, still flying), "max_alt_ft"}], "next_until" (the UTC day, ISO,
+    to ask from with `before` for the flights before the last given; None
+    where the archive has none older), "unread_days"}. From `until` (a UTC
+    date, today where None) back, only those that took off before `before`
+    (s) where it is given -- a few
+    days at a time side by side, until the flights are found or the
+    archive's ARCHIVE_DAYS run out: today's from the recent trace, the
+    days before from the archive. A day that cannot be had is left out and
+    counted, not an error."""
+    import datetime as dt
+
+    hex_id = hex_id.lower()
+    today = today or dt.datetime.now(dt.timezone.utc).date()
+    if until is None and before is not None:
+        until = dt.datetime.fromtimestamp(before, dt.timezone.utc).date()
+    until = min(until or today, today)
+    oldest = today - dt.timedelta(days=ARCHIVE_DAYS - 1)
+    stop = max(oldest, until - dt.timedelta(days=HISTORY_DAYS_PER_ASK - 1))
+    traces: list = [_trace(hex_id)] if until == today else []
+    day = until - dt.timedelta(days=1) if until == today else until
+    unread = 0
+    flights: list[dict] = []
+    def found() -> list[dict]:
+        listed = _summaries(_merged(traces))
+        return [f for f in listed if f["id"] < before] if before is not None else listed
+    with ThreadPoolExecutor(max_workers=HISTORY_BATCH) as pool:
+        while True:
+            # The flights of the days read so far, the oldest day's first
+            # flight possibly begun the day before: one more is wanted than
+            # is shown, so the last shown is whole.
+            flights = found()
+            if len(flights) > limit or day < stop:
+                break
+            batch = [day - dt.timedelta(days=n) for n in range(HISTORY_BATCH) if day - dt.timedelta(days=n) >= stop]
+            past = list(pool.map(lambda d: _day_trace(hex_id, d), batch))
+            unread += sum(1 for t in past if t is UNREAD)
+            traces += past
+            day = batch[-1] - dt.timedelta(days=1)
+    named = next((t for t in traces if isinstance(t, dict)), {})
     flights.reverse()
-    # The days that could not be read now, said, so a gap in the list is
-    # not taken for days the airplane stayed on the ground.
-    unread = sum(1 for t in past if t is UNREAD)
-    return {"hex": hex_id, "registration": named.get("r") or None, "type": named.get("t") or None, "flights": flights,
-            "unread_days": unread}
+    shown = flights[:limit]
+    # Where the next ask starts: the last shown's day where more were found
+    # than shown (those that took off before it, by `before`), else the
+    # first day not read yet, while the archive has it.
+    if len(flights) > limit:
+        next_until = dt.datetime.fromtimestamp(shown[-1]["id"], dt.timezone.utc).date().isoformat()
+    else:
+        next_until = day.isoformat() if day >= oldest else None
+    return {"hex": hex_id, "registration": named.get("r") or None, "type": named.get("t") or None, "flights": shown,
+            "next_until": next_until, "unread_days": unread}
 
 
 def past_flight(hex_id: str, flight_id: int, today=None) -> dict | None:
     """One of `history`'s flights, its points for a track log and a replay:
     {"id", "points" ([{"t", "lat", "lon", "alt_ft", "gs_kt", "track_deg",
     "vrate_fpm"}], at most PAST_POINTS, evenly)}; None where it is not one
-    of the last days' flights."""
+    of the archive's days' flights."""
     import datetime as dt
 
     hex_id = hex_id.lower()
     today = today or dt.datetime.now(dt.timezone.utc).date()
     day = dt.datetime.fromtimestamp(flight_id, dt.timezone.utc).date()
     back = (today - day).days
-    if back < 0 or back >= HISTORY_DAYS:
+    if back < 0 or back >= ARCHIVE_DAYS:
         return None
     # Its day and the next from the archive, which a flight across
     # midnight UTC runs into, and the recent trace for today's.

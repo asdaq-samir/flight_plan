@@ -1,4 +1,6 @@
 """/api/traffic: the airplanes near a point, adsb.lol stubbed."""
+import datetime as dt
+
 from fastapi.testclient import TestClient
 from vfr import traffic
 
@@ -83,11 +85,17 @@ def test_adsb_lol_busy_still_gives_the_faa_record_unchecked(monkeypatch):
 def test_an_airplanes_past_flights_and_one_of_them(monkeypatch):
     lci = {"ident": "LCI", "name": "Laconia Municipal Airport", "city": "Laconia", "region": "US-NH"}
     lwm = {"ident": "LWM", "name": "Lawrence Municipal Airport", "city": "Lawrence", "region": "US-MA"}
-    monkeypatch.setattr(traffic, "history", lambda hex_id: {"hex": hex_id, "registration": "N654FL", "type": "P28A", "flights": [
+    asked = []
+    monkeypatch.setattr(traffic, "history", lambda hex_id, until=None, before=None: asked.append((until, before)) or {
+        "hex": hex_id, "registration": "N654FL", "type": "P28A", "next_until": "2026-10-04", "flights": [
         {"id": 1791723840, "origin": lci, "destination": lwm, "off": 1791723840.0, "on": 1791731820.0, "landed": True,
          "in_air": False, "max_alt_ft": 5400.0}]})
     body = client.get("/api/traffic/flight/a89c1e/history").json()
     assert body["flights"][0]["origin"]["ident"] == "LCI" and body["flights"][0]["destination"]["city"] == "Lawrence"
+    assert body["next_until"] == "2026-10-04"
+    # The ones before: from a day, before a takeoff.
+    client.get("/api/traffic/flight/a89c1e/history?until=2026-10-04&before=1791723840")
+    assert asked[-1] == (dt.date(2026, 10, 4), 1791723840.0)
     point = {"t": 1791723840.0, "lat": 43.57, "lon": -71.42, "alt_ft": 800.0, "gs_kt": 90.0, "track_deg": 250.0, "vrate_fpm": 844.0}
     monkeypatch.setattr(traffic, "past_flight", lambda hex_id, flight_id: {"id": flight_id, "points": [point]}
                         if flight_id == 1791723840 else None)

@@ -1,5 +1,7 @@
 """Traffic near a point, for the map (vfr.traffic): the airplanes ADS-B
 receivers hear there now, from adsb.lol's open data."""
+import datetime as dt
+
 from fastapi import APIRouter, HTTPException, Path, Query
 from vfr import traffic
 
@@ -63,12 +65,18 @@ def traffic_route(
 
 
 @router.get("/api/traffic/flight/{hex_id}/history", response_model=PastFlights)
-def traffic_history(hex_id: str = Path(pattern=r"^~?[0-9a-fA-F]{6}$")) -> PastFlights:
-    """An airplane's flights of the last seven days, newest first, as
-    FlightAware lists them (vfr.traffic.history): from adsb.lol's recent
-    trace and its archive of past days'. A day that cannot be had now is
-    left out."""
-    return PastFlights(**traffic.history(hex_id))
+def traffic_history(
+    hex_id: str = Path(pattern=r"^~?[0-9a-fA-F]{6}$"),
+    until: dt.date | None = Query(None, description="From this UTC day back (a date picked, or the last answer's next_until)"),
+    before: float | None = Query(None, gt=0, description="Only flights that took off before this, s since 1970: the last one listed"),
+) -> PastFlights:
+    """An airplane's last ten flights found, newest first, as FlightAware
+    lists them (vfr.traffic.history): from adsb.lol's recent trace and its
+    archive of past days', about six weeks, a fortnight at a time. With
+    `until` and `before`, the ones before those listed; with `until` alone,
+    those on and before a day picked. A day that cannot be had now is left
+    out and counted."""
+    return PastFlights(**traffic.history(hex_id, until=until, before=before))
 
 
 @router.get("/api/traffic/flight/{hex_id}/history/{flight_id}", response_model=PastFlight)
@@ -77,5 +85,5 @@ def traffic_past_flight(hex_id: str = Path(pattern=r"^~?[0-9a-fA-F]{6}$"), fligh
     (vfr.traffic.past_flight); 404 where it is not one of them."""
     found = traffic.past_flight(hex_id, flight_id)
     if found is None:
-        raise HTTPException(404, "No such flight of this airplane in the last seven days.")
+        raise HTTPException(404, "No such flight of this airplane in adsb.lol's archive.")
     return PastFlight(**found)

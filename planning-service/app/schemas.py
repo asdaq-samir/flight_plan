@@ -1065,7 +1065,7 @@ class PastFlightSummary(BaseModel):
 
 
 class PastFlights(BaseModel):
-    """An airplane's flights of the last seven days, newest first, from
+    """An airplane's last flights found, ten at most, newest first, from
     adsb.lol's traces (Open Database License 1.0)."""
 
     hex: str
@@ -1075,6 +1075,10 @@ class PastFlights(BaseModel):
     #: Past days whose traces adsb.lol did not give just now: their
     #: flights are missing from the list, not known not to have flown.
     unread_days: int = 0
+    #: The UTC day (ISO) to ask from, with `before` the last flight's id,
+    #: for the flights before these; None where adsb.lol's archive, about
+    #: six weeks, has none older.
+    next_until: str | None = None
 
 
 class PastFlightPoint(BaseModel):

@@ -1,56 +1,101 @@
-import { memo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { memo, useState } from "react";
+import { useInfiniteQuery } from "@tanstack/react-query";
 import { cn } from "cn";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
-import { api } from "../../../lib/api/client";
 import type { PastFlightSummary } from "../../../lib/api/types";
 import { clockTime } from "../../../lib/clock";
 import { TEXT } from "../../../lib/text";
 import { dayOf, lasted, legOf, statusOf, when } from "./pastFlightFormat";
+import { pastFlightsQuery } from "./pastFlightsQuery";
+
+/** How far back a day may be picked: adsb.lol's archive (vfr.traffic
+ *  ARCHIVE_DAYS), today among them. */
+const ARCHIVE_DAYS = 42;
+
+/** A UTC day, ISO, as a date field takes it. */
+const isoDay = (d: Date) => d.toISOString().slice(0, 10);
 
 /**
- * An airplane's flights of the last seven days on its card, at the
- * pilot's ask ("can we show past flights of an aircraft", with
- * FlightAware's list as the example): each from and to the fields its
- * track starts and ends at, newest first. A tap opens the flight's own
- * card over this one (PastFlightCard), at the pilot's ask: its replay
- * and its data.
+ * An airplane's past flights on its card, at the pilot's ask ("can we
+ * show past flights of an aircraft", with FlightAware's list as the
+ * example): its last ten found, newest first, each from and to the fields
+ * its track starts and ends at -- at the owner's ask ("make it last 10
+ * flights you were able to find"), where it was the last seven days'. Ten
+ * more before them on asking, and from a day picked ("give an option to
+ * fetch more by date"), as far back as adsb.lol's archive goes, about six
+ * weeks. A tap opens the flight's own card over this one (PastFlightCard).
  */
 export default function PastFlights({ hex, onOpen }: {
   hex: string;
   /** Opens a flight's own card (PastFlightCard), over this one. */
   onOpen: (id: number) => void;
 }) {
-  const { data, isError } = useQuery({
-    queryKey: ["pastFlights", hex], queryFn: () => api.trafficHistory(hex), staleTime: 5 * 60_000, meta: { silent: true },
+  // A day picked, else the last flights found.
+  const [from, setFrom] = useState<string | null>(null);
+  const { data, isError, fetchNextPage, hasNextPage, isFetchingNextPage, isFetching } = useInfiniteQuery({
+    ...pastFlightsQuery(hex, from),
     // Days adsb.lol did not give just now are asked for again, a minute
-    // apart, five times at most.
-    refetchInterval: query => ((query.state.data?.unread_days ?? 0) > 0 && query.state.dataUpdateCount <= 5 ? 60_000 : false),
+    // apart, five times at most, while only the first page is out.
+    refetchInterval: query => {
+      const pages = query.state.data?.pages ?? [];
+      return pages.length === 1 && (pages[0]?.unread_days ?? 0) > 0 && query.state.dataUpdateCount <= 5 ? 60_000 : false;
+    },
   });
-  const flights = data?.flights ?? [];
+  const pages = data?.pages ?? [];
+  // A page without its list (an older planner's answer, a stand-in) is no
+  // flights, not a fault that takes the card down.
+  const flights = pages.flatMap(page => page.flights ?? []);
+  const unread = pages.reduce((n, page) => n + (page.unread_days ?? 0), 0);
+  const today = new Date();
+  const earliest = new Date(today.getTime() - (ARCHIVE_DAYS - 1) * 86_400_000);
   return (
     <>
       <ListGroup
-        title="Last seven days"
-        footer="The last seven days, from adsb.lol's ADS-B receivers. A flight is taken to start or end at a field where it was heard low near it, or headed for it; where none was, it says where it was last heard."
+        title={from ? `On and before ${dayOf(new Date(`${from}T12:00:00Z`))}` : "Last flights"}
+        footer="From adsb.lol's ADS-B receivers, which keep about six weeks. A flight is taken to start or end at a field where it was heard low near it, or headed for it; where none was, it says where it was last heard."
       >
         {!data && !isError && <ListRow title={<span role="status" className="text-muted-foreground">Looking…</span>} />}
-        {isError && <ListRow title={<span className={cn("text-destructive", TEXT.detail)}>Its past flights could not be had. Try again in a moment.</span>} />}
-        {data && !flights.length && !data.unread_days && (
-          <ListRow title={<span className="text-muted-foreground">None heard in the last seven days</span>} />
+        {isError && !data && <ListRow title={<span className={cn("text-destructive", TEXT.detail)}>Its past flights could not be had. Try again in a moment.</span>} />}
+        {data && !flights.length && !hasNextPage && !unread && (
+          <ListRow title={<span className="text-muted-foreground">None heard in adsb.lol's archive</span>} />
         )}
         {flights.map(flight => (
           <PastFlightRow key={flight.id} flight={flight} onPick={() => onOpen(flight.id)} />
         ))}
         {/* A gap that is adsb.lol's, not the airplane's, said as one. */}
-        {!!data?.unread_days && (
+        {!!unread && (
           <ListRow title={
             <span className={cn("text-muted-foreground", TEXT.detail)} data-testid="past-flights-unread">
-              {data.unread_days === 1 ? "One day" : `${data.unread_days} days`} could not be read from adsb.lol just now, so their flights are missing; asking again.
+              {unread === 1 ? "One day" : `${unread} days`} could not be read from adsb.lol just now, so their flights are missing; asking again.
             </span>
           } />
         )}
+        {/* Ten more, before the last listed, as far back as the archive goes. */}
+        {hasNextPage && (
+          <ListRow
+            title={isFetchingNextPage ? "Looking further back…" : flights.length ? "Show earlier flights" : "Look further back"}
+            onClick={() => void fetchNextPage()} disabled={isFetchingNextPage} data-testid="past-flights-more"
+          />
+        )}
       </ListGroup>
+      {/* From a day picked: the phone's own date picker. */}
+      <ListGroup>
+        <ListRow id={`past-day-${hex}`} title="Flights before a date">
+          <span className="flex items-center gap-2">
+            <input
+              id={`past-day-${hex}`} type="date" value={from ?? ""} min={isoDay(earliest)} max={isoDay(today)}
+              onChange={event => setFrom(event.target.value || null)} data-testid="past-flights-date"
+              className={cn("rounded-md bg-muted px-2 py-1 text-foreground tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-ring", TEXT.detail)}
+            />
+            {from && (
+              <button type="button" onClick={() => setFrom(null)} className={cn("text-tint", TEXT.detail)} data-testid="past-flights-latest">
+                Latest
+              </button>
+            )}
+          </span>
+        </ListRow>
+      </ListGroup>
+      {isFetching && data && !isFetchingNextPage && <span className="sr-only" role="status">Updating</span>}
     </>
   );
 }

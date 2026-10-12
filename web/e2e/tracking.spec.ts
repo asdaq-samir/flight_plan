@@ -304,6 +304,51 @@ test("an airplane's past flights are listed on its card, and one is drawn on the
   await expect(page.locator("path.past-flight-path")).toHaveCount(0);
 });
 
+test("an airplane's last flights found are listed, the ones before them on asking, and from a day picked", async ({ page }) => {
+  // The owner's ask: "make it last 10 flights you were able to find. But
+  // also give an option to fetch more by date".
+  const lci = { ident: "LCI", name: "Laconia Municipal Airport", city: "Laconia", region: "US-NH" };
+  const lwm = { ident: "LWM", name: "Lawrence Municipal Airport", city: "Lawrence", region: "US-MA" };
+  const flight = (off: number, from: typeof lci, to: typeof lci) =>
+    ({ id: Math.floor(off), origin: from, destination: to, off, on: off + 3600, landed: true, in_air: false, max_alt_ft: 4500 });
+  const now = Date.now() / 1000;
+  const asked: URLSearchParams[] = [];
+  await sky(page);
+  await page.route(url => /\/api\/planner\/traffic\/flight\/a0b7d8\/history$/.test(url.pathname), route => {
+    const query = new URL(route.request().url()).searchParams;
+    asked.push(query);
+    const base = { hex: "a0b7d8", registration: "N14511", type: "A21N" };
+    if (query.get("before")) {
+      return route.fulfill({ json: { ...base, flights: [flight(now - 20 * 86400, lci, lwm)], next_until: null } });
+    }
+    if (query.get("until")) {
+      return route.fulfill({ json: { ...base, flights: [flight(now - 30 * 86400, lwm, lci)], next_until: null } });
+    }
+    return route.fulfill({ json: { ...base, flights: [flight(now - 86400, lci, lwm), flight(now - 2 * 86400, lwm, lci)], next_until: "2026-10-01" } });
+  });
+  await page.goto("/app/plan?flight=a0b7d8");
+  await settle(page);
+  const card = page.getByTestId("flight-card");
+  await card.getByTestId("flight-tab-activity").click();
+  const rows = card.getByTestId("past-flight");
+  await expect(rows).toHaveCount(2, { timeout: slow(15_000) });
+  // The ones before, from where the list ends: before its last takeoff.
+  await card.getByTestId("past-flights-more").click();
+  await expect(rows).toHaveCount(3);
+  expect(asked.at(-1)?.get("until")).toBe("2026-10-01");
+  expect(Number(asked.at(-1)?.get("before"))).toBe(Math.floor(now - 2 * 86400));
+  // The archive's end: no more to ask for.
+  await expect(card.getByTestId("past-flights-more")).toHaveCount(0);
+  // From a day picked.
+  await card.getByTestId("past-flights-date").fill("2026-09-15");
+  await expect(rows).toHaveCount(1);
+  expect(asked.at(-1)?.get("until")).toBe("2026-09-15");
+  await expect(card).toContainText("On and before");
+  // Back to the latest: the list as it was, the earlier ones still with it.
+  await card.getByTestId("past-flights-latest").click();
+  await expect(rows).toHaveCount(3);
+});
+
 test("an airplane opened is in the Aircraft card's Recents, and one starred on its card is in its Favorites, as airports are", async ({ page }) => {
   await sky(page);
   await page.goto("/app/plan?flight=a0b7d8");

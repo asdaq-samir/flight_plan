@@ -604,10 +604,77 @@ def test_a_past_day_that_could_not_be_read_is_counted_not_taken_for_no_flights(c
     traffic._DAYS.clear()
     monkeypatch.setattr(traffic, "_trace", lambda hex_id: None)
     with patch("vfr.traffic.requests.get", side_effect=requests.Timeout("slow")):
-        found = traffic.history("a89c1e", days=3, today=dt.date(2026, 10, 11))
-    assert found["flights"] == [] and found["unread_days"] == 2
+        found = traffic.history("a89c1e", today=dt.date(2026, 10, 11))
+    # A fortnight asked for, today's from the recent trace and thirteen days before.
+    assert found["flights"] == [] and found["unread_days"] == traffic.HISTORY_DAYS_PER_ASK - 1
     # And asked again next time, not kept as a day without a trace.
     assert not traffic._DAYS
+
+
+def _days_of_flights(per_day: int):
+    """`_day_trace` for an airplane that flies `per_day` hops LWM-LCI every
+    day, each an hour, from 08:00 UTC; and the days asked for."""
+    import datetime as dt
+
+    asked = []
+    lwm, lci = (42.72, -71.12), (43.57, -71.42)
+
+    def day_trace(hex_id, day):
+        asked.append(day)
+        base = dt.datetime(day.year, day.month, day.day, tzinfo=dt.timezone.utc).timestamp()
+        rows = []
+        for n in range(per_day):
+            there, back = (lwm, lci) if n % 2 == 0 else (lci, lwm)
+            rows += _fly(8 * 3600 + n * 7200, 9 * 3600 + n * 7200, there, back, 600, 4500, 10)
+        return _trace_of(base, rows)
+    return day_trace, asked
+
+
+def test_the_last_ten_flights_found_and_the_ten_before_them_from_where_it_left_off(clock, monkeypatch):
+    """The owner's ask: the last ten flights found, whatever the days, and
+    more on asking, from where the list ends."""
+    import datetime as dt
+
+    day_trace, asked = _days_of_flights(3)
+    monkeypatch.setattr(traffic, "_day_trace", day_trace)
+    monkeypatch.setattr(traffic, "_trace", lambda hex_id: None)
+    monkeypatch.setattr(traffic.airports, "nearest", _nearest)
+    today = dt.date(2026, 10, 11)
+    first = traffic.history("a89c1e", today=today)
+    assert len(first["flights"]) == traffic.HISTORY_FLIGHTS
+    # Newest first, three a day back from yesterday: the tenth on the 7th.
+    offs = [f["off"] for f in first["flights"]]
+    assert offs == sorted(offs, reverse=True)
+    last = first["flights"][-1]
+    assert dt.datetime.fromtimestamp(last["id"], dt.timezone.utc).date() == dt.date(2026, 10, 7)
+    # Read a week side by side, not more than it took.
+    assert min(asked) >= today - dt.timedelta(days=traffic.HISTORY_BATCH)
+    assert first["next_until"] == "2026-10-07"
+    # The ten before: none of the first ten again, and in order after them.
+    more = traffic.history("a89c1e", until=dt.date.fromisoformat(first["next_until"]), before=last["id"], today=today)
+    assert len(more["flights"]) == traffic.HISTORY_FLIGHTS
+    assert max(f["off"] for f in more["flights"]) < last["off"]
+    assert not {f["id"] for f in more["flights"]} & {f["id"] for f in first["flights"]}
+
+
+def test_an_airplane_that_seldom_flies_is_looked_for_a_fortnight_at_a_time(clock, monkeypatch):
+    import datetime as dt
+
+    day_trace, asked = _days_of_flights(0)
+    monkeypatch.setattr(traffic, "_day_trace", day_trace)
+    monkeypatch.setattr(traffic, "_trace", lambda hex_id: None)
+    today = dt.date(2026, 10, 11)
+    found = traffic.history("a89c1e", today=today)
+    assert found["flights"] == [] and len(asked) == traffic.HISTORY_DAYS_PER_ASK - 1
+    assert found["next_until"] == (today - dt.timedelta(days=traffic.HISTORY_DAYS_PER_ASK)).isoformat()
+    # A date picked: from that day back.
+    asked.clear()
+    traffic.history("a89c1e", until=dt.date(2026, 9, 20), today=today)
+    assert max(asked) == dt.date(2026, 9, 20)
+    # And past the archive's reach nothing is asked, and nothing is said to be older.
+    asked.clear()
+    old = traffic.history("a89c1e", until=today - dt.timedelta(days=traffic.ARCHIVE_DAYS + 5), today=today)
+    assert asked == [] and old["next_until"] is None
 
 
 def test_a_view_panned_into_a_new_region_while_adsb_lol_waits_is_given_a_region_that_holds_it(clock):

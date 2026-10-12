@@ -6523,7 +6523,7 @@
         "type": "object"
       },
       "PastFlights": {
-        "description": "An airplane's flights of the last seven days, newest first, from\nadsb.lol's traces (Open Database License 1.0).",
+        "description": "An airplane's last flights found, ten at most, newest first, from\nadsb.lol's traces (Open Database License 1.0).",
         "properties": {
           "flights": {
             "items": {
@@ -6535,6 +6535,17 @@
           "hex": {
             "title": "Hex",
             "type": "string"
+          },
+          "next_until": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Until"
           },
           "registration": {
             "anyOf": [
@@ -12782,7 +12793,7 @@
     },
     "/api/traffic/flight/{hex_id}/history": {
       "get": {
-        "description": "An airplane's flights of the last seven days, newest first, as\nFlightAware lists them (vfr.traffic.history): from adsb.lol's recent\ntrace and its archive of past days'. A day that cannot be had now is\nleft out.",
+        "description": "An airplane's last ten flights found, newest first, as FlightAware\nlists them (vfr.traffic.history): from adsb.lol's recent trace and its\narchive of past days', about six weeks, a fortnight at a time. With\n`until` and `before`, the ones before those listed; with `until` alone,\nthose on and before a day picked. A day that cannot be had now is left\nout and counted.",
         "operationId": "traffic_history_api_traffic_flight__hex_id__history_get",
         "parameters": [
           {
@@ -12793,6 +12804,44 @@
               "pattern": "^~?[0-9a-fA-F]{6}$",
               "title": "Hex Id",
               "type": "string"
+            }
+          },
+          {
+            "description": "From this UTC day back (a date picked, or the last answer's next_until)",
+            "in": "query",
+            "name": "until",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "From this UTC day back (a date picked, or the last answer's next_until)",
+              "title": "Until"
+            }
+          },
+          {
+            "description": "Only flights that took off before this, s since 1970: the last one listed",
+            "in": "query",
+            "name": "before",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only flights that took off before this, s since 1970: the last one listed",
+              "title": "Before"
             }
           }
         ],

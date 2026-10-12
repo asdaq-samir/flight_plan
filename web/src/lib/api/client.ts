@@ -450,8 +450,12 @@ export const api = {
   /** A tracked flight's airplane, where it took off and its path today,
    *  and a US airplane's FAA registration. */
   /** An airplane's flights of the last seven days, newest first. */
-  trafficHistory: (hex: string) =>
-    planner.GET("/api/traffic/flight/{hex_id}/history", { params: { path: { hex_id: hex } } }).then(data<PastFlights>),
+  /** Its last ten flights found, or those before a day (`until`) and a
+   *  takeoff (`before`, the last listed): the list's next page. */
+  trafficHistory: (hex: string, from?: { until?: string; before?: number }) =>
+    planner.GET("/api/traffic/flight/{hex_id}/history", {
+      params: { path: { hex_id: hex }, query: { until: from?.until, before: from?.before } },
+    }).then(data<PastFlights>),
   /** One of them, its reports, for its track log and its replay. */
   trafficPastFlight: (hex: string, id: number) =>
     planner.GET("/api/traffic/flight/{hex_id}/history/{flight_id}", { params: { path: { hex_id: hex, flight_id: id } } })

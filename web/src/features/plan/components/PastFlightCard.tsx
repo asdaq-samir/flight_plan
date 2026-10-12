@@ -1,5 +1,5 @@
 import { Suspense, lazy, memo, useEffect, useMemo, useRef, useState, type RefObject } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQueryClient, type InfiniteData } from "@tanstack/react-query";
 import { Gauge, MoveVertical, Pause, Play, PlaneLanding, PlaneTakeoff, Route, Square, Timer } from "lucide-react";
 import { cn } from "cn";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
@@ -7,8 +7,7 @@ import { CardHead, PanelCard } from "../../../components/PanelCard";
 import RoundButton from "../../../components/RoundButton";
 import { RowBadge } from "../../../components/RowBadge";
 import Segmented from "../../../components/Segmented";
-import { api } from "../../../lib/api/client";
-import type { PastFlightPoint, PastFlightSummary } from "../../../lib/api/types";
+import type { PastFlightPoint, PastFlights, PastFlightSummary } from "../../../lib/api/types";
 import { clockTime } from "../../../lib/clock";
 import { compassPoint } from "../../../lib/compass";
 import { distanceNm } from "../../../lib/geo";
@@ -17,6 +16,7 @@ import { BADGE } from "../../../lib/rowBadges";
 import { TEXT } from "../../../lib/text";
 import { altFt, grouped } from "../../../lib/units";
 import { dayOf, lasted, legOf, statusOf, when } from "./pastFlightFormat";
+import { pastFlightsQuery } from "./pastFlightsQuery";
 
 /** The track log's rows shown before "All reports" is asked for. */
 const LOG_ROWS = 60;
@@ -32,11 +32,14 @@ const LOG_ROWS = 60;
  * airplane's card, on its Activity.
  */
 export default function PastFlightCard({ hex, id, onClose }: { hex: string; id: number; onClose: () => void }) {
-  // The airplane's list, which this flight was opened from, is held already.
-  const { data } = useQuery({
-    queryKey: ["pastFlights", hex], queryFn: () => api.trafficHistory(hex), staleTime: 5 * 60_000, meta: { silent: true },
-  });
-  const flight = data?.flights.find(f => f.id === id) ?? null;
+  // The airplane's list, which this flight was opened from, is held
+  // already: any of its pages, from the last flights or a day picked; the
+  // last ten asked for where the card is opened from its address alone.
+  const { data } = useInfiniteQuery(pastFlightsQuery(hex, null));
+  const queryClient = useQueryClient();
+  const held = queryClient.getQueriesData<InfiniteData<PastFlights>>({ queryKey: ["pastFlights", hex] })
+    .flatMap(([, list]) => list?.pages ?? []).flatMap(page => page.flights ?? []);
+  const flight = [...(data?.pages.flatMap(page => page.flights ?? []) ?? []), ...held].find(f => f.id === id) ?? null;
   const points = usePastFlight(s => s.points);
   const off = when(flight?.off ?? id);
   return (
