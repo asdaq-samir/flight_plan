@@ -232,6 +232,22 @@ def _region_answer(region: tuple[float, float, int]) -> tuple[float, list[dict]]
     raise TrafficUnavailable("adsb.lol has not answered for a while")
 
 
+def _covering(lat: float, lon: float, radius_nm: float) -> tuple[float, list[dict]] | None:
+    """The freshest kept answer of any region whose asked circle holds the
+    whole view (its middle's distance plus the view's radius within it),
+    not older than KEEP_S; None where none does."""
+    now = _clock()
+    best = None
+    with _LOCK:
+        for (rlat, rlon, asked), (at, planes) in _REGIONS.items():
+            if now - at >= KEEP_S:
+                continue
+            apart = math.hypot((rlat - lat) * _NM_PER_DEG, (rlon - lon) * _NM_PER_DEG * math.cos(math.radians(lat)))
+            if apart + radius_nm <= asked and (best is None or at > best[0]):
+                best = (at, planes)
+    return best
+
+
 def near(lat: float, lon: float, radius_nm: float) -> dict:
     """The airplanes in the air within `radius_nm` (at most 165) of a
     point, as `_aircraft` gives each, and `age_s`, how many seconds before
@@ -239,7 +255,19 @@ def near(lat: float, lon: float, radius_nm: float) -> dict:
     "age_s"}. Raises TrafficUnavailable where adsb.lol has not answered
     for a minute."""
     radius = min(MAX_RADIUS_NM, radius_nm)
-    at, planes = _region_answer(_region(lat, lon, radius))
+    try:
+        at, planes = _region_answer(_region(lat, lon, radius))
+    except TrafficUnavailable:
+        # A view panned into a region not asked about yet while adsb.lol
+        # waits out a refusal, or behind other regions' turns, was a 503
+        # and "Traffic isn't available" over the map (the owner's, over
+        # Indiana, 2026-10-11). Another region's answer that holds the
+        # whole view -- the wide one it was zoomed out from, the one next
+        # door -- is given instead, with its age.
+        covering = _covering(lat, lon, radius)
+        if covering is None:
+            raise
+        at, planes = covering
     if planes:
         lats = np.array([p["lat"] for p in planes])
         lons = np.array([p["lon"] for p in planes])

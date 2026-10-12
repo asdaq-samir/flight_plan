@@ -110,3 +110,23 @@ test("the traffic is asked about wherever the map is panned, own ship or not, an
   }
   await expect.poll(() => Number(last().get("radius")), { timeout: slow(15_000) }).toBeGreaterThan(60);
 });
+
+test("an answer missed while the map is panned is not said; traffic is said unavailable only after half a minute without one", async ({ page }) => {
+  await page.addInitScript(() => {
+    const kept = JSON.parse(localStorage.getItem("vfr.preferences") ?? '{"state":{},"version":0}');
+    localStorage.setItem("vfr.preferences", JSON.stringify({ ...kept, state: { ...kept.state, traffic: true } }));
+  });
+  let down = false;
+  await page.route(url => url.pathname.endsWith("/api/planner/traffic"), route => (down
+    ? route.fulfill({ status: 503, json: { detail: "Traffic isn't available right now: adsb.lol has not answered for a minute." } })
+    : route.fulfill({ json: TRAFFIC })));
+  await page.clock.install();
+  await page.goto("/app/plan?place=C81");
+  await settle(page);
+  await expect(page.locator("svg[data-traffic]")).toHaveCount(2, { timeout: slow(15_000) });
+  down = true;
+  await page.clock.runFor(10_000);
+  await expect(page.getByText("Traffic isn't available right now.")).toHaveCount(0);
+  await page.clock.runFor(35_000);
+  await expect(page.getByText("Traffic isn't available right now.")).toBeVisible({ timeout: slow(10_000) });
+});

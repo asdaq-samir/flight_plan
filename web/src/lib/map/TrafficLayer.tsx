@@ -36,6 +36,9 @@ const BLEND_MS = 1000;
 const HEIGHT_ZOOM = 9;
 const CALLSIGN_ZOOM = 10;
 const PROBLEM = "traffic";
+/** No answer for this long, ms, and the traffic is said to be unavailable:
+ *  the airplanes are not carried on past half a minute (CARRY_S). */
+const STALE_MS = 30_000;
 /** What the Open Database License asks of a map that draws the data. */
 const ATTRIBUTION = 'Traffic <a href="https://adsb.lol" target="_blank" rel="noopener">adsb.lol</a>, ODbL';
 
@@ -115,7 +118,7 @@ function Traffic() {
   // Asked again as the middle moves a mile or so or the view's size by
   // ten miles, not at every pan.
   const ask = { lat: Math.round(at.lat * 50) / 50, lon: Math.round(at.lon * 50) / 50, radius: Math.ceil(view.radiusNm / 10) * 10 };
-  const { data, isError, isPlaceholderData, dataUpdatedAt } = useQuery({
+  const { data, isError, isPlaceholderData, dataUpdatedAt, errorUpdatedAt } = useQuery({
     queryKey: ["traffic", ask.lat, ask.lon, ask.radius],
     queryFn: () => api.traffic(ask),
     refetchInterval: EVERY_MS, staleTime: EVERY_MS - 1000, placeholderData: keepPreviousData,
@@ -144,10 +147,6 @@ function Traffic() {
   // minute (vfr.traffic): then the map says so, and the airplanes, carried
   // on no further than half a minute, have gone -- unless a receiver in
   // the cockpit is heard, whose traffic is drawn without the internet.
-  useEffect(() => {
-    if (isError && !receiving) raiseProblem({ id: PROBLEM, title: "Traffic isn't available right now." });
-    else clearProblem(PROBLEM);
-  }, [isError, receiving]);
   useEffect(() => () => clearProblem(PROBLEM), []);
 
   const targets = useRef(new Map<string, Target>());
@@ -168,6 +167,15 @@ function Traffic() {
   // change brought.
   const [answer, setAnswer] = useState<{ data: NonNullable<typeof data>; at: number } | null>(null);
   if (data && !isPlaceholderData && answer?.at !== dataUpdatedAt) setAnswer({ data, at: dataUpdatedAt });
+  // One answer missed while the map is panned on -- the planner waiting on
+  // adsb.lol for a region it has not asked about -- is not said: the last
+  // answer's airplanes are carried on meanwhile. Said once nothing has come
+  // for STALE_MS, or nothing ever has.
+  const gone = isError && (!answer || errorUpdatedAt - answer.at > STALE_MS);
+  useEffect(() => {
+    if (gone && !receiving) raiseProblem({ id: PROBLEM, title: "Traffic isn't available right now." });
+    else clearProblem(PROBLEM);
+  }, [gone, receiving]);
   const own = useMemo(
     () => (answer ? ownShipHex(agedBy(answer.data.aircraft, answer.data.age_s ?? 0), fix) : null),
     // Own ship's fix as each answer comes, not with every fix.

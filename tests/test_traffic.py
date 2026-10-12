@@ -550,3 +550,21 @@ def test_a_past_day_that_could_not_be_read_is_counted_not_taken_for_no_flights(c
     assert found["flights"] == [] and found["unread_days"] == 2
     # And asked again next time, not kept as a day without a trace.
     assert not traffic._DAYS
+
+
+def test_a_view_panned_into_a_new_region_while_adsb_lol_waits_is_given_a_region_that_holds_it(clock):
+    """Over Indiana zoomed out, then in on Lafayette while adsb.lol was
+    turning the planner away: the wide region's answer, not a 503."""
+    with patch("vfr.traffic.requests.get", return_value=_answer([CESSNA])):
+        traffic.near(40.0, -86.0, 150)                      # the wide region, out to 250 nm
+    clock.now += traffic.MIN_GAP_S
+    with patch("vfr.traffic.requests.get", return_value=_turned_away()):
+        with pytest.raises(traffic.TrafficUnavailable):
+            traffic._region_answer(traffic._region(41.0, -87.0, 150))   # another wide region, refused
+    # Now in the back-off: a near view by Lafayette is held by the first wide region's answer.
+    with patch("vfr.traffic.requests.get") as get:
+        found = traffic.near(40.4, -86.9, 30)
+    assert get.call_count == 0 and found["age_s"] == traffic.MIN_GAP_S
+    # One no answer holds still says so.
+    with pytest.raises(traffic.TrafficUnavailable):
+        traffic.near(30.0, -97.0, 30)
