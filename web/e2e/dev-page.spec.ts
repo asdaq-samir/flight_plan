@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { slow, settle, sideDrawer, consoleSheet, expectDrawerClosed, expectDrawerOpen, closeSidebarWithTheStockKey, openPanel } from "./helpers";
+import { slow, settle, sideDrawer, consoleSheet, expectDrawerClosed, expectDrawerOpen, closeSidebarWithTheStockKey, openPanel, showTabs } from "./helpers";
 
 /**
  * The dev page's training: the dev console, and the waypoint drawer's
@@ -13,10 +13,12 @@ test("dev page: the dev console opens on training, and the waypoint drawer opens
   // until its tab is picked. At rest, the tabs' pill: Train, Perf and
   // Settings, as the developer asked.
   await expect(sideDrawer(page).getByTestId("tab-bar").getByRole("button")).toHaveText(["Train", "Perf", "Settings"]);
+  await showTabs(page);
   await expect(page.getByTestId("tab-train")).toHaveAttribute("aria-current", "page");
   await expectDrawerClosed(page);
   expect(await consoleSheet(page).count()).toBe(0);
 
+  await showTabs(page);
   await page.getByTestId("settings-button").click();
   const devMl = consoleSheet(page);
   await expect(devMl).toBeVisible();
@@ -42,10 +44,13 @@ test("dev page: the dev console opens on training, and the waypoint drawer opens
   // Escape closes that too.
   await page.keyboard.press("Escape");
   await expect(devMl).toHaveCount(0);
+  await showTabs(page);
   await expect(page.getByTestId("tab-train")).toHaveAttribute("aria-current", "page");
+  await showTabs(page);
   await page.getByTestId("tab-perf").click();
   await openPanel(page);
   await expect(sideDrawer(page).getByTestId("perf-panel").getByText("Model comparison")).toBeVisible();
+  await showTabs(page);
   await page.getByTestId("tab-train").click();
   await closeSidebarWithTheStockKey(page);
   await expectDrawerClosed(page);
@@ -120,6 +125,7 @@ test("a retrain confirmed from the panel's More opens Perf, to follow it", async
   await page.getByTestId("retrain-button").click();
   await page.getByRole("button", { name: "Retrain", exact: true }).click();
 
+  await showTabs(page);
   await expect(page.getByTestId("tab-perf")).toHaveAttribute("aria-current", "page");
   await expect(sideDrawer(page).getByTestId("retrain-row")).toContainText("Retrain");
   await expect(consoleSheet(page)).toHaveCount(0);
@@ -148,6 +154,7 @@ test("Performance: Retrain says why it is off in the planner's words, and the ch
   });
   await page.goto("/app/dev?dep=C81&dest=KDLH");
   await settle(page);
+  await showTabs(page);
   await page.getByTestId("tab-perf").click();
   await openPanel(page);
   const sheet = sideDrawer(page).getByTestId("perf-panel");

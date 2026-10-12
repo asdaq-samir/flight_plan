@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { consoleSheet, controlsInSight, library, openPanel, openMapSettings, grabberTo } from "./helpers";
+import { consoleSheet, controlsInSight, library, openPanel, openMapSettings, grabberTo, showTabs } from "./helpers";
 
 /**
  * "Save this flight", at the head of the briefing drawer's sections, for
@@ -111,6 +111,7 @@ test("opening a saved flight puts its route in the header, and Load plans that r
 
   // The console's button is at the end of the route's capsule, lowered.
   await grabberTo(page, "peek");
+  await showTabs(page);
   await page.getByTestId("settings-button").click();
   await library(page, "Flights");
   // The row opens the flight's page; Open on the map is the way in, and
@@ -140,6 +141,7 @@ test("Edit over the saved flights puts a minus before each, and the minus delete
     await route.fulfill({ status: 204, body: "" });
   });
   await page.goto("/app/plan");
+  await showTabs(page);
   await page.getByTestId("settings-button").click();
   await library(page, "Flights");
   // Out of Edit, the row opens the flight's page and there is nothing to

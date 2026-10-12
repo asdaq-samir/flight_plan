@@ -938,12 +938,15 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     // the tab's own, as the half and all the way up stay.
   }, [setSearchParams]);
 
-  // The tab up tapped again: a card over it put away, as an iOS tab tapped
-  // again goes back to its first screen; on the pill, the panel opened to
-  // it, as a tap on the pill's own search bar did.
+  // The tab up tapped again: on the pill, the panel opened to it -- a card
+  // open over it, that card, as it was left; out already, a card over it
+  // put away, as an iOS tab tapped again goes back to its first screen.
   const tabUp = useCallback(() => {
+    if (panel === "peek") {
+      setPanel("half");
+      return;
+    }
     if (place || heldPoint || flight) pickTab(tab);
-    if (panel === "peek") setPanel("half");
   }, [place, heldPoint, flight, pickTab, tab, panel, setPanel]);
 
   // The plan's own address, to another device or person: the share
@@ -1460,7 +1463,9 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
             </div>
           )
         ) : null}
-        <div className={cn("flex min-h-0 flex-1 flex-col print:flex", (tab !== "fpl" || place || heldPoint) && "hidden")}>{navLog}</div>
+        {/* FPL's tabs once there is a route, at the pilot's ask: the empty
+            box alone before. */}
+        <div className={cn("flex min-h-0 flex-1 flex-col print:flex", (tab !== "fpl" || place || heldPoint || !hasPoints) && "hidden")}>{navLog}</div>
       </>
     ),
     // The tab's head: FPL's the route's box (`route`, below); the others'
@@ -1492,7 +1497,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     route: started ? (
       <div className="min-w-0 flex-1">
         {/* Its room while its code comes: the box's own line. */}
-        <Suspense fallback={<div className="min-h-[5.25rem] rounded-[20.5px] bg-foreground/8" />}>
+        <Suspense fallback={<div className="h-10 rounded-[20.5px] bg-foreground/8" />}>
         <SearchNear.Provider value={searchNear}>
         <RouteBox
           dep={planned.dep} stops={planned.stops} dest={planned.dest} waypoints={waypointStops} airspaceOf={airspaceOf} metarColourOf={metarColour}
@@ -1504,6 +1509,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           // An airport's pill tapped: its card over the route, as a tap on
           // it on the chart opens it, at the pilot's ask; closed, the route.
           onOpenAirport={selectPlace}
+          onClear={clearRoute}
         />
         </SearchNear.Provider>
         </Suspense>
@@ -1555,15 +1561,17 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     // route's tabs, its figures at the card's foot, at the pilot's ask:
     // the route and its chips are the half's.
     // Or, the route shown there by the small button on the separator
-    // under it (`fold`), the route's box and chips as at half.
-    figures: started && !routeOut && (
+    // under it (`fold`), the route's box and chips as at half. With no
+    // route there is nothing to fold: the empty box stays out, where its
+    // name read "? local".
+    figures: started && hasPoints && !routeOut && (
       <div className="flex w-full min-w-0 items-center py-1.5">
         <span className={cn("min-w-0 flex-1 truncate font-semibold", TEXT.row)} data-testid="route-folded">
           {routeName(planned.dep || "?", planned.dest || "?", planned.stops)}
         </span>
       </div>
     ),
-    fold: started && routeFold,
+    fold: started && hasPoints && routeFold,
     console: <PilotPanel />,
     submit,
     loading: s.stage !== null,

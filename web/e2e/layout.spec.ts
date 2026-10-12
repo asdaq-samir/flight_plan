@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { PAGES, settle, settled, slow, expectDrawerClosed, openSidebar, sideDrawer, openSettings, openPanel, closeSidebarWithTheStockKey, clearTheRoute } from "./helpers";
+import { PAGES, settle, settled, slow, expectDrawerClosed, openSidebar, sideDrawer, openSettings, openPanel, closeSidebarWithTheStockKey, clearTheRoute, showTabs } from "./helpers";
 
 /**
  * The regressions this file exists to catch (see playwright.config.ts
@@ -61,6 +61,7 @@ test.describe("/app/plan", () => {
     await expect(sideDrawer(page)).toHaveAttribute("data-panel", "half");
     await expect(page.getByTestId("search-airports")).toBeVisible();
     // Settings a tab of the bar, not a gear beside the search bar.
+    await showTabs(page);
     await expect(sideDrawer(page).getByTestId("tab-bar").getByTestId("settings-button")).toBeVisible();
     await expect(page.getByTestId("search-close")).toHaveCount(0);
     await expect(page.getByTestId("favorite-home")).toBeVisible();
@@ -106,7 +107,10 @@ test.describe("/app/plan", () => {
     const half = await height();
     const tabs = (await panel.locator("[data-tip='tabs']").boundingBox())!;
     const body = (await panel.locator("[data-panel-body]").boundingBox())!;
-    expect(Math.abs(tabs.y + tabs.height - (body.y + body.height))).toBeLessThanOrEqual(2);
+    // Its tabs whole at half; under them the top of the tab's content, its
+    // box one line tall, up to the half every panel has (MapPanel's
+    // HALF_LEAST_REM, which an airport card's tabs need).
+    expect(tabs.y + tabs.height).toBeLessThanOrEqual(body.y + body.height + 2);
 
     await clearTheRoute(page);
     await expect(page).not.toHaveURL(/[?&]dep=/);
@@ -116,6 +120,7 @@ test.describe("/app/plan", () => {
     const cleared = await height();
     expect(cleared).toBeLessThan(half);
 
+    await showTabs(page);
     await page.getByTestId("tab-airport").click();
     await expect(page.getByTestId("search-airports")).toBeVisible();
     await expect(panel).toHaveAttribute("data-panel", "half");
@@ -157,6 +162,7 @@ test.describe("/app/dev", () => {
     await page.goto("/app/dev");
     await settle(page);
     await expect(sideDrawer(page)).toHaveAttribute("data-capsule", "true");
+    await showTabs(page);
     await expect(page.getByTestId("tab-train")).toHaveAttribute("aria-current", "page");
     await openPanel(page);
     await expect(page.getByLabel("Departure", { exact: true })).toBeVisible();
@@ -290,13 +296,16 @@ for (const path of PAGES) {
     if (path === "/app/dev") {
       // At the end of the training page's route capsule, which has no
       // search bar.
+      await showTabs(page);
       await expect(sideDrawer(page).getByTestId("settings-button")).toBeVisible();
     } else {
       // At the end of the route's capsule, as at the search bar's once
       // the route is closed, as Maps' account is.
+      await showTabs(page);
       await expect(sideDrawer(page).getByTestId("settings-button")).toBeVisible();
       await page.goto(path);
       await settle(page);
+      await showTabs(page);
       await expect(sideDrawer(page).getByTestId("settings-button")).toBeVisible();
       expect(await page.locator("[data-map-controls]").getByTestId("settings-button").count()).toBe(0);
     }

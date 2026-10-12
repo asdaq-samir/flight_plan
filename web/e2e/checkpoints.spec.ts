@@ -78,9 +78,9 @@ test("plan page: a checkpoint picked on the map is brought to the middle of the 
   // pick first, at full height: at 420px a phone's map is too short
   // for a marker along the route to be clicked.)
   const viewport = page.viewportSize()!;
-  // 462: the route's box is two lines tall again (42 points more than the
-  // 420 this was written at), and a scroller left under a row and the
-  // table's sticky heading is too short for a row to stay put.
+  // 462, not the 420 this was written at: there a scroller left under the
+  // route's head and the table's sticky heading was too short for a row
+  // to stay put.
   await page.setViewportSize({ width: viewport.width, height: 462 });
   await page.waitForTimeout(300);
   await grabberTo(page, "full");

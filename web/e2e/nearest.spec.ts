@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { openMapSettings, openPanel, settle, sideDrawer, slow } from "./helpers";
+import { openMapSettings, openPanel, settle, sideDrawer, slow, showTabs } from "./helpers";
 
 /**
  * Nearest as a card of the panel's (NearestCard), at the pilot's ask: half
@@ -25,6 +25,7 @@ test("Nearest opens as a card half way up, a field over it as a layer, and its c
   await settle(page);
   await openPanel(page);
   // The tab bar's NRST, at the pilot's ask, where it was a button on the map.
+  await showTabs(page);
   await page.getByTestId("tab-nrst").click();
   const card = sideDrawer(page).getByTestId("nearest-card");
   await expect(card).toBeVisible();
@@ -46,6 +47,7 @@ test("Nearest opens as a card half way up, a field over it as a layer, and its c
   await sideDrawer(page).getByTestId("place-close").click();
   await expect(card).toBeVisible();
   // Back to the route by its own tab.
+  await showTabs(page);
   await page.getByTestId("tab-fpl").click();
   await expect(card).toHaveCount(0);
   await expect(sideDrawer(page).getByTestId("panel-tab-navlog")).toBeVisible();

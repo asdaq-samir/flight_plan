@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { clearTheRoute, expectDrawerClosed, expectDrawerOpen, grabberTo, mapStill, openMapSettings, openPanel, settle, sideDrawer, slow, tapTheChart } from "./helpers";
+import { clearTheRoute, expectDrawerClosed, expectDrawerOpen, grabberTo, mapStill, openMapSettings, openPanel, settle, sideDrawer, slow, tapTheChart, showTabs } from "./helpers";
 
 /**
  * Airports as places, as Maps has them: a tap on one on the chart opens
@@ -243,6 +243,7 @@ test("the route's Procedures open its destination's card on its approaches, and 
   // Nearest is the tab bar's (NRST), not a button on the map's left any
   // more; the map's own buttons stay on its right.
   await expect(page.locator("[data-map-controls-left]")).toHaveCount(0);
+  await showTabs(page);
   await expect(page.getByTestId("tab-nrst")).toBeVisible();
   const settings = page.locator("[data-map-controls]").getByTestId("map-settings-button");
   const width = page.viewportSize()!.width;
@@ -600,9 +601,10 @@ test("with no route the panel is a search bar: Home is set from Favorites, an ai
   await expect(page.getByLabel("Departure", { exact: true })).toContainText("C81");
 
   // Lowered, the route rests as the tabs' pill; Clear the route, in its
-  // Share menu, clears it -- its box, the controls and the tabs left in
-  // their places for another, what needs a route greyed -- and the Airport
-  // tab is the search. The panel the height it was throughout.
+  // Share menu, clears it -- its box and the controls left in their places
+  // for another, what needs a route greyed, the route's own tabs gone
+  // until there is one (at the pilot's ask) -- and the Airport tab is the
+  // search. The panel the height it was throughout.
   await grabberTo(page, "peek");
   await expect(sideDrawer(page)).toHaveAttribute("data-capsule", "true");
   await clearTheRoute(page);
@@ -612,8 +614,9 @@ test("with no route the panel is a search bar: Home is set from Favorites, an ai
   await sideDrawer(page).getByTestId("share-route").click();
   await expect(page.getByTestId("print-briefing")).toHaveAttribute("aria-disabled", "true");
   await page.keyboard.press("Escape");
-  await expect(sideDrawer(page).getByTestId("panel-tab-navlog")).toBeVisible();
+  await expect(sideDrawer(page).getByTestId("panel-tab-navlog")).toBeHidden();
   await expect(sideDrawer(page)).toHaveAttribute("data-panel", "half");
+  await showTabs(page);
   await page.getByTestId("tab-airport").click();
   await expect(sideDrawer(page)).toHaveAttribute("data-panel", "half");
   await expect(search).toBeVisible();

@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { library } from "./helpers";
+import { library, showTabs } from "./helpers";
 
 /**
  * An airplane's inspections and tests in its form (the Library's
@@ -27,6 +27,7 @@ test("an airplane's inspections say how long each is good for, and are saved tog
     await route.fulfill({ json: plane });
   });
   await page.goto("/app/plan");
+  await showTabs(page);
   await page.getByTestId("settings-button").click();
   const console = page.getByTestId("console-sheet");
   await library(console, "Aircraft");
@@ -63,6 +64,7 @@ test("an airplane's checklist is written from its flight manual, then run item b
     await route.fulfill({ json: checklist });
   });
   await page.goto("/app/plan");
+  await showTabs(page);
   await page.getByTestId("settings-button").click();
   const console = page.getByTestId("console-sheet");
   await library(console, "Aircraft");
@@ -105,6 +107,7 @@ test("a squawk is written with its 91.213(d) deferral, and fixed", async ({ page
     await route.fulfill({ json: squawks });
   });
   await page.goto("/app/plan");
+  await showTabs(page);
   await page.getByTestId("settings-button").click();
   const console = page.getByTestId("console-sheet");
   await library(console, "Aircraft");

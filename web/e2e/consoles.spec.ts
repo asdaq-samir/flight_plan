@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { settle, settled, consoleSheet, expectDrawerClosed, expectDrawerOpen, closeSidebarWithTheStockKey, openSettings, library, closeConsole } from "./helpers";
+import { settle, settled, consoleSheet, expectDrawerClosed, expectDrawerOpen, closeSidebarWithTheStockKey, openSettings, library, closeConsole, showTabs } from "./helpers";
 
 /**
  * The consoles and the settings: fitting the screen, the pilot
@@ -15,6 +15,7 @@ test("signed in, each console fits the screen's width: nothing but a table's own
   // allowed past the edge.
   for (const [path, button] of [["/app/plan", "settings-button"], ["/app/dev", "settings-button"]] as const) {
     await page.goto(path);
+    await showTabs(page);
     await page.getByTestId(button).click();
     await expect(consoleSheet(page).getByTestId("pilot-address")).toHaveText("developer@example.com");
     const past = await consoleSheet(page).evaluate(sheet => {
@@ -35,6 +36,7 @@ test("plan page: the pilot console holds the account, airplanes and flights, and
   await expect(page.locator('[data-slot="map-panel"]')).toHaveAttribute("data-panel", "half");
   expect(await consoleSheet(page).count()).toBe(0);
 
+  await showTabs(page);
   await page.getByTestId("settings-button").click();
   const pilot = consoleSheet(page);
   await expect(pilot).toBeVisible();
@@ -42,6 +44,7 @@ test("plan page: the pilot console holds the account, airplanes and flights, and
   // on a phone the console is the panel's layer, under the tab bar, in
   // the search bar's place; elsewhere a sheet.
   const phone = page.viewportSize()!.width < 768;
+  await showTabs(page);
   await expect(page.getByTestId("settings-button")).toHaveAttribute("aria-current", "page");
   if (phone) expect(await pilot.evaluate(el => !!el.closest('[data-slot="map-panel"]'))).toBe(true);
   // The title is the role, a menu: Pilot (chosen here), Developer for a
@@ -115,6 +118,7 @@ test("the navigation bar's edge is a setting: the panel moves to it, the map's b
   // screen's edges.
   await page.goto("/app/plan");
   await settle(page);
+  await showTabs(page);
   await page.getByTestId("settings-button").click();
   const pilot = consoleSheet(page);
   await expect(pilot.getByRole("tab", { name: "Guide" })).toBeVisible();
@@ -147,6 +151,7 @@ test("the console holds still as its tabs change: up from the bottom of a phone'
   await settle(page);
   const panel = page.locator('[data-slot="map-panel"]');
   const half = (await panel.boundingBox())!;
+  await showTabs(page);
   await page.getByTestId("settings-button").click();
   const pilot = consoleSheet(page);
   await expect(pilot.getByRole("tab", { name: "Guide" })).toBeVisible();

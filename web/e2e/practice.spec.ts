@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { consoleSheet } from "./helpers";
+import { consoleSheet, showTabs } from "./helpers";
 
 /**
  * The pilot console's Practice pages (the Guide tab): the flash-card
@@ -8,6 +8,7 @@ import { consoleSheet } from "./helpers";
  */
 async function practicePage(page: Page, name: string) {
   await page.goto("/app/plan");
+  await showTabs(page);
   await page.getByTestId("settings-button").click();
   const sheet = consoleSheet(page);
   await sheet.getByRole("tab", { name: "Guide" }).click();

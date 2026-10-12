@@ -100,7 +100,12 @@ export default function ProceduresButton({
           <PlaneLanding className="size-5" strokeWidth={2} />
         </RoundButton>
       </ResponsivePopoverTrigger>
-      <ResponsivePopoverContent title="Procedures" className="max-h-[70vh] w-80 overflow-y-auto p-3" align="end" side="left">
+      {/* On a phone a sheet that keeps its height from page to page, as
+          an iOS sheet does pushing one: sized to each page, it dropped
+          from nearly the screen's height to a few rows and back. */}
+      <ResponsivePopoverContent
+        title="Procedures" className="max-h-[70vh] w-80 overflow-y-auto p-3" sheetClassName="h-[85dvh]" align="end" side="left"
+      >
         <ConsolePages back="Procedures" pages={pages}>
         <div className="space-y-5" data-testid="procedures">
           {airports.map((a, i) => {

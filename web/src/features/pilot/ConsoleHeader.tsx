@@ -110,9 +110,10 @@ export default function ConsoleHeader({ console }: { console: string }) {
       {isLoading && <span className={cn("text-muted-foreground", TEXT.prose)}>Checking sign-in…</span>}
       {isError && <Button variant="outline" size="sm" onClick={() => void refetch()}>Retry sign-in check</Button>}
       {!isLoading && !isError && !pilot && <SignInModal />}
-      {inPanel ? (
-        <CloseButton onClick={inPanel.close} data-testid="console-close" />
-      ) : (
+      {/* The panel's Settings tab needs no close, at the pilot's ask: the
+          tab bar's other tabs put it away, as Escape does. A sheet over
+          the page (an iPad, a desktop) keeps its own. */}
+      {!inPanel && (
         <SheetClose asChild>
           <CloseButton data-testid="console-close" />
         </SheetClose>

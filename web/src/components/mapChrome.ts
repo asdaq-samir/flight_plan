@@ -43,6 +43,12 @@ export const ConsoleSettingsContext = createContext<ReactNode>(null);
  *  sheet's own close, title or description to use. */
 export const ConsoleInPanelContext = createContext<{ close: () => void } | null>(null);
 
+/** Whether the tab bar is minimized (MapPanel): out of the pill on a
+ *  phone, the sheet up, it is the tab up's name alone, centred, as iOS
+ *  26's tab bar minimizes, at the pilot's ask; tapped, every tab again
+ *  (TabBar). */
+export const TabBarMinimized = createContext(false);
+
 /** Where the route's tabs' bar ends, in pixels from the map panel's
  *  body's top, or null with no tabs in sight: the panel's half height,
  *  every panel's, is the route's head and that bar (MapPanel). */
@@ -107,6 +113,10 @@ export const SHEET_SETTLE = `height ${SHEET_CURVE}, ${SHEET_RESHAPE}`;
  *  sheet up to half way, and their far corners all the way up. */
 export const SHEET_INSET = 8;
 export const SHEET_INSET_RADIUS = 36;
+/** The panel at rest, its tabs and the route's figures: a rectangle with
+ *  round corners, at the pilot's ask ("more of a rectangle"), where it was
+ *  a capsule, its ends half its height round. */
+export const PILL_RADIUS = 24;
 
 /** The margin a card keeps from the screen's edges, and a phone's sheet
  *  from the far one. */

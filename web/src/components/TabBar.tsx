@@ -1,7 +1,8 @@
-import { Settings, type LucideIcon } from "lucide-react";
+import { useContext, useState } from "react";
+import { ChevronDown, Settings, type LucideIcon } from "lucide-react";
 import { cn } from "cn";
 import { TEXT } from "../lib/text";
-import { useConsoleOpen } from "./mapChrome";
+import { TabBarMinimized, useConsoleOpen } from "./mapChrome";
 
 /** One of a page's places, a tab of its bar: its word and its glyph. */
 export interface BarTab<T extends string> {
@@ -24,6 +25,11 @@ export interface BarTab<T extends string> {
  * search bar the whole width. Its button keeps the gear's test id, and is
  * where the focus goes back to as the console closes
  * (`data-console-button`, MapPage).
+ *
+ * Out of the pill, the sheet up on a phone, it is minimized, as iOS 26's
+ * tab bar minimizes, at the pilot's ask: the tab up's glyph and name
+ * alone, centred, in the tint; tapped, every tab again at the height the
+ * sheet is, minimized once one is picked.
  */
 export default function TabBar<T extends string>({ tabs, tab, onPick, onUp, marks, className }: {
   tabs: BarTab<T>[];
@@ -42,6 +48,30 @@ export default function TabBar<T extends string>({ tabs, tab, onPick, onUp, mark
   const setConsoleOpen = useConsoleOpen(s => s.setOpen);
   const all: BarTab<T | "settings">[] = [...tabs, { value: "settings", label: "Settings", icon: Settings }];
   const up: T | "settings" = consoleOpen ? "settings" : tab;
+  const minimized = useContext(TabBarMinimized);
+  const [shown, setShown] = useState(false);
+  // In the pill again, minimized again the next time the sheet is up.
+  if (!minimized && shown) setShown(false);
+  const upTab = all.find(t => t.value === up)!;
+  if (minimized && !shown) {
+    const Icon = upTab.icon;
+    return (
+      <nav aria-label="Tabs" className={cn("flex h-full w-full items-center justify-center print:hidden", className)} data-testid="tab-bar">
+        <button
+          type="button" onClick={() => setShown(true)} aria-expanded={false} aria-label={`${upTab.label}, show the tabs`}
+          data-testid="tab-title"
+          className={cn(
+            "relative flex h-8 items-center gap-1.5 rounded-full px-3 font-semibold text-tint outline-none focus-visible:ring-2 focus-visible:ring-ring",
+            "after:absolute after:-inset-x-2 after:-inset-y-1.5 after:content-['']", TEXT.row,
+          )}
+        >
+          <Icon className="size-5" strokeWidth={2.25} aria-hidden="true" />
+          {upTab.label}
+          <ChevronDown className="size-4 text-muted-foreground" strokeWidth={2.25} aria-hidden="true" />
+        </button>
+      </nav>
+    );
+  }
   return (
     <nav aria-label="Tabs" className={cn("flex h-full w-full items-stretch print:hidden", className)} data-testid="tab-bar">
       {all.map(({ value, label, icon: Icon }) => {
@@ -51,6 +81,7 @@ export default function TabBar<T extends string>({ tabs, tab, onPick, onUp, mark
           <button
             key={value} type="button" aria-current={current ? "page" : undefined}
             onClick={() => {
+              setShown(false);
               if (current) {
                 onUp?.();
                 return;

@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { grabberTo, settle, sideDrawer, slow } from "./helpers";
+import { grabberTo, settle, sideDrawer, slow, showTabs } from "./helpers";
 
 /**
  * Tracking an airplane, as FlightAware and ForeFlight do, at the pilot's
@@ -65,7 +65,9 @@ test("Aircraft is a tab, lists the airplanes about, and a tap on one tracks it: 
   await page.goto("/app/plan");
   await settle(page);
   // The tab bar's Aircraft, at the pilot's ask, where it was a button under Nearest's.
+  await showTabs(page);
   await page.getByTestId("tab-aircraft").click();
+  await showTabs(page);
   await expect(page.getByTestId("tab-aircraft")).toHaveAttribute("aria-current", "page");
   const list = page.getByTestId("aircraft-card");
   await expect(list.getByTestId("aircraft-row")).toHaveCount(2, { timeout: slow(15_000) });

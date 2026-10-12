@@ -1,5 +1,5 @@
 import { test, expect, type Route } from "@playwright/test";
-import { library } from "./helpers";
+import { library, showTabs } from "./helpers";
 
 /**
  * The Logbook's Checkride page (CheckridePage): 61.109's experience as
@@ -44,6 +44,7 @@ test("experience item by item, a report's codes looked up, and an endorsement da
   });
 
   await page.goto("/app/plan");
+  await showTabs(page);
   await page.getByTestId("settings-button").click();
   const console = page.getByTestId("console-sheet");
   await library(console, "Logbook");

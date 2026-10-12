@@ -40,6 +40,14 @@ export async function settle(page: Page) {
  *  `data-panel`: peek at rest, half or full when it is out. */
 export const sideDrawer = (page: Page) => page.locator('[data-slot="map-panel"]');
 
+/** The tab bar's tabs in sight: with the sheet up the bar is minimized to
+ *  the tab up's name (TabBar), tapped to show them all; in the pill they
+ *  are there. Nothing where the page has no tab bar. */
+export async function showTabs(page: Page) {
+  const title = page.getByTestId("tab-title");
+  if (await title.isVisible()) await title.click();
+}
+
 /** The panel out half way, where its head is the route form, the
  *  workspace's actions and the controls. At rest the planner's is its
  *  tab bar alone, the tab up tapped opening it; the training page's a
@@ -129,6 +137,7 @@ async function panelFull(page: Page) {
  *  button -- on the planner's search bar, on the training page among the
  *  map's -- and all the way out. Escape closes the console again. */
 export async function openSettings(page: Page) {
+  await showTabs(page);
   await page.getByTestId("settings-button").click();
   await page.getByTestId("console-sheet").getByRole("tab", { name: "Settings" }).click();
   await expect(page.getByTestId("settings-panel")).toBeVisible();
@@ -188,7 +197,10 @@ export async function expandConsole(page: Page) {
  *  closes the menu; closeConsole puts the console away after it. */
 export async function roleMenu(page: Page) {
   const sheet = page.getByTestId("console-sheet");
-  if (!(await sheet.isVisible())) await page.getByTestId("settings-button").click();
+  if (!(await sheet.isVisible())) {
+    await showTabs(page);
+    await page.getByTestId("settings-button").click();
+  }
   await expect(sheet).toBeVisible();
   const trigger = sheet.getByTestId("role-menu");
   // The menu comes with who is signed in, or dev mode, once known.

@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { settle, slow } from "./helpers";
+import { settle, slow, showTabs } from "./helpers";
 
 /**
  * Signing a TV in from a phone (#207, DeviceSignInController): the TV's
@@ -28,6 +28,7 @@ test("on a TV, sign-in is a code to type in on a phone, and the TV signs in once
   });
   await page.goto("/app/plan?tv=webos");
   await settle(page);
+  await showTabs(page);
   await page.getByTestId("settings-button").click();
   await page.getByTestId("console-sheet").getByRole("button", { name: "Sign in" }).click();
   const dialog = page.getByRole("dialog", { name: "Sign in to Wingtip Maps" });

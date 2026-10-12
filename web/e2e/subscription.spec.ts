@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { consoleSheet, openBriefing, openSection, openTab, settle, sideDrawer, slow } from "./helpers";
+import { consoleSheet, openBriefing, openSection, openTab, settle, sideDrawer, slow, showTabs } from "./helpers";
 
 /**
  * The subscription to the paid features (lib/subscription, PaidPrompt):
@@ -89,6 +89,7 @@ test("Personal's Subscription page says what the pilot has, and the month's uses
   await stubSubscription(page, "TRIAL");
   await page.goto("/app/plan");
   await settle(page);
+  await showTabs(page);
   await page.getByTestId("settings-button").click();
   const console = consoleSheet(page);
   await console.getByRole("tab", { name: "Personal" }).click();

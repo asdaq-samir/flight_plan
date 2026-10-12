@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { expandConsole, noTips } from "./helpers";
+import { expandConsole, noTips, showTabs } from "./helpers";
 
 /**
  * The speed trend (SpeedController): the Dev console's Speed page, under
@@ -26,6 +26,7 @@ test("the Speed page, under System, charts pilots' figures beside the lab's, by 
   await page.route(url => url.pathname === "/api/speed", route =>
     route.fulfill({ contentType: "application/json", body: JSON.stringify(DAYS) }));
   await page.goto("/app/dev");
+  await showTabs(page);
   await page.getByTestId("settings-button").click();
   await consoleSheet(page).getByRole("tab", { name: "System" }).click();
   await expandConsole(page);

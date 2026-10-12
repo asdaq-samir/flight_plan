@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { slow, settle, sideDrawer, expectDrawerOpen, openTab, openSection, openPanel, grabberTo, controlsInSight } from "./helpers";
+import { slow, settle, sideDrawer, expectDrawerOpen, openTab, openSection, openPanel, grabberTo, controlsInSight, showTabs } from "./helpers";
 
 /**
  * What the nav log is computed from: the altitude plans and a pilot's
@@ -203,6 +203,7 @@ test("plan page: no legal altitude is the route's own problem: its chip says so 
   // At rest the route says so, a red mark on its tab in the pill:
   // nothing over the map.
   await expect(page.getByTestId("tab-mark-fpl")).toHaveAttribute("data-finding", "stop", { timeout: slow(30000) });
+  await showTabs(page);
   await expect(page.getByTestId("tab-fpl")).toHaveAccessibleName(/^FPL, warning$/);
   await expect(page.locator("[data-problem-banner]")).toHaveCount(0);
   await expect(page.locator("[data-sonner-toast]", { hasText: "No legal" })).toHaveCount(0);
