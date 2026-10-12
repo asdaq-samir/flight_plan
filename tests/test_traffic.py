@@ -1,6 +1,7 @@
 """vfr.traffic: adsb.lol's answer read into the map's airplanes, and how
 often adsb.lol is asked, with adsb.lol stubbed in its own shape (readsb's
 JSON, `ac`) and the clock stood in for."""
+import json
 import threading
 from unittest.mock import Mock, patch
 
@@ -738,3 +739,59 @@ def test_the_bases_asked_for_are_given_as_they_are_found(clock, monkeypatch):
     again = traffic.based(["a89c1e"])
     assert again == {"based": {"a89c1e": lwm}, "pending": []}
     assert looked == ["a89c1e"]
+
+
+@pytest.fixture
+def adsbx(clock, monkeypatch, tmp_path):
+    """ADS-B Exchange keyed, its month's count kept in a scratch file."""
+    monkeypatch.setenv("ADSBX_RAPIDAPI_KEY", "test-key")
+    monkeypatch.setattr(traffic, "ADSBX_USAGE_FILE", tmp_path / "adsbx_usage.json")
+    monkeypatch.setattr(traffic, "_ADSBX", {"last": -1e9})
+    monkeypatch.setattr(traffic, "_FROM_ADSBX", set())
+    monkeypatch.setattr(traffic, "_wall", lambda: 1791800000.0)
+    return tmp_path / "adsbx_usage.json"
+
+
+def test_where_adsb_lol_turns_us_away_ads_b_exchange_answers_and_is_credited(adsbx, clock):
+    get, asked = _routed({"api.adsb.lol": _turned_away(), "adsbexchange-com1": _answer([CESSNA])})
+    with patch("vfr.traffic.requests.get", side_effect=get):
+        found = traffic.near(42.3246, -88.0741, 25)
+    assert [a["hex"] for a in found["aircraft"]] == ["a128b9"]
+    assert found["source"] == "ADS-B Exchange"
+    assert asked[-1] == "https://adsbexchange-com1.p.rapidapi.com/v2/lat/42.50/lon/-88.00/dist/80/"
+    # Counted against the month, on disk.
+    assert json.loads(adsbx.read_text()) == {"2026-10": 1}
+
+
+def test_ads_b_exchange_is_asked_no_more_than_its_gap_and_its_month_allow(adsbx, clock, monkeypatch):
+    get, asked = _routed({"api.adsb.lol": _turned_away(), "adsbexchange-com1": _answer([CESSNA])})
+    with patch("vfr.traffic.requests.get", side_effect=get):
+        traffic.near(42.3, -88.1, 25)
+        # Another region at once: within the gap, not asked; nothing to give.
+        with pytest.raises(traffic.TrafficUnavailable):
+            traffic.near(45.0, -93.0, 25)
+        clock.now += traffic.ADSBX_MIN_GAP_S
+        # The month spent: not asked either.
+        adsbx.write_text(json.dumps({"2026-10": traffic.ADSBX_MONTHLY}))
+        with pytest.raises(traffic.TrafficUnavailable):
+            traffic.near(45.0, -93.0, 25)
+    assert sum("adsbexchange" in u for u in asked) == 1
+
+
+def test_a_search_adsb_lol_cannot_take_now_is_asked_of_ads_b_exchange_at_once(adsbx, clock):
+    traffic._STATE["blocked_until"] = clock.now + 60
+    # A region asked of it a moment ago: a search is not held to that gap.
+    traffic._ADSBX["last"] = clock.now
+    get, asked = _routed({"adsbexchange-com1.p.rapidapi.com/v2/callsign/UAL2088": _answer([{**CESSNA, "flight": "UAL2088 "}])})
+    with patch("vfr.traffic.requests.get", side_effect=get):
+        (ual,) = traffic.find("UAL2088")
+    assert ual["callsign"] == "UAL2088"
+    assert asked == ["https://adsbexchange-com1.p.rapidapi.com/v2/callsign/UAL2088/"]
+
+
+def test_without_a_key_ads_b_exchange_is_never_asked(clock, monkeypatch):
+    monkeypatch.delenv("ADSBX_RAPIDAPI_KEY", raising=False)
+    get, asked = _routed({"api.adsb.lol": _turned_away()})
+    with patch("vfr.traffic.requests.get", side_effect=get), pytest.raises(traffic.TrafficUnavailable):
+        traffic.near(42.3, -88.1, 25)
+    assert not any("adsbexchange" in u for u in asked)

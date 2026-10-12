@@ -101,6 +101,7 @@ services:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       # The map's Google overlay (routers/basemaps), where the owner has a key.
       GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY:-}
+      ADSBX_RAPIDAPI_KEY: ${ADSBX_RAPIDAPI_KEY:-}
       CHARTS_AUTO_REFRESH: "0"
       CHART_TILES_URL: https://${PUBLIC_HOST}/tiles
       TZ: America/Chicago

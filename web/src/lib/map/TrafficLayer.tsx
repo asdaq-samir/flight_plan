@@ -44,6 +44,7 @@ const STALE_MS = 30_000;
  *  panel a link has no room for a 44-point hit area, and the console's
  *  About links adsb.lol with its licence. */
 const ATTRIBUTION = "Traffic adsb.lol, ODbL";
+const ADSBX_ATTRIBUTION = "Traffic ADS-B Exchange";
 
 /** One airplane on the map: its report, when that position was (this
  *  phone's clock, ms), and what is left of the step to it from where it
@@ -108,11 +109,6 @@ function Traffic() {
     // The pilot's own finger on the map ends following, as own ship's does.
     dragstart: () => { if (useTracking.getState().follow) useTracking.setState({ follow: false }); },
   }), [map]));
-  // Said where it is drawn, as the licence asks; gone with it.
-  useEffect(() => {
-    const credit = L.control.attribution({ prefix: false, position: "bottomleft" }).addAttribution(ATTRIBUTION).addTo(map);
-    return () => { credit.remove(); };
-  }, [map]);
   // About the airplane followed, else the map's middle: the traffic
   // wherever the map is panned, at the pilot's ask. It was own ship's
   // whenever there was a fix, so a map panned away from the airplane
@@ -128,6 +124,14 @@ function Traffic() {
     // Said here, in words of its own, not as the planner's failure.
     meta: { silent: true },
   });
+  // Said where it is drawn, as the licence asks; gone with it. Whose the
+  // airplanes are: adsb.lol's, or ADS-B Exchange's where the planner asked
+  // it because adsb.lol turned it away (vfr.traffic).
+  const credit = data?.source === "ADS-B Exchange" ? ADSBX_ATTRIBUTION : ATTRIBUTION;
+  useEffect(() => {
+    const control = L.control.attribution({ prefix: false, position: "bottomleft" }).addAttribution(credit).addTo(map);
+    return () => { control.remove(); };
+  }, [map, credit]);
   // A cockpit receiver, heard in the app while the traffic is drawn
   // (lib/map/receiver, #191): its airplanes merged with the internet's.
   useEffect(() => {

@@ -23,11 +23,15 @@ region is found at once, with no request at all.
 """
 from __future__ import annotations
 
+import json
 import math
+import os
 import re
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
+
+from pathlib import Path
 
 import numpy as np
 import requests
@@ -90,6 +94,78 @@ _FLIGHTS: dict = {}
 
 class TrafficUnavailable(RuntimeError):
     """adsb.lol has not answered for a while."""
+
+
+# --- ADS-B Exchange, the fallback where adsb.lol turns us away ---
+
+#: ADS-B Exchange's API through RapidAPI, the same readsb answer as
+#: adsb.lol's (`ac`), asked only where adsb.lol has refused or not
+#: answered, at the owner's ask ("a hybrid solution of adsb.lol and adsb
+#: exchange community version"): its non-commercial plan, 10,000 requests
+#: a month. Off unless ADSBX_RAPIDAPI_KEY is set.
+ADSBX_HOST = "adsbexchange-com1.p.rapidapi.com"
+ADSBX_URL = "https://adsbexchange-com1.p.rapidapi.com/v2/{path}/"
+#: Requests a month at most, short of the plan's 10,000 so a month's end
+#: never brings its overage charges.
+ADSBX_MONTHLY = int(os.environ.get("ADSBX_MONTHLY_REQUESTS", "9000"))
+#: Never two of the map's region requests to it closer together than
+#: this, s: 9,000 a month is one every five minutes on average; this
+#: keeps a bad hour from spending a week's. A pilot's search is not held
+#: to it -- it is asked at once, within the month's budget.
+ADSBX_MIN_GAP_S = 30.0
+#: Where the month's count is kept, so a restart does not forget it.
+ADSBX_USAGE_FILE = Path(os.environ.get("ADSBX_USAGE_FILE", "data/raw/adsbx_usage.json"))
+#: Its credit, as the map says it where it draws what it gave.
+ADSBX_SOURCE = {"source": "ADS-B Exchange", "license": "ADS-B Exchange terms"}
+_ADSBX = {"last": -math.inf}
+
+
+def _adsbx_spend(search: bool = False) -> bool:
+    """One of the month's requests to ADS-B Exchange taken, where there is a
+    key, the month has one left and -- for the map's regions, not a pilot's
+    search, which is asked at once -- the gap since the last region's is
+    kept; the count kept on disk."""
+    if not os.environ.get("ADSBX_RAPIDAPI_KEY"):
+        return False
+    month = time.strftime("%Y-%m", time.gmtime(_wall()))
+    with _LOCK:
+        if not search and _clock() - _ADSBX["last"] < ADSBX_MIN_GAP_S:
+            return False
+        try:
+            used = json.loads(ADSBX_USAGE_FILE.read_text()) if ADSBX_USAGE_FILE.exists() else {}
+        except (OSError, ValueError):
+            used = {}
+        if used.get(month, 0) >= ADSBX_MONTHLY:
+            return False
+        used = {month: used.get(month, 0) + 1}
+        try:
+            ADSBX_USAGE_FILE.parent.mkdir(parents=True, exist_ok=True)
+            ADSBX_USAGE_FILE.write_text(json.dumps(used))
+        except OSError:
+            return False
+        if not search:
+            _ADSBX["last"] = _clock()
+    return True
+
+
+def _adsbx(path: str, search: bool = False) -> list[dict]:
+    """ADS-B Exchange's airplanes for a path of its API ("lat/42.00/lon/
+    -88.00/dist/80", "callsign/UAL2088"), as `_aircraft` gives each.
+    TrafficUnavailable where it may not be asked now or does not answer."""
+    if not _adsbx_spend(search):
+        raise TrafficUnavailable("ADS-B Exchange may not be asked now")
+    try:
+        resp = requests.get(ADSBX_URL.format(path=path), timeout=TIMEOUT_S, headers={
+            **HEADERS, "x-rapidapi-key": os.environ.get("ADSBX_RAPIDAPI_KEY", ""), "x-rapidapi-host": ADSBX_HOST})
+        resp.raise_for_status()
+        entries = resp.json().get("ac") or []
+    except (requests.RequestException, ValueError) as err:
+        raise TrafficUnavailable(f"ADS-B Exchange did not answer: {err}") from err
+    return [a for a in (_aircraft(e) for e in entries if isinstance(e, dict)) if a is not None]
+
+
+#: Regions whose kept answer is ADS-B Exchange's, for its credit.
+_FROM_ADSBX: set = set()
 
 
 def _number(value) -> float | None:
@@ -225,6 +301,7 @@ def _region_answer(region: tuple[float, float, int]) -> tuple[float, list[dict]]
                 _STATE["blocked_until"] = asked + BACKOFF_S
             else:
                 _REGIONS[region] = answer
+                _FROM_ADSBX.discard(region)
                 if len(_REGIONS) > 256:
                     for gone in [r for r, (at, _) in _REGIONS.items() if asked - at > KEEP_S]:
                         del _REGIONS[gone]
@@ -262,8 +339,13 @@ def near(lat: float, lon: float, radius_nm: float) -> dict:
     "age_s"}. Raises TrafficUnavailable where adsb.lol has not answered
     for a minute."""
     radius = min(MAX_RADIUS_NM, radius_nm)
+    region = _region(lat, lon, radius)
+    credit: dict = {}
     try:
-        at, planes = _region_answer(_region(lat, lon, radius))
+        at, planes = _region_answer(region)
+        with _LOCK:
+            if region in _FROM_ADSBX:
+                credit = ADSBX_SOURCE
     except TrafficUnavailable:
         # A view panned into a region not asked about yet while adsb.lol
         # waits out a refusal, or behind other regions' turns, was a 503
@@ -273,7 +355,15 @@ def near(lat: float, lon: float, radius_nm: float) -> dict:
         # door -- is given instead, with its age.
         covering = _covering(lat, lon, radius)
         if covering is None:
-            raise
+            # None to give: ADS-B Exchange asked for the region instead,
+            # kept as adsb.lol's answer would be, and credited.
+            asked = _clock()
+            planes = _adsbx(f"lat/{region[0]:.2f}/lon/{region[1]:.2f}/dist/{min(250, region[2])}")
+            with _LOCK:
+                _REGIONS[region] = (asked, planes)
+                _FROM_ADSBX.add(region)
+            covering = (asked, planes)
+            credit = ADSBX_SOURCE
         at, planes = covering
     if planes:
         lats = np.array([p["lat"] for p in planes])
@@ -282,7 +372,7 @@ def near(lat: float, lon: float, radius_nm: float) -> dict:
         # edge of a view the size of a state.
         nm = np.hypot((lats - lat) * _NM_PER_DEG, (lons - lon) * _NM_PER_DEG * np.cos(np.radians(lat)))
         planes = [p for p, d in zip(planes, nm) if d <= radius]
-    return {"aircraft": planes, "age_s": round(_clock() - at, 1)}
+    return {"aircraft": planes, "age_s": round(_clock() - at, 1), **credit}
 
 
 # --- One airplane: found by what a pilot knows it by, and its flight ---
@@ -490,11 +580,19 @@ def _asked(text: str) -> list[dict]:
     else:
         tries = [("callsign", text), ("reg", text)]
     for by, value in tries:
-        found = [a for a in (_aircraft(e) for e in _paced(FIND_URL.format(by=by, value=value)).get("ac") or []
-                             if isinstance(e, dict)) if a is not None]
+        try:
+            found = [a for a in (_aircraft(e) for e in _paced(FIND_URL.format(by=by, value=value)).get("ac") or []
+                                 if isinstance(e, dict)) if a is not None]
+        except TrafficUnavailable:
+            # adsb.lol turning us away: ADS-B Exchange asked the same way.
+            found = _adsbx(f"{ADSBX_BY[by]}/{value}", search=True)
         if found:
             return found
     return []
+
+
+#: adsb.lol's ways of naming an airplane, as ADS-B Exchange's API says them.
+ADSBX_BY = {"hex": "icao", "callsign": "callsign", "reg": "registration"}
 
 
 def _trace(hex_id: str) -> dict | None:
