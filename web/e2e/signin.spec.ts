@@ -1,6 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { DEVELOPER, openLinkFor, signInByEmail } from "./emailSignIn";
-import { closeConsole, library, roleMenu, noTips, showTabs } from "./helpers";
+import { closeConsole, library, noTips, openConsole, roleMenu, showTabs } from "./helpers";
 
 /**
  * Signing in and out on the running stack, from a browser with no
@@ -38,14 +38,14 @@ test("signed out, the planner opens on the map, and the sign-in is in the pilot 
   await closeConsole(page);
 
   await showTabs(page);
-  await page.getByTestId("settings-button").click();
+  await openConsole(page);
   await expect(consoleSheet(page).getByRole("button", { name: "Sign in" })).toBeVisible();
 });
 
 test("signed out, Personal says once what signing in keeps, its minimums need none, and the dialog offers only the providers registered", async ({ page }) => {
   await page.goto("/app/plan");
   await showTabs(page);
-  await page.getByTestId("settings-button").click();
+  await openConsole(page);
   const sheet = consoleSheet(page);
   await sheet.getByRole("tab", { name: "Personal" }).click();
   await expect(sheet.getByText("Not Signed In")).toBeVisible();
@@ -69,7 +69,7 @@ test("signed out, Personal says once what signing in keeps, its minimums need no
   }));
   await page.reload();
   await showTabs(page);
-  await page.getByTestId("settings-button").click();
+  await openConsole(page);
   await consoleSheet(page).getByRole("tabpanel").getByRole("button", { name: "Sign in" }).click();
   await expect(dialog.getByRole("link", { name: "Continue with Google" })).toBeVisible();
   await expect(dialog.getByRole("link", { name: "Continue with Apple" })).toHaveCount(0);
@@ -105,7 +105,7 @@ test("the emailed link opens the app's own sign-in dialog, over the planner, and
   await page.getByRole("dialog").getByRole("button", { name: "Sign in" }).click();
   await page.waitForURL(url => url.pathname === "/app/plan" && url.hash === "");
   await showTabs(page);
-  await page.getByTestId("settings-button").click();
+  await openConsole(page);
   await expect(consoleSheet(page).getByTestId("pilot-address")).toHaveText(address);
 
   await page.goto(link);
@@ -126,7 +126,7 @@ test("a pilot's link lands on the planner, with no dev switch, and the pilot con
   await closeConsole(page);
 
   await showTabs(page);
-  await page.getByTestId("settings-button").click();
+  await openConsole(page);
   // Who is signed in beside the role, whose menu ends in Sign out.
   await expect(consoleSheet(page).getByTestId("pilot-address")).toHaveText(address);
   await consoleSheet(page).getByTestId("role-menu").click();
@@ -136,7 +136,7 @@ test("a pilot's link lands on the planner, with no dev switch, and the pilot con
   await page.reload();
   await expect(consoleSheet(page)).toHaveCount(0);
   await showTabs(page);
-  await page.getByTestId("settings-button").click();
+  await openConsole(page);
   await expect(consoleSheet(page).getByRole("button", { name: "Sign in" })).toBeVisible();
 });
 

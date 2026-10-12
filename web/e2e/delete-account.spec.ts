@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { signInByEmail } from "./emailSignIn";
-import { noTips, showTabs } from "./helpers";
+import { noTips, openConsole, showTabs } from "./helpers";
 
 /**
  * Deleting an account from inside the app (App Review 5.1.1(v)): signed
@@ -32,7 +32,7 @@ test("Delete account asks, then deletes the account and everything in it, and si
   const console = page.getByTestId("console-sheet");
   if (!(await console.isVisible())) {
     await showTabs(page);
-    await page.getByTestId("settings-button").click();
+    await openConsole(page);
   }
   await console.getByTestId("role-menu").click();
   await page.getByTestId("delete-account").click();

@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { openSettings, noTips, showTabs } from "./helpers";
+import { noTips, openConsole, openSettings, showTabs } from "./helpers";
 
 /**
  * The privacy policy, terms and support pages (public/*.html): served
@@ -45,7 +45,7 @@ test.describe("signed out", () => {
   test("the sign-in dialog links them", async ({ page }) => {
     await page.goto("/app/plan");
     await showTabs(page);
-    await page.getByTestId("settings-button").click();
+    await openConsole(page);
     await page.getByTestId("console-sheet").getByRole("tab", { name: "Personal" }).click();
     await page.getByTestId("console-sheet").getByRole("tabpanel").getByRole("button", { name: "Sign in" }).click();
     const legal = page.getByRole("dialog", { name: "Sign in to Wingtip Maps" }).getByTestId("sign-in-legal");

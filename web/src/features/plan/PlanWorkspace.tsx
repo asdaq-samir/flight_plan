@@ -391,7 +391,10 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   }, [selectFlight]);
   const flightCard = flight && past
     ? <PastFlightCard key={`${flight}-${past}`} hex={flight} id={past} onClose={() => selectPast(null)} />
-    : flight ? <FlightCard key={flight} hex={flight} onClose={() => selectFlight(null)} onOpenPast={selectPast} /> : null;
+    : flight ? <FlightCard
+      key={flight} hex={flight} onClose={() => selectFlight(null)} onOpenPast={selectPast}
+      onExpand={() => setPanel("full")} onLower={() => setPanel("half")}
+    /> : null;
   const aircraftCard = aircraftOpen
     ? <AircraftCard onPick={plane => selectFlight(plane.hex, plane)} onPickHex={hex => selectFlight(hex)} /> : null;
   const { data: destCard } = useQuery({
@@ -1486,7 +1489,9 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     // owner's ask: FPL the route's figures; Airport and Aircraft their
     // Favorites, small -- with none, their search bars, asking for input;
     // NRST its nearest fields (each the foot, below).
-    pillHead: (tab === "airport" && !airportFavorites) || (tab === "aircraft" && !aircraftFavorites),
+    // FPL with no route its route box, to type one in, at the owner's ask
+    // ("Fpl should show the route box if no route is entered").
+    pillHead: (tab === "fpl" && !routed) || (tab === "airport" && !airportFavorites) || (tab === "aircraft" && !aircraftFavorites),
     // A card over the tab: its card alone, the tab's head gone while it is
     // open, at the pilot's ask.
     alone: !!place || !!heldPoint || !!flight,

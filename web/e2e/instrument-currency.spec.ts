@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { library, showTabs } from "./helpers";
+import { library, openConsole, showTabs } from "./helpers";
 
 /**
  * Instrument currency in the Logbook (14 CFR 61.57(c), (d)): what the
@@ -40,7 +40,7 @@ test("the Logbook says how far instrument currency runs, logs approaches with a 
 
   await page.goto("/app/plan");
   await showTabs(page);
-  await page.getByTestId("settings-button").click();
+  await openConsole(page);
   const console = page.getByTestId("console-sheet");
   await library(console, "Logbook");
   await expect(console.getByTestId("currency-instrument")).toHaveText("To 31 Jul 2099");
@@ -74,7 +74,7 @@ test("an airplane's VOR check is recorded with its kind and error, and says how 
   });
   await page.goto("/app/plan");
   await showTabs(page);
-  await page.getByTestId("settings-button").click();
+  await openConsole(page);
   const console = page.getByTestId("console-sheet");
   await library(console, "Aircraft");
   await console.getByRole("button", { name: "Edit N12345" }).click();
@@ -99,7 +99,7 @@ test("the Logbook's reminders are turned on, and kept", async ({ page }) => {
   await page.route(url => url.pathname === "/api/training", route => route.fulfill({ json: { experience: [], knowledgeTestCodes: [], endorsements: [] } }));
   await page.goto("/app/plan");
   await showTabs(page);
-  await page.getByTestId("settings-button").click();
+  await openConsole(page);
   const console = page.getByTestId("console-sheet");
   await library(console, "Logbook");
   const toggle = console.getByTestId("reminders-toggle");

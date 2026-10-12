@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { slow, settle, sideDrawer, consoleSheet, expectDrawerClosed, expectDrawerOpen, closeSidebarWithTheStockKey, openPanel, showTabs } from "./helpers";
+import { closeSidebarWithTheStockKey, consoleSheet, expectDrawerClosed, expectDrawerOpen, openConsole, openPanel, settle, showTabs, sideDrawer, slow } from "./helpers";
 
 /**
  * The dev page's training: the dev console, and the waypoint drawer's
@@ -19,7 +19,7 @@ test("dev page: the dev console opens on training, and the waypoint drawer opens
   expect(await consoleSheet(page).count()).toBe(0);
 
   await showTabs(page);
-  await page.getByTestId("settings-button").click();
+  await openConsole(page);
   const devMl = consoleSheet(page);
   await expect(devMl).toBeVisible();
   // The developer's console opens on training -- the three steps that

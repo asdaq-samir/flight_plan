@@ -188,15 +188,11 @@ export default function MapPage({ mode }: { mode: Mode }) {
     window.setTimeout(() => consoleButton()?.focus({ preventScroll: true }));
   }, [setConsoleOpen]);
   const consoleInPanel = useMemo(() => ({ close: closeConsole }), [closeConsole]);
-  // Opened from anywhere -- the gear, or the training's retrain sending
-  // the pilot to its progress -- the layer half way up from the pill on a
-  // phone, as a card opens; lowered to the pill after, it stays there,
-  // its quick controls under the tabs (QuickControls).
-  const consoleWasOpen = useRef(consoleOpen);
-  useEffect(() => {
-    if (consoleOpen && !consoleWasOpen.current && onPhone && !onTablet && panel === "peek") setPanel("half");
-    consoleWasOpen.current = consoleOpen;
-  }, [consoleOpen, onPhone, onTablet, panel, setPanel]);
+  // Picked at the pill, Settings stays the pill -- its quick controls
+  // (QuickControls) under the tabs -- as every other tab keeps the
+  // panel's height, at the owner's ask ("Settings and fpl are not working
+  // properly in pill size"); the tab tapped again opens it half way, as
+  // theirs does. It was raised half way as it opened.
   const backToButton = useCallback((event: Event) => {
     event.preventDefault();
     consoleButton()?.focus();
@@ -329,7 +325,7 @@ export default function MapPage({ mode }: { mode: Mode }) {
             // controls, at the owner's ask; else the workspace's own foot.
             bar={pieces.bar} barAlone={consoleLayer || !!pieces.alone}
             foot={consoleLayer ? panel === "peek" && <QuickControls /> : pieces.foot}
-            headInPill={!consoleLayer && !pieces.alone && !!pieces.head && !!pieces.pillHead}
+            headInPill={!consoleLayer && !pieces.alone && !!pieces.pillHead}
             fold={pieces.alone || consoleLayer ? undefined : pieces.fold}
             top={pieces.alone || consoleLayer ? null : pieces.head ?? (
               <>

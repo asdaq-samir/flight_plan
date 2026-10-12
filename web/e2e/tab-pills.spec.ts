@@ -26,6 +26,19 @@ async function pickAtRest(page: Page, tab: string) {
   await expect(sideDrawer(page)).toHaveAttribute("data-panel", "peek");
 }
 
+test("FPL with no route rests as its route box under the tabs, to type one in", async ({ page }) => {
+  await page.goto("/app/plan");
+  await settle(page);
+  await showTabs(page);
+  await page.getByTestId("tab-fpl").click();
+  await grabberTo(page, "peek");
+  const panel = sideDrawer(page);
+  await expect(panel).toHaveAttribute("data-capsule", "true");
+  // The owner's ask: "Fpl should show the route box if no route is entered".
+  await expect(panel.getByTestId("route-type")).toBeVisible();
+  await expect(panel.getByTestId("flight-line")).toHaveCount(0);
+});
+
 test("each tab's pill shows its own: FPL the route's figures, Airport its Favorites, Aircraft its search, NRST the nearest", async ({ page }) => {
   await keep(page, { favoriteAirports: [KDLH] });
   await page.goto("/app/plan?dep=C81&dest=KDLH");
@@ -61,18 +74,21 @@ test("the Settings tab's pill is quick controls, each a switch", async ({ page }
   test.skip((page.viewportSize()?.width ?? 0) >= 768, "the console is the panel's layer on a phone only");
   await page.goto("/app/plan");
   await settle(page);
-  await showTabs(page);
-  await page.getByTestId("settings-button").click();
-  // Opened half way, as a card opens; lowered, the pill is its quick controls.
-  const panel = sideDrawer(page);
-  await expect(panel).toHaveAttribute("data-panel", "half");
   await grabberTo(page, "peek");
+  await page.getByTestId("settings-button").click();
+  // Picked at the pill, the pill kept, as every tab keeps it: its quick
+  // controls under the tabs.
+  const panel = sideDrawer(page);
+  await expect(panel).toHaveAttribute("data-panel", "peek");
   const traffic = panel.getByTestId("quick-traffic");
   await expect(traffic).toHaveAttribute("aria-pressed", "false");
   await traffic.click();
   await expect(traffic).toHaveAttribute("aria-pressed", "true");
   await traffic.click();
   await expect(traffic).toHaveAttribute("aria-pressed", "false");
+  // The tab tapped again opens it half way.
+  await page.getByTestId("settings-button").click();
+  await expect(panel).toHaveAttribute("data-panel", "half");
 });
 
 test("on a phone, a card's way back is Back at the top left of the tabs' line, and its close puts the sheet down", async ({ page }) => {

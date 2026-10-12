@@ -87,10 +87,11 @@ test("FPL with no route rests as the tabs' pill too, the tab up tapped the empty
   await showTabs(page);
   await page.getByTestId("tab-fpl").click();
   await expect(sideDrawer(page).getByTestId("route-type")).toBeVisible();
-  // Down to the pill, where it went only to a strip; no figures with no
-  // route.
+  // Down to the pill: its route box under the tabs, to type one in, at
+  // the owner's ask; no figures with no route.
   await grabberTo(page, "peek");
   await expect(sideDrawer(page)).toHaveAttribute("data-capsule", "true");
+  await expect(sideDrawer(page).getByTestId("route-type")).toBeVisible();
   await expect(sideDrawer(page).getByTestId("panel-foot")).toHaveCount(0);
   await openPanel(page);
   await expect(sideDrawer(page).getByTestId("route-type")).toBeVisible();

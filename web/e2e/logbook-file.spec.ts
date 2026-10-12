@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { library, showTabs } from "./helpers";
+import { library, openConsole, showTabs } from "./helpers";
 
 /**
  * The Logbook to and from a file (lib/logbookCsv): ForeFlight's export
@@ -37,7 +37,7 @@ test("a ForeFlight logbook is imported, and the logbook exported as CSV", async 
   });
   await page.goto("/app/plan");
   await showTabs(page);
-  await page.getByTestId("settings-button").click();
+  await openConsole(page);
   const console = page.getByTestId("console-sheet");
   await library(console, "Logbook");
 

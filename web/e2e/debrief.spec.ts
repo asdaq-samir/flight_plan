@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { library, showTabs } from "./helpers";
+import { library, openConsole, showTabs } from "./helpers";
 
 /**
  * A saved flight's debrief (FlightPage, lib/debrief, lib/track): its page
@@ -74,7 +74,7 @@ test("a saved flight's page, and its debrief from a GPX track: kept on the devic
   await signedIn(page, saved);
   await page.goto("/app/plan");
   await showTabs(page);
-  await page.getByTestId("settings-button").click();
+  await openConsole(page);
   await library(page, "Flights");
   await page.getByRole("button", { name: /C81 → KUGN/ }).click();
 
@@ -120,7 +120,7 @@ test("Show on the map draws the flown track over its route, and the map's button
   await signedIn(page, []);
   await page.goto("/app/plan");
   await showTabs(page);
-  await page.getByTestId("settings-button").click();
+  await openConsole(page);
   await library(page, "Flights");
   await page.getByRole("button", { name: /C81 → KUGN/ }).click();
   await page.getByTestId("debrief-file").setInputFiles({ name: "flight.gpx", mimeType: "application/gpx+xml", buffer: Buffer.from(gpx()) });
@@ -140,7 +140,7 @@ test("a file that is not a track says so where it was imported", async ({ page }
   await signedIn(page, []);
   await page.goto("/app/plan");
   await showTabs(page);
-  await page.getByTestId("settings-button").click();
+  await openConsole(page);
   await library(page, "Flights");
   await page.getByRole("button", { name: /C81 → KUGN/ }).click();
   await page.getByTestId("debrief-file").setInputFiles({ name: "notes.gpx", mimeType: "application/gpx+xml", buffer: Buffer.from("<gpx><trk/></gpx>") });

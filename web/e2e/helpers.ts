@@ -133,12 +133,28 @@ async function panelFull(page: Page) {
   await settled(panel);
 }
 
+/** The console out -- the tab bar's Settings -- half way at the least: at
+ *  the pill, Settings picked keeps the pill (its quick controls), and the
+ *  tab tapped again opens it, as every tab's does. */
+export async function openConsole(page: Page) {
+  await showTabs(page);
+  const settings = page.getByTestId("settings-button");
+  await settings.click();
+  // A desktop's console is a sheet or a dialog of its own, over the panel.
+  if (await page.getByTestId("console-sheet").isVisible()) return;
+  const panel = sideDrawer(page);
+  if (await panel.getAttribute("data-panel") === "peek") {
+    await expect(settings).toHaveAttribute("aria-current", "page");
+    await settings.click();
+    await expect(panel).not.toHaveAttribute("data-panel", "peek");
+  }
+}
+
 /** The settings: the console's last tab, the console opened from its
  *  button -- on the planner's search bar, on the training page among the
  *  map's -- and all the way out. Escape closes the console again. */
 export async function openSettings(page: Page) {
-  await showTabs(page);
-  await page.getByTestId("settings-button").click();
+  await openConsole(page);
   await page.getByTestId("console-sheet").getByRole("tab", { name: "Settings" }).click();
   await expect(page.getByTestId("settings-panel")).toBeVisible();
   await expandConsole(page);
@@ -197,10 +213,7 @@ export async function expandConsole(page: Page) {
  *  closes the menu; closeConsole puts the console away after it. */
 export async function roleMenu(page: Page) {
   const sheet = page.getByTestId("console-sheet");
-  if (!(await sheet.isVisible())) {
-    await showTabs(page);
-    await page.getByTestId("settings-button").click();
-  }
+  if (!(await sheet.isVisible())) await openConsole(page);
   await expect(sheet).toBeVisible();
   const trigger = sheet.getByTestId("role-menu");
   // The menu comes with who is signed in, or dev mode, once known.

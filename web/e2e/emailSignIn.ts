@@ -1,5 +1,5 @@
 import { expect, request, type Page } from "@playwright/test";
-import { showTabs } from "./helpers";
+import { openConsole } from "./helpers";
 
 /**
  * Signing in the way a person does on the local stack: the emailed
@@ -63,10 +63,7 @@ export async function signInByEmail(page: Page, address: string) {
 export async function openLinkFor(page: Page, address: string): Promise<string> {
   const console = page.getByTestId("console-sheet");
   const before = new Set(await messagesTo(address));
-  if (!(await console.isVisible())) {
-    await showTabs(page);
-    await page.getByTestId("settings-button").click();
-  }
+  if (!(await console.isVisible())) await openConsole(page);
   await console.getByRole("button", { name: "Sign in" }).click();
   await page.getByLabel("Email address").fill(address);
   await page.getByRole("button", { name: "Send sign-in link" }).click();

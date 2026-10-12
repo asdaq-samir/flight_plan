@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { library, showTabs } from "./helpers";
+import { library, openConsole, showTabs } from "./helpers";
 
 /**
  * An airplane's inspections and tests in its form (the Library's
@@ -28,7 +28,7 @@ test("an airplane's inspections say how long each is good for, and are saved tog
   });
   await page.goto("/app/plan");
   await showTabs(page);
-  await page.getByTestId("settings-button").click();
+  await openConsole(page);
   const console = page.getByTestId("console-sheet");
   await library(console, "Aircraft");
   await console.getByRole("button", { name: "Edit N12345" }).click();
@@ -65,7 +65,7 @@ test("an airplane's checklist is written from its flight manual, then run item b
   });
   await page.goto("/app/plan");
   await showTabs(page);
-  await page.getByTestId("settings-button").click();
+  await openConsole(page);
   const console = page.getByTestId("console-sheet");
   await library(console, "Aircraft");
   await console.getByRole("button", { name: "Edit N12345" }).click();
@@ -108,7 +108,7 @@ test("a squawk is written with its 91.213(d) deferral, and fixed", async ({ page
   });
   await page.goto("/app/plan");
   await showTabs(page);
-  await page.getByTestId("settings-button").click();
+  await openConsole(page);
   const console = page.getByTestId("console-sheet");
   await library(console, "Aircraft");
   await console.getByRole("button", { name: "Edit N12345" }).click();

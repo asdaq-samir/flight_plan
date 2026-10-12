@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { settle, settled, consoleSheet, expectDrawerClosed, expectDrawerOpen, closeSidebarWithTheStockKey, openSettings, library, closeConsole, showTabs } from "./helpers";
+import { closeConsole, closeSidebarWithTheStockKey, consoleSheet, expectDrawerClosed, expectDrawerOpen, library, openConsole, openSettings, settle, settled, showTabs } from "./helpers";
 
 /**
  * The consoles and the settings: fitting the screen, the pilot
@@ -37,7 +37,7 @@ test("plan page: the pilot console holds the account, airplanes and flights, and
   expect(await consoleSheet(page).count()).toBe(0);
 
   await showTabs(page);
-  await page.getByTestId("settings-button").click();
+  await openConsole(page);
   const pilot = consoleSheet(page);
   await expect(pilot).toBeVisible();
   // Settings is a tab of the bar, the tab up while the console is out:
@@ -119,7 +119,7 @@ test("the navigation bar's edge is a setting: the panel moves to it, the map's b
   await page.goto("/app/plan");
   await settle(page);
   await showTabs(page);
-  await page.getByTestId("settings-button").click();
+  await openConsole(page);
   const pilot = consoleSheet(page);
   await expect(pilot.getByRole("tab", { name: "Guide" })).toBeVisible();
   await pilot.evaluate(el => Promise.all(el.getAnimations({ subtree: true }).map(a => a.finished)));
@@ -152,7 +152,7 @@ test("the console holds still as its tabs change: up from the bottom of a phone'
   const panel = page.locator('[data-slot="map-panel"]');
   const half = (await panel.boundingBox())!;
   await showTabs(page);
-  await page.getByTestId("settings-button").click();
+  await openConsole(page);
   const pilot = consoleSheet(page);
   await expect(pilot.getByRole("tab", { name: "Guide" })).toBeVisible();
   await pilot.evaluate(el => Promise.all(el.getAnimations({ subtree: true }).map(a => a.finished)));

@@ -1,5 +1,5 @@
 import { expect, type Page } from "@playwright/test";
-import { controlsInSight, openPanel, openSection, openSettings, openTab, settle, showTabs, sideDrawer, slow } from "../helpers";
+import { controlsInSight, openConsole, openPanel, openSection, openSettings, openTab, settle, showTabs, sideDrawer, slow } from "../helpers";
 
 /** One state of the app as a pilot sees it, reached from a fresh page. */
 export type Screen = { name: string; ready: (page: Page) => Promise<void> };
@@ -112,7 +112,7 @@ export const SCREENS: Screen[] = [
     ready: async page => {
       await page.goto("/app/dev");
       await showTabs(page);
-      await page.getByTestId("settings-button").click();
+      await openConsole(page);
       await page.getByRole("tab", { name: "System" }).click();
       await expect(page.getByTestId("dev-refresh")).toBeVisible();
     },
@@ -122,7 +122,7 @@ export const SCREENS: Screen[] = [
     ready: async page => {
       await page.goto("/app/plan");
       await showTabs(page);
-      await page.getByTestId("settings-button").click();
+      await openConsole(page);
       await page.getByRole("tab", { name: "Guide" }).click();
       await expect(page.getByRole("heading", { name: "Plan a flight" })).toBeVisible();
     },
@@ -134,7 +134,7 @@ export const SCREENS: Screen[] = [
     ready: async page => {
       await page.goto("/app/plan");
       await showTabs(page);
-      await page.getByTestId("settings-button").click();
+      await openConsole(page);
       await page.getByRole("tab", { name: "Personal" }).click();
       await expect(page.getByTestId("library-section")).toBeVisible();
     },
@@ -145,7 +145,7 @@ export const SCREENS: Screen[] = [
     ready: async page => {
       await page.goto("/app/plan");
       await showTabs(page);
-      await page.getByTestId("settings-button").click();
+      await openConsole(page);
       await page.getByRole("tab", { name: "Personal" }).click();
       await page.getByTestId("library-section").getByRole("button", { name: /^Aircraft/ }).click();
       await expect(page.getByRole("heading", { name: "Aircraft", exact: true })).toBeVisible();
@@ -169,7 +169,7 @@ export const SCREENS: Screen[] = [
     ready: async page => {
       await page.goto("/app/plan");
       await showTabs(page);
-      await page.getByTestId("settings-button").click();
+      await openConsole(page);
       await page.getByRole("tab", { name: "Guide" }).click();
       await page.getByRole("button", { name: new RegExp(`^${row}`) }).click();
       await open(page);
@@ -180,7 +180,7 @@ export const SCREENS: Screen[] = [
     ready: async page => {
       await page.goto("/app/dev");
       await showTabs(page);
-      await page.getByTestId("settings-button").click();
+      await openConsole(page);
       await page.getByRole("tab", { name: "Guide" }).click();
       await expect(page.getByRole("heading", { name: "Train the model" })).toBeVisible();
     },

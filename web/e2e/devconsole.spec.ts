@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { expandConsole, showTabs } from "./helpers";
+import { expandConsole, openConsole, showTabs } from "./helpers";
 
 /**
  * The Dev console's System tab, for the answers that are not "up": a
@@ -14,7 +14,7 @@ const row = (page: Page, service: RegExp) => consoleSheet(page).locator('[data-s
 async function openSystemTab(page: Page) {
   await page.goto("/app/dev");
   await showTabs(page);
-  await page.getByTestId("settings-button").click();
+  await openConsole(page);
   await consoleSheet(page).getByRole("tab", { name: "System" }).click();
   await expandConsole(page);
 }
