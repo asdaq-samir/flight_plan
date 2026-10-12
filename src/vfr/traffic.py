@@ -11,7 +11,8 @@ adsb.lol answers one request every few seconds from one address and
 turns the rest away (429 Too Many Requests: of twelve asked 1.5 s apart
 on 2026-10-10, three were answered). So the planner asks it about a
 region -- half a degree square, out to 80 nm, which holds any view of 60
-nm whose middle is in it -- at most once in five seconds, never two
+nm whose middle is in it; two degrees square, out to 250 nm, for a view
+zoomed further out, up to 170 nm -- at most once in five seconds, never two
 requests within five seconds of each other whatever the region, and
 waits fifteen after being turned away; between times every phone is
 given the region's last answer, cut to its own view, with how old it is,
@@ -40,8 +41,19 @@ HEADERS = {"User-Agent": "wingtip-maps/0.1 (VFR flight planner; traffic for pilo
 #: (15 nm north and south, less east and west), so 80 nm holds a view of 60.
 REGION_DEG = 0.5
 REGION_RADIUS_NM = 80
+#: The furthest a view is given its traffic from those regions, nm.
+NEAR_RADIUS_NM = 60
+#: A view further out than that -- the map zoomed out to a state or two,
+#: whose traffic the pilot asked to see wherever it is panned -- from
+#: regions of two degrees, asked for out to 250 nm, adsb.lol's furthest:
+#: a view's middle is at most a degree from the region's (60 nm north and
+#: south, 45 east and west at 42 degrees north, 75 nm across), so 250 nm
+#: holds a view of 170. Round O'Hare that was 474 airplanes and 240 kB,
+#: answered in under a second (2026-10-11).
+WIDE_REGION_DEG = 2.0
+WIDE_REGION_RADIUS_NM = 250
 #: The furthest a view is asked about, nm.
-MAX_RADIUS_NM = 60
+MAX_RADIUS_NM = 170
 #: A region's answer is given again, not asked for, this long.
 FRESH_S = 5.0
 #: Never two requests to adsb.lol closer together than this.
@@ -115,15 +127,19 @@ def _aircraft(entry: dict) -> dict | None:
     }
 
 
-def _region(lat: float, lon: float) -> tuple[float, float]:
-    return round(lat / REGION_DEG) * REGION_DEG, round(lon / REGION_DEG) * REGION_DEG
+def _region(lat: float, lon: float, radius_nm: float = NEAR_RADIUS_NM) -> tuple[float, float, int]:
+    """The region a view of `radius_nm` round a point is given its traffic
+    from: (its middle's latitude and longitude, how far round it adsb.lol
+    is asked), a near one for a view of 60 nm or less, else a wide one."""
+    deg, asked = (REGION_DEG, REGION_RADIUS_NM) if radius_nm <= NEAR_RADIUS_NM else (WIDE_REGION_DEG, WIDE_REGION_RADIUS_NM)
+    return round(lat / deg) * deg, round(lon / deg) * deg, asked
 
 
-def _ask(region: tuple[float, float]) -> list[dict]:
+def _ask(region: tuple[float, float, int]) -> list[dict]:
     """adsb.lol's airplanes round a region's middle. Raises
     TrafficUnavailable where it turns the request away or does not answer."""
     try:
-        resp = requests.get(URL.format(lat=region[0], lon=region[1], radius=REGION_RADIUS_NM), headers=HEADERS, timeout=TIMEOUT_S)
+        resp = requests.get(URL.format(lat=region[0], lon=region[1], radius=region[2]), headers=HEADERS, timeout=TIMEOUT_S)
         resp.raise_for_status()
         entries = resp.json().get("ac") or []
     except (requests.RequestException, ValueError) as err:
@@ -141,7 +157,7 @@ def _region_turn(now: float) -> float:
     return slot
 
 
-def _region_answer(region: tuple[float, float]) -> tuple[float, list[dict]]:
+def _region_answer(region: tuple[float, float, int]) -> tuple[float, list[dict]]:
     """(when it came, airplanes) for a region: its last answer while fresh,
     or while adsb.lol may not be asked yet; else adsb.lol's -- for a
     region with none, after waiting out the gap between requests -- else,
@@ -216,17 +232,18 @@ def _region_answer(region: tuple[float, float]) -> tuple[float, list[dict]]:
 
 
 def near(lat: float, lon: float, radius_nm: float) -> dict:
-    """The airplanes in the air within `radius_nm` (at most 60) of a point,
-    as `_aircraft` gives each, and `age_s`, how many seconds before now
-    they were where they are given (each `seen_s` more): {"aircraft",
+    """The airplanes in the air within `radius_nm` (at most 170) of a
+    point, as `_aircraft` gives each, and `age_s`, how many seconds before
+    now they were where they are given (each `seen_s` more): {"aircraft",
     "age_s"}. Raises TrafficUnavailable where adsb.lol has not answered
     for a minute."""
-    at, planes = _region_answer(_region(lat, lon))
     radius = min(MAX_RADIUS_NM, radius_nm)
+    at, planes = _region_answer(_region(lat, lon, radius))
     if planes:
         lats = np.array([p["lat"] for p in planes])
         lons = np.array([p["lon"] for p in planes])
-        # Flat-earth miles: within 60 the error is a fraction of one.
+        # Flat-earth miles: within 170 the error is a mile or two, at the
+        # edge of a view the size of a state.
         nm = np.hypot((lats - lat) * _NM_PER_DEG, (lons - lon) * _NM_PER_DEG * np.cos(np.radians(lat)))
         planes = [p for p, d in zip(planes, nm) if d <= radius]
     return {"aircraft": planes, "age_s": round(_clock() - at, 1)}

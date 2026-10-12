@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plane, Search, X } from "lucide-react";
 import { cn } from "cn";
@@ -126,6 +126,10 @@ export default function AircraftCard({ onPick, onPickHex, onClose }: {
     // `from` moves with every fix; the list is ordered again with each answer.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [seen]);
+  // Hundreds where the map is zoomed out to a state: drawn after what
+  // is typed and tapped (useDeferredValue), so the list's redraw with each
+  // answer never holds up the search field.
+  const listedAbout = useDeferredValue(about);
   const ownFt = fix?.altitudeFt ?? null;
   return (
     <PanelCard testId="aircraft-card">
@@ -192,7 +196,9 @@ export default function AircraftCard({ onPick, onPickHex, onClose }: {
           footer="From adsb.lol's ADS-B receivers, under the Open Database License: seconds old, for knowing what is about, not for avoiding it."
         >
           {about.length
-            ? about.slice(0, 40).map(plane => <AircraftRow key={plane.hex} plane={plane} from={from} ownFt={ownFt} onPick={() => onPick(plane)} />)
+            // Every one the map has, at the pilot's ask ("all the traffic on
+            // the map"); it was the nearest forty.
+            ? listedAbout.map(plane => <AircraftRow key={plane.hex} plane={plane} from={from} ownFt={ownFt} onPick={() => onPick(plane)} />)
             : <ListRow title={<span className="text-muted-foreground">None heard yet</span>} />}
         </ListGroup>
       </div>

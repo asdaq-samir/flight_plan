@@ -21,6 +21,10 @@ const EVERY_MS = 5000;
 /** How often the airplanes are moved on the map between answers, ms:
  *  ten times a second reads as gliding, at a tenth of the frames. */
 const FRAME_MS = 100;
+/** …at zoom 10 and in; each zoom out halves how often, to a second at
+ *  most: a jet moves under a pixel in a tenth of a second there, and a
+ *  view of a state holds hundreds of airplanes, each moved at each step. */
+const frameMs = (zoom: number) => Math.min(1000, FRAME_MS * 2 ** Math.max(0, 10 - Math.round(zoom)));
 /** A new report for an airplane already drawn takes it there over this
  *  long, ms, from where it had been carried to, rather than at a jump. */
 const BLEND_MS = 1000;
@@ -97,9 +101,11 @@ function Traffic() {
     const credit = L.control.attribution({ prefix: false, position: "bottomleft" }).addAttribution(ATTRIBUTION).addTo(map);
     return () => { credit.remove(); };
   }, [map]);
-  // About the airplane followed, else own ship, else the map's middle.
-  const at = followed ? { lat: followed.lat, lon: followed.lon }
-    : fix ? { lat: fix.lat, lon: fix.lon } : { lat: view.centre.lat, lon: view.centre.lng };
+  // About the airplane followed, else the map's middle: the traffic
+  // wherever the map is panned, at the pilot's ask. It was own ship's
+  // whenever there was a fix, so a map panned away from the airplane
+  // showed none where it looked; own ship followed is the middle anyway.
+  const at = followed ? { lat: followed.lat, lon: followed.lon } : { lat: view.centre.lat, lon: view.centre.lng };
   // Asked again as the middle moves a mile or so or the view's size by
   // ten miles, not at every pan.
   const ask = { lat: Math.round(at.lat * 50) / 50, lon: Math.round(at.lon * 50) / 50, radius: Math.ceil(view.radiusNm / 10) * 10 };
@@ -254,7 +260,7 @@ function Traffic() {
     let frame = 0, last = 0;
     const step = (time: number) => {
       frame = requestAnimationFrame(step);
-      if (zooming || time - last < FRAME_MS) return;
+      if (zooming || time - last < frameMs(map.getZoom())) return;
       last = time;
       const now = Date.now();
       for (const [hex, target] of targets.current) {
@@ -297,11 +303,13 @@ function Traffic() {
   return null;
 }
 
-/** From the middle of the map to its corner, nm, kept between 10 and 60. */
+/** From the middle of the map to its corner, nm, kept between 10 and 170:
+ *  the planner gives a view out to 170 its traffic (vfr.traffic), the
+ *  map zoomed out to a state or two. */
 function radiusOf(map: L.Map): number {
   const bounds = map.getBounds();
   const metres = map.getCenter().distanceTo(bounds.getNorthEast());
-  return Math.min(60, Math.max(10, metres / 1852));
+  return Math.min(170, Math.max(10, metres / 1852));
 }
 
 // One style a colour, made once: react-leaflet restyles a path whenever

@@ -84,3 +84,29 @@ test("off, as it is unless shown, nothing is asked and nothing drawn", async ({ 
   await expect(page.locator("svg[data-traffic]")).toHaveCount(0);
   await expect(page.locator(".leaflet-control-attribution")).toHaveCount(0);
 });
+
+test("the traffic is asked about wherever the map is panned, own ship or not, and further out for a map zoomed out", async ({ page, context }) => {
+  // Own ship at Campbell (C81): the traffic was asked about it whatever
+  // the map showed, so a map panned to Madison showed none there.
+  await context.grantPermissions(["geolocation"]);
+  await context.setGeolocation({ latitude: 42.32, longitude: -88.07 });
+  const asks = await showTraffic(page, true);
+  await page.goto("/app/plan?place=KMSN");
+  await settle(page);
+  await expect.poll(() => asks.length, { timeout: slow(15_000) }).toBeGreaterThan(0);
+  const last = () => asks[asks.length - 1]!.searchParams;
+  // About Madison, the map's middle (a little off it, clear of the card),
+  // not Campbell, 65 nm away to the south-east.
+  await expect.poll(() => {
+    const lat = Number(last().get("lat")), lon = Number(last().get("lon"));
+    return lat > 42.8 && lon < -88.8;
+  }, { timeout: slow(15_000) }).toBe(true);
+  // Zoomed out to a state: asked further than the near regions' 60 nm.
+  const map = (await page.locator(".leaflet-container").boundingBox())!;
+  await page.mouse.move(map.x + map.width / 2, map.y + map.height / 4);
+  for (let i = 0; i < 4; i++) {
+    await page.mouse.wheel(0, 400);
+    await page.waitForTimeout(400);
+  }
+  await expect.poll(() => Number(last().get("radius")), { timeout: slow(15_000) }).toBeGreaterThan(60);
+});

@@ -13,7 +13,7 @@ def traffic_near(
     lat: float = Query(ge=-90, le=90), lon: float = Query(ge=-180, le=180),
     radius: float = Query(default=25, gt=0, le=250, description="Nautical miles"),
 ) -> Traffic:
-    """The airplanes in the air within `radius` nm of a point (at most 60),
+    """The airplanes in the air within `radius` nm of a point (at most 170),
     from adsb.lol (Open Database License 1.0), and how many seconds old
     the answer is: for knowing what is about, not for avoiding it. A 503
     where adsb.lol has not answered for a minute."""

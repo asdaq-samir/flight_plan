@@ -415,3 +415,21 @@ def test_the_faa_record_of_an_airplane_named_by_its_n_number_or_address(clock, m
     # adsb.lol's "~" pseudo-address goes on unstripped, for registry.lookup to refuse.
     traffic.registered("~a89c1e")
     assert asked == [{"n_number": "N654FL"}, {"hex_id": "a89c1e"}, {"hex_id": "~a89c1e"}]
+
+
+def test_a_view_zoomed_out_further_than_sixty_nm_is_asked_of_a_wide_region(clock):
+    """The traffic wherever the map is panned, the owner's ask: a view of
+    a state, out to 170 nm, from a region two degrees square asked for out
+    to 250 nm, adsb.lol's furthest; and kept apart from the near regions'."""
+    far = {**CESSNA, "hex": "far", "lat": 44.3}           # 120 nm north of 42.3
+    with patch("vfr.traffic.requests.get", return_value=_answer([CESSNA, far])) as get:
+        wide = traffic.near(42.3, -88.1, 150)["aircraft"]
+        widest = traffic.near(42.3, -88.1, 400)["aircraft"]
+    assert get.call_args_list[0].args[0] == "https://api.adsb.lol/v2/point/42.00/-88.00/250"
+    assert [a["hex"] for a in wide] == ["a128b9", "far"] and [a["hex"] for a in widest] == ["a128b9", "far"]
+    # The same wide region for both, within five seconds: one request.
+    assert get.call_count == 1
+    clock.now += traffic.MIN_GAP_S
+    with patch("vfr.traffic.requests.get", return_value=_answer([CESSNA])) as get:
+        traffic.near(42.3, -88.1, 40)
+    assert get.call_args.args[0] == "https://api.adsb.lol/v2/point/42.50/-88.00/80"
