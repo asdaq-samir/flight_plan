@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   ArrowDownRight, ArrowUpRight, BadgeCheck, Star, Compass, Crosshair, Fan, Gauge, IdCard, MoveVertical, Plane, PlaneTakeoff, Radio, Route,
@@ -23,8 +23,9 @@ import { TEXT } from "../../../lib/text";
 import { altFt, grouped } from "../../../lib/units";
 import { clockTime } from "../format";
 import PastFlights from "./PastFlights";
-import { LINE_TAB } from "../../../components/lineTabs";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../../components/ui/tabs";
+import { CardTabBar, CardTabPanel } from "../../../components/CardTabs";
+import { useCardTab } from "../../../lib/cardTab";
+import { Tabs } from "../../../components/ui/tabs";
 
 /** The card's tabs, at the pilot's ask, where its groups ran one under
  *  another: what it is doing now, its flights of the last days (each
@@ -36,8 +37,6 @@ const FLIGHT_TABS = [
   { value: "info", label: "Info" },
 ] as const;
 type FlightTab = (typeof FLIGHT_TABS)[number]["value"];
-/** Each airplane's tab last picked, while the page is open. */
-const tabOf = new Map<string, FlightTab>();
 
 /** What a squawk says, where it says more than a code: the three a
  *  pilot sets in trouble -- 7700 an emergency (AIM 6-2-2), 7500 unlawful
@@ -76,9 +75,13 @@ function against(feet: number): string {
  * its heights' colours. Seconds-old internet data from adsb.lol's
  * receivers: for knowing what is about, not for avoiding it.
  */
-export default function FlightCard({ hex, onClose, onOpenPast }: {
+export default function FlightCard({ hex, onClose, onOpenPast, onExpand, onLower }: {
   hex: string;
   onClose: () => void;
+  /** The panel all the way up, for a tab picked, and back to half, the
+   *  open one tapped again, as an airport's card's tabs do (CardTabBar). */
+  onExpand?: () => void;
+  onLower?: () => void;
   /** Opens one of its past flights' own card over this one. */
   onOpenPast: (id: number) => void;
 }) {
@@ -102,12 +105,9 @@ export default function FlightCard({ hex, onClose, onOpenPast }: {
   // by its registration -- on its flights; the pilot's pick kept after.
   // Back from a past flight's card (PastFlightCard), on the Activity it was
   // opened from: the tab picked is kept for the airplane while the page is.
-  const [picked, setPickedState] = useState<FlightTab | null>(() => tabOf.get(hex) ?? null);
-  const setPicked = (next: FlightTab) => {
-    tabOf.set(hex, next);
-    setPickedState(next);
-  };
-  const tab: FlightTab = picked ?? (plane ? "now" : "activity");
+  const tabsRef = useRef<HTMLDivElement>(null);
+  const raise = onExpand && onLower ? { onExpand, onLower } : undefined;
+  const [tab, setPicked] = useCardTab<FlightTab>(`flight:${hex}`, plane ? "now" : "activity");
   // What is kept of it, for the Aircraft card's Recents and Favorites,
   // once it can be named: its registration, else its callsign.
   const keptName = detail?.registration ?? plane?.registration ?? plane?.callsign ?? null;
@@ -133,18 +133,11 @@ export default function FlightCard({ hex, onClose, onOpenPast }: {
         />
         <FavoriteButton kept={kept} />
       </CardHead>
-      <Tabs value={tab} onValueChange={next => setPicked(next as FlightTab)} className="gap-0 pt-3">
-        {/* The stock line tabs, the airport card's and the consoles': words
-            over a hairline, the chosen one in the tint, 44 points to a finger. */}
-        <TabsList
-          variant="line"
-          className="w-full gap-0 border-b border-border p-0 group-data-[orientation=horizontal]/tabs:h-9 pointer-coarse:group-data-[orientation=horizontal]/tabs:h-[44px]"
-        >
-          {FLIGHT_TABS.map(t => (
-            <TabsTrigger key={t.value} value={t.value} className={LINE_TAB} data-testid={`flight-tab-${t.value}`}>{t.label}</TabsTrigger>
-          ))}
-        </TabsList>
-      <TabsContent value="now" className="space-y-5 pt-4">
+      <Tabs value={tab} className="gap-0 pt-3">
+        {/* The cards' tabs (CardTabBar), the airport card's: tapped, the
+            panel all the way up, as its are. */}
+        <CardTabBar tabs={FLIGHT_TABS} value={tab} onPick={setPicked} testIdPrefix="flight-tab" raise={raise} barRef={tabsRef} />
+      <CardTabPanel value="now">
         <ListGroup title="In the air">
           {/* Not heard now -- on the ground, out of a receiver's reach, or
               found by its registration: when it was last, from its trace. */}
@@ -241,14 +234,14 @@ export default function FlightCard({ hex, onClose, onOpenPast }: {
           )}
           <ListRow title="Callsign" value={<span className="font-semibold text-foreground">{plane?.callsign ?? "—"}</span>} />
         </ListGroup>
-      </TabsContent>
+      </CardTabPanel>
       {/* Its flights of the last days, each replayed on the map. */}
-      <TabsContent value="activity" className="space-y-5 pt-4">
+      <CardTabPanel value="activity">
         <PastFlights hex={hex} onOpen={onOpenPast} />
-      </TabsContent>
+      </CardTabPanel>
       {/* What it is -- its make and model and who flies it, which were the
           line under its name -- its registration, and the FAA's record. */}
-      <TabsContent value="info" className="space-y-5 pt-4">
+      <CardTabPanel value="info">
         <ListGroup title="Airplane">
           {detail?.description && (
             <ListRow title="Model" value={<span className="font-semibold text-foreground" data-testid="flight-model">{nameCase(detail.description)}</span>} />
@@ -264,7 +257,7 @@ export default function FlightCard({ hex, onClose, onOpenPast }: {
           <ListRow title="ICAO address" value={<span className={cn("font-semibold text-foreground uppercase tabular-nums", TEXT.row)}>{hex}</span>} />
         </ListGroup>
         {detail?.faa && <FaaRegistration faa={detail.faa} />}
-      </TabsContent>
+      </CardTabPanel>
       </Tabs>
     </PanelCard>
   );

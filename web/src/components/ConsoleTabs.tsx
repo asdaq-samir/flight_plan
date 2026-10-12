@@ -1,7 +1,8 @@
 import { useContext, type ReactNode } from "react";
 import AboutPanel from "./AboutPanel";
 import { ConsoleSettingsContext } from "./mapChrome";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
+import { LineTabsList } from "./CardTabs";
+import { Tabs, TabsContent, TabsTrigger } from "./ui/tabs";
 import { LINE_TAB } from "./lineTabs";
 
 export interface ConsoleTab {
@@ -56,10 +57,7 @@ export default function ConsoleTabs({ tabs: own, saved, onChange }: Props) {
               row now.) */}
           {/* A bar, 44 tall to a finger as iOS's tab bars are: its tabs
               share it edge to edge, so the bar is their hit area. */}
-          <TabsList
-            variant="line"
-            className="w-full gap-0 border-b border-border p-0 group-data-[orientation=horizontal]/tabs:h-9 pointer-coarse:group-data-[orientation=horizontal]/tabs:h-11"
-          >
+          <LineTabsList>
             {tabs.map(t => (
               <TabsTrigger
                 key={t.value} value={t.value}
@@ -68,7 +66,7 @@ export default function ConsoleTabs({ tabs: own, saved, onChange }: Props) {
                 {t.label}
               </TabsTrigger>
             ))}
-          </TabsList>
+          </LineTabsList>
           {tabs.map(t => (
             <TabsContent key={t.value} value={t.value} className="mt-3">{t.content}</TabsContent>
           ))}

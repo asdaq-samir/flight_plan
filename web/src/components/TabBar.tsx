@@ -1,5 +1,6 @@
 import { useContext, useEffect } from "react";
-import { ChevronDown, ChevronLeft, Settings, type LucideIcon } from "lucide-react";
+import { ChevronDown, Settings, type LucideIcon } from "lucide-react";
+import BackButton from "./BackButton";
 import CloseButton from "./CloseButton";
 import { cn } from "cn";
 import { closeTopCard, useOpenCards } from "../lib/openCards";
@@ -71,18 +72,8 @@ export default function TabBar<T extends string>({ tabs, tab, onPick, onUp, mark
     const Icon = upTab.icon;
     return (
       <nav aria-label="Tabs" className={cn("relative flex h-full w-full items-center justify-center print:hidden", className)} data-testid="tab-bar">
-        {back && (
-          <button
-            type="button" onClick={() => closeTopCard()} data-testid="tab-back"
-            className={cn(
-              "absolute top-1/2 left-0 flex h-8 -translate-y-1/2 items-center gap-0.5 rounded-full pr-2 text-tint outline-none focus-visible:ring-2 focus-visible:ring-ring",
-              "after:absolute after:-inset-x-1 after:-inset-y-1.5 after:content-['']", TEXT.row,
-            )}
-          >
-            <ChevronLeft className="size-6" strokeWidth={2.25} aria-hidden="true" />
-            Back
-          </button>
-        )}
+        {/* Round, as the close at the other end is, at the owner's ask. */}
+        {back && <BackButton onClick={() => closeTopCard()} className="absolute top-1/2 left-0 -translate-y-1/2" data-testid="tab-back" />}
         <button
           type="button" onClick={() => setShown(true)} aria-expanded={false} aria-label={`${upTab.label}, show the tabs`}
           data-testid="tab-title"

@@ -10,8 +10,9 @@ import { GLASS_BUTTON } from "../../../components/mapChrome";
 import { FitText } from "../../../components/FitText";
 import { CardClose, CardHead, PanelCard } from "../../../components/PanelCard";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
-import { LINE_TAB } from "../../../components/lineTabs";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../../components/ui/tabs";
+import { CardTabBar, CardTabPanel } from "../../../components/CardTabs";
+import { useCardTab } from "../../../lib/cardTab";
+import { Tabs } from "../../../components/ui/tabs";
 import { Button } from "../../../components/ui/button";
 import { ApiError, api } from "../../../lib/api/client";
 import type { AirportPin, AirportPlace, ClassBAirport, TerminalChart } from "../../../lib/api/types";
@@ -271,19 +272,22 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
   // The card's four tabs under its tiles, at the pilot's ask, where its
   // sections ran on one under another: the diagram first where the field
   // has one, the weather first where it has none (most small fields).
-  const [picked, setPicked] = useState<CardTab | null>(startOn ? "diagrams" : null);
-  const tab: CardTab = picked ?? "radio";
+  // Kept for the airport while the page is open, as an airplane's is
+  // (useCardTab).
+  const [tab, setPicked] = useCardTab<CardTab>(`place:${ident}`, "radio", startOn ? "diagrams" : null);
   // A tab picked -- or Weather or Freq. on the tiles -- takes the panel all
   // the way up, as the route's tabs do; the bar back in sight if the card
   // was scrolled past it, once the panel is up and the name and tiles
   // have closed up to their own height.
   const isUp = () => tabsRef.current?.closest("[data-panel]")?.getAttribute("data-panel") === "full";
-  const openWhenPressed = useRef<CardTab | null>(null);
-  const open = (next: CardTab) => {
-    setPicked(next);
+  const raise = () => {
     const up = isUp();
     onExpand();
     window.setTimeout(() => tabsRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" }), up ? 50 : 520);
+  };
+  const open = (next: CardTab) => {
+    setPicked(next);
+    raise();
   };
   // Opened on its approaches (the route's Approaches): the panel all the
   // way up and, once the answer is in and the panel has risen, the
@@ -309,7 +313,7 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
       }, 50);
     }, 520);
     return () => { window.clearTimeout(scroll); window.clearTimeout(look); };
-  }, [startOn, placeIn]);
+  }, [startOn, placeIn, setPicked]);
   // A sketch of the runways beside the name, over the Call and Address tiles, at the
   // pilot's ask -- it was the FAA's diagram cropped to that size, a
   // scatter of its lettering -- the lines under the name beside it; for
@@ -388,7 +392,7 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
   );
   return (
     <PanelCard testId="place-card">
-      <Tabs value={tab} onValueChange={next => setPicked(next as CardTab)} className="gap-0">
+      <Tabs value={tab} className="gap-0">
       {/* The name, the actions and the tabs' bar the panel's half: a
           tab's content starts under it, out of sight there. */}
       <div
@@ -558,45 +562,20 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
             until then, no tabs and no star, and grew into its own as the
             answer came. Not over a card that could not be had. */}
         {!(error && !place) && (
-          // The stock line tabs, the consoles' (ConsoleTabs): words over a
-          // hairline, the chosen one in the tint, a 44-point bar to a
-          // finger -- 44 points at any text size.
-          <TabsList
-            ref={tabsRef} variant="line"
-            className="w-full scroll-mt-3 gap-0 border-b border-border p-0 group-data-[orientation=horizontal]/tabs:h-9 pointer-coarse:group-data-[orientation=horizontal]/tabs:h-[44px]"
-          >
-            {CARD_TABS.map(t => (
-              // Tapped, the panel comes all the way up, the tab already
-              // picked as well (onValueChange is not called for it); the
-              // open one tapped again up there, back to half, as the
-              // route's tabs do (PanelTabs) -- which one was open read as
-              // it is pressed, since Radix picks the tab on the press,
-              // before the click. Greyed until the answer comes, as the
-              // star and the actions are: a tap would raise the sheet over
-              // panels with nothing in them yet.
-              <TabsTrigger
-                key={t.value} value={t.value} className={LINE_TAB} disabled={!place} data-testid={`place-tab-${t.value}`}
-                onPointerDown={() => { openWhenPressed.current = tab; }} onKeyDown={() => { openWhenPressed.current = tab; }}
-                onPointerCancel={() => { openWhenPressed.current = null; }} onBlur={() => { openWhenPressed.current = null; }}
-                onClick={() => {
-                  // Read once and cleared: a click with no press before it
-                  // (VoiceOver's activate, a switch) must not find an
-                  // earlier press's tab.
-                  const was = openWhenPressed.current;
-                  openWhenPressed.current = null;
-                  if (was === t.value && isUp()) onLower(); else open(t.value);
-                }}
-              >
-                {t.label}
-              </TabsTrigger>
-            ))}
-          </TabsList>
+          // The cards' tabs (CardTabBar): tapped, the panel all the way up,
+          // the open one tapped again up there back to half. Greyed until
+          // the answer comes, as the star and the actions are: a tap would
+          // raise the sheet over panels with nothing in them yet.
+          <CardTabBar
+            tabs={CARD_TABS} value={tab} onPick={setPicked} testIdPrefix="place-tab" disabled={!place}
+            raise={{ onExpand: raise, onLower }} barRef={tabsRef} className="scroll-mt-3"
+          />
         )}
       </div>
 
       {place && (
         <>
-          <TabsContent value="diagrams" className="space-y-5 pt-4">
+          <CardTabPanel value="diagrams">
             <ListGroup title="Airport">
               {!place.airport_diagram_url && !place.airport_diagram_cycle && !sketched && (
                 // Drawn by the FAA for the fields with a tower or a busy
@@ -622,9 +601,9 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
                 </div>
               );
             })}
-          </TabsContent>
+          </CardTabPanel>
 
-          <TabsContent value="weather" className="pt-4">
+          <CardTabPanel value="weather" className="space-y-0">
             <ListGroup
               footer={metar?.observed_at
                 ? `${observedLine(metar.observed_at)}${viaReceiver ? " Heard from your ADS-B receiver (FIS-B)." : ""}`
@@ -710,9 +689,9 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
                 </ListGroup>
               </div>
             )}
-          </TabsContent>
+          </CardTabPanel>
 
-          <TabsContent value="radio" className="pt-4">
+          <CardTabPanel value="radio" className="space-y-0">
             <ListGroup>
               {place.frequencies.length ? place.frequencies.map((f, i) => (
                 <FrequencyRow
@@ -745,9 +724,9 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
               </ListGroup>
             </div>
           )}
-          </TabsContent>
+          </CardTabPanel>
 
-          <TabsContent value="runways" className="pt-4">
+          <CardTabPanel value="runways" className="space-y-0">
             <ListGroup>
               {place.pattern?.altitude_ft != null && (
                 <ListRow
@@ -759,7 +738,7 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
               )}
               {place.runways.map((r, i) => <RunwayRow key={`${r.ends}-${i}`} runway={r} />)}
             </ListGroup>
-          </TabsContent>
+          </CardTabPanel>
         </>
       )}
       </Tabs>

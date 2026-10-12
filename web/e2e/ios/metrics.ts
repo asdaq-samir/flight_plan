@@ -317,9 +317,10 @@ export function componentFindings(page: Page): Promise<ComponentFinding[]> {
       const b = button.getBoundingClientRect(), g = svg.getBoundingClientRect();
       const hit = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
       if (!hit || !(hit === button || button.contains(hit))) continue;
-      // The close's cross at 24, the one exception (CloseButton): lucide's
-      // spans half its box where the other glyphs span most of theirs.
-      const glyph = button.querySelector("svg.lucide-x") ? 24 : 20;
+      // The close's cross at 24, and the back's chevron, its twin at the
+      // owner's ask (CloseButton, BackButton): lucide's span half their box
+      // where the other glyphs span most of theirs.
+      const glyph = button.querySelector("svg.lucide-x, svg.back-glyph") ? 24 : 20;
       if (Math.abs(b.width - 36) > 0.5 || Math.abs(b.height - 36) > 0.5 || Math.abs(g.width - glyph) > 0.5) {
         found.push({ rule: `icon button 36, glyph ${glyph}`, what: name(button), measured: `${Math.round(b.width)}×${Math.round(b.height)}, glyph ${Math.round(g.width)}` });
       }
