@@ -1042,6 +1042,11 @@ class TrafficFound(BaseModel):
     #: the FAA's record all the same, and the page, which shows the
     #: airplanes its map has heard by that name besides, asks again.
     checked: bool = True
+    #: Whose data `aircraft` is, to credit it where it is shown, as the
+    #: map's traffic is (Traffic): ADS-B Exchange's for a search it
+    #: answered (vfr.traffic.find_credited), else adsb.lol's.
+    source: str = "adsb.lol"
+    license: str = "ODbL 1.0"
 
 
 class PastFlightField(BaseModel):

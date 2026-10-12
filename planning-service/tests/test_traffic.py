@@ -29,7 +29,7 @@ def test_adsb_lol_out_is_a_503(monkeypatch):
 
 def test_an_airplane_named_is_found_and_its_flight_given(monkeypatch):
     plane = {"hex": "a0b7d8", "callsign": "UAL2088", "lat": 42.0, "lon": -88.1, "squawk": "3324"}
-    monkeypatch.setattr(traffic, "find", lambda q: [plane] if q == "UAL2088" else [])
+    monkeypatch.setattr(traffic, "find_credited", lambda q: ([plane] if q == "UAL2088" else [], traffic.ADSB_LOL_SOURCE))
     assert client.get("/api/traffic/find", params={"q": "UAL2088"}).json()["aircraft"][0]["callsign"] == "UAL2088"
     monkeypatch.setattr(traffic, "flight", lambda hex_id: {"hex": hex_id, "registration": "N14511", "departed": None,
                                                            "trail": [{"t": 1.0, "lat": 42.0, "lon": -88.0, "alt_ft": None}]})
@@ -57,7 +57,7 @@ def test_a_flights_faa_registration_and_its_flight_numbers_route(monkeypatch):
 def test_an_airplane_not_in_the_air_is_found_in_the_faa_registry(monkeypatch):
     faa = {"n_number": "N654FL", "mode_s_hex": "a89c1e", "manufacturer": "Piper", "model": "PA-28-140", "status": "Valid",
            "standing": "valid"}
-    monkeypatch.setattr(traffic, "find", lambda q: [])
+    monkeypatch.setattr(traffic, "find_credited", lambda q: ([], traffic.ADSB_LOL_SOURCE))
     monkeypatch.setattr(traffic, "registered", lambda q: faa if q == "N654FL" else None)
     body = client.get("/api/traffic/find", params={"q": "N654FL"}).json()
     assert body["aircraft"] == [] and body["registered"]["mode_s_hex"] == "a89c1e"
@@ -71,7 +71,7 @@ def test_adsb_lol_busy_still_gives_the_faa_record_unchecked(monkeypatch):
     def busy(q):
         raise traffic.TrafficUnavailable("turned away")
 
-    monkeypatch.setattr(traffic, "find", busy)
+    monkeypatch.setattr(traffic, "find_credited", busy)
     monkeypatch.setattr(traffic, "registered", lambda q: faa if q == "N654FL" else None)
     response = client.get("/api/traffic/find", params={"q": "N654FL"})
     assert response.status_code == 200
@@ -79,7 +79,7 @@ def test_adsb_lol_busy_still_gives_the_faa_record_unchecked(monkeypatch):
     assert body["checked"] is False and body["aircraft"] == [] and body["registered"]["n_number"] == "N654FL"
     # Nothing the registry knows: still an answer, unchecked, for the page to ask again.
     body = client.get("/api/traffic/find", params={"q": "UAL2088"}).json()
-    assert body == {"aircraft": [], "registered": None, "checked": False}
+    assert body == {"aircraft": [], "registered": None, "checked": False, "source": "adsb.lol", "license": "ODbL 1.0"}
 
 
 def test_an_airplanes_past_flights_and_one_of_them(monkeypatch):
@@ -112,3 +112,10 @@ def test_where_airplanes_are_based_known_and_pending(monkeypatch):
     body = client.get("/api/traffic/based?hex=a89c1e,a0b7d8,a1c2d3").json()
     assert body["based"]["a89c1e"]["ident"] == "LWM" and body["based"]["a0b7d8"] is None and body["pending"] == ["a1c2d3"]
     assert asked == [["a89c1e", "a0b7d8", "a1c2d3"]]
+
+
+def test_a_search_ads_b_exchange_answered_says_so_for_its_credit(monkeypatch):
+    plane = {"hex": "a0b7d8", "callsign": "UAL2088", "lat": 42.0, "lon": -88.1}
+    monkeypatch.setattr(traffic, "find_credited", lambda q: ([plane], traffic.ADSBX_SOURCE))
+    body = client.get("/api/traffic/find", params={"q": "UAL2088"}).json()
+    assert (body["source"], body["license"]) == ("ADS-B Exchange", "ADS-B Exchange terms")

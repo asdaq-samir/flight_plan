@@ -795,3 +795,59 @@ def test_without_a_key_ads_b_exchange_is_never_asked(clock, monkeypatch):
     with patch("vfr.traffic.requests.get", side_effect=get), pytest.raises(traffic.TrafficUnavailable):
         traffic.near(42.3, -88.1, 25)
     assert not any("adsbexchange" in u for u in asked)
+
+
+def test_a_search_is_asked_of_ads_b_exchange_first_by_what_the_name_is_and_credited(adsbx, clock, monkeypatch):
+    # The owner's ask: ADS-B Exchange for a search, so it is fast -- one
+    # request, by the address an N-number has in the FAA's registry, by a
+    # callsign for a flight number, by registration for another country's.
+    monkeypatch.setattr(traffic.registry, "lookup", lambda **kw: {"mode_s_hex": "A128B9"} if kw.get("n_number") == "N174HA" else None)
+    get, asked = _routed({
+        "adsbexchange-com1.p.rapidapi.com/v2/icao/a128b9": _answer([CESSNA]),
+        "adsbexchange-com1.p.rapidapi.com/v2/callsign/UAL2088": _answer([{**CESSNA, "hex": "a0b7d8", "flight": "UAL2088 "}]),
+        "adsbexchange-com1.p.rapidapi.com/v2/registration/G-ABCD": _answer([{**CESSNA, "hex": "400abc", "r": "G-ABCD"}]),
+    })
+    with patch("vfr.traffic.requests.get", side_effect=get):
+        found, credit = traffic.find_credited("N174HA")
+        assert [a["hex"] for a in found] == ["a128b9"] and credit == traffic.ADSBX_SOURCE
+        assert [a["hex"] for a in traffic.find("UAL2088")] == ["a0b7d8"]
+        assert [a["hex"] for a in traffic.find("G-ABCD")] == ["400abc"]
+    assert asked == [
+        "https://adsbexchange-com1.p.rapidapi.com/v2/icao/a128b9/",
+        "https://adsbexchange-com1.p.rapidapi.com/v2/callsign/UAL2088/",
+        "https://adsbexchange-com1.p.rapidapi.com/v2/registration/G-ABCD/",
+    ]
+    assert json.loads(adsbx.read_text()) == {"2026-10": 3}
+
+
+def test_an_address_ads_b_exchange_does_not_have_is_read_from_the_free_recent_trace(adsbx, clock):
+    get, asked = _routed({
+        "adsbexchange-com1.p.rapidapi.com/v2/icao/a128b9": _answer([]),
+        "globe.adsb.lol/data/traces/b9/trace_recent_a128b9.json": _status(200, RECENT),
+    })
+    with patch("vfr.traffic.requests.get", side_effect=get):
+        found, credit = traffic.find_credited("a128b9")
+    assert credit == traffic.ADSB_LOL_SOURCE
+    assert [u.split("/")[2] for u in asked] == ["adsbexchange-com1.p.rapidapi.com", "globe.adsb.lol"]
+    assert [a["hex"] for a in found] == ["a128b9"]
+
+
+def test_with_the_months_requests_spent_a_search_goes_to_adsb_lol_as_before(adsbx, clock):
+    adsbx.write_text(json.dumps({"2026-10": traffic.ADSBX_MONTHLY}))
+    get, asked = _routed({"api.adsb.lol/v2/callsign/UAL2088": _answer([{**CESSNA, "flight": "UAL2088 "}])})
+    with patch("vfr.traffic.requests.get", side_effect=get):
+        found, credit = traffic.find_credited("UAL2088")
+    assert credit == traffic.ADSB_LOL_SOURCE and len(found) == 1
+    assert not any("adsbexchange" in u for u in asked)
+
+
+def test_the_months_count_follows_what_rapidapi_says_the_key_has_used(adsbx, clock):
+    # The key spent elsewhere too: RapidAPI's own count, on each answer.
+    answer = _answer([CESSNA])
+    answer.headers = {"x-ratelimit-api-requests-limit": "10000", "x-ratelimit-api-requests-remaining": "950"}
+    get, asked = _routed({"adsbexchange-com1.p.rapidapi.com/v2/callsign/UAL2088": answer})
+    with patch("vfr.traffic.requests.get", side_effect=get):
+        traffic.find("UAL2088")
+    assert json.loads(adsbx.read_text()) == {"2026-10": 9050}
+    # Past the month's own budget now: the next search goes to adsb.lol.
+    assert not traffic._adsbx_spend(search=True)

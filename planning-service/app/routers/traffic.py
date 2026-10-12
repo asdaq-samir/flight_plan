@@ -36,10 +36,10 @@ def traffic_find(q: str = Query(min_length=2, max_length=12, description="Callsi
     which needs no asking. It was a 503, which the pilot read as "Couldn't
     search" for an airplane the registry knew (N654FL, 2026-10-11)."""
     try:
-        found = traffic.find(q)
+        found, credit = traffic.find_credited(q)
     except traffic.TrafficUnavailable:
         return TrafficFound(aircraft=[], registered=traffic.registered(q), checked=False)
-    return TrafficFound(aircraft=found, registered=None if found else traffic.registered(q))
+    return TrafficFound(aircraft=found, registered=None if found else traffic.registered(q), **credit)
 
 
 @router.get("/api/traffic/flight/{hex_id}", response_model=FlightDetail)

@@ -152,7 +152,9 @@ export default function AircraftCard({ onPick, onPickHex }: {
     <PanelCard testId="aircraft-card">
       <div className="space-y-5 pt-1">
         {(searching || heard.length > 0) && (
-          <ListGroup title="Found">
+          // Credited where ADS-B Exchange answered the search, as the
+          // map credits whose traffic it draws (vfr.traffic find_credited).
+          <ListGroup title="Found" footer={answer?.length && found?.source === "ADS-B Exchange" ? "Found by ADS-B Exchange." : undefined}>
             {listed.map(plane => (
               <AircraftRow key={plane.hex} plane={plane} from={from} ownFt={ownFt} onPick={() => pickPlane(plane)} testId="aircraft-found" />
             ))}

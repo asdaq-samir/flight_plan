@@ -38,6 +38,7 @@ import requests
 from cachetools import TTLCache
 
 from . import airports, geo, registry
+from .config import DATA_DIR
 
 URL = "https://api.adsb.lol/v2/point/{lat:.2f}/{lon:.2f}/{radius}"
 HEADERS = {"User-Agent": "wingtip-maps/0.1 (VFR flight planner; traffic for pilots' situational awareness)"}
@@ -113,8 +114,11 @@ ADSBX_MONTHLY = int(os.environ.get("ADSBX_MONTHLY_REQUESTS", "9000"))
 #: keeps a bad hour from spending a week's. A pilot's search is not held
 #: to it -- it is asked at once, within the month's budget.
 ADSBX_MIN_GAP_S = 30.0
-#: Where the month's count is kept, so a restart does not forget it.
-ADSBX_USAGE_FILE = Path(os.environ.get("ADSBX_USAGE_FILE", "data/raw/adsbx_usage.json"))
+#: Where the month's count is kept, so a restart does not forget it: the
+#: project's data folder (vfr.config), where it went to the planner's
+#: working folder from a path of its own, outside the data kept between
+#: containers and not ignored by git.
+ADSBX_USAGE_FILE = Path(os.environ.get("ADSBX_USAGE_FILE", str(DATA_DIR / "raw" / "adsbx_usage.json")))
 #: Its credit, as the map says it where it draws what it gave.
 ADSBX_SOURCE = {"source": "ADS-B Exchange", "license": "ADS-B Exchange terms"}
 _ADSBX = {"last": -math.inf}
@@ -157,11 +161,35 @@ def _adsbx(path: str, search: bool = False) -> list[dict]:
     try:
         resp = requests.get(ADSBX_URL.format(path=path), timeout=TIMEOUT_S, headers={
             **HEADERS, "x-rapidapi-key": os.environ.get("ADSBX_RAPIDAPI_KEY", ""), "x-rapidapi-host": ADSBX_HOST})
+        _adsbx_counted(resp.headers)
         resp.raise_for_status()
         entries = resp.json().get("ac") or []
     except (requests.RequestException, ValueError) as err:
         raise TrafficUnavailable(f"ADS-B Exchange did not answer: {err}") from err
     return [a for a in (_aircraft(e) for e in entries if isinstance(e, dict)) if a is not None]
+
+
+def _adsbx_counted(headers) -> None:
+    """The month's count brought up to what RapidAPI says the key has used
+    (its limit less what remains, on every answer): the same key spent
+    elsewhere -- a developer's own lookups, another copy of the planner --
+    counts against the plan's 10,000 too, which the planner's own count
+    alone would not know."""
+    try:
+        used = int(headers.get("x-ratelimit-api-requests-limit")) - int(headers.get("x-ratelimit-api-requests-remaining"))
+    except (TypeError, ValueError):
+        return
+    month = time.strftime("%Y-%m", time.gmtime(_wall()))
+    with _LOCK:
+        try:
+            kept = json.loads(ADSBX_USAGE_FILE.read_text()) if ADSBX_USAGE_FILE.exists() else {}
+        except (OSError, ValueError):
+            kept = {}
+        if used > kept.get(month, 0):
+            try:
+                ADSBX_USAGE_FILE.write_text(json.dumps({month: used}))
+            except OSError:
+                pass
 
 
 #: Regions whose kept answer is ADS-B Exchange's, for its credit.
@@ -458,22 +486,31 @@ def _heard(text: str) -> list[dict]:
 
 
 def find(query: str) -> list[dict]:
+    """The airplanes in the air a pilot names (`find_credited`'s)."""
+    return find_credited(query)[0]
+
+
+def find_credited(query: str) -> tuple[list[dict], dict]:
     """The airplanes in the air a pilot names: by callsign ("UAL2088"),
     registration ("N174HA") or ICAO address ("a0b7d8"), as `_aircraft`
-    gives each. Empty where none is in the air and heard now. One heard
-    about a region in the last minute is found there, at once; one named
-    by its address, or by an N-number the FAA's registry gives the address
-    of, from its recent trace (`_recent`), which asks the API nothing;
-    else adsb.lol's API is asked, in a search's turn. The answer is kept
-    for FOUND_TTL_S so the same search again -- a second phone's, a tap
-    back -- asks nothing."""
+    gives each, and whose data they are ({"source", "license"}, as the
+    map's traffic says it). Empty where none is in the air and heard now.
+    One heard about a region in the last minute is found there, at once;
+    else ADS-B Exchange is asked first (`_looked_up`), the owner's fast
+    source for a search, within its month's requests; else -- or for an
+    address it found nothing for -- one named by its address, or by an
+    N-number the FAA's registry gives the address of, from its recent
+    trace (`_recent`), which asks adsb.lol's API nothing; else adsb.lol's
+    API is asked, in a search's turn. The answer is kept for FOUND_TTL_S
+    so the same search again -- a second phone's, a tap back -- asks
+    nothing."""
     text = re.sub(r"\s+", "", query).upper()
     if not text or not re.fullmatch(r"[~A-Z0-9-]{2,10}", text):
-        return []
+        return [], ADSB_LOL_SOURCE
     with _LOCK:
         heard = _heard(text)
         if heard:
-            return heard
+            return heard, ADSB_LOL_SOURCE
         if text in _FOUND:
             return _FOUND[text]
         gate = _FIND_GATES.setdefault(text, threading.Lock())
@@ -483,21 +520,63 @@ def find(query: str) -> list[dict]:
             if text in _FOUND:
                 return _FOUND[text]
         try:
-            hex_id = _address_of(text)
-            recent = _recent(hex_id) if hex_id else None
-            # The API only where the trace could not be read: a search
-            # there waits its turn behind the map's regions and any
-            # refusal's back-off, which is what kept the owner's searches
-            # waiting (2026-10-12).
-            found = recent if recent is not None else _asked(text)
+            looked = _looked_up(text)
+            if looked is not None:
+                answer = (looked, ADSBX_SOURCE)
+            else:
+                hex_id = _address_of(text)
+                recent = _recent(hex_id) if hex_id else None
+                # The API only where the trace could not be read: a search
+                # there waits its turn behind the map's regions and any
+                # refusal's back-off, which is what kept the owner's
+                # searches waiting (2026-10-12).
+                answer = (recent, ADSB_LOL_SOURCE) if recent is not None else _asked(text, adsbx_tried=True)
             # The answer is stored in the same lock section the gate is
             # dropped in, so a search arriving between finds one or the other.
             with _LOCK:
-                _FOUND[text] = found
+                _FOUND[text] = answer
         finally:
             with _LOCK:
                 _FIND_GATES.pop(text, None)
-        return found
+        return answer
+
+
+#: adsb.lol's credit, the map's traffic's by default (the planner's
+#: Traffic schema), for a search's answer from it.
+ADSB_LOL_SOURCE = {"source": "adsb.lol", "license": "ODbL 1.0"}
+
+
+def _looked_up(text: str) -> list[dict] | None:
+    """A pilot's search asked of ADS-B Exchange first, at the owner's ask
+    ("use adsb exchange for aircraft lookup for now so it's fast"): one
+    request, where adsb.lol's API answers a search in its turn, seconds
+    behind the map's regions. By what the name is: an ICAO address, or an
+    N-number the FAA's registry gives the address of, by that address;
+    another registration by registration; an airline's flight number
+    ("UAL2088") as a callsign; anything else as a callsign and then as a
+    registration -- two requests at most. None where it is not keyed, the
+    month's requests are spent or it does not answer (adsb.lol is asked as
+    before), or where it found nothing for an address: the recent trace,
+    which costs nothing, is read for it too."""
+    if text.startswith("~"):
+        return None
+    hex_id = _address_of(text)
+    if hex_id:
+        tries = [("hex", hex_id)]
+    elif _N_NUMBER.fullmatch(text) or "-" in text:
+        tries = [("reg", text)]
+    elif _CALLSIGN.fullmatch(text):
+        tries = [("callsign", text)]
+    else:
+        tries = [("callsign", text), ("reg", text)]
+    for by, value in tries:
+        try:
+            found = _adsbx(f"{ADSBX_BY[by]}/{value}", search=True)
+        except TrafficUnavailable:
+            return None
+        if found:
+            return found
+    return None if hex_id else []
 
 
 def _address_of(text: str) -> str | None:
@@ -570,9 +649,11 @@ def registered(query: str) -> dict | None:
     return registry.lookup(n_number=text) if _N_NUMBER.fullmatch(text) else None
 
 
-def _asked(text: str) -> list[dict]:
-    """adsb.lol's answer to a search: by address, callsign or
-    registration, as the text reads, the next way where one finds none."""
+def _asked(text: str, adsbx_tried: bool = False) -> tuple[list[dict], dict]:
+    """adsb.lol's answer to a search, and its credit: by address, callsign
+    or registration, as the text reads, the next way where one finds none;
+    where it turns us away, ADS-B Exchange asked the same way, unless it
+    was asked about this search already (`adsbx_tried`)."""
     if _HEX.fullmatch(text.lower()):
         tries = [("hex", text.lower()), ("callsign", text)]
     elif _N_NUMBER.fullmatch(text) or "-" in text:
@@ -580,15 +661,18 @@ def _asked(text: str) -> list[dict]:
     else:
         tries = [("callsign", text), ("reg", text)]
     for by, value in tries:
+        credit = ADSB_LOL_SOURCE
         try:
             found = [a for a in (_aircraft(e) for e in _paced(FIND_URL.format(by=by, value=value)).get("ac") or []
                                  if isinstance(e, dict)) if a is not None]
         except TrafficUnavailable:
+            if adsbx_tried:
+                raise
             # adsb.lol turning us away: ADS-B Exchange asked the same way.
-            found = _adsbx(f"{ADSBX_BY[by]}/{value}", search=True)
+            found, credit = _adsbx(f"{ADSBX_BY[by]}/{value}", search=True), ADSBX_SOURCE
         if found:
-            return found
-    return []
+            return found, credit
+    return [], ADSB_LOL_SOURCE
 
 
 #: adsb.lol's ways of naming an airplane, as ADS-B Exchange's API says them.

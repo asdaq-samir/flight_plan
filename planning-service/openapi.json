@@ -9558,6 +9558,11 @@
             "title": "Checked",
             "type": "boolean"
           },
+          "license": {
+            "default": "ODbL 1.0",
+            "title": "License",
+            "type": "string"
+          },
           "registered": {
             "anyOf": [
               {
@@ -9567,6 +9572,11 @@
                 "type": "null"
               }
             ]
+          },
+          "source": {
+            "default": "adsb.lol",
+            "title": "Source",
+            "type": "string"
           }
         },
         "required": [
