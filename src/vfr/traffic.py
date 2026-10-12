@@ -74,6 +74,8 @@ _NM_PER_DEG = 60.0
 # Monotonic clock and sleep, through the module so the tests can stand in.
 _clock = time.monotonic
 _sleep = time.sleep
+#: The wall clock, for a trace's times, which are Unix seconds.
+_wall = time.time
 
 _LOCK = threading.Lock()
 #: Each region's last answer: (when it came, monotonic, airplanes).
@@ -299,6 +301,14 @@ _NEW_LEG = 2
 _HEX = re.compile(r"^~?[0-9a-f]{6}$")
 _N_NUMBER = re.compile(r"^N[1-9][0-9A-Z]{0,4}$")
 _TRACES: TTLCache = TTLCache(maxsize=64, ttl=TRACE_TTL_S)
+#: An airplane's last few minutes, on the same globe: the trace readsb
+#: writes every few seconds (3 to 8 s old, measured 2026-10-12, where the
+#: full trace was 4 to 7 minutes behind). A static file, not the API, so
+#: a search by registration or address costs none of the API's turns.
+RECENT_URL = "https://globe.adsb.lol/data/traces/{last2}/trace_recent_{hex}.json"
+#: A recent trace is read again after this long, s.
+RECENT_TTL_S = 5
+_RECENT: TTLCache = TTLCache(maxsize=256, ttl=RECENT_TTL_S)
 #: A search's answer from adsb.lol is given again this long, s.
 FOUND_TTL_S = 15
 _FOUND: TTLCache = TTLCache(maxsize=256, ttl=FOUND_TTL_S)
@@ -356,10 +366,12 @@ def find(query: str) -> list[dict]:
     """The airplanes in the air a pilot names: by callsign ("UAL2088"),
     registration ("N174HA") or ICAO address ("a0b7d8"), as `_aircraft`
     gives each. Empty where none is in the air and heard now. One heard
-    about a region in the last minute is found there, at once; else
-    adsb.lol is asked, in a search's turn, and its answer kept for
-    FOUND_TTL_S so the same search again -- a second phone's, a tap back --
-    asks nothing."""
+    about a region in the last minute is found there, at once; one named
+    by its address, or by an N-number the FAA's registry gives the address
+    of, from its recent trace (`_recent`), which asks the API nothing;
+    else adsb.lol's API is asked, in a search's turn. The answer is kept
+    for FOUND_TTL_S so the same search again -- a second phone's, a tap
+    back -- asks nothing."""
     text = re.sub(r"\s+", "", query).upper()
     if not text or not re.fullmatch(r"[~A-Z0-9-]{2,10}", text):
         return []
@@ -376,7 +388,13 @@ def find(query: str) -> list[dict]:
             if text in _FOUND:
                 return _FOUND[text]
         try:
-            found = _asked(text)
+            hex_id = _address_of(text)
+            recent = _recent(hex_id) if hex_id else None
+            # The API only where the trace could not be read: a search
+            # there waits its turn behind the map's regions and any
+            # refusal's back-off, which is what kept the owner's searches
+            # waiting (2026-10-12).
+            found = recent if recent is not None else _asked(text)
             # The answer is stored in the same lock section the gate is
             # dropped in, so a search arriving between finds one or the other.
             with _LOCK:
@@ -385,6 +403,66 @@ def find(query: str) -> list[dict]:
             with _LOCK:
                 _FIND_GATES.pop(text, None)
         return found
+
+
+def _address_of(text: str) -> str | None:
+    """The ICAO address a search names: the address itself, or the one the
+    FAA's registry gives an N-number; None for a callsign, an adsb.lol
+    "~" pseudo-address (it has no trace of its own) or an N-number the
+    registry does not have."""
+    if _HEX.fullmatch(text.lower()):
+        return None if text.startswith("~") else text.lower()
+    if _N_NUMBER.fullmatch(text):
+        record = registry.lookup(n_number=text)
+        address = (record or {}).get("mode_s_hex")
+        return address.lower() if isinstance(address, str) and _HEX.fullmatch(address.lower()) else None
+    return None
+
+
+def _recent(hex_id: str) -> list[dict] | None:
+    """The airplane with this address as its recent trace last has it, as
+    `_aircraft` gives it: [it] in the air and heard within STALE_S, [] on
+    the ground, not heard that recently or with no recent trace (a 404),
+    None where the trace cannot be read now (the API is asked instead)."""
+    with _LOCK:
+        if hex_id in _RECENT:
+            return _RECENT[hex_id]
+    try:
+        resp = requests.get(RECENT_URL.format(last2=hex_id[-2:], hex=hex_id), headers=HEADERS, timeout=TIMEOUT_S)
+        if resp.status_code == 404:
+            found: list[dict] = []
+        elif resp.status_code == 200:
+            trace = resp.json()
+            plane = _last_heard(trace) if isinstance(trace, dict) else None
+            found = [plane] if plane is not None else []
+        else:
+            return None
+    except (requests.RequestException, ValueError):
+        return None
+    with _LOCK:
+        _RECENT[hex_id] = found
+    return found
+
+
+def _last_heard(trace: dict) -> dict | None:
+    """A trace's last point as the API's answer has an airplane, read by
+    `_aircraft`: readsb's trace point is [seconds after the trace's
+    timestamp, lat, lon, altitude or "ground", ground speed, track, flags,
+    vertical rate, details, source, GNSS altitude, GNSS rate, ...], the
+    callsign and squawk in the last point that carries details."""
+    points = [p for p in trace.get("trace") or [] if isinstance(p, list) and len(p) >= 8]
+    base = _number(trace.get("timestamp"))
+    if not points or base is None:
+        return None
+    last = points[-1]
+    details = next((p[8] for p in reversed(points) if len(p) > 8 and isinstance(p[8], dict)), {})
+    return _aircraft({
+        "hex": trace.get("icao"), "flight": details.get("flight"), "r": trace.get("r"), "t": trace.get("t"),
+        "lat": last[1], "lon": last[2], "alt_baro": last[3], "alt_geom": last[10] if len(last) > 10 else None,
+        "gs": last[4], "track": last[5], "baro_rate": last[7], "geom_rate": last[11] if len(last) > 11 else None,
+        "seen_pos": round(max(0.0, _wall() - base - float(last[0])), 1),
+        "squawk": details.get("squawk"), "emergency": details.get("emergency"),
+    })
 
 
 def registered(query: str) -> dict | None:
