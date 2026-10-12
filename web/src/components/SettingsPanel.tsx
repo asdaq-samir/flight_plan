@@ -1,12 +1,10 @@
 import { useState, type ReactNode } from "react";
-import { CloudSun, FileText, Hand, Hexagon, Info, LifeBuoy, Lightbulb, Monitor, Moon, Palette, PanelBottom, PanelTop, Sparkles, Sun, SunMoon } from "lucide-react";
+import { CloudSun, Hexagon, Lightbulb, Monitor, Moon, Palette, PanelBottom, PanelTop, Sparkles, Sun, SunMoon } from "lucide-react";
 import { useTheme } from "next-themes";
 import { ListGroup, ListRow } from "./GroupedList";
-import AboutLimits from "./AboutLimits";
 import Segmented from "./Segmented";
 import { useNavEdge } from "../hooks/use-nav-edge";
 import { usePreferences, type NarrativeFramework, type NavEdge, type RouteColours } from "../lib/preferences";
-import { LEGAL_PAGES } from "../lib/legal";
 import { useTips } from "../lib/tips";
 import { SETTING_BADGE } from "../lib/rowBadges";
 import { RowBadge } from "./RowBadge";
@@ -33,7 +31,8 @@ import { RowBadge } from "./RowBadge";
  * paragraph under nearly every control, twice the height; the last two
  * lines under a group went too, at the pilot's ask: no descriptions.
  * Each row leads with its glyph in a colour of its own, as iOS's Settings
- * has them, at the pilot's ask.
+ * has them, at the pilot's ask. What the app is, its limits, its sources
+ * and the legal pages are the next tab's, About (AboutPanel).
  */
 export default function SettingsPanel() {
   return (
@@ -41,7 +40,6 @@ export default function SettingsPanel() {
       <AppearanceGroup />
       <BriefGroup />
       <TipsGroup />
-      <AboutGroup />
     </div>
   );
 }
@@ -66,24 +64,6 @@ const NARRATIVES = [
   { value: "langgraph", label: "LangGraph" },
   { value: "crewai", label: "CrewAI" },
 ];
-
-const LEGAL_GLYPHS: Record<(typeof LEGAL_PAGES)[number]["key"], ReactNode> = {
-  privacy: <Hand />, terms: <FileText />, support: <LifeBuoy />,
-};
-
-/** About & limits, then the privacy policy, terms and support pages
- *  (lib/legal), which App Review wants a link to inside the app: one
- *  group, where they were two under the same heading. */
-function AboutGroup() {
-  return (
-    <ListGroup title="About">
-      <AboutLimits media={badge("about", <Info />)} />
-      {LEGAL_PAGES.map(p => (
-        <ListRow key={p.key} media={badge("about", LEGAL_GLYPHS[p.key])} title={p.title} href={p.href} data-testid={`legal-${p.key}`} />
-      ))}
-    </ListGroup>
-  );
-}
 
 /** A settings row's glyph on its colour (RowBadge). */
 const badge = (kind: keyof typeof SETTING_BADGE, glyph: ReactNode) => <RowBadge colour={SETTING_BADGE[kind]}>{glyph}</RowBadge>;

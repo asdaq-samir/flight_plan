@@ -66,7 +66,7 @@ test("plan page: the pilot console holds the account, airplanes and flights, and
   await expect(pilot.getByRole("region", { name: "Aircraft", exact: true })).toBeVisible();
   await library(pilot, "Flights");
   await expect(pilot.getByRole("region", { name: "Flights", exact: true })).toBeVisible();
-  await expect(pilot.getByRole("tab")).toHaveText(["Guide", "Personal", "Settings"]);
+  await expect(pilot.getByRole("tab")).toHaveText(["Guide", "Personal", "Settings", "About"]);
   // The personal minimums are Personal's, with no sign-in needed.
   await library(pilot, "Minimums");
   await expect(pilot.getByTestId("minimum-ceilingFt")).toBeVisible();

@@ -1,4 +1,5 @@
 import { useContext, type ReactNode } from "react";
+import AboutPanel from "./AboutPanel";
 import { ConsoleSettingsContext } from "./mapChrome";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { LINE_TAB } from "./lineTabs";
@@ -27,12 +28,15 @@ interface Props {
  * column, and the whole thing centred on a readable column. Only the
  * tabs differ between the two, so only those are props; who is signed
  * in is the sheet's own header (ConsoleHeader), above both. The
- * settings are the last tab of either, from the page (MapPage), so they
- * are one tap from wherever the console is.
+ * settings and then About are the last tabs of either, from the page
+ * (MapPage), so they are one tap from wherever the console is.
  */
 export default function ConsoleTabs({ tabs: own, saved, onChange }: Props) {
   const settings = useContext(ConsoleSettingsContext);
-  const tabs: ConsoleTab[] = settings ? [...own, { value: "settings", label: "Settings", content: settings }] : own;
+  // About after Settings, as iOS keeps an app's About with its settings.
+  const tabs: ConsoleTab[] = settings
+    ? [...own, { value: "settings", label: "Settings", content: settings }, { value: "about", label: "About", content: <AboutPanel /> }]
+    : own;
   const tab = tabs.some(t => t.value === saved) ? saved : own[0].value;
   return (
     <div className="min-h-0 flex-1 overflow-y-auto">

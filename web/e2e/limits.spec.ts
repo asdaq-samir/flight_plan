@@ -30,13 +30,27 @@ test("a fresh device is told what the planner is not, once, and Settings has it 
   await settle(page);
   await expect(dialog).toHaveCount(0);
 
+  // The console's About tab, after Settings, says it again in full, at
+  // the owner's ask -- the app, its build and chart, where its data comes
+  // from with each one's terms, and the legal pages.
   await openSettings(page);
-  await page.getByTestId("about-limits").click();
-  const sheet = page.getByTestId("about-limits-sheet");
-  await expect(sheet).toContainText("planning aid for VFR flight");
-  await expect(sheet).toContainText("Data sources");
-  // The traffic's source among them, as the FAA's are.
-  await expect(sheet).toContainText("adsb.lol ADS-B traffic, under the Open Database License");
+  await page.getByTestId("console-sheet").getByRole("tab", { name: "About" }).click();
+  const about = page.getByTestId("about-panel");
+  await expect(about).toContainText("Wingtip Maps");
+  await expect(about.getByTestId("about-planning-aid")).toContainText("planning aid for VFR flight");
+  await expect(about.getByTestId("about-planning-aid")).toContainText("14 CFR 91.103");
+  await expect(about.getByTestId("about-build")).toBeVisible();
+  await expect(about.getByTestId("about-chart-edition")).not.toHaveText(/—/);
+  // The traffic's source among them, with its licence, as the FAA's are.
+  const traffic = about.getByTestId("about-source").filter({ hasText: "adsb.lol" });
+  await expect(traffic).toContainText("ODbL 1.0");
+  await expect(traffic).toHaveAttribute("href", /opendatacommons\.org/);
+  await expect(about.getByTestId("about-source").filter({ hasText: "FAA sectional" })).toContainText("Public domain");
+  await expect(about).not.toContainText("OpenStreetMap");
+  await expect(about.getByTestId("legal-privacy")).toHaveAttribute("href", "/app/privacy.html");
+  // Settings itself no longer has them.
+  await page.getByTestId("console-sheet").getByRole("tab", { name: "Settings" }).click();
+  await expect(page.getByTestId("settings-panel").getByTestId("legal-privacy")).toHaveCount(0);
 });
 
 // The traffic's source credited under the map's settings beside the
