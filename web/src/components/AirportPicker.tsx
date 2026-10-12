@@ -26,6 +26,13 @@ interface Props {
   /** A stop's: the VFR and GPS waypoints as well as the airports
    *  (useAirportSearch), a route flying through one. */
   fixes?: boolean;
+  /** Whether the search is out, where its opener is elsewhere -- a
+   *  route's airport, whose tap opens its card, changed from its menu
+   *  (RouteBox) -- with what to do as it opens or closes. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  /** What a tap on the button does in place of opening the search. */
+  onTap?: () => void;
 }
 
 /**
@@ -44,8 +51,11 @@ interface Props {
  */
 export default function AirportPicker({
   value, onChange, placeholder, ariaLabel, invalid, className, look = "field", testId, fixes = false,
+  open: shown, onOpenChange, onTap,
 }: Props) {
-  const [open, setOpen] = useState(false);
+  const [ownOpen, setOwnOpen] = useState(false);
+  const open = shown ?? ownOpen;
+  const setOpen = onOpenChange ?? setOwnOpen;
   const [query, setQuery] = useState("");
   const input = useRef<HTMLInputElement>(null);
   const onPhone = useIsMobile();
@@ -81,11 +91,16 @@ export default function AirportPicker({
           type="button"
           variant="ghost"
           size="sm"
-          role="combobox"
-          aria-expanded={open}
+          // A combobox where a tap opens the search; a button where it
+          // opens the airport's card (`onTap`), the search its menu's.
+          role={onTap ? undefined : "combobox"}
+          aria-expanded={onTap ? undefined : open}
           aria-label={ariaLabel}
           aria-invalid={invalid}
           data-testid={testId}
+          // A tap the caller's (`onTap`), not the trigger's opening:
+          // Radix's own toggle runs only where nothing prevented it.
+          onClick={onTap ? e => { e.preventDefault(); onTap(); } : undefined}
           // A field, as a search box is: its ident in the text's colour
           // (not a button's tint) at a row's size (TEXT). A route's pill
           // in the system face, semibold, at a line under a row's (15):

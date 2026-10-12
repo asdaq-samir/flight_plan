@@ -640,11 +640,11 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // the stops, the destination.
   // Either end may be missing -- taken out in the box, half a route with
   // the other still to be typed -- and with neither, there is no route:
-  // the search, as Maps' close leaves it.
+  // FPL's box empty to type another in, the panel left the height it was,
+  // as the route's close leaves it (clearRoute).
   const setRoute = useCallback(({ dep, stops, dest }: RouteParts) => {
     if (!dep && !dest) {
       setSearchParams({}, { replace: true });
-      setPanel("peek");
       return;
     }
     // The course asked for now, as the route goes in, not once the page
@@ -664,7 +664,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       }
       return next;
     }, { replace: true });
-  }, [setSearchParams, setPanel]);
+  }, [setSearchParams]);
   // An airport's card's Add Stop, at the pilot's ask: the field the
   // route's next stop, after the ones it makes and before its destination
   // (it was Add to Route, the field the new destination); with half a
@@ -1447,7 +1447,12 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
         onDetail={() => setPanel("half")}
         leading={routed ? shareMenu("start") : undefined}
       />
-    ) : undefined,
+    ) : (
+      // No route yet: a pill all the same, as every tab rests on one, at
+      // the pilot's ask -- it had none, and lowered only to a strip. Its
+      // words the empty route box's, a tap the box.
+      <RouteCapsule title="Plan a route" placeholder onDetail={() => setPanel("half")} />
+    ),
     // The route as one box of pills, in place of the two airport fields.
     // An airport twice (a round trip with its stop taken out) keeps the
     // box, its notice saying what to change.
@@ -1467,6 +1472,9 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
             adding={!!addingStop} onAddingChange={addingChange}
             via={addingStop === "via" ? s.unflyable?.detours : undefined}
             procedures={routeProcedures} onProcedures={openProcedures}
+            // An airport's pill tapped: its card over the route, as a tap on
+            // it on the chart opens it, at the pilot's ask; closed, the route.
+            onOpenAirport={selectPlace}
           />
           </SearchNear.Provider>
           </Suspense>

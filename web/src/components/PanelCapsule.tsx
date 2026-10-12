@@ -20,8 +20,11 @@ import { ConsoleButtonContext } from "./mapChrome";
  * progress), as Maps' Options does, and a button either side. Drag it or
  * its grabber and it opens into the sheet.
  */
-export function RouteCapsule({ title, summary, detail, warning, onDetail, leading }: {
+export function RouteCapsule({ title, summary, detail, warning, onDetail, leading, placeholder = false }: {
   title: string;
+  /** No route yet: the title in a field's placeholder grey, as the
+   *  search bar's "Search airports" is. */
+  placeholder?: boolean;
   /** What the pill says in place of the route, at the pilot's ask --
    *  "KMSP · 278 nm · 2h 24m" -- the route whole still its button's name. */
   summary?: string;
@@ -49,9 +52,11 @@ export function RouteCapsule({ title, summary, detail, warning, onDetail, leadin
           className="z-10 flex h-[2.5625rem] min-w-0 flex-1 items-center justify-center gap-1.5 rounded-full px-3 outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           {warning && <CircleAlert className="size-4 shrink-0 text-destructive" aria-hidden="true" />}
-          {summary
-            ? <span className={cn("truncate font-semibold tabular-nums", TEXT.row)} data-testid="capsule-title">{summary}</span>
-            : <FittedRoute title={title} marked={!!warning} />}
+          {placeholder
+            ? <span className={cn("truncate text-muted-foreground", TEXT.row)} data-testid="capsule-title">{title}</span>
+            : summary
+              ? <span className={cn("truncate font-semibold tabular-nums", TEXT.row)} data-testid="capsule-title">{summary}</span>
+              : <FittedRoute title={title} marked={!!warning} />}
         </button>
         <div className="flex shrink-0 justify-end">{consoleButton}</div>
       </div>

@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useId, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
 import { Command as CommandPrimitive } from "cmdk";
-import { ArrowRight, MoveVertical, PlaneLanding, PlaneTakeoff, Route, Trash2, TriangleAlert } from "lucide-react";
+import { ArrowRight, MoveVertical, Pencil, PlaneLanding, PlaneTakeoff, Route, Trash2, TriangleAlert } from "lucide-react";
 import {
   DndContext, KeyboardSensor, MouseSensor, TouchSensor, closestCenter, useDndMonitor, useSensor, useSensors, type DragEndEvent,
 } from "@dnd-kit/core";
@@ -63,7 +63,7 @@ const PROCEDURE_GLYPH = { approach: PlaneLanding, arrival: Route, departure: Pla
  */
 export default function RouteBox({
   dep, stops, dest, waypoints, airspaceOf, metarColourOf, altitudeAt, onAltitudeChange, onChange, adding, onAddingChange, via,
-  procedures = NO_PROCEDURES, onProcedures,
+  procedures = NO_PROCEDURES, onProcedures, onOpenAirport,
 }: RouteParts & {
   /** Which points are waypoints, flown through: in the sectional's magenta. */
   waypoints: Set<string>;
@@ -87,6 +87,10 @@ export default function RouteBox({
    *  route's Procedures from one. */
   procedures?: RouteProcedure[];
   onProcedures?: () => void;
+  /** An airport's pill tapped: its card (PlaceCard), at the pilot's ask,
+   *  the airport changed from the pill's menu instead. A waypoint's tap
+   *  is still its search: it has no card. */
+  onOpenAirport?: (ident: string) => void;
 }) {
   const hasDep = !!dep, hasDest = !!dest;
   const points = [...(hasDep ? [dep] : []), ...stops, ...(hasDest ? [dest] : [])];
@@ -115,7 +119,8 @@ export default function RouteBox({
   // Each point's key is its place in the order and its ident: the same
   // airport twice is two points.
   const ids = points.map((p, i) => `${i}:${p}`);
-  // A press that moves is a drag; a tap is the pill's own (its picker).
+  // A press that moves is a drag; a tap is the pill's own (an airport's
+  // card, a waypoint's search).
   // On a finger, as on iOS, a drag starts with a hold.
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
@@ -364,6 +369,7 @@ export default function RouteBox({
                         altitude={altitudeAt(point, waypoints.has(point))}
                         onEditAltitude={() => setEditing({ ident: point, waypoint: waypoints.has(point), altitude: altitudeAt(point, waypoints.has(point)) })}
                         onRemove={() => remove(i)}
+                        onOpen={onOpenAirport && !waypoints.has(point) && identOf(point) ? () => onOpenAirport(identOf(point)) : undefined}
                       />
                       {/* Its procedures, after it, at the pilot's ask: the
                           approach to fly into it, its arrival, its departure
@@ -453,13 +459,20 @@ function ProcedureChip({ procedure, onOpen }: { procedure: RouteProcedure; onOpe
   );
 }
 
-function Pill({ id, ident, waypoint, index, role, stopNumber, airspaceOf, metarColourOf, altitude, onChange, onEditAltitude, onRemove }: {
+function Pill({ id, ident, waypoint, index, role, stopNumber, airspaceOf, metarColourOf, altitude, onChange, onEditAltitude, onRemove, onOpen }: {
   id: string; ident: string; waypoint: boolean; index: number; role: "dep" | "stop" | "dest"; stopNumber: number;
   airspaceOf: (ident: string) => AirspaceClass | undefined;
   metarColourOf: (ident: string) => string | undefined;
   altitude: PointAltitude;
   onChange: (ident: string) => void; onEditAltitude: () => void; onRemove: () => void;
+  /** A tap's, where it opens the airport's card (RouteBox's onOpenAirport). */
+  onOpen?: () => void;
 }) {
+  // The search, out from the menu's Change where a tap opens the card --
+  // once the menu has closed and given the focus back, or it took the
+  // focus from the search as it opened, which closed it.
+  const [changing, setChanging] = useState(false);
+  const change = useRef(false);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
   // A finger's hold, as iOS's: the pill lifts at a quarter second (the
   // drag's, RouteBox's sensors), its menu at half -- unless it has moved
@@ -537,13 +550,26 @@ function Pill({ id, ident, waypoint, index, role, stopNumber, airspaceOf, metarC
       <AirportPicker
         value={pointName(ident)} placeholder={label} ariaLabel={waypoint ? `${label}, a waypoint` : label} look="pill" fixes={role === "stop"}
         className={cn("h-8 rounded-full px-1.5", look && "text-current", waypoint && "text-[#b02e7c] dark:text-[#ec8cc4]")} onChange={onChange}
+        open={changing} onOpenChange={setChanging} onTap={onOpen}
       />
     </span>
   );
   return (
     <ContextMenu onOpenChange={open => { menuOut.current = open; }}>
       <ContextMenuTrigger asChild>{pill}</ContextMenuTrigger>
-      <ContextMenuContent>
+      <ContextMenuContent onCloseAutoFocus={e => {
+        if (!change.current) return;
+        change.current = false;
+        e.preventDefault();
+        setChanging(true);
+      }}>
+        {/* Another airport in its place, where a tap opens this one's card;
+            its search out once the menu has gone (onCloseAutoFocus). */}
+        {onOpen && (
+          <ContextMenuItem onSelect={() => { change.current = true; }} data-testid="change-point">
+            <Pencil />Change
+          </ContextMenuItem>
+        )}
         {/* The altitude there, before Remove, at the pilot's ask: a
             waypoint's cruise, as a flight level, an airport's pattern, in
             feet -- the plan's until the pilot sets their own. Asked once

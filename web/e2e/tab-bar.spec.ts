@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { settle, sideDrawer } from "./helpers";
+import { grabberTo, openPanel, settle, sideDrawer } from "./helpers";
 
 /**
  * The planner's tab bar, at the pilot's ask in place of the map's buttons
@@ -58,4 +58,40 @@ test("a route opens on FPL, the sheet stands on the bar, and the other tabs keep
   await expect(page).toHaveURL(/dep=C81/);
   await page.getByTestId("tab-fpl").click();
   await expect(sideDrawer(page).getByTestId("panel-tab-navlog")).toBeVisible();
+});
+
+test("FPL with no route rests as a pill, as the other tabs do, its tap the empty box", async ({ page }) => {
+  test.skip((page.viewportSize()?.width ?? 0) >= 768, "a phone's sheet: a larger screen's panel is no pill");
+  await page.goto("/app/plan");
+  await settle(page);
+  await page.getByTestId("tab-fpl").click();
+  await expect(sideDrawer(page).getByTestId("route-clear")).toBeVisible();
+  // Down to the pill, where it went only to a strip.
+  await grabberTo(page, "peek");
+  await expect(sideDrawer(page)).toHaveAttribute("data-shape", "capsule");
+  await expect(sideDrawer(page).getByTestId("capsule-title")).toHaveText("Plan a route");
+  // Its tap, the route's box to type one in.
+  await openPanel(page);
+  await expect(sideDrawer(page).getByTestId("route-clear")).toBeVisible();
+});
+
+test("an airport tapped in the route opens its card, and is changed from its menu", async ({ page }) => {
+  await page.goto("/app/plan?dep=C81&dest=KDLH");
+  await settle(page);
+  await openPanel(page);
+  const destination = page.getByLabel("Destination", { exact: true });
+  await destination.click();
+  // Its card over the route, as a tap on it on the chart opens it.
+  await expect(page).toHaveURL(/[?&]place=KDLH/);
+  const card = sideDrawer(page).getByTestId("place-card");
+  await expect(card).toBeVisible();
+  await expect(card).toContainText("KDLH");
+  // Closed, the route again, on FPL.
+  await sideDrawer(page).getByTestId("place-close").click();
+  await expect(card).toHaveCount(0);
+  await expect(page.getByTestId("tab-fpl")).toHaveAttribute("aria-current", "page");
+  // Changed from the pill's menu: its search, as a tap was.
+  await destination.click({ button: "right" });
+  await page.getByTestId("change-point").click();
+  await expect(page.getByPlaceholder("Search for a destination")).toBeVisible();
 });
