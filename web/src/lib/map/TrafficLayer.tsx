@@ -12,6 +12,8 @@ import { TRAFFIC_COLOURS, trafficIcon } from "./icons";
 import { useOwnShip } from "./ownShip";
 import { CARRY_S, agedBy, carriedOn, colourRuns, mergeTraffic, nearOwnHeight, ownShipHex, trafficLabel, trendPx } from "./traffic";
 import { reported, useTracking, type Report } from "./tracking";
+import { usePastFlight } from "./pastFlight";
+import PastFlightPath from "./PastFlightPath";
 import { listen, useReceiver } from "./receiver";
 import { inNativeApp } from "../native";
 
@@ -75,11 +77,15 @@ export function TrafficLayer() {
   const on = usePreferences(s => s.traffic);
   const tracking = useTracking(s => !!s.hex || s.listing);
   const hex = useTracking(s => s.hex);
+  // A past flight of the airplane tracked, picked on its card: drawn in
+  // place of today's path (lib/map/pastFlight).
+  const past = usePastFlight(s => (s.hex === hex ? s.id : null));
   if (!on && !tracking) return null;
   return (
     <>
       <Traffic />
-      {hex && <TrackedPath key={hex} hex={hex} />}
+      {hex && past === null && <TrackedPath key={hex} hex={hex} />}
+      {hex && past !== null && <PastFlightPath key={`${hex}-${past}`} hex={hex} id={past} />}
     </>
   );
 }
@@ -303,13 +309,13 @@ function Traffic() {
   return null;
 }
 
-/** From the middle of the map to its corner, nm, kept between 10 and 170:
- *  the planner gives a view out to 170 its traffic (vfr.traffic), the
+/** From the middle of the map to its corner, nm, kept between 10 and 165:
+ *  the planner gives a view out to 165 its traffic (vfr.traffic), the
  *  map zoomed out to a state or two. */
 function radiusOf(map: L.Map): number {
   const bounds = map.getBounds();
   const metres = map.getCenter().distanceTo(bounds.getNorthEast());
-  return Math.min(170, Math.max(10, metres / 1852));
+  return Math.min(165, Math.max(10, metres / 1852));
 }
 
 // One style a colour, made once: react-leaflet restyles a path whenever

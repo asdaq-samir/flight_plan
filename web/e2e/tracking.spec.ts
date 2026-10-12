@@ -226,3 +226,45 @@ test("in the air, own ship's path flown is drawn behind it", async ({ page }) =>
   await settle(page);
   await expect(page.locator(".leaflet-overlay-pane path.own-trail")).toBeAttached({ timeout: slow(15_000) });
 });
+
+test("an airplane's past flights are listed on its card, and one is drawn on the map, replayed and logged", async ({ page }) => {
+  // N654FL's morning as FlightAware has it: LWM to LCI, then LCI to LWM.
+  const off = Date.now() / 1000 - 6 * 3600;
+  const lci = { ident: "LCI", name: "Laconia Municipal Airport", city: "Laconia", region: "US-NH" };
+  const lwm = { ident: "LWM", name: "Lawrence Municipal Airport", city: "Lawrence", region: "US-MA" };
+  const points = Array.from({ length: 80 }, (_, i) => ({
+    t: off + i * 60, lat: 43.57 - i * 0.0107, lon: -71.42 + i * 0.0038, alt_ft: 800 + Math.min(i, 79 - i) * 120,
+    gs_kt: 100, track_deg: 165, vrate_fpm: i < 40 ? 500 : -500,
+  }));
+  await sky(page);
+  await page.route(url => /\/api\/planner\/traffic\/flight\/a0b7d8\/history$/.test(url.pathname), route => route.fulfill({ json: {
+    hex: "a0b7d8", registration: "N654FL", type: "P28A", flights: [
+      { id: Math.floor(off), origin: lci, destination: lwm, off, on: off + 79 * 60, landed: true, in_air: false, max_alt_ft: 5520 },
+      { id: Math.floor(off) - 7200, origin: lwm, destination: lci, off: off - 7200, on: off - 4400, landed: true, in_air: false, max_alt_ft: 4100 },
+    ] } }));
+  await page.route(url => /\/api\/planner\/traffic\/flight\/a0b7d8\/history\/\d+$/.test(url.pathname),
+    route => route.fulfill({ json: { id: Math.floor(off), points } }));
+  await page.goto("/app/plan?flight=a0b7d8");
+  await settle(page);
+  const card = page.getByTestId("flight-card");
+  const rows = card.getByTestId("past-flight");
+  await expect(rows).toHaveCount(2, { timeout: slow(15_000) });
+  await expect(rows.first()).toContainText("LCI → LWM");
+  await expect(rows.first()).toContainText("Arrived");
+  await rows.first().click();
+  // Drawn on the map in its heights' colours, its track log under the replay.
+  await expect(page.locator("path.past-flight-path").first()).toBeAttached({ timeout: slow(10_000) });
+  await expect(card.getByTestId("track-log").locator("tbody tr")).toHaveCount(60);
+  await card.getByTestId("track-log-all").click();
+  await expect(card.getByTestId("track-log").locator("tbody tr")).toHaveCount(80);
+  // Played at 200 times: the airplane on the map, where it is said under the controls.
+  await card.getByTestId("replay-speed").getByText("200×").click();
+  await card.getByTestId("replay-play").click();
+  await expect(card.getByTestId("replay-now")).toContainText(/ft · 100 kt · S/);
+  await expect(page.locator(".leaflet-marker-pane [data-traffic-tracked]").first()).toBeAttached();
+  await card.getByTestId("replay-stop").click();
+  await expect(card.getByTestId("replay-now")).toHaveCount(0);
+  // A second tap puts it away: today's path back.
+  await rows.first().click();
+  await expect(page.locator("path.past-flight-path")).toHaveCount(0);
+});

@@ -8,7 +8,7 @@ import type {
   AirspaceAt, AlertsAhead, ClassBResponse, FlightDetail, FlightRoute, GoogleMaps, Traffic, TrafficFound, NearestAirports, RouteProfile, Tfrs, DevServices, DevServiceStarted, Pilot, Rating, RetrainStarted, Role, SaveFlightRequest,
   SignInCapabilities, AppleSignedIn, LogbookEntry, LogbookEntryRequest, Currency, CurrencyDatesRequest, Subscription, Alternates, VorCheckRequest, InspectionsRequest, ChecklistDto, Squawk, SquawkRequest, Reminders, LogbookImportResult, FlightPlanFilingRequest, FlightServiceStatus, FlightPlanFiled, DeviceCode,
   Status, StreamMessage, Totals, WaypointsInView, Training, SavedTrack,
-  OralQuestion, OralQuestionRequest, OralGrade, OralGradeRequest, ProcedureDrawing, ProcedureList, SpeedDay,
+  OralQuestion, OralQuestionRequest, OralGrade, OralGradeRequest, ProcedureDrawing, ProcedureList, SpeedDay, PastFlights, PastFlight,
 } from "./types";
 
 /**
@@ -449,6 +449,13 @@ export const api = {
 
   /** A tracked flight's airplane, where it took off and its path today,
    *  and a US airplane's FAA registration. */
+  /** An airplane's flights of the last seven days, newest first. */
+  trafficHistory: (hex: string) =>
+    planner.GET("/api/traffic/flight/{hex_id}/history", { params: { path: { hex_id: hex } } }).then(data<PastFlights>),
+  /** One of them, its reports, for its track log and its replay. */
+  trafficPastFlight: (hex: string, id: number) =>
+    planner.GET("/api/traffic/flight/{hex_id}/history/{flight_id}", { params: { path: { hex_id: hex, flight_id: id } } })
+      .then(data<PastFlight>),
   trafficFlight: (hex: string) =>
     planner.GET("/api/traffic/flight/{hex_id}", { params: { path: { hex_id: hex } } }).then(data<FlightDetail>),
 

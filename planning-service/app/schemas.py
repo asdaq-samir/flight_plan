@@ -1041,6 +1041,60 @@ class TrafficFound(BaseModel):
     checked: bool = True
 
 
+class PastFlightField(BaseModel):
+    """A landing field a past flight took off from or landed at."""
+
+    ident: str
+    name: str | None = None
+    city: str | None = None
+    region: str | None = None
+
+
+class PastFlightSummary(BaseModel):
+    """One of an airplane's flights of the last days (vfr.traffic.history):
+    where it went from and to, where the receivers heard that, and when."""
+
+    id: int
+    origin: PastFlightField | None = None
+    destination: PastFlightField | None = None
+    off: float
+    on: float
+    landed: bool
+    in_air: bool
+    max_alt_ft: float
+
+
+class PastFlights(BaseModel):
+    """An airplane's flights of the last seven days, newest first, from
+    adsb.lol's traces (Open Database License 1.0)."""
+
+    hex: str
+    registration: str | None = None
+    type: str | None = None
+    flights: list[PastFlightSummary]
+
+
+class PastFlightPoint(BaseModel):
+    """A report of a past flight: when (s since 1970), where, its height
+    (GNSS where sent, ft; None on the ground), ground speed (kt), track
+    (degrees true) and climb (ft/min)."""
+
+    t: float
+    lat: float
+    lon: float
+    alt_ft: float | None = None
+    gs_kt: float | None = None
+    track_deg: float | None = None
+    vrate_fpm: float | None = None
+
+
+class PastFlight(BaseModel):
+    """One past flight's reports, for its track log and its replay."""
+
+    id: int
+    points: list[PastFlightPoint]
+
+
 class FlightDetail(BaseModel):
     """An airplane and its flight today (vfr.traffic.flight): what it is,
     who flies it, where it took off from where its track shows that, and

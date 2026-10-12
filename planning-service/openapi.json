@@ -6326,6 +6326,246 @@
         "title": "OralQuestionRequest",
         "type": "object"
       },
+      "PastFlight": {
+        "description": "One past flight's reports, for its track log and its replay.",
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "points": {
+            "items": {
+              "$ref": "#/components/schemas/PastFlightPoint"
+            },
+            "title": "Points",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "points"
+        ],
+        "title": "PastFlight",
+        "type": "object"
+      },
+      "PastFlightField": {
+        "description": "A landing field a past flight took off from or landed at.",
+        "properties": {
+          "city": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "City"
+          },
+          "ident": {
+            "title": "Ident",
+            "type": "string"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "region": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Region"
+          }
+        },
+        "required": [
+          "ident"
+        ],
+        "title": "PastFlightField",
+        "type": "object"
+      },
+      "PastFlightPoint": {
+        "description": "A report of a past flight: when (s since 1970), where, its height\n(GNSS where sent, ft; None on the ground), ground speed (kt), track\n(degrees true) and climb (ft/min).",
+        "properties": {
+          "alt_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alt Ft"
+          },
+          "gs_kt": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gs Kt"
+          },
+          "lat": {
+            "title": "Lat",
+            "type": "number"
+          },
+          "lon": {
+            "title": "Lon",
+            "type": "number"
+          },
+          "t": {
+            "title": "T",
+            "type": "number"
+          },
+          "track_deg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Track Deg"
+          },
+          "vrate_fpm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vrate Fpm"
+          }
+        },
+        "required": [
+          "t",
+          "lat",
+          "lon"
+        ],
+        "title": "PastFlightPoint",
+        "type": "object"
+      },
+      "PastFlightSummary": {
+        "description": "One of an airplane's flights of the last days (vfr.traffic.history):\nwhere it went from and to, where the receivers heard that, and when.",
+        "properties": {
+          "destination": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PastFlightField"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "in_air": {
+            "title": "In Air",
+            "type": "boolean"
+          },
+          "landed": {
+            "title": "Landed",
+            "type": "boolean"
+          },
+          "max_alt_ft": {
+            "title": "Max Alt Ft",
+            "type": "number"
+          },
+          "off": {
+            "title": "Off",
+            "type": "number"
+          },
+          "on": {
+            "title": "On",
+            "type": "number"
+          },
+          "origin": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PastFlightField"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "off",
+          "on",
+          "landed",
+          "in_air",
+          "max_alt_ft"
+        ],
+        "title": "PastFlightSummary",
+        "type": "object"
+      },
+      "PastFlights": {
+        "description": "An airplane's flights of the last seven days, newest first, from\nadsb.lol's traces (Open Database License 1.0).",
+        "properties": {
+          "flights": {
+            "items": {
+              "$ref": "#/components/schemas/PastFlightSummary"
+            },
+            "title": "Flights",
+            "type": "array"
+          },
+          "hex": {
+            "title": "Hex",
+            "type": "string"
+          },
+          "registration": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Registration"
+          },
+          "type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Type"
+          }
+        },
+        "required": [
+          "hex",
+          "flights"
+        ],
+        "title": "PastFlights",
+        "type": "object"
+      },
       "Pick": {
         "description": "A pilot's own mark on the chart. `rated` is derived from the\nrating, so a rated point can never describe itself as unrated.",
         "properties": {
@@ -12385,7 +12625,7 @@
     },
     "/api/traffic": {
       "get": {
-        "description": "The airplanes in the air within `radius` nm of a point (at most 170),\nfrom adsb.lol (Open Database License 1.0), and how many seconds old\nthe answer is: for knowing what is about, not for avoiding it. A 503\nwhere adsb.lol has not answered for a minute.",
+        "description": "The airplanes in the air within `radius` nm of a point (at most 165),\nfrom adsb.lol (Open Database License 1.0), and how many seconds old\nthe answer is: for knowing what is about, not for avoiding it. A 503\nwhere adsb.lol has not answered for a minute.",
         "operationId": "traffic_near_api_traffic_get",
         "parameters": [
           {
@@ -12533,6 +12773,98 @@
           }
         },
         "summary": "Traffic Flight"
+      }
+    },
+    "/api/traffic/flight/{hex_id}/history": {
+      "get": {
+        "description": "An airplane's flights of the last seven days, newest first, as\nFlightAware lists them (vfr.traffic.history): from adsb.lol's recent\ntrace and its archive of past days'. A day that cannot be had now is\nleft out.",
+        "operationId": "traffic_history_api_traffic_flight__hex_id__history_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "hex_id",
+            "required": true,
+            "schema": {
+              "pattern": "^~?[0-9a-fA-F]{6}$",
+              "title": "Hex Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PastFlights"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Traffic History"
+      }
+    },
+    "/api/traffic/flight/{hex_id}/history/{flight_id}": {
+      "get": {
+        "description": "One of those flights' reports, for its track log and its replay\n(vfr.traffic.past_flight); 404 where it is not one of them.",
+        "operationId": "traffic_past_flight_api_traffic_flight__hex_id__history__flight_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "hex_id",
+            "required": true,
+            "schema": {
+              "pattern": "^~?[0-9a-fA-F]{6}$",
+              "title": "Hex Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "flight_id",
+            "required": true,
+            "schema": {
+              "exclusiveMinimum": 0,
+              "title": "Flight Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PastFlight"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Traffic Past Flight"
       }
     },
     "/api/traffic/route": {

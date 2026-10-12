@@ -419,7 +419,7 @@ def test_the_faa_record_of_an_airplane_named_by_its_n_number_or_address(clock, m
 
 def test_a_view_zoomed_out_further_than_sixty_nm_is_asked_of_a_wide_region(clock):
     """The traffic wherever the map is panned, the owner's ask: a view of
-    a state, out to 170 nm, from a region two degrees square asked for out
+    a state, out to 165 nm, from a region two degrees square asked for out
     to 250 nm, adsb.lol's furthest; and kept apart from the near regions'."""
     far = {**CESSNA, "hex": "far", "lat": 44.3}           # 120 nm north of 42.3
     with patch("vfr.traffic.requests.get", return_value=_answer([CESSNA, far])) as get:
@@ -433,3 +433,108 @@ def test_a_view_zoomed_out_further_than_sixty_nm_is_asked_of_a_wide_region(clock
     with patch("vfr.traffic.requests.get", return_value=_answer([CESSNA])) as get:
         traffic.near(42.3, -88.1, 40)
     assert get.call_args.args[0] == "https://api.adsb.lol/v2/point/42.50/-88.00/80"
+
+
+# --- Past flights ---
+
+def _trace_of(base: float, rows: list) -> dict:
+    """A readsb trace: [seconds, lat, lon, altitude, gs, track, flags, vrate, ...]."""
+    return {"icao": "a89c1e", "r": "N654FL", "t": "P28A", "timestamp": base, "trace": rows}
+
+
+def _fly(t0: float, t1: float, start: tuple, end: tuple, low: float, high: float, track: float) -> list:
+    """A flight heard each minute from `start` to `end`: climbing from `low`
+    to `high` in its first quarter and down to `low` in its last."""
+    rows, n = [], int((t1 - t0) // 60)
+    for i in range(n + 1):
+        f = i / n
+        alt = low + (high - low) * min(1.0, f * 4, (1 - f) * 4)
+        rows.append([t0 + i * 60, start[0] + (end[0] - start[0]) * f, start[1] + (end[1] - start[1]) * f,
+                     round(alt), 100, track, 0, 0])
+    return rows
+
+
+LACONIA = {"ident": "LCI", "name": "Laconia Municipal Airport", "municipality": "Laconia", "region": "US-NH",
+           "elevation_ft": 545.0, "distance_nm": 0.6, "bearing_deg": 0}
+LAWRENCE = {"ident": "LWM", "name": "Lawrence Municipal Airport", "municipality": "Lawrence", "region": "US-MA",
+            "elevation_ft": 148.0, "distance_nm": 1.1, "bearing_deg": 0}
+
+
+def _nearest(lat, lon, limit=3):
+    """LCI near 43.57 N, LWM near 42.72 N, nothing between."""
+    if lat > 43.4:
+        return [LACONIA]
+    if lat < 42.9:
+        return [LAWRENCE]
+    return [{**LACONIA, "distance_nm": 40.0}]
+
+
+def test_an_airplanes_flights_are_its_trace_cut_where_it_went_unheard_and_named_by_their_fields(clock, monkeypatch):
+    """N654FL's morning as FlightAware lists it: LWM to LCI, an hour on the
+    ground unheard at Laconia, then LCI back to LWM; each heard first and last
+    low by its field, newest first."""
+    import datetime as dt
+
+    base = 1791676800.0                                  # 2026-10-11 00:00 UTC
+    lwm, lci = (42.72, -71.12), (43.57, -71.42)
+    rows = _fly(11 * 3600 + 21 * 60, 12 * 3600 + 8 * 60, lwm, lci, 600, 4500, 10) \
+        + _fly(13 * 3600 + 4 * 60, 15 * 3600 + 17 * 60, lci, lwm, 800, 5000, 190)
+    monkeypatch.setattr(traffic, "_trace", lambda hex_id: _trace_of(base, rows))
+    monkeypatch.setattr(traffic, "_day_trace", lambda hex_id, day: None)
+    monkeypatch.setattr(traffic.airports, "nearest", _nearest)
+    monkeypatch.setattr(traffic.time, "time", lambda: base + 20 * 3600)
+    found = traffic.history("A89C1E", today=dt.date(2026, 10, 11))
+    assert found["registration"] == "N654FL" and found["type"] == "P28A"
+    assert [(f["origin"]["ident"], f["destination"]["ident"]) for f in found["flights"]] == [("LCI", "LWM"), ("LWM", "LCI")]
+    newest = found["flights"][0]
+    assert newest["off"] == base + 13 * 3600 + 4 * 60 and newest["on"] == base + 15 * 3600 + 17 * 60
+    assert newest["landed"] is True and newest["in_air"] is False and newest["max_alt_ft"] == 5000
+    # Its points, for the track log and the replay.
+    flight = traffic.past_flight("a89c1e", newest["id"], today=dt.date(2026, 10, 11))
+    assert flight["points"][0]["t"] == newest["off"] and flight["points"][-1]["t"] == newest["on"]
+    assert max(p["alt_ft"] for p in flight["points"]) == 5000
+    assert flight["points"][0]["gs_kt"] == 100 and flight["points"][1]["track_deg"] == 190
+    assert traffic.past_flight("a89c1e", 123, today=dt.date(2026, 10, 11)) is None
+
+
+def test_a_flight_heard_last_high_on_its_way_has_no_arrival_and_one_heard_now_is_in_the_air(clock, monkeypatch):
+    import datetime as dt
+
+    base = 1791676800.0
+    lwm, lci, between = (42.72, -71.12), (43.57, -71.42), (43.10, -71.30)
+    # Last heard between the fields, high; then one from LCI heard now.
+    rows = _fly(3600, 3600 + 30 * 60, lwm, between, 600, 4500, 10)[:24] \
+        + _fly(6 * 3600, 6 * 3600 + 20 * 60, lci, between, 800, 5000, 190)[:12]
+    monkeypatch.setattr(traffic, "_trace", lambda hex_id: _trace_of(base, rows))
+    monkeypatch.setattr(traffic, "_day_trace", lambda hex_id, day: None)
+    monkeypatch.setattr(traffic.airports, "nearest", _nearest)
+    monkeypatch.setattr(traffic.time, "time", lambda: base + 6 * 3600 + 13 * 60)
+    flights = traffic.history("a89c1e", today=dt.date(2026, 10, 11))["flights"]
+    assert flights[0]["in_air"] is True and flights[0]["destination"] is None and flights[0]["origin"]["ident"] == "LCI"
+    assert flights[1]["destination"] is None and flights[1]["landed"] is False and flights[1]["origin"]["ident"] == "LWM"
+
+
+def test_a_past_days_trace_is_read_from_the_archive_once(clock):
+    import datetime as dt
+
+    traffic._DAYS.clear()
+    day = dt.date(2026, 10, 10)
+    with patch("vfr.traffic.requests.get", return_value=_answer([])) as get:
+        get.return_value.status_code = 200
+        get.return_value.json = Mock(return_value=_trace_of(1791590400.0, []))
+        assert traffic._day_trace("a89c1e", day)["r"] == "N654FL"
+        traffic._day_trace("a89c1e", day)
+    assert get.call_count == 1
+    assert get.call_args.args[0] == "https://globe.adsb.lol/globe_history/2026/10/10/traces/1e/trace_full_a89c1e.json"
+
+
+def test_a_flight_last_heard_heading_down_to_a_field_further_out_landed_there(clock, monkeypatch):
+    """N654FL's LWM to LCI, 2026-10-11: last heard 6 nm out and 1,600 ft over
+    Laconia, levelled off for the pattern but headed straight at it."""
+    monkeypatch.setattr(traffic.airports, "nearest", lambda lat, lon, limit=3: [
+        {**LACONIA, "distance_nm": 6.1, "bearing_deg": 247}])
+    last = {"lat": 43.6127, "lon": -71.2897, "alt_ft": 2175.0, "track_deg": 246.2, "vrate_fpm": -64.0}
+    assert traffic._field_at(last, landing=True)["ident"] == "LCI"
+    # Headed away from it, or high over it, it is only passing.
+    assert traffic._field_at({**last, "track_deg": 66.0}, landing=True) is None
+    assert traffic._field_at({**last, "alt_ft": 6000.0}, landing=True) is None

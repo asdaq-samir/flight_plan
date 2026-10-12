@@ -25,3 +25,10 @@ export function centreClear(map: L.Map, point: L.LatLngExpression, zoom: number)
   const offset = L.point(left / 2, (top - bottom) / 2);
   return map.unproject(map.project(point, zoom).subtract(offset), zoom);
 }
+
+/** Padding for fitBounds that keeps what is fitted in what the panel
+ *  leaves of the map, with `margin` to spare round it. */
+export function paddingClear(map: L.Map, margin = 24): L.FitBoundsOptions {
+  const { top, bottom, left } = insetsOf(map);
+  return { paddingTopLeft: [left + margin, top + margin], paddingBottomRight: [margin, bottom + margin] };
+}

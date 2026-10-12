@@ -20,6 +20,7 @@ import { BADGE } from "../../../lib/rowBadges";
 import { TEXT } from "../../../lib/text";
 import { altFt, grouped } from "../../../lib/units";
 import { clockTime } from "../format";
+import PastFlights from "./PastFlights";
 
 /** What a squawk says, where it says more than a code: the three a
  *  pilot sets in trouble -- 7700 an emergency (AIM 6-2-2), 7500 unlawful
@@ -177,6 +178,8 @@ export default function FlightCard({ hex, onClose }: { hex: string; onClose: () 
           </ListGroup>
         )}
         {detail?.faa && <FaaRegistration faa={detail.faa} />}
+        {/* Its flights of the last days, each replayed on the map. */}
+        <PastFlights hex={hex} />
         <ListGroup
           title="Flight"
           footer={`${latest ? `Heard ${ago(now - latest.at)}. ` : ""}From adsb.lol's ADS-B receivers, under the Open Database License: seconds old, with gaps where none hears -- for knowing what is about, not for avoiding it.`}

@@ -50,6 +50,12 @@ export type AltitudeSegment = Schemas["AltitudeSegment"];
  *  economical, the least fuel, climb and cruise. */
 export type AltitudeOption = Schemas["AltitudeOption"];
 export type AltitudeChoice = AltitudeOption["kind"];
+/** An airplane's flights of the last seven days (vfr.traffic.history). */
+export type PastFlights = Schemas["PastFlights"];
+export type PastFlightSummary = Schemas["PastFlightSummary"];
+/** One past flight's reports, for its track log and replay. */
+export type PastFlight = Schemas["PastFlight"];
+export type PastFlightPoint = Schemas["PastFlightPoint"];
 export type AircraftProfile = Schemas["AircraftProfile"];
 /** How an airplane is loaded: its POH's stations, limits and envelope. */
 export type Loading = Schemas["Loading"];

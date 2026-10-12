@@ -12,7 +12,7 @@ turns the rest away (429 Too Many Requests: of twelve asked 1.5 s apart
 on 2026-10-10, three were answered). So the planner asks it about a
 region -- half a degree square, out to 80 nm, which holds any view of 60
 nm whose middle is in it; two degrees square, out to 250 nm, for a view
-zoomed further out, up to 170 nm -- at most once in five seconds, never two
+zoomed further out, up to 165 nm -- at most once in five seconds, never two
 requests within five seconds of each other whatever the region, and
 waits fifteen after being turned away; between times every phone is
 given the region's last answer, cut to its own view, with how old it is,
@@ -27,6 +27,7 @@ import math
 import re
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
 import requests
@@ -47,13 +48,13 @@ NEAR_RADIUS_NM = 60
 #: whose traffic the pilot asked to see wherever it is panned -- from
 #: regions of two degrees, asked for out to 250 nm, adsb.lol's furthest:
 #: a view's middle is at most a degree from the region's (60 nm north and
-#: south, 45 east and west at 42 degrees north, 75 nm across), so 250 nm
-#: holds a view of 170. Round O'Hare that was 474 airplanes and 240 kB,
-#: answered in under a second (2026-10-11).
+#: south, 54 east and west as far south as 25 degrees north, 81 nm across),
+#: so 250 nm holds a view of 165. Round O'Hare that was 474 airplanes and
+#: 240 kB, answered in under a second (2026-10-11).
 WIDE_REGION_DEG = 2.0
 WIDE_REGION_RADIUS_NM = 250
 #: The furthest a view is asked about, nm.
-MAX_RADIUS_NM = 170
+MAX_RADIUS_NM = 165
 #: A region's answer is given again, not asked for, this long.
 FRESH_S = 5.0
 #: Never two requests to adsb.lol closer together than this.
@@ -232,7 +233,7 @@ def _region_answer(region: tuple[float, float, int]) -> tuple[float, list[dict]]
 
 
 def near(lat: float, lon: float, radius_nm: float) -> dict:
-    """The airplanes in the air within `radius_nm` (at most 170) of a
+    """The airplanes in the air within `radius_nm` (at most 165) of a
     point, as `_aircraft` gives each, and `age_s`, how many seconds before
     now they were where they are given (each `seen_s` more): {"aircraft",
     "age_s"}. Raises TrafficUnavailable where adsb.lol has not answered
@@ -242,7 +243,7 @@ def near(lat: float, lon: float, radius_nm: float) -> dict:
     if planes:
         lats = np.array([p["lat"] for p in planes])
         lons = np.array([p["lon"] for p in planes])
-        # Flat-earth miles: within 170 the error is a mile or two, at the
+        # Flat-earth miles: within 165 the error is a mile or two, at the
         # edge of a view the size of a state.
         nm = np.hypot((lats - lat) * _NM_PER_DEG, (lons - lon) * _NM_PER_DEG * np.cos(np.radians(lat)))
         planes = [p for p, d in zip(planes, nm) if d <= radius]
@@ -548,3 +549,209 @@ def route(callsign: str, lat: float | None = None, lon: float | None = None) -> 
                 plausible = True
                 break
     return {"airports": [{k: a[k] for k in ("ident", "name", "location")} for a in stops], "plausible": plausible}
+
+
+# --- Past flights: an airplane's flights of the last days, and one replayed ---
+
+#: A day's trace of an airplane, by its ICAO address, from adsb.lol's
+#: archive of the globe's traces (the same open data, kept a day at a
+#: time, UTC days): gzip JSON, as today's.
+HISTORY_URL = "https://globe.adsb.lol/globe_history/{day:%Y/%m/%d}/traces/{last2}/trace_full_{hex}.json"
+#: How many days back an airplane's flights are listed, today among them.
+HISTORY_DAYS = 7
+#: A past day's trace is kept this long, s: it no longer changes.
+HISTORY_TTL_S = 12 * 3600
+#: No report for this long, s, ends a flight: the airplane landed out of
+#: the receivers' hearing (a small airplane low over a field often is)
+#: and went again later.
+LEG_GAP_S = 10 * 60
+#: A flight's first or last report this near a landing field, nm, and
+#: this little above its elevation, ft, is a takeoff from it or a landing
+#: at it: low near a field where the receivers stopped or started hearing it.
+FIELD_NEAR_NM = 5.0
+FIELD_ABOVE_FT = 2000.0
+#: Further out and higher, a report still is, where the airplane was
+#: coming down to it (its last) or going up from it (its first): receivers
+#: lose a small airplane well before it lands. N654FL's LWM to LCI on
+#: 2026-10-11 was last heard 3,000 ft over Laconia, coming down.
+FIELD_APPROACH_NM = 10.0
+FIELD_APPROACH_FT = 3500.0
+#: Coming down or going up: this fast, ft/min, or headed this near
+#: straight at it or away from it, degrees (a light airplane levels off
+#: for its pattern).
+FIELD_APPROACH_FPM = 200.0
+FIELD_APPROACH_DEG = 30.0
+#: A flight shorter than this, s, is a blip, not a flight.
+LEG_MIN_S = 120
+#: At most this many points of a past flight are sent: a track log and a
+#: replay's worth, a fraction of a long flight's seconds.
+PAST_POINTS = 1500
+#: How long a day's trace may take, s: a busy airplane's is a few hundred kB.
+HISTORY_TIMEOUT_S = 15.0
+_DAYS: TTLCache = TTLCache(maxsize=256, ttl=HISTORY_TTL_S)
+
+
+def _merged(traces: list) -> list[dict]:
+    """The points of several traces in time order, each once: the recent
+    trace (`_trace`, the last day or so, not a UTC day) runs over the
+    archive's last day."""
+    seen, out = set(), []
+    for point in sorted((p for trace in traces for p in _points(trace)), key=lambda p: p["t"]):
+        if point["t"] not in seen:
+            seen.add(point["t"])
+            out.append(point)
+    return out
+
+
+def _day_trace(hex_id: str, day) -> dict | None:
+    """An airplane's trace on a past UTC day (a datetime.date), kept; None
+    where it has none that day. A refusal or a timeout is not kept."""
+    key = (hex_id, day.isoformat())
+    with _LOCK:
+        if key in _DAYS:
+            return _DAYS[key]
+    try:
+        resp = requests.get(HISTORY_URL.format(day=day, last2=hex_id[-2:], hex=hex_id), headers=HEADERS, timeout=HISTORY_TIMEOUT_S)
+        if resp.status_code == 404:
+            trace = None
+        else:
+            resp.raise_for_status()
+            trace = resp.json()
+            if not isinstance(trace, dict):
+                trace = None
+    except (requests.RequestException, ValueError):
+        return None
+    with _LOCK:
+        _DAYS[key] = trace
+    return trace
+
+
+def _points(trace: dict | None) -> list[dict]:
+    """A trace's points as {"t" (s since 1970), "lat", "lon", "alt_ft" (None
+    on the ground), "gs_kt", "track_deg", "vrate_fpm", "new_leg"}."""
+    if not trace:
+        return []
+    base = _number(trace.get("timestamp")) or 0.0
+    out = []
+    for p in trace.get("trace") or []:
+        if not isinstance(p, list) or len(p) < 7 or _number(p[1]) is None or _number(p[2]) is None:
+            continue
+        out.append({
+            "t": round(base + float(p[0]), 1), "lat": round(float(p[1]), 5), "lon": round(float(p[2]), 5),
+            "alt_ft": _altitude_ft(p), "gs_kt": _number(p[4]), "track_deg": _number(p[5]),
+            "vrate_fpm": _number(p[7]) if len(p) > 7 else None,
+            "new_leg": isinstance(p[6], int) and bool(p[6] & _NEW_LEG),
+        })
+    return out
+
+
+def _field_at(point: dict, landing: bool) -> dict | None:
+    """The landing field a flight's first or last (`landing`) report is at:
+    one within FIELD_NEAR_NM, the report on the ground or within
+    FIELD_ABOVE_FT of its elevation; or within FIELD_APPROACH_NM and
+    FIELD_APPROACH_FT, coming down to it or going up from it. None where it
+    was heard first or last on its way somewhere."""
+    rate = point.get("vrate_fpm") or 0.0
+    sloping = rate <= -FIELD_APPROACH_FPM if landing else rate >= FIELD_APPROACH_FPM
+    track = point.get("track_deg")
+    for field in airports.nearest(point["lat"], point["lon"], limit=3):
+        if field["distance_nm"] > FIELD_APPROACH_NM:
+            break
+        above = None if point["alt_ft"] is None else point["alt_ft"] - (field.get("elevation_ft") or 0.0)
+        close = field["distance_nm"] <= FIELD_NEAR_NM and (above is None or above <= FIELD_ABOVE_FT)
+        # `bearing_deg` is from the report to the field: a landing heads along it, a takeoff away.
+        toward = (field["bearing_deg"] if landing else field["bearing_deg"] + 180) % 360
+        headed = track is not None and abs((track - toward + 180) % 360 - 180) <= FIELD_APPROACH_DEG
+        if close or ((sloping or headed) and above is not None and above <= FIELD_APPROACH_FT):
+            return {"ident": field["ident"], "name": field.get("name"), "city": field.get("municipality"),
+                    "region": field.get("region")}
+    return None
+
+
+def _legs(points: list[dict]) -> list[list[dict]]:
+    """A run of points cut into flights: at readsb's own new leg, at a
+    stretch on the ground, and at a silence of LEG_GAP_S; the points on the
+    ground at either end kept, as the takeoff's and the landing's place."""
+    legs, leg = [], []
+    for point in points:
+        gap = leg and point["t"] - leg[-1]["t"] > LEG_GAP_S
+        landed = leg and point["alt_ft"] is None and any(p["alt_ft"] is not None for p in leg)
+        if leg and (point["new_leg"] or gap):
+            legs.append(leg)
+            leg = []
+        leg.append(point)
+        if landed:
+            legs.append(leg)
+            leg = [point]
+    if leg:
+        legs.append(leg)
+    flown = []
+    for leg in legs:
+        air = [p for p in leg if p["alt_ft"] is not None]
+        if len(air) >= 2 and air[-1]["t"] - air[0]["t"] >= LEG_MIN_S:
+            flown.append(leg)
+    return flown
+
+
+def history(hex_id: str, days: int = HISTORY_DAYS, today=None) -> dict:
+    """An airplane's flights of the last `days` UTC days, newest first, as
+    FlightAware lists them: {"hex", "registration", "type", "flights":
+    [{"id" (its takeoff's time, s), "origin", "destination" (each {"ident", "name",
+    "city", "region"}, None where it was first or last heard on its way),
+    "off", "on" (s, when first and last heard in the air), "landed"
+    (whether its end is at a field), "in_air" (heard in the last few
+    minutes, still flying), "max_alt_ft"}]}, from today's trace and the
+    archive's. A day that cannot be had is left out, not an error."""
+    import datetime as dt
+
+    hex_id = hex_id.lower()
+    today = today or dt.datetime.now(dt.timezone.utc).date()
+    # The recent trace, and the archive's days before today's.
+    # Read side by side: a week's days one after another took ten seconds.
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        past = list(pool.map(lambda n: _day_trace(hex_id, today - dt.timedelta(days=n)), range(1, max(1, days))))
+    traces = [_trace(hex_id)] + past
+    points = _merged(traces)
+    named = next((t for t in traces if t), {}) or {}
+    now = time.time()
+    flights = []
+    for leg in _legs(points):
+        air = [p for p in leg if p["alt_ft"] is not None]
+        start, end = _field_at(leg[0], landing=False), _field_at(leg[-1], landing=True)
+        in_air = now - leg[-1]["t"] < 5 * 60 and leg[-1]["alt_ft"] is not None
+        flights.append({
+            "id": int(air[0]["t"]), "origin": start, "destination": None if in_air else end,
+            "off": air[0]["t"], "on": air[-1]["t"], "landed": not in_air and end is not None, "in_air": in_air,
+            "max_alt_ft": max(p["alt_ft"] for p in air),
+        })
+    flights.reverse()
+    return {"hex": hex_id, "registration": named.get("r") or None, "type": named.get("t") or None, "flights": flights}
+
+
+def past_flight(hex_id: str, flight_id: int, today=None) -> dict | None:
+    """One of `history`'s flights, its points for a track log and a replay:
+    {"id", "points" ([{"t", "lat", "lon", "alt_ft", "gs_kt", "track_deg",
+    "vrate_fpm"}], at most PAST_POINTS, evenly)}; None where it is not one
+    of the last days' flights."""
+    import datetime as dt
+
+    hex_id = hex_id.lower()
+    today = today or dt.datetime.now(dt.timezone.utc).date()
+    day = dt.datetime.fromtimestamp(flight_id, dt.timezone.utc).date()
+    back = (today - day).days
+    if back < 0 or back >= HISTORY_DAYS:
+        return None
+    # Its day and the next from the archive, which a flight across
+    # midnight UTC runs into, and the recent trace for today's.
+    days = [d for d in (day, day + dt.timedelta(days=1)) if d < today]
+    traces = [_trace(hex_id)] + [_day_trace(hex_id, d) for d in days]
+    points = _merged(traces)
+    for leg in _legs(points):
+        air = [p for p in leg if p["alt_ft"] is not None]
+        if int(air[0]["t"]) != flight_id:
+            continue
+        step = max(1, math.ceil(len(leg) / PAST_POINTS))
+        kept = leg[::step] + ([leg[-1]] if (len(leg) - 1) % step else [])
+        return {"id": flight_id, "points": [{k: p[k] for k in ("t", "lat", "lon", "alt_ft", "gs_kt", "track_deg", "vrate_fpm")}
+                                           for p in kept]}
+    return None

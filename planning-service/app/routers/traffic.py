@@ -3,7 +3,7 @@ receivers hear there now, from adsb.lol's open data."""
 from fastapi import APIRouter, HTTPException, Path, Query
 from vfr import traffic
 
-from ..schemas import FlightDetail, FlightRoute, Traffic, TrafficFound
+from ..schemas import FlightDetail, FlightRoute, PastFlight, PastFlights, Traffic, TrafficFound
 
 router = APIRouter()
 
@@ -13,7 +13,7 @@ def traffic_near(
     lat: float = Query(ge=-90, le=90), lon: float = Query(ge=-180, le=180),
     radius: float = Query(default=25, gt=0, le=250, description="Nautical miles"),
 ) -> Traffic:
-    """The airplanes in the air within `radius` nm of a point (at most 170),
+    """The airplanes in the air within `radius` nm of a point (at most 165),
     from adsb.lol (Open Database License 1.0), and how many seconds old
     the answer is: for knowing what is about, not for avoiding it. A 503
     where adsb.lol has not answered for a minute."""
@@ -60,3 +60,22 @@ def traffic_route(
     flight plan filed for today's flight."""
     found = traffic.route(callsign, lat, lon)
     return FlightRoute(**found) if found else None
+
+
+@router.get("/api/traffic/flight/{hex_id}/history", response_model=PastFlights)
+def traffic_history(hex_id: str = Path(pattern=r"^~?[0-9a-fA-F]{6}$")) -> PastFlights:
+    """An airplane's flights of the last seven days, newest first, as
+    FlightAware lists them (vfr.traffic.history): from adsb.lol's recent
+    trace and its archive of past days'. A day that cannot be had now is
+    left out."""
+    return PastFlights(**traffic.history(hex_id))
+
+
+@router.get("/api/traffic/flight/{hex_id}/history/{flight_id}", response_model=PastFlight)
+def traffic_past_flight(hex_id: str = Path(pattern=r"^~?[0-9a-fA-F]{6}$"), flight_id: int = Path(gt=0)) -> PastFlight:
+    """One of those flights' reports, for its track log and its replay
+    (vfr.traffic.past_flight); 404 where it is not one of them."""
+    found = traffic.past_flight(hex_id, flight_id)
+    if found is None:
+        raise HTTPException(404, "No such flight of this airplane in the last seven days.")
+    return PastFlight(**found)
