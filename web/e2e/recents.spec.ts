@@ -34,18 +34,6 @@ async function swipeLeft(row: Locator) {
   await expect.poll(() => row.evaluate(el => el.scrollLeft)).toBeGreaterThan(40);
 }
 
-/** A box once it has stopped moving: two reads a frame apart that agree. */
-async function settledBox(locator: Locator) {
-  let last = (await locator.boundingBox())!;
-  await expect.poll(async () => {
-    const now = (await locator.boundingBox())!;
-    const still = Math.abs(now.x - last.x) < 0.01 && Math.abs(now.width - last.width) < 0.01;
-    last = now;
-    return still;
-  }, { intervals: [50] }).toBe(true);
-  return last;
-}
-
 test("a swipe to the left uncovers a Delete that takes an airport off the Recents, and Clear takes them all", async ({ page }) => {
   await seed(page);
   await page.goto("/app/plan");
@@ -61,10 +49,15 @@ test("a swipe to the left uncovers a Delete that takes an airport off the Recent
   const hidden = (await first.getByTestId("swipe-delete").boundingBox())!;
   expect(hidden.x).toBeGreaterThanOrEqual(box.x + box.width - 1);
   await swipeLeft(first);
-  // Measured once the snap has settled: still moving, it was a fraction
-  // of a pixel past the row's edge.
-  const shown = await settledBox(first.getByTestId("swipe-delete"));
-  expect(shown.x + shown.width).toBeLessThanOrEqual(box.x + box.width + 1);
+  // Its right edge on the row's, the two measured together and waited
+  // for: scroll-snap settles it over a few frames, and the row narrows
+  // when the sheet's list grows a scroll bar.
+  const del = first.getByTestId("swipe-delete");
+  await expect.poll(async () => {
+    const [d, r] = [(await del.boundingBox())!, (await first.boundingBox())!];
+    return d.x + d.width - (r.x + r.width);
+  }).toBeLessThanOrEqual(1);
+  const shown = (await del.boundingBox())!;
   // As high as the row, so the 44 points are the row's.
   expect(shown.height).toBeGreaterThanOrEqual(44);
   await expect(first.getByTestId("swipe-delete")).toHaveAccessibleName("Remove KDLH from Recents");
