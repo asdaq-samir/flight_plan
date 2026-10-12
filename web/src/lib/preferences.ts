@@ -128,6 +128,9 @@ interface Preferences {
   recentAircraft: KeptAircraft[];
   favoriteAircraft: KeptAircraft[];
   addRecentAircraft: (aircraft: KeptAircraft) => void;
+  /** One airplane taken off the Recents (a swipe), or all of them (Clear). */
+  removeRecentAircraft: (hex: string) => void;
+  clearRecentAircraft: () => void;
   toggleFavoriteAircraft: (aircraft: KeptAircraft) => void;
   setBase: (base: BaseChart) => void;
   setTac: (tac: boolean) => void;
@@ -152,6 +155,9 @@ interface Preferences {
   setNarrative: (narrative: NarrativeFramework) => void;
   setFlightRules: (flightRules: FlightRules) => void;
   addRecentAirport: (airport: RecentAirport) => void;
+  /** One airport taken off the Recents (a swipe), or all of them (Clear). */
+  removeRecentAirport: (ident: string) => void;
+  clearRecentAirports: () => void;
   setHomeAirport: (airport: RecentAirport | null) => void;
   /** Kept if it was not, let go if it was. */
   toggleFavoriteAirport: (airport: RecentAirport) => void;
@@ -215,6 +221,8 @@ export const usePreferences = create<Preferences>()(
         // A favourite's name and type kept up to date as it is seen again.
         favoriteAircraft: s.favoriteAircraft.map(a => (a.hex === aircraft.hex ? aircraft : a)),
       })),
+      removeRecentAircraft: hex => set(s => ({ recentAircraft: s.recentAircraft.filter(a => a.hex !== hex) })),
+      clearRecentAircraft: () => set({ recentAircraft: [] }),
       toggleFavoriteAircraft: aircraft => set(s => ({
         favoriteAircraft: s.favoriteAircraft.some(a => a.hex === aircraft.hex)
           ? s.favoriteAircraft.filter(a => a.hex !== aircraft.hex)
@@ -245,6 +253,8 @@ export const usePreferences = create<Preferences>()(
       addRecentAirport: airport => set(s => ({
         recentAirports: [airport, ...s.recentAirports.filter(a => a.ident !== airport.ident)].slice(0, RECENTS),
       })),
+      removeRecentAirport: ident => set(s => ({ recentAirports: s.recentAirports.filter(a => a.ident !== ident) })),
+      clearRecentAirports: () => set({ recentAirports: [] }),
       setHomeAirport: homeAirport => set({ homeAirport }),
       moveFavoriteAirport: (from, to) => set(s => {
         const favoriteAirports = [...s.favoriteAirports];

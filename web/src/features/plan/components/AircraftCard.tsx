@@ -12,6 +12,7 @@ import { useOwnShip } from "../../../lib/map/ownShip";
 import { usePreferences } from "../../../lib/preferences";
 import { useTabSearch } from "../../../lib/tabSearch";
 import { PlaceTile } from "../../../components/Favorites";
+import { ClearList, SwipeToDelete } from "../../../components/SwipeToDelete";
 import { trafficLabel } from "../../../lib/map/traffic";
 import { useTracking } from "../../../lib/map/tracking";
 import { TEXT } from "../../../lib/text";
@@ -97,6 +98,8 @@ export default function AircraftCard({ onPick, onPickHex }: {
   const fix = useOwnShip(s => (s.enabled ? s.fix : null));
   const favorites = usePreferences(s => s.favoriteAircraft);
   const recents = usePreferences(s => s.recentAircraft);
+  const removeRecent = usePreferences(s => s.removeRecentAircraft);
+  const clearRecents = usePreferences(s => s.clearRecentAircraft);
   const seen = useTracking(s => s.seen);
   // The airplanes about whose name begins with what is typed: found as it
   // is typed, asking nothing, before adsb.lol's answer for the rest.
@@ -200,13 +203,20 @@ export default function AircraftCard({ onPick, onPickHex }: {
           </section>
         )}
         {!searching && recents.length > 0 && (
-          <ListGroup title="Recents">
+          // Each taken off by a swipe to the left, or all of them by Clear,
+          // as the airports' Recents are.
+          <ListGroup
+            title="Recents"
+            action={<ClearList title="Clear the Recents?" description="The airplanes opened last are forgotten in this browser. Favorites stay." onClear={clearRecents} testId="aircraft-recents-clear" />}
+          >
             {recents.map(a => (
-              <ListRow
-                key={a.hex} media={<Plane className="size-5 text-muted-foreground" />} data-testid="aircraft-recent"
-                title={<span className="font-semibold">{a.name}</span>} description={a.type ?? undefined}
-                chevron onClick={() => onPickHex(a.hex)}
-              />
+              <SwipeToDelete key={a.hex} label={`Remove ${a.name} from Recents`} onDelete={() => removeRecent(a.hex)}>
+                <ListRow
+                  media={<Plane className="size-5 text-muted-foreground" />} data-testid="aircraft-recent"
+                  title={<span className="font-semibold">{a.name}</span>} description={a.type ?? undefined}
+                  chevron onClick={() => onPickHex(a.hex)}
+                />
+              </SwipeToDelete>
             ))}
           </ListGroup>
         )}
