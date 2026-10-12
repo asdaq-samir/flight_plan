@@ -35,6 +35,8 @@ def clock(monkeypatch):
     monkeypatch.setattr(traffic, "_FIND_GATES", {})
     # The FAA's registry, wherever a copy is on disk, is not this module's.
     monkeypatch.setattr(traffic.registry, "lookup", lambda **kwargs: None)
+    # Nor the world's fields, which a past flight's ends fall back to.
+    monkeypatch.setattr(traffic.airports, "nearest_abroad", lambda lat, lon, limit=3: [])
     monkeypatch.setattr(traffic, "_clock", clock)
     monkeypatch.setattr(traffic, "_sleep", clock.sleep)
     return clock
@@ -568,3 +570,13 @@ def test_a_view_panned_into_a_new_region_while_adsb_lol_waits_is_given_a_region_
     # One no answer holds still says so.
     with pytest.raises(traffic.TrafficUnavailable):
         traffic.near(30.0, -97.0, 30)
+
+
+def test_a_flight_abroad_is_named_by_its_own_airports(clock, monkeypatch):
+    """A Vueling A320 over Spain: no US field near, so Barcelona's."""
+    monkeypatch.setattr(traffic.airports, "nearest", lambda lat, lon, limit=3: [{**LACONIA, "distance_nm": 3000.0}])
+    monkeypatch.setattr(traffic.airports, "nearest_abroad", lambda lat, lon, limit=3: [
+        {"ident": "LEBL", "name": "Josep Tarradellas Barcelona-El Prat Airport", "municipality": "Barcelona", "region": "ES-CT",
+         "elevation_ft": 12.0, "distance_nm": 1.5, "bearing_deg": 70}])
+    landing = {"lat": 41.29, "lon": 2.05, "alt_ft": 900.0, "track_deg": 70.0, "vrate_fpm": -700.0}
+    assert traffic._field_at(landing, landing=True)["ident"] == "LEBL"

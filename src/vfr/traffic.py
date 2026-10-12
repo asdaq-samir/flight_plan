@@ -693,7 +693,13 @@ def _field_at(point: dict, landing: bool) -> dict | None:
     rate = point.get("vrate_fpm") or 0.0
     sloping = rate <= -FIELD_APPROACH_FPM if landing else rate >= FIELD_APPROACH_FPM
     track = point.get("track_deg")
-    for field in airports.nearest(point["lat"], point["lon"], limit=3):
+    # The US's fields, then -- none of them near -- the rest of the
+    # world's, so a flight abroad is named by its own airports (the owner
+    # saw "— → —" for a Vueling A320 on 2026-10-12).
+    near = airports.nearest(point["lat"], point["lon"], limit=3)
+    if not near or near[0]["distance_nm"] > FIELD_APPROACH_NM:
+        near = airports.nearest_abroad(point["lat"], point["lon"], limit=3)
+    for field in near:
         if field["distance_nm"] > FIELD_APPROACH_NM:
             break
         above = None if point["alt_ft"] is None else point["alt_ft"] - (field.get("elevation_ft") or 0.0)

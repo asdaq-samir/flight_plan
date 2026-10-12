@@ -60,7 +60,13 @@ const PastFlightRow = memo(function PastFlightRow({ flight, onPick }: { flight: 
   return (
     <ListRow
       title={<span className="font-semibold">{legOf(flight)}</span>}
-      description={`${dayOf(off)} · ${clockTime(off)}–${clockTime(on)} · ${lasted(flight.on - flight.off)}`}
+      // Each part whole on a line, the day, the times and how long: wrapped
+      // anywhere, the range broke in two ("02:29–" over "04:39") beside a
+      // status taking half the row (seen on the owner's phone, 2026-10-12).
+      description={<>
+        <span className="whitespace-nowrap">{dayOf(off)}</span> · <span className="whitespace-nowrap">{clockTime(off)}–{clockTime(on)}</span>
+        {" "}· <span className="whitespace-nowrap">{lasted(flight.on - flight.off)}</span>
+      </>}
       value={<span className={cn(flight.landed || flight.in_air ? "text-emerald-700 dark:text-emerald-400" : "text-muted-foreground", "font-medium")}>
         {statusOf(flight)}
       </span>}
