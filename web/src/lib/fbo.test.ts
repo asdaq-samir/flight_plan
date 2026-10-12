@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { TrafficAircraft } from "./api/types";
-import { NO_FILTER, bandOf, filtering, inEmergency, kindOf, matches, operatorOf, relationTo, sameField } from "./fbo";
+import { NO_FILTER, bandOf, filtering, inEmergency, keptFilter, kindOf, matches, operatorOf, relationTo, sameField } from "./fbo";
 
 const LWM = { lat: 42.7172, lon: -71.1234, elevationFt: 148 };
 
@@ -18,17 +18,26 @@ describe("the Aircraft tab's filters", () => {
   });
 
   it("reads what an airplane is, how high, who flies it and an emergency", () => {
-    expect([kindOf({ category: "A1" }), kindOf({ category: "A5" }), kindOf({ category: "A7" }), kindOf({ category: null })])
-      .toEqual(["light", "jet", "helicopter", "other"]);
+    // The emitter categories by weight (GDL 90 ICD Rev A, Table 11): A1
+    // under 15,500 lb, A2 to 75,000, A3 to 300,000, A4 a B757, A5 over
+    // 300,000, A6 highly maneuverable, A7 rotorcraft.
+    expect(["A1", "A2", "A3", "A4", "A5", "A6", "A7", null].map(category => kindOf({ category })))
+      .toEqual(["light", "small", "large", "large", "large", "other", "helicopter", "other"]);
+    // Class A from 18,000 ft MSL (14 CFR 71.33(a)): each side of it.
     expect([bandOf(2500), bandOf(9500), bandOf(17_999), bandOf(18_000), bandOf(null)]).toEqual(["low", "mid", "high", "flight-levels", null]);
     expect([operatorOf({ callsign: "UAL2088 " }), operatorOf({ callsign: "N174HA" }), operatorOf({ callsign: null })]).toEqual(["UAL", null, null]);
-    expect([inEmergency({ squawk: "7700", emergency: null }), inEmergency({ squawk: "1200", emergency: "general" }),
-      inEmergency({ squawk: "1200", emergency: null })]).toEqual([true, true, false]);
+    // 7700 an emergency (AIM 6-2-2), 7500 unlawful interference (6-3-4),
+    // 7600 a radio failed (6-4-2); 1200, VFR, none.
+    expect(["7700", "7500", "7600", "1200", "7777"].map(squawk => inEmergency({ squawk, emergency: null })))
+      .toEqual([true, true, true, false, false]);
+    expect(inEmergency({ squawk: "1200", emergency: "general" })).toBe(true);
   });
 
   it("keeps an airplane by kind, band, operator and emergency together", () => {
     const united = plane({ callsign: "UAL2088", category: "A3", altitude_ft: 7000 });
-    expect(matches(united, { ...NO_FILTER, kind: "jet", band: "mid", operator: "UAL" })).toBe(true);
+    expect(matches(united, { ...NO_FILTER, kind: "large", band: "mid", operator: "UAL" })).toBe(true);
+    // A filter kept as "jet", before the kind was named by weight.
+    expect(keptFilter({ ...NO_FILTER, kind: "jet" as never }).kind).toBe("large");
     expect(matches(united, { ...NO_FILTER, kind: "light" })).toBe(false);
     expect(matches(united, { ...NO_FILTER, emergency: true })).toBe(false);
   });

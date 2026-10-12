@@ -303,9 +303,10 @@ def _index(path: Path) -> _Index:
                     index.airports[ident] = (start, offset + length - start)
                 elif section == "PN":
                     # A terminal NDB is the airport section's with its
-                    # subsection in column 6, not 13 (ARINC 424-18 4.1.3),
-                    # and the FAA's file keeps them apart from the airports'
-                    # runs: taken into the run, KDLH's NDB made its run 25 MB
+                    # subsection in column 6, not 13 -- ARINC 424's section
+                    # P, subsection N, as the FAA's file has KDLH's NDB DL:
+                    # "SUSAPNKDLHK3 DL" (1 Oct 2026 cycle) -- and the file
+                    # keeps them apart from the airports' runs: taken into the run, KDLH's NDB made its run 25 MB
                     # long, every procedure of the airports between read as
                     # Duluth's (2,235 of them, an LDA-C drawn in Los
                     # Angeles) -- 173 fields of the 1 Oct 2026 cycle.

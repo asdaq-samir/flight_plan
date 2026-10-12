@@ -13,7 +13,7 @@ import type { TrafficAircraft } from "./api/types";
 
 export type FilterPlace = "map" | "near" | "airport";
 export type FilterRelation = "around" | "inbound" | "departing" | "based";
-export type FilterKind = "any" | "light" | "small" | "jet" | "helicopter" | "other";
+export type FilterKind = "any" | "light" | "small" | "large" | "helicopter" | "other";
 export type FilterBand = "any" | "low" | "mid" | "high" | "flight-levels";
 
 export interface AircraftFilter {
@@ -40,21 +40,34 @@ export function filtering(f: AircraftFilter): boolean {
   return f.place !== "map" || f.kind !== "any" || f.band !== "any" || f.operator !== "" || f.emergency;
 }
 
-/** What an airplane is, by its transponder's emitter category (DO-260B):
- *  A1 light (under 15,500 lb), A2 small (to 75,000 lb), A3 to A6 large,
- *  heavy and high-performance -- the jets -- and A7 rotorcraft. */
+/** What an airplane is, by its transponder's emitter category, which is
+ *  by weight, not by engine (GDL 90 Data Interface Specification
+ *  560-1058-00 Rev A, Table 11, DO-260B's categories): A1 light, under
+ *  15,500 lb; A2 small, 15,500 to 75,000 lb; A3 large, 75,000 to 300,000
+ *  lb, A4 a high-vortex large one (a B757) and A5 heavy, over 300,000 lb
+ *  -- the large ones; A7 rotorcraft. A6, highly maneuverable (over 5 g and
+ *  fast), is none of these: other. Not "jets": most business jets send A1
+ *  or A2, and a large turboprop A3. */
 export function kindOf(plane: Pick<TrafficAircraft, "category">): Exclude<FilterKind, "any"> {
   const c = plane.category ?? "";
   if (c === "A1") return "light";
   if (c === "A2") return "small";
-  if (c === "A3" || c === "A4" || c === "A5" || c === "A6") return "jet";
+  if (c === "A3" || c === "A4" || c === "A5") return "large";
   if (c === "A7") return "helicopter";
   return "other";
 }
 
+/** A filter kept from before "large" was named for what it is ("jet"). */
+export function keptFilter(f: AircraftFilter): AircraftFilter {
+  return (f.kind as string) === "jet" ? { ...f, kind: "large" } : f;
+}
+
 /** Its height's band, ft as the planner gives it (GNSS where sent, else
  *  pressure): low below 3,000, mid to 10,000, high to 18,000, and the
- *  flight levels from 18,000 MSL up, Class A (14 CFR 71.33). */
+ *  flight levels from 18,000 MSL up, Class A ("from 18,000 feet MSL to
+ *  and including FL600", 14 CFR 71.33(a)). Up there a flight level is a
+ *  pressure altitude, and a GNSS height near 18,000 may fall either side
+ *  of it: a band to look by, not a boundary to fly by. */
 export function bandOf(altitudeFt: number | null | undefined): Exclude<FilterBand, "any"> | null {
   if (altitudeFt == null) return null;
   if (altitudeFt < 3000) return "low";
@@ -70,8 +83,9 @@ export function operatorOf(plane: Pick<TrafficAircraft, "callsign">): string | n
   return m ? m[1]! : null;
 }
 
-/** Declaring an emergency: 7500, 7600 or 7700 set (AIM 6-2-2, 6-2-4,
- *  6-4-2), or an emergency sent in its ADS-B. */
+/** Declaring an emergency: 7700 set for one (AIM 6-2-2), 7500 for
+ *  unlawful interference (AIM 6-3-4), 7600 for a radio failed (AIM 6-4-2),
+ *  or an emergency sent in its ADS-B. */
 export function inEmergency(plane: Pick<TrafficAircraft, "squawk" | "emergency">): boolean {
   return ["7500", "7600", "7700"].includes(plane.squawk ?? "") || !!plane.emergency;
 }
@@ -81,8 +95,10 @@ export interface FilterField extends LatLon {
   elevationFt: number;
 }
 
-/** Round an airport, nm: "about" it, as Class D's surface area is about
- *  4 nm and a pattern well within it, with room for one joining. */
+/** Round an airport, nm: "about" it -- its pattern and one joining it,
+ *  well past the 4 nm round a Class C or D primary airport inside which
+ *  14 CFR 91.117(b) holds an airplane to 200 kt at or below 2,500 ft AGL.
+ *  (Class D's own area is tailored to each field, AIM 3-2-5.) */
 export const AROUND_NM = 10;
 /** How far out an airplane may be inbound or departing, nm. */
 export const RELATION_NM = 40;

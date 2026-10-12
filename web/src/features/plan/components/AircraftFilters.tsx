@@ -8,10 +8,7 @@ import { Button } from "../../../components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../../components/ui/select";
 import { api } from "../../../lib/api/client";
 import type { TrafficAircraft } from "../../../lib/api/types";
-import {
-  NO_FILTER, filtering, matches, operatorOf, relationTo, sameField,
-  type FilterBand, type FilterKind, type FilterPlace, type FilterRelation,
-} from "../../../lib/fbo";
+import { type FilterBand, filtering, type FilterKind, type FilterPlace, type FilterRelation, keptFilter, matches, NO_FILTER, operatorOf, relationTo, sameField } from "../../../lib/fbo";
 import { distanceNm, type LatLon } from "../../../lib/geo";
 import { usePreferences } from "../../../lib/preferences";
 import { TEXT } from "../../../lib/text";
@@ -32,8 +29,9 @@ const RELATIONS = [
 ];
 const NEAR_NM = [5, 10, 25, 50];
 const KINDS: { value: FilterKind; label: string }[] = [
-  { value: "any", label: "Any" }, { value: "light", label: "Light" }, { value: "small", label: "Small" },
-  { value: "jet", label: "Jet" }, { value: "helicopter", label: "Helicopter" }, { value: "other", label: "Other" },
+  // By weight, as the transponder's emitter category is (lib/fbo kindOf).
+  { value: "any", label: "Any" }, { value: "light", label: "Light, under 15,500 lb" }, { value: "small", label: "Small, to 75,000 lb" },
+  { value: "large", label: "Large, over 75,000 lb" }, { value: "helicopter", label: "Helicopter" }, { value: "other", label: "Other" },
 ];
 const BANDS: { value: FilterBand; label: string }[] = [
   { value: "any", label: "Any" }, { value: "low", label: "Below 3,000 ft" }, { value: "mid", label: "3,000–10,000 ft" },
@@ -58,7 +56,8 @@ export default function AircraftFilters({ seen, from, ownFt, onPick }: {
   ownFt: number | null;
   onPick: (plane: TrafficAircraft) => void;
 }) {
-  const filter = usePreferences(s => s.aircraftFilter);
+  // One kept from before "large" was named for what it is, read as it.
+  const filter = keptFilter(usePreferences(s => s.aircraftFilter));
   const change = usePreferences(s => s.setAircraftFilter);
   const [airportTyped, setAirportTyped] = useState(filter.airport);
   const ident = filter.place === "airport" ? filter.airport.trim().toUpperCase() : "";

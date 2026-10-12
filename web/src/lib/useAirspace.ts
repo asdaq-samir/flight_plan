@@ -20,7 +20,14 @@ export const MAGENTA = "#b02e7c";
  * A field's airspace as the sectional draws it, on its tile: Class B a
  * solid blue line, C solid magenta, D dashed blue, an E surface area
  * dashed magenta, and G no line at all -- the field under the shaded
- * magenta edge of the Class E above it, here a ring of the same shading.
+ * magenta edge of the Class E above it, here a ring of the same shading
+ * (FAA Aeronautical Chart User's Guide, 9 Jul 2026, VFR Terms and
+ * Symbols: Class D "a blue dashed line", Class E (SFC) "a magenta dashed
+ * line", Class E floors "narrow bands of vignette"). The airspace's lines,
+ * not the airport symbol's colour, which the chart sets by its tower
+ * ("Airports having control towers (CT) are shown in blue, all others are
+ * shown in magenta"): a Class C field here is magenta, towered all the
+ * same.
  * Solid as a fill, dashed as a dashed ring on a wash of the colour --
  * an outline drawn inside the edge, not a border, so a dashed pill is no
  * bigger than a solid one beside it (the route's box had KDLH's dashed
