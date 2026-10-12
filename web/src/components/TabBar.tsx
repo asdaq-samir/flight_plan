@@ -1,8 +1,10 @@
-import { useContext, useState } from "react";
-import { ChevronDown, Settings, type LucideIcon } from "lucide-react";
+import { useContext, useEffect } from "react";
+import { ChevronDown, ChevronLeft, Settings, type LucideIcon } from "lucide-react";
+import CloseButton from "./CloseButton";
 import { cn } from "cn";
+import { closeTopCard, useOpenCards } from "../lib/openCards";
 import { TEXT } from "../lib/text";
-import { TabBarMinimized, useConsoleOpen } from "./mapChrome";
+import { TabBarMinimized, useConsoleOpen, useTabsShown } from "./mapChrome";
 
 /** One of a page's places, a tab of its bar: its word and its glyph. */
 export interface BarTab<T extends string> {
@@ -31,7 +33,7 @@ export interface BarTab<T extends string> {
  * alone, centred, in the tint; tapped, every tab again at the height the
  * sheet is, minimized once one is picked.
  */
-export default function TabBar<T extends string>({ tabs, tab, onPick, onUp, marks, className }: {
+export default function TabBar<T extends string>({ tabs, tab, onPick, onUp, marks, onClose, className }: {
   tabs: BarTab<T>[];
   tab: T;
   onPick: (tab: T) => void;
@@ -42,6 +44,9 @@ export default function TabBar<T extends string>({ tabs, tab, onPick, onUp, mark
    *  route's own tabs mark theirs: FPL's where the route has no legal
    *  altitude, said at rest as the route's pill said it. */
   marks?: Partial<Record<T, "stop" | "caution">>;
+  /** The minimized bar's close, at its right: whatever is open over the
+   *  tab put away and the sheet down to its pill, at the owner's ask. */
+  onClose?: () => void;
   className?: string;
 }) {
   const consoleOpen = useConsoleOpen(s => s.open);
@@ -49,14 +54,35 @@ export default function TabBar<T extends string>({ tabs, tab, onPick, onUp, mark
   const all: BarTab<T | "settings">[] = [...tabs, { value: "settings", label: "Settings", icon: Settings }];
   const up: T | "settings" = consoleOpen ? "settings" : tab;
   const minimized = useContext(TabBarMinimized);
-  const [shown, setShown] = useState(false);
+  const shown = useTabsShown(s => s.shown);
+  const setShown = (next: boolean) => useTabsShown.setState({ shown: next });
   // In the pill again, minimized again the next time the sheet is up.
-  if (!minimized && shown) setShown(false);
+  useEffect(() => {
+    if (!minimized && shown) useTabsShown.setState({ shown: false });
+  }, [minimized, shown]);
   const upTab = all.find(t => t.value === up)!;
+  // A card open over the tab -- an airport's, an airplane's, a past
+  // flight's -- has its way back here, at the top left on the tab's
+  // line, in place of its own close, at the owner's ask: only while the
+  // tabs are not shown (minimized), as iOS's navigation bar's Back.
+  const cards = useOpenCards(s => s.count);
+  const back = minimized && !consoleOpen && cards > 0;
   if (minimized && !shown) {
     const Icon = upTab.icon;
     return (
-      <nav aria-label="Tabs" className={cn("flex h-full w-full items-center justify-center print:hidden", className)} data-testid="tab-bar">
+      <nav aria-label="Tabs" className={cn("relative flex h-full w-full items-center justify-center print:hidden", className)} data-testid="tab-bar">
+        {back && (
+          <button
+            type="button" onClick={() => closeTopCard()} data-testid="tab-back"
+            className={cn(
+              "absolute top-1/2 left-0 flex h-8 -translate-y-1/2 items-center gap-0.5 rounded-full pr-2 text-tint outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              "after:absolute after:-inset-x-1 after:-inset-y-1.5 after:content-['']", TEXT.row,
+            )}
+          >
+            <ChevronLeft className="size-6" strokeWidth={2.25} aria-hidden="true" />
+            Back
+          </button>
+        )}
         <button
           type="button" onClick={() => setShown(true)} aria-expanded={false} aria-label={`${upTab.label}, show the tabs`}
           data-testid="tab-title"
@@ -69,6 +95,11 @@ export default function TabBar<T extends string>({ tabs, tab, onPick, onUp, mark
           {upTab.label}
           <ChevronDown className="size-4 text-muted-foreground" strokeWidth={2.25} aria-hidden="true" />
         </button>
+        {/* And a close at its right, at the owner's ask: Back goes one card
+            back, the close all the way down to the pill. */}
+        {onClose && !consoleOpen && (
+          <CloseButton onClick={onClose} className="absolute top-1/2 right-0 -translate-y-1/2" data-testid="tab-close" />
+        )}
       </nav>
     );
   }

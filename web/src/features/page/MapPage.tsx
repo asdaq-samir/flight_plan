@@ -4,6 +4,7 @@ import { useSearchParamsNow } from "../../lib/useSearchParamsNow";
 import DevGuard from "../../components/DevGuard";
 import MapPanel from "../../components/MapPanel";
 import { ConsoleInPanelContext, ConsoleSettingsContext, useConsoleOpen, MapInsetsContext, NO_INSETS, type MapInsets, type PanelState } from "../../components/mapChrome";
+import QuickControls from "../../components/QuickControls";
 import RouteForm from "../../components/RouteForm";
 import { Sheet, SheetContent } from "../../components/ui/sheet";
 import { Dialog, DialogContent } from "../../components/ui/dialog";
@@ -189,7 +190,8 @@ export default function MapPage({ mode }: { mode: Mode }) {
   const consoleInPanel = useMemo(() => ({ close: closeConsole }), [closeConsole]);
   // Opened from anywhere -- the gear, or the training's retrain sending
   // the pilot to its progress -- the layer half way up from the pill on a
-  // phone, as a card opens; lowered to the pill after, it stays there.
+  // phone, as a card opens; lowered to the pill after, it stays there,
+  // its quick controls under the tabs (QuickControls).
   const consoleWasOpen = useRef(consoleOpen);
   useEffect(() => {
     if (consoleOpen && !consoleWasOpen.current && onPhone && !onTablet && panel === "peek") setPanel("half");
@@ -322,8 +324,12 @@ export default function MapPage({ mode }: { mode: Mode }) {
             // tab bar, its own header and tabs.
             compact={consoleLayer ? undefined : pieces.compact} toEdge={!consoleLayer && !!pieces.toEdge}
             // The tab bar over a card alone too, as iOS keeps its tab bar on
-            // every screen: the tabs were gone while one was open.
-            bar={pieces.bar} barAlone={consoleLayer || !!pieces.alone} foot={pieces.foot}
+            // every screen: the tabs were gone while one was open. The
+            // Settings tab's pill (its console's layer at rest) is quick
+            // controls, at the owner's ask; else the workspace's own foot.
+            bar={pieces.bar} barAlone={consoleLayer || !!pieces.alone}
+            foot={consoleLayer ? panel === "peek" && <QuickControls /> : pieces.foot}
+            headInPill={!consoleLayer && !pieces.alone && !!pieces.head && !!pieces.pillHead}
             fold={pieces.alone || consoleLayer ? undefined : pieces.fold}
             top={pieces.alone || consoleLayer ? null : pieces.head ?? (
               <>

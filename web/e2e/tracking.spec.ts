@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { grabberTo, settle, sideDrawer, slow, showTabs } from "./helpers";
+import { closeCard, grabberTo, settle, showTabs, sideDrawer, slow } from "./helpers";
 
 /**
  * Tracking an airplane, as FlightAware and ForeFlight do, at the pilot's
@@ -96,7 +96,7 @@ test("Aircraft is a tab, lists the airplanes about, and a tap on one tracks it: 
   await expect(page.locator("[data-traffic-tracked]")).toHaveCount(1);
   await expect(page.locator(".leaflet-overlay-pane path.tracked-path").first()).toBeAttached();
   // Put away: the list again, as an airport's card over Nearest.
-  await card.getByTestId("flight-close").click();
+  await closeCard(page, "flight-close");
   await expect(page).not.toHaveURL(/[?&]flight=/);
   await expect(list).toBeVisible();
 });
@@ -114,7 +114,7 @@ test("an airplane is found by its callsign, and a tap on one on the map tracks i
   await expect(page.getByTestId("flight-card").getByTestId("flight-name")).toHaveText("UAL2088");
   await expect(page.getByTestId("flight-departed")).toHaveCount(0);
   // One tapped on the map: the Cessna, the second heard.
-  await page.getByTestId("flight-close").click();
+  await closeCard(page, "flight-close");
   const hits = page.locator("[data-traffic-hit]");
   await expect(hits).toHaveCount(2);
   await hits.nth(1).dispatchEvent("click");
@@ -296,7 +296,7 @@ test("an airplane's past flights are listed on its card, and one is drawn on the
   await flight.getByTestId("replay-stop").click();
   await expect(flight.getByTestId("replay-now")).toHaveCount(0);
   // Closed: back to the airplane's card on its Activity, the path put away.
-  await flight.getByTestId("past-flight-close").click();
+  await closeCard(page, "past-flight-close");
   await expect(page).not.toHaveURL(/[?&]past=/);
   await expect(card.getByTestId("flight-tab-activity")).toHaveAttribute("data-state", "active");
   await expect(page.locator("path.past-flight-path")).toHaveCount(0);
@@ -312,7 +312,7 @@ test("an airplane opened is in the Aircraft card's Recents, and one starred on i
   await expect(star).toHaveAttribute("aria-pressed", "false");
   await star.click();
   await expect(star).toHaveAttribute("aria-pressed", "true");
-  await card.getByTestId("flight-close").click();
+  await closeCard(page, "flight-close");
   await page.goto("/app/plan?aircraft=1");
   await settle(page);
   const list = page.getByTestId("aircraft-card");

@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { openMapSettings, openPanel, settle, sideDrawer, slow, showTabs } from "./helpers";
+import { closeCard, openMapSettings, openPanel, settle, showTabs, sideDrawer, slow } from "./helpers";
 
 /**
  * Nearest as a card of the panel's (NearestCard), at the pilot's ask: half
@@ -44,7 +44,7 @@ test("Nearest opens as a card half way up, a field over it as a layer, and its c
 
   await rows.nth(1).click();
   await expect(sideDrawer(page).getByTestId("place-card")).toBeVisible();
-  await sideDrawer(page).getByTestId("place-close").click();
+  await closeCard(page, "place-close");
   await expect(card).toBeVisible();
   // Back to the route by its own tab.
   await showTabs(page);

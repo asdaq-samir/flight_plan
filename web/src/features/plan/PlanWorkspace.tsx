@@ -37,7 +37,7 @@ import TipHost from "../../components/TipHost";
 import { FILLS_HALF } from "../../components/mapChrome";
 import { SearchField, SearchResults } from "../../components/PanelCapsule";
 import { chipColourOf } from "../../lib/map/flightCategory";
-import { Favorites, FavoritesList } from "../../components/Favorites";
+import { FavoriteStrip, Favorites, FavoritesList } from "../../components/Favorites";
 import FlightLine from "./components/FlightLine";
 import AirspaceCard from "./components/AirspaceCard";
 import PlaceCard from "./components/PlaceCard";
@@ -45,8 +45,8 @@ import ProceduresButton, { type ProcedureAirport } from "./components/Procedures
 import { patternsOf, patternsParam, trafficPattern, type TrafficPattern } from "../../lib/trafficPattern";
 import { proceduresOf, proceduresParam, sameField, type PickedProcedure } from "../../lib/procedures";
 import { runwayNumber } from "../../lib/pattern";
-import NearestCard from "./components/NearestCard";
-import AircraftCard from "./components/AircraftCard";
+import NearestCard, { NearestStrip } from "./components/NearestCard";
+import AircraftCard, { AircraftFavoriteStrip } from "./components/AircraftCard";
 import FlightCard from "./components/FlightCard";
 import PastFlightCard from "./components/PastFlightCard";
 import type { RouteParts, RouteProcedure } from "./components/RouteBox";
@@ -797,6 +797,9 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const { addRecentAirport: addRecent, setHomeAirport, toggleFavoriteAirport, moveFavoriteAirport } = usePreferences.getState();
   const home = usePreferences(p => p.homeAirport);
   const favorites = usePreferences(p => p.favoriteAirports);
+  // Whether each tab has Favorites for its pill (the workspace's `foot`).
+  const airportFavorites = !!home || favorites.length > 0;
+  const aircraftFavorites = usePreferences(p => p.favoriteAircraft.length > 0);
   const pickPlace = useCallback(async (airport: RecentAirport) => {
     setQuery("");
     (document.activeElement as HTMLElement | null)?.blur();
@@ -948,6 +951,14 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     }
     if (place || heldPoint || flight) pickTab(tab);
   }, [place, heldPoint, flight, pickTab, tab, panel, setPanel]);
+
+  // The minimized tab bar's close, at the owner's ask: a card open over
+  // the tab put away, as the tab tapped again does, and the sheet down to
+  // its pill.
+  const closeSheet = useCallback(() => {
+    if (place || heldPoint || flight) pickTab(tab);
+    setPanel("peek");
+  }, [place, heldPoint, flight, pickTab, tab, setPanel]);
 
   // The plan's own address, to another device or person: the share
   // sheet where the browser has one (Safari on an iPhone) or in the iOS
@@ -1471,6 +1482,11 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     // The tab's head: FPL's the route's box (`route`, below); the others'
     // the search bar, the whole width (Settings is a tab, not a gear).
     head: tab === "fpl" ? undefined : tab === "aircraft" ? aircraftField : tab === "nrst" ? nearField : searchField,
+    // At rest each tab's pill shows its own, under the tab bar, at the
+    // owner's ask: FPL the route's figures; Airport and Aircraft their
+    // Favorites, small -- with none, their search bars, asking for input;
+    // NRST its nearest fields (each the foot, below).
+    pillHead: (tab === "airport" && !airportFavorites) || (tab === "aircraft" && !aircraftFavorites),
     // A card over the tab: its card alone, the tab's head gone while it is
     // open, at the pilot's ask.
     alone: !!place || !!heldPoint || !!flight,
@@ -1478,16 +1494,22 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     // The planner's tabs, the panel's first row, and at rest the pill
     // itself, at the pilot's ask: no search bar or route under them
     // (MapPanel).
-    bar: <TabBar tabs={PLANNER_TABS} tab={tab} onPick={pickTab} onUp={tabUp} marks={s.unflyable ? { fpl: "stop" } : undefined} />,
+    bar: <TabBar tabs={PLANNER_TABS} tab={tab} onPick={pickTab} onUp={tabUp} onClose={closeSheet} marks={s.unflyable ? { fpl: "stop" } : undefined} />,
     // The route's figures -- the distance, the time en route, the arrival
-    // and the fuel -- pinned at the card's foot while there is a route, on
-    // every tab and at every height, the pill too, at the pilot's ask:
-    // they were the last of the route's head, out of sight on any other
-    // tab or at rest.
-    foot: routed && (
+    // and the fuel -- pinned at FPL's foot while there is a route, at every
+    // height, the pill too, at the pilot's ask: they were the last of the
+    // route's head, out of sight at rest. FPL's alone, at the owner's ask
+    // ("Fpl can show calculations but other tabs should show something
+    // else"): the other tabs' pills are their search bars (MapPanel's
+    // headInPill).
+    foot: tab === "fpl" ? routed && (
       <div className="w-full" data-testid="flight-line">
         <FlightLine totals={s.totals} estimate={estimate} depart={depart} local={s.local} />
       </div>
+    ) : panel === "peek" && !place && !heldPoint && !flight && (
+      tab === "nrst" ? <NearestStrip fields={nearestData} located={!!nearOrigin} onOpen={selectPlace} />
+        : tab === "airport" ? airportFavorites && <FavoriteStrip home={home} favorites={favorites} onOpen={a => selectPlace(a.ident)} />
+          : aircraftFavorites && <AircraftFavoriteStrip onOpen={hex => selectFlight(hex)} />
     ),
     // The route as one box of pills, in place of the two airport fields,
     // the top row to itself, at the pilot's ask: its close and its

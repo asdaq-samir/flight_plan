@@ -87,22 +87,26 @@ test("the card's sketch of the runways sits between the name and the close, star
   // "Elev 788 ft" to the eye, "Elevation 788 ft" to a screen reader.
   await expect(elevation).toHaveText(/Elevation [\d,]+ ft$/);
   await expect(elevation.locator('[aria-hidden="true"]')).toHaveText("Elev");
-  const [height, box, named, close, star, chip, call] = await Promise.all([
-    elevation, sketch, name, card(page).getByTestId("place-close"), card(page).getByTestId("place-favorite"),
+  const [height, box, named, star, chip, call] = await Promise.all([
+    elevation, sketch, name, card(page).getByTestId("place-favorite"),
     card(page).getByTestId("place-category"), card(page).getByTestId("place-call"),
   ].map(async l => (await l.boundingBox())!));
-  // The name, then the sketch from the card's top, then the column: the
-  // close, the star under it and the weather's chip under that, their
-  // right edges one.
+  // The column at the right: the close, where the card has its own -- on
+  // a phone with the sheet up its way back is the tab bar's Back, at the
+  // owner's ask -- then the star, then the weather's chip, their right
+  // edges one; the sketch between the name and the column, from its top.
+  const closeButton = card(page).getByTestId("place-close");
+  // On a phone with the sheet up, kept out of sight for a keyboard (CardClose).
+  const outOfSight = await closeButton.evaluate(el => !!el.closest(".sr-only"));
+  const close = outOfSight ? null : (await closeButton.boundingBox())!;
+  const column = close ? [close, star, chip] : [star, chip];
   expect(box.x).toBeGreaterThan(named.x + named.width - 1);
-  expect(Math.abs(box.y - close.y)).toBeLessThan(1);
-  expect(box.x + box.width).toBeLessThan(Math.min(close.x, star.x, chip.x));
-  expect(star.y).toBeGreaterThan(close.y + close.height - 1);
-  expect(chip.y).toBeGreaterThan(star.y + star.height - 1);
-  // One width, the star's, so the sketch reaches as far right as it can.
-  for (const b of [star, chip]) {
-    expect(Math.abs(b.x + b.width - (close.x + close.width))).toBeLessThan(1.5);
-    expect(Math.abs(b.width - close.width)).toBeLessThan(1);
+  expect(Math.abs(box.y - column[0]!.y)).toBeLessThanOrEqual(1);
+  expect(box.x + box.width).toBeLessThan(Math.min(...column.map(b => b.x)));
+  for (let i = 1; i < column.length; i++) {
+    expect(column[i]!.y).toBeGreaterThan(column[i - 1]!.y + column[i - 1]!.height - 1);
+    expect(Math.abs(column[i]!.x + column[i]!.width - (column[0]!.x + column[0]!.width))).toBeLessThan(1.5);
+    expect(Math.abs(column[i]!.width - column[0]!.width)).toBeLessThan(1);
   }
   expect(height.x).toBeLessThan(box.x + 12);
   expect(height.y).toBeLessThan(box.y + 12);

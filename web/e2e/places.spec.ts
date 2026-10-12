@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { clearTheRoute, expectDrawerClosed, expectDrawerOpen, grabberTo, mapStill, openMapSettings, openPanel, settle, sideDrawer, slow, tapTheChart, showTabs } from "./helpers";
+import { clearTheRoute, closeCard, expectDrawerClosed, expectDrawerOpen, grabberTo, mapStill, openMapSettings, openPanel, settle, showTabs, sideDrawer, slow, tapTheChart } from "./helpers";
 
 /**
  * Airports as places, as Maps has them: a tap on one on the chart opens
@@ -51,7 +51,7 @@ test("an airport's card names the field alone, how far it is under it, and the w
 
   // Put away: the address forgets it, and the route is the panel again,
   // the layer under the card, at the height the panel was.
-  await card(page).getByTestId("place-close").click();
+  await closeCard(page, "place-close");
   await expect(card(page)).toHaveCount(0);
   await expect(page).not.toHaveURL(/[?&]place=/);
   await expect(sideDrawer(page)).toHaveAttribute("data-panel", "full");
@@ -448,7 +448,7 @@ test("the airport whose card is open wears a ring round its mark, clear of it on
   expect(top).toBe("C81");
 
   // Put away, the ring goes with the card.
-  await card(page).getByTestId("place-close").click();
+  await closeCard(page, "place-close");
   await expect(ring).toHaveCount(0);
 });
 
@@ -588,7 +588,7 @@ test("with no route the panel is a search bar: Home is set from Favorites, an ai
   await expect(card(page).getByTestId("place-name")).toHaveText("Duluth International Airport KDLH");
   await card(page).getByTestId("place-favorite").click();
   await expect(card(page).getByTestId("place-favorite")).toHaveAttribute("aria-pressed", "true");
-  await card(page).getByTestId("place-close").click();
+  await closeCard(page, "place-close");
   await search.click();
   const kept = page.getByTestId("favorites").getByRole("button", { name: /^KDLH, Class [BCDEG]$/ });
   await expect(kept).toBeVisible();

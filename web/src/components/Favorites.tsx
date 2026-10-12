@@ -234,3 +234,76 @@ export function FavoritesList({ home, favorites, onBack, onOpen, onChangeHome, o
     </div>
   );
 }
+
+/**
+ * A small tile for a pill's strip (PillStrip): a round mark, a name and a
+ * line under it, at the size the pill has room for -- at the owner's ask,
+ * the Airport and Aircraft tabs' pills show their Favorites, NRST's its
+ * nearest fields, as small icons. 44 points at the least to a finger.
+ */
+export function SmallTile({ mark, title, detail, label, onClick, testId }: {
+  mark: ReactNode;
+  title: string;
+  detail?: string;
+  label?: string;
+  onClick: () => void;
+  testId?: string;
+}) {
+  return (
+    <button
+      type="button" onClick={onClick} data-testid={testId} aria-label={label}
+      className="flex min-h-11 w-14 shrink-0 flex-col items-center gap-0.5 rounded-lg py-0.5 outline-none hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring pointer-coarse:active:bg-muted"
+    >
+      {mark}
+      <span className={cn("w-full truncate text-center font-semibold leading-tight text-foreground", TEXT.note)}>{title}</span>
+      {/* 4.5:1 on the pill's glass, as the tab bar's words are. */}
+      {detail && <span className={cn("w-full truncate text-center leading-tight text-foreground/65 tabular-nums", TEXT.note)}>{detail}</span>}
+    </button>
+  );
+}
+
+/** A pill's row of small tiles, along it, sliding sideways where more
+ *  than fit. */
+export function PillStrip({ children, testId }: { children: ReactNode; testId?: string }) {
+  return (
+    <div className="-mx-1 flex gap-1 overflow-x-auto px-1 [scrollbar-width:none]" data-testid={testId}>{children}</div>
+  );
+}
+
+/** A small tile's round mark: the Favorites tile's at a third of its size. */
+export function SmallMark({ icon, className, style }: { icon: ReactNode; className?: string; style?: CSSProperties }) {
+  return <span className={cn("grid size-7 place-items-center rounded-full [&_svg]:size-3.5", className)} style={style} aria-hidden="true">{icon}</span>;
+}
+
+function SmallAirportTile({ airport, detail, onClick }: { airport: RecentAirport; detail: string; onClick: () => void }) {
+  const space = useAirspace(airport);
+  return (
+    <SmallTile
+      mark={<SmallMark icon={<Plane />} style={space.style} className={space.className} />}
+      title={airport.ident} detail={detail} label={`${airport.ident}, ${space.name}`} onClick={onClick} testId="pill-favorite"
+    />
+  );
+}
+
+/** The Airport tab's pill: Home and the Favorites, small, each opening
+ *  its field's card, how far each is from own ship under it. */
+export function FavoriteStrip({ home, favorites, onOpen }: {
+  home: RecentAirport | null;
+  favorites: RecentAirport[];
+  onOpen: (airport: RecentAirport) => void;
+}) {
+  const from = useOwnShip(o => (o.enabled ? o.fix : null));
+  const away = (a: RecentAirport) =>
+    from && a.lat !== undefined && a.lon !== undefined ? `${Math.round(distanceNm(from, { lat: a.lat, lon: a.lon }))} nm` : undefined;
+  return (
+    <PillStrip testId="pill-favorites">
+      {home && (
+        <SmallTile
+          mark={<SmallMark icon={<House />} className="bg-teal-600 text-white" />} title="Home" detail={away(home) ?? home.ident}
+          label={`Home, ${home.ident}`} onClick={() => onOpen(home)} testId="pill-home"
+        />
+      )}
+      {favorites.map(a => <SmallAirportTile key={a.ident} airport={a} detail={away(a) ?? ""} onClick={() => onOpen(a)} />)}
+    </PillStrip>
+  );
+}

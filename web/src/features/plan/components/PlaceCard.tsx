@@ -7,9 +7,8 @@ import { useKeptAirport, usePreferences } from "../../../lib/preferences";
 import { useOwnShip } from "../../../lib/map/ownShip";
 import RoundButton from "../../../components/RoundButton";
 import { GLASS_BUTTON } from "../../../components/mapChrome";
-import CloseButton from "../../../components/CloseButton";
 import { FitText } from "../../../components/FitText";
-import { CardHead, PanelCard } from "../../../components/PanelCard";
+import { CardClose, CardHead, PanelCard } from "../../../components/PanelCard";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
 import { LINE_TAB } from "../../../components/lineTabs";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../../components/ui/tabs";
@@ -494,7 +493,7 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
             {/* Eight apart, so the buttons' 44-point hit areas (index.css)
                 meet. */}
             <div className="-mr-1 flex w-9 shrink-0 flex-col items-center gap-2">
-              <CloseButton onClick={onClose} data-testid="place-close" />
+              <CardClose onClose={onClose} testId="place-close" />
               {/* From the first frame, as the tabs are: the card one shape
                   while its answer comes, at the pilot's ask. */}
               <FavoriteButton ident={kept?.ident ?? ident} place={place ?? null} />

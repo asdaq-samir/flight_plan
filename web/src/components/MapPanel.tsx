@@ -5,7 +5,7 @@ import { useIsMobile } from "../hooks/use-mobile";
 import { useNavEdge } from "../hooks/use-nav-edge";
 import { useKeyboardInset, useSafeArea, useVisualHeight, useWindowHeight } from "../hooks/use-viewport";
 import {
-  GLASS, GLASS_FILL, GLASS_SHEET, GLASS_SHEET_FULL, MATERIAL, PanelHalfContext, PILL_RADIUS, SHEET_INSET, SHEET_INSET_RADIUS, SHEET_MARGIN, SHEET_RESHAPE, TabBarMinimized,
+  GLASS, GLASS_FILL, GLASS_SHEET, GLASS_SHEET_FULL, MATERIAL, PanelHalfContext, PILL_RADIUS, BackInTabBar, useTabsShown, SHEET_INSET, SHEET_INSET_RADIUS, SHEET_MARGIN, SHEET_RESHAPE, TabBarMinimized,
   SHEET_SETTLE, type MapInsets, type PanelState,
 } from "./mapChrome";
 
@@ -37,6 +37,10 @@ interface Props {
   /** The bar shown with no top row under it: the console's layer, the
    *  Settings tab's, which has no head of its own, and a card alone. */
   barAlone?: boolean;
+  /** The top row in the pill too, under the tab bar: a tab whose head is
+   *  a search bar (Airport, Aircraft, NRST), whose pill asks for input as
+   *  Maps' does, at the owner's ask. FPL's pill is the bar and its foot. */
+  headInPill?: boolean;
   /** Pinned at the card's foot at every height, the pill too: the
    *  route's figures, at the pilot's ask, on every tab while there is a
    *  route. Its height is added to each detent. */
@@ -130,7 +134,7 @@ const RANK: Record<PanelState, number> = { peek: 0, half: 1, full: 2 };
  * drawer that never closes held the keyboard's focus inside itself and
  * hid the map, and any dialog opened before it, from a screen reader.
  */
-export default function MapPanel({ label, top, controls, figures, compact, children, state, onStateChange, onInsetsChange, toEdge = false, bar, barAlone = false, foot, fold }: Props) {
+export default function MapPanel({ label, top, controls, figures, compact, children, state, onStateChange, onInsetsChange, toEdge = false, bar, barAlone = false, headInPill = false, foot, fold }: Props) {
   const onPhone = useIsMobile();
   const edge = useNavEdge();
   const safe = useSafeArea();
@@ -225,6 +229,8 @@ export default function MapPanel({ label, top, controls, figures, compact, child
   // tab up's name, as iOS's compact tab bar minimizes, at the pilot's ask;
   // wider, a card with room for every tab keeps them, as iPadOS's does.
   const minimized = onPhone && !capsule;
+  // The minimized bar tapped open to every tab: no Back on it then.
+  const tabsShown = useTabsShown(s => s.shown);
   // All the way up and settled, the head is the figures alone (`figures`);
   // what is measured of it for the lowest detent, the half and the half's
   // body is the head as it is at half, kept from when it last was.
@@ -528,7 +534,7 @@ export default function MapPanel({ label, top, controls, figures, compact, child
             one turns into the other, focus and keyboard and all. From
             the top of a phone's screen the sheet's starts under the
             status bar or the island. */}
-        {!(capsule && pillOfTabs) && (
+        {!(capsule && pillOfTabs && !(headInPill && top != null)) && (
           <header
             className={cn(
               "@container flex items-center gap-2 print:hidden",
@@ -548,7 +554,7 @@ export default function MapPanel({ label, top, controls, figures, compact, child
                   : cn("px-3 pb-1", fromBottom ? "pt-1" : onPhone ? "pt-[max(0.5rem,env(safe-area-inset-top))]" : "pt-2"),
             )}
           >
-            {capsule ? compact : figuresOnly ? figures : top}
+            {capsule ? (pillOfTabs ? top : compact) : figuresOnly ? figures : top}
           </header>
         )}
         {!capsule && !figuresOnly && controls && (
@@ -593,7 +599,9 @@ export default function MapPanel({ label, top, controls, figures, compact, child
         style={{ "--half-body": `${halfBody}px`, "--half-foot": `${toEdge && fromBottom ? halfChrome : 0}px` } as CSSProperties}
         data-panel-body=""
       >
-        <PanelHalfContext.Provider value={setTabsAt}>{children}</PanelHalfContext.Provider>
+        <PanelHalfContext.Provider value={setTabsAt}>
+          <BackInTabBar.Provider value={minimized && barShown && !tabsShown}>{children}</BackInTabBar.Provider>
+        </PanelHalfContext.Provider>
       </div>
       {/* The route's figures, pinned at the card's foot at every height
           (`foot`): over the home indicator's room where the body runs to

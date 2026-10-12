@@ -38,6 +38,9 @@ export interface WorkspacePieces {
   /** The panel's top row with it out, in place of the route form and the
    *  actions: the search bar, while there is no route. */
   head?: ReactNode;
+  /** The head in the pill too, under the tab bar: a tab whose pill asks
+   *  for input in its search bar (MapPanel's headInPill). */
+  pillHead?: boolean;
   /** The panel's body alone with it out -- no route form, actions or
    *  controls over it: an airport's card opened over a route,
    *  as a place in Maps takes the sheet from the directions. */

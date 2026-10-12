@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { grabberTo, openPanel, settle, sideDrawer, slow, showTabs } from "./helpers";
+import { closeCard, grabberTo, openPanel, settle, showTabs, sideDrawer, slow } from "./helpers";
 
 /**
  * The planner's tab bar, at the pilot's ask in place of the map's buttons
@@ -108,7 +108,7 @@ test("an airport tapped in the route opens its card, and is changed from its men
   await expect(card).toBeVisible();
   await expect(card).toContainText("KDLH");
   // Closed, the route again, on FPL.
-  await sideDrawer(page).getByTestId("place-close").click();
+  await closeCard(page, "place-close");
   await expect(card).toHaveCount(0);
   await showTabs(page);
   await expect(page.getByTestId("tab-fpl")).toHaveAttribute("aria-current", "page");

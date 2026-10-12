@@ -11,7 +11,7 @@ import { bearingDeg, distanceNm, type LatLon } from "../../../lib/geo";
 import { useOwnShip } from "../../../lib/map/ownShip";
 import { usePreferences } from "../../../lib/preferences";
 import { useTabSearch } from "../../../lib/tabSearch";
-import { PlaceTile } from "../../../components/Favorites";
+import { PillStrip, PlaceTile, SmallMark, SmallTile } from "../../../components/Favorites";
 import { ClearList, SwipeToDelete } from "../../../components/SwipeToDelete";
 import { trafficLabel } from "../../../lib/map/traffic";
 import { useTracking } from "../../../lib/map/tracking";
@@ -232,5 +232,21 @@ export default function AircraftCard({ onPick, onPickHex }: {
         </ListGroup>
       </div>
     </PanelCard>
+  );
+}
+
+/** The Aircraft tab's pill, at the owner's ask: the airplanes starred, as
+ *  small tiles -- each its name and type -- opening its card. */
+export function AircraftFavoriteStrip({ onOpen }: { onOpen: (hex: string) => void }) {
+  const favorites = usePreferences(s => s.favoriteAircraft);
+  return (
+    <PillStrip testId="pill-aircraft-favorites">
+      {favorites.map(a => (
+        <SmallTile
+          key={a.hex} mark={<SmallMark icon={<Plane />} className="bg-sky-600 text-white" />} title={a.name} detail={a.type ?? undefined}
+          label={`${a.name}${a.type ? `, ${a.type}` : ""}`} onClick={() => onOpen(a.hex)} testId="pill-aircraft-favorite"
+        />
+      ))}
+    </PillStrip>
   );
 }

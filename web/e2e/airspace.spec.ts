@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { settle, slow } from "./helpers";
+import { closeCard, settle, slow } from "./helpers";
 
 /**
  * The airspace over a point (AirspaceCard): a right-click on the chart,
@@ -27,7 +27,7 @@ test("a right-click on the chart asks what is there, and Close puts the card awa
   await expect(page).toHaveURL(/[?&]at=-?\d+\.\d+%2C-?\d+\.\d+/);
   const card = page.getByTestId("airspace-card");
   await expect(card.getByTestId("airspace-band").first()).toBeVisible({ timeout: slow(30000) });
-  await card.getByTestId("airspace-close").click();
+  await closeCard(page, "airspace-close");
   await expect(page).not.toHaveURL(/[?&]at=/);
   await expect(card).toHaveCount(0);
 });

@@ -390,3 +390,13 @@ export async function tapTheChart(page: Page) {
   expect(at, "somewhere on the chart with nothing on it").not.toBeNull();
   await page.mouse.click(at!.x, at!.y);
 }
+
+/** A card put away by its way back: on a phone with the sheet up, the
+ *  minimized tab bar's Back at its top left (TabBar), at the owner's ask,
+ *  in place of the card's close; elsewhere the card's own close. */
+export async function closeCard(page: Page, closeTestId: string) {
+  const back = page.getByTestId("tab-back");
+  const close = page.getByTestId(closeTestId);
+  await expect(back.or(close).first()).toBeVisible();
+  await (await back.isVisible() ? back : close).click();
+}
