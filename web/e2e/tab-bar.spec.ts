@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { closeCard, grabberTo, openPanel, settle, showTabs, sideDrawer, slow } from "./helpers";
+import { closeCard, grabberTo, openPanel, settle, settled, showTabs, sideDrawer, slow } from "./helpers";
 
 /**
  * The planner's tab bar, at the pilot's ask in place of the map's buttons
@@ -168,6 +168,9 @@ test("the route's box has a clear at its end while it holds a route", async ({ p
   await openPanel(page);
   const clear = sideDrawer(page).getByTestId("route-box-clear");
   await expect(clear).toBeVisible();
+  // The sheet come to rest: measured while it rose from the pill, the box
+  // was narrower than the clear's place a moment later.
+  await settled(sideDrawer(page));
   // Inside the box, at its end.
   const box = (await sideDrawer(page).getByTestId("route-box").boundingBox())!;
   const at = (await clear.boundingBox())!;
@@ -196,3 +199,55 @@ test("all the way up with no route, the empty box stays out, nothing to fold", a
   await expect(sideDrawer(page).getByTestId("route-fold")).toHaveCount(0);
 });
 
+
+test("each tab keeps the card open over it: another tab picked and this one again, the airport's card is back", async ({ page }) => {
+  await page.goto("/app/plan?place=KDLH");
+  await settle(page);
+  const name = sideDrawer(page).getByTestId("place-name");
+  await expect(name).toContainText("KDLH", { timeout: slow(15000) });
+  await showTabs(page);
+  await page.getByTestId("tab-nrst").click();
+  await expect(page).not.toHaveURL(/[?&]place=/);
+  await expect(sideDrawer(page).getByTestId("nearest-card")).toBeVisible();
+  await showTabs(page);
+  await page.getByTestId("tab-airport").click();
+  await expect(page).toHaveURL(/[?&]place=KDLH/);
+  await expect(name).toContainText("KDLH");
+  // The tab up tapped again puts it away, as an iOS tab's first screen.
+  await showTabs(page);
+  await sideDrawer(page).locator('[data-testid="tab-bar"] button[aria-current="page"]').click();
+  await expect(page).not.toHaveURL(/[?&]place=/);
+  await showTabs(page);
+  await page.getByTestId("tab-nrst").click();
+  await showTabs(page);
+  await page.getByTestId("tab-airport").click();
+  await expect(page).not.toHaveURL(/[?&]place=/);
+});
+
+test("the pill collapses to its tabs alone by a drag down, and its grabber brings the route's figures back", async ({ page }) => {
+  await page.goto("/app/plan?dep=C81&dest=KDLH");
+  await settle(page);
+  const panel = sideDrawer(page);
+  await expect(panel).toHaveAttribute("data-capsule", "true");
+  await expect(panel.getByTestId("panel-foot")).toBeVisible({ timeout: slow(30000) });
+  const pill = (await panel.boundingBox())!;
+  // Toward the screen's edge from the grabber, as a finger drags it: down
+  // on a phone's sheet from the bottom, up on a card from the top.
+  const toEdge = pill.y > page.viewportSize()!.height / 2 ? 1 : -1;
+  const grab = (await page.getByTestId("sidebar-trigger-button").boundingBox())!;
+  await page.mouse.move(grab.x + grab.width / 2, grab.y + grab.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(grab.x + grab.width / 2, grab.y + grab.height / 2 + 40 * toEdge, { steps: 5 });
+  await page.mouse.move(grab.x + grab.width / 2, grab.y + grab.height / 2 + 90 * toEdge, { steps: 5 });
+  await page.mouse.up();
+  await expect(panel).toHaveAttribute("data-collapsed", "true");
+  await expect(panel).toHaveAttribute("data-panel", "peek");
+  await expect(panel.getByTestId("panel-foot")).toHaveCount(0);
+  await expect(panel.getByTestId("tab-fpl")).toBeVisible();
+  await expect.poll(async () => (await panel.boundingBox())!.height).toBeLessThan(pill.height - 40);
+  // The grabber tapped: the figures back, the pill as it was.
+  await page.getByTestId("sidebar-trigger-button").click();
+  await expect(panel).not.toHaveAttribute("data-collapsed", "true");
+  await expect(panel.getByTestId("panel-foot")).toBeVisible();
+  await expect(panel).toHaveAttribute("data-panel", "peek");
+});

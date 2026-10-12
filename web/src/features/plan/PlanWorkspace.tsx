@@ -23,7 +23,7 @@ import { useTabSearch } from "../../lib/tabSearch";
 import TabBar, { type BarTab } from "../../components/TabBar";
 import { Button } from "../../components/ui/button";
 import { useTabAsk } from "./components/navlog/panelTab";
-import { choosePastFlight, clearPastFlight } from "../../lib/map/pastFlight";
+import { choosePastFlight, clearPastFlight, usePastFlight } from "../../lib/map/pastFlight";
 import { pointOf } from "../../lib/airspace";
 import { MAX_STOPS, altitudesOf, altitudesParam, departureOf, identOf, isAirwayToken, positionIdent, routeName, routeOf, stopsOf } from "../../lib/identSchema";
 import { useKeptAirport, usePreferences, type RecentAirport } from "../../lib/preferences";
@@ -136,6 +136,9 @@ const drawnOnly = (results: { data?: ProcedureDrawing }[]) => results.flatMap(r 
 /** The planner's places, its tab bar's (TabBar): the flight being
  *  planned, airports, traffic and the nearest fields. */
 type PanelTab = "fpl" | "airport" | "aircraft" | "nrst";
+/** The address's keys of what is open over a tab: an airport's card, the
+ *  airspace over a point held, an airplane, its past flight, NRST's place. */
+const CARD_KEYS = ["place", "at", "flight", "past", "nearAt", "nearName"] as const;
 const PLANNER_TABS: BarTab<PanelTab>[] = [
   { value: "fpl", label: "FPL", icon: Route },
   { value: "airport", label: "Airport", icon: TowerControl },
@@ -375,11 +378,23 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     }, { replace: true });
     setPanel("half");
   }, [setSearchParams, setPanel]);
+  // What each tab had open over it when it was left -- an airport's card,
+  // an airplane's, a past flight and where its replay was, NRST's place
+  // typed -- opened again on coming back to it, at the owner's ask ("the
+  // cards should stay where they are when coming back to the tab"), as
+  // each of an iOS app's tabs keeps its own screen. Not past a reload.
+  const keptCards = useRef<Partial<Record<PanelTab, [string, string][]>>>({});
+  const keptReplay = useRef<{ hex: string; id: number; at: number | null; playing: boolean } | null>(null);
   // The address's past flight drawn on the map (lib/map/pastFlight), and
   // let go with its card.
   useEffect(() => {
-    if (flight && past) choosePastFlight(flight, past);
-    else clearPastFlight();
+    if (flight && past) {
+      choosePastFlight(flight, past);
+      // Back on its tab: the replay where it was, playing if it was.
+      const kept = keptReplay.current;
+      if (kept && kept.hex === flight && kept.id === past) usePastFlight.setState({ at: kept.at, playing: kept.playing });
+      keptReplay.current = null;
+    } else clearPastFlight();
   }, [flight, past]);
   // The address's flight and list into the tracking the map draws from
   // (lib/map/tracking), and the map's tap on an airplane back to here.
@@ -942,21 +957,35 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     setUnder(null);
   }, [hasPoints, under, setSearchParams]);
   // A tab picked from the tab bar: Aircraft's and NRST's lists from the
-  // address, FPL and Airport by the pick, a card open over the tab it
-  // was on put away, the sheet half way up, as a card opens.
+  // address, FPL and Airport by the pick, the card open over the tab it
+  // was on kept for it and the one kept for the tab picked opened again.
+  // The tab up picked again (tabUp, closeSheet) puts its card away.
   const pickTab = useCallback((next: PanelTab) => {
+    const leaving = next !== tab;
+    if (leaving) {
+      keptCards.current[tab] = CARD_KEYS.flatMap(key => {
+        const value = searchParams.get(key);
+        return value ? [[key, value] as [string, string]] : [];
+      });
+      const replay = usePastFlight.getState();
+      if (flight && past && replay.hex === flight && replay.id === past) {
+        keptReplay.current = { hex: flight, id: past, at: replay.at, playing: replay.playing };
+      }
+    } else delete keptCards.current[tab];
+    const back = leaving ? keptCards.current[next] ?? [] : [];
     setTabPick(next);
     setSearchParams(prev => {
       const out = new URLSearchParams(prev);
-      for (const key of ["place", "at", "flight", "past", "aircraft", "near", "nearAt", "nearName"]) out.delete(key);
+      for (const key of [...CARD_KEYS, "aircraft", "near"]) out.delete(key);
       if (next === "aircraft") out.set("aircraft", "1");
       if (next === "nrst") out.set("near", "1");
+      for (const [key, value] of back) out.set(key, value);
       return out;
     }, { replace: true });
     setFavoritesOpen(false);
     // At the height the panel is, at the pilot's ask: a pill stays a pill,
     // the tab's own, as the half and all the way up stay.
-  }, [setSearchParams]);
+  }, [setSearchParams, searchParams, tab, flight, past]);
 
   // The tab up tapped again: on the pill, the panel opened to it -- a card
   // open over it, that card, as it was left; out already, a card over it

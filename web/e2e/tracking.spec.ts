@@ -295,6 +295,15 @@ test("an airplane's past flights are listed on its card, and one is drawn on the
   await flight.getByTestId("replay-speed").getByText("200×").click();
   await flight.getByTestId("replay-play").click();
   await expect(flight.getByTestId("replay-now")).toContainText(/ft · 100 kt · S/);
+  // Another tab and back, at the owner's ask: the past flight still out
+  // over the Aircraft tab, its replay on where it was.
+  await showTabs(page);
+  await page.getByTestId("tab-fpl").click();
+  await expect(flight).toHaveCount(0);
+  await showTabs(page);
+  await page.getByTestId("tab-aircraft").click();
+  await expect(page).toHaveURL(/[?&]past=\d+/);
+  await expect(flight.getByTestId("replay-now")).toContainText(/ft · 100 kt · S/);
   await flight.getByTestId("replay-stop").click();
   await expect(flight.getByTestId("replay-now")).toHaveCount(0);
   // Closed: back to the airplane's card on its Activity, the path put away.
