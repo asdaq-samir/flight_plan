@@ -148,6 +148,38 @@
         "title": "AheadAlert",
         "type": "object"
       },
+      "AircraftBases": {
+        "description": "Where airplanes are based (vfr.traffic.based): the field their last\nflights keep to, or None where none; those still being looked up are\npending, given on a later ask.",
+        "properties": {
+          "based": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/PastFlightField"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Based",
+            "type": "object"
+          },
+          "pending": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Pending",
+            "type": "array"
+          }
+        },
+        "required": [
+          "based",
+          "pending"
+        ],
+        "title": "AircraftBases",
+        "type": "object"
+      },
       "AircraftProfile": {
         "additionalProperties": true,
         "description": "The aircraft's name plus its performance profile -- every field a\ndata/aircraft/*.json file carries, declared, so a page reads them as\nfields rather than guessing at a dict. The three figures after the\nname are required when a profile is loaded (REQUIRED_FIELDS in\nvfr.aircraft); the rest fall back to defaults in vfr.navlog when a\nprofile leaves them out. `extra=\"allow\"` keeps a field a newer\nprofile adds on its way through.",
@@ -9386,6 +9418,17 @@
             ],
             "title": "Callsign"
           },
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
           "emergency": {
             "anyOf": [
               {
@@ -12704,6 +12747,50 @@
           }
         },
         "summary": "Traffic Near"
+      }
+    },
+    "/api/traffic/based": {
+      "get": {
+        "description": "Where each airplane is based, for the Aircraft tab's \"based at\"\nfilter (vfr.traffic.based): the field its last flights begin and end at\nmost; the ones not known yet looked up in the background, pending.",
+        "operationId": "traffic_based_api_traffic_based_get",
+        "parameters": [
+          {
+            "description": "ICAO addresses, comma-separated, 60 at most",
+            "in": "query",
+            "name": "hex",
+            "required": true,
+            "schema": {
+              "description": "ICAO addresses, comma-separated, 60 at most",
+              "maxLength": 420,
+              "minLength": 6,
+              "title": "Hex",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AircraftBases"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Traffic Based"
       }
     },
     "/api/traffic/find": {

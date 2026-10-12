@@ -1,4 +1,4 @@
-import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, lazy, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plane, PlaneTakeoff } from "lucide-react";
 import { cn } from "cn";
@@ -6,17 +6,17 @@ import { PanelCard } from "../../../components/PanelCard";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
 import { api } from "../../../lib/api/client";
 import type { AircraftRegistration, TrafficAircraft } from "../../../lib/api/types";
-import { compassPoint } from "../../../lib/compass";
-import { bearingDeg, distanceNm, type LatLon } from "../../../lib/geo";
+import { distanceNm } from "../../../lib/geo";
 import { useOwnShip } from "../../../lib/map/ownShip";
 import { usePreferences, type KeptAircraft } from "../../../lib/preferences";
 import { startPickingMine, useTabSearch } from "../../../lib/tabSearch";
 import { PillStrip, PlaceTile, SmallMark, SmallTile } from "../../../components/Favorites";
 import { ClearList, SwipeToDelete } from "../../../components/SwipeToDelete";
-import { trafficLabel } from "../../../lib/map/traffic";
+import AircraftRow from "./AircraftRow";
+
+const AircraftFilters = lazy(() => import("./AircraftFilters"));
 import { useTracking } from "../../../lib/map/tracking";
 import { TEXT } from "../../../lib/text";
-import { altFt } from "../../../lib/units";
 
 /** What is typed waits this long for the next letter before it is asked
  *  about: each search is a request adsb.lol paces (vfr.traffic). */
@@ -36,23 +36,6 @@ function named(plane: TrafficAircraft, text: string): boolean {
     || plane.hex.toUpperCase().startsWith(text);
 }
 
-/** One airplane in a list: its name, what it is and how it flies, and
- *  how far and which way it is from `from`. */
-function AircraftRow({ plane, from, ownFt, onPick, testId = "aircraft-row" }: {
-  plane: TrafficAircraft; from: LatLon | null; ownFt: number | null; onPick: () => void; testId?: string;
-}) {
-  const where = from ? `${distanceNm(from, plane).toFixed(1)} nm ${compassPoint(bearingDeg(from, plane))}` : undefined;
-  const height = plane.altitude_ft == null ? null
-    : ownFt != null ? trafficLabel(plane, ownFt) : `${altFt(Math.round(plane.altitude_ft / 100) * 100)} ft`;
-  return (
-    <ListRow
-      media={<Plane className="size-5 text-muted-foreground" style={{ transform: `rotate(${(plane.track_deg ?? 45) - 45}deg)` }} />}
-      title={<span className="font-semibold">{plane.callsign ?? plane.registration ?? plane.hex.toUpperCase()}</span>}
-      description={[plane.type, height, plane.speed_kt != null ? `${Math.round(plane.speed_kt)} kt` : null].filter(Boolean).join(" · ")}
-      value={where} chevron onClick={onPick} data-testid={testId}
-    />
-  );
-}
 
 /**
  * Aircraft, from the map's button under Nearest, at the pilot's ask: a
@@ -247,16 +230,15 @@ export default function AircraftCard({ onPick, onPickHex }: {
             ))}
           </ListGroup>
         )}
-        <ListGroup
-          title={from ? "Near you" : "On the map"}
-          footer="From adsb.lol's ADS-B receivers, under the Open Database License: seconds old, for knowing what is about, not for avoiding it."
-        >
-          {about.length
-            // Every one the map has, at the pilot's ask ("all the traffic on
-            // the map"); it was the nearest forty.
-            ? listedAbout.map(plane => <AircraftRow key={plane.hex} plane={plane} from={from} ownFt={ownFt} onPick={() => onPick(plane)} />)
-            : <ListRow title={<span className="text-muted-foreground">None heard yet</span>} />}
-        </ListGroup>
+        {/* No list of everything about, at the owner's ask; the
+            filters, an FBO's as much as a pilot's, and what they keep. */}
+        {!searching && (
+          // Its own chunk, the stock Select and the filters' logic with it:
+          // this card is on the planner's first load.
+          <Suspense fallback={null}>
+            <AircraftFilters seen={listedAbout} from={from} ownFt={ownFt} onPick={pickPlane} />
+          </Suspense>
+        )}
       </div>
     </PanelCard>
   );

@@ -65,7 +65,7 @@ def test_an_airplane_in_the_air_as_the_map_draws_it(clock):
         "hex": "a128b9", "callsign": "N174HA", "registration": "N174HA", "type": "C172", "lat": 42.30128, "lon": -88.14525,
         # The GNSS height, as the phone's own is, and its climb.
         "altitude_ft": 1325.0, "pressure_altitude": False, "track_deg": 320.19, "speed_kt": 93.7, "vertical_fpm": -384.0,
-        "seen_s": 0.291, "squawk": None, "emergency": None,
+        "seen_s": 0.291, "squawk": None, "emergency": None, "category": None,
     }]}
 
 
@@ -703,3 +703,38 @@ def test_a_flight_abroad_is_named_by_its_own_airports(clock, monkeypatch):
          "elevation_ft": 12.0, "distance_nm": 1.5, "bearing_deg": 70}])
     landing = {"lat": 41.29, "lon": 2.05, "alt_ft": 900.0, "track_deg": 70.0, "vrate_fpm": -700.0}
     assert traffic._field_at(landing, landing=True)["ident"] == "LEBL"
+
+
+def test_an_airplane_is_based_where_most_of_its_flights_begin_and_end(clock, monkeypatch):
+    lci, lwm, mht = ({"ident": i, "name": i, "city": None, "region": None} for i in ("LCI", "LWM", "MHT"))
+    hop = lambda a, b: {"origin": a, "destination": b, "landed": True}  # noqa: E731
+    # Out and back from Lawrence, one trip to Laconia.
+    assert traffic._base_of([hop(lwm, lci), hop(lci, lwm), hop(lwm, mht), hop(mht, lwm)])["ident"] == "LWM"
+    # Too few flights to say, or no field it keeps to.
+    assert traffic._base_of([hop(lwm, lci)]) is None
+    assert traffic._base_of([hop(lwm, lci), hop(mht, {"ident": "BOS"}), hop({"ident": "ORH"}, {"ident": "PVD"})]) is None
+
+
+def test_the_bases_asked_for_are_given_as_they_are_found(clock, monkeypatch):
+    lwm = {"ident": "LWM", "name": "Lawrence", "city": None, "region": None}
+    monkeypatch.setattr(traffic, "_BASED", traffic.TTLCache(maxsize=16, ttl=60))
+    monkeypatch.setattr(traffic, "_BASED_PENDING", set())
+    looked = []
+
+    class Now:
+        """The pool, run at once."""
+        def submit(self, fn, *args):
+            looked.append(args[0])
+            fn(*args)
+
+    monkeypatch.setattr(traffic, "_BASED_POOL", Now())
+    monkeypatch.setattr(traffic, "history", lambda hex_id: {"flights": [
+        {"origin": lwm, "destination": lwm, "landed": True}] * 3})
+    first = traffic.based(["A89C1E", "~abcdef", "nothex"])
+    # Not known yet: looked up (the address only, not a pseudo-address or
+    # what is not one), and said to be pending.
+    assert first == {"based": {}, "pending": ["a89c1e"]}
+    # Kept: the next ask is answered from what was found, not looked up again.
+    again = traffic.based(["a89c1e"])
+    assert again == {"based": {"a89c1e": lwm}, "pending": []}
+    assert looked == ["a89c1e"]

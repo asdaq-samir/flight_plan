@@ -60,7 +60,14 @@ test.afterEach(async ({ page }) => {
   await page.unrouteAll({ behavior: "ignoreErrors" });
 });
 
-test("Aircraft is a tab, lists the airplanes about, and a tap on one tracks it: its card, its path, the map on it", async ({ page }) => {
+/** The Aircraft tab's filter picked by kind: no list until one is, at the
+ *  owner's ask; the stub's airplanes send no emitter category ("other"). */
+async function filterKind(page: Page, kind: string) {
+  await page.getByTestId("filter-kind").click();
+  await page.getByRole("option", { name: kind, exact: true }).click();
+}
+
+test("Aircraft is a tab, lists the airplanes a filter keeps, and a tap on one tracks it: its card, its path, the map on it", async ({ page }) => {
   await sky(page);
   await page.goto("/app/plan");
   await settle(page);
@@ -70,8 +77,11 @@ test("Aircraft is a tab, lists the airplanes about, and a tap on one tracks it: 
   await showTabs(page);
   await expect(page.getByTestId("tab-aircraft")).toHaveAttribute("aria-current", "page");
   const list = page.getByTestId("aircraft-card");
-  await expect(list.getByTestId("aircraft-row")).toHaveCount(2, { timeout: slow(15_000) });
-  await list.getByTestId("aircraft-row").filter({ hasText: "UAL2088" }).click();
+  // Nothing listed until a filter asks, at the owner's ask.
+  await expect(list.getByTestId("filter-row")).toHaveCount(0);
+  await filterKind(page, "Other");
+  await expect(list.getByTestId("filter-row")).toHaveCount(2, { timeout: slow(15_000) });
+  await list.getByTestId("filter-row").filter({ hasText: "UAL2088" }).click();
   await expect(page).toHaveURL(/[?&]flight=a0b7d8/);
   const card = page.getByTestId("flight-card");
   await expect(card.getByTestId("flight-name")).toHaveText("UAL2088");
@@ -135,7 +145,8 @@ test("a search finds the airplanes about as it is typed, and asks the planner on
   await page.goto("/app/plan?aircraft=1");
   await settle(page);
   const card = page.getByTestId("aircraft-card");
-  await expect(card.getByTestId("aircraft-row")).toHaveCount(2, { timeout: slow(15_000) });
+  await filterKind(page, "Other");
+  await expect(card.getByTestId("filter-row")).toHaveCount(2, { timeout: slow(15_000) });
   const search = page.getByTestId("aircraft-search");
   // On the map already: found as it is typed, before any answer.
   await search.fill("N17");
@@ -402,4 +413,43 @@ test("an airplane opened is in the Aircraft card's Recents, and one starred on i
   await list.getByTestId("aircraft-favorite").click();
   await expect(page).toHaveURL(/[?&]flight=a0b7d8/);
   await expect(page.getByTestId("flight-card").getByTestId("flight-favorite")).toHaveAttribute("aria-pressed", "true");
+});
+
+test("the Aircraft tab's filters: round an airport, inbound and departing by track and climb, and an emergency", async ({ page }) => {
+  // KDPA, DuPage, and two airplanes about it: one north of it heading south
+  // and coming down, one south of it heading south and climbing away.
+  const field = { ident: "KDPA", name: "DuPage Airport", lat: 41.9078, lon: -88.2486, elevation_ft: 759 };
+  const coming = { ...CESSNA, hex: "a00001", callsign: "N1IN", registration: "N1IN", lat: 42.05, lon: -88.2486, altitude_ft: 2500,
+    track_deg: 180, vertical_fpm: -500, category: "A1" };
+  const going = { ...CESSNA, hex: "a00002", callsign: "N2OUT", registration: "N2OUT", lat: 41.80, lon: -88.2486, altitude_ft: 2200,
+    track_deg: 180, vertical_fpm: 800, category: "A1", squawk: "7700" };
+  await page.route(url => url.pathname.endsWith("/api/planner/traffic"), route =>
+    route.fulfill({ json: { aircraft: [coming, going], age_s: 1, source: "adsb.lol", license: "ODbL 1.0" } }));
+  await page.route(url => url.pathname.endsWith("/api/planner/airport/KDPA"), route => route.fulfill({ json: { ...field, runways: [] } }));
+  await page.goto("/app/plan?aircraft=1");
+  await settle(page);
+  const card = page.getByTestId("aircraft-card");
+  await card.getByTestId("filter-place").getByText("Airport").click();
+  await card.getByTestId("filter-airport").fill("KDPA");
+  await card.getByTestId("filter-airport").press("Enter");
+  const rows = card.getByTestId("filter-row");
+  // About it: both, within 10 nm.
+  await expect(rows).toHaveCount(2, { timeout: slow(15_000) });
+  await card.getByTestId("filter-relation").getByText("Inbound").click();
+  await expect(rows).toHaveText([/N1IN/]);
+  await card.getByTestId("filter-relation").getByText("Departing").click();
+  await expect(rows).toHaveText([/N2OUT/]);
+  // Kept in this browser, and Emergencies only keeps the one squawking 7700.
+  await card.getByTestId("filter-relation").getByText("About").click();
+  await card.getByTestId("filter-emergency").click();
+  await expect(rows).toHaveText([/N2OUT/]);
+  // A reload opens fresh (lib/freshLoad); the tab again, the filter as it was.
+  await page.reload();
+  await settle(page);
+  await showTabs(page);
+  await page.getByTestId("tab-aircraft").click();
+  await expect(card.getByTestId("filter-row")).toHaveText([/N2OUT/], { timeout: slow(15_000) });
+  // Cleared: no list again.
+  await card.getByTestId("aircraft-filter-clear").click();
+  await expect(card.getByTestId("filter-row")).toHaveCount(0);
 });

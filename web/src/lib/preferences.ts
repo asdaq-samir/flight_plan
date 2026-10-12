@@ -1,3 +1,4 @@
+import { NO_FILTER, type AircraftFilter } from "./fbo";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { DEFAULT_FILTERS, type FilterKey, type Filters } from "../features/train/logic";
@@ -131,6 +132,10 @@ interface Preferences {
    *  as Home is among the airports', at the owner's ask: "My Plane". */
   myAircraft: KeptAircraft | null;
   setMyAircraft: (aircraft: KeptAircraft | null) => void;
+  /** The Aircraft tab's filters (lib/fbo), kept: an FBO's desk keeps its
+   *  airport from one day to the next. */
+  aircraftFilter: AircraftFilter;
+  setAircraftFilter: (change: Partial<AircraftFilter>) => void;
   addRecentAircraft: (aircraft: KeptAircraft) => void;
   /** One airplane taken off the Recents (a swipe), or all of them (Clear). */
   removeRecentAircraft: (hex: string) => void;
@@ -222,6 +227,8 @@ export const usePreferences = create<Preferences>()(
       favoriteAircraft: [],
       myAircraft: null,
       setMyAircraft: myAircraft => set({ myAircraft }),
+      aircraftFilter: NO_FILTER,
+      setAircraftFilter: change => set(s => ({ aircraftFilter: { ...s.aircraftFilter, ...change } })),
       addRecentAircraft: aircraft => set(s => ({
         recentAircraft: [aircraft, ...s.recentAircraft.filter(a => a.hex !== aircraft.hex)].slice(0, RECENTS),
         // A favourite's name and type kept up to date as it is seen again.
@@ -287,6 +294,7 @@ export const usePreferences = create<Preferences>()(
         flightRules: s.flightRules,
         recentAirports: s.recentAirports, homeAirport: s.homeAirport, favoriteAirports: s.favoriteAirports,
         recentAircraft: s.recentAircraft, favoriteAircraft: s.favoriteAircraft, myAircraft: s.myAircraft,
+        aircraftFilter: s.aircraftFilter,
       }),
     },
   ),

@@ -1,15 +1,7 @@
 import createClient, { type Middleware } from "openapi-fetch";
 import type { paths } from "./schema";
 import type { paths as WebappPaths } from "./webapp-schema";
-import type {
-  Aircraft, AircraftChoice, AircraftProfiles, AircraftRequest, AirportPlace, AirportSearch, AirportsInView, AltitudeChoice, Briefing,
-  ChartInfo, ChartPages, ChartRefreshStarted, PlacesFound, CheckpointDescriptionMessage, CheckpointNoteSaved, Checkpoints, Classification, Course, Detour,
-  Flight, FlightSummary, ModelComparison, NarrativeMessage, NarrativeRequest, NavLogMessage, PickDeleted, PickSaved,
-  AirspaceAt, AlertsAhead, ClassBResponse, FlightDetail, FlightRoute, GoogleMaps, Traffic, TrafficFound, NearestAirports, RouteProfile, Tfrs, DevServices, DevServiceStarted, Pilot, Rating, RetrainStarted, Role, SaveFlightRequest,
-  SignInCapabilities, AppleSignedIn, LogbookEntry, LogbookEntryRequest, Currency, CurrencyDatesRequest, Subscription, Alternates, VorCheckRequest, InspectionsRequest, ChecklistDto, Squawk, SquawkRequest, Reminders, LogbookImportResult, FlightPlanFilingRequest, FlightServiceStatus, FlightPlanFiled, DeviceCode,
-  Status, StreamMessage, Totals, WaypointsInView, Training, SavedTrack,
-  OralQuestion, OralQuestionRequest, OralGrade, OralGradeRequest, ProcedureDrawing, ProcedureList, SpeedDay, PastFlights, PastFlight,
-} from "./types";
+import type { Aircraft, AircraftBases, AircraftChoice, AircraftProfiles, AircraftRequest, AirportPlace, AirportSearch, AirportsInView, AirspaceAt, AlertsAhead, Alternates, AltitudeChoice, AppleSignedIn, Briefing, ChartInfo, ChartPages, ChartRefreshStarted, ChecklistDto, CheckpointDescriptionMessage, CheckpointNoteSaved, Checkpoints, ClassBResponse, Classification, Course, Currency, CurrencyDatesRequest, Detour, DeviceCode, DevServices, DevServiceStarted, Flight, FlightDetail, FlightPlanFiled, FlightPlanFilingRequest, FlightRoute, FlightServiceStatus, FlightSummary, GoogleMaps, InspectionsRequest, LogbookEntry, LogbookEntryRequest, LogbookImportResult, ModelComparison, NarrativeMessage, NarrativeRequest, NavLogMessage, NearestAirports, OralGrade, OralGradeRequest, OralQuestion, OralQuestionRequest, PastFlight, PastFlights, PickDeleted, PickSaved, Pilot, PlacesFound, ProcedureDrawing, ProcedureList, Rating, Reminders, RetrainStarted, Role, RouteProfile, SavedTrack, SaveFlightRequest, SignInCapabilities, SpeedDay, Squawk, SquawkRequest, Status, StreamMessage, Subscription, Tfrs, Totals, Traffic, TrafficFound, Training, VorCheckRequest, WaypointsInView } from "./types";
 
 /**
  * Every call the pages make. Both servers' calls go through
@@ -440,6 +432,11 @@ export const api = {
    *  from adsb.lol's open data (TrafficLayer). */
   traffic: (ask: { lat: number; lon: number; radius: number }) =>
     planner.GET("/api/traffic", { params: { query: ask } }).then(data<Traffic>),
+
+  /** Where airplanes are based, the field their last flights keep to; the
+   *  ones still being looked up pending (the Aircraft tab's "based at"). */
+  trafficBased: (hexes: string[]) =>
+    planner.GET("/api/traffic/based", { params: { query: { hex: hexes.join(",") } } }).then(data<AircraftBases>),
 
   /** The airplanes in the air a pilot names, by callsign, registration or
    *  ICAO address, to track one (AircraftCard); with none in the air, the

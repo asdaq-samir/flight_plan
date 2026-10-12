@@ -5,7 +5,7 @@ import datetime as dt
 from fastapi import APIRouter, HTTPException, Path, Query
 from vfr import traffic
 
-from ..schemas import FlightDetail, FlightRoute, PastFlight, PastFlights, Traffic, TrafficFound
+from ..schemas import AircraftBases, FlightDetail, FlightRoute, PastFlight, PastFlights, Traffic, TrafficFound
 
 router = APIRouter()
 
@@ -87,3 +87,14 @@ def traffic_past_flight(hex_id: str = Path(pattern=r"^~?[0-9a-fA-F]{6}$"), fligh
     if found is None:
         raise HTTPException(404, "No such flight of this airplane in adsb.lol's archive.")
     return PastFlight(**found)
+
+
+@router.get("/api/traffic/based", response_model=AircraftBases)
+def traffic_based(
+    hex: str = Query(min_length=6, max_length=7 * 60, description="ICAO addresses, comma-separated, 60 at most"),
+) -> AircraftBases:
+    """Where each airplane is based, for the Aircraft tab's "based at"
+    filter (vfr.traffic.based): the field its last flights begin and end at
+    most; the ones not known yet looked up in the background, pending."""
+    hexes = [h.strip() for h in hex.split(",") if h.strip()][:60]
+    return AircraftBases(**traffic.based(hexes))
