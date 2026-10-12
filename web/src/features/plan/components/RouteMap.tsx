@@ -10,8 +10,6 @@ import type { BriefingState } from "../hooks/usePlan";
 import type { AirportWeather } from "../../../lib/map/AirportCard";
 import { AirportsLayer } from "../../../lib/map/AirportsLayer";
 import { useAfterPaint } from "../../../hooks/use-after-paint";
-import NearestButton from "../../../components/NearestButton";
-import AircraftButton from "../../../components/AircraftButton";
 import { WaypointsLayer } from "../../../lib/map/WaypointsLayer";
 import { TfrLayer } from "../../../lib/map/TfrLayer";
 import { PatternLayer } from "../../../lib/map/PatternLayer";
@@ -81,10 +79,6 @@ interface Props {
    *  finger held on the chart, or a right-click. */
   heldPoint: { lat: number; lon: number } | null;
   onHoldPoint: (point: { lat: number; lon: number }) => void;
-  /** Nearest, from the map's button on its left. */
-  onNearest: () => void;
-  /** Aircraft, from the button under Nearest's. */
-  onAircraft: () => void;
 }
 
 /** A finger held on the chart, or a right-click, asks what airspace is
@@ -422,7 +416,7 @@ const PLACE_ZOOM = 9;
 // renders at each answer that streams in, and the whole map went with it.
 export default memo(function RouteMap({
   course, candidates, selected, focus, onSelectCandidate, onSelectPoint,
-  airportWeather, place, onSelectPlace, onAddStop, legs, heldPoint, onHoldPoint, nearest = null, onNearest, onAircraft, patterns = NO_PATTERNS, patternFocus = null,
+  airportWeather, place, onSelectPlace, onAddStop, legs, heldPoint, onHoldPoint, nearest = null, patterns = NO_PATTERNS, patternFocus = null,
   procedures = NO_PROCEDURES, procedureFocus = null,
 }: Props) {
   const focusZoom = course?.max_zoom ?? 12;
@@ -438,14 +432,6 @@ export default memo(function RouteMap({
     const d = picked && procedures.find(q => sameField(q.airport, picked.ident) && q.id === picked.id && q.transition === picked.transition);
     return d ? [...d.lines, ...d.holds].flatMap(l => l.points.map(([lat, lon]) => ({ lat, lon }))) : NO_POINTS;
   }, [procedures, procedureFocus]);
-  // Nearest among the map's buttons on its left, and Aircraft under it at
-  // the pilot's ask, one element while their callbacks are the same.
-  const nearestButton = useMemo(() => (
-    <>
-      <NearestButton onOpen={onNearest} />
-      <AircraftButton onOpen={onAircraft} />
-    </>
-  ), [onNearest, onAircraft]);
   // The route's airports, one array while the course is the same answer:
   // the checkpoints' names keep off their chips.
   const airports = useMemo(() => (course ? routeAirports(course) : []), [course]);
@@ -479,7 +465,6 @@ export default memo(function RouteMap({
   return (
     <MapShell
       course={course} onSelectPlace={onSelectPlace} held={!!focus || !!place || !!heldPoint || !!nearest}
-      leftControls={nearestButton}
     >
       {/* The chart's own airports with no route as well: a tap on a field
           opens its card, and Fly Here makes the route. */}

@@ -24,8 +24,8 @@ test("Nearest opens as a card half way up, a field over it as a layer, and its c
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   await openPanel(page);
-  // Among the map's buttons on its left.
-  await page.locator("[data-map-controls-left]").getByTestId("nearest-button").click();
+  // The tab bar's NRST, at the pilot's ask, where it was a button on the map.
+  await page.getByTestId("tab-nrst").click();
   const card = sideDrawer(page).getByTestId("nearest-card");
   await expect(card).toBeVisible();
   await expect(sideDrawer(page)).toHaveAttribute("data-panel", "half");
@@ -45,7 +45,8 @@ test("Nearest opens as a card half way up, a field over it as a layer, and its c
   await expect(sideDrawer(page).getByTestId("place-card")).toBeVisible();
   await sideDrawer(page).getByTestId("place-close").click();
   await expect(card).toBeVisible();
-  await card.getByTestId("nearest-close").click();
+  // Back to the route by its own tab.
+  await page.getByTestId("tab-fpl").click();
   await expect(card).toHaveCount(0);
   await expect(sideDrawer(page).getByTestId("panel-tab-navlog")).toBeVisible();
   await expect(sideDrawer(page)).toHaveAttribute("data-panel", "half");
@@ -91,7 +92,8 @@ test("Nearest is from a place typed -- a town, an address, an airport -- and bac
   await page.goto("/app/plan?near=1");
   await settle(page);
   const card = sideDrawer(page).getByTestId("nearest-card");
-  const field = card.getByTestId("nearest-from");
+  // NRST's field is the panel's head, as the airport search's is.
+  const field = sideDrawer(page).getByTestId("nearest-from");
   await expect(field).toHaveAttribute("placeholder", "Current position");
 
   await field.fill("madison");
@@ -102,7 +104,7 @@ test("Nearest is from a place typed -- a town, an address, an airport -- and bac
   expect(asked).toContain("43.1,-89.4");
 
   // Its clear: from the position again.
-  await card.getByTestId("nearest-from-clear").click();
+  await sideDrawer(page).getByTestId("search-clear").click();
   await expect(page).not.toHaveURL(/nearAt=/);
   await expect(field).toHaveValue("");
 });

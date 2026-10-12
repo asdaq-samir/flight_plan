@@ -99,7 +99,8 @@ test("the traffic is asked about wherever the map is panned, own ship or not, an
   // not Campbell, 65 nm away to the south-east.
   await expect.poll(() => {
     const lat = Number(last().get("lat")), lon = Number(last().get("lon"));
-    return lat > 42.8 && lon < -88.8;
+    const from = (a: number, b: number) => Math.hypot(lat - a, (lon - b) * 0.73);
+    return from(43.14, -89.34) < from(42.32, -88.07);
   }, { timeout: slow(15_000) }).toBe(true);
   // Zoomed out to a state: asked further than the near regions' 60 nm.
   const map = (await page.locator(".leaflet-container").boundingBox())!;

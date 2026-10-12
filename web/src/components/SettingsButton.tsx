@@ -13,7 +13,10 @@ import RoundButton from "./RoundButton";
  */
 export default function SettingsButton(props: Omit<ComponentProps<typeof RoundButton>, "label" | "children">) {
   return (
-    <RoundButton label="Settings" data-testid="settings-button" {...props}>
+    // A button, not a submit: it sits in the search fields' forms
+    // (SearchField), and as the form's default button Return in a field
+    // pressed it, opening the console, instead of submitting the search.
+    <RoundButton label="Settings" data-testid="settings-button" type="button" {...props}>
       <Settings className="size-5" strokeWidth={2} />
     </RoundButton>
   );

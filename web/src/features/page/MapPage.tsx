@@ -334,7 +334,7 @@ export default function MapPage({ mode }: { mode: Mode }) {
             label={consoleLayer ? consoleLabel : panelLabel} controls={pieces.alone || consoleLayer ? undefined : pieces.controls}
             figures={pieces.alone || consoleLayer ? undefined : pieces.figures}
             state={panel} onStateChange={setPanel} onInsetsChange={changeInsets}
-            compact={pieces.compact} toEdge={!consoleLayer && !!pieces.toEdge}
+            compact={pieces.compact} toEdge={!consoleLayer && !!pieces.toEdge} bar={pieces.bar}
             top={pieces.alone || consoleLayer ? null : pieces.head ?? (
               <>
                 <div className="min-w-0 flex-1">

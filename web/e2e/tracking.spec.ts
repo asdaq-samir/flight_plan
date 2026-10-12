@@ -45,7 +45,10 @@ const DETAIL = {
 async function sky(page: Page, detail: object = DETAIL) {
   const reported = Date.now();
   await page.route(url => url.pathname.endsWith("/api/planner/traffic"), route =>
-    route.fulfill({ json: { aircraft: [UAL, CESSNA], age_s: (Date.now() - reported) / 1000, source: "adsb.lol", license: "ODbL 1.0" } }));
+    // Seconds old, as the planner's answer is -- never past the half
+    // minute the map carries an airplane on for (CARRY_S), however long
+    // the test has run: a slow run's airplanes had all aged off the map.
+    route.fulfill({ json: { aircraft: [UAL, CESSNA], age_s: Math.min(5, (Date.now() - reported) / 1000), source: "adsb.lol", license: "ODbL 1.0" } }));
   await page.route(url => url.pathname.startsWith("/api/planner/traffic/flight/"), route => route.fulfill({ json: detail }));
   await page.route(url => url.pathname.endsWith("/api/planner/traffic/route"), route =>
     route.fulfill({ json: new URL(route.request().url()).searchParams.get("callsign") === "UAL2088" ? ROUTE : null }));
@@ -57,16 +60,13 @@ test.afterEach(async ({ page }) => {
   await page.unrouteAll({ behavior: "ignoreErrors" });
 });
 
-test("Aircraft sits under Nearest, lists the airplanes about, and a tap on one tracks it: its card, its path, the map on it", async ({ page }) => {
+test("Aircraft is a tab, lists the airplanes about, and a tap on one tracks it: its card, its path, the map on it", async ({ page }) => {
   await sky(page);
   await page.goto("/app/plan");
   await settle(page);
-  const nearest = (await page.getByTestId("nearest-button").boundingBox())!;
-  const aircraft = page.getByTestId("aircraft-button");
-  const box = (await aircraft.boundingBox())!;
-  expect(box.y).toBeGreaterThan(nearest.y + nearest.height - 1);
-  expect(Math.abs(box.x - nearest.x)).toBeLessThan(2);
-  await aircraft.click();
+  // The tab bar's Aircraft, at the pilot's ask, where it was a button under Nearest's.
+  await page.getByTestId("tab-aircraft").click();
+  await expect(page.getByTestId("tab-aircraft")).toHaveAttribute("aria-current", "page");
   const list = page.getByTestId("aircraft-card");
   await expect(list.getByTestId("aircraft-row")).toHaveCount(2, { timeout: slow(15_000) });
   await list.getByTestId("aircraft-row").filter({ hasText: "UAL2088" }).click();

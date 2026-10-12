@@ -1,8 +1,8 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plane, Search, X } from "lucide-react";
+import { Plane } from "lucide-react";
 import { cn } from "cn";
-import { CardHead, PanelCard } from "../../../components/PanelCard";
+import { PanelCard } from "../../../components/PanelCard";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
 import { api } from "../../../lib/api/client";
 import type { TrafficAircraft } from "../../../lib/api/types";
@@ -10,6 +10,7 @@ import { compassPoint } from "../../../lib/compass";
 import { bearingDeg, distanceNm, type LatLon } from "../../../lib/geo";
 import { useOwnShip } from "../../../lib/map/ownShip";
 import { usePreferences } from "../../../lib/preferences";
+import { useTabSearch } from "../../../lib/tabSearch";
 import { PlaceTile } from "../../../components/Favorites";
 import { trafficLabel } from "../../../lib/map/traffic";
 import { useTracking } from "../../../lib/map/tracking";
@@ -59,16 +60,16 @@ function AircraftRow({ plane, from, ownFt, onPick, testId = "aircraft-row" }: {
  * coverage, and the airplanes about, nearest first; a tap tracks one
  * (FlightCard). The traffic is drawn on the map while it is open.
  */
-export default function AircraftCard({ onPick, onPickHex, onClose }: {
+export default function AircraftCard({ onPick, onPickHex }: {
   onPick: (plane: TrafficAircraft) => void;
   /** One not in the air or not heard now, by its address: its card from
    *  the FAA's record and its last flight (FlightCard). */
   onPickHex: (hex: string) => void;
-  onClose: () => void;
 }) {
-  const [typed, setTyped] = useState("");
+  // Typed in the Aircraft tab's search field, in the panel's head
+  // (PlanWorkspace), as the airport search's is.
+  const typed = useTabSearch(s => s.aircraft);
   const [asked, setAsked] = useState("");
-  const input = useRef<HTMLInputElement>(null);
   const wanted = typed.replace(/\s+/g, "").toUpperCase();
   const searching = wanted.length >= 3;
   const { data: found, isFetching, isError } = useQuery({
@@ -123,6 +124,19 @@ export default function AircraftCard({ onPick, onPickHex, onClose }: {
   // by its N-number or address, its card opened all the same (FlightCard:
   // its registration, and its last flight where it flew today).
   const registered = asked === wanted && !listed.length ? found?.registered ?? null : null;
+  // Return in the field: the first found, or the search asked now rather
+  // than at the pause.
+  const submit = () => {
+    if (listed[0]) onPick(listed[0]);
+    else if (registered?.mode_s_hex) onPickHex(registered.mode_s_hex);
+    else if (!isFetching) setAsked(wanted);
+  };
+  const submitRef = useRef(submit);
+  useEffect(() => { submitRef.current = submit; });
+  useEffect(() => {
+    useTabSearch.setState({ submitAircraft: () => submitRef.current() });
+    return () => useTabSearch.setState({ submitAircraft: null });
+  }, []);
   const from = fix ? { lat: fix.lat, lon: fix.lon } : null;
   const about = useMemo(() => {
     const planes = seen.map(r => r.plane);
@@ -137,33 +151,7 @@ export default function AircraftCard({ onPick, onPickHex, onClose }: {
   const ownFt = fix?.altitudeFt ?? null;
   return (
     <PanelCard testId="aircraft-card">
-      <CardHead name="Aircraft" line="Track one: tap it on the map or find it here." onClose={onClose} closeTestId="aircraft-close" />
-      <div className="space-y-5 pt-3">
-        {/* The search bar's field, as Nearest's is. */}
-        <label className={cn("flex h-[2.5625rem] items-center gap-2 rounded-full bg-foreground/8 px-3.5 text-muted-foreground", TEXT.row)}>
-          <Search className="size-5 shrink-0 text-foreground" strokeWidth={1.75} aria-hidden="true" />
-          <input
-            ref={input} type="search" enterKeyHint="search" autoComplete="off" autoCorrect="off" autoCapitalize="characters" spellCheck={false}
-            value={typed} onChange={e => setTyped(e.target.value)}
-            onKeyDown={e => {
-              if (e.key !== "Enter") return;
-              // The first found, or the search asked now rather than at the pause.
-              if (listed[0]) onPick(listed[0]);
-              else if (registered?.mode_s_hex) onPickHex(registered.mode_s_hex);
-              else if (!isFetching) setAsked(wanted);
-            }}
-            placeholder="Callsign, registration or ICAO address" aria-label="Find an aircraft" data-testid="aircraft-search"
-            className="min-w-0 flex-1 bg-transparent text-foreground outline-none placeholder:text-muted-foreground [&::-webkit-search-cancel-button]:hidden"
-          />
-          {typed && (
-            <button
-              type="button" aria-label="Clear" onClick={() => { setTyped(""); input.current?.focus(); }}
-              className="relative grid size-5 shrink-0 place-items-center rounded-full bg-muted-foreground/50 text-background outline-none after:absolute after:-inset-3 after:content-[''] focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              <X className="size-3" strokeWidth={3} />
-            </button>
-          )}
-        </label>
+      <div className="space-y-5 pt-1">
         {(searching || heard.length > 0) && (
           <ListGroup title="Found">
             {listed.map(plane => (

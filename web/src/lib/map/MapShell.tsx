@@ -5,7 +5,7 @@ import "leaflet/dist/leaflet.css";
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { MapContainer, ZoomControl } from "react-leaflet";
-import MapControls, { MapControlsLeft } from "../../components/MapControls";
+import MapControls from "../../components/MapControls";
 import MapBanners from "../../components/MapBanners";
 import { MapInsetsContext, NO_INSETS, SHEET_SECONDS } from "../../components/mapChrome";
 import type { Course } from "../api/types";
@@ -39,9 +39,6 @@ interface Props {
    *  card, a point held for its airspace -- which the panel settling at
    *  another height keeps in sight rather than fitting the route again. */
   held?: boolean;
-  /** The map's buttons on its left, where a map has any (the planner's
-   *  Nearest). */
-  leftControls?: ReactNode;
 }
 
 /**
@@ -61,7 +58,7 @@ const COUNTRY_ZOOM = 4;
 /** The least the map is fitted to round a route: about 10 nm across. */
 const MIN_FIT_M = 18_520;
 
-export function MapShell({ course, onReady, children, onSelectPlace, held = false, leftControls }: Props) {
+export function MapShell({ course, onReady, children, onSelectPlace, held = false }: Props) {
   // Once: a page is on a TV or not for its whole visit.
   const [onTv] = useState(() => tvPlatform() !== null);
   // With no route, where the pilot's position last was, at the zoom the
@@ -259,9 +256,8 @@ export function MapShell({ course, onReady, children, onSelectPlace, held = fals
       ) : (
         <div className="h-full w-full bg-slate-100 dark:bg-slate-900" />
       )}
-      <MapBanners clearLeft={!!leftControls} />
+      <MapBanners />
       <MapControls />
-      {leftControls && <MapControlsLeft>{leftControls}</MapControlsLeft>}
     </div>
   );
 }

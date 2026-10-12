@@ -1,10 +1,9 @@
-import { useContext, type ReactNode } from "react";
 import { cn } from "cn";
 import FlownTrackButton from "./FlownTrackButton";
 import FullscreenButton from "./FullscreenButton";
 import MyPositionButton from "./MyPositionButton";
 import MapSettingsButton from "./MapSettingsButton";
-import { GLASS, MapInsetsContext } from "./mapChrome";
+import { GLASS } from "./mapChrome";
 
 /**
  * The map's buttons, in one group floating over the chart, as Maps
@@ -26,7 +25,9 @@ export default function MapControls() {
     // controls; still inside the map's own stacking context, under the
     // panel and every portal. The map's right edge is the screen's, so
     // clear of a landscape phone's notch there.
-    <div data-map-controls="" className="absolute right-[max(0.5rem,env(safe-area-inset-right))] bottom-[calc(env(safe-area-inset-bottom)+1.5rem)] z-[1000] nav-bottom:top-[max(0.5rem,env(safe-area-inset-top))] nav-bottom:bottom-auto">
+    // At the bottom with the panel from the top, over the tab bar there on a
+    // phone (the map's bottom inset, MapPanel), or the home indicator.
+    <div data-map-controls="" className="absolute right-[max(0.5rem,env(safe-area-inset-right))] bottom-[calc(max(env(safe-area-inset-bottom),var(--map-inset-bottom,0px))+1.5rem)] z-[1000] nav-bottom:top-[max(0.5rem,env(safe-area-inset-top))] nav-bottom:bottom-auto">
       <div
         className={cn(
           // A capsule of Liquid Glass, as Maps' buttons are on iOS 26 and
@@ -47,26 +48,6 @@ export default function MapControls() {
             browser and an iPad, never an iPhone. */}
         <FullscreenButton />
       </div>
-    </div>
-  );
-}
-
-/**
- * The map's buttons on its other side, the left, mirroring the group on
- * the right (MapControls) in its glass and its height on the screen: on
- * the planner, Nearest, at the pilot's ask, where it was under the route's
- * close. From `md` up, right of the panel's column while that is out over
- * the map's left edge.
- */
-export function MapControlsLeft({ children }: { children: ReactNode }) {
-  const insets = useContext(MapInsetsContext);
-  return (
-    <div
-      data-map-controls-left=""
-      className="absolute bottom-[calc(env(safe-area-inset-bottom)+1.5rem)] left-[max(0.5rem,env(safe-area-inset-left))] z-[1000] nav-bottom:top-[max(0.5rem,env(safe-area-inset-top))] nav-bottom:bottom-auto"
-      style={insets.left ? { left: insets.left + 8 } : undefined}
-    >
-      <div className={cn("flex flex-col gap-2 rounded-full p-1 [&_button]:rounded-full", GLASS)}>{children}</div>
     </div>
   );
 }

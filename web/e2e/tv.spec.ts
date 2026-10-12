@@ -46,8 +46,10 @@ test("on a TV the remote's arrows move from control to control, Back closes what
 
   // A card opened, and Back closes it -- a step at a time, as Escape
   // does: out of its field first where the remote is in it.
-  await page.getByTestId("nearest-button").click();
-  const card = page.getByTestId("nearest-card");
+  // The airspace's card over a point (Nearest, which this opened, is a tab
+  // now, not a card).
+  await page.goto("/app/plan?at=42.3,-88.1");
+  const card = page.getByTestId("airspace-card");
   await expect(card).toBeVisible({ timeout: slow(15000) });
   await expect(async () => {
     if (await card.count()) await back(page);

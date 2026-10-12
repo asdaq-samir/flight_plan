@@ -141,7 +141,10 @@ function FittedRoute({ title, marked }: { title: string; marked: boolean }) {
  * its search bar. Enter picks the first airport that answers, or the
  * ident typed.
  */
-export function SearchField({ value, onChange, onFocus, onCancel, onSubmit, placeholder = "Search airports", inputRef }: {
+export function SearchField({
+  value, onChange, onFocus, onCancel, onSubmit, placeholder = "Search airports", inputRef, label, testId = "search-airports",
+  icon = Search, capitals = false, onClear,
+}: {
   value: string;
   onChange: (value: string) => void;
   onFocus: () => void;
@@ -149,6 +152,16 @@ export function SearchField({ value, onChange, onFocus, onCancel, onSubmit, plac
   onSubmit: () => void;
   /** What it asks for: an airport to open, or the one to keep as Home. */
   placeholder?: string;
+  /** What a screen reader hears, where it says more than the placeholder. */
+  label?: string;
+  testId?: string;
+  /** Its glyph: the magnifier, or a pin for where from (NRST). */
+  icon?: typeof Search;
+  /** Typed in capitals, as callsigns and registrations are. */
+  capitals?: boolean;
+  /** Its clear, where clearing does more than empty it (NRST's goes back
+   *  to the position). */
+  onClear?: () => void;
   /** For a tap elsewhere (Favorites' Add) to focus it within the tap, which
    *  is when iOS brings the keyboard up. */
   inputRef?: RefObject<HTMLInputElement | null>;
@@ -156,6 +169,7 @@ export function SearchField({ value, onChange, onFocus, onCancel, onSubmit, plac
   const own = useRef<HTMLInputElement>(null);
   const input = inputRef ?? own;
   const accessory = useContext(ConsoleButtonContext);
+  const Icon = icon;
   return (
     <form
       role="search" className="flex w-full items-center gap-2"
@@ -169,13 +183,14 @@ export function SearchField({ value, onChange, onFocus, onCancel, onSubmit, plac
         "in-data-capsule:bg-white/50 dark:in-data-capsule:bg-white/10",
         TEXT.row,
       )}>
-        <Search className="size-5 shrink-0 text-foreground" strokeWidth={1.75} aria-hidden="true" />
+        <Icon className="size-5 shrink-0 text-foreground" strokeWidth={1.75} aria-hidden="true" />
         <input
           ref={input} type="search" enterKeyHint="search" autoComplete="off" autoCorrect="off" spellCheck={false}
+          autoCapitalize={capitals ? "characters" : undefined}
           value={value} onChange={e => onChange(e.target.value)} onFocus={onFocus}
           // Escape puts the search away, as the close beside it did.
           onKeyDown={e => { if (e.key === "Escape") { input.current?.blur(); onCancel(); } }}
-          placeholder={placeholder} aria-label={placeholder} data-testid="search-airports"
+          placeholder={placeholder} aria-label={label ?? placeholder} data-testid={testId}
           className="min-w-0 flex-1 bg-transparent text-foreground outline-none placeholder:text-muted-foreground [&::-webkit-search-cancel-button]:hidden"
         />
         {/* What is typed cleared inside the field, as iOS's search field
@@ -183,7 +198,7 @@ export function SearchField({ value, onChange, onFocus, onCancel, onSubmit, plac
         {value && (
           <button
             type="button" aria-label="Clear the search" data-testid="search-clear"
-            onClick={() => { onChange(""); input.current?.focus(); }}
+            onClick={() => { if (onClear) onClear(); else onChange(""); input.current?.focus(); }}
             className="grid size-5 shrink-0 place-items-center rounded-full bg-muted-foreground/50 text-background outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <X className="size-3" strokeWidth={3} />

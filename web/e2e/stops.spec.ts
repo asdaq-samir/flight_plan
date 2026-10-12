@@ -126,11 +126,12 @@ test("the route's box reads its points with an arrow between each two, a tap on 
   await expect(page).not.toHaveURL(/[?&]dest=/);
   await expect(page).toHaveURL(/[?&]dep=KRYV(&|$)/);
   await expect(sideDrawer(page).getByTestId("route-type")).toHaveAttribute("placeholder", "Destination");
-  // And the last: no route, the search back.
+  // And the last: no route, FPL's box empty to type another in.
   await lines.getByRole("group", { name: "Departure KRYV" }).focus();
   await page.keyboard.press("Delete");
   await expect(page).not.toHaveURL(/[?&]dep=/);
-  await expect(page.getByTestId("search-airports")).toBeVisible();
+  await expect(page.getByTestId("tab-fpl")).toHaveAttribute("aria-current", "page");
+  await expect(sideDrawer(page).getByTestId("route-type")).toBeVisible();
 });
 
 // A finger, as Chromium takes one from a touch screen: put down on one

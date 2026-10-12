@@ -79,8 +79,9 @@ export type HitMiss = { control: string; box: string; lost: number; by: string }
  *  covers or clips the square: a neighbour's area, an overflow:hidden
  *  ancestor, a sticky bar. Not judged: a control covered at its own
  *  centre (behind a drawer, under an overlay -- not on show), one whose
- *  square crosses a scroll container's edge (scrolled into view it would
- *  be judged), and a probe that lands on a toast, which is gone in a
+ *  square crosses a scroll container's or a clipping one's edge (scrolled
+ *  into view it would be judged: a row half under the panel's sheet's
+ *  clipped foot, the tab bar under it), and a probe that lands on a toast, which is gone in a
  *  moment and is not the layout, or on a sticky heading a row has
  *  scrolled under. */
 export function hitAreaMisses(page: Page, scope = "body", size = 44): Promise<HitMiss[]> {
@@ -114,7 +115,7 @@ export function hitAreaMisses(page: Page, scope = "body", size = 44): Promise<Hi
       let port = { l: 0, t: 0, r: innerWidth, b: innerHeight };
       for (let a = el.parentElement; a; a = a.parentElement) {
         const o = getComputedStyle(a);
-        if (!/auto|scroll/.test(o.overflowX + o.overflowY)) continue;
+        if (!/auto|scroll|clip|hidden/.test(o.overflowX + o.overflowY)) continue;
         const b = a.getBoundingClientRect();
         port = { l: Math.max(port.l, b.left), t: Math.max(port.t, b.top), r: Math.min(port.r, b.right), b: Math.min(port.b, b.bottom) };
       }
@@ -122,6 +123,9 @@ export function hitAreaMisses(page: Page, scope = "body", size = 44): Promise<Hi
       // finds what is beyond (a row cut off at 992 by its list, probed
       // at 992, found the panel's foot under it).
       if (cx - half < port.l || cx + half >= port.r || cy - half < port.t || cy + half >= port.b) continue;
+      // Nor one cut off by that edge itself: a row half scrolled under the
+      // sheet's foot, its square a point short of crossing it.
+      if (r.top < port.t - 0.5 || r.bottom > port.b + 0.5) continue;
       const probes = [[-1, 0], [1, 0], [0, -1], [0, 1], [-1, -1], [1, -1], [-1, 1], [1, 1]];
       const takers: string[] = [];
       const lost = probes.filter(([dx, dy]) => {

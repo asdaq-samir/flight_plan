@@ -234,7 +234,12 @@ test.describe("/app/plan", () => {
     await expect(header.getByRole("tablist")).toHaveCount(0);
     const headerBox = (await header.boundingBox())!;
     if (phone) expect(headerBox.y).toBeGreaterThan(viewport.height / 2);
-    else expect(headerBox.y).toBeLessThan(40);
+    // From md up the tab bar is the panel's first row (TabBar), the head under it.
+    else {
+      const bar = (await page.getByTestId("tab-bar").boundingBox())!;
+      expect(bar.y).toBeLessThan(40);
+      expect(headerBox.y).toBeLessThan(bar.y + bar.height + 8);
+    }
     const departureBox = (await header.getByLabel("Departure", { exact: true }).boundingBox())!;
     expect(departureBox.x - headerBox.x).toBeLessThan(40);
 

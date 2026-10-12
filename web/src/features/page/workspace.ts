@@ -42,6 +42,9 @@ export interface WorkspacePieces {
    *  controls over it: an airport's card opened over a route,
    *  as a place in Maps takes the sheet from the directions. */
   alone?: boolean;
+  /** The planner's tab bar (TabBar): along a phone's bottom, the panel's
+   *  sheet above it (MapPanel's `bar`). */
+  bar?: ReactNode;
   /** The panel's body down to the sheet's own edge, over the home
    *  indicator (MapPanel's toEdge): an airport's card, its tiles and tabs
    *  at its foot. */

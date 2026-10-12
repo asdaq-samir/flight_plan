@@ -8,6 +8,7 @@ import {
   GLASS, GLASS_FILL, GLASS_SHEET, GLASS_SHEET_FULL, MATERIAL, PanelHalfContext, SHEET_INSET, SHEET_INSET_RADIUS, SHEET_MARGIN, SHEET_RESHAPE,
   SHEET_SETTLE, type MapInsets, type PanelState,
 } from "./mapChrome";
+import { TAB_BAR } from "./TabBar";
 
 interface Props {
   /** The panel's name -- "Flight Planning", "Model Training" -- for its
@@ -30,6 +31,10 @@ interface Props {
   compact?: ReactNode;
   /** The body: the nav log and the briefing, the training list. */
   children: ReactNode;
+  /** The planner's tab bar (TabBar): on a phone's sheet from the bottom,
+   *  fixed along the screen's bottom with the sheet above it, as an iOS
+   *  tab bar; elsewhere the panel's first row. */
+  bar?: ReactNode;
   /** The body down to the sheet's own edge, over the home indicator's
    *  inset, where the rest of the way is kept clear for every other
    *  panel: an airport's card, its tiles and tabs at its foot (PlaceCard),
@@ -111,7 +116,7 @@ const RANK: Record<PanelState, number> = { peek: 0, half: 1, full: 2 };
  * drawer that never closes held the keyboard's focus inside itself and
  * hid the map, and any dialog opened before it, from a screen reader.
  */
-export default function MapPanel({ label, top, controls, figures, compact, children, state, onStateChange, onInsetsChange, toEdge = false }: Props) {
+export default function MapPanel({ label, top, controls, figures, compact, children, state, onStateChange, onInsetsChange, toEdge = false, bar }: Props) {
   const onPhone = useIsMobile();
   const edge = useNavEdge();
   const safe = useSafeArea();
@@ -123,6 +128,14 @@ export default function MapPanel({ label, top, controls, figures, compact, child
   const keyboard = useKeyboardInset();
   const visualHeight = useVisualHeight();
   const fromBottom = edge === "bottom";
+  // The tab bar along a phone's bottom, over the home indicator's inset:
+  // the sheet stands on it, as an app's sheet stands on its tab bar. Gone
+  // with the keyboard up, as iOS's is.
+  const barBelow = !!bar && onPhone && !keyboard;
+  const barSpace = barBelow ? TAB_BAR + Math.round(safe.bottom) : 0;
+  // What the bar takes from a sheet from the bottom, which stands on it;
+  // a sheet from the top keeps its own height, the bar under the map.
+  const barUnder = fromBottom ? barSpace : 0;
 
   // The head's own height decides the lowest detent: the top row and the
   // controls in sight, with the grabber. Measured, since a notice or the
@@ -158,12 +171,12 @@ export default function MapPanel({ label, top, controls, figures, compact, child
   const room = keyboard || visualHeight < windowHeight - 1
     ? visualHeight - Math.round(safe.top) - SHEET_MARGIN
     : onPhone
-      ? windowHeight - Math.round(fromBottom ? safe.top : safe.bottom) - SHEET_MARGIN
+      ? windowHeight - Math.round(fromBottom ? safe.top : safe.bottom) - SHEET_MARGIN - barUnder
       : windowHeight - Math.max(SHEET_MARGIN, Math.round(safe.top)) - Math.max(SHEET_MARGIN, Math.round(safe.bottom));
   // A phone's sheet from the bottom runs on to the screen's edge, under
   // the home indicator (or eight points where there is none), so its
   // content sits clear of it -- or on to the keyboard, with it up.
-  const edgeInset = onPhone && fromBottom && !keyboard ? Math.max(Math.round(safe.bottom), SHEET_MARGIN) : 0;
+  const edgeInset = onPhone && fromBottom && !keyboard && !barUnder ? Math.max(Math.round(safe.bottom), SHEET_MARGIN) : 0;
   // A drag (below) that is under way, and the capsule's height when one
   // last started from it: 41 points of field, nine over it and twelve
   // under it, until then.
@@ -180,7 +193,7 @@ export default function MapPanel({ label, top, controls, figures, compact, child
   const [halfHead, setHalfHead] = useState(headHeight);
   if (!figuresOnly && halfHead !== headHeight) setHalfHead(headHeight);
   const steadyHead = figuresOnly ? halfHead : headHeight;
-  const capsuleGap = fromBottom ? Math.max(12, Math.round(safe.bottom) - 6) : Math.round(safe.top) + SHEET_MARGIN;
+  const capsuleGap = barUnder ? SHEET_MARGIN : fromBottom ? Math.max(12, Math.round(safe.bottom) - 6) : Math.round(safe.top) + SHEET_MARGIN;
   // The capsule is its head alone, the grabber over its padding.
   const peek = capsule ? headHeight : Math.round(steadyHead + (fromBottom ? edgeInset : GRABBER));
   // The capsule's height, kept while it rests, for the lowest detent once
@@ -309,14 +322,14 @@ export default function MapPanel({ label, top, controls, figures, compact, child
   // out, or the corner it rests in while it is not. Not while dragged:
   // the map refits once the panel settles (MapShell).
   const expanded = state !== "peek";
-  const coveredOnPhone = expanded ? detents.half + SHEET_INSET : peek + (capsule ? capsuleGap : 0);
+  const coveredOnPhone = (expanded ? detents.half + SHEET_INSET : peek + (capsule ? capsuleGap : 0)) + barUnder;
   useEffect(() => {
     if (!onPhone && expanded) onInsetsChange({ top: 0, bottom: 0, left: 16 + CARD, out: true });
     else {
       const strip = onPhone ? coveredOnPhone : peek + SHEET_MARGIN;
-      onInsetsChange(fromBottom ? { top: 0, bottom: strip, left: 0, out: expanded } : { top: strip, bottom: 0, left: 0, out: expanded });
+      onInsetsChange(fromBottom ? { top: 0, bottom: strip, left: 0, out: expanded } : { top: strip, bottom: barSpace, left: 0, out: expanded });
     }
-  }, [peek, onPhone, expanded, fromBottom, coveredOnPhone, onInsetsChange]);
+  }, [peek, onPhone, expanded, fromBottom, coveredOnPhone, barSpace, onInsetsChange]);
 
   // Escape lowers it, pressed anywhere in it -- but not in a menu or a
   // list it opened, which is a portal outside it and closes first.
@@ -399,6 +412,7 @@ export default function MapPanel({ label, top, controls, figures, compact, child
   );
 
   return (
+    <>
     <section
       ref={setPanel}
       data-slot="map-panel" data-panel={state} {...(onPhone ? { "data-sheet": "" } : {})}
@@ -415,7 +429,7 @@ export default function MapPanel({ label, top, controls, figures, compact, child
         ...(onPhone && dragged !== null ? { "--glass-fill": `${fill}%` } : {}),
         ...(onPhone ? {
           left: geometry.side, right: geometry.side,
-          ...(fromBottom ? { bottom: keyboard && !capsule ? keyboard + geometry.gap : geometry.gap } : { top: geometry.gap }),
+          ...(fromBottom ? { bottom: keyboard && !capsule ? keyboard + geometry.gap : geometry.gap + barUnder } : { top: geometry.gap }),
           borderRadius: geometry.radius,
         } : capsule ? { borderRadius: headHeight / 2 } : {}),
       }}
@@ -448,6 +462,17 @@ export default function MapPanel({ label, top, controls, figures, compact, child
       <div ref={setHead} className="relative flex shrink-0 touch-none flex-col" onPointerDown={startDrag}>
         {fromBottom && grabber}
         <div className="flex flex-col" style={crossFade ? { opacity: morph } : undefined}>
+        {/* The tab bar as the head's first row where it is not along a
+            phone's bottom -- a card at the side, a sheet from the top --
+            measured with the head, so every height still fits it. */}
+        {/* Not over a card alone (no top row), which covers the tab it
+            was opened from, as it does its head. */}
+        {bar && !barBelow && top != null && !(onPhone && keyboard) && (
+          <div
+            className={cn("flex h-12 shrink-0 border-b border-border/60 px-2", !fromBottom && onPhone && "h-auto pt-[env(safe-area-inset-top)]")}
+            onPointerDown={event => event.stopPropagation()}
+          >{bar}</div>
+        )}
         {/* One header in both shapes, so what the capsule and the sheet
             both show -- the search bar -- stays the same element as the
             one turns into the other, focus and keyboard and all. From
@@ -508,5 +533,16 @@ export default function MapPanel({ label, top, controls, figures, compact, child
         <div className="shrink-0" style={{ height: foot }} aria-hidden="true" />
       )}
     </section>
+    {barBelow && (
+      // Liquid Glass along the screen's bottom, the home indicator's inset
+      // under its buttons, over the map and under the sheet's own shadow.
+      <div
+        className={cn("fixed inset-x-0 bottom-0 z-40 flex flex-col", GLASS_SHEET_FULL)}
+        style={{ height: barSpace, paddingBottom: Math.round(safe.bottom) }}
+      >
+        <div className="flex px-2" style={{ height: TAB_BAR }}>{bar}</div>
+      </div>
+    )}
+    </>
   );
 }
