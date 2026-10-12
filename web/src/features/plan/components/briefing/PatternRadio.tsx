@@ -160,8 +160,8 @@ function PatternRows({ phase, facilities, courseDeg }: { phase: RadioPhase; faci
 
 /**
  * The pattern and the radio calls at one field (the roadmap's pattern
- * card and radio scripts, ACS PA.III.A and B), in the Airports tab's
- * section for it: leaving it or arriving -- both at a stop -- its pattern
+ * card and radio scripts, ACS PA.III.A and B), in the Brief's section
+ * for it: leaving it or arriving -- both at a stop -- its pattern
  * drawn for the runway the wind favours, then the calls in the order they
  * are made (lib/radio), worked out over the whole route so each field's
  * calls know the next. Nothing for a local flight: there is no route to

@@ -14,7 +14,7 @@ const GLYPH: Record<FrequencyKind, ReactNode> = {
  * by its kind, and the frequency as pilots write it at the right in the
  * text's own colour, as Nearest has a field's distance -- the pilot's ask
  * for every card to read as Nearest's does. An airport's card and the
- * route's Airports tab list them alike: the tab's were the card's old
+ * Brief's airport sections list them alike: those were the card's old
  * rows, the FAA's type in words over its description and the figure in
  * grey.
  */

@@ -14,7 +14,7 @@ import { worstOf, type Finding } from "./status";
 /** Where a finding is shown in full: a tab of the planning panel, and a
  *  section of it by its title. */
 export interface Where {
-  tab: "navlog" | "brief" | "weather" | "performance" | "airports";
+  tab: "navlog" | "brief" | "weather" | "performance";
   section?: string;
 }
 

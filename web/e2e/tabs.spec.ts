@@ -129,13 +129,15 @@ test("the Performance tab opens on the runway check: a runway too short is red, 
   await page.unrouteAll({ behavior: "ignoreErrors" });
 });
 
-test("the Airports tab is a section for each field, in the order flown, its pattern and calls with its runways", async ({ page }) => {
+test("the Brief has a section for each field, in the order flown, its pattern and calls with its runways", async ({ page }) => {
   await planned(page);
   const drawer = sideDrawer(page);
-  await openTab(page, "Airports");
+  // Under the Brief, at the pilot's ask, where they were a tab of their own.
+  await openTab(page, "Brief");
   const sections = drawer.getByTestId("airport-section");
   await expect(sections).toHaveCount(2);
-  // Each field a section tab, the first up.
+  // Each field a section tab of the Brief's, in the order flown.
+  await openSection(page, "C81 · Departure");
   await expect(sectionTab(page, "C81 · Departure")).toHaveAttribute("aria-pressed", "true");
   await expect(sectionTab(page, "KDLH · Destination")).toHaveAttribute("aria-pressed", "false");
   await expect(sections.nth(0)).toBeVisible();
@@ -154,7 +156,8 @@ test("a route from the pilot's position has a section for its airports alone, no
   await settle(page);
   await expect(page.getByTestId("navlog-eta")).toBeVisible({ timeout: slow(120000) });
   const drawer = sideDrawer(page);
-  await openTab(page, "Airports");
+  await openTab(page, "Brief");
+  await openSection(page, "KDLH · Destination");
   await expect(drawer.getByRole("heading", { name: "KDLH · Destination" })).toBeVisible();
   await expect(drawer.getByTestId("airport-section")).toHaveCount(1);
   await expect(drawer.getByRole("heading", { name: /Departure/ })).toHaveCount(0);

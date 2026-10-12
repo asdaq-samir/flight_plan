@@ -66,7 +66,7 @@ export const SCREENS: Screen[] = [
   // Brief's narrative answered by a line of the test's own (openTab), not
   // a billed call.
   ...([
-    ["Brief", "verdict"], ["Weather", "weather-places"], ["Performance", "takeoff-landing"], ["Airports", "airport-section"],
+    ["Brief", "verdict"], ["Weather", "weather-places"], ["Performance", "takeoff-landing"],
   ] as const).map(([tab, shown]): Screen => ({
     name: `panel, ${tab} tab`,
     ready: async page => {

@@ -899,7 +899,6 @@ export default function NavLogView({
         brief: tabContent("brief"),
         weather: tabContent("weather"),
         performance: tabContent("performance"),
-        airports: tabContent("airports"),
       }}
     >
       {children}

@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { slow, settle, sideDrawer, expectDrawerClosed, expectDrawerOpen, closeSidebarWithTheStockKey, openedDrawerBox, openBriefing, openTab, panelTabs, openSettings, closeConsole, grabberTo, controlsInSight } from "./helpers";
+import { slow, settle, sideDrawer, expectDrawerClosed, expectDrawerOpen, closeSidebarWithTheStockKey, openedDrawerBox, openBriefing, openTab, openSection, panelTabs, openSettings, closeConsole, grabberTo, controlsInSight } from "./helpers";
 
 /**
  * The flight planning panel: how it opens -- from its grabber, a pasted
@@ -48,10 +48,11 @@ test("plan page: the flight planning drawer opens the way the Model Training dra
   expect(await drawer.locator('[role="tabpanel"] [data-testid="depart-date"]').count()).toBe(0);
   // The panel's tabs, in the pilot's order, the nav log's up: it holds
   // the totals and the descriptions button above the table.
-  // "Perf" on its tab, its name whole (PanelTabs).
-  await expect(panelTabs(page).getByRole("tab")).toHaveText(["Nav Log", "Brief", "Weather", "Perf", "Airports"]);
+  // "Perf" on its tab, its name whole (PanelTabs). No Airports tab: the
+  // airports are the Brief's sections, at the pilot's ask.
+  await expect(panelTabs(page).getByRole("tab")).toHaveText(["Nav Log", "Brief", "Weather", "Perf"]);
   await expect(panelTabs(page).getByRole("tab", { name: "Performance" })).toHaveCount(1);
-  // All five on the panel's line, none past its edge.
+  // All four on the panel's line, none past its edge.
   const tabsBox = (await panelTabs(page).boundingBox())!;
   for (const tab of await panelTabs(page).getByRole("tab").all()) {
     const box = (await tab.boundingBox())!;
@@ -113,7 +114,8 @@ test("plan page: the briefing ends on its 'planning aid only' reminder, with the
   await expect(drawer.getByRole("table", { name: /Navigation log from/i })).toBeVisible();
   await expect(drawer.getByText("Flight Plan Summary")).toHaveCount(0);
   // Another tab takes its place, and back.
-  await openTab(page, "Airports");
+  await openTab(page, "Brief");
+  await openSection(page, "C81 · Departure");
   await expect(drawer.getByRole("heading", { name: "C81 · Departure" })).toBeVisible();
   // Kept, hidden, for the way back (Activity).
   await expect(navLog).toBeHidden();

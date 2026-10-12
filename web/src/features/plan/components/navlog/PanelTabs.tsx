@@ -1,5 +1,5 @@
 import { useCallback, useDeferredValue, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { CloudSun, Gauge, ListOrdered, Sparkles, TowerControl } from "lucide-react";
+import { CloudSun, Gauge, ListOrdered, Sparkles } from "lucide-react";
 import { cn } from "cn";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../../../components/ui/tabs";
 import { SectionsOpen } from "../../../../components/sectionLayout";
@@ -8,10 +8,12 @@ import { LINE_TAB } from "../../../../components/lineTabs";
 import { GoToTab, LEGS, type PanelTab } from "./panelTab";
 
 /** The panel's tabs, in the pilot's order: the Nav Log (the route's
- *  profile under it: the same legs from the side), the Brief, the Weather,
- *  the airplane's Performance and the Airports -- each an icon over its
- *  word, as iOS's tab bar draws one, so all five fit a phone's line at any
- *  text size, where six words did not at the pilot's. */
+ *  profile under it: the same legs from the side), the Brief, the Weather
+ *  and the airplane's Performance -- each an icon over its word, as iOS's
+ *  tab bar draws one, so all of them fit a phone's line at any text size,
+ *  where six words did not at the pilot's. The airports the flight uses
+ *  are sections of the Brief, at the pilot's ask (2026-10-12), where they
+ *  were a fifth tab: the planner's own tab bar has an Airport tab. */
 const TABS: { value: PanelTab; label: string; short?: string; icon: ReactNode }[] = [
   { value: "navlog", label: "Nav Log", icon: <ListOrdered /> },
   { value: "brief", label: "Brief", icon: <Sparkles /> },
@@ -19,11 +21,10 @@ const TABS: { value: PanelTab; label: string; short?: string; icon: ReactNode }[
   // "Perf" on the tab, at the pilot's ask: the whole word filled its fifth
   // of a phone's line edge to edge at 13; its name says it whole.
   { value: "performance", label: "Performance", short: "Perf", icon: <Gauge /> },
-  { value: "airports", label: "Airports", icon: <TowerControl /> },
 ];
 /** On paper every tab, one after another: the nav log first, as a
  *  pilot flies from it. */
-const PRINTED: PanelTab[] = ["navlog", "weather", "airports", "performance", "brief"];
+const PRINTED: PanelTab[] = ["navlog", "weather", "performance", "brief"];
 
 /**
  * The planning panel's tabs and what is under them (NavLogView's), with

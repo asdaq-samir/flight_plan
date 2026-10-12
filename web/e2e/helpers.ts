@@ -289,7 +289,7 @@ export async function openBriefing(page: Page) {
  *  itself), Brief, Weather, Performance or Airports. The Brief asks for its
  *  narrative as it opens -- a real, billed Claude call -- so here it is
  *  answered with a line of its own. */
-export async function openTab(page: Page, name: "Brief" | "Nav Log" | "Local" | "Weather" | "Performance" | "Airports") {
+export async function openTab(page: Page, name: "Brief" | "Nav Log" | "Local" | "Weather" | "Performance") {
   // The tabs are past the half panel's foot, which ends at the flight's
   // line: all the way out, as a finger drags it, to reach them.
   await panelFull(page);

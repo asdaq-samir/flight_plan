@@ -707,6 +707,12 @@ export default memo(function FlightBriefingView({
 
           <PreflightAction flight={`${landings.join("-")}|${depart}`} found={found} />
 
+          {/* Each airport, in the order flown, under the list whose runway
+              lengths (91.103(b)) they answer: the Brief's, at the pilot's
+              ask, where they were a tab of their own. */}
+          {briefing ? <AirportSections briefing={briefing} landings={landings} legs={legs} callSign={ownCallSign} />
+            : <AccordionSection title="Airports"><Pending>{briefingPendingMessage}</Pending></AccordionSection>}
+
           {/* The FAA's flight plan form filled in from the plan, from an
               airport: a present position is a flight already flying. */}
           {identOf(dep) && totals && (
@@ -900,12 +906,6 @@ export default memo(function FlightBriefingView({
           />
           <WeightBalanceSection aircraft={nav?.aircraft} tripFuelGal={totals?.fuel_gal ?? null} />
         </>
-      )}
-
-      {/* Each airport, in the order flown. */}
-      {part === "airports" && (
-        briefing ? <AirportSections briefing={briefing} landings={landings} legs={legs} callSign={ownCallSign} />
-          : <AccordionSection title="Airports"><Pending>{briefingPendingMessage}</Pending></AccordionSection>
       )}
     </>
   );

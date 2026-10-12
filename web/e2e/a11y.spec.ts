@@ -46,7 +46,7 @@ test("a route's panel out, each of its tabs", async ({ page }) => {
   await page.goto("/app/plan?dep=C81&dest=KDLH&view=briefing");
   await settle(page);
   await expect(page.getByTestId("navlog-eta")).toBeVisible({ timeout: slow(120000) });
-  for (const tab of ["Nav Log", "Weather", "Brief", "Performance", "Airports"] as const) {
+  for (const tab of ["Nav Log", "Weather", "Brief", "Performance"] as const) {
     await openTab(page, tab);
     await page.waitForTimeout(600);
     expect(await violations(page), tab).toEqual([]);
