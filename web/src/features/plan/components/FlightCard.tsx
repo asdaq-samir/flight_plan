@@ -1,14 +1,16 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
-  ArrowDownRight, ArrowUpRight, BadgeCheck, Compass, Crosshair, Fan, Gauge, IdCard, MoveVertical, Plane, PlaneTakeoff, Radio, Route,
+  ArrowDownRight, ArrowUpRight, BadgeCheck, Star, Compass, Crosshair, Fan, Gauge, IdCard, MoveVertical, Plane, PlaneTakeoff, Radio, Route,
   Ruler, UserRound,
 } from "lucide-react";
 import { cn } from "cn";
 import { CardHead, PanelCard } from "../../../components/PanelCard";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
 import { RowBadge } from "../../../components/RowBadge";
+import RoundButton from "../../../components/RoundButton";
 import TogglePill from "../../../components/TogglePill";
+import { usePreferences, type KeptAircraft } from "../../../lib/preferences";
 import { compassPoint } from "../../../lib/compass";
 import { bearingDeg, distanceNm } from "../../../lib/geo";
 import { useOwnShip } from "../../../lib/map/ownShip";
@@ -105,6 +107,14 @@ export default function FlightCard({ hex, onClose, onOpenPast }: {
     setPickedState(next);
   };
   const tab: FlightTab = picked ?? (plane ? "now" : "flights");
+  // What is kept of it, for the Aircraft card's Recents and Favorites,
+  // once it can be named: its registration, else its callsign.
+  const keptName = detail?.registration ?? plane?.registration ?? plane?.callsign ?? null;
+  const keptType = detail?.type ?? plane?.type ?? null;
+  const kept = useMemo(() => (keptName ? { hex, name: keptName, type: keptType } : null), [hex, keptName, keptType]);
+  useEffect(() => {
+    if (kept) usePreferences.getState().addRecentAircraft(kept);
+  }, [kept]);
   const name = plane?.callsign ?? detail?.registration ?? plane?.registration ?? hex.toUpperCase();
   const what = [detail?.description ? nameCase(detail.description) : plane?.type, detail?.operator ? nameCase(detail.operator) : null]
     .filter(Boolean).join(" · ");
@@ -123,6 +133,7 @@ export default function FlightCard({ hex, onClose, onOpenPast }: {
           pressed={follow} onPressedChange={on => useTracking.setState({ follow: on })}
           icon={<Crosshair />} label="Follow" testId="flight-follow"
         />
+        <FavoriteButton kept={kept} />
       </CardHead>
       <Tabs value={tab} onValueChange={next => setPicked(next as FlightTab)} className="gap-0 pt-3">
         {/* The stock line tabs, the airport card's and the consoles': words
@@ -305,5 +316,22 @@ function FaaRegistration({ faa }: { faa: AircraftRegistration }) {
         />
       )}
     </ListGroup>
+  );
+}
+
+/** The star that adds the airplane to the Aircraft card's Favorites,
+ *  filled in iOS's yellow while it is one, as the airport card's is. */
+function FavoriteButton({ kept }: { kept: KeptAircraft | null }) {
+  const starred = usePreferences(s => !!kept && s.favoriteAircraft.some(a => a.hex === kept.hex));
+  const toggle = usePreferences(s => s.toggleFavoriteAircraft);
+  return (
+    <RoundButton
+      label={starred ? "Remove from Favorites" : "Add to Favorites"} aria-pressed={starred} disabled={!kept}
+      className={cn(starred && "text-[#ffcc00] hover:text-[#ffcc00] dark:text-[#ffd60a] dark:hover:text-[#ffd60a]")}
+      onClick={() => { if (kept) toggle(kept); }}
+      data-testid="flight-favorite"
+    >
+      <Star className={cn("size-5", starred && "fill-current")} strokeWidth={2} />
+    </RoundButton>
   );
 }

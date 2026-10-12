@@ -283,3 +283,26 @@ test("an airplane's past flights are listed on its card, and one is drawn on the
   await expect(card.getByTestId("flight-tab-flights")).toHaveAttribute("data-state", "active");
   await expect(page.locator("path.past-flight-path")).toHaveCount(0);
 });
+
+test("an airplane opened is in the Aircraft card's Recents, and one starred on its card is in its Favorites, as airports are", async ({ page }) => {
+  await sky(page);
+  await page.goto("/app/plan?flight=a0b7d8");
+  await settle(page);
+  const card = page.getByTestId("flight-card");
+  await expect(card.getByTestId("flight-name")).toHaveText("UAL2088", { timeout: slow(15_000) });
+  const star = card.getByTestId("flight-favorite");
+  await expect(star).toHaveAttribute("aria-pressed", "false");
+  await star.click();
+  await expect(star).toHaveAttribute("aria-pressed", "true");
+  await card.getByTestId("flight-close").click();
+  await page.goto("/app/plan?aircraft=1");
+  await settle(page);
+  const list = page.getByTestId("aircraft-card");
+  await expect(list.getByTestId("aircraft-favorite")).toHaveCount(1);
+  await expect(list.getByTestId("aircraft-favorite")).toContainText("N14511");
+  await expect(list.getByTestId("aircraft-recent").first()).toContainText("N14511");
+  // A tile opens its card again.
+  await list.getByTestId("aircraft-favorite").click();
+  await expect(page).toHaveURL(/[?&]flight=a0b7d8/);
+  await expect(page.getByTestId("flight-card").getByTestId("flight-favorite")).toHaveAttribute("aria-pressed", "true");
+});

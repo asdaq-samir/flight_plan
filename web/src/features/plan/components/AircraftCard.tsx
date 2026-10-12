@@ -9,6 +9,8 @@ import type { TrafficAircraft } from "../../../lib/api/types";
 import { compassPoint } from "../../../lib/compass";
 import { bearingDeg, distanceNm, type LatLon } from "../../../lib/geo";
 import { useOwnShip } from "../../../lib/map/ownShip";
+import { usePreferences } from "../../../lib/preferences";
+import { PlaceTile } from "../../../components/Favorites";
 import { trafficLabel } from "../../../lib/map/traffic";
 import { useTracking } from "../../../lib/map/tracking";
 import { TEXT } from "../../../lib/text";
@@ -92,6 +94,8 @@ export default function AircraftCard({ onPick, onPickHex, onClose }: {
     return () => window.clearTimeout(later);
   }, [wanted, asked, isFetching]);
   const fix = useOwnShip(s => (s.enabled ? s.fix : null));
+  const favorites = usePreferences(s => s.favoriteAircraft);
+  const recents = usePreferences(s => s.recentAircraft);
   const seen = useTracking(s => s.seen);
   // The airplanes about whose name begins with what is typed: found as it
   // is typed, asking nothing, before adsb.lol's answer for the rest.
@@ -189,6 +193,33 @@ export default function AircraftCard({ onPick, onPickHex, onClose }: {
             {searching && !answer && !(isError && asked === wanted) && !listed.length && (
               <ListRow title={<span className={cn("text-muted-foreground", TEXT.detail)}>Looking…</span>} />
             )}
+          </ListGroup>
+        )}
+        {/* Before anything is typed, as the airport search has: the
+            airplanes starred on their cards, as round tiles, and the ones
+            opened last, at the pilot's ask. */}
+        {!searching && favorites.length > 0 && (
+          <section aria-labelledby="aircraft-favorites-heading">
+            <h3 id="aircraft-favorites-heading" className={cn("pb-3 font-bold text-foreground", TEXT.title)}>Favorites</h3>
+            <div className="-mx-4 flex gap-4 overflow-x-auto px-4 pb-1 [scrollbar-width:none]" data-testid="aircraft-favorites">
+              {favorites.map(a => (
+                <PlaceTile
+                  key={a.hex} icon={<Plane />} className="bg-sky-600 text-white" title={a.name} detail={a.type ?? undefined}
+                  label={`${a.name}${a.type ? `, ${a.type}` : ""}`} onClick={() => onPickHex(a.hex)} testId="aircraft-favorite"
+                />
+              ))}
+            </div>
+          </section>
+        )}
+        {!searching && recents.length > 0 && (
+          <ListGroup title="Recents">
+            {recents.map(a => (
+              <ListRow
+                key={a.hex} media={<Plane className="size-5 text-muted-foreground" />} data-testid="aircraft-recent"
+                title={<span className="font-semibold">{a.name}</span>} description={a.type ?? undefined}
+                chevron onClick={() => onPickHex(a.hex)}
+              />
+            ))}
           </ListGroup>
         )}
         <ListGroup

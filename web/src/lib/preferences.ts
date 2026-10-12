@@ -122,6 +122,13 @@ interface Preferences {
    *  first under the search bar. */
   homeAirport: RecentAirport | null;
   favoriteAirports: RecentAirport[];
+  /** The airplanes whose cards were opened last, newest first, and the
+   *  ones the pilot starred, as the airports' are: what the Aircraft card
+   *  offers before anything is typed (AircraftCard), at the pilot's ask. */
+  recentAircraft: KeptAircraft[];
+  favoriteAircraft: KeptAircraft[];
+  addRecentAircraft: (aircraft: KeptAircraft) => void;
+  toggleFavoriteAircraft: (aircraft: KeptAircraft) => void;
   setBase: (base: BaseChart) => void;
   setTac: (tac: boolean) => void;
   setWaypoints: (waypoints: boolean) => void;
@@ -201,6 +208,18 @@ export const usePreferences = create<Preferences>()(
       recentAirports: [],
       homeAirport: null,
       favoriteAirports: [],
+      recentAircraft: [],
+      favoriteAircraft: [],
+      addRecentAircraft: aircraft => set(s => ({
+        recentAircraft: [aircraft, ...s.recentAircraft.filter(a => a.hex !== aircraft.hex)].slice(0, RECENTS),
+        // A favourite's name and type kept up to date as it is seen again.
+        favoriteAircraft: s.favoriteAircraft.map(a => (a.hex === aircraft.hex ? aircraft : a)),
+      })),
+      toggleFavoriteAircraft: aircraft => set(s => ({
+        favoriteAircraft: s.favoriteAircraft.some(a => a.hex === aircraft.hex)
+          ? s.favoriteAircraft.filter(a => a.hex !== aircraft.hex)
+          : [...s.favoriteAircraft, aircraft],
+      })),
       setBase: base => set({ base }),
       setTac: tac => set({ tac }),
       setWaypoints: waypoints => set({ waypoints }),
@@ -250,10 +269,20 @@ export const usePreferences = create<Preferences>()(
         base: s.base, tac: s.tac, waypoints: s.waypoints, classB: s.classB, tfrs: s.tfrs, alerts: s.alerts, speakAlerts: s.speakAlerts, traffic: s.traffic, military: s.military, minimums: s.minimums, loads: s.loads, keepOffline: s.keepOffline, aircraft: s.aircraft, filters: s.filters, devTab: s.devTab, pilotTab: s.pilotTab, navBar: s.navBar, routeColours: s.routeColours, narrative: s.narrative,
         flightRules: s.flightRules,
         recentAirports: s.recentAirports, homeAirport: s.homeAirport, favoriteAirports: s.favoriteAirports,
+        recentAircraft: s.recentAircraft, favoriteAircraft: s.favoriteAircraft,
       }),
     },
   ),
 );
+
+/** What this browser keeps of an airplane picked or starred: its ICAO
+ *  address, what it is called (its registration, else its callsign) and
+ *  its type, for its tile and row before anything is asked. */
+export interface KeptAircraft {
+  hex: string;
+  name: string;
+  type: string | null;
+}
 
 /** What this browser keeps of a field -- Home, a Favorite, one picked
  *  lately -- its name and, once it was looked up, where it is: what its
