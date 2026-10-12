@@ -67,12 +67,15 @@ export default function MapSettings() {
   // Where the charts come from and which edition is up, under the map's
   // settings: it was a credit in the chart's corner, which the FAA's
   // charts, a US government work, do not ask for. The edition is what a
-  // pilot checks: a chart is current for its cycle.
+  // pilot checks: a chart is current for its cycle. The traffic's source
+  // beside them whether it is shown or not, at the owner's ask ("say
+  // traffic adsb.lol in settings like we do for FAA"), as its licence
+  // (ODbL 1.0, 4.3) asks it be credited; what it is good for, once on.
   const { data: chart } = useQuery(chartQuery);
   return (
     <ListGroup
       title="Map"
-      footer={`${chart ? `Charts from the FAA, the ${editionOf(chart.chart_cycle)} edition.` : "Charts from the FAA."}${traffic ? " Traffic from adsb.lol, under the Open Database License: seconds old, for knowing what is about, not for avoiding it." : ""}`}
+      footer={`${chart ? `Charts from the FAA, the ${editionOf(chart.chart_cycle)} edition.` : "Charts from the FAA."} Traffic from adsb.lol, under the Open Database License${traffic ? ": seconds old, for knowing what is about, not for avoiding it." : "."}`}
     >
       <ListRow title="Chart">
         <Segmented
