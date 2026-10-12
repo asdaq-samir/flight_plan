@@ -170,6 +170,8 @@ test("an airplane not in the air is found by its registration, and its card says
   await row.click();
   await expect(page).toHaveURL(/[?&]flight=a89c1e/);
   const card = page.getByTestId("flight-card");
+  // Named by its FAA record, not its address, with no trace today to name it.
+  await expect(card.getByTestId("flight-name")).toHaveText("N654FL");
   // Not heard now: the card opens on its flights.
   await expect(card.getByTestId("flight-tab-activity")).toHaveAttribute("data-state", "active");
   await card.getByTestId("flight-tab-now").click();

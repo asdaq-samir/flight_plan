@@ -413,7 +413,12 @@ export async function tapTheChart(page: Page) {
  *  in place of the card's close; elsewhere the card's own close. */
 export async function closeCard(page: Page, closeTestId: string) {
   const back = page.getByTestId("tab-back");
+  if (await back.isVisible()) {
+    await back.click();
+    return;
+  }
+  // Else the card's own close, out of sight but for a keyboard (CardClose).
   const close = page.getByTestId(closeTestId);
-  await expect(back.or(close).first()).toBeVisible();
-  await (await back.isVisible() ? back : close).click();
+  await close.focus();
+  await page.keyboard.press("Enter");
 }

@@ -1,7 +1,6 @@
-import { useContext, useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { cn } from "cn";
 import CloseButton from "./CloseButton";
-import { BackInTabBar } from "./mapChrome";
 import { holdOpenCard } from "../lib/openCards";
 import { TEXT } from "../lib/text";
 
@@ -74,22 +73,19 @@ export function CardHead({ name, line, nameTestId, lineClassName, lineTestId, on
 
 /**
  * A card's close, kept for a device's Back (lib/openCards, lib/back) and
- * the minimized tab bar's Back (TabBar) while the card is open -- and
- * drawn only where that bar is not the way back, at the owner's ask:
- * "instead of a close button, a back button at the top left, in the same
- * line as the tab label" (BackInTabBar). CardHead's, and an airport's
- * card's beside its diagram.
+ * the minimized tab bar's Back (TabBar) while the card is open -- and never
+ * drawn, at the owner's ask: "Close should not be anywhere except the top
+ * right corner of the card inline with label; when tabs labels appear,
+ * both close and back button hide" (the tab bar's own, TabBar). Kept for
+ * a keyboard and a screen reader, shown when it has the focus, as a skip
+ * link is, so a card always has a control of its own to reach (and the
+ * airspace's, with no other, a stop in its scrolling region). With the
+ * tabs shown, the tab up tapped again puts the card away.
  */
-export function CardClose({ onClose, testId, className }: { onClose: () => void; testId: string; className?: string }) {
+export function CardClose({ onClose, testId }: { onClose: () => void; testId: string; className?: string }) {
   const close = useRef(onClose);
   useEffect(() => { close.current = onClose; });
   useEffect(() => holdOpenCard({ close: () => close.current() }), []);
-  const backInBar = useContext(BackInTabBar);
-  // Where the bar is the way back, out of sight but kept for a keyboard
-  // and a screen reader, shown when it has the focus, as a skip link is:
-  // a card in the panel keeps a close of its own to reach (and the
-  // airspace's, with no other control, a stop in its scrolling region).
-  if (!backInBar) return <CloseButton onClick={onClose} className={className} data-testid={testId} />;
   return (
     <span className="sr-only focus-within:not-sr-only">
       <CloseButton onClick={onClose} data-testid={testId} />

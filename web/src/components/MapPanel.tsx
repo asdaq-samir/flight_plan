@@ -5,7 +5,7 @@ import { useIsMobile } from "../hooks/use-mobile";
 import { useNavEdge } from "../hooks/use-nav-edge";
 import { useKeyboardInset, useSafeArea, useVisualHeight, useWindowHeight } from "../hooks/use-viewport";
 import {
-  GLASS, GLASS_FILL, GLASS_SHEET, GLASS_SHEET_FULL, MATERIAL, PanelHalfContext, PILL_RADIUS, BackInTabBar, useTabsShown, SHEET_INSET, SHEET_INSET_RADIUS, SHEET_MARGIN, SHEET_RESHAPE, TabBarMinimized,
+  GLASS, GLASS_FILL, GLASS_SHEET, GLASS_SHEET_FULL, MATERIAL, PanelHalfContext, PILL_RADIUS, SHEET_INSET, SHEET_INSET_RADIUS, SHEET_MARGIN, SHEET_RESHAPE, TabBarMinimized,
   SHEET_SETTLE, type MapInsets, type PanelState,
 } from "./mapChrome";
 
@@ -100,6 +100,13 @@ const rootPx = () => (rootFont ??= parseFloat(getComputedStyle(document.document
 
 /** A card's width from `md` up: 24rem. */
 const CARD = 384;
+
+/** The pill's row under its tabs, whatever the tab puts there -- FPL's
+ *  figures or its route box, the Favorites' and the nearest fields'
+ *  tiles, Settings' quick controls -- one height, so switching tabs never
+ *  changes the pill's size, at the owner's ask: the tallest's, the tiles'
+ *  (a mark and two lines), in rem so it grows with the text as they do. */
+const PILL_ROW = "h-[5.5rem]";
 
 /** How far a drag from the capsule takes to turn it into the sheet: over
  *  it, the way in from the screen's edges, the corners, the glass and the
@@ -229,8 +236,6 @@ export default function MapPanel({ label, top, controls, figures, compact, child
   // tab up's name, as iOS's compact tab bar minimizes, at the pilot's ask;
   // wider, a card with room for every tab keeps them, as iPadOS's does.
   const minimized = onPhone && !capsule;
-  // The minimized bar tapped open to every tab: no Back on it then.
-  const tabsShown = useTabsShown(s => s.shown);
   // All the way up and settled, the head is the figures alone (`figures`);
   // what is measured of it for the lowest detent, the half and the half's
   // body is the head as it is at half, kept from when it last was.
@@ -545,7 +550,7 @@ export default function MapPanel({ label, top, controls, figures, compact, child
               // 44-point hit area (index.css) stays in the capsule, which
               // clips what is past its edge; the search bar's the same, so
               // the pill is one height whatever it holds, at the pilot's ask.
-              capsule ? cn("p-[9px]", fromBottom ? "pb-3" : "pt-3")
+              capsule ? (pillOfTabs ? cn(PILL_ROW, "px-[9px]") : cn("p-[9px]", fromBottom ? "pb-3" : "pt-3"))
                 // No top row (a place's card alone): only the room the status
                 // bar takes from the top of a phone's screen.
                 : top == null ? (!fromBottom && onPhone ? "pt-[env(safe-area-inset-top)]" : undefined)
@@ -600,7 +605,7 @@ export default function MapPanel({ label, top, controls, figures, compact, child
         data-panel-body=""
       >
         <PanelHalfContext.Provider value={setTabsAt}>
-          <BackInTabBar.Provider value={minimized && barShown && !tabsShown}>{children}</BackInTabBar.Provider>
+          {children}
         </PanelHalfContext.Provider>
       </div>
       {/* The route's figures, pinned at the card's foot at every height
@@ -609,7 +614,11 @@ export default function MapPanel({ label, top, controls, figures, compact, child
       {foot && (
         <div
           ref={setFoot}
-          className={cn("shrink-0 px-4 pt-2 print:hidden", capsule ? "pb-3" : "border-t border-border/60 pb-2.5")}
+          className={cn(
+            "shrink-0 px-4 print:hidden",
+            // The pill's row under the tabs one height on every tab (PILL_ROW).
+            capsule && pillOfTabs ? cn(PILL_ROW, "flex flex-col justify-center") : capsule ? "pt-2 pb-3" : "border-t border-border/60 pt-2 pb-2.5",
+          )}
           style={toEdge && !capsule && fromBottom ? { paddingBottom: Math.max(10, edgeRoom) } : undefined}
           data-testid="panel-foot"
         >{foot}</div>

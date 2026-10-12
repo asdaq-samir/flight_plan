@@ -73,7 +73,16 @@ export default function TabBar<T extends string>({ tabs, tab, onPick, onUp, mark
     return (
       <nav aria-label="Tabs" className={cn("relative flex h-full w-full items-center justify-center print:hidden", className)} data-testid="tab-bar">
         {/* Round, as the close at the other end is, at the owner's ask. */}
-        {back && <BackButton onClick={() => closeTopCard()} className="absolute top-1/2 left-0 -translate-y-1/2" data-testid="tab-back" />}
+        {/* Each in a box of the line's height, centred by flex, not by a
+            translate: the stock button's press nudges it with a translate
+            of its own, which replaced the centring one, and the button
+            dropped half its height as it was tapped (seen on the owner's
+            phone, 2026-10-13). */}
+        {back && (
+          <span className="absolute inset-y-0 left-0 flex items-center">
+            <BackButton onClick={() => closeTopCard()} data-testid="tab-back" />
+          </span>
+        )}
         <button
           type="button" onClick={() => setShown(true)} aria-expanded={false} aria-label={`${upTab.label}, show the tabs`}
           data-testid="tab-title"
@@ -89,7 +98,9 @@ export default function TabBar<T extends string>({ tabs, tab, onPick, onUp, mark
         {/* And a close at its right, at the owner's ask: Back goes one card
             back, the close all the way down to the pill. */}
         {onClose && !consoleOpen && (
-          <CloseButton onClick={onClose} className="absolute top-1/2 right-0 -translate-y-1/2" data-testid="tab-close" />
+          <span className="absolute inset-y-0 right-0 flex items-center">
+            <CloseButton onClick={onClose} data-testid="tab-close" />
+          </span>
         )}
       </nav>
     );

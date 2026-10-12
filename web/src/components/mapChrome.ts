@@ -49,11 +49,6 @@ export const ConsoleInPanelContext = createContext<{ close: () => void } | null>
  *  (TabBar). */
 export const TabBarMinimized = createContext(false);
 
-/** Whether a card's way back is the minimized tab bar's Back (TabBar), at
- *  the owner's ask -- "instead of a close button, a back button, at the
- *  top left in the same line as the tab label", shown only while the
- *  tabs are not -- so its head has no close of its own (CardHead). */
-export const BackInTabBar = createContext(false);
 
 /** Where the route's tabs' bar ends, in pixels from the map panel's
  *  body's top, or null with no tabs in sight: the panel's half height,
@@ -66,8 +61,8 @@ export const PanelHalfContext = createContext<((px: number | null) => void) | nu
  *  out across the change, the other page's in its place. Not kept past
  *  a reload. */
 /** Whether the minimized tab bar has been tapped open to every tab
- *  (TabBar): while it is, its Back is not shown, and a card's own close is
- *  (CardClose), so there is always a way back. */
+ *  (TabBar): while it is, its Back and close are not shown, at the
+ *  owner's ask; the tab up tapped again puts a card away. */
 export const useTabsShown = create<{ shown: boolean }>(() => ({ shown: false }));
 
 export const useConsoleOpen = create<{ open: boolean; setOpen: (open: boolean) => void }>(set => ({

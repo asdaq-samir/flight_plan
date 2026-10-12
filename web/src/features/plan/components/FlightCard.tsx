@@ -110,13 +110,18 @@ export default function FlightCard({ hex, onClose, onOpenPast, onExpand, onLower
   const [tab, setPicked] = useCardTab<FlightTab>(`flight:${hex}`, plane ? "now" : "activity");
   // What is kept of it, for the Aircraft card's Recents and Favorites,
   // once it can be named: its registration, else its callsign.
-  const keptName = detail?.registration ?? plane?.registration ?? plane?.callsign ?? null;
-  const keptType = detail?.type ?? plane?.type ?? null;
+  // An airplane not heard today has no trace to name it: the FAA's record
+  // does, and what this browser kept of it (My Plane, a Favorite, a recent)
+  // -- N654FL opened from its tile read "A89C1E", its address, at the
+  // owner's report (2026-10-13), and was kept so.
+  const keptBefore = usePreferences(p => [p.myAircraft, ...p.favoriteAircraft, ...p.recentAircraft].find(a => a?.hex === hex) ?? null);
+  const keptName = detail?.registration ?? plane?.registration ?? detail?.faa?.n_number ?? plane?.callsign ?? keptBefore?.name ?? null;
+  const keptType = detail?.type ?? plane?.type ?? keptBefore?.type ?? null;
   const kept = useMemo(() => (keptName ? { hex, name: keptName, type: keptType } : null), [hex, keptName, keptType]);
   useEffect(() => {
     if (kept) usePreferences.getState().addRecentAircraft(kept);
   }, [kept]);
-  const name = plane?.callsign ?? detail?.registration ?? plane?.registration ?? hex.toUpperCase();
+  const name = plane?.callsign ?? detail?.registration ?? plane?.registration ?? detail?.faa?.n_number ?? keptBefore?.name ?? hex.toUpperCase();
   // Where it is now, carried on from its report, as the map draws it.
   const here = latest ? carriedOn(latest.plane, (now - latest.at) / 1000) : null;
   const cpa = fix && plane && here ? closestApproach(fix, { ...plane, ...here }) : null;
