@@ -9254,6 +9254,11 @@
             "title": "Aircraft",
             "type": "array"
           },
+          "checked": {
+            "default": true,
+            "title": "Checked",
+            "type": "boolean"
+          },
           "registered": {
             "anyOf": [
               {
@@ -12447,7 +12452,7 @@
     },
     "/api/traffic/find": {
       "get": {
-        "description": "The airplanes in the air a pilot names -- UAL2088, N174HA, a0b7d8 --\nto track one; with none in the air or heard now, the FAA's record of a\nUS airplane named by its N-number or address, its card opened all the\nsame (`registered`). A 503 where adsb.lol cannot be asked now.",
+        "description": "The airplanes in the air a pilot names -- UAL2088, N174HA, a0b7d8 --\nto track one; with none in the air or heard now, the FAA's record of a\nUS airplane named by its N-number or address, its card opened all the\nsame (`registered`). Where adsb.lol cannot be asked now, what can be\nshown all the same, `checked` false: the FAA's record of the one named,\nwhich needs no asking. It was a 503, which the pilot read as \"Couldn't\nsearch\" for an airplane the registry knew (N654FL, 2026-10-11).",
         "operationId": "traffic_find_api_traffic_find_get",
         "parameters": [
           {

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plane, Search, X } from "lucide-react";
 import { cn } from "cn";
 import { CardHead, PanelCard } from "../../../components/PanelCard";
@@ -17,6 +17,11 @@ import { altFt } from "../../../lib/units";
 /** What is typed waits this long for the next letter before it is asked
  *  about: each search is a request adsb.lol paces (vfr.traffic). */
 const TYPING_MS = 500;
+/** A search adsb.lol could not be asked for, asked again this many times… */
+const SEARCH_RETRIES = 3;
+/** …this long apart: past the planner's fifteen-second wait after adsb.lol
+ *  turns it away (vfr.traffic BACKOFF_S), in three tries. */
+const SEARCH_RETRY_MS = 6_000;
 
 /** Whether an airplane's callsign, registration or ICAO address begins
  *  with what is typed (spaces and a registration's hyphen aside). */
@@ -66,6 +71,14 @@ export default function AircraftCard({ onPick, onPickHex, onClose }: {
   const searching = wanted.length >= 3;
   const { data: found, isFetching, isError } = useQuery({
     queryKey: ["trafficFind", asked], queryFn: () => api.trafficFind(asked), enabled: asked.length >= 3, staleTime: 30_000,
+    // adsb.lol answers one request every few seconds from the planner's
+    // address and turns the rest away; the planner then answers with what
+    // it can show without it (`checked` false: the airplanes the map has
+    // heard, the FAA's record of the one named), and this asks again, past
+    // the planner's fifteen-second wait (vfr.traffic BACKOFF_S), three
+    // times at most. It was a 503 and "Couldn't search" for N654FL, which
+    // the registry knew (seen on 2026-10-11).
+    refetchInterval: query => (query.state.data?.checked === false && query.state.dataUpdateCount <= SEARCH_RETRIES ? SEARCH_RETRY_MS : false),
     meta: { silent: true },
   });
   // Asked once the typing pauses, and one search at a time: what is typed
@@ -95,6 +108,12 @@ export default function AircraftCard({ onPick, onPickHex, onClose }: {
       .sort((a, b) => Number(whole(b)) - Number(whole(a))).slice(0, 8);
   }, [seen, wanted, searching]);
   const answer = asked === wanted ? found?.aircraft : undefined;
+  // adsb.lol could not be asked for this name yet (`checked` false): what
+  // can be shown is, and the search is still out until the tries are spent.
+  const unchecked = asked === wanted && found?.checked === false;
+  // Asked again (refetchInterval above) until its tries are spent.
+  const answers = useQueryClient().getQueryState(["trafficFind", asked])?.dataUpdateCount ?? 0;
+  const askingAgain = unchecked && answers <= SEARCH_RETRIES;
   const listed = [...heard, ...(answer ?? []).filter(plane => !heard.some(h => h.hex === plane.hex))];
   // None in the air by that name: the FAA's record of a US airplane named
   // by its N-number or address, its card opened all the same (FlightCard:
@@ -146,13 +165,19 @@ export default function AircraftCard({ onPick, onPickHex, onClose }: {
               <ListRow
                 media={<Plane className="size-5 text-muted-foreground" />} data-testid="aircraft-registered"
                 title={<span className="font-semibold">{registered.n_number}</span>}
-                description={[[registered.manufacturer, registered.model].filter(Boolean).join(" "), "not in the air now"].filter(Boolean).join(" · ")}
+                description={[[registered.manufacturer, registered.model].filter(Boolean).join(" "),
+                  unchecked ? "not yet known whether it is flying" : "not in the air now"].filter(Boolean).join(" · ")}
                 chevron={!!registered.mode_s_hex}
                 onClick={registered.mode_s_hex ? () => onPickHex(registered.mode_s_hex!) : undefined}
               />
             )}
-            {searching && answer && !listed.length && !registered && (
+            {searching && answer && !unchecked && !listed.length && !registered && (
               <ListRow title={<span className="text-muted-foreground">None in the air by that name is heard now</span>} />
+            )}
+            {searching && unchecked && (
+              <ListRow title={<span className={cn("text-muted-foreground", TEXT.detail)} data-testid="aircraft-unchecked">
+                {askingAgain ? "adsb.lol is busy; asking again…" : "adsb.lol didn't answer, so whether it is flying is not known. Try again in a moment."}
+              </span>} />
             )}
             {searching && !answer && isError && asked === wanted && (
               <ListRow title={<span className={cn("text-destructive", TEXT.detail)}>Couldn't search. Try again in a moment.</span>} />

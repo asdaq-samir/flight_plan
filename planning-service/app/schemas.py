@@ -1034,6 +1034,11 @@ class TrafficFound(BaseModel):
 
     aircraft: list[TrafficAircraft]
     registered: AircraftRegistration | None = None
+    #: False where adsb.lol could not be asked just now (it answers one
+    #: request every few seconds): `aircraft` is then only what the map's
+    #: regions have heard, `registered` the FAA's record all the same, and
+    #: the page asks again.
+    checked: bool = True
 
 
 class FlightDetail(BaseModel):

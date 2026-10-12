@@ -29,12 +29,15 @@ def traffic_find(q: str = Query(min_length=2, max_length=12, description="Callsi
     """The airplanes in the air a pilot names -- UAL2088, N174HA, a0b7d8 --
     to track one; with none in the air or heard now, the FAA's record of a
     US airplane named by its N-number or address, its card opened all the
-    same (`registered`). A 503 where adsb.lol cannot be asked now."""
+    same (`registered`). Where adsb.lol cannot be asked now, what can be
+    shown all the same, `checked` false: the FAA's record of the one named,
+    which needs no asking. It was a 503, which the pilot read as "Couldn't
+    search" for an airplane the registry knew (N654FL, 2026-10-11)."""
     try:
         found = traffic.find(q)
-        return TrafficFound(aircraft=found, registered=None if found else traffic.registered(q))
-    except traffic.TrafficUnavailable as err:
-        raise HTTPException(503, "Traffic isn't available right now: adsb.lol could not be asked.") from err
+    except traffic.TrafficUnavailable:
+        return TrafficFound(aircraft=[], registered=traffic.registered(q), checked=False)
+    return TrafficFound(aircraft=found, registered=None if found else traffic.registered(q))
 
 
 @router.get("/api/traffic/flight/{hex_id}", response_model=FlightDetail)

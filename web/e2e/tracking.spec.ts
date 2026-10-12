@@ -167,6 +167,39 @@ test("an airplane not in the air is found by its registration, and its card says
   await expect(card.getByTestId("faa-owner")).toContainText("Roca Roja LLC · LLC · Meridian, ID");
 });
 
+test("while adsb.lol is busy a search shows what it can -- the FAA's record -- and asks again until it is answered", async ({ page }) => {
+  // What the pilot met with N654FL: adsb.lol answers one request every few
+  // seconds, and the planner answers a search it could not ask with
+  // `checked` false and the registry's record.
+  const piper = { ...FAA, n_number: "N654FL", mode_s_hex: "a89c1e", manufacturer: "Piper", model: "PA-28-140" };
+  const flying = { ...CESSNA, hex: "a89c1e", callsign: "N654FL", registration: "N654FL", type: "P28A", lat: 42.4, lon: -88.2 };
+  await sky(page);
+  let asked = 0;
+  let busy = 1;
+  await page.route(url => url.pathname.endsWith("/api/planner/traffic/find"), route => {
+    asked += 1;
+    return route.fulfill({ json: asked <= busy ? { aircraft: [], registered: piper, checked: false } : { aircraft: [flying], checked: true } });
+  });
+  await page.goto("/app/plan?aircraft=1");
+  await settle(page);
+  const card = page.getByTestId("aircraft-card");
+  await page.getByTestId("aircraft-search").fill("N654FL");
+  // At once, the registration, not "Couldn't search"; then the airplane in the air.
+  await expect(card.getByTestId("aircraft-registered")).toContainText("Piper PA-28-140 · not yet known whether it is flying", { timeout: slow(15_000) });
+  await expect(card.getByTestId("aircraft-unchecked")).toBeVisible();
+  await expect(card.getByTestId("aircraft-found").first()).toContainText("N654FL", { timeout: slow(20_000) });
+  await expect(card.getByTestId("aircraft-unchecked")).toHaveCount(0);
+  await expect(card.getByText("Couldn't search")).toHaveCount(0);
+
+  // Busy every time: the record stays, and after three tries again it says so and stops asking.
+  busy = Infinity;
+  asked = 0;
+  await page.getByTestId("aircraft-search").fill("N12345");
+  await expect(card.getByTestId("aircraft-unchecked")).toContainText("Try again in a moment", { timeout: slow(40_000) });
+  await page.waitForTimeout(8000);
+  expect(asked).toBe(4);
+});
+
 test("in the air, own ship's path flown is drawn behind it", async ({ page }) => {
   await page.context().grantPermissions(["geolocation"]);
   await page.addInitScript(() => {

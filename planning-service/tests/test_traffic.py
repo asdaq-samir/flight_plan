@@ -60,3 +60,21 @@ def test_an_airplane_not_in_the_air_is_found_in_the_faa_registry(monkeypatch):
     body = client.get("/api/traffic/find", params={"q": "N654FL"}).json()
     assert body["aircraft"] == [] and body["registered"]["mode_s_hex"] == "a89c1e"
     assert client.get("/api/traffic/find", params={"q": "UAL2088"}).json()["registered"] is None
+
+
+def test_adsb_lol_busy_still_gives_the_faa_record_unchecked(monkeypatch):
+    faa = {"n_number": "N654FL", "mode_s_hex": "a89c1e", "manufacturer": "Piper", "model": "PA-28-140", "status": "Valid",
+           "standing": "valid"}
+
+    def busy(q):
+        raise traffic.TrafficUnavailable("turned away")
+
+    monkeypatch.setattr(traffic, "find", busy)
+    monkeypatch.setattr(traffic, "registered", lambda q: faa if q == "N654FL" else None)
+    response = client.get("/api/traffic/find", params={"q": "N654FL"})
+    assert response.status_code == 200
+    body = response.json()
+    assert body["checked"] is False and body["aircraft"] == [] and body["registered"]["n_number"] == "N654FL"
+    # Nothing the registry knows: still an answer, unchecked, for the page to ask again.
+    body = client.get("/api/traffic/find", params={"q": "UAL2088"}).json()
+    assert body == {"aircraft": [], "registered": None, "checked": False}
