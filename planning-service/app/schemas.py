@@ -1072,6 +1072,9 @@ class PastFlights(BaseModel):
     registration: str | None = None
     type: str | None = None
     flights: list[PastFlightSummary]
+    #: Past days whose traces adsb.lol did not give just now: their
+    #: flights are missing from the list, not known not to have flown.
+    unread_days: int = 0
 
 
 class PastFlightPoint(BaseModel):

@@ -538,3 +538,15 @@ def test_a_flight_last_heard_heading_down_to_a_field_further_out_landed_there(cl
     # Headed away from it, or high over it, it is only passing.
     assert traffic._field_at({**last, "track_deg": 66.0}, landing=True) is None
     assert traffic._field_at({**last, "alt_ft": 6000.0}, landing=True) is None
+
+
+def test_a_past_day_that_could_not_be_read_is_counted_not_taken_for_no_flights(clock, monkeypatch):
+    import datetime as dt
+
+    traffic._DAYS.clear()
+    monkeypatch.setattr(traffic, "_trace", lambda hex_id: None)
+    with patch("vfr.traffic.requests.get", side_effect=requests.Timeout("slow")):
+        found = traffic.history("a89c1e", days=3, today=dt.date(2026, 10, 11))
+    assert found["flights"] == [] and found["unread_days"] == 2
+    # And asked again next time, not kept as a day without a trace.
+    assert not traffic._DAYS

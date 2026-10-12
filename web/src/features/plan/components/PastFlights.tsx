@@ -44,6 +44,9 @@ const LOG_ROWS = 60;
 export default function PastFlights({ hex }: { hex: string }) {
   const { data, isError } = useQuery({
     queryKey: ["pastFlights", hex], queryFn: () => api.trafficHistory(hex), staleTime: 5 * 60_000, meta: { silent: true },
+    // Days adsb.lol did not give just now are asked for again, a minute
+    // apart, five times at most.
+    refetchInterval: query => ((query.state.data?.unread_days ?? 0) > 0 && query.state.dataUpdateCount <= 5 ? 60_000 : false),
   });
   const chosen = usePastFlight(s => (s.hex === hex ? s.id : null));
   // The card closed or another airplane tracked: its past flight goes too.
@@ -58,13 +61,23 @@ export default function PastFlights({ hex }: { hex: string }) {
       >
         {!data && !isError && <ListRow title={<span role="status" className="text-muted-foreground">Looking…</span>} />}
         {isError && <ListRow title={<span className={cn("text-destructive", TEXT.detail)}>Its past flights could not be had. Try again in a moment.</span>} />}
-        {data && !flights.length && <ListRow title={<span className="text-muted-foreground">None heard in the last seven days</span>} />}
+        {data && !flights.length && !data.unread_days && (
+          <ListRow title={<span className="text-muted-foreground">None heard in the last seven days</span>} />
+        )}
         {flights.map(flight => (
           <PastFlightRow
             key={flight.id} flight={flight} selected={flight.id === chosen}
             onPick={() => (flight.id === chosen ? clearPastFlight() : choosePastFlight(hex, flight.id))}
           />
         ))}
+        {/* A gap that is adsb.lol's, not the airplane's, said as one. */}
+        {!!data?.unread_days && (
+          <ListRow title={
+            <span className={cn("text-muted-foreground", TEXT.detail)} data-testid="past-flights-unread">
+              {data.unread_days === 1 ? "One day" : `${data.unread_days} days`} could not be read from adsb.lol just now, so their flights are missing; asking again.
+            </span>
+          } />
+        )}
       </ListGroup>
       {picked && <Replay flight={picked} />}
     </>

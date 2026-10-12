@@ -596,16 +596,27 @@ def _merged(traces: list) -> list[dict]:
     trace (`_trace`, the last day or so, not a UTC day) runs over the
     archive's last day."""
     seen, out = set(), []
-    for point in sorted((p for trace in traces for p in _points(trace)), key=lambda p: p["t"]):
+    read = [t for t in traces if isinstance(t, dict)]
+    for point in sorted((p for trace in read for p in _points(trace)), key=lambda p: p["t"]):
         if point["t"] not in seen:
             seen.add(point["t"])
             out.append(point)
     return out
 
 
-def _day_trace(hex_id: str, day) -> dict | None:
+class _Unread:
+    """A day's trace that could not be had now: refused or not answered."""
+
+
+#: What `_day_trace` gives for a day it could not read, as against None,
+#: a day the airplane has no trace.
+UNREAD = _Unread()
+
+
+def _day_trace(hex_id: str, day) -> dict | None | _Unread:
     """An airplane's trace on a past UTC day (a datetime.date), kept; None
-    where it has none that day. A refusal or a timeout is not kept."""
+    where it has none that day; UNREAD where it could not be had now -- a
+    refusal or a timeout, which is not kept and is asked again next time."""
     key = (hex_id, day.isoformat())
     with _LOCK:
         if key in _DAYS:
@@ -620,7 +631,7 @@ def _day_trace(hex_id: str, day) -> dict | None:
             if not isinstance(trace, dict):
                 trace = None
     except (requests.RequestException, ValueError):
-        return None
+        return UNREAD
     with _LOCK:
         _DAYS[key] = trace
     return trace
@@ -712,7 +723,7 @@ def history(hex_id: str, days: int = HISTORY_DAYS, today=None) -> dict:
         past = list(pool.map(lambda n: _day_trace(hex_id, today - dt.timedelta(days=n)), range(1, max(1, days))))
     traces = [_trace(hex_id)] + past
     points = _merged(traces)
-    named = next((t for t in traces if t), {}) or {}
+    named = next((t for t in traces if isinstance(t, dict)), {})
     now = time.time()
     flights = []
     for leg in _legs(points):
@@ -725,7 +736,11 @@ def history(hex_id: str, days: int = HISTORY_DAYS, today=None) -> dict:
             "max_alt_ft": max(p["alt_ft"] for p in air),
         })
     flights.reverse()
-    return {"hex": hex_id, "registration": named.get("r") or None, "type": named.get("t") or None, "flights": flights}
+    # The days that could not be read now, said, so a gap in the list is
+    # not taken for days the airplane stayed on the ground.
+    unread = sum(1 for t in past if t is UNREAD)
+    return {"hex": hex_id, "registration": named.get("r") or None, "type": named.get("t") or None, "flights": flights,
+            "unread_days": unread}
 
 
 def past_flight(hex_id: str, flight_id: int, today=None) -> dict | None:

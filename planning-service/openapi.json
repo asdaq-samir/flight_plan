@@ -6557,6 +6557,11 @@
               }
             ],
             "title": "Type"
+          },
+          "unread_days": {
+            "default": 0,
+            "title": "Unread Days",
+            "type": "integer"
           }
         },
         "required": [
