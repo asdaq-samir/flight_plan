@@ -349,14 +349,21 @@ body[data-map-sheet][data-map-panel="full"] [data-map-controls] {
 body:is([data-map-panel="half"], [data-map-panel="full"], [data-scroll-locked]) [data-sonner-toast] {
   pointer-events: auto;
 }
-/* The scroll lock's own variable kept from the page under <body>: the
-   lock sets it on <body> as a stock dialog, menu or select opens, and
-   being inherited, every element of the page had its style worked out
-   again, opening and closing -- 80 ms each of a phone's (CPU 4x slower),
-   5 with this (measured 2026-10-08). The page under the body never
-   scrolls, so has no scroll bar's width to make room for. */
-#root {
-  --removed-body-scroll-bar-size: 0px;
+/* The scroll lock's own variable kept on <body>: the lock sets it there
+   as a stock dialog, menu or select opens (react-remove-scroll-bar), and
+   inherited, every element under it had its style worked out again,
+   opening and closing. An override of 0px on #root (2026-10-08) stopped
+   it only while the lock's value differed: a phone has no scroll bar,
+   the lock's value is 0px too, and Chrome then shares the body's
+   variables with #root, so the page restyled all the same -- 1,012
+   elements, 220-460 ms of a phone's (CPU 4x slower) each way, set to 0px;
+   none with 15px (traced 2026-10-13). Registered as not inherited, it is
+   the body's alone, whatever its value: 5-20 ms. Nothing reads it; the
+   page under the body never scrolls, so has no scroll bar to make room
+   for. */
+@property --removed-body-scroll-bar-size {
+  syntax: "*";
+  inherits: false;
 }
 /* The same for the page's taps. A stock menu, select or dialog keeps
    them from the page under it by setting <body>'s pointer-events to none
