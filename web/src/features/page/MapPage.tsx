@@ -12,6 +12,7 @@ import { useIsMobile } from "../../hooks/use-mobile";
 import { useIsTablet } from "../../hooks/use-tablet";
 import { useNavEdge } from "../../hooks/use-nav-edge";
 import { usePreferences } from "../../lib/preferences";
+import { useWarmAirportIndex } from "../../lib/airportIndex";
 import ConsoleHeader from "../pilot/ConsoleHeader";
 import LinkSignIn from "../pilot/LinkSignIn";
 import TvLink from "../pilot/TvLink";
@@ -115,11 +116,18 @@ export default function MapPage({ mode }: { mode: Mode }) {
   }, [refused, setSearchParams]);
 
   // How far the panel is out. All the way, on the planner, is the
-  // address; half and resting are this page's own. The planner opened on
-  // no route is Maps opened: half way up on the search bar, Favorites and
-  // Recents under it (a reload forgets the route: lib/freshLoad).
-  const [localPanel, setLocalPanel] = useState<PanelState>(
-    () => (mode === "pilot" && !addressDep && !addressDest ? "half" : "peek"));
+  // address; half and resting are this page's own. Opened, the panel
+  // rests as the tabs alone, at the owner's ask ("By default it should
+  // open in just tabs layout"; MapPanel), where it opened half way up on
+  // the search bar with no route.
+  // An address that opens something -- a field's card, the airspace at a
+  // point, an airplane, the Aircraft or NRST list -- opens half way up on
+  // it, as a tap on it would.
+  const [localPanel, setLocalPanel] = useState<PanelState>(() => (
+    mode === "pilot" && ["place", "at", "flight", "past", "aircraft", "near"].some(key => searchParams.has(key)) ? "half" : "peek"));
+  // The airport index downloaded ahead of the first search, which at rest
+  // is out of sight (lib/airportIndex).
+  useWarmAirportIndex(mode === "pilot");
   const briefingInAddress = searchParams.get("view") === "briefing";
   const panel: PanelState = mode === "pilot"
     ? (briefingInAddress ? "full" : localPanel === "full" ? "peek" : localPanel)

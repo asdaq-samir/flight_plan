@@ -254,7 +254,7 @@ export function AirportRow({ airport, recent = false, waypoint = false, onSelect
     <CommandItem value={airport.ident} onSelect={onSelect} className="min-h-11 gap-3 rounded-lg px-2 py-2" data-testid={testId}>
       {/* Its magenta as fill and stroke, not the text colour: a row's
           highlight recolours its icons' text, and the diamond went black. */}
-      {waypoint ? <Diamond className="size-5 fill-[#b02e7c] stroke-[#b02e7c] dark:fill-[#e070b0] dark:stroke-[#e070b0]" />
+      {waypoint ? <Diamond className="size-5 fill-[#c0309f] stroke-[#c0309f] dark:fill-[#e070b0] dark:stroke-[#e070b0]" />
         : recent ? <History className="size-5 text-muted-foreground" /> : <Search className="size-5 text-muted-foreground" />}
       <span className="min-w-0 flex-1">
         <span className={cn("block truncate", TEXT.row)}><span className="font-mono font-semibold">{airport.ident}</span> · {airport.name}</span>

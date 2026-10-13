@@ -28,7 +28,7 @@ test("the Speed page, under System, charts pilots' figures beside the lab's, by 
   await page.goto("/app/dev");
   await showTabs(page);
   await openConsole(page);
-  await consoleSheet(page).getByRole("tab", { name: "System" }).click();
+  await consoleSheet(page).getByRole("tab", { name: "Status" }).click();
   await expandConsole(page);
   await consoleSheet(page).getByRole("button", { name: "Speed" }).click();
   await expect(consoleSheet(page).getByTestId("console-page").getByRole("heading", { name: "Speed" })).toBeVisible();

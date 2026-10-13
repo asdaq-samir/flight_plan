@@ -134,10 +134,12 @@ const drawnOnly = (results: { data?: ProcedureDrawing }[]) => results.flatMap(r 
 /** The planner's places, its tab bar's (TabBar): the flight being
  *  planned, airports, traffic and the nearest fields. */
 
+// FPL and Aircraft swapped, at the owner's ask ("Can we swap fpl and
+// aircraft tabs? Fpl should be the default selected").
 const PLANNER_TABS: BarTab<PanelTab>[] = [
-  { value: "fpl", label: "FPL", icon: Route },
-  { value: "airport", label: "Airport", icon: TowerControl },
   { value: "aircraft", label: "Aircraft", icon: Plane },
+  { value: "airport", label: "Airport", icon: TowerControl },
+  { value: "fpl", label: "FPL", icon: Route },
   { value: "nrst", label: "NRST", icon: Radar },
 ];
 

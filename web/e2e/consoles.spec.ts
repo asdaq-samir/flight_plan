@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { closeConsole, closeSidebarWithTheStockKey, consoleSheet, expectDrawerClosed, expectDrawerOpen, library, openConsole, openSettings, settle, settled, showTabs } from "./helpers";
+import { closeConsole, closeSidebarWithTheStockKey, consoleSheet, expectDrawerClosed, grabberTo, library, openConsole, openAccount, openSettings, openSidebar, settle, settled, showTabs } from "./helpers";
 
 /**
  * The consoles and the settings: fitting the screen, the pilot
@@ -15,8 +15,9 @@ test("signed in, each console fits the screen's width: nothing but a table's own
   // allowed past the edge.
   for (const [path, button] of [["/app/plan", "settings-button"], ["/app/dev", "settings-button"]] as const) {
     await page.goto(path);
-    await showTabs(page);
-    await page.getByTestId(button).click();
+    void button;
+    await openConsole(page);
+    await openAccount(page);
     await expect(consoleSheet(page).getByTestId("pilot-address")).toHaveText("developer@example.com");
     const past = await consoleSheet(page).evaluate(sheet => {
       const edge = document.documentElement.clientWidth + 1;
@@ -32,8 +33,8 @@ test("signed in, each console fits the screen's width: nothing but a table's own
 test("plan page: the pilot console holds the account, airplanes and flights, and the drawer opens once it is closed", { tag: "@smoke" }, async ({ page }) => {
   await page.goto("/app/plan");
   await settle(page);
-  // Opened as Maps opens: the search half way up (lib/freshLoad).
-  await expect(page.locator('[data-slot="map-panel"]')).toHaveAttribute("data-panel", "half");
+  // Opened as the tabs alone, at the owner's ask (MapPanel).
+  await expect(page.locator('[data-slot="map-panel"]')).toHaveAttribute("data-panel", "peek");
   expect(await consoleSheet(page).count()).toBe(0);
 
   await showTabs(page);
@@ -47,9 +48,11 @@ test("plan page: the pilot console holds the account, airplanes and flights, and
   await showTabs(page);
   await expect(page.getByTestId("settings-button")).toHaveAttribute("aria-current", "page");
   if (phone) expect(await pilot.evaluate(el => !!el.closest('[data-slot="map-panel"]'))).toBe(true);
-  // The title is the role, a menu: Pilot (chosen here), Developer for a
-  // developer, and Sign out last; who is signed in beside it.
+  // The role, a menu, in Personal's Account row, at the owner's ask: Pilot
+  // (chosen here), Developer for a developer, and Sign out last; who is
+  // signed in beside it.
   await expect(page.getByRole("dialog", { name: "Pilot" })).toBeVisible();
+  await openAccount(page);
   await expect(pilot.getByTestId("role-menu")).toHaveText("Pilot");
   await expect(pilot.getByTestId("pilot-address")).toHaveText("developer@example.com");
   await pilot.getByTestId("role-menu").click();
@@ -66,7 +69,7 @@ test("plan page: the pilot console holds the account, airplanes and flights, and
   await expect(pilot.getByRole("region", { name: "Aircraft", exact: true })).toBeVisible();
   await library(pilot, "Flights");
   await expect(pilot.getByRole("region", { name: "Flights", exact: true })).toBeVisible();
-  await expect(pilot.getByRole("tab")).toHaveText(["Guide", "Personal", "Settings", "About"]);
+  await expect(pilot.getByRole("tab")).toHaveText(["Guide", "Account", "Settings", "About"]);
   // The personal minimums are Personal's, with no sign-in needed.
   await library(pilot, "Minimums");
   await expect(pilot.getByTestId("minimum-ceilingFt")).toBeVisible();
@@ -78,8 +81,7 @@ test("plan page: the pilot console holds the account, airplanes and flights, and
   await expect(pilot).toHaveCount(0);
   await closeSidebarWithTheStockKey(page);
   await expectDrawerClosed(page);
-  await page.getByTestId("sidebar-trigger-button").click();
-  await expectDrawerOpen(page);
+  await openSidebar(page);
 });
 
 test("the navigation bar's edge is a setting: the panel moves to it, the map's buttons take the other, the console comes from it, and it is remembered", async ({ page }) => {
@@ -150,8 +152,11 @@ test("the console holds still as its tabs change: up from the bottom of a phone'
   await page.goto("/app/plan");
   await settle(page);
   const panel = page.locator('[data-slot="map-panel"]');
+  // Opened as the tabs alone: half way up first, the height compared.
+  await grabberTo(page, "half");
+  // Measured once it has come to rest, not on its way up from the tabs.
+  await settled(panel);
   const half = (await panel.boundingBox())!;
-  await showTabs(page);
   await openConsole(page);
   const pilot = consoleSheet(page);
   await expect(pilot.getByRole("tab", { name: "Guide" })).toBeVisible();
@@ -163,6 +168,7 @@ test("the console holds still as its tabs change: up from the bottom of a phone'
     // A layer of the map's panel, at the half every panel has, as the
     // search was: in from the screen's sides and its foot by eight.
     await expect(panel).toHaveAttribute("data-panel", "half");
+    await settled(panel);
     const now = (await panel.boundingBox())!;
     expect(Math.abs(now.y - half.y)).toBeLessThan(1);
     expect(Math.abs(now.height - half.height)).toBeLessThan(1);
@@ -174,7 +180,7 @@ test("the console holds still as its tabs change: up from the bottom of a phone'
   }
   const tabRow = pilot.getByRole("tablist");
   const rowTop = (await tabRow.boundingBox())!.y;
-  for (const name of ["Personal", "Settings", "Guide"]) {
+  for (const name of ["Account", "Settings", "Guide"]) {
     await pilot.getByRole("tab", { name }).click();
     await expect(pilot.getByRole("tab", { name })).toHaveAttribute("aria-selected", "true");
     expect((await tabRow.boundingBox())!.y, `the tab row after ${name}`).toBe(rowTop);

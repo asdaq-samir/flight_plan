@@ -6,7 +6,7 @@ import { scoreColor } from "../../format";
 import type { NavLogRow } from "./rows";
 
 /** The sectional's magenta, a waypoint's on the map (WaypointsLayer). */
-const WAYPOINT_MAGENTA = "#b02e7c";
+const WAYPOINT_MAGENTA = "#c0309f";
 /** The course line's orange, a top of climb's and descent's tag edge on
  *  the map (legPointIcon). */
 const COURSE_ORANGE = "#ff3b00";

@@ -14,9 +14,13 @@ test("the tabs swap the panel's head and body, FPL's empty box with no route", a
   await settle(page);
   const bar = page.getByTestId("tab-bar");
   await expect(bar).toBeVisible();
-  // With no route, Airport: the airport search, Settings a tab of the bar.
+  // The tabs alone at first, FPL the tab up, at the owner's ask ("Fpl
+  // should be the default selected"); out half way, Airport the search.
+  await expect(sideDrawer(page)).toHaveAttribute("data-collapsed", "true");
+  await expect(page.getByTestId("tab-fpl")).toHaveAttribute("aria-current", "page");
+  await grabberTo(page, "half");
   await showTabs(page);
-  await expect(page.getByTestId("tab-airport")).toHaveAttribute("aria-current", "page");
+  await page.getByTestId("tab-airport").click();
   await expect(sideDrawer(page).getByTestId("search-airports")).toBeVisible();
   await showTabs(page);
   await expect(bar.getByTestId("settings-button")).toBeVisible();
@@ -228,6 +232,9 @@ test("the pill collapses to its tabs alone by a drag down, and its grabber bring
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   const panel = sideDrawer(page);
+  // At rest the tabs alone; the grabber the pill with its figures.
+  await expect(panel).toHaveAttribute("data-collapsed", "true");
+  await grabberTo(page, "peek");
   await expect(panel).toHaveAttribute("data-capsule", "true");
   await expect(panel.getByTestId("panel-foot")).toBeVisible({ timeout: slow(30000) });
   const pill = (await panel.boundingBox())!;
@@ -250,4 +257,22 @@ test("the pill collapses to its tabs alone by a drag down, and its grabber bring
   await expect(panel).not.toHaveAttribute("data-collapsed", "true");
   await expect(panel.getByTestId("panel-foot")).toBeVisible();
   await expect(panel).toHaveAttribute("data-panel", "peek");
+});
+
+test("the grabber steps through four sizes: the tabs alone, the pill, half and all the way up, and back", async ({ page }) => {
+  // The owner's ask: "I want 4 layouts: just tabs, minimal, half, full".
+  await page.goto("/app/plan?dep=C81&dest=KDLH");
+  await settle(page);
+  const panel = sideDrawer(page);
+  const grabber = page.getByTestId("sidebar-trigger-button");
+  const size = async () => `${await panel.getAttribute("data-panel")}${await panel.getAttribute("data-collapsed") ? " tabs" : ""}`;
+  await expect.poll(size).toBe("peek tabs");
+  const seen: string[] = [];
+  for (let i = 0; i < 6; i++) {
+    const before = await size();
+    await grabber.click();
+    await expect.poll(size).not.toBe(before);
+    seen.push(await size());
+  }
+  expect(seen).toEqual(["peek", "half", "full", "half", "peek", "peek tabs"]);
 });

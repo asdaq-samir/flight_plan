@@ -19,6 +19,7 @@ import SubscriptionPanel from "./SubscriptionPanel";
 import { standing, subscriptionQuery, useSold } from "../../lib/subscription";
 import PilotGuide from "./PilotGuide";
 import SignInModal from "./SignInModal";
+import AccountRow from "./AccountRow";
 
 /** Who is signed in, or why nobody is: null signed out, "loading"
  *  while the check is in flight, "error" when it failed. */
@@ -72,8 +73,11 @@ function Personal({ pilot }: { pilot: PilotState }) {
           signed out and show 401s with no word of why. "loading" is left
           out of the key, so the session check finishing does not throw
           away Minimums, which needs no sign-in, or an edit in it. */}
-      <ConsolePages key={pilot === null || pilot === "error" ? "out" : "in"} back="Personal" pages={pages}>
+      <ConsolePages key={pilot === null || pilot === "error" ? "out" : "in"} back="Account" pages={pages}>
         <div className="space-y-4">
+          {/* Who is signed in and the mode, first, as iOS's Settings puts
+              the account at its top (AccountRow). */}
+          <AccountRow />
           {account}
           {/* What the pilot has of the paid features, a row of its own over
               their things, as iOS's Settings puts the account's at the top. */}
@@ -138,8 +142,17 @@ export function PilotPanel() {
       onChange={changeTab}
       tabs={[
         { value: "guide", label: "Guide", content: <PilotGuide /> },
-        { value: "library", label: "Personal", content: <Personal pilot={pilotState} /> },
+        { value: "library", label: "Account", content: <Personal pilot={pilotState} /> },
       ]}
     />
   );
+}
+
+/** Personal on its own, for the developer's console as a tab of its own,
+ *  at the owner's ask ("make a personal tab in dev mode"): the account and
+ *  the mode with it, and the pilot's own things. */
+export function PersonalTab() {
+  const { data: pilot, isLoading, isError } = useQuery(pilotQuery);
+  const pilotState: PilotState = isLoading ? "loading" : (pilot ?? (isError ? "error" : null));
+  return <Personal pilot={pilotState} />;
 }

@@ -145,7 +145,11 @@ export function usePanelTabs({ cards, route, hasRoute, panel, setPanel, searchPa
     setRouteSeen(route);
     if (hasRoute) setTabPick("fpl");
   }
-  const tab: PanelTab = flight || aircraftOpen ? "aircraft" : nearOpen ? "nrst" : tabPick ?? (hasRoute ? "fpl" : "airport");
+  // FPL first, at the owner's ask ("Fpl should be the default selected"),
+  // but an airport's card or a point's opened before any tab was picked
+  // (a link, a tap on the chart) is Airport's, kept there when left.
+  const tab: PanelTab = flight || aircraftOpen ? "aircraft" : nearOpen ? "nrst"
+    : tabPick ?? (place || heldPoint ? "airport" : "fpl");
 
   const keptCards = useRef<Partial<Record<PanelTab, [string, string][]>>>({});
   const keptReplay = useRef<{ hex: string; id: number; at: number | null; playing: boolean } | null>(null);

@@ -481,10 +481,10 @@ test("the chart's airports are marked by their airspace -- B, C, D, E, G -- a mi
   await expect(markOf("KMIL").locator("circle").first()).toHaveAttribute("fill", "#2465b8");
   await expect(markOf("KPVT")).toHaveAttribute("data-use", "private");
   await expect(markOf("KPVT")).toContainText("R");
-  await expect(markOf("KPVT").locator("circle").first()).toHaveAttribute("fill", "#b02e7c");
+  await expect(markOf("KPVT").locator("circle").first()).toHaveAttribute("fill", "#c0309f");
   await expect(markOf("KCCC")).not.toHaveAttribute("data-use");
-  // The dot in its METAR's colour: VFR green, IFR red (no report's grey,
-  // classb.spec).
+  // The disc in its METAR's colour: VFR green, IFR red (no report's
+  // grey, classb.spec).
   await expect(markOf("KBBB").locator("[data-weather]")).toHaveCSS("fill", "rgb(26, 127, 55)");
   await expect(markOf("KGGG").locator("[data-weather]")).toHaveCSS("fill", "rgb(179, 38, 30)");
 });
@@ -546,6 +546,10 @@ test("the airport search answers from the phone's own copy, asking the planner n
   await page.goto("/app/plan");
   await settle(page);
   await downloaded;
+  // Out of the tabs alone, on Airport's search.
+  await grabberTo(page, "half");
+  await showTabs(page);
+  await page.getByTestId("tab-airport").click();
   const search = page.getByTestId("search-airports");
   const read = index();
   await search.click();
@@ -564,8 +568,12 @@ test("with no route the panel is a search bar: Home is set from Favorites, an ai
   await page.reload();
   await settle(page);
   const search = page.getByTestId("search-airports");
-  // Half way up on the search, as a fresh load opens.
-  await expect(sideDrawer(page)).toHaveAttribute("data-panel", "half");
+  // The tabs alone, as a fresh load opens; out half way on Airport's search.
+  await expect(sideDrawer(page)).toHaveAttribute("data-collapsed", "true");
+  await grabberTo(page, "half");
+  await showTabs(page);
+  await page.getByTestId("tab-airport").click();
+  await expect(search).toBeVisible();
 
   // Focused, the sheet comes all the way up on Favorites, Home not set yet;
   // its Add asks the search bar for the field.

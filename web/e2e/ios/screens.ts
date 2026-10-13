@@ -113,7 +113,7 @@ export const SCREENS: Screen[] = [
       await page.goto("/app/dev");
       await showTabs(page);
       await openConsole(page);
-      await page.getByRole("tab", { name: "System" }).click();
+      await page.getByRole("tab", { name: "Status" }).click();
       await expect(page.getByTestId("dev-refresh")).toBeVisible();
     },
   },
@@ -135,7 +135,7 @@ export const SCREENS: Screen[] = [
       await page.goto("/app/plan");
       await showTabs(page);
       await openConsole(page);
-      await page.getByRole("tab", { name: "Personal" }).click();
+      await page.getByRole("tab", { name: "Account" }).click();
       await expect(page.getByTestId("library-section")).toBeVisible();
     },
   },
@@ -146,7 +146,7 @@ export const SCREENS: Screen[] = [
       await page.goto("/app/plan");
       await showTabs(page);
       await openConsole(page);
-      await page.getByRole("tab", { name: "Personal" }).click();
+      await page.getByRole("tab", { name: "Account" }).click();
       await page.getByTestId("library-section").getByRole("button", { name: /^Aircraft/ }).click();
       await expect(page.getByRole("heading", { name: "Aircraft", exact: true })).toBeVisible();
     },
@@ -190,7 +190,7 @@ export const SCREENS: Screen[] = [
     ready: async page => {
       await page.goto("/app/plan");
       await openSettings(page);
-      await expect(page.getByTestId("role-menu")).toBeVisible();
+      await expect(page.getByTestId("settings-panel")).toBeVisible();
     },
   },
   {

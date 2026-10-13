@@ -294,7 +294,7 @@ export function ChartMark({ space, category, use, size = 22 }: {
 }) {
   return (
     <span aria-hidden="true" className="grid shrink-0 place-items-center" style={{ width: Math.max(28, size), height: Math.max(28, size) }}>
-      <span className="block" style={{ width: size, height: size }} dangerouslySetInnerHTML={{ __html: airportMarkSvg(space, colourOf(category), use, "overflow-visible") }} />
+      <span className="block" style={{ width: size, height: size }} dangerouslySetInnerHTML={{ __html: airportMarkSvg(space, colourOf(category), use, "block size-full overflow-visible") }} />
     </span>
   );
 }
@@ -342,5 +342,23 @@ export function FavoriteStrip({ home, favorites, onOpen, onAddHome }: {
       />
       {favorites.map(a => <SmallAirportTile key={a.ident} airport={a} detail={away(a) ?? ""} onClick={() => onOpen(a)} />)}
     </PillStrip>
+  );
+}
+
+/**
+ * The pilot's own airplane's glyph, at the owner's ask ("make the icon of
+ * Plane to have plane and home in it"): a house with an airplane in it,
+ * Home's and an airplane's together, for the Plane tile that is to
+ * airplanes what Home is to airports. Sized by its container's svg rule,
+ * as a lucide glyph is.
+ */
+export function HomePlane() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      {/* The house, lucide's outline. */}
+      <path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+      {/* The airplane inside it, nose up: fuselage, wings and tail. */}
+      <path d="M12 9.5v8.5M8 14l4-1.5 4 1.5M10.25 18h3.5" strokeWidth={1.8} />
+    </svg>
   );
 }

@@ -83,11 +83,15 @@ export async function clearTheRoute(page: Page) {
 export async function grabberTo(page: Page, state: "peek" | "half" | "full") {
   const panel = sideDrawer(page);
   await panel.waitFor();
-  for (let taps = 0; taps < 3; taps++) {
-    const now = await panel.getAttribute("data-panel");
-    if (now === state) return;
+  // Four sizes now, the tabs alone below the pill (MapPanel): a tap that
+  // lands on the tabs alone leaves data-panel at peek, so each tap waits
+  // on the size as a whole, panel and collapse together.
+  const size = async () => `${await panel.getAttribute("data-panel")}/${await panel.getAttribute("data-collapsed") ?? ""}`;
+  for (let taps = 0; taps < 6; taps++) {
+    if (await panel.getAttribute("data-panel") === state && await panel.getAttribute("data-collapsed") === null) return;
+    const now = await size();
     await page.getByTestId("sidebar-trigger-button").click();
-    await expect(panel).not.toHaveAttribute("data-panel", now!);
+    await expect.poll(size).not.toBe(now);
   }
   await expect(panel).toHaveAttribute("data-panel", state);
 }
@@ -138,8 +142,9 @@ export async function openConsole(page: Page) {
   await showTabs(page);
   const settings = page.getByTestId("settings-button");
   await settings.click();
-  // A desktop's console is a sheet or a dialog of its own, over the panel.
-  if (await page.getByTestId("console-sheet").isVisible()) return;
+  // A desktop's console is a sheet or a dialog of its own, over the panel;
+  // a phone's is the panel's layer, which at the pill is out of sight.
+  if ((page.viewportSize()?.width ?? 0) >= 768) return;
   const panel = sideDrawer(page);
   if (await panel.getAttribute("data-panel") === "peek") {
     await expect(settings).toHaveAttribute("aria-current", "page");
@@ -213,6 +218,9 @@ export async function roleMenu(page: Page) {
   const sheet = page.getByTestId("console-sheet");
   if (!(await sheet.isVisible())) await openConsole(page);
   await expect(sheet).toBeVisible();
+  // In Personal's Account row now (AccountRow), at the owner's ask: it was
+  // the console's title row.
+  await sheet.getByRole("tab", { name: "Account" }).click();
   const trigger = sheet.getByTestId("role-menu");
   // The menu comes with who is signed in, or dev mode, once known.
   await trigger.waitFor({ timeout: 3000 }).catch(() => {});
@@ -243,9 +251,9 @@ export const consoleSheet = (page: Page) => page.getByTestId("console-sheet");
  *  four pages: the tab, back to its list from a page open on it, then
  *  the page's row. */
 export async function library(scope: Page | Locator, section: "Aircraft" | "Flights" | "Logbook" | "Minimums") {
-  await scope.getByRole("tab", { name: "Personal" }).click();
+  await scope.getByRole("tab", { name: "Account" }).click();
   const list = scope.getByTestId("library-section");
-  const back = scope.getByRole("button", { name: "Personal", exact: true });
+  const back = scope.getByRole("button", { name: "Account", exact: true });
   await expect(list.or(back)).toBeVisible();
   if (!(await list.isVisible())) await back.click();
   await list.getByRole("button", { name: new RegExp(`^${section}`) }).click();
@@ -309,7 +317,12 @@ export async function openedDrawerBox(page: Page) {
 
 export async function openSidebar(page: Page) {
   const sidebarTrigger = page.getByTestId("sidebar-trigger-button");
-  await sidebarTrigger.click();
+  // From the tabs alone the grabber steps up through the pill first
+  // (MapPanel's four sizes): tapped until it is out.
+  await expect(async () => {
+    await sidebarTrigger.click();
+    await expect(sideDrawer(page)).toHaveAttribute("data-panel", /^(half|full)$/, { timeout: 1500 });
+  }).toPass({ timeout: 15_000 });
   await expectDrawerOpen(page);
   await expect(sidebarTrigger).toHaveAttribute("aria-expanded", "true");
   await expect(sidebarTrigger).toBeEnabled();
@@ -419,4 +432,10 @@ export async function closeCard(page: Page, closeTestId: string) {
   const close = page.getByTestId(closeTestId);
   await close.focus();
   await page.keyboard.press("Enter");
+}
+
+/** The console's Personal tab, where who is signed in and the mode are
+ *  (AccountRow), at the owner's ask: they were the console's title row. */
+export async function openAccount(page: Page) {
+  await page.getByTestId("console-sheet").getByRole("tab", { name: "Account" }).click();
 }

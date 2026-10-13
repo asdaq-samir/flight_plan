@@ -44,7 +44,8 @@ test("each tab's pill shows its own: FPL the route's figures, Airport its Favori
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   const panel = sideDrawer(page);
-  await expect(panel).toHaveAttribute("data-panel", "peek");
+  // At rest the tabs alone; the grabber the pill.
+  await grabberTo(page, "peek");
   await expect(panel.getByTestId("flight-line")).toBeVisible();
 
   // Airport: the Favorites, small, a tap opening the field's card; no figures.
@@ -55,9 +56,9 @@ test("each tab's pill shows its own: FPL the route's figures, Airport its Favori
   // A finger's 44 points.
   expect((await tile.boundingBox())!.height).toBeGreaterThanOrEqual(44);
 
-  // Aircraft, with no airplane kept: My Plane all the same, with Add.
+  // Aircraft, with no airplane kept: Plane all the same, with Add.
   await pickAtRest(page, "tab-aircraft");
-  await expect(panel.getByTestId("pill-aircraft-mine")).toHaveText(/My Plane\s*Add/);
+  await expect(panel.getByTestId("pill-aircraft-mine")).toHaveText(/Plane\s*Add/);
   await expect(panel.getByTestId("flight-line")).toHaveCount(0);
 
   // NRST: the nearest fields, or with no position the way to show it.
@@ -121,13 +122,38 @@ test("on a phone, a card's way back is Back at the top left of the tabs' line, a
   await expect(panel).toHaveAttribute("data-panel", "peek");
 });
 
-test("My Plane is first among the Aircraft card's Favorites, with Add until one is kept, and kept from the search's pick", async ({ page }) => {
+test("on a phone, a tap anywhere on the tabs' minimized line shows the tabs, but Back goes back", async ({ page }) => {
+  test.skip((page.viewportSize()?.width ?? 0) >= 768, "the tabs minimize on a phone only");
+  // The owner's ask: "Clicking anywhere on the tabs bar should show tabs
+  // except the back/close button should do their action".
+  await page.goto("/app/plan?place=KDLH");
+  await settle(page);
+  const panel = sideDrawer(page);
+  await expect(panel.getByTestId("place-card")).toBeVisible();
+  const title = page.getByTestId("tab-title");
+  const back = (await page.getByTestId("tab-back").boundingBox())!;
+  const close = (await page.getByTestId("tab-close").boundingBox())!;
+  const line = (await title.boundingBox())!;
+  // Between Back and the title, off both: the tabs.
+  await page.mouse.click((back.x + back.width + line.x) / 2, line.y + line.height / 2);
+  await expect(page.getByTestId("tab-airport")).toBeVisible();
+  await expect(page).toHaveURL(/[?&]place=KDLH/);
+  // Back on a fresh load does its own, not the tabs'.
+  await page.goto("/app/plan?place=KDLH");
+  await settle(page);
+  await expect(panel.getByTestId("place-card")).toBeVisible();
+  expect(close.x).toBeGreaterThan(line.x);
+  await page.getByTestId("tab-back").click();
+  await expect(page).not.toHaveURL(/[?&]place=/);
+});
+
+test("Plane, the pilot's own, is first among the Aircraft card's Favorites, with Add until one is kept, and kept from the search's pick", async ({ page }) => {
   await keep(page, { recentAircraft: [{ hex: "a1c2d3", name: "N200XY", type: "C172" }] });
   await page.goto("/app/plan?aircraft=1");
   await settle(page);
   const card = page.getByTestId("aircraft-card");
   const mine = card.getByTestId("aircraft-mine");
-  await expect(mine).toContainText("My Plane");
+  await expect(mine).toContainText("Plane");
   await expect(mine).toContainText("Add");
   // Add: the search asked for the pilot's own airplane, and a recent tapped is kept as it.
   await mine.click();

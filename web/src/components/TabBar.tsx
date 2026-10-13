@@ -52,7 +52,7 @@ export default function TabBar<T extends string>({ tabs, tab, onPick, onUp, mark
 }) {
   const consoleOpen = useConsoleOpen(s => s.open);
   const setConsoleOpen = useConsoleOpen(s => s.setOpen);
-  const all: BarTab<T | "settings">[] = [...tabs, { value: "settings", label: "Settings", icon: Settings }];
+  const all: BarTab<T | "settings">[] = [...tabs, { value: "settings", label: "Setup", icon: Settings }];
   const up: T | "settings" = consoleOpen ? "settings" : tab;
   const minimized = useContext(TabBarMinimized);
   const shown = useTabsShown(s => s.shown);
@@ -71,7 +71,20 @@ export default function TabBar<T extends string>({ tabs, tab, onPick, onUp, mark
   if (minimized && !shown) {
     const Icon = upTab.icon;
     return (
-      <nav aria-label="Tabs" className={cn("relative flex h-full w-full items-center justify-center print:hidden", className)} data-testid="tab-bar">
+      // A tap anywhere on the line shows the tabs, at the owner's ask
+      // ("Clicking anywhere on the tabs bar should show tabs except the
+      // back/close button should do their action"): the tab's name is the
+      // control a keyboard and a screen reader use, the rest of the line a
+      // finger's bigger target for it; Back and the close keep their own.
+      // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions
+      <nav
+        aria-label="Tabs" className={cn("relative flex h-full w-full cursor-pointer items-center justify-center print:hidden", className)}
+        data-testid="tab-bar"
+        onClick={event => {
+          const pressed = (event.target as HTMLElement).closest("button");
+          if (!pressed) setShown(true);
+        }}
+      >
         {/* Round, as the close at the other end is, at the owner's ask. */}
         {/* Each in a box of the line's height, centred by flex, not by a
             translate: the stock button's press nudges it with a translate
@@ -79,7 +92,10 @@ export default function TabBar<T extends string>({ tabs, tab, onPick, onUp, mark
             dropped half its height as it was tapped (seen on the owner's
             phone, 2026-10-13). */}
         {back && (
-          <span className="absolute inset-y-0 left-0 flex items-center">
+          // In from the panel's side as far as the card's own words are
+          // (the line's px-2 and this left-2, the card's 16), so the two
+          // read as the card's, not the tabs', at the owner's ask.
+          <span className="absolute inset-y-0 left-2 flex items-center">
             <BackButton onClick={() => closeTopCard()} data-testid="tab-back" />
           </span>
         )}
@@ -97,9 +113,15 @@ export default function TabBar<T extends string>({ tabs, tab, onPick, onUp, mark
         </button>
         {/* And a close at its right, at the owner's ask: Back goes one card
             back, the close all the way down to the pill. */}
-        {onClose && !consoleOpen && (
-          <span className="absolute inset-y-0 right-0 flex items-center">
-            <CloseButton onClick={onClose} data-testid="tab-close" />
+        {/* Setup's too, at the owner's ask ("Why don't I see back and close
+            buttons on settings tabs?"): there it puts the console away and
+            the sheet down, its own pages having their own way back. */}
+        {onClose && (
+          // On the card's own close column: the airport card's star and
+          // chip stand 4 points out of the card's 16 (its -mr-1), so the
+          // close does too, one column with them, at the owner's ask.
+          <span className="absolute inset-y-0 right-1 flex items-center">
+            <CloseButton onClick={() => { if (consoleOpen) setConsoleOpen(false); onClose(); }} data-testid="tab-close" />
           </span>
         )}
       </nav>
