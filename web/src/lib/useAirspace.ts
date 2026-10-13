@@ -27,7 +27,8 @@ export const MAGENTA = "#b02e7c";
  * not the airport symbol's colour, which the chart sets by its tower
  * ("Airports having control towers (CT) are shown in blue, all others are
  * shown in magenta"): a Class C field here is magenta, towered all the
- * same.
+ * same -- the owner's call, asked on 2026-10-12 ("Airspace color for
+ * class C"), over the chart's tower blue.
  * Solid as a fill, dashed as a dashed ring on a wash of the colour --
  * an outline drawn inside the edge, not a border, so a dashed pill is no
  * bigger than a solid one beside it (the route's box had KDLH's dashed
