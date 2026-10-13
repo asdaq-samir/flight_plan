@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { clearTheRoute, closeCard, expectDrawerClosed, expectDrawerOpen, grabberTo, mapStill, openMapSettings, openPanel, settle, showTabs, sideDrawer, slow, tapTheChart } from "./helpers";
+import { clearTheRoute, closeCard, consoleSheet, expectDrawerClosed, expectDrawerOpen, grabberTo, mapStill, openConsole, openMapSettings, openPanel, settle, showTabs, sideDrawer, slow, tapTheChart } from "./helpers";
 
 /**
  * Airports as places, as Maps has them: a tap on one on the chart opens
@@ -385,6 +385,24 @@ test("an airport's card that could not be had says so, and Try again brings it",
   await card(page).getByTestId("place-retry").click();
   await expect(card(page).getByTestId("place-name")).toHaveText("Duluth International Airport KDLH");
   await expect(card(page).getByTestId("place-retry")).toHaveCount(0);
+});
+
+test("an airport tapped on the chart while Setup is up puts Setup away and opens its card on Airport", async ({ page }) => {
+  // The owner's notice: "When selecting airport marker while being on
+  // setup tab doesn't open the [airport] tab."
+  test.skip((page.viewportSize()?.width ?? 0) >= 768, "Setup leaves the chart in sight on a phone");
+  await page.goto("/app/plan?dep=C81&dest=KDLH");
+  await settle(page);
+  await openConsole(page);
+  await expect(consoleSheet(page)).toBeVisible();
+  await grabberTo(page, "peek");
+  const at = await airportToTap(page);
+  await page.mouse.click(at.x, at.y);
+  await expect(page).toHaveURL(/[?&]place=[A-Z0-9]+/);
+  await expect(consoleSheet(page)).toHaveCount(0);
+  await expect(card(page).getByTestId("place-name")).not.toBeEmpty();
+  await showTabs(page);
+  await expect(page.getByTestId("tab-airport")).toHaveAttribute("aria-current", "page");
 });
 
 test("a tap on an airport on the chart opens its card, a tap elsewhere puts it away, and Fly Here makes it the destination", async ({ page }) => {

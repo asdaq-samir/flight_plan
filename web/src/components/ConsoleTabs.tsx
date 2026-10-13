@@ -1,6 +1,7 @@
 import { useContext, type ReactNode } from "react";
+import { cn } from "cn";
 import AboutPanel from "./AboutPanel";
-import { ConsoleSettingsContext } from "./mapChrome";
+import { ConsoleInPanelContext, ConsoleSettingsContext } from "./mapChrome";
 import { LineTabsList } from "./CardTabs";
 import { Tabs, TabsContent, TabsTrigger } from "./ui/tabs";
 import { LINE_TAB } from "./lineTabs";
@@ -34,6 +35,11 @@ interface Props {
  */
 export default function ConsoleTabs({ tabs: own, saved, onChange }: Props) {
   const settings = useContext(ConsoleSettingsContext);
+  // On a phone, the map panel's layer under its tab bar: its tabs start
+  // four points down, where the other tabs' search bars do, at the
+  // owner's notice ("Why do the tabs within their setup seem lower than
+  // other cards?"); they were sixteen down, the sheet's own margin.
+  const inPanel = useContext(ConsoleInPanelContext) !== null;
   // About after Settings, as iOS keeps an app's About with its settings.
   const tabs: ConsoleTab[] = settings
     ? [...own, { value: "settings", label: "Settings", content: settings }, { value: "about", label: "About", content: <AboutPanel /> }]
@@ -41,7 +47,7 @@ export default function ConsoleTabs({ tabs: own, saved, onChange }: Props) {
   const tab = tabs.some(t => t.value === saved) ? saved : own[0].value;
   return (
     <div className="min-h-0 flex-1 overflow-y-auto">
-      <div className="mx-auto max-w-3xl p-4">
+      <div className={cn("mx-auto max-w-3xl p-4", inPanel && "pt-1")}>
         <Tabs value={tab} onValueChange={onChange}>
           {/* The tabs as words over a hairline, the chosen one in the
               tint and underlined in it: the stock line variant (ui/tabs).

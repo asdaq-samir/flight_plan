@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { SetURLSearchParams } from "react-router-dom";
-import type { PanelState } from "../../../components/mapChrome";
+import { useConsoleOpen, type PanelState } from "../../../components/mapChrome";
 import type { TrafficAircraft } from "../../../lib/api/types";
 import { pointOf } from "../../../lib/airspace";
 import { identOf } from "../../../lib/identSchema";
@@ -148,6 +148,24 @@ export function usePanelTabs({ cards, route, hasRoute, panel, setPanel, searchPa
   // FPL first, at the owner's ask ("Fpl should be the default selected"),
   // but an airport's card or a point's opened before any tab was picked
   // (a link, a tap on the chart) is Airport's, kept there when left.
+  // A field, a point or an airplane opened while Setup is up -- a tap on
+  // the map, which Setup leaves in sight on a phone -- puts Setup away and
+  // opens its card on its own tab, at the owner's notice ("When selecting
+  // airport marker while being on setup tab doesn't open the [airport]
+  // tab"): an airplane's is Aircraft (below), a field's or a point's
+  // Airport.
+  const consoleOpen = useConsoleOpen(st => st.open);
+  const opened = `${place ?? ""}|${heldPoint ? JSON.stringify(heldPoint) : ""}|${flight ?? ""}`;
+  const [openedSeen, setOpenedSeen] = useState(opened);
+  if (opened !== openedSeen) {
+    setOpenedSeen(opened);
+    if (consoleOpen && (place || heldPoint) && !flight) setTabPick("airport");
+  }
+  useEffect(() => {
+    if ((place || heldPoint || flight) && useConsoleOpen.getState().open) useConsoleOpen.getState().setOpen(false);
+    // Once per card opened, not as the console opens over one already open.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [opened]);
   const tab: PanelTab = flight || aircraftOpen ? "aircraft" : nearOpen ? "nrst"
     : tabPick ?? (place || heldPoint ? "airport" : "fpl");
 

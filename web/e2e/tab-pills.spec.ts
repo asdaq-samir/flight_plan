@@ -213,3 +213,55 @@ test("on a phone, each tab's pill starts its first row on one line: FPL's box, t
   await settled(panel);
   expect(Math.abs((await panel.getByTestId("quick-traffic").boundingBox())!.y - fpl)).toBeLessThan(1.5);
 });
+
+test("on a phone, half way up, Setup's own tabs start where Airport's search bar does", async ({ page }) => {
+  test.skip((page.viewportSize()?.width ?? 0) >= 768, "the console is the panel's layer on a phone only");
+  // The owner's notice: "Why do the tabs within their setup seem lower
+  // than other cards?" -- they were the sheet's sixteen points down.
+  await page.goto("/app/plan");
+  await settle(page);
+  await grabberTo(page, "half");
+  const panel = sideDrawer(page);
+  await showTabs(page);
+  await page.getByTestId("tab-airport").click();
+  await settled(panel);
+  const search = (await panel.getByTestId("search-airports").locator("xpath=ancestor-or-self::*[contains(@class,'rounded')][1]").boundingBox())!.y;
+  await showTabs(page);
+  await page.getByTestId("settings-button").click();
+  await settled(panel);
+  const tabs = (await panel.getByRole("tablist").first().boundingBox())!.y;
+  expect(Math.abs(tabs - search)).toBeLessThan(1.5);
+});
+
+test("a finger's swipe across the panel goes to the tab beside it, and a short one does nothing", async ({ page }) => {
+  // The owner's ask: "Can swiping left/right switch tabs?"
+  await page.goto("/app/plan");
+  await settle(page);
+  await grabberTo(page, "peek");
+  const panel = sideDrawer(page);
+  // A finger's pointer events, from one point to another on the panel.
+  const swipe = async (fromX: number, toX: number) => {
+    const box = (await panel.boundingBox())!;
+    const y = box.y + box.height - 20;
+    await panel.evaluate((el, [x0, x1, at]) => {
+      const target = document.elementFromPoint(x0, at) ?? el;
+      const opts = { bubbles: true, cancelable: true, composed: true, isPrimary: true, pointerId: 7, pointerType: "touch" };
+      target.dispatchEvent(new PointerEvent("pointerdown", { ...opts, clientX: x0, clientY: at }));
+      target.dispatchEvent(new PointerEvent("pointerup", { ...opts, clientX: x1, clientY: at + 4 }));
+    }, [box.x + fromX, box.x + toX, y]);
+  };
+  const up = () => panel.locator('[data-testid="tab-bar"] button[aria-current="page"]');
+  await showTabs(page);
+  await expect(up()).toHaveAttribute("data-testid", "tab-fpl");
+  // To the left: the next tab, NRST after FPL; to the right, back.
+  await swipe(250, 120);
+  await showTabs(page);
+  await expect(up()).toHaveAttribute("data-testid", "tab-nrst");
+  await swipe(120, 250);
+  await showTabs(page);
+  await expect(up()).toHaveAttribute("data-testid", "tab-fpl");
+  // Short of 50 points: nothing.
+  await swipe(200, 170);
+  await showTabs(page);
+  await expect(up()).toHaveAttribute("data-testid", "tab-fpl");
+});

@@ -1,4 +1,4 @@
-import { useContext, useEffect } from "react";
+import { useContext, useEffect, useRef } from "react";
 import { ChevronDown, Settings, type LucideIcon } from "lucide-react";
 import BackButton from "./BackButton";
 import CloseButton from "./CloseButton";
@@ -62,6 +62,82 @@ export default function TabBar<T extends string>({ tabs, tab, onPick, onUp, mark
     if (!minimized && shown) useTabsShown.setState({ shown: false });
   }, [minimized, shown]);
   const upTab = all.find(t => t.value === up)!;
+  // A tab picked as a tap on it picks it: Setup's the console, the others
+  // the workspace's (onPick).
+  const pick = (value: T | "settings") => {
+    setShown(false);
+    if (value === "settings") {
+      setConsoleOpen(true);
+      return;
+    }
+    if (consoleOpen) setConsoleOpen(false);
+    onPick(value as T);
+  };
+  // A swipe across the panel goes to the tab beside the one up, at the
+  // owner's ask ("Can swiping left/right switch tabs?"): to the left the
+  // next, as a page of iOS's swipes on; not past either end. Listened for
+  // on the whole panel, the bar a row of it, so the card's own rows swipe
+  // too -- but not a field, a slider or anything that scrolls sideways
+  // (the Favorites' strip, the nav log's table), which keep the finger.
+  const bar = useRef<HTMLElement | null>(null);
+  const step = useRef<(by: 1 | -1) => void>(() => {});
+  useEffect(() => {
+    step.current = by => {
+      const order = all.map(t => t.value);
+      const next = order[order.indexOf(up) + by];
+      if (next !== undefined) pick(next);
+    };
+  });
+  useEffect(() => {
+    const panel = bar.current?.closest<HTMLElement>("[data-slot=map-panel]");
+    if (!panel) return;
+    let start: { x: number; y: number; id: number } | null = null;
+    let swiped = false;
+    const keeps = (target: EventTarget | null) => {
+      for (let el = target as HTMLElement | null; el && el !== panel; el = el.parentElement) {
+        // A route's point is dragged as a finger slides it (RouteBox's
+        // dnd-kit sortables say so with aria-roledescription).
+        if (el.matches("input, textarea, select, [contenteditable=true], [role=slider], [aria-roledescription], [data-point], .leaflet-container")) return true;
+        const overflow = getComputedStyle(el).overflowX;
+        if ((overflow === "auto" || overflow === "scroll") && el.scrollWidth > el.clientWidth + 1) return true;
+      }
+      return false;
+    };
+    const down = (event: PointerEvent) => {
+      // A finger's or a pen's: a mouse dragged across is selecting words.
+      start = event.isPrimary && event.pointerType !== "mouse" && !keeps(event.target)
+        ? { x: event.clientX, y: event.clientY, id: event.pointerId } : null;
+    };
+    const up = (event: PointerEvent) => {
+      if (!start || event.pointerId !== start.id) return;
+      const dx = event.clientX - start.x;
+      const dy = event.clientY - start.y;
+      start = null;
+      // Clearly sideways: 50 points, and twice as far across as up or down,
+      // so a drag of the sheet that wanders is still a drag.
+      if (Math.abs(dx) < 50 || Math.abs(dx) < 2 * Math.abs(dy)) return;
+      swiped = true;
+      step.current(dx < 0 ? 1 : -1);
+    };
+    // The tap a swipe ends in is not a tap on what it ended over.
+    const click = (event: MouseEvent) => {
+      if (!swiped) return;
+      swiped = false;
+      event.preventDefault();
+      event.stopPropagation();
+    };
+    const cancel = () => { start = null; };
+    panel.addEventListener("pointerdown", down, true);
+    panel.addEventListener("pointerup", up, true);
+    panel.addEventListener("pointercancel", cancel, true);
+    panel.addEventListener("click", click, true);
+    return () => {
+      panel.removeEventListener("pointerdown", down, true);
+      panel.removeEventListener("pointerup", up, true);
+      panel.removeEventListener("pointercancel", cancel, true);
+      panel.removeEventListener("click", click, true);
+    };
+  }, []);
   // A card open over the tab -- an airport's, an airplane's, a past
   // flight's -- has its way back here, at the top left on the tab's
   // line, in place of its own close, at the owner's ask: only while the
@@ -78,6 +154,7 @@ export default function TabBar<T extends string>({ tabs, tab, onPick, onUp, mark
       // finger's bigger target for it; Back and the close keep their own.
       // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions
       <nav
+        ref={bar}
         aria-label="Tabs" className={cn("relative flex h-full w-full cursor-pointer items-center justify-center print:hidden", className)}
         data-testid="tab-bar"
         onClick={event => {
@@ -128,7 +205,7 @@ export default function TabBar<T extends string>({ tabs, tab, onPick, onUp, mark
     );
   }
   return (
-    <nav aria-label="Tabs" className={cn("flex h-full w-full items-stretch print:hidden", className)} data-testid="tab-bar">
+    <nav ref={bar} aria-label="Tabs" className={cn("flex h-full w-full items-stretch print:hidden", className)} data-testid="tab-bar">
       {all.map(({ value, label, icon: Icon }) => {
         const current = value === up;
         const mark = value === "settings" ? undefined : marks?.[value as T];
@@ -136,17 +213,12 @@ export default function TabBar<T extends string>({ tabs, tab, onPick, onUp, mark
           <button
             key={value} type="button" aria-current={current ? "page" : undefined}
             onClick={() => {
-              setShown(false);
               if (current) {
+                setShown(false);
                 onUp?.();
                 return;
               }
-              if (value === "settings") {
-                setConsoleOpen(true);
-                return;
-              }
-              if (consoleOpen) setConsoleOpen(false);
-              onPick(value as T);
+              pick(value);
             }}
             data-testid={value === "settings" ? "settings-button" : `tab-${value}`} data-current={current || undefined}
             data-console-button={value === "settings" ? "" : undefined}

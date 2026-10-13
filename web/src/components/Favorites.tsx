@@ -1,5 +1,5 @@
 import { ChevronLeft, ChevronRight, CircleMinus, GripVertical, House, Plus } from "lucide-react";
-import { useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import { useId, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "cn";
 import { api } from "../lib/api/client";
@@ -346,19 +346,31 @@ export function FavoriteStrip({ home, favorites, onOpen, onAddHome }: {
 }
 
 /**
- * The pilot's own airplane's glyph, at the owner's ask ("make the icon of
- * Plane to have plane and home in it"): a house with an airplane in it,
- * Home's and an airplane's together, for the Plane tile that is to
- * airplanes what Home is to airports. Sized by its container's svg rule,
- * as a lucide glyph is.
+ * The pilot's own airplane's glyph: lucide's airplane, as the map's
+ * Traffic shows one, a little smaller, with a solid house at its bottom
+ * right cut into its wing -- the owner's pick of a sheet of designs ("D
+ * but add a home to the bottom right of it"), for the Plane tile that is
+ * to airplanes what Home is to airports. Sized by its container's svg
+ * rule, as a lucide glyph is; the cut a mask, so it shows whatever the
+ * glyph sits on.
  */
 export function HomePlane() {
+  const cut = useId();
+  const house = "M14.5 22.5v-4.2l3.75-3.2 3.75 3.2v4.2z";
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      {/* The house, lucide's outline. */}
-      <path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-      {/* The airplane inside it, nose up: fuselage, wings and tail. */}
-      <path d="M12 9.5v8.5M8 14l4-1.5 4 1.5M10.25 18h3.5" strokeWidth={1.8} />
+      <mask id={cut}>
+        <rect width="24" height="24" fill="#fff" />
+        <path d={house} fill="#000" stroke="#000" strokeWidth={3.4} />
+      </mask>
+      {/* lucide's plane, at 0.85 with its stroke kept at 2. */}
+      <g mask={`url(#${cut})`}>
+        <path
+          d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z"
+          transform="scale(0.85)" strokeWidth={2.35}
+        />
+      </g>
+      <path d={house} fill="currentColor" strokeWidth={1} />
     </svg>
   );
 }
