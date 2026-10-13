@@ -379,6 +379,10 @@ export function ReviewAskSheet({ flight, onDone }: { flight: FlightToSave; onDon
   return (
     <ResponsivePopoverContent
       title="Solo cross-country review" align="end" className="w-96 max-w-[calc(100vw-2rem)] p-3" data-testid="review-sheet"
+      // Opened as the Share menu goes, whose focus goes back to its button
+      // as it closes: taken for a move outside, it shut the sheet just
+      // opened, now and then. A tap outside or Escape still closes it.
+      onFocusOutside={e => e.preventDefault()}
       description="Your instructor reviews its planning and the weather, and endorses it for the airplane and the day (14 CFR 61.93(c)(3), (d))."
     >
       <div className="space-y-3">
