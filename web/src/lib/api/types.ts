@@ -282,6 +282,8 @@ export type CrossCountryReview = Webapp["CrossCountryReviewDto"];
 export type Instructor = Webapp["InstructorDto"];
 export type InstructorRequest = Webapp["InstructorRequest"];
 export type StudentRow = Webapp["StudentDto"];
+/** One of a student's instructors, asked or taken. */
+export type InstructorLink = Webapp["InstructorLinkDto"];
 export type SignRequest = Webapp["SignRequest"];
 
 // ---------------------------------------------------------------------

@@ -31,6 +31,7 @@ import { useProgressToast } from "../../lib/useProgressToast";
 import { useSearchParamsNow } from "../../lib/useSearchParamsNow";
 import type { WorkspaceProps } from "../page/workspace";
 import RoundButton from "../../components/RoundButton";
+import { ResponsivePopover, ResponsivePopoverAnchor } from "../../components/ResponsivePopover";
 import TipHost from "../../components/TipHost";
 import { FILLS_HALF } from "../../components/mapChrome";
 import { SearchField, SearchResults } from "../../components/PanelCapsule";
@@ -101,6 +102,8 @@ const NavLogView = fromRoutePanel("NavLogView");
 const FlightBriefingView = fromRoutePanel("FlightBriefingView");
 const BriefingNotices = fromRoutePanel("BriefingNotices");
 const SaveFlightButton = fromRoutePanel("SaveFlightButton");
+const ReviewAskItem = fromRoutePanel("ReviewAskItem");
+const ReviewAskSheet = fromRoutePanel("ReviewAskSheet");
 const RouteBox = fromRoutePanel("RouteBox");
 const Kneeboard = fromRoutePanel("Kneeboard");
 const FlightInputs = fromRoutePanel("FlightInputs");
@@ -655,6 +658,8 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // Add Stop open: from its own button, or from no legal altitude's --
   // "via", its Fly via round a Class B, the ways round suggested.
   const [addingStop, setAddingStop] = useState<false | "stop" | "via">(false);
+  // The solo cross-country review's sheet, from the Share menu.
+  const [askingReview, setAskingReview] = useState(false);
   // The other way past Class B airspace that stops the route: accepted,
   // and taken back.
   // A field's card or a waypoint's diamond on the chart, put in the
@@ -1244,25 +1249,33 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // route's close, so the box has the top row to itself and the chips'
   // row ends in two buttons. Greyed in its places with no route (cleared,
   // or half typed), the menu keeping its shape.
+  // The plan as a flight to save: Save's, and the solo cross-country
+  // review's, which saves it as it asks.
+  // A route from a present position too: the webapp files one (V17), as
+  // Fly Here's Direct-To in the air starts. Not the route as entered,
+  // whose checkpoints' log comes in its place: saved then, it filed a
+  // flight with none, and Save was offered again as the log changed under it.
+  const flightToSave = {
+    course: routed ? course : null, totals: s.pointToPoint ? null : s.totals, nav: s.nav, legs: s.legs, selected: s.logSelected,
+    aircraftId: aircraft.aircraftId ?? null, depart, altitudes,
+  };
   const shareMenu = (align: "start" | "end") => (
+    // The review's sheet, from the menu's item, placed by the Share
+    // button: the menu has gone by the time it opens (as Print waits).
+    <ResponsivePopover open={askingReview} onOpenChange={setAskingReview}>
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <RoundButton label="Share this route" data-testid="share-route">
-          <Share className="size-5" strokeWidth={2} />
-        </RoundButton>
-      </DropdownMenuTrigger>
+      <ResponsivePopoverAnchor asChild>
+        <DropdownMenuTrigger asChild>
+          <RoundButton label="Share this route" data-testid="share-route">
+            <Share className="size-5" strokeWidth={2} />
+          </RoundButton>
+        </DropdownMenuTrigger>
+      </ResponsivePopoverAnchor>
       <DropdownMenuContent align={align} className="min-w-56 print:hidden">
         {routed && <>{shareItems}<DropdownMenuSeparator /></>}
         <Suspense fallback={null}>
-          <SaveFlightButton
-            // A route from a present position too: the webapp files one
-            // (V17), as Fly Here's Direct-To in the air starts. Not the route
-            // as entered, whose checkpoints' log comes in its place: saved
-            // then, it filed a flight with none, and Save was offered again
-            // as the log changed under it.
-            course={routed ? course : null} totals={s.pointToPoint ? null : s.totals} nav={s.nav} legs={s.legs} selected={s.logSelected}
-            aircraftId={aircraft.aircraftId ?? null} depart={depart} altitudes={altitudes}
-          />
+          <SaveFlightButton {...flightToSave} />
+          <ReviewAskItem flight={flightToSave} onAsk={() => setTimeout(() => setAskingReview(true), 150)} />
         </Suspense>
         <DropdownMenuItem disabled={!fileable} onSelect={fileFlightPlan} data-testid="file-flight-plan"><FileText />File flight plan</DropdownMenuItem>
         {/* Printed once the menu has gone, so it is not on the paper: the
@@ -1287,6 +1300,12 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
         )}
       </DropdownMenuContent>
     </DropdownMenu>
+    {askingReview && (
+      <Suspense fallback={null}>
+        <ReviewAskSheet flight={flightToSave} onDone={() => setAskingReview(false)} />
+      </Suspense>
+    )}
+    </ResponsivePopover>
   );
 
 

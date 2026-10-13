@@ -2,8 +2,11 @@ import { memo, useEffect, useMemo, useState, type ReactNode } from "react";
 import { format } from "date-fns";
 import { useIsMutating, useMutation, useMutationState, useQuery, useQueryClient } from "@tanstack/react-query";
 import { cn } from "cn";
-import { Check, CloudOff, Loader2, OctagonAlert, Save, TriangleAlert } from "lucide-react";
+import { Check, CloudOff, GraduationCap, Loader2, OctagonAlert, Save, TriangleAlert } from "lucide-react";
 import { DropdownMenuItem } from "../../../../components/ui/dropdown-menu";
+import { ResponsivePopoverContent } from "../../../../components/ResponsivePopover";
+import { ReviewAskForm, type ReviewAsk } from "../../../pilot/ReviewAsk";
+import { localDay } from "../../../../lib/clock";
 import { toast } from "sonner";
 import { Alert, AlertDescription, AlertTitle } from "../../../../components/ui/alert";
 import AccordionSection from "../../../../components/AccordionSection";
@@ -224,9 +227,13 @@ function altitudeRange(nav: NavLogAltitude): string {
 /** The flights saved, one mutation key for every Save item (SaveFlightButton). */
 const SAVE_FLIGHT = ["saveFlight"];
 
-export function SaveFlightButton({
-  course, totals, nav, legs, selected, aircraftId, depart, altitudes = "",
-}: {
+/** A plan as Save compares it: the same plan with its risk assessment
+ *  made again is not another (SaveFlightButton). */
+const planOf = (r: SaveFlightRequest) => JSON.stringify({ ...r, risk: null });
+
+/** The plan on screen as a flight to save: what Save files, and what a
+ *  solo cross-country's review is asked of (ReviewAskSheet). */
+export interface FlightToSave {
   course: Course | null;
   totals: Totals | null;
   nav: NavLogAltitude | null;
@@ -242,21 +249,16 @@ export function SaveFlightButton({
    *  `altitudes` writes them ("VPBNG:4500"), or "": filed with the
    *  flight, so opened again it is planned at them. */
   altitudes?: string;
-}) {
-  const queryClient = useQueryClient();
-  // The one ["pilot"] query the console and the header share: signed out
-  // after a Log out, back after a failed check is retried. A private
-  // one-shot lookup here used to hide the section for the session after
-  // one failed check, and keep offering Save after a Log out.
-  const { data: pilot } = useQuery(pilotQuery);
+}
+
+/** What would be filed, and only once there is a whole plan to file: the
+ *  course (the airports' own idents and places, not a route being
+ *  switched to), the nav log and its totals. Save used to be offered
+ *  mid-stream, or after a stream failed, and filed null totals. */
+function useSaveRequest({ course, totals, nav, legs, selected, aircraftId, depart, altitudes = "" }: FlightToSave): SaveFlightRequest | null {
   // The briefing's risk assessment (lib/frat), filed with the flight.
   const risk = useRisk(s => s.assessment);
-
-  // What would be filed, and only once there is a whole plan to file:
-  // the course (the airports' own idents and places, not a route being
-  // switched to), the nav log and its totals. Save used to be offered
-  // mid-stream, or after a stream failed, and filed null totals.
-  const request = useMemo((): SaveFlightRequest | null => {
+  return useMemo((): SaveFlightRequest | null => {
     if (!course || !nav || !totals) return null;
     return {
       aircraftId,
@@ -275,6 +277,16 @@ export function SaveFlightButton({
       altitudes: altitudes || null,
     };
   }, [course, nav, totals, aircraftId, depart, selected, legs, risk, altitudes]);
+}
+
+export function SaveFlightButton(flight: FlightToSave) {
+  const queryClient = useQueryClient();
+  // The one ["pilot"] query the console and the header share: signed out
+  // after a Log out, back after a failed check is retried. A private
+  // one-shot lookup here used to hide the section for the session after
+  // one failed check, and keep offering Save after a Log out.
+  const { data: pilot } = useQuery(pilotQuery);
+  const request = useSaveRequest(flight);
 
   // Kept by the query client, not the item: the menu's content goes when
   // the menu closes, and with a mutation of the item's own the menu
@@ -297,7 +309,6 @@ export function SaveFlightButton({
   // risk assessment made again is not another: the briefing is asked for
   // again with the flight's time en route once the nav log has it, a
   // second or two after Save is offered, and "Saved" went back to Save.
-  const planOf = (r: SaveFlightRequest) => JSON.stringify({ ...r, risk: null });
   const plan = useMemo(() => request && planOf(request), [request]);
   const filedPlans = useMutationState({
     filters: { mutationKey: SAVE_FLIGHT, status: "success" },
@@ -313,6 +324,71 @@ export function SaveFlightButton({
       {saving ? <Loader2 className="animate-spin" /> : saved ? <Check /> : <Save />}
       {saving ? "Saving…" : saved ? "Saved" : "Save this flight"}
     </DropdownMenuItem>
+  );
+}
+
+/**
+ * "Ask for a solo cross-country review", an item of the route's Share
+ * menu beside Save: for a student whose instructor has taken them on
+ * (CheckridePage), once there is a whole plan to file. It opens the sheet
+ * (ReviewAskSheet) the menu's own state keeps, the menu having gone.
+ */
+export function ReviewAskItem({ flight, onAsk }: { flight: FlightToSave; onAsk: () => void }) {
+  const { data: pilot } = useQuery(pilotQuery);
+  const { data: training } = useQuery({ queryKey: ["training"], queryFn: api.training.get, enabled: !!pilot });
+  const request = useSaveRequest(flight);
+  if (!pilot || !training?.instructors.some(l => l.accepted)) return null;
+  return (
+    <DropdownMenuItem disabled={!request} onSelect={onAsk} data-testid="ask-review">
+      <GraduationCap />Ask for a solo cross-country review
+    </DropdownMenuItem>
+  );
+}
+
+/**
+ * The review asked from the route itself: the plan on screen saved as a
+ * flight -- with Save's own mutation, so Save says Saved after -- and put
+ * to the instructor chosen, as a saved flight's page puts one
+ * (ReviewAskForm), for 14 CFR 61.93(c)(3)'s review of its planning.
+ */
+export function ReviewAskSheet({ flight, onDone }: { flight: FlightToSave; onDone: () => void }) {
+  const queryClient = useQueryClient();
+  const { data: training } = useQuery({ queryKey: ["training"], queryFn: api.training.get });
+  const request = useSaveRequest(flight);
+  const save = useMutation({ mutationKey: SAVE_FLIGHT, mutationFn: api.flights.save });
+  // The flights saved this session, by their plan: one already saved is
+  // asked about as it is, not filed again.
+  const filed = useMutationState({
+    filters: { mutationKey: SAVE_FLIGHT, status: "success" },
+    select: m => ({ plan: planOf(m.state.variables as SaveFlightRequest), id: (m.state.data as { id: number }).id }),
+  });
+  const ask = useMutation({
+    mutationFn: async (a: ReviewAsk) => {
+      const plan = planOf(request!);
+      const flightId = filed.find(f => f.plan === plan)?.id ?? (await save.mutateAsync(request!)).id;
+      return api.training.askReview({ flightId, ...a });
+    },
+    onSuccess: next => {
+      queryClient.setQueryData(["training"], next);
+      void queryClient.invalidateQueries({ queryKey: ["flights"] });
+      toast.success("Asked for a review");
+      onDone();
+    },
+  });
+  const theirs = training?.instructors.filter(l => l.accepted) ?? [];
+  return (
+    <ResponsivePopoverContent
+      title="Solo cross-country review" align="end" className="w-96 max-w-[calc(100vw-2rem)] p-3" data-testid="review-sheet"
+      description="Your instructor reviews its planning and the weather, and endorses it for the airplane and the day (14 CFR 61.93(c)(3), (d))."
+    >
+      <div className="space-y-3">
+        <ReviewAskForm
+          instructors={theirs} pending={ask.isPending || !request} onAsk={a => ask.mutate(a)}
+          initialDay={localDay(flight.depart ? new Date(flight.depart) : new Date())}
+        />
+        {ask.error && <p role="alert" className={cn("px-1", FINDING_TONE.stop, TEXT.prose)} data-testid="review-problem">{ask.error.message}</p>}
+      </div>
+    </ResponsivePopoverContent>
   );
 }
 

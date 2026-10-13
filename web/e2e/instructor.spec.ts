@@ -1,6 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { signInByEmail } from "./emailSignIn";
-import { library, noTips, openConsole } from "./helpers";
+import { controlsInSight, library, noTips, openConsole, openPanel, sideDrawer } from "./helpers";
 
 /**
  * An instructor and a student, both real accounts on the local stack
@@ -128,4 +128,22 @@ test("a student asks an instructor in, and the instructor endorses their solo cr
   expect(record.signed[0]!.signature).toMatch(/^\/s\/ \d\d-\d\d-\d{4} J\. J\. Jones 987654321CFI RE 12-31-2027$/);
   expect(record.reviews[0]!.endorsement).not.toBeNull();
   await theirs.close();
+
+  // The next one asked from the route itself: Share's menu, which saves
+  // the plan on screen as it asks.
+  await page.goto("/app/plan?dep=KUGN&dest=KRFD");
+  // Opened as the tabs alone: the panel half way, its route box in sight.
+  await openPanel(page);
+  await controlsInSight(page);
+  await sideDrawer(page).getByTestId("share-route").click();
+  await expect(page.getByTestId("save-flight-button")).toBeEnabled({ timeout: 90_000 });
+  await page.getByTestId("ask-review").click();
+  const sheet = page.getByTestId("review-sheet");
+  await sheet.getByTestId("review-make-model").fill("Cessna 172");
+  await sheet.getByTestId("review-ask").click();
+  await expect(sheet).toBeHidden();
+  const after = await (await page.request.get("/api/training")).json() as { reviews: { flight: { destinationIdent: string }; answeredAt: string | null }[] };
+  expect(after.reviews).toHaveLength(2);
+  expect(after.reviews[0]!.flight.destinationIdent).toBe("KRFD");
+  expect(after.reviews[0]!.answeredAt).toBeNull();
 });
