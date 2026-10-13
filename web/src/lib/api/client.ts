@@ -1,7 +1,7 @@
 import createClient, { type Middleware } from "openapi-fetch";
 import type { paths } from "./schema";
 import type { paths as WebappPaths } from "./webapp-schema";
-import type { Aircraft, AircraftBases, AircraftChoice, AircraftProfiles, AircraftRequest, AirportPlace, AirportSearch, AirportsInView, AirspaceAt, AlertsAhead, Alternates, AltitudeChoice, AppleSignedIn, Briefing, ChartInfo, ChartPages, ChartRefreshStarted, ChecklistDto, CheckpointDescriptionMessage, CheckpointNoteSaved, Checkpoints, ClassBResponse, Classification, Course, Currency, CurrencyDatesRequest, Detour, DeviceCode, DevServices, DevServiceStarted, Flight, FlightDetail, FlightPlanFiled, FlightPlanFilingRequest, FlightRoute, FlightServiceStatus, FlightSummary, GoogleMaps, InspectionsRequest, LogbookEntry, LogbookEntryRequest, LogbookImportResult, ModelComparison, NarrativeMessage, NarrativeRequest, NavLogMessage, NearestAirports, OralGrade, OralGradeRequest, OralQuestion, OralQuestionRequest, PastFlight, PastFlights, PickDeleted, PickSaved, Pilot, PlacesFound, ProcedureDrawing, ProcedureList, Rating, Reminders, RetrainStarted, Role, RouteProfile, SavedTrack, SaveFlightRequest, SignInCapabilities, SpeedDay, Squawk, SquawkRequest, Status, StreamMessage, Subscription, Tfrs, Totals, Traffic, TrafficFound, Training, VorCheckRequest, WaypointsInView } from "./types";
+import type { Aircraft, AircraftBases, AircraftChoice, AircraftProfiles, AircraftRequest, AirportPlace, AirportSearch, AirportsInView, AirspaceAt, AlertsAhead, Alternates, AltitudeChoice, AppleSignedIn, Briefing, ChartInfo, ChartPages, ChartRefreshStarted, ChecklistDto, CheckpointDescriptionMessage, CheckpointNoteSaved, Checkpoints, ClassBResponse, Classification, Course, Currency, CurrencyDatesRequest, Detour, DeviceCode, DevServices, DevServiceStarted, Flight, FlightDetail, FlightPlanFiled, FlightPlanFilingRequest, FlightRoute, FlightServiceStatus, FlightSummary, GoogleMaps, InspectionsRequest, Instructor, InstructorRequest, LogbookEntry, LogbookEntryRequest, LogbookImportResult, ModelComparison, NarrativeMessage, NarrativeRequest, NavLogMessage, NearestAirports, OralGrade, OralGradeRequest, OralQuestion, OralQuestionRequest, PastFlight, PastFlights, PickDeleted, PickSaved, Pilot, PlacesFound, ProcedureDrawing, ProcedureList, Rating, Reminders, RetrainStarted, Role, RouteProfile, SavedTrack, SaveFlightRequest, SignRequest, SignInCapabilities, SpeedDay, Squawk, SquawkRequest, Status, StreamMessage, Subscription, Tfrs, Totals, Traffic, TrafficFound, Training, VorCheckRequest, WaypointsInView } from "./types";
 
 /**
  * Every call the pages make. Both servers' calls go through
@@ -675,6 +675,37 @@ export const api = {
       webapp.PUT("/api/training/endorsements/{code}", { params: { path: { code } }, body: { endorsedOn } }).then(data<Training>),
     withdraw: (code: string) =>
       webapp.DELETE("/api/training/endorsements/{code}", { params: { path: { code } } }).then(data<Training>),
+    /** Their name as their certificate gives it, which endorsements use. */
+    setName: (fullName: string) => webapp.PUT("/api/training/name", { body: { fullName } }).then(data<Training>),
+    /** An instructor asked in by address, who is emailed. */
+    askInstructor: (email: string) => webapp.POST("/api/training/instructors", { body: { email } }).then(data<Training>),
+    dropInstructor: (id: number) =>
+      webapp.DELETE("/api/training/instructors/{id}", { params: { path: { id } } }).then(data<Training>),
+    /** A saved flight put to an instructor for its solo cross-country review. */
+    askReview: (body: { flightId: number; instructorId: number; makeModel: string; flightOn: string; note: string | null }) =>
+      webapp.POST("/api/training/reviews", { body }).then(data<Training>),
+    withdrawReview: (id: number) =>
+      webapp.DELETE("/api/training/reviews/{id}", { params: { path: { id } } }).then(data<Training>),
+  },
+
+  /** The pilot as a flight instructor: their certificate, students,
+   *  reviews and the endorsements they sign. */
+  instructor: {
+    get: () => webapp.GET("/api/instructor").then(data<Instructor>),
+    set: (body: InstructorRequest) => webapp.PUT("/api/instructor", { body }).then(data<Instructor>),
+    stop: () => webapp.DELETE("/api/instructor").then(data<Instructor>),
+    accept: (linkId: number) =>
+      webapp.POST("/api/instructor/students/{linkId}/accept", { params: { path: { linkId } } }).then(data<Instructor>),
+    leave: (linkId: number) =>
+      webapp.DELETE("/api/instructor/students/{linkId}", { params: { path: { linkId } } }).then(data<Instructor>),
+    student: (studentId: number) =>
+      webapp.GET("/api/instructor/students/{studentId}/training", { params: { path: { studentId } } }).then(data<Training>),
+    sign: (studentId: number, body: SignRequest) =>
+      webapp.POST("/api/instructor/students/{studentId}/endorsements", { params: { path: { studentId } }, body }).then(data<Training>),
+    voidEndorsement: (id: number) =>
+      webapp.POST("/api/instructor/endorsements/{id}/void", { params: { path: { id } } }).then(data<Instructor>),
+    decline: (id: number, note: string) =>
+      webapp.POST("/api/instructor/reviews/{id}/decline", { params: { path: { id } }, body: { note } }).then(data<Instructor>),
   },
 
   /** A signed-in pilot's own filed flights. */

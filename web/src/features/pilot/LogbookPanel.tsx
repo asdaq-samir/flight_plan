@@ -1,7 +1,7 @@
 import { useId, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format, parseISO } from "date-fns";
-import { CircleMinus, FileDown, FileUp, GraduationCap, Mail, MailX, Plus } from "lucide-react";
+import { CircleMinus, FileDown, FileUp, GraduationCap, Mail, MailX, Plus, Users } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "cn";
 import { ConsolePages, PageRow } from "../../components/ConsolePages";
@@ -19,6 +19,7 @@ import { showError } from "../../lib/problems";
 import type { Currency, LogbookEntry, LogbookEntryRequest } from "../../lib/api/types";
 import { TEXT } from "../../lib/text";
 import CheckridePage from "./CheckridePage";
+import InstructorPage from "./InstructorPage";
 import { localDay } from "../../lib/clock";
 import { FINDING_TONE } from "../../lib/status";
 
@@ -191,14 +192,24 @@ export function LogbookPanel({ aircraft }: { aircraft?: string }) {
   return (
     <ConsolePages
       back="Logbook"
-      pages={{ checkride: { title: "Private pilot checkride", content: <CheckridePage training={training} /> } }}
+      pages={{
+        checkride: { title: "Private pilot checkride", content: <CheckridePage training={training} /> },
+        instructing: { title: "Instructing", content: <InstructorPage /> },
+      }}
     >
     <section aria-label="Logbook" className="space-y-5">
       <ListGroup>
         <PageRow
           page="checkride" title="Checkride" media={<GraduationCap className="size-5 text-tint" />}
-          description="61.109 experience, knowledge test codes, endorsements"
+          description="61.109 experience, knowledge test codes, endorsements, your instructor"
           value={training ? `${met} of ${training.experience.length}` : undefined}
+        />
+        {/* A flight instructor's students, their reviews and what they
+            signed (InstructorPage): for anyone to set up, as a student
+            asks an instructor in by address. */}
+        <PageRow
+          page="instructing" title="Instructing" media={<Users className="size-5 text-tint" />}
+          description="Your students, their solo cross-countries and the endorsements you sign"
         />
       </ListGroup>
       <ListGroup title="Currency" footer="From your logbook and the two dates above it: no one's sign-off. 61.57 counts takeoffs and landings in the same category and class; at night, to a full stop.">

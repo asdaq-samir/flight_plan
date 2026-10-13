@@ -18,6 +18,11 @@ import { routeName } from "../../lib/identSchema";
 import { altFt, feet, grouped } from "../../lib/units";
 import { mayUse, useEntitlement } from "../../lib/subscription";
 import PaidPrompt from "../../components/PaidPrompt";
+import { Input } from "../../components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
+import { Textarea } from "../../components/ui/textarea";
+import { localDay } from "../../lib/clock";
+import { reviewState, said } from "../../lib/endorsements";
 import { FINDING_TONE } from "../../lib/status";
 
 /** Minutes as a nav log writes them: "0:18", "1:35". */
@@ -284,6 +289,81 @@ function Row({ title, value }: { title: string; value: ReactNode }) {
 }
 
 /**
+ * The flight put to the student's instructor for the review 14 CFR
+ * 61.93(c)(3) and (d) ask before each solo cross-country: to which of
+ * their instructors, in what make and model and on what day, with a note;
+ * and where each such ask of it stands. The instructor is emailed, and
+ * answers from their Instructing page.
+ */
+function InstructorReview({ summary }: { summary: FlightSummary }) {
+  const queryClient = useQueryClient();
+  const ids = { mm: useId(), on: useId() };
+  const { data: training } = useQuery({ queryKey: ["training"], queryFn: api.training.get });
+  const [instructorId, setInstructorId] = useState<string>("");
+  const [makeModel, setMakeModel] = useState("");
+  const [flightOn, setFlightOn] = useState(() => localDay(summary.plannedFor ? new Date(summary.plannedFor) : new Date()));
+  const [note, setNote] = useState("");
+  const theirs = training?.instructors.filter(l => l.accepted) ?? [];
+  const chosen = theirs.find(l => String(l.id) === instructorId) ?? theirs[0];
+  const ask = useMutation({
+    mutationFn: () => api.training.askReview({
+      flightId: summary.id, instructorId: chosen!.id, makeModel: makeModel.trim(), flightOn, note: note.trim() || null,
+    }),
+    onSuccess: next => { queryClient.setQueryData(["training"], next); setNote(""); },
+  });
+  if (!training) return null;
+  const asked = training.reviews.filter(r => r.flight.id === summary.id);
+  const waiting = asked.some(r => !r.answeredAt);
+  const rows: ReactNode[] = asked.map(r => (
+    <ListRow key={r.id} title={r.instructorName ?? "Your instructor"} description={`${said(r.flightOn)} · ${reviewState(r)}`}
+      data-testid="flight-review" />
+  ));
+  if (theirs.length === 0) {
+    rows.push(<ListRow key="none" title={<span className="text-muted-foreground">Ask your instructor in first, from Logbook, then Checkride</span>} />);
+  } else if (!waiting) {
+    if (theirs.length > 1) {
+      rows.push(
+        <ListRow key="who" title="Instructor">
+          <Select value={String(chosen!.id)} onValueChange={setInstructorId}>
+            <SelectTrigger size="sm" aria-label="Instructor"><SelectValue /></SelectTrigger>
+            <SelectContent>{theirs.map(l => <SelectItem key={l.id} value={String(l.id)}>{l.name ?? l.email}</SelectItem>)}</SelectContent>
+          </Select>
+        </ListRow>,
+      );
+    }
+    rows.push(
+      <ListRow key="mm" id={ids.mm} title="Make and model">
+        <Input id={ids.mm} value={makeModel} placeholder="Cessna 172" maxLength={80} className="h-8 w-44"
+          onChange={e => setMakeModel(e.target.value)} data-testid="review-make-model" />
+      </ListRow>,
+      <ListRow key="on" id={ids.on} title="Day of the flight">
+        <Input id={ids.on} type="date" value={flightOn} min={localDay()} className="h-8 w-40"
+          onChange={e => setFlightOn(e.target.value || localDay())} data-testid="review-day" />
+      </ListRow>,
+      <div key="note" className="p-2">
+        <Textarea value={note} onChange={e => setNote(e.target.value)} rows={2} maxLength={500}
+          placeholder="A note for your instructor" aria-label="A note for your instructor" data-testid="review-note" />
+      </div>,
+      <ListRow
+        key="ask" title={<span className="font-medium text-tint">Ask {chosen!.name ?? chosen!.email} to review it</span>}
+        disabled={!makeModel.trim() || ask.isPending} onClick={() => ask.mutate()} data-testid="review-ask"
+      />,
+    );
+  }
+  return (
+    <>
+      <ListGroup
+        title="Solo cross-country"
+        footer="Before each solo cross-country, your instructor reviews its planning and the weather, and endorses it for the airplane and the day (14 CFR 61.93(c)(3), (d))."
+      >
+        {rows}
+      </ListGroup>
+      {ask.error && <p role="alert" className={cn("px-1", FINDING_TONE.stop, TEXT.prose)} data-testid="review-problem">{ask.error.message}</p>}
+    </>
+  );
+}
+
+/**
  * One saved flight, as the console's Flights page opens it: what was
  * filed, the risk assessment it was saved with, a way back onto the map
  * at its altitude, and its debrief.
@@ -312,6 +392,7 @@ export default function FlightPage({ summary, planHref }: { summary: FlightSumma
           <ListRow title="Open on the map" to={planHref} data-testid="flight-open" />
         </ConsoleClose>
       </ListGroup>
+      <InstructorReview summary={summary} />
       {isPending ? (
         <p role="status" className={cn("px-1 text-muted-foreground", TEXT.note)}>Fetching its nav log…</p>
       ) : error || !flight ? (

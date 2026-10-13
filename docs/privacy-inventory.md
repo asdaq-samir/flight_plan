@@ -15,9 +15,9 @@ longer than it takes to answer the request.
 | App Store category | What exactly | Linked to the pilot | Why | Where it is kept |
 |---|---|---|---|---|
 | Contact Info, Email Address | The address a pilot signs in with | Yes | App Functionality (sign-in, the sign-in link; currency reminders where the pilot turns them on) | `pilots`, `magic_links`, `reminders_sent` (Postgres) |
-| Contact Info, Name | The name Google or Apple gives at sign-in (otherwise the address) | Yes | App Functionality | `pilots` |
+| Contact Info, Name | The name Google or Apple gives at sign-in (otherwise the address); the name as on their pilot certificate, where they give it for endorsements | Yes | App Functionality | `pilots` |
 | Identifiers, User ID | The account's id; Google's and Apple's subject for that sign-in | Yes | App Functionality | `pilots`, the session |
-| User Content, Other | Aircraft (tail number, type, performance, the last VOR check, the inspections' and tests' dates and its hours, its checklist and its squawks), saved flights and their nav logs, the logbook (its instrument approaches, holding and tracking among it), endorsements and currency dates (the instrument proficiency check's too), checkpoint notes a pilot writes for themselves | Yes | App Functionality | Postgres; notes in the planner's `data/labels` |
+| User Content, Other | Aircraft (tail number, type, performance, the last VOR check, the inspections' and tests' dates and its hours, its checklist and its squawks), saved flights and their nav logs, the logbook (its instrument approaches, holding and tracking among it), endorsements and currency dates (the instrument proficiency check's too), checkpoint notes a pilot writes for themselves; a flight instructor's certificate number and its date, the instructors a student asks in by address, the saved flights a student puts to them, and the endorsements signed in the app | Yes | App Functionality | Postgres; notes in the planner's `data/labels` |
 | Location, Precise | A flight's track, when a pilot saves it to a flight | Yes | App Functionality | `flight_tracks` |
 | Purchases, Purchase History | The subscription: when the free month started and ends, and a paid plan's term, its store and the store's own id for it | Yes | App Functionality (the paid features) | `subscriptions` |
 | Usage Data, Product Interaction | How many of each Claude-written feature (the written briefing, checkpoint descriptions, the mock oral) a pilot used this month, a count, for its monthly cap | Yes | App Functionality (the cap) | `paid_feature_uses` |
@@ -42,7 +42,8 @@ longer than it takes to answer the request.
 | Recipient | What | Personal |
 |---|---|---|
 | Anthropic (Claude) | For a briefing: the route, the nav log, the weather on it and the aircraft's stock profile and figures. For a checkpoint note: the checkpoint and the route around it | No name, address, account or tail number |
-| Amazon SES | The address a sign-in link is sent to, and the link | Yes, to deliver it |
+| Amazon SES | The address a sign-in link is sent to, and the link; an instructor's address a student asks in, with the student's name and address; the endorsements and reviews between the two, to each | Yes, to deliver it |
+| The student's instructor | Once they take the student on: the student's name and address, 61.109 experience from their logbook, knowledge test codes, endorsements, and the saved flights the student puts to them | Yes: the student asks them in, and either ends it |
 | Google, Apple | Their own sign-in, when a pilot uses it | Their own |
 | FAA, NOAA (aviationweather.gov) | Chart and data downloads, weather for airports | None: the server asks, not the device |
 | adsb.lol | For the traffic on the map, the middle of the area asked about (rounded to a half-degree cell) and, for an airplane a pilot tracks, its transponder's address | None: the server asks, not the device; the device's position itself is not sent |
@@ -91,3 +92,7 @@ When the iOS project exists (#102), `PrivacyInfo.xcprivacy` declares:
 - `NSPrivacyAccessedAPITypes`: the required-reason APIs the native shell
   and its plugins use, at least `NSPrivacyAccessedAPICategoryUserDefaults`
   (reason `CA92.1`, the app's own settings).
+
+## Kept after an account is deleted
+
+An endorsement an instructor signed in the app stays with the other of the two when either deletes their account, with the student's name as signed and the deleted account left out: it is the student's endorsement, and 14 CFR 61.189(b) and (c) ask the instructor to keep a record of it for 3 years (`signed_endorsements`).

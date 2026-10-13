@@ -81,6 +81,22 @@ public class Pilot {
     @Column(length = 2000)
     private String knowledgeTestCodes;
 
+    /** Their name as their certificate gives it (V26), what an
+     *  endorsement names them by; null until they say. */
+    @Column(length = 120)
+    private String fullName;
+
+    /** A flight instructor's certificate number ("987654321CFI"), its
+     *  recent experience end date or expiration date, and which of the
+     *  two that is (V26): what every endorsement they sign carries (AC
+     *  61-65K, appendix A). All null for a pilot who is not one. */
+    @Column(length = 20)
+    private String instructorCertificate;
+    private LocalDate instructorUntil;
+    @Enumerated(EnumType.STRING)
+    @Column(length = 3)
+    private InstructorUntil instructorUntilKind;
+
     protected Pilot() {
         // JPA
     }
@@ -136,6 +152,22 @@ public class Pilot {
     /** The knowledge test report's ACS codes, as the pilot gives them. */
     public void setKnowledgeTestCodes(String codes) {
         this.knowledgeTestCodes = codes;
+    }
+
+    public void setFullName(String fullName) {
+        this.fullName = fullName;
+    }
+
+    /** Their flight instructor certificate, all three at once; nulls for
+     *  a pilot who is no longer one. */
+    public void setInstructor(String certificate, LocalDate until, InstructorUntil kind) {
+        this.instructorCertificate = certificate;
+        this.instructorUntil = until;
+        this.instructorUntilKind = kind;
+    }
+
+    public boolean isInstructor() {
+        return instructorCertificate != null;
     }
 
     /** Made a developer: an address `app.developer-emails` lists (see

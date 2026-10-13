@@ -139,6 +139,15 @@ class AccountDeletionTest {
         logbook.save(new LogbookEntry(pilot).set(LocalDate.of(2026, 10, 1), "N12345", "C172", "C81-KDLH",
                 2.5, 0, 2.5, 1, 0, null));
         endorsements.save(new Endorsement(pilot.getId(), "A.1", LocalDate.of(2026, 9, 1)));
+        // An instructor asked in, an endorsement signed for them, and a solo
+        // cross-country put to an instructor (V26) -- themselves, for the
+        // schema's sake.
+        jdbc.update("INSERT INTO instructor_students (student_id, email, asked_at) VALUES (?, ?, now())", pilot.getId(), "cfi-" + email);
+        jdbc.update("INSERT INTO signed_endorsements (student_id, code, student_name, fields, text, signature, signed_on, signed_at,"
+                + " digest) VALUES (?, 'solo-first', 'Test Pilot', '{}'::jsonb, 'I certify', '/s/', ?, now(), repeat('0', 64))",
+                pilot.getId(), LocalDate.of(2026, 10, 1));
+        jdbc.update("INSERT INTO cross_country_reviews (student_id, instructor_id, flight_id, make_model, flight_on, asked_at)"
+                + " VALUES (?, ?, ?, 'Cessna 172', ?, now())", pilot.getId(), pilot.getId(), flight.getId(), LocalDate.of(2026, 10, 2));
         // The free month started, and a written briefing counted against its cap.
         subscriptions.save(new Subscription(pilot.getId(), Instant.now()));
         jdbc.update("INSERT INTO paid_feature_uses (pilot_id, month, feature, uses) VALUES (?, ?, 'NARRATIVE', 1)",
@@ -180,6 +189,9 @@ class AccountDeletionTest {
                         + "WHERE a.pilot_id = ?", Integer.class, id),
                 jdbc.queryForObject("SELECT count(*) FROM logbook_entries WHERE pilot_id = ?", Integer.class, id),
                 jdbc.queryForObject("SELECT count(*) FROM pilot_endorsements WHERE pilot_id = ?", Integer.class, id),
+                jdbc.queryForObject("SELECT count(*) FROM instructor_students WHERE student_id = ?", Integer.class, id),
+                jdbc.queryForObject("SELECT count(*) FROM signed_endorsements WHERE student_id = ?", Integer.class, id),
+                jdbc.queryForObject("SELECT count(*) FROM cross_country_reviews WHERE student_id = ?", Integer.class, id),
                 jdbc.queryForObject("SELECT count(*) FROM subscriptions WHERE pilot_id = ?", Integer.class, id),
                 jdbc.queryForObject("SELECT count(*) FROM paid_feature_uses WHERE pilot_id = ?", Integer.class, id),
                 jdbc.queryForObject("SELECT count(*) FROM magic_links WHERE email = ?", Integer.class, pilot.getEmail()),

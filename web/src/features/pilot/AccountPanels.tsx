@@ -8,6 +8,7 @@ import { Check, CircleMinus, Info, Plus, Route } from "lucide-react";
 import EmptyState from "../../components/EmptyState";
 import IconButton from "../../components/IconButton";
 import { cn } from "cn";
+import { planHrefOf } from "../../lib/flightLink";
 import { routeName } from "../../lib/identSchema";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
@@ -594,19 +595,10 @@ export function FlightsPanel() {
     onConfirm: () => { if (flightToDelete) remove.mutate(flightToDelete.id); },
   });
 
-  /** Back to the planner on this flight's route, through its stops, at
-   *  its altitude and the ones the pilot set at its points. */
-  const planHref = (f: FlightSummary) => `/plan?${new URLSearchParams({
-    dep: f.departureIdent, dest: f.destinationIdent,
-    ...(f.stops.length ? { stops: f.stops.join(",") } : {}),
-    ...(f.cruiseAltitudeFt != null ? { altitude_ft: String(f.cruiseAltitudeFt) } : {}),
-    ...(f.altitudes ? { altitudes: f.altitudes } : {}),
-  })}`;
-
   // A page a flight (FlightPage), opened from its row.
   const pages = Object.fromEntries((list ?? []).map(f => [`flight-${f.id}`, {
     title: routeName(f.departureIdent, f.destinationIdent, f.stops),
-    content: <FlightPage summary={f} planHref={planHref(f)} />,
+    content: <FlightPage summary={f} planHref={planHrefOf(f)} />,
   }]));
 
   return (

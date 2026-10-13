@@ -272,6 +272,17 @@ export type CurrencyDatesRequest = Webapp["CurrencyDatesRequest"];
  *  logbook, the knowledge test report's ACS codes, the endorsements. */
 export type Training = Webapp["TrainingDto"];
 export type ExperienceItem = Webapp["ExperienceItemDto"];
+/** One of the student endorsements, AC 61-65K's words with its blanks. */
+export type EndorsementKind = Webapp["EndorsementKindDto"];
+/** An endorsement an instructor signed in the app. */
+export type SignedEndorsement = Webapp["SignedEndorsementDto"];
+/** A solo cross-country put to an instructor (14 CFR 61.93(c)(3)). */
+export type CrossCountryReview = Webapp["CrossCountryReviewDto"];
+/** A pilot as a flight instructor: certificate, students, reviews, record. */
+export type Instructor = Webapp["InstructorDto"];
+export type InstructorRequest = Webapp["InstructorRequest"];
+export type StudentRow = Webapp["StudentDto"];
+export type SignRequest = Webapp["SignRequest"];
 
 // ---------------------------------------------------------------------
 // The narrative agents, reached through ComparisonProxyController, which

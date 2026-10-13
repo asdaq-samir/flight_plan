@@ -3,11 +3,14 @@ package com.northflyers.vfr.controller;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willThrow;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.oidcLogin;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -16,6 +19,7 @@ import com.northflyers.vfr.domain.Pilot;
 import com.northflyers.vfr.dto.EndorsementDto;
 import com.northflyers.vfr.dto.ExperienceItemDto;
 import com.northflyers.vfr.dto.TrainingDto;
+import com.northflyers.vfr.service.InstructorService;
 import com.northflyers.vfr.service.LogbookService;
 import com.northflyers.vfr.service.PilotService;
 import com.northflyers.vfr.service.TrainingService;
@@ -26,6 +30,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -48,12 +53,16 @@ class TrainingControllerTest {
     @MockitoBean
     private PilotService pilotService;
 
+    @MockitoBean
+    private InstructorService instructors;
+
     private static final Pilot PILOT = new Pilot("student@example.com", "A. Student", "sub-1");
 
     private static final TrainingDto RECORD = new TrainingDto(
             List.of(new ExperienceItemDto("total", "61.109(a)", "Flight time", 12.5, 40, "h", false)),
             List.of("PA.I.E.K1"),
-            List.of(new EndorsementDto("pre-solo-knowledge", LocalDate.of(2026, 9, 1))));
+            List.of(new EndorsementDto("pre-solo-knowledge", LocalDate.of(2026, 9, 1), null)),
+            List.of(), List.of(), "Avery B. Student", List.of(), List.of());
 
     @Test
     void get_returns401_whenSignedOut() throws Exception {
@@ -109,6 +118,28 @@ class TrainingControllerTest {
         given(pilotService.current(any())).willReturn(Optional.of(PILOT));
         mockMvc.perform(put("/api/training/endorsements/NOT_OURS").with(oidcLogin()).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON).content("{\"endorsedOn\": \"2026-10-01\"}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void endorse_refusesACodeNoEndorsementHas() throws Exception {
+        given(pilotService.current(any())).willReturn(Optional.of(PILOT));
+        mockMvc.perform(put("/api/training/endorsements/solo-forever").with(oidcLogin()).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"endorsedOn\": \"2026-10-01\"}"))
+                .andExpect(status().isBadRequest());
+        verify(training, never()).endorse(any(), any(), any());
+    }
+
+    @Test
+    void askInstructor_answersARefusalWithItsStatus_andAnAddressThatIsNotOneIs400() throws Exception {
+        given(pilotService.current(any())).willReturn(Optional.of(PILOT));
+        willThrow(new InstructorService.Refused(HttpStatus.TOO_MANY_REQUESTS, "You have asked 5 instructors today."))
+                .given(instructors).ask(eq(PILOT), eq("cfi@example.com"), any());
+        mockMvc.perform(post("/api/training/instructors").with(oidcLogin()).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"email\": \"cfi@example.com\"}"))
+                .andExpect(status().isTooManyRequests());
+        mockMvc.perform(post("/api/training/instructors").with(oidcLogin()).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"email\": \"not an address\"}"))
                 .andExpect(status().isBadRequest());
     }
 }

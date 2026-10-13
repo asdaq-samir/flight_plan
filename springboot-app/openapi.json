@@ -128,6 +128,45 @@
         "required" : [ "userCode" ],
         "type" : "object"
       },
+      "AskInstructorRequest" : {
+        "properties" : {
+          "email" : {
+            "maxLength" : 320,
+            "minLength" : 0,
+            "type" : "string"
+          }
+        },
+        "required" : [ "email" ],
+        "type" : "object"
+      },
+      "AskReviewRequest" : {
+        "properties" : {
+          "flightId" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "flightOn" : {
+            "format" : "date",
+            "type" : "string"
+          },
+          "instructorId" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "makeModel" : {
+            "maxLength" : 80,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "note" : {
+            "maxLength" : 500,
+            "minLength" : 0,
+            "type" : [ "string", "null" ]
+          }
+        },
+        "required" : [ "flightId", "flightOn", "instructorId", "makeModel", "note" ],
+        "type" : "object"
+      },
       "Capabilities" : {
         "properties" : {
           "access" : {
@@ -240,6 +279,63 @@
         "required" : [ "kind", "message", "page", "stack", "userAgent" ],
         "type" : "object"
       },
+      "CrossCountryReviewDto" : {
+        "properties" : {
+          "answeredAt" : {
+            "format" : "date-time",
+            "type" : [ "string", "null" ]
+          },
+          "askedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "checks" : {
+            "items" : {
+              "$ref" : "#/components/schemas/ReviewCheckDto"
+            },
+            "type" : "array"
+          },
+          "declinedNote" : {
+            "type" : [ "string", "null" ]
+          },
+          "endorsement" : {
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/SignedEndorsementDto"
+            }, {
+              "type" : "null"
+            } ]
+          },
+          "flight" : {
+            "$ref" : "#/components/schemas/FlightSummaryDto"
+          },
+          "flightOn" : {
+            "format" : "date",
+            "type" : "string"
+          },
+          "id" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "instructorName" : {
+            "type" : [ "string", "null" ]
+          },
+          "makeModel" : {
+            "type" : "string"
+          },
+          "note" : {
+            "type" : [ "string", "null" ]
+          },
+          "studentId" : {
+            "format" : "int64",
+            "type" : [ "integer", "null" ]
+          },
+          "studentName" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "answeredAt", "askedAt", "checks", "declinedNote", "endorsement", "flight", "flightOn", "id", "instructorName", "makeModel", "note", "studentId", "studentName" ],
+        "type" : "object"
+      },
       "CurrencyDatesRequest" : {
         "properties" : {
           "flightReviewOn" : {
@@ -332,6 +428,17 @@
         "required" : [ "approachesInWindow", "crossCountryHours", "dayPassengersUntil", "flightReviewOn", "flightReviewUntil", "flights", "holdingInWindow", "instrumentCurrentUntil", "ipcNeededAfter", "ipcOn", "landings", "medicalExpiresOn", "nightHours", "nightPassengersUntil", "totalHours", "trackingInWindow" ],
         "type" : "object"
       },
+      "DeclineRequest" : {
+        "properties" : {
+          "note" : {
+            "maxLength" : 500,
+            "minLength" : 0,
+            "type" : "string"
+          }
+        },
+        "required" : [ "note" ],
+        "type" : "object"
+      },
       "DeviceCode" : {
         "properties" : {
           "deviceCode" : {
@@ -363,9 +470,62 @@
           "endorsedOn" : {
             "format" : "date",
             "type" : "string"
+          },
+          "until" : {
+            "format" : "date",
+            "type" : [ "string", "null" ]
           }
         },
-        "required" : [ "code", "endorsedOn" ],
+        "required" : [ "code", "endorsedOn", "until" ],
+        "type" : "object"
+      },
+      "EndorsementFieldDto" : {
+        "properties" : {
+          "example" : {
+            "type" : "string"
+          },
+          "key" : {
+            "type" : "string"
+          },
+          "label" : {
+            "type" : "string"
+          },
+          "required" : {
+            "type" : "boolean"
+          }
+        },
+        "required" : [ "example", "key", "label", "required" ],
+        "type" : "object"
+      },
+      "EndorsementKindDto" : {
+        "properties" : {
+          "code" : {
+            "type" : "string"
+          },
+          "fields" : {
+            "items" : {
+              "$ref" : "#/components/schemas/EndorsementFieldDto"
+            },
+            "type" : "array"
+          },
+          "label" : {
+            "type" : "string"
+          },
+          "paragraph" : {
+            "type" : "string"
+          },
+          "rule" : {
+            "type" : "string"
+          },
+          "template" : {
+            "type" : "string"
+          },
+          "validDays" : {
+            "format" : "int32",
+            "type" : [ "integer", "null" ]
+          }
+        },
+        "required" : [ "code", "fields", "label", "paragraph", "rule", "template", "validDays" ],
         "type" : "object"
       },
       "EndorsementRequest" : {
@@ -734,6 +894,17 @@
         "required" : [ "aircraftTailNumber", "altitudes", "createdAt", "cruiseAltitudeFt", "departureIdent", "destinationIdent", "id", "plannedFor", "risk", "stops", "totalDistanceNm", "totalEteMin", "totalFuelGal" ],
         "type" : "object"
       },
+      "FullNameRequest" : {
+        "properties" : {
+          "fullName" : {
+            "maxLength" : 120,
+            "minLength" : 0,
+            "type" : "string"
+          }
+        },
+        "required" : [ "fullName" ],
+        "type" : "object"
+      },
       "InspectionsDto" : {
         "description" : "An airplane's inspections and tests as recorded, each with the last day it is good for: the annual to the end of the 12th calendar month after (14 CFR 91.409(a)), the altimeter and static test and the transponder test to the end of the 24th (91.411(a), 91.413(a)), the ELT's inspection to the end of the 12th (91.207(d)); the 100-hour due at 100 hours of time in service after the last (91.409(b)). Null where not recorded",
         "properties" : {
@@ -822,6 +993,106 @@
           }
         },
         "required" : [ "annualOn", "eltBatteryDueOn", "eltInspectedOn", "hoursNow", "hundredHourAtHours", "staticCheckOn", "transponderCheckOn" ],
+        "type" : "object"
+      },
+      "InstructorDto" : {
+        "properties" : {
+          "asking" : {
+            "items" : {
+              "$ref" : "#/components/schemas/StudentDto"
+            },
+            "type" : "array"
+          },
+          "certificate" : {
+            "type" : [ "string", "null" ]
+          },
+          "fullName" : {
+            "type" : [ "string", "null" ]
+          },
+          "kinds" : {
+            "items" : {
+              "$ref" : "#/components/schemas/EndorsementKindDto"
+            },
+            "type" : "array"
+          },
+          "reviews" : {
+            "items" : {
+              "$ref" : "#/components/schemas/CrossCountryReviewDto"
+            },
+            "type" : "array"
+          },
+          "signed" : {
+            "items" : {
+              "$ref" : "#/components/schemas/SignedEndorsementDto"
+            },
+            "type" : "array"
+          },
+          "students" : {
+            "items" : {
+              "$ref" : "#/components/schemas/StudentDto"
+            },
+            "type" : "array"
+          },
+          "until" : {
+            "format" : "date",
+            "type" : [ "string", "null" ]
+          },
+          "untilKind" : {
+            "enum" : [ "RE", "EXP" ],
+            "type" : [ "string", "null" ]
+          }
+        },
+        "required" : [ "asking", "certificate", "fullName", "kinds", "reviews", "signed", "students", "until", "untilKind" ],
+        "type" : "object"
+      },
+      "InstructorLinkDto" : {
+        "properties" : {
+          "accepted" : {
+            "type" : "boolean"
+          },
+          "askedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "certificate" : {
+            "type" : [ "string", "null" ]
+          },
+          "email" : {
+            "type" : "string"
+          },
+          "id" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "name" : {
+            "type" : [ "string", "null" ]
+          }
+        },
+        "required" : [ "accepted", "askedAt", "certificate", "email", "id", "name" ],
+        "type" : "object"
+      },
+      "InstructorRequest" : {
+        "properties" : {
+          "certificate" : {
+            "minLength" : 1,
+            "pattern" : "[A-Za-z0-9]{4,20}",
+            "type" : "string"
+          },
+          "fullName" : {
+            "maxLength" : 120,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "until" : {
+            "format" : "date",
+            "type" : "string"
+          },
+          "untilKind" : {
+            "enum" : [ "RE", "EXP" ],
+            "type" : "string"
+          }
+        },
+        "required" : [ "certificate", "fullName", "until", "untilKind" ],
         "type" : "object"
       },
       "KnowledgeTestRequest" : {
@@ -1105,6 +1376,24 @@
         "required" : [ "on" ],
         "type" : "object"
       },
+      "ReviewCheckDto" : {
+        "properties" : {
+          "detail" : {
+            "type" : "string"
+          },
+          "label" : {
+            "type" : "string"
+          },
+          "met" : {
+            "type" : "boolean"
+          },
+          "rule" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "detail", "label", "met", "rule" ],
+        "type" : "object"
+      },
       "RiskAssessmentDto" : {
         "properties" : {
           "factors" : {
@@ -1258,6 +1547,77 @@
         "required" : [ "aircraftId", "altitudes", "checkpoints", "cruiseAltitudeFt", "departureIdent", "destinationIdent", "plannedFor", "risk", "stops", "totalDistanceNm", "totalEteMin", "totalFuelGal" ],
         "type" : "object"
       },
+      "SignRequest" : {
+        "properties" : {
+          "code" : {
+            "minLength" : 1,
+            "type" : "string"
+          },
+          "fields" : {
+            "additionalProperties" : {
+              "type" : "string"
+            },
+            "type" : "object"
+          },
+          "reviewId" : {
+            "format" : "int64",
+            "type" : [ "integer", "null" ]
+          },
+          "signedOn" : {
+            "format" : "date",
+            "type" : "string"
+          },
+          "text" : {
+            "maxLength" : 2000,
+            "minLength" : 0,
+            "type" : "string"
+          }
+        },
+        "required" : [ "code", "fields", "reviewId", "signedOn", "text" ],
+        "type" : "object"
+      },
+      "SignedEndorsementDto" : {
+        "properties" : {
+          "code" : {
+            "type" : "string"
+          },
+          "digest" : {
+            "type" : "string"
+          },
+          "fields" : {
+            "additionalProperties" : {
+              "type" : "string"
+            },
+            "type" : "object"
+          },
+          "id" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "signature" : {
+            "type" : "string"
+          },
+          "signedOn" : {
+            "format" : "date",
+            "type" : "string"
+          },
+          "studentName" : {
+            "type" : "string"
+          },
+          "text" : {
+            "type" : "string"
+          },
+          "until" : {
+            "format" : "date",
+            "type" : [ "string", "null" ]
+          },
+          "voided" : {
+            "type" : "boolean"
+          }
+        },
+        "required" : [ "code", "digest", "fields", "id", "signature", "signedOn", "studentName", "text", "until", "voided" ],
+        "type" : "object"
+      },
       "SignedIn" : {
         "properties" : {
           "next" : {
@@ -1363,6 +1723,49 @@
         "type" : "object"
       },
       "StreamingResponseBody" : {
+        "type" : "object"
+      },
+      "StudentDto" : {
+        "properties" : {
+          "accepted" : {
+            "type" : "boolean"
+          },
+          "askedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "email" : {
+            "type" : "string"
+          },
+          "experienceMet" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "experienceOf" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "linkId" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "reviewsWaiting" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "soloUntil" : {
+            "format" : "date",
+            "type" : [ "string", "null" ]
+          },
+          "studentId" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
+        "required" : [ "accepted", "askedAt", "email", "experienceMet", "experienceOf", "linkId", "name", "reviewsWaiting", "soloUntil", "studentId" ],
         "type" : "object"
       },
       "SubscriptionDto" : {
@@ -1486,14 +1889,41 @@
             },
             "type" : "array"
           },
+          "fullName" : {
+            "type" : [ "string", "null" ]
+          },
+          "instructors" : {
+            "items" : {
+              "$ref" : "#/components/schemas/InstructorLinkDto"
+            },
+            "type" : "array"
+          },
+          "kinds" : {
+            "items" : {
+              "$ref" : "#/components/schemas/EndorsementKindDto"
+            },
+            "type" : "array"
+          },
           "knowledgeTestCodes" : {
             "items" : {
               "type" : "string"
             },
             "type" : "array"
+          },
+          "reviews" : {
+            "items" : {
+              "$ref" : "#/components/schemas/CrossCountryReviewDto"
+            },
+            "type" : "array"
+          },
+          "signed" : {
+            "items" : {
+              "$ref" : "#/components/schemas/SignedEndorsementDto"
+            },
+            "type" : "array"
           }
         },
-        "required" : [ "endorsements", "experience", "knowledgeTestCodes" ],
+        "required" : [ "endorsements", "experience", "fullName", "instructors", "kinds", "knowledgeTestCodes", "reviews", "signed" ],
         "type" : "object"
       },
       "VorCheckDto" : {
@@ -2438,7 +2868,7 @@
         "tags" : [ "flight-controller" ]
       },
       "get" : {
-        "operationId" : "get_3",
+        "operationId" : "get_4",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -2534,6 +2964,248 @@
           }
         },
         "tags" : [ "flight-controller" ]
+      }
+    },
+    "/api/instructor" : {
+      "delete" : {
+        "operationId" : "stop",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/InstructorDto"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "instructor-controller" ]
+      },
+      "get" : {
+        "operationId" : "get",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/InstructorDto"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "instructor-controller" ]
+      },
+      "put" : {
+        "operationId" : "set",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/InstructorRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/InstructorDto"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "instructor-controller" ]
+      }
+    },
+    "/api/instructor/endorsements/{id}/void" : {
+      "post" : {
+        "operationId" : "voidEndorsement",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/InstructorDto"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "instructor-controller" ]
+      }
+    },
+    "/api/instructor/reviews/{id}/decline" : {
+      "post" : {
+        "operationId" : "decline",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/DeclineRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/InstructorDto"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "instructor-controller" ]
+      }
+    },
+    "/api/instructor/students/{linkId}" : {
+      "delete" : {
+        "operationId" : "leave",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "linkId",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/InstructorDto"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "instructor-controller" ]
+      }
+    },
+    "/api/instructor/students/{linkId}/accept" : {
+      "post" : {
+        "operationId" : "accept",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "linkId",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/InstructorDto"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "instructor-controller" ]
+      }
+    },
+    "/api/instructor/students/{studentId}/endorsements" : {
+      "post" : {
+        "operationId" : "sign",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "studentId",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/SignRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TrainingDto"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "instructor-controller" ]
+      }
+    },
+    "/api/instructor/students/{studentId}/training" : {
+      "get" : {
+        "operationId" : "student",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "studentId",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TrainingDto"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "instructor-controller" ]
       }
     },
     "/api/logbook" : {
@@ -2843,7 +3515,7 @@
       },
       "get" : {
         "description" : "course, detect/stream, classify, picks, checkpoints, navlog, routes, build status",
-        "operationId" : "get",
+        "operationId" : "get_1",
         "responses" : {
           "200" : {
             "content" : {
@@ -2985,7 +3657,7 @@
     },
     "/api/subscription" : {
       "get" : {
-        "operationId" : "get_2",
+        "operationId" : "get_3",
         "responses" : {
           "200" : {
             "content" : {
@@ -3024,7 +3696,7 @@
     },
     "/api/training" : {
       "get" : {
-        "operationId" : "get_1",
+        "operationId" : "get_2",
         "responses" : {
           "200" : {
             "content" : {
@@ -3101,6 +3773,61 @@
         "tags" : [ "training-controller" ]
       }
     },
+    "/api/training/instructors" : {
+      "post" : {
+        "operationId" : "askInstructor",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/AskInstructorRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TrainingDto"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "training-controller" ]
+      }
+    },
+    "/api/training/instructors/{id}" : {
+      "delete" : {
+        "operationId" : "dropInstructor",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TrainingDto"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "training-controller" ]
+      }
+    },
     "/api/training/knowledge-test" : {
       "put" : {
         "operationId" : "setKnowledgeTest",
@@ -3114,6 +3841,89 @@
           },
           "required" : true
         },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TrainingDto"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "training-controller" ]
+      }
+    },
+    "/api/training/name" : {
+      "put" : {
+        "operationId" : "setName",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/FullNameRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TrainingDto"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "training-controller" ]
+      }
+    },
+    "/api/training/reviews" : {
+      "post" : {
+        "operationId" : "askReview",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/AskReviewRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TrainingDto"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "training-controller" ]
+      }
+    },
+    "/api/training/reviews/{id}" : {
+      "delete" : {
+        "operationId" : "withdrawReview",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
         "responses" : {
           "200" : {
             "content" : {

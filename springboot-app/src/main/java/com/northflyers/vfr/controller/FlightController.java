@@ -45,7 +45,7 @@ public class FlightController {
     @GetMapping
     public ResponseEntity<List<FlightSummaryDto>> list(Authentication authentication) {
         return PilotResponses.withPilot(pilots, authentication, pilot ->
-                ResponseEntity.ok(flightService.list(pilot).stream().map(FlightController::toSummaryDto).toList()));
+                ResponseEntity.ok(flightService.list(pilot).stream().map(FlightSummaryDto::of).toList()));
     }
 
     @PostMapping
@@ -93,13 +93,6 @@ public class FlightController {
     public ResponseEntity<Void> delete(Authentication authentication, @PathVariable Long id) {
         return PilotResponses.withPilot(pilots, authentication, pilot ->
                 flightService.delete(pilot, id) ? ResponseEntity.noContent().build() : ResponseEntity.notFound().build());
-    }
-
-    private static FlightSummaryDto toSummaryDto(Flight f) {
-        return new FlightSummaryDto(f.getId(), f.getDepartureIdent(), f.getDestinationIdent(), f.getStops(),
-                f.getAircraft() == null ? null : f.getAircraft().getTailNumber(),
-                f.getCruiseAltitudeFt(), f.getTotalDistanceNm(), f.getTotalEteMin(), f.getTotalFuelGal(),
-                f.getPlannedFor(), f.getCreatedAt(), riskOf(f), f.getOwnAltitudes());
     }
 
     private static RiskAssessmentDto riskOf(Flight f) {

@@ -28,12 +28,19 @@ import org.springframework.transaction.support.TransactionTemplate;
  * planner may not answer; then Apple's grant is revoked (AppleRevocation,
  * best effort, so Apple being down never keeps an account); then, in one transaction, the pilot's row --
  * the database cascades it to their aircraft, flights, logbook and
- * endorsements -- and the sign-in links ever sent to their address; last
+ * endorsements, their instructors and students and the solo
+ * cross-countries between them (V26) -- and the sign-in links ever sent
+ * to their address; last
  * every session they hold, on any device, under any of the names they
  * sign in by. Only the planner being down leaves the account whole: the
  * notes cannot be given back, so a database failure after them leaves
  * the account without its notes, and once the transaction commits the
  * account is gone whatever happens to the sessions.
+ *
+ * <p>An endorsement an instructor signed in the app stays with the other
+ * of the two, its student or instructor left out: the student's
+ * endorsement is theirs, and the instructor must keep a record of it for
+ * 3 years (14 CFR 61.189(b), (c)).
  */
 @Service
 public class AccountService {
