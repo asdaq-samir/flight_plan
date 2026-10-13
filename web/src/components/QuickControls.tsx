@@ -21,7 +21,10 @@ import { TEXT } from "../lib/text";
  * the Class B fields' weather and their terminal sheet, the route's
  * waypoints, the military fields and the charts kept for offline.
  */
-export default function QuickControls() {
+export default function QuickControls({ row = false }: {
+  /** One row that slides sideways, Setup's pill's (SetupPill), not two. */
+  row?: boolean;
+} = {}) {
   const traffic = usePreferences(s => s.traffic);
   const tfrs = usePreferences(s => s.tfrs);
   const alerts = usePreferences(s => s.alerts);
@@ -39,7 +42,10 @@ export default function QuickControls() {
   const offline = "serviceWorker" in navigator && window.isSecureContext;
   const { resolvedTheme, setTheme } = useTheme();
   return (
-    <div className="grid grid-cols-5 gap-x-1 gap-y-2" data-testid="quick-controls">
+    <div
+      className={row ? "-mx-1 flex gap-1 overflow-x-auto px-1 [scrollbar-width:none] [&>*]:w-16 [&>*]:shrink-0" : "grid grid-cols-5 gap-x-1 gap-y-2"}
+      data-testid="quick-controls"
+    >
       <Quick on={traffic} onChange={set.setTraffic} icon={<Plane />} label="Traffic" testId="quick-traffic" />
       <Quick on={tfrs} onChange={set.setTfrs} icon={<ShieldAlert />} label="TFRs" testId="quick-tfrs" />
       <Quick on={alerts} onChange={set.setAlerts} icon={<Bell />} label="Alerts" testId="quick-alerts" />

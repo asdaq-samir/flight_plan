@@ -156,3 +156,8 @@ export const FILLS_HALF = "transition-[min-height] duration-500 ease-[cubic-bezi
  *  Maps' are on iOS 26: a circle of that glass, its glyph bold in the
  *  text's colour (the pilot's pick, after a grey disc). */
 export const ROUND_BUTTON = `rounded-full ${GLASS_BUTTON}`;
+
+/** A console page asked for from outside the console -- Setup's pill's
+ *  Aircraft and Logbook rows (SetupPill) -- opened by the tab that has it
+ *  as it next shows (ConsolePages). */
+export const useConsoleAsk = create<{ page: string | null }>(() => ({ page: null }));

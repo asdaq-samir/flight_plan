@@ -3,7 +3,7 @@ import { closeCard, grabberTo, openPanel, settle, settled, showTabs, sideDrawer,
 
 /**
  * The planner's tab bar, at the pilot's ask in place of the map's buttons
- * on its left: FPL, Airport, Aircraft, NRST and Settings, the card's first
+ * on its left: Aircraft, Airport, FPL and Setup (Nearest Airport's), the card's first
  * row and at rest the pill itself -- FPL the route's box (empty with no
  * route, to type one in), the others their search bar the whole width,
  * Settings the console.
@@ -30,12 +30,9 @@ test("the tabs swap the panel's head and body, FPL's empty box with no route", a
   await expect(page).toHaveURL(/[?&]aircraft=1/);
   await expect(sideDrawer(page).getByTestId("aircraft-search")).toBeVisible();
 
+  // Four tabs, Nearest Airport's now (the owner's pick of the redesign).
   await showTabs(page);
-  await page.getByTestId("tab-nrst").click();
-  await expect(page).toHaveURL(/[?&]near=1/);
-  await expect(page).not.toHaveURL(/[?&]aircraft=1/);
-  await expect(sideDrawer(page).getByTestId("nearest-from")).toBeVisible();
-  await expect(sideDrawer(page).getByTestId("nearest-card")).toBeVisible();
+  await expect(bar.getByRole("button")).toHaveCount(4);
 
   // FPL with no route: the route's box, empty to type one in.
   await showTabs(page);
@@ -210,9 +207,8 @@ test("each tab keeps the card open over it: another tab picked and this one agai
   const name = sideDrawer(page).getByTestId("place-name");
   await expect(name).toContainText("KDLH", { timeout: slow(15000) });
   await showTabs(page);
-  await page.getByTestId("tab-nrst").click();
+  await page.getByTestId("tab-aircraft").click();
   await expect(page).not.toHaveURL(/[?&]place=/);
-  await expect(sideDrawer(page).getByTestId("nearest-card")).toBeVisible();
   await showTabs(page);
   await page.getByTestId("tab-airport").click();
   await expect(page).toHaveURL(/[?&]place=KDLH/);
@@ -222,7 +218,7 @@ test("each tab keeps the card open over it: another tab picked and this one agai
   await sideDrawer(page).locator('[data-testid="tab-bar"] button[aria-current="page"]').click();
   await expect(page).not.toHaveURL(/[?&]place=/);
   await showTabs(page);
-  await page.getByTestId("tab-nrst").click();
+  await page.getByTestId("tab-aircraft").click();
   await showTabs(page);
   await page.getByTestId("tab-airport").click();
   await expect(page).not.toHaveURL(/[?&]place=/);
@@ -236,7 +232,7 @@ test("the pill collapses to its tabs alone by a drag down, and its grabber bring
   await expect(panel).toHaveAttribute("data-collapsed", "true");
   await grabberTo(page, "peek");
   await expect(panel).toHaveAttribute("data-capsule", "true");
-  await expect(panel.getByTestId("panel-foot")).toBeVisible({ timeout: slow(30000) });
+  await expect(panel.getByTestId("flight-line")).toBeVisible({ timeout: slow(30000) });
   const pill = (await panel.boundingBox())!;
   // Toward the screen's edge from the grabber, as a finger drags it: down
   // on a phone's sheet from the bottom, up on a card from the top.
@@ -245,17 +241,19 @@ test("the pill collapses to its tabs alone by a drag down, and its grabber bring
   await page.mouse.move(grab.x + grab.width / 2, grab.y + grab.height / 2);
   await page.mouse.down();
   await page.mouse.move(grab.x + grab.width / 2, grab.y + grab.height / 2 + 40 * toEdge, { steps: 5 });
+  // Past half the pill's height, which the redesign made tall.
   await page.mouse.move(grab.x + grab.width / 2, grab.y + grab.height / 2 + 90 * toEdge, { steps: 5 });
+  await page.mouse.move(grab.x + grab.width / 2, grab.y + grab.height / 2 + 200 * toEdge, { steps: 5 });
   await page.mouse.up();
   await expect(panel).toHaveAttribute("data-collapsed", "true");
   await expect(panel).toHaveAttribute("data-panel", "peek");
-  await expect(panel.getByTestId("panel-foot")).toHaveCount(0);
+  await expect(panel.getByTestId("flight-line")).toHaveCount(0);
   await expect(panel.getByTestId("tab-fpl")).toBeVisible();
   await expect.poll(async () => (await panel.boundingBox())!.height).toBeLessThan(pill.height - 40);
   // The grabber tapped: the figures back, the pill as it was.
   await page.getByTestId("sidebar-trigger-button").click();
   await expect(panel).not.toHaveAttribute("data-collapsed", "true");
-  await expect(panel.getByTestId("panel-foot")).toBeVisible();
+  await expect(panel.getByTestId("flight-line")).toBeVisible();
   await expect(panel).toHaveAttribute("data-panel", "peek");
 });
 

@@ -61,3 +61,8 @@ export function reported(report: Report) {
     return { latest: report, path: [...s.path, point].slice(-PATH_POINTS) };
   });
 }
+
+/** The airplanes the Aircraft pill's Map switch leaves on the map, the
+ *  rest faded (TrafficLayer); none while it is off. At the owner's ask:
+ *  "Map: show only these". */
+export const useTrafficFocus = create<{ on: boolean; only: ReadonlySet<string> | null }>(() => ({ on: false, only: null }));

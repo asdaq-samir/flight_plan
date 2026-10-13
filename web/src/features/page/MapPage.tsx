@@ -3,7 +3,7 @@ import { showError } from "../../lib/problems";
 import { useSearchParamsNow } from "../../lib/useSearchParamsNow";
 import DevGuard from "../../components/DevGuard";
 import MapPanel from "../../components/MapPanel";
-import { ConsoleInPanelContext, ConsoleSettingsContext, useConsoleOpen, MapInsetsContext, NO_INSETS, type MapInsets, type PanelState } from "../../components/mapChrome";
+import { ConsoleInPanelContext, ConsoleSettingsContext, useConsoleAsk, useConsoleOpen, MapInsetsContext, NO_INSETS, type MapInsets, type PanelState } from "../../components/mapChrome";
 import QuickControls from "../../components/QuickControls";
 import RouteForm from "../../components/RouteForm";
 import { Sheet, SheetContent } from "../../components/ui/sheet";
@@ -19,6 +19,10 @@ import TvLink from "../pilot/TvLink";
 import PlanWorkspace from "../plan/PlanWorkspace";
 import type { WorkspacePieces } from "./workspace";
 import { fromChunk } from "../../lib/fromChunk";
+
+/** Setup's pill (the account, its rows, the switches), with the console's
+ *  code rather than the page's first load. */
+const SetupPill = lazy(() => import("../pilot/SetupPill"));
 
 /**
  * The training workspace on its own chunk. It carries the developer's
@@ -147,6 +151,13 @@ export default function MapPage({ mode }: { mode: Mode }) {
       return params;
     }, { replace: true, flushSync: true });
   }, [mode, briefingInAddress, setSearchParams]);
+  // One of the console's Account pages asked for from Setup's pill: its
+  // tab, the page (ConsolePages), the sheet all the way up.
+  const openConsolePage = useCallback((page: string) => {
+    usePreferences.getState().setPilotTab("library");
+    useConsoleAsk.setState({ page });
+    setPanel("full");
+  }, [setPanel]);
 
   // What the panel covers of the map at rest, for the map to fit a
   // route clear of it and lift its chart credit above it. Kept when it
@@ -332,7 +343,13 @@ export default function MapPage({ mode }: { mode: Mode }) {
             // Settings tab's pill (its console's layer at rest) is quick
             // controls, at the owner's ask; else the workspace's own foot.
             bar={pieces.bar} barAlone={consoleLayer || !!pieces.alone}
-            foot={consoleLayer ? panel === "peek" && <QuickControls /> : pieces.foot}
+            // Setup's pill on the planner, the owner's pick of the redesign
+            // (SetupPill): the account, the airplanes and logbook, the
+            // switches; the developer's console keeps the switches alone.
+            foot={consoleLayer ? panel === "peek" && (mode === "pilot"
+              ? <Suspense fallback={null}><SetupPill onOpen={openConsolePage} /></Suspense>
+              : <QuickControls />) : pieces.foot}
+            pillBody={consoleLayer || pieces.alone ? undefined : pieces.pillBody}
             headInPill={!consoleLayer && !pieces.alone && !!pieces.pillHead}
             fold={pieces.alone || consoleLayer ? undefined : pieces.fold}
             top={pieces.alone || consoleLayer ? null : pieces.head ?? (

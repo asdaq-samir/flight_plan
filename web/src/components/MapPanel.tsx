@@ -45,6 +45,10 @@ interface Props {
    *  route's figures, at the pilot's ask, on every tab while there is a
    *  route. Its height is added to each detent. */
   foot?: ReactNode;
+  /** The pill's own under its head, at rest alone: what a tab shows there
+   *  that is not its foot at every height (FPL's saved flights, or its
+   *  profile and figures). */
+  pillBody?: ReactNode;
   /** A small button on the separator between the head and the body, all
    *  the way up: the route folded away or shown (PlanWorkspace). */
   fold?: ReactNode;
@@ -101,16 +105,17 @@ const rootPx = () => (rootFont ??= parseFloat(getComputedStyle(document.document
 /** A card's width from `md` up: 24rem. */
 const CARD = 384;
 
-/** The pill under its tabs, whatever the tab puts there -- FPL's route box
- *  and its chips, or its figures; a search bar over the Favorites' or the
- *  nearest fields' tiles; Settings' two rows of quick controls -- one
- *  height, so switching tabs never changes the pill's size, at the owner's
- *  asks: as tall as FPL's with its box and chips ("make the minimal layout
- *  to be this big"), in rem so it grows with the text as they do. A head
- *  over a foot share it, the search bar's row and the tiles'. */
-const PILL_ROW = "h-[7.25rem]";
+/** The pill under its tabs, whatever the tab puts there -- FPL's route box,
+ *  chips and saved flights, or its profile and figures; a search bar over
+ *  two labelled strips (Airport's Favorites and Nearest, Aircraft's);
+ *  Setup's account, rows and switches -- one height, so switching tabs
+ *  never changes the pill's size: as tall as the owner's screenshot of
+ *  Setup ("Can we make the minimal layout this big"), the redesign's one
+ *  size, in rem so it grows with the text as they do. A head over a foot
+ *  share it, the search bar's row and the rest. */
+const PILL_ROW = "h-[16.5rem]";
 const PILL_HEAD_ROW = "h-[3rem]";
-const PILL_FOOT_ROW = "h-[4.25rem]";
+const PILL_FOOT_ROW = "h-[13.5rem]";
 /** The pill collapsed to its tabs: their row (3rem) and its margins. */
 const TABS_PILL_REM = 3.625;
 
@@ -147,7 +152,7 @@ const RANK: Record<PanelState, number> = { peek: 0, half: 1, full: 2 };
  * drawer that never closes held the keyboard's focus inside itself and
  * hid the map, and any dialog opened before it, from a screen reader.
  */
-export default function MapPanel({ label, top, controls, figures, compact, children, state, onStateChange, onInsetsChange, toEdge = false, bar, barAlone = false, headInPill = false, foot, fold }: Props) {
+export default function MapPanel({ label, top, controls, figures, compact, children, state, onStateChange, onInsetsChange, toEdge = false, bar, barAlone = false, headInPill = false, foot, pillBody, fold }: Props) {
   const onPhone = useIsMobile();
   const edge = useNavEdge();
   const safe = useSafeArea();
@@ -636,7 +641,10 @@ export default function MapPanel({ label, top, controls, figures, compact, child
               // a route is begun, the chips under it -- the airplane, the
               // altitude, the time, Share -- as the owner's screenshot of
               // the size every tab's pill now is had them.
-              !footShown && controls ? <div className="flex w-full min-w-0 flex-col gap-3">{top}{controls}</div> : top
+              // And under them what the tab shows at rest (`pillBody`): FPL's
+              // saved flights, or its profile and figures, at the owner's
+              // picks of the redesign.
+              !footShown && (controls || pillBody) ? <div className="flex w-full min-w-0 flex-col gap-2.5">{top}{controls}{pillBody}</div> : top
             ) : compact) : figuresOnly ? figures : top}
           </header>
         )}
@@ -699,7 +707,7 @@ export default function MapPanel({ label, top, controls, figures, compact, child
             // figures) starts at its top, where the other tabs' first row
             // does, not in its middle: Setup's sat lower, at the owner's
             // notice.
-            capsule && pillOfTabs ? cn(headInPill && top != null ? cn(PILL_FOOT_ROW, "justify-center") : cn(PILL_ROW, "justify-start pt-1"), "flex flex-col") : capsule ? "pt-2 pb-3" : "border-t border-border/60 pt-2 pb-2.5",
+            capsule && pillOfTabs ? cn(headInPill && top != null ? cn(PILL_FOOT_ROW, "justify-start pt-1") : cn(PILL_ROW, "justify-start pt-1"), "flex flex-col") : capsule ? "pt-2 pb-3" : "border-t border-border/60 pt-2 pb-2.5",
           )}
           style={toEdge && !capsule && fromBottom ? { paddingBottom: Math.max(10, edgeRoom) } : undefined}
           data-testid="panel-foot"

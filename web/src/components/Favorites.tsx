@@ -246,24 +246,62 @@ export function FavoritesList({ home, favorites, onBack, onOpen, onChangeHome, o
  * the Airport and Aircraft tabs' pills show their Favorites, NRST's its
  * nearest fields, as small icons. 44 points at the least to a finger.
  */
-export function SmallTile({ mark, title, detail, label, onClick, testId }: {
+export function SmallTile({ mark, title, detail, label, onClick, testId, wide = false }: {
   mark: ReactNode;
   title: string;
   detail?: string;
   label?: string;
   onClick: () => void;
   testId?: string;
+  /** Room for a route's two idents (SavedStrip), not one's. */
+  wide?: boolean;
 }) {
   return (
     <button
       type="button" onClick={onClick} data-testid={testId} aria-label={label}
-      className="flex min-h-11 w-14 shrink-0 flex-col items-center gap-0.5 rounded-lg py-0.5 outline-none hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring pointer-coarse:active:bg-muted"
+      className={cn(wide ? "w-24" : "w-14", "flex min-h-11 shrink-0 flex-col items-center gap-0.5 rounded-lg py-0.5 outline-none hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring pointer-coarse:active:bg-muted")}
     >
       {mark}
       <span className={cn("w-full truncate text-center font-semibold leading-tight text-foreground", TEXT.note)}>{title}</span>
       {/* 4.5:1 on the pill's glass, as the tab bar's words are. */}
       {detail && <span className={cn("w-full truncate text-center leading-tight text-foreground/65 tabular-nums", TEXT.note)}>{detail}</span>}
     </button>
+  );
+}
+
+/**
+ * One of a pill's labelled rows, the redesign's pattern at the owner's ask
+ * ("make the minimal layout this big, and then design all the tabs"):
+ * a small caps title over its strip of tiles -- FAVORITES, NEAREST,
+ * SAVED -- the title's chevron opening the list in full where there is
+ * one (`onMore`), and anything that acts on the row at its right
+ * (`right`: Aircraft's Map switch). The title itself can be a menu
+ * (`title` as a node).
+ */
+export function PillSection({ title, onMore, right, children, testId }: {
+  title: ReactNode;
+  onMore?: () => void;
+  right?: ReactNode;
+  children: ReactNode;
+  testId?: string;
+}) {
+  const heading = cn("font-semibold uppercase tracking-wide text-foreground/65", TEXT.note);
+  return (
+    <section className="flex min-w-0 flex-col gap-1" data-testid={testId}>
+      <div className="flex min-h-7 items-center gap-2">
+        {onMore ? (
+          <button
+            type="button" onClick={onMore} data-testid={testId && `${testId}-more`}
+            className={cn("relative flex items-center gap-0.5 outline-none focus-visible:ring-2 focus-visible:ring-ring after:absolute after:-inset-2", heading)}
+          >
+            {title}
+            <ChevronRight className="size-3.5" strokeWidth={2.5} aria-hidden="true" />
+          </button>
+        ) : typeof title === "string" ? <h3 className={heading}>{title}</h3> : title}
+        {right && <div className="ml-auto flex items-center gap-2">{right}</div>}
+      </div>
+      {children}
+    </section>
   );
 }
 

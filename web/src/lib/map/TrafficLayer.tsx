@@ -11,7 +11,7 @@ import { centreClear } from "./clear";
 import { TRAFFIC_COLOURS, trafficIcon } from "./icons";
 import { useOwnShip } from "./ownShip";
 import { CARRY_S, agedBy, carriedOn, colourRuns, mergeTraffic, nearOwnHeight, ownShipHex, trafficLabel, trendPx } from "./traffic";
-import { reported, useTracking, type Report } from "./tracking";
+import { reported, useTracking, useTrafficFocus, type Report } from "./tracking";
 import { usePastFlight } from "./pastFlight";
 import PastFlightPath from "./PastFlightPath";
 import { listen, useReceiver } from "./receiver";
@@ -87,7 +87,9 @@ export function TrafficLayer() {
   // A past flight of the airplane tracked, picked on its card: drawn in
   // place of today's path (lib/map/pastFlight).
   const past = usePastFlight(s => (s.hex === hex ? s.id : null));
-  if (!on && !tracking) return null;
+  // The Aircraft pill's Map switch draws the traffic whatever the setting.
+  const focused = useTrafficFocus(s => s.on);
+  if (!on && !tracking && !focused) return null;
   return (
     <>
       <Traffic />
@@ -238,6 +240,9 @@ function Traffic() {
 
   // The icons, as the reports, own ship's height and the zoom change.
   const ownFt = fix?.altitudeFt ?? null;
+  // The Aircraft pill's Map switch: the airplanes its question finds, the
+  // rest faded (a quarter, still there to see and avoid by).
+  const only = useTrafficFocus(s => (s.on ? s.only : null));
   useEffect(() => {
     const heights = view.zoom >= HEIGHT_ZOOM, callsigns = view.zoom >= CALLSIGN_ZOOM;
     for (const target of targets.current.values()) {
@@ -254,8 +259,9 @@ function Traffic() {
         target.marker.setIcon(icon);
       }
       target.marker.setZIndexOffset(tracked ? 900 : 0);
+      target.marker.setOpacity(only && !only.has(plane.hex) && !tracked ? 0.25 : 1);
     }
-  }, [merged, ownFt, view.zoom, hex]);
+  }, [merged, ownFt, view.zoom, hex, only]);
 
   // Following a flight: own ship's following ends (the map can keep one
   // in the middle), and the map goes to it -- in a little where it was

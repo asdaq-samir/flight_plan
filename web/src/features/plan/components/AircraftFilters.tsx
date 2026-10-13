@@ -1,20 +1,17 @@
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { cn } from "cn";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
 import Segmented from "../../../components/Segmented";
 import TogglePill from "../../../components/TogglePill";
 import { Button } from "../../../components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../../components/ui/select";
-import { api } from "../../../lib/api/client";
 import type { TrafficAircraft } from "../../../lib/api/types";
-import { type FilterBand, filtering, type FilterKind, type FilterPlace, type FilterRelation, keptFilter, matches, NO_FILTER, operatorOf, relationTo, sameField } from "../../../lib/fbo";
-import { distanceNm, type LatLon } from "../../../lib/geo";
+import { type FilterBand, filtering, type FilterKind, type FilterPlace, type FilterRelation, NO_FILTER, operatorOf } from "../../../lib/fbo";
+import type { LatLon } from "../../../lib/geo";
 import { usePreferences } from "../../../lib/preferences";
 import { TEXT } from "../../../lib/text";
 import AircraftRow from "./AircraftRow";
-
-const NONE: TrafficAircraft[] = [];
+import { useFilteredAircraft } from "../hooks/useAircraftQuestion";
 
 const PLACES = [
   { value: "map", label: "On the map" },
@@ -37,11 +34,6 @@ const BANDS: { value: FilterBand; label: string }[] = [
   { value: "any", label: "Any" }, { value: "low", label: "Below 3,000 ft" }, { value: "mid", label: "3,000–10,000 ft" },
   { value: "high", label: "10,000–18,000 ft" }, { value: "flight-levels", label: "FL180 and up" },
 ];
-/** How far round an airport its traffic is asked for, nm (lib/fbo
- *  RELATION_NM, an inbound airplane's reach). */
-const AIRPORT_TRAFFIC_NM = 40;
-/** Asked again this often, ms: adsb.lol's pace, a region's (vfr.traffic). */
-const FILTER_REFRESH_MS = 10_000;
 
 /**
  * The Aircraft tab's filters and the airplanes they keep, at the owner's
@@ -56,45 +48,12 @@ export default function AircraftFilters({ seen, from, ownFt, onPick }: {
   ownFt: number | null;
   onPick: (plane: TrafficAircraft) => void;
 }) {
-  // One kept from before "large" was named for what it is, read as it.
-  const filter = keptFilter(usePreferences(s => s.aircraftFilter));
+  // The filter as asked, and the airplanes it keeps: the pill's strip's
+  // own question (useAircraftQuestion), so the two agree.
+  const { filter, noField, pool, kept, looking } = useFilteredAircraft(seen, from);
   const change = usePreferences(s => s.setAircraftFilter);
   const [airportTyped, setAirportTyped] = useState(filter.airport);
-  const ident = filter.place === "airport" ? filter.airport.trim().toUpperCase() : "";
-  const { data: field, isError: noField } = useQuery({
-    queryKey: ["airport", ident], queryFn: () => api.airport(ident), enabled: ident.length >= 3, staleTime: 5 * 60_000,
-    meta: { silent: true },
-  });
-  // The traffic the place asks for: round the airport, or near the pilot;
-  // the map's own where it is the map.
-  const center = filter.place === "airport" ? (field ? { lat: field.lat, lon: field.lon } : null)
-    : filter.place === "near" ? from : null;
-  const radius = filter.place === "airport" ? AIRPORT_TRAFFIC_NM : filter.nearNm;
-  const { data: around } = useQuery({
-    queryKey: ["trafficFilter", center ? Math.round(center.lat * 20) / 20 : null, center ? Math.round(center.lon * 20) / 20 : null, radius],
-    queryFn: () => api.traffic({ lat: center!.lat, lon: center!.lon, radius }), enabled: !!center,
-    refetchInterval: FILTER_REFRESH_MS, meta: { silent: true },
-  });
-  const aroundPlanes = around?.aircraft;
-  const pool = useMemo(() => (filter.place === "map" ? seen : aroundPlanes ?? NONE), [filter.place, seen, aroundPlanes]);
-  const placed = useMemo(() => {
-    if (filter.place === "near" && from) return pool.filter(p => distanceNm(from, p) <= filter.nearNm);
-    if (filter.place !== "airport" || !field) return filter.place === "airport" ? [] : pool;
-    const at = { lat: field.lat, lon: field.lon, elevationFt: field.elevation_ft ?? 0 };
-    if (filter.relation === "based") return pool;
-    return pool.filter(p => relationTo(p, at)[filter.relation as "around" | "inbound" | "departing"]);
-  }, [pool, filter.place, filter.nearNm, filter.relation, field, from]);
-  // Based at the field: where each about it keeps to (vfr.traffic.based),
-  // asked again while some are still being looked up.
-  const basedAsk = filter.place === "airport" && filter.relation === "based" && field ? placed.map(p => p.hex).slice(0, 60) : [];
-  const { data: bases } = useQuery({
-    queryKey: ["trafficBased", basedAsk.join(",")], queryFn: () => api.trafficBased(basedAsk), enabled: basedAsk.length > 0,
-    refetchInterval: query => ((query.state.data?.pending.length ?? 0) > 0 ? 5_000 : false), meta: { silent: true },
-  });
-  const kept = placed.filter(p => matches(p, filter)
-    && (filter.relation !== "based" || filter.place !== "airport" || (!!field && !!bases?.based[p.hex] && sameField(bases.based[p.hex]!.ident, field.ident))));
   const operators = useMemo(() => [...new Set(pool.map(operatorOf).filter((o): o is string => !!o))].sort(), [pool]);
-  const looking = filter.relation === "based" && filter.place === "airport" && (bases?.pending.length ?? 0) > 0;
   const on = filtering(filter);
   return (
     <>

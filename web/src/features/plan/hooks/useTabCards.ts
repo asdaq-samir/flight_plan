@@ -20,7 +20,9 @@ export type PanelTab = "fpl" | "airport" | "aircraft" | "nrst";
 
 /** The address's keys of what is open over a tab: an airport's card, the
  *  airspace over a point held, an airplane, its past flight, NRST's place. */
-const CARD_KEYS = ["place", "at", "flight", "past", "nearAt", "nearName"] as const;
+// Nearest's list among them, Airport's card now (four tabs), and FPL's
+// saved flights.
+const CARD_KEYS = ["place", "at", "flight", "past", "near", "nearAt", "nearName", "saved"] as const;
 
 /**
  * The cards the address holds, so a link or Back lands on them: an
@@ -139,6 +141,7 @@ export function usePanelTabs({ cards, route, hasRoute, panel, setPanel, searchPa
   onPicked: () => void;
 }) {
   const { place, heldPoint, flight, past, aircraftOpen, nearOpen } = cards;
+  const savedOpen = searchParams.get("saved") === "1";
   const [tabPick, setTabPick] = useState<PanelTab | null>(null);
   const [routeSeen, setRouteSeen] = useState(route);
   if (route !== routeSeen) {
@@ -166,7 +169,8 @@ export function usePanelTabs({ cards, route, hasRoute, panel, setPanel, searchPa
     // Once per card opened, not as the console opens over one already open.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [opened]);
-  const tab: PanelTab = flight || aircraftOpen ? "aircraft" : nearOpen ? "nrst"
+  // Nearest's list is Airport's (four tabs, at the owner's pick).
+  const tab: PanelTab = flight || aircraftOpen ? "aircraft" : nearOpen ? "airport"
     : tabPick ?? (place || heldPoint ? "airport" : "fpl");
 
   const keptCards = useRef<Partial<Record<PanelTab, [string, string][]>>>({});
@@ -221,16 +225,16 @@ export function usePanelTabs({ cards, route, hasRoute, panel, setPanel, searchPa
       setPanel("half");
       return;
     }
-    if (place || heldPoint || flight) pickTab(tab);
-  }, [place, heldPoint, flight, pickTab, tab, panel, setPanel]);
+    if (place || heldPoint || flight || nearOpen || savedOpen) pickTab(tab);
+  }, [place, heldPoint, flight, nearOpen, savedOpen, pickTab, tab, panel, setPanel]);
 
   // The minimized tab bar's close, at the owner's ask: a card open over
   // the tab put away, as the tab tapped again does, and the sheet down to
   // its pill.
   const closeSheet = useCallback(() => {
-    if (place || heldPoint || flight) pickTab(tab);
+    if (place || heldPoint || flight || nearOpen || savedOpen) pickTab(tab);
     setPanel("peek");
-  }, [place, heldPoint, flight, pickTab, tab, setPanel]);
+  }, [place, heldPoint, flight, nearOpen, savedOpen, pickTab, tab, setPanel]);
 
   return { tab, setTabPick, pickTab, tabUp, closeSheet };
 }

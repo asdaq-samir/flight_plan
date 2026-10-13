@@ -51,6 +51,8 @@ export interface WorkspacePieces {
   /** Pinned at the card's foot on every tab and at every height, the pill
    *  too: the route's figures, while there is a route (MapPanel's `foot`). */
   foot?: ReactNode;
+  /** The pill's own under its head, at rest alone (MapPanel's `pillBody`). */
+  pillBody?: ReactNode;
   /** All the way up, a small button on the separator under the head: the
    *  route folded away or shown (MapPanel's `fold`). */
   fold?: ReactNode;

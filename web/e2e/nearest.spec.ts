@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { closeCard, openMapSettings, openPanel, settle, showTabs, sideDrawer, slow } from "./helpers";
+import { closeCard, grabberTo, openMapSettings, settle, showTabs, sideDrawer, slow } from "./helpers";
 
 /**
  * Nearest as a card of the panel's (NearestCard), at the pilot's ask: half
@@ -23,13 +23,19 @@ test("Nearest opens as a card half way up, a field over it as a layer, and its c
   }));
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
-  await openPanel(page);
-  // The tab bar's NRST, at the pilot's ask, where it was a button on the map.
+  // Airport's pill's NEAREST, its title the list in full: four tabs,
+  // Nearest folded into Airport, at the owner's pick of the redesign.
+  await grabberTo(page, "peek");
   await showTabs(page);
-  await page.getByTestId("tab-nrst").click();
+  await page.getByTestId("tab-airport").click();
+  // With no position yet, the strip offers to show it.
+  await sideDrawer(page).getByTestId("nearest-strip-position").or(sideDrawer(page).getByTestId("nearest-strip-field").first()).first().click({ trial: true });
+  if (await sideDrawer(page).getByTestId("nearest-strip-position").isVisible()) await sideDrawer(page).getByTestId("nearest-strip-position").click();
+  await expect(sideDrawer(page).getByTestId("nearest-strip-field").first()).toBeVisible({ timeout: slow(15000) });
+  await sideDrawer(page).getByTestId("pill-section-nearest-more").click();
   const card = sideDrawer(page).getByTestId("nearest-card");
   await expect(card).toBeVisible();
-  await expect(sideDrawer(page)).toHaveAttribute("data-panel", "half");
+  await expect(sideDrawer(page)).toHaveAttribute("data-panel", "full");
   const rows = card.getByTestId("nearest-airport");
   await expect(rows).toHaveCount(3, { timeout: slow(15000) });
   await expect(rows.nth(2)).toContainText("joint use");
@@ -51,6 +57,7 @@ test("Nearest opens as a card half way up, a field over it as a layer, and its c
   await page.getByTestId("tab-fpl").click();
   await expect(card).toHaveCount(0);
   await expect(sideDrawer(page).getByTestId("panel-tab-navlog")).toBeVisible();
+  // Half way: all the way up is the route's briefing on FPL (MapPage).
   await expect(sideDrawer(page)).toHaveAttribute("data-panel", "half");
 });
 

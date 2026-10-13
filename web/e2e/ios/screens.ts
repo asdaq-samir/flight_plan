@@ -214,7 +214,7 @@ export const SCREENS: Screen[] = [
     },
   },
   {
-    name: "NRST tab",
+    name: "Nearest list",
     ready: async page => {
       await page.goto("/app/plan?near=1");
       await settle(page);

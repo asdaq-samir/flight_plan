@@ -25,7 +25,10 @@ import { useLogout } from "./useLogout";
  * signed in and no developer's mode to offer: Personal's own sign-in says
  * what signing in keeps.
  */
-export default function AccountRow() {
+export default function AccountRow({ children }: {
+  /** Rows under it in the same group: Setup's pill's Aircraft and Logbook. */
+  children?: React.ReactNode;
+} = {}) {
   const { data: pilot } = useQuery(pilotQuery);
   const devMode = useDevMode();
   const logout = useLogout();
@@ -76,6 +79,7 @@ export default function AccountRow() {
           </DropdownMenuContent>
         </DropdownMenu>
       </ListRow>
+      {children}
       {deleteDialog}
     </ListGroup>
   );

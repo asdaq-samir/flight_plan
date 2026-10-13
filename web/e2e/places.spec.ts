@@ -240,11 +240,11 @@ test("the route's Procedures open its destination's card on its approaches, and 
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   await openPanel(page);
-  // Nearest is the tab bar's (NRST), not a button on the map's left any
-  // more; the map's own buttons stay on its right.
+  // Nearest is Airport's (its pill's second strip), not a button on the
+  // map's left; the map's own buttons stay on its right.
   await expect(page.locator("[data-map-controls-left]")).toHaveCount(0);
   await showTabs(page);
-  await expect(page.getByTestId("tab-nrst")).toBeVisible();
+  await expect(page.getByTestId("tab-airport")).toBeVisible();
   const settings = page.locator("[data-map-controls]").getByTestId("map-settings-button");
   const width = page.viewportSize()!.width;
   expect((await settings.boundingBox())!.x).toBeGreaterThan(width / 2);

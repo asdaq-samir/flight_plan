@@ -39,7 +39,7 @@ test("FPL with no route rests as its route box under the tabs, to type one in", 
   await expect(panel.getByTestId("flight-line")).toHaveCount(0);
 });
 
-test("each tab's pill shows its own: FPL the route's figures, Airport and Aircraft their search over their Favorites, NRST its place over the nearest", async ({ page }) => {
+test("each tab's pill shows its own: FPL its profile and figures, Airport its Favorites and Nearest, Aircraft its Favorites and a question, one height", async ({ page }) => {
   await keep(page, { favoriteAirports: [KDLH] });
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
@@ -77,10 +77,21 @@ test("each tab's pill shows its own: FPL the route's figures, Airport and Aircra
   await same();
   await expect(panel.getByTestId("flight-line")).toHaveCount(0);
 
-  // NRST: the nearest fields, or with no position the way to show it.
-  await pickAtRest(page, "tab-nrst");
+  // Its second strip, the question its title's menu asks (Nearest me
+  // first), and the Map switch at the row's right, at the owner's picks.
+  await expect(panel.getByTestId("aircraft-question")).toHaveText(/Nearest/i);
+  await expect(panel.getByTestId("aircraft-map-only")).toHaveAttribute("aria-checked", "false");
+
+  // Airport's second strip: the nearest fields (NRST folded in, four
+  // tabs), or with no position the way to show it.
+  await pickAtRest(page, "tab-airport");
   await expect(panel.getByTestId("nearest-strip").or(panel.getByTestId("nearest-strip-position"))).toBeVisible();
-  await expect(panel.getByTestId("nearest-from")).toBeVisible();
+  await expect(page.getByTestId("tab-nrst")).toHaveCount(0);
+  await same();
+  // FPL with its route: the profile over the figures, the pill one height.
+  await pickAtRest(page, "tab-fpl");
+  await expect(panel.getByTestId("mini-profile")).toBeVisible({ timeout: 15_000 });
+  expect((await panel.getByTestId("mini-profile").boundingBox())!.y).toBeLessThan((await panel.getByTestId("flight-line").boundingBox())!.y);
   await same();
 
   // Out of the pill, each tab its usual head again: Airport's search bar.
@@ -89,7 +100,7 @@ test("each tab's pill shows its own: FPL the route's figures, Airport and Aircra
   await expect(page).toHaveURL(/[?&]place=KDLH/);
 });
 
-test("the Settings tab's pill is quick controls, each a switch", async ({ page }) => {
+test("Setup's pill is the account, Aircraft and Logbook rows that open their pages, and the switches in a row", async ({ page }) => {
   test.skip((page.viewportSize()?.width ?? 0) >= 768, "the console is the panel's layer on a phone only");
   await page.goto("/app/plan");
   await settle(page);
@@ -105,14 +116,15 @@ test("the Settings tab's pill is quick controls, each a switch", async ({ page }
   await expect(traffic).toHaveAttribute("aria-pressed", "true");
   await traffic.click();
   await expect(traffic).toHaveAttribute("aria-pressed", "false");
-  // Two rows of them, at the owner's ask: the map's own under the first.
-  const first = (await traffic.boundingBox())!;
-  const second = (await panel.getByTestId("quick-weather").boundingBox())!;
-  expect(second.y).toBeGreaterThan(first.y + first.height - 1);
-  expect(Math.abs(second.x - first.x)).toBeLessThan(2);
-  // The tab tapped again opens it half way.
-  await page.getByTestId("settings-button").click();
-  await expect(panel).toHaveAttribute("data-panel", "half");
+  // One row of them, under the account and its rows (S3d, the owner's
+  // pick), the row sliding sideways for the rest.
+  const logbook = panel.getByTestId("setup-logbook");
+  expect((await traffic.boundingBox())!.y).toBeGreaterThan((await logbook.boundingBox())!.y);
+  expect((await panel.getByTestId("quick-weather").boundingBox())!.y).toBeCloseTo((await traffic.boundingBox())!.y, 0);
+  // Aircraft opens the console all the way up on its page.
+  await panel.getByTestId("setup-aircraft").click();
+  await expect(panel).toHaveAttribute("data-panel", "full");
+  await expect(panel.getByTestId("console-page")).toContainText("Aircraft");
 });
 
 test("on a phone, a card's way back is Back at the top left of the tabs' line, and its close puts the sheet down", async ({ page }) => {
@@ -211,7 +223,8 @@ test("on a phone, each tab's pill starts its first row on one line: FPL's box, t
   expect(Math.abs(await boxTop("aircraft-search") - fpl)).toBeLessThan(1.5);
   await pickAtRest(page, "settings-button");
   await settled(panel);
-  expect(Math.abs((await panel.getByTestId("quick-traffic").boundingBox())!.y - fpl)).toBeLessThan(1.5);
+  // Setup's first row, its account's group (SetupPill).
+  expect(Math.abs((await panel.getByTestId("setup-pill").boundingBox())!.y - fpl)).toBeLessThan(1.5);
 });
 
 test("on a phone, half way up, Setup's own tabs start where Airport's search bar does", async ({ page }) => {
@@ -242,7 +255,10 @@ test("a finger's swipe across the panel goes to the tab beside it, and a short o
   // A finger's pointer events, from one point to another on the panel.
   const swipe = async (fromX: number, toX: number) => {
     const box = (await panel.boundingBox())!;
-    const y = box.y + box.height - 20;
+    // On the tab bar's row: what is under it changes with the tab, and
+    // a row that slides sideways keeps the finger.
+    const bar = (await panel.getByTestId("tab-bar").boundingBox())!;
+    const y = bar.y + bar.height / 2;
     await panel.evaluate((el, [x0, x1, at]) => {
       const target = document.elementFromPoint(x0, at) ?? el;
       const opts = { bubbles: true, cancelable: true, composed: true, isPrimary: true, pointerId: 7, pointerType: "touch" };
@@ -253,15 +269,20 @@ test("a finger's swipe across the panel goes to the tab beside it, and a short o
   const up = () => panel.locator('[data-testid="tab-bar"] button[aria-current="page"]');
   await showTabs(page);
   await expect(up()).toHaveAttribute("data-testid", "tab-fpl");
-  // To the left: the next tab, NRST after FPL; to the right, back.
-  await swipe(250, 120);
-  await showTabs(page);
-  await expect(up()).toHaveAttribute("data-testid", "tab-nrst");
+  // To the right: the tab before, Airport; to the left, the next, FPL.
   await swipe(120, 250);
+  await showTabs(page);
+  await expect(up()).toHaveAttribute("data-testid", "tab-airport");
+  await swipe(250, 120);
   await showTabs(page);
   await expect(up()).toHaveAttribute("data-testid", "tab-fpl");
   // Short of 50 points: nothing.
   await swipe(200, 170);
   await showTabs(page);
   await expect(up()).toHaveAttribute("data-testid", "tab-fpl");
+  // On to Setup, the last. (From md up its console is a sheet of its own,
+  // over the page, which the swipe back would land on.)
+  await swipe(250, 120);
+  await showTabs(page);
+  await expect(up()).toHaveAttribute("data-testid", "settings-button");
 });
