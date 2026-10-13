@@ -50,17 +50,20 @@ const AirportMark = memo(function AirportMark({ airport: a, chip, onSelect }: {
   chip: boolean;
   onSelect: (ident: string) => void;
 }) {
-  const events = { click: (e: L.LeafletMouseEvent) => { L.DomEvent.stopPropagation(e); onSelect(a.ident); } };
+  const events = useMemo(() => ({
+    click: (e: L.LeafletMouseEvent) => { L.DomEvent.stopPropagation(e); onSelect(a.ident); },
+  }), [onSelect, a.ident]);
+  const at = useMemo((): L.LatLngTuple => [a.lat, a.lon], [a.lat, a.lon]);
   return chip ? (
     <Marker
-      position={[a.lat, a.lon]} eventHandlers={events}
+      position={at} eventHandlers={events}
       icon={airportMarkIcon(a.ident, a.airspace_class ?? null, colourOf(a.flight_category), a.military === "military" ? "military" : a.private ? "private" : null)}
     >
       {hovers && <MapTooltip>{a.ident} · {a.name} · {a.flight_category ?? "no report"}</MapTooltip>}
     </Marker>
   ) : (
     <CircleMarker
-      center={[a.lat, a.lon]} radius={TARGET_RADIUS}
+      center={at} radius={TARGET_RADIUS}
       // The class at creation (Leaflet takes it only then), the rest as style.
       className="leaflet-airport-target"
       pathOptions={TARGET_STYLE}
@@ -69,7 +72,18 @@ const AirportMark = memo(function AirportMark({ airport: a, chip, onSelect }: {
       {hovers && <MapTooltip>{a.ident} · {a.name}</MapTooltip>}
     </CircleMarker>
   );
-});
+// The same field as it was drawn, whatever its object: each answer for a
+// new view is new objects for the fields already on the map, and drawn
+// again each one was moved, its handlers bound again -- every mark on
+// every zoom and pan.
+}, (was, now) => was.chip === now.chip && was.onSelect === now.onSelect && samePin(was.airport, now.airport));
+
+/** What a field's mark is drawn from (AirportMark): its place, its
+ *  report's category, its airspace and its use, and its name (the hover's). */
+function samePin(a: AirportPin, b: AirportPin): boolean {
+  return a === b || (a.ident === b.ident && a.lat === b.lat && a.lon === b.lon && a.flight_category === b.flight_category
+    && a.airspace_class === b.airspace_class && a.military === b.military && a.private === b.private && a.name === b.name);
+}
 
 /**
  * The chart's own airports, made tappable, from zoom 8 in -- the ones
