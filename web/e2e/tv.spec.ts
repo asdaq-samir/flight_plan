@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { settle, slow } from "./helpers";
+import { mapStill, settle, slow } from "./helpers";
 
 /**
  * The TV apps (tv/, lib/tv): the page their app opens with `?tv=`, driven
@@ -69,6 +69,10 @@ test("on a TV the remote's arrows move from control to control, Back closes what
 
   // OK on the map's own "-" button is the button's, not a zoom in; and
   // Back from it takes the remote off the map rather than leaving the app.
+  // The zoom in come to rest first: Leaflet lets a zoom asked for during
+  // another's animation go (its _tryAnimatedZoom), and on a loaded machine
+  // the press landed in it, one run in three.
+  await mapStill(page);
   const zoomed = await mapZoom(page);
   await page.locator(".leaflet-control-zoom-out").focus();
   await page.keyboard.press("Enter");

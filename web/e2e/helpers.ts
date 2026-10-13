@@ -49,24 +49,22 @@ export async function showTabs(page: Page) {
 }
 
 /** The panel out half way, where its head is the route form, the
- *  workspace's actions and the controls. At rest the planner's is its
- *  tab bar alone, the tab up tapped opening it; the training page's a
- *  capsule (MapPanel's compact), whose chip opens it. Nothing when it is
- *  out already or rests on its form. */
+ *  workspace's actions and the controls. At rest each page's pill is its
+ *  tab bar, the tab up tapped opening it. Nothing when it is out already. */
 export async function openPanel(page: Page) {
   const panel = sideDrawer(page);
   await panel.waitFor();
   if (await panel.getAttribute("data-capsule") === null) return;
-  const up = panel.locator('[data-testid="tab-bar"] button[aria-current="page"]');
-  if (await up.count()) await up.click();
-  else await page.getByTestId("capsule-detail").click();
+  // The tab up tapped: every page's pill is its tab bar now, the
+  // training page's too (its "capsule-detail" went with its route pill).
+  await panel.locator('[data-testid="tab-bar"] button[aria-current="page"]').click();
   await expect(panel).toHaveAttribute("data-panel", "half");
 }
 
 /** The route's Share menu out, the panel half way: its sharing, Save,
  *  File flight plan, Print and Clear the route (PlanWorkspace), at the
  *  pilot's ask all under Share beside the chips. */
-export async function openShareMenu(page: Page) {
+async function openShareMenu(page: Page) {
   await openPanel(page);
   await controlsInSight(page);
   await sideDrawer(page).getByTestId("share-route").click();
