@@ -62,13 +62,50 @@ export default function ProceduresButton({
   const [own, setOwn] = useState(false);
   const open = asked ?? own;
   const setOpen = (next: boolean) => { setOwn(next); onOpenChange?.(next); };
+  return (
+    <ResponsivePopover open={open} onOpenChange={setOpen}>
+      <ResponsivePopoverTrigger asChild>
+        <RoundButton label="Procedures" disabled={airports.length === 0} data-testid="route-approaches">
+          <PlaneLanding className="size-5" strokeWidth={2} />
+        </RoundButton>
+      </ResponsivePopoverTrigger>
+      {/* On a phone a sheet that keeps its height from page to page, as
+          an iOS sheet does pushing one: sized to each page, it dropped
+          from nearly the screen's height to a few rows and back. */}
+      <ResponsivePopoverContent
+        title="Procedures" className="max-h-[70vh] w-80 overflow-y-auto p-3" sheetClassName="h-[85dvh]" align="end" side="left"
+      >
+        <ProceduresSheet
+          airports={airports} picked={picked} onPick={onPick} onCharts={onCharts} chartsDisabled={chartsDisabled}
+          procedures={procedures} onProcedures={onProcedures} close={() => setOpen(false)}
+        />
+      </ResponsivePopoverContent>
+    </ResponsivePopover>
+  );
+}
+
+/**
+ * What the Procedures sheet holds, drawn only while it is out: each
+ * field's runway ends and its patterns, worked out for every field on
+ * every render of the button, were 85 ms of the half sheet's opening at a
+ * phone's speed with the sheet shut (profiled 2026-10-12).
+ */
+function ProceduresSheet({ airports, picked, onPick, onCharts, chartsDisabled, procedures, onProcedures, close }: {
+  airports: ProcedureAirport[];
+  picked: Map<string, string>;
+  onPick: (ident: string, end: string | null) => void;
+  onCharts: () => void;
+  chartsDisabled: boolean;
+  procedures: PickedProcedure[];
+  onProcedures: (next: PickedProcedure[], picked: PickedProcedure | null) => void;
+  close: () => void;
+}) {
   const destination = airports.find(a => a.role === "Destination");
   // Each field's procedures, asked for once the button is opened.
   const lists = useQueries({
     queries: airports.map(a => ({
       queryKey: ["procedures", a.ident],
       queryFn: () => api.procedures(a.ident),
-      enabled: open,
       staleTime: 6 * 60 * 60_000,
     })),
   });
@@ -94,105 +131,91 @@ export default function ProceduresButton({
   }])));
 
   return (
-    <ResponsivePopover open={open} onOpenChange={setOpen}>
-      <ResponsivePopoverTrigger asChild>
-        <RoundButton label="Procedures" disabled={airports.length === 0} data-testid="route-approaches">
-          <PlaneLanding className="size-5" strokeWidth={2} />
-        </RoundButton>
-      </ResponsivePopoverTrigger>
-      {/* On a phone a sheet that keeps its height from page to page, as
-          an iOS sheet does pushing one: sized to each page, it dropped
-          from nearly the screen's height to a few rows and back. */}
-      <ResponsivePopoverContent
-        title="Procedures" className="max-h-[70vh] w-80 overflow-y-auto p-3" sheetClassName="h-[85dvh]" align="end" side="left"
-      >
-        <ConsolePages back="Procedures" pages={pages}>
-        <div className="space-y-5" data-testid="procedures">
-          {airports.map((a, i) => {
-            const ends = (a.runways ?? [])
-              .filter(r => !r.closed)
-              .flatMap(r => (r.runway_ends ?? []).filter(e => e.heading_true_deg != null).map(e => ({ runway: r, end: e })))
-              .sort((x, y) => x.end.ident.localeCompare(y.end.ident));
-            const chosen = picked.get(a.ident) ?? null;
-            // The end the reported wind favours (lib/pattern), said, as the
-            // one a pilot would land on.
-            const windward = a.runways ? runwayInUse(a.runways) : null;
-            const list = lists[i];
-            return (
-              <Fragment key={a.ident}>
-              <ListGroup
-                title={`${a.ident} · ${a.role} · traffic pattern`}
-                footer="Drawn on the map as the FAA's Airplane Flying Handbook flies a pattern: the downwind about three-quarters of a mile out, the base 45° from the runway's end, the 45° entry abeam midfield. A sketch to fly by, not a procedure; the field's own pattern may differ."
-              >
-                {a.runways === null ? (
-                  <ListRow title={<span className="text-muted-foreground">Looking the runways up…</span>} />
-                ) : (
-                  <>
+    <ConsolePages back="Procedures" pages={pages}>
+    <div className="space-y-5" data-testid="procedures">
+      {airports.map((a, i) => {
+        const ends = (a.runways ?? [])
+          .filter(r => !r.closed)
+          .flatMap(r => (r.runway_ends ?? []).filter(e => e.heading_true_deg != null).map(e => ({ runway: r, end: e })))
+          .sort((x, y) => x.end.ident.localeCompare(y.end.ident));
+        const chosen = picked.get(a.ident) ?? null;
+        // The end the reported wind favours (lib/pattern), said, as the
+        // one a pilot would land on.
+        const windward = a.runways ? runwayInUse(a.runways) : null;
+        const list = lists[i];
+        return (
+          <Fragment key={a.ident}>
+          <ListGroup
+            title={`${a.ident} · ${a.role} · traffic pattern`}
+            footer="Drawn on the map as the FAA's Airplane Flying Handbook flies a pattern: the downwind about three-quarters of a mile out, the base 45° from the runway's end, the 45° entry abeam midfield. A sketch to fly by, not a procedure; the field's own pattern may differ."
+          >
+            {a.runways === null ? (
+              <ListRow title={<span className="text-muted-foreground">Looking the runways up…</span>} />
+            ) : (
+              <>
+                <ListRow
+                  role="radio" aria-checked={chosen === null} onClick={() => onPick(a.ident, null)}
+                  media={<Check className={cn("size-4 text-tint", chosen !== null && "invisible")} aria-hidden />}
+                  title="None"
+                />
+                {ends.map(({ runway, end }) => {
+                  const drawn = trafficPattern(a.ident, runway, end.ident, a.patternAltitudeFt) !== null;
+                  const id = runwayNumber(end.ident);
+                  return (
                     <ListRow
-                      role="radio" aria-checked={chosen === null} onClick={() => onPick(a.ident, null)}
-                      media={<Check className={cn("size-4 text-tint", chosen !== null && "invisible")} aria-hidden />}
-                      title="None"
-                    />
-                    {ends.map(({ runway, end }) => {
-                      const drawn = trafficPattern(a.ident, runway, end.ident, a.patternAltitudeFt) !== null;
-                      const id = runwayNumber(end.ident);
-                      return (
-                        <ListRow
-                          key={end.ident} role="radio" aria-checked={chosen === id} disabled={!drawn}
-                          onClick={() => onPick(a.ident, id)}
-                          media={<Check className={cn("size-4 text-tint", chosen !== id && "invisible")} aria-hidden />}
-                          title={`Runway ${id}`}
-                          description={drawn
-                            ? [
-                              windward?.byWind && windward.end.ident === end.ident ? "Into the wind" : null,
-                              `${end.traffic === "right" ? "Right" : "Left"} traffic`,
-                              a.patternAltitudeFt != null ? `${altFt(a.patternAltitudeFt)} ft` : null,
-                            ].filter(Boolean).join(" · ")
-                            : "Its end is not surveyed: not drawn"}
-                          data-testid="procedure-pattern"
-                        />
-                      );
-                    })}
-                  </>
-                )}
-              </ListGroup>
-              {/* Its instrument procedures, a page for each kind, the one
-                  picked said at the row's end; and the destination's
-                  approach charts, as its card lists them. */}
-              <ListGroup title={`${a.ident} · instrument procedures`}>
-                {kindsFor(a.role).map(kind => {
-                  const of = list?.data?.procedures.filter(p => p.kind === kind) ?? [];
-                  const mine = pickOf(a.ident, kind);
-                  const name = mine && of.find(p => p.id === mine.id)?.name;
-                  return list?.isError ? null : list?.data && of.length === 0 ? (
-                    <ListRow
-                      key={kind} media={<RowBadge colour={BADGE.approach}>{KIND_GLYPH[kind]}</RowBadge>}
-                      title={KIND_TITLE[kind]} value="None" disabled
-                    />
-                  ) : (
-                    <PageRow
-                      key={kind} page={`${kind}:${a.ident}`} media={<RowBadge colour={BADGE.approach}>{KIND_GLYPH[kind]}</RowBadge>}
-                      title={KIND_TITLE[kind]} value={!list?.data ? "…" : name ? `${name}${mine?.transition ? ` via ${mine.transition}` : ""}` : "None"}
+                      key={end.ident} role="radio" aria-checked={chosen === id} disabled={!drawn}
+                      onClick={() => onPick(a.ident, id)}
+                      media={<Check className={cn("size-4 text-tint", chosen !== id && "invisible")} aria-hidden />}
+                      title={`Runway ${id}`}
+                      description={drawn
+                        ? [
+                          windward?.byWind && windward.end.ident === end.ident ? "Into the wind" : null,
+                          `${end.traffic === "right" ? "Right" : "Left"} traffic`,
+                          a.patternAltitudeFt != null ? `${altFt(a.patternAltitudeFt)} ft` : null,
+                        ].filter(Boolean).join(" · ")
+                        : "Its end is not surveyed: not drawn"}
+                      data-testid="procedure-pattern"
                     />
                   );
                 })}
-                {list?.isError && (
-                  <ListRow title={<span className="text-muted-foreground">The FAA's procedures could not be had</span>} />
-                )}
-                {a === destination && (
-                  <ListRow
-                    media={<ChartBadge />} title="Approach charts" chevron disabled={chartsDisabled}
-                    onClick={() => { setOpen(false); onCharts(); }} data-testid="procedure-charts"
-                  />
-                )}
-              </ListGroup>
-              </Fragment>
-            );
-          })}
-        </div>
-        </ConsolePages>
-      </ResponsivePopoverContent>
-    </ResponsivePopover>
+              </>
+            )}
+          </ListGroup>
+          {/* Its instrument procedures, a page for each kind, the one
+              picked said at the row's end; and the destination's
+              approach charts, as its card lists them. */}
+          <ListGroup title={`${a.ident} · instrument procedures`}>
+            {kindsFor(a.role).map(kind => {
+              const of = list?.data?.procedures.filter(p => p.kind === kind) ?? [];
+              const mine = pickOf(a.ident, kind);
+              const name = mine && of.find(p => p.id === mine.id)?.name;
+              return list?.isError ? null : list?.data && of.length === 0 ? (
+                <ListRow
+                  key={kind} media={<RowBadge colour={BADGE.approach}>{KIND_GLYPH[kind]}</RowBadge>}
+                  title={KIND_TITLE[kind]} value="None" disabled
+                />
+              ) : (
+                <PageRow
+                  key={kind} page={`${kind}:${a.ident}`} media={<RowBadge colour={BADGE.approach}>{KIND_GLYPH[kind]}</RowBadge>}
+                  title={KIND_TITLE[kind]} value={!list?.data ? "…" : name ? `${name}${mine?.transition ? ` via ${mine.transition}` : ""}` : "None"}
+                />
+              );
+            })}
+            {list?.isError && (
+              <ListRow title={<span className="text-muted-foreground">The FAA's procedures could not be had</span>} />
+            )}
+            {a === destination && (
+              <ListRow
+                media={<ChartBadge />} title="Approach charts" chevron disabled={chartsDisabled}
+                onClick={() => { close(); onCharts(); }} data-testid="procedure-charts"
+              />
+            )}
+          </ListGroup>
+          </Fragment>
+        );
+      })}
+    </div>
+    </ConsolePages>
   );
 }
 
