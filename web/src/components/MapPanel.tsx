@@ -617,7 +617,12 @@ export default function MapPanel({ label, top, controls, figures, compact, child
               // 44-point hit area (index.css) stays in the capsule, which
               // clips what is past its edge; the search bar's the same, so
               // the pill is one height whatever it holds, at the pilot's ask.
-              capsule ? (pillOfTabs ? cn(footShown ? PILL_HEAD_ROW : PILL_ROW, "px-[9px]") : cn("p-[9px]", fromBottom ? "pb-3" : "pt-3"))
+              // A head alone in the pill (FPL's box and chips) starts where
+              // a search bar over tiles does, not in the row's middle: the
+              // route's box sat lower than the other tabs' bars, at the
+              // owner's notice: four points down, as the head row's centring
+              // puts the search bar's box (both 40 tall).
+              capsule ? (pillOfTabs ? cn(footShown ? PILL_HEAD_ROW : cn(PILL_ROW, "items-start pt-1"), "px-[9px]") : cn("p-[9px]", fromBottom ? "pb-3" : "pt-3"))
                 // No top row (a place's card alone): only the room the status
                 // bar takes from the top of a phone's screen.
                 : top == null ? (!fromBottom && onPhone ? "pt-[env(safe-area-inset-top)]" : undefined)
@@ -690,7 +695,11 @@ export default function MapPanel({ label, top, controls, figures, compact, child
           className={cn(
             "shrink-0 px-4 print:hidden",
             // The pill's row under the tabs one height on every tab (PILL_ROW).
-            capsule && pillOfTabs ? cn(headInPill && top != null ? PILL_FOOT_ROW : PILL_ROW, "flex flex-col justify-center") : capsule ? "pt-2 pb-3" : "border-t border-border/60 pt-2 pb-2.5",
+            // A foot alone in the pill (Setup's quick controls, a route's
+            // figures) starts at its top, where the other tabs' first row
+            // does, not in its middle: Setup's sat lower, at the owner's
+            // notice.
+            capsule && pillOfTabs ? cn(headInPill && top != null ? cn(PILL_FOOT_ROW, "justify-center") : cn(PILL_ROW, "justify-start pt-1"), "flex flex-col") : capsule ? "pt-2 pb-3" : "border-t border-border/60 pt-2 pb-2.5",
           )}
           style={toEdge && !capsule && fromBottom ? { paddingBottom: Math.max(10, edgeRoom) } : undefined}
           data-testid="panel-foot"

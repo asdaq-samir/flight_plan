@@ -190,3 +190,26 @@ test("Plane, the pilot's own, is first among the Aircraft card's Favorites, with
   await mine.click();
   await expect(page).toHaveURL(/[?&]flight=a1c2d3/);
 });
+
+test("on a phone, each tab's pill starts its first row on one line: FPL's box, the search bars and Setup's controls", async ({ page }) => {
+  test.skip((page.viewportSize()?.width ?? 0) >= 768, "Setup's quick controls are the phone's pill");
+  // The owner's notices: FPL's box sat lower than the other tabs' bars,
+  // and Setup's controls lower than both.
+  await page.goto("/app/plan");
+  await settle(page);
+  await grabberTo(page, "peek");
+  const panel = sideDrawer(page);
+  // The rounded box round each field, not the field itself.
+  const boxTop = async (testId: string) => {
+    await settled(panel);
+    return (await panel.getByTestId(testId).locator("xpath=ancestor-or-self::*[contains(@class,'rounded')][1]").boundingBox())!.y;
+  };
+  const fpl = await boxTop("route-type");
+  await pickAtRest(page, "tab-airport");
+  expect(Math.abs(await boxTop("search-airports") - fpl)).toBeLessThan(1.5);
+  await pickAtRest(page, "tab-aircraft");
+  expect(Math.abs(await boxTop("aircraft-search") - fpl)).toBeLessThan(1.5);
+  await pickAtRest(page, "settings-button");
+  await settled(panel);
+  expect(Math.abs((await panel.getByTestId("quick-traffic").boundingBox())!.y - fpl)).toBeLessThan(1.5);
+});
