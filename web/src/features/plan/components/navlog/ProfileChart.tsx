@@ -10,7 +10,7 @@ import type { planProfile } from "./profile";
  *  blue dashed. */
 const AIRSPACE: Record<string, { stroke: string; dash?: string }> = {
   B: { stroke: "#2465b8" },
-  C: { stroke: "#b02e7c" },
+  C: { stroke: "#c0309f" },
   D: { stroke: "#2465b8", dash: "5 4" },
 };
 

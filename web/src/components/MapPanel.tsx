@@ -173,7 +173,9 @@ export default function MapPanel({ label, top, controls, figures, compact, child
   // put away by a drag down from the pill, back by a drag up to it or a
   // tap on its grabber. Kept while the panel is out and down again, until
   // pulled up to the row, as iOS keeps a sheet at the size it was left.
-  const [tabsOnly, setTabsOnly] = useState(false);
+  // The tabs alone at first, at the owner's ask ("By default it should
+  // open in just tabs layout").
+  const [tabsOnly, setTabsOnly] = useState(true);
   const collapsible = pillOfTabs && (!!foot || (headInPill && top != null));
   const collapsed = collapsible && tabsOnly && state === "peek";
 
@@ -258,7 +260,10 @@ export default function MapPanel({ label, top, controls, figures, compact, child
   const [halfHead, setHalfHead] = useState(headHeight);
   if (!figuresOnly && halfHead !== headHeight) setHalfHead(headHeight);
   const steadyHead = figuresOnly ? halfHead : headHeight;
-  const capsuleGap = fromBottom ? Math.max(12, Math.round(safe.bottom) - 6) : Math.round(safe.top) + SHEET_MARGIN;
+  // The tabs alone end at the tab buttons themselves, so they rest the
+  // whole safe area up, clear of the home indicator (the HIG's Layout);
+  // the pill ends at its padding and can sit six points lower.
+  const capsuleGap = fromBottom ? Math.max(12, Math.round(safe.bottom) - (collapsed ? 0 : 6)) : Math.round(safe.top) + SHEET_MARGIN;
   // The capsule is its head alone, the grabber over its padding.
   const peek = (capsule ? headHeight : Math.round(steadyHead + (fromBottom ? edgeInset : GRABBER))) + footHeight;
   // The capsule's height, kept while it rests, for the lowest detent once
@@ -444,19 +449,33 @@ export default function MapPanel({ label, top, controls, figures, compact, child
     };
   }, [state, onPhone]);
 
-  // A tap on the grabber cycles the panel's three heights, small to big
-  // and back, at the pilot's ask: from half it goes on the way the panel
-  // last moved -- up from the pill, down from all the way up -- where it
-  // went from the pill all the way up and from either back to the pill.
-  const [was, setWas] = useState(state);
+  // A tap on the grabber steps through the panel's four sizes, small to
+  // big and back, at the owner's ask ("I want 4 layouts: just tabs,
+  // minimal, half, full"): the tabs alone, the pill with its row, half
+  // and all the way up. Between the ends it goes on the way it last moved
+  // -- up from the tabs, down from all the way up -- so taps go round all
+  // four. A pill with no row to put away has the three.
+  const level = collapsed ? 0 : RANK[state] + 1;
+  const [was, setWas] = useState(level);
   const [rising, setRising] = useState(true);
-  if (state !== was) {
-    setWas(state);
-    setRising(RANK[state] > RANK[was]);
+  if (level !== was) {
+    setWas(level);
+    setRising(level > was);
   }
-  // Collapsed to the tabs, the row under them comes back first.
-  const cycle = () => (collapsed ? setTabsOnly(false)
-    : onStateChange(state === "peek" || state === "full" ? "half" : rising ? "full" : "peek"));
+  const toLevel = (next: number) => {
+    if (next === 0) {
+      setTabsOnly(true);
+      onStateChange("peek");
+      return;
+    }
+    setTabsOnly(false);
+    onStateChange(next === 1 ? "peek" : next === 2 ? "half" : "full");
+  };
+  const lowest = collapsible ? 0 : 1;
+  const cycle = () => {
+    const up = level <= lowest || (level < 3 && rising);
+    toLevel(up ? level + 1 : level - 1);
+  };
 
   // iOS's grabber: 36 by 5, five points in from the panel's far edge, in a
   // button a little wider than it. Like iOS's, it is less a button than
@@ -557,7 +576,11 @@ export default function MapPanel({ label, top, controls, figures, compact, child
               capsule ? cn(fromBottom ? "mt-1.5 mb-1" : "mt-1 mb-1.5") : "border-b border-border/60",
               !fromBottom && onPhone && !capsule && "h-auto pt-[env(safe-area-inset-top)]",
             )}
-            onPointerDown={event => event.stopPropagation()}
+            // A swipe up or down on the tabs drags the panel as the head
+            // does, at the owner's ask ("dragging the card should work by
+            // swiping up/down anywhere on the card"): the tabs alone, the
+            // pill was its grabber's few points to drag by. A tap that
+            // does not move ten points is the tab's (useDetentDrag).
           >
             <TabBarMinimized.Provider value={minimized}>{bar}</TabBarMinimized.Provider>
           </div>

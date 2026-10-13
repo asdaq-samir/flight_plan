@@ -34,45 +34,59 @@ import { PAGES, settle, settled, slow, expectDrawerClosed, openSidebar, sideDraw
 test.describe("/app/plan", () => {
   // At rest the panel is a pill of the tabs alone, at the pilot's ask --
   // with a route its figures at its foot -- the tab up tapped opening it.
-  test("the panel rests as the tabs' pill, with a route its figures under them, and the tab up tapped opens it", async ({ page }) => {
+  test("the panel rests as the tabs alone, a tap on the grabber its pill with a route's figures, and the tab up tapped opens it", async ({ page }) => {
     await page.goto("/app/plan");
     await settle(page);
-    await closeSidebarWithTheStockKey(page);
-    await expect(sideDrawer(page)).toHaveAttribute("data-capsule", "true");
+    // The tabs alone at first, at the owner's ask, FPL the tab up.
+    await expect(sideDrawer(page)).toHaveAttribute("data-collapsed", "true");
     await expect(sideDrawer(page).getByTestId("tab-bar")).toBeVisible();
-    // Airport's pill: its Favorites, Home listed with Add until kept, at
-    // the owner's ask; no route, no figures.
-    await expect(sideDrawer(page).getByTestId("pill-home")).toBeVisible();
+    await expect(page.getByTestId("tab-fpl")).toHaveAttribute("aria-current", "page");
+    // The grabber: the pill with its row -- FPL's route box with no route.
+    await page.getByTestId("sidebar-trigger-button").click();
+    await expect(sideDrawer(page)).not.toHaveAttribute("data-collapsed", "true");
+    await expect(sideDrawer(page).getByTestId("route-type")).toBeVisible();
     await expect(sideDrawer(page).getByTestId("flight-line")).toHaveCount(0);
     await page.goto("/app/plan?dep=C81&dest=KDLH");
     await settle(page);
     await expect(sideDrawer(page)).toHaveAttribute("data-capsule", "true");
+    await page.getByTestId("sidebar-trigger-button").click();
     await expect(sideDrawer(page).getByTestId("flight-line")).toContainText(/\d+ nm/, { timeout: slow(30000) });
     await openPanel(page);
     await expect(page.getByLabel("Departure", { exact: true })).toBeVisible();
     expect(await page.getByTestId("toolbar-trigger").count()).toBe(0);
   });
 
-  // Opened, the planner is Maps opened: no route, the sheet half way up
-  // on the search bar with the console's button beside it, Favorites
-  // under it. A route's link lands on the route, the panel at rest; a
-  // reload forgets it (lib/freshLoad).
-  test("a fresh load opens on the search half way up, a route's link on the route at rest, and a reload forgets the route", async ({ page }) => {
+  // Opened as the tabs alone, at the owner's ask ("By default it should
+  // open in just tabs layout"): FPL the tab up, the grabber stepping
+  // through the four sizes. A route's link lands at rest; a reload
+  // forgets it (lib/freshLoad).
+  test("a fresh load opens as the tabs alone, a route's link at rest, and a reload forgets the route", async ({ page }) => {
     await page.goto("/app/plan");
     await settle(page);
-    await expect(sideDrawer(page)).toHaveAttribute("data-panel", "half");
-    await expect(page.getByTestId("search-airports")).toBeVisible();
-    // Settings a tab of the bar, not a gear beside the search bar.
-    await showTabs(page);
+    await expect(sideDrawer(page)).toHaveAttribute("data-panel", "peek");
+    await expect(sideDrawer(page)).toHaveAttribute("data-collapsed", "true");
     await expect(sideDrawer(page).getByTestId("tab-bar").getByTestId("settings-button")).toBeVisible();
     await expect(page.getByTestId("search-close")).toHaveCount(0);
-    await expect(page.getByTestId("favorite-home")).toBeVisible();
+
+    // The grabber on the panel's far edge, once the panel has come to rest.
+    const phone = page.viewportSize()!.width < 768;
+    await expect(async () => {
+      const panelBox = (await sideDrawer(page).boundingBox())!;
+      const grabber = (await page.getByTestId("sidebar-trigger-button").boundingBox())!;
+      if (phone) expect(Math.abs(grabber.y - panelBox.y)).toBeLessThan(2);
+      else expect(Math.abs(grabber.y + grabber.height - (panelBox.y + panelBox.height))).toBeLessThan(2);
+    }).toPass({ timeout: 10_000 });
+    // Taps step up: the pill, half way, all the way.
+    for (const height of ["peek", "half", "full"]) {
+      await page.getByTestId("sidebar-trigger-button").click();
+      await expect(sideDrawer(page)).toHaveAttribute("data-panel", height);
+    }
+    await expect(sideDrawer(page)).not.toHaveAttribute("data-collapsed", "true");
 
     await page.goto("/app/plan?dep=C81&dest=KDLH");
     await settle(page);
-    await expect(sideDrawer(page).getByTestId("flight-line")).toContainText(/\d+ nm/, { timeout: slow(30000) });
     await expectDrawerClosed(page);
-    // At rest the tabs alone over the figures; Share in the panel.
+    // At rest the tabs alone; Share in the panel.
     await expect(sideDrawer(page).getByTestId("share-route")).toHaveCount(0);
     await openPanel(page);
     await sideDrawer(page).getByTestId("share-route").click();
@@ -82,8 +96,7 @@ test.describe("/app/plan", () => {
     await page.reload();
     await settle(page);
     await expect(page).not.toHaveURL(/[?&]dep=/);
-    await expect(sideDrawer(page)).toHaveAttribute("data-panel", "half");
-    await expect(page.getByTestId("search-airports")).toBeVisible();
+    await expect(sideDrawer(page)).toHaveAttribute("data-panel", "peek");
   });
 
   test("sidebar opens from its own trigger, closes on Escape", { tag: "@smoke" }, async ({ page }) => {

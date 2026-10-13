@@ -7,6 +7,7 @@ import { showError } from "../../lib/problems";
 import { Bar, BarChart, Cell, LabelList, XAxis, YAxis } from "recharts";
 import { cn } from "cn";
 import { ConsolePages, PageRow, StepRow } from "../../components/ConsolePages";
+import { PersonalTab } from "../pilot/PilotPanel";
 import ConsoleTabs from "../../components/ConsoleTabs";
 import { ListGroup, ListRow } from "../../components/GroupedList";
 import StatusBadge, { type Tone } from "../../components/StatusBadge";
@@ -87,9 +88,14 @@ export function DevPanel() {
         // browser has remembered as its last tab.)
         { value: "training", label: "Guide", content: <TrainingTab /> },
         {
-          value: "system", label: "System",
+          // "Status", at the owner's ask ("in dev console replace System
+          // with Status"); its value kept, the tab a browser remembers.
+          value: "system", label: "Status",
           content: <SystemTab status={status} failed={statusFailed} onRefresh={refreshAll} refreshing={isFetching} />,
         },
+        // The pilot's own things and the account, as the pilot's console
+        // has them, at the owner's ask ("make a personal tab in dev mode").
+        { value: "personal", label: "Account", content: <PersonalTab /> },
       ]}
     />
   );
@@ -695,7 +701,7 @@ function SystemTab({ status, failed, onRefresh, refreshing }: {
   // once had been a screen and a half of scrolling.
   return (
     <ConsolePages
-      back="System"
+      back="Status"
       pages={{
         services: {
           title: "Services",

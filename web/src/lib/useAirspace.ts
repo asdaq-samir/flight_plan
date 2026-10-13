@@ -12,9 +12,11 @@ type Space = AirspaceClass;
 
 /** The sectional's blue and magenta, a shade lighter so a glyph in them
  *  reads on the panel's dark material too -- the map's airport marks'
- *  as well (lib/map/icons). */
+ *  as well (lib/map/icons). The magenta nearer the chart's ink, at the
+ *  owner's ask ("Why is class C color red instead of magenta?"): it was
+ *  #b02e7c, which read as red beside IFR's. */
 export const BLUE = "#2465b8";
-export const MAGENTA = "#b02e7c";
+export const MAGENTA = "#c0309f";
 
 /**
  * A field's airspace as the sectional draws it, on its tile: Class B a

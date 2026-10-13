@@ -585,7 +585,7 @@ function Pill({ id, ident, waypoint, index, role, stopNumber, airspaceOf, metarC
     >
       <AirportPicker
         value={pointName(ident)} placeholder={label} ariaLabel={waypoint ? `${label}, a waypoint` : label} look="pill" fixes={role === "stop"}
-        className={cn("h-8 rounded-full px-1.5", look && "text-current", waypoint && "text-[#b02e7c] dark:text-[#ec8cc4]")} onChange={onChange}
+        className={cn("h-8 rounded-full px-1.5", look && "text-current", waypoint && "text-[#c0309f] dark:text-[#ec8cc4]")} onChange={onChange}
         open={changing} onOpenChange={setChanging} onTap={onOpen}
       />
     </span>

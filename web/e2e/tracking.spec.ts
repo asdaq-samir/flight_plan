@@ -71,6 +71,8 @@ test("Aircraft is a tab, lists the airplanes a filter keeps, and a tap on one tr
   await sky(page);
   await page.goto("/app/plan");
   await settle(page);
+  // Out of the tabs alone, which a fresh load opens as.
+  await grabberTo(page, "half");
   // The tab bar's Aircraft, at the pilot's ask, where it was a button under Nearest's.
   await showTabs(page);
   await page.getByTestId("tab-aircraft").click();
@@ -455,6 +457,7 @@ test("the Aircraft tab's filters: round an airport, inbound and departing by tra
   // A reload opens fresh (lib/freshLoad); the tab again, the filter as it was.
   await page.reload();
   await settle(page);
+  await grabberTo(page, "half");
   await showTabs(page);
   await page.getByTestId("tab-aircraft").click();
   await expect(card.getByTestId("filter-row")).toHaveText([/N2OUT/], { timeout: slow(15_000) });

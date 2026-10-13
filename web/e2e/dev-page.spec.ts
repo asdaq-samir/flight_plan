@@ -12,7 +12,7 @@ test("dev page: the dev console opens on training, and the waypoint drawer opens
   // The training workspace is the page -- the console stays off screen
   // until its tab is picked. At rest, the tabs' pill: Train, Perf and
   // Settings, as the developer asked.
-  await expect(sideDrawer(page).getByTestId("tab-bar").getByRole("button")).toHaveText(["Train", "Perf", "Settings"]);
+  await expect(sideDrawer(page).getByTestId("tab-bar").getByRole("button")).toHaveText(["Train", "Perf", "Setup"]);
   await showTabs(page);
   await expect(page.getByTestId("tab-train")).toHaveAttribute("aria-current", "page");
   await expectDrawerClosed(page);
@@ -26,7 +26,7 @@ test("dev page: the dev console opens on training, and the waypoint drawer opens
   // change the model -- then the stack, the settings and About; how good
   // the models are is the page's own Perf tab.
   await expect(devMl.getByText("Load a route")).toBeVisible();
-  await expect(devMl.getByRole("tab")).toHaveText(["Guide", "System", "Settings", "About"]);
+  await expect(devMl.getByRole("tab")).toHaveText(["Guide", "Status", "Account", "Settings", "About"]);
   await expect(devMl.getByText("Load a route")).toBeVisible();
   await expect(devMl.getByText("Rate its points")).toBeVisible();
   await expect(devMl.getByText("Retrain", { exact: true })).toBeVisible();
@@ -35,7 +35,7 @@ test("dev page: the dev console opens on training, and the waypoint drawer opens
   // Model Training drawer at the side, in its More menu with Reset.
   expect(await devMl.locator("input, textarea, [role=combobox]").count()).toBe(0);
   expect(await devMl.getByRole("button", { name: /Retrain/ }).count()).toBe(0);
-  await devMl.getByRole("tab", { name: "System" }).click();
+  await devMl.getByRole("tab", { name: "Status" }).click();
   await devMl.getByRole("button", { name: /^Services/ }).click();
   await expect(devMl.getByText("planning-service", { exact: true })).toBeVisible();
 

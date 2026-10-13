@@ -1,6 +1,6 @@
 import { Suspense, lazy, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plane, PlaneTakeoff } from "lucide-react";
+import { Plane } from "lucide-react";
 import { cn } from "cn";
 import { PanelCard } from "../../../components/PanelCard";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
@@ -10,7 +10,7 @@ import { distanceNm } from "../../../lib/geo";
 import { useOwnShip } from "../../../lib/map/ownShip";
 import { usePreferences, type KeptAircraft } from "../../../lib/preferences";
 import { startPickingMine, useTabSearch } from "../../../lib/tabSearch";
-import { PillStrip, PlaceTile, SmallMark, SmallTile } from "../../../components/Favorites";
+import { HomePlane, PillStrip, PlaceTile, SmallMark, SmallTile } from "../../../components/Favorites";
 import { ClearList, SwipeToDelete } from "../../../components/SwipeToDelete";
 import AircraftRow from "./AircraftRow";
 
@@ -190,7 +190,7 @@ export default function AircraftCard({ onPick, onPickHex }: {
         {/* Asked for the pilot's own airplane: what to do. */}
         {pickingMine && (
           <p className={cn("px-1 text-foreground", TEXT.detail)} data-testid="aircraft-picking-mine">
-            Search for your airplane by its N-number, or tap it below, to keep it as My Plane.
+            Search for your airplane by its N-number, or tap it below, to keep it as your Plane.
           </p>
         )}
         {!searching && (
@@ -200,9 +200,9 @@ export default function AircraftCard({ onPick, onPickHex }: {
               {/* My Plane first, as Home is first among the airports',
                   listed with Add until one is kept, at the owner's ask. */}
               <PlaceTile
-                icon={<PlaneTakeoff />} className="bg-teal-600 text-white" title="My Plane"
+                icon={<HomePlane />} className="bg-teal-600 text-white" title="Plane"
                 detail={mine ? mine.name : "Add"} tinted={!mine} testId="aircraft-mine"
-                label={mine ? `My Plane, ${mine.name}` : "Add My Plane"}
+                label={mine ? `Plane, ${mine.name}` : "Add your Plane"}
                 onClick={mine && !pickingMine ? () => onPickHex(mine.hex) : startPickingMine}
               />
               {favorites.map(a => (
@@ -259,8 +259,8 @@ export function AircraftFavoriteStrip({ onOpen, onAddMine }: {
     <PillStrip testId="pill-aircraft-favorites">
       {/* My Plane first, with Add until one is kept, as Home is. */}
       <SmallTile
-        mark={<SmallMark icon={<PlaneTakeoff />} className="bg-teal-600 text-white" />} title="My Plane" detail={mine?.name ?? "Add"}
-        label={mine ? `My Plane, ${mine.name}` : "Add My Plane"} onClick={mine ? () => onOpen(mine.hex) : onAddMine} testId="pill-aircraft-mine"
+        mark={<SmallMark icon={<HomePlane />} className="bg-teal-600 text-white" />} title="Plane" detail={mine?.name ?? "Add"}
+        label={mine ? `Plane, ${mine.name}` : "Add your Plane"} onClick={mine ? () => onOpen(mine.hex) : onAddMine} testId="pill-aircraft-mine"
       />
       {favorites.map(a => (
         <SmallTile

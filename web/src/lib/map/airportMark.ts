@@ -28,21 +28,37 @@ export function airportMarkSvg(space: AirspaceClass | null, weather: string, use
   const symbol = use
     ? `<circle r="10" fill="${use === "military" ? BLUE : MAGENTA}" ${casing} stroke-width="2"/>` +
       `<text y="4" text-anchor="middle" font-size="11" font-weight="800" fill="#fff">${use === "military" ? "M" : "R"}</text>` +
-      `<circle data-weather="" cx="8" cy="8" r="3.4" fill="${text(weather)}" ${casing} stroke-width="1.4"/>`
+      `<circle data-weather="" cx="7.5" cy="7.5" r="4.6" fill="${text(weather)}" ${casing} stroke-width="1.4"/>`
     : (() => {
       // The four ticks, and the white casing round ticks and ring, each one
       // path: drawn as eight lines and a circle they were eleven elements a
       // mark, and the opening map's 131 marks were 1,800 of the page's
       // 2,000 elements, each restyled at every change of the page's styles
       // (measured 2026-10-11). The same shapes, strokes and caps.
-      const ticks = "M0 -8.5V-12M8.5 0H12M0 8.5V12M-8.5 0H-12";
-      const ring = "M-8 0a8 8 0 1 0 16 0a8 8 0 1 0 -16 0";
-      const filled = space === "B" || space === "C";
+      const ticks = "M0 -9V-12.2M9 0H12.2M0 9V12.2M-9 0H-12.2";
+      const ring = "M-8.5 0a8.5 8.5 0 1 0 17 0a8.5 8.5 0 1 0 -17 0";
       const dashed = space === "D" || space === "E";
-      return `<path d="${ticks}${ring}" fill="#fff" ${casing} stroke-width="5"/>` +
-        `<path d="${ticks}" fill="none" stroke="${ink}" stroke-width="2.5" stroke-linecap="round"/>` +
-        `<circle r="8" fill="${filled ? ink : "#fff"}" stroke="${ink}" stroke-width="${space === "G" ? 1.6 : 2.5}"${dashed ? ` stroke-dasharray="3.1 2"` : ""}/>` +
-        `<circle data-weather="" r="3.6" fill="${text(weather)}" ${casing} stroke-width="1.4"/>`;
+      // At the owner's asks ("Airport symbols should have rings around
+      // them so it's easier to tell the airspace"; "just the metar dot is
+      // not easy to see"; of a sheet of designs, "option E"): a thin ring
+      // that is the airspace, in the sectional's own code -- Class B and D
+      // blue, C and E magenta, D and E dashed as their boundaries are
+      // drawn (FAA Aeronautical Chart User's Guide, Airspace), B's ring
+      // the thickest and C's next, as the sectional's solid Class B and C
+      // lines are the heaviest of its airspace lines (the owner's asks,
+      // "Can class B ring for symbol be thicker?", "Also make class C ring
+      // thicker"), G the same magenta as C but thin and faded, at the
+      // owner's ask ("C and G should have the same magenta color. The only
+      // difference is that G is faded vs C is solid and bold") -- with its
+      // ticks, white inside it, and a large disc in the field's weather
+      // colour in the middle, readable at a glance.
+      const thin = space === "G" || !space;
+      const width = space === "B" ? 3.2 : space === "C" ? 2.8 : thin ? 1.6 : 2.2;
+      const faded = space === "G" ? ` stroke-opacity="0.45"` : "";
+      return `<path d="${ticks}${ring}" fill="#fff" ${casing} stroke-width="5.5"/>` +
+        `<path d="${ticks}" fill="none" stroke="${ink}"${faded} stroke-width="2.5" stroke-linecap="round"/>` +
+        `<circle r="8.5" fill="#fff" stroke="${ink}"${faded} stroke-width="${width}"${dashed ? ` stroke-dasharray="3.4 2.1"` : ""}/>` +
+        `<circle data-weather="" r="6" fill="${text(weather)}"/>`;
     })();
   const half = AIRPORT_MARK / 2;
   return `<svg data-airport-mark="" data-airspace="${space ?? ""}"${use ? ` data-use="${use}"` : ""} aria-hidden="true" class="${className}"` +

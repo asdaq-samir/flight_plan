@@ -46,7 +46,7 @@ test.describe("signed out", () => {
     await page.goto("/app/plan");
     await showTabs(page);
     await openConsole(page);
-    await page.getByTestId("console-sheet").getByRole("tab", { name: "Personal" }).click();
+    await page.getByTestId("console-sheet").getByRole("tab", { name: "Account" }).click();
     await page.getByTestId("console-sheet").getByRole("tabpanel").getByRole("button", { name: "Sign in" }).click();
     const legal = page.getByRole("dialog", { name: "Sign in to Wingtip Maps" }).getByTestId("sign-in-legal");
     await expect(page.getByTestId("sign-in-accept")).toHaveText("By signing in you accept the");

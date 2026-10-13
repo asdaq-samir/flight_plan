@@ -99,16 +99,8 @@ function useFocused(): boolean {
  * lookups, 95 and 64 ms at CPU 4x -- for a search the pilot may not make.
  */
 export function useAirportIndex(enabled = true, wanted = false): AirportIndex | null {
-  const idle = useIdle();
   const focused = useFocused();
-  useQuery({
-    queryKey: ["airportIndexWarm"],
-    queryFn: api.warmAirportIndex,
-    enabled: enabled && idle,
-    staleTime: Infinity,
-    gcTime: Infinity,
-    meta: { silent: true },
-  });
+  useWarmAirportIndex(enabled);
   const { data } = useQuery({
     queryKey: ["airportIndex"],
     queryFn: async () => indexOf((await api.airportIndex()).airports as Entry[]),
@@ -118,4 +110,19 @@ export function useAirportIndex(enabled = true, wanted = false): AirportIndex | 
     meta: { silent: true },
   });
   return data ?? null;
+}
+
+/** The index's bytes downloaded once the page is idle, by the page itself
+ *  as well as by a search: the planner opens as its tabs alone, no search
+ *  in sight, and the first one opened should find them there. */
+export function useWarmAirportIndex(enabled = true) {
+  const idle = useIdle();
+  useQuery({
+    queryKey: ["airportIndexWarm"],
+    queryFn: api.warmAirportIndex,
+    enabled: enabled && idle,
+    staleTime: Infinity,
+    gcTime: Infinity,
+    meta: { silent: true },
+  });
 }

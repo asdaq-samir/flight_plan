@@ -166,7 +166,7 @@ export const selectionIcon = made(function selectionIcon() {
 });
 
 /** The sectional's magenta, a VFR waypoint's colour on the chart. */
-const WAYPOINT_MAGENTA = "#b02e7c";
+const WAYPOINT_MAGENTA = "#c0309f";
 
 /** A VFR waypoint on the chart (VPBNG): a magenta diamond and no words,
  *  as small as the chart's own flag, in a finger's 44 points of target. */
@@ -189,7 +189,7 @@ export const waypointIcon = made(function waypointIcon(ident: string) {
     className: "",
     iconSize: [width, 24], iconAnchor: [width / 2, 12],
     html:
-      `<span class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded-full border-2 border-[#b02e7c] bg-white px-1.5 py-0.5 text-[11px] font-bold text-[#8a1f5f] shadow-sm"` +
+      `<span class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded-full border-2 border-[#c0309f] bg-white px-1.5 py-0.5 text-[11px] font-bold text-[#8a1f5f] shadow-sm"` +
       `>&#9670;&#8202;${text(ident)}</span>`,
   });
 });
