@@ -1410,7 +1410,12 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     // ("Fpl should show the route box if no route is entered").
     // Airport's and Aircraft's pills their Favorites always, Home and My
     // Plane listed with Add until kept, at the owner's ask.
-    pillHead: tab === "fpl" && !routed,
+    // And every tab's pill as tall as FPL's with its box, at the owner's
+    // ask ("make the minimal layout to be this big. Then for other tabs we
+    // can have search bar along with small icons"): Airport, Aircraft and
+    // NRST their search bar over their small tiles. FPL with a route its
+    // figures alone, as before.
+    pillHead: tab === "fpl" ? !routed : true,
     // A card over the tab: its card alone, the tab's head gone while it is
     // open, at the pilot's ask.
     alone: !!place || !!heldPoint || !!flight,

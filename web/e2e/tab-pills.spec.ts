@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { grabberTo, settle, showTabs, sideDrawer } from "./helpers";
+import { grabberTo, settle, settled, showTabs, sideDrawer } from "./helpers";
 
 /**
  * Each tab's pill, at the owner's ask ("Fpl can show calculations but
@@ -39,7 +39,7 @@ test("FPL with no route rests as its route box under the tabs, to type one in", 
   await expect(panel.getByTestId("flight-line")).toHaveCount(0);
 });
 
-test("each tab's pill shows its own: FPL the route's figures, Airport its Favorites, Aircraft its search, NRST the nearest", async ({ page }) => {
+test("each tab's pill shows its own: FPL the route's figures, Airport and Aircraft their search over their Favorites, NRST its place over the nearest", async ({ page }) => {
   await keep(page, { favoriteAirports: [KDLH] });
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
@@ -47,23 +47,41 @@ test("each tab's pill shows its own: FPL the route's figures, Airport its Favori
   // At rest the tabs alone; the grabber the pill.
   await grabberTo(page, "peek");
   await expect(panel.getByTestId("flight-line")).toBeVisible();
+  // Every tab's pill one height, FPL's with its box and chips, at the
+  // owner's ask ("make the minimal layout to be this big").
+  await settled(panel);
+  const height = (await panel.boundingBox())!.height;
+  const same = async () => {
+    await settled(panel);
+    expect(Math.abs((await panel.boundingBox())!.height - height)).toBeLessThan(1);
+  };
 
   // Airport: the Favorites, small, a tap opening the field's card; no figures.
   await pickAtRest(page, "tab-airport");
   await expect(panel.getByTestId("flight-line")).toHaveCount(0);
   const tile = panel.getByTestId("pill-favorites").getByTestId("pill-favorite");
   await expect(tile).toHaveText(/KDLH/);
+  // Its search bar over them, the pill as tall as FPL's with its box, at
+  // the owner's ask; the bar above the tiles.
+  const search = panel.getByTestId("search-airports");
+  await expect(search).toBeVisible();
+  expect((await search.boundingBox())!.y).toBeLessThan((await tile.boundingBox())!.y);
+  await same();
   // A finger's 44 points.
   expect((await tile.boundingBox())!.height).toBeGreaterThanOrEqual(44);
 
   // Aircraft, with no airplane kept: Plane all the same, with Add.
   await pickAtRest(page, "tab-aircraft");
   await expect(panel.getByTestId("pill-aircraft-mine")).toHaveText(/Plane\s*Add/);
+  await expect(panel.getByTestId("aircraft-search")).toBeVisible();
+  await same();
   await expect(panel.getByTestId("flight-line")).toHaveCount(0);
 
   // NRST: the nearest fields, or with no position the way to show it.
   await pickAtRest(page, "tab-nrst");
   await expect(panel.getByTestId("nearest-strip").or(panel.getByTestId("nearest-strip-position"))).toBeVisible();
+  await expect(panel.getByTestId("nearest-from")).toBeVisible();
+  await same();
 
   // Out of the pill, each tab its usual head again: Airport's search bar.
   await pickAtRest(page, "tab-airport");
@@ -87,6 +105,11 @@ test("the Settings tab's pill is quick controls, each a switch", async ({ page }
   await expect(traffic).toHaveAttribute("aria-pressed", "true");
   await traffic.click();
   await expect(traffic).toHaveAttribute("aria-pressed", "false");
+  // Two rows of them, at the owner's ask: the map's own under the first.
+  const first = (await traffic.boundingBox())!;
+  const second = (await panel.getByTestId("quick-weather").boundingBox())!;
+  expect(second.y).toBeGreaterThan(first.y + first.height - 1);
+  expect(Math.abs(second.x - first.x)).toBeLessThan(2);
   // The tab tapped again opens it half way.
   await page.getByTestId("settings-button").click();
   await expect(panel).toHaveAttribute("data-panel", "half");

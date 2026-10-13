@@ -101,12 +101,16 @@ const rootPx = () => (rootFont ??= parseFloat(getComputedStyle(document.document
 /** A card's width from `md` up: 24rem. */
 const CARD = 384;
 
-/** The pill's row under its tabs, whatever the tab puts there -- FPL's
- *  figures or its route box, the Favorites' and the nearest fields'
- *  tiles, Settings' quick controls -- one height, so switching tabs never
- *  changes the pill's size, at the owner's ask: the tallest's, the tiles'
- *  (a mark and two lines), in rem so it grows with the text as they do. */
-const PILL_ROW = "h-[5.5rem]";
+/** The pill under its tabs, whatever the tab puts there -- FPL's route box
+ *  and its chips, or its figures; a search bar over the Favorites' or the
+ *  nearest fields' tiles; Settings' two rows of quick controls -- one
+ *  height, so switching tabs never changes the pill's size, at the owner's
+ *  asks: as tall as FPL's with its box and chips ("make the minimal layout
+ *  to be this big"), in rem so it grows with the text as they do. A head
+ *  over a foot share it, the search bar's row and the tiles'. */
+const PILL_ROW = "h-[7.25rem]";
+const PILL_HEAD_ROW = "h-[3rem]";
+const PILL_FOOT_ROW = "h-[4.25rem]";
 /** The pill collapsed to its tabs: their row (3rem) and its margins. */
 const TABS_PILL_REM = 3.625;
 
@@ -197,12 +201,17 @@ export default function MapPanel({ label, top, controls, figures, compact, child
       setMeasured(true);
     }
   }, []);
+  // Observed afresh as the panel changes size or the tab its head, the
+  // observer's first answer the height then: WebKit's observer let the
+  // tabs alone's growth into the pill go unreported, and the pill kept the
+  // tabs' 58 points, its row below the screen's edge until something else
+  // re-measured it (measured in the Playwright image's WebKit, 2026-10-13).
   useEffect(() => {
     if (!head) return;
     const observer = new ResizeObserver(() => setHeadHeight(head.offsetHeight));
     observer.observe(head);
     return () => observer.disconnect();
-  }, [head]);
+  }, [head, collapsed, state, top]);
   // The foot's height, measured as the head's is, added to every detent.
   const [footNode, setFootNode] = useState<HTMLDivElement | null>(null);
   const [footMeasured, setFootMeasured] = useState(0);
@@ -215,7 +224,7 @@ export default function MapPanel({ label, top, controls, figures, compact, child
     const observer = new ResizeObserver(() => setFootMeasured(footNode.offsetHeight));
     observer.observe(footNode);
     return () => observer.disconnect();
-  }, [footNode]);
+  }, [footNode, collapsed, state]);
   const footShown = !!foot && !collapsed;
   const footHeight = footShown ? footMeasured : 0;
   // How tall it can be: a phone's sheet stops eight points short of the
@@ -608,7 +617,7 @@ export default function MapPanel({ label, top, controls, figures, compact, child
               // 44-point hit area (index.css) stays in the capsule, which
               // clips what is past its edge; the search bar's the same, so
               // the pill is one height whatever it holds, at the pilot's ask.
-              capsule ? (pillOfTabs ? cn(PILL_ROW, "px-[9px]") : cn("p-[9px]", fromBottom ? "pb-3" : "pt-3"))
+              capsule ? (pillOfTabs ? cn(footShown ? PILL_HEAD_ROW : PILL_ROW, "px-[9px]") : cn("p-[9px]", fromBottom ? "pb-3" : "pt-3"))
                 // No top row (a place's card alone): only the room the status
                 // bar takes from the top of a phone's screen.
                 : top == null ? (!fromBottom && onPhone ? "pt-[env(safe-area-inset-top)]" : undefined)
@@ -617,7 +626,13 @@ export default function MapPanel({ label, top, controls, figures, compact, child
                   : cn("px-3 pb-1", fromBottom ? "pt-1" : onPhone ? "pt-[max(0.5rem,env(safe-area-inset-top))]" : "pt-2"),
             )}
           >
-            {capsule ? (pillOfTabs ? top : compact) : figuresOnly ? figures : top}
+            {capsule ? (pillOfTabs ? (
+              // FPL's pill with no figures under it: its route box and, once
+              // a route is begun, the chips under it -- the airplane, the
+              // altitude, the time, Share -- as the owner's screenshot of
+              // the size every tab's pill now is had them.
+              !footShown && controls ? <div className="flex w-full min-w-0 flex-col gap-3">{top}{controls}</div> : top
+            ) : compact) : figuresOnly ? figures : top}
           </header>
         )}
         {!capsule && !figuresOnly && controls && (
@@ -675,7 +690,7 @@ export default function MapPanel({ label, top, controls, figures, compact, child
           className={cn(
             "shrink-0 px-4 print:hidden",
             // The pill's row under the tabs one height on every tab (PILL_ROW).
-            capsule && pillOfTabs ? cn(PILL_ROW, "flex flex-col justify-center") : capsule ? "pt-2 pb-3" : "border-t border-border/60 pt-2 pb-2.5",
+            capsule && pillOfTabs ? cn(headInPill && top != null ? PILL_FOOT_ROW : PILL_ROW, "flex flex-col justify-center") : capsule ? "pt-2 pb-3" : "border-t border-border/60 pt-2 pb-2.5",
           )}
           style={toEdge && !capsule && fromBottom ? { paddingBottom: Math.max(10, edgeRoom) } : undefined}
           data-testid="panel-foot"
