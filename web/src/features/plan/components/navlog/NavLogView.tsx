@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
+import { Fragment, useCallback, useContext, useEffect, useId, useMemo, useState, type ReactNode } from "react";
 import { cn } from "cn";
 import { Loader2, WandSparkles } from "lucide-react";
 import {
@@ -608,7 +608,12 @@ export default function NavLogView({
   // log into something unflyable (e.g. by Fuel).
   const table = useTable({ features: navLogTableFeatures, data, columns, getRowId: row => row.key });
 
-  const selectedRef = useRef<HTMLTableRowElement>(null);
+  // The selected row as it is put in the page: the rows are drawn a moment
+  // after the panel (PanelTabs' deferred draw), and on a busy page after
+  // the drawer had opened, so a reveal asked for then found no row and the
+  // pick was left under the drawer's foot (checkpoints.spec, one run in
+  // three with two workers). Its arrival is a reason to look again.
+  const [selectedRow, setSelectedRow] = useState<HTMLTableRowElement | null>(null);
   // Whether the table fits the drawer's width (see navLogTable): watched,
   // since a departure time adds a column and the text size moves every
   // one of them. From a ref, not an effect: the table is there only
@@ -638,7 +643,7 @@ export default function NavLogView({
   // view is mounted, and its rows laid out, while the drawer is
   // closed, so a row revealed then was revealed off screen. (A pick brings
   // its tab up, PanelTabs.)
-  useEffect(() => revealRow(selectedRef.current), [selectedPoint, drawerOpen]);
+  useEffect(() => revealRow(selectedRow), [selectedRow, selectedPoint, drawerOpen]);
   const isSelected = (lat: number, lon: number) =>
     !!selectedPoint && descriptionKey(lat, lon) === descriptionKey(selectedPoint.lat, selectedPoint.lon);
 
@@ -722,7 +727,7 @@ export default function NavLogView({
                 // The selected row tapped again is deselected, on the
                 // map too, which closes its note.
                 onSelect={() => (rowSelected ? onDeselectPoint() : onSelectPoint(lat, lon))}
-                scrollRef={rowSelected ? selectedRef : undefined}
+                scrollRef={rowSelected ? setSelectedRow : undefined}
               >
                 {row.getAllCells().map(cell => (
                   <TableCell key={cell.id} className={cell.column.columnDef.meta?.className}>

@@ -55,6 +55,18 @@ export default memo(function MiniProfile({ ends, selected, legs, onOpen }: {
   const x = (nm: number) => (profile.length_nm > 0 ? (nm / profile.length_nm) * W : 0);
   const y = (ft: number) => H - (Math.max(0, Math.min(ft, top)) / top) * H;
   const ground = `M0 ${H} ${profile.terrain.map(t => `L${x(t.along_nm).toFixed(1)} ${y(t.ground_ft).toFixed(1)}`).join(" ")} L${W} ${H}Z`;
+  // Each airspace's label once, over its widest piece: its airport's
+  // ident, else its class.
+  const widest = new Map<string, (typeof profile.airspace)[number]>();
+  for (const a of profile.airspace) {
+    if (!AIRSPACE[a.class]) continue;
+    const label = a.ident || `Class ${a.class}`;
+    const held = widest.get(label);
+    if (!held || a.to_nm - a.from_nm > held.to_nm - held.from_nm) widest.set(label, a);
+  }
+  const named = [...widest].map(([label, a]) => ({ ...a, label, key: `${label}${a.from_nm}` }))
+    // Wide enough on the chart for its words.
+    .filter(a => x(a.to_nm) - x(a.from_nm) > 18);
   const line = plan.points.map((p, i) => `${i ? "L" : "M"}${x(p.along_nm * scale).toFixed(1)} ${y(p.plan_ft).toFixed(1)}`).join(" ");
   return (
     <button
@@ -82,6 +94,20 @@ export default memo(function MiniProfile({ ends, selected, legs, onOpen }: {
         <path d={ground} fill="#8b6f47" fillOpacity={0.45} />
         <path d={line} fill="none" stroke="var(--primary)" strokeWidth={2.5} strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
       </svg>
+      {/* Each airspace named for its airport, at the owner's ask ("can the
+          profile view airspaces have airport ids on them"): over its
+          widest piece, in its own colour, under its top edge -- words,
+          not drawn in the stretched SVG. */}
+      {named.map(a => (
+        <span
+          key={a.key}
+          className="pointer-events-none absolute -translate-x-1/2 rounded bg-background/80 px-1 font-semibold"
+          style={{ left: `${(x((a.from_nm + a.to_nm) / 2) / W) * 100}%`, top: `calc(${(y(Math.min(a.ceiling_ft ?? top, top)) / H) * 100}% + 2px)`, color: AIRSPACE[a.class]!.stroke }}
+          aria-hidden="true" data-testid="mini-profile-airspace"
+        >
+          {a.label}
+        </span>
+      ))}
       {/* No axis of heights: the cruise altitude named on its line, in the
           middle, is enough, at the owner's asks ("label the cruise altitude
           within the graph"; "y axis is not needed, just the cruise label is

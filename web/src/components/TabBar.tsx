@@ -36,6 +36,11 @@ export interface BarTab<T extends string> {
  * alone, centred, in the tint; tapped, every tab again at the height the
  * sheet is, minimized once one is picked.
  */
+/** A wheel gesture's state, the page's: the bar is drawn afresh as a step
+ *  changes the tab (its minimized line or the tabs), and a gesture's later
+ *  events, heard by the new one, took a second step. */
+const WHEEL = { sum: { x: 0, y: 0 }, quietUntil: 0, idle: 0 };
+
 export default function TabBar<T extends string>({ tabs, tab, over, title, onPick, onUp, marks, onClose, className }: {
   tabs: BarTab<T>[];
   tab: T;
@@ -146,6 +151,65 @@ export default function TabBar<T extends string>({ tabs, tab, over, title, onPic
       panel.removeEventListener("pointerup", up, true);
       panel.removeEventListener("pointercancel", cancel, true);
       panel.removeEventListener("click", click, true);
+    };
+  }, []);
+  // With a mouse's wheel or a trackpad, as a finger's drag and swipe on a
+  // phone, at the owner's ask ("on a desktop, the scrolling should
+  // transition the layout and tabs"): scrolled down over the panel it
+  // comes up a size (the tabs alone, the pill, all the way), up it goes
+  // down one; sideways it goes to the tab beside the one up. Not while what
+  // is under the pointer can scroll that way itself -- the nav log, a list,
+  // a strip -- which keeps the wheel, nor over a field or the map. One step
+  // a gesture: a trackpad's flick sends a run of events, and the next step
+  // waits for a pause in them.
+  const sizeNow = useRef(size);
+  useEffect(() => { sizeNow.current = size; });
+  useEffect(() => {
+    const panel = bar.current?.closest<HTMLElement>("[data-slot=map-panel]");
+    if (!panel) return;
+    const g = WHEEL;
+    const scrolls = (target: EventTarget | null, dx: number, dy: number) => {
+      for (let el = target as HTMLElement | null; el && el !== panel; el = el.parentElement) {
+        if (el.matches("input, textarea, select, [contenteditable=true], [role=slider], .leaflet-container")) return true;
+        const style = getComputedStyle(el);
+        if (dy !== 0 && (style.overflowY === "auto" || style.overflowY === "scroll")
+          && (dy > 0 ? el.scrollTop + el.clientHeight < el.scrollHeight - 1 : el.scrollTop > 0)) return true;
+        if (dx !== 0 && (style.overflowX === "auto" || style.overflowX === "scroll")
+          && (dx > 0 ? el.scrollLeft + el.clientWidth < el.scrollWidth - 1 : el.scrollLeft > 0)) return true;
+      }
+      return false;
+    };
+    const wheel = (event: WheelEvent) => {
+      const now = performance.now();
+      window.clearTimeout(g.idle);
+      g.idle = window.setTimeout(() => { g.sum = { x: 0, y: 0 }; g.quietUntil = 0; }, 180);
+      if (now < g.quietUntil) return;
+      const across = Math.abs(event.deltaX) > Math.abs(event.deltaY);
+      if (scrolls(event.target, across ? event.deltaX : 0, across ? 0 : event.deltaY)) {
+        g.sum = { x: 0, y: 0 };
+        return;
+      }
+      event.preventDefault();
+      g.sum = { x: g.sum.x + event.deltaX, y: g.sum.y + event.deltaY };
+      const sum = g.sum;
+      // Sixty pixels of a gesture, about a notch of a wheel or a short
+      // flick of two fingers.
+      if (Math.abs(sum.x) >= 60 && Math.abs(sum.x) > 2 * Math.abs(sum.y)) {
+        step.current(sum.x > 0 ? 1 : -1);
+      } else if (Math.abs(sum.y) >= 60 && Math.abs(sum.y) > Math.abs(sum.x)) {
+        const sheet = sizeNow.current;
+        if (!sheet) return;
+        if (sum.y > 0 && sheet.size !== "full") sheet.to(sheet.size === "tabs" ? "peek" : "full");
+        else if (sum.y < 0 && sheet.size !== "tabs") sheet.to(sheet.size === "full" ? "peek" : "tabs");
+        else return;
+      } else return;
+      g.sum = { x: 0, y: 0 };
+      // Until the gesture's run of events has stopped.
+      g.quietUntil = Number.POSITIVE_INFINITY;
+    };
+    panel.addEventListener("wheel", wheel, { passive: false });
+    return () => {
+      panel.removeEventListener("wheel", wheel);
     };
   }, []);
   // A card open over the tab -- an airport's, an airplane's, a past

@@ -314,3 +314,33 @@ test("all the way up, another tab tapped is that tab all the way up; the tab up 
   await page.getByTestId("tab-airport").click();
   await expect(panel).toHaveAttribute("data-panel", "peek");
 });
+
+test("with a mouse's wheel, down over the panel brings it up a size, up takes it down, and sideways goes to the tab beside", async ({ page }) => {
+  // The owner's ask: "on a desktop, the scrolling should transition the
+  // layout and tabs".
+  test.skip((page.viewportSize()?.width ?? 0) < 768, "a desktop's wheel");
+  await page.goto("/app/plan?dep=C81&dest=KDLH");
+  await settle(page);
+  const panel = sideDrawer(page);
+  const over = async () => {
+    const box = (await panel.boundingBox())!;
+    await page.mouse.move(box.x + box.width / 2, box.y + 30);
+  };
+  const flick = async (dx: number, dy: number) => {
+    await over();
+    for (let i = 0; i < 4; i++) await page.mouse.wheel(dx, dy);
+    // The gesture's end, before the next.
+    await page.waitForTimeout(400);
+  };
+  await flick(0, 40);
+  await expect(panel).not.toHaveAttribute("data-collapsed", "true");
+  await expect(panel).toHaveAttribute("data-panel", "peek");
+  await flick(0, 40);
+  await expect(panel).toHaveAttribute("data-panel", "full");
+  await flick(0, -40);
+  await expect(panel).toHaveAttribute("data-panel", "peek");
+  await flick(40, 0);
+  await expect(page.getByTestId("tab-airport")).toHaveAttribute("aria-current", "page");
+  await flick(-40, 0);
+  await expect(page.getByTestId("tab-fpl")).toHaveAttribute("aria-current", "page");
+});

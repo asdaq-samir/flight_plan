@@ -97,7 +97,7 @@ test("the weather goes place by place, each TAF read for when the flight is ther
   // Each field's own on its phase's tab: the destination's on Arrive.
   await openTab(page, "Arrive");
   const arrive = sideDrawer(page).locator('[data-tab="arrive"]').getByTestId("weather-places");
-  await expect(arrive.locator("h3")).toHaveText(["KDLH · Destination"]);
+  await expect(arrive.locator("h3")).toHaveText(["KDLH"]);
   const destination = arrive.getByTestId("place-taf");
   await expect(destination).toContainText(/Forecast, \d\d:\d\d/);
   await expect(destination).toContainText("800 ft · 2 sm");
