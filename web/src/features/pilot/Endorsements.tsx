@@ -3,7 +3,6 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { cn } from "cn";
 import FieldHit from "../../components/FieldHit";
 import { ListGroup, ListRow } from "../../components/GroupedList";
-import TickBox from "../../components/TickBox";
 import { Input } from "../../components/ui/input";
 import { api } from "../../lib/api/client";
 import type { EndorsementKind, Instructor, SignedEndorsement } from "../../lib/api/types";
@@ -130,9 +129,8 @@ export function SignForm({ kind, studentId, studentName, instructor, initial, re
         <ListGroup title="Your determination" footer="14 CFR 61.93(d): yours to determine before a solo cross-country. The student's endorsements, (4) and (5), are above.">
           {DETERMINATIONS.map((d, i) => (
             <ListRow
-              key={d.rule} role="checkbox" aria-checked={determined[i]} media={<TickBox on={determined[i]!} />}
+              key={d.rule} checkbox={{ checked: !!determined[i], onChange: next => setDetermined(prev => prev.map((on, j) => (j === i ? next : on))) }}
               title={d.label} description={d.rule} data-testid="sign-determination"
-              onClick={() => setDetermined(prev => prev.map((on, j) => (j === i ? !on : on)))}
             />
           ))}
         </ListGroup>

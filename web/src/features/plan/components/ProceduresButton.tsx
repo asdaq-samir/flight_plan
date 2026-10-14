@@ -1,9 +1,8 @@
 import { Fragment, useState, type ReactNode } from "react";
 import { useQueries } from "@tanstack/react-query";
-import { Check, PlaneLanding, PlaneTakeoff, Route } from "lucide-react";
-import { cn } from "cn";
+import { PlaneLanding, PlaneTakeoff, Route } from "lucide-react";
 import { ConsolePages, PageRow } from "../../../components/ConsolePages";
-import { ListGroup, ListRow } from "../../../components/GroupedList";
+import { ListChoices, ListGroup, ListRow } from "../../../components/GroupedList";
 import RoundButton from "../../../components/RoundButton";
 import { ResponsivePopover, ResponsivePopoverContent, ResponsivePopoverTrigger } from "../../../components/ResponsivePopover";
 import { ChartBadge, RowBadge } from "../../../components/RowBadge";
@@ -14,6 +13,10 @@ import { kindsFor, sameField, type PickedProcedure } from "../../../lib/procedur
 import { BADGE } from "../../../lib/rowBadges";
 import { trafficPattern } from "../../../lib/trafficPattern";
 import { altFt } from "../../../lib/units";
+
+/** The radio value of a list's "None" (no pattern, no procedure, no
+ *  transition): a radio's value is a string. */
+const NONE = "none";
 
 type Kind = ProcedureSummary["kind"];
 
@@ -145,6 +148,7 @@ function ProceduresSheet({ airports, picked, onPick, onCharts, chartsDisabled, p
         const list = lists[i];
         return (
           <Fragment key={a.ident}>
+          <ListChoices value={chosen ?? NONE} onChange={v => onPick(a.ident, v === NONE ? null : v)} label={`${a.ident} traffic pattern`}>
           <ListGroup
             title={`${a.ident} · ${a.role} · traffic pattern`}
             footer="Drawn on the map as the FAA's Airplane Flying Handbook flies a pattern: the downwind about three-quarters of a mile out, the base 45° from the runway's end, the 45° entry abeam midfield. A sketch to fly by, not a procedure; the field's own pattern may differ."
@@ -153,19 +157,13 @@ function ProceduresSheet({ airports, picked, onPick, onCharts, chartsDisabled, p
               <ListRow title={<span className="text-muted-foreground">Looking the runways up…</span>} />
             ) : (
               <>
-                <ListRow
-                  role="radio" aria-checked={chosen === null} onClick={() => onPick(a.ident, null)}
-                  media={<Check className={cn("size-4 text-tint", chosen !== null && "invisible")} aria-hidden />}
-                  title="None"
-                />
+                <ListRow radio={NONE} title="None" />
                 {ends.map(({ runway, end }) => {
                   const drawn = trafficPattern(a.ident, runway, end.ident, a.patternAltitudeFt) !== null;
                   const id = runwayNumber(end.ident);
                   return (
                     <ListRow
-                      key={end.ident} role="radio" aria-checked={chosen === id} disabled={!drawn}
-                      onClick={() => onPick(a.ident, id)}
-                      media={<Check className={cn("size-4 text-tint", chosen !== id && "invisible")} aria-hidden />}
+                      key={end.ident} radio={id} disabled={!drawn}
                       title={`Runway ${id}`}
                       description={drawn
                         ? [
@@ -181,6 +179,7 @@ function ProceduresSheet({ airports, picked, onPick, onCharts, chartsDisabled, p
               </>
             )}
           </ListGroup>
+          </ListChoices>
           {/* Its instrument procedures, a page for each kind, the one
               picked said at the row's end; and the destination's
               approach charts, as its card lists them. */}
@@ -235,39 +234,40 @@ function ProcedurePicker({ kind, list, chosen, onPick }: {
   if (!list) return <p role="status" className="px-1 text-muted-foreground">Looking the procedures up…</p>;
   const of = list.procedures.filter(p => p.kind === kind);
   const current = of.find(p => p.id === chosen?.id) ?? null;
-  const tick = (on: boolean) => <Check className={cn("size-4 text-tint", !on && "invisible")} aria-hidden />;
   const runways = (p: ProcedureSummary) => p.runway_transitions.length
     ? p.runway_transitions.includes("ALL") ? "All runways" : `Runway ${p.runway_transitions.map(r => r.replace(/^RW/, "").replace(/B$/, "")).join(", ")}`
     : undefined;
   return (
     <div className="space-y-5">
+      <ListChoices
+        value={current?.id ?? NONE} label="Procedure"
+        onChange={v => onPick(v === NONE ? null : { id: v, transition: current?.id === v ? chosen?.transition ?? null : null })}
+      >
       <ListGroup
         footer={`From the FAA's coded procedures (CIFP), the cycle of ${cycleDate(list.cycle)}${list.stale ? ", OUT OF DATE (the current cycle could not be had)" : ""}: a sketch on the chart to plan by, not for navigation. Fly the FAA's chart.`}
       >
-        <ListRow role="radio" aria-checked={!current} onClick={() => onPick(null)} media={tick(!current)} title="None" />
+        <ListRow radio={NONE} title="None" />
         {of.map(p => (
           <ListRow
-            key={p.id} role="radio" aria-checked={current?.id === p.id} media={tick(current?.id === p.id)}
+            key={p.id} radio={p.id}
             title={p.name} description={kind === "approach" ? undefined : runways(p)}
-            onClick={() => onPick({ id: p.id, transition: current?.id === p.id ? chosen?.transition ?? null : null })}
             data-testid="procedure-option"
           />
         ))}
       </ListGroup>
+      </ListChoices>
       {current && current.transitions.length > 0 && (
+        <ListChoices
+          value={chosen?.transition ?? NONE} label="Transition"
+          onChange={v => onPick({ id: current.id, transition: v === NONE ? null : v })}
+        >
         <ListGroup title={`${current.name} · transition`}>
-          <ListRow
-            role="radio" aria-checked={!chosen?.transition} media={tick(!chosen?.transition)}
-            title={kind === "approach" ? "Vectors" : "None"} onClick={() => onPick({ id: current.id, transition: null })}
-            data-testid="procedure-transition"
-          />
+          <ListRow radio={NONE} title={kind === "approach" ? "Vectors" : "None"} data-testid="procedure-transition" />
           {current.transitions.map(t => (
-            <ListRow
-              key={t} role="radio" aria-checked={chosen?.transition === t} media={tick(chosen?.transition === t)}
-              title={`Via ${t}`} onClick={() => onPick({ id: current.id, transition: t })} data-testid="procedure-transition"
-            />
+            <ListRow key={t} radio={t} title={`Via ${t}`} data-testid="procedure-transition" />
           ))}
         </ListGroup>
+        </ListChoices>
       )}
     </div>
   );

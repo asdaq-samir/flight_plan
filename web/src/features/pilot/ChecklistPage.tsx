@@ -3,7 +3,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { cn } from "cn";
 import { ListGroup, ListRow } from "../../components/GroupedList";
-import TickBox from "../../components/TickBox";
 import { Textarea } from "../../components/ui/textarea";
 import { api } from "../../lib/api/client";
 import type { Aircraft } from "../../lib/api/types";
@@ -73,10 +72,9 @@ export default function ChecklistPage({ aircraft }: { aircraft: Aircraft }) {
               const on = !!ticked[`${s}:${i}`];
               return (
                 <ListRow
-                  key={i} role="checkbox" aria-checked={on} media={<TickBox on={on} />}
+                  key={i} checkbox={{ checked: on, onChange: next => setTicked(t => ({ ...t, [`${s}:${i}`]: next })) }}
                   title={<span className={cn(on && "text-muted-foreground")}>{item.challenge}</span>}
                   value={item.response ?? undefined}
-                  onClick={() => setTicked(t => ({ ...t, [`${s}:${i}`]: !on }))}
                   data-testid="checklist-item"
                 />
               );

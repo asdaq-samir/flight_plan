@@ -2,7 +2,7 @@ import { useEffect, useId, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Check, Timer, X } from "lucide-react";
 import { cn } from "cn";
-import { ListGroup, ListRow } from "../../../../components/GroupedList";
+import { ListChoices, ListGroup, ListRow } from "../../../../components/GroupedList";
 import {
   ResponsivePopover, ResponsivePopoverContent, ResponsivePopoverTrigger,
 } from "../../../../components/ResponsivePopover";
@@ -118,6 +118,7 @@ export default function DiversionDrill({ leg, at }: { leg: Leg; at: { name: stri
                 <span>{checked ? "You took" : "On the clock"}</span>
                 <span>{stopwatch((stopped ?? now) - started)}</span>
               </p>
+              <ListChoices value={field ?? ""} onChange={setField} label="Divert to">
               <ListGroup title="Divert to" footer="The nearest fields, with their longest runway and their weather: how far and which way are on the chart.">
                 {nearest.isPending ? (
                   <ListRow title={<span className="text-muted-foreground">Finding the nearest fields…</span>} />
@@ -125,9 +126,7 @@ export default function DiversionDrill({ leg, at }: { leg: Leg; at: { name: stri
                   <ListRow title={<span className="text-muted-foreground">No fields near here</span>} />
                 ) : fields.map(f => (
                   <ListRow
-                    key={f.ident} role="radio" aria-checked={field === f.ident} disabled={checked}
-                    onClick={() => setField(f.ident)}
-                    media={<Check className={cn("size-4 text-tint", field !== f.ident && "invisible")} aria-hidden />}
+                    key={f.ident} radio={f.ident} disabled={checked}
                     title={`${f.ident} · ${f.name}`}
                     description={[
                       f.longest_runway_ft ? `${grouped(f.longest_runway_ft)} ft runway` : "no runway length",
@@ -137,6 +136,7 @@ export default function DiversionDrill({ leg, at }: { leg: Leg; at: { name: stri
                   />
                 ))}
               </ListGroup>
+              </ListChoices>
               <ListGroup
                 title="Your estimates"
                 footer="The ACS asks for a reasonable estimate (PA.VI.C.S2) and gives no figures: within 10° and 10 kt, 3 minutes and a gallon is this drill's own."

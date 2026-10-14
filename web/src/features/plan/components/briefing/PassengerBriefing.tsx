@@ -1,6 +1,5 @@
 import AccordionSection from "../../../../components/AccordionSection";
 import { ListGroup, ListRow } from "../../../../components/GroupedList";
-import TickBox from "../../../../components/TickBox";
 import { cancelled, shareOrCopy, useCopied } from "../../../../lib/share";
 import { PASSENGER_ITEMS } from "../../../../lib/passengers";
 import { usePreflight, useTicked } from "../../../../lib/preflight";
@@ -34,9 +33,7 @@ export default function PassengerBriefing({ flight, message }: { flight: string;
         >
           {PASSENGER_ITEMS.map(item => (
             <ListRow
-              key={item.key} role="checkbox" aria-checked={!!ticked[item.key]}
-              onClick={() => tick(flight, item.key, !ticked[item.key])}
-              media={<TickBox on={!!ticked[item.key]} />}
+              key={item.key} checkbox={{ checked: !!ticked[item.key], onChange: on => tick(flight, item.key, on) }}
               title={item.title} description={item.rule}
               data-testid={`passenger-${item.key}`}
             />
