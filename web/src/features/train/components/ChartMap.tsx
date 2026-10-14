@@ -1,5 +1,5 @@
 import L from "leaflet";
-import { type ReactNode } from "react";
+import { useLayoutEffect, useRef, type ReactNode } from "react";
 import { Marker } from "react-leaflet";
 import { Badge } from "../../../components/ui/badge";
 import type { Course, Point, Rating } from "../../../lib/api/types";
@@ -103,6 +103,14 @@ export default function ChartMap({
   course, endpoints, detections, added, filters, selected, selectedContent,
   onSelect, onDeselect, onAddAt, onMapReady,
 }: Props) {
+  // Whether the card is meant to be up: put away by the page (the panel
+  // all the way up over it), its removal is not a tap closing it, and
+  // the point stays picked.
+  // Kept as each commit lays out, ahead of react-leaflet's own (passive)
+  // effect that removes the card.
+  const showing = useRef(false);
+  const shown = !!(selected && selectedContent);
+  useLayoutEffect(() => { showing.current = shown; }, [shown]);
   return (
     <MapShell course={course} onReady={onMapReady}>
       {course && (
@@ -143,7 +151,7 @@ export default function ChartMap({
             <MapPopup
               position={[selected.lat, selected.lon]} offset={[0, -16]}
               autoPan={false}
-              eventHandlers={{ remove: onDeselect }}
+              eventHandlers={{ remove: () => { if (showing.current) onDeselect(); } }}
             >
               {selectedContent}
             </MapPopup>

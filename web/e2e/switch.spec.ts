@@ -21,7 +21,8 @@ test("the console's role menu flips to the dev page, the console staying out, an
   // out -- the developer's now.
   await roles.developer.click();
   await page.waitForURL(/\/app\/dev/);
-  await expect(consoleSheet(page).getByRole("tab", { name: "Status" })).toBeVisible({ timeout: 15000 });
+  // Its Setup the pilot's with the developer's Status row (DevPanel).
+  await expect(consoleSheet(page).getByRole("button", { name: /^Status/ })).toBeVisible({ timeout: 15000 });
   roles = await roleMenu(page);
   await expect(roles.developer).toHaveAttribute("aria-checked", "true");
 

@@ -6,7 +6,7 @@ import { ListGroup } from "../../components/GroupedList";
 import QuickControls from "../../components/QuickControls";
 import { pilotQuery } from "../../lib/queryClient";
 import { TEXT } from "../../lib/text";
-import { AccountMenu } from "./AccountRow";
+import { AccountMenu } from "./AccountMenu";
 import SignInModal from "./SignInModal";
 
 /**

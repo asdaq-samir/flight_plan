@@ -1,4 +1,3 @@
-import { usePreferences } from "../../lib/preferences";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation } from "react-router-dom";
 import { BrainCircuit, ExternalLink, RefreshCw } from "lucide-react";
@@ -7,8 +6,7 @@ import { showError } from "../../lib/problems";
 import { Bar, BarChart, Cell, LabelList, XAxis, YAxis } from "recharts";
 import { cn } from "cn";
 import { ConsolePages, PageRow, StepRow } from "../../components/ConsolePages";
-import { PersonalTab } from "../pilot/PilotPanel";
-import ConsoleTabs from "../../components/ConsoleTabs";
+import { PilotPanel } from "../pilot/PilotPanel";
 import { ListGroup, ListRow } from "../../components/GroupedList";
 import StatusBadge, { type Tone } from "../../components/StatusBadge";
 import { Progress } from "../../components/ui/progress";
@@ -46,57 +44,33 @@ const CHART_KIND_LABELS: Record<string, string> = {
   sec: "Sectional", tac: "TAC", ifr_low: "IFR low", ifr_high: "IFR high", ifr_area: "IFR area",
 };
 /**
- * The developer's own console, the training page's Settings tab (TabBar):
- * what the repo does that a pilot never sees, one tab each, each a page of
- * grouped lists as iOS's Settings is. Guide, first -- the three steps that
- * change the model (load a route, rate its points, retrain), then the
- * rating scale and the keys; no inputs of its own, since the header's
- * route form loads routes and Retrain sits in the Model Training drawer's
- * More menu, beside the ratings it learns from. How good the models are
- * is the page's own Perf tab (PerformancePanel), at the developer's ask,
- * not a tab of the console. System -- a page each for which services answer, how fresh
- * the FAA and weather data is, the charts, the planner's recent errors,
- * the web app's speed over time, and the doors into the rest of the
- * stack. All of it from one
- * `/api/status` snapshot, refreshed while open. The pilot's page has
- * the same drawer in the same place, holding the pilot's things
- * instead (see PilotPanel).
+ * The developer's Setup, the training page's last tab: the pilot's own
+ * Setup (PilotPanel) -- the switches, the account with its mode, the
+ * pilot's things -- with the developer's Status and Guide as its rows, at
+ * the owner's pick of the dev page's redesign; it was a console of tabs
+ * of its own (Guide, Status, Account). Guide: the three steps that change
+ * the model (load a route, rate its points, retrain), then the rating
+ * scale. Status: a page each for which services answer, how fresh the
+ * FAA and weather data is, the charts, the planner's recent errors, the
+ * web app's speed over time, and the doors into the rest of the stack --
+ * all from one `/api/status` snapshot, refreshed while open. How good the
+ * models are is the page's own Perf tab (PerformancePanel).
  */
 export function DevPanel() {
   const queryClient = useQueryClient();
   const { data: status, isFetching, isError: statusFailed } = useQuery(statusQuery);
-  // The tab the console was last on, remembered per browser: a
-  // developer watching a retrain or a route being collected reopens the
-  // console to the same tab, not to the Guide every time.
-  const savedTab = usePreferences(s => s.devTab);
-  const changeTab = usePreferences(s => s.setDevTab);
-  // Everything the console shows, asked for again now rather than at
-  // the next 30-second tick: the snapshot, the model comparison, the
-  // two health probes the System tab runs itself and which services the
-  // sidecar can start.
+  // Everything Status shows, asked for again now rather than at the next
+  // 30-second tick: the snapshot, the model comparison, the two health
+  // probes it runs itself and which services the sidecar can start.
   const refreshAll = () => void queryClient.invalidateQueries({
     predicate: q => ["status", "modelComparison", "devServices"].includes(String(q.queryKey[0])),
   });
-
   return (
-    <ConsoleTabs
-      saved={savedTab}
-      onChange={changeTab}
-      tabs={[
-        // "Guide", as the pilot console's first tab is: it walks the
-        // three steps. (The value stays "training", which is what a
-        // browser has remembered as its last tab.)
-        { value: "training", label: "Guide", content: <TrainingTab /> },
-        {
-          // "Status", at the owner's ask ("in dev console replace System
-          // with Status"); its value kept, the tab a browser remembers.
-          value: "system", label: "Status",
-          content: <SystemTab status={status} failed={statusFailed} onRefresh={refreshAll} refreshing={isFetching} />,
-        },
-        // The pilot's own things and the account, as the pilot's console
-        // has them, at the owner's ask ("make a personal tab in dev mode").
-        { value: "personal", label: "Account", content: <PersonalTab /> },
-      ]}
+    <PilotPanel
+      dev={{
+        guide: <TrainingTab />,
+        status: <SystemTab status={status} failed={statusFailed} onRefresh={refreshAll} refreshing={isFetching} />,
+      }}
     />
   );
 }
@@ -254,10 +228,8 @@ function ModelGroup({ status, failed }: { status: Status | undefined; failed: bo
   return (
     <>
       {current ? (
+        // Its name and when it was trained are the head's (PerfHead).
         <ListGroup title="Model">
-          <ListRow title={current.model_type ?? "Unknown model"} description={`Trained ${ago(current.trained_at)} · ${current.n_features} features`}>
-            <StatusBadge tone="up">Promoted</StatusBadge>
-          </ListRow>
           <ListRow title="CV MAE" value={current.cv_mae == null ? "—" : mae(current.cv_mae)} />
           <ListRow title="Held-out MAE" value={current.held_out_mae == null ? "—" : mae(current.held_out_mae)} />
           <ListRow title="Ratings it trained on" value={current.n_labeled ?? "—"} />
@@ -299,40 +271,29 @@ function ChartModelGroup({ chart }: { chart: NonNullable<Status["model"]>["chart
 }
 
 /**
- * The pipeline that would replace the models: how its last run went, as
- * a badge beside the heading, and Retrain, saying why it is off and
- * what turns it on -- the planner's own sentence, how many more to rate
- * -- or what it does. First on the tab, as a confirmed retrain opens it
- * to follow the run. (Airflow is a link in System's Elsewhere in the
+ * The pipeline that would replace the models: whether Airflow, which
+ * Retrain starts, is running, how its last run went as a badge beside the
+ * heading, and how to retrain by hand without it. Retrain itself is the
+ * head's (PerfHead). (Airflow is a link in Status's Elsewhere in the
  * stack.)
  */
 function TrainingGroup() {
-  const retrain = useRetrain();
-  const { pipeline, lastRun, running, training } = retrain;
-  // Why Retrain is off and what turns it on, in the group's note, where
-  // it reads at full strength under the dimmed button, as iOS explains a
-  // control it has turned off; or, on the row, what it does.
-  const blocked = training && !training.ready ? training.message : null;
+  const { pipeline, lastRun, running } = useRetrain();
   return (
-    <>
-      <ListGroup
-        title="Training"
-        // How the last run went, beside the heading: the rows that said
-        // it and the ratings' count went, the note saying what matters.
-        badge={pipeline?.airflow_reachable && (lastRun || running) && <RunBadge state={lastRun?.state} running={running} />}
-        footer={!pipeline?.airflow_reachable
-          ? <>{pipeline?.detail ?? "Airflow is not reachable from here"}. Retrain by hand with <code className="rounded bg-muted px-1 py-0.5 font-mono text-foreground">docker compose run --rm pipeline-training chart-retrain</code>.</>
-          : running ? undefined : blocked}
-      >
-        <ListRow
-          media={<BrainCircuit className="size-5" />}
-          title={running ? "Retraining…" : "Retrain the model"}
-          description={running ? "The new model serves only if it does better" : blocked ? undefined : "From every rating; it serves only if it does better"}
-          onClick={retrain.start} disabled={!retrain.canStart} data-testid="retrain-row"
-        />
-      </ListGroup>
-      {retrain.confirmDialog}
-    </>
+    <ListGroup
+      title="Training"
+      badge={pipeline?.airflow_reachable && (lastRun || running) && <RunBadge state={lastRun?.state} running={running} />}
+      footer={!pipeline?.airflow_reachable
+        ? <>Retrain by hand with <code className="rounded bg-muted px-1 py-0.5 font-mono text-foreground">docker compose run --rm pipeline-training chart-retrain</code>.</>
+        : undefined}
+    >
+      <ListRow
+        title="Airflow"
+        description={pipeline?.airflow_reachable ? "The training DAG, which Retrain starts" : pipeline?.detail ?? "Not reachable from here"}
+        value={pipeline?.airflow_reachable ? "Running" : "Not running"}
+        data-testid="airflow-row"
+      />
+    </ListGroup>
   );
 }
 
@@ -403,13 +364,50 @@ function PerformanceTab({ status, failed }: { status: Status | undefined; failed
       back="Performance"
       pages={{ versions: { title: "Versions promoted", content: model ? <Versions model={model} /> : null } }}
     >
+      {/* Under the head's model and Retrain (PerfHead), one section under
+          another, as FPL's tabs are, at the owner's pick of the dev page's
+          redesign: the algorithms compared, the model in full and the
+          chart model, the routes, and how training runs. */}
       <div className="space-y-6">
-        <TrainingGroup />
         <ModelComparison />
         <ModelGroup status={status} failed={failed} />
         <RoutesGroup status={status} failed={failed} />
+        <TrainingGroup />
       </div>
     </ConsolePages>
+  );
+}
+
+/**
+ * Perf's head, in its pill and where it was all the way up (MapPanel's
+ * head): the model serving -- what it is, when it was trained -- and
+ * Retrain, at the owner's pick of the dev page's redesign; it was a
+ * "Performance" headline over the Training group.
+ */
+export function PerfHead() {
+  const { data: status, isError } = useQuery(statusQuery);
+  const current = status?.model?.current;
+  const retrain = useRetrain();
+  const { running, training } = retrain;
+  const blocked = training && !training.ready ? training.message : null;
+  return (
+    <div className="w-full" data-testid="perf-head">
+      <ListGroup>
+        <ListRow
+          title={current ? current.model_type ?? "Unknown model" : <span role="status" className="text-muted-foreground">{status ? "No model has been promoted yet." : waiting(isError)}</span>}
+          description={current ? `Trained ${ago(current.trained_at)} · ${current.n_features} features` : undefined}
+        >
+          {current && <StatusBadge tone="up">Serving</StatusBadge>}
+        </ListRow>
+        <ListRow
+          media={<BrainCircuit className="size-5" />}
+          title={running ? "Retraining…" : "Retrain the model"}
+          description={running ? "The new model serves only if it does better" : blocked ?? "From every rating; it serves only if it does better"}
+          onClick={retrain.start} disabled={!retrain.canStart} data-testid="retrain-row"
+        />
+      </ListGroup>
+      {retrain.confirmDialog}
+    </div>
   );
 }
 

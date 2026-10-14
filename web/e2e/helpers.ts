@@ -151,10 +151,8 @@ export async function openConsole(page: Page) {
   await showTabs(page);
   const settings = page.getByTestId("settings-button");
   await settings.click();
-  // The developer's console past a phone's width is a sheet or a dialog of
-  // its own, over the panel; the planner's Setup is the panel's on every
-  // screen (MapPage's inPanel), which at the pill is out of sight.
-  if ((page.viewportSize()?.width ?? 0) >= 768 && new URL(page.url()).pathname.startsWith("/app/dev")) return;
+  // Setup is the panel's on every screen and both pages (MapPage), which
+  // at the pill is out of sight.
   // Opened at the pill's size, Setup's pill; all the way up for the rest.
   await expect(settings).toHaveAttribute("aria-current", "page");
   await grabberTo(page, "full");
@@ -227,7 +225,7 @@ export async function roleMenu(page: Page) {
   const sheet = page.getByTestId("console-sheet");
   if (!(await sheet.isVisible())) await openConsole(page);
   await expect(sheet).toBeVisible();
-  // In the Account row (AccountRow), first on Setup's page (the developer's
+  // In the Account row (AccountMenu), first on Setup's page (the developer's
   // console has it on its Account tab).
   await consolePage(sheet, "Account");
   const trigger = sheet.getByTestId("role-menu");
@@ -452,7 +450,7 @@ export async function closeCard(page: Page, closeTestId: string) {
 }
 
 /** The console's Personal tab, where who is signed in and the mode are
- *  (AccountRow), at the owner's ask: they were the console's title row. */
+ *  (AccountMenu), at the owner's ask: they were the console's title row. */
 export async function openAccount(page: Page) {
   await consolePage(page.getByTestId("console-sheet"), "Account");
 }
@@ -461,7 +459,7 @@ export async function openAccount(page: Page) {
  *  that name; the pilot's console is one page now (Setup, at the owner's
  *  pick of the redesign), its account first and Settings, Guide and About
  *  rows that open their pages -- Account is the page itself. */
-export async function consolePage(scope: Page | Locator, name: "Account" | "Settings" | "Guide" | "About") {
+export async function consolePage(scope: Page | Locator, name: "Account" | "Settings" | "Guide" | "About" | "Status") {
   const tab = scope.getByRole("tab", { name, exact: true });
   const setup = scope.getByTestId("setup-page");
   await expect(tab.or(setup).first()).toBeVisible();
