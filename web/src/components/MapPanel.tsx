@@ -30,12 +30,15 @@ interface Props {
   /** The planner's tab bar (TabBar): the panel's first row over the
    *  sheet, and at rest the pill itself, on a phone as on a larger screen. */
   bar?: ReactNode;
-  /** The bar shown with no top row under it: the console's layer, the
-   *  Settings tab's, which has no head of its own, and a card alone. */
-  barAlone?: boolean;
-  /** A card open over the tab at the pill's size: the pill keeps it, never
-   *  folding to the tabs alone under it. */
-  cardInPill?: boolean;
+  /** What the panel is showing: a tab of the planner (its head, pill,
+   *  foot and the options below), a card open alone over it (the bar
+   *  over the card, the pill keeping it, never folding to the tabs alone
+   *  under it), or the console's layer (the Setup tab: the bar over the
+   *  console, with no head of its own). The options that belong to a tab
+   *  -- its head in the pill, its pill's body, its foot staying -- are a
+   *  tab's alone, and the console takes neither a card over it nor the
+   *  body to the edge: the panel keeps to that, not each caller. */
+  layer?: "tab" | "card" | "console";
   /** A card from another tab's world open over this one -- an airport's
    *  card over FPL -- on a phone the bar minimized to the card's kind with
    *  Back to the tab, at the owner's ask ("don't make the tabs into a
@@ -153,7 +156,16 @@ const between = (from: number, to: number, t: number) => from + (to - from) * t;
  * drawer that never closes held the keyboard's focus inside itself and
  * hid the map, and any dialog opened before it, from a screen reader.
  */
-export default function MapPanel({ label, top, controls, compact, children, state, onStateChange, onInsetsChange, toEdge = false, bar, barAlone = false, cardInPill = false, cardOver = false, headInPill = false, foot, pillBody, footStays = false }: Props) {
+export default function MapPanel({ label, top, controls, compact, children, state, onStateChange, onInsetsChange, toEdge: edgeAsked = false, bar, layer = "tab", cardOver: overAsked = false, headInPill: headAsked = false, foot, pillBody: bodyAsked, footStays: staysAsked = false }: Props) {
+  // A tab's options for a tab, a card's for a card: what each layer takes.
+  const barAlone = layer !== "tab";
+  const cardInPill = layer === "card";
+  const tab = layer === "tab";
+  const headInPill = tab && headAsked;
+  const footStays = tab && staysAsked;
+  const pillBody = tab ? bodyAsked : undefined;
+  const cardOver = layer !== "console" && overAsked;
+  const toEdge = layer !== "console" && edgeAsked;
   // No half size, at the owner's ask ("let's remove the half card"): the
   // tabs alone, the pill and all the way up.
   const onPhone = useIsMobile();

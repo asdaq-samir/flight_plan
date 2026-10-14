@@ -1,4 +1,5 @@
 import { useId, useState } from "react";
+import FieldHit from "../../components/FieldHit";
 import { ListGroup, ListRow } from "../../components/GroupedList";
 import { Input } from "../../components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
@@ -46,12 +47,12 @@ export function ReviewAskForm({ instructors, initialDay, pending, onAsk }: {
         </ListRow>
       )}
       <ListRow id={ids.mm} title="Make and model">
-        <Input id={ids.mm} value={makeModel} placeholder="Cessna 172" maxLength={80} className="h-8 w-44"
-          onChange={e => setMakeModel(e.target.value)} data-testid="review-make-model" />
+        <FieldHit htmlFor={ids.mm}><Input id={ids.mm} value={makeModel} placeholder="Cessna 172" maxLength={80} className="h-8 w-44"
+          onChange={e => setMakeModel(e.target.value)} data-testid="review-make-model" /></FieldHit>
       </ListRow>
       <ListRow id={ids.on} title="Day of the flight">
-        <Input id={ids.on} type="date" value={flightOn} min={localDay()} className="h-8 w-40"
-          onChange={e => setFlightOn(e.target.value || localDay())} data-testid="review-day" />
+        <FieldHit htmlFor={ids.on}><Input id={ids.on} type="date" value={flightOn} min={localDay()} className="h-8 w-40"
+          onChange={e => setFlightOn(e.target.value || localDay())} data-testid="review-day" /></FieldHit>
       </ListRow>
       <div className="p-2">
         <Textarea value={note} onChange={e => setNote(e.target.value)} rows={2} maxLength={500}

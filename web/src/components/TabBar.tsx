@@ -23,9 +23,11 @@ export interface BarTab<T extends string> {
  * current, not tab roles: each is a place of its own, with no tabpanel of
  * the promise a tab role makes.
  *
- * Settings is the console, out while it is the tab picked, where it was a
+ * Setup is the console, out while it is the tab picked, where it was a
  * gear beside every search field, at the pilot's ask: each card has its
- * search bar the whole width. Its button keeps the gear's test id, and is
+ * search bar the whole width. One name for it in the code too, "setup"
+ * (the tab's value, its test id setup-button), where it was "settings",
+ * "personal" and "Account" by turns as the tab was renamed. Its button is
  * where the focus goes back to as the console closes
  * (`data-console-button`, MapPage).
  *
@@ -59,8 +61,8 @@ export default function TabBar<T extends string>({ tabs, tab, over, title, onPic
 }) {
   const consoleOpen = useConsoleOpen(s => s.open);
   const setConsoleOpen = useConsoleOpen(s => s.setOpen);
-  const all: BarTab<T | "settings">[] = [...tabs, { value: "settings", label: "Setup", icon: Settings }];
-  const up: T | "settings" = consoleOpen ? "settings" : tab;
+  const all: BarTab<T | "setup">[] = [...tabs, { value: "setup", label: "Setup", icon: Settings }];
+  const up: T | "setup" = consoleOpen ? "setup" : tab;
   const minimized = useContext(TabBarMinimized);
   const size = useContext(PanelSize);
   const shown = useTabsShown(s => s.shown);
@@ -72,9 +74,9 @@ export default function TabBar<T extends string>({ tabs, tab, over, title, onPic
   const upTab = all.find(t => t.value === up)!;
   // A tab picked as a tap on it picks it: Setup's the console, the others
   // the workspace's (onPick).
-  const pick = (value: T | "settings") => {
+  const pick = (value: T | "setup") => {
     setShown(false);
-    if (value === "settings") {
+    if (value === "setup") {
       setConsoleOpen(true);
       return;
     }
@@ -222,7 +224,7 @@ export default function TabBar<T extends string>({ tabs, tab, over, title, onPic
     <nav ref={bar} aria-label="Tabs" className={cn("flex h-full w-full items-stretch print:hidden", className)} data-testid="tab-bar">
       {all.map(({ value, label, icon: Icon }) => {
         const current = value === up;
-        const mark = value === "settings" ? undefined : marks?.[value as T];
+        const mark = value === "setup" ? undefined : marks?.[value as T];
         return (
           <button
             key={value} type="button" aria-current={current ? "page" : undefined}
@@ -252,8 +254,8 @@ export default function TabBar<T extends string>({ tabs, tab, over, title, onPic
                 size.to("peek");
               } else size.to(size.size === "peek" ? "tabs" : "peek");
             }}
-            data-testid={value === "settings" ? "settings-button" : `tab-${value}`} data-current={current || undefined}
-            data-console-button={value === "settings" ? "" : undefined}
+            data-testid={value === "setup" ? "setup-button" : `tab-${value}`} data-current={current || undefined}
+            data-console-button={value === "setup" ? "" : undefined}
             // Its mark said to a reader, after its name.
             aria-label={mark ? `${label}, ${mark === "stop" ? "warning" : "caution"}` : undefined}
             className={cn(

@@ -149,7 +149,7 @@ async function panelFull(page: Page) {
  *  tab tapped again opens it, as every tab's does. */
 export async function openConsole(page: Page) {
   await showTabs(page);
-  const settings = page.getByTestId("settings-button");
+  const settings = page.getByTestId("setup-button");
   await settings.click();
   // Setup is the panel's on every screen and both pages (MapPage), which
   // at the pill is out of sight.

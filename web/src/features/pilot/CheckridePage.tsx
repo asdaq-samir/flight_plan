@@ -2,6 +2,7 @@ import { useId, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Check, Circle } from "lucide-react";
 import { cn } from "cn";
+import FieldHit from "../../components/FieldHit";
 import { ListGroup, ListRow } from "../../components/GroupedList";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
@@ -127,11 +128,11 @@ function Instructors({ training }: { training: Training }) {
         footer="An instructor you ask in sees your experience, endorsements and knowledge test codes here, reviews your solo cross-countries (14 CFR 61.93(c)(3)) and signs your endorsements. They answer by signing in with the address you ask, and either of you can end it."
       >
         <ListRow id={nameId} title="Your name" description="As on your student pilot certificate">
-          <Input
+          <FieldHit htmlFor={nameId}><Input
             id={nameId} value={name} placeholder="Avery B. Student" maxLength={120} className="h-8 w-44 sm:w-56" autoComplete="name"
             onChange={e => setName(e.target.value)} data-testid="student-name"
             onBlur={() => { if (name.trim() && name.trim() !== training.fullName) saveName.mutate(name.trim()); }}
-          />
+          /></FieldHit>
         </ListRow>
         {training.instructors.map(l => (
           <ListRow
@@ -146,10 +147,10 @@ function Instructors({ training }: { training: Training }) {
           </ListRow>
         ))}
         <ListRow id={emailId} title="Ask an instructor">
-          <Input
+          <FieldHit htmlFor={emailId}><Input
             id={emailId} type="email" value={email} placeholder="cfi@example.com" className="h-8 w-44 sm:w-56" autoComplete="off"
             onChange={e => setEmail(e.target.value)} data-testid="instructor-email"
-          />
+          /></FieldHit>
         </ListRow>
         <ListRow
           title={<span className="font-medium text-tint">Ask</span>}

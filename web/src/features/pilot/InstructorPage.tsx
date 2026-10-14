@@ -4,6 +4,7 @@ import { Check, X } from "lucide-react";
 import { cn } from "cn";
 import { ConsolePages, PageRow } from "../../components/ConsolePages";
 import ConsoleClose from "../../components/ConsoleClose";
+import FieldHit from "../../components/FieldHit";
 import { ListGroup, ListRow } from "../../components/GroupedList";
 import Segmented from "../../components/Segmented";
 import { Button } from "../../components/ui/button";
@@ -43,12 +44,12 @@ function CertificateForm({ instructor, onDone }: { instructor: Instructor; onDon
         footer="As every endorsement you sign carries it (AC 61-65K): your name, the certificate number with its ratings' letters, and the end of your recent experience (14 CFR 61.197) or, on an older certificate, its expiration date."
       >
         <ListRow id={ids.name} title="Name">
-          <Input id={ids.name} value={draft.fullName} placeholder="J. J. Jones" maxLength={120} className="h-8 w-44 sm:w-56"
-            onChange={e => setDraft({ ...draft, fullName: e.target.value })} data-testid="cfi-name" />
+          <FieldHit htmlFor={ids.name}><Input id={ids.name} value={draft.fullName} placeholder="J. J. Jones" maxLength={120} className="h-8 w-44 sm:w-56"
+            onChange={e => setDraft({ ...draft, fullName: e.target.value })} data-testid="cfi-name" /></FieldHit>
         </ListRow>
         <ListRow id={ids.number} title="Certificate">
-          <Input id={ids.number} value={draft.certificate} placeholder="987654321CFI" maxLength={20} className="h-8 w-44 font-mono sm:w-56"
-            autoCapitalize="characters" onChange={e => setDraft({ ...draft, certificate: e.target.value })} data-testid="cfi-number" />
+          <FieldHit htmlFor={ids.number}><Input id={ids.number} value={draft.certificate} placeholder="987654321CFI" maxLength={20} className="h-8 w-44 font-mono sm:w-56"
+            autoCapitalize="characters" onChange={e => setDraft({ ...draft, certificate: e.target.value })} data-testid="cfi-number" /></FieldHit>
         </ListRow>
         <ListRow title="Its date">
           <Segmented
@@ -57,8 +58,8 @@ function CertificateForm({ instructor, onDone }: { instructor: Instructor; onDon
           />
         </ListRow>
         <ListRow id={ids.until} title={draft.untilKind === "RE" ? "Recent experience ends" : "Expires"}>
-          <Input id={ids.until} type="date" value={draft.until} className="h-8 w-40"
-            onChange={e => setDraft({ ...draft, until: e.target.value })} data-testid="cfi-until" />
+          <FieldHit htmlFor={ids.until}><Input id={ids.until} type="date" value={draft.until} className="h-8 w-40"
+            onChange={e => setDraft({ ...draft, until: e.target.value })} data-testid="cfi-until" /></FieldHit>
         </ListRow>
         <ListRow
           title={<span className="font-medium text-tint">Save</span>} disabled={!ready || save.isPending}

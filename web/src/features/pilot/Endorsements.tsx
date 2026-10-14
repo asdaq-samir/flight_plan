@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { cn } from "cn";
+import FieldHit from "../../components/FieldHit";
 import { ListGroup, ListRow } from "../../components/GroupedList";
 import TickBox from "../../components/TickBox";
 import { Input } from "../../components/ui/input";
@@ -117,11 +118,11 @@ export function SignForm({ kind, studentId, studentName, instructor, initial, re
       <ListGroup title={kind.label} footer={`AC 61-65K ${kind.paragraph}, 14 CFR ${kind.rule}.`}>
         {kind.fields.map(f => (
           <ListRow key={f.key} id={`sign-${kind.code}-${f.key}`} title={f.label}>
-            <Input
+            <FieldHit htmlFor={`sign-${kind.code}-${f.key}`}><Input
               id={`sign-${kind.code}-${f.key}`} value={fields[f.key] ?? ""} placeholder={f.example} maxLength={300}
               className="h-8 w-44 sm:w-56" data-testid={`sign-field-${f.key}`}
               onChange={e => setFields(prev => ({ ...prev, [f.key]: e.target.value }))}
-            />
+            /></FieldHit>
           </ListRow>
         ))}
       </ListGroup>

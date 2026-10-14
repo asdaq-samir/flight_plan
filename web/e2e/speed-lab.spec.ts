@@ -1,6 +1,6 @@
 import { writeFileSync } from "node:fs";
 import { test, type Page } from "@playwright/test";
-import { noTips } from "./helpers";
+import { controlsInSight, noTips, openPanel } from "./helpers";
 
 /**
  * The nightly lab run for the speed trend (ci.yml, SpeedController): the
@@ -10,8 +10,12 @@ import { noTips } from "./helpers";
  * its commit. Each step three times and the median kept: single samples
  * of the same build spread by a fifth (the measure-speed skill).
  *
- *   open_app       navigation to the search bar on screen
- *   fly_here       a tap on Fly Here to the route's destination on screen
+ *   open_app       navigation to the tab bar on screen (the search bar
+ *                  until the redesign of 2026-10-13 opened the app as
+ *                  the tabs alone)
+ *   fly_here       a tap on Fly Here to the route's time en route on screen
+ *                  (its destination in the route box until the redesign
+ *                  of 2026-10-13 put the figures in the pill)
  *   map_settings,  a tap's Interaction to Next Paint (the Event Timing
  *   share_menu,    API's duration, what Chrome reports as INP)
  *   aircraft_menu
@@ -39,7 +43,7 @@ async function probes(page: Page) {
     new PerformanceObserver(list => { for (const e of list.getEntries()) w.__long.push({ t: e.startTime, d: e.duration }); })
       .observe({ type: "longtask", buffered: true });
     const look = () => {
-      if (document.querySelector("[data-testid=search-airports]")) w.__search = performance.now();
+      if (document.querySelector("[data-testid=tab-bar]")) w.__search = performance.now();
       else requestAnimationFrame(look);
     };
     requestAnimationFrame(look);
@@ -86,7 +90,7 @@ test("the nightly speed lab", async ({ page }, info) => {
   for (let run = 0; run < RUNS; run++) {
     // Opening the app, and the map's own steps on it.
     await page.goto("/app/plan");
-    await page.getByTestId("search-airports").waitFor({ timeout: 60_000 });
+    await page.getByTestId("tab-bar").first().waitFor({ timeout: 60_000 });
     keep("open_app", await page.evaluate(() => (window as unknown as { __search: number }).__search));
     await page.locator("img.leaflet-tile").first().waitFor({ state: "attached", timeout: 60_000 });
     await page.waitForTimeout(3000);
@@ -109,11 +113,12 @@ test("the nightly speed lab", async ({ page }, info) => {
     await page.waitForTimeout(3000);
     from = await now(page);
     await page.getByTestId("fly-here").click();
-    keep("fly_here", (await shownAt(page, "[data-testid=route-dest]")) - from);
+    keep("fly_here", (await shownAt(page, "[data-testid=navlog-ete]")) - from);
 
     // The route's own menus.
     await page.goto("/app/plan?dep=C81&dest=KDLH");
-    await page.locator('[data-testid="tab-bar"] button[aria-current="page"]').click({ timeout: 60_000 });
+    await openPanel(page);
+    await controlsInSight(page);
     await page.locator("[data-testid=navlog-eta]").first().waitFor({ state: "attached", timeout: 90_000 });
     await page.waitForTimeout(3000);
     for (const [name, open, shown] of [

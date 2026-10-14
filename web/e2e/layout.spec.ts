@@ -65,7 +65,7 @@ test.describe("/app/plan", () => {
     await settle(page);
     await expect(sideDrawer(page)).toHaveAttribute("data-panel", "peek");
     await expect(sideDrawer(page)).toHaveAttribute("data-collapsed", "true");
-    await expect(sideDrawer(page).getByTestId("tab-bar").getByTestId("settings-button")).toBeVisible();
+    await expect(sideDrawer(page).getByTestId("tab-bar").getByTestId("setup-button")).toBeVisible();
     await expect(page.getByTestId("search-close")).toHaveCount(0);
 
     // The grabber on the panel's far edge, once the panel has come to rest.
@@ -262,7 +262,7 @@ for (const path of PAGES) {
     else expect(firstBox.y).toBeGreaterThan(viewport.height / 2);
     // Never among the map's buttons, on either page: their first is the
     // map's own, its sheet the map's settings, as Maps' is.
-    expect(await page.locator("[data-map-controls]").getByTestId("settings-button").count()).toBe(0);
+    expect(await page.locator("[data-map-controls]").getByTestId("setup-button").count()).toBe(0);
     await expect(first).toHaveAttribute("data-testid", "map-settings-button");
     await first.click();
     await expect(page.getByTestId("map-settings").getByTestId("base-chart-select")).toBeVisible();
@@ -273,17 +273,17 @@ for (const path of PAGES) {
       // At the end of the training page's route capsule, which has no
       // search bar.
       await showTabs(page);
-      await expect(sideDrawer(page).getByTestId("settings-button")).toBeVisible();
+      await expect(sideDrawer(page).getByTestId("setup-button")).toBeVisible();
     } else {
       // At the end of the route's capsule, as at the search bar's once
       // the route is closed, as Maps' account is.
       await showTabs(page);
-      await expect(sideDrawer(page).getByTestId("settings-button")).toBeVisible();
+      await expect(sideDrawer(page).getByTestId("setup-button")).toBeVisible();
       await page.goto(path);
       await settle(page);
       await showTabs(page);
-      await expect(sideDrawer(page).getByTestId("settings-button")).toBeVisible();
-      expect(await page.locator("[data-map-controls]").getByTestId("settings-button").count()).toBe(0);
+      await expect(sideDrawer(page).getByTestId("setup-button")).toBeVisible();
+      expect(await page.locator("[data-map-controls]").getByTestId("setup-button").count()).toBe(0);
     }
 
     // The settings, the console's last tab, no longer hold the map's:

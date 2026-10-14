@@ -23,7 +23,7 @@ test("the tabs swap the panel's head and body, FPL's empty box with no route", a
   await page.getByTestId("tab-airport").click();
   await expect(sideDrawer(page).getByTestId("search-airports")).toBeVisible();
   await showTabs(page);
-  await expect(bar.getByTestId("settings-button")).toBeVisible();
+  await expect(bar.getByTestId("setup-button")).toBeVisible();
 
   await showTabs(page);
   await page.getByTestId("tab-aircraft").click();
@@ -45,9 +45,9 @@ test("the tabs swap the panel's head and body, FPL's empty box with no route", a
   // Settings, the last tab: the console, the tab up while it is out, and
   // put away the tab it was opened from again.
   await showTabs(page);
-  await bar.getByTestId("settings-button").click();
+  await bar.getByTestId("setup-button").click();
   await showTabs(page);
-  await expect(bar.getByTestId("settings-button")).toHaveAttribute("aria-current", "page");
+  await expect(bar.getByTestId("setup-button")).toHaveAttribute("aria-current", "page");
   await page.keyboard.press("Escape");
   await showTabs(page);
   await expect(page.getByTestId("tab-fpl")).toHaveAttribute("aria-current", "page");
@@ -306,7 +306,7 @@ test("all the way up, another tab tapped is that tab all the way up; the tab up 
   await page.getByTestId("tab-aircraft").click();
   await expect(page.getByTestId("tab-aircraft")).toHaveAttribute("aria-current", "page");
   await expect(panel).toHaveAttribute("data-panel", "full");
-  await page.getByTestId("settings-button").click();
+  await page.getByTestId("setup-button").click();
   await expect(panel).toHaveAttribute("data-panel", "full");
   await expect(panel.getByTestId("setup-page")).toBeVisible();
   await page.getByTestId("tab-airport").click();
