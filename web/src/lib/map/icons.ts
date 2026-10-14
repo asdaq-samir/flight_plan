@@ -1,4 +1,5 @@
 import L from "leaflet";
+import { ownShipSvg, type OwnShipLook } from "./ownShipLook";
 import type { AirspaceClass } from "../preferences";
 import { inkOn } from "../scoreScale";
 import { textWidth } from "../textWidth";
@@ -82,23 +83,24 @@ export const dotIcon = made(function dotIcon(fill: string, label?: string | numb
   });
 });
 
-/** Own ship: an arrow the size of a checkpoint dot, blue with a white
- *  casing so it holds over any chart colour, turned to the GPS heading
- *  -- a plain dot while stationary, when there is none. */
-export function ownShipIcon(headingDeg: number | null, off = false) {
+/** Own ship: the arrow, or the plane the pilot picked (lib/map/ownShipLook),
+ *  blue in a white casing so it holds over any chart colour, turned to the
+ *  GPS heading -- the arrow a plain dot while stationary, when there is
+ *  none; a plane nose up then, as it is drawn in the settings. */
+export function ownShipIcon(headingDeg: number | null, off = false, look: OwnShipLook = "arrow") {
   // Grey where own ship is off: the last position, no longer watched, as
   // Maps greys its dot when it stops knowing where you are.
   const fill = off ? "#9ca3af" : "#2563eb";
+  const plane = look !== "arrow";
+  const size = plane ? 34 : 28;
   return L.divIcon({
     className: "",
-    iconSize: [28, 28],
-    iconAnchor: [14, 14],
-    html: headingDeg === null || off
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+    html: !plane && (headingDeg === null || off)
       ? `<div data-own-ship="${off ? "off" : "on"}" class="absolute left-1/2 top-1/2 size-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-[2.5px] border-white shadow-[0_1px_4px_rgba(0,0,0,.45)]" style="background:${fill}"></div>`
-      : `<svg viewBox="0 0 28 28" width="28" height="28" aria-hidden="true" data-own-ship="on"` +
-        ` class="absolute left-0 top-0 drop-shadow-[0_1px_3px_rgba(0,0,0,.5)]"` +
-        ` style="transform:rotate(${Number(headingDeg)}deg)">` +
-        `<path d="M14 3 L23 24 L14 19 L5 24 Z" fill="${fill}" stroke="#ffffff" stroke-width="2.5" stroke-linejoin="round"/></svg>`,
+      : ownShipSvg(look, fill, size,
+        `data-own-ship="${off ? "off" : "on"}" data-look="${look}" class="absolute left-0 top-0 drop-shadow-[0_1px_3px_rgba(0,0,0,.5)]" style="transform:rotate(${Number(headingDeg ?? 0)}deg)"`),
   });
 }
 
