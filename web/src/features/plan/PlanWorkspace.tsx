@@ -1,14 +1,9 @@
 import { Suspense, lazy, memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type ComponentType } from "react";
 import { flushSync } from "react-dom";
 import { useQueries, useQuery } from "@tanstack/react-query";
-import { FileArchive, Play, FolderOpen, FileDown, FileText, Link2, MapPin, MapPinned, Plane, Printer, Route, Send, Share, TowerControl, Trash2 } from "lucide-react";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "../../components/ui/dropdown-menu";
-import { foreflightRoute, fplOf, gpxOf, shareFile, type PlanPoint } from "../../lib/flightPlanFiles";
-import { markPackSent, openInForeFlight, packOrigin, packPath, packSent } from "../../lib/foreflightPack";
+import { Play, FolderOpen, MapPin, Plane, Route, TowerControl } from "lucide-react";
 import { navLogRows } from "./components/navlog/rows";
 import { fromChunk } from "../../lib/fromChunk";
-import { toast } from "sonner";
-import { showError } from "../../lib/problems";
 import { cn } from "cn";
 import { api } from "../../lib/api/client";
 import { checkpointsQuery, courseQuery, nearestQuery, pilotQuery, queryClient } from "../../lib/queryClient";
@@ -21,7 +16,7 @@ import { useTabSearch } from "../../lib/tabSearch";
 import TabBar, { type BarTab } from "../../components/TabBar";
 import { useTabAsk } from "./components/navlog/panelTab";
 import { useAddressCards, usePanelTabs, type PanelTab } from "./hooks/useTabCards";
-import { MAX_STOPS, altitudesOf, altitudesParam, departureOf, identOf, isAirwayToken, positionIdent, routeName, routeOf, stopsOf } from "../../lib/identSchema";
+import { MAX_STOPS, altitudesOf, altitudesParam, departureOf, identOf, isAirwayToken, positionIdent, routeOf, stopsOf } from "../../lib/identSchema";
 import { useKeptAirport, usePreferences, type RecentAirport } from "../../lib/preferences";
 import { SearchNear, useAirportSearch } from "../../lib/useAirportSearch";
 import { RouteMap } from "./routeMapChunk";
@@ -29,7 +24,7 @@ import { useProgressToast } from "../../lib/useProgressToast";
 import { useSearchParamsNow } from "../../lib/useSearchParamsNow";
 import type { WorkspaceProps } from "../page/workspace";
 import RoundButton from "../../components/RoundButton";
-import { ResponsivePopover, ResponsivePopoverAnchor } from "../../components/ResponsivePopover";
+import ShareMenu from "./components/ShareMenu";
 import TipHost from "../../components/TipHost";
 import { useCardTitle, usePanelDragging } from "../../components/mapChrome";
 import { SearchField, SearchResults } from "../../components/PanelCapsule";
@@ -59,7 +54,6 @@ import type { PointAltitude } from "./components/PointAltitudeDialog";
 import { navlogQuery, usePlan } from "./hooks/usePlan";
 import { useVerdict, type VerdictItem } from "../../lib/verdict";
 import type { BriefingPart } from "./components/briefing/sections";
-import { cancelled, shareOrCopy } from "../../lib/share";
 import { mayUse, useEntitlement } from "../../lib/subscription";
 import PaidPrompt from "../../components/PaidPrompt";
 import { grouped } from "../../lib/units";
@@ -664,8 +658,6 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // Add Stop open: from its own button, or from no legal altitude's --
   // "via", its Fly via round a Class B, the ways round suggested.
   const [addingStop, setAddingStop] = useState<false | "stop" | "via">(false);
-  // The solo cross-country review's sheet, from the Share menu.
-  const [askingReview, setAskingReview] = useState(false);
   // The other way past Class B airspace that stops the route: accepted,
   // and taken back.
   // A field's card or a waypoint's diamond on the chart, put in the
@@ -907,62 +899,6 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     if (under) setSearchParams(prev => keeping(prev, under), { replace: true });
     setUnder(null);
   }, [hasPoints, under, setSearchParams, setTabPick]);
-
-  // The plan's own address, to another device or person: the share
-  // sheet where the browser has one (Safari on an iPhone) or in the iOS
-  // app (lib/native), otherwise copied.
-  const share = useCallback(async () => {
-    const url = window.location.href;
-    const title = routeName(planned.dep, planned.dest, planned.stops);
-    try {
-      if (await shareOrCopy({ title, url }) === "copied") toast.success("Link copied");
-    } catch (err) {
-      if (!cancelled(err)) showError("Could not share the route", (err as Error).message);
-    }
-  }, [planned.dep, planned.dest, planned.stops]);
-
-  // The route as the files and ForeFlight's link take it: the departure,
-  // each checkpoint, stop and the destination, as the nav log lists them
-  // (lib/flightPlanFiles).
-  const points = useMemo((): PlanPoint[] => !course ? [] : navLogRows(course, selected, []).flatMap((row): PlanPoint[] => {
-    if (row.kind === "checkpoint") return [{ ident: "", name: row.cp.name || row.cp.category, kind: "checkpoint", lat: row.cp.lat, lon: row.cp.lon, waypoint: row.cp.waypoint }];
-    if (row.kind === "toc" || row.kind === "tod") return [];
-    return [{ ident: row.airport.ident, name: row.airport.name ?? row.airport.ident, kind: row.airport.kind === "fix" ? "fix" : "airport", lat: row.airport.lat, lon: row.airport.lon }];
-  }), [course, selected]);
-
-  const exportPlan = useCallback(async (kind: "fpl" | "gpx") => {
-    if (!points.length) return;
-    const name = routeName(planned.dep, planned.dest, planned.stops);
-    const file = name.replace(/[^A-Za-z0-9]+/g, "-").replace(/^-|-$/g, "");
-    try {
-      if (kind === "fpl") await shareFile(`${file}.fpl`, "application/xml", fplOf(points, name));
-      else await shareFile(`${file}.gpx`, "application/gpx+xml", gpxOf(points, name));
-    } catch (err) {
-      if ((err as Error).name !== "AbortError") showError("Could not export the route", (err as Error).message);
-    }
-  }, [points, planned.dep, planned.dest, planned.stops]);
-
-  // The checkpoints as a ForeFlight content pack, built by the planner
-  // (lib/foreflightPack): each a waypoint with its own page, and the course
-  // drawn on its map, for ForeFlight's own link or to download.
-  const packHref = selected.length ? packPath(planned.dep, planned.dest, planned.stops) : null;
-  // Open in ForeFlight is one button for the two hand-offs ForeFlight
-  // needs: the pack first, the first time a route goes there from this
-  // device, then the route itself, its checkpoints by their names in the
-  // pack (CONTPACK@LAKE_ZURICH) -- ForeFlight takes no route and pack in
-  // one. The pilot asked for one step; it is one button, tapped twice the
-  // first time and once after.
-  const packRoute = [planned.dep, ...planned.stops, planned.dest].join("-");
-  const packNames = selected.map(c => c.waypoint ?? "");
-  const [, packChanged] = useState(0);
-  const sentPack = packHref !== null && packSent(packRoute, packNames);
-  const sendPack = () => {
-    markPackSent(packRoute, packNames);
-    // The button's own link changes after the tap has followed it: changed
-    // at once, the tap followed the new one, the route's.
-    window.setTimeout(() => packChanged(n => n + 1), 0);
-    toast.info("Sending the checkpoints to ForeFlight. When it has added them, tap Open in ForeFlight again for the route, the checkpoints by name.");
-  };
 
   // A different airplane means different legs: remembered, and the
   // nav log's own key changes with it.
@@ -1243,40 +1179,6 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
 
   const addingChange = useCallback((open: boolean) => setAddingStop(open ? "stop" : false), []);
 
-  // The route shared: a link, a file for another app or the panel's GPS,
-  // on an iPhone the share sheet's Open in ForeFlight.
-  const shareItems = (
-    <>
-      <DropdownMenuItem onSelect={() => void share()}><Link2 />Share link</DropdownMenuItem>
-      <DropdownMenuItem onSelect={() => void exportPlan("fpl")} data-testid="export-fpl"><FileDown />Flight plan (.fpl)</DropdownMenuItem>
-      <DropdownMenuItem onSelect={() => void exportPlan("gpx")} data-testid="export-gpx"><FileDown />GPX route (.gpx)</DropdownMenuItem>
-      {/* Links, not handlers: ForeFlight opens from a tap on its
-          own link, and a download needs one too. */}
-      {points.length > 0 && (packHref && !sentPack ? (
-        <DropdownMenuItem asChild data-testid="open-foreflight">
-          <a href={openInForeFlight(new URL(packHref, packOrigin(window.location)).href)} onClick={sendPack}>
-            <Send />Open in ForeFlight
-          </a>
-        </DropdownMenuItem>
-      ) : (
-        <DropdownMenuItem asChild data-testid="open-foreflight">
-          <a href={foreflightRoute(points, s.nav?.altitude_ft, sentPack)}><Send />Open in ForeFlight</a>
-        </DropdownMenuItem>
-      ))}
-      {/* Sent once and since deleted in ForeFlight: again. */}
-      {packHref && sentPack && (
-        <DropdownMenuItem asChild data-testid="foreflight-pack">
-          <a href={openInForeFlight(new URL(packHref, packOrigin(window.location)).href)}><MapPinned />Send the checkpoints again</a>
-        </DropdownMenuItem>
-      )}
-      {packHref && (
-        <DropdownMenuItem asChild data-testid="export-foreflight">
-          <a href={packHref} download><FileArchive />Checkpoints for ForeFlight (.zip)</a>
-        </DropdownMenuItem>
-      )}
-    </>
-  );
-
   // The flight plan filed: the Brief's Flight Plan, where the FAA's form
   // is filled in from the plan and sent where Flight Service is connected
   // -- all the way up, the panel the form's room. Only where the Brief has
@@ -1287,12 +1189,6 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     useTabAsk.getState().go("preflight", "Flight Plan");
   };
 
-  // Share, a round button of glass beside the route's Approaches -- at the
-  // capsule's start at rest -- and with it, at the pilot's ask, everything
-  // else the route's row had: Save, Print, filing the flight plan and the
-  // route's close, so the box has the top row to itself and the chips'
-  // row ends in two buttons. Greyed in its places with no route (cleared,
-  // or half typed), the menu keeping its shape.
   // The plan as a flight to save: Save's, and the solo cross-country
   // review's, which saves it as it asks.
   // A route from a present position too: the webapp files one (V17), as
@@ -1303,53 +1199,19 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     course: routed ? course : null, totals: s.pointToPoint ? null : s.totals, nav: s.nav, legs: s.legs, selected: s.logSelected,
     aircraftId: aircraft.aircraftId ?? null, depart, altitudes,
   };
+  // Share and everything else the route's row had (ShareMenu).
   const shareMenu = (align: "start" | "end") => (
-    // The review's sheet, from the menu's item, placed by the Share
-    // button: the menu has gone by the time it opens (as Print waits).
-    <ResponsivePopover open={askingReview} onOpenChange={setAskingReview}>
-    <DropdownMenu>
-      <ResponsivePopoverAnchor asChild>
-        <DropdownMenuTrigger asChild>
-          <RoundButton label="Share this route" data-testid="share-route">
-            <Share className="size-5" strokeWidth={2} />
-          </RoundButton>
-        </DropdownMenuTrigger>
-      </ResponsivePopoverAnchor>
-      <DropdownMenuContent align={align} className="min-w-56 print:hidden">
-        {routed && <>{shareItems}<DropdownMenuSeparator /></>}
+    <ShareMenu
+      align={align} planned={planned} course={course} selected={selected} altitudeFt={s.nav?.altitude_ft ?? undefined}
+      routed={routed} hasPoints={hasPoints} local={!!s.local} fileable={fileable} onFile={fileFlightPlan} onClear={clearRoute}
+      saving={askReview => (
         <Suspense fallback={null}>
           <SaveFlightButton {...flightToSave} />
-          <ReviewAskItem flight={flightToSave} onAsk={() => setTimeout(() => setAskingReview(true), 150)} />
+          <ReviewAskItem flight={flightToSave} onAsk={askReview} />
         </Suspense>
-        <DropdownMenuItem disabled={!fileable} onSelect={fileFlightPlan} data-testid="file-flight-plan"><FileText />File flight plan</DropdownMenuItem>
-        {/* Printed once the menu has gone, so it is not on the paper: the
-            whole briefing, or the kneeboard card -- the nav log, radio and
-            patterns on one half-letter page to fly with. */}
-        <DropdownMenuItem disabled={!routed} onSelect={() => setTimeout(() => window.print(), 150)} data-testid="print-briefing">
-          <Printer />Print the briefing
-        </DropdownMenuItem>
-        {!s.local && (
-          <DropdownMenuItem
-            disabled={!routed} data-testid="print-kneeboard"
-            onSelect={() => setTimeout(() => void import("../../lib/printKneeboard").then(m => m.printKneeboard()), 150)}
-          >
-            <Printer />Print a kneeboard card
-          </DropdownMenuItem>
-        )}
-        {hasPoints && (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem variant="destructive" onSelect={clearRoute} data-testid="route-clear"><Trash2 />Clear the route</DropdownMenuItem>
-          </>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
-    {askingReview && (
-      <Suspense fallback={null}>
-        <ReviewAskSheet flight={flightToSave} onDone={() => setAskingReview(false)} />
-      </Suspense>
-    )}
-    </ResponsivePopover>
+      )}
+      reviewSheet={done => <Suspense fallback={null}><ReviewAskSheet flight={flightToSave} onDone={done} /></Suspense>}
+    />
   );
 
 

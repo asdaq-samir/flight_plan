@@ -78,7 +78,7 @@ test("plan page: the flight planning drawer opens the way the Model Training dra
   // a gear in the head.
   await expect(drawer.getByTestId("flight-line")).toBeVisible();
   expect(await page.locator("header").getByLabel("Departure", { exact: true }).count()).toBe(1);
-  expect(await page.locator("header").getByTestId("settings-button").count()).toBe(0);
+  expect(await page.locator("header").getByTestId("setup-button").count()).toBe(0);
 
   // The route's two buttons, Approaches and Share, at the end of the
   // airplane's, the altitude's and the time's line, at the pilot's ask;

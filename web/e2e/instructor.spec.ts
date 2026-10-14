@@ -29,7 +29,7 @@ async function signedInAs(page: Page, address: string) {
  *  them away again). */
 async function consoleOpen(page: Page) {
   const console = page.getByTestId("console-sheet");
-  await expect(page.getByTestId("tab-title").or(page.getByTestId("settings-button")).or(console).first()).toBeVisible();
+  await expect(page.getByTestId("tab-title").or(page.getByTestId("setup-button")).or(console).first()).toBeVisible();
   if (!(await console.isVisible())) await openConsole(page);
 }
 

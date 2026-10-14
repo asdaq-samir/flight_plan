@@ -29,7 +29,7 @@ const devSwitch = (page: Page) => page.getByRole("menuitemradio", { name: "Devel
  *  moment. It used to be a flat three seconds. */
 async function noDevSwitch(page: Page) {
   await showTabs(page);
-  await expect(page.getByTestId("settings-button")).toBeVisible();
+  await expect(page.getByTestId("setup-button")).toBeVisible();
   await roleMenu(page);
   await page.waitForTimeout(500);
   await expect(devSwitch(page)).toHaveCount(0);

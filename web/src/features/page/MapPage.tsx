@@ -277,22 +277,19 @@ export default function MapPage({ mode }: { mode: Mode }) {
             state={panel} onStateChange={setPanel} onInsetsChange={changeInsets}
             // The console's layer (Settings, a tab) has no pill: under the
             // tab bar, its own header and tabs.
-            compact={consoleLayer ? undefined : pieces.compact} toEdge={!consoleLayer && !!pieces.toEdge}
+            compact={consoleLayer ? undefined : pieces.compact} toEdge={!!pieces.toEdge}
             // The tab bar over a card alone too, as iOS keeps its tab bar on
             // every screen: the tabs were gone while one was open. The
             // Settings tab's pill (its console's layer at rest) is quick
             // controls, at the owner's ask; else the workspace's own foot.
-            bar={pieces.bar} barAlone={consoleLayer || !!pieces.alone}
+            bar={pieces.bar} layer={consoleLayer ? "console" : pieces.alone ? "card" : "tab"}
             // Setup's pill, the owner's pick of the redesign (SetupPill): the
             // switches over the account, the developer's the same.
             // Not while a finger takes the panel up: the page under it is
             // drawn in full there (usePanelDragging), not twice.
             foot={consoleLayer ? panel === "peek" && !dragging && <Suspense fallback={null}><SetupPill /></Suspense> : pieces.foot}
-            pillBody={consoleLayer || pieces.alone ? undefined : pieces.pillBody}
-            footStays={!consoleLayer && !pieces.alone && !!pieces.footStays}
-            cardInPill={!consoleLayer && !!pieces.alone}
-            cardOver={!consoleLayer && !!pieces.cardOver}
-            headInPill={!consoleLayer && !pieces.alone && !!pieces.pillHead}
+            pillBody={pieces.pillBody} footStays={!!pieces.footStays}
+            cardOver={!!pieces.cardOver} headInPill={!!pieces.pillHead}
             top={pieces.alone || consoleLayer ? null : pieces.head ?? (
               <>
                 <div className="min-w-0 flex-1">

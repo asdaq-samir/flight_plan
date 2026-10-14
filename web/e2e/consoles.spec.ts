@@ -13,7 +13,7 @@ test("signed in, each console fits the screen's width: nothing but a table's own
   // developer's buttons, and on a phone ran off the right edge). Wide
   // tables scroll inside their own container, which is the one thing
   // allowed past the edge.
-  for (const [path, button] of [["/app/plan", "settings-button"], ["/app/dev", "settings-button"]] as const) {
+  for (const [path, button] of [["/app/plan", "setup-button"], ["/app/dev", "setup-button"]] as const) {
     await page.goto(path);
     void button;
     await openConsole(page);
@@ -46,7 +46,7 @@ test("plan page: the pilot console holds the account, airplanes and flights, and
   // the search bar's place; elsewhere a sheet.
   const phone = page.viewportSize()!.width < 768;
   await showTabs(page);
-  await expect(page.getByTestId("settings-button")).toHaveAttribute("aria-current", "page");
+  await expect(page.getByTestId("setup-button")).toHaveAttribute("aria-current", "page");
   if (phone) expect(await pilot.evaluate(el => !!el.closest('[data-slot="map-panel"]'))).toBe(true);
   // The role, a menu, in Personal's Account row, at the owner's ask: Pilot
   // (chosen here), Developer for a developer, and Sign out last; who is

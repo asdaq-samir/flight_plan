@@ -120,7 +120,7 @@ test("Setup's pill is the switches in two rows, Controls, over the Account", asy
   await page.goto("/app/plan");
   await settle(page);
   await grabberTo(page, "peek");
-  await page.getByTestId("settings-button").click();
+  await page.getByTestId("setup-button").click();
   // Picked at the pill, the pill kept, as every tab keeps it: its quick
   // controls, two rows of five (the owner's "fit the setup icons in two
   // rows"), over the Account ("Label the top as controls").
@@ -239,7 +239,7 @@ test("on a phone, each tab's pill starts its first row on one line: FPL's box, t
   expect(Math.abs(await boxTop("search-airports") - fpl)).toBeLessThan(1.5);
   await pickAtRest(page, "tab-aircraft");
   expect(Math.abs(await boxTop("aircraft-search") - fpl)).toBeLessThan(1.5);
-  await pickAtRest(page, "settings-button");
+  await pickAtRest(page, "setup-button");
   await settled(panel);
   // Setup's first row, its account's group (SetupPill).
   expect(Math.abs((await panel.getByTestId("setup-pill").boundingBox())!.y - fpl)).toBeLessThan(1.5);
@@ -260,7 +260,7 @@ test("on a phone, all the way up, Setup's page starts where Airport's search bar
   await settled(panel);
   const search = (await panel.getByTestId("search-airports").locator("xpath=ancestor-or-self::*[contains(@class,'rounded')][1]").boundingBox())!.y;
   await showTabs(page);
-  await page.getByTestId("settings-button").click();
+  await page.getByTestId("setup-button").click();
   await grabberTo(page, "full");
   await settled(panel);
   // Its first row, the account as the half card has it (SetupPill).
@@ -309,7 +309,7 @@ test("a finger's swipe across the panel goes to the tab beside it, and a short o
   // On through Airport and Aircraft to Setup, the last. (From md up its
   // console is a sheet of its own, over the page, which the swipe back
   // would land on.)
-  for (const next of ["tab-airport", "tab-aircraft", "settings-button"]) {
+  for (const next of ["tab-airport", "tab-aircraft", "setup-button"]) {
     await swipe(250, 120);
     await showTabs(page);
     await expect(up()).toHaveAttribute("data-testid", next);
