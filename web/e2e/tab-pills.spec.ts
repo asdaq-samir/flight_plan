@@ -115,15 +115,15 @@ test("each tab's pill shows its own: FPL its profile and figures, Airport its Fa
   await expect(page).toHaveURL(/[?&]place=KDLH/);
 });
 
-test("Setup's pill is the account over the switches in two rows", async ({ page }) => {
+test("Setup's pill is the switches in two rows, Controls, over the Account", async ({ page }) => {
   test.skip((page.viewportSize()?.width ?? 0) >= 768, "the console is the panel's layer on a phone only");
   await page.goto("/app/plan");
   await settle(page);
   await grabberTo(page, "peek");
   await page.getByTestId("settings-button").click();
-  // Picked at the pill, the pill kept, as every tab keeps it: the account
-  // over its quick controls, two rows of five (the owner's "fit the setup
-  // icons in two rows").
+  // Picked at the pill, the pill kept, as every tab keeps it: its quick
+  // controls, two rows of five (the owner's "fit the setup icons in two
+  // rows"), over the Account ("Label the top as controls").
   const panel = sideDrawer(page);
   await expect(panel).toHaveAttribute("data-panel", "peek");
   const pill = panel.getByTestId("setup-pill");
@@ -134,7 +134,7 @@ test("Setup's pill is the account over the switches in two rows", async ({ page 
   await traffic.click();
   await expect(traffic).toHaveAttribute("aria-pressed", "false");
   const account = pill.getByTestId("pilot-address").or(pill.getByText("Not signed in")).first();
-  expect((await traffic.boundingBox())!.y).toBeGreaterThan((await account.boundingBox())!.y);
+  expect((await traffic.boundingBox())!.y).toBeLessThan((await account.boundingBox())!.y);
   expect((await pill.getByTestId("quick-dark").boundingBox())!.y).toBeCloseTo((await traffic.boundingBox())!.y, 0);
   expect((await pill.getByTestId("quick-weather").boundingBox())!.y).toBeGreaterThan((await traffic.boundingBox())!.y + 20);
   // The airplanes and the logbook are Setup's page, all the way up.
@@ -263,7 +263,8 @@ test("on a phone, all the way up, Setup's page starts where Airport's search bar
   await page.getByTestId("settings-button").click();
   await grabberTo(page, "full");
   await settled(panel);
-  const first = (await panel.getByTestId("setup-page").locator("section").first().boundingBox())!.y;
+  // Its first row, the account as the half card has it (SetupPill).
+  const first = (await panel.getByTestId("setup-head").boundingBox())!.y;
   expect(Math.abs(first - search)).toBeLessThan(1.5);
 });
 

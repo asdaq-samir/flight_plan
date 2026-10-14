@@ -1,27 +1,46 @@
+import type { ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { cn } from "cn";
+import { PillSection } from "../../components/Favorites";
+import { ListGroup } from "../../components/GroupedList";
 import QuickControls from "../../components/QuickControls";
 import { pilotQuery } from "../../lib/queryClient";
-import AccountRow, { AccountLine } from "./AccountRow";
+import { TEXT } from "../../lib/text";
+import { AccountMenu } from "./AccountRow";
 import SignInModal from "./SignInModal";
 
 /**
- * Setup's pill: who is signed in and the mode, as iPhone's Settings opens,
- * on the pill's glass with no white strip under it (the owner's pick,
- * "Glass row"), over the quick switches in two rows, at the owner's ask
- * ("fit the setup icons in two rows since we have more space"). The
- * airplanes and the logbook are Setup's page, all the way up. Signed out,
- * Sign in where the mode would be.
+ * Setup's pill: the quick switches in two rows under their title,
+ * Controls, then Account -- the mode at the title's right, the address
+ * under it, not in a table ("Email doesn't need to be in the table") -- at the
+ * owner's asks ("Label the top as controls"; "setup can show the account
+ * section with the email and then expanded starts showing everything
+ * after that"). All the way up Setup's page starts with this, the
+ * account's group going on with the airplanes, the flights, the logbook
+ * and the minimums (`rows`), so a drag up only adds below. Signed out,
+ * the way in where the account would be.
  */
-export default function SetupPill() {
+export default function SetupPill({ testId = "setup-pill", rows }: {
+  /** Its own name where Setup's page starts with it all the way up. */
+  testId?: string;
+  /** The Account's group under the address, all the way up. */
+  rows?: ReactNode;
+} = {}) {
   const { data: pilot } = useQuery(pilotQuery);
   return (
-    <div className="flex flex-col gap-2" data-testid="setup-pill">
-      {pilot ? <AccountRow glass /> : (
-        <AccountLine name="Not signed in">
-          <SignInModal plain />
-        </AccountLine>
-      )}
-      <QuickControls />
+    <div className="flex flex-col gap-4" data-testid={testId}>
+      <PillSection title="Controls" testId={`${testId}-controls`}>
+        <QuickControls />
+      </PillSection>
+      <PillSection
+        title="Account" testId={`${testId}-account`}
+        right={<>{!pilot && <SignInModal plain />}<AccountMenu /></>}
+      >
+        <p className={cn("truncate text-muted-foreground", TEXT.row)} data-testid="pilot-address">
+          {pilot?.displayName ?? "Not signed in"}
+        </p>
+        {rows && <div data-testid="library-section"><ListGroup>{rows}</ListGroup></div>}
+      </PillSection>
     </div>
   );
 }

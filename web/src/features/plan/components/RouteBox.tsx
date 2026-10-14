@@ -9,6 +9,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { cn } from "cn";
 import AirportPicker, { AirportRow, PickerGroup, SearchRows } from "../../../components/AirportPicker";
 import ClearButton from "../../../components/ClearButton";
+import { PANEL_FIELD } from "../../../components/panelField";
 import { CommandList } from "../../../components/ui/command";
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuShortcut, ContextMenuTrigger } from "../../../components/ui/context-menu";
 import { InputGroup } from "../../../components/ui/input-group";
@@ -363,7 +364,7 @@ export default function RouteBox({
               the route and a short one left a line of grey empty under it. */}
           <InputGroup
             onMouseDown={e => { if (isRoom(e)) e.preventDefault(); }} onClick={toEnd}
-            className="h-auto items-start rounded-[20.5px] border-0 bg-foreground/8 py-0 pr-1.5 pl-1 shadow-none dark:bg-foreground/8 has-[[data-slot=input-group-control]:focus-visible]:ring-0"
+            className={cn("h-auto items-start rounded-[20.5px] border-0 py-0 pr-1.5 pl-1 shadow-none has-[[data-slot=input-group-control]:focus-visible]:ring-0", PANEL_FIELD)}
             data-testid="route-box" data-tip="route"
           >
             {/* The pills wrap, two lines of them in sight and the top of a

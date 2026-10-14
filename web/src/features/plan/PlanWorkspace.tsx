@@ -1,7 +1,7 @@
 import { Suspense, lazy, memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type ComponentType } from "react";
 import { flushSync } from "react-dom";
 import { useQueries, useQuery } from "@tanstack/react-query";
-import { ChevronDown, ChevronUp, FileArchive, FolderOpen, FileDown, FileText, Link2, MapPin, MapPinned, Plane, Printer, Route, Send, Share, TowerControl, Trash2 } from "lucide-react";
+import { FileArchive, Play, FolderOpen, FileDown, FileText, Link2, MapPin, MapPinned, Plane, Printer, Route, Send, Share, TowerControl, Trash2 } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "../../components/ui/dropdown-menu";
 import { foreflightRoute, fplOf, gpxOf, shareFile, type PlanPoint } from "../../lib/flightPlanFiles";
 import { markPackSent, openInForeFlight, packOrigin, packPath, packSent } from "../../lib/foreflightPack";
@@ -10,7 +10,6 @@ import { fromChunk } from "../../lib/fromChunk";
 import { toast } from "sonner";
 import { showError } from "../../lib/problems";
 import { cn } from "cn";
-import { TEXT } from "../../lib/text";
 import { api } from "../../lib/api/client";
 import { checkpointsQuery, courseQuery, nearestQuery, pilotQuery, queryClient } from "../../lib/queryClient";
 import type { AircraftChoice, AirportPlace, AltitudeChoice, Candidate, ProcedureDrawing } from "../../lib/api/types";
@@ -20,7 +19,6 @@ import { useKeepOffline } from "../../lib/map/keepStatus";
 import { locateOnOpen, positionNow, useOwnShip, useOwnShipNear } from "../../lib/map/ownShip";
 import { useTabSearch } from "../../lib/tabSearch";
 import TabBar, { type BarTab } from "../../components/TabBar";
-import { Button } from "../../components/ui/button";
 import { useTabAsk } from "./components/navlog/panelTab";
 import { useAddressCards, usePanelTabs, type PanelTab } from "./hooks/useTabCards";
 import { MAX_STOPS, altitudesOf, altitudesParam, departureOf, identOf, isAirwayToken, positionIdent, routeName, routeOf, stopsOf } from "../../lib/identSchema";
@@ -33,7 +31,7 @@ import type { WorkspaceProps } from "../page/workspace";
 import RoundButton from "../../components/RoundButton";
 import { ResponsivePopover, ResponsivePopoverAnchor } from "../../components/ResponsivePopover";
 import TipHost from "../../components/TipHost";
-import { usePanelDragging } from "../../components/mapChrome";
+import { useCardTitle, usePanelDragging } from "../../components/mapChrome";
 import { SearchField, SearchResults } from "../../components/PanelCapsule";
 import { chipColourOf } from "../../lib/map/flightCategory";
 import { FavoriteStrip, FavoritesList } from "../../components/Favorites";
@@ -51,6 +49,9 @@ import { useAirportStripShows } from "./hooks/useAirportStripShows";
 import AirportPill from "./components/AirportPill";
 import SavedStrip from "./components/SavedStrip";
 import MiniProfile from "./components/navlog/MiniProfile";
+import { dryRunOf, type DryRun } from "./components/navlog/dryRun";
+import { DryRunControls, DryRunFigures } from "./components/DryRunPanel";
+import { DRY_RUN, clearPastFlight, usePastFlight } from "../../lib/map/pastFlight";
 import FlightCard from "./components/FlightCard";
 import PastFlightCard from "./components/PastFlightCard";
 import type { RouteParts, RouteProcedure } from "./components/RouteBox";
@@ -404,20 +405,6 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     return { departure: at(planned.dep, "departure"), arrival: at(planned.dest, "arrival") };
   }, [procedureDrawings, planned.dep, planned.dest]);
   const [proceduresOpen, setProceduresOpen] = useState(false);
-  // All the way up, the route's box and chips folded away to its name, or
-  // out as at half: a small button on the separator under them, at the
-  // pilot's ask (MapPanel's `fold`) -- shadcn's Button, small and round,
-  // its 44-point hit area its pseudo-element's.
-  const [routeOut, setRouteOut] = useState(false);
-  const routeFold = (
-    <Button
-      type="button" variant="outline" size="icon-xs" onClick={() => setRouteOut(out => !out)} aria-expanded={routeOut}
-      aria-label={routeOut ? "Hide the route" : "Show the route"} data-testid="route-fold"
-      className="relative rounded-full bg-background text-tint shadow-sm after:absolute after:-inset-2.5 after:content-['']"
-    >
-      {routeOut ? <ChevronUp aria-hidden="true" /> : <ChevronDown aria-hidden="true" />}
-    </Button>
-  );
   const openProcedures = useCallback(() => setProceduresOpen(true), []);
   const selectPlaceOnChart = useCallback((ident: string | null) => {
     // A tap on the chart past Nearest's list lowers it, the tab kept.
@@ -1117,7 +1104,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       briefing={s.briefing} course={course} totals={s.totals} depart={depart}
       langgraphNarrative={s.langgraphNarrative} crewaiNarrative={s.crewaiNarrative}
       problem={unflyableBrief}
-      narrative={part === "brief" ? narrative : undefined}
+      narrative={part === "preflight" ? narrative : undefined}
     />
   ), [s.nav, s.legs, planned.dep, planned.dest, landedStops, planned.stops, filedProcedures, s.briefing, course, s.totals, depart,
     s.langgraphNarrative, s.crewaiNarrative, unflyableBrief, narrative]);
@@ -1297,7 +1284,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const fileable = !!identOf(planned.dep) && !!s.totals;
   const fileFlightPlan = () => {
     setPanel("full");
-    useTabAsk.getState().go("brief", "Flight Plan");
+    useTabAsk.getState().go("preflight", "Flight Plan");
   };
 
   // Share, a round button of glass beside the route's Approaches -- at the
@@ -1367,6 +1354,10 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
 
 
   const dragging = usePanelDragging(d => d.dragging);
+  // The open card's name for the bar over it: an airport's ident, the
+  // airspace at a point, an airplane's callsign (its card's, useCardTitle).
+  const flightTitle = useCardTitle(t => t.title);
+  const cardTitle = place ?? (heldPoint ? "Airspace" : flight ? flightTitle ?? undefined : undefined);
   // The airport's card: all the way up in the panel's body; at the pill's
   // size its summary, the pill's own (`summary`), as a tap on the map opens
   // it, at the owner's pick of the redesign.
@@ -1380,6 +1371,29 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     />
   );
 
+  // The route from the side (MiniProfile), a tap the nav log all the way up.
+  const miniProfile = routed && course && !local
+    ? <MiniProfile ends={course} selected={selected} legs={s.legs} onOpen={() => setPanel("full")} /> : null;
+  // The flight flown on paper (dryRunOf), started from the side view's
+  // play, at the owner's ask ("a dry run of the flight with altitude and
+  // speed profile as well as the calculations at the bottom"): the replay's
+  // airplane flown along the course (DryRunLayer), its controls and chart
+  // in the side view's place, its figures as it goes under them. Put away
+  // with its close, or as the replay is another's (a past flight's).
+  const [dryRun, setDryRun] = useState<DryRun | null>(null);
+  const dryRunHeld = usePastFlight(p => p.hex === DRY_RUN);
+  const dryRunning = dryRun && dryRunHeld && routed ? dryRun : null;
+  const startDryRun = () => {
+    if (!course) return;
+    const run = dryRunOf(navLogRows(course, selected, s.legs), Math.round((depart ? Date.parse(depart) : Date.now()) / 1000));
+    if (run.points.length < 2) return;
+    setDryRun(run);
+    usePastFlight.setState({ hex: DRY_RUN, id: 0, points: run.points, at: run.points[0]!.t, playing: true });
+  };
+  const stopDryRun = () => {
+    setDryRun(null);
+    clearPastFlight();
+  };
   // The route's chips: the airplane, the altitude, the time, Saved,
   // Approaches and Share (`controls`), and with no route the pill's too.
   const routeControls = started && (
@@ -1509,7 +1523,10 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
             </div>
           )
         ) : null}
-        {tab === "fpl" && !savedOpen && !hasPoints && !place && !heldPoint && panel !== "peek" && (
+        {/* And while a finger takes it up: the pill's own are out of
+            sight then (the owner's notice, "Fpl hides Saved while dragging
+            up"). */}
+        {tab === "fpl" && !savedOpen && !hasPoints && !place && !heldPoint && (panel !== "peek" || dragging) && (
           <div className="px-4 pt-2 pb-4">
             <SavedStrip onMore={openSaved} />
           </div>
@@ -1532,17 +1549,15 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     // over its profile and figures (`pillBody`); the others their search
     // bar over their strips.
     pillHead: true,
-    pillBody: tab === "fpl" && panel === "peek" && !savedOpen ? (routed ? (
+    // Whatever is open all the way up: lowered with the saved flights in
+    // full open, the pill had its box alone (the owner's notice, "fpl
+    // shows Route sometimes and nothing else in half card").
+    pillBody: tab === "fpl" && panel === "peek" && !dryRunning ? (routed ? (
       <>
         {/* The chips under the box with a route too, at the owner's ask
-            ("You can keep the buttons even after route is entered"); then
-            the profile above the figures ("shouldn't the profile be above
-            the calculations?"). */}
+            ("You can keep the buttons even after route is entered"); the
+            profile and the figures pinned at the foot (`foot`). */}
         {routeControls}
-        {course && !local && <MiniProfile ends={course} selected={selected} legs={s.legs} onOpen={() => setPanel("full")} />}
-        <div className="w-full" data-testid="flight-line">
-          <FlightLine totals={s.totals} estimate={estimate} depart={depart} local={s.local} small />
-        </div>
       </>
       // With no route, its box over its chips, at the owner's ask ("Fpl half
       // card should also show the buttons when no route is there"), and
@@ -1554,6 +1569,11 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
         <SavedStrip onMore={openSaved} />
       </>
     )) : undefined,
+    // FPL with a route, put away to the pill's one row: the flight's figures
+    // there, not the tabs, at the owner's ask ("When fpl is entered, make
+    // the pill display the calculations instead of the tabs") -- its foot,
+    // pinned there as the card opens and closes.
+    footStays: tab === "fpl" && routed && !s.unflyable,
     // A card over the tab: its card alone, the tab's head gone while it is
     // open, at the pilot's ask.
     alone: !!place || !!heldPoint || !!flight,
@@ -1561,12 +1581,15 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     // the route from FPL -- its bar the card's kind and Back to the tab, at
     // the owner's ask ("unless going from another tab ... the back button
     // should get it back to fpl"); on its own tab, the tabs.
-    cardOver: (!!place || !!heldPoint) && tab !== "airport",
+    // Any card, an airplane's too, its bar its name with Back and the close,
+    // at the owner's ask ("For the airport card it should replace tabs with
+    // a back close button and title as the airport id").
+    cardOver: !!place || !!heldPoint || !!flight,
     toEdge: !!place,
     // The planner's tabs, the panel's first row, and at rest the pill
     // itself, at the pilot's ask: no search bar or route under them
     // (MapPanel).
-    bar: <TabBar tabs={PLANNER_TABS} tab={tab} over={(place || heldPoint) && tab !== "airport" ? "airport" : undefined} onPick={pickTab} onUp={tabUp} onClose={closeSheet} marks={s.unflyable ? { fpl: "stop" } : undefined} />,
+    bar: <TabBar tabs={PLANNER_TABS} tab={tab} over={(place || heldPoint) && tab !== "airport" ? "airport" : undefined} title={cardTitle} onPick={pickTab} onUp={tabUp} onClose={closeSheet} marks={s.unflyable ? { fpl: "stop" } : undefined} />,
     // The route's figures -- the distance, the time en route, the arrival
     // and the fuel -- pinned at FPL's foot while there is a route, at every
     // height, the pill too, at the pilot's ask: they were the last of the
@@ -1574,12 +1597,45 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     // ("Fpl can show calculations but other tabs should show something
     // else"): the other tabs' pills are their search bars (MapPanel's
     // headInPill).
+    // FPL's figures pinned at the sheet's foot at every height, the pill's
+    // too, growing as it comes up, at the owner's asks ("While dragging fpl
+    // keep the calculations pinned at the bottom"; "Why can't the half card
+    // have calculations pinned at the very bottom as the full card, just
+    // make them bigger smoothly as expanded").
     foot: panel === "peek" && !dragging && place ? placeCard(true)
       : panel === "peek" && !dragging && heldPoint ? (
         <AirspaceCard key={`${heldPoint.lat},${heldPoint.lon}`} point={heldPoint} summary onClose={() => selectPlace(null)} onExpand={() => setPanel("full")} />
-      ) : panel === "peek" && !dragging && !place && !heldPoint && flightSummary ? flightSummary : tab === "fpl" ? routed && panel !== "peek" && (
-      <div className="w-full" data-testid="flight-line">
-        <FlightLine totals={s.totals} estimate={estimate} depart={depart} local={s.local} />
+      ) : panel === "peek" && !dragging && !place && !heldPoint && flightSummary ? flightSummary : tab === "fpl" ? routed && (
+      <div className="w-full">
+        {/* The side view pinned over the figures in the pill, at the
+            owner's ask ("pin the profile above calculations but transition
+            to just below the legs"): it folds away as the sheet comes up
+            (MapPanel's --sheet-progress), where the nav log's Profile
+            section, under its Legs, takes over from it. */}
+        {dryRunning ? (
+          <div className="pb-2" data-pill-hides=""><DryRunControls run={dryRunning} onClose={stopDryRun} /></div>
+        ) : miniProfile && (
+          <div
+            // Out of sight all the way up, not only see-through: its words
+            // read as words there (the audit's P15), behind nothing.
+            className={cn("overflow-hidden", panel === "full" && !dragging && "invisible")} inert={panel === "full" && !dragging} data-pill-hides=""
+            // Its six rem and the eight points under it.
+            style={{ height: "calc(6.5rem * (1 - var(--sheet-progress, 1)))", opacity: "calc(1 - var(--sheet-progress, 1))" }}
+          >
+            <div className="relative">
+              {miniProfile}
+              {/* Its dry run, at its top right: the flight flown on paper. */}
+              <RoundButton label="Dry run" onClick={startDryRun} className="absolute top-1.5 right-1.5" data-testid="dry-run-start">
+                <Play className="size-4" />
+              </RoundButton>
+            </div>
+          </div>
+        )}
+        {dryRunning ? <DryRunFigures run={dryRunning} /> : (
+          <div data-testid="flight-line">
+            <FlightLine totals={s.totals} estimate={estimate} depart={depart} local={s.local} grow />
+          </div>
+        )}
       </div>
     ) : panel === "peek" && !dragging && !place && !heldPoint && !flight && (
       // One strip, the Favorites or what the title's menu picks (the
@@ -1625,22 +1681,6 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     // run off the screen. With the route cleared or half typed, all of it
     // still, what needs a route greyed (routeActions).
     controls: routeControls,
-    // All the way up, the panel's head is the tab bar alone over the
-    // route's tabs, its figures at the card's foot, at the pilot's ask:
-    // the route and its chips are the half's.
-    // Or, the route shown there by the small button on the separator
-    // under it (`fold`), the route's box and chips as at half. With no
-    // route there is nothing to fold: the empty box stays out, where its
-    // name read "? local".
-    figures: started && hasPoints && !routeOut && (
-      // In from the panel's side by iOS's 16, past the head's 12.
-      <div className="flex w-full min-w-0 items-center px-1 py-1.5">
-        <span className={cn("min-w-0 flex-1 truncate font-semibold", TEXT.row)} data-testid="route-folded">
-          {routeName(planned.dep || "?", planned.dest || "?", planned.stops)}
-        </span>
-      </div>
-    ),
-    fold: started && hasPoints && routeFold,
     console: <PilotPanel />,
     submit,
     loading: s.stage !== null,

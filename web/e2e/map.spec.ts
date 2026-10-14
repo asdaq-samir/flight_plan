@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { beforeTheRoute, openPanel, panelTabs, settle, sideDrawer, slow, tapTheChart, grabberTo, controlsInSight } from "./helpers";
+import { beforeTheRoute, openPanel, openTab, settle, sideDrawer, slow, tapTheChart, grabberTo, controlsInSight } from "./helpers";
 
 /**
  * The map: its popups, its zoom toggle and the dev page's zoom button,
@@ -11,10 +11,10 @@ test("plan page: a route from an airport to itself is a local flight: the field'
   // two different airports.
   await page.goto("/app/plan?dep=C81&dest=C81");
   await grabberTo(page, "full");
-  // Its tab where the nav log's is, up as the panel opens.
-  await expect(panelTabs(page).getByRole("tab", { name: "Local" })).toHaveAttribute("aria-selected", "true", { timeout: slow(30000) });
   await expect(sideDrawer(page).getByTestId("navlog-ete")).toHaveText("1h 00m", { timeout: slow(30000) });
   await expect(sideDrawer(page).locator('[data-slot="section-summary"] dt').first()).toHaveText("Aloft");
+  // Its fuel check En route's, where a route's legs are.
+  await openTab(page, "En route");
   await expect(page.getByTestId("fuel-check")).toContainText("Fuel required");
 
   // Longer aloft: its chip in the pill, in the address, and more fuel.
@@ -111,7 +111,7 @@ test("plan page: panning the map with own ship off leaves 'Keep the map on me' a
   expect(await follow()).toBe(true);
 });
 
-test("plan page: Waypoints draws the route's checkpoints and the landmarks they were chosen from at every zoom, and off leaves the course line alone", async ({ page }) => {
+test("plan page: VFR Checkpoints draws the route's checkpoints and the landmarks they were chosen from at every zoom, and off leaves the course line alone", async ({ page }) => {
   // They used to start at a zoom picked from a menu (close in, by
   // default), so a route zoomed out to its region showed a line and two
   // airports; the landmarks, from zoom 7.
@@ -151,6 +151,7 @@ test("plan page: Waypoints draws the route's checkpoints and the landmarks they 
   await expect(numbered).toHaveCount(0);
   await expect(landmarks).toHaveCount(0);
   await openPanel(page);
+  await openTab(page, "En route");
   const rows = sideDrawer(page).locator("table tbody tr[data-kind]");
   await expect(page.getByTestId("navlog-eta")).toBeAttached({ timeout: slow(60000) });
   await expect(sideDrawer(page).locator('table tbody tr[data-kind="checkpoint"]')).toHaveCount(0);

@@ -30,7 +30,7 @@ export const SCREENS: Screen[] = [
     name: "flight planning drawer",
     ready: async page => {
       await page.goto(`/app/plan?${ROUTE}&view=briefing`);
-      await expect(page.getByRole("tab", { name: "Nav Log" })).toBeVisible({ timeout: slow(30000) });
+      await expect(page.getByRole("tab", { name: "Preflight" })).toBeVisible({ timeout: slow(30000) });
       await expect(sideDrawer(page).getByTestId("navlog-eta")).toBeVisible({ timeout: slow(120000) });
     },
   },
@@ -40,7 +40,7 @@ export const SCREENS: Screen[] = [
     name: "route panel, half way",
     ready: async page => {
       await page.goto(`/app/plan?${ROUTE}&view=briefing`);
-      await expect(page.getByRole("tab", { name: "Nav Log" })).toBeVisible({ timeout: slow(30000) });
+      await expect(page.getByRole("tab", { name: "Preflight" })).toBeVisible({ timeout: slow(30000) });
       await controlsInSight(page);
       // The plan in, its figures whole: not judged fading in.
       await expect(page.getByTestId("navlog-eta")).toBeVisible({ timeout: slow(30000) });
@@ -54,7 +54,7 @@ export const SCREENS: Screen[] = [
       // Not tapped when it is up already: a tap on the tab up takes the
       // panel back to half, and the map's tooltips came up under the
       // pointer where the panel had been, fading in, read at 1:1 (P15).
-      await openTab(page, "Nav Log");
+      await openTab(page, "En route");
       await page.getByTestId("fuel-check").waitFor({ timeout: slow(120000) });
       // A tap's click, without Playwright's own scroll into view first:
       // where the table is wider than its drawer (every column, on a
@@ -65,23 +65,21 @@ export const SCREENS: Screen[] = [
     },
   },
   // The panel's other tabs, each laid out once its briefing is in: the
-  // Brief's narrative answered by a line of the test's own (openTab), not
-  // a billed call.
+  // narrative asked for only by a tap, not here.
   ...([
-    ["Brief", "verdict"], ["Weather", "weather-places"], ["Performance", "takeoff-landing"],
+    ["Preflight", "verdict"], ["Depart", "takeoff-landing"], ["En route", "weather-places"], ["Arrive", "weather-places"],
   ] as const).map(([tab, shown]): Screen => ({
     name: `panel, ${tab} tab`,
     ready: async page => {
       await page.goto(`/app/plan?${ROUTE}&view=briefing`);
       await page.getByTestId("navlog-eta").waitFor({ timeout: slow(120000) });
       await openTab(page, tab);
-      // The Weather's places are under their own pill (SectionTabs).
-      if (tab === "Weather") await openSection(page, "Along the Route");
-      await expect(sideDrawer(page).getByTestId(shown).first()).toBeVisible({ timeout: slow(30000) });
+      if (tab === "En route") await openSection(page, "Along the Route");
+      await expect(sideDrawer(page).locator('[role="tabpanel"][data-state="active"]').getByTestId(shown).first()).toBeVisible({ timeout: slow(30000) });
       // And the briefing in: the Brief's Go / No-Go says what it found, and
       // the mock oral's button is enabled once its question table loads --
       // measured as it faded in, it read 2:1 on CI's iPad.
-      if (tab === "Brief") {
+      if (tab === "Preflight") {
         await expect(sideDrawer(page).getByTestId("verdict-weather")).not.toHaveAttribute("data-finding", "pending", { timeout: slow(60000) });
         const ask = sideDrawer(page).getByTestId("oral-ask");
         if (await ask.count()) await expect(ask).toBeEnabled({ timeout: slow(30000) });
@@ -296,6 +294,7 @@ export const SCREENS: Screen[] = [
     ready: async page => {
       await page.goto("/app/plan?dep=C81&dest=C81&view=briefing");
       await expect(page.locator('[data-slot="section-summary"]').first()).toContainText("Aloft", { timeout: slow(30000) });
+      await openTab(page, "En route");
       await expect(page.getByTestId("fuel-check")).toBeVisible();
     },
   },

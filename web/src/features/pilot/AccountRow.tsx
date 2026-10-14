@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { ChevronDown, UserRound } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import { cn } from "cn";
 import { ListGroup, ListRow } from "../../components/GroupedList";
 import { Button } from "../../components/ui/button";
@@ -25,27 +25,28 @@ import { useLogout } from "./useLogout";
  * signed in and no developer's mode to offer: Personal's own sign-in says
  * what signing in keeps.
  */
-/**
- * The account on the glass, as Setup's pill has it at the owner's pick
- * ("Glass row"): a round mark, who it is, and at the end what to do --
- * Sign in, or the mode's menu -- with no white group under it.
- */
-export function AccountLine({ name, children }: { name: React.ReactNode; children?: React.ReactNode }) {
+export default function AccountRow() {
+  const { data: pilot } = useQuery(pilotQuery);
+  const devMode = useDevMode();
+  if (!pilot && !devMode.allowed) return null;
   return (
-    <div className="flex min-h-11 min-w-0 items-center gap-3 px-1" data-testid="account-line">
-      <span className="grid size-9 shrink-0 place-items-center rounded-full bg-foreground/8 text-foreground/65 [&_svg]:size-5" aria-hidden="true">
-        <UserRound />
-      </span>
-      <span className={cn("min-w-0 flex-1 truncate text-foreground", TEXT.row)}>{name}</span>
-      {children}
-    </div>
+    // No heading of its own: the tab it leads is Account, at the owner's
+    // ask ("Rename personal to account").
+    <ListGroup>
+      <ListRow title={<span className="truncate" data-testid="pilot-address">{pilot?.displayName ?? "Not signed in"}</span>}>
+        <AccountMenu />
+      </ListRow>
+    </ListGroup>
   );
 }
 
-export default function AccountRow({ glass = false }: {
-  /** On the pill's glass (AccountLine), not in a group. */
-  glass?: boolean;
-} = {}) {
+/**
+ * The mode menu alone -- Pilot or Developer, signing out, deleting the
+ * account -- where the address is set apart from it: at the right of
+ * Setup's Account title, the address under that title, at the owner's
+ * ask ("Email doesn't need to be in the table, it can be under account").
+ */
+export function AccountMenu() {
   const { data: pilot } = useQuery(pilotQuery);
   const devMode = useDevMode();
   const logout = useLogout();
@@ -59,8 +60,8 @@ export default function AccountRow({ glass = false }: {
     onConfirm: () => deleteAccount.mutate(),
   });
   if (!pilot && !devMode.allowed) return null;
-  const name = <span className="truncate" data-testid="pilot-address">{pilot?.displayName ?? "Not signed in"}</span>;
-  const menu = (
+  return (
+    <>
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" size="sm" data-testid="role-menu" className={cn("relative -mr-2 px-2 font-normal text-tint after:absolute after:-inset-y-2 after:inset-x-0", TEXT.row)}>
@@ -92,14 +93,7 @@ export default function AccountRow({ glass = false }: {
         )}
       </DropdownMenuContent>
     </DropdownMenu>
-  );
-  if (glass) return <AccountLine name={name}>{menu}{deleteDialog}</AccountLine>;
-  return (
-    // No heading of its own: the tab it leads is Account, at the owner's
-    // ask ("Rename personal to account").
-    <ListGroup>
-      <ListRow title={name}>{menu}</ListRow>
-      {deleteDialog}
-    </ListGroup>
+    {deleteDialog}
+    </>
   );
 }

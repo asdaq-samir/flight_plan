@@ -55,11 +55,11 @@ test("plan page: a click or Enter selects a nav log checkpoint, with the briefin
   await expect(selectedRow).toHaveCount(1);
 
   // The panel's tabs take the stock tabs' own arrows, Right to the next:
-  // the Brief, after the Nav Log.
+  // Arrive, after En route.
   const tabs = panelTabs(page).getByRole("tab");
-  await panelTabs(page).getByRole("tab", { name: "Nav Log" }).focus();
+  await panelTabs(page).getByRole("tab", { name: "En route" }).focus();
   await page.keyboard.press("ArrowRight");
-  await expect(tabs.filter({ hasText: "Brief" })).toBeFocused();
+  await expect(tabs.filter({ hasText: "Arrive" })).toBeFocused();
 });
 
 test("plan page: a checkpoint picked on the map is brought to the middle of the nav log, and a row clicked in view stays put", { tag: "@smoke" }, async ({ page }) => {

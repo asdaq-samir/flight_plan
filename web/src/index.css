@@ -537,6 +537,15 @@ html [data-sonner-toaster] [data-sonner-toast][data-styled="true"]:is([data-type
    frame of a phone's (CPU 4x slower), 3.3 s of a drag up; 0.1 s with it
    kept to the glass (measured 2026-10-08). Nothing under a pane of glass
    reads it: a pane inside one sets its own. */
+/* How far up the map's panel is, 0 at the pill to 1 all the way
+   (MapPanel), registered so its change eases with the sheet's height
+   (mapChrome's SHEET_SETTLE) rather than jumping as a tap lets go. */
+@property --sheet-progress {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 1;
+}
+
 @property --glass-fill {
   syntax: "*";
   inherits: false;

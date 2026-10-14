@@ -34,7 +34,16 @@ import { fitFigures, tripFigures } from "../figures";
  */
 const SMALLEST = 0.75;
 
-export default function FlightLine({ totals, estimate, depart, local, small = false }: {
+/** The figures, their units and their names from the pill's size (the
+ *  detail's 15, a caption's 11) to their own (the heading's 20, a note's
+ *  13), with the sheet (`grow`); TEXT's sizes, a mouse's and a finger's. */
+// Each with its iOS leading at either end (the audit's P3: 15 on 20 to 20
+// on 25, 11 on 13 to 13 on 18), eased between as the size is.
+const GROW_VALUE = "text-[length:calc(0.75rem+0.375rem*var(--sheet-progress,1))] leading-[calc(1rem+0.75rem*var(--sheet-progress,1))] pointer-coarse:text-[length:calc(0.9375rem+0.3125rem*var(--sheet-progress,1))] pointer-coarse:leading-[calc(1.25rem+0.3125rem*var(--sheet-progress,1))]";
+const GROW_UNIT = "text-[length:calc(0.6875rem+0.0625rem*var(--sheet-progress,1))] leading-[calc(0.8125rem+0.1875rem*var(--sheet-progress,1))] pointer-coarse:text-[length:calc(0.6875rem+0.125rem*var(--sheet-progress,1))] pointer-coarse:leading-[calc(0.8125rem+0.3125rem*var(--sheet-progress,1))]";
+const GROW_NAME = GROW_UNIT;
+
+export default function FlightLine({ totals, estimate, depart, local, grow = false }: {
   totals: Totals | null;
   /** Before the nav log's totals, at the pilot's ask for the figures as
    *  soon as can be: the course's distance at once, and the time and fuel
@@ -46,13 +55,15 @@ export default function FlightLine({ totals, estimate, depart, local, small = fa
   depart: string;
   /** One airport to itself: the time aloft and the time back. */
   local: boolean;
-  /** At the pill's size, under the profile: set smaller, at the owner's
-   *  ask ("keep the profile view but you can make the calculations
-   *  smaller"), so the pill is one row's height. */
-  small?: boolean;
+  /** Pinned at the sheet's foot at every height: smaller at the pill's
+   *  size ("you can make the calculations smaller"), growing smoothly to
+   *  their full size as the sheet comes up (the owner's "just make them
+   *  bigger smoothly as expanded") -- by MapPanel's --sheet-progress, 0 at
+   *  the pill, 1 all the way up. */
+  grow?: boolean;
 }) {
-  const valueType = small ? TEXT.detail : TEXT.heading;
-  const unitType = small ? TEXT.caption : TEXT.note;
+  const valueType = grow ? GROW_VALUE : TEXT.heading;
+  const unitType = grow ? GROW_UNIT : TEXT.note;
   // Each figure on its own: the one too wide for its column rounded, the
   // rest as they are. Measured as the page sets it, in hidden words of the
   // figures' own type (the probes below), against the first figure's
@@ -111,12 +122,12 @@ export default function FlightLine({ totals, estimate, depart, local, small = fa
     // any, and with none yet their names over dashes -- it keeps its
     // place, as the panel's controls do.
     <div className="relative" data-slot="section-summary" data-tip="flight-line">
-      <dl className={cn("grid", small ? "gap-2" : "gap-3", shown.length === 3 ? "grid-cols-3" : "grid-cols-4")}>
+      <dl className={cn("grid gap-3", shown.length === 3 ? "grid-cols-3" : "grid-cols-4")}>
         {shown.map((f, i) => (
           <div key={f.name} className="min-w-0">
             {/* Its names and units a grey that reads on the pill's glass
                 over any chart (WCAG's 4.5:1), where the muted one did not. */}
-            <dt className={cn(GROUP_HEADING, small && TEXT.caption, "truncate text-foreground/65")}>{f.name}</dt>
+            <dt className={cn(GROUP_HEADING, grow && GROW_NAME, "truncate text-foreground/65")}>{f.name}</dt>
             <dd ref={i === 0 ? room : undefined} className={cn(valueType, "truncate font-semibold tabular-nums")} data-testid={f.testId}>
               <span style={sized(fitting?.px.value)} data-fitted={fitted}>{f.value}</span>
               {f.unit && <span className={cn(unitType, "font-normal text-foreground/65")} style={sized(fitting?.px.unit)} data-fitted={fitted}> {f.unit}</span>}

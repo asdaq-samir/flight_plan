@@ -17,7 +17,7 @@ import { closeSidebarWithTheStockKey, expectDrawerClosed, openPanel, settle, sid
 const origin = new URL(process.env.BASE_URL ?? "http://localhost:8080").origin;
 
 /** The course line's core, on screen. */
-const courseBox = async (page: Page) => (await page.locator('path[stroke="#ff3b00"]').first().boundingBox())!;
+const courseBox = async (page: Page) => (await page.locator('path[stroke="#e600e6"]').first().boundingBox())!;
 
 /** Nothing of `a` under `b`. */
 const apart = (a: { x: number; y: number; width: number; height: number }, b: { x: number; y: number; width: number; height: number }) =>

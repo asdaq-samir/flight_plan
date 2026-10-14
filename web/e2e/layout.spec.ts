@@ -117,9 +117,9 @@ test.describe("/app/plan", () => {
     await page.goto("/app/plan?dep=C81&dest=KDLH");
     await settle(page);
     await grabberTo(page, "full");
-    await page.getByTestId("panel-tab-weather").click();
+    await page.getByTestId("panel-tab-enroute").click();
     await expect(sideDrawer(page)).toHaveAttribute("data-panel", "full");
-    await expect(page.getByTestId("panel-tab-weather")).toHaveAttribute("aria-selected", "true");
+    await expect(page.getByTestId("panel-tab-enroute")).toHaveAttribute("aria-selected", "true");
   });
 });
 

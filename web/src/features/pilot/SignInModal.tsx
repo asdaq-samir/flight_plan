@@ -32,7 +32,7 @@ import TvCode from "./TvCode";
  * registers neither, both did.
  */
 export default function SignInModal({ plain = false }: {
-  /** A tinted word, as a row's action on the glass (Setup's pill), not a
+  /** A tinted word, as a row's action (Setup's Account group), not a
    *  bordered button. */
   plain?: boolean;
 } = {}) {

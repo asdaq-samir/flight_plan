@@ -63,7 +63,7 @@ test("Nearest opens as a card half way up, a field over it as a layer, and its c
   // the route's pages.
   await expect(sideDrawer(page)).toHaveAttribute("data-panel", "peek");
   await grabberTo(page, "full");
-  await expect(sideDrawer(page).getByTestId("panel-tab-navlog")).toBeVisible();
+  await expect(sideDrawer(page).getByTestId("panel-tab-enroute")).toBeVisible();
 });
 
 test("a field the armed services keep to themselves is off the map until Military is on", async ({ page }) => {

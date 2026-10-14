@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { cn } from "cn";
 import { CardClose, PanelCard } from "../../../components/PanelCard";
+import { useCardTitle } from "../../../components/mapChrome";
 import { PillSection } from "../../../components/Favorites";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
 import { RowBadge } from "../../../components/RowBadge";
@@ -147,9 +148,16 @@ export default function FlightCard({ hex, onClose, onOpenPast, onExpand, onLower
   const rate = plane?.vertical_fpm ?? 0;
   // How far and which way from own ship, where there is a fix.
   const away = fix && here ? `${distanceNm({ lat: fix.lat, lon: fix.lon }, here).toFixed(1)} nm ${compassPoint(bearingDeg({ lat: fix.lat, lon: fix.lon }, here))}` : null;
-  // What it is and who flies it, as the FAA's and the database's names.
-  const what = [detail?.description ? nameCase(detail.description) : detail?.type ?? plane?.type, detail?.operator ? nameCase(detail.operator) : null]
-    .filter(Boolean).join(" · ") || null;
+  // Its name the title over the card (TabBar), as an airport's ident is, at
+  // the owner's ask ("aircraft can be similar layout"): the card's own
+  // head what it is, as the FAA's and the database's names have it, and
+  // who flies it.
+  useEffect(() => {
+    useCardTitle.setState({ title: name });
+    return () => useCardTitle.setState({ title: null });
+  }, [name]);
+  const model = detail?.description ? nameCase(detail.description) : detail?.type ?? plane?.type ?? null;
+  const operator = detail?.operator ? nameCase(detail.operator) : null;
   // Its state under the star: an emergency's code first (AIM 6-2-2, 6-3-4,
   // 6-4-2), else climbing or descending past 300 feet a minute, else level.
   const state = squawk && SQUAWKS[squawk] ? { word: squawk, alarm: true }
@@ -179,9 +187,9 @@ export default function FlightCard({ hex, onClose, onOpenPast, onExpand, onLower
           The same all the way up, the rest under it. */}
       <div className="flex h-[7rem] gap-2">
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-          <h2 className={cn("truncate font-bold tracking-tight text-foreground", TEXT.card)} data-testid="flight-name">{name}</h2>
+          <h2 className={cn("line-clamp-2 font-bold tracking-tight text-foreground", TEXT.card)} data-testid="flight-name">{model ?? name}</h2>
           {away && <p className={cn("truncate text-muted-foreground", TEXT.note)} data-testid="flight-away">{away}</p>}
-          {what && <p className={cn("line-clamp-2 text-muted-foreground", TEXT.note)} data-testid="flight-what">{what}</p>}
+          {operator && <p className={cn("line-clamp-2 text-muted-foreground", TEXT.note)} data-testid="flight-what">{operator}</p>}
         </div>
         {trailBox("min-w-0 flex-1")}
         <div className="-mr-1 flex w-9 shrink-0 flex-col items-center gap-2">

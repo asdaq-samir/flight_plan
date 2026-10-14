@@ -20,9 +20,13 @@ import PlanWorkspace from "../plan/PlanWorkspace";
 import type { WorkspacePieces } from "./workspace";
 import { fromChunk } from "../../lib/fromChunk";
 
-/** Setup's pill (the account, its rows, the switches), with the console's
- *  code rather than the page's first load. */
-const SetupPill = lazy(() => import("../pilot/SetupPill"));
+/** Setup's pill (the switches, the account), with the console's code
+ *  rather than the page's first load: asked for once the page has drawn,
+ *  with the settings (below), and drawn straight from the chunk then
+ *  (fromChunk) -- under lazy() alone the first tap on Setup waited on it,
+ *  an empty pill for a moment, at the owner's notice ("why is setup tab
+ *  slow to load"). */
+const { Part: SetupPill, prefetch: prefetchSetupPill } = fromChunk(() => import("../pilot/SetupPill"), m => m.default);
 
 /**
  * The training workspace on its own chunk. It carries the developer's
@@ -96,10 +100,10 @@ export default function MapPage({ mode }: { mode: Mode }) {
   const setDep = useCallback((d: string) => setDraft({ of: addressKey, dep: d, dest }), [addressKey, dest]);
   const setDest = useCallback((a: string) => setDraft({ of: addressKey, dep, dest: a }), [addressKey, dep]);
 
-  // The settings' chunk, once the page has drawn (the console's own is
+  // The settings' and Setup's pill's chunks, once the page has drawn (the console's own is
   // PlanWorkspace's to ask for).
   useEffect(() => {
-    const later = window.setTimeout(prefetchSettings, 2000);
+    const later = window.setTimeout(() => { prefetchSettings(); prefetchSetupPill(); }, 2000);
     return () => window.clearTimeout(later);
   }, []);
 
@@ -216,7 +220,16 @@ export default function MapPage({ mode }: { mode: Mode }) {
     event.preventDefault();
     consoleButton()?.focus();
   }, []);
+  // The console in the map's panel, as a tab of it: the planner's Setup on
+  // every screen, in landscape and on an iPad as on a phone, at the owner's
+  // ask ("in landscape mode it becomes a separate sheet while other tabs
+  // stay in the panel"); the developer's console, its training's charts
+  // and tables, a sheet of its own past a phone's width.
+  const inPanel = mode === "pilot" || (onPhone && !onTablet);
   const consoleOf = (pieces: WorkspacePieces) => {
+    // In the panel (consoleLayerOf): the planner's Setup on every screen,
+    // a tab as the others are; the developer's console on a phone.
+    if (inPanel) return null;
     // The greeting, the way in or out and the close button on one row;
     // the console's content starts under it.
     const content = (
@@ -240,8 +253,6 @@ export default function MapPage({ mode }: { mode: Mode }) {
         </Dialog>
       );
     }
-    // On a phone, in the panel (consoleLayerOf).
-    if (onPhone) return null;
     return (
       <Sheet open={consoleOpen} onOpenChange={setConsoleOpen}>
         <SheetContent
@@ -261,7 +272,12 @@ export default function MapPage({ mode }: { mode: Mode }) {
   // where the panel's body is, the route or the search under it kept
   // (hidden) for when it is put away. Named as the console it is; Escape
   // puts it away, unless something open in it (a menu) took the key.
-  const consoleLayer = onPhone && !onTablet && consoleOpen;
+  const consoleLayer = inPanel && consoleOpen;
+  // Its whole page drawn just after the frame that shows Setup's pill, in
+  // the background (useDeferredValue's first value): the pill is what a tap
+  // on Setup shows, the page under it only as the sheet comes up, and in
+  // the same frame it held the pill back.
+  const layerDrawn = useDeferredValue(consoleLayer, false);
   const consoleLayerOf = (pieces: WorkspacePieces) => (
     <ConsoleInPanelContext.Provider value={consoleInPanel}>
       <ConsoleLayer label={consoleLabel} detent={panel === "full" ? "large" : "medium"} edge={edge} onClose={closeConsole}>
@@ -333,7 +349,6 @@ export default function MapPage({ mode }: { mode: Mode }) {
           {consoleOf(pieces)}
           <MapPanel
             label={consoleLayer ? consoleLabel : panelLabel} controls={pieces.alone || consoleLayer ? undefined : pieces.controls}
-            figures={pieces.alone || consoleLayer ? undefined : pieces.figures}
             state={panel} onStateChange={setPanel} onInsetsChange={changeInsets}
             // The console's layer (Settings, a tab) has no pill: under the
             // tab bar, its own header and tabs.
@@ -352,10 +367,10 @@ export default function MapPage({ mode }: { mode: Mode }) {
               ? <Suspense fallback={null}><SetupPill /></Suspense>
               : <QuickControls />) : pieces.foot}
             pillBody={consoleLayer || pieces.alone ? undefined : pieces.pillBody}
+            footStays={!consoleLayer && !pieces.alone && !!pieces.footStays}
             cardInPill={!consoleLayer && !!pieces.alone}
             cardOver={!consoleLayer && !!pieces.cardOver}
             headInPill={!consoleLayer && !pieces.alone && !!pieces.pillHead}
-            fold={pieces.alone || consoleLayer ? undefined : pieces.fold}
             top={pieces.alone || consoleLayer ? null : pieces.head ?? (
               <>
                 <div className="min-w-0 flex-1">
@@ -370,7 +385,7 @@ export default function MapPage({ mode }: { mode: Mode }) {
               </>
             )}
           >
-            {consoleLayer && consoleLayerOf(pieces)}
+            {consoleLayer && layerDrawn && consoleLayerOf(pieces)}
             {/* Under the console while it is out, kept as it is. */}
             <div className={consoleLayer ? "hidden" : "contents"}>{pieces.sidebar}</div>
           </MapPanel>

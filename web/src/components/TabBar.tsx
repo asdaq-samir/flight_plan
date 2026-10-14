@@ -34,12 +34,16 @@ export interface BarTab<T extends string> {
  * alone, centred, in the tint; tapped, every tab again at the height the
  * sheet is, minimized once one is picked.
  */
-export default function TabBar<T extends string>({ tabs, tab, over, onPick, onUp, marks, onClose, className }: {
+export default function TabBar<T extends string>({ tabs, tab, over, title, onPick, onUp, marks, onClose, className }: {
   tabs: BarTab<T>[];
   tab: T;
   /** The tab whose card is open over `tab` -- Airport's, an airport's card
    *  opened from FPL's route: the minimized bar's name, Back to `tab`. */
   over?: T;
+  /** The card's own name over it -- an airport's ident, an airplane's
+   *  callsign -- in place of the tab's, at the owner's ask ("replace tabs
+   *  with a back close button and title as the airport id"). */
+  title?: string;
   onPick: (tab: T) => void;
   /** The tab up tapped: on the pill, the panel opened to it, as a tap on
    *  the pill's own search bar did. */
@@ -183,16 +187,20 @@ export default function TabBar<T extends string>({ tabs, tab, over, onPick, onUp
           </span>
         )}
         <button
-          type="button" onClick={() => setShown(true)} aria-expanded={false} aria-label={`${named.label}, show the tabs`}
+          type="button" onClick={() => setShown(true)} aria-expanded={false} aria-label={`${title ?? named.label}, show the tabs`}
           data-testid="tab-title"
           className={cn(
-            "relative flex h-8 items-center gap-1.5 rounded-full px-3 font-semibold text-tint outline-none focus-visible:ring-2 focus-visible:ring-ring",
-            "after:absolute after:-inset-x-2 after:-inset-y-1.5 after:content-['']", TEXT.row,
+            "relative flex h-8 min-w-0 max-w-[calc(100%-7rem)] items-center gap-1.5 rounded-full px-3 font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring",
+            "after:absolute after:-inset-x-2 after:-inset-y-1.5 after:content-['']", title ? "text-foreground" : "text-tint", TEXT.row,
           )}
         >
-          <Icon className="size-5" strokeWidth={2.25} aria-hidden="true" />
-          {named.label}
-          <ChevronDown className="size-4 text-muted-foreground" strokeWidth={2.25} aria-hidden="true" />
+          {title ? <span className="truncate">{title}</span> : (
+            <>
+              <Icon className="size-5" strokeWidth={2.25} aria-hidden="true" />
+              {named.label}
+              <ChevronDown className="size-4 text-muted-foreground" strokeWidth={2.25} aria-hidden="true" />
+            </>
+          )}
         </button>
         {/* And a close at its right, at the owner's ask: Back goes one card
             back, the close all the way down to the pill. */}
@@ -233,9 +241,12 @@ export default function TabBar<T extends string>({ tabs, tab, over, onPick, onUp
                 else pick(value);
                 return;
               }
+              // Another tab picked all the way up stays all the way up, on
+              // that tab, at the owner's ask ("tapping on other tabs when
+              // card is fully open should switch to that tab").
               if (!current) {
                 pick(value);
-                size.to("peek");
+                if (size.size !== "full") size.to("peek");
               } else if (size.size === "full" || size.card) {
                 onClose?.();
                 size.to("peek");

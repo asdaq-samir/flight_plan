@@ -79,6 +79,11 @@ export const PanelHalfContext = createContext<((px: number | null) => void) | nu
  *  owner's ask; the tab up tapped again puts a card away. */
 export const useTabsShown = create<{ shown: boolean }>(() => ({ shown: false }));
 
+/** The name of the card open over the panel's tabs, as its card has it
+ *  (an airplane's callsign or registration, FlightCard), for the bar's
+ *  title over it (TabBar). */
+export const useCardTitle = create<{ title: string | null }>(() => ({ title: null }));
+
 export const useConsoleOpen = create<{ open: boolean; setOpen: (open: boolean) => void }>(set => ({
   open: false,
   setOpen: open => set({ open }),
@@ -126,7 +131,10 @@ const SHEET_CURVE = "0.5s cubic-bezier(0.32, 0.72, 0, 1)";
  *  seconds: the sheet's time, so the two arrive together. */
 export const SHEET_SECONDS = 0.5;
 export const SHEET_RESHAPE = ["left", "right", "top", "bottom", "border-radius"].map(p => `${p} ${SHEET_CURVE}`).join(", ");
-export const SHEET_SETTLE = `height ${SHEET_CURVE}, ${SHEET_RESHAPE}`;
+// Its progress up (MapPanel's --sheet-progress, index.css's @property) eased
+// with the height, so what grows with it -- FPL's figures, the side view
+// folding away -- moves with the sheet, not at once.
+export const SHEET_SETTLE = `height ${SHEET_CURVE}, --sheet-progress ${SHEET_CURVE}, ${SHEET_RESHAPE}`;
 
 /** Maps' medium sheet: in from the sides and its edge, every corner
  *  round, as the screen's own are -- the map's panel and the console's

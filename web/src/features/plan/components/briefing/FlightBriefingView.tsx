@@ -638,7 +638,7 @@ export default memo(function FlightBriefingView({
   // worse: a caution or a stop of its own, opening its section.
   const items: VerdictItem[] = alternateFound
     ? verdictFound.map(i => (i.key === "weather" && (i.finding === "ok" || (alternateFound.finding === "stop" && i.finding !== "stop"))
-      ? { ...i, ...alternateFound, section: "Alternate" } : i))
+      ? { ...i, ...alternateFound, tab: "arrive", section: "Alternate" } : i))
     : verdictFound;
   const itemsKey = items.map(i => `${i.key}:${i.finding}:${i.detail}`).join("|");
   useEffect(() => {
@@ -657,7 +657,7 @@ export default memo(function FlightBriefingView({
   const ownType = flying.aircraftId != null ? flying.label.split(" · ")[1] ?? null : null;
   const profileType = nav?.aircraft.designator ?? null;
   const planType = flying.aircraftId != null ? ownType : profileType;
-  const planForms = part === "brief" ? flightPlanForms({
+  const planForms = part === "preflight" ? flightPlanForms({
     rules: ifr ? "ifr" : "vfr", dep, dest, route, landings: stops,
     isAirway: stop => isAirwayToken(stop) && !course?.stops?.some(s => s.ident === stop),
     legs, totals, depart: depart ? new Date(depart) : null, now: new Date(opened),
@@ -703,7 +703,9 @@ export default memo(function FlightBriefingView({
         </p>
       )}
 
-      {part === "brief" && (
+      {/* Preflight: the go / no-go first, then what is done before
+          leaving -- the airspace, the risk, the paperwork, the loading. */}
+      {part === "preflight" && (
         <>
           {/* The narrative, printed only: on screen it is the tab's own
               section (BriefNarrative), whose framework is a setting. */}
@@ -718,7 +720,6 @@ export default memo(function FlightBriefingView({
               with when the flight gets to each against its times of use. */}
           <AccordionSection
             title="TFRs & Special Use"
-            finding={tfrsCrossed.length > 0 ? "stop" : specialUse.some(s => s.when === "active") ? "caution" : undefined}
             aside={tfrsCrossed.length > 0 ? <Flag finding="stop" testId="tfr-flag">TFR on the route</Flag>
               : specialUse.some(s => s.when === "active") ? <Flag finding="caution" testId="sua-flag">Area in use</Flag> : undefined}
           >
@@ -789,7 +790,6 @@ export default memo(function FlightBriefingView({
               (lib/frat). */}
           <AccordionSection
             title="Risk Assessment"
-            finding={assessment && assessment.level !== "low" ? (assessment.level === "high" ? "stop" : "caution") : undefined}
             aside={assessment && assessment.level !== "low" ? (
               <Flag finding={assessment.level === "high" ? "stop" : "caution"} testId="risk-flag">
                 {assessment.level === "high" ? "High risk" : "Risk raised"}
@@ -801,11 +801,8 @@ export default memo(function FlightBriefingView({
 
           <PreflightAction flight={`${landings.join("-")}|${depart}`} found={found} />
 
-          {/* Each airport, in the order flown, under the list whose runway
-              lengths (91.103(b)) they answer: the Brief's, at the pilot's
-              ask, where they were a tab of their own. */}
-          {briefing ? <AirportSections briefing={briefing} landings={landings} legs={legs} callSign={ownCallSign} />
-            : <AccordionSection title="Airports"><Pending>{briefingPendingMessage}</Pending></AccordionSection>}
+          {/* The loading, done at home: its envelope and what it changes. */}
+          <WeightBalanceSection aircraft={nav?.aircraft} tripFuelGal={totals?.fuel_gal ?? null} />
 
           {/* The FAA's flight plan form filled in from the plan, from an
               airport: a present position is a flight already flying. */}
@@ -834,6 +831,25 @@ export default memo(function FlightBriefingView({
               </AccordionSection>
             </div>
           )}
+        </>
+      )}
+
+      {/* Depart: only what leaving needs, in the order it is used -- the
+          field's weather, the takeoff, then the field: its radio, its
+          runways and its pattern. */}
+      {part === "depart" && (
+        <>
+          {briefing && course ? (
+            <WeatherAlongRoute briefing={briefing} course={course} legs={legs} departIso={depart || opened} unchecked={unchecked} phase="depart" />
+          ) : (
+            <AccordionSection title="Weather"><Pending>{briefingPendingMessage}</Pending></AccordionSection>
+          )}
+          <TakeoffLandingSection
+            aircraft={nav?.aircraft} briefing={briefing} course={course} phase="depart"
+            takeoff={loaded?.takeoff.weightLb ?? null} landing={loaded?.landing.weightLb ?? null}
+          />
+          {briefing ? <AirportSections briefing={briefing} landings={landings} legs={legs} callSign={ownCallSign} phase="depart" />
+            : <AccordionSection title="Airport"><Pending>{briefingPendingMessage}</Pending></AccordionSection>}
         </>
       )}
 
@@ -869,12 +885,13 @@ export default memo(function FlightBriefingView({
         </AccordionSection>
       )}
 
-      {/* Weather: adverse conditions first (AIM 7-1-5), then place by place, then the winds. */}
-      {part === "weather" && (
+      {/* En route, under the legs and the side view: the weather on the way
+          -- adverse conditions first (AIM 7-1-5), then stretch by stretch,
+          then the winds -- and any stops. */}
+      {part === "enroute" && (
         <>
           <AccordionSection
             title="Adverse Conditions"
-            finding={vnrReasons.length > 0 || underMine.length > 0 ? "stop" : icing || hazardNames.length > 0 ? "caution" : undefined}
             // On the title, seen before anything under it: VFR not
             // recommended, or short of that, under the pilot's own minimums.
             aside={vnrReasons.length > 0 ? <Flag finding="stop" testId="vnr-flag">VFR not recommended</Flag>
@@ -960,10 +977,8 @@ export default memo(function FlightBriefingView({
             )}
           </AccordionSection>
 
-          {ifr && <AlternateSection {...alternateWhere} />}
-
           {briefing && course ? (
-            <WeatherAlongRoute briefing={briefing} course={course} legs={legs} departIso={depart || opened} unchecked={unchecked} />
+            <WeatherAlongRoute briefing={briefing} course={course} legs={legs} departIso={depart || opened} unchecked={unchecked} phase="enroute" />
           ) : (
             <AccordionSection title="Along the Route"><Pending>{briefingPendingMessage}</Pending></AccordionSection>
           )}
@@ -974,7 +989,7 @@ export default memo(function FlightBriefingView({
               worked out from. */}
           <AccordionSection title="Winds Aloft">
             {!stretches.some(st => st.wind) ? (
-              <p className="text-muted-foreground">{legs.length ? "No winds-aloft data available for this route." : "Waiting on the nav log's legs…"}</p>
+              <p>{legs.length ? "No winds-aloft data available for this route." : "Waiting on the nav log's legs…"}</p>
             ) : (
               <ListGroup footer="The forecast winds and temperatures each stretch of legs is flown in, from the nearest winds-aloft station.">
                 {stretches.map((st, i) => (
@@ -991,14 +1006,33 @@ export default memo(function FlightBriefingView({
         </>
       )}
 
-      {/* Performance: whether the runways will do, then the loading that changes it. */}
-      {part === "performance" && (
+      {part === "enroute" && stops.length > 0 && (
         <>
           <TakeoffLandingSection
-            aircraft={nav?.aircraft} briefing={briefing} course={course}
+            aircraft={nav?.aircraft} briefing={briefing} course={course} phase="enroute"
             takeoff={loaded?.takeoff.weightLb ?? null} landing={loaded?.landing.weightLb ?? null}
           />
-          <WeightBalanceSection aircraft={nav?.aircraft} tripFuelGal={totals?.fuel_gal ?? null} />
+          {briefing ? <AirportSections briefing={briefing} landings={landings} legs={legs} callSign={ownCallSign} phase="enroute" />
+            : <AccordionSection title="Airport"><Pending>{briefingPendingMessage}</Pending></AccordionSection>}
+        </>
+      )}
+
+      {/* Arrive: the destination when the flight gets there -- its
+          weather, the landing, the field -- and under IFR the alternate. */}
+      {part === "arrive" && (
+        <>
+          {briefing && course ? (
+            <WeatherAlongRoute briefing={briefing} course={course} legs={legs} departIso={depart || opened} unchecked={unchecked} phase="arrive" />
+          ) : (
+            <AccordionSection title="Weather"><Pending>{briefingPendingMessage}</Pending></AccordionSection>
+          )}
+          <TakeoffLandingSection
+            aircraft={nav?.aircraft} briefing={briefing} course={course} phase="arrive"
+            takeoff={loaded?.takeoff.weightLb ?? null} landing={loaded?.landing.weightLb ?? null}
+          />
+          {briefing ? <AirportSections briefing={briefing} landings={landings} legs={legs} callSign={ownCallSign} phase="arrive" />
+            : <AccordionSection title="Airport"><Pending>{briefingPendingMessage}</Pending></AccordionSection>}
+          {ifr && <AlternateSection {...alternateWhere} />}
         </>
       )}
     </>

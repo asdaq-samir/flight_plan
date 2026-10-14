@@ -17,10 +17,6 @@ export interface WorkspacePieces {
   /** The panel's second row, in sight at rest: the airplane and the
    *  departure time, the rating's progress. */
   controls?: ReactNode;
-  /** The panel's head all the way up, in place of the top row and the
-   *  controls: the route's figures alone over its tabs, at the pilot's
-   *  ask (MapPanel's `figures`). */
-  figures?: ReactNode;
   /** Beside the route form, in sight at rest: the workspace's own few
    *  actions (save, the narrative and print; filter, undo and more). */
   actions?: ReactNode;
@@ -56,9 +52,9 @@ export interface WorkspacePieces {
   foot?: ReactNode;
   /** The pill's own under its head, at rest alone (MapPanel's `pillBody`). */
   pillBody?: ReactNode;
-  /** All the way up, a small button on the separator under the head: the
-   *  route folded away or shown (MapPanel's `fold`). */
-  fold?: ReactNode;
+  /** The foot kept in the tabs' place with the pill put away to its row
+   *  (MapPanel's `footStays`). */
+  footStays?: boolean;
   /** The panel's body down to the sheet's own edge, over the home
    *  indicator (MapPanel's toEdge): an airport's card, its tiles and tabs
    *  at its foot. */

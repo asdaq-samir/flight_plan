@@ -253,10 +253,12 @@ export function PillSection({ title, onMore, right, children, testId }: {
   children: ReactNode;
   testId?: string;
 }) {
-  // The full card's Favorites' type, which the owner liked ("I liked the
-  // font style of Favorites from the full card earlier"): the title's
-  // bold 17, in the text's own colour, a chevron where it opens more.
-  const heading = cn("font-bold text-foreground", TEXT.title);
+  // The full card's Favorites' size, which the owner liked ("I liked the
+  // font style of Favorites from the full card earlier"), the title's 17
+  // -- not bold, not capitals ("Section labels don't need to be bold or
+  // all caps") -- in the text's own colour, or the tint where it opens
+  // more ("for clickable sections you can make them blue").
+  const heading = cn("font-medium text-foreground", TEXT.title);
   return (
     // Eight under the title, so its 44-point hit area (index.css) stays
     // its own over the tiles' (the iOS audit's P1).
@@ -265,10 +267,10 @@ export function PillSection({ title, onMore, right, children, testId }: {
         {onMore ? (
           <button
             type="button" onClick={onMore} data-testid={testId && `${testId}-more`}
-            className={cn("relative flex items-center gap-0.5 outline-none focus-visible:ring-2 focus-visible:ring-ring after:absolute after:-inset-2", heading)}
+            className={cn("relative flex items-center gap-0.5 outline-none focus-visible:ring-2 focus-visible:ring-ring after:absolute after:-inset-2", heading, "text-tint")}
           >
             {title}
-            <ChevronRight className="size-5 text-muted-foreground" aria-hidden="true" />
+            <ChevronRight className="size-5" aria-hidden="true" />
           </button>
         ) : typeof title === "string" ? <h3 className={heading}>{title}</h3> : title}
         {right && <div className="ml-auto flex items-center gap-2">{right}</div>}
@@ -297,12 +299,12 @@ export function PillMenu<V extends string>({ label, value, options, onChange, ap
       <DropdownMenuTrigger
         data-testid={testId}
         className={cn(
-          "relative flex items-center gap-0.5 font-bold text-foreground outline-none",
+          "relative flex items-center gap-0.5 font-medium text-tint outline-none",
           "focus-visible:ring-2 focus-visible:ring-ring after:absolute after:-inset-2", TEXT.title,
         )}
       >
         {label}
-        <ChevronDown className="size-5 text-muted-foreground" aria-hidden="true" />
+        <ChevronDown className="size-5" aria-hidden="true" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className={cn("min-w-44", className)}>
         <DropdownMenuRadioGroup value={value} onValueChange={v => onChange(v as V)}>
@@ -365,7 +367,9 @@ function SmallAirportTile({ airport, detail, onClick }: { airport: RecentAirport
   const space = useAirspace(airport);
   return (
     <SmallTile
-      mark={<SmallMark icon={<KeptChartMark airport={airport} size={32} />} className="bg-foreground/8 [&_svg]:size-8" />}
+      // The chart's mark the whole tile, no grey round it, at the owner's
+      // ask ("make fav airport icons fill the grey space around it").
+      mark={<SmallMark icon={<KeptChartMark airport={airport} size={56} />} className="[&_svg]:size-14" />}
       title={airport.ident} detail={detail} label={`${airport.ident}, ${space.name}`} onClick={onClick} testId="pill-favorite"
     />
   );

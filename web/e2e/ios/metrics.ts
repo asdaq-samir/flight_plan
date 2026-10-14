@@ -307,7 +307,7 @@ export function componentFindings(page: Page): Promise<ComponentFinding[]> {
       const svg = button.querySelector("svg");
       // The airport card's runway sketch is a picture as wide as two tiles,
       // not an icon button: its svg is the drawing, not a glyph.
-      if (!svg || !on(button) || button.closest('header, .leaflet-marker-icon, [data-sonner-toaster], [data-slot="tabs-trigger"], [data-testid="place-runway-sketch"], [data-testid="route-fold"]')) continue;
+      if (!svg || !on(button) || button.closest('header, .leaflet-marker-icon, [data-sonner-toaster], [data-slot="tabs-trigger"], [data-testid="place-runway-sketch"]')) continue;
       const words = [...button.querySelectorAll("*"), button].some(n => [...n.childNodes].some(c => c.nodeType === 3 && c.textContent!.trim() && !(n as Element).closest(".sr-only")));
       // A button named by words laid over it -- a section's title over its
       // row-wide accordion trigger (AccordionSection) -- has words: it is
@@ -360,7 +360,9 @@ export function componentFindings(page: Page): Promise<ComponentFinding[]> {
     }
     if (matchMedia("(pointer: coarse) and (min-width: 744px) and (min-height: 600px)").matches) {
       for (const sheet of document.querySelectorAll('[data-testid="console-sheet"]')) {
-        if (!on(sheet)) continue;
+        // The planner's Setup is a tab of the map's panel on an iPad too
+        // (MapPage's inPanel), at the owner's ask: the panel's, not a sheet.
+        if (!on(sheet) || sheet.closest('[data-slot="map-panel"]')) continue;
         const b = sheet.getBoundingClientRect();
         const w = Math.min(540, innerWidth - 40), h = Math.min(620, innerHeight * 0.85);
         const centred = Math.abs(b.left - (innerWidth - b.right)) <= 1 && Math.abs(b.top - (innerHeight - b.bottom)) <= 1;

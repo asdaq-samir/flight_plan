@@ -6,7 +6,7 @@ import type { AlternateCheck } from "../../../../lib/api/types";
 import { TEXT } from "../../../../lib/text";
 import { useSearchParamsNow } from "../../../../lib/useSearchParamsNow";
 import { ceilingAndVisibility } from "../../format";
-import { alternateFinding, useAlternate, type AlternateWhere } from "../../hooks/useAlternate";
+import { useAlternate, type AlternateWhere } from "../../hooks/useAlternate";
 
 function standing(check: AlternateCheck): string {
   return check.good === true
@@ -31,9 +31,8 @@ export default function AlternateSection(where: AlternateWhere) {
     else next.delete("alternate");
     return next;
   }, { replace: true });
-  const found = alternateFinding(data);
   return (
-    <AccordionSection title="Alternate" finding={found?.finding}>
+    <AccordionSection title="Alternate">
       <div className="space-y-4" data-testid="alternate">
         {!where.eta ? (
           <p className="text-muted-foreground">Checked once the nav log has an ETA.</p>

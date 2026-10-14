@@ -5,10 +5,10 @@ import { cn } from "cn";
 import { useContext } from "react";
 import { CircleHelp, Info, Settings } from "lucide-react";
 import AboutPanel from "../../components/AboutPanel";
-import QuickControls from "../../components/QuickControls";
 import { ConsoleInPanelContext, ConsoleSettingsContext } from "../../components/mapChrome";
 import { ConsolePages, PageRow } from "../../components/ConsolePages";
 import EmptyState from "../../components/EmptyState";
+import { PillSection } from "../../components/Favorites";
 import { ListGroup, ListRow } from "../../components/GroupedList";
 import { RowBadge } from "../../components/RowBadge";
 import { SETTING_BADGE } from "../../lib/rowBadges";
@@ -24,6 +24,7 @@ import { standing, subscriptionQuery, useSold } from "../../lib/subscription";
 import PilotGuide from "./PilotGuide";
 import SignInModal from "./SignInModal";
 import AccountRow from "./AccountRow";
+import SetupPill from "./SetupPill";
 
 /** Who is signed in, or why nobody is: null signed out, "loading"
  *  while the check is in flight, "error" when it failed. */
@@ -70,6 +71,19 @@ function Personal({ pilot, setup = false }: {
         </EmptyState>
       ) : null;
   const sold = useSold();
+  // The pilot's things, a row each: the account's three greyed until there
+  // is one; the minimums are this device's.
+  const sectionRows = SECTIONS.map(s => {
+    const badge = <RowBadge colour={s.colour}>{s.icon}</RowBadge>;
+    return s.value === "minimums" || signedIn ? (
+      <PageRow
+        key={s.value} page={s.value} title={s.label} media={badge}
+        value={s.value === "aircraft" && aircraft.label ? shortName(aircraft.label) : undefined}
+      />
+    ) : (
+      <ListRow key={s.value} title={s.label} media={badge} chevron disabled onClick={() => undefined} />
+    );
+  });
   const settings = useContext(ConsoleSettingsContext);
   const pages = {
     ...(setup ? {
@@ -92,45 +106,37 @@ function Personal({ pilot, setup = false }: {
           away Minimums, which needs no sign-in, or an edit in it. */}
       <ConsolePages key={pilot === null || pilot === "error" ? "out" : "in"} back="Account" pages={pages}>
         <div className="space-y-4">
-          {/* Who is signed in and the mode, first, as iOS's Settings puts
-              the account at its top (AccountRow). */}
-          <AccountRow />
-          {account}
-          {/* What the pilot has of the paid features, a row of its own over
+          {/* Setup's page starts as its half card does -- Controls, the
+              switches -- so a drag up only adds what is under them, at the
+              owner's ask ("make the dragging up consistent in fpl and
+              setup as well"); the account then heads the Account group
+              ("move the email down with aircraft's etc and label the
+              section Account"). Elsewhere, who is signed in and the mode
+              first, as iOS's Settings puts the account at its top. */}
+          {setup ? <SetupPill testId="setup-head" rows={sectionRows} /> : <AccountRow />}
+          {setup ? (pilot === "loading" || pilot === "error") && account : account}
+          {/* What the pilot has of the paid features, a row of its own by
               their things, as iOS's Settings puts the account's at the top. */}
           {/* Not where this deployment sells none (the proof of concept). */}
           {signedIn && sold && <SubscriptionRow />}
-          <div data-testid="library-section">
-            <ListGroup>
-              {SECTIONS.map(s => {
-                const badge = <RowBadge colour={s.colour}>{s.icon}</RowBadge>;
-                // The account's three greyed until there is one; the
-                // minimums are this device's.
-                return s.value === "minimums" || signedIn ? (
-                  <PageRow
-                    key={s.value} page={s.value} title={s.label} media={badge}
-                    value={s.value === "aircraft" && aircraft.label ? shortName(aircraft.label) : undefined}
-                  />
-                ) : (
-                  <ListRow key={s.value} title={s.label} media={badge} chevron disabled onClick={() => undefined} />
-                );
-              })}
-            </ListGroup>
-          </div>
+          {!setup && (
+            <div data-testid="library-section">
+              <ListGroup>{sectionRows}</ListGroup>
+            </div>
+          )}
           {setup && (
             <>
-              {/* The switches, as Setup's pill has them; then the rest of
-                  the app as rows that open their pages, as iPhone's Settings
-                  lists its own -- at the owner's pick of the redesign, where
-                  Guide, Account, Settings and About were tabs. */}
-              <ListGroup title="Quick">
-                <div className="p-2"><QuickControls /></div>
-              </ListGroup>
-              <ListGroup title="App">
+              {/* The rest of the app as rows that open their pages, as
+                  iPhone's Settings lists its own -- at the owner's pick of
+                  the redesign, where Guide, Account, Settings and About
+                  were tabs. */}
+              <PillSection title="App">
+              <ListGroup>
                 <PageRow page="settings" title="Settings" media={<RowBadge colour={SETTING_BADGE.general}><Settings /></RowBadge>} />
                 <PageRow page="guide" title="Guide" media={<RowBadge colour={SETTING_BADGE.guide}><CircleHelp /></RowBadge>} />
                 <PageRow page="about" title="About" media={<RowBadge colour={SETTING_BADGE.about}><Info /></RowBadge>} />
               </ListGroup>
+              </PillSection>
             </>
           )}
         </div>

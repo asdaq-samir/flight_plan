@@ -296,7 +296,12 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
   // Under the distance, the ident and the town, on a line of its own at
   // the owner's ask ("move the distance above id, city").
   // The state as the FAA writes it ("MN"), not ISO's region ("US-MN").
-  const where = place ? [place.ident, [place.municipality, place.region?.replace(/^US-/, "")].filter(Boolean).join(", ")].filter(Boolean).join(" · ") : null;
+  // Where it is, the town and the state: its ident is the title over the
+  // card (TabBar), at the owner's ask ("remove the id from the
+  // description, but keep the location").
+  // A field with no town on record keeps the line, empty, so the card is
+  // the one shape for every field.
+  const where = place ? [place.municipality, place.region?.replace(/^US-/, "")].filter(Boolean).join(", ") || "\u00a0" : null;
   const line = place ? subtitleOf(place, measured)
     : error ? (error instanceof ApiError && error.status === 404 ? "Not found" : "Could not be looked up")
       : "…";
@@ -557,7 +562,9 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
       {place && !summary && (
         <>
           <CardTabPanel value="radio" className="space-y-0">
-            <ListGroup title={frequenciesTitle(place)}>
+            {/* Titled as the half card's frequencies are (PillSection). */}
+            <PillSection title={frequenciesTitle(place)}>
+            <ListGroup>
               {place.frequencies.length ? place.frequencies.map((f, i) => (
                 <FrequencyRow key={`${f.type}-${f.frequency_mhz}-${i}`} type={f.type} description={f.description} mhz={f.frequency_mhz} testId="place-frequency" />
               )) : <ListRow title="None listed" />}
@@ -567,14 +574,15 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
                 <ListRow key={note} media={<RowBadge colour={BADGE.traffic}><Radio /></RowBadge>} title={note} />
               ))}
             </ListGroup>
+            </PillSection>
             {place.lighting.length > 0 && (
               // The field's lights, from its Chart Supplement remarks: the
               // ones a pilot turns on from the cockpit by keying the mic,
               // and with no count of clicks of their own, the standard one
               // -- with the radio, as it is the mic that turns them on.
               <div className="pt-5">
+                <PillSection title="Lights">
                 <ListGroup
-                  title="Lights"
                   footer={place.standard_keying
                     ? "Key the mic on the frequency 7 times within 5 seconds for high intensity, 5 for medium, 3 for low."
                     : undefined}
@@ -583,6 +591,7 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
                     <ListRow key={note} media={<RowBadge colour={BADGE.lights}><Lightbulb /></RowBadge>} title={note} data-testid="place-lighting" />
                   ))}
                 </ListGroup>
+                </PillSection>
               </div>
             )}
           </CardTabPanel>

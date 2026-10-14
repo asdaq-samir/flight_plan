@@ -1,13 +1,14 @@
 import { test, expect, type Page } from "@playwright/test";
-import { settle, sideDrawer, slow, openTab, openSection, panelTabs, sectionTab } from "./helpers";
+import { settle, sideDrawer, slow, openTab, openSection, panelTabs } from "./helpers";
 
 /**
- * The planning panel's tabs, each opening on its conclusion: the Brief's
- * Go / No-Go over every tab's findings (lib/verdict), each row opening
- * where it was found, and preflight action (14 CFR 91.103) to tick; the
- * Weather place by place along the route; the Performance tab's runway
- * check; the Airports a section a field. The briefing's answer is
- * changed where a test needs one answer.
+ * The planning panel's tabs, the flight's phases in the order flown (the
+ * owner's pick of the redesign, "C"): Preflight's Go / No-Go over every
+ * tab's findings (lib/verdict), each row opening where it was found, and
+ * preflight action (14 CFR 91.103) to tick; Depart's and Arrive's fields,
+ * their weather, runway check and radio; En route's weather on the way.
+ * Each tab's sections one under another, no pills. The briefing's answer
+ * is changed where a test needs one answer.
  */
 
 /** The briefing's answer, changed by `change` on its way in. */
@@ -26,13 +27,13 @@ async function planned(page: Page) {
   await expect(page.getByTestId("navlog-eta")).toBeVisible({ timeout: slow(120000) });
 }
 
-test("the Brief opens on its Go / No-Go: VFR not recommended is no-go, marked on the Weather tab, and its row opens the Weather", async ({ page }) => {
+test("Preflight opens on its Go / No-Go: VFR not recommended is no-go, marked on En route, and its row opens En route's adverse conditions", async ({ page }) => {
   await briefingAs(page, json => {
     Object.assign(json, { vfr_not_recommended: ["KDLH currently reporting IFR"], tfrs: [] });
   });
   await planned(page);
   const drawer = sideDrawer(page);
-  await expect(page.getByTestId("panel-tab-mark-weather")).toHaveAttribute("data-finding", "stop");
+  await expect(page.getByTestId("panel-tab-mark-enroute")).toHaveAttribute("data-finding", "stop");
   await openTab(page, "Brief");
   const weather = drawer.getByTestId("verdict-weather");
   await expect(weather).toHaveAttribute("data-finding", "stop");
@@ -42,19 +43,16 @@ test("the Brief opens on its Go / No-Go: VFR not recommended is no-go, marked on
   await expect(drawer.locator("[data-testid^='verdict-'][data-finding]")).toHaveCount(8);
 
   await weather.click();
-  await expect(panelTabs(page).getByRole("tab", { name: "Weather", exact: true })).toHaveAttribute("aria-selected", "true");
-  // On its section's pill (SectionTabs), the section under it, flagged.
-  await expect(sectionTab(page, "Adverse Conditions")).toHaveAttribute("aria-pressed", "true");
-  await expect(sectionTab(page, "Adverse Conditions").getByTestId("section-tab-mark")).toHaveAttribute("data-finding", "stop");
-  await expect(drawer.locator('[data-tab="weather"] [data-title="Adverse Conditions"]')).toBeInViewport();
+  await expect(panelTabs(page).getByRole("tab", { name: "En route", exact: true })).toHaveAttribute("aria-selected", "true");
+  // Scrolled to its section, flagged.
+  await expect(drawer.locator('[data-tab="enroute"] [data-title="Adverse Conditions"]')).toBeInViewport();
   await expect(drawer.getByTestId("vnr-flag")).toBeVisible();
 
-  // And the runways' row opens the Performance tab at its runway check.
-  await openTab(page, "Brief");
+  // And the runways' row opens Depart at its takeoff.
+  await openTab(page, "Preflight");
   await drawer.getByTestId("verdict-runways").click();
-  await expect(panelTabs(page).getByRole("tab", { name: "Performance", exact: true })).toHaveAttribute("aria-selected", "true");
-  await expect(sectionTab(page, "Takeoff & Landing")).toHaveAttribute("aria-pressed", "true");
-  await expect(drawer.locator('[data-tab="performance"] [data-title="Takeoff & Landing"]')).toBeInViewport();
+  await expect(panelTabs(page).getByRole("tab", { name: "Depart", exact: true })).toHaveAttribute("aria-selected", "true");
+  await expect(drawer.locator('[data-tab="depart"] [data-title="Takeoff"]')).toBeInViewport();
   await page.unrouteAll({ behavior: "ignoreErrors" });
 });
 
@@ -72,7 +70,7 @@ test("preflight action is 14 CFR 91.103's list to tick, with what the planner fo
   await expect(drawer.getByTestId("preflight-count")).toHaveText("2 of 7 reviewed");
 });
 
-test("the Weather goes place by place, each TAF read for when the flight is there, the pilot reports where they were made", async ({ page }) => {
+test("the weather goes place by place, each TAF read for when the flight is there, the pilot reports where they were made", async ({ page }) => {
   await briefingAs(page, json => {
     const arrive = new Date(Date.now() + 150 * 60_000).toISOString();
     const pass = new Date(Date.now() + 60 * 60_000).toISOString();
@@ -85,27 +83,29 @@ test("the Weather goes place by place, each TAF read for when the flight is ther
     ];
   });
   await planned(page);
-  await openTab(page, "Weather");
-  // The Weather's parts as its section tabs; the places, in the order
-  // flown, under Along the Route.
-  // By their titles: a flagged pill's words say its flag to a reader too.
-  await expect.poll(() => sideDrawer(page).locator('[data-tab="weather"] [data-testid="section-tab"]')
-    .evaluateAll(pills => pills.map(pill => pill.getAttribute("data-section"))))
-    .toEqual(["Adverse Conditions", "Along the Route", "Winds Aloft"]);
+  // En route's sections one under another, after the legs and the profile.
+  await openTab(page, "En route");
+  await expect.poll(() => sideDrawer(page).locator('[data-tab="enroute"] [data-title]')
+    .evaluateAll(sections => sections.map(s => s.getAttribute("data-title"))))
+    .toEqual(["Legs", "Profile", "Cruise Altitude", "Adverse Conditions", "Along the Route", "Winds Aloft"]);
   await openSection(page, "Along the Route");
-  const places = sideDrawer(page).getByTestId("weather-places");
-  await expect(places).toBeVisible();
-  await expect(places.locator("h3")).toHaveText(["C81 · Departure", "En route", "KDLH · Destination"]);
+  const enRoute = sideDrawer(page).locator('[data-tab="enroute"]').getByTestId("weather-places");
+  await expect(enRoute).toBeVisible();
+  await expect(enRoute.locator("h3")).toHaveText(["En route"]);
   // The pilot report 120 nm along before the TAF 210 nm along.
-  await expect(places.locator("[data-testid='pirep'], [data-testid='enroute-taf']")).toHaveText([/PIREP · 5,500 ft/, /KHYR/]);
-  const destination = places.getByTestId("place-taf").last();
+  await expect(enRoute.locator("[data-testid='pirep'], [data-testid='enroute-taf']")).toHaveText([/PIREP · 5,500 ft/, /KHYR/]);
+  // Each field's own on its phase's tab: the destination's on Arrive.
+  await openTab(page, "Arrive");
+  const arrive = sideDrawer(page).locator('[data-tab="arrive"]').getByTestId("weather-places");
+  await expect(arrive.locator("h3")).toHaveText(["KDLH · Destination"]);
+  const destination = arrive.getByTestId("place-taf");
   await expect(destination).toContainText(/Forecast, \d\d:\d\d/);
   await expect(destination).toContainText("800 ft · 2 sm");
   await expect(destination).toContainText("IFR");
   await page.unrouteAll({ behavior: "ignoreErrors" });
 });
 
-test("the Performance tab opens on the runway check: a runway too short is red, on the tab and the Brief", async ({ page }) => {
+test("Depart has the takeoff's runway check: a runway too short is red, on the tab and in Preflight's Go / No-Go", async ({ page }) => {
   await briefingAs(page, json => {
     const airports = json.airports as Record<string, { runways: Record<string, unknown>[] }>;
     airports.C81!.runways = [{
@@ -115,38 +115,36 @@ test("the Performance tab opens on the runway check: a runway too short is red, 
   });
   await planned(page);
   const drawer = sideDrawer(page);
-  await expect(page.getByTestId("panel-tab-mark-performance")).toHaveAttribute("data-finding", "stop");
-  await openTab(page, "Performance");
+  await expect(page.getByTestId("panel-tab-mark-depart")).toHaveAttribute("data-finding", "stop");
+  await openTab(page, "Depart");
   await expect(drawer.getByTestId("tl-flag")).toContainText("Runway too short");
   const takeoff = drawer.getByTestId("runway-takeoff");
   await expect(takeoff).toContainText(/ft past the end/);
   await expect(drawer.getByTestId("density-altitude").first()).toContainText(/Pressure altitude [\d,]+ ft/);
-  // The runways before the loading: what is read there first.
-  const titles = await drawer.locator("[data-tab='performance'] [data-slot='open-section'] > div > h3").allInnerTexts();
-  expect(titles.indexOf("Takeoff & Landing")).toBeLessThan(titles.indexOf("Weight & Balance"));
-  await openTab(page, "Brief");
+  // Leaving's order: the field's weather, the takeoff, the field.
+  await expect.poll(() => drawer.locator("[data-tab='depart'] [data-title]")
+    .evaluateAll(sections => sections.map(s => s.getAttribute("data-title"))))
+    .toEqual(["Weather", "Takeoff", "C81 · Departure"]);
+  await openTab(page, "Preflight");
   await expect(drawer.getByTestId("verdict-runways")).toContainText("Too short at C81");
   await page.unrouteAll({ behavior: "ignoreErrors" });
 });
 
-test("the Brief has a section for each field, in the order flown, its pattern and calls with its runways", async ({ page }) => {
+test("each field is a section of its phase's tab, its pattern and calls with its runways", async ({ page }) => {
   await planned(page);
   const drawer = sideDrawer(page);
-  // Under the Brief, at the pilot's ask, where they were a tab of their own.
-  await openTab(page, "Brief");
-  const sections = drawer.getByTestId("airport-section");
-  await expect(sections).toHaveCount(2);
-  // Each field a section tab of the Brief's, in the order flown.
-  await openSection(page, "C81 · Departure");
-  await expect(sectionTab(page, "C81 · Departure")).toHaveAttribute("aria-pressed", "true");
-  await expect(sectionTab(page, "KDLH · Destination")).toHaveAttribute("aria-pressed", "false");
-  await expect(sections.nth(0)).toBeVisible();
-  await expect(sections.nth(1)).toBeHidden();
-  await expect(sections.nth(0).getByTestId("radio-phase")).toContainText("Leaving C81");
-  await expect(sections.nth(1).getByTestId("radio-phase")).toContainText("Into KDLH");
+  // The departure's on Depart, the destination's on Arrive.
+  await openTab(page, "Depart");
+  const leaving = drawer.locator('[data-tab="depart"]').getByTestId("airport-section");
+  await expect(leaving).toHaveCount(1);
+  await expect(leaving.getByTestId("radio-phase")).toContainText("Leaving C81");
+  await openTab(page, "Arrive");
+  const into = drawer.locator('[data-tab="arrive"]').getByTestId("airport-section");
+  await expect(into).toHaveCount(1);
+  await expect(into.getByTestId("radio-phase")).toContainText("Into KDLH");
   // Each frequency as the field's card lists it: its name in words and
   // its glyph, the figure as pilots write it.
-  const tower = sections.nth(1).getByTestId("airport-frequency").filter({ hasText: "Tower" }).first();
+  const tower = into.getByTestId("airport-frequency").filter({ hasText: "Tower" }).first();
   await expect(tower).toContainText("118.3");
   await expect(tower.locator("svg").first()).toBeAttached();
 });
@@ -156,9 +154,9 @@ test("a route from the pilot's position has a section for its airports alone, no
   await settle(page);
   await expect(page.getByTestId("navlog-eta")).toBeVisible({ timeout: slow(120000) });
   const drawer = sideDrawer(page);
-  await openTab(page, "Brief");
+  await openTab(page, "Arrive");
   await openSection(page, "KDLH · Destination");
-  await expect(drawer.getByRole("heading", { name: "KDLH · Destination" })).toBeVisible();
-  await expect(drawer.getByTestId("airport-section")).toHaveCount(1);
-  await expect(drawer.getByRole("heading", { name: /Departure/ })).toHaveCount(0);
+  await expect(drawer.locator('[data-tab="arrive"] [data-title="KDLH · Destination"]')).toBeVisible();
+  await openTab(page, "Depart");
+  await expect(drawer.locator('[data-tab="depart"]').getByTestId("airport-section")).toHaveCount(0);
 });

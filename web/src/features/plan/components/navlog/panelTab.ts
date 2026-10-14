@@ -2,8 +2,9 @@ import { createContext } from "react";
 import { create } from "zustand";
 import type { BriefingPart } from "../briefing/sections";
 
-/** The planning panel's tabs (PanelTabs). */
-export type PanelTab = Exclude<BriefingPart, "profile"> | "navlog";
+/** The planning panel's tabs (PanelTabs), in the order the flight is
+ *  flown. */
+export type PanelTab = Exclude<BriefingPart, "profile">;
 
 /** Brings a tab up from inside another, scrolled to one of its sections
  *  by its title where one is named: the Brief's Go / No-Go rows open
@@ -25,7 +26,7 @@ export const useTabAsk = create<{
   heard: () => set({ ask: null }),
 }));
 
-/** The Nav Log tab's legs -- its totals, its table and its notes -- as
- *  the first of its section tabs (SectionTabs), before its profile and
- *  its altitude's reasoning: up as a checkpoint is picked on the map. */
+/** En route's legs -- its totals, its table and its notes -- its first
+ *  section, before its profile and its altitude's reasoning: up as a
+ *  checkpoint is picked on the map. */
 export const LEGS = "Legs";

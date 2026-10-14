@@ -8,7 +8,7 @@ import { altFt } from "../units";
 /**
  * The traffic patterns the pilot picked (the route's Procedures), on the
  * chart round their runways: each leg in teal over a white casing, as a
- * procedure is drawn apart from the route's orange (ForeFlight draws its
+ * procedure is drawn apart from the route's magenta (ForeFlight draws its
  * in a cyan, at the pilot's showing), an arrow along each leg the way it
  * is flown, the downwind named with its altitude, and the 45° entry dashed
  * into it. Not tappable: a picture of the pattern, the chart under it.

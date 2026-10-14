@@ -23,7 +23,10 @@ test("each field's pattern for the runway into the wind, and its calls in order"
   await page.goto("/app/plan?dep=C81&dest=KDLH&view=briefing");
   await settle(page);
   await expect(page.getByTestId("navlog-eta")).toBeVisible({ timeout: slow(120000) });
-  await openTab(page, "Brief");
+  // Each field's on its phase's tab: both drawn, the departure's then the
+  // destination's.
+  await openTab(page, "Depart");
+  await openTab(page, "Arrive");
   const drawer = sideDrawer(page);
 
   const phases = drawer.getByTestId("radio-phase");

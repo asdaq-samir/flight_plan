@@ -17,6 +17,9 @@ export function noTips() {
   // The first-launch acknowledgement (lib/limits) given too: its dialog
   // takes every click. limits.spec starts without it.
   localStorage.setItem("vfr.limits", JSON.stringify({ state: { acknowledged: true }, version: 0 }));
+  // The route's VFR checkpoints on, as a student has them: off by default
+  // (lib/preferences), and most specs read the route through them.
+  if (!localStorage.getItem("vfr.preferences")) localStorage.setItem("vfr.preferences", JSON.stringify({ state: { waypoints: true }, version: 1 }));
 }
 
 /** An explicit wait, doubled in CI: playwright.config.ts doubles the
@@ -50,6 +53,9 @@ export async function showTabs(page: Page) {
   // is tried, and what is asked is the tabs in sight.
   if (await title.isVisible()) await title.click({ timeout: 5000 }).catch(() => {});
   await expect(page.getByTestId("tab-title")).toBeHidden();
+  // Put away with a route, FPL's pill is its figures, not the tabs
+  // (MapPanel's footStays): the pill again, its tabs over them.
+  if (!(await page.getByTestId("tab-bar").isVisible())) await grabberTo(page, "peek");
 }
 
 /** The panel's head in sight: the pill out of the tabs alone, with the
@@ -101,15 +107,13 @@ export async function grabberTo(page: Page, state: "peek" | "full") {
 }
 
 /** The route's controls in sight -- its box, the airplane, the time,
- *  Share -- the full card's, the pill one row (MapPanel): all the way up,
- *  the route's box and chips unfolded where there is a route to fold. */
+ *  Share -- all the way up, where the pill has them too (MapPanel), with
+ *  room for what a chip opens. */
 export async function controlsInSight(page: Page) {
   const panel = sideDrawer(page);
   await panel.waitFor();
   await grabberTo(page, "full");
   await settled(panel);
-  const fold = panel.getByTestId("route-fold");
-  if (await fold.isVisible() && (await fold.getAttribute("aria-expanded")) === "false") await fold.click();
 }
 
 /** The panel all the way out, as a finger takes it: a drag on its
@@ -147,9 +151,10 @@ export async function openConsole(page: Page) {
   await showTabs(page);
   const settings = page.getByTestId("settings-button");
   await settings.click();
-  // A desktop's console is a sheet or a dialog of its own, over the panel;
-  // a phone's is the panel's layer, which at the pill is out of sight.
-  if ((page.viewportSize()?.width ?? 0) >= 768) return;
+  // The developer's console past a phone's width is a sheet or a dialog of
+  // its own, over the panel; the planner's Setup is the panel's on every
+  // screen (MapPage's inPanel), which at the pill is out of sight.
+  if ((page.viewportSize()?.width ?? 0) >= 768 && new URL(page.url()).pathname.startsWith("/app/dev")) return;
   // Opened at the pill's size, Setup's pill; all the way up for the rest.
   await expect(settings).toHaveAttribute("aria-current", "page");
   await grabberTo(page, "full");
@@ -347,11 +352,19 @@ export async function openBriefing(page: Page) {
  *  itself), Brief, Weather, Performance or Airports. The Brief asks for its
  *  narrative as it opens -- a real, billed Claude call -- so here it is
  *  answered with a line of its own. */
-export async function openTab(page: Page, name: "Brief" | "Nav Log" | "Local" | "Weather" | "Performance") {
+/** The planning panel's tabs by the names they had before they were the
+ *  flight's phases (the owner's pick of the redesign, "C"): the Brief's
+ *  go / no-go is Preflight's, the nav log and the weather on the way En
+ *  route's, the takeoff Depart's. */
+const PHASE_OF = { Brief: "Preflight", "Nav Log": "En route", Local: "En route", Weather: "En route", Performance: "Depart" } as const;
+type PhaseTab = "Preflight" | "Depart" | "En route" | "Arrive";
+
+export async function openTab(page: Page, name: keyof typeof PHASE_OF | PhaseTab) {
   // The tabs are past the half panel's foot, which ends at the flight's
   // line: all the way out, as a finger drags it, to reach them.
   await panelFull(page);
-  if (name === "Brief") {
+  const phase: PhaseTab = name in PHASE_OF ? PHASE_OF[name as keyof typeof PHASE_OF] : name as PhaseTab;
+  if (phase === "Preflight") {
     await page.route(url => url.pathname.endsWith("/api/comparison"), route => route.fulfill({
       status: 200, contentType: "application/x-ndjson",
       body: JSON.stringify({ type: "done", briefing: "A test narrative." }) + "\n",
@@ -359,29 +372,30 @@ export async function openTab(page: Page, name: "Brief" | "Nav Log" | "Local" | 
   }
   // Not the tab up already: tapped again all the way up, it lowers the
   // panel to half (PanelTabs).
-  const tab = panelTabs(page).getByRole("tab", { name, exact: true });
+  const tab = panelTabs(page).getByRole("tab", { name: phase, exact: true });
   if ((await tab.getAttribute("aria-selected")) !== "true") await tab.click();
   await expect(tab).toHaveAttribute("aria-selected", "true");
 }
 
-/** The planning panel's own tabs, not the pills of a tab's sections. */
+/** The planning panel's own tabs. */
 export const panelTabs = (page: Page) => sideDrawer(page).locator('[role="tablist"][data-tip="tabs"]');
 
-/** The pill of a section of the tab up, by its title (SectionTabs). */
-export const sectionTab = (page: Page, title: string) =>
-  sideDrawer(page).locator(`[role="tabpanel"][data-state="active"] [data-testid="section-tab"][data-section="${title}"]`);
+const PHASES: PhaseTab[] = ["Preflight", "Depart", "En route", "Arrive"];
 
-/** A section of the tab up, by its title: its pill tapped (SectionTabs),
- *  where the tab has more than one. */
+/** A section by its title, brought into sight: on the tab up, or on
+ *  whichever of the phases' tabs holds it (an airport's on Depart or
+ *  Arrive, the winds on En route), its sections one under another. */
 export async function openSection(page: Page, title: string) {
-  const pill = sectionTab(page, title);
-  // A tab's pills come with its sections, some a moment after the rest
-  // (the Brief's Mock Oral): a few seconds for it before taking the tab
-  // to have a single section, with no pills at all.
-  await pill.waitFor({ timeout: 5000 }).catch(() => undefined);
-  if (!(await pill.count())) return;
-  if ((await pill.getAttribute("aria-pressed")) !== "true") await pill.click();
-  await expect(pill).toHaveAttribute("aria-pressed", "true");
+  const panel = sideDrawer(page);
+  const here = panel.locator(`[role="tabpanel"][data-state="active"] [data-title="${title}"]`).first();
+  if (!(await here.isVisible().catch(() => false))) {
+    for (const phase of PHASES) {
+      const tab = panelTabs(page).getByRole("tab", { name: phase, exact: true });
+      if ((await tab.getAttribute("aria-selected")) !== "true") await tab.click();
+      if (await here.waitFor({ timeout: 3000 }).then(() => true, () => false)) break;
+    }
+  }
+  await here.scrollIntoViewIfNeeded();
 }
 
 /** Once the map has stopped moving: its panes where they were 300 ms

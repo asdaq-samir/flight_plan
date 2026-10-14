@@ -10,6 +10,7 @@ import { passTime } from "../../../../lib/passTimes";
 import { TEXT } from "../../../../lib/text";
 import { altFt, ceilingAndVisibility, clockTime } from "../../format";
 import CategoryBadge from "./CategoryBadge";
+import { phasesOf, type Phase } from "./sections";
 import { FINDING_TONE } from "../../../../lib/status";
 
 type Station = Briefing["forecast"]["stations"][number];
@@ -111,8 +112,11 @@ function runs(items: { along: number; station: Station | null; pirep: Pirep | nu
  * reports), each read against the whole flight; a pilot reads a route
  * from one end to the other.
  */
-export default function WeatherAlongRoute({ briefing, course, legs, departIso, unchecked }: {
+export default function WeatherAlongRoute({ briefing, course, legs, departIso, unchecked, phase }: {
   briefing: Briefing;
+  /** Only this part of the flight's (its tab's): the departure's weather,
+   *  the stretches and stops between, or the destination's. */
+  phase?: Phase;
   course: Course;
   legs: Leg[];
   /** The departure time, ISO: the time picked, or now. */
@@ -135,7 +139,9 @@ export default function WeatherAlongRoute({ briefing, course, legs, departIso, u
   ].sort((a, b) => a.along - b.along);
 
   return (
-    <AccordionSection title="Along the Route">
+    // A field's weather under its own tab's title, Weather; the way between
+    // Along the Route.
+    <AccordionSection title={phase === "depart" || phase === "arrive" ? "Weather" : "Along the Route"}>
       <div className="space-y-4" data-testid="weather-places" data-tip="weather-places">
         {places.map((place, i) => {
           const metar = briefing.metars[place.ident];
@@ -147,9 +153,13 @@ export default function WeatherAlongRoute({ briefing, course, legs, departIso, u
           const eta = (station ?? nearest?.s)?.eta ? new Date((station ?? nearest!.s).eta!) : at(place.alongNm);
           const next = places[i + 1];
           const stretch = next ? between(place.alongNm, next.alongNm, i === places.length - 2) : [];
+          // The place's own weather on its phase's tab, the stretch after it
+          // on En route's.
+          const placeShown = !phase || phasesOf(i, places.length).includes(phase);
+          const stretchShown = !phase || phase === "enroute";
           return (
             <Fragment key={`${place.ident}${i}`}>
-              <ListGroup title={`${place.ident} · ${place.role}`} badge={<CategoryBadge category={metar?.flight_category} />}>
+              {placeShown && <ListGroup title={`${place.ident} · ${place.role}`} badge={<CategoryBadge category={metar?.flight_category} />}>
                 {unchecked("metars") ? (
                   <ListRow title="Now" description={<span className="text-amber-700 dark:text-amber-300">Not checked: aviationweather.gov did not answer</span>} />
                 ) : (
@@ -184,8 +194,8 @@ export default function WeatherAlongRoute({ briefing, course, legs, departIso, u
                 ) : (
                   <ListRow title="Forecast" description={`No TAF here or within ${NEAREST_TAF_NM} nm`} data-testid="place-taf" />
                 )}
-              </ListGroup>
-              {next && (
+              </ListGroup>}
+              {next && stretchShown && (
                 <ListGroup title={places.length > 2 ? `${place.ident} to ${next.ident}` : "En route"}>
                   {stretch.length === 0 ? (
                     <ListRow title={<span className="text-muted-foreground">No TAFs or pilot reports near this stretch</span>} />

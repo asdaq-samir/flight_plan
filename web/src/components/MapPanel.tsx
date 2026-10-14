@@ -5,7 +5,7 @@ import { useIsMobile } from "../hooks/use-mobile";
 import { useNavEdge } from "../hooks/use-nav-edge";
 import { useKeyboardInset, useSafeArea, useVisualHeight, useWindowHeight } from "../hooks/use-viewport";
 import {
-  GLASS, GLASS_FILL, GLASS_SHEET, GLASS_SHEET_FULL, MATERIAL, PanelHalfContext, PanelSize, PILL_RADIUS, usePanelDragging, SHEET_INSET, SHEET_INSET_RADIUS, SHEET_MARGIN, SHEET_RESHAPE, TabBarMinimized,
+  GLASS, GLASS_FILL, GLASS_SHEET, GLASS_SHEET_FULL, MATERIAL, PanelHalfContext, PanelSize, PILL_RADIUS, usePanelDragging, SHEET_INSET, SHEET_INSET_RADIUS, SHEET_MARGIN, SHEET_RESHAPE, SHEET_SECONDS, TabBarMinimized,
   SHEET_SETTLE, type MapInsets, type PanelState,
 } from "./mapChrome";
 
@@ -19,10 +19,6 @@ interface Props {
   /** The row under it, in sight at rest too: the airplane and the
    *  departure time, the rating's progress. */
   controls?: ReactNode;
-  /** The head all the way up, in place of the top row and the controls,
-   *  at the pilot's ask: the route's figures alone over its tabs, the
-   *  route and its chips the half's. */
-  figures?: ReactNode;
   /** What the panel holds at rest, in place of the route's row and the
    *  controls: a capsule floating over the chart, as Maps' is -- the
    *  training route with a way to its options. With a tab bar the capsule
@@ -53,13 +49,14 @@ interface Props {
    *  route's figures, at the pilot's ask, on every tab while there is a
    *  route. Its height is added to each detent. */
   foot?: ReactNode;
+  /** The foot kept with the pill put away to its one row, in the tabs'
+   *  place: FPL's figures once there is a route, pinned at the card's foot
+   *  as it opens and closes; a tap the pill again. */
+  footStays?: boolean;
   /** The pill's own under its head, at rest alone: what a tab shows there
    *  that is not its foot at every height (FPL's saved flights, or its
    *  profile and figures). */
   pillBody?: ReactNode;
-  /** A small button on the separator between the head and the body, all
-   *  the way up: the route folded away or shown (PlanWorkspace). */
-  fold?: ReactNode;
   /** The body down to the sheet's own edge, over the home indicator's
    *  inset, where the rest of the way is kept clear for every other
    *  panel: an airport's card, its tiles and tabs at its foot (PlaceCard),
@@ -117,9 +114,11 @@ const CARD = 384;
  *  chips over its saved flights' tiles, or over its profile and figures
  *  ("if you need to make the card taller, that's fine"). In rem, so it grows with the text as they do. A
  *  head over a foot share it, the search bar's row and the rest. */
-const PILL_ROW = "h-[14.5rem]";
+const PILL_ROW = "h-[15.5rem]";
+/** PILL_ROW in rem, for a pill split between a body and a foot under it. */
+const PILL_ROW_REM = 15.5;
 const PILL_HEAD_ROW = "h-[3rem]";
-const PILL_FOOT_ROW = "h-[11.5rem]";
+const PILL_FOOT_ROW = "h-[12.5rem]";
 /** The pill collapsed to its tabs: their row (3rem) and its margins. */
 const TABS_PILL_REM = 3.625;
 
@@ -154,7 +153,7 @@ const between = (from: number, to: number, t: number) => from + (to - from) * t;
  * drawer that never closes held the keyboard's focus inside itself and
  * hid the map, and any dialog opened before it, from a screen reader.
  */
-export default function MapPanel({ label, top, controls, figures, compact, children, state, onStateChange, onInsetsChange, toEdge = false, bar, barAlone = false, cardInPill = false, cardOver = false, headInPill = false, foot, pillBody, fold }: Props) {
+export default function MapPanel({ label, top, controls, compact, children, state, onStateChange, onInsetsChange, toEdge = false, bar, barAlone = false, cardInPill = false, cardOver = false, headInPill = false, foot, pillBody, footStays = false }: Props) {
   // No half size, at the owner's ask ("let's remove the half card"): the
   // tabs alone, the pill and all the way up.
   const onPhone = useIsMobile();
@@ -189,7 +188,12 @@ export default function MapPanel({ label, top, controls, figures, compact, child
   // The tabs alone at first, at the owner's ask ("By default it should
   // open in just tabs layout").
   const [tabsOnly, setTabsOnly] = useState(true);
-  const collapsible = pillOfTabs && (!!foot || (headInPill && top != null));
+  // Every tab's pill with something under its tabs -- Setup's too, which
+  // has no head and whose foot is drawn only at rest (`barAlone`) -- is
+  // put away to the tabs alike: a drag down from Setup all the way up
+  // stopped at its pill, at the owner's notice ("Setup not able to drag
+  // down to a pill").
+  const collapsible = pillOfTabs && (!!foot || (headInPill && top != null) || !!pillBody || barAlone);
   // Never with a card open at the pill's size: the card is the pill then.
   const collapsed = collapsible && tabsOnly && state === "peek" && !cardInPill;
 
@@ -235,7 +239,15 @@ export default function MapPanel({ label, top, controls, figures, compact, child
     observer.observe(footNode);
     return () => observer.disconnect();
   }, [footNode, collapsed, state]);
-  const footShown = !!foot && !collapsed;
+  // At the tabs' row too where it stays (`footStays`): the figures at the
+  // card's foot whatever its size, at the owner's ask ("Keep the
+  // calculation pinned as the card is opened or closed"), the tabs' row
+  // put away for them.
+  // From a phone's bottom edge only: a sheet from the top (a desktop's)
+  // has its grabber under its head, which the figures alone would leave
+  // with nothing to hang from.
+  const footShown = !!foot && (!collapsed || (footStays && fromBottom));
+  const footAlone = collapsed && footShown;
   const footHeight = footShown ? footMeasured : 0;
   // How tall it can be: a phone's sheet stops eight points short of the
   // far edge's inset (the status bar, the home indicator), as Maps' does;
@@ -257,11 +269,36 @@ export default function MapPanel({ label, top, controls, figures, compact, child
   // last started from it: 41 points of field, nine over it and twelve
   // under it, until then.
   const [dragged, setDragged] = useState<number | null>(null);
-  const [capsuleHeight, setCapsuleHeight] = useState(41 + CAPSULE_PAD + 12);
+  // A pill of tabs, before one has been measured (a page opened all the
+  // way up): its row and the tabs' over it (3.5rem), the height a tap
+  // down eases to before it turns into the pill.
+  const [capsuleHeight, setCapsuleHeight] = useState(() => (pillOfTabs ? Math.round((PILL_ROW_REM + 3.5) * rootPx()) : 41 + CAPSULE_PAD + 12));
   // At rest with a capsule to show, it floats clear of the screen's
   // edges as Maps' does: in from the sides, above the home indicator
   // (into its inset a little, as Maps sits) or under the status bar.
-  const capsule = hasPill && state === "peek" && dragged === null;
+  // Brought down from all the way up by a tap (not a finger), the sheet
+  // keeps its layout while its height eases down to the pill's, and turns
+  // into the pill once there: it turned into the pill at once, the pill's
+  // head and figures drawn at the top of a sheet still half a screen tall,
+  // then shrank under them, at the owner's notice ("From full card to half
+  // card, transition is not smooth"). For the curve's time (SHEET_SECONDS).
+  const [settling, setSettling] = useState(false);
+  const [stateWas, setStateWas] = useState(state);
+  if (state !== stateWas) {
+    setStateWas(state);
+    setSettling(stateWas === "full" && state === "peek" && dragged === null && hasPill);
+  }
+  useEffect(() => {
+    if (!settling) return;
+    const done = window.setTimeout(() => setSettling(false), SHEET_SECONDS * 1000);
+    return () => window.clearTimeout(done);
+  }, [settling]);
+  const capsule = hasPill && state === "peek" && dragged === null && !settling;
+  // FPL's pill: its box, chips and profile (`pillBody`) over its figures,
+  // the foot pinned at the bottom as all the way up, the two the pill's
+  // one height together (the owner's "Why can't the half card have
+  // calculations pinned at the very bottom as the full card").
+  const bodyOverFoot = capsule && pillOfTabs && !!pillBody && footShown && !collapsed;
   // The tabs' head laid out as in the pill at every height on a phone --
   // the grabber over its top edge, the tabs and the search bar where the
   // pill has them -- so nothing jumps as the sheet comes down into the pill
@@ -273,25 +310,18 @@ export default function MapPanel({ label, top, controls, figures, compact, child
   const shrinking = collapsible && state === "peek" && dragged !== null && dragged < capsuleHeight;
   // The bar shown: over the pill, the sheet's head, or the console's layer
   // with no head of its own (`barAlone`).
-  const barShown = !!bar && (capsule || top != null || barAlone) && !(onPhone && keyboard);
+  const barShown = !!bar && (capsule || top != null || barAlone) && !(onPhone && keyboard) && !footAlone;
   // A card from another tab over this one, on a phone held upright: the
   // tab bar minimized to the card's kind, Back at its left, as iOS's
   // navigation bar is; else the tabs, at the owner's ask. Wider, a card
   // with room for every tab keeps them, as iPadOS's does.
-  const minimized = onPhone && cardOver;
-  // All the way up and settled, the head is the figures alone (`figures`);
-  // what is measured of it for the lowest detent, the half and the half's
-  // body is the head as it is at half, kept from when it last was.
-  const figuresOnly = !!figures && state === "full" && dragged === null;
-  const [halfHead, setHalfHead] = useState(headHeight);
-  if (!figuresOnly && halfHead !== headHeight) setHalfHead(headHeight);
-  const steadyHead = figuresOnly ? halfHead : headHeight;
+  const minimized = cardOver;
   // The tabs alone end at the tab buttons themselves, so they rest the
   // whole safe area up, clear of the home indicator (the HIG's Layout);
   // the pill ends at its padding and can sit six points lower.
   const capsuleGap = fromBottom ? Math.max(12, Math.round(safe.bottom) - (collapsed ? 0 : 6)) : Math.round(safe.top) + SHEET_MARGIN;
   // The capsule is its head alone, the grabber over its padding.
-  const peek = (capsule ? headHeight : Math.round(steadyHead + (fromBottom ? edgeInset : GRABBER))) + footHeight;
+  const peek = (capsule ? headHeight : Math.round(headHeight + (fromBottom ? edgeInset : GRABBER))) + footHeight;
   // The capsule's height, kept while it rests, for the lowest detent once
   // it is the sheet: dragged, the sheet's head is measured where the
   // capsule's was, and the lowest detent came out as tall as the half
@@ -317,7 +347,7 @@ export default function MapPanel({ label, top, controls, figures, compact, child
       return null;
     }
   });
-  const routeNow = tabsAt !== null && !!controls && !capsule && !figuresOnly && dragged === null && measured ? headHeight + tabsAt : null;
+  const routeNow = tabsAt !== null && !!controls && !capsule && dragged === null && measured ? headHeight + tabsAt : null;
   if (routeNow !== null && routeNow !== routeHead) setRouteHead(routeNow);
   useEffect(() => {
     try {
@@ -337,13 +367,17 @@ export default function MapPanel({ label, top, controls, figures, compact, child
   const detents = useMemo<Record<"peek" | "half" | "full", number>>(() => {
     const full = Math.max(peek, room);
     const half = Math.max(peek, Math.max(routeHead ?? 0, Math.round(HALF_LEAST_REM * rootPx())) + halfChrome + footHeight);
-    const lowest = hasPill && !capsule ? Math.min(capsuleHeight, peek) : peek;
+    // Settling down to the pill, the pill's own height, whatever the sheet's
+    // head measures on the way: a tab's pill one height on every tab (its
+    // row and the tabs' over it), a card's as it was last measured.
+    const pillOwn = pillOfTabs && !tabsOnly && !cardInPill ? Math.round((PILL_ROW_REM + 3.5) * rootPx()) : capsuleHeight;
+    const lowest = settling ? pillOwn : hasPill && !capsule ? Math.min(capsuleHeight, peek) : peek;
     return { peek: lowest, half: Math.min(half, full), full };
-  }, [peek, room, routeHead, halfChrome, footHeight, hasPill, capsule, capsuleHeight]);
+  }, [peek, room, routeHead, halfChrome, footHeight, hasPill, capsule, capsuleHeight, settling, pillOfTabs, tabsOnly, cardInPill]);
   // The body's height at half, for what it shows first to fill and no
   // more (--half-body): the search's Favorites, an airport's name and
   // actions.
-  const halfBody = Math.max(0, detents.half - steadyHead - halfChrome - footHeight);
+  const halfBody = Math.max(0, detents.half - headHeight - halfChrome - footHeight);
   // Where the panel's top-right button sits -- the search's gear, the
   // route's close, an airport's or the airspace's card's close -- one
   // place in every panel, at the pilot's ask, so a finger or a pointer
@@ -370,6 +404,10 @@ export default function MapPanel({ label, top, controls, figures, compact, child
   // way up -- its far corners as round as the half sheet's, the glass
   // nearly whole.
   const nearFull = shown >= (detents.half + detents.full) / 2;
+  // 0 at the pill (or the tabs alone), 1 all the way up, between as a
+  // finger takes it; settled, one or the other.
+  const progress = capsule ? 0 : dragged === null ? (state === "full" ? 1 : 0)
+    : Math.min(1, Math.max(0, (shown - detents.peek) / Math.max(1, detents.full - detents.peek)));
   const shape: "capsule" | "inset" | "edge" = capsule ? "capsule" : nearFull ? "edge" : "inset";
   const geometry = {
     // As wide as the sheet in from the edges, at the owner's ask ("let's
@@ -409,7 +447,7 @@ export default function MapPanel({ label, top, controls, figures, compact, child
   // margins, 3.625rem, as the pill lays them out; measured once collapsed).
   const [stripPill, setStripPill] = useState<number | null>(null);
   if (capsule && collapsible && !collapsed && stripPill !== headHeight + footHeight) setStripPill(headHeight + footHeight);
-  const tabsPill = collapsed && capsule ? headHeight : Math.round(TABS_PILL_REM * rootPx());
+  const tabsPill = collapsed && capsule ? headHeight + footHeight : Math.round(TABS_PILL_REM * rootPx());
   // Where a drag can come to rest: no half.
   const restAt = useMemo(() => (collapsible
     ? { peek: collapsed ? stripPill ?? detents.peek : detents.peek, full: detents.full, tabs: collapsed ? capsuleHeight : tabsPill }
@@ -569,7 +607,7 @@ export default function MapPanel({ label, top, controls, figures, compact, child
       data-slot="map-panel" data-panel={state} {...(onPhone ? { "data-sheet": "" } : {})}
       aria-label={label}
       onClickCapture={swallow}
-      data-capsule={capsule || undefined} data-collapsed={collapsed || undefined}
+      data-capsule={capsule || undefined} data-collapsed={collapsed || undefined} data-settling={settling || undefined}
       data-shape={onPhone ? shape : undefined}
       style={{
         ...corner,
@@ -577,6 +615,9 @@ export default function MapPanel({ label, top, controls, figures, compact, child
         // into the sheet with it; the shape eases in and out as a drag
         // crosses half way up, to the screen's edges and back.
         height: shown, transition: !measured || (morphing && morph < 1) ? "none" : dragged === null ? SHEET_SETTLE : SHEET_RESHAPE,
+        // How far up it is, 0 at the pill to 1 all the way, for what grows
+        // with it (FlightLine's figures).
+        ...({ "--sheet-progress": progress } as CSSProperties),
         ...(onPhone && dragged !== null ? { "--glass-fill": `${fill}%` } : {}),
         ...(onPhone ? {
           left: geometry.side, right: geometry.side,
@@ -605,6 +646,13 @@ export default function MapPanel({ label, top, controls, figures, compact, child
       {/* The head, dragged as the grabber is: the grabber first on a sheet
           from the bottom, the top row, any notice, the controls -- or, at
           rest, the capsule, its grabber on its far edge from the top. */}
+      {/* Where the foot stays (`footStays`), the head gives way to it as the
+          sheet's height eases or follows a finger -- clipped at its foot,
+          measured whole inside -- so the figures stay pinned at the card's
+          foot while the tabs come out over them, at the owner's ask
+          ("Pinned at the bottom while the tabs come out"); else it pushed
+          them below the screen's edge for the moment the height caught up. */}
+      <div className={cn("flex flex-col", footStays && !collapsed ? "min-h-0 shrink overflow-hidden" : "shrink-0")}>
       <div ref={setHead} className="relative flex shrink-0 touch-none flex-col" onPointerDown={startDrag}>
         {fromBottom && grabber}
         <div className="flex flex-col">
@@ -618,7 +666,9 @@ export default function MapPanel({ label, top, controls, figures, compact, child
               // In the pill the tabs; out of it on a phone the tab up's name
               // alone (TabBarMinimized), a row a little lower, as tall as
               // the name's 44-point hit area so the head under it takes none.
-              "flex shrink-0 px-2", minimized ? "min-h-11" : "h-12",
+              // Clear of the grabber over it where the head is not the pill's
+              // (a phone on its side, an iPad): the title's hit area under it.
+              "flex shrink-0 px-2", minimized ? cn("min-h-11", !pillHead && "pt-1.5") : "h-12",
               // The pill's whole, its line under it only over a head --
               // where the tabs' head keeps the pill's places (pillHead), a
               // line drawn in the gap, not a border that moves what is under.
@@ -664,7 +714,7 @@ export default function MapPanel({ label, top, controls, figures, compact, child
               // route's box sat lower than the other tabs' bars, at the
               // owner's notice: four points down, as the head row's centring
               // puts the search bar's box (both 40 tall).
-              capsule ? (pillOfTabs ? cn(footShown ? PILL_HEAD_ROW : cn(PILL_ROW, "items-start pt-1"), "px-[9px]") : cn("p-[9px]", fromBottom ? "pb-3" : "pt-3"))
+              capsule ? (pillOfTabs ? cn(bodyOverFoot ? "items-start overflow-hidden pt-1" : footShown ? PILL_HEAD_ROW : cn(PILL_ROW, "items-start pt-1"), "px-[9px]") : cn("p-[9px]", fromBottom ? "pb-3" : "pt-3"))
                 // No top row (a place's card alone): only the room the status
                 // bar takes from the top of a phone's screen.
                 : top == null ? (!fromBottom && onPhone ? "pt-[env(safe-area-inset-top)]" : undefined)
@@ -672,38 +722,30 @@ export default function MapPanel({ label, top, controls, figures, compact, child
                   // route's box was 36 points, thick beside Maps' 20.
                   : cn("px-3 pb-1", fromBottom ? "pt-1" : onPhone ? "pt-[max(0.5rem,env(safe-area-inset-top))]" : "pt-2"),
             )}
+            style={bodyOverFoot ? { height: `calc(${PILL_ROW_REM}rem - ${footHeight}px)` } : undefined}
           >
             {capsule ? (pillOfTabs ? (
               // FPL's pill: its route box and under it what the tab shows at
               // rest (`pillBody`) -- its chips (the airplane, the altitude,
               // the time, Share), then its saved flights, or with a route
               // its profile and figures.
-              !footShown && pillBody ? <div className="flex w-full min-w-0 flex-col gap-2">{top}{pillBody}</div> : top
-            ) : compact) : figuresOnly ? figures : top}
+              (bodyOverFoot || !footShown) && pillBody ? <div className="flex w-full min-w-0 flex-col gap-2">{top}{pillBody}</div> : top
+            ) : compact) : top}
           </header>
         )}
-        {!capsule && !figuresOnly && controls && (
+        {!capsule && controls && (
           // Wrapped onto two lines (a 320-point Slide Over), the two
           // twelve apart, and twelve and more under the top row, so their
           // hit areas (index.css) meet rather than overlap.
-          // Room under them for the fold's button on the line below, so a
-          // chip over it keeps its 44-point hit area (the iOS audit's P1).
-          <div className={cn("flex flex-wrap items-center gap-x-2 gap-y-3 px-3 pt-3 print:hidden", fold ? "pb-8" : fromBottom ? "pb-2.5" : "pb-5")}>{controls}</div>
+          // Eight under the route's box and between its rows -- the chips,
+          // the side view -- as in the pill, where the tabs' head keeps the
+          // pill's places (pillHead).
+          <div className={cn("flex flex-wrap items-center gap-x-2 px-3 print:hidden", pillHead ? "gap-y-2 pt-1" : "gap-y-3 pt-3", fromBottom ? "pb-2.5" : "pb-5")}>{controls}</div>
         )}
         </div>
         </div>
         </div>
-        {capsule && !fromBottom && grabber}
-        {/* On the separator under the head, at its middle, as the line it
-            sits on is shown: all the way up. Not a drag of the head. */}
-        {fold && state === "full" && dragged === null && (
-          <div
-            className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex translate-y-1/2 justify-center"
-            onPointerDown={event => event.stopPropagation()}
-          >
-            <div className="pointer-events-auto">{fold}</div>
-          </div>
-        )}
+      </div>
       </div>
       {/* Over a grabber at the bottom, clear of its hit area. */}
       {/* The separator over the body, and its room over a grabber at its
@@ -734,6 +776,9 @@ export default function MapPanel({ label, top, controls, figures, compact, child
           (`foot`): over the home indicator's room where the body runs to
           the edge (toEdge), which then runs to the figures. */}
       {footShown && (
+        // Where it stays, clipped from its top as the height eases, its
+        // figures last, at the card's foot (the head's the same, above).
+        <div className={footStays && !collapsed ? "flex min-h-0 shrink flex-col justify-end overflow-hidden" : "contents"}>
         <div
           ref={setFoot}
           className={cn(
@@ -742,20 +787,37 @@ export default function MapPanel({ label, top, controls, figures, compact, child
             // way up: the foot's own 16 too set it in by 32, at the owner's
             // notice ("half card is not aligned with the back and close
             // buttons").
-            "shrink-0 print:hidden", cardInPill ? "px-0" : "px-4",
+            "shrink-0 print:hidden", cardInPill ? "px-0" : "px-4", capsule && "touch-pan-x",
             // The pill's row under the tabs one height on every tab (PILL_ROW).
             // A foot alone in the pill (Setup's quick controls, a route's
             // figures) starts at its top, where the other tabs' first row
             // does, not in its middle: Setup's sat lower, at the owner's
             // notice.
-            capsule && pillOfTabs ? cn(headInPill && top != null ? cn(PILL_FOOT_ROW, "justify-start pt-1") : cn(PILL_ROW, "justify-start pt-1"), "flex flex-col") : capsule ? "pt-2 pb-3" : "border-t border-border/60 pt-2 pb-2.5",
+            // Alone in the pill, the figures alone: what the foot keeps for
+            // the pill and up (FPL's side view, data-pill-hides) put away.
+            bodyOverFoot ? "pt-1 pb-3" : footAlone ? "py-3 [&_[data-pill-hides]]:hidden"
+              : capsule && pillOfTabs ? cn(headInPill && top != null ? cn(PILL_FOOT_ROW, "justify-start pt-1") : cn(PILL_ROW, "justify-start pt-1"), "flex flex-col") : capsule ? "pt-2 pb-3" : "border-t border-border/60 pt-2 pb-2.5",
           )}
           style={toEdge && !capsule && fromBottom ? { paddingBottom: Math.max(10, edgeRoom) } : undefined}
           data-testid="panel-foot"
+          // In the pill, a finger anywhere on it drags the sheet, as on
+          // FPL's, whose rows are the head's (the owner's "Only fpl drag up
+          // works by dragging anywhere on the card"); sideways it is the
+          // strips' own, which slide (touch-pan-x).
+          onPointerDown={capsule ? startDrag : undefined}
+          // Alone in the pill, a tap on it brings the pill and its tabs
+          // back, as a tap on a tab there does.
+          role={footAlone ? "button" : undefined} tabIndex={footAlone ? 0 : undefined}
+          aria-label={footAlone ? "Show the tabs" : undefined}
+          onClick={footAlone ? () => sizeTo("peek") : undefined}
+          onKeyDown={footAlone ? event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); sizeTo("peek"); } } : undefined}
         >{foot}</div>
+        </div>
       )}
       {/* The grabber last on a sheet from the top. */}
-      {!fromBottom && !capsule && grabber}
+      {/* At the pill's foot too, under the figures there (`foot`), where
+          it was the head's and sat over them. */}
+      {!fromBottom && grabber}
       {/* The rest of the way to the screen's edge, under the home
           indicator, below the body -- in the body where it runs to the
           edge (toEdge). */}

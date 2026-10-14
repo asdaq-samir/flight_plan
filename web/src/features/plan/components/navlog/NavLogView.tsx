@@ -10,7 +10,7 @@ import { PanelHalfContext } from "../../../../components/mapChrome";
 import PanelTabs from "./PanelTabs";
 import { usePrinting } from "../../../../lib/usePrinting";
 import { LEGS, type PanelTab } from "./panelTab";
-import { SectionPane } from "../../../../components/SectionTabs";
+import { SectionPane } from "../../../../components/SectionPane";
 import { ListGroup, ListRow } from "../../../../components/GroupedList";
 import IconButton from "../../../../components/IconButton";
 import { Popover, PopoverContent, PopoverTrigger } from "../../../../components/ui/popover";
@@ -857,7 +857,7 @@ export default function NavLogView({
 
   return (
     <PanelTabs
-      rootRef={setRoot} printing={printing} local={local} marks={marks} pick={pick} onTap={onTabTap}
+      rootRef={setRoot} printing={printing} marks={marks} pick={pick} onTap={onTabTap}
       route={routeName(dep, dest, ends?.stops?.map(s => s.ident))}
       notice={notice} footer={footer}
       before={(
@@ -882,9 +882,11 @@ export default function NavLogView({
         </>
       )}
       contents={{
-        navlog: (
+        preflight: tabContent("preflight"),
+        depart: tabContent("depart"),
+        enroute: (
           <section aria-label={local ? "Local Flight" : "Nav Log"} className={TEXT.prose}>
-            <SectionPane title={LEGS}>
+            <SectionPane title={LEGS} heading={!local}>
               {!local && summary}
               {!local && navLogTable}
               {fuelNote}
@@ -896,11 +898,10 @@ export default function NavLogView({
                 process). */}
             {!local && ends && <RouteProfileSection ends={ends} rows={data} wanted={!!totals || printing} eager={printing} />}
             {!local && tabContent("profile")}
+            {tabContent("enroute")}
           </section>
         ),
-        brief: tabContent("brief"),
-        weather: tabContent("weather"),
-        performance: tabContent("performance"),
+        arrive: tabContent("arrive"),
       }}
     >
       {children}

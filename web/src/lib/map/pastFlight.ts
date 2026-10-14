@@ -18,6 +18,10 @@ interface PastFlightState {
   speed: number;
 }
 
+/** The replay's airplane where it is the planned flight's dry run (FPL's),
+ *  not a tracked airplane's past flight. */
+export const DRY_RUN = "dry-run";
+
 /** How many times faster than it was flown a replay goes. */
 export const REPLAY_SPEEDS = [10, 50, 200] as const;
 

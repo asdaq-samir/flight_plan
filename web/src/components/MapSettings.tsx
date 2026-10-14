@@ -131,11 +131,12 @@ export default function MapSettings() {
           <TogglePill pressed={tac} onPressedChange={setTac} icon={<MapIcon />} label={base === "sec" ? "TAC" : "Area"} testId="tac-toggle" />
         </div>
       </ListRow>
-      {/* The route's waypoints, on either map: the planner's numbered
-          checkpoints at every zoom and the dim landmarks they were chosen
-          from closer in, the training map's detections; off, the course
-          line and its two airports alone. */}
-      <ListRow title="Waypoints">
+      {/* The route's VFR checkpoints, on either map: the planner's
+          numbered checkpoints at every zoom and the dim landmarks they
+          were chosen from closer in, the training map's detections; off,
+          the course line and its two airports alone. Named so at the
+          owner's ask ("rename Waypoints to VFR Checkpoints"). */}
+      <ListRow title="VFR Checkpoints">
         <TogglePill pressed={waypoints} onPressedChange={setWaypoints} icon={waypoints ? <Eye /> : <EyeOff />} label="Show" testId="waypoints-toggle" />
       </ListRow>
       {/* The temporary flight restrictions, from tfr.faa.gov: on unless

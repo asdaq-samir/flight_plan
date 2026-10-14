@@ -58,7 +58,7 @@ test("an airport's card names the field alone, how far it is under it, and the w
   await expect(card(page)).toHaveCount(0);
   await expect(page).not.toHaveURL(/[?&]place=/);
   await expect(sideDrawer(page)).toHaveAttribute("data-panel", "full");
-  await expect(sideDrawer(page).getByTestId("panel-tab-navlog")).toBeVisible();
+  await expect(sideDrawer(page).getByTestId("panel-tab-enroute")).toBeVisible();
 });
 
 
@@ -671,11 +671,12 @@ test("with no route the panel is a search bar: Home is set from Favorites, an ai
   await sideDrawer(page).getByTestId("share-route").click();
   await expect(page.getByTestId("print-briefing")).toHaveAttribute("aria-disabled", "true");
   await page.keyboard.press("Escape");
-  await expect(sideDrawer(page).getByTestId("panel-tab-navlog")).toBeHidden();
+  await expect(sideDrawer(page).getByTestId("panel-tab-enroute")).toBeHidden();
   await expect(sideDrawer(page)).toHaveAttribute("data-panel", "full");
   await showTabs(page);
+  // Another tab picked all the way up stays all the way up (TabBar).
   await page.getByTestId("tab-airport").click();
-  await expect(sideDrawer(page)).toHaveAttribute("data-panel", "peek");
+  await expect(sideDrawer(page)).toHaveAttribute("data-panel", "full");
   await expect(search).toBeVisible();
 
   // Favorites in full: Edit lets KDLH go.

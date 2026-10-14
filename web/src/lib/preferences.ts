@@ -57,11 +57,13 @@ interface Preferences {
    *  over the sectional, the IFR area chart over an IFR chart) is
    *  pinned: drawn at every zoom it exists at. */
   tac: boolean;
-  /** Whether the maps draw the waypoints, at every zoom: the planner's
-   *  checkpoints and the landmarks they were chosen from, the training
-   *  map's detections and added points. It was a zoom level the
-   *  checkpoints started at, from a menu of four, and a switch for the
-   *  landmarks of their own, on the planner only. */
+  /** Whether the route has its VFR checkpoints, at every zoom: the
+   *  planner's checkpoints and the landmarks they were chosen from, the
+   *  training map's detections and added points. Off unless turned on
+   *  (Map settings, Setup's switches), at the owner's ask ("Let's not
+   *  enable waypoints for a pilot"): a student turns them on. It was a
+   *  zoom level the checkpoints started at, from a menu of four, and a
+   *  switch for the landmarks of their own, on the planner only. */
   waypoints: boolean;
   /** Whether the Class B airports are drawn, with their current flight
    *  category and a terminal chart on hover. Off by default: useful on
@@ -200,7 +202,7 @@ export const usePreferences = create<Preferences>()(
     set => ({
       base: "sec",
       tac: false,
-      waypoints: true,
+      waypoints: false,
       classB: false,
       tfrs: true,
       alerts: true,
@@ -288,6 +290,10 @@ export const usePreferences = create<Preferences>()(
     }),
     {
       name: "vfr.preferences",
+      // 1: the VFR checkpoints off unless turned on, once for every
+      // browser that had them on by the old default (the owner's ask).
+      version: 1,
+      migrate: (kept, from) => (from < 1 ? { ...(kept as object), waypoints: false } : kept) as Preferences,
       // The functions are not state; only the values are written.
       partialize: s => ({
         base: s.base, tac: s.tac, waypoints: s.waypoints, classB: s.classB, tfrs: s.tfrs, alerts: s.alerts, speakAlerts: s.speakAlerts, traffic: s.traffic, military: s.military, minimums: s.minimums, loads: s.loads, keepOffline: s.keepOffline, aircraft: s.aircraft, filters: s.filters, devTab: s.devTab, pilotTab: s.pilotTab, navBar: s.navBar, routeColours: s.routeColours, narrative: s.narrative,

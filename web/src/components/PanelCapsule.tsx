@@ -7,6 +7,7 @@ import { usePreferences, type RecentAirport } from "../lib/preferences";
 import { ListGroup, ListRow } from "./GroupedList";
 import { ClearList, SwipeToDelete } from "./SwipeToDelete";
 import ClearButton from "./ClearButton";
+import { PANEL_FIELD } from "./panelField";
 
 /**
  * The search bar, as Maps' is, at the top of a tab's sheet the whole
@@ -55,9 +56,8 @@ export function SearchField({
           above and below (CLAUDE.md: nothing grows to it), strips that
           leave the words to the field, where a tap places the caret. */}
       <label className={cn(
-        "relative flex h-[2.5625rem] min-w-0 flex-1 items-center gap-2 rounded-full bg-foreground/8 px-3.5 text-muted-foreground",
+        "relative flex h-[2.5625rem] min-w-0 flex-1 items-center gap-2 rounded-full px-3.5 text-muted-foreground", PANEL_FIELD,
         "before:absolute before:inset-x-0 before:-top-0.5 before:h-0.5 before:content-[''] after:absolute after:inset-x-0 after:-bottom-0.5 after:h-0.5 after:content-['']",
-        "in-data-capsule:bg-white/50 dark:in-data-capsule:bg-white/10",
         TEXT.row,
       )}>
         <Icon className="size-5 shrink-0 text-foreground" strokeWidth={1.75} aria-hidden="true" />

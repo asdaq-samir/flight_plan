@@ -14,7 +14,7 @@ import { worstOf, type Finding } from "./status";
 /** Where a finding is shown in full: a tab of the planning panel, and a
  *  section of it by its title. */
 export interface Where {
-  tab: "navlog" | "brief" | "weather" | "performance";
+  tab: "preflight" | "depart" | "enroute" | "arrive";
   section?: string;
 }
 
@@ -101,7 +101,7 @@ export function verdictItems(input: VerdictInput): VerdictItem[] {
   const items: VerdictItem[] = [];
 
   items.push({
-    key: "weather", label: "Weather", tab: "weather", section: "Adverse Conditions",
+    key: "weather", label: "Weather", tab: "enroute", section: "Adverse Conditions",
     ...(weather.failed ? { finding: "unknown", detail: `Not fetched: ${weather.failed}` }
       : weather.pending ? { finding: "pending", detail: "Fetching METARs, TAFs and hazards…" }
         : weather.vfrNotRecommended.length ? { finding: "stop", detail: `VFR not recommended: ${weather.vfrNotRecommended[0]}` }
@@ -115,7 +115,7 @@ export function verdictItems(input: VerdictInput): VerdictItem[] {
   const activeArea = airspace.specialUse.find(a => a.when === "active");
   const maybeArea = airspace.specialUse.find(a => a.when === "by-notam" || a.when === "unknown");
   items.push({
-    key: "airspace", label: "TFRs & special use", tab: "brief", section: "TFRs & Special Use",
+    key: "airspace", label: "TFRs & special use", tab: "preflight", section: "TFRs & Special Use",
     ...(airspace.pending ? { finding: "pending", detail: "Checking TFRs along the route…" }
       : airspace.inForce.length ? { finding: "stop", detail: `TFR ${airspace.inForce[0]} in force when you get there` }
         : airspace.unchecked ? { finding: "caution", detail: "Not checked: see tfr.faa.gov" }
@@ -132,7 +132,7 @@ export function verdictItems(input: VerdictInput): VerdictItem[] {
   });
 
   items.push({
-    key: "altitude", label: "Altitude", tab: "navlog",
+    key: "altitude", label: "Altitude", tab: "enroute", section: "Cruise Altitude",
     ...(altitude.problem ? { finding: "stop", detail: altitude.problem }
       : altitude.pending ? { finding: "pending", detail: "Planning altitudes…" }
         : altitude.cautions.length ? { finding: "caution", detail: altitude.cautions[0]! }
@@ -140,7 +140,7 @@ export function verdictItems(input: VerdictInput): VerdictItem[] {
   });
 
   items.push({
-    key: "fuel", label: "Fuel", tab: "navlog",
+    key: "fuel", label: "Fuel", tab: "enroute", section: "Legs",
     ...(fuel.pending ? { finding: "pending", detail: "Working out the fuel…" }
       : fuel.marginGal != null && fuel.marginGal < 0
         ? { finding: "stop", detail: `${one(-fuel.marginGal)} gal short of the fuel and its ${fuel.reserveMin ?? 30} min reserve (14 CFR ${fuel.ifr ? "91.167" : "91.151"})` }
@@ -150,7 +150,7 @@ export function verdictItems(input: VerdictInput): VerdictItem[] {
   });
 
   items.push({
-    key: "runways", label: "Runways", tab: "performance", section: "Takeoff & Landing",
+    key: "runways", label: "Runways", tab: "depart", section: "Takeoff",
     ...(!runways.worked ? { finding: "unknown", detail: "Not worked out for this airplane" }
       : runways.pending ? { finding: "pending", detail: "Waiting on the runways and the weather…" }
         : runways.short.length ? { finding: "stop", detail: `Too short at ${runways.short.join(", ")}` }
@@ -159,7 +159,7 @@ export function verdictItems(input: VerdictInput): VerdictItem[] {
   });
 
   items.push({
-    key: "balance", label: "Weight & balance", tab: "performance", section: "Weight & Balance",
+    key: "balance", label: "Weight & balance", tab: "preflight", section: "Weight & Balance",
     ...(balance.pending ? { finding: "pending", detail: "Waiting on the airplane's profile…" }
       : !balance.worked ? { finding: "unknown", detail: "Not worked out for this airplane" }
       : balance.problems.length ? { finding: "stop", detail: balance.problems[0]! }
@@ -167,7 +167,7 @@ export function verdictItems(input: VerdictInput): VerdictItem[] {
   });
 
   items.push({
-    key: "risk", label: "Risk", tab: "brief", section: "Risk Assessment",
+    key: "risk", label: "Risk", tab: "preflight", section: "Risk Assessment",
     ...(risk ? { finding: RISK_FINDING[risk.level], detail: risk.line } : { finding: "pending", detail: "Waiting on the briefing…" }),
   });
 

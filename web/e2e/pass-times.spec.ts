@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { settle, sideDrawer, slow, openTab, openSection, sectionTab } from "./helpers";
+import { settle, sideDrawer, slow, openTab, openSection } from "./helpers";
 
 /**
  * When the flight gets to each TFR and special-use area on the route,
@@ -40,11 +40,9 @@ test("a TFR in force when the flight gets there is flagged, one that starts late
   await page.goto("/app/plan?dep=C81&dest=KDLH&view=briefing");
   await settle(page);
   await expect(page.getByTestId("navlog-eta")).toBeVisible({ timeout: slow(120000) });
-  // The Brief's tab marked for it, and the flag on its section inside.
-  await expect(page.getByTestId("panel-tab-mark-brief")).toBeVisible();
-  await openTab(page, "Brief");
-  // Its section's pill marked red while another section is up.
-  await expect(sectionTab(page, "TFRs & Special Use").getByTestId("section-tab-mark")).toHaveAttribute("data-finding", "stop");
+  // Preflight's tab marked for it, and the flag on its section inside.
+  await expect(page.getByTestId("panel-tab-mark-preflight")).toBeVisible();
+  await openTab(page, "Preflight");
   await openSection(page, "TFRs & Special Use");
   await expect(page.getByTestId("tfr-flag")).toBeVisible();
   const passes = sideDrawer(page).getByTestId("tfr-pass");

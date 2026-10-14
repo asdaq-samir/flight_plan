@@ -25,7 +25,7 @@ const OFF: PathOptions = { color: "#d70015", weight: 3.5, opacity: 1, interactiv
  * The flown track over the planned course (lib/map/flownTrack), while the
  * course on the chart is that flight's: a white casing under a solid
  * near-black line, red where the flight was outside a tolerance, so it
- * reads against the course's dashed orange-red and the chart's own
+ * reads against the course's magenta and the chart's own
  * colours alike.
  */
 export function FlownTrackLayer({ course }: { course: Course }) {

@@ -217,7 +217,7 @@ export function NearestStrip({ fields, located, onOpen }: {
           <SmallTile
             key={field.ident} onClick={() => onOpen(field.ident)} testId="nearest-strip-field"
             label={`${field.ident}, ${field.name}, ${Math.round(field.distance_nm)} nm ${compassPoint(field.bearing_deg)}`}
-            mark={<SmallMark icon={<ChartMark space={field.airspace_class ?? null} category={field.flight_category} use={use} size={32} />} className="bg-foreground/8 [&_svg]:size-8" />}
+            mark={<SmallMark icon={<ChartMark space={field.airspace_class ?? null} category={field.flight_category} use={use} size={56} />} className="[&_svg]:size-14" />}
             title={field.ident} detail={`${Math.round(field.distance_nm)} nm`}
           />
         );

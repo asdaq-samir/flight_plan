@@ -72,6 +72,7 @@ test("without the subscription the Brief's narrative says it comes with it, and 
   expect(asked).toEqual([]);
 
   await prompt.getByTestId("start-trial").click();
+  await page.getByTestId("brief-narrative-write").click({ timeout: slow(60000) });
   const narrative = page.getByTestId("brief-narrative");
   await expect(narrative).toContainText("A test narrative.", { timeout: slow(60000) });
   await expect(prompt).toHaveCount(0);
@@ -86,6 +87,7 @@ test("without the subscription the nav log's wand says checkpoint descriptions c
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   await openBriefing(page);
+  await openTab(page, "En route");
   const drawer = sideDrawer(page);
   const wand = drawer.locator('[role="tabpanel"] [data-testid="generate-descriptions-button"]');
   await expect(wand).toBeEnabled({ timeout: slow(60000) });

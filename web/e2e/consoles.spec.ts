@@ -132,7 +132,9 @@ test("the navigation bar's edge is a setting: the panel moves to it, the map's b
   const box = (await (phone ? page.locator('[data-slot="map-panel"]') : pilot).boundingBox())!;
   // All the way up: the sheet to the screen's edge (MapPanel's "edge").
   if (phone) expect(Math.round(box.y)).toBeLessThanOrEqual(8);
-  else expect(Math.round(box.y + box.height)).toBe(viewport.height);
+  // Beside a desktop's map, Setup is the panel's (MapPage's inPanel), its
+  // foot the panel's, eight in from the screen's.
+  else expect(viewport.height - Math.round(box.y + box.height)).toBeLessThanOrEqual(12);
   await page.keyboard.press("Escape");
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
@@ -147,10 +149,10 @@ test("the navigation bar's edge is a setting: the panel moves to it, the map's b
   await expect.poll(async () => Math.abs((await page.locator('[data-slot="map-panel"]').boundingBox())!.y - header.y)).toBeLessThan(1);
 });
 
-test("the console is the panel's own height: up from the bottom of a phone's screen, down from the top of a desktop's", async ({ page }) => {
-  // On a phone the console is a layer of the map's panel, from the
-  // bottom edge, where the header is, the panel's height; from `md` up it
-  // is the Sheet from the top.
+test("the console is the panel's own: up from the bottom of a phone's screen, in the panel beside a desktop's map", async ({ page }) => {
+  // The planner's Setup is a layer of the map's panel on every screen
+  // (MapPage's inPanel), at the owner's ask: a phone's from the bottom
+  // edge, the panel's height; from `md` up in the panel's column.
   await page.goto("/app/plan");
   await settle(page);
   const panel = page.locator('[data-slot="map-panel"]');
@@ -181,7 +183,10 @@ test("the console is the panel's own height: up from the bottom of a phone's scr
     // indicator all the way up.
     expect(Math.abs(box.y + box.height - (now.y + now.height))).toBeLessThan(40);
   } else {
-    expect(box.y).toBe(0);
+    // Inside the panel, as the other tabs are, not a sheet of its own.
+    const now = (await panel.boundingBox())!;
+    expect(box.y).toBeGreaterThanOrEqual(now.y - 1);
+    expect(box.y + box.height).toBeLessThanOrEqual(now.y + now.height + 1);
   }
   // Setup is one page now, no tabs of its own to change (PilotPanel).
 });

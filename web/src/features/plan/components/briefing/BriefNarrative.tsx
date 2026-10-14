@@ -1,4 +1,5 @@
-import { useEffect, useRef } from "react";
+import { useState } from "react";
+import { Button } from "../../../../components/ui/button";
 import { cn } from "cn";
 import AccordionSection from "../../../../components/AccordionSection";
 import { TEXT } from "../../../../lib/text";
@@ -18,7 +19,9 @@ const FRAMEWORK_LABEL: Record<NarrativeFramework, string> = {
  * nav-log-agent or CrewAI's crewai-agent. It was the Brief button's
  * popover, then a switch over the narrative; the pilot made it a tab, and
  * the switch a setting. Each is a real, billed Claude call, so it is
- * asked for once the tab is open and the whole nav log is in -- once a
+ * asked for by a tap once the whole nav log is in -- Preflight, where it
+ * is, is the tab up whenever the route's panel opens, and asked for on
+ * opening it would bill one for every route looked at -- once a
  * framework, never again for the same plan; the text streams in under a
  * "generating" line until its first words. On screen only:
  * FlightBriefingView keeps a printed copy.
@@ -36,14 +39,14 @@ export default function BriefNarrative({ ready, onGenerateNarrative, langgraphNa
 }) {
   const framework = usePreferences(s => s.narrative);
   const narrative = framework === "langgraph" ? langgraphNarrative : crewaiNarrative;
-  const asked = useRef(new Set<NarrativeFramework>());
+  const [asked, setAsked] = useState<NarrativeFramework[]>([]);
   const entitlement = useEntitlement();
   const allowed = mayUse(entitlement);
-  useEffect(() => {
-    if (!ready || !allowed || asked.current.has(framework) || narrative.text || narrative.loading) return;
-    asked.current.add(framework);
+  const ask = () => {
+    setAsked(list => [...list, framework]);
     onGenerateNarrative(framework);
-  }, [ready, allowed, framework, narrative.text, narrative.loading, onGenerateNarrative]);
+  };
+  const askable = ready && allowed && !asked.includes(framework) && !narrative.text && !narrative.loading;
   const left = usesLeft(entitlement, "NARRATIVE");
   // Not offered in this deployment (lib/subscription): no section at all.
   if (entitlement.kind === "hidden") return null;
@@ -57,7 +60,10 @@ export default function BriefNarrative({ ready, onGenerateNarrative, langgraphNa
             <PaidPrompt feature="NARRATIVE">The flight told in a page of plain words, from the whole nav log and the weather.</PaidPrompt>
           )}
           {allowed && !ready && !narrative.text && (
-            <p className="text-muted-foreground">Written from the whole nav log, once it is in.</p>
+            <p>Written from the whole nav log, once it is in.</p>
+          )}
+          {askable && (
+            <Button variant="outline" onClick={ask} data-testid="brief-narrative-write">Write it</Button>
           )}
           {narrative.loading && !narrative.text && (
             <p className="text-muted-foreground" role="status">Generating the {FRAMEWORK_LABEL[framework]} narrative…</p>

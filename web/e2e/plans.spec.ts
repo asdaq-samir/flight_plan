@@ -235,7 +235,7 @@ test("plan page: no legal altitude is the route's own problem: its chip says so 
   await expect(problem).toHaveCount(0);
   // By its slot: on a phone the chip's sheet hides the page from the
   // accessibility tree, and a role lookup with it.
-  const navLogTab = page.getByTestId("panel-tab-navlog");
+  const navLogTab = page.getByTestId("panel-tab-enroute");
 
   // A tap on the mark: where, why as a list -- with no Try again, which
   // would only say the same -- and the section left as it was.

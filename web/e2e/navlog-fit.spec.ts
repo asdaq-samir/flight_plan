@@ -39,19 +39,22 @@ test("the nav log fits a phone's panel with long names, five-figure altitudes an
   await settle(page);
   await expect(page.getByTestId("navlog-eta")).toBeVisible({ timeout: slow(120000) });
   await openTab(page, "Nav Log");
-  const container = page.locator('[data-tab="navlog"] [data-slot="table-container"]');
+  const container = page.locator('[data-tab="enroute"] [data-slot="table-container"]');
   await expect(container.locator("tbody tr").first()).toBeVisible();
   await expect(container.locator("tbody")).toContainText("10,500");
   await expect(container.locator("thead")).toContainText("ETA");
   const overflow = await container.evaluate(el => el.scrollWidth - el.clientWidth);
   expect(overflow).toBeLessThanOrEqual(1);
-  // Scrolled, its headings stick below the section's pills, not over them.
+  // Scrolled, its headings stick at the scroller's top: its sections are
+  // one under another, no pills over them (the owner's "Make the subtabs
+  // into sections").
   await page.getByTestId("navlog-scroller").evaluate(el => { el.scrollTop = 400; });
-  const [pills, head] = await Promise.all([
-    page.locator('[data-tab="navlog"] [data-testid="section-tabs"]').boundingBox(),
+  const [scroller, head] = await Promise.all([
+    page.getByTestId("navlog-scroller").boundingBox(),
     container.locator("thead").boundingBox(),
   ]);
-  expect(head!.y).toBeGreaterThanOrEqual(pills!.y + pills!.height - 1);
+  expect(Math.abs(head!.y - scroller!.y)).toBeLessThanOrEqual(1);
+  await expect(page.locator('[data-tab="enroute"] [data-testid="section-tabs"]')).toHaveCount(0);
   await controlsInSight(page);
 });
 

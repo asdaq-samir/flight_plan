@@ -35,6 +35,8 @@ import { MapShell } from "../../../lib/map/MapShell";
 import { MapTooltip } from "../../../lib/map/MapTooltip";
 import { hovers } from "../../../lib/map/view";
 import { useCardedMarker } from "../../../lib/map/useCardedMarker";
+import DryRunLayer from "../../../lib/map/DryRunLayer";
+import { DRY_RUN, usePastFlight } from "../../../lib/map/pastFlight";
 import { usePreferences } from "../../../lib/preferences";
 import { inkOn } from "../../../lib/scoreScale";
 import { feet } from "../../../lib/units";
@@ -420,6 +422,7 @@ export default memo(function RouteMap({
   procedures = NO_PROCEDURES, procedureFocus = null,
 }: Props) {
   const focusZoom = course?.max_zoom ?? 12;
+  const dryRunning = usePastFlight(p => p.hex === DRY_RUN);
   // The pattern just picked, its corners and its entry, to bring in.
   const focusedPattern = useMemo(() => {
     const [ident, end] = (patternFocus ?? "").split(":");
@@ -488,6 +491,8 @@ export default memo(function RouteMap({
           />
           {/* A saved flight's flown track over it, from its debrief. */}
           <FlownTrackLayer course={course} />
+          {/* The planned flight's dry run: its airplane along the line. */}
+          {dryRunning && <DryRunLayer />}
           <PatternLayer patterns={patterns} />
           <ProcedureLayer drawings={procedures} />
           {/* A procedure just picked, all of it in sight clear of the panel. */}

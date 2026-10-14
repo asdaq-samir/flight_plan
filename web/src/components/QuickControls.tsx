@@ -54,7 +54,7 @@ export default function QuickControls() {
       <Quick on={resolvedTheme === "dark"} onChange={on => setTheme(on ? "dark" : "light")} icon={<Moon />} label="Dark" testId="quick-dark" />
       <Quick on={classB} onChange={set.setClassB} icon={<CloudSun />} label="Weather" testId="quick-weather" />
       <Quick on={tac} onChange={set.setTac} icon={<MapIcon />} label={base === "sec" ? "TAC" : "Area"} testId="quick-tac" />
-      <Quick on={waypoints} onChange={set.setWaypoints} icon={<MapPin />} label="Points" testId="quick-waypoints" />
+      <Quick on={waypoints} onChange={set.setWaypoints} icon={<MapPin />} label="Checkpts" spoken="VFR Checkpoints" testId="quick-waypoints" />
       <Quick on={military} onChange={set.setMilitary} icon={<ShieldX />} label="Military" testId="quick-military" />
       <Quick
         on={keepOffline && offline} disabled={!offline} onChange={set.setKeepOffline} icon={<Download />} label="Offline"
@@ -64,17 +64,19 @@ export default function QuickControls() {
   );
 }
 
-function Quick({ on, onChange, icon, label, testId, disabled }: {
+function Quick({ on, onChange, icon, label, spoken, testId, disabled }: {
   on: boolean;
   onChange: (on: boolean) => void;
   icon: ReactNode;
   label: string;
+  /** Its whole name to a screen reader, where the tile's is short. */
+  spoken?: string;
   testId: string;
   disabled?: boolean;
 }) {
   return (
     <Toggle
-      pressed={on} onPressedChange={onChange} disabled={disabled} data-testid={testId}
+      pressed={on} onPressedChange={onChange} disabled={disabled} data-testid={testId} aria-label={spoken}
       className="group h-auto min-h-11 w-full min-w-0 flex-col gap-0.5 rounded-lg p-0.5 hover:bg-muted/50 data-[state=on]:bg-transparent"
     >
       <span

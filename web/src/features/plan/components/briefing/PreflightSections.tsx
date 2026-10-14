@@ -13,6 +13,7 @@ import { runwayWind } from "../../format";
 import { TEXT } from "../../../../lib/text";
 import { altFt, grouped } from "../../../../lib/units";
 import { useLoad } from "../../hooks/useLoad";
+import { phasesOf, type Phase } from "./sections";
 
 /** The envelope's picture: Recharts, loaded with the section. */
 const EnvelopeChart = lazy(() => import("./EnvelopeChart"));
@@ -54,7 +55,6 @@ export function WeightBalanceSection({ aircraft, tripFuelGal }: { aircraft: Airc
   return (
     <AccordionSection
       title="Weight & Balance" summary={summary}
-      finding={result && result.problems.length > 0 ? "stop" : undefined}
       aside={result && result.problems.length > 0 ? (
         <span className={cn("inline-flex items-center gap-1 font-semibold", FINDING_TONE.stop, TEXT.note)} data-testid="wb-flag">
           <OctagonAlert className="size-3.5" aria-hidden />
@@ -63,7 +63,7 @@ export function WeightBalanceSection({ aircraft, tripFuelGal }: { aircraft: Airc
       ) : undefined}
     >
       {!loading || !load || !result ? (
-        <p className={cn("text-muted-foreground", TEXT.prose)}>
+        <p className={TEXT.prose}>
           The weight and balance is worked out for an airplane whose loading is built in: the Cessna 172S, from its POH.
         </p>
       ) : (
@@ -128,10 +128,12 @@ function RunwayBar({ distance, lengthFt }: { distance: RunwayDistance; lengthFt:
  * weight from Weight & Balance and the reported wind -- drawn against the
  * runway's length -- then the density altitude the airplane performs at,
  * and the wind across the runway against the most the POH demonstrates.
- * First on the Performance tab: whether the runways will do is what is
- * read there first, and the loading under it is what changes the answer.
+ * On the Depart tab its takeoff (`phase`), on the Arrive tab its landing,
+ * the stops' on En route's.
  */
-export function TakeoffLandingSection({ aircraft, briefing, course, landing: landingWeight, takeoff: takeoffWeight }: {
+export function TakeoffLandingSection({ aircraft, briefing, course, landing: landingWeight, takeoff: takeoffWeight, phase }: {
+  /** Only this part of the flight's fields (its tab's). */
+  phase?: Phase;
   aircraft: AircraftProfile | null | undefined;
   briefing: Briefing | null;
   course: Course | null;
@@ -140,7 +142,8 @@ export function TakeoffLandingSection({ aircraft, briefing, course, landing: lan
 }) {
   const takeoffTable = aircraft?.takeoff ?? null;
   const landingTable = aircraft?.landing ?? null;
-  const checks = runwayChecks(aircraft, briefing, course, takeoffWeight, landingWeight);
+  const all = runwayChecks(aircraft, briefing, course, takeoffWeight, landingWeight);
+  const checks = phase ? all.filter((_, i) => phasesOf(i, all.length).includes(phase)) : all;
   const short = [...new Set(checks.filter(c => c.distances.some(d => d.over)).map(c => c.field.ident))];
   const gusty = [...new Set(checks.filter(c => c.crosswindOver).map(c => c.field.ident))];
   const demonstrated = aircraft?.crosswind ?? null;
@@ -149,8 +152,7 @@ export function TakeoffLandingSection({ aircraft, briefing, course, landing: lan
       : short.length ? `Over the runway at ${short.join(", ")}` : "Within each runway";
   return (
     <AccordionSection
-      title="Takeoff & Landing" summary={summary}
-      finding={short.length ? "stop" : gusty.length ? "caution" : undefined}
+      title={phase === "depart" ? "Takeoff" : phase === "arrive" ? "Landing" : phase === "enroute" ? "Stops" : "Takeoff & Landing"} summary={summary}
       aside={short.length ? (
         <span className={cn("inline-flex items-center gap-1 font-semibold", FINDING_TONE.stop, TEXT.note)} data-testid="tl-flag">
           <OctagonAlert className="size-3.5" aria-hidden />

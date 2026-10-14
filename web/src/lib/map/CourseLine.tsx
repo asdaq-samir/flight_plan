@@ -10,19 +10,23 @@ interface Props {
 }
 
 /**
- * The course: a white casing under an orange-red core, plus a wide
+ * The course: a white casing under a solid magenta core, plus a wide
  * invisible line to hover and click.
  *
- * A sectional already uses blue, magenta, black, brown, yellow and green,
- * so no single stroke wins on colour -- the casing is what makes it read,
- * the same way the chart draws its own linework. The hit line exists
+ * Magenta and solid, the course line every moving map and glass cockpit
+ * draws, at the owner's ask ("draw the course line as magenta as done in
+ * all aviation apps"), where it was a dashed orange-red. A brighter
+ * magenta than the chart's own (#c0309f, its airspace and waypoints), and
+ * the casing is what makes it read over them, the same way the chart
+ * draws its own linework. The hit line exists
  * because an SVG stroke is hoverable only where it is painted, and a
  * 3.5 px dashed line is mostly not painted.
  */
 // Constants, not literals: react-leaflet restyles a path whenever its
 // pathOptions is a new object.
-const CASING: L.PathOptions = { color: "#ffffff", weight: 8, opacity: 0.85, interactive: false };
-const CORE: L.PathOptions = { color: "#ff3b00", weight: 3.5, opacity: 1, dashArray: "11,7", interactive: false };
+const CASING: L.PathOptions = { color: "#ffffff", weight: 5.5, opacity: 0.85, interactive: false };
+const COURSE_MAGENTA = "#e600e6";
+const CORE: L.PathOptions = { color: COURSE_MAGENTA, weight: 2.5, opacity: 1, interactive: false };
 const HIT: L.PathOptions = { color: "#000", weight: 18, opacity: 0, lineCap: "butt", bubblingMouseEvents: false };
 const HIT_PASSING: L.PathOptions = { ...HIT, bubblingMouseEvents: true };
 

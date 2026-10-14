@@ -57,7 +57,7 @@ test("a pilot's browser reports its Web Vitals as the page is put away, and noth
     return route.fulfill({ status: 204 });
   });
   await page.goto("/app/plan?dep=C81&dest=KDLH");
-  await page.getByTestId("tab-bar").waitFor();
+  await page.locator('[data-slot="map-panel"]').waitFor();
   // The library loads once the page is idle.
   await page.waitForTimeout(4000);
   await page.evaluate(() => {
