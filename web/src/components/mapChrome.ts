@@ -171,8 +171,10 @@ export const CHIP_TEXT = "text-xs pointer-coarse:text-[min(0.8125rem,14px)]";
  *  text's colour (the pilot's pick, after a grey disc). */
 export const ROUND_BUTTON = `rounded-full ${GLASS_BUTTON}`;
 
-/** Whether the map panel is being dragged (MapPanel): a card shown at the
- *  pill's size as its summary is drawn in full in the panel's body while a
- *  finger takes it up, so the sheet grows with the card in it, not an empty
- *  band over the summary that changed into the card at the release. */
+/** Whether the map panel is between sizes (MapPanel): dragged, or easing
+ *  down to the pill after a tap. A card shown at the pill's size as its
+ *  summary is drawn in full in the panel's body while a finger takes it
+ *  up, so the sheet grows with the card in it, not an empty band over the
+ *  summary that changed into the card at the release; and easing down, the
+ *  body stays as it was until the sheet is the pill. */
 export const usePanelDragging = create<{ dragging: boolean }>(() => ({ dragging: false }));

@@ -486,7 +486,13 @@ export default function MapPanel({ label, top, controls, compact, children, stat
     // lowest detent: its head alone, no controls -- or the tabs alone.
     floor: hasPill ? Math.min(capsuleHeight, collapsible ? tabsPill : Infinity) : undefined,
   });
-  const isDragged = dragged !== null;
+  // Between sizes: a finger on it, or its height easing down to the pill
+  // after a tap (`settling`). The body is drawn as all the way up for both:
+  // easing down, the Airport tab's Recents slid up into the Favorites
+  // strip's place, the strip already the pill's, for the half second the
+  // sheet took to arrive (the owner's notice, "From Full card to half card
+  // shows recents for a second before favorites can take that space").
+  const isDragged = dragged !== null || settling;
   useEffect(() => {
     usePanelDragging.setState({ dragging: isDragged });
   }, [isDragged]);
