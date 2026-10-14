@@ -128,6 +128,8 @@ export function MapShell({ course, onReady, children, onSelectPlace, held = fals
   // whether it has been fitted to one since.
   const openedOn = useRef<"route" | "other" | null>(null);
   const everFitted = useRef(false);
+  // What the map follows the panel's size for, for a moment (below).
+  const following = useRef<{ until: number; what: "route" | "ship" } | null>(null);
   useEffect(() => {
     if (map && openedOn.current === null) openedOn.current = bounds ? "route" : "other";
   }, [map, bounds]);
@@ -144,6 +146,11 @@ export function MapShell({ course, onReady, children, onSelectPlace, held = fals
     everFitted.current = true;
     fitted.current = routeKey;
     fit(!opening);
+    // And again as the panel settles round the route that has come: half
+    // way the sheet grows by the route's figures pinned at its foot as
+    // they arrive, and a route fitted to the half before them sat a third
+    // under them (route-fit.spec: a card's Fly Here, half way).
+    following.current = { until: performance.now() + 2000, what: "route" };
   }, [map, bounds, routeKey, onReady, fit]);
 
   // The map follows the panel as it goes out or comes back to rest --
@@ -164,7 +171,6 @@ export function MapShell({ course, onReady, children, onSelectPlace, held = fals
   // the plan streams in -- which would take the map from under the
   // pilot's finger.
   const settledInsets = useRef(insets);
-  const following = useRef<{ until: number; what: "route" | "ship" } | null>(null);
   // The map is made before the panel has measured what it covers, its
   // opening view the whole screen's: once the panel has, the view is put
   // right at once -- the route fitted clear of it, or what was in the
