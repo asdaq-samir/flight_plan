@@ -1469,14 +1469,18 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       : panel === "peek" && !dragging && heldPoint ? (
         <AirspaceCard key={`${heldPoint.lat},${heldPoint.lon}`} point={heldPoint} summary onClose={() => selectPlace(null)} onExpand={() => setPanel("full")} />
       ) : panel === "peek" && !dragging && !place && !heldPoint && flightSummary ? flightSummary : tab === "fpl" ? routed && (
-      <div className="w-full">
+      // The foot's whole row in the pill while a dry run is up, its chart
+      // taking what the figures leave, so they sit at the very bottom as
+      // they do without one (the owner's "calculation are not pinned at
+      // the bottom for dry run").
+      <div className={cn("w-full", dryRunning && "flex min-h-0 flex-1 flex-col in-data-capsule:pb-3")}>
         {/* The side view pinned over the figures in the pill, at the
             owner's ask ("pin the profile above calculations but transition
             to just below the legs"): it folds away as the sheet comes up
             (MapPanel's --sheet-progress), where the nav log's Profile
             section, under its Legs, takes over from it. */}
         {dryRunning ? (
-          <div className="pb-2" data-pill-hides=""><DryRunControls run={dryRunning} onClose={stopDryRun} /></div>
+          <div className="flex min-h-0 flex-1 flex-col pb-2" data-pill-hides=""><DryRunControls run={dryRunning} onClose={stopDryRun} /></div>
         ) : miniProfile && (
           <div
             // Out of sight all the way up, not only see-through: its words

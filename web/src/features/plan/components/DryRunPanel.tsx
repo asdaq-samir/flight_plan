@@ -33,7 +33,7 @@ export function DryRunControls({ run, onClose }: { run: DryRun; onClose: () => v
   // a segmented control took a row of its own.
   const nextSpeed = REPLAY_SPEEDS[(REPLAY_SPEEDS.indexOf(speed as (typeof REPLAY_SPEEDS)[number]) + 1) % REPLAY_SPEEDS.length]!;
   return (
-    <div className="relative rounded-xl bg-background/70 px-1 pt-1" data-testid="dry-run">
+    <div className="relative flex min-h-0 flex-1 flex-col rounded-xl bg-background/70 px-1 pt-1" data-testid="dry-run">
       <p className={cn("flex min-h-9 items-center gap-2 pr-[10.5rem] pl-2 tabular-nums", TEXT.detail)}>
         {here ? (
           <span className="truncate font-semibold text-foreground" data-testid="dry-run-now">
@@ -61,8 +61,9 @@ export function DryRunControls({ run, onClose }: { run: DryRun; onClose: () => v
         </RoundButton>
         <CloseButton onClick={onClose} data-testid="dry-run-close" />
       </div>
-      {/* Short at the pill, taller as the sheet comes up. */}
-      <div className="h-[calc(4rem+5rem*var(--sheet-progress,1))]">
+      {/* Short at the pill, taller as the sheet comes up; in the pill all
+          the room its row leaves over the figures. */}
+      <div className="min-h-[calc(4rem+5rem*var(--sheet-progress,1))] flex-1">
         <Suspense fallback={<div className="h-full" />}>
           <FlightChart points={run.points} at={second} />
         </Suspense>
