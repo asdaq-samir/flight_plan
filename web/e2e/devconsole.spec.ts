@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { expandConsole, openConsole, showTabs } from "./helpers";
+import { consolePage, expandConsole, openConsole, showTabs } from "./helpers";
 
 /**
  * The Dev console's System tab, for the answers that are not "up": a
@@ -15,8 +15,8 @@ async function openSystemTab(page: Page) {
   await page.goto("/app/dev");
   await showTabs(page);
   await openConsole(page);
-  await consoleSheet(page).getByRole("tab", { name: "Status" }).click();
   await expandConsole(page);
+  await consolePage(consoleSheet(page), "Status");
 }
 
 /** The Services page, from its row on the System tab. */

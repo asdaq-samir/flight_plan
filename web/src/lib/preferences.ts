@@ -103,8 +103,6 @@ interface Preferences {
   aircraft: AircraftChoice;
   /** The training map's filters: which points are drawn and walked. */
   filters: Filters;
-  devTab: string;
-  pilotTab: string;
   /** The navigation bar's edge, once one has been picked; until then
    *  the bottom on a phone and the top from md up. */
   navBar: NavEdge | null;
@@ -159,8 +157,6 @@ interface Preferences {
   setKeepOffline: (keepOffline: boolean) => void;
   setAircraft: (aircraft: AircraftChoice) => void;
   setFilter: (key: FilterKey, on: boolean) => void;
-  setDevTab: (tab: string) => void;
-  setPilotTab: (tab: string) => void;
   setNavBar: (navBar: NavEdge) => void;
   setRouteColours: (routeColours: RouteColours) => void;
   setNarrative: (narrative: NarrativeFramework) => void;
@@ -216,8 +212,6 @@ export const usePreferences = create<Preferences>()(
       keepOffline: false,
       aircraft: DEFAULT_AIRCRAFT,
       filters: DEFAULT_FILTERS,
-      devTab: "training",
-      pilotTab: "guide",
       navBar: null,
       routeColours: "airspace",
       narrative: "langgraph",
@@ -260,8 +254,6 @@ export const usePreferences = create<Preferences>()(
       setKeepOffline: keepOffline => set({ keepOffline }),
       setAircraft: aircraft => set({ aircraft }),
       setFilter: (key, on) => set(s => ({ filters: { ...s.filters, [key]: on } })),
-      setDevTab: devTab => set({ devTab }),
-      setPilotTab: pilotTab => set({ pilotTab }),
       setNavBar: navBar => set({ navBar }),
       setRouteColours: routeColours => set({ routeColours }),
       setNarrative: narrative => set({ narrative }),
@@ -296,7 +288,7 @@ export const usePreferences = create<Preferences>()(
       migrate: (kept, from) => (from < 1 ? { ...(kept as object), waypoints: false } : kept) as Preferences,
       // The functions are not state; only the values are written.
       partialize: s => ({
-        base: s.base, tac: s.tac, waypoints: s.waypoints, classB: s.classB, tfrs: s.tfrs, alerts: s.alerts, speakAlerts: s.speakAlerts, traffic: s.traffic, military: s.military, minimums: s.minimums, loads: s.loads, keepOffline: s.keepOffline, aircraft: s.aircraft, filters: s.filters, devTab: s.devTab, pilotTab: s.pilotTab, navBar: s.navBar, routeColours: s.routeColours, narrative: s.narrative,
+        base: s.base, tac: s.tac, waypoints: s.waypoints, classB: s.classB, tfrs: s.tfrs, alerts: s.alerts, speakAlerts: s.speakAlerts, traffic: s.traffic, military: s.military, minimums: s.minimums, loads: s.loads, keepOffline: s.keepOffline, aircraft: s.aircraft, filters: s.filters, navBar: s.navBar, routeColours: s.routeColours, narrative: s.narrative,
         flightRules: s.flightRules,
         recentAirports: s.recentAirports, homeAirport: s.homeAirport, favoriteAirports: s.favoriteAirports,
         recentAircraft: s.recentAircraft, favoriteAircraft: s.favoriteAircraft, myAircraft: s.myAircraft,

@@ -64,7 +64,7 @@ export async function openLinkFor(page: Page, address: string): Promise<string> 
   const console = page.getByTestId("console-sheet");
   const before = new Set(await messagesTo(address));
   if (!(await console.isVisible())) await openConsole(page);
-  // The account is Personal's, at the owner's ask (AccountRow).
+  // The account is Personal's, at the owner's ask (AccountMenu).
   await openAccount(page);
   await console.getByRole("button", { name: "Sign in" }).click();
   await page.getByLabel("Email address").fill(address);

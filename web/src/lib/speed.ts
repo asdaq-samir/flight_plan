@@ -57,7 +57,8 @@ export function pageOf(path: string): string {
   return part ?? "other";
 }
 
-/** An iPad-sized touch screen, as use-tablet.ts decides it. */
+/** An iPad-sized touch screen: a coarse pointer on a screen at least
+ *  744 by 600 (iPad mini's narrow side and up). */
 const TABLET = "(pointer: coarse) and (min-width: 744px) and (min-height: 600px)";
 
 /** The kind of device by its pointer and its screen: a touch screen is a

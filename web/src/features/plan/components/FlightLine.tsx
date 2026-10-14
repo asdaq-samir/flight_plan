@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { cn } from "cn";
 import type { Totals } from "../../../lib/api/types";
-import { GROUP_HEADING, TEXT } from "../../../lib/text";
+import { GROUP_HEADING, GROW_FIGURE, TEXT } from "../../../lib/text";
 import { useRoom } from "../../../lib/useRoom";
 import { fitFigures, tripFigures } from "../figures";
 
@@ -37,11 +37,7 @@ const SMALLEST = 0.75;
 /** The figures, their units and their names from the pill's size (the
  *  detail's 15, a caption's 11) to their own (the heading's 20, a note's
  *  13), with the sheet (`grow`); TEXT's sizes, a mouse's and a finger's. */
-// Each with its iOS leading at either end (the audit's P3: 15 on 20 to 20
-// on 25, 11 on 13 to 13 on 18), eased between as the size is.
-const GROW_VALUE = "text-[length:calc(0.75rem+0.375rem*var(--sheet-progress,1))] leading-[calc(1rem+0.75rem*var(--sheet-progress,1))] pointer-coarse:text-[length:calc(0.9375rem+0.3125rem*var(--sheet-progress,1))] pointer-coarse:leading-[calc(1.25rem+0.3125rem*var(--sheet-progress,1))]";
-const GROW_UNIT = "text-[length:calc(0.6875rem+0.0625rem*var(--sheet-progress,1))] leading-[calc(0.8125rem+0.1875rem*var(--sheet-progress,1))] pointer-coarse:text-[length:calc(0.6875rem+0.125rem*var(--sheet-progress,1))] pointer-coarse:leading-[calc(0.8125rem+0.3125rem*var(--sheet-progress,1))]";
-const GROW_NAME = GROW_UNIT;
+const { value: GROW_VALUE, unit: GROW_UNIT, name: GROW_NAME } = GROW_FIGURE;
 
 export default function FlightLine({ totals, estimate, depart, local, grow = false }: {
   totals: Totals | null;

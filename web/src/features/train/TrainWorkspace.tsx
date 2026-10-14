@@ -1,7 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
-import { cn } from "cn";
-import { TEXT } from "../../lib/text";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 import { identOf, routeOf } from "../../lib/identSchema";
 import { statusQuery } from "../../lib/queryClient";
@@ -15,7 +13,9 @@ import { ChartColumn, GraduationCap } from "lucide-react";
 import TabBar, { type BarTab } from "../../components/TabBar";
 import { useDevTab, type DevTab } from "./devTab";
 import ChartMap from "./components/ChartMap";
-import WaypointPanel, { RatingProgress, WaypointActions } from "./components/WaypointPanel";
+import WaypointPanel, { WaypointActions } from "./components/WaypointPanel";
+import RatingCard from "./components/RatingCard";
+import FigureStrip, { type StripFigure } from "../../components/FigureStrip";
 import PointPopup from "./components/PointPopup";
 import { isEndpoint, type Point, type Rating } from "../../lib/api/types";
 import {
@@ -139,12 +139,46 @@ export default function TrainWorkspace({ dep, dest, panel, setPanel, children }:
 
   const walkIndex = point ? walk.findIndex(e => e.point === point) : -1;
 
+  // The point to rate, in the pill and under the route all the way up
+  // (RatingCard), at the owner's pick of the dev page's redesign: the one
+  // picked, or a way to the first not yet rated. A rating moves on to the
+  // next, as the digit keys do.
+  const firstUnrated = useMemo(() => waypoints.find(e => !hasRating(e.point)), [waypoints]);
+  const ratingCard = (
+    <RatingCard
+      point={point} number={point ? positionOf(point) + 1 || null : null}
+      onRate={r => void rate(r).then(() => step(1))}
+      onStart={firstUnrated ? () => focus(firstUnrated) : undefined}
+    />
+  );
+  // The figures at the panel's foot, pinned at every height and alone in
+  // the pill put away, as FPL's are: on Train how far the rating has got
+  // and the model's error, on Perf the model's (the status snapshot's).
+  const { data: status } = useQuery(statusQuery);
+  const current = status?.model?.current;
+  const error = current?.cv_mae == null ? "—" : current.cv_mae.toFixed(2);
+  const total = store.detections.length + store.added.length;
+  const score = (point as { predicted_score?: number | null } | null)?.predicted_score;
+  const figures: StripFigure[] = devTab === "perf" ? [
+    { name: "Ratings", value: current?.n_labeled == null ? "—" : String(current.n_labeled) },
+    { name: "MAE", value: error },
+    { name: "Routes", value: status ? String(status.corridors.length) : "—" },
+    { name: "Trained", value: current?.trained_at ? new Date(current.trained_at).toLocaleDateString(undefined, { month: "numeric", day: "numeric" }) : "—" },
+  ] : [
+    { name: "Rated", value: String(picks.length), testId: "rated-count" },
+    { name: "Left", value: String(Math.max(0, total - picks.length)) },
+    { name: "Model", value: score == null ? "—" : score.toFixed(1) },
+    { name: "MAE", value: error },
+  ];
+
   // Memoized deliberately: without it, this is a new element on every
   // render -- including one for each block of a streaming detection --
   // and ChartMap's halo effect depends on it, so an unrelated re-render
   // would tear the popup down and remount it, not just re-render it.
   const selectedContent = useMemo(() => {
-    if (!point) return null;
+    // Not with the panel all the way up over the map: the rating card is
+    // the panel's then (RatingCard), and the popup showed through it.
+    if (!point || panel === "full") return null;
     // Same idea as the arrow keys: which screen side is "forward" (step
     // +1) depends on which way the course actually runs, not a fixed
     // left-back/right-forward assumption -- a route heading roughly
@@ -170,7 +204,7 @@ export default function TrainWorkspace({ dep, dest, panel, setPanel, children }:
     );
   }, [
     point, place, course?.bearing_deg, course?.departure.ident,
-    rate, setCategory, removeSelected, step, walkIndex, walk.length,
+    rate, setCategory, removeSelected, step, walkIndex, walk.length, panel,
   ]);
 
 
@@ -262,15 +296,20 @@ export default function TrainWorkspace({ dep, dest, panel, setPanel, children }:
     ) : (
       <WaypointPanel
         entries={walk} selected={point} onFocus={focus}
-        onRate={r => void rate(r).then(() => step(1))}
         departureIdent={store.course?.departure.ident ?? ""}
         destinationIdent={store.course?.destination.ident ?? ""}
       />
     ),
-    // Perf's head: its name, the route's form being Train's.
-    head: devTab === "perf" ? (
-      <h2 className={cn("min-w-0 flex-1 px-1 py-2 font-bold tracking-tight", TEXT.card)}>Performance</h2>
-    ) : undefined,
+    // Perf's head the model serving and Retrain (PerfHead), the route's
+    // form being Train's; each in the pill as all the way up, as FPL's
+    // route box is (pillHead).
+    head: devTab === "perf" ? (devPanel ? <devPanel.PerfHead /> : <div className="h-24 w-full" />) : undefined,
+    pillHead: true,
+    // Train's pill the point to rate under the route; all the way up the
+    // same, where it was (`controls`).
+    pillBody: devTab === "train" && panel === "peek" ? ratingCard : undefined,
+    foot: <div className="w-full"><FigureStrip figures={figures} testId={`${devTab}-figures`} /></div>,
+    footStays: true,
     // Filter, Undo and More, beside the route.
     actions: devTab === "perf" ? undefined : (
       <WaypointActions
@@ -283,8 +322,9 @@ export default function TrainWorkspace({ dep, dest, panel, setPanel, children }:
     // the panel's first row and at rest the pill itself, as the planner's
     // (MapPanel): the tab up tapped opens it.
     bar: <TabBar tabs={DEV_TABS} tab={devTab} onPick={pickDevTab} onUp={() => { if (panel === "peek") setPanel("full"); }} />,
-    // How far the rating has got, under the route with the panel out.
-    controls: devTab === "perf" ? undefined : <RatingProgress rated={picks.length} total={store.detections.length + store.added.length} />,
+    // The point to rate, under the route all the way up, where the pill
+    // has it.
+    controls: devTab === "perf" ? undefined : ratingCard,
     console: devPanel ? <devPanel.DevPanel /> : <div className="h-40" />,
     submit,
     loading: store.loading,

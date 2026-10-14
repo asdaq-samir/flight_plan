@@ -1,7 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { ChevronDown } from "lucide-react";
 import { cn } from "cn";
-import { ListGroup, ListRow } from "../../components/GroupedList";
 import { Button } from "../../components/ui/button";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuRadioGroup, DropdownMenuRadioItem,
@@ -13,32 +12,6 @@ import { pilotQuery } from "../../lib/queryClient";
 import { TEXT } from "../../lib/text";
 import { useDeleteAccount } from "./useDeleteAccount";
 import { useLogout } from "./useLogout";
-
-/**
- * Who is signed in and the mode they are in, the Account tab's first row, at the
- * owner's ask ("I don't like the pilot and sign in taking space under
- * settings. We should move the role to personal"): it was the console's
- * title row over every tab. The name, and at its end the mode -- Pilot,
- * or Developer where the account may be one -- a menu that also signs out
- * and deletes the account (App Review 5.1.1(v): an app that makes
- * accounts deletes them from inside it). None where there is nobody
- * signed in and no developer's mode to offer: Personal's own sign-in says
- * what signing in keeps.
- */
-export default function AccountRow() {
-  const { data: pilot } = useQuery(pilotQuery);
-  const devMode = useDevMode();
-  if (!pilot && !devMode.allowed) return null;
-  return (
-    // No heading of its own: the tab it leads is Account, at the owner's
-    // ask ("Rename personal to account").
-    <ListGroup>
-      <ListRow title={<span className="truncate" data-testid="pilot-address">{pilot?.displayName ?? "Not signed in"}</span>}>
-        <AccountMenu />
-      </ListRow>
-    </ListGroup>
-  );
-}
 
 /**
  * The mode menu alone -- Pilot or Developer, signing out, deleting the

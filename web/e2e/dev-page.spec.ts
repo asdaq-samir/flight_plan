@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { closeSidebarWithTheStockKey, consoleSheet, expectDrawerClosed, expectDrawerOpen, openConsole, grabberTo, settle, showTabs, sideDrawer, slow } from "./helpers";
+import { closeSidebarWithTheStockKey, consolePage, consoleSheet, expectDrawerClosed, expectDrawerOpen, openConsole, grabberTo, settle, showTabs, sideDrawer, slow } from "./helpers";
 
 /**
  * The dev page's training: the dev console, and the waypoint drawer's
@@ -10,10 +10,11 @@ test("dev page: the dev console opens on training, and the waypoint drawer opens
   await page.goto("/app/dev");
   await settle(page);
   // The training workspace is the page -- the console stays off screen
-  // until its tab is picked. At rest, the tabs' pill: Train, Perf and
-  // Settings, as the developer asked.
-  await expect(sideDrawer(page).getByTestId("tab-bar").getByRole("button")).toHaveText(["Train", "Perf", "Setup"]);
+  // until its tab is picked. At rest the training's figures alone, as
+  // FPL's with a route; the pill its tabs: Train, Perf and Setup.
+  if ((page.viewportSize()?.width ?? 0) < 768) await expect(sideDrawer(page).getByTestId("train-figures")).toBeVisible();
   await showTabs(page);
+  await expect(sideDrawer(page).getByTestId("tab-bar").getByRole("button")).toHaveText(["Train", "Perf", "Setup"]);
   await expect(page.getByTestId("tab-train")).toHaveAttribute("aria-current", "page");
   await expectDrawerClosed(page);
   expect(await consoleSheet(page).count()).toBe(0);
@@ -22,11 +23,12 @@ test("dev page: the dev console opens on training, and the waypoint drawer opens
   await openConsole(page);
   const devMl = consoleSheet(page);
   await expect(devMl).toBeVisible();
-  // The developer's console opens on training -- the three steps that
-  // change the model -- then the stack, the settings and About; how good
-  // the models are is the page's own Perf tab.
-  await expect(devMl.getByText("Load a route")).toBeVisible();
-  await expect(devMl.getByRole("tab")).toHaveText(["Guide", "Status", "Account", "Settings", "About"]);
+  // The developer's Setup is the pilot's (the owner's pick of the dev
+  // page's redesign): the switches and the account, then Status,
+  // Settings, Guide and About as rows; the Guide the three steps that
+  // change the model. How good the models are is the page's Perf tab.
+  await expect(devMl.getByTestId("setup-head")).toBeVisible();
+  await consolePage(devMl, "Guide");
   await expect(devMl.getByText("Load a route")).toBeVisible();
   await expect(devMl.getByText("Rate its points")).toBeVisible();
   await expect(devMl.getByText("Retrain", { exact: true })).toBeVisible();
@@ -35,7 +37,7 @@ test("dev page: the dev console opens on training, and the waypoint drawer opens
   // Model Training drawer at the side, in its More menu with Reset.
   expect(await devMl.locator("input, textarea, [role=combobox]").count()).toBe(0);
   expect(await devMl.getByRole("button", { name: /Retrain/ }).count()).toBe(0);
-  await devMl.getByRole("tab", { name: "Status" }).click();
+  await consolePage(devMl, "Status");
   await devMl.getByRole("button", { name: /^Services/ }).click();
   await expect(devMl.getByText("planning-service", { exact: true })).toBeVisible();
 
@@ -54,16 +56,16 @@ test("dev page: the dev console opens on training, and the waypoint drawer opens
   await page.getByTestId("tab-train").click();
   await closeSidebarWithTheStockKey(page);
   await expectDrawerClosed(page);
-  await page.getByTestId("sidebar-trigger-button").click();
+  await grabberTo(page, "full");
   await expectDrawerOpen(page);
   await closeSidebarWithTheStockKey(page);
   await expectDrawerClosed(page);
 });
 
-test("dev page: the waypoint drawer is a worklist -- every candidate in flight order, walked with the keys, rated from the selected row", async ({ page }) => {
+test("dev page: the waypoint drawer is a worklist -- every candidate in flight order, walked with the keys, rated from the rating card", async ({ page }) => {
   await page.goto("/app/dev?dep=C81&dest=KDLH");
   await settle(page);
-  await page.getByTestId("sidebar-trigger-button").click();
+  await grabberTo(page, "full");
   const drawer = sideDrawer(page);
   await expect(drawer.getByTestId("drawer-title")).toHaveText("Model Training");
   const list = drawer.getByRole("list", { name: /Waypoints from/i });
@@ -81,13 +83,14 @@ test("dev page: the waypoint drawer is a worklist -- every candidate in flight o
     await page.waitForTimeout(1200);
     return (await rows.count()) === before;
   }, { timeout: slow(40000) }).toBe(true);
-  await expect(drawer.getByRole("progressbar", { name: /^\d+ of \d+ rated$/ })).toBeVisible();
+  await expect(drawer.getByTestId("train-figures")).toBeVisible();
   await expect(rows.first()).toContainText("C81");
 
-  // A click selects the row, and its own rating buttons open under it.
+  // A click selects the row and puts its point in the rating card under
+  // the route (RatingCard).
   await rows.nth(2).click();
   await expect(rows.nth(2)).toHaveAttribute("data-selected", "true");
-  await expect(drawer.getByRole("button", { name: "Rate 5" })).toBeVisible();
+  await expect(drawer.getByTestId("rating-card").getByRole("button", { name: "Rate 5" })).toBeVisible();
 
   // Down, with focus in the list, walks the list top to bottom.
   await page.keyboard.press("ArrowDown");
@@ -159,8 +162,9 @@ test("Performance: Retrain says why it is off in the planner's words, and the ch
   await grabberTo(page, "full");
   const sheet = sideDrawer(page).getByTestId("perf-panel");
 
-  await expect(sheet.getByTestId("retrain-row")).toBeDisabled();
-  await expect(sheet.getByText("Rate 2 more.", { exact: false })).toBeVisible();
+  // Retrain the head's, over the sections (PerfHead), its reason under it.
+  await expect(sideDrawer(page).getByTestId("retrain-row")).toBeDisabled();
+  await expect(sideDrawer(page).getByTestId("perf-head").getByText("Rate 2 more.", { exact: false })).toBeVisible();
   await expect(sheet.getByText("Chart model", { exact: true })).toBeVisible();
   await expect(sheet.getByText("Beats the palette", { exact: true })).toBeVisible();
   await expect(sheet.getByText("Palette constants", { exact: true })).toBeVisible();
@@ -182,7 +186,7 @@ test("dev page: a detection the chart model has scored says so in its row, besid
   });
   await page.goto("/app/dev?dep=C81&dest=KDLH");
   await settle(page);
-  await page.getByTestId("sidebar-trigger-button").click();
+  await grabberTo(page, "full");
   const rows = sideDrawer(page).getByRole("list", { name: /Waypoints from/i }).locator("[data-waypoint-row]");
   await expect(rows.filter({ hasText: "model 0.4" }).first()).toBeVisible({ timeout: slow(30000) });
   // Not the endpoints, which the model does not score.

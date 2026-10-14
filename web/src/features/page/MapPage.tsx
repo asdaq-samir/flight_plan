@@ -4,16 +4,10 @@ import { useSearchParamsNow } from "../../lib/useSearchParamsNow";
 import DevGuard from "../../components/DevGuard";
 import MapPanel from "../../components/MapPanel";
 import { ConsoleInPanelContext, ConsoleSettingsContext, useConsoleOpen, usePanelDragging, MapInsetsContext, NO_INSETS, type MapInsets, type PanelState } from "../../components/mapChrome";
-import QuickControls from "../../components/QuickControls";
 import RouteForm from "../../components/RouteForm";
-import { Sheet, SheetContent } from "../../components/ui/sheet";
-import { Dialog, DialogContent } from "../../components/ui/dialog";
-import { useIsMobile } from "../../hooks/use-mobile";
-import { useIsTablet } from "../../hooks/use-tablet";
 import { useNavEdge } from "../../hooks/use-nav-edge";
 import { usePreferences } from "../../lib/preferences";
 import { useWarmAirportIndex } from "../../lib/airportIndex";
-import ConsoleHeader from "../pilot/ConsoleHeader";
 import LinkSignIn from "../pilot/LinkSignIn";
 import TvLink from "../pilot/TvLink";
 import PlanWorkspace from "../plan/PlanWorkspace";
@@ -77,8 +71,6 @@ const MODES = {
  */
 export default function MapPage({ mode }: { mode: Mode }) {
   const { title, panel: panelLabel, console: consoleLabel, Workspace, route } = MODES[mode];
-  const onPhone = useIsMobile();
-  const onTablet = useIsTablet();
   const navBar = usePreferences(s => s.navBar);
   const dragging = usePanelDragging(d => d.dragging);
   const edge = useNavEdge();
@@ -178,25 +170,11 @@ export default function MapPage({ mode }: { mode: Mode }) {
     setInsets(prev => (prev.top === next.top && prev.bottom === next.bottom && prev.left === next.left && prev.out === next.out && prev.up === next.up ? prev : next));
   }, []);
 
-  // The console: its button (Settings, a gear, on both pages) and the
-  // sheet it opens, with the settings as its last tab (ConsoleTabs) --
-  // the pilot's account, airplanes, flights and guide, or the
-  // developer's training, performance and system. Its button is on the
-  // panel's capsule and nowhere else, as Maps' account is beside its
-  // search: on the planner's search bar -- with a route on screen,
-  // closing it brings the bar back -- and at the end of the training
-  // page's route capsule. On a phone, a layer of the map's panel itself,
-  // at the pilot's ask, as an airport's card is: it pulls out as the
-  // route's sheet does -- the pill and all the way -- dragged from
-  // anywhere on it, and its close shows the layer
-  // under it at the height it is; it was a sheet of its own over a dimmed
-  // map (ConsoleSheet), half the screen, that slid away when lowered.
-  // Elsewhere modal, so the page waits while it is out: a stock Sheet
-  // from the navigation bar's edge (useNavEdge). Its
-  // height is fixed rather than its content's: sized to the tab showing,
-  // its edge rose and fell as the tabs changed, and the tab row moved out
-  // from under the finger that had just tapped it. On an iPad, iOS's form sheet instead: a card 540 by 620,
-  // centred, as a sheet there is.
+  // The console, Setup: its button the tab bar's last tab (TabBar), on both
+  // pages, and what it opens a layer of the map's panel itself (below), as
+  // an airport's card is: it pulls out as the route's sheet does -- the
+  // pill and all the way -- dragged from anywhere on it. It was a sheet of
+  // its own past a phone's width, and a form sheet on an iPad.
   // Out or not, the app's (useConsoleOpen): a developer's Pilot and
   // Developer in the console's title change the page under it, and the
   // console stays out, the other page's.
@@ -214,65 +192,14 @@ export default function MapPage({ mode }: { mode: Mode }) {
     window.setTimeout(() => consoleButton()?.focus({ preventScroll: true }));
   }, [setConsoleOpen]);
   const consoleInPanel = useMemo(() => ({ close: closeConsole }), [closeConsole]);
-  // Picked, Setup opens at the pill's size, its pill (SetupPill) under the
-  // tabs, as every tab does; all the way up by a drag, at the owner's ask.
-  const backToButton = useCallback((event: Event) => {
-    event.preventDefault();
-    consoleButton()?.focus();
-  }, []);
-  // The console in the map's panel, as a tab of it: the planner's Setup on
-  // every screen, in landscape and on an iPad as on a phone, at the owner's
-  // ask ("in landscape mode it becomes a separate sheet while other tabs
-  // stay in the panel"); the developer's console, its training's charts
-  // and tables, a sheet of its own past a phone's width.
-  const inPanel = mode === "pilot" || (onPhone && !onTablet);
-  const consoleOf = (pieces: WorkspacePieces) => {
-    // In the panel (consoleLayerOf): the planner's Setup on every screen,
-    // a tab as the others are; the developer's console on a phone.
-    if (inPanel) return null;
-    // The greeting, the way in or out and the close button on one row;
-    // the console's content starts under it.
-    const content = (
-      <>
-        <ConsoleHeader console={consoleLabel} />
-        <ConsoleSettingsContext.Provider value={<SettingsPanel />}>
-          <AfterTheSheet>{pieces.console}</AfterTheSheet>
-        </ConsoleSettingsContext.Provider>
-      </>
-    );
-    if (onTablet) {
-      return (
-        <Dialog open={consoleOpen} onOpenChange={setConsoleOpen}>
-          <DialogContent
-            showCloseButton={false} onCloseAutoFocus={backToButton}
-            className="flex h-[min(620px,85dvh)] w-[min(540px,calc(100%-40px))] max-w-none flex-col gap-0 overflow-hidden bg-card p-0 text-card-foreground"
-            data-testid="console-sheet"
-          >
-            {content}
-          </DialogContent>
-        </Dialog>
-      );
-    }
-    return (
-      <Sheet open={consoleOpen} onOpenChange={setConsoleOpen}>
-        <SheetContent
-          side={edge} onCloseAutoFocus={backToButton}
-          className={edge === "top"
-            ? "max-h-[85dvh] gap-0 p-0 pt-[env(safe-area-inset-top)]"
-            : "gap-0 p-0 pb-[env(safe-area-inset-bottom)] data-[side=bottom]:h-[85dvh]"}
-          showCloseButton={false} data-testid="console-sheet"
-        >
-          {content}
-        </SheetContent>
-      </Sheet>
-    );
-  };
-
-  // On a phone, the console as a layer of the panel: its header and tabs
-  // where the panel's body is, the route or the search under it kept
-  // (hidden) for when it is put away. Named as the console it is; Escape
-  // puts it away, unless something open in it (a menu) took the key.
-  const consoleLayer = inPanel && consoleOpen;
+  // Setup, the console, as a layer of the panel on every screen and both
+  // pages -- a tab as the others are, at the owner's asks ("in landscape
+  // mode it becomes a separate sheet while other tabs stay in the panel";
+  // "redesign the dev similar way") -- where the panel's body is, the
+  // route or the search under it kept (hidden) for when it is put away.
+  // Named as the console it is; Escape puts it away, unless something
+  // open in it (a menu) took the key.
+  const consoleLayer = consoleOpen;
   // Its whole page drawn just after the frame that shows Setup's pill, in
   // the background (useDeferredValue's first value): the pill is what a tap
   // on Setup shows, the page under it only as the sheet comes up, and in
@@ -281,7 +208,6 @@ export default function MapPage({ mode }: { mode: Mode }) {
   const consoleLayerOf = (pieces: WorkspacePieces) => (
     <ConsoleInPanelContext.Provider value={consoleInPanel}>
       <ConsoleLayer label={consoleLabel} detent={panel === "full" ? "large" : "medium"} edge={edge} onClose={closeConsole}>
-        <ConsoleHeader console={consoleLabel} />
         <ConsoleSettingsContext.Provider value={<SettingsPanel />}>
           <AfterTheSheet>{pieces.console}</AfterTheSheet>
         </ConsoleSettingsContext.Provider>
@@ -346,7 +272,6 @@ export default function MapPage({ mode }: { mode: Mode }) {
               {pieces.map}
             </MapInsetsContext.Provider>
           </main>
-          {consoleOf(pieces)}
           <MapPanel
             label={consoleLayer ? consoleLabel : panelLabel} controls={pieces.alone || consoleLayer ? undefined : pieces.controls}
             state={panel} onStateChange={setPanel} onInsetsChange={changeInsets}
@@ -358,14 +283,11 @@ export default function MapPage({ mode }: { mode: Mode }) {
             // Settings tab's pill (its console's layer at rest) is quick
             // controls, at the owner's ask; else the workspace's own foot.
             bar={pieces.bar} barAlone={consoleLayer || !!pieces.alone}
-            // Setup's pill on the planner, the owner's pick of the redesign
-            // (SetupPill): the account over the switches; the developer's
-            // console keeps the switches alone.
+            // Setup's pill, the owner's pick of the redesign (SetupPill): the
+            // switches over the account, the developer's the same.
             // Not while a finger takes the panel up: the page under it is
             // drawn in full there (usePanelDragging), not twice.
-            foot={consoleLayer ? panel === "peek" && !dragging && (mode === "pilot"
-              ? <Suspense fallback={null}><SetupPill /></Suspense>
-              : <QuickControls />) : pieces.foot}
+            foot={consoleLayer ? panel === "peek" && !dragging && <Suspense fallback={null}><SetupPill /></Suspense> : pieces.foot}
             pillBody={consoleLayer || pieces.alone ? undefined : pieces.pillBody}
             footStays={!consoleLayer && !pieces.alone && !!pieces.footStays}
             cardInPill={!consoleLayer && !!pieces.alone}
