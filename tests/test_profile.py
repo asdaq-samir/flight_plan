@@ -10,8 +10,16 @@ def flat_world(monkeypatch):
     """Ground at 300 m everywhere, and one Class D box over the middle of
     a route north from (42, -88)."""
     monkeypatch.setattr(profile.elevation, "get_elevations_m", lambda points: {p: 300.0 for p in points})
+    fields = {"KSMW": {"ident": "KSMW", "lat": 42.5, "lon": -88.0}, "PSMW": {"ident": "PSMW", "lat": 21.3, "lon": -157.9}}
+
+    def get_airport(ident):
+        if ident not in fields:
+            raise ValueError(ident)
+        return fields[ident]
+    monkeypatch.setattr(profile.airports_module, "get_airport", get_airport)
+    profile._airport_ident.cache_clear()
     monkeypatch.setattr(profile, "load_controlled_airspace", lambda shp, bbox: [{
-        "name": "SOMEWHERE CLASS D", "class": "D", "floor_ft_msl": 0.0, "ceiling_ft_msl": 3500.0,
+        "ident": "SMW", "name": "SOMEWHERE CLASS D", "class": "D", "floor_ft_msl": 0.0, "ceiling_ft_msl": 3500.0,
         "geometry": box(-88.1, 42.4, -87.9, 42.6),
     }])
 
@@ -29,3 +37,13 @@ def test_a_stop_runs_the_distances_on_and_its_ground_once(flat_world):
     side = profile.route_profile([(42.0, -88.0), (42.5, -88.0), (43.0, -88.0)], "unused.shp")
     alongs = [t["along_nm"] for t in side["terrain"]]
     assert alongs == sorted(set(alongs)) and alongs[-1] == pytest.approx(60.0, abs=0.2)
+
+
+def test_each_airspace_is_named_for_the_airport_inside_it(flat_world):
+    (d,) = profile.route_profile([(42.0, -88.0), (43.0, -88.0)], "unused.shp")["airspace"]
+    assert d["ident"] == "KSMW"
+
+
+def test_an_ident_whose_airport_is_elsewhere_is_left_unnamed():
+    profile._airport_ident.cache_clear()
+    assert profile._airport_ident("", (-88.1, 42.4, -87.9, 42.6)) == ""

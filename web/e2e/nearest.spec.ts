@@ -59,10 +59,9 @@ test("Nearest opens as a card half way up, a field over it as a layer, and its c
   await showTabs(page);
   await page.getByTestId("tab-fpl").click();
   await expect(card).toHaveCount(0);
-  // At the pill's size, as a tab tapped opens (TabBar); all the way up,
+  // All the way up still, as another tab tapped there stays (TabBar):
   // the route's pages.
-  await expect(sideDrawer(page)).toHaveAttribute("data-panel", "peek");
-  await grabberTo(page, "full");
+  await expect(sideDrawer(page)).toHaveAttribute("data-panel", "full");
   await expect(sideDrawer(page).getByTestId("panel-tab-enroute")).toBeVisible();
 });
 

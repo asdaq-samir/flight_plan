@@ -1165,6 +1165,9 @@ class ProfileAirspace(BaseModel):
     to_nm: float
     floor_ft: float
     ceiling_ft: float | None = None
+    # The airport it is drawn round, as a route names it (KDLH); "" where
+    # the FAA's file names none that can be placed (vfr.profile).
+    ident: str = ""
 
     model_config = ConfigDict(populate_by_name=True)
 

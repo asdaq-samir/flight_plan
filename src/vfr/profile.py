@@ -6,12 +6,17 @@ The ground is the same samples the terrain floor reads (vfr.terrain,
 every 2 nm along each hop's straight line, from the USGS's elevations,
 held on disk), so a route already planned asks nothing new of the USGS.
 The airspace is each Class B, C and D the hops' lines pass through: where
-along the route it begins and ends, its floor and its ceiling.
+along the route it begins and ends, its floor and its ceiling, and the
+airport it is drawn round (its ident, as the route's are), for the page
+to name it on the side view.
 """
 from itertools import pairwise
 
 from shapely.geometry import LineString
 
+from functools import lru_cache
+
+from . import airports as airports_module
 from . import elevation, geo
 from .airspace import load_controlled_airspace
 from .terrain import M_TO_FT, SAMPLE_INTERVAL_NM, _route_sample_points
@@ -21,11 +26,32 @@ def _along(point: tuple, start: tuple, end: tuple, length_nm: float) -> float:
     return min(max(geo.along_track_distance_nm(point[1], point[0], start, end), 0.0), length_nm)
 
 
+@lru_cache(maxsize=512)
+def _airport_ident(faa_ident: str, bounds: tuple) -> str:
+    """The ident, as a route names it (KDLH), of the airport an airspace is
+    drawn round: the FAA's file tags each piece with the airport's own
+    three letters (DLH), tried as ICAO -- K in the lower 48, P in the
+    Pacific -- then bare, and taken only where the airport sits within the
+    piece's bounds (min_lon, min_lat, max_lon, max_lat), as vfr.classb
+    places a Class B's; "" where none does."""
+    if not faa_ident:
+        return ""
+    min_lon, min_lat, max_lon, max_lat = bounds
+    for candidate in (f"K{faa_ident}", f"P{faa_ident}", faa_ident):
+        try:
+            airport = airports_module.get_airport(candidate)
+        except ValueError:
+            continue
+        if min_lat <= airport["lat"] <= max_lat and min_lon <= airport["lon"] <= max_lon:
+            return airport["ident"]
+    return ""
+
+
 def route_profile(path: list, shp_path) -> dict:
     """The ground and the airspace along a route through `path` [(lat,
     lon)], its airports in order: {"length_nm", "terrain": [{"along_nm",
     "ground_ft"}], "airspace": [{"name", "class", "from_nm", "to_nm",
-    "floor_ft", "ceiling_ft"}]}, distances from the departure, hop after
+    "floor_ft", "ceiling_ft", "ident"}]}, distances from the departure, hop after
     hop, the airspace in the order it is reached."""
     terrain, airspace, offset = [], [], 0.0
     for start, end in pairwise(path):
@@ -49,6 +75,7 @@ def route_profile(path: list, shp_path) -> dict:
                     continue
                 airspace.append({
                     "name": polygon["name"], "class": polygon["class"],
+                    "ident": _airport_ident(polygon.get("ident", ""), tuple(polygon["geometry"].bounds)),
                     "from_nm": round(offset + ends[0], 2), "to_nm": round(offset + ends[1], 2),
                     "floor_ft": polygon["floor_ft_msl"], "ceiling_ft": polygon.get("ceiling_ft_msl"),
                 })

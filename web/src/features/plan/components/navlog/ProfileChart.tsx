@@ -58,11 +58,16 @@ export default memo(function ProfileChart({ profile, plan }: { profile: RoutePro
         />
         {profile.airspace.map((a, i) => {
           const look = AIRSPACE[a.class] ?? AIRSPACE.D!;
+          // Its airport's ident over its widest piece, as the pill's side
+          // view has it (MiniProfile), at the owner's ask.
+          const label = a.ident || `Class ${a.class}`;
+          const widest = profile.airspace.every(b => (b.ident || `Class ${b.class}`) !== label || b === a || b.to_nm - b.from_nm < a.to_nm - a.from_nm);
           return (
             <ReferenceArea
               key={i} x1={a.from_nm} x2={a.to_nm} y1={a.floor_ft} y2={Math.min(a.ceiling_ft ?? top, top)}
               stroke={look.stroke} strokeDasharray={look.dash} strokeOpacity={0.8} fill={look.stroke} fillOpacity={0.08}
               ifOverflow="hidden"
+              label={widest ? { value: label, position: "insideTop", fontSize: 11, fontWeight: 600, fill: look.stroke } : undefined}
             />
           );
         })}
