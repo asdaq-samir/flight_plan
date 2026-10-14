@@ -35,8 +35,12 @@ const FlightChart = memo(function FlightChart({ points, at, alongNm }: { points:
     const f = b.t > a.t ? (at - a.t) / (b.t - a.t) : 0;
     return alongNm[i - 1]! + (alongNm[i]! - alongNm[i - 1]!) * f;
   }, [alongNm, at, points]);
-  // A quarter again over the highest of each, the white space on top.
+  // The white space on top, a quarter again over the highest height; the
+  // speed held to the chart's lower half, so the two traces read apart
+  // where both run level (the owner's recording: a cruise at 3,000 ft and
+  // 108 kt drew both as one line along the top).
   const headroom = (max: number) => Math.ceil(max * 1.25);
+  const lowerHalf = (max: number) => Math.ceil(max * 2.2);
   return (
     <ChartContainer config={chartConfig} className="aspect-auto h-full w-full">
       <ComposedChart data={data} margin={{ left: plain ? 12 : 0, right: plain ? 12 : 0, top: 4, bottom: 0 }}>
@@ -48,7 +52,7 @@ const FlightChart = memo(function FlightChart({ points, at, alongNm }: { points:
             tickFormatter={(t: number) => clockTime(when(t))} />
         )}
         <YAxis yAxisId="alt" hide={plain} domain={plain ? [0, headroom] : undefined} tickLine={false} axisLine={false} width={44} tickFormatter={(v: number) => `${grouped(v)}`} />
-        <YAxis yAxisId="kt" hide={plain} domain={plain ? [0, headroom] : undefined} orientation="right" tickLine={false} axisLine={false} width={32} />
+        <YAxis yAxisId="kt" hide={plain} domain={plain ? [0, lowerHalf] : undefined} orientation="right" tickLine={false} axisLine={false} width={32} />
         <Area yAxisId="alt" dataKey="alt" type="monotone" stroke="var(--color-alt)" fill="var(--color-alt)" fillOpacity={0.15}
           strokeWidth={2} isAnimationActive={false} dot={false} />
         <Line yAxisId="kt" dataKey="kt" type="monotone" stroke="var(--color-kt)" strokeWidth={1.5} dot={false} isAnimationActive={false} connectNulls />

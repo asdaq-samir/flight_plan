@@ -1415,7 +1415,12 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     // Whatever is open all the way up: lowered with the saved flights in
     // full open, the pill had its box alone (the owner's notice, "fpl
     // shows Route sometimes and nothing else in half card").
-    pillBody: tab === "fpl" && panel === "peek" && !dryRunning ? (routed ? (
+    // A dry run's pill its box and chips too, as all the way up, so the
+    // sheet coming down keeps one layout: without the chips the dry run's
+    // box was drawn over them on the way and jumped into place at the pill
+    // (the owner's recording).
+    pillBody: tab === "fpl" && panel === "peek" && dryRunning ? routeControls
+      : tab === "fpl" && panel === "peek" ? (routed ? (
       <>
         {/* The chips under the box with a route too, at the owner's ask
             ("You can keep the buttons even after route is entered"); the
@@ -1473,7 +1478,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       // taking what the figures leave, so they sit at the very bottom as
       // they do without one (the owner's "calculation are not pinned at
       // the bottom for dry run").
-      <div className={cn("w-full", dryRunning && "flex min-h-0 flex-1 flex-col in-data-capsule:pb-3")}>
+      <div className={cn("w-full", dryRunning && "flex min-h-0 flex-1 flex-col")}>
         {/* The side view pinned over the figures in the pill, at the
             owner's ask ("pin the profile above calculations but transition
             to just below the legs"): it folds away as the sheet comes up

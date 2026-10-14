@@ -72,9 +72,11 @@ export function DryRunControls({ run, onClose }: { run: DryRun; onClose: () => v
         </RoundButton>
         <CloseButton onClick={onClose} data-testid="dry-run-close" />
       </div>
-      {/* Short at the pill, taller as the sheet comes up; in the pill all
-          the room its row leaves over the figures. */}
-      <div className="min-h-[calc(4rem+5rem*var(--sheet-progress,1))] flex-1">
+      {/* Short at the pill, taller as the sheet comes up, its height its
+          own -- the chart is drawn to it; a min-height alone left it none
+          all the way up, and the chart blank (the owner's recording) --
+          and growing into any room the row leaves over the figures. */}
+      <div className="h-[calc(3rem+6rem*var(--sheet-progress,1))] flex-[1_0_auto]">
         <Suspense fallback={<div className="h-full" />}>
           <FlightChart points={run.points} at={second} alongNm={run.alongNm} />
         </Suspense>
