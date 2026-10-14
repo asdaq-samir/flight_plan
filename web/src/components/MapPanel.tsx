@@ -576,9 +576,10 @@ export default function MapPanel({ label, top, controls, compact, children, stat
             className={cn(
               // On a phone the tab up's name alone when a card from another
               // tab is over it (TabBarMinimized), a row a little lower, as
-              // tall as the name's 44-point hit area so the head under it
-              // takes none.
-              "flex shrink-0 border-b border-border/60 px-2", minimized ? "min-h-11 pt-1.5" : "h-12", !barShown && "hidden",
+              // tall as the name's 44-point hit area, and four over what is
+              // under it: Back's and the name's hit areas reach three past
+              // the row, and a card under it took them (the iOS audit's P1).
+              "flex shrink-0 border-b border-border/60 px-2", minimized ? "mb-1 min-h-11 pt-1.5" : "h-12", !barShown && "hidden",
               !fromBottom && onPhone && "h-auto pt-[env(safe-area-inset-top)]",
             )}
             // A swipe up or down on the tabs drags the panel as the head

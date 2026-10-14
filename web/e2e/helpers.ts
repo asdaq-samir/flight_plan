@@ -93,12 +93,17 @@ export async function grabberTo(page: Page, state: "peek" | "half" | "full") {
   await panel.waitFor();
   const grabber = page.getByTestId("sidebar-trigger-button");
   const size = async () => (await panel.getAttribute("data-panel")) as keyof typeof RANK;
-  for (let steps = 0; steps < 4; steps++) {
+  for (let steps = 0; steps < 6; steps++) {
     const now = await size();
     if (now === state) return;
-    await grabber.focus();
-    await page.keyboard.press(RANK[state] > RANK[now] ? "ArrowUp" : "ArrowDown");
-    await expect.poll(size).not.toBe(now);
+    // Pressed again if it did not take: a layer opening in the panel (the
+    // console's) takes the focus as it comes, and an arrow pressed just
+    // then went to it (the iOS audit's iPad).
+    await expect(async () => {
+      await grabber.focus();
+      await page.keyboard.press(RANK[state] > RANK[now] ? "ArrowUp" : "ArrowDown");
+      await expect.poll(size, { timeout: 1500 }).not.toBe(now);
+    }).toPass({ timeout: 10_000 });
   }
   await expect(panel).toHaveAttribute("data-panel", state);
 }
