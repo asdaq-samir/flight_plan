@@ -53,12 +53,13 @@ test("an airport's card names the field alone, how far it is under it, and the w
   await expect(tower).toBeInViewport();
 
   // Put away: the address forgets it, and the route is the panel again,
-  // the layer under the card, at the height the panel was.
+  // the layer under the card, at the height the sheet had before the card
+  // opened -- here the pill's, where the page opened -- not all the way up
+  // where the card was left, as Apple Maps does (the owner's pick).
   await closeCard(page, "place-close");
   await expect(card(page)).toHaveCount(0);
   await expect(page).not.toHaveURL(/[?&]place=/);
-  await expect(sideDrawer(page)).toHaveAttribute("data-panel", "full");
-  await expect(sideDrawer(page).getByTestId("panel-tab-enroute")).toBeVisible();
+  await expect(sideDrawer(page)).toHaveAttribute("data-panel", "peek");
 });
 
 

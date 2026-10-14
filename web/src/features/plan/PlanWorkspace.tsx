@@ -296,6 +296,21 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // route's Approaches ask for too.
   const cards = useAddressCards(searchParams, setSearchParams, setPanel);
   const { place, heldPoint, nearOpen, aircraftOpen, flight, past, nearFrom, setNearFrom, selectFlight, selectPast } = cards;
+  const cardOpen = !!place || !!heldPoint || !!flight;
+  // A card's own Close puts the sheet back at the height it had before the
+  // card opened, as Apple Maps does, not the height the card was dragged
+  // to: one pulled all the way up and closed leaves the tab at its pill if
+  // that is where it was (the owner's pick, "Do what Apple Maps does").
+  // Read while no card is open; a card opening and its height land in one
+  // render (setPanel's flushSync carries the card's address too).
+  const panelBeforeCard = useRef(panel);
+  useEffect(() => {
+    if (!cardOpen) panelBeforeCard.current = panel;
+  }, [cardOpen, panel]);
+  const closeCard = useCallback((close: () => void) => {
+    close();
+    setPanel(panelBeforeCard.current);
+  }, [setPanel]);
   // The airport's card under the route, the route flown to from it (Fly
   // Here): where the route's close goes back to, as Maps' layers are.
   const [under, setUnder] = useState<string | null>(null);
@@ -328,13 +343,13 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const flightCard = flight && past
     ? <PastFlightCard key={`${flight}-${past}`} hex={flight} id={past} onClose={() => selectPast(null)} />
     : flight ? <FlightCard
-      key={flight} hex={flight} onClose={() => selectFlight(null)} onOpenPast={selectPast}
+      key={flight} hex={flight} onClose={() => closeCard(() => selectFlight(null))} onOpenPast={selectPast}
       onExpand={() => setPanel("full")} onLower={() => setPanel("peek")}
     /> : null;
   // At the pill's size, the airplane's card's summary (the pill's own), as
   // a tap on it on the map opens it, at the owner's pick of the redesign.
   const flightSummary = flight && !past
-    ? <FlightCard key={flight} hex={flight} summary onClose={() => selectFlight(null)} onOpenPast={selectPast} onExpand={() => setPanel("full")} onLower={() => setPanel("peek")} />
+    ? <FlightCard key={flight} hex={flight} summary onClose={() => closeCard(() => selectFlight(null))} onOpenPast={selectPast} onExpand={() => setPanel("full")} onLower={() => setPanel("peek")} />
     : null;
   const { data: destCard } = useQuery({
     queryKey: ["airport", planned.dest], queryFn: () => api.airport(planned.dest!), enabled: !!planned.dest, staleTime: 5 * 60_000,
@@ -409,7 +424,6 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     selectPlace(ident);
     if (!ident && (place || heldPoint)) setPanel("peek");
   }, [selectPlace, nearOpen, place, heldPoint, setPanel]);
-  const cardOpen = !!place || !!heldPoint || !!flight;
   const holdPoint = useCallback((point: { lat: number; lon: number }) => {
     setSearchParams(prev => {
       const next = new URLSearchParams(prev);
@@ -1227,7 +1241,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const placeCard = (summary: boolean) => place && (
     <PlaceCard
       key={place} ident={place} from={measuredFrom} summary={summary}
-      onClose={() => selectPlace(null)} onFlyHere={to => void flyHere(to)} onExpand={() => setPanel("full")} onLower={() => setPanel("peek")}
+      onClose={() => closeCard(() => selectPlace(null))} onFlyHere={to => void flyHere(to)} onExpand={() => setPanel("full")} onLower={() => setPanel("peek")}
       // None for a point of the route, or past the planner's most stops.
       onAddStop={[planned.dep, ...planned.stops, planned.dest].includes(place) || planned.stops.length >= MAX_STOPS ? undefined : addStop}
       startOn={approachesOf === place ? "approaches" : undefined} onStarted={() => setApproachesOf(null)}
@@ -1357,7 +1371,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           // but in full here while a finger takes the panel up.
           panel === "peek" && !dragging ? null : placeCard(false)
         ) : heldPoint ? (
-          panel === "peek" && !dragging ? null : <AirspaceCard key={`${heldPoint.lat},${heldPoint.lon}`} point={heldPoint} onClose={() => selectPlace(null)} />
+          panel === "peek" && !dragging ? null : <AirspaceCard key={`${heldPoint.lat},${heldPoint.lon}`} point={heldPoint} onClose={() => closeCard(() => selectPlace(null))} />
         ) : tab === "aircraft" ? (
           panel === "peek" && !dragging && flightSummary ? null : flightCard ?? (aircraftOpen && (
             // The strip once, in the pill or here: at the pill's size the
@@ -1472,7 +1486,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     // make them bigger smoothly as expanded").
     foot: panel === "peek" && !dragging && place ? placeCard(true)
       : panel === "peek" && !dragging && heldPoint ? (
-        <AirspaceCard key={`${heldPoint.lat},${heldPoint.lon}`} point={heldPoint} summary onClose={() => selectPlace(null)} onExpand={() => setPanel("full")} />
+        <AirspaceCard key={`${heldPoint.lat},${heldPoint.lon}`} point={heldPoint} summary onClose={() => closeCard(() => selectPlace(null))} onExpand={() => setPanel("full")} />
       ) : panel === "peek" && !dragging && !place && !heldPoint && flightSummary ? flightSummary : tab === "fpl" ? routed && (
       // The foot's whole row in the pill while a dry run is up, its chart
       // taking what the figures leave, so they sit at the very bottom as
