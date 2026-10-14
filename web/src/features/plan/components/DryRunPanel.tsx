@@ -9,6 +9,7 @@ import FigureStrip from "../../../components/FigureStrip";
 import { TEXT } from "../../../lib/text";
 import { altFt } from "../../../lib/units";
 import { dryRunAt, type DryRun } from "./navlog/dryRun";
+import { TRACES } from "./flightTraces";
 import { when } from "./pastFlightFormat";
 
 const FlightChart = lazy(() => import("./PastFlightChart"));
@@ -35,11 +36,21 @@ export function DryRunControls({ run, onClose }: { run: DryRun; onClose: () => v
   return (
     <div className="relative flex min-h-0 flex-1 flex-col rounded-xl bg-background/70 px-1 pt-1" data-testid="dry-run">
       <p className={cn("flex min-h-9 items-center gap-2 pr-[10.5rem] pl-2 tabular-nums", TEXT.detail)}>
+        {/* Each figure in its trace's colour (flightTraces), in place of the
+            chart's axes, at the owner's ask. */}
         {here ? (
-          <span className="truncate font-semibold text-foreground" data-testid="dry-run-now">
-            {altFt(here.alt_ft)} ft · {here.gs_kt != null ? `${Math.round(here.gs_kt)} kt` : "—"}
+          <span className="truncate font-semibold" data-testid="dry-run-now">
+            <span className={TRACES.alt.text}>{altFt(here.alt_ft)} ft</span>
+            <span className="text-muted-foreground"> · </span>
+            <span className={TRACES.kt.text}>{here.gs_kt != null ? `${Math.round(here.gs_kt)} kt` : "—"}</span>
           </span>
-        ) : <span className="truncate text-muted-foreground">Altitude, ft · ground speed, kt</span>}
+        ) : (
+          <span className="truncate">
+            <span className={TRACES.alt.text}>Altitude, ft</span>
+            <span className="text-muted-foreground"> · </span>
+            <span className={TRACES.kt.text}>ground speed, kt</span>
+          </span>
+        )}
       </p>
       {/* Its controls on the chart, at its top right, where the side view's
           play is, at the owner's ask ("can the control buttons for the dry
@@ -65,7 +76,7 @@ export function DryRunControls({ run, onClose }: { run: DryRun; onClose: () => v
           the room its row leaves over the figures. */}
       <div className="min-h-[calc(4rem+5rem*var(--sheet-progress,1))] flex-1">
         <Suspense fallback={<div className="h-full" />}>
-          <FlightChart points={run.points} at={second} />
+          <FlightChart points={run.points} at={second} alongNm={run.alongNm} />
         </Suspense>
       </div>
     </div>
