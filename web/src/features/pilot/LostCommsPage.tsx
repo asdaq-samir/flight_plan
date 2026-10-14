@@ -77,11 +77,15 @@ export default function LostCommsPage() {
         title="The route's segments"
         footer="Each segment's minimum for IFR operations: its MEA, or the OROCA or MOCA off airways. Tap a segment's altitude to say the expected altitude applies from there."
       >
-        {segments.map((s, i) => {
+        {/* Each segment two rows: its name and minimum, then what is flown
+            on it, a tap saying the expected altitude applies from there. The
+            altitude was a line under the name, and its tap area reached into
+            the name field's (the iOS audit, 2026-10-14). */}
+        {segments.flatMap((s, i) => {
           const f = flown[i]!;
-          return (
+          return [
             <ListRow
-              key={i}
+              key={`seg-${i}`}
               media={(
                 <IconButton label={`Remove ${s.name || "this segment"}`} className="-ml-1.5 text-destructive" disabled={segments.length === 1}
                   onClick={() => { setSegments(list => list.filter((_, j) => j !== i)); setExpectedFrom(e => Math.max(0, Math.min(e, segments.length - 2))); }}>
@@ -89,19 +93,19 @@ export default function LostCommsPage() {
                 </IconButton>
               )}
               title={<FieldHit htmlFor={`${id}-seg${i}`}><Input id={`${id}-seg${i}`} aria-label="Segment" className="h-8" value={s.name} onChange={e => edit(i, { name: e.target.value })} /></FieldHit>}
-              description={(
-                <button type="button" className={cn("text-left", i >= expectedFrom ? "text-foreground" : "text-tint")} onClick={() => setExpectedFrom(i)} data-testid="lost-segment-fly">
-                  {f.fly == null ? "No altitude known" : `Fly ${altFt(f.fly)} ft: ${BECAUSE[f.because!]}`}
-                </button>
-              )}
               data-testid="lost-segment"
             >
               <FieldHit htmlFor={`${id}-min${i}`}>
                 <Input id={`${id}-min${i}`} aria-label={`${s.name || "Segment"}'s minimum altitude`} inputMode="numeric" className="h-8 w-20 text-right tabular-nums"
                   value={s.minimum} onChange={e => edit(i, { minimum: e.target.value })} />
               </FieldHit>
-            </ListRow>
-          );
+            </ListRow>,
+            <ListRow
+              key={`fly-${i}`}
+              title={<span className={i >= expectedFrom ? "text-foreground" : "text-tint"}>{f.fly == null ? "No altitude known" : `Fly ${altFt(f.fly)} ft: ${BECAUSE[f.because!]}`}</span>}
+              onClick={() => setExpectedFrom(i)} data-testid="lost-segment-fly"
+            />,
+          ];
         })}
         <ListRow title="Add a segment" media={<Plus className="size-5" aria-hidden />} onClick={() => setSegments(list => [...list, { name: "", minimum: "" }])} data-testid="lost-add" />
       </ListGroup>

@@ -149,6 +149,25 @@ export const SCREENS: Screen[] = [
       await expect(page.getByRole("heading", { name: "Aircraft", exact: true })).toBeVisible();
     },
   },
+  // The Logbook's training pages: the Checkride page (61.109, the ACS
+  // codes, the endorsements and the student's instructor) and the
+  // Instructing page, where the developer, no instructor, has the form
+  // for a flight instructor certificate.
+  ...([
+    ["Checkride", "Private pilot experience"],
+    ["Instructing", "Your flight instructor certificate"],
+  ] as const).map(([row, heading]): Screen => ({
+    name: `pilot console, Logbook's ${row} page`,
+    ready: async page => {
+      await page.goto("/app/plan");
+      await showTabs(page);
+      await openConsole(page);
+      await consolePage(page, "Account");
+      await page.getByTestId("library-section").getByRole("button", { name: /^Logbook/ }).click();
+      await page.getByRole("button", { name: new RegExp(`^${row}`) }).click();
+      await expect(page.getByRole("heading", { name: heading })).toBeVisible();
+    },
+  })),
   // The Guide's Practice pages: a drill's card with its answer shown, the
   // holding page's fields and drawing, the lost-comms page's segments.
   ...([

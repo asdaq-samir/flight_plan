@@ -17,7 +17,7 @@ export default function ClearButton({ onClear, label = "Clear", className, testI
 }) {
   return (
     <button
-      type="button" aria-label={label} data-testid={testId}
+      type="button" aria-label={label} data-testid={testId} data-slot="clear-button"
       // Not a press that takes the focus from the field: the clear puts
       // it back there, as iOS's does, the keyboard staying up.
       onPointerDown={e => e.preventDefault()}
