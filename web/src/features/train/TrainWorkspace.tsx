@@ -301,15 +301,9 @@ export default function TrainWorkspace({ dep, dest, panel, setPanel, children }:
       />
     ),
     // Perf's head the model serving and Retrain (PerfHead), the route's
-    // form being Train's; each in the pill as all the way up, as FPL's
-    // route box is (pillHead).
+    // form being Train's.
     head: devTab === "perf" ? (devPanel ? <devPanel.PerfHead /> : <div className="h-24 w-full" />) : undefined,
-    pillHead: true,
-    // Train's pill the point to rate under the route; all the way up the
-    // same, where it was (`controls`).
-    pillBody: devTab === "train" && panel === "peek" ? ratingCard : undefined,
     foot: <div className="w-full"><FigureStrip figures={figures} testId={`${devTab}-figures`} /></div>,
-    footStays: true,
     // Filter, Undo and More, beside the route.
     actions: devTab === "perf" ? undefined : (
       <WaypointActions
@@ -321,7 +315,7 @@ export default function TrainWorkspace({ dep, dest, panel, setPanel, children }:
     // The developer's tabs, at their ask -- Train, Perf and Settings --
     // the panel's first row and at rest the pill itself, as the planner's
     // (MapPanel): the tab up tapped opens it.
-    bar: <TabBar tabs={DEV_TABS} tab={devTab} onPick={pickDevTab} onUp={() => { if (panel === "peek") setPanel("full"); }} />,
+    bar: <TabBar tabs={DEV_TABS} tab={devTab} onPick={pickDevTab} onUp={() => { if (panel === "peek") setPanel("half"); }} />,
     // The point to rate, under the route all the way up, where the pill
     // has it.
     controls: devTab === "perf" ? undefined : ratingCard,

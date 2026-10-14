@@ -34,9 +34,6 @@ export interface WorkspacePieces {
   /** The panel's top row with it out, in place of the route form and the
    *  actions: the search bar, while there is no route. */
   head?: ReactNode;
-  /** The head in the pill too, under the tab bar: a tab whose pill asks
-   *  for input in its search bar (MapPanel's headInPill). */
-  pillHead?: boolean;
   /** The panel's body alone with it out -- no route form, actions or
    *  controls over it: an airport's card opened over a route,
    *  as a place in Maps takes the sheet from the directions. */
@@ -44,17 +41,12 @@ export interface WorkspacePieces {
   /** That card is another tab's (an airport's over FPL): on a phone the
    *  bar minimized to its kind, with Back (MapPanel's `cardOver`). */
   cardOver?: boolean;
-  /** The planner's tab bar (TabBar): the panel's first row, and at rest
-   *  the pill itself (MapPanel's `bar`). */
+  /** The planner's tab bar (TabBar): the sheet's first row at half and all
+   *  the way up (MapPanel's `bar`). */
   bar?: ReactNode;
-  /** Pinned at the card's foot on every tab and at every height, the pill
-   *  too: the route's figures, while there is a route (MapPanel's `foot`). */
+  /** Pinned at the sheet's foot at half and all the way up: the route's
+   *  figures, while there is a route (MapPanel's `foot`). */
   foot?: ReactNode;
-  /** The pill's own under its head, at rest alone (MapPanel's `pillBody`). */
-  pillBody?: ReactNode;
-  /** The foot kept in the tabs' place with the pill put away to its row
-   *  (MapPanel's `footStays`). */
-  footStays?: boolean;
   /** The panel's body down to the sheet's own edge, over the home
    *  indicator (MapPanel's toEdge): an airport's card, its tiles and tabs
    *  at its foot. */

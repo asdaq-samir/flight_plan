@@ -17,16 +17,10 @@ function fire(el: Element, type: string, touches: ReturnType<typeof touch>[]) {
   act(() => { el.dispatchEvent(event); });
 }
 
-afterEach(() => {
-  cleanup();
-  vi.unstubAllGlobals();
-});
+afterEach(cleanup);
 
 describe("useDetentDrag body drag", () => {
   it("lets the sheet go to a detent when a second finger lands mid-drag", () => {
-    // With Reduce Motion the sheet is at its detent at once, where it
-    // would otherwise spring there over the frames after.
-    vi.stubGlobal("matchMedia", (query: string) => ({ matches: query.includes("reduce") }));
     const onRelease = vi.fn(), setDragged = vi.fn();
     const { getByTestId } = render(<Sheet onRelease={onRelease} setDragged={setDragged} />);
     const el = getByTestId("body");

@@ -13,7 +13,7 @@ import { create } from "zustand";
  * screen (an airport's card), or the whole of it (the nav log and the
  * briefing).
  */
-export type PanelState = "peek" | "full";
+export type PanelState = "peek" | "half" | "full";
 
 /** What the panel covers of the map where it has settled -- the capsule
  *  at rest, the half sheet out -- in pixels from each edge, so the map
@@ -54,11 +54,10 @@ export const ConsoleInPanelContext = createContext<{ close: () => void } | null>
 export const TabBarMinimized = createContext(false);
 
 /** The panel's size as the tab bar sees it, and the way to change it
- *  (MapPanel): a tab tapped opens the pill, tapped again the tabs alone,
- *  at the owner's ask. Null outside a panel. */
+ *  (MapPanel). Null outside a panel. */
 export const PanelSize = createContext<{
-  size: "tabs" | "peek" | "full";
-  to: (size: "tabs" | "peek" | "full") => void;
+  size: PanelState;
+  to: (size: PanelState) => void;
   /** A card in the pill (MapPanel's `cardInPill`): a tap on the tab up puts it away. */
   card: boolean;
 } | null>(null);

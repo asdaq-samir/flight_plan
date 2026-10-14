@@ -59,10 +59,10 @@ test("the panel follows a finger from anywhere on its body: out to the top, and 
   await fingerDrag(page, await middle(), 120);
   await expect(panel).toHaveAttribute("data-panel", "full");
 
-  // At its start, a drag down takes the sheet down, to the pill.
+  // At its start, a drag down takes the sheet down, half way.
   await tab.evaluate(el => { el.scrollTop = 0; });
   await fingerDrag(page, await middle(), 400);
-  await expect(panel).toHaveAttribute("data-panel", "peek");
+  await expect(panel).toHaveAttribute("data-panel", "half");
 
   // And a mouse on the body leaves the sheet where it is: a drag across
   // it selects its words.

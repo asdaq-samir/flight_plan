@@ -92,12 +92,12 @@ export function useAddressCards(searchParams: URLSearchParams, setSearchParams: 
       if (hex) next.set("flight", hex);
       else next.delete("flight");
       for (const key of ["place", "at", "near", "nearAt", "nearName", "past"]) next.delete(key);
-      // An airplane's card at the pill's size, wherever it is opened from,
-      // as an airport's is (the owner's ask).
+      // An airplane's card half way, wherever it is opened from, as an
+      // airport's is (the owner's ask).
       if (hex) next.delete("view");
       return next;
     }, { replace: true });
-    if (hex) setPanel("peek");
+    if (hex) setPanel("half");
   }, [setSearchParams, setPanel]);
   const selectPast = useCallback((id: number | null) => {
     setSearchParams(prev => {
@@ -227,12 +227,12 @@ export function usePanelTabs({ cards, route, hasRoute, panel, setPanel, searchPa
   }, [setSearchParams, searchParams, tab, flight, past, onPicked]);
 
   // The tab up tapped again where the tab bar has no panel to size (the
-  // panel's own does, TabBar): on the pill, all the way up; out already, a
+  // panel's own does, TabBar): on the pill, half way; out already, a
   // card over it put away, as an iOS tab tapped again goes back to its
   // first screen.
   const tabUp = useCallback(() => {
     if (panel === "peek") {
-      setPanel("full");
+      setPanel("half");
       return;
     }
     if (place || heldPoint || flight || nearOpen || savedOpen) pickTab(tab);

@@ -3,22 +3,24 @@ import { closeCard, grabberTo, openTab, openPanel, settle, settled, showTabs, si
 
 /**
  * The planner's tab bar, at the pilot's ask in place of the map's buttons
- * on its left: Aircraft, Airport, FPL and Setup (Nearest Airport's), the card's first
- * row and at rest the pill itself -- FPL the route's box (empty with no
- * route, to type one in), the others their search bar the whole width,
- * Settings the console.
+ * on its left: FPL, Airport, Aircraft and Setup, the sheet's first row half
+ * way and all the way up. At rest the pill is one row, as the panel of
+ * 2026-10-11 had it and the owner picked it back: FPL the route's box
+ * (empty with no route, to type one in) or the route's one line, the others
+ * their search bar, a card its name; Setup's pill the tabs.
  */
 
 test("the tabs swap the panel's head and body, FPL's empty box with no route", async ({ page }) => {
   await page.goto("/app/plan");
   await settle(page);
   const bar = page.getByTestId("tab-bar");
-  await expect(bar).toBeVisible();
-  // The tabs alone at first, FPL the tab up, at the owner's ask ("Fpl
-  // should be the default selected"); out half way, Airport the search.
-  await expect(sideDrawer(page)).toHaveAttribute("data-collapsed", "true");
+  // The pill at first, one row, FPL the tab up, at the owner's ask ("Fpl
+  // should be the default selected"); out half way, the tabs over it.
+  await expect(sideDrawer(page)).toHaveAttribute("data-capsule", "true");
+  await expect(bar).toBeHidden();
+  await expect(sideDrawer(page).getByTestId("route-type")).toBeVisible();
+  await grabberTo(page, "half");
   await expect(page.getByTestId("tab-fpl")).toHaveAttribute("aria-current", "page");
-  await grabberTo(page, "full");
   await showTabs(page);
   await page.getByTestId("tab-airport").click();
   await expect(sideDrawer(page).getByTestId("search-airports")).toBeVisible();
@@ -53,43 +55,42 @@ test("the tabs swap the panel's head and body, FPL's empty box with no route", a
   await expect(page.getByTestId("tab-fpl")).toHaveAttribute("aria-current", "page");
 });
 
-test("a route opens on FPL, the tabs on the card, and another tab keeps the panel's height and the route", async ({ page }) => {
+test("a route rests as its one line, and half way another tab keeps the panel's height and the route", async ({ page }) => {
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
-  await showTabs(page);
+  const panel = sideDrawer(page);
+  // At rest the route's one line, where to, how far and how long, as the
+  // panel of 2026-10-11 had it.
+  await expect(panel).toHaveAttribute("data-capsule", "true");
+  const line = panel.getByTestId("route-line");
+  await expect(line).toContainText(/KDLH · \d+ nm/, { timeout: slow(30000) });
+  await expect(panel.getByTestId("tab-bar")).toBeHidden();
+  // A tap on it: half way, the tabs the sheet's first row.
+  await line.click();
+  await expect(panel).toHaveAttribute("data-panel", "half");
   await expect(page.getByTestId("tab-fpl")).toHaveAttribute("aria-current", "page");
-  // The tabs the card's own row, at rest the pill itself, at the pilot's
-  // ask: not along the screen's bottom.
+  // Measured at rest: caught on its way up, the bar was still at the pill's.
+  await settled(panel);
   const bar = (await page.getByTestId("tab-bar").boundingBox())!;
-  const sheet = (await sideDrawer(page).boundingBox())!;
+  const sheet = (await panel.boundingBox())!;
   expect(bar.y).toBeGreaterThanOrEqual(sheet.y);
-  expect(bar.y + bar.height).toBeLessThanOrEqual(sheet.y + sheet.height);
-  // Another tab at the pill: the pill kept, the route still there.
-  await expect(sideDrawer(page)).toHaveAttribute("data-panel", "peek");
-  await showTabs(page);
+  expect(bar.y).toBeLessThan(sheet.y + 40);
+  // Another tab half way: half kept, the route still there.
   await page.getByTestId("tab-airport").click();
-  await showTabs(page);
   await expect(page.getByTestId("tab-airport")).toHaveAttribute("aria-current", "page");
-  await expect(sideDrawer(page)).toHaveAttribute("data-panel", "peek");
+  await expect(panel).toHaveAttribute("data-panel", "half");
   await expect(page).toHaveURL(/dep=C81/);
-  // Airport's search in its pill; FPL again keeps the pill, its profile
-  // and figures in it.
-  await expect(sideDrawer(page).getByTestId("search-airports")).toBeVisible();
-  await showTabs(page);
+  await expect(panel.getByTestId("search-airports")).toBeVisible();
+  // FPL again: its figures pinned at the sheet's foot.
   await page.getByTestId("tab-fpl").click();
-  await expect(sideDrawer(page)).toHaveAttribute("data-panel", "peek");
-  await expect(sideDrawer(page).getByTestId("flight-line")).toBeVisible();
+  await expect(panel).toHaveAttribute("data-panel", "half");
+  await expect(panel.getByTestId("flight-line")).toBeVisible();
 });
 
-test("FPL with no route rests as the tabs' pill too, the tab up tapped the empty box", async ({ page }) => {
+test("FPL with no route rests as its route box, to type one in", async ({ page }) => {
   await page.goto("/app/plan");
   await settle(page);
-  await showTabs(page);
-  await page.getByTestId("tab-fpl").click();
-  await expect(sideDrawer(page).getByTestId("route-type")).toBeVisible();
-  // Down to the pill: its route box under the tabs, to type one in, at
-  // the owner's ask; no figures with no route.
-  await grabberTo(page, "peek");
+  // The pill: the route's box alone, to type one in; no figures.
   await expect(sideDrawer(page)).toHaveAttribute("data-capsule", "true");
   await expect(sideDrawer(page).getByTestId("route-type")).toBeVisible();
   await expect(sideDrawer(page).getByTestId("panel-foot")).toHaveCount(0);
@@ -119,13 +120,12 @@ test("an airport tapped in the route opens its card, and is changed from its men
   await expect(page.getByPlaceholder("Search for a destination")).toBeVisible();
 });
 
-test("the side view is pinned over the figures in the pill, and all the way up it is the nav log's Profile, under its Legs", async ({ page }) => {
+test("half way the side view is over the figures at the foot, and all the way up it is the nav log's Profile, under its Legs", async ({ page }) => {
   // The owner's asks: "pin the profile above calculations but transition
   // to just below the legs. Make the subtabs into sections Legs, Profile".
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
-  await openPanel(page);
-  await grabberTo(page, "peek");
+  await grabberTo(page, "half");
   const panel = sideDrawer(page);
   const profile = panel.getByTestId("mini-profile");
   await expect(profile).toBeVisible({ timeout: slow(30000) });
@@ -133,7 +133,6 @@ test("the side view is pinned over the figures in the pill, and all the way up i
   const [side, line] = [(await profile.boundingBox())!, (await figures.boundingBox())!];
   expect(side.y + side.height).toBeLessThanOrEqual(line.y + 1);
   await grabberTo(page, "full");
-  await expect(panel).toHaveAttribute("data-panel", "full");
   await expect(figures).toBeVisible();
   // Folded away with the sheet up, the nav log's sections one under another.
   const fold = panel.locator("[data-pill-hides]:has([data-testid=mini-profile])");
@@ -148,22 +147,25 @@ test("the side view is pinned over the figures in the pill, and all the way up i
   expect((await route.boundingBox())!.y).toBeGreaterThan((await legs.boundingBox())!.y);
 });
 
-test("a card lowered to the pill is its summary there, and the tab up tapped puts it away", async ({ page }) => {
+test("a card opens half way, lowered to the pill it is its name and its close, which puts it away", async ({ page }) => {
   await page.goto("/app/plan?place=KDLH");
   await settle(page);
   const panel = sideDrawer(page);
+  await expect(panel).toHaveAttribute("data-panel", "half");
   const name = panel.getByTestId("place-card").getByTestId("place-name");
   await expect(name).toBeVisible({ timeout: slow(15000) });
-  // Down to the pill: the card's name and actions, one row (the owner's
-  // "only fit the one row"), its frequencies all the way up's.
+  // Down to the pill: one row, the card's name, a tap on it half way again.
   await grabberTo(page, "peek");
+  const line = panel.getByTestId("route-line");
+  await expect(line).toContainText("KDLH");
+  await expect(panel.getByTestId("place-frequencies")).toBeHidden();
+  await line.click();
+  await expect(panel).toHaveAttribute("data-panel", "half");
   await expect(name).toBeVisible();
-  await expect(panel.getByTestId("fly-here")).toBeVisible();
-  await expect(panel.getByTestId("place-frequencies")).toHaveCount(0);
-  // The tab up tapped: the card put away, the tab's own pill.
-  await showTabs(page);
-  await panel.locator('[data-testid="tab-bar"] button[aria-current="page"]').click();
-  await expect(panel.getByTestId("place-card")).toHaveCount(0);
+  // Its close in the pill: the card put away, the tab's own pill.
+  await grabberTo(page, "peek");
+  await panel.getByTestId("card-line-close").click();
+  await expect(page).not.toHaveURL(/[?&]place=/);
   await expect(panel).toHaveAttribute("data-panel", "peek");
 });
 
@@ -228,73 +230,26 @@ test("each tab keeps the card open over it: another tab picked and this one agai
   await expect(page).not.toHaveURL(/[?&]place=/);
 });
 
-test("the pill collapses to the route's figures alone by a drag down, pinned at its foot, and its grabber brings the tabs back over them", async ({ page }) => {
-  // A phone's sheet from the bottom: a desktop's card from the top keeps
-  // its tabs there (MapPanel's footStays).
-  test.skip((page.viewportSize()?.width ?? 0) >= 768, "the sheet from a phone's bottom edge");
-  await page.goto("/app/plan?dep=C81&dest=KDLH");
-  await settle(page);
-  const panel = sideDrawer(page);
-  // At rest the figures alone in the tabs' place, at the owner's ask
-  // ("When fpl is entered, make the pill display the calculations instead
-  // of the tabs"); the grabber the pill, its tabs over them.
-  await expect(panel).toHaveAttribute("data-collapsed", "true");
-  await expect(panel.getByTestId("flight-line")).toBeVisible({ timeout: slow(30000) });
-  await expect(panel.getByTestId("tab-fpl")).toBeHidden();
-  await grabberTo(page, "peek");
-  await expect(panel).toHaveAttribute("data-capsule", "true");
-  await expect(panel.getByTestId("flight-line")).toBeVisible({ timeout: slow(30000) });
-  const pill = (await panel.boundingBox())!;
-  // Toward the screen's edge from the grabber, as a finger drags it: down
-  // on a phone's sheet from the bottom, up on a card from the top.
-  const toEdge = pill.y > page.viewportSize()!.height / 2 ? 1 : -1;
-  const grab = (await page.getByTestId("sidebar-trigger-button").boundingBox())!;
-  await page.mouse.move(grab.x + grab.width / 2, grab.y + grab.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(grab.x + grab.width / 2, grab.y + grab.height / 2 + 40 * toEdge, { steps: 5 });
-  // Past half the pill's height, which the redesign made tall.
-  await page.mouse.move(grab.x + grab.width / 2, grab.y + grab.height / 2 + 90 * toEdge, { steps: 5 });
-  await page.mouse.move(grab.x + grab.width / 2, grab.y + grab.height / 2 + 200 * toEdge, { steps: 5 });
-  await page.mouse.up();
-  await expect(panel).toHaveAttribute("data-collapsed", "true");
-  await expect(panel).toHaveAttribute("data-panel", "peek");
-  await expect(panel.getByTestId("flight-line")).toBeVisible();
-  await expect(panel.getByTestId("tab-fpl")).toBeHidden();
-  await expect.poll(async () => (await panel.boundingBox())!.height).toBeLessThan(pill.height - 40);
-  // The grabber tapped: the tabs back over the figures, the pill as it was.
-  await page.getByTestId("sidebar-trigger-button").click();
-  await expect(panel).not.toHaveAttribute("data-collapsed", "true");
-  await expect(panel.getByTestId("tab-fpl")).toBeVisible();
-  await expect(panel.getByTestId("flight-line")).toBeVisible();
-  await expect(panel).toHaveAttribute("data-panel", "peek");
-});
-
-test("the grabber turns the tabs alone and the pill into each other, its Up arrow takes it all the way up, and a tap there brings it to the pill", async ({ page }) => {
-  // The owner's ask: "Full is only by dragging up, but if tapped when
-  // fully open, it should become minimal" -- no half size.
+test("the grabber steps the pill, half and all the way up and back, as the panel last moved", async ({ page }) => {
+  // The panel of 2026-10-11, the owner's pick back ("pill to half to full
+  // worked really well").
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   const panel = sideDrawer(page);
   const grabber = page.getByTestId("sidebar-trigger-button");
-  const size = async () => `${await panel.getAttribute("data-panel")}${await panel.getAttribute("data-collapsed") ? " tabs" : ""}`;
-  await expect.poll(size).toBe("peek tabs");
-  const seen: string[] = [];
-  const step = async (go: () => Promise<void>) => {
+  const size = () => panel.getAttribute("data-panel");
+  await expect.poll(size).toBe("peek");
+  const seen: (string | null)[] = [];
+  for (let i = 0; i < 4; i++) {
     const before = await size();
-    await go();
+    await grabber.click();
     await expect.poll(size).not.toBe(before);
     seen.push(await size());
-  };
-  await step(() => grabber.click());
-  await step(() => grabber.click());
-  await step(() => grabber.click());
-  await step(async () => { await grabber.focus(); await page.keyboard.press("ArrowUp"); });
-  await step(() => grabber.click());
-  expect(seen).toEqual(["peek", "peek tabs", "peek", "full", "peek"]);
+  }
+  expect(seen).toEqual(["half", "full", "half", "peek"]);
 });
 
-
-test("all the way up, another tab tapped is that tab all the way up; the tab up tapped brings it down to the pill", async ({ page }) => {
+test("all the way up, another tab tapped is that tab all the way up; the tab up tapped brings it down half way", async ({ page }) => {
   // The owner's ask: "tapping on other tabs when card is fully open should
   // switch to that tab".
   await page.goto("/app/plan");
@@ -312,7 +267,7 @@ test("all the way up, another tab tapped is that tab all the way up; the tab up 
   await page.getByTestId("tab-airport").click();
   await expect(panel).toHaveAttribute("data-panel", "full");
   await page.getByTestId("tab-airport").click();
-  await expect(panel).toHaveAttribute("data-panel", "peek");
+  await expect(panel).toHaveAttribute("data-panel", "half");
 });
 
 test("with a mouse's wheel, down over the panel brings it up a size, up takes it down, and sideways goes to the tab beside", async ({ page }) => {
@@ -333,12 +288,11 @@ test("with a mouse's wheel, down over the panel brings it up a size, up takes it
     await page.waitForTimeout(400);
   };
   await flick(0, 40);
-  await expect(panel).not.toHaveAttribute("data-collapsed", "true");
-  await expect(panel).toHaveAttribute("data-panel", "peek");
+  await expect(panel).toHaveAttribute("data-panel", "half");
   await flick(0, 40);
   await expect(panel).toHaveAttribute("data-panel", "full");
   await flick(0, -40);
-  await expect(panel).toHaveAttribute("data-panel", "peek");
+  await expect(panel).toHaveAttribute("data-panel", "half");
   await flick(40, 0);
   await expect(page.getByTestId("tab-airport")).toHaveAttribute("aria-current", "page");
   await flick(-40, 0);

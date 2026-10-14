@@ -2,11 +2,11 @@ import { test, expect, type Page } from "@playwright/test";
 import { grabberTo, settle, settled, showTabs, sideDrawer } from "./helpers";
 
 /**
- * Each tab's pill, at the owner's ask ("Fpl can show calculations but
- * other tabs should show something else"): under the tabs, FPL the
- * route's figures; Airport and Aircraft their Favorites as small tiles,
- * or their search bars where there are none; NRST the nearest fields;
- * Settings quick controls. And a card's way back on a phone: Back at the
+ * Each tab's pill, one row, as the panel of 2026-10-11 had it and the owner
+ * picked it back ("pill to half to full worked really well"): FPL the
+ * route's box or its one line, Airport and Aircraft their search bars,
+ * Setup the tabs. Half way each tab's own strip under its head -- Airport's
+ * and Aircraft's Favorites. And a card's way back on a phone: Back at the
  * top left of the minimized tabs' line, a close at its right.
  */
 
@@ -20,62 +20,70 @@ async function keep(page: Page, state: Record<string, unknown>) {
   }, state);
 }
 
+/** A tab picked, then the sheet down to its pill. */
 async function pickAtRest(page: Page, tab: string) {
   await showTabs(page);
   await page.getByTestId(tab).click();
-  await expect(sideDrawer(page)).toHaveAttribute("data-panel", "peek");
+  await grabberTo(page, "peek");
+  await expect(sideDrawer(page)).toHaveAttribute("data-capsule", "true");
 }
 
-test("FPL with no route rests as its route box under the tabs, to type one in", async ({ page }) => {
-  await page.goto("/app/plan");
-  await settle(page);
+/** A tab picked half way. */
+async function pickHalf(page: Page, tab: string) {
   await showTabs(page);
-  await page.getByTestId("tab-fpl").click();
-  await grabberTo(page, "peek");
+  await page.getByTestId(tab).click();
+  await grabberTo(page, "half");
+}
+
+test("each tab's pill is one row: FPL's route line, Airport's and Aircraft's search bars, Setup's tabs", async ({ page }) => {
+  await page.goto("/app/plan?dep=C81&dest=KDLH");
+  await settle(page);
   const panel = sideDrawer(page);
-  await expect(panel).toHaveAttribute("data-capsule", "true");
-  // The owner's ask: "Fpl should show the route box if no route is entered".
-  await expect(panel.getByTestId("route-type")).toBeVisible();
+  const height = async () => {
+    await settled(panel);
+    return (await panel.boundingBox())!.height;
+  };
+  // A row: the search field's 41 points and the pill's padding, never the
+  // tall pill of the minimal layout.
+  await expect(panel.getByTestId("route-line")).toBeVisible({ timeout: 30_000 });
+  expect(await height()).toBeLessThan(90);
   await expect(panel.getByTestId("flight-line")).toHaveCount(0);
+  await pickAtRest(page, "tab-airport");
+  await expect(panel.getByTestId("search-airports")).toBeVisible();
+  await expect(panel.getByTestId("pill-favorites")).toBeHidden();
+  expect(await height()).toBeLessThan(90);
+  await pickAtRest(page, "tab-aircraft");
+  await expect(panel.getByTestId("aircraft-search")).toBeVisible();
+  expect(await height()).toBeLessThan(90);
+  // Setup's pill is the tabs, the way back to the others.
+  await showTabs(page);
+  await page.getByTestId("setup-button").click();
+  await grabberTo(page, "peek");
+  await expect(panel.getByTestId("tab-bar")).toBeVisible();
+  expect(await height()).toBeLessThan(100);
 });
 
-test("each tab's pill shows its own: FPL its profile and figures, Airport its Favorites and Nearest, Aircraft its Favorites and a question, one height", async ({ page }) => {
+test("each tab half way shows its own: Airport its Favorites and Nearest, Aircraft its Favorites and a question", async ({ page }) => {
   await keep(page, { favoriteAirports: [KDLH] });
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   const panel = sideDrawer(page);
-  // At rest the tabs alone; the grabber the pill.
-  await grabberTo(page, "peek");
-  await expect(panel.getByTestId("flight-line")).toBeVisible();
-  // Every tab's pill one height, FPL's with its box and chips, at the
-  // owner's ask ("make the minimal layout to be this big").
-  await settled(panel);
-  const height = (await panel.boundingBox())!.height;
-  const same = async () => {
-    await settled(panel);
-    expect(Math.abs((await panel.boundingBox())!.height - height)).toBeLessThan(1);
-  };
 
-  // Airport: the Favorites, small, a tap opening the field's card; no figures.
-  await pickAtRest(page, "tab-airport");
-  await expect(panel.getByTestId("flight-line")).toHaveCount(0);
+  // Airport: the Favorites, small, a tap opening the field's card; its
+  // search bar over them.
+  await pickHalf(page, "tab-airport");
   const tile = panel.getByTestId("pill-favorites").getByTestId("pill-favorite");
   await expect(tile).toHaveText(/KDLH/);
-  // Its search bar over them, the pill as tall as FPL's with its box, at
-  // the owner's ask; the bar above the tiles.
   const search = panel.getByTestId("search-airports");
   await expect(search).toBeVisible();
   expect((await search.boundingBox())!.y).toBeLessThan((await tile.boundingBox())!.y);
-  await same();
   // A finger's 44 points.
   expect((await tile.boundingBox())!.height).toBeGreaterThanOrEqual(44);
 
   // Aircraft, with no airplane kept: Plane all the same, with Add.
-  await pickAtRest(page, "tab-aircraft");
+  await pickHalf(page, "tab-aircraft");
   await expect(panel.getByTestId("pill-aircraft-mine")).toHaveText(/Plane\s*Add/);
   await expect(panel.getByTestId("aircraft-search")).toBeVisible();
-  await same();
-  await expect(panel.getByTestId("flight-line")).toHaveCount(0);
 
   // One strip, the owner's "one row, it can have the favorites with the
   // filter": its title a menu, the Favorites first, the questions after
@@ -92,7 +100,7 @@ test("each tab's pill shows its own: FPL its profile and figures, Airport its Fa
 
   // Airport's one strip, its title's menu the nearest fields too (NRST
   // folded in, four tabs), or with no position the way to show it.
-  await pickAtRest(page, "tab-airport");
+  await pickHalf(page, "tab-airport");
   await expect(panel.getByTestId("airport-strip-shows")).toHaveText(/Favorites/i);
   await panel.getByTestId("airport-strip-shows").click();
   await page.getByTestId("airport-shows-nearest").click();
@@ -102,43 +110,8 @@ test("each tab's pill shows its own: FPL its profile and figures, Airport its Fa
   await page.getByTestId("airport-shows-favorites").click();
   await expect(tile).toBeVisible();
   await expect(page.getByTestId("tab-nrst")).toHaveCount(0);
-  await same();
-  // FPL with its route: the profile over the figures, the pill one height.
-  await pickAtRest(page, "tab-fpl");
-  await expect(panel.getByTestId("mini-profile")).toBeVisible({ timeout: 15_000 });
-  expect((await panel.getByTestId("mini-profile").boundingBox())!.y).toBeLessThan((await panel.getByTestId("flight-line").boundingBox())!.y);
-  await same();
-
-  // Out of the pill, each tab its usual head again: Airport's search bar.
-  await pickAtRest(page, "tab-airport");
   await tile.click();
   await expect(page).toHaveURL(/[?&]place=KDLH/);
-});
-
-test("Setup's pill is the switches in two rows, Controls, over the Account", async ({ page }) => {
-  test.skip((page.viewportSize()?.width ?? 0) >= 768, "the console is the panel's layer on a phone only");
-  await page.goto("/app/plan");
-  await settle(page);
-  await grabberTo(page, "peek");
-  await page.getByTestId("setup-button").click();
-  // Picked at the pill, the pill kept, as every tab keeps it: its quick
-  // controls, two rows of five (the owner's "fit the setup icons in two
-  // rows"), over the Account ("Label the top as controls").
-  const panel = sideDrawer(page);
-  await expect(panel).toHaveAttribute("data-panel", "peek");
-  const pill = panel.getByTestId("setup-pill");
-  const traffic = pill.getByTestId("quick-traffic");
-  await expect(traffic).toHaveAttribute("aria-pressed", "false");
-  await traffic.click();
-  await expect(traffic).toHaveAttribute("aria-pressed", "true");
-  await traffic.click();
-  await expect(traffic).toHaveAttribute("aria-pressed", "false");
-  const account = pill.getByTestId("pilot-address").or(pill.getByText("Not signed in")).first();
-  expect((await traffic.boundingBox())!.y).toBeLessThan((await account.boundingBox())!.y);
-  expect((await pill.getByTestId("quick-dark").boundingBox())!.y).toBeCloseTo((await traffic.boundingBox())!.y, 0);
-  expect((await pill.getByTestId("quick-weather").boundingBox())!.y).toBeGreaterThan((await traffic.boundingBox())!.y + 20);
-  // The airplanes and the logbook are Setup's page, all the way up.
-  await expect(pill.getByTestId("setup-aircraft")).toHaveCount(0);
 });
 
 test("on a phone, a card opened from another tab has Back at the top left of the tabs' line, and its close puts the sheet down", async ({ page }) => {
@@ -221,14 +194,13 @@ test("Plane, the pilot's own, is first among the Aircraft card's Favorites, with
   await expect(page).toHaveURL(/[?&]flight=a1c2d3/);
 });
 
-test("on a phone, each tab's pill starts its first row on one line: FPL's box, the search bars and Setup's controls", async ({ page }) => {
-  test.skip((page.viewportSize()?.width ?? 0) >= 768, "Setup's quick controls are the phone's pill");
-  // The owner's notices: FPL's box sat lower than the other tabs' bars,
-  // and Setup's controls lower than both.
+test("on a phone, each tab's pill starts its row on one line: FPL's box and the search bars", async ({ page }) => {
+  test.skip((page.viewportSize()?.width ?? 0) >= 768, "a phone's pill");
+  // The owner's notices: FPL's box sat lower than the other tabs' bars.
   await page.goto("/app/plan");
   await settle(page);
-  await grabberTo(page, "peek");
   const panel = sideDrawer(page);
+  await expect(panel).toHaveAttribute("data-capsule", "true");
   // The rounded box round each field, not the field itself.
   const boxTop = async (testId: string) => {
     await settled(panel);
@@ -239,10 +211,6 @@ test("on a phone, each tab's pill starts its first row on one line: FPL's box, t
   expect(Math.abs(await boxTop("search-airports") - fpl)).toBeLessThan(1.5);
   await pickAtRest(page, "tab-aircraft");
   expect(Math.abs(await boxTop("aircraft-search") - fpl)).toBeLessThan(1.5);
-  await pickAtRest(page, "setup-button");
-  await settled(panel);
-  // Setup's first row, its account's group (SetupPill).
-  expect(Math.abs((await panel.getByTestId("setup-pill").boundingBox())!.y - fpl)).toBeLessThan(1.5);
 });
 
 test("on a phone, all the way up, Setup's page starts where Airport's search bar does", async ({ page }) => {
@@ -272,7 +240,7 @@ test("a finger's swipe across the panel goes to the tab beside it, and a short o
   // The owner's ask: "Can swiping left/right switch tabs?"
   await page.goto("/app/plan");
   await settle(page);
-  await grabberTo(page, "peek");
+  await grabberTo(page, "half");
   const panel = sideDrawer(page);
   // A finger's pointer events, from one point to another on the panel.
   const swipe = async (fromX: number, toX: number) => {

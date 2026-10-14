@@ -199,8 +199,8 @@ export default function TabBar<T extends string>({ tabs, tab, over, title, onPic
       } else if (Math.abs(sum.y) >= 60 && Math.abs(sum.y) > Math.abs(sum.x)) {
         const sheet = sizeNow.current;
         if (!sheet) return;
-        if (sum.y > 0 && sheet.size !== "full") sheet.to(sheet.size === "tabs" ? "peek" : "full");
-        else if (sum.y < 0 && sheet.size !== "tabs") sheet.to(sheet.size === "full" ? "peek" : "tabs");
+        if (sum.y > 0 && sheet.size !== "full") sheet.to(sheet.size === "peek" ? "half" : "full");
+        else if (sum.y < 0 && sheet.size !== "peek") sheet.to(sheet.size === "full" ? "half" : "peek");
         else return;
       } else return;
       g.sum = { x: 0, y: 0 };
@@ -294,14 +294,11 @@ export default function TabBar<T extends string>({ tabs, tab, over, title, onPic
             key={value} type="button" aria-current={current ? "page" : undefined}
             onClick={() => {
               setShown(false);
-              // At the owner's ask ("When tapping on a tab it should only
-              // open minimal and tapping again should make it tabs only
-              // layout ... if tapped when fully open, it should become
-              // minimal"): a tab opens the pill; the tab up tapped again
-              // gives the tabs alone; all the way up, or with a card in the
-              // pill, the pill again, its card put away as an iOS tab
-              // tapped goes back to its first screen (onClose). Outside a
-              // panel (none), the tab's own.
+              // Another tab opens at the size the sheet is, half from
+              // Setup's pill; the tab up tapped again puts its card away, as
+              // an iOS tab tapped goes back to its first screen (onClose),
+              // or else lowers the sheet a size. Outside a panel (none), the
+              // tab's own.
               if (!size) {
                 if (current) onUp?.();
                 else pick(value);
@@ -312,11 +309,9 @@ export default function TabBar<T extends string>({ tabs, tab, over, title, onPic
               // card is fully open should switch to that tab").
               if (!current) {
                 pick(value);
-                if (size.size !== "full") size.to("peek");
-              } else if (size.size === "full" || size.card) {
-                onClose?.();
-                size.to("peek");
-              } else size.to(size.size === "peek" ? "tabs" : "peek");
+                if (size.size === "peek") size.to("half");
+              } else if (size.card) onClose?.();
+              else size.to(size.size === "full" ? "half" : size.size === "half" ? "peek" : "half");
             }}
             data-testid={value === "setup" ? "setup-button" : `tab-${value}`} data-current={current || undefined}
             data-console-button={value === "setup" ? "" : undefined}

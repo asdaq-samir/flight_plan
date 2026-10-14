@@ -53,6 +53,20 @@ function enRoute(minutes: number): string {
   return Math.round(minutes) < 60 ? `${Math.round(minutes)}m` : hhmm(minutes);
 }
 
+/** The route's one line in the pill, as the panel of 2026-10-11 had it:
+ *  where to, how far and how long -- "KDLH · 324 nm · 2h 56m" -- the book's
+ *  guess marked "≈" until the nav log's totals come; a local flight its
+ *  name and its time aloft. */
+export function routeLine(name: string, dest: string, { totals, estimate, local }: Omit<TripInput, "depart">): string {
+  if (local) return totals?.ete_min != null ? `${name} · ${enRoute(totals.ete_min)}` : name;
+  if (totals) return `${dest} · ${Math.ceil(totals.distance_nm)} nm · ${totals.ete_min == null ? "—" : enRoute(totals.ete_min)}`;
+  if (estimate) {
+    const { minutes } = guess(estimate);
+    return `${dest} · ≈${Math.ceil(estimate.distanceNm)} nm${minutes == null ? "" : ` · ≈${enRoute(minutes)}`}`;
+  }
+  return dest;
+}
+
 /** Each figure on its own: the one that does not fit its column rounded,
  *  the rest as they are. */
 export function fitFigures(exact: Figure[], rounded: Figure[], fits: (f: Figure) => boolean): Figure[] {

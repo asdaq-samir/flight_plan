@@ -3,7 +3,7 @@ import { showError } from "../../lib/problems";
 import { useSearchParamsNow } from "../../lib/useSearchParamsNow";
 import DevGuard from "../../components/DevGuard";
 import MapPanel from "../../components/MapPanel";
-import { ConsoleInPanelContext, ConsoleSettingsContext, useConsoleOpen, usePanelDragging, MapInsetsContext, NO_INSETS, type MapInsets, type PanelState } from "../../components/mapChrome";
+import { ConsoleInPanelContext, ConsoleSettingsContext, useConsoleOpen, MapInsetsContext, NO_INSETS, type MapInsets, type PanelState } from "../../components/mapChrome";
 import RouteForm from "../../components/RouteForm";
 import { useNavEdge } from "../../hooks/use-nav-edge";
 import { usePreferences } from "../../lib/preferences";
@@ -20,7 +20,6 @@ import { fromChunk } from "../../lib/fromChunk";
  *  (fromChunk) -- under lazy() alone the first tap on Setup waited on it,
  *  an empty pill for a moment, at the owner's notice ("why is setup tab
  *  slow to load"). */
-const { Part: SetupPill, prefetch: prefetchSetupPill } = fromChunk(() => import("../pilot/SetupPill"), m => m.default);
 
 /**
  * The training workspace on its own chunk. It carries the developer's
@@ -72,7 +71,6 @@ const MODES = {
 export default function MapPage({ mode }: { mode: Mode }) {
   const { title, panel: panelLabel, console: consoleLabel, Workspace, route } = MODES[mode];
   const navBar = usePreferences(s => s.navBar);
-  const dragging = usePanelDragging(d => d.dragging);
   const edge = useNavEdge();
   const [searchParams, setSearchParams] = useSearchParamsNow();
   // The route in the panel: the address's, unless the pilot has typed
@@ -92,10 +90,10 @@ export default function MapPage({ mode }: { mode: Mode }) {
   const setDep = useCallback((d: string) => setDraft({ of: addressKey, dep: d, dest }), [addressKey, dest]);
   const setDest = useCallback((a: string) => setDraft({ of: addressKey, dep, dest: a }), [addressKey, dep]);
 
-  // The settings' and Setup's pill's chunks, once the page has drawn (the console's own is
+  // The settings' chunk, once the page has drawn (the console's own is
   // PlanWorkspace's to ask for).
   useEffect(() => {
-    const later = window.setTimeout(() => { prefetchSettings(); prefetchSetupPill(); }, 2000);
+    const later = window.setTimeout(() => { prefetchSettings(); }, 2000);
     return () => window.clearTimeout(later);
   }, []);
 
@@ -117,18 +115,17 @@ export default function MapPage({ mode }: { mode: Mode }) {
   }, [refused, setSearchParams]);
 
   // How far the panel is out. All the way, on the planner, is the
-  // address; resting is this page's own. Opened, the panel rests as the
-  // tabs alone, at the owner's ask ("By default it should open in just
-  // tabs layout"; MapPanel).
+  // address; resting is this page's own. Opened, the panel rests as its
+  // pill (MapPanel).
   // An address that opens a list -- the Aircraft or Nearest list, a past
   // flight's log -- opens all the way up on it; a field's card, the
-  // airspace at a point or an airplane at the pill's size, where every
-  // card opens and is dragged up from, at the owner's ask ("Airport/
-  // aircraft card should have the half layout ... that should expand to
-  // full, not the other way around").
+  // airspace at a point or an airplane half way, where every card opens,
+  // as on 2026-10-11 (the owner's "pill to half to full worked really
+  // well").
   const [localPanel, setLocalPanel] = useState<PanelState>(() => (
-    mode === "pilot" && !["place", "at", "flight"].some(key => searchParams.has(key))
-      && ["past", "aircraft", "near"].some(key => searchParams.has(key)) ? "full" : "peek"));
+    mode !== "pilot" ? "peek"
+      : ["place", "at", "flight"].some(key => searchParams.has(key)) ? "half"
+        : ["past", "aircraft", "near"].some(key => searchParams.has(key)) ? "full" : "peek"));
   // The airport index downloaded ahead of the first search, which at rest
   // is out of sight (lib/airportIndex).
   useWarmAirportIndex(mode === "pilot");
@@ -215,13 +212,32 @@ export default function MapPage({ mode }: { mode: Mode }) {
     </ConsoleInPanelContext.Provider>
   );
 
+  // The panel's top row with it out: the workspace's head, or the route's
+  // box or form and the actions beside it; none over a card alone or the
+  // console's layer.
+  const topRowOf = (pieces: WorkspacePieces) => pieces.alone || consoleLayer ? null : pieces.head ?? (
+              <>
+                <div className="min-w-0 flex-1">
+                  {pieces.route ?? (
+                    <RouteForm
+                      dep={dep} dest={dest} onDepChange={setDep} onDestChange={setDest}
+                      onSubmit={pieces.submit} disabled={pieces.loading}
+                    />
+                  )}
+                </div>
+                {pieces.actions && <div className="flex shrink-0 items-center">{pieces.actions}</div>}
+              </>
+            );
+
   return (
     // The fallback is the page's own background rather than a spinner:
     // it is on screen for one request, and a flash of "loading" where
     // a chart is about to be is worse than a moment of nothing.
     <Suspense fallback={<div className="h-dvh w-full bg-background" />}>
     <Workspace dep={dep} dest={dest} panel={panel} setPanel={setPanel}>
-      {pieces => (
+      {pieces => {
+        const topRow = topRowOf(pieces);
+        return (
         <div
           // Pinned to the viewport rather than sized to it (`h-dvh`): a
           // page that can scroll at all, iOS Safari scrolls for its own
@@ -275,41 +291,27 @@ export default function MapPage({ mode }: { mode: Mode }) {
           <MapPanel
             label={consoleLayer ? consoleLabel : panelLabel} controls={pieces.alone || consoleLayer ? undefined : pieces.controls}
             state={panel} onStateChange={setPanel} onInsetsChange={changeInsets}
-            // The console's layer (Settings, a tab) has no pill: under the
-            // tab bar, its own header and tabs.
-            compact={consoleLayer ? undefined : pieces.compact} toEdge={!!pieces.toEdge}
+            // The pill: the workspace's own (a card's summary, the route's
+            // one line), or else the top row itself -- the same element, so
+            // a search bar typed into keeps its focus as the sheet comes up.
+            // The console's layer (Setup) has none: at rest it is the tabs.
+            compact={consoleLayer ? undefined : pieces.compact ?? topRow} toEdge={!!pieces.toEdge}
             // The tab bar over a card alone too, as iOS keeps its tab bar on
-            // every screen: the tabs were gone while one was open. The
-            // Settings tab's pill (its console's layer at rest) is quick
-            // controls, at the owner's ask; else the workspace's own foot.
+            // every screen: the tabs were gone while one was open. Setup has
+            // no pill of its own: at rest it is the tabs, for the way back to
+            // the others.
             bar={pieces.bar} layer={consoleLayer ? "console" : pieces.alone ? "card" : "tab"}
-            // Setup's pill, the owner's pick of the redesign (SetupPill): the
-            // switches over the account, the developer's the same.
-            // Not while a finger takes the panel up: the page under it is
-            // drawn in full there (usePanelDragging), not twice.
-            foot={consoleLayer ? panel === "peek" && !dragging && <Suspense fallback={null}><SetupPill /></Suspense> : pieces.foot}
-            pillBody={pieces.pillBody} footStays={!!pieces.footStays}
-            cardOver={!!pieces.cardOver} headInPill={!!pieces.pillHead}
-            top={pieces.alone || consoleLayer ? null : pieces.head ?? (
-              <>
-                <div className="min-w-0 flex-1">
-                  {pieces.route ?? (
-                    <RouteForm
-                      dep={dep} dest={dest} onDepChange={setDep} onDestChange={setDest}
-                      onSubmit={pieces.submit} disabled={pieces.loading}
-                    />
-                  )}
-                </div>
-                {pieces.actions && <div className="flex shrink-0 items-center">{pieces.actions}</div>}
-              </>
-            )}
+            foot={consoleLayer ? undefined : pieces.foot}
+            cardOver={!!pieces.cardOver}
+            top={topRow}
           >
             {consoleLayer && layerDrawn && consoleLayerOf(pieces)}
             {/* Under the console while it is out, kept as it is. */}
             <div className={consoleLayer ? "hidden" : "contents"}>{pieces.sidebar}</div>
           </MapPanel>
         </div>
-      )}
+        );
+      }}
     </Workspace>
     </Suspense>
   );

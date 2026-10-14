@@ -43,9 +43,10 @@ export async function settle(page: Page) {
  *  `data-panel`: peek at rest, half or full when it is out. */
 export const sideDrawer = (page: Page) => page.locator('[data-slot="map-panel"]');
 
-/** The tab bar's tabs in sight: with the sheet up the bar is minimized to
- *  the tab up's name (TabBar), tapped to show them all; in the pill they
- *  are there. Nothing where the page has no tab bar. */
+/** The tab bar's tabs in sight: the sheet's first row at half and all the
+ *  way up, minimized to the tab up's name over a card (TabBar), tapped to
+ *  show them all. Not in the pill, which is one row (MapPanel): the sheet
+ *  half way for them. */
 export async function showTabs(page: Page) {
   const title = page.getByTestId("tab-title");
   // The minimized line can turn back into the tabs by itself as it is
@@ -53,20 +54,17 @@ export async function showTabs(page: Page) {
   // is tried, and what is asked is the tabs in sight.
   if (await title.isVisible()) await title.click({ timeout: 5000 }).catch(() => {});
   await expect(page.getByTestId("tab-title")).toBeHidden();
-  // Put away with a route, FPL's pill is its figures, not the tabs
-  // (MapPanel's footStays): the pill again, its tabs over them.
-  if (!(await page.getByTestId("tab-bar").isVisible())) await grabberTo(page, "peek");
+  if (!(await page.getByTestId("tab-bar").isVisible())) await grabberTo(page, "half");
 }
 
-/** The panel's head in sight: the pill out of the tabs alone, with the
- *  route's box and its chips (Share, Procedures, Saved), a tab's search
- *  bar, a card's summary -- where half way had them before the half size
- *  went. Nothing when it is out already, at the pill or all the way up. */
+/** The panel's head in sight: half way, with the route's box and its
+ *  chips (Share, Procedures, Saved), a tab's search bar, a card. Nothing
+ *  when it is out already, half or all the way up. */
 export async function openPanel(page: Page) {
   const panel = sideDrawer(page);
   await panel.waitFor();
   if (await panel.getAttribute("data-capsule") === null) return;
-  await grabberTo(page, "peek");
+  await grabberTo(page, "half");
 }
 
 /** The route's Share menu out, the panel half way: its sharing, Save,
@@ -85,22 +83,21 @@ export async function clearTheRoute(page: Page) {
   await page.getByTestId("route-clear").click();
 }
 
-/** The panel to a height by its grabber (MapPanel): tapped, the tabs
- *  alone and the pill turn into each other and all the way up comes down
- *  to the pill; all the way up is a drag's, which a keyboard has as the
- *  grabber's Up arrow. Each step waited on. */
-export async function grabberTo(page: Page, state: "peek" | "full") {
+const RANK = { peek: 0, half: 1, full: 2 } as const;
+
+/** The panel to a height by its grabber (MapPanel): the pill, half and all
+ *  the way up, a step at a time by the grabber's arrow keys, as a keyboard
+ *  and VoiceOver move it. Each step waited on. */
+export async function grabberTo(page: Page, state: "peek" | "half" | "full") {
   const panel = sideDrawer(page);
   await panel.waitFor();
   const grabber = page.getByTestId("sidebar-trigger-button");
-  const size = async () => `${await panel.getAttribute("data-panel")}/${await panel.getAttribute("data-collapsed") ?? ""}`;
+  const size = async () => (await panel.getAttribute("data-panel")) as keyof typeof RANK;
   for (let steps = 0; steps < 4; steps++) {
-    if (await panel.getAttribute("data-panel") === state && await panel.getAttribute("data-collapsed") === null) return;
     const now = await size();
-    if (state === "full") {
-      await grabber.focus();
-      await page.keyboard.press("ArrowUp");
-    } else await grabber.click();
+    if (now === state) return;
+    await grabber.focus();
+    await page.keyboard.press(RANK[state] > RANK[now] ? "ArrowUp" : "ArrowDown");
     await expect.poll(size).not.toBe(now);
   }
   await expect(panel).toHaveAttribute("data-panel", state);
@@ -117,8 +114,8 @@ export async function controlsInSight(page: Page) {
 }
 
 /** The panel all the way out, as a finger takes it: a drag on its
- *  grabber to the screen's far edge. At half it ends at the tabs' bar;
- *  from the pill, two taps on the grabber. */
+ *  grabber to the screen's far edge from half; from the pill, the
+ *  grabber's arrow keys. */
 async function panelFull(page: Page) {
   const panel = sideDrawer(page);
   await panel.waitFor();
@@ -271,7 +268,7 @@ export async function expectDrawerClosed(page: Page) {
   await expect(sideDrawer(page)).toHaveAttribute("data-panel", "peek");
 }
 
-/** Out: all the way up (no half size). */
+/** Out: all the way up. */
 export async function expectDrawerOpen(page: Page) {
   await expect(sideDrawer(page)).toHaveAttribute("data-panel", "full");
 }
@@ -332,10 +329,7 @@ export async function openSidebar(page: Page) {
 
   await closeSidebarWithTheStockKey(page);
   await expectDrawerClosed(page);
-  // Down to the pill, which on a phone is out over the tabs, as the half
-  // sheet it took the place of was; the tabs alone are not (MapPanel).
-  const tabsAlone = await sideDrawer(page).getAttribute("data-collapsed") === "true";
-  await expect(sidebarTrigger).toHaveAttribute("aria-expanded", tabsAlone || page.viewportSize()!.width >= 768 ? "false" : "true");
+  await expect(sidebarTrigger).toHaveAttribute("aria-expanded", "false");
 }
 
 /** The briefing is the flight planning panel: open it from its
@@ -393,7 +387,9 @@ export async function openSection(page: Page, title: string) {
       if (await here.waitFor({ timeout: 3000 }).then(() => true, () => false)) break;
     }
   }
-  await here.scrollIntoViewIfNeeded();
+  // A section drawn again as its tab's content arrives can be detached
+  // between finding it and scrolling to it: tried until it holds still.
+  await expect(async () => { await here.scrollIntoViewIfNeeded({ timeout: 2000 }); }).toPass({ timeout: 10000 });
 }
 
 /** Once the map has stopped moving: its panes where they were 300 ms
@@ -473,12 +469,11 @@ export async function consolePage(scope: Page | Locator, name: "Account" | "Sett
   if (name !== "Account") await setup.getByRole("button", { name: new RegExp(`^${name}`) }).click();
 }
 
-/** Airport's search bar, in sight: the pill out of the tabs alone, on the
- *  Airport tab (FPL is the tab a fresh load opens on). */
+/** Airport's search bar, in sight: on the Airport tab, its pill's one row
+ *  or its head half way (FPL is the tab a fresh load opens on). */
 export async function airportSearch(page: Page) {
   const search = page.getByTestId("search-airports");
   if (await search.isVisible()) return search;
-  await grabberTo(page, "peek");
   await showTabs(page);
   await page.getByTestId("tab-airport").click();
   await expect(search).toBeVisible();

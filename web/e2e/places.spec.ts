@@ -24,8 +24,8 @@ test("an airport's card names the field alone, how far it is under it, and the w
   await cardWeather(page, "KDLH", { metar: { raw: "KDLH 102155Z 27008KT 10SM CLR 12/02 A3001", flight_category: "VFR" } });
   await page.goto("/app/plan?dep=C81&dest=KDLH&place=KDLH");
   await settle(page);
-  // At the pill's size, as every card opens (the owner's ask).
-  await expect(sideDrawer(page)).toHaveAttribute("data-panel", "peek");
+  // Half way, as every card opens (the owner's ask).
+  await expect(sideDrawer(page)).toHaveAttribute("data-panel", "half");
   // The name alone in sight, at the pilot's ask, the ident to a screen
   // reader only.
   await expect(card(page).getByTestId("place-name")).toHaveText("Duluth International Airport KDLH");
@@ -42,9 +42,9 @@ test("an airport's card names the field alone, how far it is under it, and the w
   await expect(card(page).getByTestId("place-category")).toBeVisible();
   for (const id of ["fly-here", "place-call", "place-address"]) await expect(card(page).getByTestId(id)).toBeVisible();
 
-  // At the pill's size its first frequencies; all the way up Info, the
+  // Half way its pages' tabs under the actions; all the way up Info, the
   // first page, every one.
-  await expect(card(page).getByTestId("place-summary-frequencies")).toBeVisible();
+  await expect(card(page).getByRole("tablist")).toBeVisible();
   await grabberTo(page, "full");
   await expect(card(page).getByTestId("place-tab-radio")).toHaveAttribute("aria-selected", "true");
   // The tower's, named in words, its frequency as pilots write it.
@@ -207,10 +207,10 @@ test("an airport's card has four tabs under its tiles, in sight at half, the rad
   await page.goto("/app/plan?place=C81");
   await settle(page);
   const tabs = card(page).getByRole("tab");
-  // Opened at the pill's size; all the way up its pages under the
-  // actions, Info first (the owner's "These tabs look nicer", "Rename
-  // Freq. to Info"), the charts' page named Charts.
-  await expect(sideDrawer(page)).toHaveAttribute("data-panel", "peek");
+  // Opened half way; all the way up its pages under the actions, Info
+  // first (the owner's "These tabs look nicer", "Rename Freq. to Info"),
+  // the charts' page named Charts.
+  await expect(sideDrawer(page)).toHaveAttribute("data-panel", "half");
   await grabberTo(page, "full");
   await expect(tabs).toHaveText(["Info", "Weather", "Runways", "Charts"], { timeout: slow(15000) });
   await expect(card(page).getByTestId("place-tab-radio")).toHaveAttribute("aria-selected", "true");
@@ -234,10 +234,10 @@ test("an airport's card has four tabs under its tiles, in sight at half, the rad
   // Shown in the app (airport-diagram.spec), not a link out of it.
   await expect(approach).not.toHaveAttribute("href", /.*/);
 
-  // The open tab tapped again up there: down to the pill, the card's
-  // summary there, as the route's pages do -- its top as it was all the
-  // way up, the name over the actions the same way (the owner's "the top
-  // half stay the same as half card"), its first frequencies under them.
+  // The open tab tapped again up there: down half way, as the route's
+  // pages do -- its top as it was all the way up, the name over the
+  // actions the same way (the owner's "the top half stay the same as half
+  // card"), its pages' tabs under them.
   const top = async () => {
     const name = (await card(page).getByTestId("place-name").boundingBox())!;
     const actions = (await card(page).getByTestId("fly-here").boundingBox())!;
@@ -246,8 +246,8 @@ test("an airport's card has four tabs under its tiles, in sight at half, the rad
   await card(page).getByTestId("place-name").scrollIntoViewIfNeeded();
   const up = await top();
   await card(page).getByTestId("place-tab-diagrams").click();
-  await expect(sideDrawer(page)).toHaveAttribute("data-panel", "peek");
-  await expect(card(page).getByTestId("place-summary-frequencies")).toBeVisible();
+  await expect(sideDrawer(page)).toHaveAttribute("data-panel", "half");
+  await expect(card(page).getByRole("tablist")).toBeVisible();
   await expect.poll(top).toEqual(up);
 });
 
@@ -434,9 +434,8 @@ test("a tap on an airport on the chart opens its card, a tap elsewhere puts it a
   await page.mouse.click(at.x, at.y);
   await expect(page).toHaveURL(/[?&]place=[A-Z0-9]+/);
   await expect(card(page).getByTestId("place-name")).not.toBeEmpty();
-  // At the pill's size, its summary, as Maps opens a place (the owner's
-  // pick of the redesign).
-  await expect(sideDrawer(page)).toHaveAttribute("data-panel", "peek");
+  // Half way, as Maps opens a place.
+  await expect(sideDrawer(page)).toHaveAttribute("data-panel", "half");
   await expect(card(page).getByTestId("fly-here")).toBeVisible();
 
   // A tap on the chart elsewhere puts it away, as in Maps, and the panel
@@ -613,8 +612,8 @@ test("with no route the panel is a search bar: Home is set from Favorites, an ai
   await page.reload();
   await settle(page);
   const search = page.getByTestId("search-airports");
-  // The tabs alone, as a fresh load opens; out half way on Airport's search.
-  await expect(sideDrawer(page)).toHaveAttribute("data-collapsed", "true");
+  // The pill, as a fresh load opens; out on Airport's search.
+  await expect(sideDrawer(page)).toHaveAttribute("data-capsule", "true");
   await grabberTo(page, "full");
   await showTabs(page);
   await page.getByTestId("tab-airport").click();
@@ -653,17 +652,19 @@ test("with no route the panel is a search bar: Home is set from Favorites, an ai
   await card(page).getByTestId("fly-here").click();
   await expect(page).toHaveURL(/dep=C81/);
   await expect(page).toHaveURL(/dest=KDLH/);
-  // At the pill's size, as the card was, the route over it.
-  await expect(sideDrawer(page)).toHaveAttribute("data-panel", "peek");
+  // Half way, as the card was, the route over it.
+  await expect(sideDrawer(page)).toHaveAttribute("data-panel", "half");
 
-  // Lowered, the route rests as the tabs' pill, its box with the
-  // departure Home; Clear the route, in its
+  // Lowered, the route rests as its one line, the departure Home in the
+  // box half way; Clear the route, in its
   // Share menu, clears it -- its box and the controls left in their places
   // for another, what needs a route greyed, the route's own tabs gone
   // until there is one (at the pilot's ask) -- and the Airport tab is the
   // search. The chips are all the way up's, the panel there throughout.
   await grabberTo(page, "peek");
   await expect(sideDrawer(page)).toHaveAttribute("data-capsule", "true");
+  await expect(sideDrawer(page).getByTestId("route-line")).toBeVisible();
+  await grabberTo(page, "half");
   await expect(page.getByLabel("Departure", { exact: true })).toContainText("C81");
   await clearTheRoute(page);
   await expect(page).not.toHaveURL(/dep=/);
