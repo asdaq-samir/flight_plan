@@ -5,6 +5,7 @@ import { DEFAULT_FILTERS, type FilterKey, type Filters } from "../features/train
 import type { AircraftChoice } from "./api/types";
 import { NO_MINIMUMS, type Minimums } from "./minimums";
 import type { Load } from "./weightBalance";
+import type { OwnShipLook } from "./map/ownShipLook";
 
 /**
  * Everything remembered per browser, in one zustand store persisted to
@@ -110,6 +111,8 @@ interface Preferences {
    *  airspace, as the sectional draws it, or its METAR's flight
    *  category, as the map's chips are. */
   routeColours: RouteColours;
+  /** How own ship is drawn on the chart (lib/map/ownShipLook). */
+  ownShipLook: OwnShipLook;
   /** Which writes the Brief tab's narrative (BriefNarrative), from the
    *  settings: it was a switch over the narrative itself. */
   narrative: NarrativeFramework;
@@ -159,6 +162,7 @@ interface Preferences {
   setFilter: (key: FilterKey, on: boolean) => void;
   setNavBar: (navBar: NavEdge) => void;
   setRouteColours: (routeColours: RouteColours) => void;
+  setOwnShipLook: (ownShipLook: OwnShipLook) => void;
   setNarrative: (narrative: NarrativeFramework) => void;
   setFlightRules: (flightRules: FlightRules) => void;
   addRecentAirport: (airport: RecentAirport) => void;
@@ -214,6 +218,8 @@ export const usePreferences = create<Preferences>()(
       filters: DEFAULT_FILTERS,
       navBar: null,
       routeColours: "airspace",
+      // A plane, at the owner's ask, where it was the arrow.
+      ownShipLook: "single",
       narrative: "langgraph",
       flightRules: "vfr",
       recentAirports: [],
@@ -256,6 +262,7 @@ export const usePreferences = create<Preferences>()(
       setFilter: (key, on) => set(s => ({ filters: { ...s.filters, [key]: on } })),
       setNavBar: navBar => set({ navBar }),
       setRouteColours: routeColours => set({ routeColours }),
+      setOwnShipLook: ownShipLook => set({ ownShipLook }),
       setNarrative: narrative => set({ narrative }),
       setFlightRules: flightRules => set({ flightRules }),
       addRecentAirport: airport => set(s => ({
@@ -288,7 +295,7 @@ export const usePreferences = create<Preferences>()(
       migrate: (kept, from) => (from < 1 ? { ...(kept as object), waypoints: false } : kept) as Preferences,
       // The functions are not state; only the values are written.
       partialize: s => ({
-        base: s.base, tac: s.tac, waypoints: s.waypoints, classB: s.classB, tfrs: s.tfrs, alerts: s.alerts, speakAlerts: s.speakAlerts, traffic: s.traffic, military: s.military, minimums: s.minimums, loads: s.loads, keepOffline: s.keepOffline, aircraft: s.aircraft, filters: s.filters, navBar: s.navBar, routeColours: s.routeColours, narrative: s.narrative,
+        base: s.base, tac: s.tac, waypoints: s.waypoints, classB: s.classB, tfrs: s.tfrs, alerts: s.alerts, speakAlerts: s.speakAlerts, traffic: s.traffic, military: s.military, minimums: s.minimums, loads: s.loads, keepOffline: s.keepOffline, aircraft: s.aircraft, filters: s.filters, navBar: s.navBar, routeColours: s.routeColours, ownShipLook: s.ownShipLook, narrative: s.narrative,
         flightRules: s.flightRules,
         recentAirports: s.recentAirports, homeAirport: s.homeAirport, favoriteAirports: s.favoriteAirports,
         recentAircraft: s.recentAircraft, favoriteAircraft: s.favoriteAircraft, myAircraft: s.myAircraft,

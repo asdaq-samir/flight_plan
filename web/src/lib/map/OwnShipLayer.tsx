@@ -7,6 +7,7 @@ import { glideRangeNm } from "./glide";
 import { centreClear } from "./clear";
 import { ownShipIcon } from "./icons";
 import { useOwnShip } from "./ownShip";
+import { usePreferences } from "../preferences";
 
 /**
  * Own ship on the chart, from the position store: the arrow turned to
@@ -37,6 +38,7 @@ const ACCURACY: PathOptions = { color: "#1d4ed8", weight: 1, opacity: 0.5, fillC
 export function OwnShipLayer() {
   const map = useMap();
   const enabled = useOwnShip(s => s.enabled);
+  const look = usePreferences(s => s.ownShipLook);
   const fix = useOwnShip(s => s.fix);
   const follow = useOwnShip(s => s.follow);
   const setFollow = useOwnShip(s => s.setFollow);
@@ -87,7 +89,7 @@ export function OwnShipLayer() {
   const glide = glideRangeNm(fix, nearest?.[0]?.elevation_ft);
   if (!fix) return null;
   // Off: the last position alone, grey, with nothing round it.
-  if (!enabled) return <Marker position={[fix.lat, fix.lon]} icon={ownShipIcon(null, true)} interactive={false} zIndexOffset={1000} keyboard={false} />;
+  if (!enabled) return <Marker position={[fix.lat, fix.lon]} icon={ownShipIcon(null, true, look)} interactive={false} zIndexOffset={1000} keyboard={false} />;
   return (
     <>
       {glide != null && (
@@ -100,7 +102,7 @@ export function OwnShipLayer() {
         center={[fix.lat, fix.lon]} radius={fix.accuracyM}
         pathOptions={ACCURACY}
       />
-      <Marker position={[fix.lat, fix.lon]} icon={ownShipIcon(fix.headingDeg)} interactive={false} zIndexOffset={1000} keyboard={false} />
+      <Marker position={[fix.lat, fix.lon]} icon={ownShipIcon(fix.headingDeg, false, look)} interactive={false} zIndexOffset={1000} keyboard={false} />
     </>
   );
 }
