@@ -159,7 +159,11 @@ export default function WeatherAlongRoute({ briefing, course, legs, departIso, u
           const stretchShown = !phase || phase === "enroute";
           return (
             <Fragment key={`${place.ident}${i}`}>
-              {placeShown && <ListGroup title={`${place.ident} · ${place.role}`} badge={<CategoryBadge category={metar?.flight_category} />}>
+              {/* On its phase's tab the field's ident alone: the tab says
+                  whether it is the departure or the destination, and the
+                  section under says it again (the owner's notice of
+                  "C81 · DEPARTURE" three times on Depart). */}
+              {placeShown && <ListGroup title={phase === "depart" || phase === "arrive" ? place.ident : `${place.ident} · ${place.role}`} badge={<CategoryBadge category={metar?.flight_category} />}>
                 {unchecked("metars") ? (
                   <ListRow title="Now" description={<span className="text-amber-700 dark:text-amber-300">Not checked: aviationweather.gov did not answer</span>} />
                 ) : (

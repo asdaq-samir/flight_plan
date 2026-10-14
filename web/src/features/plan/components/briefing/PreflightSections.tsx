@@ -175,7 +175,9 @@ export function TakeoffLandingSection({ aircraft, briefing, course, landing: lan
             const length = c.runway?.length_ft ?? null;
             return (
               <ListGroup
-                key={`${c.field.ident}${i}`} title={`${c.field.ident} · ${c.role}`}
+                // No heading on Depart's or Arrive's tab, its one field the
+                // tab's own; a stop's named, on En route.
+                key={`${c.field.ident}${i}`} title={phase === "depart" || phase === "arrive" ? undefined : `${c.field.ident} · ${c.role}`}
                 footer={c.runway
                   ? `Runway ${c.runway.wind?.end ?? c.runway.ends} (${length != null ? `${altFt(length)} ft` : "length unknown"}${c.grass ? ", grass" : ""}): ${c.runway.wind ? "the one most into the wind" : "the longest, with no wind reported"}`
                   : "No runway data"}
