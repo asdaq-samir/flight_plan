@@ -183,8 +183,8 @@ test("a route entered is fitted above the half sheet, to the whole screen at the
   await page.getByTestId("search-result").filter({ hasText: "KDLH" }).first().click();
   await page.getByTestId("place-card").getByTestId("fly-here").click();
   await expect(page).toHaveURL(/dep=C81.*dest=KDLH|dest=KDLH.*dep=C81/);
-  // The route at the height the card was: the pill's, as every card opens.
-  await expect(sideDrawer(page)).toHaveAttribute("data-panel", "peek");
+  // The route at the height the card was: half, as every card opens.
+  await expect(sideDrawer(page)).toHaveAttribute("data-panel", "half");
   const half = await fittedClearOf(page, sideDrawer(page));
 
   await closeSidebarWithTheStockKey(page);

@@ -200,25 +200,25 @@ test("plan page: a pasted briefing link opens the panel, and its grabber closes 
   await expect(page).toHaveURL(/[?&]view=briefing/);
 
   const grabber = page.getByTestId("sidebar-trigger-button");
-  // Down to the pill (no half size), the address dropping the parameter,
-  // the route's box and its chips' Share in sight; then the tabs alone;
-  // back all the way up.
+  // Down a size at a tap: half, the address dropping the parameter, the
+  // route's box and its chips' Share in sight; then the pill, its one
+  // line; back all the way up.
   await grabber.click();
-  await expect(drawer).toHaveAttribute("data-panel", "peek");
+  await expect(drawer).toHaveAttribute("data-panel", "half");
   await expect(page).not.toHaveURL(/[?&]view=briefing/);
   await expect(drawer.getByTestId("route-box")).toBeVisible();
   await expect(drawer.getByTestId("share-route")).toBeVisible();
   await grabber.click();
   await expectDrawerClosed(page);
+  await expect(drawer.getByTestId("route-line")).toBeVisible();
 
   await grabberTo(page, "full");
   await expect(page).toHaveURL(/[?&]view=briefing/);
   await expect(drawer.getByTestId("flight-line")).toBeVisible();
 });
 
-// A tap on the grabber turns the tabs alone and the pill into each other,
-// and brings all the way up down to the pill; all the way up is a drag's
-// (the grabber's Up arrow for a keyboard), at the owner's ask.
+// A tap on the grabber steps the three sizes up from the pill and back
+// down again, as the October 11 panel the owner picked back did.
 test("plan page: the panel's grabber cycles it up and back down, a tap on the map beside it leaves it out, and Escape lowers it", async ({ page }) => {
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
@@ -226,14 +226,14 @@ test("plan page: the panel's grabber cycles it up and back down, a tap on the ma
   if (!viewport) throw new Error("no viewport configured");
   const grabber = page.getByTestId("sidebar-trigger-button");
   const panel = sideDrawer(page);
-  const size = async () => `${await panel.getAttribute("data-panel")}${await panel.getAttribute("data-collapsed") ? " tabs" : ""}`;
-  for (const height of ["peek", "peek tabs", "peek"]) {
+  const size = () => panel.getAttribute("data-panel");
+  for (const height of ["half", "full", "half", "peek"]) {
     await grabber.click();
     await expect.poll(size).toBe(height);
   }
   await grabberTo(page, "full");
   await grabber.click();
-  await expect.poll(size).toBe("peek");
+  await expect.poll(size).toBe("half");
   await grabberTo(page, "full");
   await expectDrawerOpen(page);
   // Not modal: the map beside the card stays live, and a click there is
