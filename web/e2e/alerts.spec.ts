@@ -12,11 +12,11 @@ import { openMapSettings, settle, slow } from "./helpers";
 test.use({ permissions: ["geolocation"] });
 
 /** A GPS in the air: every second the same fix, going `speedKt` on 090. */
-async function flying(page: Page, speedKt = 120) {
-  await page.addInitScript(knots => {
+async function flying(page: Page, speedKt = 120, accuracyM = 10) {
+  await page.addInitScript(([knots, accuracy]) => {
     const position = () => ({
       coords: {
-        latitude: 42.3246, longitude: -88.0741, accuracy: 10, heading: 90, speed: knots / 1.943844,
+        latitude: 42.3246, longitude: -88.0741, accuracy, heading: 90, speed: knots / 1.943844,
         altitude: 3000 / 3.28084, altitudeAccuracy: 10, toJSON() { return this; },
       },
       timestamp: Date.now(), toJSON() { return this; },
@@ -33,7 +33,7 @@ async function flying(page: Page, speedKt = 120) {
     };
     localStorage.setItem("vfr.ownship",
       JSON.stringify({ state: { enabled: true, follow: true, lastFix: { lat: 42.325, lon: -88.074 } }, version: 0 }));
-  }, speedKt);
+  }, [speedKt, accuracyM] as const);
 }
 
 const CLASS_B = {
@@ -164,4 +164,27 @@ test("spoken, each alert ahead is said once as it comes, and turned on it says s
   await expect.poll(said, { timeout: slow(30_000) }).toEqual([
     "Alerts will be spoken.", "Chicago Class B, in 2 minutes.", "Tower 2,700 feet, 300 feet below you, in 40 seconds.",
   ]);
+});
+
+test("a position that is the phone's approximate one, Precise Location off, is said so, once, and a GPS's is not", async ({ page }) => {
+  await ahead(page, route => route.fulfill({ json: [] }));
+  await flying(page, 120, 3000);
+  await page.goto("/app/plan");
+  await settle(page);
+  const alert = page.getByTestId("error-alert");
+  await expect(alert).toContainText("Approximate position");
+  await expect(alert).toContainText("Precise Location is off");
+  await alert.getByRole("button", { name: "OK" }).click();
+  // Not again at each second's fix.
+  await page.waitForTimeout(2500);
+  await expect(alert).toHaveCount(0);
+});
+
+test("a GPS's position says nothing of its accuracy", async ({ page }) => {
+  await ahead(page, route => route.fulfill({ json: [] }));
+  await flying(page);
+  await page.goto("/app/plan");
+  await settle(page);
+  await page.waitForTimeout(2500);
+  await expect(page.getByTestId("error-alert")).toHaveCount(0);
 });

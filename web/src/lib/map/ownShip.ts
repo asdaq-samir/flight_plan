@@ -17,6 +17,13 @@ import { inNativeApp, watchNativePosition, type NativePosition } from "../native
  * and the arrow says so when tapped rather than doing nothing (see
  * HttpsConnectorConfig for the port that fixes that).
  */
+/** A fix this far out, or more, is the phone's approximate position, not a
+ *  GPS's: a GPS fix reports tens of metres, and iOS and Android with
+ *  Precise Location off give a position good to a mile or more. The
+ *  chart, the glide ring, Direct-To and what is ahead all start from it,
+ *  so the pilot is told (MyPositionButton). */
+export const APPROXIMATE_M = 1000;
+
 export interface Fix {
   lat: number;
   lon: number;
