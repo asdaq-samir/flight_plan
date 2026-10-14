@@ -409,6 +409,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     selectPlace(ident);
     if (!ident && (place || heldPoint)) setPanel("peek");
   }, [selectPlace, nearOpen, place, heldPoint, setPanel]);
+  const cardOpen = !!place || !!heldPoint || !!flight;
   const holdPoint = useCallback((point: { lat: number; lon: number }) => {
     setSearchParams(prev => {
       const next = new URLSearchParams(prev);
@@ -1438,7 +1439,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     footStays: tab === "fpl" && routed && !s.unflyable,
     // A card over the tab: its card alone, the tab's head gone while it is
     // open, at the pilot's ask.
-    alone: !!place || !!heldPoint || !!flight,
+    alone: cardOpen,
     // An airport's or a point's card over another tab -- a field tapped on
     // the route from FPL -- its bar the card's kind and Back to the tab, at
     // the owner's ask ("unless going from another tab ... the back button
@@ -1446,7 +1447,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     // Any card, an airplane's too, its bar its name with Back and the close,
     // at the owner's ask ("For the airport card it should replace tabs with
     // a back close button and title as the airport id").
-    cardOver: !!place || !!heldPoint || !!flight,
+    cardOver: cardOpen,
     toEdge: !!place,
     // The planner's tabs, the panel's first row, and at rest the pill
     // itself, at the pilot's ask: no search bar or route under them

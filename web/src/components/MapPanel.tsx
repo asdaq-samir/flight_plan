@@ -382,8 +382,15 @@ export default function MapPanel({ label, top, controls, compact, children, stat
     // Settling down to the pill, the pill's own height, whatever the sheet's
     // head measures on the way: a tab's pill one height on every tab (its
     // row and the tabs' over it), a card's as it was last measured.
-    const pillOwn = pillOfTabs && !tabsOnly && !cardInPill ? Math.round((PILL_ROW_REM + 3.5) * rootPx()) : capsuleHeight;
-    const lowest = settling ? pillOwn : hasPill && !capsule ? Math.min(capsuleHeight, peek) : peek;
+    const tabPill = pillOfTabs && !tabsOnly && !cardInPill;
+    const pillOwn = tabPill ? Math.round((PILL_ROW_REM + 3.5) * rootPx()) : capsuleHeight;
+    // At rest too, a tab's pill is that one height, not its contents'
+    // measure: a tab picked had its new contents measured for a frame or
+    // two before they were laid out in the pill's height, and the sheet
+    // started for that height and came back -- 54 points up going to
+    // Airport, 106 down coming back to FPL (traced 2026-10-14), where
+    // Maps' sheet stands still and only what is in it changes.
+    const lowest = settling || (capsule && tabPill) ? pillOwn : hasPill && !capsule ? Math.min(capsuleHeight, peek) : peek;
     return { peek: lowest, half: Math.min(half, full), full };
   }, [peek, room, routeHead, halfChrome, footHeight, hasPill, capsule, capsuleHeight, settling, pillOfTabs, tabsOnly, cardInPill]);
   // The body's height at half, for what it shows first to fill and no

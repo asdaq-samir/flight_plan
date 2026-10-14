@@ -29,10 +29,18 @@ export function PanelCard({ testId, children }: { testId: string; children: Reac
       if (from.isConnected && (!at || at === document.body || node.contains(at))) from.focus({ preventScroll: true });
     };
   }, []);
+  // In as Maps' place card comes in: faded and up into its place as the
+  // sheet rises for it, on the sheet's own curve and time (mapChrome's
+  // SHEET_CURVE, half a second) so the two arrive together, and again for
+  // the next card opened over it (a card is keyed by what it shows) --
+  // where it was there at once, the last tab's contents swapped for it in
+  // one frame (traced 2026-10-14). A third of a second on its own easing
+  // read too fast and not smooth, the owner found on the phone. With
+  // Reduce Motion, the fade alone.
   return (
     <div
       ref={card}
-      className="relative min-h-0 flex-1 overflow-y-auto px-4 pt-[var(--corner-inset,0.75rem)] pb-[max(1rem,env(safe-area-inset-bottom))] [scrollbar-width:none] print:hidden"
+      className="relative min-h-0 flex-1 overflow-y-auto px-4 pt-[var(--corner-inset,0.75rem)] pb-[max(1rem,env(safe-area-inset-bottom))] [scrollbar-width:none] duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] animate-in fade-in slide-in-from-bottom-6 motion-reduce:slide-in-from-bottom-0 print:hidden"
       data-testid={testId}
     >
       {children}
