@@ -1,4 +1,5 @@
-import { createContext, useContext, type ComponentProps, type ReactNode } from "react";
+import { createContext, useContext, useState, type ComponentProps, type ReactNode } from "react";
+import { Slot } from "radix-ui";
 import { cn } from "cn";
 import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle, DrawerTrigger } from "./ui/drawer";
 import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from "./ui/popover";
@@ -22,6 +23,15 @@ import { TEXT } from "../lib/text";
  */
 /** The edge the sheet comes from on a phone; from `md` up, none. */
 const OnPhone = createContext<NavEdge | null>(null);
+/** On a phone, while its sheet has not been opened: the way to open it.
+ *  The sheet's root (vaul's Drawer) is mounted only from then -- every
+ *  closed one in the route's pill (the altitude, the departure time,
+ *  Procedures, the review) set up its own root, its listeners and its
+ *  read of the page's scroll as the pill was drawn: the most of a second
+ *  the pill froze as the panel came down into it, the owner found ("does
+ *  freeze at the layout for a second before it stables itself"; vaul's
+ *  the largest self time in a profile of it, 2026-10-14). */
+const Unmounted = createContext<(() => void) | null>(null);
 
 export function ResponsivePopover({ children, open, onOpenChange, phoneEdge, handleOnly }: {
   children: ReactNode;
@@ -39,17 +49,45 @@ export function ResponsivePopover({ children, open, onOpenChange, phoneEdge, han
   const isMobile = useIsMobile();
   const navEdge = useNavEdge();
   const edge = phoneEdge ?? navEdge;
+  // Open as its owner says, or as its own trigger does where it has no owner.
+  const [own, setOwn] = useState(false);
+  const isOpen = open ?? own;
+  const change = (next: boolean) => {
+    if (open === undefined) setOwn(next);
+    onOpenChange?.(next);
+  };
+  // A phone's sheet mounted once asked for, kept to the end of its way out.
+  const [mounted, setMounted] = useState(isOpen);
+  if (isOpen && !mounted) setMounted(true);
+  if (isMobile && !mounted) {
+    return <OnPhone.Provider value={edge}><Unmounted.Provider value={() => change(true)}>{children}</Unmounted.Provider></OnPhone.Provider>;
+  }
+  // Its own, not an unopened one round it (the logbook's form in its list).
   return (
-    <OnPhone.Provider value={isMobile ? edge : null}>
+    <OnPhone.Provider value={isMobile ? edge : null}><Unmounted.Provider value={null}>
       {isMobile
-        ? <Drawer direction={edge} open={open} onOpenChange={onOpenChange} handleOnly={handleOnly}>{children}</Drawer>
-        : <Popover open={open} onOpenChange={onOpenChange}>{children}</Popover>}
-    </OnPhone.Provider>
+        ? (
+          <Drawer
+            direction={edge} open={isOpen} onOpenChange={change} handleOnly={handleOnly}
+            onAnimationEnd={shown => { if (!shown) setMounted(false); }}
+          >
+            {children}
+          </Drawer>
+        )
+        : <Popover open={isOpen} onOpenChange={change}>{children}</Popover>}
+    </Unmounted.Provider></OnPhone.Provider>
   );
 }
 
-export function ResponsivePopoverTrigger(props: ComponentProps<typeof PopoverTrigger>) {
-  return useContext(OnPhone) ? <DrawerTrigger {...props} /> : <PopoverTrigger {...props} />;
+export function ResponsivePopoverTrigger({ asChild, onClick, ...props }: ComponentProps<typeof PopoverTrigger>) {
+  const open = useContext(Unmounted);
+  const phone = useContext(OnPhone);
+  // Not yet mounted, its tap opens it (and mounts the sheet).
+  if (open) {
+    const Comp = asChild ? Slot.Root : "button";
+    return <Comp type={asChild ? undefined : "button"} {...props} onClick={event => { onClick?.(event as never); if (!event.defaultPrevented) open(); }} />;
+  }
+  return phone ? <DrawerTrigger asChild={asChild} onClick={onClick} {...props} /> : <PopoverTrigger asChild={asChild} onClick={onClick} {...props} />;
 }
 
 /** What the popover is placed against, where a trigger cannot be (a mark
@@ -83,6 +121,7 @@ export function ResponsivePopoverContent({
   collisionPadding, ...props
 }: ContentProps) {
   const edge = useContext(OnPhone);
+  if (useContext(Unmounted)) return null;
   if (!edge) {
     return (
       <PopoverContent
