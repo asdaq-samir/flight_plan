@@ -1,5 +1,5 @@
-import { ChevronLeft, ChevronRight, CircleMinus, GripVertical, House, Plus } from "lucide-react";
-import { useId, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import { ChevronDown, ChevronLeft, ChevronRight, CircleMinus, GripVertical, House, Plus } from "lucide-react";
+import { Fragment, useId, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "cn";
 import { api } from "../lib/api/client";
@@ -11,43 +11,11 @@ import type { AirspaceClass, RecentAirport } from "../lib/preferences";
 import { useAirspace } from "../lib/useAirspace";
 import { TEXT } from "../lib/text";
 import { Button } from "./ui/button";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuTrigger,
+} from "./ui/dropdown-menu";
 import { ListGroup, ListRow } from "./GroupedList";
 import IconButton from "./IconButton";
-
-/**
- * Maps' Favorites, first under the search bar: Home, the airports kept (a
- * star on an airport's card adds one), and Add -- a row of round tiles
- * that scrolls sideways, each with how far it is from own ship when
- * that is known, else its town, a kept one drawn as the chart draws its
- * airspace. Home not set yet reads Add in the tint, and a tap on it asks
- * the search bar for the field. "Favorites ›" opens the list where
- * they are changed (FavoritesList).
- */
-export function Favorites({ home, favorites, onOpen, onAddHome, onAddFavorite, onShowAll }: {
-  home: RecentAirport | null;
-  favorites: RecentAirport[];
-  onOpen: (airport: RecentAirport) => void;
-  onAddHome: () => void;
-  onAddFavorite: () => void;
-  onShowAll: () => void;
-}) {
-  return (
-    <section aria-labelledby="favorites-heading">
-      <h3 id="favorites-heading" className="pb-3">
-        <button
-          type="button" onClick={onShowAll} data-testid="favorites-all"
-          className={cn("flex items-center gap-0.5 rounded-md px-1 font-bold text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring", TEXT.title)}
-        >
-          Favorites <ChevronRight className="size-5 text-muted-foreground" aria-hidden="true" />
-        </button>
-      </h3>
-      <FavoriteTiles
-        home={home} favorites={favorites} onOpen={onOpen} onAddHome={onAddHome}
-        trailing={<PlaceTile icon={<Plus />} className="bg-foreground/8 text-tint" title="Add" onClick={onAddFavorite} testId="favorite-add" />}
-      />
-    </section>
-  );
-}
 
 /**
  * The row of round tiles itself -- Home, then the favorites -- shared by
@@ -87,7 +55,7 @@ export function FavoriteTiles({ home, favorites, onOpen, onAddHome, trailing }: 
 
 function AirspaceTile({ airport, detail, onClick }: { airport: RecentAirport; detail: string; onClick: () => void }) {
   const space = useAirspace(airport);
-  // Its chart symbol on the tile, as NRST's fields wear theirs, at the
+  // Its chart symbol on the tile, as Nearest's fields wear theirs, at the
   // owner's ask, where it was a plane on the airspace's colour.
   return (
     <PlaceTile
@@ -99,7 +67,7 @@ function AirspaceTile({ airport, detail, onClick }: { airport: RecentAirport; de
 
 /** A round tile and its words under it, as Maps' Favorites: the
  *  airports' here, and the Aircraft card's own (AircraftCard). */
-export function PlaceTile({ icon, className, style, title, label, detail, tinted, onClick, testId }: {
+function PlaceTile({ icon, className, style, title, label, detail, tinted, onClick, testId }: {
   icon: ReactNode;
   className?: string;
   style?: CSSProperties;
@@ -241,10 +209,10 @@ export function FavoritesList({ home, favorites, onBack, onOpen, onChangeHome, o
 }
 
 /**
- * A small tile for a pill's strip (PillStrip): a round mark, a name and a
- * line under it, at the size the pill has room for -- at the owner's ask,
- * the Airport and Aircraft tabs' pills show their Favorites, NRST's its
- * nearest fields, as small icons. 44 points at the least to a finger.
+ * A tile for a pill's strip (PillStrip): a round mark, a name and a line
+ * under it -- the Airport and Aircraft tabs' Favorites, Airport's nearest
+ * fields -- at the full card's Favorites' size (PlaceTile), at the owner's
+ * ask ("make the fav icons the same size as the full card").
  */
 export function SmallTile({ mark, title, detail, label, onClick, testId, wide = false }: {
   mark: ReactNode;
@@ -259,12 +227,12 @@ export function SmallTile({ mark, title, detail, label, onClick, testId, wide = 
   return (
     <button
       type="button" onClick={onClick} data-testid={testId} aria-label={label}
-      className={cn(wide ? "w-24" : "w-14", "flex min-h-11 shrink-0 flex-col items-center gap-0.5 rounded-lg py-0.5 outline-none hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring pointer-coarse:active:bg-muted")}
+      className={cn(wide ? "w-24" : "w-[4.5rem]", "flex shrink-0 flex-col items-center gap-1.5 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring")}
     >
       {mark}
-      <span className={cn("w-full truncate text-center font-semibold leading-tight text-foreground", TEXT.note)}>{title}</span>
+      <span className={cn("w-full truncate text-center font-medium text-foreground", TEXT.detail)}>{title}</span>
       {/* 4.5:1 on the pill's glass, as the tab bar's words are. */}
-      {detail && <span className={cn("w-full truncate text-center leading-tight text-foreground/65 tabular-nums", TEXT.note)}>{detail}</span>}
+      {detail && <span className={cn("-mt-1.5 w-full truncate text-center text-foreground/65 tabular-nums", TEXT.note)}>{detail}</span>}
     </button>
   );
 }
@@ -285,9 +253,14 @@ export function PillSection({ title, onMore, right, children, testId }: {
   children: ReactNode;
   testId?: string;
 }) {
-  const heading = cn("font-semibold uppercase tracking-wide text-foreground/65", TEXT.note);
+  // The full card's Favorites' type, which the owner liked ("I liked the
+  // font style of Favorites from the full card earlier"): the title's
+  // bold 17, in the text's own colour, a chevron where it opens more.
+  const heading = cn("font-bold text-foreground", TEXT.title);
   return (
-    <section className="flex min-w-0 flex-col gap-1" data-testid={testId}>
+    // Eight under the title, so its 44-point hit area (index.css) stays
+    // its own over the tiles' (the iOS audit's P1).
+    <section className="flex min-w-0 flex-col gap-2" data-testid={testId}>
       <div className="flex min-h-7 items-center gap-2">
         {onMore ? (
           <button
@@ -295,7 +268,7 @@ export function PillSection({ title, onMore, right, children, testId }: {
             className={cn("relative flex items-center gap-0.5 outline-none focus-visible:ring-2 focus-visible:ring-ring after:absolute after:-inset-2", heading)}
           >
             {title}
-            <ChevronRight className="size-3.5" strokeWidth={2.5} aria-hidden="true" />
+            <ChevronRight className="size-5 text-muted-foreground" aria-hidden="true" />
           </button>
         ) : typeof title === "string" ? <h3 className={heading}>{title}</h3> : title}
         {right && <div className="ml-auto flex items-center gap-2">{right}</div>}
@@ -305,29 +278,69 @@ export function PillSection({ title, onMore, right, children, testId }: {
   );
 }
 
+/** A strip's title that is a menu of what the strip shows -- Favorites
+ *  first, then what else it can list, a line after the first where
+ *  `apart` says so -- in the title's type, its chevron down, as the
+ *  Airport and Aircraft pills' are (AirportPill, AircraftPill). */
+export function PillMenu<V extends string>({ label, value, options, onChange, apart = false, testId, className }: {
+  label: string;
+  value: V;
+  options: { value: V; label: string; testId?: string }[];
+  onChange: (value: V) => void;
+  /** A separator after the first option. */
+  apart?: boolean;
+  testId?: string;
+  className?: string;
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        data-testid={testId}
+        className={cn(
+          "relative flex items-center gap-0.5 font-bold text-foreground outline-none",
+          "focus-visible:ring-2 focus-visible:ring-ring after:absolute after:-inset-2", TEXT.title,
+        )}
+      >
+        {label}
+        <ChevronDown className="size-5 text-muted-foreground" aria-hidden="true" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className={cn("min-w-44", className)}>
+        <DropdownMenuRadioGroup value={value} onValueChange={v => onChange(v as V)}>
+          {options.map((o, i) => (
+            <Fragment key={o.value}>
+              <DropdownMenuRadioItem value={o.value} data-testid={o.testId}>{o.label}</DropdownMenuRadioItem>
+              {apart && i === 0 && <DropdownMenuSeparator />}
+            </Fragment>
+          ))}
+        </DropdownMenuRadioGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 /** A pill's row of small tiles, along it, sliding sideways where more
  *  than fit. */
 export function PillStrip({ children, testId }: { children: ReactNode; testId?: string }) {
   return (
-    <div className="-mx-1 flex gap-1 overflow-x-auto px-1 [scrollbar-width:none]" data-testid={testId}>{children}</div>
+    <div className="-mx-1 flex gap-3 overflow-x-auto px-1 [scrollbar-width:none]" data-testid={testId}>{children}</div>
   );
 }
 
-/** A small tile's round mark: the Favorites tile's at a third of its size. */
+/** A strip's tile's round mark, the Favorites tile's size (PlaceTile). */
 export function SmallMark({ icon, className, style }: { icon: ReactNode; className?: string; style?: CSSProperties }) {
-  return <span className={cn("grid size-7 place-items-center rounded-full [&_svg]:size-3.5", className)} style={style} aria-hidden="true">{icon}</span>;
+  return <span className={cn("grid size-14 place-items-center rounded-full [&_svg]:size-6", className)} style={style} aria-hidden="true">{icon}</span>;
 }
 
 /** An airport's own chart symbol, small, as the map draws it
  *  (lib/map/airportMark): its airspace's ring and colour, its METAR's
  *  dot, a military or private field's letter -- one mark for the pills'
- *  airports, Favorites' as NRST's, at the owner's ask ("Airports should
+ *  airports, Favorites' as Nearest's, at the owner's ask ("Airports should
  *  have the same symbols as nearest"). */
 export function ChartMark({ space, category, use, size = 22 }: {
   space: AirspaceClass | null;
   category: string | null | undefined;
   use: "military" | "private" | null;
-  /** Its width in points: the pills' 22, a list row's 26 (NRST's). */
+  /** Its width in points: the pills' 22, a list row's 26 (Nearest's). */
   size?: number;
 }) {
   return (
@@ -352,7 +365,7 @@ function SmallAirportTile({ airport, detail, onClick }: { airport: RecentAirport
   const space = useAirspace(airport);
   return (
     <SmallTile
-      mark={<KeptChartMark airport={airport} />}
+      mark={<SmallMark icon={<KeptChartMark airport={airport} size={32} />} className="bg-foreground/8 [&_svg]:size-8" />}
       title={airport.ident} detail={detail} label={`${airport.ident}, ${space.name}`} onClick={onClick} testId="pill-favorite"
     />
   );
@@ -360,13 +373,15 @@ function SmallAirportTile({ airport, detail, onClick }: { airport: RecentAirport
 
 /** The Airport tab's pill: Home and the Favorites, small, each opening
  *  its field's card, how far each is from own ship under it. */
-export function FavoriteStrip({ home, favorites, onOpen, onAddHome }: {
+export function FavoriteStrip({ home, favorites, onOpen, onAddHome, onAddFavorite }: {
   home: RecentAirport | null;
   favorites: RecentAirport[];
   onOpen: (airport: RecentAirport) => void;
   /** Home's Add, where none is kept yet: listed all the same, as the
    *  search's Favorites list it (FavoriteTiles). */
   onAddHome: () => void;
+  /** The Favorites' Add, at the strip's end, as the full card's. */
+  onAddFavorite: () => void;
 }) {
   const from = useOwnShip(o => (o.enabled ? o.fix : null));
   const away = (a: RecentAirport) =>
@@ -379,6 +394,10 @@ export function FavoriteStrip({ home, favorites, onOpen, onAddHome }: {
         onClick={home ? () => onOpen(home) : onAddHome} testId="pill-home"
       />
       {favorites.map(a => <SmallAirportTile key={a.ident} airport={a} detail={away(a) ?? ""} onClick={() => onOpen(a)} />)}
+      <SmallTile
+        mark={<SmallMark icon={<Plus />} className="bg-foreground/8 text-tint" />} title="Add" label="Add a Favorite"
+        onClick={onAddFavorite} testId="pill-favorite-add"
+      />
     </PillStrip>
   );
 }

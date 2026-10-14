@@ -1,5 +1,5 @@
 import { expect, type Page } from "@playwright/test";
-import { controlsInSight, openConsole, openPanel, openSection, openSettings, openTab, settle, showTabs, sideDrawer, slow } from "../helpers";
+import { consolePage, controlsInSight, grabberTo, openConsole, openPanel, openSection, openSettings, openTab, settle, showTabs, sideDrawer, slow } from "../helpers";
 
 /** One state of the app as a pilot sees it, reached from a fresh page. */
 export type Screen = { name: string; ready: (page: Page) => Promise<void> };
@@ -123,7 +123,7 @@ export const SCREENS: Screen[] = [
       await page.goto("/app/plan");
       await showTabs(page);
       await openConsole(page);
-      await page.getByRole("tab", { name: "Guide" }).click();
+      await consolePage(page, "Guide");
       await expect(page.getByRole("heading", { name: "Plan a flight" })).toBeVisible();
     },
   },
@@ -135,7 +135,7 @@ export const SCREENS: Screen[] = [
       await page.goto("/app/plan");
       await showTabs(page);
       await openConsole(page);
-      await page.getByRole("tab", { name: "Account" }).click();
+      await consolePage(page, "Account");
       await expect(page.getByTestId("library-section")).toBeVisible();
     },
   },
@@ -146,7 +146,7 @@ export const SCREENS: Screen[] = [
       await page.goto("/app/plan");
       await showTabs(page);
       await openConsole(page);
-      await page.getByRole("tab", { name: "Account" }).click();
+      await consolePage(page, "Account");
       await page.getByTestId("library-section").getByRole("button", { name: /^Aircraft/ }).click();
       await expect(page.getByRole("heading", { name: "Aircraft", exact: true })).toBeVisible();
     },
@@ -170,7 +170,7 @@ export const SCREENS: Screen[] = [
       await page.goto("/app/plan");
       await showTabs(page);
       await openConsole(page);
-      await page.getByRole("tab", { name: "Guide" }).click();
+      await consolePage(page, "Guide");
       await page.getByRole("button", { name: new RegExp(`^${row}`) }).click();
       await open(page);
     },
@@ -181,7 +181,7 @@ export const SCREENS: Screen[] = [
       await page.goto("/app/dev");
       await showTabs(page);
       await openConsole(page);
-      await page.getByRole("tab", { name: "Guide" }).click();
+      await consolePage(page, "Guide");
       await expect(page.getByRole("heading", { name: "Train the model" })).toBeVisible();
     },
   },
@@ -198,7 +198,7 @@ export const SCREENS: Screen[] = [
     ready: async page => {
       await page.goto("/app/plan");
       await openSettings(page);
-      await page.getByTestId("console-sheet").getByRole("tab", { name: "About" }).click();
+      await consolePage(page.getByTestId("console-sheet"), "About");
       await expect(page.getByTestId("about-build")).toBeVisible();
     },
   },
@@ -229,7 +229,8 @@ export const SCREENS: Screen[] = [
       await settle(page);
       await showTabs(page);
       await page.getByTestId("tab-perf").click();
-      await openPanel(page);
+      // The training page's pill is its tabs: Perf all the way up.
+      await grabberTo(page, "full");
       await expect(sideDrawer(page).getByTestId("perf-panel").getByText("Model comparison")).toBeVisible({ timeout: slow(30000) });
     },
   },

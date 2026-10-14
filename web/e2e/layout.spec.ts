@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { PAGES, settle, settled, slow, expectDrawerClosed, openSidebar, sideDrawer, openSettings, openPanel, closeSidebarWithTheStockKey, clearTheRoute, showTabs } from "./helpers";
+import { PAGES, grabberTo, settle, slow, expectDrawerClosed, openSidebar, sideDrawer, openSettings, openPanel, closeSidebarWithTheStockKey, showTabs, controlsInSight } from "./helpers";
 
 /**
  * The regressions this file exists to catch (see playwright.config.ts
@@ -76,11 +76,11 @@ test.describe("/app/plan", () => {
       if (phone) expect(Math.abs(grabber.y - panelBox.y)).toBeLessThan(2);
       else expect(Math.abs(grabber.y + grabber.height - (panelBox.y + panelBox.height))).toBeLessThan(2);
     }).toPass({ timeout: 10_000 });
-    // Taps step up: the pill, half way, all the way.
-    for (const height of ["peek", "half", "full"]) {
-      await page.getByTestId("sidebar-trigger-button").click();
-      await expect(sideDrawer(page)).toHaveAttribute("data-panel", height);
-    }
+    // A tap opens the pill; all the way up is a drag's, a keyboard's Up
+    // arrow on the grabber (no half size, at the owner's ask).
+    await page.getByTestId("sidebar-trigger-button").click();
+    await expect(sideDrawer(page)).toHaveAttribute("data-panel", "peek");
+    await grabberTo(page, "full");
     await expect(sideDrawer(page)).not.toHaveAttribute("data-collapsed", "true");
 
     await page.goto("/app/plan?dep=C81&dest=KDLH");
@@ -88,7 +88,7 @@ test.describe("/app/plan", () => {
     await expectDrawerClosed(page);
     // At rest the tabs alone; Share in the panel.
     await expect(sideDrawer(page).getByTestId("share-route")).toHaveCount(0);
-    await openPanel(page);
+    await controlsInSight(page);
     await sideDrawer(page).getByTestId("share-route").click();
     await expect(page.getByTestId("export-gpx")).toBeVisible();
     await page.keyboard.press("Escape");
@@ -112,51 +112,11 @@ test.describe("/app/plan", () => {
   // and an airport's card the same, what comes next under them (the
   // Recents, the weather) out of sight. The route cleared keeps its
   // shape and height; its close again shows the search under it.
-  test("half way up is one height: the route down to its tabs, the route cleared, the search and an airport's card", async ({ page }) => {
-    const panel = sideDrawer(page);
-    const height = async () => { await settled(panel); return (await panel.boundingBox())!.height; };
+  // All the way up, the route's pages: a page tapped is that page.
+  test("a route's page tapped all the way up is that page", async ({ page }) => {
     await page.goto("/app/plan?dep=C81&dest=KDLH");
     await settle(page);
-    await openPanel(page);
-    await expect(page.getByTestId("navlog-eta")).toBeVisible({ timeout: slow(60000) });
-    const half = await height();
-    const tabs = (await panel.locator("[data-tip='tabs']").boundingBox())!;
-    const body = (await panel.locator("[data-panel-body]").boundingBox())!;
-    // Its tabs whole at half; under them the top of the tab's content, its
-    // box one line tall, up to the half every panel has (MapPanel's
-    // HALF_LEAST_REM, which an airport card's tabs need).
-    expect(tabs.y + tabs.height).toBeLessThanOrEqual(body.y + body.height + 2);
-
-    await clearTheRoute(page);
-    await expect(page).not.toHaveURL(/[?&]dep=/);
-    await expect(page.getByTestId("altitude-why")).toBeDisabled();
-    // The route's figures gone from the foot with it.
-    await expect(panel.getByTestId("panel-foot")).toHaveCount(0);
-    const cleared = await height();
-    expect(cleared).toBeLessThan(half);
-
-    await showTabs(page);
-    await page.getByTestId("tab-airport").click();
-    await expect(page.getByTestId("search-airports")).toBeVisible();
-    await expect(panel).toHaveAttribute("data-panel", "half");
-    expect(Math.abs(await height() - cleared)).toBeLessThanOrEqual(1);
-    await expect(page.getByTestId("favorite-home")).toBeInViewport();
-
-    await page.getByTestId("search-airports").click();
-    await page.getByTestId("search-airports").fill("KDLH");
-    await page.getByTestId("search-result").filter({ hasText: "KDLH" }).first().click();
-    const card = panel.getByTestId("place-card");
-    await expect(card.getByTestId("fly-here")).toBeInViewport({ timeout: slow(15000) });
-    expect(Math.abs(await height() - cleared)).toBeLessThanOrEqual(1);
-    await expect(card.getByRole("heading", { name: "Weather" })).not.toBeInViewport();
-  });
-
-  // At half the tabs' bar is the panel's last line: a tab tapped takes
-  // the panel all the way up to show it, at the pilot's ask.
-  test("a tab tapped at half takes the panel all the way up", async ({ page }) => {
-    await page.goto("/app/plan?dep=C81&dest=KDLH");
-    await settle(page);
-    await openPanel(page);
+    await grabberTo(page, "full");
     await page.getByTestId("panel-tab-weather").click();
     await expect(sideDrawer(page)).toHaveAttribute("data-panel", "full");
     await expect(page.getByTestId("panel-tab-weather")).toHaveAttribute("aria-selected", "true");
@@ -179,7 +139,9 @@ test.describe("/app/dev", () => {
     await expect(sideDrawer(page)).toHaveAttribute("data-capsule", "true");
     await showTabs(page);
     await expect(page.getByTestId("tab-train")).toHaveAttribute("aria-current", "page");
-    await openPanel(page);
+    // The training page's route form is all the way up's: its pill is the
+    // tabs (MapPanel).
+    await grabberTo(page, "full");
     await expect(page.getByLabel("Departure", { exact: true })).toBeVisible();
     expect(await page.getByTestId("toolbar-trigger").count()).toBe(0);
   });
@@ -275,9 +237,8 @@ test.describe("/app/plan", () => {
       if (phone) expect(Math.abs(grabber.y - panelBox.y)).toBeLessThan(2);
       else expect(Math.abs(grabber.y + grabber.height - (panelBox.y + panelBox.height))).toBeLessThan(2);
     }).toPass({ timeout: 10_000 });
-    // Taps cycle it: on up from half way, opened from the pill, back down
-    // to half, then to the pill.
-    for (const height of ["full", "half", "peek"]) {
+    // Taps cycle it: on up, back down to the pill (no half size).
+    for (const height of ["peek"]) {
       await page.getByTestId("sidebar-trigger-button").click();
       await expect(sideDrawer(page)).toHaveAttribute("data-panel", height);
     }

@@ -34,7 +34,7 @@ import { fitFigures, tripFigures } from "../figures";
  */
 const SMALLEST = 0.75;
 
-export default function FlightLine({ totals, estimate, depart, local }: {
+export default function FlightLine({ totals, estimate, depart, local, small = false }: {
   totals: Totals | null;
   /** Before the nav log's totals, at the pilot's ask for the figures as
    *  soon as can be: the course's distance at once, and the time and fuel
@@ -46,7 +46,13 @@ export default function FlightLine({ totals, estimate, depart, local }: {
   depart: string;
   /** One airport to itself: the time aloft and the time back. */
   local: boolean;
+  /** At the pill's size, under the profile: set smaller, at the owner's
+   *  ask ("keep the profile view but you can make the calculations
+   *  smaller"), so the pill is one row's height. */
+  small?: boolean;
 }) {
+  const valueType = small ? TEXT.detail : TEXT.heading;
+  const unitType = small ? TEXT.caption : TEXT.note;
   // Each figure on its own: the one too wide for its column rounded, the
   // rest as they are. Measured as the page sets it, in hidden words of the
   // figures' own type (the probes below), against the first figure's
@@ -105,15 +111,15 @@ export default function FlightLine({ totals, estimate, depart, local }: {
     // any, and with none yet their names over dashes -- it keeps its
     // place, as the panel's controls do.
     <div className="relative" data-slot="section-summary" data-tip="flight-line">
-      <dl className={cn("grid gap-3", shown.length === 3 ? "grid-cols-3" : "grid-cols-4")}>
+      <dl className={cn("grid", small ? "gap-2" : "gap-3", shown.length === 3 ? "grid-cols-3" : "grid-cols-4")}>
         {shown.map((f, i) => (
           <div key={f.name} className="min-w-0">
             {/* Its names and units a grey that reads on the pill's glass
                 over any chart (WCAG's 4.5:1), where the muted one did not. */}
-            <dt className={cn(GROUP_HEADING, "truncate text-foreground/65")}>{f.name}</dt>
-            <dd ref={i === 0 ? room : undefined} className={cn(TEXT.heading, "truncate font-semibold tabular-nums")} data-testid={f.testId}>
+            <dt className={cn(GROUP_HEADING, small && TEXT.caption, "truncate text-foreground/65")}>{f.name}</dt>
+            <dd ref={i === 0 ? room : undefined} className={cn(valueType, "truncate font-semibold tabular-nums")} data-testid={f.testId}>
               <span style={sized(fitting?.px.value)} data-fitted={fitted}>{f.value}</span>
-              {f.unit && <span className={cn(TEXT.note, "font-normal text-foreground/65")} style={sized(fitting?.px.unit)} data-fitted={fitted}> {f.unit}</span>}
+              {f.unit && <span className={cn(unitType, "font-normal text-foreground/65")} style={sized(fitting?.px.unit)} data-fitted={fitted}> {f.unit}</span>}
             </dd>
           </div>
         ))}
@@ -121,8 +127,8 @@ export default function FlightLine({ totals, estimate, depart, local }: {
       {/* The probes: a figure and its unit in their own type, out of
           sight, for the fit above. */}
       <span aria-hidden="true" className="pointer-events-none invisible absolute top-0 left-0 whitespace-nowrap">
-        <span ref={probe} className={cn(TEXT.heading, "font-semibold tabular-nums")} />
-        <span ref={unitProbe} className={cn(TEXT.note, "font-normal")} />
+        <span ref={probe} className={cn(valueType, "font-semibold tabular-nums")} />
+        <span ref={unitProbe} className={cn(unitType, "font-normal")} />
       </span>
     </div>
   );

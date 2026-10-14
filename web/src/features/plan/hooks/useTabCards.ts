@@ -15,18 +15,19 @@ import { track, useTracking } from "../../../lib/map/tracking";
  */
 
 /** The tab bar's places (TabBar): FPL, the route's box and its nav log;
- *  Airport, the search; Aircraft, the traffic; NRST, the nearest fields. */
-export type PanelTab = "fpl" | "airport" | "aircraft" | "nrst";
+ *  Airport, the search and the nearest fields; Aircraft, the traffic. */
+export type PanelTab = "fpl" | "airport" | "aircraft";
 
 /** The address's keys of what is open over a tab: an airport's card, the
- *  airspace over a point held, an airplane, its past flight, NRST's place. */
+ *  airspace over a point held, an airplane, its past flight, Nearest's
+ *  list and its place, FPL's saved flights. */
 // Nearest's list among them, Airport's card now (four tabs), and FPL's
 // saved flights.
 const CARD_KEYS = ["place", "at", "flight", "past", "near", "nearAt", "nearName", "saved"] as const;
 
 /**
  * The cards the address holds, so a link or Back lands on them: an
- * airport's (`place`), the airspace over a point held (`at`), NRST's list
+ * airport's (`place`), the airspace over a point held (`at`), Nearest's list
  * (`near`) and the place it is from (`nearAt`, `nearName`), Aircraft's
  * list (`aircraft`), an airplane tracked (`flight`) and one of its past
  * flights (`past`) -- and the ways to open and put away the airplane's
@@ -36,17 +37,18 @@ const CARD_KEYS = ["place", "at", "flight", "past", "near", "nearAt", "nearName"
 export function useAddressCards(searchParams: URLSearchParams, setSearchParams: SetURLSearchParams, setPanel: (state: PanelState) => void) {
   // The airport whose card is open in the panel (PlaceCard), as Maps
   // opens a place's: from a tap on the chart, held in the address so a
-  // link lands on it. Opening one brings the panel up half way; putting
-  // it away leaves the panel where it is, the layer under it in sight.
+  // link lands on it. Opened from the map at the pill's size, as its
+  // summary; putting it away leaves the panel where it is, the layer under
+  // it in sight.
   const place = identOf(searchParams.get("place")) || null;
   // Or the point a finger was held on, for the airspace over it
   // (AirspaceCard): `?at=42.3172,-88.0905`. One card at a time: either
   // puts the other away, and a tap on the chart puts both away.
   const atParam = searchParams.get("at");
   const heldPoint = useMemo(() => pointOf(atParam), [atParam]);
-  // Or the fields nearest own ship (NearestCard), the tab bar's NRST:
-  // `?near=1`, a card of its own in the panel, half way up with
-  // the map fitted to them, at the pilot's ask. An airport opened from it
+  // Or the fields nearest own ship (NearestCard), Airport's NEAREST list:
+  // `?near=1`, a card of its own in the panel, with the map fitted to
+  // them, at the pilot's ask. An airport opened from it
   // is a layer over it, its close back to the list.
   const nearOpen = searchParams.get("near") === "1";
   // Or the aircraft about and a search for one (AircraftCard), the tab
@@ -90,10 +92,12 @@ export function useAddressCards(searchParams: URLSearchParams, setSearchParams: 
       if (hex) next.set("flight", hex);
       else next.delete("flight");
       for (const key of ["place", "at", "near", "nearAt", "nearName", "past"]) next.delete(key);
+      // An airplane's card at the pill's size, wherever it is opened from,
+      // as an airport's is (the owner's ask).
       if (hex) next.delete("view");
       return next;
     }, { replace: true });
-    if (hex) setPanel("half");
+    if (hex) setPanel("peek");
   }, [setSearchParams, setPanel]);
   const selectPast = useCallback((id: number | null) => {
     setSearchParams(prev => {
@@ -102,29 +106,35 @@ export function useAddressCards(searchParams: URLSearchParams, setSearchParams: 
       else next.delete("past");
       return next;
     }, { replace: true });
-    setPanel("half");
+    // A past flight: its card all the way up.
+    setPanel("full");
   }, [setSearchParams, setPanel]);
   // The address's flight and list into the tracking the map draws from
   // (lib/map/tracking), and the map's tap on an airplane back to here.
   useEffect(() => { track(flight); }, [flight]);
-  useEffect(() => { useTracking.setState({ listing: aircraftOpen }); }, [aircraftOpen]);
+  // Each put back on its own: `pick` changes with the panel's setter, and
+  // putting `listing` back with it hid the traffic while the list was up.
+  useEffect(() => {
+    useTracking.setState({ listing: aircraftOpen });
+    return () => useTracking.setState({ listing: false });
+  }, [aircraftOpen]);
   useEffect(() => {
     useTracking.setState({ pick: (hex, plane) => selectFlight(hex, plane) });
-    return () => useTracking.setState({ pick: null, listing: false });
+    return () => useTracking.setState({ pick: null });
   }, [selectFlight]);
   return { place, heldPoint, nearOpen, aircraftOpen, flight, past, nearFrom, setNearFrom, selectFlight, selectPast };
 }
 
 /**
- * The tab up and the ways to change it: Aircraft and NRST are the
- * address's (`aircraft`, `flight`, `near`), so a link or Back lands on
+ * The tab up and the ways to change it: Aircraft and Nearest's list are
+ * the address's (`aircraft`, `flight`, `near`), so a link or Back lands on
  * them; FPL and Airport are picked, FPL with a route and Airport without
  * one until then. A new route -- Fly Here, a link, one typed -- brings FPL
  * to the front (`route` changing, `hasRoute`).
  *
  * Each tab keeps what was open over it when it was left -- an airport's
- * card, an airplane's, a past flight and where its replay was, NRST's
- * place typed -- and opens it again on coming back, at the owner's ask
+ * card, an airplane's, a past flight and where its replay was, Nearest's
+ * list and its place typed -- and opens it again on coming back, at the owner's ask
  * ("the cards should stay where they are when coming back to the tab"),
  * as each of an iOS app's tabs keeps its own screen. Not past a reload.
  */
@@ -148,9 +158,7 @@ export function usePanelTabs({ cards, route, hasRoute, panel, setPanel, searchPa
     setRouteSeen(route);
     if (hasRoute) setTabPick("fpl");
   }
-  // FPL first, at the owner's ask ("Fpl should be the default selected"),
-  // but an airport's card or a point's opened before any tab was picked
-  // (a link, a tap on the chart) is Airport's, kept there when left.
+  // FPL first, at the owner's ask ("Fpl should be the default selected").
   // A field, a point or an airplane opened while Setup is up -- a tap on
   // the map, which Setup leaves in sight on a phone -- puts Setup away and
   // opens its card on its own tab, at the owner's notice ("When selecting
@@ -169,9 +177,12 @@ export function usePanelTabs({ cards, route, hasRoute, panel, setPanel, searchPa
     // Once per card opened, not as the console opens over one already open.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [opened]);
-  // Nearest's list is Airport's (four tabs, at the owner's pick).
-  const tab: PanelTab = flight || aircraftOpen ? "aircraft" : nearOpen ? "airport"
-    : tabPick ?? (place || heldPoint ? "airport" : "fpl");
+  // Nearest's list is Airport's (four tabs, at the owner's pick). An
+  // airport's card or a point's opened before any tab was picked -- a
+  // link, a tap on the chart -- is over FPL, the tab up, its Back to it
+  // (the owner's "tapping the airport from FPL then it can have the back
+  // button should get it back to fpl").
+  const tab: PanelTab = flight || aircraftOpen ? "aircraft" : nearOpen ? "airport" : tabPick ?? "fpl";
 
   const keptCards = useRef<Partial<Record<PanelTab, [string, string][]>>>({});
   const keptReplay = useRef<{ hex: string; id: number; at: number | null; playing: boolean } | null>(null);
@@ -187,8 +198,7 @@ export function usePanelTabs({ cards, route, hasRoute, panel, setPanel, searchPa
     } else clearPastFlight();
   }, [flight, past]);
 
-  // A tab picked from the tab bar: Aircraft's and NRST's lists from the
-  // address, FPL and Airport by the pick, the card open over the tab it
+  // A tab picked from the tab bar: Aircraft's list from the address, FPL and Airport by the pick, the card open over the tab it
   // was on kept for it and the one kept for the tab picked opened again.
   // The tab up picked again (tabUp, closeSheet) puts its card away. At
   // the height the panel is, at the pilot's ask: a pill stays a pill.
@@ -210,19 +220,19 @@ export function usePanelTabs({ cards, route, hasRoute, panel, setPanel, searchPa
       const out = new URLSearchParams(prev);
       for (const key of [...CARD_KEYS, "aircraft", "near"]) out.delete(key);
       if (next === "aircraft") out.set("aircraft", "1");
-      if (next === "nrst") out.set("near", "1");
       for (const [key, value] of back) out.set(key, value);
       return out;
     }, { replace: true });
     onPicked();
   }, [setSearchParams, searchParams, tab, flight, past, onPicked]);
 
-  // The tab up tapped again: on the pill, the panel opened to it -- a card
-  // open over it, that card, as it was left; out already, a card over it
-  // put away, as an iOS tab tapped again goes back to its first screen.
+  // The tab up tapped again where the tab bar has no panel to size (the
+  // panel's own does, TabBar): on the pill, all the way up; out already, a
+  // card over it put away, as an iOS tab tapped again goes back to its
+  // first screen.
   const tabUp = useCallback(() => {
     if (panel === "peek") {
-      setPanel("half");
+      setPanel("full");
       return;
     }
     if (place || heldPoint || flight || nearOpen || savedOpen) pickTab(tab);

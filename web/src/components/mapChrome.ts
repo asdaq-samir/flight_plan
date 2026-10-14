@@ -13,7 +13,7 @@ import { create } from "zustand";
  * screen (an airport's card), or the whole of it (the nav log and the
  * briefing).
  */
-export type PanelState = "peek" | "half" | "full";
+export type PanelState = "peek" | "full";
 
 /** What the panel covers of the map where it has settled -- the capsule
  *  at rest, the half sheet out -- in pixels from each edge, so the map
@@ -29,8 +29,12 @@ export interface MapInsets {
    *  measured again -- which would take the map from under a pilot's
    *  finger as the plan streams in. */
   out: boolean;
+  /** All the way up: the map hidden, fitted to what shows once it comes
+   *  down. Coming down to the pill is a change the map follows too, the
+   *  pill's own height measured as it comes. */
+  up: boolean;
 }
-export const NO_INSETS: MapInsets = { top: 0, bottom: 0, left: 0, out: false };
+export const NO_INSETS: MapInsets = { top: 0, bottom: 0, left: 0, out: false, up: false };
 export const MapInsetsContext = createContext<MapInsets>(NO_INSETS);
 
 /** The settings, as the console's last tab (ConsoleTabs): the page's
@@ -48,6 +52,16 @@ export const ConsoleInPanelContext = createContext<{ close: () => void } | null>
  *  26's tab bar minimizes, at the pilot's ask; tapped, every tab again
  *  (TabBar). */
 export const TabBarMinimized = createContext(false);
+
+/** The panel's size as the tab bar sees it, and the way to change it
+ *  (MapPanel): a tab tapped opens the pill, tapped again the tabs alone,
+ *  at the owner's ask. Null outside a panel. */
+export const PanelSize = createContext<{
+  size: "tabs" | "peek" | "full";
+  to: (size: "tabs" | "peek" | "full") => void;
+  /** A card in the pill (MapPanel's `cardInPill`): a tap on the tab up puts it away. */
+  card: boolean;
+} | null>(null);
 
 
 /** Where the route's tabs' bar ends, in pixels from the map panel's
@@ -144,20 +158,13 @@ export const GLASS_BUTTON =
  *  the pilot's, a step up from iOS's default. */
 export const CHIP_TEXT = "text-xs pointer-coarse:text-[min(0.8125rem,14px)]";
 
-/** What a panel's body shows first -- the search's Favorites, an airport's
- *  name and actions -- closing up to its own height all the way up, on
- *  the sheet's curve (SHEET_CURVE): half way it is as tall as the body
- *  there (MapPanel's --half-body, less what is over it, at the call:
- *  `min-h-[calc(var(--half-body,0px)_-_…)]`), so what comes next starts
- *  out of sight, every panel one height at the pilot's ask. */
-export const FILLS_HALF = "transition-[min-height] duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] in-data-[panel=full]:min-h-0";
-
 /** A round button on the panel -- the console's, the route's close -- as
  *  Maps' are on iOS 26: a circle of that glass, its glyph bold in the
  *  text's colour (the pilot's pick, after a grey disc). */
 export const ROUND_BUTTON = `rounded-full ${GLASS_BUTTON}`;
 
-/** A console page asked for from outside the console -- Setup's pill's
- *  Aircraft and Logbook rows (SetupPill) -- opened by the tab that has it
- *  as it next shows (ConsolePages). */
-export const useConsoleAsk = create<{ page: string | null }>(() => ({ page: null }));
+/** Whether the map panel is being dragged (MapPanel): a card shown at the
+ *  pill's size as its summary is drawn in full in the panel's body while a
+ *  finger takes it up, so the sheet grows with the card in it, not an empty
+ *  band over the summary that changed into the card at the release. */
+export const usePanelDragging = create<{ dragging: boolean }>(() => ({ dragging: false }));

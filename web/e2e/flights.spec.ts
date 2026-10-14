@@ -159,7 +159,7 @@ test("Edit over the saved flights puts a minus before each, and the minus delete
 
 test("Print is in Share's menu; Keep Charts Offline is a setting under Map, which cannot be on over plain http", async ({ page }) => {
   await page.goto("/app/plan?dep=C81&dest=KDLH");
-  await openPanel(page);
+  await controlsInSight(page);
   await page.getByTestId("share-route").click();
   await expect(page.getByTestId("print-briefing")).toBeVisible();
   await expect(page.getByTestId("print-kneeboard")).toBeVisible();

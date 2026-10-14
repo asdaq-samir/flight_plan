@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { closeSidebarWithTheStockKey, consoleSheet, expectDrawerClosed, expectDrawerOpen, openConsole, openPanel, settle, showTabs, sideDrawer, slow } from "./helpers";
+import { closeSidebarWithTheStockKey, consoleSheet, expectDrawerClosed, expectDrawerOpen, openConsole, grabberTo, settle, showTabs, sideDrawer, slow } from "./helpers";
 
 /**
  * The dev page's training: the dev console, and the waypoint drawer's
@@ -48,7 +48,7 @@ test("dev page: the dev console opens on training, and the waypoint drawer opens
   await expect(page.getByTestId("tab-train")).toHaveAttribute("aria-current", "page");
   await showTabs(page);
   await page.getByTestId("tab-perf").click();
-  await openPanel(page);
+  await grabberTo(page, "full");
   await expect(sideDrawer(page).getByTestId("perf-panel").getByText("Model comparison")).toBeVisible();
   await showTabs(page);
   await page.getByTestId("tab-train").click();
@@ -120,7 +120,7 @@ test("a retrain confirmed from the panel's More opens Perf, to follow it", async
   await settle(page);
   await expect(consoleSheet(page)).toHaveCount(0);
 
-  await openPanel(page);
+  await grabberTo(page, "full");
   await page.getByTestId("training-more-button").click();
   await page.getByTestId("retrain-button").click();
   await page.getByRole("button", { name: "Retrain", exact: true }).click();
@@ -156,7 +156,7 @@ test("Performance: Retrain says why it is off in the planner's words, and the ch
   await settle(page);
   await showTabs(page);
   await page.getByTestId("tab-perf").click();
-  await openPanel(page);
+  await grabberTo(page, "full");
   const sheet = sideDrawer(page).getByTestId("perf-panel");
 
   await expect(sheet.getByTestId("retrain-row")).toBeDisabled();

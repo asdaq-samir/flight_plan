@@ -2,7 +2,11 @@ import { usePreferences } from "../../lib/preferences";
 import { useQuery } from "@tanstack/react-query";
 import { BookOpen, Plane, Route, ShieldCheck, Sparkles, UserRound } from "lucide-react";
 import { cn } from "cn";
-import ConsoleTabs from "../../components/ConsoleTabs";
+import { useContext } from "react";
+import { CircleHelp, Info, Settings } from "lucide-react";
+import AboutPanel from "../../components/AboutPanel";
+import QuickControls from "../../components/QuickControls";
+import { ConsoleInPanelContext, ConsoleSettingsContext } from "../../components/mapChrome";
 import { ConsolePages, PageRow } from "../../components/ConsolePages";
 import EmptyState from "../../components/EmptyState";
 import { ListGroup, ListRow } from "../../components/GroupedList";
@@ -27,6 +31,8 @@ type PilotState = Pilot | null | "loading" | "error";
 
 const SECTIONS = [
   { value: "aircraft", label: "Aircraft", icon: <Plane />, colour: SETTING_BADGE.aircraft },
+  // Flights are FPL's too (its SAVED strip and card), at the owner's pick
+  // of the redesign; here with the pilot's other things all the way up.
   { value: "flights", label: "Flights", icon: <Route />, colour: SETTING_BADGE.flights },
   { value: "logbook", label: "Logbook", icon: <BookOpen />, colour: SETTING_BADGE.logbook },
   { value: "minimums", label: "Minimums", icon: <ShieldCheck />, colour: SETTING_BADGE.minimums },
@@ -44,7 +50,12 @@ const SECTIONS = [
  * over the list with the way in, and their rows wait greyed; the
  * minimums are kept on this device and need none.
  */
-function Personal({ pilot }: { pilot: PilotState }) {
+function Personal({ pilot, setup = false }: {
+  pilot: PilotState;
+  /** Setup's whole page (the planner's console): the switches and the
+   *  settings, guide and about as rows of their own under the account. */
+  setup?: boolean;
+}) {
   // The airplane picked for planning, for a logbook entry's, and said on
   // its row.
   const aircraft = usePreferences(s => s.aircraft);
@@ -59,7 +70,13 @@ function Personal({ pilot }: { pilot: PilotState }) {
         </EmptyState>
       ) : null;
   const sold = useSold();
+  const settings = useContext(ConsoleSettingsContext);
   const pages = {
+    ...(setup ? {
+      settings: { title: "Settings", content: settings },
+      guide: { title: "Guide", content: <PilotGuide /> },
+      about: { title: "About", content: <AboutPanel /> },
+    } : {}),
     aircraft: { title: "Aircraft", content: <AircraftPanel /> },
     flights: { title: "Flights", content: <FlightsPanel /> },
     logbook: { title: "Logbook", content: <LogbookPanel aircraft={shortName(aircraft.label)} /> },
@@ -67,7 +84,7 @@ function Personal({ pilot }: { pilot: PilotState }) {
     subscription: { title: "Subscription", content: <SubscriptionPanel /> },
   };
   return (
-    <div className="pt-1.5">
+    <div className="pt-[3px]">
       {/* Keyed on being signed out so a page open when the pilot signs out,
           or the session ends, goes back to the list: its panel would fetch
           signed out and show 401s with no word of why. "loading" is left
@@ -100,6 +117,22 @@ function Personal({ pilot }: { pilot: PilotState }) {
               })}
             </ListGroup>
           </div>
+          {setup && (
+            <>
+              {/* The switches, as Setup's pill has them; then the rest of
+                  the app as rows that open their pages, as iPhone's Settings
+                  lists its own -- at the owner's pick of the redesign, where
+                  Guide, Account, Settings and About were tabs. */}
+              <ListGroup title="Quick">
+                <div className="p-2"><QuickControls /></div>
+              </ListGroup>
+              <ListGroup title="App">
+                <PageRow page="settings" title="Settings" media={<RowBadge colour={SETTING_BADGE.general}><Settings /></RowBadge>} />
+                <PageRow page="guide" title="Guide" media={<RowBadge colour={SETTING_BADGE.guide}><CircleHelp /></RowBadge>} />
+                <PageRow page="about" title="About" media={<RowBadge colour={SETTING_BADGE.about}><Info /></RowBadge>} />
+              </ListGroup>
+            </>
+          )}
         </div>
       </ConsolePages>
     </div>
@@ -130,21 +163,20 @@ function SubscriptionRow() {
 export function PilotPanel() {
   const { data: pilot, isLoading, isError } = useQuery(pilotQuery);
   const pilotState: PilotState = isLoading ? "loading" : (pilot ?? (isError ? "error" : null));
-  const savedTab = usePreferences(s => s.pilotTab);
-  const changeTab = usePreferences(s => s.setPilotTab);
-  // Aircraft, Flights and Logbook were tabs of their own: a console left
-  // on one opens on Personal.
-  const tab = SECTIONS.some(s => s.value === savedTab) ? "library" : savedTab;
-
+  // One page, no tabs over it, at the owner's pick of the redesign (S3d
+  // all the way up): the account and its rows, the switches, then the
+  // settings, the guide and about, each a row that opens its page. Four
+  // in from the top in the map panel's layer, where the other tabs' first
+  // row is (ConsoleTabs had it so).
+  const inPanel = useContext(ConsoleInPanelContext) !== null;
   return (
-    <ConsoleTabs
-      saved={tab}
-      onChange={changeTab}
-      tabs={[
-        { value: "guide", label: "Guide", content: <PilotGuide /> },
-        { value: "library", label: "Account", content: <Personal pilot={pilotState} /> },
-      ]}
-    />
+    <div className="min-h-0 flex-1 overflow-y-auto" data-testid="setup-page">
+      {/* In the panel its first row where the other tabs' search bars
+          are, the tabs' head laid out as the pill's at every height. */}
+      <div className={cn("mx-auto max-w-3xl p-4", inPanel && "pt-0")}>
+        <Personal pilot={pilotState} setup />
+      </div>
+    </div>
   );
 }
 

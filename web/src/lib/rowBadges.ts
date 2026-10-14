@@ -30,4 +30,8 @@ export const SETTING_BADGE = {
   narrative: "#7e3fb8",
   tips: BADGE.lights,
   about: BADGE.other,
+  // Setup's own rows (PilotPanel): the settings grey as iPhone's General,
+  // the guide the tint's blue.
+  general: "#8e8e93",
+  guide: BADGE.tower,
 } as const;

@@ -18,7 +18,7 @@ test("the tabs swap the panel's head and body, FPL's empty box with no route", a
   // should be the default selected"); out half way, Airport the search.
   await expect(sideDrawer(page)).toHaveAttribute("data-collapsed", "true");
   await expect(page.getByTestId("tab-fpl")).toHaveAttribute("aria-current", "page");
-  await grabberTo(page, "half");
+  await grabberTo(page, "full");
   await showTabs(page);
   await page.getByTestId("tab-airport").click();
   await expect(sideDrawer(page).getByTestId("search-airports")).toBeVisible();
@@ -72,14 +72,13 @@ test("a route opens on FPL, the tabs on the card, and another tab keeps the pane
   await expect(page.getByTestId("tab-airport")).toHaveAttribute("aria-current", "page");
   await expect(sideDrawer(page)).toHaveAttribute("data-panel", "peek");
   await expect(page).toHaveURL(/dep=C81/);
-  // The tab up tapped opens it half way, on the search; FPL again there
-  // keeps the half.
-  await openPanel(page);
+  // Airport's search in its pill; FPL again keeps the pill, its profile
+  // and figures in it.
   await expect(sideDrawer(page).getByTestId("search-airports")).toBeVisible();
   await showTabs(page);
   await page.getByTestId("tab-fpl").click();
-  await expect(sideDrawer(page)).toHaveAttribute("data-panel", "half");
-  await expect(sideDrawer(page).getByTestId("panel-tab-navlog")).toBeVisible();
+  await expect(sideDrawer(page)).toHaveAttribute("data-panel", "peek");
+  await expect(sideDrawer(page).getByTestId("flight-line")).toBeVisible();
 });
 
 test("FPL with no route rests as the tabs' pill too, the tab up tapped the empty box", async ({ page }) => {
@@ -142,25 +141,23 @@ test("all the way up, a small button on the separator shows the route's box and 
   await expect(panel.getByTestId("route-box")).toHaveCount(0);
 });
 
-test("a card lowered to the pill stays out of sight under the tabs, and the tab up tapped opens it again as it was left", async ({ page }) => {
+test("a card lowered to the pill is its summary there, and the tab up tapped puts it away", async ({ page }) => {
   await page.goto("/app/plan?place=KDLH");
   await settle(page);
   const panel = sideDrawer(page);
   const name = panel.getByTestId("place-card").getByTestId("place-name");
   await expect(name).toBeVisible({ timeout: slow(15000) });
-  // Down to the pill: the tabs, nothing of the card's over them (an
-  // airplane's card ran its name and Follow over the route's figures).
+  // Down to the pill: the card's name and actions, one row (the owner's
+  // "only fit the one row"), its frequencies all the way up's.
   await grabberTo(page, "peek");
-  await expect(panel).toHaveAttribute("data-capsule", "true");
-  await expect(name).toBeHidden();
-  // The tab up tapped: the card again, half way.
-  await panel.locator('[data-testid="tab-bar"] button[aria-current="page"]').click();
-  await expect(panel).toHaveAttribute("data-panel", "half");
   await expect(name).toBeVisible();
-  // Tapped again with it out: the card put away, the tab's own.
+  await expect(panel.getByTestId("fly-here")).toBeVisible();
+  await expect(panel.getByTestId("place-frequencies")).toHaveCount(0);
+  // The tab up tapped: the card put away, the tab's own pill.
   await showTabs(page);
   await panel.locator('[data-testid="tab-bar"] button[aria-current="page"]').click();
   await expect(panel.getByTestId("place-card")).toHaveCount(0);
+  await expect(panel).toHaveAttribute("data-panel", "peek");
 });
 
 test("the route's box has a clear at its end while it holds a route", async ({ page }) => {
@@ -202,6 +199,8 @@ test("all the way up with no route, the empty box stays out, nothing to fold", a
 
 
 test("each tab keeps the card open over it: another tab picked and this one again, the airport's card is back", async ({ page }) => {
+  // A link's card is over FPL, the tab up (the owner's "tapping the
+  // airport from FPL ... back to fpl"), and kept there.
   await page.goto("/app/plan?place=KDLH");
   await settle(page);
   const name = sideDrawer(page).getByTestId("place-name");
@@ -210,7 +209,7 @@ test("each tab keeps the card open over it: another tab picked and this one agai
   await page.getByTestId("tab-aircraft").click();
   await expect(page).not.toHaveURL(/[?&]place=/);
   await showTabs(page);
-  await page.getByTestId("tab-airport").click();
+  await page.getByTestId("tab-fpl").click();
   await expect(page).toHaveURL(/[?&]place=KDLH/);
   await expect(name).toContainText("KDLH");
   // The tab up tapped again puts it away, as an iOS tab's first screen.
@@ -220,7 +219,7 @@ test("each tab keeps the card open over it: another tab picked and this one agai
   await showTabs(page);
   await page.getByTestId("tab-aircraft").click();
   await showTabs(page);
-  await page.getByTestId("tab-airport").click();
+  await page.getByTestId("tab-fpl").click();
   await expect(page).not.toHaveURL(/[?&]place=/);
 });
 
@@ -257,8 +256,9 @@ test("the pill collapses to its tabs alone by a drag down, and its grabber bring
   await expect(panel).toHaveAttribute("data-panel", "peek");
 });
 
-test("the grabber steps through four sizes: the tabs alone, the pill, half and all the way up, and back", async ({ page }) => {
-  // The owner's ask: "I want 4 layouts: just tabs, minimal, half, full".
+test("the grabber turns the tabs alone and the pill into each other, its Up arrow takes it all the way up, and a tap there brings it to the pill", async ({ page }) => {
+  // The owner's ask: "Full is only by dragging up, but if tapped when
+  // fully open, it should become minimal" -- no half size.
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   const panel = sideDrawer(page);
@@ -266,11 +266,17 @@ test("the grabber steps through four sizes: the tabs alone, the pill, half and a
   const size = async () => `${await panel.getAttribute("data-panel")}${await panel.getAttribute("data-collapsed") ? " tabs" : ""}`;
   await expect.poll(size).toBe("peek tabs");
   const seen: string[] = [];
-  for (let i = 0; i < 6; i++) {
+  const step = async (go: () => Promise<void>) => {
     const before = await size();
-    await grabber.click();
+    await go();
     await expect.poll(size).not.toBe(before);
     seen.push(await size());
-  }
-  expect(seen).toEqual(["peek", "half", "full", "half", "peek", "peek tabs"]);
+  };
+  await step(() => grabber.click());
+  await step(() => grabber.click());
+  await step(() => grabber.click());
+  await step(async () => { await grabber.focus(); await page.keyboard.press("ArrowUp"); });
+  await step(() => grabber.click());
+  expect(seen).toEqual(["peek", "peek tabs", "peek", "full", "peek"]);
 });
+

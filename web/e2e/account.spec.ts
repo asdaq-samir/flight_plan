@@ -1,5 +1,5 @@
 import { test, expect, type Page, type Route } from "@playwright/test";
-import { closeConsole, library, openConsole, openPanel } from "./helpers";
+import { closeConsole, library, openConsole, controlsInSight } from "./helpers";
 
 /**
  * The pilot console's two saves, each answered only when the test lets
@@ -166,6 +166,6 @@ test("the airplane the nav log flies is ticked, and a tap on another flies that 
   // The picker under the route flies it too, with the panel out.
   await closeConsole(page);
   await page.goto("/app/plan?dep=C81&dest=KDLH");
-  await openPanel(page);
+  await controlsInSight(page);
   await expect(page.getByTestId("aircraft-select")).toContainText("N2");
 });

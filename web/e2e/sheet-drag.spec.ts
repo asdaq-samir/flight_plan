@@ -1,5 +1,5 @@
 import { test, expect, type Locator, type Page } from "@playwright/test";
-import { grabberTo, openPanel, panelTabs, settle, sideDrawer } from "./helpers";
+import { grabberTo, panelTabs, settle, sideDrawer } from "./helpers";
 
 /**
  * The map's panel dragged by a finger from anywhere on its body, as an
@@ -31,9 +31,9 @@ test("the panel follows a finger from anywhere on its body: out to the top, and 
   test.skip(page.viewportSize()!.width >= 768, "a phone's sheet");
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
-  await openPanel(page);
+  await grabberTo(page, "full");
   const panel = sideDrawer(page);
-  await expect(panel).toHaveAttribute("data-panel", "half");
+  await expect(panel).toHaveAttribute("data-panel", "full");
   const middleOf = async (locator: Locator) => {
     const box = (await locator.boundingBox())!;
     return { x: box.x + box.width / 2, y: box.y + Math.min(box.height / 2, 120) };
@@ -59,10 +59,10 @@ test("the panel follows a finger from anywhere on its body: out to the top, and 
   await fingerDrag(page, await middle(), 120);
   await expect(panel).toHaveAttribute("data-panel", "full");
 
-  // At its start, a drag down takes the sheet down.
+  // At its start, a drag down takes the sheet down, to the pill.
   await tab.evaluate(el => { el.scrollTop = 0; });
   await fingerDrag(page, await middle(), 400);
-  await expect(panel).toHaveAttribute("data-panel", "half");
+  await expect(panel).toHaveAttribute("data-panel", "peek");
 
   // And a mouse on the body leaves the sheet where it is: a drag across
   // it selects its words.

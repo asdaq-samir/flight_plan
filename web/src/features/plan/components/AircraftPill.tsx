@@ -1,11 +1,9 @@
 import { useEffect, useState } from "react";
-import { ChevronDown, Plane } from "lucide-react";
+import { Plane } from "lucide-react";
+import { create } from "zustand";
 import { cn } from "cn";
 import AirportPicker from "../../../components/AirportPicker";
-import { PillSection, PillStrip, SmallTile } from "../../../components/Favorites";
-import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger,
-} from "../../../components/ui/dropdown-menu";
+import { PillMenu, PillSection, PillStrip, SmallTile } from "../../../components/Favorites";
 import { Switch } from "../../../components/ui/switch";
 import type { TrafficAircraft } from "../../../lib/api/types";
 import { inEmergency } from "../../../lib/fbo";
@@ -24,72 +22,71 @@ const TITLES: Record<Question, string> = {
 /** The most the strip shows: a finger's width each, sliding for more. */
 const STRIP_MOST = 12;
 
+/** The strip shows the Favorites, or the airplanes a question finds; the
+ *  pick kept while the app is open, the Favorites first. */
+const useStripShows = create<{ favorites: boolean }>(() => ({ favorites: true }));
+
 /**
  * The Aircraft tab's pill, the owner's picks of the redesign: under the
- * search bar, the Favorites (Plane first), then a second strip whose title
- * is a menu of what to list -- the nearest, those around, inbound to,
- * departing or based at an airport, or emergencies -- the airport a pill
- * of its own beside it to change; and at the row's right one switch, Map,
- * that leaves only these airplanes on the map, the rest faded ("Map: show
- * only these"). The same filter as the full list (AircraftFilters).
+ * search bar one strip, its title a menu of what to list (the owner's
+ * "one row, it can have the favorites with the filter"): the Favorites
+ * (Plane first), or the nearest, those around, inbound to, departing or
+ * based at an airport, or emergencies -- the airport a pill of its own
+ * beside it to change; and at the row's right one switch, Map, that
+ * leaves only these airplanes on the map, the rest faded ("Map: show only
+ * these").
  */
-export default function AircraftPill({ onOpen, onAddMine, onPick }: {
+export default function AircraftPill({ onOpen, onAddMine, onAddFavorite, onPick }: {
   onOpen: (hex: string) => void;
   onAddMine: () => void;
+  onAddFavorite: () => void;
   onPick: (plane: TrafficAircraft) => void;
 }) {
   const seen = useTracking(s => s.seen);
   const planes = useSeenPlanes(seen);
   const from = useOwnShip(s => (s.enabled ? s.fix : null));
   const setOwnShip = useOwnShip(s => s.setEnabled);
-  const { filter, field, kept } = useFilteredAircraft(planes, from);
+  const { filter, field, kept: found } = useFilteredAircraft(planes, from);
   const change = usePreferences(s => s.setAircraftFilter);
   const question = questionOf(filter);
-  const asks = QUESTIONS.find(q => q.value === question)!;
+  const favorites = useStripShows(s => s.favorites);
+  const asks = favorites ? null : QUESTIONS.find(q => q.value === question)!;
   const [picking, setPicking] = useState(false);
-  const pick = (q: Question) => {
+  const favoriteList = usePreferences(s => s.favoriteAircraft);
+  const mine = usePreferences(s => s.myAircraft);
+  const pick = (value: string) => {
+    useStripShows.setState({ favorites: value === "favorites" });
+    if (value === "favorites") return;
+    const q = value as Question;
     change(filterFor(q));
     // An airport's question with none named yet: which one, at once.
     if (QUESTIONS.find(x => x.value === q)!.airport && !filter.airport) setPicking(true);
   };
-  const rows = strip(question, kept, from, field).slice(0, STRIP_MOST);
+  const rows = strip(question, found, from, field).slice(0, STRIP_MOST);
   const map = useTrafficFocus(s => s.on);
-  // The airplanes left on the map, as the question's answer changes.
-  const only = rows.length ? rows.map(r => r.plane.hex).join(",") : "";
+  // The airplanes left on the map, as the strip's change: the Favorites
+  // and the Plane, or the question's answer.
+  const only = favorites
+    ? [...(mine ? [mine.hex] : []), ...favoriteList.map(a => a.hex)].join(",")
+    : rows.map(r => r.plane.hex).join(",");
   useEffect(() => {
     if (map) useTrafficFocus.setState({ only: new Set(only ? only.split(",") : []) });
   }, [map, only]);
   return (
     <div className="flex flex-col gap-2" data-testid="aircraft-pill">
-      <PillSection title="Favorites" testId="pill-section-aircraft-favorites">
-        <AircraftFavoriteStrip onOpen={onOpen} onAddMine={onAddMine} />
-      </PillSection>
       <PillSection
         testId="pill-section-question"
         title={(
           <div className="flex min-w-0 items-center gap-1.5">
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                data-testid="aircraft-question"
-                className={cn(
-                  "relative flex items-center gap-0.5 font-semibold uppercase tracking-wide text-tint outline-none",
-                  "focus-visible:ring-2 focus-visible:ring-ring after:absolute after:-inset-2", TEXT.note,
-                )}
-              >
-                {TITLES[question]}
-                <ChevronDown className="size-3.5" strokeWidth={2.5} aria-hidden="true" />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="min-w-52">
-                <DropdownMenuRadioGroup value={question} onValueChange={v => pick(v as Question)}>
-                  {QUESTIONS.map(q => (
-                    <DropdownMenuRadioItem key={q.value} value={q.value} data-testid={`question-${q.value}`}>
-                      {q.label}{q.airport ? "…" : ""}
-                    </DropdownMenuRadioItem>
-                  ))}
-                </DropdownMenuRadioGroup>
-              </DropdownMenuContent>
-            </DropdownMenu>
-            {asks.airport && (
+            <PillMenu
+              label={favorites ? "Favorites" : TITLES[question]} value={favorites ? "favorites" : question} testId="aircraft-question"
+              options={[
+                { value: "favorites", label: "Favorites", testId: "question-favorites" },
+                ...QUESTIONS.map(q => ({ value: q.value, label: `${q.label}${q.airport ? "…" : ""}`, testId: `question-${q.value}` })),
+              ]}
+              onChange={pick} apart className="min-w-52"
+            />
+            {asks?.airport && (
               // The airport asked of, a pill of its own to change: Home
               // and the Favorites first, then a search (AirportPicker).
               <AirportPicker
@@ -105,19 +102,24 @@ export default function AircraftPill({ onOpen, onAddMine, onPick }: {
             <label htmlFor="aircraft-map-only" className={cn("text-foreground/65", TEXT.note)}>Map</label>
             <Switch
               id="aircraft-map-only" checked={map} data-testid="aircraft-map-only"
+              // iOS's own switch, 51 by 31, to a finger (the iOS audit's
+              // rule); the stock size to a mouse.
+              className="pointer-coarse:h-[31px]! pointer-coarse:w-[51px]! pointer-coarse:[&>span]:size-[27px]! pointer-coarse:[&>span]:data-checked:translate-x-[22px]!"
               onCheckedChange={on => useTrafficFocus.setState({ on, only: on ? useTrafficFocus.getState().only : null })}
             />
           </>
         )}
       >
-        {question === "near" && !from ? (
+        {favorites ? (
+          <AircraftFavoriteStrip onOpen={onOpen} onAddMine={onAddMine} onAddFavorite={onAddFavorite} />
+        ) : question === "near" && !from ? (
           <button
             type="button" onClick={() => setOwnShip(true)} data-testid="aircraft-strip-position"
             className={cn("relative mx-auto block px-2 py-1 text-tint after:absolute after:-inset-y-2 after:inset-x-0", TEXT.row)}
           >
             Show my position
           </button>
-        ) : asks.airport && !field ? (
+        ) : asks?.airport && !field ? (
           <p className={cn("py-1 text-center text-foreground/65", TEXT.note)}>Pick an airport</p>
         ) : rows.length ? (
           <PillStrip testId="aircraft-strip">
@@ -128,9 +130,9 @@ export default function AircraftPill({ onOpen, onAddMine, onPick }: {
                   key={plane.hex} onClick={() => onPick(plane)} testId="aircraft-strip-plane" title={name} detail={detail}
                   label={`${name}${detail ? `, ${detail}` : ""}`}
                   mark={(
-                    <span className={cn("grid size-7 place-items-center", inEmergency(plane) ? "text-red-600" : "text-sky-600")} aria-hidden="true">
+                    <span className={cn("grid size-14 place-items-center rounded-full bg-foreground/8", inEmergency(plane) ? "text-red-600" : "text-sky-600")} aria-hidden="true">
                       {/* lucide's airplane points north-east: turned to its track. */}
-                      <Plane className="size-5" fill="currentColor" style={{ transform: `rotate(${(plane.track_deg ?? 45) - 45}deg)` }} />
+                      <Plane className="size-6" fill="currentColor" style={{ transform: `rotate(${(plane.track_deg ?? 45) - 45}deg)` }} />
                     </span>
                   )}
                 />

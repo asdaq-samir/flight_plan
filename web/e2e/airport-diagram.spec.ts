@@ -67,50 +67,53 @@ test("an airport's card has its diagram as a row, and a tap shows it full screen
   await expect(card(page)).toBeVisible();
 });
 
-test("the card's sketch of the runways sits between the name and the close, star and weather chip stacked at the right, over the tiles, with the elevation at its top left", async ({ page }) => {
+test("the card's sketch of the runways sits between the name and the star and weather chip stacked at the right, over the tiles, with the elevation at its top left, the same all the way up", async ({ page }) => {
   await withDiagram(page, "drawn");
   await withChartPages(page);
   await page.goto("/app/plan?place=KDLH");
   await settle(page);
+  // At the pill's size, as every card opens: the sketch beside the name
+  // (the owner's pick of the redesign, 1b).
+  await expect(sideDrawer(page)).toHaveAttribute("data-panel", "peek");
   const sketch = card(page).getByTestId("place-runway-sketch");
   // KDLH's runways, named for a screen reader.
   await expect(sketch).toHaveAttribute("aria-label", /^KDLH runways .*09\/27.*, north up\./, { timeout: slow(15000) });
-  // The ident's pill at the end of the name, and no line under it with nothing
-  // to measure from (places.spec has the distance); the elevation, "Elev"
-  // and the figure and its feet, at the sketch's top left.
+  // The ident's pill at the end of the name, and no line under it with
+  // nothing to measure from (places.spec has the distance); the
+  // elevation, "Elev" and the figure and its feet, at the sketch's top left.
   const name = card(page).getByTestId("place-name");
   await expect(name).toHaveText("Duluth International Airport KDLH");
   await expect(card(page).getByTestId("place-line")).toHaveCount(0);
-  // The FAA's diagram cropped to its runways, the field having one.
   await expect(sketch.getByTestId("place-diagram-runways")).toHaveAttribute("src", "/api/planner/airport-diagram/2610/runways/KDLH.png");
   const elevation = card(page).getByTestId("place-elevation");
   // "Elev 788 ft" to the eye, "Elevation 788 ft" to a screen reader.
   await expect(elevation).toHaveText(/Elevation [\d,]+ ft$/);
   await expect(elevation.locator('[aria-hidden="true"]')).toHaveText("Elev");
-  const [height, box, named, star, chip, call] = await Promise.all([
-    elevation, sketch, name, card(page).getByTestId("place-favorite"),
-    card(page).getByTestId("place-category"), card(page).getByTestId("place-call"),
-  ].map(async l => (await l.boundingBox())!));
-  // The column at the right: the close, where the card has its own -- on
-  // a phone with the sheet up its way back is the tab bar's Back, at the
-  // owner's ask -- then the star, then the weather's chip, their right
-  // edges one; the sketch between the name and the column, from its top.
-  const closeButton = card(page).getByTestId("place-close");
-  // On a phone with the sheet up, kept out of sight for a keyboard (CardClose).
-  const outOfSight = await closeButton.evaluate(el => !!el.closest(".sr-only"));
-  const close = outOfSight ? null : (await closeButton.boundingBox())!;
-  const column = close ? [close, star, chip] : [star, chip];
-  expect(box.x).toBeGreaterThan(named.x + named.width - 1);
-  expect(Math.abs(box.y - column[0]!.y)).toBeLessThanOrEqual(1);
-  expect(box.x + box.width).toBeLessThan(Math.min(...column.map(b => b.x)));
-  for (let i = 1; i < column.length; i++) {
-    expect(column[i]!.y).toBeGreaterThan(column[i - 1]!.y + column[i - 1]!.height - 1);
-    expect(Math.abs(column[i]!.x + column[i]!.width - (column[0]!.x + column[0]!.width))).toBeLessThan(1.5);
-    expect(Math.abs(column[i]!.width - column[0]!.width)).toBeLessThan(1);
-  }
-  expect(height.x).toBeLessThan(box.x + 12);
-  expect(height.y).toBeLessThan(box.y + 12);
-  expect(box.y + box.height).toBeLessThanOrEqual(call.y);
+  const layout = async (across = true) => {
+    const [height, box, named, star, chip, call] = await Promise.all([
+      elevation, sketch, name, card(page).getByTestId("place-favorite"),
+      card(page).getByTestId("place-category"), card(page).getByTestId("place-call"),
+    ].map(async l => (await l.boundingBox())!));
+    // The column at the right: the star, then the weather's chip, their
+    // right edges one (the close is the bar's, kept for a keyboard); the
+    // sketch between the name and the column, from its top.
+    if (across) {
+      expect(box.x).toBeGreaterThan(named.x + named.width - 1);
+      expect(box.x + box.width).toBeLessThan(Math.min(star.x, chip.x));
+      expect(Math.abs(chip.x + chip.width - (star.x + star.width))).toBeLessThan(1.5);
+    }
+    expect(Math.abs(box.y - star.y)).toBeLessThanOrEqual(1);
+    expect(chip.y).toBeGreaterThan(star.y + star.height - 1);
+    expect(height.x).toBeLessThan(box.x + 12);
+    expect(height.y).toBeLessThan(box.y + 12);
+    expect(box.y + box.height).toBeLessThanOrEqual(call.y);
+    return [Math.round(box.y - named.y), Math.round(call.y - named.y)];
+  };
+  const pill = await layout();
+  // All the way up, the same head where it was, the owner's "the top half
+  // stay the same as half card".
+  await grabberTo(page, "full");
+  await expect.poll(() => layout(false)).toEqual(pill);
 
   await sketch.click();
   await expect(page.getByTestId("airport-diagram-viewer").getByRole("heading", { name: "KDLH airport diagram" })).toBeVisible();
@@ -170,6 +173,8 @@ test("the Diagrams tab's charts and the Chart Supplement open in the app, the fi
   const asked = await withChartPages(page);
   await page.goto("/app/plan?place=KDLH");
   await settle(page);
+  // At the pill's size, as every card opens; its pages all the way up.
+  await grabberTo(page, "full");
   await card(page).getByTestId("place-tab-diagrams").click();
   const panel = card(page).getByRole("tabpanel");
   // No link out of the app in the tab.
@@ -266,8 +271,9 @@ test("a tap on the card's sketch of a field the FAA draws no diagram for shows t
   const viewer = page.getByTestId("airport-sketch-viewer");
   await expect(viewer.getByRole("heading", { name: "C81 runways" })).toBeVisible();
   await expect(viewer.getByTestId("runway-sketch").locator("line").first()).toBeVisible();
-  // Not the Runways tab, which the tap used to open.
-  await expect(card(page).getByTestId("place-tab-runways")).not.toHaveAttribute("data-state", "active");
+  // Not the Runways tab, which the tap used to open: the card still at
+  // the pill's size, no pages up.
+  await expect(card(page).getByTestId("place-tab-runways")).toHaveCount(0);
   await viewer.getByTestId("airport-sketch-close").click();
   await expect(viewer).toHaveCount(0);
 });

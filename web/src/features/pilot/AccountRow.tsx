@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, UserRound } from "lucide-react";
 import { cn } from "cn";
 import { ListGroup, ListRow } from "../../components/GroupedList";
 import { Button } from "../../components/ui/button";
@@ -25,9 +25,26 @@ import { useLogout } from "./useLogout";
  * signed in and no developer's mode to offer: Personal's own sign-in says
  * what signing in keeps.
  */
-export default function AccountRow({ children }: {
-  /** Rows under it in the same group: Setup's pill's Aircraft and Logbook. */
-  children?: React.ReactNode;
+/**
+ * The account on the glass, as Setup's pill has it at the owner's pick
+ * ("Glass row"): a round mark, who it is, and at the end what to do --
+ * Sign in, or the mode's menu -- with no white group under it.
+ */
+export function AccountLine({ name, children }: { name: React.ReactNode; children?: React.ReactNode }) {
+  return (
+    <div className="flex min-h-11 min-w-0 items-center gap-3 px-1" data-testid="account-line">
+      <span className="grid size-9 shrink-0 place-items-center rounded-full bg-foreground/8 text-foreground/65 [&_svg]:size-5" aria-hidden="true">
+        <UserRound />
+      </span>
+      <span className={cn("min-w-0 flex-1 truncate text-foreground", TEXT.row)}>{name}</span>
+      {children}
+    </div>
+  );
+}
+
+export default function AccountRow({ glass = false }: {
+  /** On the pill's glass (AccountLine), not in a group. */
+  glass?: boolean;
 } = {}) {
   const { data: pilot } = useQuery(pilotQuery);
   const devMode = useDevMode();
@@ -42,44 +59,46 @@ export default function AccountRow({ children }: {
     onConfirm: () => deleteAccount.mutate(),
   });
   if (!pilot && !devMode.allowed) return null;
+  const name = <span className="truncate" data-testid="pilot-address">{pilot?.displayName ?? "Not signed in"}</span>;
+  const menu = (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="sm" data-testid="role-menu" className={cn("relative -mr-2 px-2 font-normal text-tint after:absolute after:-inset-y-2 after:inset-x-0", TEXT.row)}>
+          {devMode.on ? "Developer" : "Pilot"}
+          <ChevronDown className="text-muted-foreground" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="min-w-44">
+        <DropdownMenuRadioGroup
+          value={devMode.on ? "developer" : "pilot"}
+          onValueChange={v => { if ((v === "developer") !== devMode.on) devMode.flip(); }}
+        >
+          <DropdownMenuRadioItem value="pilot">Pilot</DropdownMenuRadioItem>
+          {devMode.allowed && <DropdownMenuRadioItem value="developer">Developer</DropdownMenuRadioItem>}
+        </DropdownMenuRadioGroup>
+        {pilot && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem variant="destructive" onSelect={() => logout.mutate()} disabled={logout.isPending}>Sign out</DropdownMenuItem>
+            <DropdownMenuItem
+              variant="destructive" data-testid="delete-account" disabled={deleteAccount.isPending}
+              // After the menu has closed: a dialog opened while it still
+              // holds the focus has its own taken back.
+              onSelect={() => setTimeout(askDelete)}
+            >
+              Delete account…
+            </DropdownMenuItem>
+          </>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+  if (glass) return <AccountLine name={name}>{menu}{deleteDialog}</AccountLine>;
   return (
     // No heading of its own: the tab it leads is Account, at the owner's
     // ask ("Rename personal to account").
     <ListGroup>
-      <ListRow title={<span className="truncate" data-testid="pilot-address">{pilot?.displayName ?? "Not signed in"}</span>}>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" data-testid="role-menu" className={cn("relative -mr-2 px-2 font-normal text-tint after:absolute after:-inset-y-2 after:inset-x-0", TEXT.row)}>
-              {devMode.on ? "Developer" : "Pilot"}
-              <ChevronDown className="text-muted-foreground" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="min-w-44">
-            <DropdownMenuRadioGroup
-              value={devMode.on ? "developer" : "pilot"}
-              onValueChange={v => { if ((v === "developer") !== devMode.on) devMode.flip(); }}
-            >
-              <DropdownMenuRadioItem value="pilot">Pilot</DropdownMenuRadioItem>
-              {devMode.allowed && <DropdownMenuRadioItem value="developer">Developer</DropdownMenuRadioItem>}
-            </DropdownMenuRadioGroup>
-            {pilot && (
-              <>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem variant="destructive" onSelect={() => logout.mutate()} disabled={logout.isPending}>Sign out</DropdownMenuItem>
-                <DropdownMenuItem
-                  variant="destructive" data-testid="delete-account" disabled={deleteAccount.isPending}
-                  // After the menu has closed: a dialog opened while it still
-                  // holds the focus has its own taken back.
-                  onSelect={() => setTimeout(askDelete)}
-                >
-                  Delete account…
-                </DropdownMenuItem>
-              </>
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </ListRow>
-      {children}
+      <ListRow title={name}>{menu}</ListRow>
       {deleteDialog}
     </ListGroup>
   );

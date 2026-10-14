@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { beforeTheRoute, openPanel, panelTabs, settle, sideDrawer, slow, tapTheChart } from "./helpers";
+import { beforeTheRoute, openPanel, panelTabs, settle, sideDrawer, slow, tapTheChart, grabberTo, controlsInSight } from "./helpers";
 
 /**
  * The map: its popups, its zoom toggle and the dev page's zoom button,
@@ -10,14 +10,15 @@ test("plan page: a route from an airport to itself is a local flight: the field'
   // The pattern, practice approaches: it was refused, the page asking for
   // two different airports.
   await page.goto("/app/plan?dep=C81&dest=C81");
-  await openPanel(page);
+  await grabberTo(page, "full");
   // Its tab where the nav log's is, up as the panel opens.
   await expect(panelTabs(page).getByRole("tab", { name: "Local" })).toHaveAttribute("aria-selected", "true", { timeout: slow(30000) });
   await expect(sideDrawer(page).getByTestId("navlog-ete")).toHaveText("1h 00m", { timeout: slow(30000) });
   await expect(sideDrawer(page).locator('[data-slot="section-summary"] dt').first()).toHaveText("Aloft");
   await expect(page.getByTestId("fuel-check")).toContainText("Fuel required");
 
-  // Longer aloft: in the address, and more fuel.
+  // Longer aloft: its chip in the pill, in the address, and more fuel.
+  await controlsInSight(page);
   await page.getByTestId("local-duration").click();
   await page.getByRole("option", { name: "2 h", exact: true }).click();
   await expect(page).toHaveURL(/[?&]local_min=120/);

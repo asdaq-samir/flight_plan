@@ -1,6 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { test, expect, type Page } from "@playwright/test";
-import { openConsole, openTab, settle, settled, showTabs, slow } from "./helpers";
+import { openConsole, openTab, settle, settled, showTabs, slow, consolePage } from "./helpers";
 
 /**
  * Accessibility by axe-core, beside the iOS audit's measured rules
@@ -58,7 +58,7 @@ test("the console's Settings", async ({ page }) => {
   await settle(page);
   await showTabs(page);
   await openConsole(page);
-  await page.getByTestId("console-sheet").getByRole("tab", { name: "Settings" }).click();
+  await consolePage(page.getByTestId("console-sheet"), "Settings");
   // Come to rest: sliding in, its glass is over the moving map, and its
   // words were read against that.
   await page.getByTestId("console-sheet").evaluate(el => Promise.all(el.getAnimations({ subtree: true })

@@ -346,7 +346,7 @@ body[data-map-sheet][data-map-panel="full"] [data-map-controls] {
    the top of the page it restyled all of it at every data-state changed
    anywhere, a quarter of a second of a phone's each time a tab was
    picked (measured 2026-10-07). */
-body:is([data-map-panel="half"], [data-map-panel="full"], [data-scroll-locked]) [data-sonner-toast] {
+body:is([data-map-panel="full"], [data-scroll-locked]) [data-sonner-toast] {
   pointer-events: auto;
 }
 /* The scroll lock's own variable kept on <body>: the lock sets it there

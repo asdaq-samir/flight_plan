@@ -1,6 +1,5 @@
 import { useRef, type ComponentProps, type ReactNode, type RefObject } from "react";
 import { cn } from "cn";
-import { LINE_TAB } from "./lineTabs";
 import { TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 
 /**
@@ -15,7 +14,7 @@ import { TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
  *   are; its tabs share it edge to edge.
  * - CardTabBar: a card's bar, its tabs from a list; tapped, the panel comes
  *   all the way up, and the open one tapped again up there takes it back to
- *   half, as the route's tabs do (PanelTabs).
+ *   the pill, as the route's tabs do (PanelTabs).
  * - CardTabPanel: a tab's content, spaced as every card's is.
  * - useCardTab (lib/cardTab): the tab picked, kept for each airport or
  *   airplane while the page is open: back from a card over it, the same tab.
@@ -26,6 +25,12 @@ const LIST = "w-full gap-0 border-b border-border p-0 group-data-[orientation=ho
 export function LineTabsList({ className, ...props }: ComponentProps<typeof TabsList>) {
   return <TabsList variant="line" className={cn(LIST, className)} {...props} />;
 }
+
+/** A card's pages as iOS's segmented control, the stock Tabs' own look:
+ *  one control on every card -- an airport's Info, Weather, Runways and
+ *  Charts, an airplane's -- at the owner's pick of the redesign, where they
+ *  were words over a hairline. 44 tall to a finger. */
+const SEGMENTED = "w-full group-data-[orientation=horizontal]/tabs:h-9 pointer-coarse:group-data-[orientation=horizontal]/tabs:h-11";
 
 export interface CardTabSpec<T extends string> {
   value: T;
@@ -53,10 +58,10 @@ export function CardTabBar<T extends string>({ tabs, value, onPick, testIdPrefix
   const openWhenPressed = useRef<T | null>(null);
   const isUp = () => barRef?.current?.closest("[data-panel]")?.getAttribute("data-panel") === "full";
   return (
-    <LineTabsList ref={barRef} className={className}>
+    <TabsList ref={barRef} className={cn(SEGMENTED, className)}>
       {tabs.map(t => (
         <TabsTrigger
-          key={t.value} value={t.value} className={LINE_TAB} disabled={disabled} data-testid={`${testIdPrefix}-${t.value}`}
+          key={t.value} value={t.value} className="pointer-coarse:text-[0.9375rem]" disabled={disabled} data-testid={`${testIdPrefix}-${t.value}`}
           onPointerDown={() => { openWhenPressed.current = value; }} onKeyDown={() => { openWhenPressed.current = value; }}
           onPointerCancel={() => { openWhenPressed.current = null; }} onBlur={() => { openWhenPressed.current = null; }}
           onClick={() => {
@@ -75,7 +80,7 @@ export function CardTabBar<T extends string>({ tabs, value, onPick, testIdPrefix
           {t.label}
         </TabsTrigger>
       ))}
-    </LineTabsList>
+    </TabsList>
   );
 }
 

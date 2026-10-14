@@ -1,20 +1,18 @@
-import { Suspense, lazy, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plane } from "lucide-react";
+import { Plane, Plus } from "lucide-react";
 import { cn } from "cn";
 import { PanelCard } from "../../../components/PanelCard";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
 import { api } from "../../../lib/api/client";
 import type { AircraftRegistration, TrafficAircraft } from "../../../lib/api/types";
-import { distanceNm } from "../../../lib/geo";
 import { useOwnShip } from "../../../lib/map/ownShip";
 import { usePreferences, type KeptAircraft } from "../../../lib/preferences";
-import { startPickingMine, useTabSearch } from "../../../lib/tabSearch";
-import { HomePlane, PillStrip, PlaceTile, SmallMark, SmallTile } from "../../../components/Favorites";
+import { useTabSearch } from "../../../lib/tabSearch";
+import { HomePlane, PillStrip, SmallMark, SmallTile } from "../../../components/Favorites";
 import { ClearList, SwipeToDelete } from "../../../components/SwipeToDelete";
 import AircraftRow from "./AircraftRow";
 
-const AircraftFilters = lazy(() => import("./AircraftFilters"));
 import { useTracking } from "../../../lib/map/tracking";
 import { TEXT } from "../../../lib/text";
 
@@ -38,14 +36,17 @@ function named(plane: TrafficAircraft, text: string): boolean {
 
 
 /**
- * Aircraft, from the map's button under Nearest, at the pilot's ask: a
- * search for one by what a pilot knows it by -- its callsign (UAL2088),
- * registration (N174HA) or ICAO address -- anywhere in adsb.lol's
- * coverage, and the airplanes about, nearest first; a tap tracks one
+ * The Aircraft tab all the way up: a search for one by what a pilot
+ * knows it by -- its callsign (UAL2088), registration (N174HA) or ICAO
+ * address -- anywhere in adsb.lol's coverage; before anything is typed,
+ * the pill's strip and the Recents, as the airports' are, at the owner's
+ * ask ("Just have recents just like Airports"). A tap tracks one
  * (FlightCard). The traffic is drawn on the map while it is open.
  */
-export default function AircraftCard({ onPick, onPickHex }: {
+export default function AircraftCard({ onPick, onPickHex, strip }: {
   onPick: (plane: TrafficAircraft) => void;
+  /** The pill's strip (AircraftPill), over the rest before anything is typed. */
+  strip: ReactNode;
   /** One not in the air or not heard now, by its address: its card from
    *  the FAA's record and its last flight (FlightCard). */
   onPickHex: (hex: string) => void;
@@ -79,8 +80,6 @@ export default function AircraftCard({ onPick, onPickHex }: {
     return () => window.clearTimeout(later);
   }, [wanted, asked, isFetching]);
   const fix = useOwnShip(s => (s.enabled ? s.fix : null));
-  const favorites = usePreferences(s => s.favoriteAircraft);
-  const mine = usePreferences(s => s.myAircraft);
   // My Plane's Add asked for the pilot's own airplane: the one picked --
   // found, its FAA record, a Favorite, a recent -- is kept as theirs
   // rather than opened, as the airport search's Home is.
@@ -89,10 +88,19 @@ export default function AircraftCard({ onPick, onPickHex }: {
     usePreferences.getState().setMyAircraft(kept);
     useTabSearch.setState({ pickingMine: false, aircraft: "" });
   };
-  const pickPlane = (plane: TrafficAircraft) => (pickingMine
-    ? keepMine({ hex: plane.hex, name: plane.registration ?? plane.callsign ?? plane.hex.toUpperCase(), type: plane.type ?? null })
+  // The Favorites' Add: the one picked kept as a Favorite, as the airport
+  // search's Add keeps a field.
+  const pickingFavorite = useTabSearch(s => s.pickingFavorite);
+  const keepFavorite = (kept: KeptAircraft) => {
+    const prefs = usePreferences.getState();
+    if (!prefs.favoriteAircraft.some(a => a.hex === kept.hex)) prefs.toggleFavoriteAircraft(kept);
+    useTabSearch.setState({ pickingFavorite: false, aircraft: "" });
+  };
+  const keep = pickingMine ? keepMine : pickingFavorite ? keepFavorite : null;
+  const pickPlane = (plane: TrafficAircraft) => (keep
+    ? keep({ hex: plane.hex, name: plane.registration ?? plane.callsign ?? plane.hex.toUpperCase(), type: plane.type ?? null })
     : onPick(plane));
-  const pickKept = (kept: KeptAircraft) => (pickingMine ? keepMine(kept) : onPickHex(kept.hex));
+  const pickKept = (kept: KeptAircraft) => (keep ? keep(kept) : onPickHex(kept.hex));
   const recents = usePreferences(s => s.recentAircraft);
   const removeRecent = usePreferences(s => s.removeRecentAircraft);
   const clearRecents = usePreferences(s => s.clearRecentAircraft);
@@ -137,16 +145,6 @@ export default function AircraftCard({ onPick, onPickHex }: {
     return () => useTabSearch.setState({ submitAircraft: null });
   }, []);
   const from = fix ? { lat: fix.lat, lon: fix.lon } : null;
-  const about = useMemo(() => {
-    const planes = seen.map(r => r.plane);
-    return from ? planes.sort((a, b) => distanceNm(from, a) - distanceNm(from, b)) : planes;
-    // `from` moves with every fix; the list is ordered again with each answer.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [seen]);
-  // Hundreds where the map is zoomed out to a state: drawn after what
-  // is typed and tapped (useDeferredValue), so the list's redraw with each
-  // answer never holds up the search field.
-  const listedAbout = useDeferredValue(about);
   const ownFt = fix?.altitudeFt ?? null;
   return (
     <PanelCard testId="aircraft-card">
@@ -184,36 +182,22 @@ export default function AircraftCard({ onPick, onPickHex }: {
             )}
           </ListGroup>
         )}
-        {/* Before anything is typed, as the airport search has: the
-            airplanes starred on their cards, as round tiles, and the ones
-            opened last, at the pilot's ask. */}
         {/* Asked for the pilot's own airplane: what to do. */}
         {pickingMine && (
           <p className={cn("px-1 text-foreground", TEXT.detail)} data-testid="aircraft-picking-mine">
             Search for your airplane by its N-number, or tap it below, to keep it as your Plane.
           </p>
         )}
-        {!searching && (
-          <section aria-labelledby="aircraft-favorites-heading">
-            <h3 id="aircraft-favorites-heading" className={cn("pb-3 font-bold text-foreground", TEXT.title)}>Favorites</h3>
-            <div className="-mx-4 flex gap-4 overflow-x-auto px-4 pb-1 [scrollbar-width:none]" data-testid="aircraft-favorites">
-              {/* My Plane first, as Home is first among the airports',
-                  listed with Add until one is kept, at the owner's ask. */}
-              <PlaceTile
-                icon={<HomePlane />} className="bg-teal-600 text-white" title="Plane"
-                detail={mine ? mine.name : "Add"} tinted={!mine} testId="aircraft-mine"
-                label={mine ? `Plane, ${mine.name}` : "Add your Plane"}
-                onClick={mine && !pickingMine ? () => onPickHex(mine.hex) : startPickingMine}
-              />
-              {favorites.map(a => (
-                <PlaceTile
-                  key={a.hex} icon={<Plane />} className="bg-sky-600 text-white" title={a.name} detail={a.type ?? undefined}
-                  label={`${a.name}${a.type ? `, ${a.type}` : ""}`} onClick={() => pickKept(a)} testId="aircraft-favorite"
-                />
-              ))}
-            </div>
-          </section>
+        {pickingFavorite && (
+          <p className={cn("px-1 text-foreground", TEXT.detail)} data-testid="aircraft-picking-favorite">
+            Search for an airplane by its callsign or N-number to keep it in your Favorites.
+          </p>
         )}
+        {/* The pill's own strip, where it was at the pill's size -- its
+            title the menu, the Favorites first -- so the top stays as it
+            was all the way up, at the owner's ask ("I want the favorites
+            filter to stay when it's full"). */}
+        {!searching && strip}
         {!searching && recents.length > 0 && (
           // Each taken off by a swipe to the left, or all of them by Clear,
           // as the airports' Recents are.
@@ -232,15 +216,6 @@ export default function AircraftCard({ onPick, onPickHex }: {
             ))}
           </ListGroup>
         )}
-        {/* No list of everything about, at the owner's ask; the
-            filters, an FBO's as much as a pilot's, and what they keep. */}
-        {!searching && (
-          // Its own chunk, the stock Select and the filters' logic with it:
-          // this card is on the planner's first load.
-          <Suspense fallback={null}>
-            <AircraftFilters seen={listedAbout} from={from} ownFt={ownFt} onPick={pickPlane} />
-          </Suspense>
-        )}
       </div>
     </PanelCard>
   );
@@ -248,10 +223,12 @@ export default function AircraftCard({ onPick, onPickHex }: {
 
 /** The Aircraft tab's pill, at the owner's ask: the airplanes starred, as
  *  small tiles -- each its name and type -- opening its card. */
-export function AircraftFavoriteStrip({ onOpen, onAddMine }: {
+export function AircraftFavoriteStrip({ onOpen, onAddMine, onAddFavorite }: {
   onOpen: (hex: string) => void;
   /** My Plane's Add: the panel up and the search asked for it. */
   onAddMine: () => void;
+  /** The Favorites' Add, at the strip's end: the search asked for one. */
+  onAddFavorite: () => void;
 }) {
   const favorites = usePreferences(s => s.favoriteAircraft);
   const mine = usePreferences(s => s.myAircraft);
@@ -268,6 +245,10 @@ export function AircraftFavoriteStrip({ onOpen, onAddMine }: {
           label={`${a.name}${a.type ? `, ${a.type}` : ""}`} onClick={() => onOpen(a.hex)} testId="pill-aircraft-favorite"
         />
       ))}
+      <SmallTile
+        mark={<SmallMark icon={<Plus />} className="bg-foreground/8 text-tint" />} title="Add" label="Add a Favorite"
+        onClick={onAddFavorite} testId="pill-aircraft-favorite-add"
+      />
     </PillStrip>
   );
 }

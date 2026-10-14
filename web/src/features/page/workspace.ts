@@ -45,6 +45,9 @@ export interface WorkspacePieces {
    *  controls over it: an airport's card opened over a route,
    *  as a place in Maps takes the sheet from the directions. */
   alone?: boolean;
+  /** That card is another tab's (an airport's over FPL): on a phone the
+   *  bar minimized to its kind, with Back (MapPanel's `cardOver`). */
+  cardOver?: boolean;
   /** The planner's tab bar (TabBar): the panel's first row, and at rest
    *  the pill itself (MapPanel's `bar`). */
   bar?: ReactNode;

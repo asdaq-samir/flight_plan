@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { openMapSettings, openSettings, settle } from "./helpers";
+import { openMapSettings, openSettings, settle, consolePage } from "./helpers";
 
 /**
  * The first-launch acknowledgement (lib/limits, LimitsDialog): seen once
@@ -34,7 +34,7 @@ test("a fresh device is told what the planner is not, once, and Settings has it 
   // the owner's ask -- the app, its build and chart, where its data comes
   // from with each one's terms, and the legal pages.
   await openSettings(page);
-  await page.getByTestId("console-sheet").getByRole("tab", { name: "About" }).click();
+  await consolePage(page.getByTestId("console-sheet"), "About");
   const about = page.getByTestId("about-panel");
   await expect(about).toContainText("Wingtip Maps");
   await expect(about.getByTestId("about-planning-aid")).toContainText("planning aid for VFR flight");
@@ -49,7 +49,7 @@ test("a fresh device is told what the planner is not, once, and Settings has it 
   await expect(about).not.toContainText("OpenStreetMap");
   await expect(about.getByTestId("legal-privacy")).toHaveAttribute("href", "/app/privacy.html");
   // Settings itself no longer has them.
-  await page.getByTestId("console-sheet").getByRole("tab", { name: "Settings" }).click();
+  await consolePage(page.getByTestId("console-sheet"), "Settings");
   await expect(page.getByTestId("settings-panel").getByTestId("legal-privacy")).toHaveCount(0);
 });
 

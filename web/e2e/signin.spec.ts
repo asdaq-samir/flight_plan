@@ -1,6 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { DEVELOPER, openLinkFor, signInByEmail } from "./emailSignIn";
-import { closeConsole, library, noTips, openConsole, openAccount, roleMenu, showTabs, sideDrawer } from "./helpers";
+import { closeConsole, library, noTips, openConsole, openAccount, roleMenu, showTabs, sideDrawer, consolePage } from "./helpers";
 
 /**
  * Signing in and out on the running stack, from a browser with no
@@ -47,7 +47,7 @@ test("signed out, Personal says once what signing in keeps, its minimums need no
   await showTabs(page);
   await openConsole(page);
   const sheet = consoleSheet(page);
-  await sheet.getByRole("tab", { name: "Account" }).click();
+  await consolePage(sheet, "Account");
   await expect(sheet.getByText("Not Signed In")).toBeVisible();
   // The minimums are kept on the device: no sign-in for them; the
   // account's three wait for one.
@@ -57,7 +57,7 @@ test("signed out, Personal says once what signing in keeps, its minimums need no
   await sheet.getByRole("button", { name: "Account", exact: true }).click();
   await expect(sheet.getByText("Not Signed In")).toBeVisible();
   // This stack registers neither Google nor Apple: their buttons opened a blank 401.
-  await sheet.getByRole("tabpanel").getByRole("button", { name: "Sign in" }).click();
+  await sheet.getByTestId("setup-page").getByRole("button", { name: "Sign in" }).click();
   const dialog = page.getByRole("dialog", { name: "Sign in to Wingtip Maps" });
   await expect(dialog.getByLabel("Email address")).toBeVisible();
   await expect(dialog.getByRole("link", { name: /Continue with/ })).toHaveCount(0);
@@ -70,7 +70,7 @@ test("signed out, Personal says once what signing in keeps, its minimums need no
   await page.reload();
   await showTabs(page);
   await openConsole(page);
-  await consoleSheet(page).getByRole("tabpanel").getByRole("button", { name: "Sign in" }).click();
+  await consoleSheet(page).getByTestId("setup-page").getByRole("button", { name: "Sign in" }).click();
   await expect(dialog.getByRole("link", { name: "Continue with Google" })).toBeVisible();
   await expect(dialog.getByRole("link", { name: "Continue with Apple" })).toHaveCount(0);
 });
@@ -164,6 +164,9 @@ test("a developer's link lands in dev mode, and the dev console logs out to the 
   await page.getByRole("menuitem", { name: "Sign out" }).click();
 
   await page.waitForURL("**/app/plan**");
+  // The planner drawn, not the training page's bar on its way out: its
+  // title was tapped as it went.
+  await expect(page.getByRole("button", { name: /^Train/ })).toHaveCount(0);
   await showTabs(page);
   await expect(page.getByTestId("settings-button")).toBeVisible();
   await expect(consoleSheet(page)).toHaveCount(0);

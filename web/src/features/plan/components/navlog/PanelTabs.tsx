@@ -1,10 +1,8 @@
 import { useCallback, useDeferredValue, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { CloudSun, Gauge, ListOrdered, Sparkles } from "lucide-react";
 import { cn } from "cn";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../../../components/ui/tabs";
 import { SectionsOpen } from "../../../../components/sectionLayout";
 import SectionTabs from "../../../../components/SectionTabs";
-import { LINE_TAB } from "../../../../components/lineTabs";
 import { GoToTab, LEGS, useTabAsk, type PanelTab } from "./panelTab";
 
 /** The panel's tabs, in the pilot's order: the Nav Log (the route's
@@ -14,13 +12,13 @@ import { GoToTab, LEGS, useTabAsk, type PanelTab } from "./panelTab";
  *  where six words did not at the pilot's. The airports the flight uses
  *  are sections of the Brief, at the pilot's ask (2026-10-12), where they
  *  were a fifth tab: the planner's own tab bar has an Airport tab. */
-const TABS: { value: PanelTab; label: string; short?: string; icon: ReactNode }[] = [
-  { value: "navlog", label: "Nav Log", icon: <ListOrdered /> },
-  { value: "brief", label: "Brief", icon: <Sparkles /> },
-  { value: "weather", label: "Weather", icon: <CloudSun /> },
+const TABS: { value: PanelTab; label: string; short?: string }[] = [
+  { value: "navlog", label: "Nav Log" },
+  { value: "brief", label: "Brief" },
+  { value: "weather", label: "Weather" },
   // "Perf" on the tab, at the pilot's ask: the whole word filled its fifth
   // of a phone's line edge to edge at 13; its name says it whole.
-  { value: "performance", label: "Performance", short: "Perf", icon: <Gauge /> },
+  { value: "performance", label: "Performance", short: "Perf" },
 ];
 /** On paper every tab, one after another: the nav log first, as a
  *  pilot flies from it. */
@@ -162,10 +160,13 @@ export default function PanelTabs({ rootRef, before, contents, notice, footer, c
           tab whose findings (lib/verdict) have something to fix carries a
           red mark, something to look at an amber one, as its sections'
           titles do. */}
+      {/* The route's pages as the same segmented control every card's are
+          (CardTabBar), at the owner's pick of the redesign: words, the
+          glyphs gone, a page with something to fix or look at marked by a
+          dot after its word as before. */}
       <TabsList
         data-tip="tabs"
-        variant="line"
-        className="h-auto w-full shrink-0 gap-0 border-b border-border px-[max(0.25rem,env(safe-area-inset-left))] group-data-[orientation=horizontal]/tabs:h-auto pointer-coarse:group-data-[orientation=horizontal]/tabs:h-auto print:hidden"
+        className="mx-4 my-2 w-auto shrink-0 group-data-[orientation=horizontal]/tabs:h-9 pointer-coarse:group-data-[orientation=horizontal]/tabs:h-11 print:hidden"
       >
         {TABS.map(t => (
           <TabsTrigger
@@ -173,21 +174,18 @@ export default function PanelTabs({ rootRef, before, contents, notice, footer, c
             aria-description={marks?.[t.value] ? (marks[t.value] === "stop" ? "Warning" : "Caution") : undefined}
             onPointerDown={() => { upWhenPressed.current = tab; }} onKeyDown={() => { upWhenPressed.current = tab; }}
             onClick={() => onTap?.(upWhenPressed.current === t.value)}
-            className={cn(LINE_TAB, "min-w-0 flex-1 flex-col gap-1 px-0.5 py-2 text-[13px] leading-[18px] pointer-coarse:text-[13px] pointer-coarse:max-[374px]:text-[11px] pointer-coarse:max-[374px]:leading-[13px] max-[374px]:px-0 [&_svg:not([class*='size-'])]:size-6")}
+            className="min-w-0"
           >
-            <span className="relative">
-              {t.icon}
-              {marks?.[t.value] && (
-                <span
-                  aria-hidden="true"
-                  className={cn("absolute -top-0.5 -right-1 size-2 rounded-full", marks[t.value] === "stop" ? "bg-destructive" : "bg-amber-500")}
-                  data-testid={`panel-tab-mark-${t.value}`} data-finding={marks[t.value]}
-                />
-              )}
-            </span>
             {/* "Local" for one airport to itself: "Local Flight" came
                 within 16 points of the panel's side. */}
             <span className="truncate">{t.value === "navlog" && local ? "Local" : t.short ?? t.label}</span>
+            {marks?.[t.value] && (
+              <span
+                aria-hidden="true"
+                className={cn("size-2 shrink-0 rounded-full", marks[t.value] === "stop" ? "bg-destructive" : "bg-amber-500")}
+                data-testid={`panel-tab-mark-${t.value}`} data-finding={marks[t.value]}
+              />
+            )}
           </TabsTrigger>
         ))}
       </TabsList>

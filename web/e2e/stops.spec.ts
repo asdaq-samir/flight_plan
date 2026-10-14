@@ -277,7 +277,8 @@ test("the route's box is round, one line tall for a short route and the panel's 
   await recordedStops(page);
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
-  await openPanel(page);
+  // All the way up, the route's box over its chips.
+  await controlsInSight(page);
   const box = sideDrawer(page).getByTestId("route-box");
   await expect(box).toBeVisible();
   expect(await sideDrawer(page).getByTestId("add-stop").count()).toBe(0);
@@ -494,6 +495,8 @@ test("an airport's card adds it as the route's next stop; a card of the route's 
   await page.getByTestId("place-add-stop").click();
   await expect(page).toHaveURL(/[?&]dep=KDLH/);
   await expect(page).not.toHaveURL(/[?&]dest=/);
+  // The route's box, at the pill's size.
+  await controlsInSight(page);
   await expect(sideDrawer(page).getByTestId("route-type")).toHaveAttribute("placeholder", "Destination");
 });
 

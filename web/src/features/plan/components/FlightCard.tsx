@@ -1,15 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
-  ArrowDownRight, ArrowUpRight, BadgeCheck, Star, Compass, Crosshair, Fan, Gauge, IdCard, MoveVertical, Plane, PlaneTakeoff, Radio, Route,
-  Ruler, UserRound,
+  ArrowDownRight, ArrowUpRight, BadgeCheck, Star, Compass, Crosshair, Fan, Gauge, History, IdCard, MoveVertical, Plane, PlaneTakeoff, Radio, Route,
+  Ruler, Share, UserRound,
 } from "lucide-react";
 import { cn } from "cn";
-import { CardHead, PanelCard } from "../../../components/PanelCard";
+import { CardClose, PanelCard } from "../../../components/PanelCard";
+import { PillSection } from "../../../components/Favorites";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
 import { RowBadge } from "../../../components/RowBadge";
 import RoundButton from "../../../components/RoundButton";
-import TogglePill from "../../../components/TogglePill";
 import { usePreferences, type KeptAircraft } from "../../../lib/preferences";
 import { compassPoint } from "../../../lib/compass";
 import { bearingDeg, distanceNm } from "../../../lib/geo";
@@ -23,6 +23,8 @@ import { TEXT } from "../../../lib/text";
 import { altFt, grouped } from "../../../lib/units";
 import { clockTime } from "../format";
 import PastFlights from "./PastFlights";
+import TrailSketch from "./TrailSketch";
+import { CardAction } from "./CardAction";
 import { CardTabBar, CardTabPanel } from "../../../components/CardTabs";
 import { useCardTab } from "../../../lib/cardTab";
 import { Tabs } from "../../../components/ui/tabs";
@@ -33,7 +35,8 @@ import { Tabs } from "../../../components/ui/tabs";
  *  owner's ask. */
 const FLIGHT_TABS = [
   { value: "now", label: "Now" },
-  { value: "activity", label: "Activity" },
+  // Flights, at the owner's pick of the redesign (it read Activity).
+  { value: "activity", label: "Flights" },
   { value: "info", label: "Info" },
 ] as const;
 type FlightTab = (typeof FLIGHT_TABS)[number]["value"];
@@ -41,6 +44,18 @@ type FlightTab = (typeof FLIGHT_TABS)[number]["value"];
 /** What a squawk says, where it says more than a code: the three a
  *  pilot sets in trouble -- 7700 an emergency (AIM 6-2-2), 7500 unlawful
  *  interference (6-2-4, air piracy), 7600 two-way radio failure (6-4-2). */
+/** A link to the airplane on the planner, shared where the phone can,
+ *  copied where it cannot. */
+async function shareFlight(name: string, hex: string) {
+  const url = `${location.origin}/app/plan?flight=${hex}`;
+  try {
+    if (navigator.share) await navigator.share({ title: name, url });
+    else await navigator.clipboard.writeText(url);
+  } catch {
+    // Put away, or not allowed: nothing to say.
+  }
+}
+
 const SQUAWKS: Record<string, string> = { "7500": "hijack", "7600": "lost radio", "7700": "emergency" };
 
 /** A name in the FAA's or a registry's capitals as a name is written:
@@ -75,15 +90,18 @@ function against(feet: number): string {
  * its heights' colours. Seconds-old internet data from adsb.lol's
  * receivers: for knowing what is about, not for avoiding it.
  */
-export default function FlightCard({ hex, onClose, onOpenPast, onExpand, onLower }: {
+export default function FlightCard({ hex, onClose, onOpenPast, onExpand, onLower, summary = false }: {
   hex: string;
   onClose: () => void;
-  /** The panel all the way up, for a tab picked, and back to half, the
+  /** The panel all the way up, for a tab picked, and back to the pill, the
    *  open one tapped again, as an airport's card's tabs do (CardTabBar). */
   onExpand?: () => void;
   onLower?: () => void;
   /** Opens one of its past flights' own card over this one. */
   onOpenPast: (id: number) => void;
+  /** At the panel's minimal size, as every card opens: its head, its
+   *  actions and its route, the rest a swipe up (the airport card's). */
+  summary?: boolean;
 }) {
   const latest = useTracking(s => (s.latest?.plane.hex === hex ? s.latest : null));
   const follow = useTracking(s => s.follow);
@@ -127,21 +145,90 @@ export default function FlightCard({ hex, onClose, onOpenPast, onExpand, onLower
   const cpa = fix && plane && here ? closestApproach(fix, { ...plane, ...here }) : null;
   const squawk = plane?.squawk ?? null;
   const rate = plane?.vertical_fpm ?? 0;
+  // How far and which way from own ship, where there is a fix.
+  const away = fix && here ? `${distanceNm({ lat: fix.lat, lon: fix.lon }, here).toFixed(1)} nm ${compassPoint(bearingDeg({ lat: fix.lat, lon: fix.lon }, here))}` : null;
+  // What it is and who flies it, as the FAA's and the database's names.
+  const what = [detail?.description ? nameCase(detail.description) : detail?.type ?? plane?.type, detail?.operator ? nameCase(detail.operator) : null]
+    .filter(Boolean).join(" · ") || null;
+  // Its state under the star: an emergency's code first (AIM 6-2-2, 6-3-4,
+  // 6-4-2), else climbing or descending past 300 feet a minute, else level.
+  const state = squawk && SQUAWKS[squawk] ? { word: squawk, alarm: true }
+    : plane ? { word: rate >= 300 ? "CLB" : rate <= -300 ? "DES" : "LVL", alarm: false } : null;
+  // Where it has flown, in the diagram's place: its trace, its height and
+  // speed over it.
+  const trail = useMemo(() => (detail?.trail ?? []).map(p => ({ lat: p.lat, lon: p.lon })), [detail?.trail]);
+  const trailBox = (className: string) => (
+    <div className={cn("relative min-h-0 overflow-hidden rounded-xl bg-background/70", className)} data-testid="flight-trail">
+      <TrailSketch points={trail} now={here} trackDeg={plane?.track_deg ?? null} />
+      {plane && (
+        <span className={cn("pointer-events-none absolute top-1 left-1.5 rounded-md bg-background/75 px-1 font-semibold text-foreground", TEXT.note)}>
+          {plane.altitude_ft == null ? "—" : `${altFt(Math.round(plane.altitude_ft / 100) * 100)} ft`}
+          {plane.speed_kt != null && <span className="font-normal"> · {Math.round(plane.speed_kt)} kt</span>}
+        </span>
+      )}
+    </div>
+  );
   return (
     <PanelCard testId="flight-card">
-      {/* Its name alone, at the owner's ask ("you don't need any info
-          below the id"): what it is and who flies it are Info's. */}
-      <CardHead name={name} nameTestId="flight-name" onClose={onClose} closeTestId="flight-close">
-        <TogglePill
-          pressed={follow} onPressedChange={on => useTracking.setState({ follow: on })}
-          icon={<Crosshair />} label="Follow" testId="flight-follow"
+      {/* The airport card's head, at the owner's pick of the redesign
+          ("the half layout as we discussed before"): its name; how far and
+          which way, then what it is and who flies it, on lines of their
+          own; where it has flown in the diagram's place, its height and
+          speed on it; the star and its state (climbing, level,
+          descending, or an emergency's code) in a column under the close.
+          The same all the way up, the rest under it. */}
+      <div className="flex h-[7rem] gap-2">
+        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <h2 className={cn("truncate font-bold tracking-tight text-foreground", TEXT.card)} data-testid="flight-name">{name}</h2>
+          {away && <p className={cn("truncate text-muted-foreground", TEXT.note)} data-testid="flight-away">{away}</p>}
+          {what && <p className={cn("line-clamp-2 text-muted-foreground", TEXT.note)} data-testid="flight-what">{what}</p>}
+        </div>
+        {trailBox("min-w-0 flex-1")}
+        <div className="-mr-1 flex w-9 shrink-0 flex-col items-center gap-2">
+          <CardClose onClose={onClose} testId="flight-close" />
+          <FavoriteButton kept={kept} />
+          {state && (
+            <span
+              className={cn("flex w-9 justify-center rounded-md py-0.5 font-bold text-white", TEXT.caption, state.alarm ? "bg-destructive" : "bg-teal-700")}
+              data-testid="flight-state"
+            >{state.word}</span>
+          )}
+        </div>
+      </div>
+      {/* Follow, its flights, the FAA's record of it, and a link to it. */}
+      <div className="mt-2 grid grid-cols-4 gap-2">
+        <CardAction
+          icon={<Crosshair />} label="Follow" filled={follow} testId="flight-follow"
+          onClick={() => useTracking.setState({ follow: !follow })} pressed={follow}
         />
-        <FavoriteButton kept={kept} />
-      </CardHead>
+        <CardAction icon={<History />} label="Flights" testId="flight-flights" onClick={() => { setPicked("activity"); onExpand?.(); }} />
+        <CardAction icon={<IdCard />} label="Registry" testId="flight-registry" onClick={() => { setPicked("info"); onExpand?.(); }} />
+        <CardAction icon={<Share />} label="Share" testId="flight-share" onClick={() => void shareFlight(name, hex)} />
+      </div>
+      {/* At the pill's size its route under the actions, or with none
+          known how it flies; all the way up the pages under the actions
+          instead, Now first with both, as the airport card's (the owner's
+          "These tabs look nicer"). */}
+      {summary && (route || plane) && <div className="pt-3">
+        {route ? (
+          <PillSection title={`Route (${route.airports.map(a => a.ident).join(" → ")})`} onMore={() => { setPicked("now"); onExpand?.(); }} testId="flight-summary-route">
+            <ListGroup>
+              <ListRow title={route.airports.map(a => a.location ?? a.name).filter(Boolean).join(" to ")} />
+            </ListGroup>
+          </PillSection>
+        ) : plane && (
+          <PillSection title="In the air" onMore={() => { setPicked("now"); onExpand?.(); }} testId="flight-summary-now">
+            <ListGroup>
+              <ListRow title="Ground speed · track" value={`${plane.speed_kt == null ? "—" : `${Math.round(plane.speed_kt)} kt`} · ${plane.track_deg == null ? "—" : `${String(Math.round(plane.track_deg) % 360).padStart(3, "0")}°`}`} />
+            </ListGroup>
+          </PillSection>
+        )}
+      </div>}
+      {!summary && (
       <Tabs value={tab} className="gap-0 pt-3">
         {/* The cards' tabs (CardTabBar), the airport card's: tapped, the
             panel all the way up, as its are. */}
-        <CardTabBar tabs={FLIGHT_TABS} value={tab} onPick={setPicked} testIdPrefix="flight-tab" raise={raise} barRef={tabsRef} />
+        <CardTabBar tabs={FLIGHT_TABS} value={tab} onPick={setPicked} testIdPrefix="flight-tab" raise={raise} barRef={tabsRef} className="mt-3" />
       <CardTabPanel value="now">
         <ListGroup title="In the air">
           {/* Not heard now -- on the ground, out of a receiver's reach, or
@@ -264,6 +351,7 @@ export default function FlightCard({ hex, onClose, onOpenPast, onExpand, onLower
         {detail?.faa && <FaaRegistration faa={detail.faa} />}
       </CardTabPanel>
       </Tabs>
+      )}
     </PanelCard>
   );
 }

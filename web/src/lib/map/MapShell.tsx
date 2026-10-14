@@ -187,7 +187,7 @@ export function MapShell({ course, onReady, children, onSelectPlace, held = fals
     const was = settledInsets.current;
     settledInsets.current = insets;
     if (!map || held) return;
-    const turned = insets.out !== was.out;
+    const turned = insets.out !== was.out || insets.up !== was.up;
     const settling = following.current && performance.now() < following.current.until ? following.current.what : null;
     if (!turned && !settling) return;
     let what = settling;

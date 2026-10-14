@@ -1,6 +1,6 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
-import { Cloud, CloudSun, Eye, Gauge, Lightbulb, Loader2, MapPin, MapPinPlus, Phone, PlaneLanding, PlaneTakeoff, Radio, Repeat, Route, Star, Thermometer, Wind } from "lucide-react";
+import { Cloud, CloudSun, Eye, Gauge, Lightbulb, MapPin, MapPinPlus, Phone, PlaneLanding, PlaneTakeoff, Radio, Repeat, Route, Star, Thermometer, Wind } from "lucide-react";
 import DirectToIcon from "../../../components/DirectToIcon";
 import { cn } from "cn";
 import { useKeptAirport, usePreferences } from "../../../lib/preferences";
@@ -11,9 +11,10 @@ import { FitText } from "../../../components/FitText";
 import { CardClose, CardHead, PanelCard } from "../../../components/PanelCard";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
 import { CardTabBar, CardTabPanel } from "../../../components/CardTabs";
+import { PillSection } from "../../../components/Favorites";
+import { CardAction as Action } from "./CardAction";
 import { useCardTab } from "../../../lib/cardTab";
 import { Tabs } from "../../../components/ui/tabs";
-import { Button } from "../../../components/ui/button";
 import { ApiError, api } from "../../../lib/api/client";
 import type { AirportPin, AirportPlace, ClassBAirport, TerminalChart } from "../../../lib/api/types";
 import { compassPoint } from "../../../lib/compass";
@@ -61,6 +62,15 @@ function subtitleOf(place: AirportPlace, from: { point: LatLon; name: string | n
   ].filter(Boolean).join(" · ");
 }
 
+/** How many frequencies the card shows at the pill's size. */
+const SUMMARY_FREQUENCIES = 2;
+
+/** "Frequencies (Class C)": the frequencies' title with the class of the
+ *  airspace the field sits in (its airspace_class, from the FAA's NASR). */
+function frequenciesTitle(place: AirportPlace): string {
+  return `Frequencies${place.airspace_class ? ` (Class ${place.airspace_class})` : ""}`;
+}
+
 /** The wind as reported, true: "140° at 10 kt", "calm", "variable at 4
  *  kt, gusts 18". */
 function windLine(metar: NonNullable<AirportPlace["metar"]>): string {
@@ -106,13 +116,15 @@ function knownOf(queryClient: QueryClient, ident: string): { name: string; categ
 }
 
 type CardTab = "radio" | "weather" | "runways" | "diagrams";
-/** The card's tabs, in the pilot's order: the radio first, what is
- *  wanted first on the way in. "Freq." as on its tile was. */
+/** The card's pages, in the pilot's order, under the actions all the way
+ *  up, at the owner's pick ("These tabs look nicer"): the radio first,
+ *  what is wanted first on the way in, named Info at the owner's ask
+ *  ("Rename Freq. to Info"). */
 const CARD_TABS: { value: CardTab; label: string }[] = [
-  { value: "radio", label: "Freq." },
+  { value: "radio", label: "Info" },
   { value: "weather", label: "Weather" },
   { value: "runways", label: "Runways" },
-  { value: "diagrams", label: "Diagrams" },
+  { value: "diagrams", label: "Charts" },
 ];
 
 /** The field's charts in the d-TPP under the Diagrams tab, by what they
@@ -154,61 +166,6 @@ function mapsLink(place: AirportPlace): string {
   return `https://maps.apple.com/?q=${encodeURIComponent(place.name)}&${where}`;
 }
 
-/** A tile of the card's action row: its glyph over its word, as Maps
- *  draws its own -- Fly Here filled in the tint, the rest panes of glass
- *  in the text's colour, as the gear and the route's close are, at the
- *  pilot's ask (they were the tint on grey). A 20-point glyph in a tile
- *  about 50 tall, at the pilot's ask: 70 tall, with Maps' 24-point glyph,
- *  they put the card's tabs under the half sheet's foot. The box in
- *  points, its word in the reader's size: the glyph, padding and gap are
- *  fixed, but the word's line still grows with the text size (checked at
- *  a 19 px root, not at the largest sizes). */
-function Action({ icon, label, spoken, filled, busy, disabled, onClick, href, testId }: {
-  icon: ReactNode; label: string; filled?: boolean; onClick?: () => void; testId: string;
-  /** Where it goes instead, outside the app: a phone number to call, the
-   *  field in Maps. */
-  href?: string;
-  /** The whole word, where the tile shows it cut short. */
-  spoken?: string;
-  /** Until the card's answer is in: the tile in its place, not yet live. */
-  disabled?: boolean;
-  /** Tapped, and its work under way: a spinner in place of its symbol,
-   *  which turns on the compositor while the page is busy drawing what
-   *  the tap asked for. */
-  busy?: boolean;
-}) {
-  // Its sides four points in, not the stock button's ten: the room a
-  // word needs to stay on its one line (below) at the text sizes a reader
-  // sets larger.
-  const look = cn("h-auto min-w-0 flex-col gap-[2px] rounded-xl px-1 py-[6px] [&_svg:not([class*='size-'])]:size-[20px]", !filled && GLASS_BUTTON);
-  const face = (
-    <>
-      {busy ? <Loader2 className="size-[20px] animate-spin" aria-hidden="true" /> : icon}
-      {/* On one line, at the pilot's ask: "Fly Here" and "Add Stop" on
-          two at a larger text size made every tile a line taller, and
-          the card's tiles ran off the half sheet. Wrapped, not cut
-          short, only where even that is too narrow, a 320-point Slide Over:
-          HIG says not to truncate a button's title. */}
-      <span className={cn("max-w-full text-center leading-tight font-semibold", TEXT.note)}>{label}</span>
-    </>
-  );
-  // A link where it leaves the app, the stock button's look on it.
-  if (href && !disabled) {
-    return (
-      <Button asChild variant={filled ? "default" : "secondary"} className={look}>
-        <a href={href} target={href.startsWith("tel:") ? undefined : "_blank"} rel="noreferrer" data-testid={testId} aria-label={spoken}>{face}</a>
-      </Button>
-    );
-  }
-  return (
-    <Button
-      type="button" variant={filled ? "default" : "secondary"} onClick={onClick} disabled={disabled}
-      data-testid={testId} aria-label={spoken} aria-busy={busy || undefined} className={look}
-    >
-      {face}
-    </Button>
-  );
-}
 
 /**
  * An airport's card in the panel, as a place's is in Maps: its name and
@@ -222,7 +179,7 @@ function Action({ icon, label, spoken, filled, busy, disabled, onClick, href, te
  * How far it is is from the pilot's own position when it is known, and
  * from the route's departure otherwise.
  */
-export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, onExpand, onLower, startOn, onStarted }: {
+export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, onExpand, onLower, startOn, onStarted, summary = false }: {
   ident: string;
   /** What the distance is measured from where own ship has no fix: the
    *  route's departure. */
@@ -235,13 +192,17 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
   onAddStop?: (place: AirportPlace) => void;
   /** The panel all the way up, for a section scrolled to. */
   onExpand: () => void;
-  /** Back down to half: the open tab tapped again with the panel all the
+  /** Back down to the pill: the open tab tapped again with the panel all the
    *  way up, as the route's tabs do (PanelTabs). */
   onLower: () => void;
   /** Opened on a section of a tab: the route's Approaches opens the
    *  destination's on its approaches. `onStarted` once it has. */
   startOn?: "approaches";
   onStarted?: () => void;
+  /** At the panel's minimal size, as every card opens: its head, its
+   *  actions and its first frequencies, the rest a swipe up -- as Apple
+   *  Maps opens a place, at the owner's pick of the redesign. */
+  summary?: boolean;
 }) {
   const { data: place, isLoading, error, refetch, isFetching } = useQuery({
     queryKey: ["airport", ident], queryFn: () => api.airport(ident), staleTime: 5 * 60_000,
@@ -332,6 +293,10 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
   const [elevationPane, setElevationPane] = useState<HTMLElement | null>(null);
   // The ident is in the name's head (NameWithIdent), so not here again;
   // nor the elevation, which the runways' box shows.
+  // Under the distance, the ident and the town, on a line of its own at
+  // the owner's ask ("move the distance above id, city").
+  // The state as the FAA writes it ("MN"), not ISO's region ("US-MN").
+  const where = place ? [place.ident, [place.municipality, place.region?.replace(/^US-/, "")].filter(Boolean).join(", ")].filter(Boolean).join(" · ") : null;
   const line = place ? subtitleOf(place, measured)
     : error ? (error instanceof ApiError && error.status === 404 ? "Not found" : "Could not be looked up")
       : "…";
@@ -390,20 +355,79 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
       )}
     </span>
   );
+  // The runways' picture, its own button (above), where the card puts it.
+  const diagramBox = (className: string) => (
+    <div className={cn("relative min-h-0 overflow-hidden rounded-xl text-foreground", GLASS_BUTTON, className)}>
+      {/* A button only where the Runways tab has something to show
+          (rows for runways whose ends are unsurveyed, a pattern
+          altitude); otherwise the tap would open an empty tab. */}
+      {place && !sketched && (place.runways.length > 0 || place.pattern?.altitude_ft != null ? (
+        <button
+          type="button" data-testid="place-runway-sketch" onClick={() => open("runways")}
+          className={cn("absolute inset-0 flex items-end justify-end rounded-xl p-2 text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset", TEXT.note)}
+        >
+          No runways to draw
+        </button>
+      ) : (
+        <div
+          data-testid="place-runway-sketch"
+          className={cn("absolute inset-0 flex items-end justify-end p-2 text-muted-foreground", TEXT.note)}
+        >
+          No runways to draw
+        </div>
+      ))}
+      {place && sketched && (<button
+        type="button" data-testid="place-runway-sketch"
+        aria-label={`${place.ident} runways ${sketchedRunways.join(", ")}, north up${leftOut ? `, ${leftOut} more not drawn, their ends unsurveyed` : ""}. ${place.airport_diagram_url ? "Airport diagram" : "Runways sketch"}, full screen`}
+        onClick={() => setDiagramOpen(place.airport_diagram_url ? "faa" : "sketch")}
+        className="absolute inset-0 block rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+      >
+        {/* The FAA's own diagram, cropped to its runways, where the field
+            has one, at the pilot's ask; the card's sketch of them
+            where it has none, or the crop cannot be had. */}
+        {place.airport_diagram_cycle && !noRunwaysPicture ? (
+          <img
+            src={diagramRunwaysPicture(place.ident, place.airport_diagram_cycle)} alt=""
+            onError={() => setNoRunwaysPicture(true)} data-testid="place-diagram-runways"
+            // The diagram's white paper round it, black at night: the
+            // inversion turns the paper too (a black ground under it
+            // came out white).
+            className="absolute inset-0 size-full rounded-xl bg-white object-contain dark:invert"
+          />
+        ) : (
+          <RunwaySketch runways={place.runways} lat={place.lat} lon={place.lon} avoid={elevationPane} />
+        )}
+      </button>)}
+      {/* Over the sketch, read as it is (the button's name is the
+          runways'), on a pane of the card's own ground where a
+          runway runs under it: "Elev 788 ft" on one line, at the
+          pilot's ask (it was tried with "Elev" over the figure);
+          the word lighter than its figure (by weight, not a grey
+          that loses contrast on the glass), and "Elevation" in
+          full to a screen reader. */}
+      {place?.elevation_ft != null && (
+        <span
+          ref={setElevationPane}
+          className={cn("pointer-events-none absolute top-1 left-1.5 rounded-md bg-background/75 px-1 font-semibold text-foreground", TEXT.note, NOTE_LEADING)}
+          data-testid="place-elevation"
+        >
+          <span aria-hidden="true" className="font-normal">Elev </span>
+          <span className="sr-only">Elevation </span>{feet(place.elevation_ft)}
+        </span>
+      )}
+    </div>
+  );
   return (
     <PanelCard testId="place-card">
       <Tabs value={tab} className="gap-0">
-      {/* The name, the actions and the tabs' bar the panel's half: a
-          tab's content starts under it, out of sight there. */}
+      {/* The name, the sketch and the actions, the owner's pick of the
+          redesign (1b, "the half layout as we discussed before"): the card
+          at the pill's size, and the same, where it was, all the way up,
+          the rest under it -- the owner's "the top half stay the same as
+          half card", so a drag up only adds below. */}
       <div
-        // As tall as the half sheet's body and its foot over the home
-        // indicator (MapPanel's toEdge), less the card's own top and the
-        // sheet's round corner at the bottom, at the pilot's ask: the
-        // tiles and the tabs at the card's foot, the name's rows taking
-        // what they leave. The same height all the way up, so the card is
-        // one layout at every height; never less than the tiles, the tabs
-        // and the close's row need (a card with no half sheet's body).
-        className="flex h-[max(11.5rem,calc(var(--half-body,0px)_+_var(--half-foot,0px)_-_var(--corner-inset,0.75rem)_-_0.5rem))] flex-col"
+        // One height, the head and its actions.
+        className="flex h-[10.5rem] flex-col"
         data-to-edge=""
       >
         {place || !error ? (
@@ -412,11 +436,11 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
           // chip one over another, the close where every panel's is
           // (MapPanel's --corner-line). The sketch between the name and
           // them, from the card's top down to the tiles, the field's
-          // elevation in its top left ("Elev 788 ft"); the name alone, and
-          // how far it is under it. The same for every field, so the card
-          // keeps its layout whatever the field: a long name is set smaller
-          // to fit its column (FitText), where it wrapped to four lines and
-          // pushed the tiles and the tabs down.
+          // elevation in its top left ("Elev 788 ft"); under the name how
+          // far it is, then the ident and the town. The same for every
+          // field, so the card keeps its layout whatever the field: a long
+          // name is set smaller to fit its column (FitText), where it
+          // wrapped to four lines and pushed the tiles and the tabs down.
           <div className="flex min-h-0 flex-1 gap-2">
             <div className="flex min-h-0 min-w-0 flex-1 flex-col">
               <h2
@@ -431,75 +455,17 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
                 </FitText>
               </h2>
               {line && <p className={cn("line-clamp-2 text-muted-foreground", TEXT.note)} data-testid="place-line">{line}</p>}
+              {where && <p className={cn("truncate text-muted-foreground", TEXT.note)} data-testid="place-where">{where}</p>}
             </div>
             {/* The box there from the first frame, empty until the card's
                 answer is in, and for a field with no runway to draw, so
                 the card is the one shape for every field. */}
-            <div className={cn("relative min-h-0 min-w-0 flex-1 overflow-hidden rounded-xl text-foreground", GLASS_BUTTON)}>
-              {/* A button only where the Runways tab has something to show
-                  (rows for runways whose ends are unsurveyed, a pattern
-                  altitude); otherwise the tap would open an empty tab. */}
-              {place && !sketched && (place.runways.length > 0 || place.pattern?.altitude_ft != null ? (
-                <button
-                  type="button" data-testid="place-runway-sketch" onClick={() => open("runways")}
-                  className={cn("absolute inset-0 flex items-end justify-end rounded-xl p-2 text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset", TEXT.note)}
-                >
-                  No runways to draw
-                </button>
-              ) : (
-                <div
-                  data-testid="place-runway-sketch"
-                  className={cn("absolute inset-0 flex items-end justify-end p-2 text-muted-foreground", TEXT.note)}
-                >
-                  No runways to draw
-                </div>
-              ))}
-              {place && sketched && (<button
-                type="button" data-testid="place-runway-sketch"
-                aria-label={`${place.ident} runways ${sketchedRunways.join(", ")}, north up${leftOut ? `, ${leftOut} more not drawn, their ends unsurveyed` : ""}. ${place.airport_diagram_url ? "Airport diagram" : "Runways sketch"}, full screen`}
-                onClick={() => setDiagramOpen(place.airport_diagram_url ? "faa" : "sketch")}
-                className="absolute inset-0 block rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
-              >
-                {/* The FAA's own diagram, cropped to its runways, where the field
-                    has one, at the pilot's ask; the card's sketch of them
-                    where it has none, or the crop cannot be had. */}
-                {place.airport_diagram_cycle && !noRunwaysPicture ? (
-                  <img
-                    src={diagramRunwaysPicture(place.ident, place.airport_diagram_cycle)} alt=""
-                    onError={() => setNoRunwaysPicture(true)} data-testid="place-diagram-runways"
-                    // The diagram's white paper round it, black at night: the
-                    // inversion turns the paper too (a black ground under it
-                    // came out white).
-                    className="absolute inset-0 size-full rounded-xl bg-white object-contain dark:invert"
-                  />
-                ) : (
-                  <RunwaySketch runways={place.runways} lat={place.lat} lon={place.lon} avoid={elevationPane} />
-                )}
-              </button>)}
-              {/* Over the sketch, read as it is (the button's name is the
-                  runways'), on a pane of the card's own ground where a
-                  runway runs under it: "Elev 788 ft" on one line, at the
-                  pilot's ask (it was tried with "Elev" over the figure);
-                  the word lighter than its figure (by weight, not a grey
-                  that loses contrast on the glass), and "Elevation" in
-                  full to a screen reader. */}
-              {place?.elevation_ft != null && (
-                <span
-                  ref={setElevationPane}
-                  className={cn("pointer-events-none absolute top-1 left-1.5 rounded-md bg-background/75 px-1 font-semibold text-foreground", TEXT.note, NOTE_LEADING)}
-                  data-testid="place-elevation"
-                >
-                  <span aria-hidden="true" className="font-normal">Elev </span>
-                  <span className="sr-only">Elevation </span>{feet(place.elevation_ft)}
-                </span>
-              )}
-            </div>
+            {diagramBox("min-w-0 flex-1")}
             {/* Eight apart, so the buttons' 44-point hit areas (index.css)
-                meet. */}
+                meet. From the first frame, as the actions are: the card one
+                shape while its answer comes, at the pilot's ask. */}
             <div className="-mr-1 flex w-9 shrink-0 flex-col items-center gap-2">
               <CardClose onClose={onClose} testId="place-close" />
-              {/* From the first frame, as the tabs are: the card one shape
-                  while its answer comes, at the pilot's ask. */}
               <FavoriteButton ident={kept?.ident ?? ident} place={place ?? null} />
               {chip}
             </div>
@@ -557,24 +523,70 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
             />
           </div>
         )}
-        {/* From the first frame too, its tabs' contents coming with the
-            card's answer, at the pilot's ask: the card was a shorter shape
-            until then, no tabs and no star, and grew into its own as the
-            answer came. Not over a card that could not be had. */}
-        {!(error && !place) && (
-          // The cards' tabs (CardTabBar): tapped, the panel all the way up,
-          // the open one tapped again up there back to half. Greyed until
-          // the answer comes, as the star and the actions are: a tap would
-          // raise the sheet over panels with nothing in them yet.
-          <CardTabBar
-            tabs={CARD_TABS} value={tab} onPick={setPicked} testIdPrefix="place-tab" disabled={!place}
-            raise={{ onExpand: raise, onLower }} barRef={tabsRef} className="scroll-mt-3"
-          />
-        )}
       </div>
 
-      {place && (
+      {/* At the pill's size its first frequencies under the actions, the
+          airspace the field is in beside their title (the owner's "class C
+          in parenthesis next to Frequency heading"), the title the way up
+          to the rest (Info, all the way up). */}
+      {summary && place && (
+        <div className="pt-3">
+          <PillSection title={frequenciesTitle(place)} onMore={() => { setPicked("radio"); onExpand(); }} testId="place-summary-frequencies">
+            <ListGroup>
+              {place.frequencies.length ? place.frequencies.slice(0, SUMMARY_FREQUENCIES).map((f, i) => (
+                <FrequencyRow key={`${f.type}-${f.frequency_mhz}-${i}`} type={f.type} description={f.description} mhz={f.frequency_mhz} testId="place-frequency" />
+              )) : <ListRow title="None listed" />}
+            </ListGroup>
+          </PillSection>
+        </div>
+      )}
+      {/* From the first frame too, its tabs' contents coming with the
+          card's answer, at the pilot's ask: the card was a shorter shape
+          until then, no tabs and no star, and grew into its own as the
+          answer came. Not over a card that could not be had. */}
+      {!summary && !(error && !place) && (
+        // The cards' tabs (CardTabBar): tapped, the panel all the way up,
+        // the open one tapped again up there back to the pill. Greyed until
+        // the answer comes, as the star and the actions are: a tap would
+        // raise the sheet over panels with nothing in them yet.
+        <CardTabBar
+          tabs={CARD_TABS} value={tab} onPick={setPicked} testIdPrefix="place-tab" disabled={!place}
+          raise={{ onExpand: raise, onLower }} barRef={tabsRef} className="mt-3 scroll-mt-3"
+        />
+      )}
+      {place && !summary && (
         <>
+          <CardTabPanel value="radio" className="space-y-0">
+            <ListGroup title={frequenciesTitle(place)}>
+              {place.frequencies.length ? place.frequencies.map((f, i) => (
+                <FrequencyRow key={`${f.type}-${f.frequency_mhz}-${i}`} type={f.type} description={f.description} mhz={f.frequency_mhz} testId="place-frequency" />
+              )) : <ListRow title="None listed" />}
+              {/* What some fields read out on so many clicks of the mic on
+                  the CTAF: the weather, a radio check (vfr.remarks). */}
+              {place.radio_notes.map(note => (
+                <ListRow key={note} media={<RowBadge colour={BADGE.traffic}><Radio /></RowBadge>} title={note} />
+              ))}
+            </ListGroup>
+            {place.lighting.length > 0 && (
+              // The field's lights, from its Chart Supplement remarks: the
+              // ones a pilot turns on from the cockpit by keying the mic,
+              // and with no count of clicks of their own, the standard one
+              // -- with the radio, as it is the mic that turns them on.
+              <div className="pt-5">
+                <ListGroup
+                  title="Lights"
+                  footer={place.standard_keying
+                    ? "Key the mic on the frequency 7 times within 5 seconds for high intensity, 5 for medium, 3 for low."
+                    : undefined}
+                >
+                  {place.lighting.map(note => (
+                    <ListRow key={note} media={<RowBadge colour={BADGE.lights}><Lightbulb /></RowBadge>} title={note} data-testid="place-lighting" />
+                  ))}
+                </ListGroup>
+              </div>
+            )}
+          </CardTabPanel>
+
           <CardTabPanel value="diagrams">
             <ListGroup title="Airport">
               {!place.airport_diagram_url && !place.airport_diagram_cycle && !sketched && (
@@ -689,41 +701,6 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
                 </ListGroup>
               </div>
             )}
-          </CardTabPanel>
-
-          <CardTabPanel value="radio" className="space-y-0">
-            <ListGroup>
-              {place.frequencies.length ? place.frequencies.map((f, i) => (
-                <FrequencyRow
-                  key={`${f.type}-${f.frequency_mhz}-${i}`} type={f.type} description={f.description} mhz={f.frequency_mhz}
-                  testId="place-frequency"
-                />
-              )) : <ListRow title="None listed" />}
-              {/* What some fields read out on so many clicks of the mic on
-                  the CTAF: the weather, a radio check (vfr.remarks). */}
-              {place.radio_notes.map(note => (
-                <ListRow key={note} media={<RowBadge colour={BADGE.traffic}><Radio /></RowBadge>} title={note} />
-              ))}
-            </ListGroup>
-
-          {place.lighting.length > 0 && (
-            // The field's lights, from its Chart Supplement remarks: the
-            // ones a pilot turns on from the cockpit by keying the mic,
-            // and with no count of clicks of their own, the standard one --
-            // with the radio, as it is the mic that turns them on.
-            <div className="pt-5">
-              <ListGroup
-                title="Lights"
-                footer={place.standard_keying
-                  ? "Key the mic on the frequency 7 times within 5 seconds for high intensity, 5 for medium, 3 for low."
-                  : undefined}
-              >
-                {place.lighting.map(note => (
-                  <ListRow key={note} media={<RowBadge colour={BADGE.lights}><Lightbulb /></RowBadge>} title={note} data-testid="place-lighting" />
-                ))}
-              </ListGroup>
-            </div>
-          )}
           </CardTabPanel>
 
           <CardTabPanel value="runways" className="space-y-0">

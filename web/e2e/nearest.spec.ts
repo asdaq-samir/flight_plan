@@ -28,6 +28,9 @@ test("Nearest opens as a card half way up, a field over it as a layer, and its c
   await grabberTo(page, "peek");
   await showTabs(page);
   await page.getByTestId("tab-airport").click();
+  // The strip's title's menu: the nearest fields (the Favorites first).
+  await sideDrawer(page).getByTestId("airport-strip-shows").click();
+  await page.getByTestId("airport-shows-nearest").click();
   // With no position yet, the strip offers to show it.
   await sideDrawer(page).getByTestId("nearest-strip-position").or(sideDrawer(page).getByTestId("nearest-strip-field").first()).first().click({ trial: true });
   if (await sideDrawer(page).getByTestId("nearest-strip-position").isVisible()) await sideDrawer(page).getByTestId("nearest-strip-position").click();
@@ -56,9 +59,11 @@ test("Nearest opens as a card half way up, a field over it as a layer, and its c
   await showTabs(page);
   await page.getByTestId("tab-fpl").click();
   await expect(card).toHaveCount(0);
+  // At the pill's size, as a tab tapped opens (TabBar); all the way up,
+  // the route's pages.
+  await expect(sideDrawer(page)).toHaveAttribute("data-panel", "peek");
+  await grabberTo(page, "full");
   await expect(sideDrawer(page).getByTestId("panel-tab-navlog")).toBeVisible();
-  // Half way: all the way up is the route's briefing on FPL (MapPage).
-  await expect(sideDrawer(page)).toHaveAttribute("data-panel", "half");
 });
 
 test("a field the armed services keep to themselves is off the map until Military is on", async ({ page }) => {

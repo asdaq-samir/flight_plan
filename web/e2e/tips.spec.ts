@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { openPanel, openSettings, settle, slow, tapTheChart } from "./helpers";
+import { controlsInSight, openSettings, settle, slow } from "./helpers";
 
 /**
  * The first-run tips (lib/tips, TipHost): one at a time beside the
@@ -18,25 +18,33 @@ test.beforeEach(async ({ page }) => {
 test("a new pilot is shown what to look for, a tip at a time, each once", async ({ page }) => {
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
-  await openPanel(page);
+  await controlsInSight(page);
   const tip = page.getByTestId("tip");
 
-  // The route's box first, then the flight's line, then the altitude.
+  // The route's box first; then the flight's line and the altitude, which
+  // all the way up are in sight together, one and then the other.
   await expect(tip).toContainText("Your route", { timeout: slow(15000) });
   await expect(tip).toHaveCount(1);
   await page.getByTestId("tip-close").click();
-  await expect(tip).toContainText("The quick numbers", { timeout: slow(15000) });
-  await page.getByTestId("tip-close").click();
   await expect(page.getByTestId("altitude-why")).toHaveAccessibleName(/FL\d{3}/, { timeout: slow(60000) });
-  await expect(tip).toContainText("Why this altitude", { timeout: slow(15000) });
-  // Put away by a tap elsewhere, as by its close: the pilot moved on.
-  await tapTheChart(page);
+  await expect(tip).toHaveAttribute("aria-label", /The quick numbers|Why this altitude/, { timeout: slow(15000) });
+  const quickFirst = await tip.getAttribute("aria-label") === "The quick numbers";
+  if (quickFirst) {
+    await page.getByTestId("tip-close").click();
+    await expect(tip).toContainText("Why this altitude", { timeout: slow(15000) });
+  }
+  // Put away by a tap elsewhere, as by its close: the pilot moved on --
+  // here on the route's figures, the sheet all the way up over the chart.
+  await page.locator('[data-tip="flight-line"]').last().click();
   await expect(tip.filter({ hasText: "Why this altitude" })).toHaveCount(0);
+  // The figures' own, where it was not first: offered once they are in
+  // sight (on a desktop's column the next tip can come before it).
+  if (!quickFirst && await tip.filter({ hasText: "The quick numbers" }).isVisible()) await page.getByTestId("tip-close").click();
 
   // Seen, not offered again on this device.
   await page.reload();
   await settle(page);
-  await openPanel(page);
+  await controlsInSight(page);
   await page.waitForTimeout(2500);
   await expect(tip.filter({ hasText: /Your route|The quick numbers|Why this altitude/ })).toHaveCount(0);
 
@@ -47,6 +55,6 @@ test("a new pilot is shown what to look for, a tip at a time, each once", async 
   await expect(page.getByTestId("tips-reset")).toContainText("Tips will show again");
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
-  await openPanel(page);
+  await controlsInSight(page);
   await expect(tip).toContainText("Your route", { timeout: slow(15000) });
 });

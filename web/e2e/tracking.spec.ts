@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { closeCard, grabberTo, settle, showTabs, sideDrawer, slow } from "./helpers";
+import { closeCard, grabberTo, settle, showTabs, slow } from "./helpers";
 
 /**
  * Tracking an airplane, as FlightAware and ForeFlight do, at the pilot's
@@ -60,32 +60,29 @@ test.afterEach(async ({ page }) => {
   await page.unrouteAll({ behavior: "ignoreErrors" });
 });
 
-/** The Aircraft tab's filter picked by kind: no list until one is, at the
- *  owner's ask; the stub's airplanes send no emitter category ("other"). */
-async function filterKind(page: Page, kind: string) {
-  await page.getByTestId("filter-kind").click();
-  await page.getByRole("option", { name: kind, exact: true }).click();
-}
-
-test("Aircraft is a tab, lists the airplanes a filter keeps, and a tap on one tracks it: its card, its path, the map on it", async ({ page }) => {
+test("Aircraft is a tab, finds an airplane by its callsign, and a tap on one tracks it: its card, its path, the map on it", async ({ page }) => {
   await sky(page);
   await page.goto("/app/plan");
   await settle(page);
   // Out of the tabs alone, which a fresh load opens as.
-  await grabberTo(page, "half");
+  await grabberTo(page, "full");
   // The tab bar's Aircraft, at the pilot's ask, where it was a button under Nearest's.
   await showTabs(page);
   await page.getByTestId("tab-aircraft").click();
   await showTabs(page);
   await expect(page.getByTestId("tab-aircraft")).toHaveAttribute("aria-current", "page");
+  // A tab tapped opens at the pill's size (TabBar); its list all the way up.
+  await grabberTo(page, "full");
   const list = page.getByTestId("aircraft-card");
-  // Nothing listed until a filter asks, at the owner's ask.
+  // No list of everything about, nor its filters, at the owner's ask
+  // ("don't need the extra filters at the bottom"): found by the search.
   await expect(list.getByTestId("filter-row")).toHaveCount(0);
-  await filterKind(page, "Other");
-  await expect(list.getByTestId("filter-row")).toHaveCount(2, { timeout: slow(15_000) });
-  await list.getByTestId("filter-row").filter({ hasText: "UAL2088" }).click();
+  await page.getByTestId("aircraft-search").fill("UAL2088");
+  await list.getByTestId("aircraft-found").filter({ hasText: "UAL2088" }).first().click();
   await expect(page).toHaveURL(/[?&]flight=a0b7d8/);
   const card = page.getByTestId("flight-card");
+  // At the pill's size, as every card opens; its pages all the way up.
+  await grabberTo(page, "full");
   await expect(card.getByTestId("flight-name")).toHaveText("UAL2088");
   // Its name alone over the tabs, at the owner's ask: what it is is Info's.
   await expect(card.getByTestId("flight-line")).toHaveCount(0);
@@ -147,8 +144,6 @@ test("a search finds the airplanes about as it is typed, and asks the planner on
   await page.goto("/app/plan?aircraft=1");
   await settle(page);
   const card = page.getByTestId("aircraft-card");
-  await filterKind(page, "Other");
-  await expect(card.getByTestId("filter-row")).toHaveCount(2, { timeout: slow(15_000) });
   const search = page.getByTestId("aircraft-search");
   // On the map already: found as it is typed, before any answer.
   await search.fill("N17");
@@ -185,7 +180,8 @@ test("an airplane not in the air is found by its registration, and its card says
   const card = page.getByTestId("flight-card");
   // Named by its FAA record, not its address, with no trace today to name it.
   await expect(card.getByTestId("flight-name")).toHaveText("N654FL");
-  // Not heard now: the card opens on its flights.
+  // Not heard now: the card opens on its flights, all the way up.
+  await grabberTo(page, "full");
   await expect(card.getByTestId("flight-tab-activity")).toHaveAttribute("data-state", "active");
   await card.getByTestId("flight-tab-now").click();
   await expect(card.getByTestId("flight-not-heard")).toContainText("Last heard");
@@ -273,6 +269,8 @@ test("an airplane's past flights are listed on its card, and one is drawn on the
   await page.goto("/app/plan?flight=a0b7d8");
   await settle(page);
   const card = page.getByTestId("flight-card");
+  // At the pill's size, as every card opens; its pages all the way up.
+  await grabberTo(page, "full");
   await card.getByTestId("flight-tab-activity").click();
   const rows = card.getByTestId("past-flight");
   await expect(rows).toHaveCount(2, { timeout: slow(15_000) });
@@ -288,16 +286,11 @@ test("an airplane's past flights are listed on its card, and one is drawn on the
   await expect(flight.getByTestId("past-flight-on")).toContainText("LWM");
   await expect(flight.getByTestId("past-flight-flown")).toContainText(/\d+ nm/);
   await expect(page.locator("path.past-flight-path").first()).toBeAttached({ timeout: slow(10_000) });
-  // At half, the controls and the whole graph, its time axis too, above
-  // where the half sheet's body ends (--half-body), the route's figures and
-  // the tab bar round it: the axis was cut there on the owner's phone.
-  await grabberTo(page, "half");
-  const body = sideDrawer(page).locator("[data-panel-body]");
-  await expect.poll(async () => {
-    const half = await body.evaluate(el => parseFloat(getComputedStyle(el).getPropertyValue("--half-body")));
-    const [b, chart] = [(await body.boundingBox())!, (await flight.getByTestId("replay-chart-box").boundingBox())!];
-    return chart.height >= 72 && chart.y + chart.height <= b.y + half + 1;
-  }).toBe(true);
+  // All the way up, the controls and the whole graph, its time axis too,
+  // in sight: the axis was cut off on the owner's phone.
+  await grabberTo(page, "full");
+  await expect.poll(async () => (await flight.getByTestId("replay-chart-box").boundingBox())!.height).toBeGreaterThanOrEqual(72);
+  await expect(flight.getByTestId("replay-chart-box")).toBeInViewport({ ratio: 1 });
   // The graph drawn to its box, axis and all.
   await expect.poll(async () => (await flight.getByTestId("replay-chart-box").locator("svg.recharts-surface").boundingBox())?.height)
     .toBeGreaterThanOrEqual(72);
@@ -317,6 +310,8 @@ test("an airplane's past flights are listed on its card, and one is drawn on the
   await page.getByTestId("tab-aircraft").click();
   await expect(page).toHaveURL(/[?&]past=\d+/);
   await expect(flight.getByTestId("replay-now")).toContainText(/ft · 100 kt · S/);
+  // At the pill's size, as a tab tapped opens; its controls all the way up.
+  await grabberTo(page, "full");
   await flight.getByTestId("replay-stop").click();
   await expect(flight.getByTestId("replay-now")).toHaveCount(0);
   // Closed: back to the airplane's card on its Activity, the path put away.
@@ -351,6 +346,8 @@ test("an airplane's last flights found are listed, the ones before them on askin
   await page.goto("/app/plan?flight=a0b7d8");
   await settle(page);
   const card = page.getByTestId("flight-card");
+  // At the pill's size, as every card opens; its pages all the way up.
+  await grabberTo(page, "full");
   await card.getByTestId("flight-tab-activity").click();
   const rows = card.getByTestId("past-flight");
   await expect(rows).toHaveCount(2, { timeout: slow(15_000) });
@@ -397,6 +394,8 @@ test("an airplane quiet for a fortnight is looked for further back by itself, an
   await page.goto("/app/plan?flight=a0b7d8");
   await settle(page);
   const card = page.getByTestId("flight-card");
+  // At the pill's size, as every card opens; its pages all the way up.
+  await grabberTo(page, "full");
   await card.getByTestId("flight-tab-activity").click();
   await expect(card).toContainText("None heard in adsb.lol's archive", { timeout: slow(15_000) });
   expect(asked.map(q => q.get("until"))).toEqual([null, "2026-09-28", "2026-09-14"]);
@@ -417,51 +416,11 @@ test("an airplane opened is in the Aircraft card's Recents, and one starred on i
   await page.goto("/app/plan?aircraft=1");
   await settle(page);
   const list = page.getByTestId("aircraft-card");
-  await expect(list.getByTestId("aircraft-favorite")).toHaveCount(1);
-  await expect(list.getByTestId("aircraft-favorite")).toContainText("N14511");
+  await expect(list.getByTestId("pill-aircraft-favorite")).toHaveCount(1);
+  await expect(list.getByTestId("pill-aircraft-favorite")).toContainText("N14511");
   await expect(list.getByTestId("aircraft-recent").first()).toContainText("N14511");
   // A tile opens its card again.
-  await list.getByTestId("aircraft-favorite").click();
+  await list.getByTestId("pill-aircraft-favorite").click();
   await expect(page).toHaveURL(/[?&]flight=a0b7d8/);
   await expect(page.getByTestId("flight-card").getByTestId("flight-favorite")).toHaveAttribute("aria-pressed", "true");
-});
-
-test("the Aircraft tab's filters: round an airport, inbound and departing by track and climb, and an emergency", async ({ page }) => {
-  // KDPA, DuPage, and two airplanes about it: one north of it heading south
-  // and coming down, one south of it heading south and climbing away.
-  const field = { ident: "KDPA", name: "DuPage Airport", lat: 41.9078, lon: -88.2486, elevation_ft: 759 };
-  const coming = { ...CESSNA, hex: "a00001", callsign: "N1IN", registration: "N1IN", lat: 42.05, lon: -88.2486, altitude_ft: 2500,
-    track_deg: 180, vertical_fpm: -500, category: "A1" };
-  const going = { ...CESSNA, hex: "a00002", callsign: "N2OUT", registration: "N2OUT", lat: 41.80, lon: -88.2486, altitude_ft: 2200,
-    track_deg: 180, vertical_fpm: 800, category: "A1", squawk: "7700" };
-  await page.route(url => url.pathname.endsWith("/api/planner/traffic"), route =>
-    route.fulfill({ json: { aircraft: [coming, going], age_s: 1, source: "adsb.lol", license: "ODbL 1.0" } }));
-  await page.route(url => url.pathname.endsWith("/api/planner/airport/KDPA"), route => route.fulfill({ json: { ...field, runways: [] } }));
-  await page.goto("/app/plan?aircraft=1");
-  await settle(page);
-  const card = page.getByTestId("aircraft-card");
-  await card.getByTestId("filter-place").getByText("Airport").click();
-  await card.getByTestId("filter-airport").fill("KDPA");
-  await card.getByTestId("filter-airport").press("Enter");
-  const rows = card.getByTestId("filter-row");
-  // About it: both, within 10 nm.
-  await expect(rows).toHaveCount(2, { timeout: slow(15_000) });
-  await card.getByTestId("filter-relation").getByText("Inbound").click();
-  await expect(rows).toHaveText([/N1IN/]);
-  await card.getByTestId("filter-relation").getByText("Departing").click();
-  await expect(rows).toHaveText([/N2OUT/]);
-  // Kept in this browser, and Emergencies only keeps the one squawking 7700.
-  await card.getByTestId("filter-relation").getByText("About").click();
-  await card.getByTestId("filter-emergency").click();
-  await expect(rows).toHaveText([/N2OUT/]);
-  // A reload opens fresh (lib/freshLoad); the tab again, the filter as it was.
-  await page.reload();
-  await settle(page);
-  await grabberTo(page, "half");
-  await showTabs(page);
-  await page.getByTestId("tab-aircraft").click();
-  await expect(card.getByTestId("filter-row")).toHaveText([/N2OUT/], { timeout: slow(15_000) });
-  // Cleared: no list again.
-  await card.getByTestId("aircraft-filter-clear").click();
-  await expect(card.getByTestId("filter-row")).toHaveCount(0);
 });

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { LocateFixed, MapPin, Navigation2 } from "lucide-react";
 import { cn } from "cn";
-import { ChartMark, PillStrip, SmallTile } from "../../../components/Favorites";
+import { ChartMark, PillStrip, SmallMark, SmallTile } from "../../../components/Favorites";
 import { PanelCard } from "../../../components/PanelCard";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
 import { api } from "../../../lib/api/client";
@@ -32,7 +32,7 @@ const TYPING_MS = 250;
 /**
  * Where Nearest is from: the pilot's position until a place is typed --
  * a town, a street address, an airport -- at the pilot's ask, as Maps'
- * search asks where. Typed in the NRST tab's field, in the panel's head
+ * search asks where. Typed in Nearest's field, in the panel's head
  * (PlanWorkspace, lib/tabSearch), which reads "Current position" until
  * then; what answers comes up here, at the top of the list, and the
  * field's clear goes back to the position.
@@ -184,7 +184,7 @@ function NearestRow({ field, ahead, reach, onOpen }: {
 const STRIP_FIELDS = 8;
 
 /**
- * NRST's pill, under the tab bar, at the owner's ask ("Nearest can show
+ * Airport's pill's NEAREST strip, under the Favorites, at the owner's ask ("Nearest can show
  * nearby airports as small icons"): the nearest fields as small tiles,
  * each its chart mark -- its airspace's colour, its weather's dot -- its
  * ident and how far, nearest first; a tap opens the field's card, as a row
@@ -217,7 +217,7 @@ export function NearestStrip({ fields, located, onOpen }: {
           <SmallTile
             key={field.ident} onClick={() => onOpen(field.ident)} testId="nearest-strip-field"
             label={`${field.ident}, ${field.name}, ${Math.round(field.distance_nm)} nm ${compassPoint(field.bearing_deg)}`}
-            mark={<ChartMark space={field.airspace_class ?? null} category={field.flight_category} use={use} />}
+            mark={<SmallMark icon={<ChartMark space={field.airspace_class ?? null} category={field.flight_category} use={use} size={32} />} className="bg-foreground/8 [&_svg]:size-8" />}
             title={field.ident} detail={`${Math.round(field.distance_nm)} nm`}
           />
         );

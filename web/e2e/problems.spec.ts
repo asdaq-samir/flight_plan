@@ -1,5 +1,5 @@
 import { test, expect, type Page, type Route } from "@playwright/test";
-import { clearTheRoute, settled as settledLocator } from "./helpers";
+import { clearTheRoute, settled as settledLocator, grabberTo } from "./helpers";
 
 /**
  * What a pilot meets when things go wrong, and the toasts that are left.
@@ -154,13 +154,9 @@ test("the panel all the way out goes over the line, and its grabber still lowers
   const line = banner(page).getByRole("status");
   await expect(line).toBeVisible({ timeout: 20000 });
 
-  // Up a height a tap (MapPanel's cycle), to all the way up.
+  // All the way up, as a drag takes it (the grabber's Up arrow).
   const sheet = page.locator('[data-slot="map-panel"]');
-  for (let taps = 0; taps < 2 && (await sheet.getAttribute("data-panel")) !== "full"; taps++) {
-    const was = await sheet.getAttribute("data-panel");
-    await page.getByTestId("sidebar-trigger-button").click();
-    await expect(sheet).not.toHaveAttribute("data-panel", was!);
-  }
+  await grabberTo(page, "full");
   await expect(sheet).toHaveAttribute("data-panel", "full");
   await settled(page, '[data-slot="map-panel"]');
 
@@ -168,9 +164,7 @@ test("the panel all the way out goes over the line, and its grabber still lowers
   const over = await page.evaluate(([x, y]) => document.elementFromPoint(x, y)?.closest('[data-slot="map-panel"]') !== null,
     [box.x + box.width / 2, box.y + box.height / 2]);
   expect(over).toBe(true);
-  // Down a height a tap: half, then the pill (MapPanel's cycle).
-  await page.getByTestId("sidebar-trigger-button").click();
-  await expect(sheet).toHaveAttribute("data-panel", "half");
+  // A tap: down to the pill (MapPanel's).
   await page.getByTestId("sidebar-trigger-button").click();
   await expect(sheet).toHaveAttribute("data-panel", "peek");
 });

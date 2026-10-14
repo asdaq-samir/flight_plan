@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { closeCard, settle, slow } from "./helpers";
+import { closeCard, grabberTo, settle, slow } from "./helpers";
 
 /**
  * The airspace over a point (AirspaceCard): a right-click on the chart,
@@ -11,6 +11,8 @@ test("C81's column: G at the surface, E from 700 ft above it, Chicago's Class B 
   await page.goto("/app/plan?at=42.3172,-88.0905");
   const card = page.getByTestId("airspace-card");
   await expect(card.getByTestId("airspace-band").first()).toBeVisible({ timeout: slow(30000) });
+  // At the pill's size the lowest two; every one all the way up.
+  await grabberTo(page, "full");
   await expect(card.getByTestId("airspace-class")).toHaveText(["G", "E", "B", "E", "A"]);
   await expect(card.getByTestId("airspace-band").nth(2)).toContainText("Class B · Chicago");
   await expect(card.getByTestId("airspace-band").first()).toContainText("1 sm, clear of clouds");

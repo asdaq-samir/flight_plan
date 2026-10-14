@@ -282,7 +282,7 @@ export default function TrainWorkspace({ dep, dest, panel, setPanel, children }:
     // The developer's tabs, at their ask -- Train, Perf and Settings --
     // the panel's first row and at rest the pill itself, as the planner's
     // (MapPanel): the tab up tapped opens it.
-    bar: <TabBar tabs={DEV_TABS} tab={devTab} onPick={pickDevTab} onUp={() => { if (panel === "peek") setPanel("half"); }} />,
+    bar: <TabBar tabs={DEV_TABS} tab={devTab} onPick={pickDevTab} onUp={() => { if (panel === "peek") setPanel("full"); }} />,
     // How far the rating has got, under the route with the panel out.
     controls: devTab === "perf" ? undefined : <RatingProgress rated={picks.length} total={store.detections.length + store.added.length} />,
     console: devPanel ? <devPanel.DevPanel /> : <div className="h-40" />,

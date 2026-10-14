@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Mail } from "lucide-react";
+import { cn } from "cn";
 import AppleLogo from "../../components/icons/AppleLogo";
 import GoogleLogo from "../../components/icons/GoogleLogo";
 import IconButton from "../../components/IconButton";
@@ -30,7 +31,11 @@ import TvCode from "./TvCode";
  * one that was not opened a blank 401 -- on the local stack, which
  * registers neither, both did.
  */
-export default function SignInModal() {
+export default function SignInModal({ plain = false }: {
+  /** A tinted word, as a row's action on the glass (Setup's pill), not a
+   *  bordered button. */
+  plain?: boolean;
+} = {}) {
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState("");
   // In the iOS app, Apple's own sheet and the emailed link (whose link
@@ -84,7 +89,14 @@ export default function SignInModal() {
       }
     }}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm">Sign in</Button>
+        {plain ? (
+          <Button
+            variant="ghost" size="sm" data-testid="sign-in"
+            className={cn("relative -mr-2 px-2 font-normal text-tint after:absolute after:-inset-y-2 after:inset-x-0", TEXT.row)}
+          >
+            Sign in
+          </Button>
+        ) : <Button variant="outline" size="sm">Sign in</Button>}
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>

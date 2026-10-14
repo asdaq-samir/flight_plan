@@ -3,7 +3,7 @@ import { showError } from "../../lib/problems";
 import { useSearchParamsNow } from "../../lib/useSearchParamsNow";
 import DevGuard from "../../components/DevGuard";
 import MapPanel from "../../components/MapPanel";
-import { ConsoleInPanelContext, ConsoleSettingsContext, useConsoleAsk, useConsoleOpen, MapInsetsContext, NO_INSETS, type MapInsets, type PanelState } from "../../components/mapChrome";
+import { ConsoleInPanelContext, ConsoleSettingsContext, useConsoleOpen, usePanelDragging, MapInsetsContext, NO_INSETS, type MapInsets, type PanelState } from "../../components/mapChrome";
 import QuickControls from "../../components/QuickControls";
 import RouteForm from "../../components/RouteForm";
 import { Sheet, SheetContent } from "../../components/ui/sheet";
@@ -76,6 +76,7 @@ export default function MapPage({ mode }: { mode: Mode }) {
   const onPhone = useIsMobile();
   const onTablet = useIsTablet();
   const navBar = usePreferences(s => s.navBar);
+  const dragging = usePanelDragging(d => d.dragging);
   const edge = useNavEdge();
   const [searchParams, setSearchParams] = useSearchParamsNow();
   // The route in the panel: the address's, unless the pilot has typed
@@ -120,15 +121,18 @@ export default function MapPage({ mode }: { mode: Mode }) {
   }, [refused, setSearchParams]);
 
   // How far the panel is out. All the way, on the planner, is the
-  // address; half and resting are this page's own. Opened, the panel
-  // rests as the tabs alone, at the owner's ask ("By default it should
-  // open in just tabs layout"; MapPanel), where it opened half way up on
-  // the search bar with no route.
-  // An address that opens something -- a field's card, the airspace at a
-  // point, an airplane, the Aircraft or NRST list -- opens half way up on
-  // it, as a tap on it would.
+  // address; resting is this page's own. Opened, the panel rests as the
+  // tabs alone, at the owner's ask ("By default it should open in just
+  // tabs layout"; MapPanel).
+  // An address that opens a list -- the Aircraft or Nearest list, a past
+  // flight's log -- opens all the way up on it; a field's card, the
+  // airspace at a point or an airplane at the pill's size, where every
+  // card opens and is dragged up from, at the owner's ask ("Airport/
+  // aircraft card should have the half layout ... that should expand to
+  // full, not the other way around").
   const [localPanel, setLocalPanel] = useState<PanelState>(() => (
-    mode === "pilot" && ["place", "at", "flight", "past", "aircraft", "near"].some(key => searchParams.has(key)) ? "half" : "peek"));
+    mode === "pilot" && !["place", "at", "flight"].some(key => searchParams.has(key))
+      && ["past", "aircraft", "near"].some(key => searchParams.has(key)) ? "full" : "peek"));
   // The airport index downloaded ahead of the first search, which at rest
   // is out of sight (lib/airportIndex).
   useWarmAirportIndex(mode === "pilot");
@@ -151,11 +155,13 @@ export default function MapPage({ mode }: { mode: Mode }) {
       return params;
     }, { replace: true, flushSync: true });
   }, [mode, briefingInAddress, setSearchParams]);
-  // One of the console's Account pages asked for from Setup's pill: its
-  // tab, the page (ConsolePages), the sheet all the way up.
-  const openConsolePage = useCallback((page: string) => {
-    usePreferences.getState().setPilotTab("library");
-    useConsoleAsk.setState({ page });
+  // Landed on a list's address, all the way up, as its link asks (above):
+  // the planner's all the way up is the address's (`view`), so said there
+  // once.
+  const landedFull = useRef(localPanel === "full" && !briefingInAddress);
+  useEffect(() => {
+    if (!landedFull.current) return;
+    landedFull.current = false;
     setPanel("full");
   }, [setPanel]);
 
@@ -165,7 +171,7 @@ export default function MapPage({ mode }: { mode: Mode }) {
   // render the page again.
   const [insets, setInsets] = useState<MapInsets>(NO_INSETS);
   const changeInsets = useCallback((next: MapInsets) => {
-    setInsets(prev => (prev.top === next.top && prev.bottom === next.bottom && prev.left === next.left && prev.out === next.out ? prev : next));
+    setInsets(prev => (prev.top === next.top && prev.bottom === next.bottom && prev.left === next.left && prev.out === next.out && prev.up === next.up ? prev : next));
   }, []);
 
   // The console: its button (Settings, a gear, on both pages) and the
@@ -177,18 +183,15 @@ export default function MapPage({ mode }: { mode: Mode }) {
   // closing it brings the bar back -- and at the end of the training
   // page's route capsule. On a phone, a layer of the map's panel itself,
   // at the pilot's ask, as an airport's card is: it pulls out as the
-  // route's sheet does -- the pill, the half every panel has and all the
-  // way -- dragged from anywhere on it, and its close shows the layer
+  // route's sheet does -- the pill and all the way -- dragged from
+  // anywhere on it, and its close shows the layer
   // under it at the height it is; it was a sheet of its own over a dimmed
   // map (ConsoleSheet), half the screen, that slid away when lowered.
   // Elsewhere modal, so the page waits while it is out: a stock Sheet
   // from the navigation bar's edge (useNavEdge). Its
   // height is fixed rather than its content's: sized to the tab showing,
   // its edge rose and fell as the tabs changed, and the tab row moved out
-  // from under the finger that had just tapped it. It opens half way, at
-  // iOS's medium detent, and stays at whichever as the tabs change: it
-  // opened all the way every time, a screen of nothing under one
-  // airplane -- all the way, though, over a panel that is. On an iPad, iOS's form sheet instead: a card 540 by 620,
+  // from under the finger that had just tapped it. On an iPad, iOS's form sheet instead: a card 540 by 620,
   // centred, as a sheet there is.
   // Out or not, the app's (useConsoleOpen): a developer's Pilot and
   // Developer in the console's title change the page under it, and the
@@ -207,11 +210,8 @@ export default function MapPage({ mode }: { mode: Mode }) {
     window.setTimeout(() => consoleButton()?.focus({ preventScroll: true }));
   }, [setConsoleOpen]);
   const consoleInPanel = useMemo(() => ({ close: closeConsole }), [closeConsole]);
-  // Picked at the pill, Settings stays the pill -- its quick controls
-  // (QuickControls) under the tabs -- as every other tab keeps the
-  // panel's height, at the owner's ask ("Settings and fpl are not working
-  // properly in pill size"); the tab tapped again opens it half way, as
-  // theirs does. It was raised half way as it opened.
+  // Picked, Setup opens at the pill's size, its pill (SetupPill) under the
+  // tabs, as every tab does; all the way up by a drag, at the owner's ask.
   const backToButton = useCallback((event: Event) => {
     event.preventDefault();
     consoleButton()?.focus();
@@ -344,12 +344,16 @@ export default function MapPage({ mode }: { mode: Mode }) {
             // controls, at the owner's ask; else the workspace's own foot.
             bar={pieces.bar} barAlone={consoleLayer || !!pieces.alone}
             // Setup's pill on the planner, the owner's pick of the redesign
-            // (SetupPill): the account, the airplanes and logbook, the
-            // switches; the developer's console keeps the switches alone.
-            foot={consoleLayer ? panel === "peek" && (mode === "pilot"
-              ? <Suspense fallback={null}><SetupPill onOpen={openConsolePage} /></Suspense>
+            // (SetupPill): the account over the switches; the developer's
+            // console keeps the switches alone.
+            // Not while a finger takes the panel up: the page under it is
+            // drawn in full there (usePanelDragging), not twice.
+            foot={consoleLayer ? panel === "peek" && !dragging && (mode === "pilot"
+              ? <Suspense fallback={null}><SetupPill /></Suspense>
               : <QuickControls />) : pieces.foot}
             pillBody={consoleLayer || pieces.alone ? undefined : pieces.pillBody}
+            cardInPill={!consoleLayer && !!pieces.alone}
+            cardOver={!consoleLayer && !!pieces.cardOver}
             headInPill={!consoleLayer && !pieces.alone && !!pieces.pillHead}
             fold={pieces.alone || consoleLayer ? undefined : pieces.fold}
             top={pieces.alone || consoleLayer ? null : pieces.head ?? (

@@ -4,7 +4,6 @@ import { cn } from "cn";
 import { TEXT } from "../lib/text";
 import { Button } from "./ui/button";
 import { ListRow } from "./GroupedList";
-import { useConsoleAsk } from "./mapChrome";
 
 /** The way to open one of a tab's pages, and the page back came from. */
 const Pages = createContext<{ open: (page: string) => void; from: string | null } | null>(null);
@@ -26,18 +25,8 @@ export function ConsolePages({ back, pages, children }: {
   pages: Record<string, { title: string; content: ReactNode }>;
   children: ReactNode;
 }) {
-  const asked = useConsoleAsk(s => (s.page && pages[s.page] ? s.page : null));
-  const [open, setOpen] = useState<string | null>(asked);
+  const [open, setOpen] = useState<string | null>(null);
   const [from, setFrom] = useState<string | null>(null);
-  // Asked while this tab is up, or as it came up: that page, once.
-  const [taken, setTaken] = useState<string | null>(null);
-  if (asked && asked !== taken) {
-    setTaken(asked);
-    setOpen(asked);
-  }
-  useEffect(() => {
-    if (asked) useConsoleAsk.setState({ page: null });
-  }, [asked]);
   const top = useRef<HTMLDivElement>(null);
   const title = useRef<HTMLHeadingElement>(null);
   // A page starts at its top, with its title the place a screen reader

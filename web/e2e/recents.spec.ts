@@ -1,5 +1,5 @@
 import { test, expect, type Locator, type Page } from "@playwright/test";
-import { grabberTo, settle, sideDrawer } from "./helpers";
+import { grabberTo, settle, sideDrawer, airportSearch } from "./helpers";
 
 /**
  * The Recents taken off one at a time, by a swipe to the left that
@@ -38,6 +38,8 @@ test("a swipe to the left uncovers a Delete that takes an airport off the Recent
   await seed(page);
   await page.goto("/app/plan");
   await settle(page);
+  // Airport's, all the way up.
+  await airportSearch(page);
   await grabberTo(page, "full");
   const panel = sideDrawer(page);
   const recents = panel.getByTestId("airport-recent");
@@ -67,6 +69,7 @@ test("a swipe to the left uncovers a Delete that takes an airport off the Recent
   // Kept so: a reload still has two.
   await page.reload();
   await settle(page);
+  await airportSearch(page);
   await grabberTo(page, "full");
   await expect(recents).toHaveCount(2);
 

@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { openPanel, settle, sideDrawer, slow } from "./helpers";
+import { settle, sideDrawer, slow, controlsInSight } from "./helpers";
 
 /**
  * The route's Procedures (ProceduresButton), at the pilot's ask: a field's
@@ -10,7 +10,7 @@ import { openPanel, settle, sideDrawer, slow } from "./helpers";
 test("a field's traffic pattern is picked by its runway, kept in the address and drawn on the map", async ({ page }) => {
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
-  await openPanel(page);
+  await controlsInSight(page);
   await sideDrawer(page).getByTestId("route-approaches").click();
   const procedures = page.getByTestId("procedures");
   await expect(procedures).toContainText("C81 · Departure · traffic pattern");
@@ -65,7 +65,7 @@ test("a field's approach is picked with its transition, kept in the address and 
   });
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
-  await openPanel(page);
+  await controlsInSight(page);
   await sideDrawer(page).getByTestId("route-approaches").click();
   const procedures = page.getByTestId("procedures");
   // The departure's departures: none at C81.

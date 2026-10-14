@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { settle, slow } from "./helpers";
+import { settle, slow, grabberTo } from "./helpers";
 
 /**
  * The traffic about the map (TrafficLayer), from adsb.lol through the
@@ -102,7 +102,9 @@ test("the traffic is asked about wherever the map is panned, own ship or not, an
     const from = (a: number, b: number) => Math.hypot(lat - a, (lon - b) * 0.73);
     return from(43.14, -89.34) < from(42.32, -88.07);
   }, { timeout: slow(15_000) }).toBe(true);
-  // Zoomed out to a state: asked further than the near regions' 60 nm.
+  // Zoomed out to a state: asked further than the near regions' 60 nm --
+  // the card's link opens all the way up, so down to its pill first.
+  await grabberTo(page, "peek");
   const map = (await page.locator(".leaflet-container").boundingBox())!;
   await page.mouse.move(map.x + map.width / 2, map.y + map.height / 4);
   for (let i = 0; i < 4; i++) {

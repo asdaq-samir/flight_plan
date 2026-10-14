@@ -29,11 +29,11 @@ export function SearchField({
   /** What a screen reader hears, where it says more than the placeholder. */
   label?: string;
   testId?: string;
-  /** Its glyph: the magnifier, or a pin for where from (NRST). */
+  /** Its glyph: the magnifier, or a pin for where from (Nearest). */
   icon?: typeof Search;
   /** Typed in capitals, as callsigns and registrations are. */
   capitals?: boolean;
-  /** Its clear, where clearing does more than empty it (NRST's goes back
+  /** Its clear, where clearing does more than empty it (Nearest's goes back
    *  to the position). */
   onClear?: () => void;
   /** For a tap elsewhere (Favorites' Add) to focus it within the tap, which

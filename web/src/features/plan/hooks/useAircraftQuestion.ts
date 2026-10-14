@@ -19,7 +19,7 @@ const FILTER_REFRESH_MS = 10_000;
  * at the owner's pick of the redesign: the airplanes nearest the pilot,
  * those about an airport, inbound to it, departing it, based at it, or
  * squawking an emergency. Each is a setting of the one filter the full
- * list has (lib/fbo, AircraftFilters), so the strip and the list agree.
+ * list had (lib/fbo).
  */
 export type Question = "near" | "around" | "inbound" | "departing" | "based" | "emergency";
 
@@ -49,20 +49,21 @@ export function filterFor(q: Question): Partial<AircraftFilter> {
 
 /** The filter as asked: one asking nothing yet is the nearest, at the
  *  owner's pick of a NEAREST strip (it listed nothing until asked). */
-export function asAsked(f: AircraftFilter): AircraftFilter {
+function asAsked(f: AircraftFilter): AircraftFilter {
   return f.place === "map" && !filtering(f) ? { ...f, place: "near" } : f;
 }
 
 export { useTrafficFocus } from "../../../lib/map/tracking";
 
 /**
- * The airplanes the filter keeps, of those its place gives: the map's,
- * those near the pilot, or round an airport (asked of the planner), then
- * its relation, kind, height, operator and emergency (lib/fbo). Shared by
- * the pill's strip and the full list.
+ * The airplanes the strip's question keeps, of those its place gives: the
+ * map's, those near the pilot, or round an airport (asked of the planner),
+ * then its relation and emergency (lib/fbo). The kind, height and operator
+ * the full list's filters set once are let go: that list is gone, at the
+ * owner's ask ("don't need the extra filters at the bottom").
  */
 export function useFilteredAircraft(seen: TrafficAircraft[], from: LatLon | null) {
-  const filter = asAsked(keptFilter(usePreferences(s => s.aircraftFilter)));
+  const filter = asAsked({ ...keptFilter(usePreferences(s => s.aircraftFilter)), kind: "any", band: "any", operator: "" });
   const ident = filter.place === "airport" ? filter.airport.trim().toUpperCase() : "";
   const { data: field, isError: noField } = useQuery({
     queryKey: ["airport", ident], queryFn: () => api.airport(ident), enabled: ident.length >= 3, staleTime: 5 * 60_000,

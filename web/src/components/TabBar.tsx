@@ -5,7 +5,7 @@ import CloseButton from "./CloseButton";
 import { cn } from "cn";
 import { closeTopCard, useOpenCards } from "../lib/openCards";
 import { TEXT } from "../lib/text";
-import { TabBarMinimized, useConsoleOpen, useTabsShown } from "./mapChrome";
+import { PanelSize, TabBarMinimized, useConsoleOpen, useTabsShown } from "./mapChrome";
 
 /** One of a page's places, a tab of its bar: its word and its glyph. */
 export interface BarTab<T extends string> {
@@ -17,8 +17,8 @@ export interface BarTab<T extends string> {
 /**
  * A page's tabs, at the pilot's ask, as ForeFlight's and every iOS app's
  * tab bar -- a glyph and its word, the one picked in the tint: the
- * planner's FPL, Airport, Aircraft and NRST, the developer's Train and
- * Perf, and on both Settings last. The panel's first row, over its pill
+ * planner's Aircraft, Airport and FPL, the developer's Train and
+ * Perf, and on both Setup last. The panel's first row, over its pill
  * at rest as over the sheet (MapPanel). Buttons that say which is
  * current, not tab roles: each is a place of its own, with no tabpanel of
  * the promise a tab role makes.
@@ -34,9 +34,12 @@ export interface BarTab<T extends string> {
  * alone, centred, in the tint; tapped, every tab again at the height the
  * sheet is, minimized once one is picked.
  */
-export default function TabBar<T extends string>({ tabs, tab, onPick, onUp, marks, onClose, className }: {
+export default function TabBar<T extends string>({ tabs, tab, over, onPick, onUp, marks, onClose, className }: {
   tabs: BarTab<T>[];
   tab: T;
+  /** The tab whose card is open over `tab` -- Airport's, an airport's card
+   *  opened from FPL's route: the minimized bar's name, Back to `tab`. */
+  over?: T;
   onPick: (tab: T) => void;
   /** The tab up tapped: on the pill, the panel opened to it, as a tap on
    *  the pill's own search bar did. */
@@ -55,6 +58,7 @@ export default function TabBar<T extends string>({ tabs, tab, onPick, onUp, mark
   const all: BarTab<T | "settings">[] = [...tabs, { value: "settings", label: "Setup", icon: Settings }];
   const up: T | "settings" = consoleOpen ? "settings" : tab;
   const minimized = useContext(TabBarMinimized);
+  const size = useContext(PanelSize);
   const shown = useTabsShown(s => s.shown);
   const setShown = (next: boolean) => useTabsShown.setState({ shown: next });
   // In the pill again, minimized again the next time the sheet is up.
@@ -145,7 +149,9 @@ export default function TabBar<T extends string>({ tabs, tab, onPick, onUp, mark
   const cards = useOpenCards(s => s.count);
   const back = minimized && !consoleOpen && cards > 0;
   if (minimized && !shown) {
-    const Icon = upTab.icon;
+    // The card's kind, where it is another tab's over this one.
+    const named = (over && all.find(t => t.value === over)) || upTab;
+    const Icon = named.icon;
     return (
       // A tap anywhere on the line shows the tabs, at the owner's ask
       // ("Clicking anywhere on the tabs bar should show tabs except the
@@ -177,7 +183,7 @@ export default function TabBar<T extends string>({ tabs, tab, onPick, onUp, mark
           </span>
         )}
         <button
-          type="button" onClick={() => setShown(true)} aria-expanded={false} aria-label={`${upTab.label}, show the tabs`}
+          type="button" onClick={() => setShown(true)} aria-expanded={false} aria-label={`${named.label}, show the tabs`}
           data-testid="tab-title"
           className={cn(
             "relative flex h-8 items-center gap-1.5 rounded-full px-3 font-semibold text-tint outline-none focus-visible:ring-2 focus-visible:ring-ring",
@@ -185,7 +191,7 @@ export default function TabBar<T extends string>({ tabs, tab, onPick, onUp, mark
           )}
         >
           <Icon className="size-5" strokeWidth={2.25} aria-hidden="true" />
-          {upTab.label}
+          {named.label}
           <ChevronDown className="size-4 text-muted-foreground" strokeWidth={2.25} aria-hidden="true" />
         </button>
         {/* And a close at its right, at the owner's ask: Back goes one card
@@ -213,12 +219,27 @@ export default function TabBar<T extends string>({ tabs, tab, onPick, onUp, mark
           <button
             key={value} type="button" aria-current={current ? "page" : undefined}
             onClick={() => {
-              if (current) {
-                setShown(false);
-                onUp?.();
+              setShown(false);
+              // At the owner's ask ("When tapping on a tab it should only
+              // open minimal and tapping again should make it tabs only
+              // layout ... if tapped when fully open, it should become
+              // minimal"): a tab opens the pill; the tab up tapped again
+              // gives the tabs alone; all the way up, or with a card in the
+              // pill, the pill again, its card put away as an iOS tab
+              // tapped goes back to its first screen (onClose). Outside a
+              // panel (none), the tab's own.
+              if (!size) {
+                if (current) onUp?.();
+                else pick(value);
                 return;
               }
-              pick(value);
+              if (!current) {
+                pick(value);
+                size.to("peek");
+              } else if (size.size === "full" || size.card) {
+                onClose?.();
+                size.to("peek");
+              } else size.to(size.size === "peek" ? "tabs" : "peek");
             }}
             data-testid={value === "settings" ? "settings-button" : `tab-${value}`} data-current={current || undefined}
             data-console-button={value === "settings" ? "" : undefined}

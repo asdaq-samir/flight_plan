@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { consoleSheet, openBriefing, openConsole, openSection, openTab, settle, showTabs, sideDrawer, slow } from "./helpers";
+import { consoleSheet, openBriefing, openConsole, openSection, openTab, settle, showTabs, sideDrawer, slow, consolePage } from "./helpers";
 
 /**
  * The subscription to the paid features (lib/subscription, PaidPrompt):
@@ -103,7 +103,7 @@ test("Personal's Subscription page says what the pilot has, and the month's uses
   await showTabs(page);
   await openConsole(page);
   const console = consoleSheet(page);
-  await console.getByRole("tab", { name: "Account" }).click();
+  await consolePage(console, "Account");
   const row = console.getByRole("button", { name: /^Subscription/ });
   await expect(row).toContainText(/Free until \d{1,2} November/);
   await row.click();
@@ -145,7 +145,7 @@ test.describe("where no subscription is sold", () => {
     await page.goto("/app/plan");
     await settle(page);
     await openConsole(page);
-    await consoleSheet(page).getByRole("tab", { name: "Account" }).click();
+    await consolePage(consoleSheet(page), "Account");
     await expect(consoleSheet(page).getByText("Subscription", { exact: true })).toHaveCount(0);
     for (const legal of ["/app/terms.html", "/app/privacy.html"]) {
       await page.goto(legal);

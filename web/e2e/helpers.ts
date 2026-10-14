@@ -45,20 +45,22 @@ export const sideDrawer = (page: Page) => page.locator('[data-slot="map-panel"]'
  *  are there. Nothing where the page has no tab bar. */
 export async function showTabs(page: Page) {
   const title = page.getByTestId("tab-title");
-  if (await title.isVisible()) await title.click();
+  // The minimized line can turn back into the tabs by itself as it is
+  // tapped -- the card it named put away by the step before -- so the tap
+  // is tried, and what is asked is the tabs in sight.
+  if (await title.isVisible()) await title.click({ timeout: 5000 }).catch(() => {});
+  await expect(page.getByTestId("tab-title")).toBeHidden();
 }
 
-/** The panel out half way, where its head is the route form, the
- *  workspace's actions and the controls. At rest each page's pill is its
- *  tab bar, the tab up tapped opening it. Nothing when it is out already. */
+/** The panel's head in sight: the pill out of the tabs alone, with the
+ *  route's box and its chips (Share, Procedures, Saved), a tab's search
+ *  bar, a card's summary -- where half way had them before the half size
+ *  went. Nothing when it is out already, at the pill or all the way up. */
 export async function openPanel(page: Page) {
   const panel = sideDrawer(page);
   await panel.waitFor();
   if (await panel.getAttribute("data-capsule") === null) return;
-  // The tab up tapped: every page's pill is its tab bar now, the
-  // training page's too (its "capsule-detail" went with its route pill).
-  await panel.locator('[data-testid="tab-bar"] button[aria-current="page"]').click();
-  await expect(panel).toHaveAttribute("data-panel", "half");
+  await grabberTo(page, "peek");
 }
 
 /** The route's Share menu out, the panel half way: its sharing, Save,
@@ -77,34 +79,37 @@ export async function clearTheRoute(page: Page) {
   await page.getByTestId("route-clear").click();
 }
 
-/** The panel to a height by taps on its grabber, which cycle the three
- *  -- the pill, half, all the way up and back down (MapPanel) -- a tap
- *  at a time, each waited on, three at the most. */
-export async function grabberTo(page: Page, state: "peek" | "half" | "full") {
+/** The panel to a height by its grabber (MapPanel): tapped, the tabs
+ *  alone and the pill turn into each other and all the way up comes down
+ *  to the pill; all the way up is a drag's, which a keyboard has as the
+ *  grabber's Up arrow. Each step waited on. */
+export async function grabberTo(page: Page, state: "peek" | "full") {
   const panel = sideDrawer(page);
   await panel.waitFor();
-  // Four sizes now, the tabs alone below the pill (MapPanel): a tap that
-  // lands on the tabs alone leaves data-panel at peek, so each tap waits
-  // on the size as a whole, panel and collapse together.
+  const grabber = page.getByTestId("sidebar-trigger-button");
   const size = async () => `${await panel.getAttribute("data-panel")}/${await panel.getAttribute("data-collapsed") ?? ""}`;
-  for (let taps = 0; taps < 6; taps++) {
+  for (let steps = 0; steps < 4; steps++) {
     if (await panel.getAttribute("data-panel") === state && await panel.getAttribute("data-collapsed") === null) return;
     const now = await size();
-    await page.getByTestId("sidebar-trigger-button").click();
+    if (state === "full") {
+      await grabber.focus();
+      await page.keyboard.press("ArrowUp");
+    } else await grabber.click();
     await expect.poll(size).not.toBe(now);
   }
   await expect(panel).toHaveAttribute("data-panel", state);
 }
 
-/** The route's controls in sight -- its box, the airplane, the time, Save
- *  and Print -- which all the way up give way to its figures alone over
- *  the tabs, at the pilot's ask (MapPanel's `figures`): the panel half way. */
+/** The route's controls in sight -- its box, the airplane, the time,
+ *  Share -- the full card's, the pill one row (MapPanel): all the way up,
+ *  the route's box and chips unfolded where there is a route to fold. */
 export async function controlsInSight(page: Page) {
   const panel = sideDrawer(page);
   await panel.waitFor();
-  if ((await panel.getAttribute("data-panel")) !== "full") return;
-  await grabberTo(page, "half");
+  await grabberTo(page, "full");
   await settled(panel);
+  const fold = panel.getByTestId("route-fold");
+  if (await fold.isVisible() && (await fold.getAttribute("aria-expanded")) === "false") await fold.click();
 }
 
 /** The panel all the way out, as a finger takes it: a drag on its
@@ -145,12 +150,9 @@ export async function openConsole(page: Page) {
   // A desktop's console is a sheet or a dialog of its own, over the panel;
   // a phone's is the panel's layer, which at the pill is out of sight.
   if ((page.viewportSize()?.width ?? 0) >= 768) return;
-  const panel = sideDrawer(page);
-  if (await panel.getAttribute("data-panel") === "peek") {
-    await expect(settings).toHaveAttribute("aria-current", "page");
-    await settings.click();
-    await expect(panel).not.toHaveAttribute("data-panel", "peek");
-  }
+  // Opened at the pill's size, Setup's pill; all the way up for the rest.
+  await expect(settings).toHaveAttribute("aria-current", "page");
+  await grabberTo(page, "full");
 }
 
 /** The settings: the console's last tab, the console opened from its
@@ -158,7 +160,7 @@ export async function openConsole(page: Page) {
  *  map's -- and all the way out. Escape closes the console again. */
 export async function openSettings(page: Page) {
   await openConsole(page);
-  await page.getByTestId("console-sheet").getByRole("tab", { name: "Settings" }).click();
+  await consolePage(page.getByTestId("console-sheet"), "Settings");
   await expect(page.getByTestId("settings-panel")).toBeVisible();
   await expandConsole(page);
 }
@@ -167,6 +169,8 @@ export async function openSettings(page: Page) {
  *  the map's buttons (MapSettingsButton), as Maps' map button holds its
  *  map's. Escape puts it away. */
 export async function openMapSettings(page: Page) {
+  // The map's buttons are under a phone's sheet all the way up: the pill.
+  if ((page.viewportSize()?.width ?? 0) < 768 && await sideDrawer(page).getAttribute("data-panel") === "full") await grabberTo(page, "peek");
   await page.locator("[data-map-controls]").getByTestId("map-settings-button").click();
   await expect(page.getByTestId("map-settings")).toBeVisible();
 }
@@ -218,9 +222,9 @@ export async function roleMenu(page: Page) {
   const sheet = page.getByTestId("console-sheet");
   if (!(await sheet.isVisible())) await openConsole(page);
   await expect(sheet).toBeVisible();
-  // In Personal's Account row now (AccountRow), at the owner's ask: it was
-  // the console's title row.
-  await sheet.getByRole("tab", { name: "Account" }).click();
+  // In the Account row (AccountRow), first on Setup's page (the developer's
+  // console has it on its Account tab).
+  await consolePage(sheet, "Account");
   const trigger = sheet.getByTestId("role-menu");
   // The menu comes with who is signed in, or dev mode, once known.
   await trigger.waitFor({ timeout: 3000 }).catch(() => {});
@@ -251,7 +255,7 @@ export const consoleSheet = (page: Page) => page.getByTestId("console-sheet");
  *  four pages: the tab, back to its list from a page open on it, then
  *  the page's row. */
 export async function library(scope: Page | Locator, section: "Aircraft" | "Flights" | "Logbook" | "Minimums") {
-  await scope.getByRole("tab", { name: "Account" }).click();
+  await consolePage(scope, "Account");
   const list = scope.getByTestId("library-section");
   const back = scope.getByRole("button", { name: "Account", exact: true });
   await expect(list.or(back)).toBeVisible();
@@ -264,9 +268,9 @@ export async function expectDrawerClosed(page: Page) {
   await expect(sideDrawer(page)).toHaveAttribute("data-panel", "peek");
 }
 
-/** Out: half the screen or the whole of it. */
+/** Out: all the way up (no half size). */
 export async function expectDrawerOpen(page: Page) {
-  await expect(sideDrawer(page)).toHaveAttribute("data-panel", /^(half|full)$/);
+  await expect(sideDrawer(page)).toHaveAttribute("data-panel", "full");
 }
 
 /** Lowering the panel is one shape everywhere: Escape, pressed in it.
@@ -317,19 +321,18 @@ export async function openedDrawerBox(page: Page) {
 
 export async function openSidebar(page: Page) {
   const sidebarTrigger = page.getByTestId("sidebar-trigger-button");
-  // From the tabs alone the grabber steps up through the pill first
-  // (MapPanel's four sizes): tapped until it is out.
-  await expect(async () => {
-    await sidebarTrigger.click();
-    await expect(sideDrawer(page)).toHaveAttribute("data-panel", /^(half|full)$/, { timeout: 1500 });
-  }).toPass({ timeout: 15_000 });
+  // All the way up, the grabber's Up arrow (grabberTo).
+  await grabberTo(page, "full");
   await expectDrawerOpen(page);
   await expect(sidebarTrigger).toHaveAttribute("aria-expanded", "true");
   await expect(sidebarTrigger).toBeEnabled();
 
   await closeSidebarWithTheStockKey(page);
   await expectDrawerClosed(page);
-  await expect(sidebarTrigger).toHaveAttribute("aria-expanded", "false");
+  // Down to the pill, which on a phone is out over the tabs, as the half
+  // sheet it took the place of was; the tabs alone are not (MapPanel).
+  const tabsAlone = await sideDrawer(page).getAttribute("data-collapsed") === "true";
+  await expect(sidebarTrigger).toHaveAttribute("aria-expanded", tabsAlone || page.viewportSize()!.width >= 768 ? "false" : "true");
 }
 
 /** The briefing is the flight planning panel: open it from its
@@ -437,5 +440,35 @@ export async function closeCard(page: Page, closeTestId: string) {
 /** The console's Personal tab, where who is signed in and the mode are
  *  (AccountRow), at the owner's ask: they were the console's title row. */
 export async function openAccount(page: Page) {
-  await page.getByTestId("console-sheet").getByRole("tab", { name: "Account" }).click();
+  await consolePage(page.getByTestId("console-sheet"), "Account");
+}
+
+/** One of the console's places by name: the developer's console's tab of
+ *  that name; the pilot's console is one page now (Setup, at the owner's
+ *  pick of the redesign), its account first and Settings, Guide and About
+ *  rows that open their pages -- Account is the page itself. */
+export async function consolePage(scope: Page | Locator, name: "Account" | "Settings" | "Guide" | "About") {
+  const tab = scope.getByRole("tab", { name, exact: true });
+  const setup = scope.getByTestId("setup-page");
+  await expect(tab.or(setup).first()).toBeVisible();
+  if (await tab.count()) {
+    await tab.click();
+    return;
+  }
+  // Back to the page's list from a page open on it.
+  const back = scope.getByRole("button", { name: "Account", exact: true });
+  if (await back.isVisible()) await back.click();
+  if (name !== "Account") await setup.getByRole("button", { name: new RegExp(`^${name}`) }).click();
+}
+
+/** Airport's search bar, in sight: the pill out of the tabs alone, on the
+ *  Airport tab (FPL is the tab a fresh load opens on). */
+export async function airportSearch(page: Page) {
+  const search = page.getByTestId("search-airports");
+  if (await search.isVisible()) return search;
+  await grabberTo(page, "peek");
+  await showTabs(page);
+  await page.getByTestId("tab-airport").click();
+  await expect(search).toBeVisible();
+  return search;
 }
