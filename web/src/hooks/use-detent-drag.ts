@@ -214,9 +214,15 @@ export function useDetentDrag<S extends string>({ detents, shown, fromBottom, on
     const start = (event: TouchEvent) => {
       // A finger landing on a drag that has begun is a pinch: let the sheet
       // go to its detent now, as no touchmove of one finger is left to.
-      if (gesture?.moved) letGo(latest, gesture.to, 0);
+      // That is the gesture's end: the spring it starts is not one this
+      // finger caught.
       if (frame) cancelAnimationFrame(frame);
       frame = 0;
+      if (gesture?.moved) {
+        letGo(latest, gesture.to, 0);
+        gesture = null;
+        return;
+      }
       const touch = event.touches[0];
       const caught = !!latest.current.spring;
       const from = catchSpring(latest.current);
