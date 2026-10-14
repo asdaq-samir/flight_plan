@@ -11,10 +11,11 @@ import { navLogRows, type RouteEnds } from "./rows";
 /** The sectional's airspace colours, as the full chart's (ProfileChart):
  *  Class B solid blue, C magenta, D blue dashed (FAA Aeronautical Chart
  *  User's Guide, Airspace). */
-const AIRSPACE: Record<string, { stroke: string; dash?: string }> = {
-  B: { stroke: "#2465b8" },
-  C: { stroke: "#c0309f" },
-  D: { stroke: "#2465b8", dash: "4 3" },
+// Each name in its colour as text, lightened on a dark card (index.css).
+const AIRSPACE: Record<string, { stroke: string; text: string; dash?: string }> = {
+  B: { stroke: "#2465b8", text: "var(--airspace-blue-text)" },
+  C: { stroke: "#c0309f", text: "var(--airspace-magenta-text)" },
+  D: { stroke: "#2465b8", text: "var(--airspace-blue-text)", dash: "4 3" },
 };
 const W = 340, H = 64;
 const miles = (nm: number) => `${Math.round(nm)}`;
@@ -102,7 +103,7 @@ export default memo(function MiniProfile({ ends, selected, legs, onOpen }: {
         <span
           key={a.key}
           className="pointer-events-none absolute -translate-x-1/2 rounded bg-background/80 px-1 font-semibold"
-          style={{ left: `${(x((a.from_nm + a.to_nm) / 2) / W) * 100}%`, top: `calc(${(y(Math.min(a.ceiling_ft ?? top, top)) / H) * 100}% + 2px)`, color: AIRSPACE[a.class]!.stroke }}
+          style={{ left: `${(x((a.from_nm + a.to_nm) / 2) / W) * 100}%`, top: `calc(${(y(Math.min(a.ceiling_ft ?? top, top)) / H) * 100}% + 2px)`, color: AIRSPACE[a.class]!.text }}
           aria-hidden="true" data-testid="mini-profile-airspace"
         >
           {a.label}

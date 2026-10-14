@@ -8,10 +8,11 @@ import type { planProfile } from "./profile";
 
 /** The sectional's airspace colours: Class B solid blue, C magenta, D
  *  blue dashed. */
-const AIRSPACE: Record<string, { stroke: string; dash?: string }> = {
-  B: { stroke: "#2465b8" },
-  C: { stroke: "#c0309f" },
-  D: { stroke: "#2465b8", dash: "5 4" },
+// Each name in its colour as text, lightened on a dark card (index.css).
+const AIRSPACE: Record<string, { stroke: string; text: string; dash?: string }> = {
+  B: { stroke: "#2465b8", text: "var(--airspace-blue-text)" },
+  C: { stroke: "#c0309f", text: "var(--airspace-magenta-text)" },
+  D: { stroke: "#2465b8", text: "var(--airspace-blue-text)", dash: "5 4" },
 };
 
 const config = {
@@ -67,7 +68,7 @@ export default memo(function ProfileChart({ profile, plan }: { profile: RoutePro
               key={i} x1={a.from_nm} x2={a.to_nm} y1={a.floor_ft} y2={Math.min(a.ceiling_ft ?? top, top)}
               stroke={look.stroke} strokeDasharray={look.dash} strokeOpacity={0.8} fill={look.stroke} fillOpacity={0.08}
               ifOverflow="hidden"
-              label={widest ? { value: label, position: "insideTop", fontSize: 11, fontWeight: 600, fill: look.stroke } : undefined}
+              label={widest ? { value: label, position: "insideTop", fontSize: 11, fontWeight: 600, fill: look.text } : undefined}
             />
           );
         })}

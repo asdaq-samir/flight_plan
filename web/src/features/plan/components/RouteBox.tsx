@@ -281,6 +281,8 @@ export default function RouteBox({
     <input
       ref={field} value={typed} onChange={e => setTyped(e.target.value.toUpperCase())} onKeyDown={onKeyDown}
       role="combobox" aria-expanded={open} aria-controls={listId} aria-autocomplete="list"
+      // Idents, not anything AutoFill knows (the iOS audit's P19).
+      autoComplete="off"
       // What was typed goes in when the box is left -- unless a suggestion
       // took the tap, which empties it first -- and an arrow's field is
       // put away.

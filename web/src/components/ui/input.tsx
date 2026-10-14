@@ -14,7 +14,22 @@ const WORDS = new Set([undefined, "text", "search", "email", "url", "tel"])
  *  round it and its clear; the rest stay the field's. */
 const BOX = /^(?:[a-z0-9-]+:)*(?:h|w|min-w|max-w|min-h|max-h|flex|basis|grow|shrink|self|order|col|row|m|mx|my|mt|mr|mb|ml|ms|me)(?:-|$)/
 
-function Input({ className, type, ref, onChange, ...props }: React.ComponentProps<"input">) {
+/** iOS's Done: a field with no Return of its own (no form to send, no
+ *  key handling of the owner's) puts the keyboard away. */
+function doneOnEnter(e: React.KeyboardEvent<HTMLInputElement>) {
+  if (e.key === "Enter" && !e.nativeEvent.isComposing && !e.currentTarget.form) e.currentTarget.blur()
+}
+
+function Input({ className, type, ref, onChange, ...given }: React.ComponentProps<"input">) {
+  // Every field names its return key and its AutoFill, as iOS's text
+  // fields do (HIG, "Text fields"; the iOS audit's P19): Done and none
+  // unless the field says otherwise -- most of the app's fields are
+  // figures and idents, which Safari's AutoFill would offer a contact for.
+  const props = {
+    enterKeyHint: "done" as const, autoComplete: "off",
+    ...(given.onKeyDown || given.enterKeyHint ? {} : { onKeyDown: doneOnEnter }),
+    ...given,
+  }
   const field = React.useRef<HTMLInputElement | null>(null)
   const words = WORDS.has(type) && !props.disabled && !props.readOnly && props.inputMode !== "numeric" && props.inputMode !== "decimal"
   // Whether something is typed: the value where the owner holds it, else

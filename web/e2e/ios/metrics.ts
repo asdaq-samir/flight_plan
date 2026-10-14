@@ -550,3 +550,34 @@ export function outsideSafeArea(page: Page, insets: Insets): Promise<InsetFindin
     return found;
   }, { insets, tappable: TAPPABLE });
 }
+
+export type KeyboardFinding = { field: string; missing: string };
+
+/** P19: every field a finger types in says what its keyboard is for, as
+ *  iOS's text fields do (HIG, "Text fields"): an `enterkeyhint`, so the
+ *  return key reads Search, Go, Next or Done rather than a bare "return",
+ *  and an `autocomplete`, so Safari's AutoFill offers the pilot's own
+ *  email, name or one-time code where one fits and nothing where none
+ *  does ("off" says so). Multi-line text keeps its return key for new
+ *  lines. Fields in a hidden or inert part of the page are not in reach. */
+export function keyboardFindings(page: Page, scope = "body"): Promise<KeyboardFinding[]> {
+  return page.evaluate((scope) => {
+    // A date's or a time's field opens iOS's wheels, which have no return
+    // key and no AutoFill.
+    const NOT_TYPED = new Set(["checkbox", "radio", "range", "hidden", "file", "button", "submit", "reset", "color", "image", "date", "time", "datetime-local", "month", "week"]);
+    const out: { field: string; missing: string }[] = [];
+    for (const el of document.querySelectorAll<HTMLInputElement>(`${scope} input`)) {
+      if (NOT_TYPED.has(el.type)) continue;
+      const box = el.getBoundingClientRect();
+      if (!box.width || !box.height || el.closest("[inert], [aria-hidden=true], .tab-away")) continue;
+      const missing = [
+        !el.hasAttribute("enterkeyhint") && "enterkeyhint",
+        !el.hasAttribute("autocomplete") && "autocomplete",
+      ].filter(Boolean).join(", ");
+      if (!missing) continue;
+      const name = el.getAttribute("aria-label") || el.labels?.[0]?.textContent?.trim() || el.placeholder || el.dataset.testid || el.id;
+      out.push({ field: `${el.type} "${(name ?? "").slice(0, 40)}"`, missing });
+    }
+    return out;
+  }, scope);
+}
