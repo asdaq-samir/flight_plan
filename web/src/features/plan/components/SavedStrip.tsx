@@ -5,6 +5,7 @@ import { cn } from "cn";
 import { PillSection, PillStrip, SmallMark, SmallTile } from "../../../components/Favorites";
 import { api } from "../../../lib/api/client";
 import { planHrefOf } from "../../../lib/flightLink";
+import { pointName } from "../../../lib/identSchema";
 import { pilotQuery } from "../../../lib/queryClient";
 import { TEXT } from "../../../lib/text";
 
@@ -33,11 +34,15 @@ export default function SavedStrip({ onMore }: { onMore: () => void }) {
         <PillStrip testId="saved-strip">
           {shown.map(f => {
             const day = new Date(f.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric" });
-            const name = `${f.departureIdent}→${f.destinationIdent}`;
+            // A flight from a position by its coordinates as a GPS writes
+            // them (pointName), cut short on the tile and whole to a
+            // screen reader, at the owner's pick ("Coordinates, cut short").
+            const dep = pointName(f.departureIdent), dest = pointName(f.destinationIdent);
+            const name = `${dep}→${dest}`;
             return (
               <SmallTile
                 key={f.id} onClick={() => navigate(planHrefOf(f))} testId="saved-flight" title={name} detail={day} wide
-                label={`${f.departureIdent} to ${f.destinationIdent}${f.stops.length ? ` by ${f.stops.join(", ")}` : ""}, saved ${day}`}
+                label={`${dep} to ${dest}${f.stops.length ? ` by ${f.stops.join(", ")}` : ""}, saved ${day}`}
                 mark={<SmallMark icon={<Route />} className="bg-foreground/8 text-tint" />}
               />
             );
