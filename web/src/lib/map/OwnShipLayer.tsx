@@ -77,7 +77,17 @@ export function OwnShipLayer() {
         map.setView(centreClear(map, [fix.lat, fix.lon], zoom), zoom, { animate: false });
         return;
       }
-      map.flyTo(centreClear(map, [fix.lat, fix.lon], zoom), zoom, { duration: 0.8 });
+      // Already in sight at that zoom -- the opening, placed on the last
+      // position, with the first fix a few miles off -- a pan, not a
+      // flight: flyTo arcs out and in again even for a short hop, and on
+      // the owner's phone a fresh load sat 0.8 s zoomed in and then jumped
+      // out to the opening's zoom (their screen recording, 2026-10-15).
+      const target = centreClear(map, [fix.lat, fix.lon], zoom);
+      if (map.getZoom() === zoom && map.getBounds().contains([fix.lat, fix.lon])) {
+        map.panTo(target, { animate: true, duration: 0.5 });
+        return;
+      }
+      map.flyTo(target, zoom, { duration: 0.8 });
       return;
     }
     map.panTo(centreClear(map, [fix.lat, fix.lon], map.getZoom()), { animate: true, duration: 0.5 });
