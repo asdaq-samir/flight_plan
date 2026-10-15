@@ -12,11 +12,13 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.util.Optional;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 
 /**
@@ -52,6 +54,16 @@ class DeviceSignInControllerTest {
     private final Pilot pilot = new Pilot("pilot@example.com", "A Pilot", null, null);
     private final Authentication phone = new MagicLinkAuthenticationToken("pilot@example.com");
     private final DeviceSignInController controller = new DeviceSignInController(pilots, clock);
+
+    // Signing in here sets the thread's security context (SessionSignIn),
+    // and with the controller called outside the filter chain nothing
+    // clears it: left behind, it signed in every later MockMvc request on
+    // the thread -- the anonymous reader of the speed trend got 403, not
+    // 401 (SpeedControllerTest, in CI's run of the whole suite).
+    @AfterEach
+    void signOutOfThisThread() {
+        SecurityContextHolder.clearContext();
+    }
 
     DeviceSignInControllerTest() {
         given(pilots.current(phone)).willReturn(Optional.of(pilot));
