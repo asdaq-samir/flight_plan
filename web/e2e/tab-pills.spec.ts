@@ -2,12 +2,13 @@ import { test, expect, type Page } from "@playwright/test";
 import { grabberTo, settle, settled, showTabs, sideDrawer } from "./helpers";
 
 /**
- * Each tab's pill, one row, as the panel of 2026-10-11 had it and the owner
- * picked it back ("pill to half to full worked really well"): FPL the
- * route's box or its one line, Airport and Aircraft their search bars,
- * Setup the tabs. Half way each tab's own strip under its head -- Airport's
- * and Aircraft's Favorites. And a card's way back on a phone: Back at the
- * top left of the minimized tabs' line, a close at its right.
+ * Each tab's pill, the tabs, at the owner's ask ("When no route is entered,
+ * let's have tabs on the pill"), FPL's route's figures pinned under them
+ * ("If a route is entered, then let's pin the calculations at the
+ * bottom"). Half way, one height on every tab, each tab's own under its
+ * head -- Airport's and Aircraft's Favorites. And a card's way back on a
+ * phone: Back at the top left of the minimized tabs' line, a close at its
+ * right.
  */
 
 const KDLH = { ident: "KDLH", name: "Duluth International Airport", municipality: "Duluth", lat: 46.842, lon: -92.194 };
@@ -20,14 +21,6 @@ async function keep(page: Page, state: Record<string, unknown>) {
   }, state);
 }
 
-/** A tab picked, then the sheet down to its pill. */
-async function pickAtRest(page: Page, tab: string) {
-  await showTabs(page);
-  await page.getByTestId(tab).click();
-  await grabberTo(page, "peek");
-  await expect(sideDrawer(page)).toHaveAttribute("data-capsule", "true");
-}
-
 /** A tab picked half way. */
 async function pickHalf(page: Page, tab: string) {
   await showTabs(page);
@@ -35,7 +28,7 @@ async function pickHalf(page: Page, tab: string) {
   await grabberTo(page, "half");
 }
 
-test("each tab's pill is one row: FPL's route line, Airport's and Aircraft's search bars, Setup's tabs", async ({ page }) => {
+test("each tab's pill is the tabs, FPL's with its figures under them, and half way is one height on every tab", async ({ page }) => {
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   const panel = sideDrawer(page);
@@ -43,24 +36,32 @@ test("each tab's pill is one row: FPL's route line, Airport's and Aircraft's sea
     await settled(panel);
     return (await panel.boundingBox())!.height;
   };
-  // A row: the search field's 41 points and the pill's padding, never the
-  // tall pill of the minimal layout.
-  await expect(panel.getByTestId("route-line")).toBeVisible({ timeout: 30_000 });
-  expect(await height()).toBeLessThan(90);
-  await expect(panel.getByTestId("flight-line")).toHaveCount(0);
-  await pickAtRest(page, "tab-airport");
-  await expect(panel.getByTestId("search-airports")).toBeVisible();
-  await expect(panel.getByTestId("pill-favorites")).toBeHidden();
-  expect(await height()).toBeLessThan(90);
-  await pickAtRest(page, "tab-aircraft");
-  await expect(panel.getByTestId("aircraft-search")).toBeVisible();
-  expect(await height()).toBeLessThan(90);
-  // Setup's pill is the tabs, the way back to the others.
+  await expect(panel.getByTestId("tab-bar")).toBeVisible();
+  await expect(panel.getByTestId("flight-line")).toBeVisible({ timeout: 30_000 });
+  const fpl = await height();
+  // Another tab picked at the pill: half way, then down: the tabs alone.
   await showTabs(page);
-  await page.getByTestId("setup-button").click();
+  await page.getByTestId("tab-airport").click();
   await grabberTo(page, "peek");
   await expect(panel.getByTestId("tab-bar")).toBeVisible();
-  expect(await height()).toBeLessThan(100);
+  await expect(panel.getByTestId("search-airports")).toBeHidden();
+  await expect(panel.getByTestId("flight-line")).toHaveCount(0);
+  expect(await height()).toBeLessThan(fpl);
+  // Half way one height on every tab, FPL's with its route too (the
+  // owner's "Keep the half card consistent in size for all tabs including
+  // fpl").
+  await grabberTo(page, "half");
+  const half = await height();
+  for (const tab of ["tab-aircraft", "tab-fpl", "setup-button"]) {
+    await page.getByTestId(tab).click();
+    await expect(panel).toHaveAttribute("data-panel", "half");
+    expect(Math.abs(await height() - half)).toBeLessThan(1);
+  }
+  // Setup's account whole within it (the owner's "so email in setup fits
+  // at the bottom").
+  const address = panel.getByTestId("pilot-address").or(panel.getByText("Not signed in")).first();
+  const [row, sheet] = [(await address.boundingBox())!, (await panel.boundingBox())!];
+  expect(row.y + row.height).toBeLessThanOrEqual(sheet.y + sheet.height);
 });
 
 test("each tab half way shows its own: Airport its Favorites and Nearest, Aircraft its Favorites and a question", async ({ page }) => {
@@ -192,25 +193,6 @@ test("Plane, the pilot's own, is first among the Aircraft card's Favorites, with
   // Tapped now, its card.
   await mine.click();
   await expect(page).toHaveURL(/[?&]flight=a1c2d3/);
-});
-
-test("on a phone, each tab's pill starts its row on one line: FPL's box and the search bars", async ({ page }) => {
-  test.skip((page.viewportSize()?.width ?? 0) >= 768, "a phone's pill");
-  // The owner's notices: FPL's box sat lower than the other tabs' bars.
-  await page.goto("/app/plan");
-  await settle(page);
-  const panel = sideDrawer(page);
-  await expect(panel).toHaveAttribute("data-capsule", "true");
-  // The rounded box round each field, not the field itself.
-  const boxTop = async (testId: string) => {
-    await settled(panel);
-    return (await panel.getByTestId(testId).locator("xpath=ancestor-or-self::*[contains(@class,'rounded')][1]").boundingBox())!.y;
-  };
-  const fpl = await boxTop("route-type");
-  await pickAtRest(page, "tab-airport");
-  expect(Math.abs(await boxTop("search-airports") - fpl)).toBeLessThan(1.5);
-  await pickAtRest(page, "tab-aircraft");
-  expect(Math.abs(await boxTop("aircraft-search") - fpl)).toBeLessThan(1.5);
 });
 
 test("on a phone, all the way up, Setup's page starts where Airport's search bar does", async ({ page }) => {

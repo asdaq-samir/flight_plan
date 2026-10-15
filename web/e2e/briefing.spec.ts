@@ -210,7 +210,7 @@ test("plan page: a pasted briefing link opens the panel, and its grabber closes 
   await expect(drawer.getByTestId("share-route")).toBeVisible();
   await grabber.click();
   await expectDrawerClosed(page);
-  await expect(drawer.getByTestId("route-line")).toBeVisible();
+  await expect(drawer.getByTestId("flight-line")).toBeVisible();
 
   await grabberTo(page, "full");
   await expect(page).toHaveURL(/[?&]view=briefing/);

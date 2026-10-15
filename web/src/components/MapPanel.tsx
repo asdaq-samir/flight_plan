@@ -5,7 +5,7 @@ import { useIsMobile } from "../hooks/use-mobile";
 import { useNavEdge } from "../hooks/use-nav-edge";
 import { useKeyboardInset, useSafeArea, useVisualHeight, useWindowHeight } from "../hooks/use-viewport";
 import {
-  GLASS, GLASS_FILL, GLASS_SHEET, GLASS_SHEET_FULL, MATERIAL, PanelHalfContext, PanelSize, PILL_RADIUS, usePanelDragging, SHEET_INSET, SHEET_INSET_RADIUS, SHEET_MARGIN, SHEET_RESHAPE, SHEET_SECONDS, TabBarMinimized,
+  GLASS, GLASS_FILL, GLASS_SHEET, GLASS_SHEET_FULL, MATERIAL, PanelSize, PILL_RADIUS, usePanelDragging, SHEET_INSET, SHEET_INSET_RADIUS, SHEET_MARGIN, SHEET_RESHAPE, TabBarMinimized,
   SHEET_SETTLE, type MapInsets, type PanelState,
 } from "./mapChrome";
 
@@ -65,18 +65,11 @@ interface Props {
 const CAPSULE_PAD = 9;
 /** The grabber's button: 16 tall, its pill five in from the panel's edge. */
 const GRABBER = 16;
-/** Where the route's half -- its head and the tabs' bar -- is kept on
- *  this device, for every half to be that height. */
-const HALF_KEY = "vfr.panel.half";
-/** The least every half is, in rem: 292 points at iOS's default text
- *  size, the half as it measured with the route's box two lines tall
- *  (2026-10-10), kept when the pilot asked for the box one line tall
- *  (2026-10-12), so that what the pilot asked to see at half still is: an
- *  airport card's tabs (places.spec) and a past flight's whole graph
- *  (tracking.spec). The route's half shows the top of its tab's content
- *  under its tabs; a route's head taller than it (a bigger text size, the
- *  box two lines) is the half. */
-const HALF_LEAST_REM = 18.25;
+/** The half sheet's height, in rem, the same on every tab: tall enough
+ *  for Setup's account row whole and FPL's route, its chips, side view
+ *  and figures (measured at an iPhone 16 Pro's size and at the owner's
+ *  larger text, 2026-10-14). */
+const HALF_REM = 24;
 /** The root's font size, which the text size the reader has set moves:
  *  read once, as the page has it. Read at each of the panel's renders as
  *  the page opened, it made the browser work out the page's styles there
@@ -133,7 +126,6 @@ const RANK: Record<PanelState, number> = { peek: 0, half: 1, full: 2 };
  */
 export default function MapPanel({ label, top, controls, compact, children, state, onStateChange, onInsetsChange, toEdge: edgeAsked = false, bar, layer = "tab", cardOver: overAsked = false, foot }: Props) {
   // A tab's options for a tab, a card's for a card: what each layer takes.
-  const barAlone = layer !== "tab";
   const cardInPill = layer === "card";
   const cardOver = layer !== "console" && overAsked;
   const toEdge = layer !== "console" && edgeAsked;
@@ -150,15 +142,16 @@ export default function MapPanel({ label, top, controls, compact, children, stat
   const keyboard = useKeyboardInset();
   const visualHeight = useVisualHeight();
   const fromBottom = edge === "bottom";
-  // At rest a pill floating over the chart, as Maps' is: one row, the
-  // capsule's own content (`compact`) -- a tab's search bar, the route's
-  // one line, a card's name -- with no tab bar, the panel as the owner
-  // picked it back ("pill to half to full worked really well", the
-  // panel of 2026-10-11). The tab bar is the sheet's first row at half and
-  // all the way up, on a phone held upright as on its side; over a card
-  // alone too (no top row, `barAlone`), as iOS keeps its tab bar on every
-  // screen; gone with the keyboard up, as iOS's is.
-  const hasPill = !!compact;
+  // At rest a pill floating over the chart, as Maps' is: with a tab bar the
+  // tabs, at the owner's ask ("When no route is entered, let's have tabs on
+  // the pill"), and a route's figures pinned under them (the foot, "If a
+  // route is entered, then let's pin the calculations at the bottom"); a
+  // card over the tab its name, Back and the close, the bar minimized.
+  // With no bar the capsule's own content (`compact`). The tab bar is the
+  // sheet's first row half way and all the way up as well, on a phone held
+  // upright as on its side; over a card alone too, as iOS keeps its tab
+  // bar on every screen; gone with the keyboard up, as iOS's is.
+  const hasPill = !!bar || !!compact;
 
   // The head's own height decides the lowest detent: the top row and the
   // controls in sight, with the grabber. Measured, since a notice or the
@@ -212,24 +205,12 @@ export default function MapPanel({ label, top, controls, compact, children, stat
   // At rest with a capsule to show, it floats clear of the screen's
   // edges as Maps' does: in from the sides, above the home indicator
   // (into its inset a little, as Maps sits) or under the status bar.
-  // Brought down from all the way up by a tap (not a finger), the sheet
-  // keeps its layout while its height eases down to the pill's, and turns
-  // into the pill once there: it turned into the pill at once, the pill's
-  // head and figures drawn at the top of a sheet still half a screen tall,
-  // then shrank under them, at the owner's notice ("From full card to half
-  // card, transition is not smooth"). For the curve's time (SHEET_SECONDS).
-  const [settling, setSettling] = useState(false);
-  const [stateWas, setStateWas] = useState(state);
-  if (state !== stateWas) {
-    setStateWas(state);
-    setSettling(stateWas !== "peek" && state === "peek" && dragged === null && hasPill);
-  }
-  useEffect(() => {
-    if (!settling) return;
-    const done = window.setTimeout(() => setSettling(false), SHEET_SECONDS * 1000);
-    return () => window.clearTimeout(done);
-  }, [settling]);
-  const capsule = hasPill && state === "peek" && dragged === null && !settling;
+  // Brought down to it by a tap, the sheet is the pill's one row at once
+  // and its height eases straight there: held in its half layout until the
+  // ease was over, it eased to that layout's own idea of the pill, sat, and
+  // eased again once it turned (the owner's "when going into pill, it stays
+  // a second", measured by the other session: 359 to 476, a stop, then 585).
+  const capsule = hasPill && state === "peek" && dragged === null;
   // Observed afresh as the panel changes size or the tab its head or the pill its own, the
   // observer's first answer the height then: WebKit's observer let the
   // tabs alone's growth into the pill go unreported, and the pill kept the
@@ -249,11 +230,11 @@ export default function MapPanel({ label, top, controls, compact, children, stat
   }, [footNode, state, capsule]);
   // The figures pinned at the sheet's foot, out of the pill: its one row
   // says the route's (the capsule's own).
-  const footShown = !!foot && !capsule;
+  const footShown = !!foot && (!capsule || !!bar);
   const footHeight = footShown ? footMeasured : 0;
   // The bar shown: the sheet's first row out of the pill, over its head or
-  // the console's layer with no head of its own (`barAlone`).
-  const barShown = !!bar && !capsule && (top != null || barAlone || !hasPill) && !(onPhone && keyboard);
+  // the console's layer with no head of its own.
+  const barShown = !!bar && !(onPhone && keyboard);
   // A card from another tab over this one, on a phone held upright: the
   // tab bar minimized to the card's kind, Back at its left, as iOS's
   // navigation bar is; else the tabs, at the owner's ask. Wider, a card
@@ -271,34 +252,10 @@ export default function MapPanel({ label, top, controls, compact, children, stat
   // that ends at the head -- so a drag let go at the separator went back
   // down to the capsule, the two being one height and the lowest first.
   if (capsule && capsuleHeight !== headHeight + footHeight) setCapsuleHeight(headHeight + footHeight);
-  // One half height for every panel, at the pilot's ask: the route's --
-  // its box, the controls, the flight's line and the tabs' bar, the tabs'
-  // contents above it -- and the search's (its Favorites, the Recents
-  // above it) and an airport's card (its name and actions, the weather
-  // above it) at the same, each laying its first part out to that height
-  // (--half-body). The route's is measured from the tabs (PanelHalfContext)
-  // and kept on this device, never less than HALF_LEAST_REM; kept only
-  // while the route is whole, its controls under it: a route cleared, or
-  // still being typed, has its box alone, and the panel stays the height
-  // it was.
-  const [tabsAt, setTabsAt] = useState<number | null>(null);
-  const [routeHead, setRouteHead] = useState<number | null>(() => {
-    try {
-      const kept = Number(localStorage.getItem(HALF_KEY));
-      return kept > 0 ? kept : null;
-    } catch {
-      return null;
-    }
-  });
-  const routeNow = tabsAt !== null && !!controls && !capsule && dragged === null && measured ? headHeight + tabsAt : null;
-  if (routeNow !== null && routeNow !== routeHead) setRouteHead(routeNow);
-  useEffect(() => {
-    try {
-      if (routeHead) localStorage.setItem(HALF_KEY, String(routeHead));
-    } catch {
-      // Not kept: the estimate serves the next load.
-    }
-  }, [routeHead]);
+  // One half height for every tab, FPL's with a route too, at the owner's
+  // asks ("Keep the half card consistent in size for all tabs including
+  // fpl"; "Make the half card a bit taller so email in setup fits at the
+  // bottom"): in rem, so it grows with the text as what it holds does.
   // What the half sheet has past its head and body: on a phone's sheet
   // from the bottom the way on to the screen's edge, less the gap it
   // floats above that edge by (with it, the nav log's first heading
@@ -309,12 +266,12 @@ export default function MapPanel({ label, top, controls, compact, children, stat
   // what its glass and corners still change by between the two.
   const detents = useMemo<Record<"peek" | "half" | "full", number>>(() => {
     const full = Math.max(peek, room);
-    const half = Math.max(peek, Math.max(routeHead ?? 0, Math.round(HALF_LEAST_REM * rootPx())) + halfChrome + footHeight);
+    const half = Math.max(peek, Math.round(HALF_REM * rootPx()) + halfChrome);
     // Settling down to the pill, the pill's own height as it was last
     // measured, whatever the sheet's head measures on the way.
-    const lowest = settling ? capsuleHeight : hasPill && !capsule ? Math.min(capsuleHeight, peek) : peek;
+    const lowest = hasPill && !capsule ? Math.min(capsuleHeight, peek) : peek;
     return { peek: lowest, half: Math.min(half, full), full };
-  }, [peek, room, routeHead, halfChrome, footHeight, hasPill, capsule, capsuleHeight, settling]);
+  }, [peek, room, halfChrome, hasPill, capsule, capsuleHeight]);
   // The body's height at half, for what it shows first to fill and no
   // more (--half-body): the search's Favorites, an airport's name and
   // actions.
@@ -382,7 +339,7 @@ export default function MapPanel({ label, top, controls, compact, children, stat
     : between(GLASS_FILL.half, GLASS_FILL.full, Math.min(1, Math.max(0, (shown - detents.half) / Math.max(1, detents.full - detents.half))));
   // While it turns, the capsule's own content fades out over the sheet's
   // head as that fades in -- unless the two are one (the search bar).
-  const crossFade = morphing && morph < 1 && compact !== top;
+  const crossFade = morphing && morph < 1 && !bar && compact !== top;
   // Where a drag can come to rest: the pill, half and all the way up.
   const { startDrag: drag, swallow, body: dragBody } = useDetentDrag({
     detents, shown, fromBottom, onRelease: onStateChange, setDragged,
@@ -390,13 +347,8 @@ export default function MapPanel({ label, top, controls, compact, children, stat
     // lowest detent: its head alone, no controls.
     floor: hasPill ? capsuleHeight : undefined,
   });
-  // Between sizes: a finger on it, or its height easing down to the pill
-  // after a tap (`settling`). The body is drawn as all the way up for both:
-  // easing down, the Airport tab's Recents slid up into the Favorites
-  // strip's place, the strip already the pill's, for the half second the
-  // sheet took to arrive (the owner's notice, "From Full card to half card
-  // shows recents for a second before favorites can take that space").
-  const isDragged = dragged !== null || settling;
+  // Under a finger: the body is drawn as all the way up while it is.
+  const isDragged = dragged !== null;
   useEffect(() => {
     usePanelDragging.setState({ dragging: isDragged });
   }, [isDragged]);
@@ -523,7 +475,7 @@ export default function MapPanel({ label, top, controls, compact, children, stat
       data-slot="map-panel" data-panel={state} {...(onPhone ? { "data-sheet": "" } : {})}
       aria-label={label}
       onClickCapture={swallow}
-      data-capsule={capsule || undefined} data-settling={settling || undefined}
+      data-capsule={capsule || undefined}
       data-shape={onPhone ? shape : undefined}
       style={{
         ...corner,
@@ -579,7 +531,10 @@ export default function MapPanel({ label, top, controls, compact, children, stat
               // tall as the name's 44-point hit area, and four over what is
               // under it: Back's and the name's hit areas reach three past
               // the row, and a card under it took them (the iOS audit's P1).
-              "flex shrink-0 border-b border-border/60 px-2", minimized ? "mb-1 min-h-11 pt-1.5" : "h-12", !barShown && "hidden",
+              "flex shrink-0 px-2", minimized ? "mb-1 min-h-11 pt-1.5" : "h-12", !barShown && "hidden",
+              // In the pill the pill's whole, round its grabber; out of it
+              // the line under the sheet's first row.
+              capsule ? (fromBottom ? "mt-1.5 mb-1" : "mt-1 mb-1.5") : "border-b border-border/60",
               !fromBottom && onPhone && "h-auto pt-[env(safe-area-inset-top)]",
             )}
             // A swipe up or down on the tabs drags the panel as the head
@@ -602,7 +557,7 @@ export default function MapPanel({ label, top, controls, compact, children, stat
             one turns into the other, focus and keyboard and all. From
             the top of a phone's screen the sheet's starts under the
             status bar or the island. */}
-        {(capsule || top != null || !barShown) && (
+        {(capsule ? !bar : top != null || !barShown) && (
           <header
             className={cn(
               "@container flex items-center gap-2 print:hidden",
@@ -619,7 +574,7 @@ export default function MapPanel({ label, top, controls, compact, children, stat
                 : top == null ? (!fromBottom && onPhone && !barShown ? "pt-[env(safe-area-inset-top)]" : undefined)
                   // Four under the grabber from the bottom: the band over the
                   // route's box was 36 points, thick beside Maps' 20.
-                  : cn("px-3 pb-1", barShown ? "pt-2" : fromBottom ? "pt-1" : onPhone ? "pt-[max(0.5rem,env(safe-area-inset-top))]" : "pt-2"),
+                  : cn("px-3 pb-1", barShown ? "pt-1" : fromBottom ? "pt-1" : onPhone ? "pt-[max(0.5rem,env(safe-area-inset-top))]" : "pt-2"),
             )}
           >
             {capsule ? compact : top}
@@ -657,9 +612,7 @@ export default function MapPanel({ label, top, controls, compact, children, stat
         style={{ "--half-body": `${halfBody}px`, "--half-foot": `${toEdge && fromBottom ? halfChrome : 0}px` } as CSSProperties}
         data-panel-body=""
       >
-        <PanelHalfContext.Provider value={setTabsAt}>
-          {children}
-        </PanelHalfContext.Provider>
+        {children}
       </div>
       {/* The route's figures, pinned at the card's foot at every height
           (`foot`): over the home indicator's room where the body runs to
@@ -673,10 +626,17 @@ export default function MapPanel({ label, top, controls, compact, children, stat
             // way up: the foot's own 16 too set it in by 32, at the owner's
             // notice ("half card is not aligned with the back and close
             // buttons").
-            "shrink-0 border-t border-border/60 pt-2 pb-2.5 print:hidden", cardInPill ? "px-0" : "px-4",
+            "shrink-0 print:hidden", cardInPill ? "px-0" : "px-4",
+            // In the pill under the tabs, the figures alone: what the foot
+            // keeps for half way and up (FPL's side view, data-pill-hides)
+            // put away.
+            capsule ? "pt-1 pb-3 [&_[data-pill-hides]]:hidden" : "border-t border-border/60 pt-2 pb-2.5",
           )}
-          style={toEdge && fromBottom ? { paddingBottom: Math.max(10, edgeRoom) } : undefined}
+          style={toEdge && fromBottom && !capsule ? { paddingBottom: Math.max(10, edgeRoom) } : undefined}
           data-testid="panel-foot"
+          // In the pill a finger anywhere on it drags the sheet, as the tabs
+          // do.
+          onPointerDown={capsule ? startDrag : undefined}
         >{foot}</div>
       )}
       {/* The grabber last on a sheet from the top. */}

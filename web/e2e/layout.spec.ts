@@ -32,20 +32,21 @@ import { PAGES, grabberTo, settle, slow, expectDrawerClosed, openSidebar, sideDr
  */
 
 test.describe("/app/plan", () => {
-  // At rest the panel is a pill of one row, as the panel of 2026-10-11 had
-  // it and the owner picked it back: FPL's route box with no route, the
-  // route's one line with one; the grabber half way, the tabs over it.
-  test("the panel rests as one row, the route's box or its line, and half way has the tabs and the figures", async ({ page }) => {
+  // At rest the panel is a pill of the tabs, at the owner's ask ("When no
+  // route is entered, let's have tabs on the pill"), a route's figures
+  // pinned under them ("If a route is entered, then let's pin the
+  // calculations at the bottom"); the grabber half way.
+  test("the panel rests as the tabs, a route's figures under them, and half way has the route's box", async ({ page }) => {
     await page.goto("/app/plan");
     await settle(page);
     await expect(sideDrawer(page)).toHaveAttribute("data-capsule", "true");
-    await expect(sideDrawer(page).getByTestId("tab-bar")).toBeHidden();
-    await expect(sideDrawer(page).getByTestId("route-type")).toBeVisible();
+    await expect(sideDrawer(page).getByTestId("tab-bar")).toBeVisible();
+    await expect(sideDrawer(page).getByTestId("route-type")).toBeHidden();
     await expect(sideDrawer(page).getByTestId("flight-line")).toHaveCount(0);
     await page.goto("/app/plan?dep=C81&dest=KDLH");
     await settle(page);
     await expect(sideDrawer(page)).toHaveAttribute("data-capsule", "true");
-    await expect(sideDrawer(page).getByTestId("route-line")).toContainText(/\d+ nm/, { timeout: slow(30000) });
+    await expect(sideDrawer(page).getByTestId("flight-line")).toContainText(/\d+ nm/, { timeout: slow(30000) });
     await page.getByTestId("sidebar-trigger-button").click();
     await expect(sideDrawer(page)).toHaveAttribute("data-panel", "half");
     await expect(page.getByTestId("tab-fpl")).toHaveAttribute("aria-current", "page");
@@ -54,8 +55,8 @@ test.describe("/app/plan", () => {
     expect(await page.getByTestId("toolbar-trigger").count()).toBe(0);
   });
 
-  // The grabber steps the three sizes. A route's link lands at rest with
-  // Share at the start of its line; a reload forgets it (lib/freshLoad).
+  // The grabber steps the three sizes. A route's link lands at rest; a
+  // reload forgets it (lib/freshLoad).
   test("a fresh load opens as the pill, a route's link at rest, and a reload forgets the route", async ({ page }) => {
     await page.goto("/app/plan");
     await settle(page);
@@ -78,7 +79,8 @@ test.describe("/app/plan", () => {
     await page.goto("/app/plan?dep=C81&dest=KDLH");
     await settle(page);
     await expectDrawerClosed(page);
-    // Share at the start of the route's line, at rest as half way.
+    // Share among the route's chips half way.
+    await openPanel(page);
     await sideDrawer(page).getByTestId("share-route").click();
     await expect(page.getByTestId("export-gpx")).toBeVisible();
     await page.keyboard.press("Escape");

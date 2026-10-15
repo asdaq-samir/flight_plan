@@ -1,5 +1,5 @@
 import { test, expect, type Locator, type Page } from "@playwright/test";
-import { closeSidebarWithTheStockKey, expectDrawerClosed, openPanel, settle, sideDrawer, slow, airportSearch } from "./helpers";
+import { closeSidebarWithTheStockKey, expectDrawerClosed, grabberTo, mapStill, openPanel, settle, sideDrawer, slow, airportSearch } from "./helpers";
 
 /**
  * The map and the sheet move together, as in Maps: opened fresh, the map
@@ -257,4 +257,23 @@ test("an airport's card keeps its field in sight: the next position the GPS give
   await context.setGeolocation({ latitude: 42.33, longitude: -88.08 });
   await page.waitForTimeout(2000);
   await fieldClearOfCard(page, field);
+});
+
+test("from half way to all the way up and back, the map stays exactly where it is", async ({ page }) => {
+  // The owner's ask: "when going from half card to full card, map should
+  // not move or zoom" -- only the pill to half and back moves it.
+  await page.goto("/app/plan?dep=C81&dest=KDLH");
+  await settle(page);
+  await openPanel(page);
+  await expect(sideDrawer(page)).toHaveAttribute("data-panel", "half");
+  await mapStill(page);
+  const before = await courseBox(page);
+  await grabberTo(page, "full");
+  await page.waitForTimeout(800);
+  await mapStill(page);
+  expect(await courseBox(page)).toEqual(before);
+  await grabberTo(page, "half");
+  await page.waitForTimeout(800);
+  await mapStill(page);
+  expect(await courseBox(page)).toEqual(before);
 });

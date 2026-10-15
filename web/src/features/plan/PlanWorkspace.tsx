@@ -16,7 +16,7 @@ import { useTabSearch } from "../../lib/tabSearch";
 import TabBar, { type BarTab } from "../../components/TabBar";
 import { useTabAsk } from "./components/navlog/panelTab";
 import { useAddressCards, usePanelTabs, type PanelTab } from "./hooks/useTabCards";
-import { MAX_STOPS, altitudesOf, altitudesParam, departureOf, identOf, isAirwayToken, pointName, positionIdent, routeOf, stopsOf } from "../../lib/identSchema";
+import { MAX_STOPS, altitudesOf, altitudesParam, departureOf, identOf, isAirwayToken, positionIdent, routeOf, stopsOf } from "../../lib/identSchema";
 import { useKeptAirport, usePreferences, type RecentAirport } from "../../lib/preferences";
 import { SearchNear, useAirportSearch } from "../../lib/useAirportSearch";
 import { RouteMap } from "./routeMapChunk";
@@ -31,9 +31,6 @@ import { SearchField, SearchResults } from "../../components/PanelCapsule";
 import { chipColourOf } from "../../lib/map/flightCategory";
 import { FavoriteStrip, FavoritesList } from "../../components/Favorites";
 import FlightLine from "./components/FlightLine";
-import RouteLine from "./components/RouteLine";
-import CloseButton from "../../components/CloseButton";
-import { routeLine } from "./figures";
 import AirspaceCard from "./components/AirspaceCard";
 import PlaceCard from "./components/PlaceCard";
 import ProceduresButton, { type ProcedureAirport } from "./components/ProceduresButton";
@@ -305,8 +302,9 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // to: one pulled all the way up and closed leaves the tab at its pill if
   // that is where it was (the owner's pick, "Do what Apple Maps does").
   // Read while no card is open; a card opening and its height land in one
-  // render (setPanel's flushSync carries the card's address too).
-  const panelBeforeCard = useRef(panel);
+  // render (setPanel's flushSync carries the card's address too). A card
+  // the page opened on had no sheet before it: the pill.
+  const panelBeforeCard = useRef(cardOpen ? "peek" : panel);
   useEffect(() => {
     if (!cardOpen) panelBeforeCard.current = panel;
   }, [cardOpen, panel]);
@@ -1365,13 +1363,13 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     sidebar: (
       <>
         {place ? (
-          // At the pill's size the pill is its name (`compact`, below) --
-          // but in full here while a finger takes the panel up.
-          panel === "peek" && !dragging ? null : placeCard(false)
+          // Mounted at the pill as well, out of sight, so the minimized
+          // tabs' Back there has a card to close.
+          placeCard(false)
         ) : heldPoint ? (
-          panel === "peek" && !dragging ? null : <AirspaceCard key={`${heldPoint.lat},${heldPoint.lon}`} point={heldPoint} onClose={() => closeCard(() => selectPlace(null))} />
+          <AirspaceCard key={`${heldPoint.lat},${heldPoint.lon}`} point={heldPoint} onClose={() => closeCard(() => selectPlace(null))} />
         ) : tab === "aircraft" ? (
-          panel === "peek" && !dragging && flight && !past ? null : flightCard ?? (aircraftOpen && (
+          flightCard ?? (aircraftOpen && (
             // The strip once, in the pill or here: at the pill's size the
             // body is out of sight but for a finger taking it up.
             <AircraftCard onPick={plane => selectFlight(plane.hex, plane)} onPickHex={hex => selectFlight(hex)} strip={panel !== "peek" || dragging ? aircraftStrip : null} />
@@ -1419,24 +1417,6 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     // The tab's head: FPL's the route's box (`route`, below); the others'
     // the search bar, the whole width (Settings is a tab, not a gear).
     head: tab === "fpl" ? undefined : tab === "aircraft" ? aircraftField : nearOpen ? nearField : searchField,
-    // The pill, one row, as the panel of 2026-10-11 had it and the owner
-    // picked it back ("pill to half to full worked really well"): a card's
-    // name and its close while one is open, a tap on it the card half way; FPL's route as one line once it is a
-    // route (RouteLine); else the tab's own top row, its search bar or the
-    // route's box (MapPage).
-    compact: (place || heldPoint || flight) && cardTitle ? (
-      <RouteLine
-        line={cardTitle} label={cardTitle} onOpen={() => setPanel("half")}
-        trailing={<CloseButton onClick={closeSheet} data-testid="card-line-close" />}
-      />
-    ) : tab === "fpl" && routed && !place && !heldPoint ? (
-          <RouteLine
-            line={routeLine([planned.dep, ...planned.stops, planned.dest].filter(Boolean).join(" → "), pointName(planned.dest), { totals: s.totals, estimate, local: s.local })}
-            label={[planned.dep, ...planned.stops, planned.dest].filter(Boolean).join(" to ")}
-            warning={s.unflyable ? "No legal altitude" : undefined}
-            onOpen={() => setPanel("half")} leading={shareMenu("start")}
-          />
-        ) : undefined,
     // A card over the tab: its card alone, the tab's head gone while it is
     // open, at the pilot's ask.
     alone: cardOpen,
