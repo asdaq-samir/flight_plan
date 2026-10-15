@@ -1467,11 +1467,14 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
             // All the half sheet leaves it, at the owner's ask ("make the
             // profile view taller within fpl"): asking for ten rem, it gives
             // way to what the sheet has, the chart drawn to that, the figures
-            // under it kept whole. It was six rem at most.
+            // under it kept whole. It was six rem at most. Eight points
+            // between it and the figures, as a dry run's chart has, at the
+            // owner's ask ("small space between profile calculations"):
+            // inside it, so folded away all the way up it leaves none.
             className={cn("min-h-0 shrink overflow-hidden [&_[data-testid=mini-profile]]:h-full", panel === "full" && !dragging && "invisible")} inert={panel === "full" && !dragging} data-pill-hides=""
             style={{ height: "calc(10rem * (1 - var(--sheet-progress, 1)))", opacity: "calc(1 - var(--sheet-progress, 1))" }}
           >
-            <div className="relative h-full">
+            <div className="relative h-full pb-2">
               {miniProfile}
               {/* Its dry run, at its top right: the flight flown on paper. */}
               <RoundButton label="Dry run" onClick={startDryRun} className="absolute top-1.5 right-1.5" data-testid="dry-run-start">

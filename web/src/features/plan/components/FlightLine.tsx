@@ -124,9 +124,11 @@ export default function FlightLine({ totals, estimate, depart, local, grow = fal
     // any, and with none yet their names over dashes -- it keeps its
     // place, as the panel's controls do.
     <div className="relative" data-slot="section-summary" data-tip="flight-line">
+      {/* Each figure centred in its column, at the owner's ask ("Can the
+          calculations be center aligned?"), as FigureStrip's are. */}
       <dl className={cn("grid gap-3", shown.length === 3 ? "grid-cols-3" : "grid-cols-4")}>
         {shown.map((f, i) => (
-          <div key={f.name} className="min-w-0">
+          <div key={f.name} className="min-w-0 text-center">
             {/* Its names and units a grey that reads on the pill's glass
                 over any chart (WCAG's 4.5:1), where the muted one did not. */}
             <dt className={cn(GROUP_HEADING, grow && GROW_NAME, "truncate text-foreground/65")}>{f.name}</dt>
