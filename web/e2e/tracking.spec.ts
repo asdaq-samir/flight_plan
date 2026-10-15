@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { closeCard, grabberTo, settle, showTabs, slow } from "./helpers";
+import { closeCard, grabberTo, settle, showTabs, sideDrawer, slow } from "./helpers";
 
 /**
  * Tracking an airplane, as FlightAware and ForeFlight do, at the pilot's
@@ -454,4 +454,34 @@ test("the card's sketch of where an airplane has flown is in its heights' colour
   const colours = await sketch.locator("[data-sketch-run]").evaluateAll(runs => runs.map(r => r.getAttribute("stroke")));
   expect(colours.length).toBeGreaterThan(0);
   for (const colour of colours) expect(colour).toMatch(/^hsl\(\d+ 85% 45%\)$/);
+});
+
+test("an airplane's card is laid out as an airport's: its actions and its tabs where the airport card's are, and its name set to fit its column", async ({ page }) => {
+  // The owner's ask: "Do airport and aircraft cards have same layouts?" --
+  // the airplane's actions sat 6 points lower, its tabs 12 further under
+  // them, and its name was cut where its thumbnail began.
+  await sky(page, { ...DETAIL, description: "PIPER PA-28-140/150/160/180 CHEROKEE" });
+  const panel = sideDrawer(page);
+  // How far down the half sheet the card's actions and its tabs start.
+  const places = async (card: string, action: string) => {
+    await grabberTo(page, "half");
+    const sheet = (await panel.boundingBox())!.y;
+    const at = async (testId: string) => (await page.getByTestId(testId).first().boundingBox())!.y - sheet;
+    const tabs = (await page.getByTestId(card).getByRole("tablist").first().boundingBox())!.y - sheet;
+    return { actions: await at(action), tabs };
+  };
+  await page.goto("/app/plan?place=C81");
+  await settle(page);
+  await expect(page.getByTestId("fly-here")).toBeEnabled({ timeout: slow(15_000) });
+  const airport = await places("place-card", "fly-here");
+  await page.goto("/app/plan?flight=a0b7d8");
+  await settle(page);
+  await expect(page.getByTestId("flight-follow")).toBeVisible({ timeout: slow(15_000) });
+  const airplane = await places("flight-card", "flight-follow");
+  expect(Math.abs(airplane.actions - airport.actions), `actions ${airplane.actions} and ${airport.actions}`).toBeLessThan(1.5);
+  expect(Math.abs(airplane.tabs - airport.tabs), `tabs ${airplane.tabs} and ${airport.tabs}`).toBeLessThan(1.5);
+  // The long model whole, set smaller to fit, not cut off.
+  const name = page.getByTestId("flight-name");
+  await expect(name).toContainText("Cherokee");
+  expect(await name.evaluate(el => el.scrollHeight <= el.clientHeight + 1 && el.scrollWidth <= el.clientWidth + 1)).toBe(true);
 });

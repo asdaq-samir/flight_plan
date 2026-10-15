@@ -7,8 +7,7 @@ import { useKeptAirport, usePreferences } from "../../../lib/preferences";
 import { useOwnShip } from "../../../lib/map/ownShip";
 import RoundButton from "../../../components/RoundButton";
 import { GLASS_BUTTON } from "../../../components/mapChrome";
-import { FitText } from "../../../components/FitText";
-import { CardClose, CardHead, PanelCard } from "../../../components/PanelCard";
+import { CardClose, CardHead, CardTop, PanelCard } from "../../../components/PanelCard";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
 import { CardTabBar, CardTabPanel } from "../../../components/CardTabs";
 import { PillSection } from "../../../components/Favorites";
@@ -430,66 +429,86 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
           at the pill's size, and the same, where it was, all the way up,
           the rest under it -- the owner's "the top half stay the same as
           half card", so a drag up only adds below. */}
-      <div
-        // One height, the head and its actions.
-        className="flex h-[10.5rem] flex-col"
-        data-to-edge=""
-      >
-        {place || !error ? (
-          // Three columns, at the pilot's ask: the name, the runways'
-          // sketch, and at the right the close, the star and the weather's
-          // chip one over another, the close where every panel's is
-          // (MapPanel's --corner-line). The sketch between the name and
-          // them, from the card's top down to the tiles, the field's
-          // elevation in its top left ("Elev 788 ft"); under the name how
-          // far it is, then the ident and the town. The same for every
-          // field, so the card keeps its layout whatever the field: a long
-          // name is set smaller to fit its column (FitText), where it
-          // wrapped to four lines and pushed the tiles and the tabs down.
-          <div className="flex min-h-0 flex-1 gap-2">
-            <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-              <h2
-                tabIndex={-1} data-testid="place-name"
-                className={cn("min-h-0 flex-1 font-bold tracking-tight break-words text-foreground outline-none", TEXT.card)}
-              >
-                {/* From iOS's Title 1, 28 on 34, where the name fits its
-                    box at that, as Maps sets a place's: the cards' own 22
-                    (TEXT.card) left a short name small in a box with room. */}
-                <FitText className="h-full text-[1.75rem] leading-[2.125rem]" data-testid="place-name-fit">
-                  <NameAlone name={place?.name ?? known?.name ?? kept?.name ?? ident} ident={place?.ident ?? ident} />
-                </FitText>
-              </h2>
+      {place || !error ? (
+        // Three columns, at the pilot's ask (CardTop): the name, the
+        // runways' sketch, and at the right the close, the star and the
+        // weather's chip one over another, the close where every panel's
+        // is (MapPanel's --corner-line). The sketch between the name and
+        // them, from the card's top down to the tiles, the field's
+        // elevation in its top left ("Elev 788 ft"); under the name how far
+        // it is, then the ident and the town. The same for every field, so
+        // the card keeps its layout whatever the field.
+        <CardTop
+          name={<NameAlone name={place?.name ?? known?.name ?? kept?.name ?? ident} ident={place?.ident ?? ident} />}
+          nameTestId="place-name" nameFitTestId="place-name-fit"
+          lines={(
+            <>
               {line && <p className={cn("line-clamp-2 text-muted-foreground", TEXT.note)} data-testid="place-line">{line}</p>}
               {where && <p className={cn("truncate text-muted-foreground", TEXT.note)} data-testid="place-where">{where}</p>}
-            </div>
-            {/* The box there from the first frame, empty until the card's
-                answer is in, and for a field with no runway to draw, so
-                the card is the one shape for every field. */}
-            {diagramBox("min-w-0 flex-1")}
-            {/* Eight apart, so the buttons' 44-point hit areas (index.css)
-                meet. From the first frame, as the actions are: the card one
-                shape while its answer comes, at the pilot's ask. */}
-            <div className="-mr-1 flex w-9 shrink-0 flex-col items-center gap-2">
+            </>
+          )}
+          // The box there from the first frame, empty until the card's
+          // answer is in, and for a field with no runway to draw, so the
+          // card is the one shape for every field.
+          picture={diagramBox("min-w-0 flex-1")}
+          // From the first frame, as the actions are: the card one shape
+          // while its answer comes, at the pilot's ask.
+          side={(
+            <>
               <CardClose onClose={onClose} testId="place-close" />
               <FavoriteButton ident={kept?.ident ?? ident} place={place ?? null} />
               {chip}
-            </div>
-            {diagramOpen === "faa" && place?.airport_diagram_url && (
-              <FaaChart
-                title={`${place.ident} airport diagram`} url={place.airport_diagram_url} airport={place.ident}
+            </>
+          )}
+          columns={onAddStop ? 4 : 3}
+          // In their places from the first frame, live once the answer is
+          // in: the card stood empty below its name until then.
+          actions={(
+            <>
+              {/* Fly Here is the Direct-To, and wears its symbol; Add Stop
+                  beside it, at the pilot's ask, makes the field the route's
+                  next stop. */}
+              <Action
+                icon={<DirectToIcon />} label="Fly Here" filled busy={flying} disabled={!place} testId="fly-here"
+                onClick={() => { if (place) { setFlying(true); onFlyHere(place); } }}
+              />
+              {onAddStop && (
+                <Action icon={<MapPinPlus />} label="Add Stop" disabled={!place} onClick={() => { if (place) onAddStop(place); }} testId="place-add-stop" />
+              )}
+              {/* Call and Address, at the pilot's ask, where Weather and
+                  Freq. were, which are tabs now: the field's own phone and
+                  where it is on the ground, from the FAA's airport file --
+                  greyed for a field it lists no phone for. */}
+              <Action
+                icon={<Phone />} label="Call" disabled={!place?.phone}
+                href={place?.phone ? `tel:${place.phone}` : undefined}
+                spoken={place?.phone ? `Call ${place.phone}` : "Call: no phone listed"} testId="place-call"
+              />
+              <Action
+                icon={<MapPin />} label="Address" disabled={!place}
+                href={place ? mapsLink(place) : undefined}
+                spoken={place?.address ? `${place.address}, in Maps` : "Where it is, in Maps"} testId="place-address"
+              />
+            </>
+          )}
+        >
+          {diagramOpen === "faa" && place?.airport_diagram_url && (
+            <FaaChart
+              title={`${place.ident} airport diagram`} url={place.airport_diagram_url} airport={place.ident}
+              onClose={() => setDiagramOpen(null)}
+            />
+          )}
+          {diagramOpen === "sketch" && place && (
+            <Suspense fallback={null}>
+              <SketchViewer
+                ident={place.ident} runways={place.runways} lat={place.lat} lon={place.lon}
                 onClose={() => setDiagramOpen(null)}
               />
-            )}
-            {diagramOpen === "sketch" && place && (
-              <Suspense fallback={null}>
-                <SketchViewer
-                  ident={place.ident} runways={place.runways} lat={place.lat} lon={place.lon}
-                  onClose={() => setDiagramOpen(null)}
-                />
-              </Suspense>
-            )}
-          </div>
-        ) : (
+            </Suspense>
+          )}
+        </CardTop>
+      ) : (
+        <div className="flex h-[10.5rem] flex-col" data-to-edge="">
           <CardHead
             name={kept?.name ?? known?.name ?? ident} nameTestId="place-name"
             // Not found only where the planner said so: a planner out of
@@ -497,38 +516,8 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
             line={line} lineTestId="place-line"
             onClose={onClose} closeTestId="place-close"
           />
-        )}
-        {/* In their places from the first frame, live once the answer is
-            in: the card stood empty below its name until then. */}
-        {(place || !error) && (
-          <div className={cn("mt-1.5 grid gap-2", onAddStop ? "grid-cols-4" : "grid-cols-3")}>
-            {/* Fly Here is the Direct-To, and wears its symbol; Add Stop
-                beside it, at the pilot's ask, makes the field the route's
-                next stop. */}
-            <Action
-              icon={<DirectToIcon />} label="Fly Here" filled busy={flying} disabled={!place} testId="fly-here"
-              onClick={() => { if (place) { setFlying(true); onFlyHere(place); } }}
-            />
-            {onAddStop && (
-              <Action icon={<MapPinPlus />} label="Add Stop" disabled={!place} onClick={() => { if (place) onAddStop(place); }} testId="place-add-stop" />
-            )}
-            {/* Call and Address, at the pilot's ask, where Weather and Freq.
-                were, which are tabs now: the field's own phone and where it
-                is on the ground, from the FAA's airport file -- greyed for a
-                field it lists no phone for. */}
-            <Action
-              icon={<Phone />} label="Call" disabled={!place?.phone}
-              href={place?.phone ? `tel:${place.phone}` : undefined}
-              spoken={place?.phone ? `Call ${place.phone}` : "Call: no phone listed"} testId="place-call"
-            />
-            <Action
-              icon={<MapPin />} label="Address" disabled={!place}
-              href={place ? mapsLink(place) : undefined}
-              spoken={place?.address ? `${place.address}, in Maps` : "Where it is, in Maps"} testId="place-address"
-            />
-          </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* At the pill's size its first frequencies under the actions, the
           airspace the field is in beside their title (the owner's "class C

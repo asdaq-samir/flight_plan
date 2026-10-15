@@ -5,7 +5,7 @@ import {
   Ruler, Share, UserRound,
 } from "lucide-react";
 import { cn } from "cn";
-import { CardClose, PanelCard } from "../../../components/PanelCard";
+import { CardClose, CardTop, PanelCard } from "../../../components/PanelCard";
 import { useCardTitle } from "../../../components/mapChrome";
 import { PillSection } from "../../../components/Favorites";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
@@ -204,34 +204,41 @@ export default function FlightCard({ hex, onClose, onOpenPast, onExpand, onLower
           speed on it; the star and its state (climbing, level,
           descending, or an emergency's code) in a column under the close.
           The same all the way up, the rest under it. */}
-      <div className="flex h-[7rem] gap-2">
-        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-          <h2 className={cn("line-clamp-2 font-bold tracking-tight text-foreground", TEXT.card)} data-testid="flight-name">{model ?? name}</h2>
-          {away && <p className={cn("truncate text-muted-foreground", TEXT.note)} data-testid="flight-away">{away}</p>}
-          {operator && <p className={cn("line-clamp-2 text-muted-foreground", TEXT.note)} data-testid="flight-what">{operator}</p>}
-        </div>
-        {trailBox("min-w-0 flex-1")}
-        <div className="-mr-1 flex w-9 shrink-0 flex-col items-center gap-2">
-          <CardClose onClose={onClose} testId="flight-close" />
-          <FavoriteButton kept={kept} />
-          {state && (
-            <span
-              className={cn("flex w-9 justify-center rounded-md py-0.5 font-bold text-white", TEXT.caption, state.alarm ? "bg-destructive" : "bg-teal-700")}
-              data-testid="flight-state"
-            >{state.word}</span>
-          )}
-        </div>
-      </div>
-      {/* Follow, its flights, the FAA's record of it, and a link to it. */}
-      <div className="mt-2 grid grid-cols-4 gap-2">
-        <CardAction
-          icon={<Crosshair />} label="Follow" filled={follow} testId="flight-follow"
-          onClick={() => useTracking.setState({ follow: !follow })} pressed={follow}
-        />
-        <CardAction icon={<History />} label="Flights" testId="flight-flights" onClick={() => { setPicked("activity"); onExpand?.(); }} />
-        <CardAction icon={<IdCard />} label="Registry" testId="flight-registry" onClick={() => { setPicked("info"); onExpand?.(); }} />
-        <CardAction icon={<Share />} label="Share" testId="flight-share" onClick={() => void shareFlight(name, hex)} />
-      </div>
+      <CardTop
+        name={model ?? name} nameTestId="flight-name" nameFitTestId="flight-name-fit"
+        lines={(
+          <>
+            {away && <p className={cn("truncate text-muted-foreground", TEXT.note)} data-testid="flight-away">{away}</p>}
+            {operator && <p className={cn("line-clamp-2 text-muted-foreground", TEXT.note)} data-testid="flight-what">{operator}</p>}
+          </>
+        )}
+        picture={trailBox("min-w-0 flex-1")}
+        side={(
+          <>
+            <CardClose onClose={onClose} testId="flight-close" />
+            <FavoriteButton kept={kept} />
+            {state && (
+              <span
+                className={cn("flex w-9 justify-center rounded-md py-0.5 font-bold text-white", TEXT.caption, state.alarm ? "bg-destructive" : "bg-teal-700")}
+                data-testid="flight-state"
+              >{state.word}</span>
+            )}
+          </>
+        )}
+        columns={4}
+        // Follow, its flights, the FAA's record of it, and a link to it.
+        actions={(
+          <>
+            <CardAction
+              icon={<Crosshair />} label="Follow" filled={follow} testId="flight-follow"
+              onClick={() => useTracking.setState({ follow: !follow })} pressed={follow}
+            />
+            <CardAction icon={<History />} label="Flights" testId="flight-flights" onClick={() => { setPicked("activity"); onExpand?.(); }} />
+            <CardAction icon={<IdCard />} label="Registry" testId="flight-registry" onClick={() => { setPicked("info"); onExpand?.(); }} />
+            <CardAction icon={<Share />} label="Share" testId="flight-share" onClick={() => void shareFlight(name, hex)} />
+          </>
+        )}
+      />
       {/* At the pill's size its route under the actions, or with none
           known how it flies; all the way up the pages under the actions
           instead, Now first with both, as the airport card's (the owner's
@@ -252,7 +259,7 @@ export default function FlightCard({ hex, onClose, onOpenPast, onExpand, onLower
         )}
       </div>}
       {!summary && (
-      <Tabs value={tab} className="gap-0 pt-3">
+      <Tabs value={tab} className="gap-0">
         {/* The cards' tabs (CardTabBar), the airport card's: tapped, the
             panel all the way up, as its are. */}
         <CardTabBar tabs={FLIGHT_TABS} value={tab} onPick={setPicked} testIdPrefix="flight-tab" raise={raise} barRef={tabsRef} className="mt-3" />
