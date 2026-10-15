@@ -38,4 +38,19 @@ describe("the planned flight, flown on paper", () => {
     expect(end.leftNm).toBe(0);
     expect(end.burntGal).toBeCloseTo(5);
   });
+
+  it("flies the course line the map draws, not straight across the latitudes and longitudes", () => {
+    // A line bent east at its middle: half way along the legs, the
+    // airplane is at the bend, on the line, whatever the rows' points say.
+    const line: [number, number][] = [[42, -88], [42.5, -87.9], [43, -88]];
+    const flown = dryRunOf(rows, 1_000, line);
+    const half = flown.points[flown.alongNm.findIndex(a => a >= 30)]!;
+    expect(half.lat).toBeCloseTo(42.5, 2);
+    expect(half.lon).toBeCloseTo(-87.9, 2);
+    expect(flown.points.at(-1)).toMatchObject({ lat: 43, lon: -88 });
+    // Its track the line's own there: north-east on the way to the bend.
+    const early = flown.points[flown.alongNm.findIndex(a => a >= 10)]!;
+    expect(early.track_deg).toBeGreaterThan(0);
+    expect(early.track_deg).toBeLessThan(90);
+  });
 });
