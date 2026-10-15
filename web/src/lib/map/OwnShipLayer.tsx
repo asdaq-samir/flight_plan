@@ -1,6 +1,6 @@
 import type { PathOptions } from "leaflet";
 import { useEffect, useMemo, useRef } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Circle, Marker, useMap, useMapEvents } from "react-leaflet";
 import { nearestQuery } from "../queryClient";
 import { glideRangeNm } from "./glide";
@@ -101,8 +101,12 @@ export function OwnShipLayer() {
   }, [map, enabled, fix, follow, recentred, recentreZoom]);
   // The still-air glide from the GPS's altitude over the nearest field
   // (lib/map/glide), a dashed ring in the air, as an EFB's glide advisor
-  // draws it; nothing on the ground.
-  const { data: nearest } = useQuery({ ...nearestQuery(fix?.lat ?? 0, fix?.lon ?? 0), enabled: enabled && !!fix });
+  // draws it; nothing on the ground. The last field's answer held while
+  // the next is asked: asked again every few miles (nearestQuery's 0.05°),
+  // the ring went out until each answer came -- flickering under a dry
+  // run's airplane, at the owner's notice ("During the dry run, the ring
+  // around the plane is flickering").
+  const { data: nearest } = useQuery({ ...nearestQuery(fix?.lat ?? 0, fix?.lon ?? 0), enabled: enabled && !!fix, placeholderData: keepPreviousData });
   const glide = glideRangeNm(fix, nearest?.[0]?.elevation_ft);
   if (!fix) return null;
   // Off: the last position alone, grey, with nothing round it.
