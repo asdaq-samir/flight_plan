@@ -5,8 +5,8 @@ import { useDetentDrag } from "./use-detent-drag";
 
 const detents = { low: 100, half: 300, full: 600 };
 
-function Sheet({ onRelease, setDragged }: { onRelease: (d: string) => void; setDragged: (h: number | null) => void }) {
-  const { body } = useDetentDrag({ detents, shown: 300, fromBottom: true, onRelease, setDragged });
+function Sheet({ onRelease, setDragged, shown = 300 }: { onRelease: (d: string) => void; setDragged: (h: number | null) => void; shown?: number }) {
+  const { body } = useDetentDrag({ detents, shown, fromBottom: true, onRelease, setDragged });
   return <div ref={body} data-testid="body"><p>text</p></div>;
 }
 
@@ -88,5 +88,36 @@ describe("useDetentDrag release speed", () => {
       pointer("pointerup", 490, releaseAt);
       expect(onRelease).toHaveBeenLastCalledWith(rest);
     }
+  });
+});
+
+describe("useDetentDrag throw", () => {
+  // A finger's throw from where the sheet is, `dy` points down the screen
+  // over three quick moves, let go at once.
+  const thrown = (el: Element, dy: number) => {
+    fire(el, "touchstart", [touch(el, 400)], 0);
+    for (let i = 1; i <= 3; i++) fire(el, "touchmove", [touch(el, 400 + (dy * i) / 3)], 8 * i);
+    fire(el, "touchend", [], 26);
+  };
+
+  it("goes one detent up from the lowest, however hard, not past it to the top", () => {
+    const onRelease = vi.fn();
+    const { getByTestId } = render(<Sheet shown={100} onRelease={onRelease} setDragged={vi.fn()} />);
+    thrown(getByTestId("body"), -180);
+    expect(onRelease).toHaveBeenLastCalledWith("half");
+  });
+
+  it("goes one detent down from the top, however hard, not past it to the lowest", () => {
+    const onRelease = vi.fn();
+    const { getByTestId } = render(<Sheet shown={600} onRelease={onRelease} setDragged={vi.fn()} />);
+    thrown(getByTestId("body"), 240);
+    expect(onRelease).toHaveBeenLastCalledWith("half");
+  });
+
+  it("goes on up from past half when the finger itself took it there", () => {
+    const onRelease = vi.fn();
+    const { getByTestId } = render(<Sheet shown={100} onRelease={onRelease} setDragged={vi.fn()} />);
+    thrown(getByTestId("body"), -260);
+    expect(onRelease).toHaveBeenLastCalledWith("full");
   });
 });

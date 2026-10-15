@@ -1,5 +1,5 @@
 import { test, expect, type Locator, type Page } from "@playwright/test";
-import { grabberTo, panelTabs, settle, sideDrawer } from "./helpers";
+import { grabberTo, panelTabs, settle, settled, sideDrawer } from "./helpers";
 
 /**
  * The map's panel dragged by a finger from anywhere on its body, as an
@@ -89,5 +89,36 @@ test("a drag held still before it is let go sets the sheet down where it is, not
   // pill (useDetentDrag's SPEED_WINDOW).
   const box = (await panel.getByTestId("tab-bar").boundingBox())!;
   await fingerDrag(page, { x: box.x + box.width / 2, y: box.y + box.height / 2 }, 110, 600);
+  await expect(panel).toHaveAttribute("data-panel", "half");
+});
+
+test("a throw takes the sheet one size: from the pill half way, not all the way up, and from all the way up half way, not to the pill", async ({ page }) => {
+  test.skip(page.viewportSize()!.width >= 768, "a phone's sheet");
+  // The owner's notice: "The pill should not go straight to full".
+  await page.goto("/app/plan");
+  await settle(page);
+  const panel = sideDrawer(page);
+  await expect(panel).toHaveAttribute("data-panel", "peek");
+  // A finger's flick on the tab bar: two moves as fast as they can be
+  // sent, let go at once -- thrown well past the next size.
+  const flick = async (dy: number) => {
+    // From the sheet at rest, its tabs where they stay.
+    await settled(panel);
+    const box = (await panel.getByTestId("tab-bar").boundingBox())!;
+    const at = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    const cdp = await page.context().newCDPSession(page);
+    const touch = (type: string, p?: { x: number; y: number }) =>
+      cdp.send("Input.dispatchTouchEvent", { type, touchPoints: p ? [{ ...p, id: 1 }] : [] });
+    await touch("touchStart", at);
+    for (let i = 1; i <= 2; i++) await touch("touchMove", { x: at.x, y: at.y + (dy * i) / 2 });
+    await touch("touchEnd");
+    await cdp.detach();
+  };
+  // Up from the pill, the finger letting go short of half.
+  await flick(-210);
+  await expect(panel).toHaveAttribute("data-panel", "half");
+  // Down from all the way up, letting go nearer half than the top.
+  await grabberTo(page, "full");
+  await flick(320);
   await expect(panel).toHaveAttribute("data-panel", "half");
 });

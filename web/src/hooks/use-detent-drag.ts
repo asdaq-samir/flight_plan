@@ -58,14 +58,27 @@ function heightAt<S extends string>(latest: Latest<S>, from: number, dy: number)
 
 /** Where a drag let go at `to`, at `speed` points a millisecond toward
  *  opening, comes to rest: the detent nearest where it would be a fifth of
- *  a second on -- where it was thrown, not only where it stopped. */
+ *  a second on -- where it was thrown, not only where it stopped -- but no
+ *  further than the next detent past where the finger let go, as a UIKit
+ *  sheet's throw goes one size: a flick up from the pill came to rest all
+ *  the way up, past half, and one down from all the way up on the pill, at
+ *  the owner's notice ("The pill should not go straight to full"). Taken
+ *  past half by the finger itself, the sheet still goes on up. */
 function letGo<S extends string>(latest: Latest<S>, to: number, speed: number) {
   const { detents, onRelease, setDragged } = latest;
   const aim = to + speed * 200;
   const names = Object.keys(detents) as S[];
-  const nearest = names.reduce((best, s) => (Math.abs(detents[s] - aim) < Math.abs(detents[best] - aim) ? s : best));
+  const nearest = (among: S[], at: number) => among.reduce((best, s) => (Math.abs(detents[s] - at) < Math.abs(detents[best] - at) ? s : best));
+  // The detents either side of where the finger let go, and one it let go on.
+  const under = names.filter(s => detents[s] < to);
+  const over = names.filter(s => detents[s] > to);
+  const reach = [
+    ...(under.length ? [nearest(under, to)] : []),
+    ...names.filter(s => detents[s] === to),
+    ...(over.length ? [nearest(over, to)] : []),
+  ];
   setDragged(null);
-  onRelease(nearest);
+  onRelease(nearest(reach, aim));
 }
 
 /**
