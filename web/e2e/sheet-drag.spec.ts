@@ -14,7 +14,7 @@ test.use({ hasTouch: true });
  *  frame a move, as a finger's moves come: slowly enough that the sheet
  *  comes to rest where it was let go, past half way to the next height
  *  rather than thrown there. */
-async function fingerDrag(page: Page, at: { x: number; y: number }, dy: number) {
+async function fingerDrag(page: Page, at: { x: number; y: number }, dy: number, hold = 0) {
   const cdp = await page.context().newCDPSession(page);
   const touch = (type: string, p?: { x: number; y: number }) =>
     cdp.send("Input.dispatchTouchEvent", { type, touchPoints: p ? [{ ...p, id: 1 }] : [] });
@@ -23,6 +23,9 @@ async function fingerDrag(page: Page, at: { x: number; y: number }, dy: number) 
     await touch("touchMove", { x: at.x, y: at.y + dy * i / 20 });
     await page.waitForTimeout(16);
   }
+  // A finger held still sends no moves: what it was doing before it
+  // stopped is not how it lets go.
+  if (hold) await page.waitForTimeout(hold);
   await touch("touchEnd");
   await cdp.detach();
 }
@@ -73,4 +76,18 @@ test("the panel follows a finger from anywhere on its body: out to the top, and 
   await page.mouse.move(at.x, at.y - 200, { steps: 10 });
   await page.mouse.up();
   await expect(panel).toHaveAttribute("data-panel", "full");
+});
+
+test("a drag held still before it is let go sets the sheet down where it is, not on past it", async ({ page }) => {
+  test.skip(page.viewportSize()!.width >= 768, "a phone's sheet");
+  await page.goto("/app/plan");
+  await settle(page);
+  await grabberTo(page, "half");
+  const panel = sideDrawer(page);
+  // Down 110 from half, nearer half than the pill, held and let go: half
+  // again. Its moves alone, let go at once, would have thrown it to the
+  // pill (useDetentDrag's SPEED_WINDOW).
+  const box = (await panel.getByTestId("tab-bar").boundingBox())!;
+  await fingerDrag(page, { x: box.x + box.width / 2, y: box.y + box.height / 2 }, 110, 600);
+  await expect(panel).toHaveAttribute("data-panel", "half");
 });
