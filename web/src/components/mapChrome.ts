@@ -117,14 +117,21 @@ export const GLASS_SHEET_FULL = "liquid-glass [--glass-fill:88%]";
  *  giving way under the finger, which Maps' never does. */
 export const GLASS_FILL = { capsule: 40, half: 62, full: 88 };
 
+/** How long the sheet takes from the pill to half (SETTLE_POINTS), in
+ *  seconds, at the owner's ask ("make the 8443 a bit fast to match Apple
+ *  Maps"): Maps' sheet, measured frame by frame from the owner's screen
+ *  recording, is 98% of the way in 0.17 to 0.23 s whatever the distance,
+ *  and this curve is 98% of the way at 89% of its time -- 0.27 s here.
+ *  It was 0.45 s. The map's own move to a route as the sheet settles
+ *  (MapShell) takes it too, so the two arrive together. */
+export const SHEET_SECONDS = 0.3;
 /** A sheet's height, and its way in from the screen's edges as it changes
  *  shape: iOS's ease-out, at the owner's pick ("Do b"). The curve before
- *  (vaul's, 0.32 0.72 0 1 over half a second) covered three quarters of a
- *  move to all the way up in its first 170 ms, and read as a snap. */
-const SHEET_CURVE = "0.45s cubic-bezier(0, 0, 0.58, 1)";
-/** The map's own move to a route as the sheet settles (MapShell), in
- *  seconds: the sheet's time, so the two arrive together. */
-export const SHEET_SECONDS = 0.45;
+ *  (0.32 0.72 0 1 over half a second) covered three quarters of a move to
+ *  all the way up in its first 170 ms, and read as a snap; a spring that
+ *  went a point or two past, as Maps' does, the owner turned down ("I
+ *  don't want the spring"). */
+const SHEET_CURVE = `${SHEET_SECONDS}s cubic-bezier(0, 0, 0.58, 1)`;
 export const SHEET_RESHAPE = ["left", "right", "top", "bottom", "border-radius"].map(p => `${p} ${SHEET_CURVE}`).join(", ");
 /** The sheet's settle over `seconds`: its height, its shape and its
  *  progress up (MapPanel's --sheet-progress, index.css's @property), which
@@ -140,10 +147,12 @@ export const sheetSettle = (seconds: number) => {
 /** How far the sheet goes in SHEET_SECONDS: the pill to half on an iPhone
  *  16 Pro, the move the owner likes ("Pill to half card and back eases
  *  nicely but to/from full card snaps very quickly"). A longer move takes
- *  longer at that speed, between SETTLE_LEAST and SETTLE_MOST seconds. */
+ *  longer at that speed, between SETTLE_LEAST and SETTLE_MOST seconds --
+ *  no longer than 0.35 s, as Maps' takes no longer for a longer move
+ *  (half to all the way up, 546 points, took 0.75 s before). */
 export const SETTLE_POINTS = 273;
-export const SETTLE_LEAST = 0.3;
-export const SETTLE_MOST = 0.75;
+export const SETTLE_LEAST = 0.22;
+export const SETTLE_MOST = 0.35;
 
 /** Maps' medium sheet: in from the sides and its edge, every corner
  *  round, as the screen's own are -- the map's panel and the console's
