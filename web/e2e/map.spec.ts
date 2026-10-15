@@ -179,3 +179,43 @@ test("my position is the location arrow among the map's buttons, on both pages, 
   await settle(page);
   await expect(page.locator("[data-map-controls]").getByTestId("my-position-button")).toBeVisible();
 });
+
+test("the chart's airports keep coming in under a finger's pan, before it lets go", async ({ page }) => {
+  // The owner's ask: "can you update the map even while panning ... until
+  // I let go of the finger, the airports don't show up".
+  // The map opening where the pilot last was, at the region's zoom.
+  await page.addInitScript(() => localStorage.setItem("vfr.ownship",
+    JSON.stringify({ state: { enabled: false, follow: true, lastFix: { lat: 42.325, lon: -88.074 } }, version: 0 })));
+  // One reporting field in the middle of each box the planner is asked
+  // for, named for the question: X1 for the first, X2 for the next.
+  const asked: string[] = [];
+  await page.route(url => url.pathname.endsWith("/api/planner/airports/in-view"), route => {
+    const q = new URL(route.request().url()).searchParams;
+    const [south, west, north, east] = ["south", "west", "north", "east"].map(k => Number(q.get(k)));
+    asked.push(`${south},${west},${north},${east}`);
+    return route.fulfill({ json: { airports: [{
+      ident: `X${asked.length}`, name: "Asked for", lat: (south + north) / 2, lon: (west + east) / 2,
+      kind: "small", longest_runway_ft: 3500, flight_category: "VFR", military: null,
+    }] } });
+  });
+  await page.goto("/app/plan");
+  await settle(page);
+  const mark = (ident: string) => page.locator(".leaflet-airports-pane .leaflet-marker-icon", { hasText: ident });
+  await expect(mark("X1")).toBeVisible({ timeout: slow(15_000) });
+  const first = asked.length;
+  // A pan of a screen and a half to the east, the finger still down: past
+  // the box asked for (the view and a screen round it).
+  const viewport = page.viewportSize()!;
+  const y = viewport.width < 768 ? 160 : viewport.height / 3;
+  const from = viewport.width - 20;
+  await page.mouse.move(from, y);
+  await page.mouse.down();
+  for (let i = 1; i <= 30; i++) {
+    await page.mouse.move(from - (viewport.width * 1.6 * i) / 30, y);
+    await page.waitForTimeout(40);
+  }
+  // Still held: asked again, and the new field's mark drawn.
+  await expect.poll(() => asked.length, { timeout: slow(10_000) }).toBeGreaterThan(first);
+  await expect(mark(`X${asked.length}`)).toBeVisible();
+  await page.mouse.up();
+});

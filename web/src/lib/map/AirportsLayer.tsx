@@ -148,7 +148,8 @@ export function AirportsLayer({ selected, onSelect, exclude, route }: {
   const [easingTo, setEasingTo] = useState<number | null>(null);
   // The box asked for: the view with as much again round it
   // (aheadOf), asked again only when the view leaves it -- at a zoom's
-  // start, for where it will end, and at a move's end. The marks waited
+  // start, for where it will end, as a pan takes it out, and at a move's
+  // end. The marks waited
   // for the map to stop, its glide after a finger lifts too, and then for
   // the planner (0.35 to 0.5 s from a drag's end on a laptop, 2026-10-09);
   // a pan or a zoom in inside the box now has its answer already, and the
@@ -173,12 +174,17 @@ export function AirportsLayer({ selected, onSelect, exclude, route }: {
     // Drawn again only as the view nears the edge of what is drawn, not
     // at every step of a move: a draw a few times a second under a finger
     // held a busy phone's pan up.
+    // And asked for again as the view leaves the box asked for, under the
+    // finger too: a pan more than a screen long reached fields nobody had
+    // asked about, bare until the finger lifted, at the owner's notice
+    // ("until I let go of the finger, the airports don't show up").
     move: () => {
       const now = performance.now();
       if (now - panned.current < PANNING_MS) return;
       panned.current = now;
       const bounds = map.getBounds();
       setSeen(was => (was.pad(PAD).contains(bounds) ? was : bounds));
+      ask(bounds);
     },
     moveend: () => { setView(boxOf(map)); setSeen(map.getBounds()); setEasingTo(null); ask(map.getBounds()); },
     click: (e: L.LeafletMouseEvent) => {
