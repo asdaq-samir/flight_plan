@@ -15,7 +15,7 @@ CLAUDE.md says what to run for each part of the repo; this says how to run it he
 
 | Changed | Run | Then |
 |---|---|---|
-| `web/` | Web checks, then the specs the change touches | the whole suite once before a push |
+| `web/` | Web checks, then the specs the change touches | CI runs the whole suite on the push |
 | `src/vfr`, `tests/` | Python at the root | restart the planner (it mounts `src`) |
 | `planning-service/` | Python in `planning-service` | restart the planner |
 | `model-service/`, `nav-log-agent/`, `crewai-agent/` | Python in that service | rebuild that service |
@@ -52,19 +52,21 @@ docker compose -f docker-compose.yml -f docker-compose.phone.yml -f docker-compo
 - **Web change:** `web-build` (vite `--watch`) rewrites `web/dist` about 2 s after a save, and the webapp serves it on the next request. Nothing needs restarting.
 - **Python change in `src/` or the planner:** run `docker compose restart planning-service`, then wait until `curl -s localhost:8084/` shows `"warm":true`.
 - **Java or dependency change:** run `up -d --build --no-deps <service>` with the same three files. Then wait until `curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/app/plan` prints 200, which takes 20 to 30 s after the container starts. Read `docker compose logs --tail=30 <service>` for import errors: a container can show "running" and still fail to import its own code. To prove a service imports what it uses, run `docker compose run --rm --no-deps -T --entrypoint python3 <service> -c "from vfr import …"` with that service's real list, from `grep -rh "from vfr import" <service>/app`.
-- **Before building images:** check `df -h /System/Volumes/Data` and run `docker builder prune` when under about 20 GB is free. Docker's VM is capped at 6 GB, so never run a second stack or a heavy job beside the suite.
+- **Before building images:** check `df -h /System/Volumes/Data` and run `docker builder prune` when under about 20 GB is free. Docker's VM is capped at 6 GB, so never run a second stack or a heavy job beside the suite: build through `scripts/one-at-a-time.sh` (section 4).
 
 ## 4. Playwright
 
+**One heavy run at a time.** On the owner's Mac, run every browser test, image build and speed measurement through `scripts/one-at-a-time.sh "<who and what>" <command…>`. Two Claude sessions often share the Mac, and two suites at once took its four cores to a load of 9 to 11: tests timed out and had to be rerun one by one to tell the load from a real failure (2026-10-15). The script waits its turn (it says whose it is), runs the command, and frees the turn however the command ends. A turn left by a killed run is taken back.
+
 ```sh
-docker run --rm --add-host=host.docker.internal:host-gateway -v "$PWD/web":/w -w /w \
+scripts/one-at-a-time.sh "session: <spec>" docker run --rm --add-host=host.docker.internal:host-gateway -v "$PWD/web":/w -w /w \
   -e BASE_URL=http://host.docker.internal:8080 -e MAILPIT_URL=http://host.docker.internal:8025 \
   -e MAILPIT_UI_AUTH="$(grep '^MAILPIT_UI_AUTH=' .env | cut -d= -f2-)" \
   mcr.microsoft.com/playwright:v1.55.1-noble npx playwright test e2e/<spec>.spec.ts --reporter=list
 ```
 - The image tag must equal `@playwright/test` in `web/package.json`. Change both together.
 - The `setup` project signs in developer@example.com through Mailpit, and every spec reuses that session.
-- While iterating, run the touched specs. Run the whole suite (about 180 tests, 4 to 5 minutes) once before a push. Keep the full log rather than piping it through `tail`, so the details of a real failure survive.
+- **Locally, run only the specs the change touches, and its new test** (the owner's pick, 2026-10-15). The whole suite runs in CI on the push, in a few minutes on GitHub's runners, so don't run it here unless the owner asks. Run a broader local set only where CI can't stand in, such as a WebKit-only bug or a measurement. Keep the full log rather than piping it through `tail`, so the details of a real failure survive.
 - **iPhone audit:** `e2e/ios` runs on three devices in every run. `IOS_AUDIT=1` takes all eight, plus `--project=webkit-iphone --workers=2` for Safari's engine.
 - **WebKit-only bugs:** the suite is Chromium. When the user reports something from the phone that the suite passes, reproduce it in WebKit before guessing. Write a scratch `.cjs` script with `require("@playwright/test").webkit` and `storageState: "/w/e2e/.auth/developer.json"`, and run it in the same image with `-e NODE_PATH=/w/node_modules`. Abort every write with `page.route(…, r => r.abort())` so the user's data isn't touched.
 - **Changes to CI's e2e job, `docker-compose.ci.yml` or the planner's startup** can pass here and fail in CI. Simulate CI first: clone into the scratchpad, shift the clone's host ports, build with `-p fpci -f docker-compose.yml -f docker-compose.ci.yml`, keep `CHARTS_AUTO_REFRESH=0`, wait for `warm`, and run with `-e CI=1` with nothing else heavy running. Tear down with `down -v --rmi all` and `docker builder prune -af`.
