@@ -224,8 +224,17 @@ export function MapShell({ course, onReady, children, onSelectPlace, held = fals
       const shipInSight = !!ship && sight.contains(map.latLngToContainerPoint([ship.lat, ship.lon]));
       const routeInSight = !!course && !!bounds && fitted.current === routeKey
         && lineInSight(course.course_line as [number, number][], map, sight);
-      const keepingUp = shipInSight && ownShip.follow && underway(ship);
+      // A dry run's airplane (ownShip's simulateFix) is what the map is
+      // for while it flies: in sight, the sheet's turn brings it to the
+      // middle of what the panel leaves and follows it on, as the GPS's is
+      // followed -- a pan had left it behind, and the turn fitted the route
+      // instead, the airplane flying off under the sheet, at the owner's
+      // notice ("during dry run map should adjust as well to the pill and
+      // half card").
+      const flying = ownShip.simulated;
+      const keepingUp = shipInSight && (flying || (ownShip.follow && underway(ship)));
       what = routeInSight && !keepingUp ? "route" : shipInSight ? "ship" : null;
+      if (what === "ship" && flying && !ownShip.follow) ownShip.setFollow(true);
       following.current = what ? { until: performance.now() + SHEET_SECONDS * 1000 + 300, what } : null;
     }
     if (what === "route") fit(true);

@@ -1,5 +1,5 @@
-import { test, expect } from "@playwright/test";
-import { openPanel, settle, sideDrawer, slow } from "./helpers";
+import { test, expect, type Page } from "@playwright/test";
+import { grabberTo, openPanel, settle, settled, sideDrawer, slow } from "./helpers";
 
 /**
  * The planned flight's dry run flies own ship, as if a pilot were flying
@@ -35,4 +35,52 @@ test("the dry run flies own ship along the route, and gives it back as it was", 
   const kept = await page.evaluate(() => ({ ship: localStorage.getItem("vfr.ownship"), trail: localStorage.getItem("vfr.owntrail") }));
   expect(JSON.parse(kept.ship ?? "{}").state?.enabled ?? false).toBe(false);
   expect(kept.trail).toBeNull();
+});
+
+/** Own ship's marker, on screen. */
+async function shipAt(page: Page) {
+  const box = (await page.locator(".leaflet-marker-icon").filter({ has: page.locator('[data-own-ship="on"]') }).last().boundingBox())!;
+  return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+}
+
+/** The middle of what the panel leaves of the map: above a phone's sheet,
+ *  beside a desktop's card out, under it at rest. */
+async function middleOfMap(page: Page) {
+  const viewport = page.viewportSize()!;
+  const sheet = (await sideDrawer(page).boundingBox())!;
+  if (viewport.width < 768) return { x: viewport.width / 2, y: sheet.y / 2 };
+  return (await sideDrawer(page).getAttribute("data-panel")) !== "peek"
+    ? { x: (sheet.x + sheet.width + viewport.width) / 2, y: viewport.height / 2 }
+    : { x: viewport.width / 2, y: (sheet.y + sheet.height + viewport.height) / 2 };
+}
+
+test("the dry run's airplane is brought back to the middle of what the panel leaves as the sheet goes down and up, after a pan too", async ({ page }) => {
+  // The owner's notice: "during dry run map should adjust as well to the
+  // pill and half card".
+  await page.goto("/app/plan?dep=C81&dest=KDLH");
+  await settle(page);
+  await openPanel(page);
+  const start = sideDrawer(page).getByTestId("dry-run-start");
+  await expect(start).toBeVisible({ timeout: slow(60_000) });
+  await start.click();
+  await expect(page.locator('[data-own-ship="on"]')).toHaveCount(1);
+  // Panned by hand, off the middle: the map no longer follows it.
+  const viewport = page.viewportSize()!;
+  const from = { x: viewport.width < 768 ? viewport.width / 2 : viewport.width * 0.75, y: 150 };
+  await page.mouse.move(from.x, from.y);
+  await page.mouse.down();
+  await page.mouse.move(from.x - 90, from.y - 60, { steps: 8 });
+  await page.mouse.up();
+  const inTheMiddle = async () => {
+    await settled(sideDrawer(page));
+    await expect(async () => {
+      const at = await shipAt(page), middle = await middleOfMap(page);
+      expect(Math.abs(at.x - middle.x)).toBeLessThan(40);
+      expect(Math.abs(at.y - middle.y)).toBeLessThan(40);
+    }).toPass({ timeout: slow(10_000) });
+  };
+  await grabberTo(page, "peek");
+  await inTheMiddle();
+  await grabberTo(page, "half");
+  await inTheMiddle();
 });
