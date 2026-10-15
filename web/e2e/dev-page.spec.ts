@@ -16,6 +16,8 @@ test("dev page: the dev console opens on training, and the waypoint drawer opens
   await showTabs(page);
   await expect(sideDrawer(page).getByTestId("tab-bar").getByRole("button")).toHaveText(["Train", "Perf", "Setup"]);
   await expect(page.getByTestId("tab-train")).toHaveAttribute("aria-current", "page");
+  // Its tabs half way (the figures are the pill's); down again, the pill.
+  await grabberTo(page, "peek");
   await expectDrawerClosed(page);
   expect(await consoleSheet(page).count()).toBe(0);
 

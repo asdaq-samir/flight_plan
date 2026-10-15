@@ -274,6 +274,11 @@ export async function library(scope: Page | Locator, section: "Aircraft" | "Flig
 /** At rest: only its head in sight. */
 export async function expectDrawerClosed(page: Page) {
   await expect(sideDrawer(page)).toHaveAttribute("data-panel", "peek");
+  // And come to rest there: easing down it is still the half's layout and
+  // height, over what a tap next would be aimed at. The panel's own
+  // easing, not what is in it: a button's easing in the body, put out of
+  // sight on the way, can stay unfinished (settled).
+  await sideDrawer(page).evaluate(el => Promise.all(el.getAnimations().map(a => a.finished.catch(() => undefined))));
 }
 
 /** Out: all the way up. */
@@ -305,15 +310,18 @@ export async function closeSidebarWithTheStockKey(page: Page) {
  *  the whole wait failing (the Model Training drawer, its table drawn
  *  at once from the planner's kept read, three times running on CI).
  *  Nor one out of sight in a tab not up (PanelTabs' tab-away,
- *  content-visibility: hidden): the browser stops updating it there, and
+ *  content-visibility: hidden) or scrolled out of sight under
+ *  content-visibility: auto: the browser stops updating it there, and
  *  its `finished` never comes -- the nav log's rows, arriving as the
- *  Weather tab opened, held this for two minutes on CI. */
+ *  Weather tab opened, held this for two minutes on CI, and the
+ *  briefing's Write button, its visibility easing as the sheet came
+ *  down to the pill, for a minute. */
 export async function settled(locator: Locator) {
   await locator.evaluate(el => Promise.all(el.getAnimations({ subtree: true })
     .filter(a => a.effect?.getTiming().iterations !== Infinity)
     .filter(a => {
       const target = a.effect instanceof KeyframeEffect ? a.effect.target : null;
-      return !target || target.checkVisibility();
+      return !target || target.checkVisibility({ contentVisibilityAuto: true });
     })
     .map(a => a.finished.catch(() => undefined))));
 }

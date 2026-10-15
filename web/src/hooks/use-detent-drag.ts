@@ -22,7 +22,7 @@ type Track = { y: number; t: number }[];
 
 function follow(track: Track, y: number, t: number) {
   track.push({ y, t });
-  while (track.length > 2 && t - track[1].t > SPEED_WINDOW) track.shift();
+  while (track.length > 2 && t - track[1]!.t > SPEED_WINDOW) track.shift();
 }
 
 /** The finger's speed at `now`, in points a millisecond down the screen:
@@ -31,7 +31,7 @@ function follow(track: Track, y: number, t: number) {
 function speedAt(track: Track, now: number) {
   const last = track[track.length - 1];
   if (!last || track.length < 2 || now - last.t > SPEED_WINDOW) return 0;
-  const first = track[0];
+  const first = track[0]!;
   return (last.y - first.y) / Math.max(last.t - first.t, 1);
 }
 

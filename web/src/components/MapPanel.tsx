@@ -100,6 +100,10 @@ const CARD = 384;
  *  head follow the finger from the capsule's to the sheet's. */
 const MORPH = 96;
 
+/** The pill with a tab bar: the tabs' row and its margins, or a route's
+ *  figures in their place at the same height. */
+const PILL_REM = 3.625;
+
 const between = (from: number, to: number, t: number) => from + (to - from) * t;
 
 /** The sizes in order, for which way the panel last moved. */
@@ -216,12 +220,25 @@ export default function MapPanel({ label, top, controls, compact, children, stat
   // At rest with a capsule to show, it floats clear of the screen's
   // edges as Maps' does: in from the sides, above the home indicator
   // (into its inset a little, as Maps sits) or under the status bar.
-  // Brought down to it by a tap, the sheet is the pill's one row at once
-  // and its height eases straight there: held in its half layout until the
-  // ease was over, it eased to that layout's own idea of the pill, sat, and
-  // eased again once it turned (the owner's "when going into pill, it stays
-  // a second", measured by the other session: 359 to 476, a stop, then 585).
-  const capsule = hasPill && state === "peek" && dragged === null;
+  // Brought down to it by a tap, the sheet keeps what it shows as its
+  // height eases down, to the pill's own height (one row, 3.625rem: the
+  // tabs, or a route's figures in their place), and turns into the pill
+  // once there (`settling`, until the ease ends): turned at once, what it
+  // showed was gone before it moved (the owner's "removes content before
+  // sliding down to pill from half"). It eased to a height of its own
+  // before -- the half layout's idea of the pill -- and stopped there, then
+  // eased again (the other session's "stays a second" measures); the pill's
+  // height is known now. Not after a finger: the last of the way down is
+  // laid out as the pill already (pillShape).
+  const [settling, setSettling] = useState(false);
+  const [stateWas, setStateWas] = useState(state);
+  const [wasDragging, setWasDragging] = useState(false);
+  if (state !== stateWas) {
+    setStateWas(state);
+    setSettling(stateWas !== "peek" && state === "peek" && dragged === null && !wasDragging && hasPill);
+  }
+  if (wasDragging !== (dragged !== null)) setWasDragging(dragged !== null);
+  const capsule = hasPill && state === "peek" && dragged === null && !settling;
   // Observed afresh as the panel changes size or the tab its head or the pill its own, the
   // observer's first answer the height then: WebKit's observer let the
   // tabs alone's growth into the pill go unreported, and the pill kept the
@@ -251,10 +268,11 @@ export default function MapPanel({ label, top, controls, compact, children, stat
   // navigation bar is; else the tabs, at the owner's ask. Wider, a card
   // with room for every tab keeps them, as iPadOS's does.
   const minimized = cardOver;
-  // The tabs alone end at the tab buttons themselves, so they rest the
-  // whole safe area up, clear of the home indicator (the HIG's Layout);
-  // the pill ends at its padding and can sit six points lower.
-  const capsuleGap = fromBottom ? Math.max(12, Math.round(safe.bottom) - 6) : Math.round(safe.top) + SHEET_MARGIN;
+  // A pill of tabs, or of a route's figures (one button the pill's whole
+  // height), rests the whole safe area up, clear of the home indicator (the
+  // HIG's Layout; the iOS audit's P12 caught the figures 6 points into it);
+  // a capsule of its own content ends at its padding and can sit six lower.
+  const capsuleGap = fromBottom ? Math.max(12, Math.round(safe.bottom) - (bar ? 0 : 6)) : Math.round(safe.top) + SHEET_MARGIN;
   // The capsule is its head alone, the grabber over its padding.
   const peek = (capsule ? headHeight : Math.round(headHeight + (fromBottom ? edgeInset : GRABBER))) + footHeight;
   // The capsule's height, kept while it rests, for the lowest detent once
@@ -279,12 +297,16 @@ export default function MapPanel({ label, top, controls, compact, children, stat
     const full = Math.max(peek, room);
     // Settling down to the pill, the pill's own height as it was last
     // measured, whatever the sheet's head measures on the way.
-    const lowest = hasPill && !capsule ? Math.min(capsuleHeight, peek) : peek;
+    // With a tab bar the pill is one known height, its row's, at rest as
+    // on the way to it: measured as it turned, the foot was still the half's
+    // (the side view in it) for a frame, and the pill rose to 140 and back.
+    const lowest = bar && (settling || capsule) ? Math.round(PILL_REM * rootPx())
+      : settling ? capsuleHeight : hasPill && !capsule ? Math.min(capsuleHeight, peek) : peek;
     // Never taller than its rem, whatever a tab holds (the owner's "this
     // tall only"): what does not fit gives way in it.
     const half = Math.max(lowest, Math.round(HALF_REM * rootPx()) + halfChrome);
     return { peek: lowest, half: Math.min(half, full), full };
-  }, [peek, room, halfChrome, hasPill, capsule, capsuleHeight]);
+  }, [peek, room, halfChrome, hasPill, capsule, capsuleHeight, settling, bar]);
   // The body's height at half, for what it shows first to fill and no
   // more (--half-body): the search's Favorites, an airport's name and
   // actions.
@@ -386,8 +408,9 @@ export default function MapPanel({ label, top, controls, compact, children, stat
     // lowest detent: its head alone, no controls.
     floor: hasPill ? capsuleHeight : undefined,
   });
-  // Under a finger: the body is drawn as all the way up while it is.
-  const isDragged = dragged !== null;
+  // Under a finger, or easing down to the pill: the body is drawn as all
+  // the way up while it is.
+  const isDragged = dragged !== null || settling;
   useEffect(() => {
     usePanelDragging.setState({ dragging: isDragged });
   }, [isDragged]);
@@ -419,6 +442,17 @@ export default function MapPanel({ label, top, controls, compact, children, stat
   // Escape lowers it, pressed anywhere in it -- but not in a menu or a
   // list it opened, which is a portal outside it and closes first.
   const [panel, setPanel] = useState<HTMLElement | null>(null);
+  // The pill once the height has eased there; or after a while, should no
+  // transition end come (none to run, Reduce Motion).
+  useEffect(() => {
+    if (!settling || !panel) return;
+    const done = (event: TransitionEvent) => {
+      if (event.target === panel && event.propertyName === "height") setSettling(false);
+    };
+    const late = window.setTimeout(() => setSettling(false), SETTLE_MOST * 1000 + 100);
+    panel.addEventListener("transitionend", done);
+    return () => { panel.removeEventListener("transitionend", done); window.clearTimeout(late); };
+  }, [settling, panel]);
   useEffect(() => {
     if (!panel || !expanded) return;
     const onKey = (event: KeyboardEvent) => {
