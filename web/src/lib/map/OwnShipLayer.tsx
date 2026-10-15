@@ -6,7 +6,7 @@ import { nearestQuery } from "../queryClient";
 import { glideRangeNm } from "./glide";
 import { centreClear } from "./clear";
 import { ownShipIcon } from "./icons";
-import { useOwnShip } from "./ownShip";
+import { OPEN_ZOOM, useOwnShip } from "./ownShip";
 import { usePreferences } from "../preferences";
 
 /**
@@ -84,7 +84,14 @@ export function OwnShipLayer() {
       // out to the opening's zoom (their screen recording, 2026-10-15).
       const target = centreClear(map, [fix.lat, fix.lon], zoom);
       if (map.getZoom() === zoom && map.getBounds().contains([fix.lat, fix.lon])) {
-        map.panTo(target, { animate: true, duration: 0.5 });
+        // The page's own opening (locateOnOpen, at OPEN_ZOOM): put there,
+        // not panned. The map is made where the pilot last was, and the
+        // first fix is that place or near it: the pan was the map settling
+        // into place on every reload, at the owner's notice ("On a reload
+        // why is there animation in the maps"), 35 points under the pill
+        // over half a second. The arrow's recentre still pans.
+        if (recentreZoom === OPEN_ZOOM) map.setView(target, zoom, { animate: false });
+        else map.panTo(target, { animate: true, duration: 0.5 });
         return;
       }
       map.flyTo(target, zoom, { duration: 0.8 });

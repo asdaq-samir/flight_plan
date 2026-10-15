@@ -132,6 +132,36 @@ test("opened fresh, the map is on the pilot's position in the middle of what the
   await expect(page.locator('[data-own-ship="on"]')).toHaveCount(0);
 });
 
+test("reloaded where it was, the map opens on the position in the middle of what the pill leaves, and does not slide there as the first fix comes", async ({ page, context }) => {
+  // The owner's notice: "On a reload why is there animation in the maps
+  // and the pill? It seems they are settling to their desired position".
+  await context.grantPermissions(["geolocation"], { origin });
+  await context.setGeolocation({ latitude: 42.3247, longitude: -88.0742 });
+  // Where the position last was, as an earlier visit keeps it (ownShip's
+  // lastFix): the page opens on it.
+  await page.addInitScript(() => localStorage.setItem("vfr.ownship",
+    JSON.stringify({ state: { enabled: true, follow: true, lastFix: { lat: 42.325, lon: -88.074 } }, version: 0 })));
+  // Every place the map's pane is put, from the page's first frame: it
+  // moves when the map does, and only then.
+  await page.addInitScript(() => {
+    const seen: string[] = [];
+    (window as unknown as { __panes: string[] }).__panes = seen;
+    const look = () => {
+      const at = document.querySelector<HTMLElement>(".leaflet-map-pane")?.style.transform;
+      if (at && at !== seen[seen.length - 1]) seen.push(at);
+      if (performance.now() < 6000) requestAnimationFrame(look);
+    };
+    requestAnimationFrame(look);
+  });
+  await page.goto("/app/plan");
+  await settle(page);
+  await expect(sideDrawer(page)).toHaveAttribute("data-panel", "peek");
+  await shipInTheMiddle(page);
+  await page.waitForTimeout(1500);
+  // Made there, and never moved: the first fix was put, not panned to.
+  expect(await page.evaluate(() => (window as unknown as { __panes: string[] }).__panes)).toHaveLength(1);
+});
+
 /** Counts the page's asks for the position, on window.__asks. */
 async function countAsks(page: Page) {
   await page.addInitScript(() => {

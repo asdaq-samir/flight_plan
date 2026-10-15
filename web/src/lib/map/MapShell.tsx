@@ -7,14 +7,14 @@ import { useCallback, useContext, useEffect, useMemo, useRef, useState, type Rea
 import { MapContainer, ZoomControl } from "react-leaflet";
 import MapControls from "../../components/MapControls";
 import MapBanners from "../../components/MapBanners";
-import { MapInsetsContext, NO_INSETS, SHEET_SECONDS } from "../../components/mapChrome";
+import { MapInsetsContext, SHEET_SECONDS } from "../../components/mapChrome";
 import type { Course } from "../api/types";
 import { chartQuery } from "../queryClient";
 import { ChartTiles } from "./ChartTiles";
 import { OverlayTiles } from "./OverlayTiles";
 import { ClassBLayer } from "./ClassBLayer";
 import { ResizeAware } from "./MapEffects";
-import { centreClear } from "./clear";
+import { centreClear, centreClearFor } from "./clear";
 // The marks held to the chart under a pinch: a patch to Leaflet's markers.
 import "./pinch";
 import { OwnShipLayer } from "./OwnShipLayer";
@@ -63,11 +63,18 @@ export function MapShell({ course, onReady, children, onSelectPlace, held = fals
   const [onTv] = useState(() => tvPlatform() !== null);
   // With no route, where the pilot's position last was, at the zoom the
   // planner opens on it (ownShip's OPEN_ZOOM) -- that region's chart drawn
-  // while the GPS finds the position, and only a short pan once it has --
-  // else the whole country. Read once, as the map is made.
+  // while the GPS finds the position -- else the whole country. Read once,
+  // as the map is made: in the middle of what the panel leaves of the map
+  // where the panel has measured itself by then, as the map is put once
+  // it has (below) -- it was made in the screen's middle and moved after,
+  // and a reload slid the chart up under the pill as it settled, at the
+  // owner's notice ("On a reload why is there animation in the maps and
+  // the pill? It seems they are settling to their desired position").
+  const insets = useContext(MapInsetsContext);
   const [opening] = useState(() => {
     const last = useOwnShip.getState().lastFix;
-    return last ? { center: [last.lat, last.lon] as [number, number], zoom: OPEN_ZOOM } : { center: COUNTRY, zoom: COUNTRY_ZOOM };
+    const [point, zoom] = last ? [[last.lat, last.lon] as [number, number], OPEN_ZOOM] : [COUNTRY, COUNTRY_ZOOM];
+    return { center: centreClearFor(point, zoom, insets), zoom, insets };
   });
   const [map, setMap] = useState<L.Map | null>(null);
   // The chart alone while there is no route: the planner opens on a
@@ -95,7 +102,6 @@ export function MapShell({ course, onReady, children, onSelectPlace, held = fals
   // showing something -- the country, the pilot's position, another
   // route -- and the route arrives over it; put there at once when the
   // page opens on the route.
-  const insets = useContext(MapInsetsContext);
   const insetsRef = useRef(insets);
   useEffect(() => { insetsRef.current = insets; }, [insets]);
   const fit = useCallback((fly: boolean) => {
@@ -171,12 +177,15 @@ export function MapShell({ course, onReady, children, onSelectPlace, held = fals
   // the plan streams in -- which would take the map from under the
   // pilot's finger.
   const settledInsets = useRef(insets);
-  // The map is made before the panel has measured what it covers, its
-  // opening view the whole screen's: once the panel has, the view is put
-  // right at once -- the route fitted clear of it, or what was in the
-  // middle of the screen in the middle of what the panel leaves. On a
-  // reload the position opened in the screen's middle, under the half
-  // sheet's edge, and the map slid up as the GPS answered.
+  // The map made before the panel had measured what it covers, its
+  // opening view the whole screen's (or the panel's as it was then): once
+  // the panel has, the view is put right at once -- the route fitted clear
+  // of it, or what was in the middle of what the panel left in the middle
+  // of what it leaves now. On a reload the position opened in the
+  // screen's middle, under the half sheet's edge, and the map slid up as
+  // the GPS answered. Not a view moved since it was made -- own ship put
+  // on its first fix (OwnShipLayer), or the pilot's -- which is where it
+  // was put.
   const placedFor = useRef<L.Map | null>(null);
   useEffect(() => {
     if (!map || placedFor.current === map || (!insets.top && !insets.bottom && !insets.left)) return;
@@ -185,10 +194,14 @@ export function MapShell({ course, onReady, children, onSelectPlace, held = fals
       fit(false);
       return;
     }
+    const was = opening.insets;
+    if (was.top === insets.top && was.bottom === insets.bottom && was.left === insets.left) return;
+    const zoom = map.getZoom();
+    if (zoom !== opening.zoom || map.project(map.getCenter(), zoom).distanceTo(map.project(opening.center, zoom)) > 1) return;
     const size = map.getSize();
     const middle = (i: { top: number; bottom: number; left: number }) => L.point((i.left + size.x) / 2, (i.top + size.y - i.bottom) / 2);
-    map.panBy(middle(NO_INSETS).subtract(middle(insets)), { animate: false });
-  }, [insets, map, bounds, routeKey, fit]);
+    map.panBy(middle(was).subtract(middle(insets)), { animate: false });
+  }, [insets, map, bounds, routeKey, fit, opening]);
   useEffect(() => {
     const was = settledInsets.current;
     settledInsets.current = insets;
@@ -230,7 +243,7 @@ export function MapShell({ course, onReady, children, onSelectPlace, held = fals
       {chart ? (
         <MapContainer
           ref={setMap}
-          {...(bounds ? { bounds, boundsOptions: { padding: [30, 30] } } : opening)}
+          {...(bounds ? { bounds, boundsOptions: { padding: [30, 30] } } : { center: opening.center, zoom: opening.zoom })}
           // zoomControl off drops the +/- buttons, not zooming itself;
           // minZoom 3 is where the whole country fits a phone screen,
           // and as far out as the chart layer has tiles. On a TV (lib/tv)
