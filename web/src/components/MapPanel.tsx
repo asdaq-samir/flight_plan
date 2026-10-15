@@ -131,10 +131,10 @@ const RANK: Record<PanelState, number> = { peek: 0, half: 1, full: 2 };
  * from `md` up a card at the left, as Maps' is on an iPad and a Mac. The
  * chart behind it still pans and zooms, and it is never dismissed.
  *
- * Not shadcn's Drawer, which every other sheet here is: vaul builds its
- * drawer on a modal Radix dialog whatever `modal` it is given, so a
- * drawer that never closes held the keyboard's focus inside itself and
- * hid the map, and any dialog opened before it, from a screen reader.
+ * Not a stock sheet, which the app's other sheets are (shadcn's Sheet):
+ * those are modal Radix dialogs, and one that never closes would hold
+ * the keyboard's focus inside itself and hide the map, and any dialog
+ * opened before it, from a screen reader.
  */
 export default function MapPanel({ label, top, controls, compact, children, state, onStateChange, onInsetsChange, toEdge: edgeAsked = false, bar, layer = "tab", cardOver: overAsked = false, foot, footFills = false }: Props) {
   // A tab's options for a tab, a card's for a card: what each layer takes.
@@ -236,11 +236,18 @@ export default function MapPanel({ label, top, controls, compact, children, stat
   const [settling, setSettling] = useState(false);
   const [stateWas, setStateWas] = useState(state);
   const [wasDragging, setWasDragging] = useState(false);
+  // Turning between the pill and the sheet, or let go by a finger, until
+  // the height has eased where it was going (fromFoot).
+  const [turning, setTurning] = useState(false);
   if (state !== stateWas) {
     setStateWas(state);
     setSettling(stateWas !== "peek" && state === "peek" && dragged === null && !wasDragging && hasPill);
+    if (stateWas === "peek" || state === "peek") setTurning(true);
   }
-  if (wasDragging !== (dragged !== null)) setWasDragging(dragged !== null);
+  if (wasDragging !== (dragged !== null)) {
+    setWasDragging(dragged !== null);
+    if (dragged === null) setTurning(true);
+  }
   const capsule = hasPill && state === "peek" && dragged === null && !settling;
   // Observed afresh as the panel changes size or the tab its head or the pill its own, the
   // observer's first answer the height then: WebKit's observer let the
@@ -261,9 +268,19 @@ export default function MapPanel({ label, top, controls, compact, children, stat
     if (!footNode) return;
     const observer = new ResizeObserver(() => {
       setFootMeasured(footNode.offsetHeight);
-      const held = footNode.firstElementChild as HTMLElement | null;
-      const gives = footNode.querySelector<HTMLElement>("[data-pill-hides]")?.offsetHeight ?? 0;
-      if (held) setFootRow(held.offsetHeight - gives);
+      // Each part's own height, not its box's: squeezed in a short sheet,
+      // the box measured less, and the foot's least with it, a dry run's
+      // figures put under the sheet's foot as it came down. What gives way
+      // keeps its padding (the dry run's eight under its chart).
+      let row = 0;
+      for (const part of footNode.firstElementChild?.children ?? []) {
+        if (!part.matches("[data-pill-hides]")) row += part.scrollHeight;
+        else if (getComputedStyle(part).display !== "none") {
+          const style = getComputedStyle(part);
+          row += parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
+        }
+      }
+      setFootRow(row);
     });
     observer.observe(footNode);
     return () => observer.disconnect();
@@ -416,7 +433,10 @@ export default function MapPanel({ label, top, controls, compact, children, stat
   // the tabs in their place, and came back only past 213 points of a
   // 298-point sheet -- coming down, the same the other way (the other
   // session's frames, 2026-10-15). The grabber stays on the sheet's edge.
-  const fromFoot = onPhone && fromBottom && !!bar && footShown && !pillShape;
+  // On the way only, under a finger or easing: at rest the head keeps the
+  // top, as anything it shows in place -- a route's problem under its
+  // box -- grows it down, not up out of sight.
+  const fromFoot = onPhone && fromBottom && !!bar && footShown && !pillShape && (turning || settling || dragged !== null);
   if (morphing && morph < 1 && shape === "inset") {
     geometry.side = SHEET_INSET;
     geometry.gap = between(capsuleGap, SHEET_INSET, morph);
@@ -533,6 +553,16 @@ export default function MapPanel({ label, top, controls, compact, children, stat
     panel.addEventListener("transitionend", done);
     return () => { panel.removeEventListener("transitionend", done); window.clearTimeout(late); };
   }, [settling, panel]);
+  // And the turn over the same way.
+  useEffect(() => {
+    if (!turning || !panel) return;
+    const done = (event: TransitionEvent) => {
+      if (event.target === panel && event.propertyName === "height") setTurning(false);
+    };
+    const late = window.setTimeout(() => setTurning(false), SETTLE_MOST * 1000 + 100);
+    panel.addEventListener("transitionend", done);
+    return () => { panel.removeEventListener("transitionend", done); window.clearTimeout(late); };
+  }, [turning, panel]);
   useEffect(() => {
     if (!panel || !expanded) return;
     const onKey = (event: KeyboardEvent) => {
@@ -744,9 +774,13 @@ export default function MapPanel({ label, top, controls, compact, children, stat
         )}
         {!pillShape && controls && (
           // Wrapped onto two lines (a 320-point Slide Over), the two
-          // twelve apart, and twelve and more under the top row, so their
-          // hit areas (index.css) meet rather than overlap.
-          <div className={cn("flex flex-wrap items-center gap-x-2 gap-y-3 px-3 pt-3 print:hidden", fromBottom ? "pb-2.5" : "pb-5")}>{controls}</div>
+          // twelve apart, so their hit areas (index.css) meet rather than
+          // overlap; and as close under the top row and over what follows
+          // as theirs let them, at the owner's ask ("minimize the empty
+          // spaces between the route box, the buttons and the profile
+          // view"): eight under the route's box (its 44 points reach 1.5
+          // past it, the chips' 6), and six over the foot's line.
+          <div className={cn("flex flex-wrap items-center gap-x-2 gap-y-3 px-3 pt-1 print:hidden", fromBottom ? "pb-1.5" : "pb-5")}>{controls}</div>
         )}
         </div>
         </div>
@@ -795,13 +829,15 @@ export default function MapPanel({ label, top, controls, compact, children, stat
             // In the pill under the tabs, the figures alone: what the foot
             // keeps for half way and up (FPL's side view, data-pill-hides)
             // put away.
-            pillShape ? "h-[3.625rem] shrink-0 justify-center [&_[data-pill-hides]]:hidden" : "border-t border-border/60 pt-2 pb-2.5",
+            // Its content centred there, the dry run's too, whose figures
+            // sat at the pill's top under the grabber, its column grown.
+            pillShape ? "h-[3.625rem] shrink-0 justify-center [&_[data-pill-hides]]:hidden [&>*]:flex-none" : "border-t border-border/60 pt-1 pb-2.5",
             fills && "flex-1",
           )}
           style={{
             ...(toEdge && fromBottom && !pillShape ? { paddingBottom: Math.max(10, edgeRoom) } : {}),
-            // The figures and the foot's own border and padding (pt-2, pb-2.5).
-            ...(fromFoot && footRow > 0 ? { minHeight: `calc(${footRow}px + 1px + 1.125rem)` } : {}),
+            // The figures and the foot's own border and padding (pt-1, pb-2.5).
+            ...(fromFoot && footRow > 0 ? { minHeight: `calc(${footRow}px + 1px + 0.875rem)` } : {}),
             // How far up it is past half, for what grows with it (FlightLine's
             // figures, the side view folding away) -- set here, on the foot
             // where those are, not on the sheet: an inherited property

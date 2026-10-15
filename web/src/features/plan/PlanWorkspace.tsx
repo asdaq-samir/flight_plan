@@ -1464,14 +1464,14 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           <div
             // Out of sight all the way up, not only see-through: its words
             // read as words there (the audit's P15), behind nothing.
-            // Shrinking where the half sheet is short of its six rem, the
-            // chart drawn to what it has (its own h-24 the most), the figures
-            // under it kept whole.
+            // All the half sheet leaves it, at the owner's ask ("make the
+            // profile view taller within fpl"): asking for ten rem, it gives
+            // way to what the sheet has, the chart drawn to that, the figures
+            // under it kept whole. It was six rem at most.
             className={cn("min-h-0 shrink overflow-hidden [&_[data-testid=mini-profile]]:h-full", panel === "full" && !dragging && "invisible")} inert={panel === "full" && !dragging} data-pill-hides=""
-            // Its six rem and the eight points under it.
-            style={{ height: "calc(6.5rem * (1 - var(--sheet-progress, 1)))", opacity: "calc(1 - var(--sheet-progress, 1))" }}
+            style={{ height: "calc(10rem * (1 - var(--sheet-progress, 1)))", opacity: "calc(1 - var(--sheet-progress, 1))" }}
           >
-            <div className="relative h-full max-h-24">
+            <div className="relative h-full">
               {miniProfile}
               {/* Its dry run, at its top right: the flight flown on paper. */}
               <RoundButton label="Dry run" onClick={startDryRun} className="absolute top-1.5 right-1.5" data-testid="dry-run-start">
@@ -1524,8 +1524,11 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     // size, which on the pilot's phone is a step up from iOS's default.
     // Narrower than that, the actions take a line of their own rather than
     // run off the screen. With the route cleared or half typed, all of it
-    // still, what needs a route greyed (routeActions).
-    controls: routeControls,
+    // still, what needs a route greyed (routeActions). Not while a dry run
+    // is up: the route's box, then the dry run, then its figures, at the
+    // owner's ask ("dry run should show the route box then dry run and
+    // calculations").
+    controls: dryRunning ? undefined : routeControls,
     console: <PilotPanel />,
     submit,
     loading: s.stage !== null,
