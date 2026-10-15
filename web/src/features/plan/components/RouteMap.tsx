@@ -334,11 +334,18 @@ function useLabelled(
   selected: Candidate[], airports: { ident: string; lat: number; lon: number }[],
 ): Map<string, { name: string; side: "right" | "left" }> {
   const map = useMap();
-  const [view, setView] = useState(() => viewKey(map));
+  // A new one at every move's end, wherever the map came to rest: keyed on
+  // the view itself, the names were not worked out again when the
+  // checkpoints came in while the map flew to the route and the flight
+  // ended on the view a move before it had ended on (the route fitted
+  // twice as the page opened), and they stayed where the dots had been in
+  // mid-flight -- two names of twenty-four on CI's runners, one past the
+  // screen's edge here.
+  const [view, setView] = useState(() => ({ width: map.getSize().x }));
   // Memoized handlers: see Leaflet handler churn (AirportsLayer).
-  useMapEvents(useMemo(() => ({ moveend: () => setView(viewKey(map)) }), [map]));
+  useMapEvents(useMemo(() => ({ moveend: () => setView({ width: map.getSize().x }) }), [map]));
   return useMemo(() => {
-    const width = Number(view.split(" ")[0]);
+    const { width } = view;
     const at = selected.map(c => map.latLngToContainerPoint([c.lat, c.lon]));
     const dots = at.map(p => L.bounds([p.x - 12, p.y - 12], [p.x + 12, p.y + 12]));
     const chips = airports.map(a => {
@@ -367,12 +374,6 @@ function useLabelled(
     });
     return kept;
   }, [selected, airports, view, map]);
-}
-
-/** The map's width, zoom and centre: what decides where a label fits. */
-function viewKey(map: L.Map): string {
-  const centre = map.getCenter();
-  return `${map.getSize().x} ${map.getZoom()} ${centre.lat.toFixed(5)} ${centre.lng.toFixed(5)}`;
 }
 
 /** Each leg's top of climb and of descent, where the nav log has a row
