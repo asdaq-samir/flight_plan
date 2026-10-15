@@ -277,14 +277,27 @@ test("with a mouse's wheel, down over the panel brings it up a size, up takes it
   await settle(page);
   const panel = sideDrawer(page);
   const over = async () => {
+    // Once it is at rest: measured while it moved, the pointer landed on
+    // the map, whose own wheel zooms it.
+    await settled(panel);
     const box = (await panel.boundingBox())!;
     await page.mouse.move(box.x + box.width / 2, box.y + 30);
   };
+  // A flick: four wheel events in one go, as a wheel's notch or a
+  // trackpad's flick sends them, a frame or so apart -- Playwright's own
+  // came a quarter of a second apart, past the pause (180 ms) that ends a
+  // gesture, and one flick was now and then heard as two.
   const flick = async (dx: number, dy: number) => {
     await over();
-    for (let i = 0; i < 4; i++) await page.mouse.wheel(dx, dy);
+    await page.evaluate(([dx, dy]) => {
+      const box = document.querySelector("[data-slot=map-panel]")!.getBoundingClientRect();
+      const x = box.left + box.width / 2, y = box.top + 30;
+      const target = document.elementFromPoint(x, y)!;
+      for (let i = 0; i < 4; i++) target.dispatchEvent(new WheelEvent("wheel", { deltaX: dx, deltaY: dy, clientX: x, clientY: y, bubbles: true, cancelable: true }));
+    }, [dx, dy]);
     // The gesture's end, before the next.
     await page.waitForTimeout(400);
+    await settled(panel);
   };
   await flick(0, 40);
   await expect(panel).toHaveAttribute("data-panel", "half");

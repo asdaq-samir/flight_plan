@@ -126,11 +126,24 @@ const SHEET_CURVE = "0.45s cubic-bezier(0, 0, 0.58, 1)";
  *  seconds: the sheet's time, so the two arrive together. */
 export const SHEET_SECONDS = 0.45;
 export const SHEET_RESHAPE = ["left", "right", "top", "bottom", "border-radius"].map(p => `${p} ${SHEET_CURVE}`).join(", ");
-export const SHEET_SETTLE = `height ${SHEET_CURVE}, ${SHEET_RESHAPE}`;
-// Its progress up (MapPanel's --sheet-progress, index.css's @property) eased
-// with the height, so what grows with it -- FPL's figures, the side view
-// folding away -- moves with the sheet, not at once.
-export const SHEET_PROGRESS = `--sheet-progress ${SHEET_CURVE}`;
+/** The sheet's settle over `seconds`: its height, its shape and its
+ *  progress up (MapPanel's --sheet-progress, index.css's @property), which
+ *  eases with the height so what grows with it -- FPL's figures, the side
+ *  view folding away -- moves with the sheet, not at once. */
+export const sheetSettle = (seconds: number) => {
+  const curve = `${seconds}s cubic-bezier(0, 0, 0.58, 1)`;
+  return {
+    height: ["height", "left", "right", "top", "bottom", "border-radius"].map(p => `${p} ${curve}`).join(", "),
+    progress: `--sheet-progress ${curve}`,
+  };
+};
+/** How far the sheet goes in SHEET_SECONDS: the pill to half on an iPhone
+ *  16 Pro, the move the owner likes ("Pill to half card and back eases
+ *  nicely but to/from full card snaps very quickly"). A longer move takes
+ *  longer at that speed, between SETTLE_LEAST and SETTLE_MOST seconds. */
+export const SETTLE_POINTS = 273;
+export const SETTLE_LEAST = 0.3;
+export const SETTLE_MOST = 0.75;
 
 /** Maps' medium sheet: in from the sides and its edge, every corner
  *  round, as the screen's own are -- the map's panel and the console's

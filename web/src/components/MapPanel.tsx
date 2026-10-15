@@ -5,8 +5,8 @@ import { useIsMobile } from "../hooks/use-mobile";
 import { useNavEdge } from "../hooks/use-nav-edge";
 import { useKeyboardInset, useSafeArea, useVisualHeight, useWindowHeight } from "../hooks/use-viewport";
 import {
-  GLASS, GLASS_FILL, GLASS_SHEET, GLASS_SHEET_FULL, MATERIAL, PanelSize, PILL_RADIUS, usePanelDragging, SHEET_INSET, SHEET_INSET_RADIUS, SHEET_MARGIN, SHEET_PROGRESS, SHEET_RESHAPE, TabBarMinimized,
-  SHEET_SETTLE, type MapInsets, type PanelState,
+  GLASS, GLASS_FILL, GLASS_SHEET, GLASS_SHEET_FULL, MATERIAL, PanelSize, PILL_RADIUS, usePanelDragging, SHEET_INSET, SHEET_INSET_RADIUS, SHEET_MARGIN, SHEET_RESHAPE, SHEET_SECONDS, SETTLE_LEAST, SETTLE_MOST, SETTLE_POINTS, TabBarMinimized,
+  sheetSettle, type MapInsets, type PanelState,
 } from "./mapChrome";
 
 interface Props {
@@ -197,7 +197,13 @@ export default function MapPanel({ label, top, controls, compact, children, stat
   // A drag (below) that is under way, and the capsule's height when one
   // last started from it: 41 points of field, nine over it and twelve
   // under it, until then.
-  const [dragged, setDragged] = useState<number | null>(null);
+  const [dragged, setDraggedNow] = useState<number | null>(null);
+  // Where a finger last had it, for how far a release has still to go.
+  const [lastDragged, setLastDragged] = useState<number | null>(null);
+  const setDragged = useCallback((height: number | null) => {
+    setDraggedNow(height);
+    if (height !== null) setLastDragged(height);
+  }, []);
   // A pill of tabs, before one has been measured (a page opened all the
   // way up): its row and the tabs' over it (3.5rem), the height a tap
   // down eases to before it turns into the pill.
@@ -296,6 +302,20 @@ export default function MapPanel({ label, top, controls, compact, children, stat
   // A drag on the grabber or the head follows the finger, and lets go to
   // the detent it was heading for (useDetentDrag).
   const shown = dragged ?? detents[state];
+  // How long it takes to get where it is going: the pill to half's time
+  // over its distance, the speed the owner likes, kept for a longer move
+  // ("to/from full card snaps very quickly", every move having taken the
+  // same 0.45 s) -- from where it was, or let go, from where the finger
+  // left it.
+  const target = detents[state];
+  const draggingNow = dragged !== null;
+  const [settleOf, setSettleOf] = useState({ target, dragging: draggingNow, seconds: SHEET_SECONDS });
+  if (settleOf.target !== target || settleOf.dragging !== draggingNow) {
+    const from = settleOf.dragging && !draggingNow ? lastDragged ?? settleOf.target : settleOf.target;
+    const seconds = Math.min(SETTLE_MOST, Math.max(SETTLE_LEAST, (SHEET_SECONDS * Math.abs(target - from)) / SETTLE_POINTS));
+    setSettleOf({ target, dragging: draggingNow, seconds: draggingNow ? settleOf.seconds : Math.round(seconds * 100) / 100 });
+  }
+  const settle = useMemo(() => sheetSettle(settleOf.seconds), [settleOf.seconds]);
   // A phone's panel takes Maps' three shapes: the capsule at rest; in
   // from the edges, every corner round, up to half way and while dragged
   // there; and nearer the top on the screen's edges, as Maps' is all the
@@ -489,7 +509,7 @@ export default function MapPanel({ label, top, controls, compact, children, stat
         // The height follows a finger without lag, and the capsule's turn
         // into the sheet with it; the shape eases in and out as a drag
         // crosses half way up, to the screen's edges and back.
-        height: shown, transition: !measured || (morphing && morph < 1) ? "none" : dragged === null ? SHEET_SETTLE : SHEET_RESHAPE,
+        height: shown, transition: !measured || (morphing && morph < 1) ? "none" : dragged === null ? settle.height : SHEET_RESHAPE,
         // In steps of four: an inherited property, every change of it
         // restyles all the sheet holds, and changed at every frame of a drag
         // above half it cost that drag a frame in three.
@@ -650,7 +670,7 @@ export default function MapPanel({ label, top, controls, compact, children, stat
             // laid the foot out again at each frame, a third of a drag's
             // time above half (measured with and without the foot).
             "--sheet-progress": dragged === null ? progress : state === "full" ? 1 : 0,
-            transition: SHEET_PROGRESS,
+            transition: settle.progress,
           } as CSSProperties}
           data-testid="panel-foot"
           // In the pill a finger anywhere on it drags the sheet, as the tabs
