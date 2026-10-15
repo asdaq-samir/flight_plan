@@ -107,7 +107,7 @@ export function hitAreaMisses(page: Page, scope = "body", size = 44): Promise<Hi
       // A popover or a sheet open over the page covers what is under its
       // edge, as iOS's do: a row half under it is covered, not crowded.
       const over = (hit: Element | null) => {
-        const layer = hit?.closest('[data-slot="popover-content"], [data-slot="drawer-content"], [role="dialog"]');
+        const layer = hit?.closest('[data-slot="popover-content"], [data-slot="sheet-content"], [role="dialog"]');
         return !!layer && !layer.contains(el);
       };
       const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
@@ -279,7 +279,7 @@ export function componentFindings(page: Page): Promise<ComponentFinding[]> {
       return r.width > 1 && r.height > 1 && getComputedStyle(el).visibility === "visible";
     };
     const name = (el: Element) => (el.getAttribute("aria-label") ?? (el as HTMLElement).dataset?.testid ?? el.getAttribute("data-slot") ?? el.className.toString().split(" ")[0]).slice(0, 40);
-    for (const grab of document.querySelectorAll('[data-slot="drawer-content"] > div:first-child, [data-slot="console-sheet"] [data-grabber]')) {
+    for (const grab of document.querySelectorAll('[data-slot="console-sheet"] [data-grabber]')) {
       const r = grab.getBoundingClientRect();
       if (!on(grab) || r.height > 12) continue;
       if (Math.abs(r.width - 36) > 0.5 || Math.abs(r.height - 5) > 0.5) found.push({ rule: "grabber 36×5", what: "sheet grabber", measured: `${r.width}×${r.height}` });
@@ -289,7 +289,7 @@ export function componentFindings(page: Page): Promise<ComponentFinding[]> {
     document.body.append(theme);
     const radius = parseFloat(getComputedStyle(theme).borderTopLeftRadius);
     theme.remove();
-    const floats = ['[data-slot="drawer-content"][data-vaul-drawer-direction="bottom"]', '[data-slot="console-sheet"]', '[data-slot="map-panel"]', '[data-slot="popover-content"]', '[data-slot="dialog-content"]',
+    const floats = ['[data-slot="sheet-content"][data-side="bottom"]', '[data-slot="console-sheet"]', '[data-slot="map-panel"]', '[data-slot="popover-content"]', '[data-slot="dialog-content"]',
       '[data-slot="alert-dialog-content"]', ".leaflet-popup-content-wrapper", '[data-slot="item-group"].border', "[data-sonner-toast]"].join(", ");
     for (const box of document.querySelectorAll(floats)) {
       if (!on(box)) continue;
@@ -327,7 +327,7 @@ export function componentFindings(page: Page): Promise<ComponentFinding[]> {
         found.push({ rule: `icon button 36, glyph ${glyph}`, what: name(button), measured: `${Math.round(b.width)}×${Math.round(b.height)}, glyph ${Math.round(g.width)}` });
       }
     }
-    for (const panel of document.querySelectorAll('[data-slot="map-panel"], [data-slot="drawer-content"], [data-testid="console-sheet"]')) {
+    for (const panel of document.querySelectorAll('[data-slot="map-panel"], [data-slot="sheet-content"], [data-testid="console-sheet"]')) {
       if (!on(panel)) continue;
       const p = panel.getBoundingClientRect();
       let inset = Infinity, sample = "";

@@ -5,7 +5,8 @@ import {
   AlertDialogTitle,
 } from "./ui/alert-dialog";
 import { Button } from "./ui/button";
-import { Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle } from "./ui/drawer";
+import { Sheet, SheetClose, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "./ui/sheet";
+import { phoneSheet } from "./phoneSheet";
 import { useIsMobile } from "../hooks/use-mobile";
 import { useNavEdge } from "../hooks/use-nav-edge";
 import { TEXT } from "../lib/text";
@@ -36,17 +37,17 @@ export default function ErrorAlert() {
   const described = failed?.description ? {} : { "aria-describedby": undefined };
   if (onPhone) {
     return (
-      <Drawer direction={edge} open={!!failed} onOpenChange={close}>
-        <DrawerContent role="alertdialog" {...described} className={edge === "top" ? "pt-[env(safe-area-inset-top)]" : undefined} data-testid="error-alert">
-          <DrawerHeader>
-            <DrawerTitle className={cn("font-semibold", TEXT.title)}>{failed?.title}</DrawerTitle>
-            {failed?.description && <DrawerDescription className={TEXT.note}>{failed.description}</DrawerDescription>}
-          </DrawerHeader>
-          <DrawerFooter className={edge === "top" ? undefined : "pb-[max(1rem,env(safe-area-inset-bottom))]"}>
-            <DrawerClose asChild><Button>OK</Button></DrawerClose>
-          </DrawerFooter>
-        </DrawerContent>
-      </Drawer>
+      <Sheet open={!!failed} onOpenChange={close}>
+        <SheetContent side={edge} showCloseButton={false} className={phoneSheet(edge)} role="alertdialog" {...described} data-testid="error-alert">
+          <SheetHeader className="text-center">
+            <SheetTitle className={cn("font-semibold", TEXT.title)}>{failed?.title}</SheetTitle>
+            {failed?.description && <SheetDescription className={TEXT.note}>{failed.description}</SheetDescription>}
+          </SheetHeader>
+          <SheetFooter className={edge === "top" ? undefined : "pb-[max(1rem,env(safe-area-inset-bottom))]"}>
+            <SheetClose asChild><Button>OK</Button></SheetClose>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
     );
   }
   return (

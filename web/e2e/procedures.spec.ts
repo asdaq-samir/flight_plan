@@ -83,6 +83,9 @@ test("a field's approach is picked with its transition, kept in the address and 
   // The drawing is fetched after the address changes, so wait for it.
   await expect.poll(() => asked, { timeout: slow(10000) }).toContain("/api/planner/airport/KDLH/procedures/I09?transition=DLH");
   await page.keyboard.press("Escape");
+  // Gone, not going: opened again as it eased out, the sheet is the one
+  // still on its way out, on the page it was left at.
+  await expect(page.getByRole("heading", { name: "KDLH approaches" })).toBeHidden();
 
   // On the map: the transition and the final, the missed approach dashed,
   // its hold, and the fixes with their altitudes.
