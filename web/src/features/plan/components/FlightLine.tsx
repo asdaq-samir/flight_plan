@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef, useState } from "react";
 import { cn } from "cn";
 import type { Totals } from "../../../lib/api/types";
 import { GROUP_HEADING, GROW_FIGURE, TEXT } from "../../../lib/text";
+import { usePanelDragging } from "../../../components/mapChrome";
 import { useRoom } from "../../../lib/useRoom";
 import { fitFigures, tripFigures } from "../figures";
 
@@ -73,6 +74,11 @@ export default function FlightLine({ totals, estimate, depart, local, grow = fal
   const probe = useRef<HTMLSpanElement>(null);
   const unitProbe = useRef<HTMLSpanElement>(null);
   const key = exact.map(f => `${f.value}${f.unit ?? ""}`).join("|");
+  // Not while a finger takes the sheet: the figures grow with it past half,
+  // their room with them, and fitted again at every frame -- words laid
+  // out to be measured, the page's layout forced each time -- a drag above
+  // half went at half the frame rate of one below it. Fitted once at rest.
+  const moving = usePanelDragging(d => d.dragging);
   const [verdict, setVerdict] = useState<{ key: string; room: typeof space; fits: boolean[]; scale: number; px: { value: number; unit: number } } | null>(null);
   // Before the frame is painted, and again only as the figures or the
   // room change. The room itself is kept, not its width: useRoom hands out
@@ -81,7 +87,7 @@ export default function FlightLine({ totals, estimate, depart, local, grow = fal
   // widths.
   useLayoutEffect(() => {
     const value = probe.current, unit = unitProbe.current;
-    if (!space || !value || !unit || (verdict?.key === key && verdict.room === space)) return;
+    if (moving || !space || !value || !unit || (verdict?.key === key && verdict.room === space)) return;
     value.style.fontSize = unit.style.fontSize = "";
     const px = { value: parseFloat(getComputedStyle(value).fontSize), unit: parseFloat(getComputedStyle(unit).fontSize) };
     const width = (f: (typeof exact)[number], scale: number) => {
@@ -105,7 +111,7 @@ export default function FlightLine({ totals, estimate, depart, local, grow = fal
     }
     value.style.fontSize = unit.style.fontSize = "";
     setVerdict({ key, room: space, fits, scale, px });
-  }, [space, key, exact, rounded, verdict]);
+  }, [space, key, exact, rounded, verdict, moving]);
   const fitting = verdict?.key === key && verdict.room === space ? verdict : null;
   const shown = fitFigures(exact, rounded, f => fitting?.fits[exact.indexOf(f)] ?? true);
   const sized = (px: number | undefined) =>

@@ -5,7 +5,7 @@ import { useIsMobile } from "../hooks/use-mobile";
 import { useNavEdge } from "../hooks/use-nav-edge";
 import { useKeyboardInset, useSafeArea, useVisualHeight, useWindowHeight } from "../hooks/use-viewport";
 import {
-  GLASS, GLASS_FILL, GLASS_SHEET, GLASS_SHEET_FULL, MATERIAL, PanelSize, PILL_RADIUS, usePanelDragging, SHEET_INSET, SHEET_INSET_RADIUS, SHEET_MARGIN, SHEET_RESHAPE, TabBarMinimized,
+  GLASS, GLASS_FILL, GLASS_SHEET, GLASS_SHEET_FULL, MATERIAL, PanelSize, PILL_RADIUS, usePanelDragging, SHEET_INSET, SHEET_INSET_RADIUS, SHEET_MARGIN, SHEET_PROGRESS, SHEET_RESHAPE, TabBarMinimized,
   SHEET_SETTLE, type MapInsets, type PanelState,
 } from "./mapChrome";
 
@@ -325,6 +325,13 @@ export default function MapPanel({ label, top, controls, compact, children, stat
   // on the way, rather than at the release.
   const morphing = hasPill && dragged !== null;
   const morph = capsule ? 0 : morphing ? Math.min(1, Math.max(0, (dragged - capsuleHeight) / MORPH)) : 1;
+  // Laid out as the pill: at rest there, and on a finger's way down into it
+  // from half, over the last of the way (MORPH), so the pill is what comes
+  // to rest under the finger -- it was the half's layout until let go, and
+  // then the pill's in one frame, its tabs ten points up and its figures a
+  // hundred (measured by the other session). On the way up from the pill
+  // the sheet's layout comes at once, where it is still below the screen.
+  const pillShape = capsule || (!!bar && dragged !== null && state !== "peek" && morph < 1);
   if (morphing && morph < 1 && shape === "inset") {
     geometry.side = SHEET_INSET;
     geometry.gap = between(capsuleGap, SHEET_INSET, morph);
@@ -452,16 +459,16 @@ export default function MapPanel({ label, top, controls, compact, children, stat
       // hit area reaches a point and a half past the chip, into it.
       // Over the tabs' head on a phone, no deeper than the room over the
       // tabs (their mt-1.5), so a tab's 44-point hit area stays its own.
-      style={{ height: capsule ? CAPSULE_PAD - 2 : GRABBER }}
+      style={{ height: pillShape ? CAPSULE_PAD - 2 : GRABBER }}
       className={cn(
         "mx-auto flex w-24 shrink-0 touch-none justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset print:hidden",
         // In the capsule's thin padding, two points from its edge; on the
         // sheet five, as iOS's.
-        fromBottom ? (capsule ? "items-start pt-[2px]" : "items-start pt-[5px]") : (capsule ? "items-end pb-[2px]" : "items-end pb-[5px]"),
-        capsule && cn("absolute inset-x-0 z-10 after:hidden!", fromBottom ? "top-0" : "bottom-0"),
+        fromBottom ? (pillShape ? "items-start pt-[2px]" : "items-start pt-[5px]") : (pillShape ? "items-end pb-[2px]" : "items-end pb-[5px]"),
+        pillShape && cn("absolute inset-x-0 z-10 after:hidden!", fromBottom ? "top-0" : "bottom-0"),
         // Its hit area (index.css) wide but no further into the head than
         // four points: the route's box starts four under it.
-        !capsule && (fromBottom ? "after:bottom-[-4px]! after:top-0!" : "after:top-[-4px]! after:bottom-0!"),
+        !pillShape && (fromBottom ? "after:bottom-[-4px]! after:top-0!" : "after:top-[-4px]! after:bottom-0!"),
       )}
     >
       <span className="h-[5px] w-9 rounded-full bg-muted-foreground/40" aria-hidden="true" />
@@ -483,10 +490,10 @@ export default function MapPanel({ label, top, controls, compact, children, stat
         // into the sheet with it; the shape eases in and out as a drag
         // crosses half way up, to the screen's edges and back.
         height: shown, transition: !measured || (morphing && morph < 1) ? "none" : dragged === null ? SHEET_SETTLE : SHEET_RESHAPE,
-        // How far up it is, 0 at the pill to 1 all the way, for what grows
-        // with it (FlightLine's figures).
-        ...({ "--sheet-progress": progress } as CSSProperties),
-        ...(onPhone && dragged !== null ? { "--glass-fill": `${fill}%` } : {}),
+        // In steps of four: an inherited property, every change of it
+        // restyles all the sheet holds, and changed at every frame of a drag
+        // above half it cost that drag a frame in three.
+        ...(onPhone && dragged !== null ? { "--glass-fill": `${Math.round(fill / 4) * 4}%` } : {}),
         ...(onPhone ? {
           left: geometry.side, right: geometry.side,
           ...(fromBottom ? { bottom: keyboard && !capsule ? keyboard + geometry.gap : geometry.gap } : { top: geometry.gap }),
@@ -534,7 +541,7 @@ export default function MapPanel({ label, top, controls, compact, children, stat
               "flex shrink-0 px-2", minimized ? "mb-1 min-h-11 pt-1.5" : "h-12", !barShown && "hidden",
               // In the pill the pill's whole, round its grabber; out of it
               // the line under the sheet's first row.
-              capsule ? (fromBottom ? "mt-1.5 mb-1" : "mt-1 mb-1.5") : "border-b border-border/60",
+              pillShape ? (fromBottom ? "mt-1.5 mb-1" : "mt-1 mb-1.5") : "border-b border-border/60",
               !fromBottom && onPhone && "h-auto pt-[env(safe-area-inset-top)]",
             )}
             // A swipe up or down on the tabs drags the panel as the head
@@ -557,7 +564,7 @@ export default function MapPanel({ label, top, controls, compact, children, stat
             one turns into the other, focus and keyboard and all. From
             the top of a phone's screen the sheet's starts under the
             status bar or the island. */}
-        {(capsule ? !bar : top != null || !barShown) && (
+        {(pillShape ? !bar : top != null || !barShown) && (
           <header
             className={cn(
               "@container flex items-center gap-2 print:hidden",
@@ -580,7 +587,7 @@ export default function MapPanel({ label, top, controls, compact, children, stat
             {capsule ? compact : top}
           </header>
         )}
-        {!capsule && controls && (
+        {!pillShape && controls && (
           // Wrapped onto two lines (a 320-point Slide Over), the two
           // twelve apart, and twelve and more under the top row, so their
           // hit areas (index.css) meet rather than overlap.
@@ -605,7 +612,7 @@ export default function MapPanel({ label, top, controls, compact, children, stat
           // there, kept but out of sight and of the
           // keyboard's reach -- unclipped, a card open in it (an airplane's,
           // its name, Follow and close) ran over the pill's figures.
-          capsule && "invisible overflow-clip",
+          pillShape && "invisible overflow-clip",
         )}
         // The foot as it is at half, whatever the height now: a card laid
         // out to it keeps one layout all the way up.
@@ -630,9 +637,21 @@ export default function MapPanel({ label, top, controls, compact, children, stat
             // In the pill under the tabs, the figures alone: what the foot
             // keeps for half way and up (FPL's side view, data-pill-hides)
             // put away.
-            capsule ? "pt-1 pb-3 [&_[data-pill-hides]]:hidden" : "border-t border-border/60 pt-2 pb-2.5",
+            pillShape ? "pt-1 pb-3 [&_[data-pill-hides]]:hidden" : "border-t border-border/60 pt-2 pb-2.5",
           )}
-          style={toEdge && fromBottom && !capsule ? { paddingBottom: Math.max(10, edgeRoom) } : undefined}
+          style={{
+            ...(toEdge && fromBottom && !pillShape ? { paddingBottom: Math.max(10, edgeRoom) } : {}),
+            // How far up it is past half, for what grows with it (FlightLine's
+            // figures, the side view folding away) -- set here, on the foot
+            // where those are, not on the sheet: an inherited property
+            // changed on the sheet restyled the nav log's every row.
+            // Held where it was under a finger, and eased on with the sheet
+            // once let go: following the finger, the figures' every size
+            // laid the foot out again at each frame, a third of a drag's
+            // time above half (measured with and without the foot).
+            "--sheet-progress": dragged === null ? progress : state === "full" ? 1 : 0,
+            transition: SHEET_PROGRESS,
+          } as CSSProperties}
           data-testid="panel-foot"
           // In the pill a finger anywhere on it drags the sheet, as the tabs
           // do.
@@ -646,7 +665,7 @@ export default function MapPanel({ label, top, controls, compact, children, stat
       {/* The rest of the way to the screen's edge, under the home
           indicator, below the body -- in the body where it runs to the
           edge (toEdge). */}
-      {edgeRoom > 0 && !toEdge && !capsule && (
+      {edgeRoom > 0 && !toEdge && !pillShape && (
         <div className="shrink-0" style={{ height: edgeRoom }} aria-hidden="true" />
       )}
     </section>
