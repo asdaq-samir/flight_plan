@@ -3,6 +3,7 @@ import { CircleAlert, TriangleAlert } from "lucide-react";
 import { cn } from "cn";
 import { Alert } from "./ui/alert";
 import { Button } from "./ui/button";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "./ui/collapsible";
 import { GLASS } from "./mapChrome";
 import { TEXT } from "../lib/text";
 import { acknowledge, alertTitle, alertWhen, alertWhere, useAhead } from "../lib/map/ahead";
@@ -48,36 +49,40 @@ export default function AlertsBanner() {
         )}
       >
         <Icon className="shrink-0" />
-        <button
-          type="button" onClick={() => setOpen(o => !o)} aria-expanded={open} data-testid="alerts-banner-title"
-          className={cn("flex min-w-0 flex-1 flex-col justify-center self-stretch py-1 text-left outline-none focus-visible:underline", TEXT.detail)}
-        >
-          {first ? (
-            <>
-              <span className={cn("block max-w-full font-semibold", !open && "truncate")}>{alertTitle(first)}</span>
-              {/* How many more on the second line, so the first's name is
-                  whole on its own. */}
-              <span className={cn("block max-w-full text-foreground", !open && "truncate")}>
-                {alertWhen(first)} · {alertWhere(first)}
-                {alerts.length > 1 && !open && <span className="font-semibold"> · {alerts.length - 1} more</span>}
-              </span>
-            </>
-          ) : (
-            <span className={cn("block max-w-full font-medium", !open && "truncate")}>{unread}</span>
-          )}
-          {open && (
-            <span className="mt-1 flex flex-col gap-1.5 text-foreground">
-              {alerts.map(a => (
-                <span key={a.id} className="block" data-alert-item={a.kind}>
-                  {a !== first && <span className={cn("block font-semibold", INK[a.level])}>{alertTitle(a)}: {alertWhen(a)} · {alertWhere(a)}</span>}
-                  <span className="block">{a.need}</span>
+        {/* The first alert, a tap opening the rest under it: Radix's
+            disclosure (shadcn's Collapsible), so what opens is beside the
+            button that opens it, not inside it, and a screen reader is
+            told which it controls. */}
+        <Collapsible open={open} onOpenChange={setOpen} className={cn("flex min-w-0 flex-1 flex-col self-stretch", TEXT.detail)}>
+          <CollapsibleTrigger
+            data-testid="alerts-banner-title"
+            className="flex min-w-0 flex-1 flex-col justify-center py-1 text-left outline-none focus-visible:underline"
+          >
+            {first ? (
+              <>
+                <span className={cn("block max-w-full font-semibold", !open && "truncate")}>{alertTitle(first)}</span>
+                {/* How many more on the second line, so the first's name is
+                    whole on its own. */}
+                <span className={cn("block max-w-full text-foreground", !open && "truncate")}>
+                  {alertWhen(first)} · {alertWhere(first)}
+                  {alerts.length > 1 && !open && <span className="font-semibold"> · {alerts.length - 1} more</span>}
                 </span>
-              ))}
-              {first && (failed || unavailable.length > 0) && <span className="block text-muted-foreground">{unread}.</span>}
-              <span className="block text-muted-foreground">From the phone's GPS and the FAA's data: advisory, not a terrain or traffic warning system.</span>
-            </span>
-          )}
-        </button>
+              </>
+            ) : (
+              <span className={cn("block max-w-full font-medium", !open && "truncate")}>{unread}</span>
+            )}
+          </CollapsibleTrigger>
+          <CollapsibleContent className="flex flex-col gap-1.5 pb-1 text-foreground">
+            {alerts.map(a => (
+              <div key={a.id} data-alert-item={a.kind}>
+                {a !== first && <p className={cn("font-semibold", INK[a.level])}>{alertTitle(a)}: {alertWhen(a)} · {alertWhere(a)}</p>}
+                <p>{a.need}</p>
+              </div>
+            ))}
+            {first && (failed || unavailable.length > 0) && <p className="text-muted-foreground">{unread}.</p>}
+            <p className="text-muted-foreground">From the phone's GPS and the FAA's data: advisory, not a terrain or traffic warning system.</p>
+          </CollapsibleContent>
+        </Collapsible>
         {alerts.length > 0 && (
           <Button
             type="button" size="sm" variant="ghost" className={cn("shrink-0 rounded-full text-tint", open && "self-start")}

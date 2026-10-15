@@ -1,4 +1,5 @@
 import { Suspense, lazy, memo, useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../../components/ui/table";
 import { useInfiniteQuery, useQueryClient, type InfiniteData } from "@tanstack/react-query";
 import { Gauge, MoveVertical, Pause, Play, PlaneLanding, PlaneTakeoff, Route, Square, Timer } from "lucide-react";
 import { cn } from "cn";
@@ -221,25 +222,27 @@ const LogTable = memo(function LogTable({ points }: { points: PastFlightPoint[] 
   const rows = all ? points : points.slice(0, LOG_ROWS);
   return (
     <>
-      <div className="overflow-x-auto px-3 pb-2">
-        <table className={cn("w-full tabular-nums", TEXT.detail)} data-testid="track-log">
-          <thead className="text-left text-muted-foreground">
-            <tr><th className="py-1 pr-2 font-medium">Time</th><th className="pr-2 font-medium">Course</th><th className="pr-2 text-right font-medium">kt</th>
-              <th className="pr-2 text-right font-medium">ft</th><th className="text-right font-medium">ft/min</th></tr>
-          </thead>
-          <tbody>
-            {rows.map(p => (
-              <tr key={p.t} className="border-t border-border/60">
-                <td className="py-1 pr-2">{clockTime(when(p.t))}</td>
-                <td className="pr-2">{p.track_deg != null ? `${compassPoint(p.track_deg)} ${Math.round(p.track_deg)}°` : "—"}</td>
-                <td className="pr-2 text-right">{p.gs_kt != null ? Math.round(p.gs_kt) : "—"}</td>
-                <td className="pr-2 text-right">{p.alt_ft != null ? altFt(p.alt_ft) : "ground"}</td>
-                <td className="text-right">{p.vrate_fpm != null ? grouped(p.vrate_fpm) : ""}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      {/* shadcn's Table, as the nav log's: its rules and spacing. */}
+      <Table containerClassName="px-3 pb-2" className={cn("tabular-nums", TEXT.detail)} data-testid="track-log">
+        <TableHeader>
+          <TableRow>
+            <TableHead className="text-muted-foreground">Time</TableHead><TableHead className="text-muted-foreground">Course</TableHead>
+            <TableHead className="text-right text-muted-foreground">kt</TableHead><TableHead className="text-right text-muted-foreground">ft</TableHead>
+            <TableHead className="text-right text-muted-foreground">ft/min</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {rows.map(p => (
+            <TableRow key={p.t}>
+              <TableCell>{clockTime(when(p.t))}</TableCell>
+              <TableCell>{p.track_deg != null ? `${compassPoint(p.track_deg)} ${Math.round(p.track_deg)}°` : "—"}</TableCell>
+              <TableCell className="text-right">{p.gs_kt != null ? Math.round(p.gs_kt) : "—"}</TableCell>
+              <TableCell className="text-right">{p.alt_ft != null ? altFt(p.alt_ft) : "ground"}</TableCell>
+              <TableCell className="text-right">{p.vrate_fpm != null ? grouped(p.vrate_fpm) : ""}</TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
       {!all && points.length > LOG_ROWS && (
         <ListRow title={<span className="text-[var(--tint)]">All {grouped(points.length)} reports</span>} onClick={() => setAll(true)} data-testid="track-log-all" />
       )}

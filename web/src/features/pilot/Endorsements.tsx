@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../../components/ui/collapsible";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { cn } from "cn";
 import FieldHit from "../../components/FieldHit";
@@ -41,8 +42,11 @@ export function SignedRow({ kind, e, who, onVoid, voiding }: {
   voiding?: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  // Its words and Void under it at a tap: shadcn's Collapsible (Radix),
+  // which tells a screen reader what the row opens.
   return (
-    <>
+    <Collapsible open={open} onOpenChange={setOpen}>
+      <CollapsibleTrigger asChild>
       <ListRow
         title={kind?.label ?? e.code}
         description={(
@@ -54,15 +58,16 @@ export function SignedRow({ kind, e, who, onVoid, voiding }: {
           </>
         )}
         value={open ? "Hide" : "Read"}
-        aria-expanded={open}
-        onClick={() => setOpen(o => !o)}
         data-testid="signed-endorsement"
       />
-      {open && <SignedWords text={e.text} signature={e.signature} />}
-      {open && onVoid && !e.voided && (
-        <ListRow title={<span className="text-destructive">Void it</span>} disabled={voiding} onClick={onVoid} data-testid="signed-void" />
-      )}
-    </>
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <SignedWords text={e.text} signature={e.signature} />
+        {onVoid && !e.voided && (
+          <ListRow title={<span className="text-destructive">Void it</span>} disabled={voiding} onClick={onVoid} data-testid="signed-void" />
+        )}
+      </CollapsibleContent>
+    </Collapsible>
   );
 }
 

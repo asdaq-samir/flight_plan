@@ -1,4 +1,3 @@
-import { Check } from "lucide-react";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
 import type { FilterKey, Filters } from "../logic";
 
@@ -31,12 +30,9 @@ export default function FilterBar({ filters, onChange, counts }: Props) {
         <ListGroup key={axis} title={axis}>
           {keys.map(([key, label]) => (
             <ListRow
-              key={key} title={label} value={counts[key]}
-              role="checkbox" aria-checked={filters[key]} data-testid={`filter-${key}`}
-              onClick={() => onChange(key, !filters[key])}
-            >
-              <Check aria-hidden className={filters[key] ? "size-4 text-tint" : "size-4 invisible"} />
-            </ListRow>
+              key={key} title={label} value={counts[key]} data-testid={`filter-${key}`}
+              checkbox={{ checked: filters[key], onChange: checked => onChange(key, checked) }}
+            />
           ))}
         </ListGroup>
       ))}
