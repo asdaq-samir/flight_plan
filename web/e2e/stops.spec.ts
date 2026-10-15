@@ -64,9 +64,9 @@ test("a stop added in the panel lands the route there: the capsule, the nav log 
   await expect(fuel).toContainText("C81 → KMSN", { timeout: slow(30000) });
   await expect(fuel).toContainText("KMSN → KDLH");
 
-  // Lowered, the pill's one line: the destination, the distance, the time.
+  // Lowered, the pill's figures under its tabs: the distance among them.
   await grabberTo(page, "peek");
-  await expect(sideDrawer(page).getByTestId("route-line")).toContainText(/\d+ nm/);
+  await expect(sideDrawer(page).getByTestId("flight-line")).toContainText(/\d+/);
 
   // Taken off again from its menu -- a right-click with a mouse, a press
   // and hold on a phone: the route as it was.

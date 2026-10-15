@@ -655,15 +655,15 @@ test("with no route the panel is a search bar: Home is set from Favorites, an ai
   // Half way, as the card was, the route over it.
   await expect(sideDrawer(page)).toHaveAttribute("data-panel", "half");
 
-  // Lowered, the route rests as its one line, the departure Home in the
-  // box half way; Clear the route, in its
+  // Lowered, the route rests as the tabs over its figures, the departure
+  // Home in the box half way; Clear the route, in its
   // Share menu, clears it -- its box and the controls left in their places
   // for another, what needs a route greyed, the route's own tabs gone
   // until there is one (at the pilot's ask) -- and the Airport tab is the
   // search. The chips are all the way up's, the panel there throughout.
   await grabberTo(page, "peek");
   await expect(sideDrawer(page)).toHaveAttribute("data-capsule", "true");
-  await expect(sideDrawer(page).getByTestId("route-line")).toBeVisible();
+  await expect(sideDrawer(page).getByTestId("flight-line")).toBeVisible();
   await grabberTo(page, "half");
   await expect(page.getByLabel("Departure", { exact: true })).toContainText("C81");
   await clearTheRoute(page);

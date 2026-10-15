@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useContext, useEffect, useId, useMemo, useState, type ReactNode } from "react";
+import { Fragment, useCallback, useEffect, useId, useMemo, useState, type ReactNode } from "react";
 import { cn } from "cn";
 import { Loader2, WandSparkles } from "lucide-react";
 import {
@@ -6,7 +6,6 @@ import {
   flexRender, tableFeatures, useTable,
 } from "@tanstack/react-table";
 import { NoteRow, SelectableRow } from "../../../../components/SelectableRows";
-import { PanelHalfContext } from "../../../../components/mapChrome";
 import PanelTabs from "./PanelTabs";
 import { usePrinting } from "../../../../lib/usePrinting";
 import { LEGS, type PanelTab } from "./panelTab";
@@ -355,33 +354,6 @@ export default function NavLogView({
   // A checkpoint picked on the map with the drawer out: the nav log's tab
   // comes up for it (PanelTabs).
   const pick = drawerOpen && selectedPoint ? descriptionKey(selectedPoint.lat, selectedPoint.lon) : null;
-  // At half, the panel down to the tabs, at the pilot's ask: the route,
-  // the controls and the flight's line in its head, and the tabs' bar
-  // under them, so what each tab holds is a tap away (PanelHalfContext).
-  // Measured, since the text size changes it.
-  const tabsAt = useContext(PanelHalfContext);
-  const [root, setRoot] = useState<HTMLDivElement | null>(null);
-  useEffect(() => {
-    if (!root || !tabsAt) return;
-    const measure = () => {
-      // Hidden under an airport's card (PlanWorkspace): its height is not
-      // the route's.
-      if (!root.offsetParent) return;
-      const tabs = root.querySelector("[data-tip='tabs']");
-      // Up, never down: a bar half a point past the half's foot was half
-      // a point into the home indicator's room.
-      tabsAt(tabs ? Math.ceil(tabs.getBoundingClientRect().bottom - root.getBoundingClientRect().top) : null);
-    };
-    measure();
-    // The tabs' bar as well as the whole: the bar grows inside a root
-    // whose own size does not change (a bigger text size, its icons'
-    // font), and the half stayed at the bar's old foot.
-    const observer = new ResizeObserver(measure);
-    observer.observe(root);
-    const bar = root.querySelector("[data-tip='tabs']");
-    if (bar) observer.observe(bar);
-    return () => { observer.disconnect(); tabsAt(null); };
-  }, [root, tabsAt]);
   // For the printer every tab, one after another: the paper is the whole
   // briefing whatever was up on screen (usePrinting).
   const printing = usePrinting();
@@ -862,7 +834,7 @@ export default function NavLogView({
 
   return (
     <PanelTabs
-      rootRef={setRoot} printing={printing} marks={marks} pick={pick} onTap={onTabTap}
+      printing={printing} marks={marks} pick={pick} onTap={onTabTap}
       route={routeName(dep, dest, ends?.stops?.map(s => s.ident))}
       notice={notice} footer={footer}
       before={(

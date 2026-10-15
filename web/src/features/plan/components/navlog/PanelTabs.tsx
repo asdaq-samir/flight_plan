@@ -38,7 +38,7 @@ const PRINTED: PanelTab[] = TABS.map(t => t.value);
  * (`pick`): that is what the pilot opened the panel to see.
  */
 export default function PanelTabs({ rootRef, before, contents, notice, footer, children, printing, marks, pick, onTap, route }: {
-  rootRef: (el: HTMLDivElement | null) => void;
+  rootRef?: (el: HTMLDivElement | null) => void;
   /** Over the tabs: the printed title. */
   before: ReactNode;
   contents: Record<PanelTab, ReactNode>;

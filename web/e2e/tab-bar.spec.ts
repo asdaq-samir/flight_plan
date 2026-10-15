@@ -1,25 +1,25 @@
 import { test, expect } from "@playwright/test";
-import { closeCard, grabberTo, openTab, openPanel, settle, settled, showTabs, sideDrawer, slow } from "./helpers";
+import { closeCard, closeConsole, grabberTo, openTab, openPanel, settle, settled, showTabs, sideDrawer, slow } from "./helpers";
 
 /**
  * The planner's tab bar, at the pilot's ask in place of the map's buttons
- * on its left: FPL, Airport, Aircraft and Setup, the sheet's first row half
- * way and all the way up. At rest the pill is one row, as the panel of
- * 2026-10-11 had it and the owner picked it back: FPL the route's box
- * (empty with no route, to type one in) or the route's one line, the others
- * their search bar, a card its name; Setup's pill the tabs.
+ * on its left: FPL, Airport, Aircraft and Setup, the sheet's first row at
+ * every size -- at rest the pill itself, at the owner's ask ("When no route
+ * is entered, let's have tabs on the pill"), a route's figures pinned under
+ * them -- over a card its name, Back and the close.
  */
 
 test("the tabs swap the panel's head and body, FPL's empty box with no route", async ({ page }) => {
   await page.goto("/app/plan");
   await settle(page);
   const bar = page.getByTestId("tab-bar");
-  // The pill at first, one row, FPL the tab up, at the owner's ask ("Fpl
-  // should be the default selected"); out half way, the tabs over it.
+  // The pill at first, the tabs, FPL the tab up, at the owner's ask ("Fpl
+  // should be the default selected"); out half way, the route's box.
   await expect(sideDrawer(page)).toHaveAttribute("data-capsule", "true");
-  await expect(bar).toBeHidden();
-  await expect(sideDrawer(page).getByTestId("route-type")).toBeVisible();
+  await expect(bar).toBeVisible();
+  await expect(sideDrawer(page).getByTestId("route-type")).toBeHidden();
   await grabberTo(page, "half");
+  await expect(sideDrawer(page).getByTestId("route-type")).toBeVisible();
   await expect(page.getByTestId("tab-fpl")).toHaveAttribute("aria-current", "page");
   await showTabs(page);
   await page.getByTestId("tab-airport").click();
@@ -50,24 +50,28 @@ test("the tabs swap the panel's head and body, FPL's empty box with no route", a
   await bar.getByTestId("setup-button").click();
   await showTabs(page);
   await expect(bar.getByTestId("setup-button")).toHaveAttribute("aria-current", "page");
-  await page.keyboard.press("Escape");
+  // Escape until it is away: with the focus on the panel, the first lowers
+  // the panel (closeConsole).
+  await closeConsole(page);
   await showTabs(page);
   await expect(page.getByTestId("tab-fpl")).toHaveAttribute("aria-current", "page");
 });
 
-test("a route rests as its one line, and half way another tab keeps the panel's height and the route", async ({ page }) => {
+test("a route rests as the tabs over its figures, and half way another tab keeps the panel's height and the route", async ({ page }) => {
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   const panel = sideDrawer(page);
-  // At rest the route's one line, where to, how far and how long, as the
-  // panel of 2026-10-11 had it.
+  // At rest the tabs, the route's figures pinned under them, at the owner's
+  // ask ("If a route is entered, then let's pin the calculations at the
+  // bottom").
   await expect(panel).toHaveAttribute("data-capsule", "true");
-  const line = panel.getByTestId("route-line");
-  await expect(line).toContainText(/KDLH · \d+ nm/, { timeout: slow(30000) });
-  await expect(panel.getByTestId("tab-bar")).toBeHidden();
-  // A tap on it: half way, the tabs the sheet's first row.
-  await line.click();
-  await expect(panel).toHaveAttribute("data-panel", "half");
+  await expect(panel.getByTestId("tab-bar")).toBeVisible();
+  const figures = panel.getByTestId("flight-line");
+  await expect(figures).toContainText(/\d+ nm/, { timeout: slow(30000) });
+  expect((await figures.boundingBox())!.y).toBeGreaterThan((await panel.getByTestId("tab-bar").boundingBox())!.y);
+  await expect(panel.getByTestId("mini-profile")).toBeHidden();
+  await grabberTo(page, "half");
+  // Half way, the tabs still the sheet's first row.
   await expect(page.getByTestId("tab-fpl")).toHaveAttribute("aria-current", "page");
   // Measured at rest: caught on its way up, the bar was still at the pill's.
   await settled(panel);
@@ -87,12 +91,12 @@ test("a route rests as its one line, and half way another tab keeps the panel's 
   await expect(panel.getByTestId("flight-line")).toBeVisible();
 });
 
-test("FPL with no route rests as its route box, to type one in", async ({ page }) => {
+test("FPL with no route rests as the tabs alone, its route's box half way", async ({ page }) => {
   await page.goto("/app/plan");
   await settle(page);
-  // The pill: the route's box alone, to type one in; no figures.
+  // The pill: the tabs alone, no figures.
   await expect(sideDrawer(page)).toHaveAttribute("data-capsule", "true");
-  await expect(sideDrawer(page).getByTestId("route-type")).toBeVisible();
+  await expect(sideDrawer(page).getByTestId("tab-bar")).toBeVisible();
   await expect(sideDrawer(page).getByTestId("panel-foot")).toHaveCount(0);
   await openPanel(page);
   await expect(sideDrawer(page).getByTestId("route-type")).toBeVisible();
@@ -147,24 +151,19 @@ test("half way the side view is over the figures at the foot, and all the way up
   expect((await route.boundingBox())!.y).toBeGreaterThan((await legs.boundingBox())!.y);
 });
 
-test("a card opens half way, lowered to the pill it is its name and its close, which puts it away", async ({ page }) => {
+test("a card opens half way; on a phone, lowered to the pill it is its name and its close, which puts it away", async ({ page }) => {
   await page.goto("/app/plan?place=KDLH");
   await settle(page);
   const panel = sideDrawer(page);
   await expect(panel).toHaveAttribute("data-panel", "half");
   const name = panel.getByTestId("place-card").getByTestId("place-name");
   await expect(name).toBeVisible({ timeout: slow(15000) });
-  // Down to the pill: one row, the card's name, a tap on it half way again.
+  test.skip((page.viewportSize()?.width ?? 0) >= 768, "the tabs minimize to a card's name on a phone only");
+  // Down to the pill: the minimized tabs, the card's name, Back and the close.
   await grabberTo(page, "peek");
-  const line = panel.getByTestId("route-line");
-  await expect(line).toContainText("KDLH");
+  await expect(page.getByTestId("tab-title")).toContainText("KDLH");
   await expect(panel.getByTestId("place-frequencies")).toBeHidden();
-  await line.click();
-  await expect(panel).toHaveAttribute("data-panel", "half");
-  await expect(name).toBeVisible();
-  // Its close in the pill: the card put away, the tab's own pill.
-  await grabberTo(page, "peek");
-  await panel.getByTestId("card-line-close").click();
+  await page.getByTestId("tab-close").click();
   await expect(page).not.toHaveURL(/[?&]place=/);
   await expect(panel).toHaveAttribute("data-panel", "peek");
 });

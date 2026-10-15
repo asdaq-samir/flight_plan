@@ -99,11 +99,14 @@ export async function grabberTo(page: Page, state: "peek" | "half" | "full") {
     // Pressed again if it did not take: a layer opening in the panel (the
     // console's) takes the focus as it comes, and an arrow pressed just
     // then went to it (the iOS audit's iPad).
+    // Not pressed again once it has moved: a press that took long to land
+    // on a busy page, pressed twice, went on past the size asked for.
     await expect(async () => {
+      if (await size() !== now) return;
       await grabber.focus();
       await page.keyboard.press(RANK[state] > RANK[now] ? "ArrowUp" : "ArrowDown");
-      await expect.poll(size, { timeout: 1500 }).not.toBe(now);
-    }).toPass({ timeout: 10_000 });
+      await expect.poll(size, { timeout: 4000 }).not.toBe(now);
+    }).toPass({ timeout: 15_000 });
   }
   await expect(panel).toHaveAttribute("data-panel", state);
 }

@@ -193,7 +193,11 @@ export function MapShell({ course, onReady, children, onSelectPlace, held = fals
     const was = settledInsets.current;
     settledInsets.current = insets;
     if (!map || held) return;
-    const turned = insets.out !== was.out || insets.up !== was.up;
+    // Half way to all the way up and back, the map stays exactly where it
+    // is, at the owner's ask ("when going from half card to full card, map
+    // should not move or zoom"): only the pill to half and back moves it.
+    if (insets.up !== was.up && insets.out === was.out) return;
+    const turned = insets.out !== was.out;
     const settling = following.current && performance.now() < following.current.until ? following.current.what : null;
     if (!turned && !settling) return;
     let what = settling;

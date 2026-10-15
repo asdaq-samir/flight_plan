@@ -62,12 +62,6 @@ export const PanelSize = createContext<{
   card: boolean;
 } | null>(null);
 
-
-/** Where the route's tabs' bar ends, in pixels from the map panel's
- *  body's top, or null with no tabs in sight: the panel's half height,
- *  every panel's, is the route's head and that bar (MapPanel). */
-export const PanelHalfContext = createContext<((px: number | null) => void) | null>(null);
-
 /** Whether the console is out, the app's rather than a page's: the two
  *  pages are drawn anew as a developer's Pilot and Developer in its
  *  title (ConsoleHeader) change one for the other, and the console stays
@@ -123,12 +117,14 @@ export const GLASS_SHEET_FULL = "liquid-glass [--glass-fill:88%]";
  *  giving way under the finger, which Maps' never does. */
 export const GLASS_FILL = { capsule: 40, half: 62, full: 88 };
 
-/** iOS's sheet curve, the one vaul uses too: a sheet's height, and its
- *  way in from the screen's edges as it changes shape. */
-const SHEET_CURVE = "0.5s cubic-bezier(0.32, 0.72, 0, 1)";
+/** A sheet's height, and its way in from the screen's edges as it changes
+ *  shape: iOS's ease-out, at the owner's pick ("Do b"). The curve before
+ *  (vaul's, 0.32 0.72 0 1 over half a second) covered three quarters of a
+ *  move to all the way up in its first 170 ms, and read as a snap. */
+const SHEET_CURVE = "0.45s cubic-bezier(0, 0, 0.58, 1)";
 /** The map's own move to a route as the sheet settles (MapShell), in
  *  seconds: the sheet's time, so the two arrive together. */
-export const SHEET_SECONDS = 0.5;
+export const SHEET_SECONDS = 0.45;
 export const SHEET_RESHAPE = ["left", "right", "top", "bottom", "border-radius"].map(p => `${p} ${SHEET_CURVE}`).join(", ");
 // Its progress up (MapPanel's --sheet-progress, index.css's @property) eased
 // with the height, so what grows with it -- FPL's figures, the side view
