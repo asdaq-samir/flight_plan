@@ -142,6 +142,7 @@ export const sheetSettle = (seconds: number) => {
   return {
     height: ["height", "left", "right", "top", "bottom", "border-radius"].map(p => `${p} ${curve}`).join(", "),
     progress: `--sheet-progress ${curve}`,
+    curve,
   };
 };
 /** How far the sheet goes in SHEET_SECONDS: the pill to half on an iPhone
