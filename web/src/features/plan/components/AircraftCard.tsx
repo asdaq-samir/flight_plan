@@ -147,7 +147,8 @@ export default function AircraftCard({ onPick, onPickHex, strip }: {
   const from = fix ? { lat: fix.lat, lon: fix.lon } : null;
   const ownFt = fix?.altitudeFt ?? null;
   return (
-    <PanelCard testId="aircraft-card">
+    // The Aircraft tab's own page, not a card over it: there at once.
+    <PanelCard testId="aircraft-card" enter={false}>
       <div className="space-y-5 pt-1">
         {(searching || heard.length > 0) && (
           // Credited where ADS-B Exchange answered the search, as the

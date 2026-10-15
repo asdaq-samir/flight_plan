@@ -27,6 +27,11 @@ export function ConsolePages({ back, pages, children }: {
 }) {
   const [open, setOpen] = useState<string | null>(null);
   const [from, setFrom] = useState<string | null>(null);
+  // The tab's own page eases in only coming back to it from a page, as a
+  // pop: drawn as Setup opens, it faded in from nothing every time, its
+  // switches' icons blinking out and back at each tap on the tab, at the
+  // owner's notice ("It's flickering the icons").
+  const [popped, setPopped] = useState(false);
   const top = useRef<HTMLDivElement>(null);
   const title = useRef<HTMLHeadingElement>(null);
   // A page starts at its top, with its title the place a screen reader
@@ -50,7 +55,7 @@ export function ConsolePages({ back, pages, children }: {
           className="space-y-4 duration-200 animate-in fade-in slide-in-from-right-4 [&:has([data-slot=console-page])>[data-slot=page-head]]:hidden"
         >
           <div className="space-y-4" data-slot="page-head">
-            <Button type="button" variant="ghost" size="sm" className="-ml-2 gap-0.5 px-1.5" onClick={() => setOpen(null)}>
+            <Button type="button" variant="ghost" size="sm" className="-ml-2 gap-0.5 px-1.5" onClick={() => { setPopped(true); setOpen(null); }}>
               <ChevronLeft className="size-5" />
               {back}
             </Button>
@@ -59,7 +64,7 @@ export function ConsolePages({ back, pages, children }: {
           {page.content}
         </div>
       ) : (
-        <div className="duration-200 animate-in fade-in">
+        <div className={cn(popped && "duration-200 animate-in fade-in")}>
           <Pages.Provider value={{ open: p => { setFrom(p); setOpen(p); }, from }}>{children}</Pages.Provider>
         </div>
       )}

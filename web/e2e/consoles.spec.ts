@@ -128,7 +128,9 @@ test("the navigation bar's edge is a setting: the panel moves to it, the map's b
   await openConsole(page);
   const pilot = consoleSheet(page);
   await expect(pilot.getByTestId("setup-page").or(pilot.getByRole("tab", { name: "Guide" })).first()).toBeVisible();
-  await pilot.evaluate(el => Promise.all(el.getAnimations({ subtree: true }).map(a => a.finished)));
+  // An animation cancelled on the way (a transition replaced by the next)
+  // rejects its `finished`; it has stopped all the same.
+  await pilot.evaluate(el => Promise.all(el.getAnimations({ subtree: true }).map(a => a.finished.catch(() => undefined))));
   const box = (await (phone ? page.locator('[data-slot="map-panel"]') : pilot).boundingBox())!;
   // All the way up: the sheet to the screen's edge (MapPanel's "edge").
   if (phone) expect(Math.round(box.y)).toBeLessThanOrEqual(8);
