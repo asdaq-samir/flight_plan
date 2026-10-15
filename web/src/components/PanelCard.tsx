@@ -13,16 +13,7 @@ import { TEXT } from "../lib/text";
  * is, at the pilot's ask; no scroll bar, as iOS shows none, to move that
  * in from the side.
  */
-export function PanelCard({ testId, enter = true, children }: {
-  testId: string;
-  /** Comes in as a card, faded and up into its place (below). Not a tab's
-   *  own page (the Aircraft tab's), which is there at once as the tab is
-   *  picked, as Airport's is: it slid up faded at every tap on the tab, at
-   *  the owner's notice ("it seems to slide up. But I like it to just
-   *  appear still like airport tab does"). */
-  enter?: boolean;
-  children: ReactNode;
-}) {
+export function PanelCard({ testId, children }: { testId: string; children: ReactNode }) {
   // Opened from a marker on the chart with the keys (Enter on it), the
   // focus goes to the card's name, which a screen reader then reads, and
   // back to the marker as the card is put away -- where it stayed on the
@@ -45,14 +36,12 @@ export function PanelCard({ testId, enter = true, children }: {
   // where it was there at once, the last tab's contents swapped for it in
   // one frame (traced 2026-10-14). A third of a second on its own easing
   // read too fast and not smooth, the owner found on the phone. With
-  // Reduce Motion, the fade alone.
+  // Reduce Motion, the fade alone. A tab's own page is not one (TabPage):
+  // there at once, as the tab is picked.
   return (
     <div
       ref={card}
-      className={cn(
-        "relative min-h-0 flex-1 overflow-y-auto px-4 pt-[var(--corner-inset,0.75rem)] pb-[max(1rem,env(safe-area-inset-bottom))] [scrollbar-width:none] print:hidden",
-        enter && "duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] animate-in fade-in slide-in-from-bottom-6 motion-reduce:slide-in-from-bottom-0",
-      )}
+      className="relative min-h-0 flex-1 overflow-y-auto px-4 pt-[var(--corner-inset,0.75rem)] pb-[max(1rem,env(safe-area-inset-bottom))] [scrollbar-width:none] duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] animate-in fade-in slide-in-from-bottom-6 motion-reduce:slide-in-from-bottom-0 print:hidden"
       data-testid={testId}
     >
       {children}

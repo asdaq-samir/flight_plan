@@ -1,6 +1,8 @@
 import { Suspense, lazy, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { showError } from "../../lib/problems";
 import { useSearchParamsNow } from "../../lib/useSearchParamsNow";
+import { cn } from "cn";
+import { PagesShown } from "../../components/pagesShown";
 import DevGuard from "../../components/DevGuard";
 import MapPanel from "../../components/MapPanel";
 import { ConsoleInPanelContext, ConsoleSettingsContext, useConsoleOpen, MapInsetsContext, NO_INSETS, type MapInsets, type PanelState } from "../../components/mapChrome";
@@ -202,11 +204,20 @@ export default function MapPage({ mode }: { mode: Mode }) {
   // on Setup shows, the page under it only as the sheet comes up, and in
   // the same frame it held the pill back.
   const layerDrawn = useDeferredValue(consoleLayer, false);
+  // Kept once drawn, as a tab's page is, at the owner's pick ("make Setup
+  // an ordinary tab page"): put away, it is hidden rather than taken down,
+  // and the next tap on Setup shows it at once -- where it was drawn anew
+  // at each, a blank moment and then the page. Its own pages go back to
+  // its list as it is put away (ConsolePages' PagesShown).
+  const [setupDrawn, setSetupDrawn] = useState(false);
+  if (layerDrawn && !setupDrawn) setSetupDrawn(true);
   const consoleLayerOf = (pieces: WorkspacePieces) => (
     <ConsoleInPanelContext.Provider value={consoleInPanel}>
-      <ConsoleLayer label={consoleLabel} detent={panel === "full" ? "large" : "medium"} edge={edge} onClose={closeConsole}>
+      <ConsoleLayer label={consoleLabel} detent={panel === "full" ? "large" : "medium"} edge={edge} onClose={closeConsole} shown={consoleLayer}>
         <ConsoleSettingsContext.Provider value={<SettingsPanel />}>
-          <AfterTheSheet>{pieces.console}</AfterTheSheet>
+          <PagesShown.Provider value={consoleLayer}>
+            <AfterTheSheet>{pieces.console}</AfterTheSheet>
+          </PagesShown.Provider>
         </ConsoleSettingsContext.Provider>
       </ConsoleLayer>
     </ConsoleInPanelContext.Provider>
@@ -305,7 +316,7 @@ export default function MapPage({ mode }: { mode: Mode }) {
             cardOver={!!pieces.cardOver}
             top={topRow}
           >
-            {consoleLayer && layerDrawn && consoleLayerOf(pieces)}
+            {setupDrawn && consoleLayerOf(pieces)}
             {/* Under the console while it is out, kept as it is. */}
             <div className={consoleLayer ? "hidden" : "contents"}>{pieces.sidebar}</div>
           </MapPanel>
@@ -318,17 +329,21 @@ export default function MapPage({ mode }: { mode: Mode }) {
 }
 
 /**
- * The console as a layer of the map's panel (a phone's): named as the
- * console it is, the focus taken into it as it opens, as the sheet took
- * it, and Escape putting it away -- heard here, inside the panel, before
- * the panel hears it and lowers itself, and wherever the focus has gone
- * while it is open; not when a menu open in it took the key first.
+ * Setup's page in the map's panel, a tab's body as the others' are: named
+ * for the console it is (a region, no longer a dialog: the focus stays on
+ * the tab picked, as it does for the others), hidden while another tab is
+ * up, and Escape going back to the tab before it -- heard here, inside
+ * the panel, before the panel hears it and lowers itself, and wherever
+ * the focus has gone while it is up; not when a menu open in it took the
+ * key first.
  */
-function ConsoleLayer({ label, detent, edge, onClose, children }: {
+function ConsoleLayer({ label, detent, edge, onClose, shown, children }: {
   label: string;
   detent: "medium" | "large";
   edge: "top" | "bottom";
   onClose: () => void;
+  /** Setup the tab up: put away it is kept, hidden. */
+  shown: boolean;
   children: ReactNode;
 }) {
   const layer = useRef<HTMLElement>(null);
@@ -336,8 +351,7 @@ function ConsoleLayer({ label, detent, edge, onClose, children }: {
   useEffect(() => { close.current = onClose; });
   useEffect(() => {
     const node = layer.current;
-    if (!node) return;
-    node.focus({ preventScroll: true });
+    if (!node || !shown) return;
     const onKey = (event: globalThis.KeyboardEvent) => {
       if (event.key !== "Escape" || event.defaultPrevented) return;
       event.preventDefault();
@@ -354,12 +368,14 @@ function ConsoleLayer({ label, detent, edge, onClose, children }: {
       node.removeEventListener("keydown", onKey);
       document.removeEventListener("keydown", onKey);
     };
-  }, []);
+  }, [shown]);
   return (
     <section
-      ref={layer} role="dialog" aria-label={label} tabIndex={-1}
-      data-testid="console-sheet" data-detent={detent} data-edge={edge}
-      className="flex min-h-0 flex-1 flex-col outline-none print:hidden"
+      ref={layer} aria-label={label}
+      // Named for the suite only while it is up: put away it is there,
+      // hidden, for the next tap on Setup.
+      data-testid={shown ? "console-sheet" : undefined} data-detent={detent} data-edge={edge}
+      className={cn("min-h-0 flex-1 flex-col print:hidden", shown ? "flex" : "hidden")}
     >
       {children}
     </section>

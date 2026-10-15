@@ -4,6 +4,7 @@ import { cn } from "cn";
 import { TEXT } from "../lib/text";
 import { Button } from "./ui/button";
 import { ListRow } from "./GroupedList";
+import { PagesShown } from "./pagesShown";
 
 /** The way to open one of a tab's pages, and the page back came from. */
 const Pages = createContext<{ open: (page: string) => void; from: string | null } | null>(null);
@@ -42,6 +43,16 @@ export function ConsolePages({ back, pages, children }: {
     top.current?.closest(".overflow-y-auto")?.scrollTo({ top: 0 });
     title.current?.focus({ preventScroll: true });
   }, [open]);
+  // Back to the list as the tab holding it is put away (PagesShown).
+  const shown = useContext(PagesShown);
+  const [wasShown, setWasShown] = useState(shown);
+  if (shown !== wasShown) {
+    setWasShown(shown);
+    if (!shown) {
+      setOpen(null);
+      setPopped(false);
+    }
+  }
   const page = open ? pages[open] : undefined;
   return (
     <div ref={top}>

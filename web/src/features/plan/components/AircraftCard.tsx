@@ -2,14 +2,14 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plane, Plus } from "lucide-react";
 import { cn } from "cn";
-import { PanelCard } from "../../../components/PanelCard";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
 import { api } from "../../../lib/api/client";
 import type { AircraftRegistration, TrafficAircraft } from "../../../lib/api/types";
 import { useOwnShip } from "../../../lib/map/ownShip";
 import { usePreferences, type KeptAircraft } from "../../../lib/preferences";
 import { useTabSearch } from "../../../lib/tabSearch";
-import { HomePlane, PillStrip, SmallMark, SmallTile } from "../../../components/Favorites";
+import { HomePlane, PillSection, PillStrip, SmallMark, SmallTile } from "../../../components/Favorites";
+import TabPage from "../../../components/TabPage";
 import { ClearList, SwipeToDelete } from "../../../components/SwipeToDelete";
 import AircraftRow from "./AircraftRow";
 
@@ -147,13 +147,14 @@ export default function AircraftCard({ onPick, onPickHex, strip }: {
   const from = fix ? { lat: fix.lat, lon: fix.lon } : null;
   const ownFt = fix?.altitudeFt ?? null;
   return (
-    // The Aircraft tab's own page, not a card over it: there at once.
-    <PanelCard testId="aircraft-card" enter={false}>
-      <div className="space-y-5 pt-1">
-        {(searching || heard.length > 0) && (
-          // Credited where ADS-B Exchange answered the search, as the
-          // map credits whose traffic it draws (vfr.traffic find_credited).
-          <ListGroup title="Found" footer={answer?.length && found?.source === "ADS-B Exchange" ? "Found by ADS-B Exchange." : undefined}>
+    // The Aircraft tab's own page, as Airport's is (TabPage), its sections
+    // headed as Airport's are.
+    <TabPage testId="aircraft-card">
+      {(searching || heard.length > 0) && (
+        // Credited where ADS-B Exchange answered the search, as the
+        // map credits whose traffic it draws (vfr.traffic find_credited).
+        <PillSection title="Found" testId="aircraft-found-section">
+          <ListGroup footer={answer?.length && found?.source === "ADS-B Exchange" ? "Found by ADS-B Exchange." : undefined}>
             {listed.map(plane => (
               <AircraftRow key={plane.hex} plane={plane} from={from} ownFt={ownFt} onPick={() => pickPlane(plane)} testId="aircraft-found" />
             ))}
@@ -182,30 +183,32 @@ export default function AircraftCard({ onPick, onPickHex, strip }: {
               <ListRow title={<span className={cn("text-muted-foreground", TEXT.detail)}>Looking…</span>} />
             )}
           </ListGroup>
-        )}
-        {/* Asked for the pilot's own airplane: what to do. */}
-        {pickingMine && (
-          <p className={cn("px-1 text-foreground", TEXT.detail)} data-testid="aircraft-picking-mine">
-            Search for your airplane by its N-number, or tap it below, to keep it as your Plane.
-          </p>
-        )}
-        {pickingFavorite && (
-          <p className={cn("px-1 text-foreground", TEXT.detail)} data-testid="aircraft-picking-favorite">
-            Search for an airplane by its callsign or N-number to keep it in your Favorites.
-          </p>
-        )}
-        {/* The pill's own strip, where it was at the pill's size -- its
-            title the menu, the Favorites first -- so the top stays as it
-            was all the way up, at the owner's ask ("I want the favorites
-            filter to stay when it's full"). */}
-        {!searching && strip}
-        {!searching && recents.length > 0 && (
-          // Each taken off by a swipe to the left, or all of them by Clear,
-          // as the airports' Recents are.
-          <ListGroup
-            title="Recents"
-            action={<ClearList title="Clear the Recents?" description="The airplanes opened last are forgotten in this browser. Favorites stay." onClear={clearRecents} testId="aircraft-recents-clear" />}
-          >
+        </PillSection>
+      )}
+      {/* Asked for the pilot's own airplane: what to do. */}
+      {pickingMine && (
+        <p className={cn("px-1 text-foreground", TEXT.detail)} data-testid="aircraft-picking-mine">
+          Search for your airplane by its N-number, or tap it below, to keep it as your Plane.
+        </p>
+      )}
+      {pickingFavorite && (
+        <p className={cn("px-1 text-foreground", TEXT.detail)} data-testid="aircraft-picking-favorite">
+          Search for an airplane by its callsign or N-number to keep it in your Favorites.
+        </p>
+      )}
+      {/* The pill's own strip, where it was at the pill's size -- its
+          title the menu, the Favorites first -- so the top stays as it
+          was all the way up, at the owner's ask ("I want the favorites
+          filter to stay when it's full"). */}
+      {!searching && strip}
+      {!searching && recents.length > 0 && (
+        // Each taken off by a swipe to the left, or all of them by Clear,
+        // as the airports' Recents are.
+        <PillSection
+          title="Recents" testId="aircraft-recents"
+          right={<ClearList title="Clear the Recents?" description="The airplanes opened last are forgotten in this browser. Favorites stay." onClear={clearRecents} testId="aircraft-recents-clear" />}
+        >
+          <ListGroup>
             {recents.map(a => (
               <SwipeToDelete key={a.hex} label={`Remove ${a.name} from Recents`} onDelete={() => removeRecent(a.hex)}>
                 <ListRow
@@ -216,9 +219,9 @@ export default function AircraftCard({ onPick, onPickHex, strip }: {
               </SwipeToDelete>
             ))}
           </ListGroup>
-        )}
-      </div>
-    </PanelCard>
+        </PillSection>
+      )}
+    </TabPage>
   );
 }
 

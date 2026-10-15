@@ -8,6 +8,7 @@ import { pilotQuery } from "../../lib/queryClient";
 import { TEXT } from "../../lib/text";
 import { AccountMenu } from "./AccountMenu";
 import SignInModal from "./SignInModal";
+import { TAB_PAGE_GAP } from "../../components/TabPage";
 
 /**
  * Setup's pill: the quick switches in two rows under their title,
@@ -28,7 +29,8 @@ export default function SetupPill({ testId = "setup-pill", rows }: {
 } = {}) {
   const { data: pilot } = useQuery(pilotQuery);
   return (
-    <div className="flex flex-col gap-4" data-testid={testId}>
+    // Its sections as far apart as the page's others (TabPage).
+    <div className={cn("flex flex-col", TAB_PAGE_GAP)} data-testid={testId}>
       <PillSection title="Controls" testId={`${testId}-controls`}>
         <QuickControls />
       </PillSection>

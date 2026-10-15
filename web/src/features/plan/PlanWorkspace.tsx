@@ -40,6 +40,7 @@ import { runwayNumber } from "../../lib/pattern";
 import NearestCard, { NearestStrip } from "./components/NearestCard";
 import AircraftCard from "./components/AircraftCard";
 import AircraftPill from "./components/AircraftPill";
+import TabPage from "../../components/TabPage";
 import { useAirportStripShows } from "./hooks/useAirportStripShows";
 import AirportPill from "./components/AirportPill";
 import SavedStrip from "./components/SavedStrip";
@@ -1378,36 +1379,36 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           <NearestCard onOpen={selectPlace} from={nearFrom} onFrom={setNearFrom} />
         ) : tab === "airport" ? (
           favoritesOpen ? (
-            <div className="min-h-0 flex-1 overflow-y-auto px-4 pt-2 pb-4">
+            <TabPage testId="favorites-page">
               <FavoritesList
                 home={home} favorites={favorites}
                 onBack={() => setFavoritesOpen(false)} onOpen={airport => selectPlace(airport.ident)}
                 onChangeHome={() => askFor("home")} onRemoveHome={() => setHomeAirport(null)}
                 onRemove={toggleFavoriteAirport} onMove={moveFavoriteAirport} onAdd={() => askFor("favorite")}
               />
-            </div>
+            </TabPage>
           ) : (
-            <div className="min-h-0 flex-1 overflow-y-auto px-4 pt-2 pb-4">
+            <TabPage testId="airport-page">
               <SearchResults
                 query={query} onPick={airport => void pickPlace(airport)}
                 // The pill's strip where it was, the Recents under it.
-                places={picking === "place" && (panel !== "peek" || dragging) && <div className="pb-2">{airportStrip}</div>}
+                places={picking === "place" && (panel !== "peek" || dragging) && airportStrip}
               />
-            </div>
+            </TabPage>
           )
         ) : null}
         {/* And while a finger takes it up: the pill's own are out of
             sight then (the owner's notice, "Fpl hides Saved while dragging
             up"). */}
         {tab === "fpl" && !savedOpen && !hasPoints && !place && !heldPoint && (panel !== "peek" || dragging) && (
-          <div className="px-4 pt-2 pb-4">
+          <TabPage scroll={false}>
             <SavedStrip onMore={openSaved} />
-          </div>
+          </TabPage>
         )}
         {tab === "fpl" && savedOpen && !place && !heldPoint && (
-          <div className="min-h-0 flex-1 overflow-y-auto px-4 pt-2 pb-4" data-testid="saved-flights">
+          <TabPage testId="saved-flights">
             <Suspense fallback={null}><SavedFlights /></Suspense>
-          </div>
+          </TabPage>
         )}
         {/* FPL's tabs once there is a route, at the pilot's ask: the empty
             box alone before. */}
