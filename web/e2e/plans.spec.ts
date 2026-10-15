@@ -27,7 +27,7 @@ test("plan page: the nav log's altitude opens the planner's own reasoning, and t
   await expect(why).not.toHaveAccessibleName(/·/);
   await why.click();
   // A popover beside the altitude, or on a phone a sheet from the bottom.
-  const popover = page.locator("[data-slot=popover-content], [data-slot=drawer-content]");
+  const popover = page.locator("[data-slot=popover-content], [data-slot=sheet-content]");
   await expect(popover).toBeVisible();
   await expect(popover).toContainText("Floor");
   await expect(popover).toContainText("Ceiling");

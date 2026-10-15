@@ -24,7 +24,7 @@ test("under IFR the altitude is chosen from the minimum IFR altitude by directio
   const why = page.getByTestId("altitude-why");
   await expect(why).toHaveAccessibleName(/FL\d{3}/, { timeout: slow(60000) });
   await why.click();
-  const popover = page.locator("[data-slot=popover-content], [data-slot=drawer-content]");
+  const popover = page.locator("[data-slot=popover-content], [data-slot=sheet-content]");
   const rules = popover.getByTestId("flight-rules");
   await expect(rules.getByRole("radio", { name: "VFR" })).toHaveAttribute("aria-checked", "true");
   await expect(popover).toContainText("14 CFR 91.159");
@@ -85,7 +85,7 @@ test("under IFR an airway in the route is flown fix by fix, its published MEA th
   const why = page.getByTestId("altitude-why");
   await expect(why).toHaveAccessibleName(/under IFR, FL\d[02468]0/, { timeout: slow(90000) });
   await why.click();
-  const popover = page.locator("[data-slot=popover-content], [data-slot=drawer-content]");
+  const popover = page.locator("[data-slot=popover-content], [data-slot=sheet-content]");
   await popover.getByRole("button", { name: /Minimum IFR altitude/ }).click();
   await expect(popover).toContainText(/Along V191 from BAE the published MEA, [\d,]+ ft/);
   await page.keyboard.press("Escape");

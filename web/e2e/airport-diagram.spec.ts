@@ -72,9 +72,9 @@ test("the card's sketch of the runways sits between the name and the star and we
   await withChartPages(page);
   await page.goto("/app/plan?place=KDLH");
   await settle(page);
-  // At the pill's size, as every card opens: the sketch beside the name
-  // (the owner's pick of the redesign, 1b).
-  await expect(sideDrawer(page)).toHaveAttribute("data-panel", "peek");
+  // Half way, as every card opens, as Maps opens a place: the sketch
+  // beside the name (the owner's pick of the redesign, 1b).
+  await expect(sideDrawer(page)).toHaveAttribute("data-panel", "half");
   const sketch = card(page).getByTestId("place-runway-sketch");
   // KDLH's runways, named for a screen reader.
   await expect(sketch).toHaveAttribute("aria-label", /^KDLH runways .*09\/27.*, north up\./, { timeout: slow(15000) });
@@ -109,11 +109,11 @@ test("the card's sketch of the runways sits between the name and the star and we
     expect(box.y + box.height).toBeLessThanOrEqual(call.y);
     return [Math.round(box.y - named.y), Math.round(call.y - named.y)];
   };
-  const pill = await layout();
+  const half = await layout();
   // All the way up, the same head where it was, the owner's "the top half
   // stay the same as half card".
   await grabberTo(page, "full");
-  await expect.poll(() => layout(false)).toEqual(pill);
+  await expect.poll(() => layout(false)).toEqual(half);
 
   await sketch.click();
   await expect(page.getByTestId("airport-diagram-viewer").getByRole("heading", { name: "KDLH airport diagram" })).toBeVisible();
@@ -271,9 +271,10 @@ test("a tap on the card's sketch of a field the FAA draws no diagram for shows t
   const viewer = page.getByTestId("airport-sketch-viewer");
   await expect(viewer.getByRole("heading", { name: "C81 runways" })).toBeVisible();
   await expect(viewer.getByTestId("runway-sketch").locator("line").first()).toBeVisible();
-  // Not the Runways tab, which the tap used to open: the card still at
-  // the pill's size, no pages up.
-  await expect(card(page).getByTestId("place-tab-runways")).toHaveCount(0);
+  // Not the Runways tab, which the tap used to open: the card still half
+  // way, on its first tab.
+  await expect(sideDrawer(page)).toHaveAttribute("data-panel", "half");
+  await expect(card(page).getByTestId("place-tab-runways")).not.toHaveAttribute("data-state", "active");
   await viewer.getByTestId("airport-sketch-close").click();
   await expect(viewer).toHaveCount(0);
 });

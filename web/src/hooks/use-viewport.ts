@@ -3,7 +3,7 @@ import { useSyncExternalStore } from "react";
 /**
  * The window's height and its safe-area insets, as numbers for the
  * components that need them in JavaScript -- the map panel's sheet,
- * whose detents vaul takes in pixels -- where everything else reads
+ * whose detents are pixels -- where everything else reads
  * them in CSS (`env(safe-area-inset-*)`, `dvh`).
  *
  * The insets come from a probe: an invisible element padded by

@@ -287,9 +287,8 @@ export async function expectDrawerOpen(page: Page) {
 }
 
 /** Lowering the panel is one shape everywhere: Escape, pressed in it.
- *  The sheet on a phone is vaul's, a Radix dialog, whose own Escape the
- *  page turns into lowering it; the card elsewhere lowers on an Escape
- *  pressed inside it. The pointer off the panel first, as a finger is:
+ *  The sheet on a phone, and the card elsewhere, lower on an Escape
+ *  pressed inside them. The pointer off the panel first, as a finger is:
  *  left on the toggle, a tooltip could take the Escape. And the panel at
  *  rest first: an Escape pressed while it was still moving left it out,
  *  now and then, on a loaded machine. */

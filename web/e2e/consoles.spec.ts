@@ -102,7 +102,7 @@ test("the navigation bar's edge is a setting: the panel moves to it, the map's b
   await openSettings(page);
   await page.getByTestId("nav-bar-select").getByRole("radio", { name: phone ? "Top" : "Bottom" }).click();
   await closeConsole(page);
-  await expect(page.locator("[data-slot=drawer-content], [data-slot=popover-content], [data-testid=console-sheet]")).toHaveCount(0);
+  await expect(page.locator("[data-slot=sheet-content], [data-slot=popover-content], [data-testid=console-sheet]")).toHaveCount(0);
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   // Once the panel has come to rest: it measures its head and eases to
