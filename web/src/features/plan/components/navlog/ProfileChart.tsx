@@ -4,7 +4,7 @@ import { ChartContainer, type ChartConfig } from "../../../../components/ui/char
 import ChartTick from "../../../../components/chartTick";
 import type { RouteProfile } from "../../../../lib/api/types";
 import { altFt } from "../../../../lib/units";
-import type { planProfile } from "./profile";
+import { ceilingOverFloor, ceilings, type planProfile } from "./profile";
 
 /** The sectional's airspace colours: Class B solid blue, C magenta, D
  *  blue dashed. */
@@ -36,7 +36,9 @@ export default memo(function ProfileChart({ profile, plan }: { profile: RoutePro
     ...profile.terrain.map(t => ({ x: t.along_nm, ground: t.ground_ft })),
     ...plan.points.map(p => ({ x: p.along_nm * scale, plan: p.plan_ft })),
   ].sort((a, b) => a.x - b.x);
-  const highest = Math.max(0, ...profile.terrain.map(t => t.ground_ft), ...plan.points.map(p => p.plan_ft));
+  // The airspace's ceilings over the plan's line, as the pill's side view
+  // has them (MiniProfile), at the owner's ask.
+  const highest = Math.max(0, ...profile.terrain.map(t => t.ground_ft), ...plan.points.map(p => p.plan_ft), ...ceilings(profile.airspace));
   const top = Math.ceil((highest + 1500) / 1000) * 1000;
   return (
     // Its labels on SVG's own leading; its axes' figures are ChartTick's,
@@ -68,7 +70,7 @@ export default memo(function ProfileChart({ profile, plan }: { profile: RoutePro
               key={i} x1={a.from_nm} x2={a.to_nm} y1={a.floor_ft} y2={Math.min(a.ceiling_ft ?? top, top)}
               stroke={look.stroke} strokeDasharray={look.dash} strokeOpacity={0.8} fill={look.stroke} fillOpacity={0.08}
               ifOverflow="hidden"
-              label={widest ? { value: label, position: "insideTop", fontSize: 11, fontWeight: 600, fill: look.text } : undefined}
+              label={widest ? { value: `${label} ${ceilingOverFloor(a)}`.trim(), position: "insideTop", fontSize: 11, fontWeight: 600, fill: look.text } : undefined}
             />
           );
         })}

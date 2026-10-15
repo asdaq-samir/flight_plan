@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Airport, Leg } from "../../../../lib/api/types";
-import { planProfile } from "./profile";
+import { planProfile, ceilingOverFloor, ceilings } from "./profile";
 import { navLogRows } from "./rows";
 
 const airport = (ident: string, elevation: number): Airport =>
@@ -21,5 +21,20 @@ describe("the plan from the side", () => {
     ]);
     expect(marks.map(m => m.kind)).toEqual(["TOC", "TOD"]);
     expect(length_nm).toBe(60);
+  });
+});
+
+describe("the airspace's ceilings on the side views", () => {
+  it("prints ceiling over floor in hundreds of feet MSL, the surface SFC, as the sectional does", () => {
+    // Chicago's Class B: 10,000 over the surface at O'Hare, and a shelf 10,000 over 3,000.
+    expect(ceilingOverFloor({ floor_ft: 0, ceiling_ft: 10000 })).toBe("100/SFC");
+    expect(ceilingOverFloor({ floor_ft: 3000, ceiling_ft: 10000 })).toBe("100/30");
+    expect(ceilingOverFloor({ floor_ft: 0, ceiling_ft: null })).toBe("");
+  });
+  it("raises the chart to the ceilings of the B, C and D it draws, and no others", () => {
+    expect(ceilings([
+      { class: "B", ceiling_ft: 10000 }, { class: "C", ceiling_ft: 4800 }, { class: "D", ceiling_ft: 3200 },
+      { class: "E", ceiling_ft: 17999 }, { class: "D", ceiling_ft: null },
+    ])).toEqual([10000, 4800, 3200]);
   });
 });

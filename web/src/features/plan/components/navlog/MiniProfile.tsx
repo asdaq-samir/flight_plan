@@ -1,4 +1,5 @@
 import { memo, useMemo } from "react";
+import { ceilingOverFloor, ceilings } from "./profile";
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "cn";
 import { api } from "../../../../lib/api/client";
@@ -48,10 +49,13 @@ export default memo(function MiniProfile({ ends, selected, legs, onOpen }: {
   const cruise = Math.max(0, ...plan.points.map(p => p.plan_ft));
   if (!profile) return <div className="h-24 rounded-xl bg-background/60" aria-hidden="true" />;
   const scale = plan.length_nm > 0 ? profile.length_nm / plan.length_nm : 1;
-  const highest = Math.max(0, ...profile.terrain.map(t => t.ground_ft), cruise);
-  // Just over the highest of the ground and the plan, to the next 500 ft:
-  // a thousand and a half over it left the top third of the chart empty,
-  // at the owner's notice ("y axis has extra white space").
+  // The airspace's ceilings over the plan's line, at the owner's ask
+  // ("Profile view should show the airspace ceilings above the altitude
+  // trace"): a Class B's shelf at 10,000 was cut at the chart's top.
+  const highest = Math.max(0, ...profile.terrain.map(t => t.ground_ft), cruise, ...ceilings(profile.airspace));
+  // Just over the highest of the ground, the plan and the ceilings, to the
+  // next 500 ft: a thousand and a half over it left the top third of the
+  // chart empty, at the owner's notice ("y axis has extra white space").
   const top = Math.ceil((highest + 300) / 500) * 500;
   const x = (nm: number) => (profile.length_nm > 0 ? (nm / profile.length_nm) * W : 0);
   const y = (ft: number) => H - (Math.max(0, Math.min(ft, top)) / top) * H;
@@ -106,7 +110,7 @@ export default memo(function MiniProfile({ ends, selected, legs, onOpen }: {
           style={{ left: `${(x((a.from_nm + a.to_nm) / 2) / W) * 100}%`, top: `calc(${(y(Math.min(a.ceiling_ft ?? top, top)) / H) * 100}% + 2px)`, color: AIRSPACE[a.class]!.text }}
           aria-hidden="true" data-testid="mini-profile-airspace"
         >
-          {a.label}
+          {a.label} {ceilingOverFloor(a)}
         </span>
       ))}
       {/* No axis of heights: the cruise altitude named on its line, in the

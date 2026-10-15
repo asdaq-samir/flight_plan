@@ -77,3 +77,17 @@ export function planProfile(rows: NavLogRow[]): { points: ProfilePoint[]; marks:
   }
   return { points, marks, length_nm: along };
 }
+
+/** The ceilings of the airspace the side views draw (B, C and D), ft MSL. */
+export function ceilings(airspace: { class: string; ceiling_ft?: number | null }[]): number[] {
+  return airspace.filter(a => ["B", "C", "D"].includes(a.class) && a.ceiling_ft != null).map(a => a.ceiling_ft!);
+}
+
+/** An airspace's ceiling over its floor as the sectional prints them: in
+ *  hundreds of feet MSL, the surface SFC (FAA Aeronautical Chart User's
+ *  Guide, Airspace; vfr.airspace keeps an SFC floor as 0 MSL). */
+export function ceilingOverFloor(a: { floor_ft?: number | null; ceiling_ft?: number | null }): string {
+  if (a.ceiling_ft == null) return "";
+  const floor = !a.floor_ft ? "SFC" : String(Math.round(a.floor_ft / 100));
+  return `${Math.round(a.ceiling_ft / 100)}/${floor}`;
+}
