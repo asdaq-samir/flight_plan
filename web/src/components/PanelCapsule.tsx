@@ -6,6 +6,7 @@ import { useAirportSearch } from "../lib/useAirportSearch";
 import { usePreferences, type RecentAirport } from "../lib/preferences";
 import { ListGroup, ListRow } from "./GroupedList";
 import { ClearList, SwipeToDelete } from "./SwipeToDelete";
+import { PillSection } from "./Favorites";
 import ClearButton from "./ClearButton";
 import { PANEL_FIELD } from "./panelField";
 
@@ -99,46 +100,52 @@ export function SearchResults({ query, onPick, places }: {
   const recents = usePreferences(s => s.recentAirports);
   const remove = usePreferences(s => s.removeRecentAirport);
   const clear = usePreferences(s => s.clearRecentAirports);
+  // Each a section of the tab's page (TabPage), the Favorites' heading
+  // theirs: the Recents' was a list's small capitals under the strip's.
   if (!typed) {
     return (
-      <div className="space-y-6">
+      <>
         {places}
         {recents.length > 0 ? (
-      // Each taken off by a swipe to the left, or all of them by Clear, at
-      // the pilot's ask, as Maps' Recents are.
-      <ListGroup
-        title="Recents"
-        action={<ClearList title="Clear the Recents?" description="The airports opened last are forgotten in this browser. Favorites stay." onClear={clear} testId="recents-clear" />}
-      >
-        {recents.map(a => (
-          <SwipeToDelete key={a.ident} label={`Remove ${a.ident} from Recents`} onDelete={() => remove(a.ident)}>
-            <ListRow
-              media={<History className="size-5 text-muted-foreground" />}
-              title={<><span className="font-mono font-semibold">{a.ident}</span> · {a.name}</>}
-              description={a.municipality ?? undefined}
-              onClick={() => onPick(a)} data-testid="airport-recent"
-            />
-          </SwipeToDelete>
-        ))}
-      </ListGroup>
+          // Each taken off by a swipe to the left, or all of them by Clear,
+          // at the pilot's ask, as Maps' Recents are.
+          <PillSection
+            title="Recents" testId="airport-recents"
+            right={<ClearList title="Clear the Recents?" description="The airports opened last are forgotten in this browser. Favorites stay." onClear={clear} testId="recents-clear" />}
+          >
+            <ListGroup>
+              {recents.map(a => (
+                <SwipeToDelete key={a.ident} label={`Remove ${a.ident} from Recents`} onDelete={() => remove(a.ident)}>
+                  <ListRow
+                    media={<History className="size-5 text-muted-foreground" />}
+                    title={<><span className="font-mono font-semibold">{a.ident}</span> · {a.name}</>}
+                    description={a.municipality ?? undefined}
+                    onClick={() => onPick(a)} data-testid="airport-recent"
+                  />
+                </SwipeToDelete>
+              ))}
+            </ListGroup>
+          </PillSection>
         ) : (
           <p className={cn("px-1 text-muted-foreground", TEXT.note)}>Search by an airport's ident, its name or its town.</p>
         )}
-      </div>
+      </>
     );
   }
   return (
-    <ListGroup title="Airports" className={cn(!answered && "opacity-60")}>
-      {rows.length === 0 && answered && <ListRow title={<span className="text-muted-foreground">No airport matches; Enter keeps what you typed.</span>} />}
-      {rows.map(a => (
-        <ListRow
-          key={a.ident} media={<Search className="size-5 text-muted-foreground" />}
-          title={<><span className="font-mono font-semibold">{a.ident}</span> · {a.name}</>}
-          description={a.municipality ?? undefined}
-          onClick={() => onPick({ ident: a.ident, name: a.name, municipality: a.municipality })}
-          data-testid="search-result"
-        />
-      ))}
-    </ListGroup>
+    <PillSection title="Airports" testId="airport-results">
+      <ListGroup className={cn(!answered && "opacity-60")}>
+        {rows.length === 0 && answered && <ListRow title={<span className="text-muted-foreground">No airport matches; Enter keeps what you typed.</span>} />}
+        {rows.map(a => (
+          <ListRow
+            key={a.ident} media={<Search className="size-5 text-muted-foreground" />}
+            title={<><span className="font-mono font-semibold">{a.ident}</span> · {a.name}</>}
+            description={a.municipality ?? undefined}
+            onClick={() => onPick({ ident: a.ident, name: a.name, municipality: a.municipality })}
+            data-testid="search-result"
+          />
+        ))}
+      </ListGroup>
+    </PillSection>
   );
 }

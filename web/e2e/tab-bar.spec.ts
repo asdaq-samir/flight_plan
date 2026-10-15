@@ -313,3 +313,29 @@ test("with a mouse's wheel, down over the panel brings it up a size, up takes it
   await flick(-40, 0);
   await expect(page.getByTestId("tab-fpl")).toHaveAttribute("aria-current", "page");
 });
+
+test("a tab's own page is there at once as its tab is picked, as Airport's is: Aircraft's and Setup's neither fade nor slide in", async ({ page }) => {
+  await page.goto("/app/plan");
+  await settle(page);
+  await grabberTo(page, "half");
+  // The entrances running on what was tapped to, or on what holds it
+  // within the panel: a card's fade and rise (PanelCard), a page's fade
+  // (ConsolePages). Asked as soon as it shows, inside the half second
+  // either took.
+  const entering = (testId: string) => sideDrawer(page).getByTestId(testId).first().evaluate(el => {
+    const all = el.getAnimations({ subtree: true });
+    for (let up = el.parentElement; up && !up.matches('[data-slot="map-panel"]'); up = up.parentElement) all.push(...up.getAnimations());
+    return all.filter(a => a instanceof CSSAnimation && a.playState === "running").map(a => a.animationName);
+  });
+  for (let round = 0; round < 2; round++) {
+    await page.getByTestId("tab-airport").click();
+    await expect(sideDrawer(page).getByTestId("search-airports")).toBeVisible();
+    await page.getByTestId("tab-aircraft").click();
+    await expect(sideDrawer(page).getByTestId("aircraft-card")).toBeAttached();
+    expect(await entering("aircraft-card")).toEqual([]);
+    await page.getByTestId("setup-button").click();
+    await expect(sideDrawer(page).getByTestId("quick-controls").first()).toBeVisible();
+    expect(await entering("quick-controls")).toEqual([]);
+    await closeConsole(page);
+  }
+});

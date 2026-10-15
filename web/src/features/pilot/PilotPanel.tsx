@@ -5,7 +5,7 @@ import { cn } from "cn";
 import { useContext, type ReactNode } from "react";
 import { Activity, CircleHelp, Info, Settings } from "lucide-react";
 import AboutPanel from "../../components/AboutPanel";
-import { ConsoleInPanelContext, ConsoleSettingsContext } from "../../components/mapChrome";
+import { ConsoleSettingsContext } from "../../components/mapChrome";
 import { ConsolePages, PageRow } from "../../components/ConsolePages";
 import EmptyState from "../../components/EmptyState";
 import { PillSection } from "../../components/Favorites";
@@ -23,6 +23,7 @@ import SubscriptionPanel from "./SubscriptionPanel";
 import { standing, subscriptionQuery, useSold } from "../../lib/subscription";
 import PilotGuide from "./PilotGuide";
 import SetupPill from "./SetupPill";
+import TabPage, { TAB_PAGE_GAP } from "../../components/TabPage";
 
 /** Who is signed in, or why nobody is: null signed out, "loading"
  *  while the check is in flight, "error" when it failed. */
@@ -97,14 +98,14 @@ function Personal({ pilot, dev }: {
     subscription: { title: "Subscription", content: <SubscriptionPanel /> },
   };
   return (
-    <div className="pt-[3px]">
+    <>
       {/* Keyed on being signed out so a page open when the pilot signs out,
           or the session ends, goes back to the list: its panel would fetch
           signed out and show 401s with no word of why. "loading" is left
           out of the key, so the session check finishing does not throw
           away Minimums, which needs no sign-in, or an edit in it. */}
       <ConsolePages key={pilot === null || pilot === "error" ? "out" : "in"} back="Account" pages={pages}>
-        <div className="space-y-4">
+        <div className={cn("flex flex-col", TAB_PAGE_GAP)}>
           {/* Setup's page starts as its half card does -- Controls, the
               switches -- so a drag up only adds what is under them, at the
               owner's ask ("make the dragging up consistent in fpl and
@@ -133,7 +134,7 @@ function Personal({ pilot, dev }: {
           </>
         </div>
       </ConsolePages>
-    </div>
+    </>
   );
 }
 
@@ -168,17 +169,12 @@ export function PilotPanel({ dev }: {
   const pilotState: PilotState = isLoading ? "loading" : (pilot ?? (isError ? "error" : null));
   // One page, no tabs over it, at the owner's pick of the redesign (S3d
   // all the way up): the account and its rows, the switches, then the
-  // settings, the guide and about, each a row that opens its page. Four
-  // in from the top in the map panel's layer, where the other tabs' first
-  // row is (ConsoleTabs had it so).
-  const inPanel = useContext(ConsoleInPanelContext) !== null;
+  // settings, the guide and about, each a row that opens its page. A tab's
+  // page as the others' are (TabPage), with no head: its first section
+  // where their search bars start.
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto" data-testid="setup-page">
-      {/* In the panel its first row where the other tabs' search bars
-          are, the tabs' head laid out as the pill's at every height. */}
-      <div className={cn("mx-auto max-w-3xl p-4", inPanel && "pt-0")}>
-        <Personal pilot={pilotState} dev={dev} />
-      </div>
-    </div>
+    <TabPage testId="setup-page" headless>
+      <Personal pilot={pilotState} dev={dev} />
+    </TabPage>
   );
 }

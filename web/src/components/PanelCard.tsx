@@ -36,7 +36,8 @@ export function PanelCard({ testId, children }: { testId: string; children: Reac
   // where it was there at once, the last tab's contents swapped for it in
   // one frame (traced 2026-10-14). A third of a second on its own easing
   // read too fast and not smooth, the owner found on the phone. With
-  // Reduce Motion, the fade alone.
+  // Reduce Motion, the fade alone. A tab's own page is not one (TabPage):
+  // there at once, as the tab is picked.
   return (
     <div
       ref={card}
