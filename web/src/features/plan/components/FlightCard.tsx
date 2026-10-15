@@ -25,6 +25,7 @@ import { altFt, grouped } from "../../../lib/units";
 import { clockTime } from "../format";
 import PastFlights from "./PastFlights";
 import TrailSketch from "./TrailSketch";
+import { api } from "../../../lib/api/client";
 import { CardAction } from "./CardAction";
 import { CardTabBar, CardTabPanel } from "../../../components/CardTabs";
 import { useCardTab } from "../../../lib/cardTab";
@@ -79,6 +80,14 @@ function against(feet: number): string {
   if (rounded === 0) return "level";
   return `${altFt(Math.abs(rounded))} ft ${rounded > 0 ? "above" : "below"}`;
 }
+
+/** A field's place, for the trace's sketch, as an airport card asks for it
+ *  (the same query, so a card opened on it after has it already). */
+const sketchField = (ident: string | null) => ({
+  queryKey: ["airport", ident], queryFn: () => api.airport(ident!), enabled: !!ident, staleTime: 5 * 60_000,
+  meta: { silent: true },
+  select: (field: { ident: string; lat: number; lon: number }) => ({ ident: field.ident, lat: field.lat, lon: field.lon }),
+});
 
 /**
  * An airplane being tracked, as FlightAware's flight page and ForeFlight's
@@ -164,10 +173,20 @@ export default function FlightCard({ hex, onClose, onOpenPast, onExpand, onLower
     : plane ? { word: rate >= 300 ? "CLB" : rate <= -300 ? "DES" : "LVL", alarm: false } : null;
   // Where it has flown, in the diagram's place: its trace, its height and
   // speed over it.
-  const trail = useMemo(() => (detail?.trail ?? []).map(p => ({ lat: p.lat, lon: p.lon })), [detail?.trail]);
+  const trail = useMemo(() => (detail?.trail ?? []).map(p => ({ lat: p.lat, lon: p.lon, altFt: p.alt_ft ?? null })), [detail?.trail]);
+  // The fields it left and is bound for, on the sketch: where its trace
+  // says it took off, else its flight number's route's first; the route's
+  // last where the route is the one it is flying.
+  const fromIdent = detail?.departed?.ident ?? route?.airports[0]?.ident ?? null;
+  const toIdent = route && route.plausible !== false && route.airports.length > 1 ? route.airports[route.airports.length - 1]!.ident : null;
+  const { data: fromField } = useQuery(sketchField(fromIdent));
+  const { data: toField } = useQuery(sketchField(toIdent));
   const trailBox = (className: string) => (
     <div className={cn("relative min-h-0 overflow-hidden rounded-xl bg-background/70", className)} data-testid="flight-trail">
-      <TrailSketch points={trail} now={here} trackDeg={plane?.track_deg ?? null} />
+      <TrailSketch
+        points={trail} now={here && { ...here, altFt: plane?.altitude_ft ?? null }} trackDeg={plane?.track_deg ?? null}
+        from={fromField ?? null} to={toField ?? null}
+      />
       {plane && (
         <span className={cn("pointer-events-none absolute top-1 left-1.5 rounded-md bg-background/75 px-1 font-semibold text-foreground", TEXT.note)}>
           {plane.altitude_ft == null ? "—" : `${altFt(Math.round(plane.altitude_ft / 100) * 100)} ft`}
