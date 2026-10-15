@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { expandConsole, noTips, openConsole, showTabs } from "./helpers";
+import { consolePage, expandConsole, noTips, openConsole, showTabs } from "./helpers";
 
 /**
  * The speed trend (SpeedController): the Dev console's Speed page, under
@@ -28,8 +28,10 @@ test("the Speed page, under System, charts pilots' figures beside the lab's, by 
   await page.goto("/app/dev");
   await showTabs(page);
   await openConsole(page);
-  await consoleSheet(page).getByRole("tab", { name: "Status" }).click();
   await expandConsole(page);
+  // Status a row of Setup's page that opens its own, as Settings and Guide
+  // are (the Setup redesign: one page, no tabs over it).
+  await consolePage(consoleSheet(page), "Status");
   await consoleSheet(page).getByRole("button", { name: "Speed" }).click();
   await expect(consoleSheet(page).getByTestId("console-page").getByRole("heading", { name: "Speed" })).toBeVisible();
 

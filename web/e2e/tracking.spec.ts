@@ -373,6 +373,10 @@ test("an airplane's last flights found are listed, the ones before them on askin
   await expect(card).toContainText("On and before");
   await expect(card.getByTestId("past-flights-date")).not.toContainText("Pick a day");
   // Back to the latest: the list as it was, the earlier ones still with it.
+  // Once the picker has gone: tapped again while it was going, a desktop's
+  // popover took the tap that reopened it for one outside and shut again,
+  // in CI's run (Latest never showed).
+  await expect(picker).toHaveCount(0);
   await card.getByTestId("past-flights-date").click();
   await page.getByTestId("past-flights-latest").click();
   await expect(rows).toHaveCount(3);

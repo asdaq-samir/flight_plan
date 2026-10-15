@@ -62,8 +62,11 @@ test("preflight action is 14 CFR 91.103's list to tick, with what the planner fo
   await openTab(page, "Brief");
   await openSection(page, "Preflight Action");
   await expect(drawer.getByTestId("preflight-count")).toHaveText("0 of 7 reviewed");
-  await expect(drawer.getByTestId("preflight-runways")).toContainText(/C81 [\d,]+ ft · KDLH [\d,]+ ft/);
-  await expect(drawer.getByTestId("preflight-distances")).toContainText("91.103(b)");
+  // Each item's words are its row's, beside the box that carries its test
+  // id and its tick (ListRow's stock Checkbox).
+  const row = (item: string) => drawer.getByTestId(`preflight-${item}`).locator('xpath=ancestor::*[@data-slot="item"][1]');
+  await expect(row("runways")).toContainText(/C81 [\d,]+ ft · KDLH [\d,]+ ft/);
+  await expect(row("distances")).toContainText("91.103(b)");
   await drawer.getByTestId("preflight-weather").click();
   await drawer.getByTestId("preflight-fuel").click();
   await expect(drawer.getByTestId("preflight-fuel")).toHaveAttribute("aria-checked", "true");

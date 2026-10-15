@@ -30,6 +30,9 @@ test("an agent this deployment does not run reads not configured", async ({ page
     const response = await route.fetch();
     const json = await response.json();
     json.services.nav_log_agent = null;
+    // The other agent, not run in CI's stack either, as one that answers:
+    // what is asked is that one not configured is not counted as down.
+    json.services.crewai_agent = { up: true, detail: "HTTP 200" };
     await route.fulfill({ response, json });
   });
   await openSystemTab(page);
