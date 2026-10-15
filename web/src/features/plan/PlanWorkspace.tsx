@@ -1450,7 +1450,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       // taking what the figures leave, so they sit at the very bottom as
       // they do without one (the owner's "calculation are not pinned at
       // the bottom for dry run").
-      <div className={cn("w-full", dryRunning && "flex min-h-0 flex-1 flex-col")}>
+      <div className={cn("flex min-h-0 w-full flex-col", dryRunning && "flex-1")}>
         {/* The side view pinned over the figures in the pill, at the
             owner's ask ("pin the profile above calculations but transition
             to just below the legs"): it folds away as the sheet comes up
@@ -1462,11 +1462,14 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           <div
             // Out of sight all the way up, not only see-through: its words
             // read as words there (the audit's P15), behind nothing.
-            className={cn("overflow-hidden", panel === "full" && !dragging && "invisible")} inert={panel === "full" && !dragging} data-pill-hides=""
+            // Shrinking where the half sheet is short of its six rem, the
+            // chart drawn to what it has (its own h-24 the most), the figures
+            // under it kept whole.
+            className={cn("min-h-0 shrink overflow-hidden [&_[data-testid=mini-profile]]:h-full", panel === "full" && !dragging && "invisible")} inert={panel === "full" && !dragging} data-pill-hides=""
             // Its six rem and the eight points under it.
             style={{ height: "calc(6.5rem * (1 - var(--sheet-progress, 1)))", opacity: "calc(1 - var(--sheet-progress, 1))" }}
           >
-            <div className="relative">
+            <div className="relative h-full max-h-24">
               {miniProfile}
               {/* Its dry run, at its top right: the flight flown on paper. */}
               <RoundButton label="Dry run" onClick={startDryRun} className="absolute top-1.5 right-1.5" data-testid="dry-run-start">

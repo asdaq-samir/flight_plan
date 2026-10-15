@@ -65,11 +65,11 @@ interface Props {
 const CAPSULE_PAD = 9;
 /** The grabber's button: 16 tall, its pill five in from the panel's edge. */
 const GRABBER = 16;
-/** The half sheet's height, in rem, the same on every tab: tall enough
- *  for Setup's account row whole and FPL's route, its chips, side view
- *  and figures (measured at an iPhone 16 Pro's size and at the owner's
- *  larger text, 2026-10-14). */
-const HALF_REM = 24;
+/** The half sheet's height, in rem, the same on every tab: Setup's account
+ *  and its email whole and no more, at the owner's ask ("Make it this tall
+ *  only", their iPhone's Setup at half), measured at 16, 17.88 and 19.65 px
+ *  roots. FPL's route fits it by its side view giving way (PlanWorkspace). */
+const HALF_REM = 18.6;
 /** The root's font size, which the text size the reader has set moves:
  *  read once, as the page has it. Read at each of the panel's renders as
  *  the page opened, it made the browser work out the page's styles there
@@ -272,10 +272,12 @@ export default function MapPanel({ label, top, controls, compact, children, stat
   // what its glass and corners still change by between the two.
   const detents = useMemo<Record<"peek" | "half" | "full", number>>(() => {
     const full = Math.max(peek, room);
-    const half = Math.max(peek, Math.round(HALF_REM * rootPx()) + halfChrome);
     // Settling down to the pill, the pill's own height as it was last
     // measured, whatever the sheet's head measures on the way.
     const lowest = hasPill && !capsule ? Math.min(capsuleHeight, peek) : peek;
+    // Never taller than its rem, whatever a tab holds (the owner's "this
+    // tall only"): what does not fit gives way in it.
+    const half = Math.max(lowest, Math.round(HALF_REM * rootPx()) + halfChrome);
     return { peek: lowest, half: Math.min(half, full), full };
   }, [peek, room, halfChrome, hasPill, capsule, capsuleHeight]);
   // The body's height at half, for what it shows first to fill and no
@@ -653,7 +655,9 @@ export default function MapPanel({ label, top, controls, compact, children, stat
             // way up: the foot's own 16 too set it in by 32, at the owner's
             // notice ("half card is not aligned with the back and close
             // buttons").
-            "shrink-0 print:hidden", cardInPill ? "px-0" : "px-4",
+            // Giving way where the half is short of it, after the body: FPL's
+            // side view shrinks first (PlanWorkspace), its figures kept whole.
+            "flex min-h-0 shrink flex-col print:hidden", cardInPill ? "px-0" : "px-4",
             // In the pill under the tabs, the figures alone: what the foot
             // keeps for half way and up (FPL's side view, data-pill-hides)
             // put away.
