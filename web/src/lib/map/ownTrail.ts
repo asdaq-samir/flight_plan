@@ -34,7 +34,8 @@ export const useOwnTrail = create<{ path: PathPoint[] }>(() => ({ path: kept() }
 let saved = 0;
 useOwnShip.subscribe(s => {
   const fix = s.fix;
-  if (!s.enabled || !fix || !underway(fix)) return;
+  // A dry run's flying is not where the pilot has been.
+  if (!s.enabled || s.simulated || !fix || !underway(fix)) return;
   const path = useOwnTrail.getState().path;
   const last = path.at(-1);
   if (last && fix.at - last.t < STEP_MS && distanceNm(last, fix) < STEP_NM) return;

@@ -4,6 +4,7 @@ import { useMap } from "react-leaflet";
 import { altFt } from "../units";
 import { centreClear } from "./clear";
 import { TRAFFIC_COLOURS, trafficIcon } from "./icons";
+import { endSimulation, simulateFix } from "./ownShip";
 import { positionAt, stepPastFlight, usePastFlight } from "./pastFlight";
 
 /**
@@ -12,18 +13,35 @@ import { positionAt, stepPastFlight, usePastFlight } from "./pastFlight";
  * hand, not a render a frame -- the map following it where it would leave
  * what the panel leaves in sight. A past flight's (PastFlightPath) and the
  * planned flight's dry run (DryRunLayer).
+ *
+ * `asOwnShip`, the dry run's: no airplane of its own, but own ship flown
+ * along the route (simulateFix), a few times a second as a GPS reports,
+ * the map following it as it follows the pilot.
  */
-export function useReplayMarker() {
+/** How often the dry run reports a fix to own ship, ms: four a second, so
+ *  it moves smoothly at the faster speeds without drawing every frame. */
+const SIMULATED_FIX_MS = 250;
+
+export function useReplayMarker(asOwnShip = false) {
   const map = useMap();
   const marker = useRef<L.Marker | null>(null);
   useEffect(() => {
-    let frame = 0, last = performance.now();
+    let frame = 0, last = performance.now(), reported = -Infinity, reportedAt: number | null = null;
     const step = (now: number) => {
       frame = requestAnimationFrame(step);
       stepPastFlight(now - last);
       last = now;
       const { at, points: flown } = usePastFlight.getState();
       const here = at === null ? null : positionAt(flown, at);
+      if (asOwnShip) {
+        if (!here) endSimulation();
+        else if (at !== reportedAt && now - reported >= SIMULATED_FIX_MS) {
+          simulateFix(here);
+          reported = now;
+          reportedAt = at;
+        }
+        return;
+      }
       if (!here) {
         marker.current?.remove();
         marker.current = null;
@@ -48,7 +66,8 @@ export function useReplayMarker() {
       cancelAnimationFrame(frame);
       marker.current?.remove();
       marker.current = null;
+      if (asOwnShip) endSimulation();
     };
-  }, [map]);
+  }, [map, asOwnShip]);
 
 }
