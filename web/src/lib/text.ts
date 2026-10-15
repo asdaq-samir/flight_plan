@@ -60,3 +60,16 @@ export const TEXT_POINTS = { caption: 11, row: 17 } as const;
 export const TITLE_DOWN_TO_FOOTNOTE: [number, number][] = [
   [1.375, 1.75], [1.25, 1.5625], [1.0625, 1.375], [1, 1.3125], [0.9375, 1.25], [0.8125, 1.125],
 ];
+
+/** A figure pinned at the map panel's foot (FlightLine, FigureStrip), its
+ *  value, unit and name growing from the pill's size to their own as the
+ *  sheet comes up (MapPanel's --sheet-progress, 0 at the pill, 1 all the
+ *  way up), each with its iOS leading at either end (the audit's P3: 15
+ *  on 20 to 20 on 25, 11 on 13 to 13 on 18), eased between as the size
+ *  is. */
+const GROW_SMALL = "text-[length:calc(0.6875rem+0.0625rem*var(--sheet-progress,1))] leading-[calc(0.8125rem+0.1875rem*var(--sheet-progress,1))] pointer-coarse:text-[length:calc(0.6875rem+0.125rem*var(--sheet-progress,1))] pointer-coarse:leading-[calc(0.8125rem+0.3125rem*var(--sheet-progress,1))]";
+export const GROW_FIGURE = {
+  value: "text-[length:calc(0.75rem+0.375rem*var(--sheet-progress,1))] leading-[calc(1rem+0.75rem*var(--sheet-progress,1))] pointer-coarse:text-[length:calc(0.9375rem+0.3125rem*var(--sheet-progress,1))] pointer-coarse:leading-[calc(1.25rem+0.3125rem*var(--sheet-progress,1))]",
+  unit: GROW_SMALL,
+  name: GROW_SMALL,
+};

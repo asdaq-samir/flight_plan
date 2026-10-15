@@ -38,7 +38,7 @@ Always pull first: Sync merges `main` back into `maps-layout` and may have added
 ## 5. Follow CI
 - **One push at a time when it matters.** ci.yml cancels the running CI on the same branch when a new push arrives, and the cancelled run's path-filtered jobs (image builds, pdoc) never run again. If a push touched `src/`, a requirements file or a Dockerfile, wait for its run to finish before pushing again.
 - **In CI,** `gh` is installed and signed in, so use `gh run view`, `gh pr checks` and the rest.
-- **On the owner's Mac there's no `gh` CLI.** Use the public API with `curl`, once a minute: it allows 60 requests an hour unauthenticated. Don't use Python's `urllib`, because the host's Python has no CA bundle.
+- **On the owner's Mac there's no `gh` CLI.** Use the public API with `curl`, every three minutes at most (CI takes about two): it allows 60 requests an hour unauthenticated, and a poller that runs while you wait on something else is still polling. Don't use Python's `urllib`, because the host's Python has no CA bundle.
   ```sh
   curl -s "https://api.github.com/repos/asdaq-samir/flight_plan/actions/runs?head_sha=$(git rev-parse HEAD)"   # the run
   curl -s "https://api.github.com/repos/asdaq-samir/flight_plan/actions/runs/<run id>/jobs"                       # its jobs
@@ -46,6 +46,11 @@ Always pull first: Sync merges `main` back into `maps-layout` and may have added
   ```
 - **Read the annotations before guessing.** test-webapp turns each failing Java test into an annotation, and e2e posts one per failed test plus the planner's data and log. Job logs themselves need authentication.
 - **Rerunning a failed job** needs the GitHub login that git keeps in the keychain (`git credential fill`): `POST /actions/runs/<id>/rerun-failed-jobs`. The user has allowed this. Never print the token.
+- **Write to GitHub gently.** GitHub suspended the owner's account in October 2026, most likely for nine issues opened through the API in ten seconds. With the owner's login, through the API or `gh`:
+  - one write at a time, at least ten seconds apart, never in a loop or several calls in one command;
+  - at most five new issues or pull requests in a session: put a longer list in one issue as a checklist;
+  - no writes the task doesn't need (no label tidying, no re-runs to see if a flake repeats; read the annotations first);
+  - a 403 or 429 stops all writes for the session, and tell the owner.
 - **Pull requests opened by github-actions[bot]** leave their runs at "action_required". Approve them with `POST /actions/runs/<id>/approve`.
 - **The Claude review job** isn't part of the "CI passed" gate. When it fails for lack of API credit, that is the user's to top up, not a reason to hold the merge.
 

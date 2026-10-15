@@ -3,6 +3,7 @@ import { chipColourOf } from "./flightCategory";
 import { feet, miles } from "../units";
 import { MapCard } from "./MapCard";
 import { TEXT } from "../text";
+import { zuluTime } from "../clock";
 
 /**
  * What is known about a field's weather, which is not always a report:
@@ -63,7 +64,7 @@ function Observed({ at }: { at: string }) {
   if (Number.isNaN(observed.getTime())) return null;
   const minutes = Math.max(0, Math.round((now - observed.getTime()) / 60_000));
   const ago = minutes < 60 ? `${minutes} min ago` : `${Math.floor(minutes / 60)} h ${minutes % 60} min ago`;
-  const zulu = `${String(observed.getUTCHours()).padStart(2, "0")}${String(observed.getUTCMinutes()).padStart(2, "0")}Z`;
+  const zulu = zuluTime(observed);
   const old = minutes > OLD_REPORT_MIN;
   return (
     <p className={old ? "pt-1 font-semibold text-amber-700 dark:text-amber-300" : "pt-1 text-muted-foreground"}>

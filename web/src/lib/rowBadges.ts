@@ -23,10 +23,16 @@ export const SETTING_BADGE = {
   flights: BADGE.ground,
   logbook: BADGE.traffic,
   minimums: BADGE.hazard,
+  subscription: "#be185d",
   theme: BADGE.approach,
   layout: BADGE.weather,
   route: BADGE.ground,
   narrative: "#7e3fb8",
+  position: "#2563eb",
   tips: BADGE.lights,
   about: BADGE.other,
+  // Setup's own rows (PilotPanel): the settings grey as iPhone's General,
+  // the guide the tint's blue.
+  general: "#8e8e93",
+  guide: BADGE.tower,
 } as const;

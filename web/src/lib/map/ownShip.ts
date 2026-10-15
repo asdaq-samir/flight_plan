@@ -17,6 +17,13 @@ import { inNativeApp, watchNativePosition, type NativePosition } from "../native
  * and the arrow says so when tapped rather than doing nothing (see
  * HttpsConnectorConfig for the port that fixes that).
  */
+/** A fix this far out, or more, is the phone's approximate position, not a
+ *  GPS's: a GPS fix reports tens of metres, and iOS and Android with
+ *  Precise Location off give a position good to a mile or more. The
+ *  chart, the glide ring, Direct-To and what is ahead all start from it,
+ *  so the pilot is told (MyPositionButton). */
+export const APPROXIMATE_M = 1000;
+
 export interface Fix {
   lat: number;
   lon: number;
@@ -31,6 +38,10 @@ export interface Fix {
 
 interface OwnShip {
   enabled: boolean;
+  /** Flown by the planned flight's dry run, not the GPS (simulateFix):
+   *  everything that follows own ship -- the map, the glide ring, what is
+   *  ahead -- follows it as it would a pilot flying the route. */
+  simulated: boolean;
   follow: boolean;
   fix: Fix | null;
   error: string | null;
@@ -82,6 +93,9 @@ export function useOwnShipNear(): { lat: number; lon: number } | null {
   }, [at]);
 }
 
+/** Own ship as it was before a dry run took it over, to give back
+ *  (simulateFix); above the store, which reads it as it saves. */
+let beforeSimulation: { enabled: boolean; follow: boolean } | null = null;
 let watchId: number | null = null;
 // In the iOS app, the plugin's own watch (lib/native), stopped by this.
 let stopNative: (() => void) | null = null;
@@ -128,6 +142,8 @@ function startNativeWatching(set: (patch: Partial<OwnShip>) => void) {
 
 /** A fix, the browser's or the app's (the same shape), into own ship. */
 function applyFix(set: (patch: Partial<OwnShip>) => void, position: GeolocationPosition | NativePosition) {
+  // A dry run is flying own ship: the GPS waits until it ends.
+  if (useOwnShip.getState().simulated) return;
   quiet = false;
   const { latitude, longitude, accuracy, heading, speed, altitude } = position.coords;
   set({
@@ -159,6 +175,7 @@ export const useOwnShip = create<OwnShip>()(
   persist(
     set => ({
       enabled: false,
+      simulated: false,
       follow: true,
       fix: null,
       error: null,
@@ -182,7 +199,12 @@ export const useOwnShip = create<OwnShip>()(
     }),
     {
       name: "vfr.ownship",
-      partialize: s => ({ enabled: s.enabled, follow: s.follow, lastFix: s.lastFix }),
+      // A dry run's own ship is not kept: what the pilot had before it is.
+      partialize: s => ({
+        enabled: s.simulated ? (beforeSimulation?.enabled ?? false) : s.enabled,
+        follow: s.simulated ? (beforeSimulation?.follow ?? true) : s.follow,
+        lastFix: s.lastFix,
+      }),
       // Remembered on: watching starts with the page, so the position
       // is there when the map is, and the browser's own permission
       // prompt (if it still has one to show) comes up at once rather
@@ -196,6 +218,45 @@ export const useOwnShip = create<OwnShip>()(
     },
   ),
 );
+
+/** A point of the planned flight's dry run (lib/map/pastFlight's). */
+export interface SimulatedPoint { t: number; lat: number; lon: number; alt_ft?: number | null; gs_kt?: number | null; track_deg?: number | null }
+
+/**
+ * Own ship flown by the dry run, as if a pilot were flying the route, at
+ * the owner's ask ("simulate with the current location plane as if a
+ * pilot was flying the route"): on, followed, the GPS set aside, each
+ * point a fix -- the plan's true course as its track, its ground speed
+ * and the profile's height -- reported as a GPS's would be (to 5 m, so
+ * nothing calls it approximate). Never kept as the pilot's last position.
+ */
+export function simulateFix(point: SimulatedPoint) {
+  const s = useOwnShip.getState();
+  if (!s.simulated) {
+    beforeSimulation = { enabled: s.enabled, follow: s.follow };
+    stopWatching();
+    useOwnShip.setState({ simulated: true, enabled: true, follow: true, error: null });
+  }
+  useOwnShip.setState({
+    fix: {
+      lat: point.lat, lon: point.lon, accuracyM: 5, headingDeg: point.track_deg ?? null, speedKt: point.gs_kt ?? null,
+      // The flight's own clock, not the page's: a climb read over these
+      // (what is ahead's vertical speed) is the plan's, whatever the
+      // replay's speed.
+      altitudeFt: point.alt_ft ?? null, at: point.t * 1000,
+    },
+  });
+}
+
+/** The dry run over: own ship as the pilot had it, the GPS watched again
+ *  if it was on. */
+export function endSimulation() {
+  if (!useOwnShip.getState().simulated) return;
+  const was = beforeSimulation ?? { enabled: false, follow: true };
+  beforeSimulation = null;
+  useOwnShip.setState({ simulated: false, enabled: was.enabled, follow: was.follow, fix: null, error: null });
+  if (was.enabled && ownShipAvailable()) startWatching(patch => useOwnShip.setState(patch));
+}
 
 /**
  * The planner opened fresh, on no route: the map on the pilot's position,

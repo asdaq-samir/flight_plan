@@ -17,6 +17,9 @@ export function noTips() {
   // The first-launch acknowledgement (lib/limits) given too: its dialog
   // takes every click. limits.spec starts without it.
   localStorage.setItem("vfr.limits", JSON.stringify({ state: { acknowledged: true }, version: 0 }));
+  // The route's VFR checkpoints on, as a student has them: off by default
+  // (lib/preferences), and most specs read the route through them.
+  if (!localStorage.getItem("vfr.preferences")) localStorage.setItem("vfr.preferences", JSON.stringify({ state: { waypoints: true }, version: 1 }));
 }
 
 /** An explicit wait, doubled in CI: playwright.config.ts doubles the
@@ -40,47 +43,96 @@ export async function settle(page: Page) {
  *  `data-panel`: peek at rest, half or full when it is out. */
 export const sideDrawer = (page: Page) => page.locator('[data-slot="map-panel"]');
 
-/** The panel out half way, where its head is the route form, the
- *  workspace's actions and the controls: at rest a route is a capsule
- *  (MapPanel's compact), whose chip opens it. Nothing when it is out
- *  already or rests on its form. */
+/** The tab bar's tabs in sight: the sheet's first row at half and all the
+ *  way up, minimized to the tab up's name over a card (TabBar), tapped to
+ *  show them all. Not in the pill, which is one row (MapPanel): the sheet
+ *  half way for them. */
+export async function showTabs(page: Page) {
+  // From the sheet at rest: settling to the pill it keeps the half's
+  // layout, tabs and all, until it lands (MapPanel), and tabs seen then
+  // were gone a moment later under the route's figures.
+  await settled(sideDrawer(page));
+  const title = page.getByTestId("tab-title");
+  // The minimized line can turn back into the tabs by itself as it is
+  // tapped -- the card it named put away by the step before -- so the tap
+  // is tried, and what is asked is the tabs in sight.
+  if (await title.isVisible()) await title.click({ timeout: 5000 }).catch(() => {});
+  await expect(page.getByTestId("tab-title")).toBeHidden();
+  if (!(await page.getByTestId("tab-bar").isVisible())) await grabberTo(page, "half");
+}
+
+/** The panel's head in sight: half way, with the route's box and its
+ *  chips (Share, Procedures, Saved), a tab's search bar, a card. Nothing
+ *  when it is out already, half or all the way up. */
 export async function openPanel(page: Page) {
   const panel = sideDrawer(page);
   await panel.waitFor();
+  // Once it has come to rest: on its way down to the pill it is not the
+  // capsule yet, and was taken for one out already.
+  await settled(panel);
   if (await panel.getAttribute("data-capsule") === null) return;
-  await page.getByTestId("capsule-detail").click();
-  await expect(panel).toHaveAttribute("data-panel", "half");
+  await grabberTo(page, "half");
 }
 
-/** The panel to a height by taps on its grabber, which cycle the three
- *  -- the pill, half, all the way up and back down (MapPanel) -- a tap
- *  at a time, each waited on, three at the most. */
+/** The route's Share menu out, the panel half way: its sharing, Save,
+ *  File flight plan, Print and Clear the route (PlanWorkspace), at the
+ *  pilot's ask all under Share beside the chips. */
+async function openShareMenu(page: Page) {
+  await openPanel(page);
+  await controlsInSight(page);
+  await sideDrawer(page).getByTestId("share-route").click();
+  await expect(page.getByRole("menu")).toBeVisible();
+}
+
+/** The route cleared, from its Share menu. */
+export async function clearTheRoute(page: Page) {
+  await openShareMenu(page);
+  await page.getByTestId("route-clear").click();
+}
+
+const RANK = { peek: 0, half: 1, full: 2 } as const;
+
+/** The panel to a height by its grabber (MapPanel): the pill, half and all
+ *  the way up, a step at a time by the grabber's arrow keys, as a keyboard
+ *  and VoiceOver move it. Each step waited on. */
 export async function grabberTo(page: Page, state: "peek" | "half" | "full") {
   const panel = sideDrawer(page);
   await panel.waitFor();
-  for (let taps = 0; taps < 3; taps++) {
-    const now = await panel.getAttribute("data-panel");
-    if (now === state) return;
-    await page.getByTestId("sidebar-trigger-button").click();
-    await expect(panel).not.toHaveAttribute("data-panel", now!);
+  const grabber = page.getByTestId("sidebar-trigger-button");
+  const size = async () => (await panel.getAttribute("data-panel")) as keyof typeof RANK;
+  for (let steps = 0; steps < 6; steps++) {
+    const now = await size();
+    if (now === state) break;
+    // Pressed again if it did not take: a layer opening in the panel (the
+    // console's) takes the focus as it comes, and an arrow pressed just
+    // then went to it (the iOS audit's iPad).
+    // Not pressed again once it has moved: a press that took long to land
+    // on a busy page, pressed twice, went on past the size asked for.
+    await expect(async () => {
+      if (await size() !== now) return;
+      await grabber.focus();
+      await page.keyboard.press(RANK[state] > RANK[now] ? "ArrowUp" : "ArrowDown");
+      await expect.poll(size, { timeout: 4000 }).not.toBe(now);
+    }).toPass({ timeout: 15_000 });
   }
   await expect(panel).toHaveAttribute("data-panel", state);
+  // And come to rest there, its layout the size's own.
+  await settled(panel);
 }
 
-/** The route's controls in sight -- its box, the airplane, the time, Save
- *  and Print -- which all the way up give way to its figures alone over
- *  the tabs, at the pilot's ask (MapPanel's `figures`): the panel half way. */
+/** The route's controls in sight -- its box, the airplane, the time,
+ *  Share -- all the way up, where the pill has them too (MapPanel), with
+ *  room for what a chip opens. */
 export async function controlsInSight(page: Page) {
   const panel = sideDrawer(page);
   await panel.waitFor();
-  if ((await panel.getAttribute("data-panel")) !== "full") return;
-  await grabberTo(page, "half");
+  await grabberTo(page, "full");
   await settled(panel);
 }
 
 /** The panel all the way out, as a finger takes it: a drag on its
- *  grabber to the screen's far edge. At half it ends at the tabs' bar;
- *  from the pill, two taps on the grabber. */
+ *  grabber to the screen's far edge from half; from the pill, the
+ *  grabber's arrow keys. */
 async function panelFull(page: Page) {
   const panel = sideDrawer(page);
   await panel.waitFor();
@@ -106,12 +158,26 @@ async function panelFull(page: Page) {
   await settled(panel);
 }
 
+/** The console out -- the tab bar's Settings -- half way at the least: at
+ *  the pill, Settings picked keeps the pill (its quick controls), and the
+ *  tab tapped again opens it, as every tab's does. */
+export async function openConsole(page: Page) {
+  await showTabs(page);
+  const settings = page.getByTestId("setup-button");
+  await settings.click();
+  // Setup is the panel's on every screen and both pages (MapPage), which
+  // at the pill is out of sight.
+  // Opened at the pill's size, Setup's pill; all the way up for the rest.
+  await expect(settings).toHaveAttribute("aria-current", "page");
+  await grabberTo(page, "full");
+}
+
 /** The settings: the console's last tab, the console opened from its
  *  button -- on the planner's search bar, on the training page among the
  *  map's -- and all the way out. Escape closes the console again. */
 export async function openSettings(page: Page) {
-  await page.getByTestId("settings-button").click();
-  await page.getByTestId("console-sheet").getByRole("tab", { name: "Settings" }).click();
+  await openConsole(page);
+  await consolePage(page.getByTestId("console-sheet"), "Settings");
   await expect(page.getByTestId("settings-panel")).toBeVisible();
   await expandConsole(page);
 }
@@ -120,6 +186,8 @@ export async function openSettings(page: Page) {
  *  the map's buttons (MapSettingsButton), as Maps' map button holds its
  *  map's. Escape puts it away. */
 export async function openMapSettings(page: Page) {
+  // The map's buttons are under a phone's sheet all the way up: the pill.
+  if ((page.viewportSize()?.width ?? 0) < 768 && await sideDrawer(page).getAttribute("data-panel") === "full") await grabberTo(page, "peek");
   await page.locator("[data-map-controls]").getByTestId("map-settings-button").click();
   await expect(page.getByTestId("map-settings")).toBeVisible();
 }
@@ -169,8 +237,11 @@ export async function expandConsole(page: Page) {
  *  closes the menu; closeConsole puts the console away after it. */
 export async function roleMenu(page: Page) {
   const sheet = page.getByTestId("console-sheet");
-  if (!(await sheet.isVisible())) await page.getByTestId("settings-button").click();
+  if (!(await sheet.isVisible())) await openConsole(page);
   await expect(sheet).toBeVisible();
+  // In the Account row (AccountMenu), first on Setup's page (the developer's
+  // console has it on its Account tab).
+  await consolePage(sheet, "Account");
   const trigger = sheet.getByTestId("role-menu");
   // The menu comes with who is signed in, or dev mode, once known.
   await trigger.waitFor({ timeout: 3000 }).catch(() => {});
@@ -201,9 +272,9 @@ export const consoleSheet = (page: Page) => page.getByTestId("console-sheet");
  *  four pages: the tab, back to its list from a page open on it, then
  *  the page's row. */
 export async function library(scope: Page | Locator, section: "Aircraft" | "Flights" | "Logbook" | "Minimums") {
-  await scope.getByRole("tab", { name: "Personal" }).click();
+  await consolePage(scope, "Account");
   const list = scope.getByTestId("library-section");
-  const back = scope.getByRole("button", { name: "Personal", exact: true });
+  const back = scope.getByRole("button", { name: "Account", exact: true });
   await expect(list.or(back)).toBeVisible();
   if (!(await list.isVisible())) await back.click();
   await list.getByRole("button", { name: new RegExp(`^${section}`) }).click();
@@ -212,17 +283,21 @@ export async function library(scope: Page | Locator, section: "Aircraft" | "Flig
 /** At rest: only its head in sight. */
 export async function expectDrawerClosed(page: Page) {
   await expect(sideDrawer(page)).toHaveAttribute("data-panel", "peek");
+  // And come to rest there: easing down it is still the half's layout and
+  // height, over what a tap next would be aimed at. The panel's own
+  // easing, not what is in it: a button's easing in the body, put out of
+  // sight on the way, can stay unfinished (settled).
+  await sideDrawer(page).evaluate(el => Promise.all(el.getAnimations().map(a => a.finished.catch(() => undefined))));
 }
 
-/** Out: half the screen or the whole of it. */
+/** Out: all the way up. */
 export async function expectDrawerOpen(page: Page) {
-  await expect(sideDrawer(page)).toHaveAttribute("data-panel", /^(half|full)$/);
+  await expect(sideDrawer(page)).toHaveAttribute("data-panel", "full");
 }
 
 /** Lowering the panel is one shape everywhere: Escape, pressed in it.
- *  The sheet on a phone is vaul's, a Radix dialog, whose own Escape the
- *  page turns into lowering it; the card elsewhere lowers on an Escape
- *  pressed inside it. The pointer off the panel first, as a finger is:
+ *  The sheet on a phone, and the card elsewhere, lower on an Escape
+ *  pressed inside them. The pointer off the panel first, as a finger is:
  *  left on the toggle, a tooltip could take the Escape. And the panel at
  *  rest first: an Escape pressed while it was still moving left it out,
  *  now and then, on a loaded machine. */
@@ -243,15 +318,18 @@ export async function closeSidebarWithTheStockKey(page: Page) {
  *  the whole wait failing (the Model Training drawer, its table drawn
  *  at once from the planner's kept read, three times running on CI).
  *  Nor one out of sight in a tab not up (PanelTabs' tab-away,
- *  content-visibility: hidden): the browser stops updating it there, and
+ *  content-visibility: hidden) or scrolled out of sight under
+ *  content-visibility: auto: the browser stops updating it there, and
  *  its `finished` never comes -- the nav log's rows, arriving as the
- *  Weather tab opened, held this for two minutes on CI. */
+ *  Weather tab opened, held this for two minutes on CI, and the
+ *  briefing's Write button, its visibility easing as the sheet came
+ *  down to the pill, for a minute. */
 export async function settled(locator: Locator) {
   await locator.evaluate(el => Promise.all(el.getAnimations({ subtree: true })
     .filter(a => a.effect?.getTiming().iterations !== Infinity)
     .filter(a => {
       const target = a.effect instanceof KeyframeEffect ? a.effect.target : null;
-      return !target || target.checkVisibility();
+      return !target || target.checkVisibility({ contentVisibilityAuto: true });
     })
     .map(a => a.finished.catch(() => undefined))));
 }
@@ -267,7 +345,8 @@ export async function openedDrawerBox(page: Page) {
 
 export async function openSidebar(page: Page) {
   const sidebarTrigger = page.getByTestId("sidebar-trigger-button");
-  await sidebarTrigger.click();
+  // All the way up, the grabber's Up arrow (grabberTo).
+  await grabberTo(page, "full");
   await expectDrawerOpen(page);
   await expect(sidebarTrigger).toHaveAttribute("aria-expanded", "true");
   await expect(sidebarTrigger).toBeEnabled();
@@ -289,11 +368,19 @@ export async function openBriefing(page: Page) {
  *  itself), Brief, Weather, Performance or Airports. The Brief asks for its
  *  narrative as it opens -- a real, billed Claude call -- so here it is
  *  answered with a line of its own. */
-export async function openTab(page: Page, name: "Brief" | "Nav Log" | "Local" | "Weather" | "Performance" | "Airports") {
+/** The planning panel's tabs by the names they had before they were the
+ *  flight's phases (the owner's pick of the redesign, "C"): the Brief's
+ *  go / no-go is Preflight's, the nav log and the weather on the way En
+ *  route's, the takeoff Depart's. */
+const PHASE_OF = { Brief: "Preflight", "Nav Log": "En route", Local: "En route", Weather: "En route", Performance: "Depart" } as const;
+type PhaseTab = "Preflight" | "Depart" | "En route" | "Arrive";
+
+export async function openTab(page: Page, name: keyof typeof PHASE_OF | PhaseTab) {
   // The tabs are past the half panel's foot, which ends at the flight's
   // line: all the way out, as a finger drags it, to reach them.
   await panelFull(page);
-  if (name === "Brief") {
+  const phase: PhaseTab = name in PHASE_OF ? PHASE_OF[name as keyof typeof PHASE_OF] : name as PhaseTab;
+  if (phase === "Preflight") {
     await page.route(url => url.pathname.endsWith("/api/comparison"), route => route.fulfill({
       status: 200, contentType: "application/x-ndjson",
       body: JSON.stringify({ type: "done", briefing: "A test narrative." }) + "\n",
@@ -301,25 +388,32 @@ export async function openTab(page: Page, name: "Brief" | "Nav Log" | "Local" | 
   }
   // Not the tab up already: tapped again all the way up, it lowers the
   // panel to half (PanelTabs).
-  const tab = panelTabs(page).getByRole("tab", { name, exact: true });
+  const tab = panelTabs(page).getByRole("tab", { name: phase, exact: true });
   if ((await tab.getAttribute("aria-selected")) !== "true") await tab.click();
   await expect(tab).toHaveAttribute("aria-selected", "true");
 }
 
-/** The planning panel's own tabs, not the pills of a tab's sections. */
+/** The planning panel's own tabs. */
 export const panelTabs = (page: Page) => sideDrawer(page).locator('[role="tablist"][data-tip="tabs"]');
 
-/** The pill of a section of the tab up, by its title (SectionTabs). */
-export const sectionTab = (page: Page, title: string) =>
-  sideDrawer(page).locator(`[role="tabpanel"][data-state="active"] [data-testid="section-tab"][data-section="${title}"]`);
+const PHASES: PhaseTab[] = ["Preflight", "Depart", "En route", "Arrive"];
 
-/** A section of the tab up, by its title: its pill tapped (SectionTabs),
- *  where the tab has more than one. */
+/** A section by its title, brought into sight: on the tab up, or on
+ *  whichever of the phases' tabs holds it (an airport's on Depart or
+ *  Arrive, the winds on En route), its sections one under another. */
 export async function openSection(page: Page, title: string) {
-  const pill = sectionTab(page, title);
-  if (!(await pill.count())) return;
-  if ((await pill.getAttribute("aria-pressed")) !== "true") await pill.click();
-  await expect(pill).toHaveAttribute("aria-pressed", "true");
+  const panel = sideDrawer(page);
+  const here = panel.locator(`[role="tabpanel"][data-state="active"] [data-title="${title}"]`).first();
+  if (!(await here.isVisible().catch(() => false))) {
+    for (const phase of PHASES) {
+      const tab = panelTabs(page).getByRole("tab", { name: phase, exact: true });
+      if ((await tab.getAttribute("aria-selected")) !== "true") await tab.click();
+      if (await here.waitFor({ timeout: 3000 }).then(() => true, () => false)) break;
+    }
+  }
+  // A section drawn again as its tab's content arrives can be detached
+  // between finding it and scrolling to it: tried until it holds still.
+  await expect(async () => { await here.scrollIntoViewIfNeeded({ timeout: 2000 }); }).toPass({ timeout: 10000 });
 }
 
 /** Once the map has stopped moving: its panes where they were 300 ms
@@ -358,4 +452,54 @@ export async function tapTheChart(page: Page) {
   });
   expect(at, "somewhere on the chart with nothing on it").not.toBeNull();
   await page.mouse.click(at!.x, at!.y);
+}
+
+/** A card put away by its way back: on a phone with the sheet up, the
+ *  minimized tab bar's Back at its top left (TabBar), at the owner's ask,
+ *  in place of the card's close; elsewhere the card's own close. */
+export async function closeCard(page: Page, closeTestId: string) {
+  const back = page.getByTestId("tab-back");
+  if (await back.isVisible()) {
+    await back.click();
+    return;
+  }
+  // Else the card's own close, out of sight but for a keyboard (CardClose).
+  const close = page.getByTestId(closeTestId);
+  await close.focus();
+  await page.keyboard.press("Enter");
+}
+
+/** The console's Personal tab, where who is signed in and the mode are
+ *  (AccountMenu), at the owner's ask: they were the console's title row. */
+export async function openAccount(page: Page) {
+  await consolePage(page.getByTestId("console-sheet"), "Account");
+}
+
+/** One of the console's places by name: the developer's console's tab of
+ *  that name; the pilot's console is one page now (Setup, at the owner's
+ *  pick of the redesign), its account first and Settings, Guide and About
+ *  rows that open their pages -- Account is the page itself. */
+export async function consolePage(scope: Page | Locator, name: "Account" | "Settings" | "Guide" | "About" | "Status") {
+  const tab = scope.getByRole("tab", { name, exact: true });
+  const setup = scope.getByTestId("setup-page");
+  await expect(tab.or(setup).first()).toBeVisible();
+  if (await tab.count()) {
+    await tab.click();
+    return;
+  }
+  // Back to the page's list from a page open on it.
+  const back = scope.getByRole("button", { name: "Account", exact: true });
+  if (await back.isVisible()) await back.click();
+  if (name !== "Account") await setup.getByRole("button", { name: new RegExp(`^${name}`) }).click();
+}
+
+/** Airport's search bar, in sight: on the Airport tab, its pill's one row
+ *  or its head half way (FPL is the tab a fresh load opens on). */
+export async function airportSearch(page: Page) {
+  const search = page.getByTestId("search-airports");
+  if (await search.isVisible()) return search;
+  await showTabs(page);
+  await page.getByTestId("tab-airport").click();
+  await expect(search).toBeVisible();
+  return search;
 }

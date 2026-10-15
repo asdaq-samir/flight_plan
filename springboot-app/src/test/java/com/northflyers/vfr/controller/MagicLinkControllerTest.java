@@ -13,6 +13,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.northflyers.vfr.domain.MagicLink;
 import com.northflyers.vfr.domain.Pilot;
 import com.northflyers.vfr.repository.MagicLinkRepository;
+import com.northflyers.vfr.service.Mailer;
 import com.northflyers.vfr.service.PilotService;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -25,6 +26,7 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
@@ -48,6 +50,7 @@ import org.springframework.test.web.servlet.MockMvc;
  * the chain would have done around it.
  */
 @WebMvcTest(MagicLinkController.class)
+@Import(Mailer.class)
 @AutoConfigureMockMvc(addFilters = false)
 @TestPropertySource(properties = {
     "app.public-base-url=https://planner.example.com",

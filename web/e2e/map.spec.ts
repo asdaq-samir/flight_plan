@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { beforeTheRoute, openPanel, panelTabs, settle, sideDrawer, slow, tapTheChart } from "./helpers";
+import { beforeTheRoute, openPanel, openTab, settle, sideDrawer, slow, tapTheChart, grabberTo, controlsInSight } from "./helpers";
 
 /**
  * The map: its popups, its zoom toggle and the dev page's zoom button,
@@ -10,15 +10,15 @@ test("plan page: a route from an airport to itself is a local flight: the field'
   // The pattern, practice approaches: it was refused, the page asking for
   // two different airports.
   await page.goto("/app/plan?dep=C81&dest=C81");
-  await expect(page.getByTestId("capsule-title")).toHaveText(/^C81 local( · .+)?$/, { timeout: slow(30000) });
-  await openPanel(page);
-  // Its tab where the nav log's is, up as the panel opens.
-  await expect(panelTabs(page).getByRole("tab", { name: "Local" })).toHaveAttribute("aria-selected", "true");
+  await grabberTo(page, "full");
   await expect(sideDrawer(page).getByTestId("navlog-ete")).toHaveText("1h 00m", { timeout: slow(30000) });
   await expect(sideDrawer(page).locator('[data-slot="section-summary"] dt').first()).toHaveText("Aloft");
+  // Its fuel check En route's, where a route's legs are.
+  await openTab(page, "En route");
   await expect(page.getByTestId("fuel-check")).toContainText("Fuel required");
 
-  // Longer aloft: in the address, and more fuel.
+  // Longer aloft: its chip in the pill, in the address, and more fuel.
+  await controlsInSight(page);
   await page.getByTestId("local-duration").click();
   await page.getByRole("option", { name: "2 h", exact: true }).click();
   await expect(page).toHaveURL(/[?&]local_min=120/);
@@ -111,7 +111,7 @@ test("plan page: panning the map with own ship off leaves 'Keep the map on me' a
   expect(await follow()).toBe(true);
 });
 
-test("plan page: Waypoints draws the route's checkpoints and the landmarks they were chosen from at every zoom, and off leaves the course line alone", async ({ page }) => {
+test("plan page: VFR Checkpoints draws the route's checkpoints and the landmarks they were chosen from at every zoom, and off leaves the course line alone", async ({ page }) => {
   // They used to start at a zoom picked from a menu (close in, by
   // default), so a route zoomed out to its region showed a line and two
   // airports; the landmarks, from zoom 7.
@@ -151,6 +151,7 @@ test("plan page: Waypoints draws the route's checkpoints and the landmarks they 
   await expect(numbered).toHaveCount(0);
   await expect(landmarks).toHaveCount(0);
   await openPanel(page);
+  await openTab(page, "En route");
   const rows = sideDrawer(page).locator("table tbody tr[data-kind]");
   await expect(page.getByTestId("navlog-eta")).toBeAttached({ timeout: slow(60000) });
   await expect(sideDrawer(page).locator('table tbody tr[data-kind="checkpoint"]')).toHaveCount(0);
@@ -177,4 +178,44 @@ test("my position is the location arrow among the map's buttons, on both pages, 
   await page.goto("/app/dev?dep=C81&dest=KDLH");
   await settle(page);
   await expect(page.locator("[data-map-controls]").getByTestId("my-position-button")).toBeVisible();
+});
+
+test("the chart's airports keep coming in under a finger's pan, before it lets go", async ({ page }) => {
+  // The owner's ask: "can you update the map even while panning ... until
+  // I let go of the finger, the airports don't show up".
+  // The map opening where the pilot last was, at the region's zoom.
+  await page.addInitScript(() => localStorage.setItem("vfr.ownship",
+    JSON.stringify({ state: { enabled: false, follow: true, lastFix: { lat: 42.325, lon: -88.074 } }, version: 0 })));
+  // One reporting field in the middle of each box the planner is asked
+  // for, named for the question: X1 for the first, X2 for the next.
+  const asked: string[] = [];
+  await page.route(url => url.pathname.endsWith("/api/planner/airports/in-view"), route => {
+    const q = new URL(route.request().url()).searchParams;
+    const [south, west, north, east] = ["south", "west", "north", "east"].map(k => Number(q.get(k)));
+    asked.push(`${south},${west},${north},${east}`);
+    return route.fulfill({ json: { airports: [{
+      ident: `X${asked.length}`, name: "Asked for", lat: (south + north) / 2, lon: (west + east) / 2,
+      kind: "small", longest_runway_ft: 3500, flight_category: "VFR", military: null,
+    }] } });
+  });
+  await page.goto("/app/plan");
+  await settle(page);
+  const mark = (ident: string) => page.locator(".leaflet-airports-pane .leaflet-marker-icon", { hasText: ident });
+  await expect(mark("X1")).toBeVisible({ timeout: slow(15_000) });
+  const first = asked.length;
+  // A pan of a screen and a half to the east, the finger still down: past
+  // the box asked for (the view and a screen round it).
+  const viewport = page.viewportSize()!;
+  const y = viewport.width < 768 ? 160 : viewport.height / 3;
+  const from = viewport.width - 20;
+  await page.mouse.move(from, y);
+  await page.mouse.down();
+  for (let i = 1; i <= 30; i++) {
+    await page.mouse.move(from - (viewport.width * 1.6 * i) / 30, y);
+    await page.waitForTimeout(40);
+  }
+  // Still held: asked again, and the new field's mark drawn.
+  await expect.poll(() => asked.length, { timeout: slow(10_000) }).toBeGreaterThan(first);
+  await expect(mark(`X${asked.length}`)).toBeVisible();
+  await page.mouse.up();
 });

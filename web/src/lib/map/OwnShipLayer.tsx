@@ -1,12 +1,13 @@
 import type { PathOptions } from "leaflet";
 import { useEffect, useMemo, useRef } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Circle, Marker, useMap, useMapEvents } from "react-leaflet";
 import { nearestQuery } from "../queryClient";
 import { glideRangeNm } from "./glide";
 import { centreClear } from "./clear";
 import { ownShipIcon } from "./icons";
-import { useOwnShip } from "./ownShip";
+import { OPEN_ZOOM, useOwnShip } from "./ownShip";
+import { usePreferences } from "../preferences";
 
 /**
  * Own ship on the chart, from the position store: the arrow turned to
@@ -37,6 +38,7 @@ const ACCURACY: PathOptions = { color: "#1d4ed8", weight: 1, opacity: 0.5, fillC
 export function OwnShipLayer() {
   const map = useMap();
   const enabled = useOwnShip(s => s.enabled);
+  const look = usePreferences(s => s.ownShipLook);
   const fix = useOwnShip(s => s.fix);
   const follow = useOwnShip(s => s.follow);
   const setFollow = useOwnShip(s => s.setFollow);
@@ -75,19 +77,40 @@ export function OwnShipLayer() {
         map.setView(centreClear(map, [fix.lat, fix.lon], zoom), zoom, { animate: false });
         return;
       }
-      map.flyTo(centreClear(map, [fix.lat, fix.lon], zoom), zoom, { duration: 0.8 });
+      // Already in sight at that zoom -- the opening, placed on the last
+      // position, with the first fix a few miles off -- a pan, not a
+      // flight: flyTo arcs out and in again even for a short hop, and on
+      // the owner's phone a fresh load sat 0.8 s zoomed in and then jumped
+      // out to the opening's zoom (their screen recording, 2026-10-15).
+      const target = centreClear(map, [fix.lat, fix.lon], zoom);
+      if (map.getZoom() === zoom && map.getBounds().contains([fix.lat, fix.lon])) {
+        // The page's own opening (locateOnOpen, at OPEN_ZOOM): put there,
+        // not panned. The map is made where the pilot last was, and the
+        // first fix is that place or near it: the pan was the map settling
+        // into place on every reload, at the owner's notice ("On a reload
+        // why is there animation in the maps"), 35 points under the pill
+        // over half a second. The arrow's recentre still pans.
+        if (recentreZoom === OPEN_ZOOM) map.setView(target, zoom, { animate: false });
+        else map.panTo(target, { animate: true, duration: 0.5 });
+        return;
+      }
+      map.flyTo(target, zoom, { duration: 0.8 });
       return;
     }
     map.panTo(centreClear(map, [fix.lat, fix.lon], map.getZoom()), { animate: true, duration: 0.5 });
   }, [map, enabled, fix, follow, recentred, recentreZoom]);
   // The still-air glide from the GPS's altitude over the nearest field
   // (lib/map/glide), a dashed ring in the air, as an EFB's glide advisor
-  // draws it; nothing on the ground.
-  const { data: nearest } = useQuery({ ...nearestQuery(fix?.lat ?? 0, fix?.lon ?? 0), enabled: enabled && !!fix });
+  // draws it; nothing on the ground. The last field's answer held while
+  // the next is asked: asked again every few miles (nearestQuery's 0.05°),
+  // the ring went out until each answer came -- flickering under a dry
+  // run's airplane, at the owner's notice ("During the dry run, the ring
+  // around the plane is flickering").
+  const { data: nearest } = useQuery({ ...nearestQuery(fix?.lat ?? 0, fix?.lon ?? 0), enabled: enabled && !!fix, placeholderData: keepPreviousData });
   const glide = glideRangeNm(fix, nearest?.[0]?.elevation_ft);
   if (!fix) return null;
   // Off: the last position alone, grey, with nothing round it.
-  if (!enabled) return <Marker position={[fix.lat, fix.lon]} icon={ownShipIcon(null, true)} interactive={false} zIndexOffset={1000} keyboard={false} />;
+  if (!enabled) return <Marker position={[fix.lat, fix.lon]} icon={ownShipIcon(null, true, look)} interactive={false} zIndexOffset={1000} keyboard={false} />;
   return (
     <>
       {glide != null && (
@@ -100,7 +123,7 @@ export function OwnShipLayer() {
         center={[fix.lat, fix.lon]} radius={fix.accuracyM}
         pathOptions={ACCURACY}
       />
-      <Marker position={[fix.lat, fix.lon]} icon={ownShipIcon(fix.headingDeg)} interactive={false} zIndexOffset={1000} keyboard={false} />
+      <Marker position={[fix.lat, fix.lon]} icon={ownShipIcon(fix.headingDeg, false, look)} interactive={false} zIndexOffset={1000} keyboard={false} />
     </>
   );
 }

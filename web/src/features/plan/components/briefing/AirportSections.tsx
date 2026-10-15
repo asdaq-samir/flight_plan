@@ -3,15 +3,18 @@ import { ListGroup, ListRow } from "../../../../components/GroupedList";
 import type { Briefing, Leg } from "../../../../lib/api/types";
 import { isPosition } from "../../../../lib/identSchema";
 import { altFt } from "../../format";
+import { phasesOf, type Phase } from "./sections";
 import { FrequencyRow } from "../FrequencyRow";
 import { PublicationRows } from "../PublicationRows";
 import { RunwayRow } from "../RunwayRow";
 import PatternRadio, { RadioNote } from "./PatternRadio";
 
 /**
- * The Airports tab: a section for each field the flight leaves or lands
- * at, in the order it does -- what the field is, its radio, its runways
- * and its publications, then its pattern and the calls there. It was two
+ * The Brief's airports: a section for each field the flight leaves or
+ * lands at, in the order it does -- what the field is, its radio, its
+ * runways and its publications, then its pattern and the calls there. A
+ * tab of their own until the pilot asked for them under the Brief
+ * (2026-10-12). It was two
  * sections each going through every field (the frequencies and runways,
  * then the patterns and calls), so a field's pattern was a screen away
  * from its runways; the Weather tab goes place by place the same way.
@@ -19,8 +22,11 @@ import PatternRadio, { RadioNote } from "./PatternRadio";
  * for the position, at the pilot's ask: a point in the air has no radio,
  * runways or pattern to list.
  */
-export default function AirportSections({ briefing, landings, legs, callSign }: {
+export default function AirportSections({ briefing, landings, legs, callSign, phase }: {
   briefing: Briefing;
+  /** Only the fields of this part of the flight (its tab's): the
+   *  departure, the stops or the destination. */
+  phase?: Phase;
   /** The fields landed at, in order, each once. */
   landings: string[];
   legs: Leg[];
@@ -29,7 +35,7 @@ export default function AirportSections({ briefing, landings, legs, callSign }: 
   return (
     <>
       {landings.map((ident, i) => {
-        if (isPosition(ident)) return null;
+        if (isPosition(ident) || (phase && !phasesOf(i, landings.length).includes(phase))) return null;
         const info = briefing.airports[ident];
         const role = landings.length === 1 ? "Local" : i === 0 ? "Departure" : i === landings.length - 1 ? "Destination" : "Stop";
         const about = [
@@ -64,7 +70,7 @@ export default function AirportSections({ briefing, landings, legs, callSign }: 
           </AccordionSection>
         );
       })}
-      {landings.length > 1 && <RadioNote />}
+      {landings.length > 1 && (!phase || phase === "arrive") && <RadioNote />}
     </>
   );
 }

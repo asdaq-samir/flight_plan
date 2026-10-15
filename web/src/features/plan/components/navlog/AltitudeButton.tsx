@@ -10,6 +10,10 @@ import { GROUP_HEADING, TEXT } from "../../../../lib/text";
 import { flightLevel } from "../../../../lib/units";
 import { describeFuel, describeSteps, describeTime } from "../../format";
 import AltitudeReasoning from "../AltitudeReasoning";
+import Segmented from "../../../../components/Segmented";
+import type { FlightRules } from "../../../../lib/preferences";
+
+const RULES = [{ value: "vfr", label: "VFR" }, { value: "ifr", label: "IFR" }];
 
 /** The cruising altitude the log flies: the highest of its legs once they
  *  are in, a point's own altitude among them (RouteBox), else of the
@@ -81,7 +85,7 @@ function CustomAltitude({ alt, onAltChange, onSubmit, pressed }: {
  * open to the pilot's own: before the plans are in, and on a route with
  * no legal altitude (`unflyable`), an altitude typed is flown as typed.
  */
-export default function AltitudeButton({ nav, legs, problem, ownAltitude = true, tight = null, classB = null, onAltitudeChoiceChange, alt, onAltChange, onSubmit, disabled = false }: {
+export default function AltitudeButton({ nav, legs, problem, ownAltitude = true, tight = null, classB = null, onAltitudeChoiceChange, alt, onAltChange, onSubmit, disabled = false, rules = "vfr", onRulesChange }: {
   nav: NavLogAltitude | null;
   legs: Leg[];
   /** No legal altitude on the route: where, why and the ways on
@@ -107,6 +111,11 @@ export default function AltitudeButton({ nav, legs, problem, ownAltitude = true,
   /** No route to fly it on (cleared, or half typed): the chip in its
    *  place, its dashes greyed. */
   disabled?: boolean;
+  /** The flight rules it is planned under, the popover's first choice,
+   *  which re-plans: IFR's minimum altitudes and thousands (14 CFR
+   *  91.177, 91.179) and its reserve (91.167), or VFR's. */
+  rules?: FlightRules;
+  onRulesChange?: (rules: FlightRules) => void;
 }) {
   const [open, setOpen] = useState(false);
   const cruise = cruiseOf(nav, legs);
@@ -128,10 +137,12 @@ export default function AltitudeButton({ nav, legs, problem, ownAltitude = true,
             // way. The dashes alone, with none yet.
             problem && "text-red-700 hover:text-red-700 dark:text-red-300 dark:hover:text-red-300",
           )}
-          aria-label={`Cruising altitude, ${why}${!problem && tight ? ", tight" : ""}${!problem && classB ? ", through Class B" : ""}${!problem && cautions.length ? ", your altitude has a caution" : ""}: how it was chosen`}
+          aria-label={`Cruising altitude${rules === "ifr" ? " under IFR" : ""}, ${why}${!problem && tight ? ", tight" : ""}${!problem && classB ? ", through Class B" : ""}${!problem && cautions.length ? ", your altitude has a caution" : ""}: how it was chosen`}
           data-testid="altitude-why" data-tip="altitude"
         >
           {flightLevel(problem ? null : cruise)}
+          {/* Under IFR, said on the chip: its altitudes are IFR's. */}
+          {rules === "ifr" && <span className="text-[0.6875rem] font-semibold text-tint" data-testid="ifr-flag">IFR</span>}
           {/* What the altitude was planned within, marked; its popover says. */}
           {!problem && tight && <span className="size-1.5 rounded-full bg-amber-500" aria-hidden="true" data-testid="tight-altitude-flag" />}
           {!problem && cautions.length > 0 && (
@@ -143,6 +154,16 @@ export default function AltitudeButton({ nav, legs, problem, ownAltitude = true,
       {/* On a phone a sheet from the header's edge: as a popover it was
           70% of the screen, scrolling inside. */}
       <ResponsivePopoverContent title={problem ? "No legal altitude" : "Cruising altitude"} align="start" className="w-80">
+        {/* The rules first: they decide every altitude under them. */}
+        {onRulesChange && (
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <span className={cn("font-semibold", TEXT.row)}>Flight rules</span>
+            <Segmented
+              label="Flight rules" value={rules} onChange={v => onRulesChange(v as FlightRules)}
+              options={RULES} testId="flight-rules"
+            />
+          </div>
+        )}
         {problem && <div className="mb-4">{problem(() => setOpen(false))}</div>}
         {/* An altitude the pilot set that the planner would not have flown,
             and why, rule by rule: flown as set, never refused. */}

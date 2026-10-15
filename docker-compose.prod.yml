@@ -101,6 +101,7 @@ services:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       # The map's Google overlay (routers/basemaps), where the owner has a key.
       GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY:-}
+      ADSBX_RAPIDAPI_KEY: ${ADSBX_RAPIDAPI_KEY:-}
       CHARTS_AUTO_REFRESH: "0"
       CHART_TILES_URL: https://${PUBLIC_HOST}/tiles
       TZ: America/Chicago
@@ -162,6 +163,8 @@ services:
       APP_PUBLIC_BASE_URL: https://${PUBLIC_HOST}
       APP_HSTS: "true"
       APP_DEVELOPER_EMAILS: ${APP_DEVELOPER_EMAILS:-}
+      # The nightly speed lab's token (SpeedController; CI's SPEED_LAB_TOKEN).
+      APP_SPEED_LAB_TOKEN: ${APP_SPEED_LAB_TOKEN:-}
       MAIL_HOST: ${MAIL_HOST}
       MAIL_PORT: ${MAIL_PORT:-587}
       MAIL_USERNAME: ${MAIL_USERNAME}

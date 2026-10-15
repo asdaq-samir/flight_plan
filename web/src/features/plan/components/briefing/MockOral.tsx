@@ -13,6 +13,7 @@ import { nextFocus } from "../../../../lib/oral";
 import { pilotQuery } from "../../../../lib/queryClient";
 import { TEXT } from "../../../../lib/text";
 import { useAcsTable } from "../../../../lib/useAcsTable";
+import { FINDING_TONE } from "../../../../lib/status";
 
 const VERDICT: Record<OralGrade["verdict"], { words: string; tone: "up" | "checking" | "down" }> = {
   satisfactory: { words: "Satisfactory", tone: "up" },
@@ -138,7 +139,7 @@ export default function MockOral({ plan }: { plan: string }) {
         </Button>
       )}
 
-      {problem && <p className={cn("text-red-700 dark:text-red-400", TEXT.prose)} role="alert">{problem.message}</p>}
+      {problem && <p className={cn(FINDING_TONE.stop, TEXT.prose)} role="alert">{problem.message}</p>}
 
       {q && (
         <p className={cn("px-1 text-muted-foreground", TEXT.note)}>

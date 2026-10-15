@@ -4,6 +4,7 @@
  * points for what raises the risk of this flight -- from the briefing
  * (VFR not recommended, the pilot's own minimums, a TFR on the route,
  * SIGMETs and G-AIRMETs, night), from the nav log's fuel check, from the
+ * pilot's own airplane's inspections (lib/airworthiness), from the
  * pilot's logbook (the flight review, the medical, recent landings) --
  * and for what only the pilot knows: IMSAFE, and the pressures on the
  * day.
@@ -12,10 +13,11 @@
  * planner's own guide, not the FAA's and not a rule: the decision is
  * the pilot in command's (91.3, 91.103). What makes a flight unlawful --
  * alcohol within 8 hours, a lapsed flight review or medical, tanks that
- * do not hold the fuel -- is high whatever else is.
+ * do not hold the fuel, an annual past due -- is high whatever else is.
  */
 import { create } from "zustand";
-import type { Currency } from "./api/types";
+import type { Currency, Inspections, Squawk } from "./api/types";
+import { inspectionFactors, squawkFactors } from "./airworthiness";
 
 export type RiskLevel = "low" | "caution" | "high";
 
@@ -58,6 +60,17 @@ export interface FratInput {
   /** The nav log's fuel margin, gallons; below zero the tanks do not
    *  hold the fuel and its reserve. */
   fuelMarginGal: number | null;
+  /** Planned under IFR: its reserve is 14 CFR 91.167's. */
+  ifr?: boolean;
+  /** Under IFR in one of the pilot's own airplanes: its VOR check's last
+   *  good day and whether its error was within limits (91.171), or null
+   *  with none recorded; undefined for a stock profile, which has none. */
+  vorCheck?: { goodThrough: string; withinLimit: boolean } | null;
+  /** In one of the pilot's own airplanes: its inspections and tests as
+   *  recorded (lib/airworthiness); undefined for a stock profile. */
+  inspections?: Inspections | null;
+  /** Its squawks not yet fixed (lib/airworthiness). */
+  squawks?: Squawk[] | null;
   /** The pilot's currency, where they keep a logbook here. */
   currency: Currency | null;
   /** The day of the flight, yyyy-MM-dd, to read the currency's dates on. */
@@ -73,20 +86,36 @@ export interface Assessment {
 }
 
 /** What the briefing, the nav log and the logbook raise. */
-export function found(input: FratInput): RiskFactor[] {
+function found(input: FratInput): RiskFactor[] {
   const factors: RiskFactor[] = [];
   if (input.vfrNotRecommended) factors.push({ key: "vnr", label: "VFR flight not recommended", why: "The briefing (AIM 7-1-5)", points: HIGH_FROM });
   if (input.underMinimums.length) factors.push({ key: "minimums", label: "Under your personal minimums", why: input.underMinimums[0], points: HIGH_FROM });
   if (input.tfrOnRoute) factors.push({ key: "tfr", label: "A TFR on the route when you get there", why: "Route round it, or go another time", points: HIGH_FROM });
   if (input.hazards > 0) factors.push({ key: "hazards", label: `${input.hazards} SIGMET or G-AIRMET${input.hazards === 1 ? "" : "s"} along the route`, why: "Adverse conditions", points: Math.min(6, 2 * input.hazards) });
   if (input.night) factors.push({ key: "night", label: "At night", why: "PAVE: environment", points: 3 });
+  // Under IFR by VOR, a check within 30 days (91.171): without one, by GPS
+  // alone -- a caution, not a stop.
+  if (input.ifr && input.vorCheck !== undefined && !(input.vorCheck && input.vorCheck.withinLimit && input.vorCheck.goodThrough >= input.day)) {
+    factors.push({ key: "vor", label: "No VOR check in the last 30 days", why: "91.171: to navigate IFR by VOR", points: 2 });
+  }
+  if (input.inspections) factors.push(...inspectionFactors(input.inspections, input.day, !!input.ifr));
+  if (input.squawks) factors.push(...squawkFactors(input.squawks, input.night, !!input.ifr));
   if (input.fuelMarginGal != null && input.fuelMarginGal < 0) {
-    factors.push({ key: "fuel", label: "The tanks do not hold the fuel and its reserve", why: "91.151", points: 0, stop: true });
+    factors.push({ key: "fuel", label: "The tanks do not hold the fuel and its reserve", why: input.ifr ? "91.167" : "91.151", points: 0, stop: true });
   }
   const c = input.currency;
   if (c && c.flights > 0) {
     if (c.flightReviewUntil && c.flightReviewUntil < input.day) factors.push({ key: "review", label: "Your flight review has lapsed", why: "61.56", points: 0, stop: true });
     if (c.medicalExpiresOn && c.medicalExpiresOn < input.day) factors.push({ key: "medical", label: "Your medical has expired", why: "61.23", points: 0, stop: true });
+    // Under IFR: instrument currency (61.57(c)), or after six months more
+    // lapsed only a proficiency check (61.57(d)).
+    if (input.ifr && (!c.instrumentCurrentUntil || c.instrumentCurrentUntil < input.day)) {
+      factors.push({
+        key: "instrument", stop: true, points: 0,
+        label: c.ipcNeededAfter && c.ipcNeededAfter < input.day ? "Instrument currency lapsed: a proficiency check is needed" : "Not instrument current",
+        why: c.ipcNeededAfter && c.ipcNeededAfter < input.day ? "61.57(d)" : "61.57(c): 6 approaches, holding, tracking",
+      });
+    }
     if (!c.dayPassengersUntil || c.dayPassengersUntil < input.day) factors.push({ key: "recent", label: "Not three landings in the last 90 days", why: "61.57(a): no passengers, and rusty", points: 3 });
     if (input.night && (!c.nightPassengersUntil || c.nightPassengersUntil < input.day)) {
       factors.push({ key: "recent-night", label: "Not three night landings in the last 90 days", why: "61.57(b)", points: 3 });

@@ -1,6 +1,6 @@
-import { Fragment, useEffect, useId, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
+import { Fragment, useEffect, useId, useRef, useState, type KeyboardEvent, type MouseEvent, type PointerEvent } from "react";
 import { Command as CommandPrimitive } from "cmdk";
-import { ArrowRight, MoveVertical, PlaneLanding, PlaneTakeoff, Route, Trash2, TriangleAlert } from "lucide-react";
+import { ArrowRight, MoveVertical, Pencil, PlaneLanding, PlaneTakeoff, Route, Trash2, TriangleAlert } from "lucide-react";
 import {
   DndContext, KeyboardSensor, MouseSensor, TouchSensor, closestCenter, useDndMonitor, useSensor, useSensors, type DragEndEvent,
 } from "@dnd-kit/core";
@@ -8,6 +8,8 @@ import { SortableContext, arrayMove, rectSortingStrategy, sortableKeyboardCoordi
 import { CSS } from "@dnd-kit/utilities";
 import { cn } from "cn";
 import AirportPicker, { AirportRow, PickerGroup, SearchRows } from "../../../components/AirportPicker";
+import ClearButton from "../../../components/ClearButton";
+import { PANEL_FIELD } from "../../../components/panelField";
 import { CommandList } from "../../../components/ui/command";
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuShortcut, ContextMenuTrigger } from "../../../components/ui/context-menu";
 import { InputGroup } from "../../../components/ui/input-group";
@@ -63,7 +65,7 @@ const PROCEDURE_GLYPH = { approach: PlaneLanding, arrival: Route, departure: Pla
  */
 export default function RouteBox({
   dep, stops, dest, waypoints, airspaceOf, metarColourOf, altitudeAt, onAltitudeChange, onChange, adding, onAddingChange, via,
-  procedures = NO_PROCEDURES, onProcedures,
+  procedures = NO_PROCEDURES, onProcedures, onOpenAirport, onClear,
 }: RouteParts & {
   /** Which points are waypoints, flown through: in the sectional's magenta. */
   waypoints: Set<string>;
@@ -87,6 +89,14 @@ export default function RouteBox({
    *  route's Procedures from one. */
   procedures?: RouteProcedure[];
   onProcedures?: () => void;
+  /** An airport's pill tapped: its card (PlaceCard), at the pilot's ask,
+   *  the airport changed from the pill's menu instead. A waypoint's tap
+   *  is still its search: it has no card. */
+  onOpenAirport?: (ident: string) => void;
+  /** The whole route cleared, from the box's own clear at its end while it
+   *  holds one, as a field's clears what is typed in it, at the pilot's
+   *  ask. */
+  onClear?: () => void;
 }) {
   const hasDep = !!dep, hasDest = !!dest;
   const points = [...(hasDep ? [dep] : []), ...stops, ...(hasDest ? [dest] : [])];
@@ -115,7 +125,8 @@ export default function RouteBox({
   // Each point's key is its place in the order and its ident: the same
   // airport twice is two points.
   const ids = points.map((p, i) => `${i}:${p}`);
-  // A press that moves is a drag; a tap is the pill's own (its picker).
+  // A press that moves is a drag; a tap is the pill's own (an airport's
+  // card, a waypoint's search).
   // On a finger, as on iOS, a drag starts with a hold.
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
@@ -199,6 +210,23 @@ export default function RouteBox({
     // keyboard up for no other).
     queueMicrotask(() => field.current?.focus());
   };
+  // A tap on the box's empty room -- not a pill, an arrow or the field --
+  // puts the field after the last point, as a tap past a text field's
+  // words puts the caret at their end, at the pilot's ask: what was typed
+  // at an arrow put in first, as a tap away from it would. Pressed, the
+  // field keeps the focus, the keyboard staying up.
+  const slide = useRef<HTMLDivElement>(null);
+  const isRoom = (e: MouseEvent<HTMLDivElement>) => e.target === e.currentTarget || e.target === slide.current;
+  const toEnd = (e: MouseEvent<HTMLDivElement>) => {
+    if (!isRoom(e)) return;
+    if (atNow.current === null || (atNow.current === 0 && !hasDep)) {
+      field.current?.focus();
+      return;
+    }
+    if (typedNow.current.trim()) commitTyped();
+    onAddingChange(false);
+    typeAt(null);
+  };
 
   // The airports and waypoints that answer what is typed, under the box;
   // before anything is typed, Fly via's ways round. Put away with Escape
@@ -249,9 +277,12 @@ export default function RouteBox({
   // of the line, so a tap anywhere after the destination types there; at
   // an arrow, a stop's width.
   const typing = (
+    <>
     <input
       ref={field} value={typed} onChange={e => setTyped(e.target.value.toUpperCase())} onKeyDown={onKeyDown}
       role="combobox" aria-expanded={open} aria-controls={listId} aria-autocomplete="list"
+      // Idents, not anything AutoFill knows (the iOS audit's P19).
+      autoComplete="off"
       // What was typed goes in when the box is left -- unless a suggestion
       // took the tap, which empties it first -- and an arrow's field is
       // put away.
@@ -262,12 +293,12 @@ export default function RouteBox({
         if (typedNow.current.trim()) commitTyped();
         if (atNow.current !== null) { setAt(null); onAddingChange(false); }
       }, 200)}
-      // Empty, the route, from its departure (put); then each end it lacks;
-      // a whole route, Add stop after its destination, as Maps' directions
-      // say it -- what is typed there the new destination, the old one a
-      // stop on the way, as Maps' Add Stop does -- where the line after the
-      // last point was blank and read as no place to type.
-      placeholder={!points.length ? "Route" : at === null ? (hasDest ? "Add stop" : "Destination") : at === 0 && !hasDep ? "Departure" : ""}
+      // Empty, the route, from its departure (put); then each end it lacks.
+      // After a whole route's destination no words, at the pilot's ask
+      // ("Add stop" said it): what is typed there is the new destination,
+      // the old one a stop on the way, as Maps' Add Stop does, and a reader
+      // is told so (its label).
+      placeholder={!points.length ? "Route" : at === null ? (hasDest ? "" : "Destination") : at === 0 && !hasDep ? "Departure" : ""}
       aria-label={!points.length ? "The route, from its departure" : at === null ? (hasDest ? "Add stop, the new destination" : "The destination") : at === 0 && !hasDep ? "The departure" : "A stop here"}
       enterKeyHint="done" autoCapitalize="characters" autoCorrect="off" spellCheck={false}
       // 16 at the least below md, as every field is: under 16 iOS zooms
@@ -279,11 +310,19 @@ export default function RouteBox({
         // The departure's field wide enough for its word: at a stop's width
         // it read "Departu".
         // After the last point, clear of it, as a field's words are of
-        // its edge: "Add stop" ran into the destination's pill.
-        at === null ? "min-w-12 flex-1 pl-2" : cn("shrink-0 rounded-full bg-background/60 px-2", at === 0 && !hasDep ? "w-28" : "w-20"),
+        // its edge: its words ran into the destination's pill. With no
+        // words after a whole route, and not being typed in, narrow
+        // enough to stay on the route's line: at 48 it took a second line
+        // of its own, empty, under four points.
+        at === null
+          ? cn("flex-1 pl-2", hasDest && points.length > 0 && !focused && !typed ? "min-w-6" : "min-w-12")
+          : cn("shrink-0 rounded-full bg-background/60 px-2", at === 0 && !hasDep ? "w-28" : "w-20"),
       )}
       data-testid="route-type"
     />
+    {/* What is typed cleared, the field kept, as iOS's fields clear. */}
+    {typed && <ClearButton label="Clear what is typed" onClear={() => { setTyped(""); field.current?.focus(); }} className={at === null ? "mr-1" : undefined} />}
+    </>
   );
   // An arrow between two points, a tap on it the field there; a plain
   // arrow on either side of the field once it is open.
@@ -322,14 +361,12 @@ export default function RouteBox({
         <PopoverAnchor asChild>
           {/* The search bar's field, as Maps' is with no route: its grey,
               no line round it, its corners round, the pills on it in the
-              sheet's own colour -- two lines tall however short the route,
-              room to type the next point (Add stop) under a route that
-              fills its first, beside the route's close and its Procedures
-              stacked (PlanWorkspace), at the pilot's ask: one line tall,
-              with the two side by side, the route wrapped onto a second
-              line all the same, the card a line taller than it had been. */}
+              sheet's own colour -- one line tall, a second as the route
+              needs it, at the pilot's ask, where it was two however short
+              the route and a short one left a line of grey empty under it. */}
           <InputGroup
-            className="h-auto min-h-[5.25rem] items-start rounded-[20.5px] border-0 bg-foreground/8 py-0 pr-1.5 pl-1 shadow-none dark:bg-foreground/8 has-[[data-slot=input-group-control]:focus-visible]:ring-0"
+            onMouseDown={e => { if (isRoom(e)) e.preventDefault(); }} onClick={toEnd}
+            className={cn("h-auto items-start rounded-[20.5px] border-0 py-0 pr-1.5 pl-1 shadow-none has-[[data-slot=input-group-control]:focus-visible]:ring-0", PANEL_FIELD)}
             data-testid="route-box" data-tip="route"
           >
             {/* The pills wrap, two lines of them in sight and the top of a
@@ -344,7 +381,7 @@ export default function RouteBox({
                 hit areas meet; room round them for the areas at the box's
                 edges. A swipe up or down in it scrolls it, not the sheet
                 (the root takes the presses). */}
-            <div className="flex max-h-[96px] min-w-0 flex-1 flex-wrap items-center gap-x-px gap-y-2 overflow-x-hidden overflow-y-auto overscroll-contain py-1 pr-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" data-testid="route-slide">
+            <div ref={slide} className="flex max-h-[96px] min-w-0 flex-1 flex-wrap items-center gap-x-px gap-y-2 overflow-x-hidden overflow-y-auto overscroll-contain py-1 pr-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" data-testid="route-slide">
               {/* The box does not scroll itself under a drag: the pill dragged
                   is in the box it scrolls, so each step down carried it
                   further, and a pill held over the second line ran the box
@@ -364,6 +401,7 @@ export default function RouteBox({
                         altitude={altitudeAt(point, waypoints.has(point))}
                         onEditAltitude={() => setEditing({ ident: point, waypoint: waypoints.has(point), altitude: altitudeAt(point, waypoints.has(point)) })}
                         onRemove={() => remove(i)}
+                        onOpen={onOpenAirport && !waypoints.has(point) && identOf(point) ? () => onOpenAirport(identOf(point)) : undefined}
                       />
                       {/* Its procedures, after it, at the pilot's ask: the
                           approach to fly into it, its arrival, its departure
@@ -389,6 +427,13 @@ export default function RouteBox({
                 </>
               )}
             </div>
+            {/* The route cleared, on the box's first line at its end, as a
+                field's clear is (ClearButton) -- not while something is
+                typed, whose own clear is the one to see: two of them read
+                as one too many. */}
+            {points.length > 0 && onClear && !typed && (
+              <ClearButton label="Clear the route" testId="route-box-clear" onClear={onClear} className="mt-[0.6875rem]" />
+            )}
           </InputGroup>
         </PopoverAnchor>
         <PopoverContent
@@ -453,13 +498,20 @@ function ProcedureChip({ procedure, onOpen }: { procedure: RouteProcedure; onOpe
   );
 }
 
-function Pill({ id, ident, waypoint, index, role, stopNumber, airspaceOf, metarColourOf, altitude, onChange, onEditAltitude, onRemove }: {
+function Pill({ id, ident, waypoint, index, role, stopNumber, airspaceOf, metarColourOf, altitude, onChange, onEditAltitude, onRemove, onOpen }: {
   id: string; ident: string; waypoint: boolean; index: number; role: "dep" | "stop" | "dest"; stopNumber: number;
   airspaceOf: (ident: string) => AirspaceClass | undefined;
   metarColourOf: (ident: string) => string | undefined;
   altitude: PointAltitude;
   onChange: (ident: string) => void; onEditAltitude: () => void; onRemove: () => void;
+  /** A tap's, where it opens the airport's card (RouteBox's onOpenAirport). */
+  onOpen?: () => void;
 }) {
+  // The search, out from the menu's Change where a tap opens the card --
+  // once the menu has closed and given the focus back, or it took the
+  // focus from the search as it opened, which closed it.
+  const [changing, setChanging] = useState(false);
+  const change = useRef(false);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
   // A finger's hold, as iOS's: the pill lifts at a quarter second (the
   // drag's, RouteBox's sensors), its menu at half -- unless it has moved
@@ -536,14 +588,27 @@ function Pill({ id, ident, waypoint, index, role, stopNumber, airspaceOf, metarC
     >
       <AirportPicker
         value={pointName(ident)} placeholder={label} ariaLabel={waypoint ? `${label}, a waypoint` : label} look="pill" fixes={role === "stop"}
-        className={cn("h-8 rounded-full px-1.5", look && "text-current", waypoint && "text-[#b02e7c] dark:text-[#ec8cc4]")} onChange={onChange}
+        className={cn("h-8 rounded-full px-1.5", look && "text-current", waypoint && "text-[#c0309f] dark:text-[#ec8cc4]")} onChange={onChange}
+        open={changing} onOpenChange={setChanging} onTap={onOpen}
       />
     </span>
   );
   return (
     <ContextMenu onOpenChange={open => { menuOut.current = open; }}>
       <ContextMenuTrigger asChild>{pill}</ContextMenuTrigger>
-      <ContextMenuContent>
+      <ContextMenuContent onCloseAutoFocus={e => {
+        if (!change.current) return;
+        change.current = false;
+        e.preventDefault();
+        setChanging(true);
+      }}>
+        {/* Another airport in its place, where a tap opens this one's card;
+            its search out once the menu has gone (onCloseAutoFocus). */}
+        {onOpen && (
+          <ContextMenuItem onSelect={() => { change.current = true; }} data-testid="change-point">
+            <Pencil />Change
+          </ContextMenuItem>
+        )}
         {/* The altitude there, before Remove, at the pilot's ask: a
             waypoint's cruise, as a flight level, an airport's pattern, in
             feet -- the plan's until the pilot sets their own. Asked once

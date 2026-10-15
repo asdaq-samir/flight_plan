@@ -1,4 +1,4 @@
-import { Bell, BellOff, CloudSun, Download, Eye, EyeOff, Map as MapIcon, Plane, Trash2 } from "lucide-react";
+import { Bell, BellOff, CloudSun, Download, Eye, EyeOff, Map as MapIcon, Plane, Trash2, Volume2, VolumeX } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { ListGroup, ListRow } from "./GroupedList";
@@ -6,12 +6,15 @@ import Segmented from "./Segmented";
 import TogglePill from "./TogglePill";
 import { Button } from "./ui/button";
 import { clearOwnTrail, useOwnTrail } from "../lib/map/ownTrail";
+import { say } from "../lib/speech";
 import { keepingAvailable } from "../lib/map/keepRoute";
 import { BASE_CHARTS, usePreferences, type BaseChart, type MapOverlay, type OverlayStrength } from "../lib/preferences";
 import { useShownOverlay } from "../lib/map/useShownOverlay";
 import { useGoogleSession } from "../lib/map/googleSession";
 import { cn } from "../lib/utils";
 import { TEXT } from "../lib/text";
+import { inNativeApp } from "../lib/native";
+import { useReceiver } from "../lib/map/receiver";
 import { chartQuery, googleMapsQuery } from "../lib/queryClient";
 
 /** "09-03-2026", the FAA's cycle as the chart server names it, as "3 Sep
@@ -44,6 +47,8 @@ export default function MapSettings() {
   const trailed = useOwnTrail(s => s.path.length > 1);
   const setTraffic = usePreferences(s => s.setTraffic);
   const setAlerts = usePreferences(s => s.setAlerts);
+  const speakAlerts = usePreferences(s => s.speakAlerts);
+  const setSpeakAlerts = usePreferences(s => s.setSpeakAlerts);
   const military = usePreferences(s => s.military);
   const setMilitary = usePreferences(s => s.setMilitary);
   const waypoints = usePreferences(s => s.waypoints);
@@ -62,12 +67,15 @@ export default function MapSettings() {
   // Where the charts come from and which edition is up, under the map's
   // settings: it was a credit in the chart's corner, which the FAA's
   // charts, a US government work, do not ask for. The edition is what a
-  // pilot checks: a chart is current for its cycle.
+  // pilot checks: a chart is current for its cycle. The traffic's source
+  // beside them whether it is shown or not, at the owner's ask ("say
+  // traffic adsb.lol in settings like we do for FAA"), as its licence
+  // (ODbL 1.0, 4.3) asks it be credited; what it is good for, once on.
   const { data: chart } = useQuery(chartQuery);
   return (
     <ListGroup
       title="Map"
-      footer={`${chart ? `Charts from the FAA, the ${editionOf(chart.chart_cycle)} edition.` : "Charts from the FAA."}${traffic ? " Traffic from adsb.lol, under the Open Database License: seconds old, for knowing what is about, not for avoiding it." : ""}`}
+      footer={`${chart ? `Charts from the FAA, the ${editionOf(chart.chart_cycle)} edition.` : "Charts from the FAA."} Traffic from adsb.lol, under the Open Database License${traffic ? ": seconds old, for knowing what is about, not for avoiding it." : "."}`}
     >
       <ListRow title="Chart">
         <Segmented
@@ -123,11 +131,12 @@ export default function MapSettings() {
           <TogglePill pressed={tac} onPressedChange={setTac} icon={<MapIcon />} label={base === "sec" ? "TAC" : "Area"} testId="tac-toggle" />
         </div>
       </ListRow>
-      {/* The route's waypoints, on either map: the planner's numbered
-          checkpoints at every zoom and the dim landmarks they were chosen
-          from closer in, the training map's detections; off, the course
-          line and its two airports alone. */}
-      <ListRow title="Waypoints">
+      {/* The route's VFR checkpoints, on either map: the planner's
+          numbered checkpoints at every zoom and the dim landmarks they
+          were chosen from closer in, the training map's detections; off,
+          the course line and its two airports alone. Named so at the
+          owner's ask ("rename Waypoints to VFR Checkpoints"). */}
+      <ListRow title="VFR Checkpoints">
         <TogglePill pressed={waypoints} onPressedChange={setWaypoints} icon={waypoints ? <Eye /> : <EyeOff />} label="Show" testId="waypoints-toggle" />
       </ListRow>
       {/* The temporary flight restrictions, from tfr.faa.gov: on unless
@@ -136,9 +145,19 @@ export default function MapSettings() {
         <TogglePill pressed={tfrs} onPressedChange={setTfrs} icon={tfrs ? <Eye /> : <EyeOff />} label="Show" testId="tfrs-toggle" />
       </ListRow>
       {/* What is ahead of own ship in the air, over the map (AlertsBanner):
-          on unless turned off. */}
+          on unless turned off; and said aloud (lib/map/speak), off unless
+          turned on. Turned on, it says so: a voice heard then is one the
+          pilot knows to expect, and on an iPhone the tap lets the page
+          speak at all. */}
       <ListRow title="Alerts">
-        <TogglePill pressed={alerts} onPressedChange={setAlerts} icon={alerts ? <Bell /> : <BellOff />} label="In flight" testId="alerts-toggle" />
+        <div className="flex gap-2" role="group" aria-label="Alerts">
+          <TogglePill pressed={alerts} onPressedChange={setAlerts} icon={alerts ? <Bell /> : <BellOff />} label="In flight" testId="alerts-toggle" />
+          <TogglePill
+            pressed={alerts && speakAlerts} disabled={!alerts}
+            onPressedChange={on => { setSpeakAlerts(on); if (on) say("Alerts will be spoken."); }}
+            icon={alerts && speakAlerts ? <Volume2 /> : <VolumeX />} label="Spoken" testId="speak-alerts-toggle"
+          />
+        </div>
       </ListRow>
       {/* The airplanes ADS-B receivers hear about the map (TrafficLayer),
           from adsb.lol: off unless turned on, as it asks a third party
@@ -146,6 +165,9 @@ export default function MapSettings() {
       <ListRow title="Traffic">
         <TogglePill pressed={traffic} onPressedChange={setTraffic} icon={<Plane />} label="Show" testId="traffic-toggle" />
       </ListRow>
+      {/* A cockpit receiver's traffic (lib/map/receiver), heard in the app
+          while the traffic is shown: what it is doing, in words. */}
+      {inNativeApp() && <ListRow title="Receiver" value={<ReceiverStatus on={traffic} />} />}
       {/* Own ship's path flown (OwnTrailLayer), put away here: it starts
           again by itself with the next flight. */}
       <ListRow title="Your path">
@@ -174,4 +196,17 @@ export default function MapSettings() {
       </ListRow>
     </ListGroup>
   );
+}
+
+/** The cockpit receiver, in a few words: whether it is heard, and what. */
+function ReceiverStatus({ on }: { on: boolean }) {
+  const listening = useReceiver(s => s.listening);
+  const connected = useReceiver(s => s.connected);
+  const count = useReceiver(s => Object.keys(s.traffic).length);
+  const error = useReceiver(s => s.error);
+  const words = !on ? "With Traffic on"
+    : error ? "Can't listen on the Wi-Fi"
+      : connected ? `Connected · ${count} ${count === 1 ? "airplane" : "airplanes"}`
+        : listening ? "Listening on the Wi-Fi" : "Starting…";
+  return <span className={connected && on ? "font-semibold text-foreground" : "text-muted-foreground"} data-testid="receiver-status">{words}</span>;
 }

@@ -186,6 +186,11 @@ app:
   # request. docker-compose.yml lists the e2e suite's own address; add
   # yours in .env. See PilotService.
   developer-emails: ${APP_DEVELOPER_EMAILS:}
+  # The token the nightly lab run sends with its speed measurements
+  # (SpeedController, X-Speed-Token); blank refuses them. CI's secret
+  # SPEED_LAB_TOKEN holds the same value.
+  speed:
+    lab-token: ${APP_SPEED_LAB_TOKEN:}
   # The emailed link's own throttle (MagicLinkController): requests an
   # hour per address and per caller. docker-compose.yml loosens both for
   # the local stack, where the e2e suite signs in.
@@ -196,6 +201,28 @@ app:
   # that says when there are more.
   paid-calls:
     per-day: ${APP_PAID_CALLS_PER_DAY:40}
+  # The subscription to the paid features (SubscriptionService): the free
+  # month's length, once an account; each Claude-written feature's monthly
+  # allowance per subscriber, so the heaviest user costs less than they
+  # pay (the mock oral's 60 calls, 30 questions asked and graded, are
+  # about $0.90 on Opus at the cap); and the addresses given it without
+  # paying, comma-separated (an instructor, a tester). A developer always
+  # has it, uncounted.
+  # Whether this deployment sells the subscription at all: off for the
+  # proof of concept, at the owner's ask -- the page then says nothing of
+  # it, the debrief is everyone's, and the features Claude writes are
+  # claude-features' (OFF, DEVELOPERS or EVERYONE, each within the caps).
+  # Every pilot with an account has them for now, at the owner's ask
+  # ("I can offer the AI features to users with an account, no revenue").
+  claude-features: ${APP_CLAUDE_FEATURES:EVERYONE}
+  subscription:
+    enabled: ${APP_SUBSCRIPTION_ENABLED:false}
+    trial-days: ${APP_SUBSCRIPTION_TRIAL_DAYS:30}
+    caps:
+      narrative: ${APP_SUBSCRIPTION_CAP_NARRATIVE:60}
+      checkpoint-notes: ${APP_SUBSCRIPTION_CAP_CHECKPOINT_NOTES:60}
+      oral: ${APP_SUBSCRIPTION_CAP_ORAL:60}
+    comped-emails: ${APP_SUBSCRIPTION_COMPED_EMAILS:}
   magic-link:
     per-address-per-hour: ${APP_MAGIC_LINK_PER_ADDRESS_PER_HOUR:5}
     per-client-per-hour: ${APP_MAGIC_LINK_PER_CLIENT_PER_HOUR:20}
@@ -205,3 +232,9 @@ app:
   # to let images load from there. Empty locally, where the tiles are
   # same-origin through the planner proxy.
   chart-tiles-origin: ${APP_CHART_TILES_ORIGIN:}
+  # Flight Service's filing and briefing through the app
+  # (FlightServiceGateway): "none" until the owner's agreement with a
+  # provider (Leidos, in the contiguous U.S.) is in place and its
+  # implementation is written.
+  flight-service:
+    provider: ${APP_FLIGHT_SERVICE_PROVIDER:none}

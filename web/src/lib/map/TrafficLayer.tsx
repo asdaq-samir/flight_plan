@@ -9,9 +9,13 @@ import { usePreferences } from "../preferences";
 import { flightQuery } from "../queryClient";
 import { centreClear } from "./clear";
 import { TRAFFIC_COLOURS, trafficIcon } from "./icons";
-import { useOwnShip, type Fix } from "./ownShip";
-import { CARRY_S, agedBy, carriedOn, colourRuns, nearOwnHeight, ownShipHex, trafficLabel, trendPx } from "./traffic";
-import { reported, useTracking, type Report } from "./tracking";
+import { useOwnShip } from "./ownShip";
+import { CARRY_S, agedBy, carriedOn, colourRuns, mergeTraffic, nearOwnHeight, ownShipHex, trafficLabel, trendPx } from "./traffic";
+import { reported, useTracking, useTrafficFocus, type Report } from "./tracking";
+import { usePastFlight } from "./pastFlight";
+import PastFlightPath from "./PastFlightPath";
+import { listen, useReceiver } from "./receiver";
+import { inNativeApp } from "../native";
 
 /** How often the traffic is asked for again, ms: the planner asks
  *  adsb.lol about a region at most every five seconds (vfr.traffic). */
@@ -19,6 +23,10 @@ const EVERY_MS = 5000;
 /** How often the airplanes are moved on the map between answers, ms:
  *  ten times a second reads as gliding, at a tenth of the frames. */
 const FRAME_MS = 100;
+/** …at zoom 10 and in; each zoom out halves how often, to a second at
+ *  most: a jet moves under a pixel in a tenth of a second there, and a
+ *  view of a state holds hundreds of airplanes, each moved at each step. */
+const frameMs = (zoom: number) => Math.min(1000, FRAME_MS * 2 ** Math.max(0, 10 - Math.round(zoom)));
 /** A new report for an airplane already drawn takes it there over this
  *  long, ms, from where it had been carried to, rather than at a jump. */
 const BLEND_MS = 1000;
@@ -28,8 +36,15 @@ const BLEND_MS = 1000;
 const HEIGHT_ZOOM = 9;
 const CALLSIGN_ZOOM = 10;
 const PROBLEM = "traffic";
-/** What the Open Database License asks of a map that draws the data. */
-const ATTRIBUTION = 'Traffic <a href="https://adsb.lol" target="_blank" rel="noopener">adsb.lol</a>, ODbL';
+/** No answer for this long, ms, and the traffic is said to be unavailable:
+ *  the airplanes are not carried on past half a minute (CARRY_S). */
+const STALE_MS = 30_000;
+/** What the Open Database License asks of a map that draws the data: its
+ *  source and the licence, named. Not a link: on the map's edge over the
+ *  panel a link has no room for a 44-point hit area, and the console's
+ *  About links adsb.lol with its licence. */
+const ATTRIBUTION = "Traffic adsb.lol, ODbL";
+const ADSBX_ATTRIBUTION = "Traffic ADS-B Exchange";
 
 /** One airplane on the map: its report, when that position was (this
  *  phone's clock, ms), and what is left of the step to it from where it
@@ -69,11 +84,17 @@ export function TrafficLayer() {
   const on = usePreferences(s => s.traffic);
   const tracking = useTracking(s => !!s.hex || s.listing);
   const hex = useTracking(s => s.hex);
-  if (!on && !tracking) return null;
+  // A past flight of the airplane tracked, picked on its card: drawn in
+  // place of today's path (lib/map/pastFlight).
+  const past = usePastFlight(s => (s.hex === hex ? s.id : null));
+  // The Aircraft pill's Map switch draws the traffic whatever the setting.
+  const focused = useTrafficFocus(s => s.on);
+  if (!on && !tracking && !focused) return null;
   return (
     <>
       <Traffic />
-      {hex && <TrackedPath hex={hex} />}
+      {hex && past === null && <TrackedPath key={hex} hex={hex} />}
+      {hex && past !== null && <PastFlightPath key={`${hex}-${past}`} hex={hex} id={past} />}
     </>
   );
 }
@@ -90,38 +111,55 @@ function Traffic() {
     // The pilot's own finger on the map ends following, as own ship's does.
     dragstart: () => { if (useTracking.getState().follow) useTracking.setState({ follow: false }); },
   }), [map]));
-  // Said where it is drawn, as the licence asks; gone with it.
-  useEffect(() => {
-    const credit = L.control.attribution({ prefix: false, position: "bottomleft" }).addAttribution(ATTRIBUTION).addTo(map);
-    return () => { credit.remove(); };
-  }, [map]);
-  // About the airplane followed, else own ship, else the map's middle.
-  const at = followed ? { lat: followed.lat, lon: followed.lon }
-    : fix ? { lat: fix.lat, lon: fix.lon } : { lat: view.centre.lat, lon: view.centre.lng };
+  // About the airplane followed, else the map's middle: the traffic
+  // wherever the map is panned, at the pilot's ask. It was own ship's
+  // whenever there was a fix, so a map panned away from the airplane
+  // showed none where it looked; own ship followed is the middle anyway.
+  const at = followed ? { lat: followed.lat, lon: followed.lon } : { lat: view.centre.lat, lon: view.centre.lng };
   // Asked again as the middle moves a mile or so or the view's size by
   // ten miles, not at every pan.
   const ask = { lat: Math.round(at.lat * 50) / 50, lon: Math.round(at.lon * 50) / 50, radius: Math.ceil(view.radiusNm / 10) * 10 };
-  const { data, isError, isPlaceholderData, dataUpdatedAt } = useQuery({
+  const { data, isError, isPlaceholderData, dataUpdatedAt, errorUpdatedAt } = useQuery({
     queryKey: ["traffic", ask.lat, ask.lon, ask.radius],
     queryFn: () => api.traffic(ask),
     refetchInterval: EVERY_MS, staleTime: EVERY_MS - 1000, placeholderData: keepPreviousData,
     // Said here, in words of its own, not as the planner's failure.
     meta: { silent: true },
   });
+  // Said where it is drawn, as the licence asks; gone with it. Whose the
+  // airplanes are: adsb.lol's, or ADS-B Exchange's where the planner asked
+  // it because adsb.lol turned it away (vfr.traffic).
+  const credit = data?.source === "ADS-B Exchange" ? ADSBX_ATTRIBUTION : ATTRIBUTION;
+  useEffect(() => {
+    const control = L.control.attribution({ prefix: false, position: "bottomleft" }).addAttribution(credit).addTo(map);
+    return () => { control.remove(); };
+  }, [map, credit]);
+  // A cockpit receiver, heard in the app while the traffic is drawn
+  // (lib/map/receiver, #191): its airplanes merged with the internet's.
+  useEffect(() => {
+    if (!inNativeApp()) return;
+    let stop: (() => void) | null = null;
+    let live = true;
+    void listen().then(done => {
+      if (live) stop = done;
+      else done();
+    });
+    return () => {
+      live = false;
+      stop?.();
+    };
+  }, []);
+  const cockpit = useReceiver(s => s.traffic);
+  const receiverOwn = useReceiver(s => s.ownHex);
+  const receiving = useReceiver(s => s.connected);
   // The planner answers 503 only once adsb.lol has given nothing for a
   // minute (vfr.traffic): then the map says so, and the airplanes, carried
-  // on no further than half a minute, have gone.
-  useEffect(() => {
-    if (isError) raiseProblem({ id: PROBLEM, title: "Traffic isn't available right now." });
-    else clearProblem(PROBLEM);
-  }, [isError]);
+  // on no further than half a minute, have gone -- unless a receiver in
+  // the cockpit is heard, whose traffic is drawn without the internet.
   useEffect(() => () => clearProblem(PROBLEM), []);
 
   const targets = useRef(new Map<string, Target>());
   const layer = useMemo(() => L.layerGroup(), []);
-  // Own ship's fix as an answer comes, to leave its own transponder out.
-  const fixNow = useRef<Fix | null>(null);
-  useEffect(() => { fixNow.current = fix; }, [fix]);
   useEffect(() => {
     layer.addTo(map);
     const drawn = targets.current;
@@ -132,18 +170,43 @@ function Traffic() {
   }, [map, layer]);
 
   // Each answer: its airplanes, when each was where it is given (now, less
-  // the answer's age and each one's own), into the targets.
+  // the answer's age and each one's own). The last view's answer is held
+  // while this one's is asked, already in.
+  // State adjusted during render, React's own pattern for keeping what a
+  // change brought.
+  const [answer, setAnswer] = useState<{ data: NonNullable<typeof data>; at: number } | null>(null);
+  if (data && !isPlaceholderData && answer?.at !== dataUpdatedAt) setAnswer({ data, at: dataUpdatedAt });
+  // One answer missed while the map is panned on -- the planner waiting on
+  // adsb.lol for a region it has not asked about -- is not said: the last
+  // answer's airplanes are carried on meanwhile. Said once nothing has come
+  // for STALE_MS, or nothing ever has.
+  const gone = isError && (!answer || errorUpdatedAt - answer.at > STALE_MS);
   useEffect(() => {
-    // The last view's answer, held while this one's is asked: already in.
-    if (!data || isPlaceholderData) return;
-    const received = dataUpdatedAt;
-    const own = ownShipHex(agedBy(data.aircraft, data.age_s ?? 0), fixNow.current);
+    if (gone && !receiving) raiseProblem({ id: PROBLEM, title: "Traffic isn't available right now." });
+    else clearProblem(PROBLEM);
+  }, [gone, receiving]);
+  const own = useMemo(
+    () => (answer ? ownShipHex(agedBy(answer.data.aircraft, answer.data.age_s ?? 0), fix) : null),
+    // Own ship's fix as each answer comes, not with every fix.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [answer],
+  );
+  const internet = useMemo(() => (answer
+    ? answer.data.aircraft.filter(plane => plane.hex !== own)
+      .map(plane => ({ plane, at: answer.at - ((answer.data.age_s ?? 0) + (plane.seen_s ?? 0)) * 1000 }))
+    : null), [answer, own]);
+  // And the receiver's, merged by address: the fresher report of an
+  // airplane both hear, keeping the internet's registration and type,
+  // which GDL 90 does not send; own ship's echo, by its address, left out.
+  const merged = useMemo(() => mergeTraffic(internet, Object.values(cockpit), receiverOwn), [internet, cockpit, receiverOwn]);
+
+  // Each airplane's report into the targets.
+  useEffect(() => {
+    if (!merged) return;
     const seen = new Set<string>();
     const reports: Report[] = [];
-    for (const plane of data.aircraft) {
-      if (plane.hex === own) continue;
+    for (const { plane, at } of merged) {
       seen.add(plane.hex);
-      const at = received - ((data.age_s ?? 0) + (plane.seen_s ?? 0)) * 1000;
       reports.push({ plane, at });
       reported({ plane, at });
       const held = targets.current.get(plane.hex);
@@ -173,10 +236,13 @@ function Traffic() {
     }
     // The airplanes heard, for the Aircraft card's list.
     useTracking.setState({ seen: reports });
-  }, [data, isPlaceholderData, dataUpdatedAt, layer]);
+  }, [merged, layer]);
 
   // The icons, as the reports, own ship's height and the zoom change.
   const ownFt = fix?.altitudeFt ?? null;
+  // The Aircraft pill's Map switch: the airplanes its question finds, the
+  // rest faded (a quarter, still there to see and avoid by).
+  const only = useTrafficFocus(s => (s.on ? s.only : null));
   useEffect(() => {
     const heights = view.zoom >= HEIGHT_ZOOM, callsigns = view.zoom >= CALLSIGN_ZOOM;
     for (const target of targets.current.values()) {
@@ -193,8 +259,9 @@ function Traffic() {
         target.marker.setIcon(icon);
       }
       target.marker.setZIndexOffset(tracked ? 900 : 0);
+      target.marker.setOpacity(only && !only.has(plane.hex) && !tracked ? 0.25 : 1);
     }
-  }, [data, ownFt, view.zoom, hex]);
+  }, [merged, ownFt, view.zoom, hex, only]);
 
   // Following a flight: own ship's following ends (the map can keep one
   // in the middle), and the map goes to it -- in a little where it was
@@ -220,7 +287,7 @@ function Traffic() {
     let frame = 0, last = 0;
     const step = (time: number) => {
       frame = requestAnimationFrame(step);
-      if (zooming || time - last < FRAME_MS) return;
+      if (zooming || time - last < frameMs(map.getZoom())) return;
       last = time;
       const now = Date.now();
       for (const [hex, target] of targets.current) {
@@ -263,11 +330,13 @@ function Traffic() {
   return null;
 }
 
-/** From the middle of the map to its corner, nm, kept between 10 and 60. */
+/** From the middle of the map to its corner, nm, kept between 10 and 165:
+ *  the planner gives a view out to 165 its traffic (vfr.traffic), the
+ *  map zoomed out to a state or two. */
 function radiusOf(map: L.Map): number {
   const bounds = map.getBounds();
   const metres = map.getCenter().distanceTo(bounds.getNorthEast());
-  return Math.min(60, Math.max(10, metres / 1852));
+  return Math.min(165, Math.max(10, metres / 1852));
 }
 
 // One style a colour, made once: react-leaflet restyles a path whenever
@@ -280,6 +349,9 @@ const pathStyle = (colour: string) => {
   return style;
 };
 
+// How long a trace waits for a first report before the map goes to its end.
+const NOT_HEARD_WAIT_MS = 4000;
+
 /**
  * The path a tracked flight has flown today, as FlightAware draws one:
  * from its takeoff (or where its trace begins) to its last report, in
@@ -288,7 +360,26 @@ const pathStyle = (colour: string) => {
  * and the reports since (lib/map/tracking's `path`).
  */
 function TrackedPath({ hex }: { hex: string }) {
+  const map = useMap();
   const { data } = useQuery(flightQuery(hex));
+  // An airplane not heard now -- landed, or found by its registration --
+  // has no report for the map to follow: the map goes to where its trace
+  // ends, once, clear of the panel. The trace can arrive before the first
+  // report of one in the air, which the map follows instead, so the move
+  // waits a few seconds for a report and is dropped if one comes.
+  const live = useTracking(s => s.latest?.plane.hex === hex);
+  const shown = useRef(false);
+  useEffect(() => {
+    const end = data?.trail?.at(-1);
+    if (shown.current || live || !end) return;
+    const timer = setTimeout(() => {
+      if (shown.current || useTracking.getState().latest?.plane.hex === hex) return;
+      shown.current = true;
+      const zoom = Math.max(map.getZoom(), 9);
+      map.setView(centreClear(map, [end.lat, end.lon], zoom), zoom, { animate: true });
+    }, NOT_HEARD_WAIT_MS);
+    return () => clearTimeout(timer);
+  }, [data, live, map, hex]);
   const since = useTracking(s => s.path);
   const path = useMemo(() => {
     const trail = (data?.trail ?? []).map(p => ({ t: p.t * 1000, lat: p.lat, lon: p.lon, altFt: p.alt_ft ?? null }));

@@ -148,6 +148,38 @@
         "title": "AheadAlert",
         "type": "object"
       },
+      "AircraftBases": {
+        "description": "Where airplanes are based (vfr.traffic.based): the field their last\nflights keep to, or None where none; those still being looked up are\npending, given on a later ask.",
+        "properties": {
+          "based": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/PastFlightField"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Based",
+            "type": "object"
+          },
+          "pending": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Pending",
+            "type": "array"
+          }
+        },
+        "required": [
+          "based",
+          "pending"
+        ],
+        "title": "AircraftBases",
+        "type": "object"
+      },
       "AircraftProfile": {
         "additionalProperties": true,
         "description": "The aircraft's name plus its performance profile -- every field a\ndata/aircraft/*.json file carries, declared, so a page reads them as\nfields rather than guessing at a dict. The three figures after the\nname are required when a profile is loaded (REQUIRED_FIELDS in\nvfr.aircraft); the rest fall back to defaults in vfr.navlog when a\nprofile leaves them out. `extra=\"allow\"` keeps a field a newer\nprofile adds on its way through.",
@@ -214,6 +246,18 @@
           "cruise_tas_kt": {
             "title": "Cruise Tas Kt",
             "type": "number"
+          },
+          "designator": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Designator"
           },
           "fuel_burn_gph": {
             "title": "Fuel Burn Gph",
@@ -1468,6 +1512,73 @@
         "title": "AirspaceTransit",
         "type": "object"
       },
+      "AirwayAltitudes": {
+        "description": "An airway segment's published altitudes, feet MSL (NASR AWY_SEG_ALT):\nthe MEA, the GNSS MEA, the MOCA and the MAA; `from_` the fix it starts\nat.",
+        "properties": {
+          "from": {
+            "title": "From",
+            "type": "string"
+          },
+          "gnss_mea_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Gnss Mea Ft"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "maa_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Maa Ft"
+          },
+          "mea_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Mea Ft"
+          },
+          "moca_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Moca Ft"
+          }
+        },
+        "required": [
+          "id",
+          "from"
+        ],
+        "title": "AirwayAltitudes",
+        "type": "object"
+      },
       "AlertsAhead": {
         "description": "What is ahead of the airplane, warnings first, then the soonest;\n`unavailable` names what could not be read (special-use airspace,\nTFRs, terrain, obstacles), said rather than shown as nothing there.",
         "properties": {
@@ -1491,6 +1602,207 @@
           "alerts"
         ],
         "title": "AlertsAhead",
+        "type": "object"
+      },
+      "AlternateCheck": {
+        "description": "A field as the IFR alternate (14 CFR 91.169(c)): its forecast at the\nETA there against its minimums -- 600 and 2 with a precision approach,\n800 and 2 without -- `good` True or False, or None where the pilot has\nto look (its own published alternate minimums, no approach, no TAF).",
+        "properties": {
+          "alternate_minimums_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alternate Minimums Url"
+          },
+          "approach": {
+            "title": "Approach",
+            "type": "boolean"
+          },
+          "ceiling_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ceiling Ft"
+          },
+          "distance_nm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Distance Nm"
+          },
+          "good": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Good"
+          },
+          "ident": {
+            "title": "Ident",
+            "type": "string"
+          },
+          "meets_standard": {
+            "default": false,
+            "title": "Meets Standard",
+            "type": "boolean"
+          },
+          "minimums": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AlternateMinimums"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "precision": {
+            "title": "Precision",
+            "type": "boolean"
+          },
+          "reasons": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Reasons",
+            "type": "array"
+          },
+          "taf": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Taf"
+          },
+          "visibility_sm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Visibility Sm"
+          }
+        },
+        "required": [
+          "ident",
+          "approach",
+          "precision"
+        ],
+        "title": "AlternateCheck",
+        "type": "object"
+      },
+      "AlternateLeg": {
+        "description": "The leg from the destination on to the IFR alternate: flown at the\nroute's last altitude in its winds, or in still air where they could\nnot be read (`still_air`).",
+        "properties": {
+          "altitude_ft": {
+            "title": "Altitude Ft",
+            "type": "number"
+          },
+          "distance_nm": {
+            "title": "Distance Nm",
+            "type": "number"
+          },
+          "ete_min": {
+            "title": "Ete Min",
+            "type": "number"
+          },
+          "fuel_gal": {
+            "title": "Fuel Gal",
+            "type": "number"
+          },
+          "ident": {
+            "title": "Ident",
+            "type": "string"
+          },
+          "still_air": {
+            "default": false,
+            "title": "Still Air",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ident",
+          "distance_nm",
+          "ete_min",
+          "fuel_gal",
+          "altitude_ft"
+        ],
+        "title": "AlternateLeg",
+        "type": "object"
+      },
+      "AlternateMinimums": {
+        "properties": {
+          "ceiling_ft": {
+            "title": "Ceiling Ft",
+            "type": "number"
+          },
+          "visibility_sm": {
+            "title": "Visibility Sm",
+            "type": "number"
+          }
+        },
+        "required": [
+          "ceiling_ft",
+          "visibility_sm"
+        ],
+        "title": "AlternateMinimums",
+        "type": "object"
+      },
+      "Alternates": {
+        "description": "GET /api/alternate: the destination's check, the pilot's alternate's\nand the nearest fields that will do.",
+        "properties": {
+          "alternate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AlternateCheck"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "destination": {
+            "$ref": "#/components/schemas/DestinationCheck"
+          },
+          "suggestions": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/AlternateCheck"
+            },
+            "title": "Suggestions",
+            "type": "array"
+          }
+        },
+        "required": [
+          "destination"
+        ],
+        "title": "Alternates",
         "type": "object"
       },
       "AltitudeBreakdown": {
@@ -1671,6 +1983,11 @@
             ],
             "title": "Min Visibility Sm"
           },
+          "mountainous": {
+            "default": false,
+            "title": "Mountainous",
+            "type": "boolean"
+          },
           "recommended_ft": {
             "anyOf": [
               {
@@ -1681,6 +1998,15 @@
               }
             ],
             "title": "Recommended Ft"
+          },
+          "rules": {
+            "default": "vfr",
+            "enum": [
+              "vfr",
+              "ifr"
+            ],
+            "title": "Rules",
+            "type": "string"
           },
           "segments": {
             "default": [],
@@ -1872,6 +2198,17 @@
             ],
             "title": "Airspace Ceiling Ft"
           },
+          "airway": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AirwayAltitudes"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
           "band_ceiling_ft": {
             "anyOf": [
               {
@@ -1974,6 +2311,54 @@
             ],
             "default": null,
             "title": "Hemispheric Rule From Ft"
+          },
+          "highest_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Highest Ft"
+          },
+          "highest_is_obstacle": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Highest Is Obstacle"
+          },
+          "mountainous": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Mountainous"
+          },
+          "obstacle_clearance_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Obstacle Clearance Ft"
           },
           "service_ceiling_ft": {
             "anyOf": [
@@ -3189,6 +3574,71 @@
           "source"
         ],
         "title": "DemonstratedCrosswind",
+        "type": "object"
+      },
+      "DestinationCheck": {
+        "description": "The destination against 14 CFR 91.169(b)'s \"1-2-3\": an instrument\napproach published, and its TAF an hour either side of the ETA a\nceiling of 2,000 ft or more and 3 sm or more -- else an alternate is\n`required`, `reasons` saying why (vfr.alternates).",
+        "properties": {
+          "approach": {
+            "title": "Approach",
+            "type": "boolean"
+          },
+          "ceiling_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ceiling Ft"
+          },
+          "ident": {
+            "title": "Ident",
+            "type": "string"
+          },
+          "reasons": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Reasons",
+            "type": "array"
+          },
+          "required": {
+            "title": "Required",
+            "type": "boolean"
+          },
+          "taf": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Taf"
+          },
+          "visibility_sm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Visibility Sm"
+          }
+        },
+        "required": [
+          "ident",
+          "approach",
+          "required"
+        ],
+        "title": "DestinationCheck",
         "type": "object"
       },
       "DetectBlock": {
@@ -5908,6 +6358,262 @@
         "title": "OralQuestionRequest",
         "type": "object"
       },
+      "PastFlight": {
+        "description": "One past flight's reports, for its track log and its replay.",
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "points": {
+            "items": {
+              "$ref": "#/components/schemas/PastFlightPoint"
+            },
+            "title": "Points",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "points"
+        ],
+        "title": "PastFlight",
+        "type": "object"
+      },
+      "PastFlightField": {
+        "description": "A landing field a past flight took off from or landed at.",
+        "properties": {
+          "city": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "City"
+          },
+          "ident": {
+            "title": "Ident",
+            "type": "string"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "region": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Region"
+          }
+        },
+        "required": [
+          "ident"
+        ],
+        "title": "PastFlightField",
+        "type": "object"
+      },
+      "PastFlightPoint": {
+        "description": "A report of a past flight: when (s since 1970), where, its height\n(GNSS where sent, ft; None on the ground), ground speed (kt), track\n(degrees true) and climb (ft/min).",
+        "properties": {
+          "alt_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alt Ft"
+          },
+          "gs_kt": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gs Kt"
+          },
+          "lat": {
+            "title": "Lat",
+            "type": "number"
+          },
+          "lon": {
+            "title": "Lon",
+            "type": "number"
+          },
+          "t": {
+            "title": "T",
+            "type": "number"
+          },
+          "track_deg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Track Deg"
+          },
+          "vrate_fpm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vrate Fpm"
+          }
+        },
+        "required": [
+          "t",
+          "lat",
+          "lon"
+        ],
+        "title": "PastFlightPoint",
+        "type": "object"
+      },
+      "PastFlightSummary": {
+        "description": "One of an airplane's flights of the last days (vfr.traffic.history):\nwhere it went from and to, where the receivers heard that, and when.",
+        "properties": {
+          "destination": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PastFlightField"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "in_air": {
+            "title": "In Air",
+            "type": "boolean"
+          },
+          "landed": {
+            "title": "Landed",
+            "type": "boolean"
+          },
+          "max_alt_ft": {
+            "title": "Max Alt Ft",
+            "type": "number"
+          },
+          "off": {
+            "title": "Off",
+            "type": "number"
+          },
+          "on": {
+            "title": "On",
+            "type": "number"
+          },
+          "origin": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PastFlightField"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "off",
+          "on",
+          "landed",
+          "in_air",
+          "max_alt_ft"
+        ],
+        "title": "PastFlightSummary",
+        "type": "object"
+      },
+      "PastFlights": {
+        "description": "An airplane's last flights found, ten at most, newest first, from\nadsb.lol's traces (Open Database License 1.0).",
+        "properties": {
+          "flights": {
+            "items": {
+              "$ref": "#/components/schemas/PastFlightSummary"
+            },
+            "title": "Flights",
+            "type": "array"
+          },
+          "hex": {
+            "title": "Hex",
+            "type": "string"
+          },
+          "next_until": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Until"
+          },
+          "registration": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Registration"
+          },
+          "type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Type"
+          },
+          "unread_days": {
+            "default": 0,
+            "title": "Unread Days",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "hex",
+          "flights"
+        ],
+        "title": "PastFlights",
+        "type": "object"
+      },
       "Pick": {
         "description": "A pilot's own mark on the chart. `rated` is derived from the\nrating, so a rated point can never describe itself as unrated.",
         "properties": {
@@ -7005,6 +7711,11 @@
           "from_nm": {
             "title": "From Nm",
             "type": "number"
+          },
+          "ident": {
+            "default": "",
+            "title": "Ident",
+            "type": "string"
           },
           "name": {
             "title": "Name",
@@ -8498,6 +9209,17 @@
       "Totals": {
         "description": "The trip's sums, and the fuel check: the legs' fuel plus the VFR\nreserve (30 minutes by day, 45 at night -- `night` is None when no\ndeparture time said which) against the aeroplane's usable fuel,\nwhen it has one. `fuel_margin_gal` below zero is a flight the tanks\ndo not hold.",
         "properties": {
+          "alternate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AlternateLeg"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
           "distance_nm": {
             "title": "Distance Nm",
             "type": "number"
@@ -8596,6 +9318,15 @@
             "default": null,
             "title": "Reserve Min"
           },
+          "rules": {
+            "default": "vfr",
+            "enum": [
+              "vfr",
+              "ifr"
+            ],
+            "title": "Rules",
+            "type": "string"
+          },
           "taxi_gal": {
             "anyOf": [
               {
@@ -8691,6 +9422,17 @@
               }
             ],
             "title": "Callsign"
+          },
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
           },
           "emergency": {
             "anyOf": [
@@ -8807,7 +9549,7 @@
         "type": "object"
       },
       "TrafficFound": {
-        "description": "The airplanes in the air a pilot named by callsign, registration\nor ICAO address (vfr.traffic.find).",
+        "description": "The airplanes in the air a pilot named by callsign, registration\nor ICAO address (vfr.traffic.find); and, where none is in the air or\nheard now, the FAA's record of the one named (vfr.traffic.registered),\nto open its card all the same.",
         "properties": {
           "aircraft": {
             "items": {
@@ -8815,6 +9557,31 @@
             },
             "title": "Aircraft",
             "type": "array"
+          },
+          "checked": {
+            "default": true,
+            "title": "Checked",
+            "type": "boolean"
+          },
+          "license": {
+            "default": "ODbL 1.0",
+            "title": "License",
+            "type": "string"
+          },
+          "registered": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AircraftRegistration"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "source": {
+            "default": "adsb.lol",
+            "title": "Source",
+            "type": "string"
           }
         },
         "required": [
@@ -9821,6 +10588,76 @@
           }
         },
         "summary": "Airspace At Point"
+      }
+    },
+    "/api/alternate": {
+      "get": {
+        "description": "The IFR alternate for a flight arriving at `dest` at `eta` (UTC when\nnaive): whether the destination needs one (14 CFR 91.169(b), the\n\"1-2-3\" rule, from its TAF an hour either side of the ETA), the\npilot's `alternate` checked against its minimums at the ETA there\n(91.169(c)), and the nearest fields with a TAF that will do, each\nreached at `tas_kt` from the destination (vfr.alternates).",
+        "operationId": "alternate_api_alternate_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "dest",
+            "required": true,
+            "schema": {
+              "title": "Dest",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "eta",
+            "required": true,
+            "schema": {
+              "format": "date-time",
+              "title": "Eta",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tas_kt",
+            "required": false,
+            "schema": {
+              "default": 110.0,
+              "title": "Tas Kt",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "alternate",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Alternate",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Alternates"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Alternate"
       }
     },
     "/api/briefing": {
@@ -10871,6 +11708,30 @@
           },
           {
             "in": "query",
+            "name": "rules",
+            "required": false,
+            "schema": {
+              "default": "vfr",
+              "enum": [
+                "vfr",
+                "ifr"
+              ],
+              "title": "Rules",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "alternate",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Alternate",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
             "name": "altitudes",
             "required": false,
             "schema": {
@@ -11155,6 +12016,30 @@
               "default": false,
               "title": "Class B Clearance",
               "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "rules",
+            "required": false,
+            "schema": {
+              "default": "vfr",
+              "enum": [
+                "vfr",
+                "ifr"
+              ],
+              "title": "Rules",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "alternate",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Alternate",
+              "type": "string"
             }
           },
           {
@@ -11628,6 +12513,30 @@
           },
           {
             "in": "query",
+            "name": "rules",
+            "required": false,
+            "schema": {
+              "default": "vfr",
+              "enum": [
+                "vfr",
+                "ifr"
+              ],
+              "title": "Rules",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "alternate",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Alternate",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
             "name": "altitudes",
             "required": false,
             "schema": {
@@ -11790,7 +12699,7 @@
     },
     "/api/traffic": {
       "get": {
-        "description": "The airplanes in the air within `radius` nm of a point (at most 60),\nfrom adsb.lol (Open Database License 1.0), and how many seconds old\nthe answer is: for knowing what is about, not for avoiding it. A 503\nwhere adsb.lol has not answered for a minute.",
+        "description": "The airplanes in the air within `radius` nm of a point (at most 165),\nfrom adsb.lol (Open Database License 1.0), and how many seconds old\nthe answer is: for knowing what is about, not for avoiding it. A 503\nwhere adsb.lol has not answered for a minute.",
         "operationId": "traffic_near_api_traffic_get",
         "parameters": [
           {
@@ -11855,9 +12764,53 @@
         "summary": "Traffic Near"
       }
     },
+    "/api/traffic/based": {
+      "get": {
+        "description": "Where each airplane is based, for the Aircraft tab's \"based at\"\nfilter (vfr.traffic.based): the field its last flights begin and end at\nmost; the ones not known yet looked up in the background, pending.",
+        "operationId": "traffic_based_api_traffic_based_get",
+        "parameters": [
+          {
+            "description": "ICAO addresses, comma-separated, 60 at most",
+            "in": "query",
+            "name": "hex",
+            "required": true,
+            "schema": {
+              "description": "ICAO addresses, comma-separated, 60 at most",
+              "maxLength": 420,
+              "minLength": 6,
+              "title": "Hex",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AircraftBases"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Traffic Based"
+      }
+    },
     "/api/traffic/find": {
       "get": {
-        "description": "The airplanes in the air a pilot names -- UAL2088, N174HA, a0b7d8 --\nto track one. A 503 where adsb.lol cannot be asked now.",
+        "description": "The airplanes in the air a pilot names -- UAL2088, N174HA, a0b7d8 --\nto track one; with none in the air or heard now, the FAA's record of a\nUS airplane named by its N-number or address, its card opened all the\nsame (`registered`). Where adsb.lol cannot be asked now, what can be\nshown all the same, `checked` false: the FAA's record of the one named,\nwhich needs no asking. It was a 503, which the pilot read as \"Couldn't\nsearch\" for an airplane the registry knew (N654FL, 2026-10-11).",
         "operationId": "traffic_find_api_traffic_find_get",
         "parameters": [
           {
@@ -11938,6 +12891,136 @@
           }
         },
         "summary": "Traffic Flight"
+      }
+    },
+    "/api/traffic/flight/{hex_id}/history": {
+      "get": {
+        "description": "An airplane's last ten flights found, newest first, as FlightAware\nlists them (vfr.traffic.history): from adsb.lol's recent trace and its\narchive of past days', about six weeks, a fortnight at a time. With\n`until` and `before`, the ones before those listed; with `until` alone,\nthose on and before a day picked. A day that cannot be had now is left\nout and counted.",
+        "operationId": "traffic_history_api_traffic_flight__hex_id__history_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "hex_id",
+            "required": true,
+            "schema": {
+              "pattern": "^~?[0-9a-fA-F]{6}$",
+              "title": "Hex Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "From this UTC day back (a date picked, or the last answer's next_until)",
+            "in": "query",
+            "name": "until",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "From this UTC day back (a date picked, or the last answer's next_until)",
+              "title": "Until"
+            }
+          },
+          {
+            "description": "Only flights that took off before this, s since 1970: the last one listed",
+            "in": "query",
+            "name": "before",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only flights that took off before this, s since 1970: the last one listed",
+              "title": "Before"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PastFlights"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Traffic History"
+      }
+    },
+    "/api/traffic/flight/{hex_id}/history/{flight_id}": {
+      "get": {
+        "description": "One of those flights' reports, for its track log and its replay\n(vfr.traffic.past_flight); 404 where it is not one of them.",
+        "operationId": "traffic_past_flight_api_traffic_flight__hex_id__history__flight_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "hex_id",
+            "required": true,
+            "schema": {
+              "pattern": "^~?[0-9a-fA-F]{6}$",
+              "title": "Hex Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "flight_id",
+            "required": true,
+            "schema": {
+              "exclusiveMinimum": 0,
+              "title": "Flight Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PastFlight"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Traffic Past Flight"
       }
     },
     "/api/traffic/route": {

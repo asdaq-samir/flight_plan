@@ -55,11 +55,11 @@ test("plan page: a click or Enter selects a nav log checkpoint, with the briefin
   await expect(selectedRow).toHaveCount(1);
 
   // The panel's tabs take the stock tabs' own arrows, Right to the next:
-  // the Brief, after the Nav Log.
+  // Arrive, after En route.
   const tabs = panelTabs(page).getByRole("tab");
-  await panelTabs(page).getByRole("tab", { name: "Nav Log" }).focus();
+  await panelTabs(page).getByRole("tab", { name: "En route" }).focus();
   await page.keyboard.press("ArrowRight");
-  await expect(tabs.filter({ hasText: "Brief" })).toBeFocused();
+  await expect(tabs.filter({ hasText: "Arrive" })).toBeFocused();
 });
 
 test("plan page: a checkpoint picked on the map is brought to the middle of the nav log, and a row clicked in view stays put", { tag: "@smoke" }, async ({ page }) => {
@@ -78,9 +78,9 @@ test("plan page: a checkpoint picked on the map is brought to the middle of the 
   // pick first, at full height: at 420px a phone's map is too short
   // for a marker along the route to be clicked.)
   const viewport = page.viewportSize()!;
-  // 462: the route's box is two lines tall again (42 points more than the
-  // 420 this was written at), and a scroller left under a row and the
-  // table's sticky heading is too short for a row to stay put.
+  // 462, not the 420 this was written at: there a scroller left under the
+  // route's head and the table's sticky heading was too short for a row
+  // to stay put.
   await page.setViewportSize({ width: viewport.width, height: 462 });
   await page.waitForTimeout(300);
   await grabberTo(page, "full");

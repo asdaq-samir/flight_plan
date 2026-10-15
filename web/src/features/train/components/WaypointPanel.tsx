@@ -9,11 +9,10 @@ import {
 import { useConfirm } from "../../../components/useConfirm";
 import { Badge } from "../../../components/ui/badge";
 import { Button } from "../../../components/ui/button";
-import { Progress } from "../../../components/ui/progress";
 import { ResponsivePopover, ResponsivePopoverContent, ResponsivePopoverTrigger } from "../../../components/ResponsivePopover";
 import { isEndpoint, type Point, type Rating } from "../../../lib/api/types";
 import {
-  COLORS, RATINGS, modelNote, pointKey, prettyCategory, roleOf, sourceOf, type FilterKey, type Filters, type WalkEntry,
+  COLORS, modelNote, pointKey, prettyCategory, roleOf, sourceOf, type FilterKey, type Filters, type WalkEntry,
 } from "../logic";
 import { revealRow } from "../../../lib/revealRow";
 import { inkOn } from "../../../lib/scoreScale";
@@ -27,8 +26,6 @@ interface Props {
   entries: WalkEntry[];
   selected: Point | null;
   onFocus: (entry: WalkEntry) => void;
-  /** Rates the selected point -- the selected row's own buttons. */
-  onRate: (rating: Rating) => void;
   departureIdent: string;
   destinationIdent: string;
 }
@@ -44,12 +41,6 @@ interface ActionProps {
   onResetAll: () => void;
 }
 
-/** What the scale's ends and middle mean, under the rating buttons --
- *  the Guide tab's scale (RatingGuide) in one line, each term kept
- *  whole where the line wraps ("· 5" / "unmistakable" read as two). */
-const SCALE_KEY = ["0 not a feature", "3 workable", "5 unmistakable"]
-  .map(term => term.replaceAll(" ", " ")).join(" · ");
-
 /**
  * The developer's waypoint panel: the walk as one list, stepped with
  * Up/Down or a tap, the map following. It is a worklist, not a record:
@@ -57,19 +48,20 @@ const SCALE_KEY = ["0 not a feature", "3 workable", "5 unmistakable"]
  * included, numbered the way the map popup numbers them, with the
  * rating (or a dash) at the end -- the old list showed only what was
  * already rated, which left the actual job, the unrated ones, on the
- * map alone. The selected row opens its own rating buttons underneath,
- * so a corridor can be rated top to bottom from here, on a phone where
- * the map popup sits behind the drawer as much as on a desktop.
+ * map alone. A tap puts a row's point in the rating card over the list
+ * (RatingCard, under the route at the owner's pick of the dev page's
+ * redesign), where the six ratings are: they were under the selected row,
+ * which the panel's pill could not show.
  *
  * A list as iOS draws one, where it was a table of 12-point columns: a
  * row each, its kind at 17 points and where it is under that at 15 (14
  * and 12 with a mouse: the app's sizes, TEXT), 44 points and more to tap, the
  * selection a tint rather than a black bar. Its actions are beside the
  * route (WaypointActions), and how far the rating has got is the panel's
- * second row (RatingProgress).
+ * figures at its foot (TrainWorkspace's FigureStrip).
  */
 export default function WaypointPanel({
-  entries, selected, onFocus, onRate, departureIdent, destinationIdent,
+  entries, selected, onFocus, departureIdent, destinationIdent,
 }: Props) {
   const selectedRef = useRef<HTMLButtonElement>(null);
   // Selecting a point on the map (or by stepping) should be as visible
@@ -136,7 +128,7 @@ export default function WaypointPanel({
             return (
               <li key={key}>
                 <WaypointRow
-                  number={numbers.get(entry)} expands
+                  number={numbers.get(entry)}
                   selected={isSelected} onSelect={() => onFocus(entry)} rowRef={isSelected ? selectedRef : undefined}
                   title={capitalised(prettyCategory((p as { category: string }).category))}
                   detail={detail}
@@ -144,40 +136,6 @@ export default function WaypointPanel({
                     ? <span aria-label="Not rated">—</span>
                     : <Badge style={{ backgroundColor: COLORS[rating], color: inkOn(COLORS[rating]) }}>{rating}</Badge>}
                 />
-                {/* The selected waypoint's own rating buttons, under it
-                    -- the same six the map popup has, and the digit keys'
-                    own scale, with what its ends mean. Rating from here
-                    moves on to the next row (TrainWorkspace's onRate), the
-                    way the keys do, so a corridor rates top to bottom. */}
-                {isSelected && (
-                  <div className="bg-foreground/8 pt-1.5 pr-1 pb-2.5 pl-4">
-                    {/* Six of 36 by 32, eight apart side by side and twelve
-                        between rows: each reaches 44 points through its own
-                        hit area (index.css), which starts at the row above's
-                        edge, without reaching into the next one's -- these
-                        are tapped a few hundred times a route. In line under
-                        the title, and on one row on a phone at the default
-                        text size (the strip's right padding given up for
-                        it); set larger, they wrap. */}
-                    <div className="flex flex-wrap gap-x-2 gap-y-3 pl-10" role="group" aria-label="Rate this waypoint">
-                      {RATINGS.map(r => (
-                        <Button
-                          key={r} type="button" size="sm"
-                          onClick={() => onRate(r)}
-                          aria-label={`Rate ${r}`} aria-pressed={rating === r}
-                          className={cn("w-9 px-0 font-bold", rating === r && "ring-2 ring-foreground ring-offset-2 ring-offset-background")}
-                          style={{ backgroundColor: COLORS[r], color: inkOn(COLORS[r]) }}
-                        >
-                          {r}
-                        </Button>
-                      ))}
-                    </div>
-                    {/* Two pixels clear of the buttons' hit areas, which reach
-                        six below them; the tint's own grey words, as the
-                        row's. */}
-                    <p className={cn("mt-2 pr-2 pl-10 text-foreground/70", TEXT.note)}>{SCALE_KEY}</p>
-                  </div>
-                )}
               </li>
             );
           })}
@@ -196,23 +154,21 @@ function capitalised(text: string): string {
  * One row of the walk: its number (the map popup's), what it is and,
  * under that, where; at the end its rating. The whole row is the
  * button, as an iOS list row is: a tap selects it and the map goes to
- * it, and a selected detection opens its rating buttons under it (said
- * to a reader as aria-expanded).
+ * it, and puts it in the rating card over the list (RatingCard).
  */
-function WaypointRow({ number, title, detail, end, selected, expands = false, onSelect, rowRef }: {
+function WaypointRow({ number, title, detail, end, selected, onSelect, rowRef }: {
   number?: number;
   title: string;
   detail: string;
   end?: ReactNode;
   selected: boolean;
-  expands?: boolean;
   onSelect: () => void;
   rowRef?: Ref<HTMLButtonElement>;
 }) {
   return (
     <button
       ref={rowRef} type="button" onClick={onSelect}
-      data-waypoint-row data-selected={selected || undefined} aria-expanded={expands ? selected : undefined}
+      data-waypoint-row data-selected={selected || undefined}
       className={cn(
         // The drawer's margin, 16, as every sheet's: it was 12.
         "flex w-full items-center gap-3 px-4 py-2 text-left outline-none",
@@ -304,25 +260,5 @@ export function WaypointActions({ rated, filters, counts, onFilterChange, canUnd
       {resetDialog}
       {retrain.confirmDialog}
     </>
-  );
-}
-
-/**
- * How far the corridor's rating has got, as a bar with its count at the
- * end -- the training panel's second row, in sight with the panel down.
- * It was "323.4 nm · 328°T" and "56 of 269 rated · 6 hidden by the
- * filters" in words: the route's distance and heading are the nav log's,
- * not the rating's, and the filters' sheet counts what each one holds
- * back. Rated over every candidate, filters or no filters.
- */
-export function RatingProgress({ rated, total }: { rated: number; total: number }) {
-  return (
-    <div className="flex min-w-0 flex-1 items-center gap-3 py-1">
-      <Progress
-        value={total ? (rated / total) * 100 : 0} className="flex-1"
-        aria-label={`${rated} of ${total} rated`} data-testid="rated-progress"
-      />
-      <span className={cn("shrink-0 text-muted-foreground tabular-nums", TEXT.note)} aria-hidden>{rated} of {total}</span>
-    </div>
   );
 }

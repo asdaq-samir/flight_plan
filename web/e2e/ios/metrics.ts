@@ -79,8 +79,9 @@ export type HitMiss = { control: string; box: string; lost: number; by: string }
  *  covers or clips the square: a neighbour's area, an overflow:hidden
  *  ancestor, a sticky bar. Not judged: a control covered at its own
  *  centre (behind a drawer, under an overlay -- not on show), one whose
- *  square crosses a scroll container's edge (scrolled into view it would
- *  be judged), and a probe that lands on a toast, which is gone in a
+ *  square crosses a scroll container's or a clipping one's edge (scrolled
+ *  into view it would be judged: a row half under the panel's sheet's
+ *  clipped foot, the tab bar under it), and a probe that lands on a toast, which is gone in a
  *  moment and is not the layout, or on a sticky heading a row has
  *  scrolled under. */
 export function hitAreaMisses(page: Page, scope = "body", size = 44): Promise<HitMiss[]> {
@@ -106,7 +107,7 @@ export function hitAreaMisses(page: Page, scope = "body", size = 44): Promise<Hi
       // A popover or a sheet open over the page covers what is under its
       // edge, as iOS's do: a row half under it is covered, not crowded.
       const over = (hit: Element | null) => {
-        const layer = hit?.closest('[data-slot="popover-content"], [data-slot="drawer-content"], [role="dialog"]');
+        const layer = hit?.closest('[data-slot="popover-content"], [data-slot="sheet-content"], [role="dialog"]');
         return !!layer && !layer.contains(el);
       };
       const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
@@ -114,7 +115,7 @@ export function hitAreaMisses(page: Page, scope = "body", size = 44): Promise<Hi
       let port = { l: 0, t: 0, r: innerWidth, b: innerHeight };
       for (let a = el.parentElement; a; a = a.parentElement) {
         const o = getComputedStyle(a);
-        if (!/auto|scroll/.test(o.overflowX + o.overflowY)) continue;
+        if (!/auto|scroll|clip|hidden/.test(o.overflowX + o.overflowY)) continue;
         const b = a.getBoundingClientRect();
         port = { l: Math.max(port.l, b.left), t: Math.max(port.t, b.top), r: Math.min(port.r, b.right), b: Math.min(port.b, b.bottom) };
       }
@@ -122,6 +123,9 @@ export function hitAreaMisses(page: Page, scope = "body", size = 44): Promise<Hi
       // finds what is beyond (a row cut off at 992 by its list, probed
       // at 992, found the panel's foot under it).
       if (cx - half < port.l || cx + half >= port.r || cy - half < port.t || cy + half >= port.b) continue;
+      // Nor one cut off by that edge itself: a row half scrolled under the
+      // sheet's foot, its square a point short of crossing it.
+      if (r.top < port.t - 0.5 || r.bottom > port.b + 0.5) continue;
       const probes = [[-1, 0], [1, 0], [0, -1], [0, 1], [-1, -1], [1, -1], [-1, 1], [1, 1]];
       const takers: string[] = [];
       const lost = probes.filter(([dx, dy]) => {
@@ -167,7 +171,10 @@ export function typeFindings(page: Page, scope = "body"): Promise<{ offScale: Ty
         const el = n.parentElement;
         if (!text || !el) continue;
         const rect = el.getBoundingClientRect();
-        if (rect.width <= 1 || rect.height <= 1 || rect.right <= 0 || rect.bottom <= 0 || el.closest(".sr-only")) continue;
+        // Nor a figure set smaller to fit its column, as iOS's
+        // adjustsFontSizeToFitWidth sets one (FlightLine's data-fitted):
+        // off the scale by design, on a screen too narrow for it.
+        if (rect.width <= 1 || rect.height <= 1 || rect.right <= 0 || rect.bottom <= 0 || el.closest(".sr-only, [data-fitted]")) continue;
         const cs = getComputedStyle(el);
         if (cs.visibility !== "visible" || cs.opacity === "0") continue;
         const size = Math.round(parseFloat(cs.fontSize) * 100) / 100;
@@ -249,10 +256,11 @@ export type ComponentFinding = { rule: string; what: string; measured: string };
  *  - a sheet's grabber at iOS's 36 by 5;
  *  - one radius for what floats, the theme's: sheets, pop-ups, dialogs,
  *    map cards, list cards and toasts -- but the map's panel on a phone,
- *    in Maps' own shapes: its capsule at rest a full pill, its medium
- *    sheet 36, and the console's sheet at half the same 36;
+ *    in Maps' own shapes: at rest a rectangle 24 round, its medium sheet
+ *    36, and the console's sheet at half the same 36;
  *  - one icon-only button, 36 with a 20 glyph -- outside the navigation
- *    bar, whose sizes are a decision still open, and the map's markers;
+ *    bar, whose sizes are a decision still open, the map's markers, and
+ *    the route's fold on the separator, small at the pilot's ask;
  *  - a drawer's or a sheet's words at least 16 in from its side, iOS's
  *    margin (a point less for a glyph's own side bearing);
  *  - a switch at iOS's own 51 by 31 to a finger, the pilot's one
@@ -271,7 +279,7 @@ export function componentFindings(page: Page): Promise<ComponentFinding[]> {
       return r.width > 1 && r.height > 1 && getComputedStyle(el).visibility === "visible";
     };
     const name = (el: Element) => (el.getAttribute("aria-label") ?? (el as HTMLElement).dataset?.testid ?? el.getAttribute("data-slot") ?? el.className.toString().split(" ")[0]).slice(0, 40);
-    for (const grab of document.querySelectorAll('[data-slot="drawer-content"] > div:first-child, [data-slot="console-sheet"] [data-grabber]')) {
+    for (const grab of document.querySelectorAll('[data-slot="console-sheet"] [data-grabber]')) {
       const r = grab.getBoundingClientRect();
       if (!on(grab) || r.height > 12) continue;
       if (Math.abs(r.width - 36) > 0.5 || Math.abs(r.height - 5) > 0.5) found.push({ rule: "grabber 36×5", what: "sheet grabber", measured: `${r.width}×${r.height}` });
@@ -281,24 +289,27 @@ export function componentFindings(page: Page): Promise<ComponentFinding[]> {
     document.body.append(theme);
     const radius = parseFloat(getComputedStyle(theme).borderTopLeftRadius);
     theme.remove();
-    const floats = ['[data-slot="drawer-content"][data-vaul-drawer-direction="bottom"]', '[data-slot="console-sheet"]', '[data-slot="map-panel"]', '[data-slot="popover-content"]', '[data-slot="dialog-content"]',
+    const floats = ['[data-slot="sheet-content"][data-side="bottom"]', '[data-slot="console-sheet"]', '[data-slot="map-panel"]', '[data-slot="popover-content"]', '[data-slot="dialog-content"]',
       '[data-slot="alert-dialog-content"]', ".leaflet-popup-content-wrapper", '[data-slot="item-group"].border', "[data-sonner-toast]"].join(", ");
     for (const box of document.querySelectorAll(floats)) {
       if (!on(box)) continue;
       // A sheet from the top of the screen is rounded at its bottom only.
       const r = Math.max(parseFloat(getComputedStyle(box).borderTopLeftRadius), parseFloat(getComputedStyle(box).borderBottomLeftRadius));
-      // The capsule a full pill, its corners half its height, as Maps'; a
-      // phone's sheet (the map's panel, the console) 36, inset or on the
-      // screen's edges with its far corners round.
+      // The panel at rest a rectangle with its corners 24 round, at the
+      // pilot's ask (mapChrome's PILL_RADIUS); a phone's sheet (the map's
+      // panel, the console) 36, inset or on the screen's edges with its
+      // far corners round.
       const sheet = box.matches('[data-slot="map-panel"][data-sheet], [data-slot="console-sheet"]');
-      const shape = box.matches("[data-capsule]") ? box.getBoundingClientRect().height / 2 : sheet ? 36 : radius;
+      const shape = box.matches("[data-capsule]") ? Math.min(24, box.getBoundingClientRect().height / 2) : sheet ? 36 : radius;
       if (Math.abs(r - shape) > 0.5) found.push({ rule: `one radius, ${Math.round(shape)}`, what: name(box), measured: `${r}` });
     }
     for (const button of document.querySelectorAll<HTMLElement>('button, a[data-slot="button"]')) {
       const svg = button.querySelector("svg");
       // The airport card's runway sketch is a picture as wide as two tiles,
-      // not an icon button: its svg is the drawing, not a glyph.
-      if (!svg || !on(button) || button.closest('header, .leaflet-marker-icon, [data-sonner-toaster], [data-slot="tabs-trigger"], [data-testid="place-runway-sketch"]')) continue;
+      // not an icon button: its svg is the drawing, not a glyph. Nor is a
+      // text field's clear (ClearButton), iOS's own 20-point circled cross
+      // inside the field, which every field with words in it now wears.
+      if (!svg || !on(button) || button.closest('header, .leaflet-marker-icon, [data-sonner-toaster], [data-slot="tabs-trigger"], [data-testid="place-runway-sketch"], [data-slot="clear-button"]')) continue;
       const words = [...button.querySelectorAll("*"), button].some(n => [...n.childNodes].some(c => c.nodeType === 3 && c.textContent!.trim() && !(n as Element).closest(".sr-only")));
       // A button named by words laid over it -- a section's title over its
       // row-wide accordion trigger (AccordionSection) -- has words: it is
@@ -308,14 +319,15 @@ export function componentFindings(page: Page): Promise<ComponentFinding[]> {
       const b = button.getBoundingClientRect(), g = svg.getBoundingClientRect();
       const hit = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
       if (!hit || !(hit === button || button.contains(hit))) continue;
-      // The close's cross at 24, the one exception (CloseButton): lucide's
-      // spans half its box where the other glyphs span most of theirs.
-      const glyph = button.querySelector("svg.lucide-x") ? 24 : 20;
+      // The close's cross at 24, and the back's chevron, its twin at the
+      // owner's ask (CloseButton, BackButton): lucide's span half their box
+      // where the other glyphs span most of theirs.
+      const glyph = button.querySelector("svg.lucide-x, svg.back-glyph") ? 24 : 20;
       if (Math.abs(b.width - 36) > 0.5 || Math.abs(b.height - 36) > 0.5 || Math.abs(g.width - glyph) > 0.5) {
         found.push({ rule: `icon button 36, glyph ${glyph}`, what: name(button), measured: `${Math.round(b.width)}×${Math.round(b.height)}, glyph ${Math.round(g.width)}` });
       }
     }
-    for (const panel of document.querySelectorAll('[data-slot="map-panel"], [data-slot="drawer-content"], [data-testid="console-sheet"]')) {
+    for (const panel of document.querySelectorAll('[data-slot="map-panel"], [data-slot="sheet-content"], [data-testid="console-sheet"]')) {
       if (!on(panel)) continue;
       const p = panel.getBoundingClientRect();
       let inset = Infinity, sample = "";
@@ -350,7 +362,9 @@ export function componentFindings(page: Page): Promise<ComponentFinding[]> {
     }
     if (matchMedia("(pointer: coarse) and (min-width: 744px) and (min-height: 600px)").matches) {
       for (const sheet of document.querySelectorAll('[data-testid="console-sheet"]')) {
-        if (!on(sheet)) continue;
+        // The planner's Setup is a tab of the map's panel on an iPad too
+        // (MapPage's inPanel), at the owner's ask: the panel's, not a sheet.
+        if (!on(sheet) || sheet.closest('[data-slot="map-panel"]')) continue;
         const b = sheet.getBoundingClientRect();
         const w = Math.min(540, innerWidth - 40), h = Math.min(620, innerHeight * 0.85);
         const centred = Math.abs(b.left - (innerWidth - b.right)) <= 1 && Math.abs(b.top - (innerHeight - b.bottom)) <= 1;
@@ -535,4 +549,35 @@ export function outsideSafeArea(page: Page, insets: Insets): Promise<InsetFindin
     }
     return found;
   }, { insets, tappable: TAPPABLE });
+}
+
+export type KeyboardFinding = { field: string; missing: string };
+
+/** P19: every field a finger types in says what its keyboard is for, as
+ *  iOS's text fields do (HIG, "Text fields"): an `enterkeyhint`, so the
+ *  return key reads Search, Go, Next or Done rather than a bare "return",
+ *  and an `autocomplete`, so Safari's AutoFill offers the pilot's own
+ *  email, name or one-time code where one fits and nothing where none
+ *  does ("off" says so). Multi-line text keeps its return key for new
+ *  lines. Fields in a hidden or inert part of the page are not in reach. */
+export function keyboardFindings(page: Page, scope = "body"): Promise<KeyboardFinding[]> {
+  return page.evaluate((scope) => {
+    // A date's or a time's field opens iOS's wheels, which have no return
+    // key and no AutoFill.
+    const NOT_TYPED = new Set(["checkbox", "radio", "range", "hidden", "file", "button", "submit", "reset", "color", "image", "date", "time", "datetime-local", "month", "week"]);
+    const out: { field: string; missing: string }[] = [];
+    for (const el of document.querySelectorAll<HTMLInputElement>(`${scope} input`)) {
+      if (NOT_TYPED.has(el.type)) continue;
+      const box = el.getBoundingClientRect();
+      if (!box.width || !box.height || el.closest("[inert], [aria-hidden=true], .tab-away")) continue;
+      const missing = [
+        !el.hasAttribute("enterkeyhint") && "enterkeyhint",
+        !el.hasAttribute("autocomplete") && "autocomplete",
+      ].filter(Boolean).join(", ");
+      if (!missing) continue;
+      const name = el.getAttribute("aria-label") || el.labels?.[0]?.textContent?.trim() || el.placeholder || el.dataset.testid || el.id;
+      out.push({ field: `${el.type} "${(name ?? "").slice(0, 40)}"`, missing });
+    }
+    return out;
+  }, scope);
 }

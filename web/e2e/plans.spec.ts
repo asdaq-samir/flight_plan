@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { slow, settle, sideDrawer, expectDrawerOpen, openTab, openSection, openPanel, grabberTo, controlsInSight } from "./helpers";
+import { slow, settle, sideDrawer, expectDrawerOpen, openTab, openSection, grabberTo, controlsInSight, showTabs } from "./helpers";
 
 /**
  * What the nav log is computed from: the altitude plans and a pilot's
@@ -27,7 +27,7 @@ test("plan page: the nav log's altitude opens the planner's own reasoning, and t
   await expect(why).not.toHaveAccessibleName(/·/);
   await why.click();
   // A popover beside the altitude, or on a phone a sheet from the bottom.
-  const popover = page.locator("[data-slot=popover-content], [data-slot=drawer-content]");
+  const popover = page.locator("[data-slot=popover-content], [data-slot=sheet-content]");
   await expect(popover).toBeVisible();
   await expect(popover).toContainText("Floor");
   await expect(popover).toContainText("Ceiling");
@@ -87,7 +87,8 @@ test("plan page: the nav log's altitude opens the planner's own reasoning, and t
   await expect(popover).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(popover).toHaveCount(0);
-  await expectDrawerOpen(page);
+  // The pill as it was, its chips still in sight.
+  await expect(page.getByTestId("altitude-why")).toBeVisible();
 
   // The briefing's Cruise Altitude section, under the nav log's side
   // view, carries the same steps.
@@ -132,6 +133,8 @@ test("plan page: a departure time gives every checkpoint an ETA, and the nav log
   await page.getByTestId("depart-done").click();
   await expect(calendar).toHaveCount(0);
   await expect(page.getByTestId("depart-date")).toContainText("15:00");
+  // The nav log's table all the way up.
+  await grabberTo(page, "full");
   await expect(table.locator("thead")).toContainText("ETA");
   // The ETA column by its heading: the print-only ATA and fuel columns
   // sit after it, empty on screen.
@@ -200,20 +203,21 @@ test("plan page: no legal altitude is the route's own problem: its chip says so 
   }));
   await page.goto("/app/plan?dep=C81&dest=KDLH");
 
-  // At rest the route says so, a red mark beside it on its one line:
+  // At rest the route says so, a red mark on its tab in the pill:
   // nothing over the map.
-  const chip = page.getByTestId("capsule-detail");
-  await expect(chip).toHaveAttribute("aria-label", /No legal altitude$/, { timeout: slow(30000) });
-  await expect(chip).toHaveAttribute("data-tone", "destructive");
+  await expect(page.getByTestId("tab-mark-fpl")).toHaveAttribute("data-finding", "stop", { timeout: slow(30000) });
+  await showTabs(page);
+  await expect(page.getByTestId("tab-fpl")).toHaveAccessibleName(/^FPL, warning$/);
   await expect(page.locator("[data-problem-banner]")).toHaveCount(0);
   await expect(page.locator("[data-sonner-toast]", { hasText: "No legal" })).toHaveCount(0);
-  // Its mark beside where to, how far and how long, which it does not
-  // hide, at the pilot's ask: the book's time, marked "≈".
-  await expect(page.getByTestId("capsule-title")).toContainText(/^KDLH · ≈\d+ nm · ≈/);
+  // The figures in the pill, under its profile, at the pilot's ask: the
+  // book's time, marked "≈".
+  await grabberTo(page, "peek");
+  await expect(sideDrawer(page).getByTestId("navlog-ete")).toHaveText(/^≈/);
 
-  // Its tap opens the panel: the cruising altitude's chip red, and no
-  // line under the route.
-  await chip.click();
+  // All the way up: the cruising altitude's chip red, and no line under
+  // the route.
+  await grabberTo(page, "full");
   // The figures stay, the book's marked "≈", where why stood in their
   // place in red; why is the Brief's, its Go / No-Go's altitude red.
   await expect(sideDrawer(page).getByTestId("navlog-eta-estimate")).toBeVisible();
@@ -231,7 +235,7 @@ test("plan page: no legal altitude is the route's own problem: its chip says so 
   await expect(problem).toHaveCount(0);
   // By its slot: on a phone the chip's sheet hides the page from the
   // accessibility tree, and a role lookup with it.
-  const navLogTab = page.getByTestId("panel-tab-navlog");
+  const navLogTab = page.getByTestId("panel-tab-enroute");
 
   // A tap on the mark: where, why as a list -- with no Try again, which
   // would only say the same -- and the section left as it was.
@@ -282,9 +286,8 @@ test("plan page: Class B in the way offers the waypoint round it, or accepting t
     });
   });
   await page.goto("/app/plan?dep=C81&dest=KDLH");
-  const chip = page.getByTestId("capsule-detail");
-  await expect(chip).toHaveAttribute("aria-label", /No legal altitude$/, { timeout: slow(30000) });
-  await chip.click();
+  await expect(page.getByTestId("tab-mark-fpl")).toHaveAttribute("data-finding", "stop", { timeout: slow(30000) });
+  await controlsInSight(page);
   const problem = page.getByTestId("route-problem");
   const mark = page.getByTestId("altitude-why");
   await mark.click();
@@ -334,8 +337,8 @@ test("plan page: no legal altitude's own altitude field takes a tap", async ({ p
       reasons: ["The terrain and obstacles there need 10,600 ft."], advice: "Route around the high ground." }) + "\n",
   }));
   await page.goto("/app/plan?dep=C81&dest=KDLH");
-  await expect(page.getByTestId("capsule-detail")).toHaveAttribute("aria-label", /No legal altitude$/, { timeout: slow(30000) });
-  await page.getByTestId("capsule-detail").click();
+  await expect(page.getByTestId("tab-mark-fpl")).toHaveAttribute("data-finding", "stop", { timeout: slow(30000) });
+  await controlsInSight(page);
   await page.getByTestId("altitude-why").click();
   const field = page.getByTestId("custom-altitude");
   await expect(field).toBeVisible();
@@ -354,7 +357,7 @@ test("plan page: an altitude of the pilot's own that breaks a rule is flown as s
   // ground, is an eastbound altitude (14 CFR 91.159).
   await page.goto("/app/plan?dep=C81&dest=KDLH&altitude_ft=5500");
   await settle(page);
-  await openPanel(page);
+  await controlsInSight(page);
   const chip = page.getByTestId("altitude-why");
   await expect(chip).toHaveAccessibleName(/FL055.*caution/, { timeout: slow(60000) });
   await expect(page.getByTestId("own-altitude-flag")).toBeVisible();

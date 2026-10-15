@@ -1,15 +1,16 @@
 import { createContext, useContext, type ComponentProps, type ReactNode } from "react";
 import { cn } from "cn";
-import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle, DrawerTrigger } from "./ui/drawer";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "./ui/sheet";
 import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from "./ui/popover";
 import { useIsMobile } from "../hooks/use-mobile";
 import { useNavEdge } from "../hooks/use-nav-edge";
 import type { NavEdge } from "../lib/preferences";
+import { phoneSheet } from "./phoneSheet";
 import { TEXT } from "../lib/text";
 
 /**
  * A popover from `md` up and, on a phone, a sheet from the header's
- * edge: shadcn's Popover and Drawer behind Popover's own API. A panel
+ * edge: shadcn's Popover and Sheet behind Popover's own API. A panel
  * that fits beside its button stays a popover; on a phone the same
  * panel was the height of the screen over the header (the map's
  * settings), 70% of it scrolling inside (the altitude's reasoning), or
@@ -23,14 +24,10 @@ import { TEXT } from "../lib/text";
 /** The edge the sheet comes from on a phone; from `md` up, none. */
 const OnPhone = createContext<NavEdge | null>(null);
 
-export function ResponsivePopover({ children, open, onOpenChange, phoneEdge, handleOnly }: {
+export function ResponsivePopover({ children, open, onOpenChange, phoneEdge }: {
   children: ReactNode;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
-  /** A phone's sheet moved by its handle alone, not its content: for a
-   *  search sheet, whose rows a finger scrolls and taps, and where a tap
-   *  that rolled a little was taken for a drag of the sheet. */
-  handleOnly?: boolean;
   /** The edge a phone's sheet comes from, where it is not the navigation
    *  bar's: a search typed into comes from the top, clear of the
    *  keyboard, as Maps' search sheet stands. */
@@ -42,14 +39,14 @@ export function ResponsivePopover({ children, open, onOpenChange, phoneEdge, han
   return (
     <OnPhone.Provider value={isMobile ? edge : null}>
       {isMobile
-        ? <Drawer direction={edge} open={open} onOpenChange={onOpenChange} handleOnly={handleOnly}>{children}</Drawer>
+        ? <Sheet open={open} onOpenChange={onOpenChange}>{children}</Sheet>
         : <Popover open={open} onOpenChange={onOpenChange}>{children}</Popover>}
     </OnPhone.Provider>
   );
 }
 
 export function ResponsivePopoverTrigger(props: ComponentProps<typeof PopoverTrigger>) {
-  return useContext(OnPhone) ? <DrawerTrigger {...props} /> : <PopoverTrigger {...props} />;
+  return useContext(OnPhone) ? <SheetTrigger {...props} /> : <PopoverTrigger {...props} />;
 }
 
 /** What the popover is placed against, where a trigger cannot be (a mark
@@ -107,28 +104,27 @@ export function ResponsivePopoverContent({
     // panel's own content scrolling under it, clear of the notch from
     // the top and the home indicator from the bottom. The popover's
     // width classes are left behind.
-    <DrawerContent
-      className={cn(edge === "top"
-        ? "pt-[env(safe-area-inset-top)] data-[vaul-drawer-direction=top]:max-h-[85dvh]"
-        : "data-[vaul-drawer-direction=bottom]:max-h-[85dvh]", sheetClassName)}
+    <SheetContent
+      side={edge} showCloseButton={false}
+      className={cn(phoneSheet(edge), sheetClassName)}
       {...props}
     >
-      <DrawerHeader
+      <SheetHeader
         className={titleHidden ? "sr-only" : cn(
-          "pb-2 group-data-[vaul-drawer-direction=bottom]/drawer-content:text-left group-data-[vaul-drawer-direction=top]/drawer-content:text-left",
+          "pb-2 text-left",
           action !== undefined && "flex-row flex-wrap items-center justify-between",
         )}
       >
         {leading}
         {/* A sheet's title at the app's size for one (TEXT), with a
             control beside it or not: without one it was the stock 14. */}
-        <DrawerTitle className={cn("font-semibold", TEXT.title, leading && "flex-1 text-center")}>{title}</DrawerTitle>
+        <SheetTitle className={cn("font-semibold", TEXT.title, leading && "flex-1 text-center")}>{title}</SheetTitle>
         {action}
-        {description ? <DrawerDescription className={action !== undefined ? "basis-full" : undefined}>{description}</DrawerDescription> : null}
-      </DrawerHeader>
+        {description ? <SheetDescription className={action !== undefined ? "basis-full" : undefined}>{description}</SheetDescription> : null}
+      </SheetHeader>
       <div className={cn("min-h-0 overflow-y-auto px-4", edge === "top" ? "pb-4" : "pb-[max(1rem,env(safe-area-inset-bottom))]", titleHidden && "pt-4")}>
         {children}
       </div>
-    </DrawerContent>
+    </SheetContent>
   );
 }

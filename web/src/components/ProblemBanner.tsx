@@ -3,6 +3,7 @@ import { CircleAlert } from "lucide-react";
 import { cn } from "cn";
 import { Alert } from "./ui/alert";
 import { Button } from "./ui/button";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "./ui/collapsible";
 import { GLASS } from "./mapChrome";
 import { TEXT } from "../lib/text";
 import { useSystemProblems } from "../lib/problems";
@@ -35,16 +36,26 @@ export default function ProblemBanner() {
         className="flex min-h-11 items-center gap-2 rounded-[22px] border-transparent bg-transparent py-1 pr-1 pl-3 text-destructive-ink *:[svg]:translate-y-0"
       >
         <CircleAlert className="shrink-0" />
-        <button
-          type="button" onClick={() => setOpen(o => !o)} aria-expanded={open} data-testid="problem-banner-title"
-          // The line's whole height, so its 44-point hit area is its own:
-          // a 28-point box's reached past the glass round it.
-          className={cn("flex min-w-0 flex-1 flex-col justify-center self-stretch py-1 text-left font-medium outline-none focus-visible:underline", TEXT.detail)}
-        >
-          {open && problems.length > 1
-            ? problems.map(p => <span key={p.id} className="ml-4 list-item list-disc" data-problem-item="">{p.title}</span>)
-            : <span className={cn("block max-w-full", !open && "truncate")}>{title}</span>}
-        </button>
+        {/* The one line, a tap opening each problem under it where there
+            are several: shadcn's Collapsible (Radix), the list beside the
+            button that opens it rather than inside it. */}
+        <Collapsible open={open} onOpenChange={setOpen} className={cn("flex min-w-0 flex-1 flex-col self-stretch font-medium", TEXT.detail)}>
+          <CollapsibleTrigger
+            data-testid="problem-banner-title"
+            // The line's whole height, so its 44-point hit area is its own:
+            // a 28-point box's reached past the glass round it.
+            className="flex min-w-0 flex-1 flex-col justify-center py-1 text-left outline-none focus-visible:underline"
+          >
+            <span className={cn("block max-w-full", !open && "truncate")}>{title}</span>
+          </CollapsibleTrigger>
+          {problems.length > 1 && (
+            <CollapsibleContent asChild>
+              <ul className="list-disc pb-1 pl-4">
+                {problems.map(p => <li key={p.id} data-problem-item="">{p.title}</li>)}
+              </ul>
+            </CollapsibleContent>
+          )}
+        </Collapsible>
         {retries.length > 0 && (
           <Button
             type="button" size="sm" variant="ghost" className="shrink-0 rounded-full text-tint"

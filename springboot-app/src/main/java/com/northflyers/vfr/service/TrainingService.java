@@ -3,11 +3,17 @@ package com.northflyers.vfr.service;
 import com.northflyers.vfr.domain.Endorsement;
 import com.northflyers.vfr.domain.LogbookEntry;
 import com.northflyers.vfr.domain.Pilot;
+import com.northflyers.vfr.domain.SignedEndorsement;
+import com.northflyers.vfr.dto.CrossCountryReviewDto;
 import com.northflyers.vfr.dto.EndorsementDto;
 import com.northflyers.vfr.dto.ExperienceItemDto;
+import com.northflyers.vfr.dto.InstructorLinkDto;
 import com.northflyers.vfr.dto.TrainingDto;
+import com.northflyers.vfr.repository.CrossCountryReviewRepository;
 import com.northflyers.vfr.repository.EndorsementRepository;
+import com.northflyers.vfr.repository.InstructorLinkRepository;
 import com.northflyers.vfr.repository.PilotRepository;
+import com.northflyers.vfr.repository.SignedEndorsementRepository;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.ArrayList;
@@ -23,7 +29,8 @@ import org.springframework.transaction.annotation.Transactional;
  * logbook: 14 CFR 61.109(a)'s aeronautical experience for an airplane
  * single-engine rating, item by item -- with the ACS codes on their
  * knowledge test report and their instructor's endorsements kept beside
- * it. As with currency, none of this is anyone's sign-off: the
+ * it -- recorded by the student from paper, or signed in the app by an
+ * instructor they asked in (InstructorService). As with currency, none of this is anyone's sign-off: the
  * instructor's endorsement for the practical test is (61.39(a)(6)).
  *
  * <p>Hours flown with an instructor and cross-country are counted as the
@@ -36,16 +43,49 @@ public class TrainingService {
 
     private final EndorsementRepository endorsements;
     private final PilotRepository pilots;
+    private final SignedEndorsementRepository signed;
+    private final InstructorLinkRepository links;
+    private final CrossCountryReviewRepository reviews;
 
-    public TrainingService(EndorsementRepository endorsements, PilotRepository pilots) {
+    public TrainingService(EndorsementRepository endorsements, PilotRepository pilots, SignedEndorsementRepository signed,
+                           InstructorLinkRepository links, CrossCountryReviewRepository reviews) {
         this.endorsements = endorsements;
         this.pilots = pilots;
+        this.signed = signed;
+        this.links = links;
+        this.reviews = reviews;
     }
 
+    /** The pilot's own record. */
+    @Transactional(readOnly = true)
     public TrainingDto training(Pilot pilot, List<LogbookEntry> entries, LocalDate today) {
+        return record(pilot, entries, today, null);
+    }
+
+    /** A student's record as one of their instructors reads it: their
+     *  other instructors, and what they put to them, left out. */
+    @Transactional(readOnly = true)
+    public TrainingDto trainingFor(Pilot instructor, Pilot student, List<LogbookEntry> entries, LocalDate today) {
+        return record(student, entries, today, instructor);
+    }
+
+    private TrainingDto record(Pilot pilot, List<LogbookEntry> entries, LocalDate today, Pilot instructor) {
+        List<Endorsement> paper = endorsements.findByKeyPilotIdOrderByKeyCode(pilot.getId());
+        List<SignedEndorsement> theirs = signed.findByStudentIdOrderBySignedAtDesc(pilot.getId());
+        List<InstructorLinkDto> instructors = links.findByStudentIdOrderByAskedAt(pilot.getId()).stream()
+                .filter(l -> instructor == null || (l.isAccepted() && l.getInstructor().getId().equals(instructor.getId())))
+                .map(l -> new InstructorLinkDto(l.getId(), l.getEmail(), l.isAccepted() ? EndorsementRecords.nameOf(l.getInstructor()) : null,
+                        l.isAccepted() ? l.getInstructor().getInstructorCertificate() : null, l.isAccepted(), l.getAskedAt()))
+                .toList();
+        List<CrossCountryReviewDto> asked = (instructor == null
+                ? reviews.findByStudentIdOrderByAskedAtDesc(pilot.getId())
+                : reviews.findByStudentIdAndInstructorIdOrderByAskedAtDesc(pilot.getId(), instructor.getId())).stream()
+                .map(r -> EndorsementRecords.dto(r, EndorsementRecords.checks(r.getFlightOn(), paper, theirs))).toList();
         return new TrainingDto(experience(entries, today), codesOf(pilot),
-                endorsements.findByKeyPilotIdOrderByKeyCode(pilot.getId()).stream()
-                        .map(e -> new EndorsementDto(e.getKey().code(), e.getEndorsedOn())).toList());
+                paper.stream().map(e -> new EndorsementDto(e.getKey().code(), e.getEndorsedOn(),
+                        EndorsementRecords.until(e.getKey().code(), e.getEndorsedOn()))).toList(),
+                theirs.stream().map(EndorsementRecords::dto).toList(),
+                InstructorService.kinds(), pilot.getFullName(), instructors, asked);
     }
 
     @Transactional

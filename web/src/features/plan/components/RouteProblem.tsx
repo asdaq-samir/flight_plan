@@ -2,6 +2,7 @@ import { Button } from "../../../components/ui/button";
 import { cn } from "cn";
 import { TEXT } from "../../../lib/text";
 import type { Unflyable } from "../hooks/usePlan";
+import { FINDING_TONE } from "../../../lib/status";
 
 /**
  * No legal altitude for the route: where along it, why as a list, and the
@@ -22,7 +23,7 @@ export default function RouteProblem({ problem, onAddStop, onFlyVia, onAcceptCla
 }) {
   return (
     <div className="space-y-3" data-testid="route-problem">
-      <p className={cn("font-semibold text-red-700 dark:text-red-400", TEXT.row)}>{problem.title}</p>
+      <p className={cn("font-semibold", FINDING_TONE.stop, TEXT.row)}>{problem.title}</p>
       {problem.reasons.length > 0 && (
         <ul className={cn("list-disc space-y-0.5 pl-4", TEXT.detail)}>
           {problem.reasons.map(reason => <li key={reason}>{reason}</li>)}

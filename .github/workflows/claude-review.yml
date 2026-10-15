@@ -8,11 +8,16 @@ name: Claude review
 # right what the review found and pushes, at most twice a branch; on the
 # owner's it only comments. Needs what claude.yml needs: the Claude
 # GitHub App and ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN. Without
-# either it says so and stops.
+# either it says so and stops. It reviews a pull request once, when it
+# opens or leaves draft, not again at every push: a review and a fix at
+# each push, the fix's own push starting the next, were the bulk of the
+# repository's automated traffic, and GitHub suspended the owner's account
+# in October 2026 after a burst of it. "@claude review" (claude.yml) asks
+# for another.
 
 on:
   pull_request:
-    types: [opened, synchronize, ready_for_review, reopened]
+    types: [opened, ready_for_review, reopened]
 
 permissions:
   contents: read

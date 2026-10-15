@@ -67,10 +67,35 @@ public class Pilot {
     private LocalDate flightReviewOn;
     private LocalDate medicalExpiresOn;
 
+    /** The day of their last instrument proficiency check (14 CFR
+     *  61.57(d)), as they give it (V20); null until they say. */
+    private LocalDate ipcOn;
+
+    /** Whether they have asked to be emailed before their currency runs
+     *  out (ReminderService, V23); off until they turn it on. */
+    @Column(nullable = false)
+    private boolean reminders;
+
     /** The ACS codes on their Airman Knowledge Test Report, space
      *  separated (V13); null until they give them. */
     @Column(length = 2000)
     private String knowledgeTestCodes;
+
+    /** Their name as their certificate gives it (V26), what an
+     *  endorsement names them by; null until they say. */
+    @Column(length = 120)
+    private String fullName;
+
+    /** A flight instructor's certificate number ("987654321CFI"), its
+     *  recent experience end date or expiration date, and which of the
+     *  two that is (V26): what every endorsement they sign carries (AC
+     *  61-65K, appendix A). All null for a pilot who is not one. */
+    @Column(length = 20)
+    private String instructorCertificate;
+    private LocalDate instructorUntil;
+    @Enumerated(EnumType.STRING)
+    @Column(length = 3)
+    private InstructorUntil instructorUntilKind;
 
     protected Pilot() {
         // JPA
@@ -112,15 +137,37 @@ public class Pilot {
         this.email = email;
     }
 
-    /** The flight review's and the medical's dates, as the pilot gives them. */
-    public void setCurrencyDates(LocalDate flightReviewOn, LocalDate medicalExpiresOn) {
+    /** The flight review's, the medical's and the last instrument
+     *  proficiency check's dates, as the pilot gives them. */
+    public void setCurrencyDates(LocalDate flightReviewOn, LocalDate medicalExpiresOn, LocalDate ipcOn) {
         this.flightReviewOn = flightReviewOn;
         this.medicalExpiresOn = medicalExpiresOn;
+        this.ipcOn = ipcOn;
+    }
+
+    public void setReminders(boolean reminders) {
+        this.reminders = reminders;
     }
 
     /** The knowledge test report's ACS codes, as the pilot gives them. */
     public void setKnowledgeTestCodes(String codes) {
         this.knowledgeTestCodes = codes;
+    }
+
+    public void setFullName(String fullName) {
+        this.fullName = fullName;
+    }
+
+    /** Their flight instructor certificate, all three at once; nulls for
+     *  a pilot who is no longer one. */
+    public void setInstructor(String certificate, LocalDate until, InstructorUntil kind) {
+        this.instructorCertificate = certificate;
+        this.instructorUntil = until;
+        this.instructorUntilKind = kind;
+    }
+
+    public boolean isInstructor() {
+        return instructorCertificate != null;
     }
 
     /** Made a developer: an address `app.developer-emails` lists (see

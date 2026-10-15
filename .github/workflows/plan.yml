@@ -83,5 +83,10 @@ jobs:
                found, and "Waiting on you": each decision the owner must
                make, with the options and your recommendation, linked to
                its issue. Close last week's digest.
+
+            Write to GitHub gently: one write at a time (a label, a comment,
+            an edit, a close), at least ten seconds apart (sleep 10), and at
+            most twenty writes a run; leave the rest for next week. GitHub
+            suspends accounts whose API writes come in bursts.
           claude_args: |
-            --allowedTools "Skill,WebSearch,WebFetch,Read,Glob,Grep,LS,Bash(git log:*),Bash(gh:*)"
+            --allowedTools "Skill,WebSearch,WebFetch,Read,Glob,Grep,LS,Bash(git log:*),Bash(gh:*),Bash(sleep:*)"

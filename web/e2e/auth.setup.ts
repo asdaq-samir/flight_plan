@@ -1,6 +1,6 @@
 import { test as setup, expect } from "@playwright/test";
 import { DEVELOPER, DEVELOPER_STATE, signInByEmail } from "./emailSignIn";
-import { noTips, roleMenu } from "./helpers";
+import { noTips, roleMenu, consolePage } from "./helpers";
 
 /**
  * The session the rest of the suite runs as (playwright.config.ts's
@@ -22,7 +22,7 @@ setup("the developer signs in from the pilot console, and lands in dev mode", as
   // this session and expects the console's guide.
   await expect((await roleMenu(page)).developer).toHaveAttribute("aria-checked", "true");
   await page.keyboard.press("Escape");
-  await page.getByTestId("console-sheet").getByRole("tab", { name: "Guide" }).click();
+  await consolePage(page.getByTestId("console-sheet"), "Guide");
   await page.keyboard.press("Escape");
   // The first-run tips (lib/tips) seen, every one: a tip over a control
   // takes the click a spec meant for it. tips.spec offers them afresh.

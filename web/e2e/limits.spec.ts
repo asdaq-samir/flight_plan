@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { openSettings, settle } from "./helpers";
+import { openMapSettings, openSettings, settle, consolePage } from "./helpers";
 
 /**
  * The first-launch acknowledgement (lib/limits, LimitsDialog): seen once
@@ -30,9 +30,37 @@ test("a fresh device is told what the planner is not, once, and Settings has it 
   await settle(page);
   await expect(dialog).toHaveCount(0);
 
+  // The console's About tab, after Settings, says it again in full, at
+  // the owner's ask -- the app, its build and chart, where its data comes
+  // from with each one's terms, and the legal pages.
   await openSettings(page);
-  await page.getByTestId("about-limits").click();
-  const sheet = page.getByTestId("about-limits-sheet");
-  await expect(sheet).toContainText("planning aid for VFR flight");
-  await expect(sheet).toContainText("Data sources");
+  await consolePage(page.getByTestId("console-sheet"), "About");
+  const about = page.getByTestId("about-panel");
+  await expect(about).toContainText("Wingtip Maps");
+  await expect(about.getByTestId("about-planning-aid")).toContainText("planning aid for VFR flight");
+  await expect(about.getByTestId("about-planning-aid")).toContainText("14 CFR 91.103");
+  await expect(about.getByTestId("about-build")).toBeVisible();
+  await expect(about.getByTestId("about-chart-edition")).not.toHaveText(/—/);
+  // The traffic's source among them, with its licence, as the FAA's are.
+  const traffic = about.getByTestId("about-source").filter({ hasText: "adsb.lol" });
+  await expect(traffic).toContainText("ODbL 1.0");
+  await expect(traffic).toHaveAttribute("href", /opendatacommons\.org/);
+  await expect(about.getByTestId("about-source").filter({ hasText: "FAA sectional" })).toContainText("Public domain");
+  await expect(about).not.toContainText("OpenStreetMap");
+  await expect(about.getByTestId("legal-privacy")).toHaveAttribute("href", "/app/privacy.html");
+  // Settings itself no longer has them.
+  await consolePage(page.getByTestId("console-sheet"), "Settings");
+  await expect(page.getByTestId("settings-panel").getByTestId("legal-privacy")).toHaveCount(0);
+});
+
+// The traffic's source credited under the map's settings beside the
+// FAA's charts, at the owner's ask, whether the traffic is shown or not.
+test("the map's settings credit adsb.lol for the traffic as they credit the FAA for the charts", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("vfr.limits", JSON.stringify({ state: { acknowledged: true }, version: 0 })));
+  await page.goto("/app/plan");
+  await settle(page);
+  await openMapSettings(page);
+  const settings = page.getByTestId("map-settings");
+  await expect(settings).toContainText("Charts from the FAA");
+  await expect(settings).toContainText("Traffic from adsb.lol, under the Open Database License.");
 });

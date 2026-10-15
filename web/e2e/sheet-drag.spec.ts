@@ -1,5 +1,5 @@
 import { test, expect, type Locator, type Page } from "@playwright/test";
-import { grabberTo, openPanel, panelTabs, settle, sideDrawer } from "./helpers";
+import { grabberTo, panelTabs, settle, settled, sideDrawer } from "./helpers";
 
 /**
  * The map's panel dragged by a finger from anywhere on its body, as an
@@ -14,7 +14,7 @@ test.use({ hasTouch: true });
  *  frame a move, as a finger's moves come: slowly enough that the sheet
  *  comes to rest where it was let go, past half way to the next height
  *  rather than thrown there. */
-async function fingerDrag(page: Page, at: { x: number; y: number }, dy: number) {
+async function fingerDrag(page: Page, at: { x: number; y: number }, dy: number, hold = 0) {
   const cdp = await page.context().newCDPSession(page);
   const touch = (type: string, p?: { x: number; y: number }) =>
     cdp.send("Input.dispatchTouchEvent", { type, touchPoints: p ? [{ ...p, id: 1 }] : [] });
@@ -23,6 +23,9 @@ async function fingerDrag(page: Page, at: { x: number; y: number }, dy: number) 
     await touch("touchMove", { x: at.x, y: at.y + dy * i / 20 });
     await page.waitForTimeout(16);
   }
+  // A finger held still sends no moves: what it was doing before it
+  // stopped is not how it lets go.
+  if (hold) await page.waitForTimeout(hold);
   await touch("touchEnd");
   await cdp.detach();
 }
@@ -31,9 +34,9 @@ test("the panel follows a finger from anywhere on its body: out to the top, and 
   test.skip(page.viewportSize()!.width >= 768, "a phone's sheet");
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
-  await openPanel(page);
+  await grabberTo(page, "full");
   const panel = sideDrawer(page);
-  await expect(panel).toHaveAttribute("data-panel", "half");
+  await expect(panel).toHaveAttribute("data-panel", "full");
   const middleOf = async (locator: Locator) => {
     const box = (await locator.boundingBox())!;
     return { x: box.x + box.width / 2, y: box.y + Math.min(box.height / 2, 120) };
@@ -59,7 +62,7 @@ test("the panel follows a finger from anywhere on its body: out to the top, and 
   await fingerDrag(page, await middle(), 120);
   await expect(panel).toHaveAttribute("data-panel", "full");
 
-  // At its start, a drag down takes the sheet down.
+  // At its start, a drag down takes the sheet down, half way.
   await tab.evaluate(el => { el.scrollTop = 0; });
   await fingerDrag(page, await middle(), 400);
   await expect(panel).toHaveAttribute("data-panel", "half");
@@ -73,4 +76,49 @@ test("the panel follows a finger from anywhere on its body: out to the top, and 
   await page.mouse.move(at.x, at.y - 200, { steps: 10 });
   await page.mouse.up();
   await expect(panel).toHaveAttribute("data-panel", "full");
+});
+
+test("a drag held still before it is let go sets the sheet down where it is, not on past it", async ({ page }) => {
+  test.skip(page.viewportSize()!.width >= 768, "a phone's sheet");
+  await page.goto("/app/plan");
+  await settle(page);
+  await grabberTo(page, "half");
+  const panel = sideDrawer(page);
+  // Down 110 from half, nearer half than the pill, held and let go: half
+  // again. Its moves alone, let go at once, would have thrown it to the
+  // pill (useDetentDrag's SPEED_WINDOW).
+  const box = (await panel.getByTestId("tab-bar").boundingBox())!;
+  await fingerDrag(page, { x: box.x + box.width / 2, y: box.y + box.height / 2 }, 110, 600);
+  await expect(panel).toHaveAttribute("data-panel", "half");
+});
+
+test("a throw takes the sheet one size: from the pill half way, not all the way up, and from all the way up half way, not to the pill", async ({ page }) => {
+  test.skip(page.viewportSize()!.width >= 768, "a phone's sheet");
+  // The owner's notice: "The pill should not go straight to full".
+  await page.goto("/app/plan");
+  await settle(page);
+  const panel = sideDrawer(page);
+  await expect(panel).toHaveAttribute("data-panel", "peek");
+  // A finger's flick on the tab bar: two moves as fast as they can be
+  // sent, let go at once -- thrown well past the next size.
+  const flick = async (dy: number) => {
+    // From the sheet at rest, its tabs where they stay.
+    await settled(panel);
+    const box = (await panel.getByTestId("tab-bar").boundingBox())!;
+    const at = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    const cdp = await page.context().newCDPSession(page);
+    const touch = (type: string, p?: { x: number; y: number }) =>
+      cdp.send("Input.dispatchTouchEvent", { type, touchPoints: p ? [{ ...p, id: 1 }] : [] });
+    await touch("touchStart", at);
+    for (let i = 1; i <= 2; i++) await touch("touchMove", { x: at.x, y: at.y + (dy * i) / 2 });
+    await touch("touchEnd");
+    await cdp.detach();
+  };
+  // Up from the pill, the finger letting go short of half.
+  await flick(-210);
+  await expect(panel).toHaveAttribute("data-panel", "half");
+  // Down from all the way up, letting go nearer half than the top.
+  await grabberTo(page, "full");
+  await flick(320);
+  await expect(panel).toHaveAttribute("data-panel", "half");
 });

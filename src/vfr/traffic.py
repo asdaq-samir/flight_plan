@@ -11,7 +11,8 @@ adsb.lol answers one request every few seconds from one address and
 turns the rest away (429 Too Many Requests: of twelve asked 1.5 s apart
 on 2026-10-10, three were answered). So the planner asks it about a
 region -- half a degree square, out to 80 nm, which holds any view of 60
-nm whose middle is in it -- at most once in five seconds, never two
+nm whose middle is in it; two degrees square, out to 250 nm, for a view
+zoomed further out, up to 165 nm -- at most once in five seconds, never two
 requests within five seconds of each other whatever the region, and
 waits fifteen after being turned away; between times every phone is
 given the region's last answer, cut to its own view, with how old it is,
@@ -22,16 +23,22 @@ region is found at once, with no request at all.
 """
 from __future__ import annotations
 
+import json
 import math
+import os
 import re
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
+
+from pathlib import Path
 
 import numpy as np
 import requests
 from cachetools import TTLCache
 
 from . import airports, geo, registry
+from .config import DATA_DIR
 
 URL = "https://api.adsb.lol/v2/point/{lat:.2f}/{lon:.2f}/{radius}"
 HEADERS = {"User-Agent": "wingtip-maps/0.1 (VFR flight planner; traffic for pilots' situational awareness)"}
@@ -40,8 +47,19 @@ HEADERS = {"User-Agent": "wingtip-maps/0.1 (VFR flight planner; traffic for pilo
 #: (15 nm north and south, less east and west), so 80 nm holds a view of 60.
 REGION_DEG = 0.5
 REGION_RADIUS_NM = 80
+#: The furthest a view is given its traffic from those regions, nm.
+NEAR_RADIUS_NM = 60
+#: A view further out than that -- the map zoomed out to a state or two,
+#: whose traffic the pilot asked to see wherever it is panned -- from
+#: regions of two degrees, asked for out to 250 nm, adsb.lol's furthest:
+#: a view's middle is at most a degree from the region's (60 nm north and
+#: south, 54 east and west as far south as 25 degrees north, 81 nm across),
+#: so 250 nm holds a view of 165. Round O'Hare that was 474 airplanes and
+#: 240 kB, answered in under a second (2026-10-11).
+WIDE_REGION_DEG = 2.0
+WIDE_REGION_RADIUS_NM = 250
 #: The furthest a view is asked about, nm.
-MAX_RADIUS_NM = 60
+MAX_RADIUS_NM = 165
 #: A region's answer is given again, not asked for, this long.
 FRESH_S = 5.0
 #: Never two requests to adsb.lol closer together than this.
@@ -61,6 +79,8 @@ _NM_PER_DEG = 60.0
 # Monotonic clock and sleep, through the module so the tests can stand in.
 _clock = time.monotonic
 _sleep = time.sleep
+#: The wall clock, for a trace's times, which are Unix seconds.
+_wall = time.time
 
 _LOCK = threading.Lock()
 #: Each region's last answer: (when it came, monotonic, airplanes).
@@ -75,6 +95,105 @@ _FLIGHTS: dict = {}
 
 class TrafficUnavailable(RuntimeError):
     """adsb.lol has not answered for a while."""
+
+
+# --- ADS-B Exchange, the fallback where adsb.lol turns us away ---
+
+#: ADS-B Exchange's API through RapidAPI, the same readsb answer as
+#: adsb.lol's (`ac`), asked only where adsb.lol has refused or not
+#: answered, at the owner's ask ("a hybrid solution of adsb.lol and adsb
+#: exchange community version"): its non-commercial plan, 10,000 requests
+#: a month. Off unless ADSBX_RAPIDAPI_KEY is set.
+ADSBX_HOST = "adsbexchange-com1.p.rapidapi.com"
+ADSBX_URL = "https://adsbexchange-com1.p.rapidapi.com/v2/{path}/"
+#: Requests a month at most, short of the plan's 10,000 so a month's end
+#: never brings its overage charges.
+ADSBX_MONTHLY = int(os.environ.get("ADSBX_MONTHLY_REQUESTS", "9000"))
+#: Never two of the map's region requests to it closer together than
+#: this, s: 9,000 a month is one every five minutes on average; this
+#: keeps a bad hour from spending a week's. A pilot's search is not held
+#: to it -- it is asked at once, within the month's budget.
+ADSBX_MIN_GAP_S = 30.0
+#: Where the month's count is kept, so a restart does not forget it: the
+#: project's data folder (vfr.config), where it went to the planner's
+#: working folder from a path of its own, outside the data kept between
+#: containers and not ignored by git.
+ADSBX_USAGE_FILE = Path(os.environ.get("ADSBX_USAGE_FILE", str(DATA_DIR / "raw" / "adsbx_usage.json")))
+#: Its credit, as the map says it where it draws what it gave.
+ADSBX_SOURCE = {"source": "ADS-B Exchange", "license": "ADS-B Exchange terms"}
+_ADSBX = {"last": -math.inf}
+
+
+def _adsbx_spend(search: bool = False) -> bool:
+    """One of the month's requests to ADS-B Exchange taken, where there is a
+    key, the month has one left and -- for the map's regions, not a pilot's
+    search, which is asked at once -- the gap since the last region's is
+    kept; the count kept on disk."""
+    if not os.environ.get("ADSBX_RAPIDAPI_KEY"):
+        return False
+    month = time.strftime("%Y-%m", time.gmtime(_wall()))
+    with _LOCK:
+        if not search and _clock() - _ADSBX["last"] < ADSBX_MIN_GAP_S:
+            return False
+        try:
+            used = json.loads(ADSBX_USAGE_FILE.read_text()) if ADSBX_USAGE_FILE.exists() else {}
+        except (OSError, ValueError):
+            used = {}
+        if used.get(month, 0) >= ADSBX_MONTHLY:
+            return False
+        used = {month: used.get(month, 0) + 1}
+        try:
+            ADSBX_USAGE_FILE.parent.mkdir(parents=True, exist_ok=True)
+            ADSBX_USAGE_FILE.write_text(json.dumps(used))
+        except OSError:
+            return False
+        if not search:
+            _ADSBX["last"] = _clock()
+    return True
+
+
+def _adsbx(path: str, search: bool = False) -> list[dict]:
+    """ADS-B Exchange's airplanes for a path of its API ("lat/42.00/lon/
+    -88.00/dist/80", "callsign/UAL2088"), as `_aircraft` gives each.
+    TrafficUnavailable where it may not be asked now or does not answer."""
+    if not _adsbx_spend(search):
+        raise TrafficUnavailable("ADS-B Exchange may not be asked now")
+    try:
+        resp = requests.get(ADSBX_URL.format(path=path), timeout=TIMEOUT_S, headers={
+            **HEADERS, "x-rapidapi-key": os.environ.get("ADSBX_RAPIDAPI_KEY", ""), "x-rapidapi-host": ADSBX_HOST})
+        _adsbx_counted(resp.headers)
+        resp.raise_for_status()
+        entries = resp.json().get("ac") or []
+    except (requests.RequestException, ValueError) as err:
+        raise TrafficUnavailable(f"ADS-B Exchange did not answer: {err}") from err
+    return [a for a in (_aircraft(e) for e in entries if isinstance(e, dict)) if a is not None]
+
+
+def _adsbx_counted(headers) -> None:
+    """The month's count brought up to what RapidAPI says the key has used
+    (its limit less what remains, on every answer): the same key spent
+    elsewhere -- a developer's own lookups, another copy of the planner --
+    counts against the plan's 10,000 too, which the planner's own count
+    alone would not know."""
+    try:
+        used = int(headers.get("x-ratelimit-api-requests-limit")) - int(headers.get("x-ratelimit-api-requests-remaining"))
+    except (TypeError, ValueError):
+        return
+    month = time.strftime("%Y-%m", time.gmtime(_wall()))
+    with _LOCK:
+        try:
+            kept = json.loads(ADSBX_USAGE_FILE.read_text()) if ADSBX_USAGE_FILE.exists() else {}
+        except (OSError, ValueError):
+            kept = {}
+        if used > kept.get(month, 0):
+            try:
+                ADSBX_USAGE_FILE.write_text(json.dumps({month: used}))
+            except OSError:
+                pass
+
+
+#: Regions whose kept answer is ADS-B Exchange's, for its credit.
+_FROM_ADSBX: set = set()
 
 
 def _number(value) -> float | None:
@@ -112,18 +231,27 @@ def _aircraft(entry: dict) -> dict | None:
         # (7500, 7600, 7700 are "unlawful", "nordo", "general").
         "squawk": entry.get("squawk") or None,
         "emergency": entry.get("emergency") if entry.get("emergency") not in (None, "", "none") else None,
+        # What it is, as its transponder says (DO-260B's emitter category:
+        # A1 light, A2 small, A3 large, A4 a B757, A5 heavy, A6 high
+        # performance, A7 rotorcraft, B1 glider, B6 unmanned): the
+        # Aircraft tab's filter by kind.
+        "category": entry.get("category") or None,
     }
 
 
-def _region(lat: float, lon: float) -> tuple[float, float]:
-    return round(lat / REGION_DEG) * REGION_DEG, round(lon / REGION_DEG) * REGION_DEG
+def _region(lat: float, lon: float, radius_nm: float = NEAR_RADIUS_NM) -> tuple[float, float, int]:
+    """The region a view of `radius_nm` round a point is given its traffic
+    from: (its middle's latitude and longitude, how far round it adsb.lol
+    is asked), a near one for a view of 60 nm or less, else a wide one."""
+    deg, asked = (REGION_DEG, REGION_RADIUS_NM) if radius_nm <= NEAR_RADIUS_NM else (WIDE_REGION_DEG, WIDE_REGION_RADIUS_NM)
+    return round(lat / deg) * deg, round(lon / deg) * deg, asked
 
 
-def _ask(region: tuple[float, float]) -> list[dict]:
+def _ask(region: tuple[float, float, int]) -> list[dict]:
     """adsb.lol's airplanes round a region's middle. Raises
     TrafficUnavailable where it turns the request away or does not answer."""
     try:
-        resp = requests.get(URL.format(lat=region[0], lon=region[1], radius=REGION_RADIUS_NM), headers=HEADERS, timeout=TIMEOUT_S)
+        resp = requests.get(URL.format(lat=region[0], lon=region[1], radius=region[2]), headers=HEADERS, timeout=TIMEOUT_S)
         resp.raise_for_status()
         entries = resp.json().get("ac") or []
     except (requests.RequestException, ValueError) as err:
@@ -141,7 +269,7 @@ def _region_turn(now: float) -> float:
     return slot
 
 
-def _region_answer(region: tuple[float, float]) -> tuple[float, list[dict]]:
+def _region_answer(region: tuple[float, float, int]) -> tuple[float, list[dict]]:
     """(when it came, airplanes) for a region: its last answer while fresh,
     or while adsb.lol may not be asked yet; else adsb.lol's -- for a
     region with none, after waiting out the gap between requests -- else,
@@ -201,6 +329,7 @@ def _region_answer(region: tuple[float, float]) -> tuple[float, list[dict]]:
                 _STATE["blocked_until"] = asked + BACKOFF_S
             else:
                 _REGIONS[region] = answer
+                _FROM_ADSBX.discard(region)
                 if len(_REGIONS) > 256:
                     for gone in [r for r, (at, _) in _REGIONS.items() if asked - at > KEEP_S]:
                         del _REGIONS[gone]
@@ -215,21 +344,63 @@ def _region_answer(region: tuple[float, float]) -> tuple[float, list[dict]]:
     raise TrafficUnavailable("adsb.lol has not answered for a while")
 
 
+def _covering(lat: float, lon: float, radius_nm: float) -> tuple[float, list[dict]] | None:
+    """The freshest kept answer of any region whose asked circle holds the
+    whole view (its middle's distance plus the view's radius within it),
+    not older than KEEP_S; None where none does."""
+    now = _clock()
+    best = None
+    with _LOCK:
+        for (rlat, rlon, asked), (at, planes) in _REGIONS.items():
+            if now - at >= KEEP_S:
+                continue
+            apart = math.hypot((rlat - lat) * _NM_PER_DEG, (rlon - lon) * _NM_PER_DEG * math.cos(math.radians(lat)))
+            if apart + radius_nm <= asked and (best is None or at > best[0]):
+                best = (at, planes)
+    return best
+
+
 def near(lat: float, lon: float, radius_nm: float) -> dict:
-    """The airplanes in the air within `radius_nm` (at most 60) of a point,
-    as `_aircraft` gives each, and `age_s`, how many seconds before now
-    they were where they are given (each `seen_s` more): {"aircraft",
+    """The airplanes in the air within `radius_nm` (at most 165) of a
+    point, as `_aircraft` gives each, and `age_s`, how many seconds before
+    now they were where they are given (each `seen_s` more): {"aircraft",
     "age_s"}. Raises TrafficUnavailable where adsb.lol has not answered
     for a minute."""
-    at, planes = _region_answer(_region(lat, lon))
     radius = min(MAX_RADIUS_NM, radius_nm)
+    region = _region(lat, lon, radius)
+    credit: dict = {}
+    try:
+        at, planes = _region_answer(region)
+        with _LOCK:
+            if region in _FROM_ADSBX:
+                credit = ADSBX_SOURCE
+    except TrafficUnavailable:
+        # A view panned into a region not asked about yet while adsb.lol
+        # waits out a refusal, or behind other regions' turns, was a 503
+        # and "Traffic isn't available" over the map (the owner's, over
+        # Indiana, 2026-10-11). Another region's answer that holds the
+        # whole view -- the wide one it was zoomed out from, the one next
+        # door -- is given instead, with its age.
+        covering = _covering(lat, lon, radius)
+        if covering is None:
+            # None to give: ADS-B Exchange asked for the region instead,
+            # kept as adsb.lol's answer would be, and credited.
+            asked = _clock()
+            planes = _adsbx(f"lat/{region[0]:.2f}/lon/{region[1]:.2f}/dist/{min(250, region[2])}")
+            with _LOCK:
+                _REGIONS[region] = (asked, planes)
+                _FROM_ADSBX.add(region)
+            covering = (asked, planes)
+            credit = ADSBX_SOURCE
+        at, planes = covering
     if planes:
         lats = np.array([p["lat"] for p in planes])
         lons = np.array([p["lon"] for p in planes])
-        # Flat-earth miles: within 60 the error is a fraction of one.
+        # Flat-earth miles: within 165 the error is a mile or two, at the
+        # edge of a view the size of a state.
         nm = np.hypot((lats - lat) * _NM_PER_DEG, (lons - lon) * _NM_PER_DEG * np.cos(np.radians(lat)))
         planes = [p for p, d in zip(planes, nm) if d <= radius]
-    return {"aircraft": planes, "age_s": round(_clock() - at, 1)}
+    return {"aircraft": planes, "age_s": round(_clock() - at, 1), **credit}
 
 
 # --- One airplane: found by what a pilot knows it by, and its flight ---
@@ -253,6 +424,14 @@ _NEW_LEG = 2
 _HEX = re.compile(r"^~?[0-9a-f]{6}$")
 _N_NUMBER = re.compile(r"^N[1-9][0-9A-Z]{0,4}$")
 _TRACES: TTLCache = TTLCache(maxsize=64, ttl=TRACE_TTL_S)
+#: An airplane's last few minutes, on the same globe: the trace readsb
+#: writes every few seconds (3 to 8 s old, measured 2026-10-12, where the
+#: full trace was 4 to 7 minutes behind). A static file, not the API, so
+#: a search by registration or address costs none of the API's turns.
+RECENT_URL = "https://globe.adsb.lol/data/traces/{last2}/trace_recent_{hex}.json"
+#: A recent trace is read again after this long, s.
+RECENT_TTL_S = 5
+_RECENT: TTLCache = TTLCache(maxsize=256, ttl=RECENT_TTL_S)
 #: A search's answer from adsb.lol is given again this long, s.
 FOUND_TTL_S = 15
 _FOUND: TTLCache = TTLCache(maxsize=256, ttl=FOUND_TTL_S)
@@ -307,20 +486,31 @@ def _heard(text: str) -> list[dict]:
 
 
 def find(query: str) -> list[dict]:
+    """The airplanes in the air a pilot names (`find_credited`'s)."""
+    return find_credited(query)[0]
+
+
+def find_credited(query: str) -> tuple[list[dict], dict]:
     """The airplanes in the air a pilot names: by callsign ("UAL2088"),
     registration ("N174HA") or ICAO address ("a0b7d8"), as `_aircraft`
-    gives each. Empty where none is in the air and heard now. One heard
-    about a region in the last minute is found there, at once; else
-    adsb.lol is asked, in a search's turn, and its answer kept for
-    FOUND_TTL_S so the same search again -- a second phone's, a tap back --
-    asks nothing."""
+    gives each, and whose data they are ({"source", "license"}, as the
+    map's traffic says it). Empty where none is in the air and heard now.
+    One heard about a region in the last minute is found there, at once;
+    else ADS-B Exchange is asked first (`_looked_up`), the owner's fast
+    source for a search, within its month's requests; else -- or for an
+    address it found nothing for -- one named by its address, or by an
+    N-number the FAA's registry gives the address of, from its recent
+    trace (`_recent`), which asks adsb.lol's API nothing; else adsb.lol's
+    API is asked, in a search's turn. The answer is kept for FOUND_TTL_S
+    so the same search again -- a second phone's, a tap back -- asks
+    nothing."""
     text = re.sub(r"\s+", "", query).upper()
     if not text or not re.fullmatch(r"[~A-Z0-9-]{2,10}", text):
-        return []
+        return [], ADSB_LOL_SOURCE
     with _LOCK:
         heard = _heard(text)
         if heard:
-            return heard
+            return heard, ADSB_LOL_SOURCE
         if text in _FOUND:
             return _FOUND[text]
         gate = _FIND_GATES.setdefault(text, threading.Lock())
@@ -330,20 +520,140 @@ def find(query: str) -> list[dict]:
             if text in _FOUND:
                 return _FOUND[text]
         try:
-            found = _asked(text)
+            looked = _looked_up(text)
+            if looked is not None:
+                answer = (looked, ADSBX_SOURCE)
+            else:
+                hex_id = _address_of(text)
+                recent = _recent(hex_id) if hex_id else None
+                # The API only where the trace could not be read: a search
+                # there waits its turn behind the map's regions and any
+                # refusal's back-off, which is what kept the owner's
+                # searches waiting (2026-10-12).
+                answer = (recent, ADSB_LOL_SOURCE) if recent is not None else _asked(text, adsbx_tried=True)
             # The answer is stored in the same lock section the gate is
             # dropped in, so a search arriving between finds one or the other.
             with _LOCK:
-                _FOUND[text] = found
+                _FOUND[text] = answer
         finally:
             with _LOCK:
                 _FIND_GATES.pop(text, None)
-        return found
+        return answer
 
 
-def _asked(text: str) -> list[dict]:
-    """adsb.lol's answer to a search: by address, callsign or
-    registration, as the text reads, the next way where one finds none."""
+#: adsb.lol's credit, the map's traffic's by default (the planner's
+#: Traffic schema), for a search's answer from it.
+ADSB_LOL_SOURCE = {"source": "adsb.lol", "license": "ODbL 1.0"}
+
+
+def _looked_up(text: str) -> list[dict] | None:
+    """A pilot's search asked of ADS-B Exchange first, at the owner's ask
+    ("use adsb exchange for aircraft lookup for now so it's fast"): one
+    request, where adsb.lol's API answers a search in its turn, seconds
+    behind the map's regions. By what the name is: an ICAO address, or an
+    N-number the FAA's registry gives the address of, by that address;
+    another registration by registration; an airline's flight number
+    ("UAL2088") as a callsign; anything else as a callsign and then as a
+    registration -- two requests at most. None where it is not keyed, the
+    month's requests are spent or it does not answer (adsb.lol is asked as
+    before), or where it found nothing for an address: the recent trace,
+    which costs nothing, is read for it too."""
+    if text.startswith("~"):
+        return None
+    hex_id = _address_of(text)
+    if hex_id:
+        tries = [("hex", hex_id)]
+    elif _N_NUMBER.fullmatch(text) or "-" in text:
+        tries = [("reg", text)]
+    elif _CALLSIGN.fullmatch(text):
+        tries = [("callsign", text)]
+    else:
+        tries = [("callsign", text), ("reg", text)]
+    for by, value in tries:
+        try:
+            found = _adsbx(f"{ADSBX_BY[by]}/{value}", search=True)
+        except TrafficUnavailable:
+            return None
+        if found:
+            return found
+    return None if hex_id else []
+
+
+def _address_of(text: str) -> str | None:
+    """The ICAO address a search names: the address itself, or the one the
+    FAA's registry gives an N-number; None for a callsign, an adsb.lol
+    "~" pseudo-address (it has no trace of its own) or an N-number the
+    registry does not have."""
+    if _HEX.fullmatch(text.lower()):
+        return None if text.startswith("~") else text.lower()
+    if _N_NUMBER.fullmatch(text):
+        record = registry.lookup(n_number=text)
+        address = (record or {}).get("mode_s_hex")
+        return address.lower() if isinstance(address, str) and _HEX.fullmatch(address.lower()) else None
+    return None
+
+
+def _recent(hex_id: str) -> list[dict] | None:
+    """The airplane with this address as its recent trace last has it, as
+    `_aircraft` gives it: [it] in the air and heard within STALE_S, [] on
+    the ground, not heard that recently or with no recent trace (a 404),
+    None where the trace cannot be read now (the API is asked instead)."""
+    with _LOCK:
+        if hex_id in _RECENT:
+            return _RECENT[hex_id]
+    try:
+        resp = requests.get(RECENT_URL.format(last2=hex_id[-2:], hex=hex_id), headers=HEADERS, timeout=TIMEOUT_S)
+        if resp.status_code == 404:
+            found: list[dict] = []
+        elif resp.status_code == 200:
+            trace = resp.json()
+            plane = _last_heard(trace) if isinstance(trace, dict) else None
+            found = [plane] if plane is not None else []
+        else:
+            return None
+    except (requests.RequestException, ValueError):
+        return None
+    with _LOCK:
+        _RECENT[hex_id] = found
+    return found
+
+
+def _last_heard(trace: dict) -> dict | None:
+    """A trace's last point as the API's answer has an airplane, read by
+    `_aircraft`: readsb's trace point is [seconds after the trace's
+    timestamp, lat, lon, altitude or "ground", ground speed, track, flags,
+    vertical rate, details, source, GNSS altitude, GNSS rate, ...], the
+    callsign and squawk in the last point that carries details."""
+    points = [p for p in trace.get("trace") or [] if isinstance(p, list) and len(p) >= 8]
+    base = _number(trace.get("timestamp"))
+    if not points or base is None:
+        return None
+    last = points[-1]
+    details = next((p[8] for p in reversed(points) if len(p) > 8 and isinstance(p[8], dict)), {})
+    return _aircraft({
+        "hex": trace.get("icao"), "flight": details.get("flight"), "r": trace.get("r"), "t": trace.get("t"),
+        "lat": last[1], "lon": last[2], "alt_baro": last[3], "alt_geom": last[10] if len(last) > 10 else None,
+        "gs": last[4], "track": last[5], "baro_rate": last[7], "geom_rate": last[11] if len(last) > 11 else None,
+        "seen_pos": round(max(0.0, _wall() - base - float(last[0])), 1),
+        "squawk": details.get("squawk"), "emergency": details.get("emergency"),
+    })
+
+
+def registered(query: str) -> dict | None:
+    """The FAA's record of the airplane a pilot names (vfr.registry), by its
+    N-number or its ICAO address: for one not in the air or not heard now,
+    which a search finds nothing for, its card all the same."""
+    text = re.sub(r"\s+", "", query).upper()
+    if _HEX.fullmatch(text.lower()):
+        return registry.lookup(hex_id=text.lower())
+    return registry.lookup(n_number=text) if _N_NUMBER.fullmatch(text) else None
+
+
+def _asked(text: str, adsbx_tried: bool = False) -> tuple[list[dict], dict]:
+    """adsb.lol's answer to a search, and its credit: by address, callsign
+    or registration, as the text reads, the next way where one finds none;
+    where it turns us away, ADS-B Exchange asked the same way, unless it
+    was asked about this search already (`adsbx_tried`)."""
     if _HEX.fullmatch(text.lower()):
         tries = [("hex", text.lower()), ("callsign", text)]
     elif _N_NUMBER.fullmatch(text) or "-" in text:
@@ -351,11 +661,22 @@ def _asked(text: str) -> list[dict]:
     else:
         tries = [("callsign", text), ("reg", text)]
     for by, value in tries:
-        found = [a for a in (_aircraft(e) for e in _paced(FIND_URL.format(by=by, value=value)).get("ac") or []
-                             if isinstance(e, dict)) if a is not None]
+        credit = ADSB_LOL_SOURCE
+        try:
+            found = [a for a in (_aircraft(e) for e in _paced(FIND_URL.format(by=by, value=value)).get("ac") or []
+                                 if isinstance(e, dict)) if a is not None]
+        except TrafficUnavailable:
+            if adsbx_tried:
+                raise
+            # adsb.lol turning us away: ADS-B Exchange asked the same way.
+            found, credit = _adsbx(f"{ADSBX_BY[by]}/{value}", search=True), ADSBX_SOURCE
         if found:
-            return found
-    return []
+            return found, credit
+    return [], ADSB_LOL_SOURCE
+
+
+#: adsb.lol's ways of naming an airplane, as ADS-B Exchange's API says them.
+ADSBX_BY = {"hex": "icao", "callsign": "callsign", "reg": "registration"}
 
 
 def _trace(hex_id: str) -> dict | None:
@@ -521,3 +842,349 @@ def route(callsign: str, lat: float | None = None, lon: float | None = None) -> 
                 plausible = True
                 break
     return {"airports": [{k: a[k] for k in ("ident", "name", "location")} for a in stops], "plausible": plausible}
+
+
+# --- Past flights: an airplane's flights of the last days, and one replayed ---
+
+#: A day's trace of an airplane, by its ICAO address, from adsb.lol's
+#: archive of the globe's traces (the same open data, kept a day at a
+#: time, UTC days): gzip JSON, as today's.
+HISTORY_URL = "https://globe.adsb.lol/globe_history/{day:%Y/%m/%d}/traces/{last2}/trace_full_{hex}.json"
+#: How many of an airplane's flights are listed at a time, the newest
+#: found, at the owner's ask ("make it last 10 flights you were able to
+#: find"), where it was the last seven days' whatever their number.
+HISTORY_FLIGHTS = 10
+#: How far back adsb.lol's archive of days goes, days: on 2026-10-13 the
+#: day of 2026-09-01 was there and 2026-08-20's was not (a 404 for an
+#: airliner that flies daily), so about six weeks. Days are read back from
+#: the newest until the flights are found or the archive runs out.
+ARCHIVE_DAYS = 42
+#: Days read side by side, at most, as the search goes back: a day's read
+#: took 1 to 20 s on 2026-10-13, a 404 among the slowest.
+HISTORY_BATCH = 7
+#: Days read for one ask at most, today's among them: past them the list
+#: says there may be more, and the next ask goes on from there, so an
+#: airplane that seldom flies is not a minute's wait.
+HISTORY_DAYS_PER_ASK = 14
+#: A past day's trace is kept this long, s: it no longer changes.
+HISTORY_TTL_S = 12 * 3600
+#: No report for this long, s, ends a flight: the airplane landed out of
+#: the receivers' hearing (a small airplane low over a field often is)
+#: and went again later.
+LEG_GAP_S = 10 * 60
+#: A flight's first or last report this near a landing field, nm, and
+#: this little above its elevation, ft, is a takeoff from it or a landing
+#: at it: low near a field where the receivers stopped or started hearing it.
+FIELD_NEAR_NM = 5.0
+FIELD_ABOVE_FT = 2000.0
+#: Further out and higher, a report still is, where the airplane was
+#: coming down to it (its last) or going up from it (its first): receivers
+#: lose a small airplane well before it lands. N654FL's LWM to LCI on
+#: 2026-10-11 was last heard 3,000 ft over Laconia, coming down.
+FIELD_APPROACH_NM = 10.0
+FIELD_APPROACH_FT = 3500.0
+#: Coming down or going up: this fast, ft/min, or headed this near
+#: straight at it or away from it, degrees (a light airplane levels off
+#: for its pattern).
+FIELD_APPROACH_FPM = 200.0
+FIELD_APPROACH_DEG = 30.0
+#: A flight shorter than this, s, is a blip, not a flight.
+LEG_MIN_S = 120
+#: At most this many points of a past flight are sent: a track log and a
+#: replay's worth, a fraction of a long flight's seconds.
+PAST_POINTS = 1500
+#: How long a day's trace may take, s: a busy airplane's is a few hundred kB.
+HISTORY_TIMEOUT_S = 15.0
+_DAYS: TTLCache = TTLCache(maxsize=256, ttl=HISTORY_TTL_S)
+
+
+def _merged(traces: list) -> list[dict]:
+    """The points of several traces in time order, each once: the recent
+    trace (`_trace`, the last day or so, not a UTC day) runs over the
+    archive's last day."""
+    seen, out = set(), []
+    read = [t for t in traces if isinstance(t, dict)]
+    for point in sorted((p for trace in read for p in _points(trace)), key=lambda p: p["t"]):
+        if point["t"] not in seen:
+            seen.add(point["t"])
+            out.append(point)
+    return out
+
+
+class _Unread:
+    """A day's trace that could not be had now: refused or not answered."""
+
+
+#: What `_day_trace` gives for a day it could not read, as against None,
+#: a day the airplane has no trace.
+UNREAD = _Unread()
+
+
+def _day_trace(hex_id: str, day) -> dict | None | _Unread:
+    """An airplane's trace on a past UTC day (a datetime.date), kept; None
+    where it has none that day; UNREAD where it could not be had now -- a
+    refusal or a timeout, which is not kept and is asked again next time."""
+    key = (hex_id, day.isoformat())
+    with _LOCK:
+        if key in _DAYS:
+            return _DAYS[key]
+    try:
+        resp = requests.get(HISTORY_URL.format(day=day, last2=hex_id[-2:], hex=hex_id), headers=HEADERS, timeout=HISTORY_TIMEOUT_S)
+        if resp.status_code == 404:
+            trace = None
+        else:
+            resp.raise_for_status()
+            trace = resp.json()
+            if not isinstance(trace, dict):
+                trace = None
+    except (requests.RequestException, ValueError):
+        return UNREAD
+    with _LOCK:
+        _DAYS[key] = trace
+    return trace
+
+
+def _points(trace: dict | None) -> list[dict]:
+    """A trace's points as {"t" (s since 1970), "lat", "lon", "alt_ft" (None
+    on the ground), "gs_kt", "track_deg", "vrate_fpm", "new_leg"}."""
+    if not trace:
+        return []
+    base = _number(trace.get("timestamp")) or 0.0
+    out = []
+    for p in trace.get("trace") or []:
+        if not isinstance(p, list) or len(p) < 7 or _number(p[1]) is None or _number(p[2]) is None:
+            continue
+        out.append({
+            "t": round(base + float(p[0]), 1), "lat": round(float(p[1]), 5), "lon": round(float(p[2]), 5),
+            "alt_ft": _altitude_ft(p), "gs_kt": _number(p[4]), "track_deg": _number(p[5]),
+            "vrate_fpm": _number(p[7]) if len(p) > 7 else None,
+            "new_leg": isinstance(p[6], int) and bool(p[6] & _NEW_LEG),
+        })
+    return out
+
+
+def _field_at(point: dict, landing: bool) -> dict | None:
+    """The landing field a flight's first or last (`landing`) report is at:
+    one within FIELD_NEAR_NM, the report on the ground or within
+    FIELD_ABOVE_FT of its elevation; or within FIELD_APPROACH_NM and
+    FIELD_APPROACH_FT, coming down to it or going up from it. None where it
+    was heard first or last on its way somewhere."""
+    rate = point.get("vrate_fpm") or 0.0
+    sloping = rate <= -FIELD_APPROACH_FPM if landing else rate >= FIELD_APPROACH_FPM
+    track = point.get("track_deg")
+    # The US's fields, then -- none of them near -- the rest of the
+    # world's, so a flight abroad is named by its own airports (the owner
+    # saw "— → —" for a Vueling A320 on 2026-10-12).
+    near = airports.nearest(point["lat"], point["lon"], limit=3)
+    if not near or near[0]["distance_nm"] > FIELD_APPROACH_NM:
+        near = airports.nearest_abroad(point["lat"], point["lon"], limit=3)
+    for field in near:
+        if field["distance_nm"] > FIELD_APPROACH_NM:
+            break
+        above = None if point["alt_ft"] is None else point["alt_ft"] - (field.get("elevation_ft") or 0.0)
+        close = field["distance_nm"] <= FIELD_NEAR_NM and (above is None or above <= FIELD_ABOVE_FT)
+        # `bearing_deg` is from the report to the field: a landing heads along it, a takeoff away.
+        toward = (field["bearing_deg"] if landing else field["bearing_deg"] + 180) % 360
+        headed = track is not None and abs((track - toward + 180) % 360 - 180) <= FIELD_APPROACH_DEG
+        if close or ((sloping or headed) and above is not None and above <= FIELD_APPROACH_FT):
+            return {"ident": field["ident"], "name": field.get("name"), "city": field.get("municipality"),
+                    "region": field.get("region")}
+    return None
+
+
+def _legs(points: list[dict]) -> list[list[dict]]:
+    """A run of points cut into flights: at readsb's own new leg, at a
+    stretch on the ground, and at a silence of LEG_GAP_S; the points on the
+    ground at either end kept, as the takeoff's and the landing's place."""
+    legs, leg = [], []
+    for point in points:
+        gap = leg and point["t"] - leg[-1]["t"] > LEG_GAP_S
+        landed = leg and point["alt_ft"] is None and any(p["alt_ft"] is not None for p in leg)
+        if leg and (point["new_leg"] or gap):
+            legs.append(leg)
+            leg = []
+        leg.append(point)
+        if landed:
+            legs.append(leg)
+            leg = [point]
+    if leg:
+        legs.append(leg)
+    flown = []
+    for leg in legs:
+        air = [p for p in leg if p["alt_ft"] is not None]
+        if len(air) >= 2 and air[-1]["t"] - air[0]["t"] >= LEG_MIN_S:
+            flown.append(leg)
+    return flown
+
+
+def _summaries(points: list[dict]) -> list[dict]:
+    """A merged trace's flights, oldest first, as `history` lists them."""
+    now = time.time()
+    flights = []
+    for leg in _legs(points):
+        air = [p for p in leg if p["alt_ft"] is not None]
+        start, end = _field_at(leg[0], landing=False), _field_at(leg[-1], landing=True)
+        in_air = now - leg[-1]["t"] < 5 * 60 and leg[-1]["alt_ft"] is not None
+        flights.append({
+            "id": int(air[0]["t"]), "origin": start, "destination": None if in_air else end,
+            "off": air[0]["t"], "on": air[-1]["t"], "landed": not in_air and end is not None, "in_air": in_air,
+            "max_alt_ft": max(p["alt_ft"] for p in air),
+        })
+    return flights
+
+
+def history(hex_id: str, limit: int = HISTORY_FLIGHTS, until=None, before: float | None = None, today=None) -> dict:
+    """An airplane's last `limit` flights found, newest first, as FlightAware
+    lists them: {"hex", "registration", "type", "flights": [{"id" (its
+    takeoff's time, s), "origin", "destination" (each {"ident", "name",
+    "city", "region"}, None where it was first or last heard on its way),
+    "off", "on" (s, when first and last heard in the air), "landed"
+    (whether its end is at a field), "in_air" (heard in the last few
+    minutes, still flying), "max_alt_ft"}], "next_until" (the UTC day, ISO,
+    to ask from with `before` for the flights before the last given; None
+    where the archive has none older), "unread_days"}. From `until` (a UTC
+    date, today where None) back, only those that took off before `before`
+    (s) where it is given -- a few
+    days at a time side by side, until the flights are found or the
+    archive's ARCHIVE_DAYS run out: today's from the recent trace, the
+    days before from the archive. A day that cannot be had is left out and
+    counted, not an error."""
+    import datetime as dt
+
+    hex_id = hex_id.lower()
+    today = today or dt.datetime.now(dt.timezone.utc).date()
+    if until is None and before is not None:
+        until = dt.datetime.fromtimestamp(before, dt.timezone.utc).date()
+    until = min(until or today, today)
+    oldest = today - dt.timedelta(days=ARCHIVE_DAYS - 1)
+    stop = max(oldest, until - dt.timedelta(days=HISTORY_DAYS_PER_ASK - 1))
+    traces: list = [_trace(hex_id)] if until == today else []
+    day = until - dt.timedelta(days=1) if until == today else until
+    unread = 0
+    flights: list[dict] = []
+    def found() -> list[dict]:
+        listed = _summaries(_merged(traces))
+        return [f for f in listed if f["id"] < before] if before is not None else listed
+    with ThreadPoolExecutor(max_workers=HISTORY_BATCH) as pool:
+        while True:
+            # The flights of the days read so far, the oldest day's first
+            # flight possibly begun the day before: one more is wanted than
+            # is shown, so the last shown is whole.
+            flights = found()
+            if len(flights) > limit or day < stop:
+                break
+            batch = [day - dt.timedelta(days=n) for n in range(HISTORY_BATCH) if day - dt.timedelta(days=n) >= stop]
+            past = list(pool.map(lambda d: _day_trace(hex_id, d), batch))
+            unread += sum(1 for t in past if t is UNREAD)
+            traces += past
+            day = batch[-1] - dt.timedelta(days=1)
+    named = next((t for t in traces if isinstance(t, dict)), {})
+    flights.reverse()
+    shown = flights[:limit]
+    # Where the next ask starts: the last shown's day where more were found
+    # than shown (those that took off before it, by `before`), else the
+    # first day not read yet, while the archive has it.
+    if len(flights) > limit:
+        next_until = dt.datetime.fromtimestamp(shown[-1]["id"], dt.timezone.utc).date().isoformat()
+    else:
+        next_until = day.isoformat() if day >= oldest else None
+    return {"hex": hex_id, "registration": named.get("r") or None, "type": named.get("t") or None, "flights": shown,
+            "next_until": next_until, "unread_days": unread}
+
+
+def past_flight(hex_id: str, flight_id: int, today=None) -> dict | None:
+    """One of `history`'s flights, its points for a track log and a replay:
+    {"id", "points" ([{"t", "lat", "lon", "alt_ft", "gs_kt", "track_deg",
+    "vrate_fpm"}], at most PAST_POINTS, evenly)}; None where it is not one
+    of the archive's days' flights."""
+    import datetime as dt
+
+    hex_id = hex_id.lower()
+    today = today or dt.datetime.now(dt.timezone.utc).date()
+    day = dt.datetime.fromtimestamp(flight_id, dt.timezone.utc).date()
+    back = (today - day).days
+    if back < 0 or back >= ARCHIVE_DAYS:
+        return None
+    # Its day and the next from the archive, which a flight across
+    # midnight UTC runs into, and the recent trace for today's.
+    days = [d for d in (day, day + dt.timedelta(days=1)) if d < today]
+    traces = [_trace(hex_id)] + [_day_trace(hex_id, d) for d in days]
+    points = _merged(traces)
+    for leg in _legs(points):
+        air = [p for p in leg if p["alt_ft"] is not None]
+        if int(air[0]["t"]) != flight_id:
+            continue
+        step = max(1, math.ceil(len(leg) / PAST_POINTS))
+        kept = leg[::step] + ([leg[-1]] if (len(leg) - 1) % step else [])
+        return {"id": flight_id, "points": [{k: p[k] for k in ("t", "lat", "lon", "alt_ft", "gs_kt", "track_deg", "vrate_fpm")}
+                                           for p in kept]}
+    return None
+
+
+# --- Where an airplane is based: the field its own flights keep to ---
+
+#: An airplane's base is kept this long, s: it changes seldom.
+BASED_TTL_S = 12 * 3600
+#: A field is its base where at least this many of its last flights'
+#: ends (takeoffs and landings) are there...
+BASED_MIN_ENDS = 3
+#: ...and at least this share of them.
+BASED_SHARE = 0.4
+#: Airplanes asked about at a time: each a history's few days of reads.
+BASED_WORKERS = 2
+_BASED: TTLCache = TTLCache(maxsize=4096, ttl=BASED_TTL_S)
+_BASED_PENDING: set[str] = set()
+_BASED_POOL = ThreadPoolExecutor(max_workers=BASED_WORKERS)
+
+
+def _base_of(flights: list[dict]) -> dict | None:
+    """The field most of these flights begin or end at, by BASED_MIN_ENDS
+    and BASED_SHARE; None where none is. No open data says where an
+    airplane is kept, so where it flies from and back to is taken for it,
+    at the owner's ask (the Aircraft tab's "based at" filter, 2026-10-13)."""
+    ends = [f["origin"] for f in flights if f.get("origin")] \
+        + [f["destination"] for f in flights if f.get("destination") and f.get("landed")]
+    counts: dict[str, int] = {}
+    for end in ends:
+        counts[end["ident"]] = counts.get(end["ident"], 0) + 1
+    if not counts:
+        return None
+    ident, count = max(counts.items(), key=lambda kv: kv[1])
+    if count < BASED_MIN_ENDS or count < BASED_SHARE * len(ends):
+        return None
+    return next(end for end in ends if end["ident"] == ident)
+
+
+def _find_base(hex_id: str) -> None:
+    try:
+        field = _base_of(history(hex_id)["flights"])
+    except Exception:  # noqa: BLE001 -- asked again next time, not kept
+        with _LOCK:
+            _BASED_PENDING.discard(hex_id)
+        return
+    with _LOCK:
+        _BASED[hex_id] = field
+        _BASED_PENDING.discard(hex_id)
+
+
+def based(hexes: list[str]) -> dict:
+    """Where each of these airplanes is based (`_base_of` over its last
+    flights, `history`): {"based": {hex: field or None}, "pending": [hex]}
+    -- those not known yet are looked up in the background, two airplanes
+    at a time, and given on a later ask."""
+    known: dict[str, dict | None] = {}
+    pending: list[str] = []
+    asking: list[str] = []
+    with _LOCK:
+        for hex_id in dict.fromkeys(h.lower() for h in hexes if _HEX.fullmatch(h.lower()) and not h.startswith("~")):
+            if hex_id in _BASED:
+                known[hex_id] = _BASED[hex_id]
+                continue
+            pending.append(hex_id)
+            if hex_id not in _BASED_PENDING:
+                _BASED_PENDING.add(hex_id)
+                asking.append(hex_id)
+    # Handed to the pool once the lock is let go: a lookup takes it to store.
+    for hex_id in asking:
+        _BASED_POOL.submit(_find_base, hex_id)
+    return {"based": known, "pending": pending}

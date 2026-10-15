@@ -1,5 +1,5 @@
 import { test, expect, type Locator, type Page } from "@playwright/test";
-import { closeSidebarWithTheStockKey, expectDrawerClosed, openPanel, settle, sideDrawer, slow } from "./helpers";
+import { closeSidebarWithTheStockKey, expectDrawerClosed, grabberTo, mapStill, openPanel, settle, sideDrawer, slow, airportSearch } from "./helpers";
 
 /**
  * The map and the sheet move together, as in Maps: opened fresh, the map
@@ -17,7 +17,7 @@ import { closeSidebarWithTheStockKey, expectDrawerClosed, openPanel, settle, sid
 const origin = new URL(process.env.BASE_URL ?? "http://localhost:8080").origin;
 
 /** The course line's core, on screen. */
-const courseBox = async (page: Page) => (await page.locator('path[stroke="#ff3b00"]').first().boundingBox())!;
+const courseBox = async (page: Page) => (await page.locator('path[stroke="#e600e6"]').first().boundingBox())!;
 
 /** Nothing of `a` under `b`. */
 const apart = (a: { x: number; y: number; width: number; height: number }, b: { x: number; y: number; width: number; height: number }) =>
@@ -100,7 +100,8 @@ test("opened fresh, the map is on the pilot's position in the middle of what the
   await context.setGeolocation({ latitude: 42.3247, longitude: -88.0742 });
   await page.goto("/app/plan");
   await settle(page);
-  await expect(sideDrawer(page)).toHaveAttribute("data-panel", "half");
+  // Opened as the tabs alone (the owner's ask).
+  await expect(sideDrawer(page)).toHaveAttribute("data-panel", "peek");
   await expect(page.getByTestId("my-position-button")).toHaveAttribute("aria-pressed", "true");
   await shipInTheMiddle(page);
   await closeSidebarWithTheStockKey(page);
@@ -113,7 +114,7 @@ test("opened fresh, the map is on the pilot's position in the middle of what the
   for (let i = 0; i < 3; i++) await drag(page, -viewport.width * 0.45, -60);
   const before = await mapAt(page);
   await page.getByTestId("sidebar-trigger-button").click();
-  await expect(sideDrawer(page)).not.toHaveAttribute("data-panel", "peek");
+  await expect(sideDrawer(page)).not.toHaveAttribute("data-collapsed", "true");
   await page.waitForTimeout(900);
   expect(await mapAt(page)).toBe(before);
 
@@ -129,6 +130,36 @@ test("opened fresh, the map is on the pilot's position in the middle of what the
   await expect(arrow).toHaveAttribute("aria-pressed", "false");
   await expect(page.locator('[data-own-ship="off"]')).toBeVisible();
   await expect(page.locator('[data-own-ship="on"]')).toHaveCount(0);
+});
+
+test("reloaded where it was, the map opens on the position in the middle of what the pill leaves, and does not slide there as the first fix comes", async ({ page, context }) => {
+  // The owner's notice: "On a reload why is there animation in the maps
+  // and the pill? It seems they are settling to their desired position".
+  await context.grantPermissions(["geolocation"], { origin });
+  await context.setGeolocation({ latitude: 42.3247, longitude: -88.0742 });
+  // Where the position last was, as an earlier visit keeps it (ownShip's
+  // lastFix): the page opens on it.
+  await page.addInitScript(() => localStorage.setItem("vfr.ownship",
+    JSON.stringify({ state: { enabled: true, follow: true, lastFix: { lat: 42.325, lon: -88.074 } }, version: 0 })));
+  // Every place the map's pane is put, from the page's first frame: it
+  // moves when the map does, and only then.
+  await page.addInitScript(() => {
+    const seen: string[] = [];
+    (window as unknown as { __panes: string[] }).__panes = seen;
+    const look = () => {
+      const at = document.querySelector<HTMLElement>(".leaflet-map-pane")?.style.transform;
+      if (at && at !== seen[seen.length - 1]) seen.push(at);
+      if (performance.now() < 6000) requestAnimationFrame(look);
+    };
+    requestAnimationFrame(look);
+  });
+  await page.goto("/app/plan");
+  await settle(page);
+  await expect(sideDrawer(page)).toHaveAttribute("data-panel", "peek");
+  await shipInTheMiddle(page);
+  await page.waitForTimeout(1500);
+  // Made there, and never moved: the first fix was put, not panned to.
+  expect(await page.evaluate(() => (window as unknown as { __panes: string[] }).__panes)).toHaveLength(1);
 });
 
 /** Counts the page's asks for the position, on window.__asks. */
@@ -176,12 +207,13 @@ test("a route entered is fitted above the half sheet, to the whole screen at the
   // Home from a link, so Fly Here has somewhere to fly from.
   await page.goto("/app/plan?home=C81");
   await expect(page).not.toHaveURL(/[?&]home=/, { timeout: slow(10_000) });
-  const search = page.getByTestId("search-airports");
+  const search = await airportSearch(page);
   await search.click();
   await search.fill("KDLH");
   await page.getByTestId("search-result").filter({ hasText: "KDLH" }).first().click();
   await page.getByTestId("place-card").getByTestId("fly-here").click();
   await expect(page).toHaveURL(/dep=C81.*dest=KDLH|dest=KDLH.*dep=C81/);
+  // The route at the height the card was: half, as every card opens.
   await expect(sideDrawer(page)).toHaveAttribute("data-panel", "half");
   const half = await fittedClearOf(page, sideDrawer(page));
 
@@ -242,7 +274,7 @@ test("an airport's card keeps its field in sight: the next position the GPS give
   await shipInTheMiddle(page);
 
   // A field far from the position, from the search: the map goes to it.
-  const search = page.getByTestId("search-airports");
+  const search = await airportSearch(page);
   await search.click();
   await search.fill("KDLH");
   await page.getByTestId("search-result").filter({ hasText: "KDLH" }).first().click();
@@ -255,4 +287,23 @@ test("an airport's card keeps its field in sight: the next position the GPS give
   await context.setGeolocation({ latitude: 42.33, longitude: -88.08 });
   await page.waitForTimeout(2000);
   await fieldClearOfCard(page, field);
+});
+
+test("from half way to all the way up and back, the map stays exactly where it is", async ({ page }) => {
+  // The owner's ask: "when going from half card to full card, map should
+  // not move or zoom" -- only the pill to half and back moves it.
+  await page.goto("/app/plan?dep=C81&dest=KDLH");
+  await settle(page);
+  await openPanel(page);
+  await expect(sideDrawer(page)).toHaveAttribute("data-panel", "half");
+  await mapStill(page);
+  const before = await courseBox(page);
+  await grabberTo(page, "full");
+  await page.waitForTimeout(800);
+  await mapStill(page);
+  expect(await courseBox(page)).toEqual(before);
+  await grabberTo(page, "half");
+  await page.waitForTimeout(800);
+  await mapStill(page);
+  expect(await courseBox(page)).toEqual(before);
 });

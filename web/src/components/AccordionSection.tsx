@@ -1,8 +1,8 @@
-import { useContext, useId, useLayoutEffect, useRef, type ComponentProps, type ReactNode } from "react";
+import { useContext, useId, type ComponentProps, type ReactNode } from "react";
 import { cn } from "cn";
 import { AccordionContent, AccordionItem, AccordionTrigger } from "./ui/accordion";
 import { TEXT } from "../lib/text";
-import { SectionTabsContext, SectionsOpen } from "./sectionLayout";
+import { SectionsOpen } from "./sectionLayout";
 
 /**
  * One section of a folded list -- the flight planning drawer's, and
@@ -25,18 +25,15 @@ import { SectionTabsContext, SectionsOpen } from "./sectionLayout";
  *
  * Inside the planning panel's tabs (SectionsOpen) a section is laid open
  * instead -- its title, its aside and its content, no fold: a tab is one
- * thing already, and a fold in it was a second tap to read it. There each
- * is a tab of its tab's (SectionTabs), at the pilot's ask: shown only
- * while picked, its title the pill's and its heading's to a reader alone.
+ * thing already, and a fold in it was a second tap to read it. Its
+ * sections run one under another there, each under its title, at the
+ * owner's ask ("Make the subtabs into sections").
  */
-export default function AccordionSection({ title, description, aside, finding, summary, children, ...props }: {
+export default function AccordionSection({ title, description, aside, summary, children, ...props }: {
   title: string; description?: string;
   /** Beside the title, shown folded or open: what a folded section
    *  must say without being opened (the briefing's VFR-not-recommended). */
   aside?: ReactNode;
-  /** What that flag is, red or amber: marked on the section's pill too,
-   *  seen while another section is up. */
-  finding?: "stop" | "caution";
   /** Under the title, folded or open: the section in one line (the
    *  briefing's "KDLH 500 ft · 3 sm"). */
   summary?: ReactNode;
@@ -45,36 +42,21 @@ export default function AccordionSection({ title, description, aside, finding, s
   const titleId = useId();
   const summaryId = useId();
   const laidOpen = useContext(SectionsOpen);
-  const tabs = useContext(SectionTabsContext);
-  const own = useRef<HTMLElement>(null);
-  const register = tabs?.register;
-  useLayoutEffect(
-    () => (laidOpen && register && own.current ? register(title, own.current, finding) : undefined),
-    [laidOpen, register, title, finding],
-  );
   if (laidOpen) {
-    const tabbed = !!tabs?.shown;
     return (
       // Laid out and painted only near the screen (content-visibility): a
       // tab of them -- the weather's five, the airports' lists -- drew all
-      // of its length on opening. Not under its own pill, shown alone: there
-      // the others are not drawn at all, and one shown again from hidden
-      // was left skipped, its rows unpainted and untappable, until
-      // something made the browser look again.
+      // of its length on opening.
       <section
-        ref={own} aria-labelledby={titleId} data-slot="open-section" data-title={title}
-        hidden={tabbed && tabs.shown !== title}
-        className={cn(
-          "border-b py-4 last:border-b-0", TEXT.prose,
-          tabbed ? "border-b-0 pt-2" : "[contain-intrinsic-size:auto_24rem] [content-visibility:auto] print:[content-visibility:visible]",
-        )}
+        aria-labelledby={titleId} data-slot="open-section" data-title={title}
+        className={cn("border-b py-4 last:border-b-0 [contain-intrinsic-size:auto_24rem] [content-visibility:auto] print:[content-visibility:visible]", TEXT.prose)}
       >
         {/* The heading its title alone, the flag beside it: inside it, a
-            flag's words ("Risk raised") became part of the heading's name.
-            Under its own pill (SectionTabs) the heading is a reader's: the
-            pill shows the title. */}
-        <div className={cn("mb-2 flex flex-wrap items-center gap-x-2 gap-y-1", TEXT.row, tabbed && !aside && "mb-0")}>
-          <h3 id={titleId} className={cn("font-semibold", TEXT.heading, tabbed && "sr-only")}>{title}</h3>
+            flag's words ("Risk raised") became part of the heading's name. */}
+        <div className={cn("mb-2 flex flex-wrap items-center gap-x-2 gap-y-1", TEXT.row)}>
+          {/* At the strips' titles' size and weight (PillSection), not bold,
+              at the owner's ask ("Section labels don't need to be bold"). */}
+          <h3 id={titleId} className={cn("font-medium", TEXT.title)}>{title}</h3>
           {aside}
         </div>
         {description && <div className={cn("text-muted-foreground", TEXT.note)}>{description}</div>}

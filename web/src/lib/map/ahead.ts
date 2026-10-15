@@ -70,7 +70,7 @@ export function askFor(fix: Fix | null, vs: number): AheadAsk | null {
 
 /** The alerts the pilot has acknowledged, by id: not shown again until
  *  each has gone from what is ahead (and so comes back if it does). */
-export const useAcknowledged = create<{ ids: string[] }>(() => ({ ids: [] }));
+const useAcknowledged = create<{ ids: string[] }>(() => ({ ids: [] }));
 
 export function acknowledge(ids: string[]) {
   useAcknowledged.setState(s => ({ ids: [...new Set([...s.ids, ...ids])] }));

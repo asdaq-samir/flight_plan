@@ -2,6 +2,7 @@ package com.northflyers.vfr.controller;
 
 import com.northflyers.vfr.domain.Pilot;
 import com.northflyers.vfr.dto.ErrorResponse;
+import com.northflyers.vfr.security.SessionSignIn;
 import com.northflyers.vfr.security.SignInLanding;
 import com.northflyers.vfr.service.PilotService;
 import com.northflyers.vfr.service.UnverifiedEmailException;
@@ -21,8 +22,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.core.context.SecurityContext;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
 import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
 import org.springframework.security.oauth2.core.OAuth2Error;
@@ -36,10 +35,6 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
-import org.springframework.security.web.authentication.session.SessionAuthenticationStrategy;
-import org.springframework.security.web.authentication.session.SessionFixationProtectionStrategy;
-import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
-import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -66,10 +61,6 @@ public class AppleNativeSignInController {
 
     private final PilotService pilots;
     private final JwtDecoder decoder;
-    private final SecurityContextRepository securityContextRepository = new HttpSessionSecurityContextRepository();
-    // As MagicLinkController: the session a pilot arrives with is not the
-    // one they are signed in on.
-    private final SessionAuthenticationStrategy sessionAuthenticationStrategy = new SessionFixationProtectionStrategy();
 
     @Autowired
     public AppleNativeSignInController(PilotService pilots, @Value("${APP_IOS_BUNDLE_ID:}") String bundleId) {
@@ -134,11 +125,7 @@ public class AppleNativeSignInController {
                     "Apple did not share a verified email address, which an account here needs."));
         }
         Authentication authentication = new OAuth2AuthenticationToken(user, user.getAuthorities(), "apple");
-        sessionAuthenticationStrategy.onAuthentication(authentication, request, response);
-        SecurityContext context = SecurityContextHolder.createEmptyContext();
-        context.setAuthentication(authentication);
-        SecurityContextHolder.setContext(context);
-        securityContextRepository.saveContext(context, request, response);
+        SessionSignIn.signIn(authentication, request, response);
         return ResponseEntity.ok(new SignedIn(SignInLanding.after(pilot)));
     }
 }

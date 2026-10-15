@@ -2,7 +2,6 @@ import { cn } from "cn";
 import AccordionSection from "../../../../components/AccordionSection";
 import FindingIcon from "../../../../components/FindingIcon";
 import { ListGroup, ListRow } from "../../../../components/GroupedList";
-import TickBox from "../../../../components/TickBox";
 import { PREFLIGHT_ITEMS, usePreflight, useTicked } from "../../../../lib/preflight";
 import { FINDING_TONE, type Finding } from "../../../../lib/status";
 import { TEXT } from "../../../../lib/text";
@@ -40,9 +39,7 @@ export default function PreflightAction({ flight, found }: {
             const what = found[item.key];
             return (
               <ListRow
-                key={item.key} role="checkbox" aria-checked={!!ticked[item.key]}
-                onClick={() => tick(flight, item.key, !ticked[item.key])}
-                media={<TickBox on={!!ticked[item.key]} />}
+                key={item.key} checkbox={{ checked: !!ticked[item.key], onChange: on => tick(flight, item.key, on) }}
                 title={item.title}
                 description={(
                   <>

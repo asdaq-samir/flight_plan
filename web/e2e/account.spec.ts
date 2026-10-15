@@ -1,5 +1,5 @@
 import { test, expect, type Page, type Route } from "@playwright/test";
-import { library, openPanel } from "./helpers";
+import { closeConsole, library, openConsole, controlsInSight } from "./helpers";
 
 /**
  * The pilot console's two saves, each answered only when the test lets
@@ -22,9 +22,9 @@ function held() {
 
 const consoleSheet = (page: Page) => page.getByTestId("console-sheet");
 
-async function openConsole(page: Page) {
+async function openPlannerConsole(page: Page) {
   await page.goto("/app/plan");
-  await page.getByTestId("settings-button").click();
+  await openConsole(page);
   return consoleSheet(page);
 }
 
@@ -42,7 +42,7 @@ test("an add still saving when Edit is clicked says added, and leaves the airpla
       });
     }
   });
-  const console = await openConsole(page);
+  const console = await openPlannerConsole(page);
   await library(console, "Aircraft");
   // The form opens from the list's New aircraft row -- a popover, or
   // on a phone a sheet from the bottom -- on the page, not inside the
@@ -80,7 +80,7 @@ test.describe("the email sign-in link", () => {
       await hold.gate;
       await route.fulfill({ status: 204, body: "" });
     });
-    const console = await openConsole(page);
+    const console = await openPlannerConsole(page);
     await console.getByRole("button", { name: "Sign in" }).click();
     const box = page.getByLabel("Email address");
     await box.fill("a@example.com");
@@ -99,7 +99,7 @@ test.describe("the email sign-in link", () => {
       await hold.gate;
       await route.fulfill({ status: 204, body: "" });
     });
-    const console = await openConsole(page);
+    const console = await openPlannerConsole(page);
     await console.getByRole("button", { name: "Sign in" }).click();
     await page.getByLabel("Email address").fill("a@example.com");
     await page.getByRole("button", { name: "Send sign-in link" }).click();
@@ -118,7 +118,7 @@ test.describe("the email sign-in link", () => {
 
   test("too many asked for says so, not to check the address", async ({ page }) => {
     await page.route("**/api/auth/magic-link", route => route.fulfill({ status: 429, body: "" }));
-    const console = await openConsole(page);
+    const console = await openPlannerConsole(page);
     await console.getByRole("button", { name: "Sign in" }).click();
     await page.getByLabel("Email address").fill("a@example.com");
     await page.getByRole("button", { name: "Send sign-in link" }).click();
@@ -131,7 +131,7 @@ test.describe("the email sign-in link", () => {
     // What an http page that could not read the https port's Secure
     // XSRF-TOKEN got: its POST refused before the address was looked at.
     await page.route("**/api/auth/magic-link", route => route.fulfill({ status: 401, body: "" }));
-    const console = await openConsole(page);
+    const console = await openPlannerConsole(page);
     await console.getByRole("button", { name: "Sign in" }).click();
     await page.getByLabel("Email address").fill("a@example.com");
     await page.getByRole("button", { name: "Send sign-in link" }).click();
@@ -145,7 +145,7 @@ test("the airplane the nav log flies is ticked, and a tap on another flies that 
   await page.route("**/api/aircraft", route => route.fulfill({
     status: 200, contentType: "application/json", body: JSON.stringify([aircraft(1, "N1"), aircraft(2, "N2")]),
   }));
-  const console = await openConsole(page);
+  const console = await openPlannerConsole(page);
   await library(console, "Aircraft");
   // The row's own button, which says whether it is the one flown.
   const pick = (tail: string) => console.locator("[data-aircraft-row]", { hasText: tail }).locator("button[aria-pressed]");
@@ -164,9 +164,8 @@ test("the airplane the nav log flies is ticked, and a tap on another flies that 
   await expect(pick("N2")).toHaveAttribute("aria-pressed", "true");
 
   // The picker under the route flies it too, with the panel out.
-  await console.getByRole("button", { name: "Close" }).click();
-  await expect(consoleSheet(page)).toHaveCount(0);
+  await closeConsole(page);
   await page.goto("/app/plan?dep=C81&dest=KDLH");
-  await openPanel(page);
+  await controlsInSight(page);
   await expect(page.getByTestId("aircraft-select")).toContainText("N2");
 });

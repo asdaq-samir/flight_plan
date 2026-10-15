@@ -159,6 +159,9 @@ _NASR_FILES = {
     # UNICOM, tower, ground, ATIS and approach the Chart Supplement lists
     # (airport_frequencies).
     "FRQ.csv": lambda: find_download_link(find_current_cycle_page(NASR_INDEX_URL), r'href="([^"]*FRQ_CSV\.zip)"'),
+    # Every airway segment, Victor and T routes among them, in order, each
+    # with its MEA, MOCA and MAA (vfr.airways).
+    "AWY_SEG_ALT.csv": lambda: find_download_link(find_current_cycle_page(NASR_INDEX_URL), r'href="([^"]*AWY_CSV\.zip)"'),
 }
 
 
@@ -198,6 +201,7 @@ _EDITIONS = {
     "APT_CSV": (("APT_BASE.csv", "APT_RMK.csv", "APT_RWY_END.csv", "APT_CON.csv"), None, r'href="([^"]*APT_CSV\.zip)"'),
     "FIX_CSV": (("FIX_BASE.csv",), None, r'href="([^"]*FIX_CSV\.zip)"'),
     "FRQ_CSV": (("FRQ.csv",), None, r'href="([^"]*FRQ_CSV\.zip)"'),
+    "AWY_CSV": (("AWY_SEG_ALT.csv",), None, r'href="([^"]*AWY_CSV\.zip)"'),
     # The Class B, C and D shapes (vfr.airspace), from the same cycle.
     "Class_Airspace": (
         # The .shp last, which vfr.airspace keys its parse on: its

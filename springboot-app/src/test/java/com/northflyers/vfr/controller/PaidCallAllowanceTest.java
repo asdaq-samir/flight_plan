@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.northflyers.vfr.service.PilotService;
+import com.northflyers.vfr.service.SubscriptionService;
 import java.time.Duration;
 import java.time.Instant;
 import org.junit.jupiter.api.Test;
@@ -34,6 +35,8 @@ import org.springframework.test.web.servlet.ResultActions;
 @Import(StreamingProxy.class)
 @AutoConfigureMockMvc(addFilters = false)
 @TestPropertySource(properties = {
+        // A deployment that sells the subscription, whose gate these are.
+        "app.subscription.enabled=true",
         "app.paid-calls.per-day=0",
         "nav-log-agent.base-url=http://127.0.0.1:9",
         "nav-log-agent.api-key=test-key",
@@ -47,6 +50,9 @@ class PaidCallAllowanceTest {
 
     @MockitoBean
     private PilotService pilots;
+
+    @MockitoBean
+    private SubscriptionService subscriptions;
 
     @Test
     void aNarrativePastTheDaysAllowanceIsA429ThatSaysSo() throws Exception {

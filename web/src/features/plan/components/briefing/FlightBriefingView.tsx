@@ -1,9 +1,13 @@
 import { memo, useEffect, useMemo, useState, type ReactNode } from "react";
 import { format } from "date-fns";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useIsMutating, useMutation, useMutationState, useQuery, useQueryClient } from "@tanstack/react-query";
 import { cn } from "cn";
-import { Check, CloudOff, Loader2, OctagonAlert, Save, TriangleAlert } from "lucide-react";
-import RoundButton from "../../../../components/RoundButton";
+import { Check, CloudOff, GraduationCap, Loader2, OctagonAlert, Save, TriangleAlert } from "lucide-react";
+import { DropdownMenuItem } from "../../../../components/ui/dropdown-menu";
+import { ResponsivePopoverContent } from "../../../../components/ResponsivePopover";
+import { ReviewAskForm, type ReviewAsk } from "../../../pilot/ReviewAsk";
+import { localDay } from "../../../../lib/clock";
+import { toast } from "sonner";
 import { Alert, AlertDescription, AlertTitle } from "../../../../components/ui/alert";
 import AccordionSection from "../../../../components/AccordionSection";
 import { ListGroup, ListRow } from "../../../../components/GroupedList";
@@ -18,7 +22,7 @@ import type { FrameworkNarrative } from "../../hooks/useNarratives";
 import type { BriefingState } from "../../hooks/usePlan";
 import { altFt, ceilingAndVisibility, clockTime, deg, describeFuel, describeSteps, describeTime } from "../../format";
 import { flightLevel, grouped } from "../../../../lib/units";
-import { withoutAltitude } from "../../../../lib/identSchema";
+import { identOf, isAirwayToken, withoutAltitude } from "../../../../lib/identSchema";
 import { navLogRows, savedCheckpoints } from "../navlog/rows";
 import { useLoad } from "../../hooks/useLoad";
 import { TakeoffLandingSection, WeightBalanceSection } from "./PreflightSections";
@@ -35,13 +39,20 @@ import { shortName } from "../../../../lib/aircraftChoice";
 import AirportSections from "./AirportSections";
 import BriefVerdict from "./BriefVerdict";
 import PreflightAction from "./PreflightAction";
+import PassengerBriefing from "./PassengerBriefing";
+import { passengerMessage } from "../../../../lib/passengers";
 import WeatherAlongRoute from "./WeatherAlongRoute";
+import AlternateSection from "./AlternateSection";
+import FlightPlanSection from "./FlightPlanSection";
+import { flightPlanForms, type FiledProcedure } from "../../../../lib/flightPlanForm";
+import { alternateFinding, useAlternate } from "../../hooks/useAlternate";
+import { icingAtAltitude, icingLine } from "../../../../lib/icing";
 import RiskAssessment from "./RiskAssessment";
 import FindingIcon from "../../../../components/FindingIcon";
 import MockOral from "./MockOral";
 import { planFacts } from "../../../../lib/oral";
 import { assess, riskLine, useRisk } from "../../../../lib/frat";
-import { LIMITS } from "../../../../lib/limits";
+import { PLANNING_AID } from "../../../../lib/limits";
 import type { BriefingPart } from "./sections";
 
 interface Props {
@@ -59,6 +70,12 @@ interface Props {
   dest: string;
   /** The airports landed at on the way, in order. */
   stops?: string[];
+  /** Every stop as the route has it, flown through or landed at, airways
+   *  among them: the flight plan's route. */
+  route?: string[];
+  /** The departure and the arrival picked at the route's ends, for the
+   *  flight plan's route under IFR. */
+  procedures?: { departure: FiledProcedure | null; arrival: FiledProcedure | null };
   /** The course, for the airports' elevations, and the trip's totals,
    *  for the fuel burned by the landing (Weight & Balance). */
   course?: Course | null;
@@ -198,16 +215,25 @@ function altitudeRange(nav: NavLogAltitude): string {
  * about it from here, and a disabled button with no explanation reads
  * as broken rather than as "sign in first."
  *
- * A round button at the end of the panel's row, beside Share and Print
- * (PlanWorkspace puts it there), its state its glyph and its name: Save,
- * Saving…, Saved. It was a line of its own at the head of the
- * sections, with the airplane the flight would be filed in spelled
- * out beside it; that airplane is the header's own picker, a line
- * above.
+ * An item of the route's Share menu (PlanWorkspace puts it there, at the
+ * pilot's ask, with Print and the rest: beside the chips only the
+ * Approaches and Share), its state its glyph and its name: Save,
+ * Saving…, Saved; said in a note once saved, the menu having gone. It
+ * was a round button beside Share and Print, and before that a line of
+ * its own at the head of the sections, with the airplane the flight would be filed
+ * in spelled out beside it; that airplane is the header's own picker, a
+ * line above.
  */
-export function SaveFlightButton({
-  course, totals, nav, legs, selected, aircraftId, depart, altitudes = "",
-}: {
+/** The flights saved, one mutation key for every Save item (SaveFlightButton). */
+const SAVE_FLIGHT = ["saveFlight"];
+
+/** A plan as Save compares it: the same plan with its risk assessment
+ *  made again is not another (SaveFlightButton). */
+const planOf = (r: SaveFlightRequest) => JSON.stringify({ ...r, risk: null });
+
+/** The plan on screen as a flight to save: what Save files, and what a
+ *  solo cross-country's review is asked of (ReviewAskSheet). */
+export interface FlightToSave {
   course: Course | null;
   totals: Totals | null;
   nav: NavLogAltitude | null;
@@ -223,21 +249,16 @@ export function SaveFlightButton({
    *  `altitudes` writes them ("VPBNG:4500"), or "": filed with the
    *  flight, so opened again it is planned at them. */
   altitudes?: string;
-}) {
-  const queryClient = useQueryClient();
-  // The one ["pilot"] query the console and the header share: signed out
-  // after a Log out, back after a failed check is retried. A private
-  // one-shot lookup here used to hide the section for the session after
-  // one failed check, and keep offering Save after a Log out.
-  const { data: pilot } = useQuery(pilotQuery);
+}
+
+/** What would be filed, and only once there is a whole plan to file: the
+ *  course (the airports' own idents and places, not a route being
+ *  switched to), the nav log and its totals. Save used to be offered
+ *  mid-stream, or after a stream failed, and filed null totals. */
+function useSaveRequest({ course, totals, nav, legs, selected, aircraftId, depart, altitudes = "" }: FlightToSave): SaveFlightRequest | null {
   // The briefing's risk assessment (lib/frat), filed with the flight.
   const risk = useRisk(s => s.assessment);
-
-  // What would be filed, and only once there is a whole plan to file:
-  // the course (the airports' own idents and places, not a route being
-  // switched to), the nav log and its totals. Save used to be offered
-  // mid-stream, or after a stream failed, and filed null totals.
-  const request = useMemo((): SaveFlightRequest | null => {
+  return useMemo((): SaveFlightRequest | null => {
     if (!course || !nav || !totals) return null;
     return {
       aircraftId,
@@ -256,11 +277,30 @@ export function SaveFlightButton({
       altitudes: altitudes || null,
     };
   }, [course, nav, totals, aircraftId, depart, selected, legs, risk, altitudes]);
+}
 
+export function SaveFlightButton(flight: FlightToSave) {
+  const queryClient = useQueryClient();
+  // The one ["pilot"] query the console and the header share: signed out
+  // after a Log out, back after a failed check is retried. A private
+  // one-shot lookup here used to hide the section for the session after
+  // one failed check, and keep offering Save after a Log out.
+  const { data: pilot } = useQuery(pilotQuery);
+  const request = useSaveRequest(flight);
+
+  // Kept by the query client, not the item: the menu's content goes when
+  // the menu closes, and with a mutation of the item's own the menu
+  // opened again offered Save for a plan just saved -- a second click
+  // filed it twice.
   const save = useMutation({
+    mutationKey: SAVE_FLIGHT,
     mutationFn: api.flights.save,
-    // The pilot console's list of flights, which it keeps.
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["flights"] }),
+    // The pilot console's list of flights, which it keeps; said in a
+    // note, the menu it was saved from having gone.
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["flights"] });
+      toast.success("Flight saved");
+    },
   });
   // "Saved" belongs to the plan that was saved: another route, time,
   // airplane or altitude is a new request, and Save is offered again.
@@ -269,23 +309,90 @@ export function SaveFlightButton({
   // risk assessment made again is not another: the briefing is asked for
   // again with the flight's time en route once the nav log has it, a
   // second or two after Save is offered, and "Saved" went back to Save.
-  const planOf = (r: SaveFlightRequest) => JSON.stringify({ ...r, risk: null });
   const plan = useMemo(() => request && planOf(request), [request]);
-  const saved = save.isSuccess && !!save.variables && planOf(save.variables) === plan;
+  const filedPlans = useMutationState({
+    filters: { mutationKey: SAVE_FLIGHT, status: "success" },
+    select: m => planOf(m.state.variables as SaveFlightRequest),
+  });
+  const saving = useIsMutating({ mutationKey: SAVE_FLIGHT }) > 0;
+  const saved = !!plan && filedPlans.includes(plan);
 
   if (!pilot) return null;
 
-  // A round button of glass, as Share and Print beside it and the route's
-  // close are: its state its glyph and its name -- Save, Saving…, Saved.
   return (
-    <RoundButton
-      label={save.isPending ? "Saving…" : saved ? "Saved" : "Save this flight"}
-      onClick={() => request && save.mutate(request)}
-      disabled={!request || save.isPending || saved}
-      data-testid="save-flight-button"
+    <DropdownMenuItem onSelect={() => request && save.mutate(request)} disabled={!request || saving || saved} data-testid="save-flight-button">
+      {saving ? <Loader2 className="animate-spin" /> : saved ? <Check /> : <Save />}
+      {saving ? "Saving…" : saved ? "Saved" : "Save this flight"}
+    </DropdownMenuItem>
+  );
+}
+
+/**
+ * "Ask for a solo cross-country review", an item of the route's Share
+ * menu beside Save: for a student whose instructor has taken them on
+ * (CheckridePage), once there is a whole plan to file. It opens the sheet
+ * (ReviewAskSheet) the menu's own state keeps, the menu having gone.
+ */
+export function ReviewAskItem({ flight, onAsk }: { flight: FlightToSave; onAsk: () => void }) {
+  const { data: pilot } = useQuery(pilotQuery);
+  const { data: training } = useQuery({ queryKey: ["training"], queryFn: api.training.get, enabled: !!pilot });
+  const request = useSaveRequest(flight);
+  if (!pilot || !training?.instructors.some(l => l.accepted)) return null;
+  return (
+    <DropdownMenuItem disabled={!request} onSelect={onAsk} data-testid="ask-review">
+      <GraduationCap />Ask for a solo cross-country review
+    </DropdownMenuItem>
+  );
+}
+
+/**
+ * The review asked from the route itself: the plan on screen saved as a
+ * flight -- with Save's own mutation, so Save says Saved after -- and put
+ * to the instructor chosen, as a saved flight's page puts one
+ * (ReviewAskForm), for 14 CFR 61.93(c)(3)'s review of its planning.
+ */
+export function ReviewAskSheet({ flight, onDone }: { flight: FlightToSave; onDone: () => void }) {
+  const queryClient = useQueryClient();
+  const { data: training } = useQuery({ queryKey: ["training"], queryFn: api.training.get });
+  const request = useSaveRequest(flight);
+  const save = useMutation({ mutationKey: SAVE_FLIGHT, mutationFn: api.flights.save });
+  // The flights saved this session, by their plan: one already saved is
+  // asked about as it is, not filed again.
+  const filed = useMutationState({
+    filters: { mutationKey: SAVE_FLIGHT, status: "success" },
+    select: m => ({ plan: planOf(m.state.variables as SaveFlightRequest), id: (m.state.data as { id: number }).id }),
+  });
+  const ask = useMutation({
+    mutationFn: async (a: ReviewAsk) => {
+      const plan = planOf(request!);
+      const flightId = filed.find(f => f.plan === plan)?.id ?? (await save.mutateAsync(request!)).id;
+      return api.training.askReview({ flightId, ...a });
+    },
+    onSuccess: next => {
+      queryClient.setQueryData(["training"], next);
+      void queryClient.invalidateQueries({ queryKey: ["flights"] });
+      toast.success("Asked for a review");
+      onDone();
+    },
+  });
+  const theirs = training?.instructors.filter(l => l.accepted) ?? [];
+  return (
+    <ResponsivePopoverContent
+      title="Solo cross-country review" align="end" className="w-96 max-w-[calc(100vw-2rem)] p-3" data-testid="review-sheet"
+      // Opened as the Share menu goes, whose focus goes back to its button
+      // as it closes: taken for a move outside, it shut the sheet just
+      // opened, now and then. A tap outside or Escape still closes it.
+      onFocusOutside={e => e.preventDefault()}
+      description="Your instructor reviews its planning and the weather, and endorses it for the airplane and the day (14 CFR 61.93(c)(3), (d))."
     >
-      {save.isPending ? <Loader2 className="size-5 animate-spin" /> : saved ? <Check className="size-5" strokeWidth={2} /> : <Save className="size-5" strokeWidth={2} />}
-    </RoundButton>
+      <div className="space-y-3">
+        <ReviewAskForm
+          instructors={theirs} pending={ask.isPending || !request} onAsk={a => ask.mutate(a)}
+          initialDay={localDay(flight.depart ? new Date(flight.depart) : new Date())}
+        />
+        {ask.error && <p role="alert" className={cn("px-1", FINDING_TONE.stop, TEXT.prose)} data-testid="review-problem">{ask.error.message}</p>}
+      </div>
+    </ResponsivePopoverContent>
   );
 }
 
@@ -366,12 +473,12 @@ const NO_STOPS: string[] = [];
 // Drawn again only when its plan changes (memo): every tab is one of
 // these, and the page draws again at every row picked in the nav log.
 export default memo(function FlightBriefingView({
-  part, publish = false, nav, legs, dep, dest, stops = NO_STOPS, course = null, totals = null, depart = "",
+  part, publish = false, nav, legs, dep, dest, stops = NO_STOPS, route = NO_STOPS, procedures, course = null, totals = null, depart = "",
   briefing: briefingState,
   langgraphNarrative, crewaiNarrative, narrative, problem = null,
 }: Props) {
   // The load's weights, for the takeoff and landing distances.
-  const { loading, result: loaded } = useLoad(nav?.aircraft, totals?.fuel_gal ?? null);
+  const { loading, load, result: loaded } = useLoad(nav?.aircraft, totals?.fuel_gal ?? null);
   // Every airport the flight lands at, each once: a round trip's
   // departure is its destination.
   const landings = [...new Set([dep, ...stops, dest])];
@@ -381,7 +488,11 @@ export default memo(function FlightBriefingView({
   // in one place; this page states them.
   const briefing = briefingState.state === "ready" ? briefingState.data : null;
   const failed = briefingState.state === "failed" ? briefingState.detail : null;
-  const vnrReasons = briefing?.vfr_not_recommended ?? [];
+  // Under IFR "VFR flight not recommended" is no reason not to go: its
+  // weather check is the destination's and the alternate's (14 CFR
+  // 91.169), not VFR's minimums.
+  const ifr = usePreferences(p => p.flightRules) === "ifr";
+  const vnrReasons = ifr ? [] : briefing?.vfr_not_recommended ?? [];
   const briefingPendingMessage =
     briefingState.state === "waiting" ? "The briefing follows once the route's course is drawn."
       : failed ? `Briefing data is unavailable (${failed}).`
@@ -420,10 +531,17 @@ export default memo(function FlightBriefingView({
   // button, which files it with the flight.
   const { data: pilot } = useQuery(pilotQuery);
   const { data: currency } = useQuery({ queryKey: ["currency"], queryFn: api.logbook.currency, enabled: !!pilot, staleTime: 60_000 });
+  // The pilot's own airplane being flown, for its inspections and, under
+  // IFR, its VOR check.
+  const flyingId = usePreferences(p => p.aircraft.aircraftId);
+  const { data: ownAircraft } = useQuery({ queryKey: ["aircraft"], queryFn: api.aircraft.list, enabled: !!pilot && flyingId != null, staleTime: 60_000 });
+  const flownOwn = flyingId == null ? undefined : ownAircraft?.find(a => a.id === flyingId);
   const ticked = useRisk(s => s.ticked);
   const setAssessment = useRisk(s => s.setAssessment);
   const margins = [totals?.fuel_margin_gal, ...(totals?.hops ?? []).map(h => h.totals.fuel_margin_gal)]
     .filter((n): n is number => n != null);
+  // Under IFR, in cloud at or above the freezing level (lib/icing).
+  const icing = ifr && nav && briefing ? icingAtAltitude(nav.altitude_selection, legs.map(l => l.altitude_ft), briefing.pireps) : null;
   const hazardNames = briefing ? [...briefing.hazards.map(h => sigmetHazard(h.hazard, h.type ?? "SIGMET")), ...briefing.gairmets.map(gairmetTitle)] : [];
   const assessment = briefing ? assess({
     vfrNotRecommended: vnrReasons.length > 0,
@@ -432,6 +550,11 @@ export default memo(function FlightBriefingView({
     hazards: unchecked("hazards") && unchecked("gairmets") ? 0 : hazardNames.length,
     night: totals?.night === true,
     fuelMarginGal: margins.length ? Math.min(...margins) : null,
+    ifr,
+    vorCheck: flownOwn === undefined ? undefined : flownOwn.vorCheck
+      ? { goodThrough: flownOwn.vorCheck.goodThrough, withinLimit: flownOwn.vorCheck.withinLimit } : null,
+    inspections: flownOwn?.inspections,
+    squawks: flownOwn?.openSquawks,
     currency: currency ?? null,
     day: format(new Date(depart || opened), "yyyy-MM-dd"),
     ticked,
@@ -467,10 +590,15 @@ export default memo(function FlightBriefingView({
   // Performance tab and the Go / No-Go.
   const checks = runwayChecks(nav?.aircraft, briefing, course, loaded?.takeoff.weightLb ?? null, loaded?.landing.weightLb ?? null);
   const hops = totals?.hops ?? [];
-  const items: VerdictItem[] = verdictItems({
+  // Under IFR, the alternate (AlternateSection): its ETA the nav log's.
+  const etaIso = totals?.ete_min != null ? new Date(new Date(depart || opened).getTime() + totals.ete_min * 60_000).toISOString() : null;
+  const alternateWhere = { dest, eta: ifr ? etaIso : null, tasKt: nav?.aircraft.cruise_tas_kt ?? 110 };
+  const alternateCheck = useAlternate(alternateWhere);
+  const alternateFound = ifr ? alternateFinding(alternateCheck.data) : null;
+  const verdictFound: VerdictItem[] = verdictItems({
     weather: {
       pending: !briefing && !failed, failed,
-      vfrNotRecommended: vnrReasons, underMinimums: underMine, hazards: hazardNames,
+      vfrNotRecommended: vnrReasons, underMinimums: underMine, icing: icing && icingLine(icing), hazards: hazardNames,
       unchecked: (briefing?.weather_unavailable ?? []).filter(w => w !== "tfrs").map(w => WEATHER_SOURCE_LABEL[w]),
       worst: briefing && (briefing.forecast.min_ceiling_ft != null || briefing.forecast.min_visibility_sm != null)
         ? ceilingAndVisibility(briefing.forecast.min_ceiling_ft, briefing.forecast.min_visibility_sm) : null,
@@ -490,6 +618,7 @@ export default memo(function FlightBriefingView({
       marginGal: margins.length ? Math.min(...margins) : null,
       requiredGal: totals?.fuel_required_gal ?? (hops.length ? Math.max(...hops.map(h => h.totals.fuel_required_gal ?? 0)) : null),
       reserveMin: totals?.reserve_min ?? hops[0]?.totals.reserve_min ?? null,
+      ifr,
     },
     runways: {
       pending: !nav || !briefing, worked: !nav || (!!nav.aircraft.takeoff && !!nav.aircraft.landing),
@@ -505,6 +634,12 @@ export default memo(function FlightBriefingView({
   });
   // Published once, for the tabs' marks (PlanWorkspace), as the risk is.
   const setItems = useVerdict(v => v.setItems);
+  // The alternate is the weather's to say, where the weather says nothing
+  // worse: a caution or a stop of its own, opening its section.
+  const items: VerdictItem[] = alternateFound
+    ? verdictFound.map(i => (i.key === "weather" && (i.finding === "ok" || (alternateFound.finding === "stop" && i.finding !== "stop"))
+      ? { ...i, ...alternateFound, tab: "arrive", section: "Alternate" } : i))
+    : verdictFound;
   const itemsKey = items.map(i => `${i.key}:${i.finding}:${i.detail}`).join("|");
   useEffect(() => {
     if (publish) setItems(items);
@@ -514,6 +649,27 @@ export default memo(function FlightBriefingView({
   useEffect(() => () => { if (publish) setItems([]); }, [setItems, publish]);
 
   if (part === null) return null;
+
+  // The flight plan's airplane: the pilot's own by its registration and
+  // the type designator they gave it, or a stock profile's type; item 9's
+  // wake category from the profile's maximum takeoff weight only where
+  // the profile is that type's.
+  const ownType = flying.aircraftId != null ? flying.label.split(" · ")[1] ?? null : null;
+  const profileType = nav?.aircraft.designator ?? null;
+  const planType = flying.aircraftId != null ? ownType : profileType;
+  const planForms = part === "preflight" ? flightPlanForms({
+    rules: ifr ? "ifr" : "vfr", dep, dest, route, landings: stops,
+    isAirway: stop => isAirwayToken(stop) && !course?.stops?.some(s => s.ident === stop),
+    legs, totals, depart: depart ? new Date(depart) : null, now: new Date(opened),
+    aircraft: {
+      ident: flying.aircraftId != null ? shortName(flying.label) : null,
+      type: planType,
+      maxTakeoffLb: planType && planType === profileType ? nav?.aircraft.loading?.max_takeoff_lb ?? null : null,
+    },
+    fuelGal: load?.fuelGal ?? null,
+    alternate: totals?.alternate?.ident ?? null,
+    departureProcedure: procedures?.departure, arrivalProcedure: procedures?.arrival,
+  }) : [];
 
   // Preflight action (14 CFR 91.103): what the planner found for each.
   const finding = (key: VerdictItem["key"]) => {
@@ -547,7 +703,9 @@ export default memo(function FlightBriefingView({
         </p>
       )}
 
-      {part === "brief" && (
+      {/* Preflight: the go / no-go first, then what is done before
+          leaving -- the airspace, the risk, the paperwork, the loading. */}
+      {part === "preflight" && (
         <>
           {/* The narrative, printed only: on screen it is the tab's own
               section (BriefNarrative), whose framework is a setting. */}
@@ -562,7 +720,6 @@ export default memo(function FlightBriefingView({
               with when the flight gets to each against its times of use. */}
           <AccordionSection
             title="TFRs & Special Use"
-            finding={tfrsCrossed.length > 0 ? "stop" : specialUse.some(s => s.when === "active") ? "caution" : undefined}
             aside={tfrsCrossed.length > 0 ? <Flag finding="stop" testId="tfr-flag">TFR on the route</Flag>
               : specialUse.some(s => s.when === "active") ? <Flag finding="caution" testId="sua-flag">Area in use</Flag> : undefined}
           >
@@ -633,7 +790,6 @@ export default memo(function FlightBriefingView({
               (lib/frat). */}
           <AccordionSection
             title="Risk Assessment"
-            finding={assessment && assessment.level !== "low" ? (assessment.level === "high" ? "stop" : "caution") : undefined}
             aside={assessment && assessment.level !== "low" ? (
               <Flag finding={assessment.level === "high" ? "stop" : "caution"} testId="risk-flag">
                 {assessment.level === "high" ? "High risk" : "Risk raised"}
@@ -645,6 +801,27 @@ export default memo(function FlightBriefingView({
 
           <PreflightAction flight={`${landings.join("-")}|${depart}`} found={found} />
 
+          {/* The loading, done at home: its envelope and what it changes. */}
+          <WeightBalanceSection aircraft={nav?.aircraft} tripFuelGal={totals?.fuel_gal ?? null} />
+
+          {/* The FAA's flight plan form filled in from the plan, from an
+              airport: a present position is a flight already flying. */}
+          {identOf(dep) && totals && (
+            <FlightPlanSection forms={planForms} ifr={ifr} />
+          )}
+
+          {/* The passengers' briefing (91.107), and the flight to send them. */}
+          <PassengerBriefing
+            flight={`${landings.join("-")}|${depart}`}
+            message={passengerMessage({
+              dep, dest, destName: briefing?.airports[dest]?.name ?? null,
+              depart: depart ? new Date(depart) : null, eteMin: totals?.ete_min ?? null,
+              weather: briefing?.metars[dest] ? [briefing.metars[dest]!.flight_category,
+                ceilingAndVisibility(briefing.metars[dest]!.ceiling_ft ?? null, briefing.metars[dest]!.visibility_sm ?? null)]
+                .filter(Boolean).join(", ") : null,
+            })}
+          />
+
           {/* The mock oral, the developer's until a CFI has reviewed its
               answers; never on paper. */}
           {pilot?.developer && briefing && (
@@ -654,6 +831,25 @@ export default memo(function FlightBriefingView({
               </AccordionSection>
             </div>
           )}
+        </>
+      )}
+
+      {/* Depart: only what leaving needs, in the order it is used -- the
+          field's weather, the takeoff, then the field: its radio, its
+          runways and its pattern. */}
+      {part === "depart" && (
+        <>
+          {briefing && course ? (
+            <WeatherAlongRoute briefing={briefing} course={course} legs={legs} departIso={depart || opened} unchecked={unchecked} phase="depart" />
+          ) : (
+            <AccordionSection title="Weather"><Pending>{briefingPendingMessage}</Pending></AccordionSection>
+          )}
+          <TakeoffLandingSection
+            aircraft={nav?.aircraft} briefing={briefing} course={course} phase="depart"
+            takeoff={loaded?.takeoff.weightLb ?? null} landing={loaded?.landing.weightLb ?? null}
+          />
+          {briefing ? <AirportSections briefing={briefing} landings={landings} legs={legs} callSign={ownCallSign} phase="depart" />
+            : <AccordionSection title="Airport"><Pending>{briefingPendingMessage}</Pending></AccordionSection>}
         </>
       )}
 
@@ -689,16 +885,18 @@ export default memo(function FlightBriefingView({
         </AccordionSection>
       )}
 
-      {/* Weather: adverse conditions first (AIM 7-1-5), then place by place, then the winds. */}
-      {part === "weather" && (
+      {/* En route, under the legs and the side view: the weather on the way
+          -- adverse conditions first (AIM 7-1-5), then stretch by stretch,
+          then the winds -- and any stops. */}
+      {part === "enroute" && (
         <>
           <AccordionSection
             title="Adverse Conditions"
-            finding={vnrReasons.length > 0 || underMine.length > 0 ? "stop" : hazardNames.length > 0 ? "caution" : undefined}
             // On the title, seen before anything under it: VFR not
             // recommended, or short of that, under the pilot's own minimums.
             aside={vnrReasons.length > 0 ? <Flag finding="stop" testId="vnr-flag">VFR not recommended</Flag>
               : underMine.length > 0 ? <Flag finding="stop" testId="minimums-flag">Under your minimums</Flag>
+                : icing ? <Flag finding="caution" testId="icing-flag">Icing possible</Flag>
                 : hazardNames.length > 0 ? <Flag finding="caution" testId="hazards-flag">{hazardNames.length === 1 ? "A hazard" : `${hazardNames.length} hazards`}</Flag> : undefined}
           >
             {/* Its own standard element (AIM 7-1-5(b)), stated first, the
@@ -720,6 +918,22 @@ export default memo(function FlightBriefingView({
                 <ul className="col-start-2 list-disc space-y-0.5 pl-4 [&>li]:first-letter:uppercase">
                   {underMine.map(reason => <li key={reason}>{reason}</li>)}
                 </ul>
+              </Alert>
+            )}
+            {icing && (
+              // Under IFR, in cloud at or above the freezing level.
+              <Alert className={cn("mb-2 border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200", TEXT.prose)} data-testid="icing-alert">
+                <TriangleAlert />
+                <AlertTitle>Icing possible at {altFt(icing.altitudeFt)} ft</AlertTitle>
+                <AlertDescription className={cn("text-amber-900 dark:text-amber-200", TEXT.prose)}>
+                  <p>
+                    The freezing level is {icing.atOrBelow ? "at or below" : "at"} {altFt(icing.freezingLevelFt)} ft, with cloud
+                    or an icing AIRMET forecast along the route{icing.reports
+                      ? `, and ${icing.reports} pilot report${icing.reports === 1 ? "" : "s"} of icing near it` : ""}.
+                    Most light airplanes&apos; flight manuals prohibit flight into known icing, and the manual&apos;s
+                    limitations bind (14 CFR 91.9(a)): plan below the freezing level, or an airplane certified for it.
+                  </p>
+                </AlertDescription>
               </Alert>
             )}
             {!briefing ? <Pending>{briefingPendingMessage}</Pending>
@@ -764,7 +978,7 @@ export default memo(function FlightBriefingView({
           </AccordionSection>
 
           {briefing && course ? (
-            <WeatherAlongRoute briefing={briefing} course={course} legs={legs} departIso={depart || opened} unchecked={unchecked} />
+            <WeatherAlongRoute briefing={briefing} course={course} legs={legs} departIso={depart || opened} unchecked={unchecked} phase="enroute" />
           ) : (
             <AccordionSection title="Along the Route"><Pending>{briefingPendingMessage}</Pending></AccordionSection>
           )}
@@ -775,7 +989,7 @@ export default memo(function FlightBriefingView({
               worked out from. */}
           <AccordionSection title="Winds Aloft">
             {!stretches.some(st => st.wind) ? (
-              <p className="text-muted-foreground">{legs.length ? "No winds-aloft data available for this route." : "Waiting on the nav log's legs…"}</p>
+              <p>{legs.length ? "No winds-aloft data available for this route." : "Waiting on the nav log's legs…"}</p>
             ) : (
               <ListGroup footer="The forecast winds and temperatures each stretch of legs is flown in, from the nearest winds-aloft station.">
                 {stretches.map((st, i) => (
@@ -792,21 +1006,34 @@ export default memo(function FlightBriefingView({
         </>
       )}
 
-      {/* Performance: whether the runways will do, then the loading that changes it. */}
-      {part === "performance" && (
+      {part === "enroute" && stops.length > 0 && (
         <>
           <TakeoffLandingSection
-            aircraft={nav?.aircraft} briefing={briefing} course={course}
+            aircraft={nav?.aircraft} briefing={briefing} course={course} phase="enroute"
             takeoff={loaded?.takeoff.weightLb ?? null} landing={loaded?.landing.weightLb ?? null}
           />
-          <WeightBalanceSection aircraft={nav?.aircraft} tripFuelGal={totals?.fuel_gal ?? null} />
+          {briefing ? <AirportSections briefing={briefing} landings={landings} legs={legs} callSign={ownCallSign} phase="enroute" />
+            : <AccordionSection title="Airport"><Pending>{briefingPendingMessage}</Pending></AccordionSection>}
         </>
       )}
 
-      {/* Each airport, in the order flown. */}
-      {part === "airports" && (
-        briefing ? <AirportSections briefing={briefing} landings={landings} legs={legs} callSign={ownCallSign} />
-          : <AccordionSection title="Airports"><Pending>{briefingPendingMessage}</Pending></AccordionSection>
+      {/* Arrive: the destination when the flight gets there -- its
+          weather, the landing, the field -- and under IFR the alternate. */}
+      {part === "arrive" && (
+        <>
+          {briefing && course ? (
+            <WeatherAlongRoute briefing={briefing} course={course} legs={legs} departIso={depart || opened} unchecked={unchecked} phase="arrive" />
+          ) : (
+            <AccordionSection title="Weather"><Pending>{briefingPendingMessage}</Pending></AccordionSection>
+          )}
+          <TakeoffLandingSection
+            aircraft={nav?.aircraft} briefing={briefing} course={course} phase="arrive"
+            takeoff={loaded?.takeoff.weightLb ?? null} landing={loaded?.landing.weightLb ?? null}
+          />
+          {briefing ? <AirportSections briefing={briefing} landings={landings} legs={legs} callSign={ownCallSign} phase="arrive" />
+            : <AccordionSection title="Airport"><Pending>{briefingPendingMessage}</Pending></AccordionSection>}
+          {ifr && <AlternateSection {...alternateWhere} />}
+        </>
       )}
     </>
   );
@@ -846,7 +1073,7 @@ export function BriefingNotices({ briefing: state }: { briefing: BriefingState }
 export function PlanningAidNote() {
   return (
     <p className={cn("py-3 text-muted-foreground", TEXT.note)} data-testid="planning-aid-note">
-      {LIMITS} Before flight, verify current weather, NOTAMs, TFRs, airport status, aircraft performance, and applicable regulations (14 CFR 91.103).
+      {PLANNING_AID}
     </p>
   );
 }

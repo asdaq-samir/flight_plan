@@ -1,4 +1,3 @@
-import TickBox from "../../../../components/TickBox";
 import FindingIcon from "../../../../components/FindingIcon";
 import { cn } from "cn";
 import { ListGroup, ListRow } from "../../../../components/GroupedList";
@@ -41,9 +40,7 @@ export default function RiskAssessment({ assessment }: { assessment: Assessment 
         <ListGroup key={group} title={group}>
           {SELF_CHECKS.filter(c => c.group === group).map(c => (
             <ListRow
-              key={c.key} role="checkbox" aria-checked={!!ticked[c.key]}
-              onClick={() => tick(c.key, !ticked[c.key])}
-              media={<TickBox on={!!ticked[c.key]} />}
+              key={c.key} checkbox={{ checked: !!ticked[c.key], onChange: on => tick(c.key, on) }}
               title={c.label} description={c.why} value={c.stop ? "No-go" : `+${c.points}`}
               data-testid={`risk-check-${c.key}`}
             />

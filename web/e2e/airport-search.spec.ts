@@ -12,6 +12,13 @@ import { openPanel } from "./helpers";
 
 const airport = (ident: string, name: string) => ({ ident, name, municipality: null, region: "US-MN" });
 
+/** The route's destination changed: from its pill's menu, a tap on it
+ *  opening the airport's card (RouteBox). */
+async function changeDestination(page: Page) {
+  await page.getByLabel("Destination", { exact: true }).click({ button: "right" });
+  await page.getByTestId("change-point").click();
+}
+
 async function slowSearch(page: Page, heldFor: string) {
   await page.route(url => url.pathname.endsWith("/airports/index"), route => route.fulfill({ status: 503, body: "" }));
   await page.route("**/airports/search?**", async route => {
@@ -29,7 +36,7 @@ test("Enter before the lookup has answered keeps what was typed, not the first r
   await page.goto("/app/plan?dep=C81&dest=KMSP");
   await openPanel(page);
   const destination = page.getByLabel("Destination", { exact: true });
-  await destination.click();
+  await changeDestination(page);
   const box = page.getByPlaceholder("Search for a destination");
   await box.fill("KD");
   await expect(page.getByRole("option", { name: /KDAA/ })).toBeVisible();
@@ -44,7 +51,7 @@ test("once the rows answer the box, Enter takes the highlighted row", async ({ p
   await page.goto("/app/plan?dep=C81&dest=KMSP");
   await openPanel(page);
   const destination = page.getByLabel("Destination", { exact: true });
-  await destination.click();
+  await changeDestination(page);
   const box = page.getByPlaceholder("Search for a destination");
   await box.fill("KD");
   await expect(page.getByRole("option", { name: /KDAA/ })).toBeVisible();

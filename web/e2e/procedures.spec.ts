@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { openPanel, settle, sideDrawer, slow } from "./helpers";
+import { settle, sideDrawer, slow, controlsInSight } from "./helpers";
 
 /**
  * The route's Procedures (ProceduresButton), at the pilot's ask: a field's
@@ -10,7 +10,7 @@ import { openPanel, settle, sideDrawer, slow } from "./helpers";
 test("a field's traffic pattern is picked by its runway, kept in the address and drawn on the map", async ({ page }) => {
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
-  await openPanel(page);
+  await controlsInSight(page);
   await sideDrawer(page).getByTestId("route-approaches").click();
   const procedures = page.getByTestId("procedures");
   await expect(procedures).toContainText("C81 · Departure · traffic pattern");
@@ -65,7 +65,7 @@ test("a field's approach is picked with its transition, kept in the address and 
   });
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
-  await openPanel(page);
+  await controlsInSight(page);
   await sideDrawer(page).getByTestId("route-approaches").click();
   const procedures = page.getByTestId("procedures");
   // The departure's departures: none at C81.
@@ -83,6 +83,9 @@ test("a field's approach is picked with its transition, kept in the address and 
   // The drawing is fetched after the address changes, so wait for it.
   await expect.poll(() => asked, { timeout: slow(10000) }).toContain("/api/planner/airport/KDLH/procedures/I09?transition=DLH");
   await page.keyboard.press("Escape");
+  // Gone, not going: opened again as it eased out, the sheet is the one
+  // still on its way out, on the page it was left at.
+  await expect(page.getByRole("heading", { name: "KDLH approaches" })).toBeHidden();
 
   // On the map: the transition and the final, the missed approach dashed,
   // its hold, and the fixes with their altitudes.

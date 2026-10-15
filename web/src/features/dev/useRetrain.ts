@@ -5,7 +5,7 @@ import { statusQuery } from "../../lib/queryClient";
 import type { Status } from "../../lib/api/types";
 import { useConfirm } from "../../components/useConfirm";
 import { useConsoleOpen } from "../../components/mapChrome";
-import { usePreferences } from "../../lib/preferences";
+import { useDevTab } from "../train/devTab";
 
 /**
  * The one action that changes the model, and what a button for it
@@ -58,12 +58,12 @@ export function useRetrain() {
     title: "Retrain the model?",
     description: "It learns from every rating. When it finishes, the new model replaces the one serving. It takes a few minutes.",
     confirmLabel: "Retrain",
-    // The run is followed on the console's Performance tab: opened on
-    // it, from wherever the retrain was asked for -- the side panel's
-    // More menu, or the tab itself.
+    // The run is followed on the page's Perf tab: up, from wherever the
+    // retrain was asked for -- the side panel's More menu, or Perf itself
+    // -- the console put away.
     onConfirm: () => {
-      usePreferences.getState().setDevTab("performance");
-      useConsoleOpen.getState().setOpen(true);
+      useDevTab.getState().pick("perf");
+      useConsoleOpen.getState().setOpen(false);
       start.mutate();
     },
   });

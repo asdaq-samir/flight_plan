@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { consoleSheet } from "./helpers";
+import { consoleSheet, openConsole, showTabs, consolePage } from "./helpers";
 
 /**
  * The pilot console's Practice pages (the Guide tab): the flash-card
@@ -8,9 +8,10 @@ import { consoleSheet } from "./helpers";
  */
 async function practicePage(page: Page, name: string) {
   await page.goto("/app/plan");
-  await page.getByTestId("settings-button").click();
+  await showTabs(page);
+  await openConsole(page);
   const sheet = consoleSheet(page);
-  await sheet.getByRole("tab", { name: "Guide" }).click();
+  await consolePage(sheet, "Guide");
   await sheet.getByRole("button", { name: new RegExp(`^${name}`) }).click();
   await expect(sheet.getByRole("heading", { name, exact: true })).toBeVisible();
   return sheet;

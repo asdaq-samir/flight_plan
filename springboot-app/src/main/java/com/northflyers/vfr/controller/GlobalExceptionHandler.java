@@ -1,7 +1,10 @@
 package com.northflyers.vfr.controller;
 
 import com.northflyers.vfr.dto.ErrorResponse;
+import com.northflyers.vfr.flightservice.FlightServiceNotConnectedException;
+import com.northflyers.vfr.service.InstructorService;
 import com.northflyers.vfr.service.NoSuchAircraftException;
+import com.northflyers.vfr.service.SubscriptionService;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.List;
@@ -95,6 +98,19 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ErrorResponse(ex.getMessage()));
     }
 
+    /** An instructor's or a student's request refused, with its own
+     *  status and words (InstructorService). */
+    @ExceptionHandler(InstructorService.Refused.class)
+    public ResponseEntity<ErrorResponse> handleInstructorRefused(InstructorService.Refused ex) {
+        return ResponseEntity.status(ex.status).body(new ErrorResponse(ex.getMessage()));
+    }
+
+    /** The free month asked for again: once an account (SubscriptionService). */
+    @ExceptionHandler(SubscriptionService.TrialUsedException.class)
+    public ResponseEntity<ErrorResponse> handleTrialUsed(SubscriptionService.TrialUsedException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(new ErrorResponse(ex.getMessage()));
+    }
+
     /**
      * Handles a unique-constraint violation -- in practice, registering
      * an aircraft whose tail number the same pilot already has on file
@@ -108,6 +124,18 @@ public class GlobalExceptionHandler {
         log.warn("Data integrity violation", ex);
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(new ErrorResponse("That tail number is already registered"));
+    }
+
+    /**
+     * Handles a filing or a briefing asked of Flight Service with no
+     * provider connected (FlightServiceGateway).
+     *
+     * @param ex says where to file instead
+     * @return 503 with that detail
+     */
+    @ExceptionHandler(FlightServiceNotConnectedException.class)
+    public ResponseEntity<ErrorResponse> handleFlightServiceNotConnected(FlightServiceNotConnectedException ex) {
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(new ErrorResponse(ex.getMessage()));
     }
 
     /**

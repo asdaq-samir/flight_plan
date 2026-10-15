@@ -1091,12 +1091,27 @@ jobs:
               --only-categories=performance,accessibility,best-practices \
               --output=json --output-path=/out/lighthouse.json \
               --chrome-flags="--headless=new --no-sandbox --disable-gpu --disable-dev-shm-usage"'
+      # The speed trend's nightly lab run (e2e/speed-lab.spec.ts): the
+      # steps a pilot takes, timed at a phone's speed, three times each,
+      # and the first load's size, sent on by the standards job below with
+      # Lighthouse's figures and this commit (SpeedController). Never fails
+      # the run itself.
+      - name: Speed lab
+        if: always() && matrix.shard == 1 && (github.event_name == 'schedule' || inputs.standards) && (steps.tests.outcome == 'success' || steps.tests.outcome == 'failure')
+        continue-on-error: true
+        run: |
+          docker run --rm --network host -e CI=1 -e SPEED_LAB=1 -e SPEED_LAB_OUT=/out/speed-lab.json \
+            -v "$PWD/web:/w" -v /tmp/e2e-out:/out -w /w "$PLAYWRIGHT_IMAGE" \
+            sh -c 'npx playwright test e2e/speed-lab.spec.ts --project=mobile --reporter=list; node scripts/first-load.mjs dist | sed -n "s/^first load bytes: //p" > /out/first-load-bytes'
       - name: Keep Lighthouse's report
         if: always() && matrix.shard == 1 && (github.event_name == 'schedule' || inputs.standards)
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         with:
           name: lighthouse
-          path: /tmp/e2e-out/lighthouse.json
+          path: |
+            /tmp/e2e-out/lighthouse.json
+            /tmp/e2e-out/speed-lab.json
+            /tmp/e2e-out/first-load-bytes
           if-no-files-found: ignore
           retention-days: 30
 
@@ -1514,6 +1529,55 @@ jobs:
               else:
                   subprocess.run(["gh", "issue", "create", "--title", title, "--label", "standards", "--label", "ready", "--label", theme,
                                   "--body", note + "\n\nThe Lighthouse report is in the run's artifacts. Follow the measure-speed skill (speed) or the iphone-review skill (design): measure, change, measure again, with the numbers in the pull request."], check=True)
+          EOF
+
+      # The night's figures to the deployment's speed trend (SpeedController,
+      # the developer console's Speed page, under System): Lighthouse's, the speed lab's
+      # and the first load's, with this commit. Only where the deployment is
+      # named (the SPEED_URL variable) and its lab token is a secret
+      # (SPEED_LAB_TOKEN, the deployment's APP_SPEED_LAB_TOKEN). One request.
+      - name: Speed trend
+        if: vars.SPEED_URL != ''
+        continue-on-error: true
+        env:
+          SPEED_URL: ${{ vars.SPEED_URL }}
+          SPEED_LAB_TOKEN: ${{ secrets.SPEED_LAB_TOKEN }}
+          COMMIT: ${{ github.sha }}
+        run: |
+          python3 - <<'EOF'
+          import json, os, urllib.request
+          if not os.environ.get("SPEED_LAB_TOKEN"):
+              print("::warning title=Speed trend::SPEED_URL is set but the SPEED_LAB_TOKEN secret is not.")
+              raise SystemExit(0)
+          metrics = {}
+          try:
+              lh = json.load(open("lighthouse/lighthouse.json"))
+              value = lambda a: lh["audits"][a]["numericValue"]
+              metrics.update(lcp=value("largest-contentful-paint"), fcp=value("first-contentful-paint"),
+                             tbt=value("total-blocking-time"), cls=value("cumulative-layout-shift"))
+              if lh["categories"]["performance"].get("score") is not None:
+                  metrics["performance"] = lh["categories"]["performance"]["score"] * 100
+          except (OSError, ValueError, KeyError):
+              pass
+          try:
+              metrics.update(json.load(open("lighthouse/speed-lab.json")))
+          except (OSError, ValueError):
+              pass
+          try:
+              metrics["first_load_kb"] = int(open("lighthouse/first-load-bytes").read().strip()) / 1000
+          except (OSError, ValueError):
+              pass
+          if not metrics:
+              print("::warning title=Speed trend::Nothing measured tonight to send.")
+              raise SystemExit(0)
+          body = json.dumps({"page": "plan", "device": "phone", "commit": os.environ["COMMIT"][:12],
+                             "metrics": {k: round(max(0, v), 3) for k, v in metrics.items()}}).encode()
+          request = urllib.request.Request(os.environ["SPEED_URL"].rstrip("/") + "/api/speed/lab", data=body, method="POST",
+                                           headers={"Content-Type": "application/json", "X-Speed-Token": os.environ["SPEED_LAB_TOKEN"]})
+          with urllib.request.urlopen(request, timeout=30) as answer:
+              print(f"Sent {len(metrics)} figures: {answer.status}")
+          open(os.environ["GITHUB_STEP_SUMMARY"], "a").write(
+              "### Tonight's speed lab\n\n" + "\n".join(f"- {k}: {round(v, 3)}" for k, v in sorted(metrics.items())) + "\n")
           EOF
 
   # A pull request that changes the web app gets one comment, kept up to

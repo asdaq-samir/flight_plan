@@ -70,24 +70,25 @@ body .leaflet-container {
 
 /* Clear of the map panel (MapPanel): its edge's corner controls sit
    past what the panel covers at rest (MapPage sets the insets), and past
-   the home indicator. */
+   the home indicator, moving in the sheet's time (mapChrome's
+   SHEET_SECONDS). */
 .leaflet-container .leaflet-bottom {
   bottom: max(var(--map-inset-bottom, 0px), env(safe-area-inset-bottom));
-  transition: bottom 0.5s cubic-bezier(0.32, 0.72, 0, 1);
+  transition: bottom 0.3s cubic-bezier(0, 0, 0.58, 1);
 }
 .leaflet-container .leaflet-top {
   top: max(var(--map-inset-top, 0px), env(safe-area-inset-top));
-  transition: top 0.5s cubic-bezier(0.32, 0.72, 0, 1);
+  transition: top 0.3s cubic-bezier(0, 0, 0.58, 1);
 }
 
 /* With the phone's sheet all the way up, the map's buttons give way,
    as Maps' do: only a sliver of them showed past its edge. The panel's
    height and shape are on <body> (MapPanel): a :has() there restyled the
    whole page at every change of the attributes it named. */
-[data-map-controls], [data-map-controls-left] {
+[data-map-controls] {
   transition: opacity 0.2s;
 }
-body[data-map-sheet][data-map-panel="full"] :is([data-map-controls], [data-map-controls-left]) {
+body[data-map-sheet][data-map-panel="full"] [data-map-controls] {
   opacity: 0;
   pointer-events: none;
 }
@@ -201,6 +202,11 @@ body[data-map-sheet][data-map-panel="full"] :is([data-map-controls], [data-map-c
 }
 
 :root {
+  /* The side views' airspace names, in the sectional's colours: on a dark
+     card those read 2.8:1 (B's blue) and 3.2:1 (C's magenta), so dark
+     lightens them to WCAG's 4.5:1 (the iOS audit's P15). */
+  --airspace-blue-text: #2465b8;
+  --airspace-magenta-text: #c0309f;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
@@ -248,6 +254,8 @@ body[data-map-sheet][data-map-panel="full"] :is([data-map-controls], [data-map-c
 }
 
 .dark {
+  --airspace-blue-text: #6fa0e8;
+  --airspace-magenta-text: #e070c8;
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
   --card: oklch(0.205 0 0);
@@ -346,17 +354,43 @@ body[data-map-sheet][data-map-panel="full"] :is([data-map-controls], [data-map-c
    the top of the page it restyled all of it at every data-state changed
    anywhere, a quarter of a second of a phone's each time a tab was
    picked (measured 2026-10-07). */
-body:is([data-map-panel="half"], [data-map-panel="full"], [data-scroll-locked]) [data-sonner-toast] {
+body:is([data-map-panel="full"], [data-scroll-locked]) [data-sonner-toast] {
   pointer-events: auto;
 }
-/* The scroll lock's own variable kept from the page under <body>: the
-   lock sets it on <body> as a stock dialog, menu or select opens, and
-   being inherited, every element of the page had its style worked out
-   again, opening and closing -- 80 ms each of a phone's (CPU 4x slower),
-   5 with this (measured 2026-10-08). The page under the body never
-   scrolls, so has no scroll bar's width to make room for. */
-#root {
-  --removed-body-scroll-bar-size: 0px;
+/* The scroll lock's own variable kept on <body>: the lock sets it there
+   as a stock dialog, menu or select opens (react-remove-scroll-bar), and
+   inherited, every element under it had its style worked out again,
+   opening and closing. An override of 0px on #root (2026-10-08) stopped
+   it only while the lock's value differed: a phone has no scroll bar,
+   the lock's value is 0px too, and Chrome then shares the body's
+   variables with #root, so the page restyled all the same -- 1,012
+   elements, 220-460 ms of a phone's (CPU 4x slower) each way, set to 0px;
+   none with 15px (traced 2026-10-13). Registered as not inherited, it is
+   the body's alone, whatever its value: 5-20 ms. Nothing reads it; the
+   page under the body never scrolls, so has no scroll bar to make room
+   for. */
+@property --removed-body-scroll-bar-size {
+  syntax: "*";
+  inherits: false;
+}
+/* The same for the page's taps. A stock menu, select or dialog keeps
+   them from the page under it by setting <body>'s pointer-events to none
+   as it opens (Radix's DismissableLayer), and that being inherited too,
+   every element of the page had its style worked out again opening and
+   closing: 100 ms of a phone's each way, the most of what opening the
+   Share menu cost (measured 2026-10-11). Here the body keeps its own,
+   and a sheet over the whole screen under the open layer, behind the
+   scroll lock's attribute that layer sets, takes the taps instead: one
+   element restyled, not the page. A tap on it is outside the layer, so
+   it closes the layer as before, and reaches nothing under it. */
+body {
+  pointer-events: auto !important;
+}
+body[data-scroll-locked]::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 50;
 }
 
 /* Touch targets. Apple asks for 44 points on both sides of anything a
@@ -511,6 +545,15 @@ html [data-sonner-toaster] [data-sonner-toast][data-styled="true"]:is([data-type
    frame of a phone's (CPU 4x slower), 3.3 s of a drag up; 0.1 s with it
    kept to the glass (measured 2026-10-08). Nothing under a pane of glass
    reads it: a pane inside one sets its own. */
+/* How far up the map's panel is, 0 at the pill to 1 all the way
+   (MapPanel), registered so its change eases with the sheet's height
+   (mapChrome's SHEET_SETTLE) rather than jumping as a tap lets go. */
+@property --sheet-progress {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 1;
+}
+
 @property --glass-fill {
   syntax: "*";
   inherits: false;

@@ -26,7 +26,7 @@ export function stopOf(value: string | null | undefined): string {
 /** A present position as a route's departure, "@42.3246,-88.0741" (the
  *  planner's app.common.position_of): Fly Here's Direct-To from where the
  *  airplane is; or "". */
-export function positionOf(value: string | null | undefined): string {
+function positionOf(value: string | null | undefined): string {
   const point = (value ?? "").trim();
   return /^@-?\d{1,2}(\.\d{1,6})?,-?\d{1,3}(\.\d{1,6})?(,\d{1,5})?$/.test(point) ? point : "";
 }
@@ -100,23 +100,6 @@ export const routeName = (dep: string, dest: string, stops: string[] = []) =>
   // position by its coordinates (pointName).
   dep && dep === dest && stops.length === 0 ? `${dep} local` : [dep, ...stops, dest].map(pointName).join(ARROW);
 
-/** A route's name (routeName) cut short in its middle where it is too long
- *  for its line: the departure, as many stops as `fits`, then "…" and the
- *  destination -- "C81 → KHIB → … → KMSN" -- where a cut at the end left
- *  the destination off ("C81 → KHIB → JIXAB → ..."). Whole idents, never
- *  part of one; with no room even for "C81 → … → KMSN", that. */
-export function routeNameWithin(name: string, fits: (shown: string) => boolean): string {
-  const points = name.split(ARROW);
-  if (points.length < 3 || fits(name)) return name;
-  const [dep, dest] = [points[0], points[points.length - 1]];
-  for (let kept = points.length - 3; kept > 0; kept--) {
-    const shown = [dep, ...points.slice(1, 1 + kept), "…", dest].join(ARROW);
-    if (fits(shown)) return shown;
-  }
-  return [dep, "…", dest].join(ARROW);
-}
-
-
 /** Points' own altitudes from the address, feet by ident -- "VPBNG:4500,
  *  KMSN:1900": a waypoint's flown to it, an airport's its pattern (the
  *  planner's `altitudes`). What is not one is left out. */
@@ -133,3 +116,9 @@ export function altitudesOf(value: string | null | undefined): Record<string, nu
 /** And back, for the address: "" with none. */
 export const altitudesParam = (altitudes: Record<string, number>) =>
   Object.entries(altitudes).map(([ident, ft]) => `${ident}:${ft}`).join(",");
+
+/** An airway as a route's stop, "V100" or "T254" (the planner's
+ *  vfr.airways): flown fix by fix between the stops either side of it. By
+ *  its form, as the planner first reads it -- an airport whose identifier
+ *  has the same form the course names as one. */
+export const isAirwayToken = (ident: string) => /^[VTJQ]\d{1,4}$/.test(ident);

@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Ban, Cloud, Gauge, KeyRound, Radio, ShieldAlert } from "lucide-react";
 import { cn } from "cn";
+import { PillSection } from "../../../components/Favorites";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
 import { api } from "../../../lib/api/client";
 import type { AirspaceBand } from "../../../lib/api/types";
@@ -12,6 +13,7 @@ import { TEXT } from "../../../lib/text";
 import { CardHead, PanelCard } from "../../../components/PanelCard";
 import { RowBadge } from "../../../components/RowBadge";
 import { BADGE } from "../../../lib/rowBadges";
+import { FINDING_TONE } from "../../../lib/status";
 
 /** One of a band's rules on a line of its own, its glyph before it: the
  *  weather minimums, what it takes to go in, what the airplane carries,
@@ -84,7 +86,14 @@ function BandRow({ band, ground }: { band: AirspaceBand; ground: number | null }
  * over it. Held in the address (`?at=42.3172,-88.0905`), as an airport's
  * card is (`?place=`).
  */
-export default function AirspaceCard({ point, onClose }: { point: LatLon; onClose: () => void }) {
+export default function AirspaceCard({ point, onClose, summary = false, onExpand }: {
+  point: LatLon;
+  onClose: () => void;
+  /** At the panel's minimal size, as a held point opens: its first
+   *  layers, the rest a swipe up (the airport card's summary). */
+  summary?: boolean;
+  onExpand?: () => void;
+}) {
   const { data, isLoading, isError } = useQuery({
     queryKey: ["airspaceAt", point.lat, point.lon], queryFn: () => api.airspaceAt(point.lat, point.lon),
     staleTime: 10 * 60_000,
@@ -97,17 +106,26 @@ export default function AirspaceCard({ point, onClose }: { point: LatLon; onClos
         lineClassName="tabular-nums" lineTestId="airspace-where" onClose={onClose} closeTestId="airspace-close"
       />
 
-      <div className="space-y-5 pt-4">
+      {/* The layers under the head at every size, from the ground up: at
+          the pill's size the lowest two, the title the way up; all the way
+          up every one in the same place, the rest under them, so the top
+          stays as it was (the owner's ask). */}
+      {data && (
+        <div className="pt-3">
+          <PillSection title="Airspace here" onMore={summary ? onExpand : undefined} testId="airspace-summary">
+            <ListGroup
+              footer={summary ? undefined : `Feet MSL, from the FAA's airspace file${ground !== null ? " and the ground's height there" : ""}. Check the chart: it is the authority.`}
+            >
+              {(summary ? data.bands.slice(0, 2) : data.bands).map(band => <BandRow key={`${band.floor_ft}-${band.class}`} band={band} ground={ground} />)}
+            </ListGroup>
+          </PillSection>
+        </div>
+      )}
+      {!summary && <div className="space-y-5 pt-4">
         {isLoading && <p className={cn("text-muted-foreground", TEXT.prose)}>Reading the airspace here…</p>}
         {isError && <p className={cn("text-destructive", TEXT.prose)}>The planner could not read the airspace here. Try again in a moment.</p>}
         {data && (
           <>
-            <ListGroup
-              title="From the ground up"
-              footer={`Feet MSL, from the FAA's airspace file${ground !== null ? " and the ground's height there" : ""}. Check the chart: it is the authority.`}
-            >
-              {data.bands.map(band => <BandRow key={`${band.floor_ft}-${band.class}`} band={band} ground={ground} />)}
-            </ListGroup>
             {data.mode_c_veil && (
               <ListGroup>
                 <ListRow
@@ -144,7 +162,7 @@ export default function AirspaceCard({ point, onClose }: { point: LatLon; onClos
                     <ListRow
                       key={t.notam_id}
                       media={<RowBadge colour={t.active_now ? BADGE.hazard : BADGE.other}><Ban /></RowBadge>}
-                      title={<span className={cn(t.active_now && "font-semibold text-red-700 dark:text-red-400")}>{`TFR ${t.notam_id}${t.kind ? ` · ${t.kind}` : ""}`}</span>}
+                      title={<span className={cn(t.active_now && cn("font-semibold", FINDING_TONE.stop))}>{`TFR ${t.notam_id}${t.kind ? ` · ${t.kind}` : ""}`}</span>}
                       description={[t.active_now ? "In force now" : "To come", t.title].filter(Boolean).join(" · ")}
                       href={`https://tfr.faa.gov/tfr3/?page=detail_${t.notam_id.replace("/", "_")}`}
                       data-testid="airspace-tfr"
@@ -153,7 +171,7 @@ export default function AirspaceCard({ point, onClose }: { point: LatLon; onClos
             </ListGroup>
           </>
         )}
-      </div>
+      </div>}
     </PanelCard>
   );
 }

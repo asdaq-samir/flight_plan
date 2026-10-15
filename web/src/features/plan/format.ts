@@ -1,6 +1,7 @@
 import type { AltitudeOption, Leg, Runway, Totals } from "../../lib/api/types";
 import { SCORE_STEPS } from "../../lib/scoreScale";
 import { altFt, flightLevel } from "../../lib/units";
+import { clockTime } from "../../lib/clock";
 
 export { altFt };
 
@@ -121,16 +122,9 @@ export function cruiseByAltitude(legs: Leg[], cruisePowerPct: number | null | un
   });
 }
 
-/** A clock time, "09:05", 24-hour in the browser's own zone -- an ETA.
- *  Written from the hours and minutes, not by Intl.DateTimeFormat: one
- *  made at each time written (toLocaleTimeString) was 75 ms of a phone's
- *  (CPU 4x) as a route came in (2026-10-08), and the one made in the
- *  page's idle time instead was a task of 164 ms of its own as the
- *  planner opened (2026-10-10), the browser reading its date data. It
- *  also wrote midnight "24:05" where hour12 was off in some browsers. */
-export function clockTime(at: Date): string {
-  return `${String(at.getHours()).padStart(2, "0")}:${String(at.getMinutes()).padStart(2, "0")}`;
-}
+/** A clock time, "09:05", 24-hour in the browser's own zone -- an ETA
+ *  (lib/clock, where the app's times are written). */
+export { clockTime };
 
 /** When a leg ends: the departure instant plus the minutes flown to
  *  it -- "—" while the minutes are unknown (a leg not yet in, or one

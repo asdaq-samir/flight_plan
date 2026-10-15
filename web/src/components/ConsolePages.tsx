@@ -4,6 +4,7 @@ import { cn } from "cn";
 import { TEXT } from "../lib/text";
 import { Button } from "./ui/button";
 import { ListRow } from "./GroupedList";
+import { PagesShown } from "./pagesShown";
 
 /** The way to open one of a tab's pages, and the page back came from. */
 const Pages = createContext<{ open: (page: string) => void; from: string | null } | null>(null);
@@ -27,6 +28,11 @@ export function ConsolePages({ back, pages, children }: {
 }) {
   const [open, setOpen] = useState<string | null>(null);
   const [from, setFrom] = useState<string | null>(null);
+  // The tab's own page eases in only coming back to it from a page, as a
+  // pop: drawn as Setup opens, it faded in from nothing every time, its
+  // switches' icons blinking out and back at each tap on the tab, at the
+  // owner's notice ("It's flickering the icons").
+  const [popped, setPopped] = useState(false);
   const top = useRef<HTMLDivElement>(null);
   const title = useRef<HTMLHeadingElement>(null);
   // A page starts at its top, with its title the place a screen reader
@@ -37,6 +43,16 @@ export function ConsolePages({ back, pages, children }: {
     top.current?.closest(".overflow-y-auto")?.scrollTo({ top: 0 });
     title.current?.focus({ preventScroll: true });
   }, [open]);
+  // Back to the list as the tab holding it is put away (PagesShown).
+  const shown = useContext(PagesShown);
+  const [wasShown, setWasShown] = useState(shown);
+  if (shown !== wasShown) {
+    setWasShown(shown);
+    if (!shown) {
+      setOpen(null);
+      setPopped(false);
+    }
+  }
   const page = open ? pages[open] : undefined;
   return (
     <div ref={top}>
@@ -50,7 +66,7 @@ export function ConsolePages({ back, pages, children }: {
           className="space-y-4 duration-200 animate-in fade-in slide-in-from-right-4 [&:has([data-slot=console-page])>[data-slot=page-head]]:hidden"
         >
           <div className="space-y-4" data-slot="page-head">
-            <Button type="button" variant="ghost" size="sm" className="-ml-2 gap-0.5 px-1.5" onClick={() => setOpen(null)}>
+            <Button type="button" variant="ghost" size="sm" className="-ml-2 gap-0.5 px-1.5" onClick={() => { setPopped(true); setOpen(null); }}>
               <ChevronLeft className="size-5" />
               {back}
             </Button>
@@ -59,7 +75,7 @@ export function ConsolePages({ back, pages, children }: {
           {page.content}
         </div>
       ) : (
-        <div className="duration-200 animate-in fade-in">
+        <div className={cn(popped && "duration-200 animate-in fade-in")}>
           <Pages.Provider value={{ open: p => { setFrom(p); setOpen(p); }, from }}>{children}</Pages.Provider>
         </div>
       )}

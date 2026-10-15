@@ -1,10 +1,12 @@
 package com.northflyers.vfr.controller;
 
 import com.northflyers.vfr.security.SignInOptions;
+import com.northflyers.vfr.service.SubscriptionService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.List;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -38,17 +40,30 @@ public class SignInCapabilitiesController {
                     example = "SIGN_IN") SignInOptions.Access access,
             @Schema(description = "The OIDC providers with real credentials, by registration id: the sign-in "
                     + "buttons to offer. Empty where only the emailed link signs in (the local stack).",
-                    example = "[\"google\", \"apple\"]") List<String> providers) {}
+                    example = "[\"google\", \"apple\"]") List<String> providers,
+            @Schema(description = "Whether this deployment sells the subscription; where not, the page says "
+                    + "nothing of one.", example = "false") boolean subscriptions,
+            @Schema(description = "Where no subscription is sold, who has the features Claude writes: OFF, "
+                    + "DEVELOPERS, or EVERYONE signed in.", example = "EVERYONE")
+            SubscriptionService.ClaudeFeatures claudeFeatures) {}
 
     private final SignInOptions signIn;
+    private final boolean sold;
+    private final SubscriptionService.ClaudeFeatures claude;
 
-    public SignInCapabilitiesController(SignInOptions signIn) {
+    /** The two settings read as SubscriptionService reads them, not through
+     *  it: this answers before anyone signs in, from settings alone. */
+    public SignInCapabilitiesController(SignInOptions signIn,
+            @Value("${app.subscription.enabled:false}") boolean sold,
+            @Value("${app.claude-features:EVERYONE}") SubscriptionService.ClaudeFeatures claude) {
         this.signIn = signIn;
+        this.sold = sold;
+        this.claude = claude;
     }
 
     @Operation(summary = "Whether anyone can sign in here")
     @GetMapping
     public Capabilities capabilities() {
-        return new Capabilities(signIn.access(), signIn.providers());
+        return new Capabilities(signIn.access(), signIn.providers(), sold, claude);
     }
 }

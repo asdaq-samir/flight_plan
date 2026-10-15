@@ -1,5 +1,5 @@
 import { test, expect, type Page, type Route } from "@playwright/test";
-import { settled as settledLocator } from "./helpers";
+import { clearTheRoute, settled as settledLocator, grabberTo } from "./helpers";
 
 /**
  * What a pilot meets when things go wrong, and the toasts that are left.
@@ -115,9 +115,8 @@ test("a problem goes with the route it was about", async ({ page }) => {
   // parts come in.
   await expect.poll(async () => (await problemTitles(page)).some(t => t.includes("unknown airport KZZZ")), { timeout: 20000 }).toBe(true);
 
-  // The route cleared from the panel, where its close is.
-  await page.getByTestId("capsule-detail").click();
-  await page.getByTestId("route-clear").click();
+  // The route cleared from the panel, its Share menu's Clear the route.
+  await clearTheRoute(page);
   await expect(banner(page)).toHaveCount(0);
 });
 
@@ -155,13 +154,9 @@ test("the panel all the way out goes over the line, and its grabber still lowers
   const line = banner(page).getByRole("status");
   await expect(line).toBeVisible({ timeout: 20000 });
 
-  // Up a height a tap (MapPanel's cycle), to all the way up.
+  // All the way up, as a drag takes it (the grabber's Up arrow).
   const sheet = page.locator('[data-slot="map-panel"]');
-  for (let taps = 0; taps < 2 && (await sheet.getAttribute("data-panel")) !== "full"; taps++) {
-    const was = await sheet.getAttribute("data-panel");
-    await page.getByTestId("sidebar-trigger-button").click();
-    await expect(sheet).not.toHaveAttribute("data-panel", was!);
-  }
+  await grabberTo(page, "full");
   await expect(sheet).toHaveAttribute("data-panel", "full");
   await settled(page, '[data-slot="map-panel"]');
 
@@ -169,11 +164,9 @@ test("the panel all the way out goes over the line, and its grabber still lowers
   const over = await page.evaluate(([x, y]) => document.elementFromPoint(x, y)?.closest('[data-slot="map-panel"]') !== null,
     [box.x + box.width / 2, box.y + box.height / 2]);
   expect(over).toBe(true);
-  // Down a height a tap: half, then the pill (MapPanel's cycle).
+  // A tap: down a size, to half (MapPanel's three sizes).
   await page.getByTestId("sidebar-trigger-button").click();
   await expect(sheet).toHaveAttribute("data-panel", "half");
-  await page.getByTestId("sidebar-trigger-button").click();
-  await expect(sheet).toHaveAttribute("data-panel", "peek");
 });
 
 test("the progress line spans the screen and is centred on it", async ({ page }) => {

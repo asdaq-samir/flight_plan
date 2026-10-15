@@ -6,17 +6,17 @@ import { scoreColor } from "../../format";
 import type { NavLogRow } from "./rows";
 
 /** The sectional's magenta, a waypoint's on the map (WaypointsLayer). */
-const WAYPOINT_MAGENTA = "#b02e7c";
-/** The course line's orange, a top of climb's and descent's tag edge on
+const WAYPOINT_MAGENTA = "#c0309f";
+/** The course line's magenta, a top of climb's and descent's tag edge on
  *  the map (legPointIcon). */
-const COURSE_ORANGE = "#ff3b00";
+const COURSE_MAGENTA = "#e600e6";
 
 /**
  * A nav log row's mark, before its name, as the map draws the point, at
  * the pilot's ask for the log to read as the cards do: a checkpoint its
  * numbered dot in its score's colour -- the number the map's dot has, so
  * a row is matched to the chart at a glance -- a top of climb or descent
- * its tag's orange edge round an arrow up or down, a waypoint flown
+ * its tag's magenta edge round an arrow up or down, a waypoint flown
  * through its magenta diamond, and an airport its mark (its airspace's
  * symbol, its weather in the middle), as Nearest's rows lead with it.
  */
@@ -45,7 +45,7 @@ export function PointMark({ row, number, weather }: {
       <span
         aria-hidden="true" data-mark={row.kind}
         className="grid size-6 shrink-0 place-items-center rounded-[5px] border-[1.5px] bg-white text-[#1c1a17]"
-        style={{ borderColor: COURSE_ORANGE }}
+        style={{ borderColor: COURSE_MAGENTA }}
       >
         <Arrow className="size-4" strokeWidth={2.5} />
       </span>

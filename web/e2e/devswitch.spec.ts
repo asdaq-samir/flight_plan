@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { closeConsole, roleMenu } from "./helpers";
+import { closeConsole, roleMenu, showTabs } from "./helpers";
 
 /**
  * Who is offered the developer's workspace.
@@ -28,7 +28,8 @@ const devSwitch = (page: Page) => page.getByRole("menuitemradio", { name: "Devel
  *  opened if there is one, and Developer has not followed within a
  *  moment. It used to be a flat three seconds. */
 async function noDevSwitch(page: Page) {
-  await expect(page.getByTestId("settings-button")).toBeVisible();
+  await showTabs(page);
+  await expect(page.getByTestId("setup-button")).toBeVisible();
   await roleMenu(page);
   await page.waitForTimeout(500);
   await expect(devSwitch(page)).toHaveCount(0);
@@ -95,7 +96,9 @@ test("the header holds together without it", async ({ page }) => {
   await closeConsole(page);
 
   await expect(devSwitch(page)).toHaveCount(0);
-  await expect(page.getByTestId("search-airports")).toBeVisible();
+  // The tabs and the grabber over them (MapPanel).
+  await showTabs(page);
+  await expect(page.getByTestId("tab-airport")).toBeVisible();
   await expect(page.getByTestId("sidebar-trigger-button")).toBeVisible();
 
   const overflowing = await page.evaluate(

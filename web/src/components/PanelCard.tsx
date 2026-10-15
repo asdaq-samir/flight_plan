@@ -29,6 +29,12 @@ export function PanelCard({ testId, children }: { testId: string; children: Reac
       if (from.isConnected && (!at || at === document.body || node.contains(at))) from.focus({ preventScroll: true });
     };
   }, []);
+  // There at once as it opens, still while the sheet moves round it, as a
+  // tab's own page is (TabPage), at the owner's ask ("Is the airport and
+  // aircraft card same style? Can it be common to other sheets where
+  // sheet/content is not moving when viewed?"): it came in faded and up
+  // into its place over half a second, an airport's, where an airplane's,
+  // a TabPage, was there at once.
   return (
     <div
       ref={card}
@@ -59,11 +65,6 @@ export function CardHead({ name, line, nameTestId, lineClassName, lineTestId, on
   /** Between the name and the close. */
   children?: ReactNode;
 }) {
-  // Its close for a device's Back (lib/openCards, lib/back), the latest
-  // one given.
-  const close = useRef(onClose);
-  useEffect(() => { close.current = onClose; });
-  useEffect(() => holdOpenCard({ close: () => close.current() }), []);
   return (
     <div className="flex items-start gap-2">
       <div className="min-w-0 flex-1">
@@ -71,7 +72,29 @@ export function CardHead({ name, line, nameTestId, lineClassName, lineTestId, on
         {line != null && <p className={cn("text-muted-foreground", TEXT.note, lineClassName)} data-testid={lineTestId}>{line}</p>}
       </div>
       {children}
-      <CloseButton onClick={onClose} className="-mr-1" data-testid={closeTestId} />
+      <CardClose onClose={onClose} testId={closeTestId} className="-mr-1" />
     </div>
+  );
+}
+
+/**
+ * A card's close, kept for a device's Back (lib/openCards, lib/back) and
+ * the minimized tab bar's Back (TabBar) while the card is open -- and never
+ * drawn, at the owner's ask: "Close should not be anywhere except the top
+ * right corner of the card inline with label; when tabs labels appear,
+ * both close and back button hide" (the tab bar's own, TabBar). Kept for
+ * a keyboard and a screen reader, shown when it has the focus, as a skip
+ * link is, so a card always has a control of its own to reach (and the
+ * airspace's, with no other, a stop in its scrolling region). With the
+ * tabs shown, the tab up tapped again puts the card away.
+ */
+export function CardClose({ onClose, testId }: { onClose: () => void; testId: string; className?: string }) {
+  const close = useRef(onClose);
+  useEffect(() => { close.current = onClose; });
+  useEffect(() => holdOpenCard({ close: () => close.current() }), []);
+  return (
+    <span className="sr-only focus-within:not-sr-only">
+      <CloseButton onClick={onClose} data-testid={testId} />
+    </span>
   );
 }

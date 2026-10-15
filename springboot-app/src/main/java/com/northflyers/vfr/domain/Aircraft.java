@@ -2,6 +2,8 @@ package com.northflyers.vfr.domain;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -11,6 +13,7 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import java.time.Instant;
+import java.time.LocalDate;
 import lombok.Getter;
 
 /**
@@ -78,6 +81,30 @@ public class Aircraft {
     @Column(nullable = false)
     private Instant createdAt;
 
+    /** Its last VOR check for IFR (14 CFR 91.171, V20): when, how, where
+     *  and the bearing error found; null until one is recorded. */
+    private LocalDate vorCheckOn;
+    @Enumerated(EnumType.STRING)
+    @Column(length = 16)
+    private VorCheck vorCheckKind;
+    @Column(length = 80)
+    private String vorCheckPlace;
+    private Double vorCheckErrorDeg;
+
+    /** Its inspections and tests, as its owner records them from its
+     *  maintenance records (V21): the annual (14 CFR 91.409(a)), the time in
+     *  service at the last annual or 100-hour and now (91.409(b)), the
+     *  altimeter and static test (91.411), the transponder test (91.413),
+     *  the ELT's inspection (91.207(d)) and the date its battery is to be
+     *  replaced by (91.207(c)). Each null until recorded. */
+    private LocalDate annualOn;
+    private Double hundredHourAtHours;
+    private Double hoursNow;
+    private LocalDate staticCheckOn;
+    private LocalDate transponderCheckOn;
+    private LocalDate eltInspectedOn;
+    private LocalDate eltBatteryDueOn;
+
     protected Aircraft() {
         // JPA
     }
@@ -109,6 +136,28 @@ public class Aircraft {
         this.climbTasKt = climbTasKt;
         this.climbFuelBurnGph = climbFuelBurnGph;
         this.usableFuelGal = usableFuelGal;
+        return this;
+    }
+
+    /** Its inspections and tests, all at once, as the form has them. */
+    public Aircraft recordInspections(LocalDate annualOn, Double hundredHourAtHours, Double hoursNow, LocalDate staticCheckOn,
+                                      LocalDate transponderCheckOn, LocalDate eltInspectedOn, LocalDate eltBatteryDueOn) {
+        this.annualOn = annualOn;
+        this.hundredHourAtHours = hundredHourAtHours;
+        this.hoursNow = hoursNow;
+        this.staticCheckOn = staticCheckOn;
+        this.transponderCheckOn = transponderCheckOn;
+        this.eltInspectedOn = eltInspectedOn;
+        this.eltBatteryDueOn = eltBatteryDueOn;
+        return this;
+    }
+
+    /** A VOR check, as the pilot records it (91.171(d)). */
+    public Aircraft recordVorCheck(LocalDate on, VorCheck kind, String place, double errorDeg) {
+        this.vorCheckOn = on;
+        this.vorCheckKind = kind;
+        this.vorCheckPlace = place;
+        this.vorCheckErrorDeg = errorDeg;
         return this;
     }
 }

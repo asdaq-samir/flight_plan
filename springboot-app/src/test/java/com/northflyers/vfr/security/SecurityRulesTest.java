@@ -12,6 +12,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.northflyers.vfr.controller.AppSiteAssociationController;
 import com.northflyers.vfr.controller.AssetLinksController;
+import com.northflyers.vfr.controller.DeviceSignInController;
 import com.northflyers.vfr.controller.PilotController;
 import com.northflyers.vfr.controller.SignInCapabilitiesController;
 import com.northflyers.vfr.domain.Pilot;
@@ -35,7 +36,7 @@ import org.springframework.test.web.servlet.MockMvc;
  * shared and pilot-scoped data moves.
  */
 @WebMvcTest({PilotController.class, SignInCapabilitiesController.class, AppSiteAssociationController.class,
-        AssetLinksController.class})
+        AssetLinksController.class, DeviceSignInController.class})
 @Import(SecurityConfig.class)
 class SecurityRulesTest {
 
@@ -166,6 +167,20 @@ class SecurityRulesTest {
         for (String path : new String[] {"/.well-known/apple-app-site-association", "/.well-known/assetlinks.json"}) {
             mockMvc.perform(get(path)).andExpect(status().isNotFound());
         }
+    }
+
+    /** A TV asks for its code and whether it has been typed in before it
+     *  has a session; only a signed-in pilot types one in; and /tv, the
+     *  address it shows, opens the planner's box for the code. */
+    @Test
+    void aTvSignsInWithoutASessionAndOnlyAPilotApprovesIt() throws Exception {
+        mockMvc.perform(post("/api/auth/device").with(csrf())).andExpect(status().isOk());
+        mockMvc.perform(post("/api/auth/device/token").with(csrf()).contentType("application/json")
+                .content("{\"deviceCode\":\"unknown\"}")).andExpect(status().isGone());
+        mockMvc.perform(post("/api/auth/device/approve").with(csrf()).contentType("application/json")
+                .content("{\"userCode\":\"BCDF-GHJK\"}")).andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/tv")).andExpect(status().is3xxRedirection())
+                .andExpect(result -> assertThat(result.getResponse().getRedirectedUrl()).isEqualTo("/app/plan?tv-link=1"));
     }
 
     /** Nobody can sign in and nothing opened it: the developer's

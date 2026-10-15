@@ -6,6 +6,35 @@ import { useEffect, useRef, useState, type MouseEvent, type PointerEvent as Reac
  *  dragged the sheet instead, and its click was swallowed. */
 const DRAG_SLOP = 10;
 
+/** How far back a release looks for the finger's speed, in milliseconds,
+ *  as UIKit's pan reads its velocity over the last moments of the drag:
+ *  a finger that has held still that long lets the sheet go where it is.
+ *  Read from the last move alone, the speed stayed what it was before the
+ *  finger stopped -- a touch screen sends no move while it holds still --
+ *  and a sheet set down past half way to the next height and held there
+ *  was thrown on to the one after (half dragged down 110 points to 188,
+ *  held 0.7 s and let go: the pill, where 188 is nearer half). */
+const SPEED_WINDOW = 100;
+
+/** Where the finger was and when, oldest first, the last SPEED_WINDOW of
+ *  it and the one before, for its speed at the release. */
+type Track = { y: number; t: number }[];
+
+function follow(track: Track, y: number, t: number) {
+  track.push({ y, t });
+  while (track.length > 2 && t - track[1]!.t > SPEED_WINDOW) track.shift();
+}
+
+/** The finger's speed at `now`, in points a millisecond down the screen:
+ *  from its place a little before the window to its last, or nothing if
+ *  its last move was longer ago than the window. */
+function speedAt(track: Track, now: number) {
+  const last = track[track.length - 1];
+  if (!last || track.length < 2 || now - last.t > SPEED_WINDOW) return 0;
+  const first = track[0]!;
+  return (last.y - first.y) / Math.max(last.t - first.t, 1);
+}
+
 interface Latest<S extends string> {
   detents: Record<S, number>;
   shown: number;
@@ -29,14 +58,27 @@ function heightAt<S extends string>(latest: Latest<S>, from: number, dy: number)
 
 /** Where a drag let go at `to`, at `speed` points a millisecond toward
  *  opening, comes to rest: the detent nearest where it would be a fifth of
- *  a second on -- where it was thrown, not only where it stopped. */
+ *  a second on -- where it was thrown, not only where it stopped -- but no
+ *  further than the next detent past where the finger let go, as a UIKit
+ *  sheet's throw goes one size: a flick up from the pill came to rest all
+ *  the way up, past half, and one down from all the way up on the pill, at
+ *  the owner's notice ("The pill should not go straight to full"). Taken
+ *  past half by the finger itself, the sheet still goes on up. */
 function letGo<S extends string>(latest: Latest<S>, to: number, speed: number) {
   const { detents, onRelease, setDragged } = latest;
   const aim = to + speed * 200;
   const names = Object.keys(detents) as S[];
-  const nearest = names.reduce((best, s) => (Math.abs(detents[s] - aim) < Math.abs(detents[best] - aim) ? s : best));
+  const nearest = (among: S[], at: number) => among.reduce((best, s) => (Math.abs(detents[s] - at) < Math.abs(detents[best] - at) ? s : best));
+  // The detents either side of where the finger let go, and one it let go on.
+  const under = names.filter(s => detents[s] < to);
+  const over = names.filter(s => detents[s] > to);
+  const reach = [
+    ...(under.length ? [nearest(under, to)] : []),
+    ...names.filter(s => detents[s] === to),
+    ...(over.length ? [nearest(over, to)] : []),
+  ];
   setDragged(null);
-  onRelease(nearest);
+  onRelease(nearest(reach, aim));
 }
 
 /**
@@ -74,7 +116,8 @@ export function useDetentDrag<S extends string>({ detents, shown, fromBottom, on
     if (start.button !== 0) return;
     const from = latest.current.shown;
     const sign = latest.current.fromBottom ? -1 : 1;
-    let moved = false, last = start.clientY, at = start.timeStamp, speed = 0, to = from;
+    let moved = false, to = from;
+    const track: Track = [{ y: start.clientY, t: start.timeStamp }];
     // One height a frame, however many moves a frame brings: a touch
     // screen sends them at twice the display's rate on a ProMotion
     // iPhone, each a render of the sheet.
@@ -82,9 +125,7 @@ export function useDetentDrag<S extends string>({ detents, shown, fromBottom, on
     const move = (event: PointerEvent) => {
       if (!moved && Math.abs(event.clientY - start.clientY) < DRAG_SLOP) return;
       moved = true;
-      speed = sign * (event.clientY - last) / Math.max(event.timeStamp - at, 1);
-      last = event.clientY;
-      at = event.timeStamp;
+      follow(track, event.clientY, event.timeStamp);
       to = heightAt(latest.current, from, event.clientY - start.clientY);
       if (!frame) frame = requestAnimationFrame(() => { frame = 0; latest.current.setDragged(to); });
     };
@@ -98,7 +139,7 @@ export function useDetentDrag<S extends string>({ detents, shown, fromBottom, on
       // A click from this release, if one comes, comes before any timer.
       swallowClick.current = event.type === "pointerup";
       window.setTimeout(() => { swallowClick.current = false; }, 0);
-      letGo(latest.current, to, speed);
+      letGo(latest.current, to, sign * speedAt(track, event.timeStamp));
     };
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", end);
@@ -139,7 +180,7 @@ export function useDetentDrag<S extends string>({ detents, shown, fromBottom, on
     };
     let gesture: {
       x: number; y: number; from: number; target: Element;
-      sheet: boolean | null; moved: boolean; to: number; last: number; at: number; speed: number;
+      sheet: boolean | null; moved: boolean; to: number; track: Track;
     } | null = null;
     let frame = 0;
     const start = (event: TouchEvent) => {
@@ -151,7 +192,7 @@ export function useDetentDrag<S extends string>({ detents, shown, fromBottom, on
       const touch = event.touches[0];
       gesture = touch && event.touches.length === 1 && event.target instanceof Element ? {
         x: touch.clientX, y: touch.clientY, from: latest.current.shown, target: event.target,
-        sheet: null, moved: false, to: latest.current.shown, last: touch.clientY, at: event.timeStamp, speed: 0,
+        sheet: null, moved: false, to: latest.current.shown, track: [{ y: touch.clientY, t: event.timeStamp }],
       } : null;
     };
     const move = (event: TouchEvent) => {
@@ -168,7 +209,7 @@ export function useDetentDrag<S extends string>({ detents, shown, fromBottom, on
       // A first move that went nowhere says nothing of the direction.
       if (g.sheet === null && dx === 0 && dy === 0) return;
       if (g.sheet === null) {
-        g.sheet =Math.abs(dy) > Math.abs(dx) && sheetTakes(g.target, dy);
+        g.sheet = Math.abs(dy) > Math.abs(dx) && sheetTakes(g.target, dy);
         if (!g.sheet) {
           gesture = null;
           return;
@@ -177,9 +218,7 @@ export function useDetentDrag<S extends string>({ detents, shown, fromBottom, on
       if (event.cancelable) event.preventDefault();
       if (!g.moved && Math.abs(dy) < DRAG_SLOP) return;
       g.moved = true;
-      g.speed = (latest.current.fromBottom ? -1 : 1) * (touch.clientY - g.last) / Math.max(event.timeStamp - g.at, 1);
-      g.last = touch.clientY;
-      g.at = event.timeStamp;
+      follow(g.track, touch.clientY, event.timeStamp);
       g.to = heightAt(latest.current, g.from, dy);
       if (!frame) frame = requestAnimationFrame(() => { frame = 0; if (gesture) latest.current.setDragged(gesture.to); });
     };
@@ -191,7 +230,8 @@ export function useDetentDrag<S extends string>({ detents, shown, fromBottom, on
       if (!g?.moved) return;
       // No click from the release: the drag was the sheet's.
       if (event.cancelable) event.preventDefault();
-      letGo(latest.current, g.to, event.type === "touchend" ? g.speed : 0);
+      const speed = (latest.current.fromBottom ? -1 : 1) * speedAt(g.track, event.timeStamp);
+      letGo(latest.current, g.to, event.type === "touchend" ? speed : 0);
     };
     body.addEventListener("touchstart", start, { passive: true });
     body.addEventListener("touchmove", move, { passive: false });

@@ -13,6 +13,7 @@ import { registerSW } from "virtual:pwa-register";
 import { followDynamicType } from "./lib/dynamicType";
 import { keepAddressThroughReload, startFresh } from "./lib/freshLoad";
 import { installErrorReports, reportOf, sendReport } from "./lib/errorReports";
+import { startSpeedReports } from "./lib/speed";
 import MapPage from "./features/page/MapPage";
 import { prefetchRouteMap } from "./features/plan/routeMapChunk";
 import "./index.css";
@@ -34,6 +35,10 @@ prefetchRouteMap();
 // What goes wrong on the pilot's device, to the owner's log
 // (lib/errorReports): before anything else can throw.
 installErrorReports();
+
+// How fast the page is on this device, for the speed trend (lib/speed):
+// Core Web Vitals, nothing of the pilot's, once the page is idle.
+startSpeedReports();
 
 // The service worker (vite.config.ts): the app shell, the chart tiles
 // the map has drawn or kept ahead, and the planner's answers, held for

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { altitudesOf, altitudesParam, departureOf, identOf, positionIdent, routeNameWithin, routeOf, stopsOf, withoutAltitude } from "./identSchema";
+import { altitudesOf, altitudesParam, departureOf, identOf, positionIdent, routeOf, stopsOf, withoutAltitude } from "./identSchema";
 
 describe("identOf and stopsOf", () => {
   test("an airport's ident trimmed and uppercased, else empty", () => {
@@ -27,20 +27,6 @@ describe("routeOf", () => {
     expect(routeOf("K", "KDLH")).toBeNull();
     expect(routeOf("C81", null)).toBeNull();
     expect(routeOf(undefined, undefined)).toBeNull();
-  });
-});
-
-describe("routeNameWithin", () => {
-  const within = (letters: number) => (shown: string) => shown.length <= letters;
-  test("a name that fits, whole", () => {
-    expect(routeNameWithin("C81 → KHIB → JIXAB → KMSN", within(40))).toBe("C81 → KHIB → JIXAB → KMSN");
-    expect(routeNameWithin("C81 → KDLH", within(3))).toBe("C81 → KDLH");
-    expect(routeNameWithin("C81 local", within(3))).toBe("C81 local");
-  });
-  test("cut in the middle, the destination kept at the end", () => {
-    expect(routeNameWithin("C81 → KHIB → JIXAB → KMSN", within(22))).toBe("C81 → KHIB → … → KMSN");
-    expect(routeNameWithin("C81 → KHIB → JIXAB → KMSN", within(16))).toBe("C81 → … → KMSN");
-    expect(routeNameWithin("C81 → KHIB → JIXAB → KMSN", within(5))).toBe("C81 → … → KMSN");
   });
 });
 

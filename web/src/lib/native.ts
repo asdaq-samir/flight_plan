@@ -23,6 +23,15 @@ export function nativePlatform(): "ios" | "android" | null {
   return platform === "ios" || platform === "android" ? platform : null;
 }
 
+/** The app's own version and build, as the App Store and Play show them
+ *  (About), or null in a browser, which has neither. */
+export async function nativeAppVersion(): Promise<{ version: string; build: string } | null> {
+  if (!inNativeApp()) return null;
+  const { App } = await import("@capacitor/app");
+  const { version, build } = await App.getInfo();
+  return { version, build };
+}
+
 /** A position as the browser's Geolocation gives one: the plugin's has the same shape. */
 export interface NativePosition {
   coords: { latitude: number; longitude: number; accuracy: number; heading: number | null; speed: number | null;
@@ -56,10 +65,10 @@ export async function watchNativePosition(onFix: (position: NativePosition) => v
   return () => void Geolocation.clearWatch({ id });
 }
 
-/** The share sheet, from the app. */
-export async function nativeShare(title: string, url: string): Promise<void> {
+/** The share sheet, from the app: a link, or words (lib/share). */
+export async function nativeShare(item: { title: string; text?: string; url?: string }): Promise<void> {
   const { Share } = await import("@capacitor/share");
-  await Share.share({ title, url });
+  await Share.share(item);
 }
 
 /**

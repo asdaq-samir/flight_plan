@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { openPanel, settle, slow } from "./helpers";
+import { settle, slow, controlsInSight } from "./helpers";
 
 /**
  * The route as a file for another app or the panel's GPS: the capsule's
@@ -12,8 +12,8 @@ async function routeWithCheckpoints(page: Page) {
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   await expect(page.locator(".leaflet-marker-icon", { hasText: /^1$/ }).first()).toBeVisible({ timeout: slow(30000) });
-  // Share is a round button in the panel's row, beside Save and Print.
-  await openPanel(page);
+  // Share is a round button in the chips' row, all the way up.
+  await controlsInSight(page);
 }
 
 test("the route exports as a Garmin flight plan through its checkpoints", async ({ page }) => {

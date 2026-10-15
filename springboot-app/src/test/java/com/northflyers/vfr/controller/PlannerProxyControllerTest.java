@@ -37,6 +37,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MvcResult;
 import com.northflyers.vfr.domain.Pilot;
 import com.northflyers.vfr.service.PilotService;
+import com.northflyers.vfr.service.SubscriptionService;
 import java.util.Optional;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
@@ -74,6 +75,9 @@ class PlannerProxyControllerTest {
 
     @MockitoBean
     private PilotService pilotService;
+
+    @MockitoBean
+    private SubscriptionService subscriptions;
 
     @BeforeAll
     static void startUpstream() throws IOException {
@@ -181,9 +185,15 @@ class PlannerProxyControllerTest {
         assertThat(PlannerProxyController.isForwarded("GET", "/api/chart")).isTrue();
         assertThat(PlannerProxyController.isForwarded("GET", "/api/airport/KBUR/procedures")).isTrue();
         assertThat(PlannerProxyController.isForwarded("GET", "/api/airspace/ahead")).isTrue();
+        assertThat(PlannerProxyController.isForwarded("GET", "/api/alternate")).isTrue();
         assertThat(PlannerProxyController.isForwarded("GET", "/api/traffic")).isTrue();
         assertThat(PlannerProxyController.isForwarded("GET", "/api/traffic/find")).isTrue();
+        assertThat(PlannerProxyController.isForwarded("GET", "/api/traffic/based")).isTrue();
         assertThat(PlannerProxyController.isForwarded("GET", "/api/traffic/flight/a0b7d8")).isTrue();
+        // An airplane's past flights, and one of them (PastFlights): a 404
+        // here, never asked of the planner, until they were listed.
+        assertThat(PlannerProxyController.isForwarded("GET", "/api/traffic/flight/a89c1e/history")).isTrue();
+        assertThat(PlannerProxyController.isForwarded("GET", "/api/traffic/flight/a89c1e/history/1791723840")).isTrue();
         assertThat(PlannerProxyController.isForwarded("GET", "/api/traffic/route")).isTrue();
         assertThat(PlannerProxyController.isForwarded("GET", "/api/map/google")).isTrue();
         assertThat(PlannerProxyController.isForwarded("GET", "/api/airport/KBUR/procedures/I08-Y")).isTrue();
@@ -396,7 +406,7 @@ class PlannerProxyControllerTest {
     /** A second MockMvc whose planner points at a port nothing is on. */
     private MockMvc unreachablePlanner() {
         PlannerProxyController controller =
-                new PlannerProxyController(new StreamingProxy(), "http://127.0.0.1:1", pilotService, 40);
+                new PlannerProxyController(new StreamingProxy(), "http://127.0.0.1:1", pilotService, subscriptions, 40);
         return standaloneSetup(controller)
                 .build();
     }

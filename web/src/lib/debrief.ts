@@ -23,7 +23,7 @@ const rad = (d: number) => (d * Math.PI) / 180;
 const deg = (r: number) => (r * 180) / Math.PI;
 
 /** Faster than this over the ground is flying; slower, taxiing. */
-export const AIRBORNE_KT = 40;
+const AIRBORNE_KT = 40;
 /** PA.VI.A's tolerances: S7's altitude, and its heading applied to the
  *  ground track; S5's distance from the planned route; S6's time at each
  *  checkpoint against its estimate. */
@@ -36,13 +36,13 @@ export const ETA_MIN = 5;
 export const PATTERN_NM = 1.5;
 export const PATTERN_FT = 100;
 
-export function distanceNm(a: { lat: number; lon: number }, b: { lat: number; lon: number }): number {
+function distanceNm(a: { lat: number; lon: number }, b: { lat: number; lon: number }): number {
   const dLat = rad(b.lat - a.lat), dLon = rad(b.lon - a.lon);
   const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLon / 2) ** 2;
   return 2 * R_NM * Math.asin(Math.min(1, Math.sqrt(h)));
 }
 
-export function bearingDeg(a: { lat: number; lon: number }, b: { lat: number; lon: number }): number {
+function bearingDeg(a: { lat: number; lon: number }, b: { lat: number; lon: number }): number {
   const y = Math.sin(rad(b.lon - a.lon)) * Math.cos(rad(b.lat));
   const x = Math.cos(rad(a.lat)) * Math.sin(rad(b.lat)) - Math.sin(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.cos(rad(b.lon - a.lon));
   return (deg(Math.atan2(y, x)) + 360) % 360;

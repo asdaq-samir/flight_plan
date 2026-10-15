@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
+import { Fragment, useCallback, useEffect, useId, useMemo, useState, type ReactNode } from "react";
 import { cn } from "cn";
 import { Loader2, WandSparkles } from "lucide-react";
 import {
@@ -6,13 +6,13 @@ import {
   flexRender, tableFeatures, useTable,
 } from "@tanstack/react-table";
 import { NoteRow, SelectableRow } from "../../../../components/SelectableRows";
-import { PanelHalfContext } from "../../../../components/mapChrome";
 import PanelTabs from "./PanelTabs";
 import { usePrinting } from "../../../../lib/usePrinting";
 import { LEGS, type PanelTab } from "./panelTab";
-import { SectionPane } from "../../../../components/SectionTabs";
+import { SectionPane } from "../../../../components/SectionPane";
 import { ListGroup, ListRow } from "../../../../components/GroupedList";
 import IconButton from "../../../../components/IconButton";
+import { Popover, PopoverContent, PopoverTrigger } from "../../../../components/ui/popover";
 import { Textarea } from "../../../../components/ui/textarea";
 import {
   Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow,
@@ -91,6 +91,11 @@ interface Props {
    *  been clicked. */
   onGenerateDescriptions: () => void;
   descriptionsLoading: boolean;
+  /** Where the pilot has no subscription, what the wand shows in place of
+   *  writing descriptions (PaidPrompt): they come with it. */
+  descriptionsPaywall?: ReactNode;
+  /** The descriptions not offered in this deployment: no wand at all. */
+  descriptionsHidden?: boolean;
   /** The briefing's sections for each tab but the nav log's own
    *  (FlightBriefingView's parts, and the Brief's narrative). */
   tabContent: (part: BriefingPart) => ReactNode;
@@ -328,7 +333,7 @@ export default function NavLogView({
   totals, nav, depart,
   legs, dep, dest, ends,
   selected, descriptions, onSaveDescription,
-  onGenerateDescriptions, descriptionsLoading, tabContent, children, marks, notice, footer, local = false, metarColourOf = noWeather,
+  onGenerateDescriptions, descriptionsLoading, descriptionsPaywall, descriptionsHidden = false, tabContent, children, marks, notice, footer, local = false, metarColourOf = noWeather,
   selectedPoint, onSelectPoint, onDeselectPoint, drawerOpen,
   aircraftLabel, onTabTap,
 }: Props) {
@@ -349,33 +354,6 @@ export default function NavLogView({
   // A checkpoint picked on the map with the drawer out: the nav log's tab
   // comes up for it (PanelTabs).
   const pick = drawerOpen && selectedPoint ? descriptionKey(selectedPoint.lat, selectedPoint.lon) : null;
-  // At half, the panel down to the tabs, at the pilot's ask: the route,
-  // the controls and the flight's line in its head, and the tabs' bar
-  // under them, so what each tab holds is a tap away (PanelHalfContext).
-  // Measured, since the text size changes it.
-  const tabsAt = useContext(PanelHalfContext);
-  const [root, setRoot] = useState<HTMLDivElement | null>(null);
-  useEffect(() => {
-    if (!root || !tabsAt) return;
-    const measure = () => {
-      // Hidden under an airport's card (PlanWorkspace): its height is not
-      // the route's.
-      if (!root.offsetParent) return;
-      const tabs = root.querySelector("[data-tip='tabs']");
-      // Up, never down: a bar half a point past the half's foot was half
-      // a point into the home indicator's room.
-      tabsAt(tabs ? Math.ceil(tabs.getBoundingClientRect().bottom - root.getBoundingClientRect().top) : null);
-    };
-    measure();
-    // The tabs' bar as well as the whole: the bar grows inside a root
-    // whose own size does not change (a bigger text size, its icons'
-    // font), and the half stayed at the bar's old foot.
-    const observer = new ResizeObserver(measure);
-    observer.observe(root);
-    const bar = root.querySelector("[data-tip='tabs']");
-    if (bar) observer.observe(bar);
-    return () => { observer.disconnect(); tabsAt(null); };
-  }, [root, tabsAt]);
   // For the printer every tab, one after another: the paper is the whole
   // briefing whatever was up on screen (usePrinting).
   const printing = usePrinting();
@@ -410,6 +388,25 @@ export default function NavLogView({
   // view and the rest off its edge. On paper, every column. The heading
   // kept is the one a pilot steers: it was the true heading, with the
   // magnetic one only under the row.
+  const wand = (
+    <IconButton
+      // relative z-10: its 44-point hit area (index.css) over the
+      // "Waypoint" beside it, which painted over the area's right.
+      // -ml-2: the button's own clear padding laid over the cell's,
+      // so its glyph lines up with the names under it and the
+      // column is no wider than it was with a 24-point button --
+      // the phone's five columns still fit their drawer.
+      label="Generate descriptions" className="relative z-10 -ml-2 print:hidden"
+      onClick={descriptionsPaywall ? undefined : onGenerateDescriptions}
+      disabled={descriptionsLoading || selected.length === 0}
+      data-testid="generate-descriptions-button"
+    >
+      {/* The icon buttons' one size, 20 in 36 (it was 20 in 24, crowded). */}
+      {descriptionsLoading
+        ? <Loader2 className="size-5 animate-spin" />
+        : <WandSparkles className="size-5" />}
+    </IconButton>
+  );
   const columns: ColumnDef<typeof navLogTableFeatures, NavLogRow>[] = [
     {
       id: "waypoint",
@@ -421,22 +418,14 @@ export default function NavLogView({
       // its own.
       header: () => (
         <span className="inline-flex items-center">
-          <IconButton
-            // relative z-10: its 44-point hit area (index.css) over the
-            // "Waypoint" beside it, which painted over the area's right.
-            // -ml-2: the button's own clear padding laid over the cell's,
-            // so its glyph lines up with the names under it and the
-            // column is no wider than it was with a 24-point button --
-            // the phone's five columns still fit their drawer.
-            label="Generate descriptions" className="relative z-10 -ml-2 print:hidden"
-            onClick={onGenerateDescriptions} disabled={descriptionsLoading || selected.length === 0}
-            data-testid="generate-descriptions-button"
-          >
-            {/* The icon buttons' one size, 20 in 36 (it was 20 in 24, crowded). */}
-            {descriptionsLoading
-              ? <Loader2 className="size-5 animate-spin" />
-              : <WandSparkles className="size-5" />}
-          </IconButton>
+          {/* Without the subscription the wand says what it would do and
+              how to have it, beside it (PaidPrompt), rather than writing. */}
+          {descriptionsHidden ? null : descriptionsPaywall ? (
+            <Popover>
+              <PopoverTrigger asChild>{wand}</PopoverTrigger>
+              <PopoverContent className="w-80 p-0" data-testid="descriptions-paywall">{descriptionsPaywall}</PopoverContent>
+            </Popover>
+          ) : wand}
           Waypoint
         </span>
       ),
@@ -591,7 +580,12 @@ export default function NavLogView({
   // log into something unflyable (e.g. by Fuel).
   const table = useTable({ features: navLogTableFeatures, data, columns, getRowId: row => row.key });
 
-  const selectedRef = useRef<HTMLTableRowElement>(null);
+  // The selected row as it is put in the page: the rows are drawn a moment
+  // after the panel (PanelTabs' deferred draw), and on a busy page after
+  // the drawer had opened, so a reveal asked for then found no row and the
+  // pick was left under the drawer's foot (checkpoints.spec, one run in
+  // three with two workers). Its arrival is a reason to look again.
+  const [selectedRow, setSelectedRow] = useState<HTMLTableRowElement | null>(null);
   // Whether the table fits the drawer's width (see navLogTable): watched,
   // since a departure time adds a column and the text size moves every
   // one of them. From a ref, not an effect: the table is there only
@@ -621,7 +615,7 @@ export default function NavLogView({
   // view is mounted, and its rows laid out, while the drawer is
   // closed, so a row revealed then was revealed off screen. (A pick brings
   // its tab up, PanelTabs.)
-  useEffect(() => revealRow(selectedRef.current), [selectedPoint, drawerOpen]);
+  useEffect(() => revealRow(selectedRow), [selectedRow, selectedPoint, drawerOpen]);
   const isSelected = (lat: number, lon: number) =>
     !!selectedPoint && descriptionKey(lat, lon) === descriptionKey(selectedPoint.lat, selectedPoint.lon);
 
@@ -705,7 +699,7 @@ export default function NavLogView({
                 // The selected row tapped again is deselected, on the
                 // map too, which closes its note.
                 onSelect={() => (rowSelected ? onDeselectPoint() : onSelectPoint(lat, lon))}
-                scrollRef={rowSelected ? selectedRef : undefined}
+                scrollRef={rowSelected ? setSelectedRow : undefined}
               >
                 {row.getAllCells().map(cell => (
                   <TableCell key={cell.id} className={cell.column.columnDef.meta?.className}>
@@ -786,7 +780,8 @@ export default function NavLogView({
 
   // The fuel check (14 CFR 91.151): the legs' fuel plus the reserve --
   // 30 minutes by day, 45 at night, the day one assumed and said so
-  // without a departure time -- against the airplane's usable fuel
+  // without a departure time; under IFR 45 whatever the hour (91.167) --
+  // against the airplane's usable fuel
   // when it has one, red when the tanks do not hold it. Under the
   // table, where the fuel column it sums ends, rather than among the
   // totals above it: rows like theirs, each figure at its row's end and
@@ -819,8 +814,11 @@ export default function NavLogView({
       <ListGroup>
         <ListRow
           title="Fuel required"
-          description={`With ${one(totals.taxi_gal)} gal to start, taxi and take off, and a ${totals.reserve_min} min ${
-            totals.night == null ? "day reserve (no departure time)" : totals.night ? "night reserve" : "day reserve"}`}
+          description={`With ${one(totals.taxi_gal)} gal to start, taxi and take off, ${
+            totals.alternate ? `${one(totals.alternate.fuel_gal)} gal on to ${totals.alternate.ident}${totals.alternate.still_air ? " in still air" : ""}, ` : ""
+          }and a ${totals.reserve_min} min ${
+            totals.rules === "ifr" ? "IFR reserve (14 CFR 91.167)"
+              : totals.night == null ? "day reserve (no departure time)" : totals.night ? "night reserve" : "day reserve"}`}
           value={`${one(totals.fuel_required_gal)} gal`}
         />
         {totals.usable_fuel_gal != null && (
@@ -836,7 +834,7 @@ export default function NavLogView({
 
   return (
     <PanelTabs
-      rootRef={setRoot} printing={printing} local={local} marks={marks} pick={pick} onTap={onTabTap}
+      printing={printing} marks={marks} pick={pick} onTap={onTabTap}
       route={routeName(dep, dest, ends?.stops?.map(s => s.ident))}
       notice={notice} footer={footer}
       before={(
@@ -861,9 +859,11 @@ export default function NavLogView({
         </>
       )}
       contents={{
-        navlog: (
+        preflight: tabContent("preflight"),
+        depart: tabContent("depart"),
+        enroute: (
           <section aria-label={local ? "Local Flight" : "Nav Log"} className={TEXT.prose}>
-            <SectionPane title={LEGS}>
+            <SectionPane title={LEGS} heading={!local}>
               {!local && summary}
               {!local && navLogTable}
               {fuelNote}
@@ -875,12 +875,10 @@ export default function NavLogView({
                 process). */}
             {!local && ends && <RouteProfileSection ends={ends} rows={data} wanted={!!totals || printing} eager={printing} />}
             {!local && tabContent("profile")}
+            {tabContent("enroute")}
           </section>
         ),
-        brief: tabContent("brief"),
-        weather: tabContent("weather"),
-        performance: tabContent("performance"),
-        airports: tabContent("airports"),
+        arrive: tabContent("arrive"),
       }}
     >
       {children}

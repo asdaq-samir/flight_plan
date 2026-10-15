@@ -16,6 +16,12 @@ import { keepTrack, keptTrack, readTrack, thin, TrackError, type TrackPoint } fr
 import { useFlownTrack } from "../../lib/map/flownTrack";
 import { routeName } from "../../lib/identSchema";
 import { altFt, feet, grouped } from "../../lib/units";
+import { mayUse, useEntitlement } from "../../lib/subscription";
+import PaidPrompt from "../../components/PaidPrompt";
+import { localDay } from "../../lib/clock";
+import { reviewState, said } from "../../lib/endorsements";
+import { ReviewAskForm, type ReviewAsk } from "./ReviewAsk";
+import { FINDING_TONE } from "../../lib/status";
 
 /** Minutes as a nav log writes them: "0:18", "1:35". */
 function hm(min: number): string {
@@ -32,8 +38,8 @@ function signed(n: number, unit = ""): string {
 /** A tolerance met or not, as the drills mark one. */
 function Mark({ ok }: { ok: boolean }) {
   return ok
-    ? <Check className="size-4 text-green-700 dark:text-green-400" aria-label="Within" />
-    : <X className="size-4 text-red-700 dark:text-red-400" aria-label="Outside" />;
+    ? <Check className={cn("size-4", FINDING_TONE.ok)} aria-label="Within" />
+    : <X className={cn("size-4", FINDING_TONE.stop)} aria-label="Outside" />;
 }
 
 /**
@@ -262,7 +268,7 @@ function DebriefSection({ flight, planHref }: { flight: Flight; planHref: string
         data-testid="debrief-file"
       />
       {(problem || save.error || unsave.error) && (
-        <p className={cn("px-1 text-red-700 dark:text-red-400", TEXT.prose)} role="alert" data-testid="debrief-problem">
+        <p className={cn("px-1", FINDING_TONE.stop, TEXT.prose)} role="alert" data-testid="debrief-problem">
           {problem ?? (save.error ?? unsave.error)?.message}
         </p>
       )}
@@ -281,12 +287,55 @@ function Row({ title, value }: { title: string; value: ReactNode }) {
 }
 
 /**
+ * The flight put to the student's instructor for the review 14 CFR
+ * 61.93(c)(3) and (d) ask before each solo cross-country: to which of
+ * their instructors, in what make and model and on what day, with a note;
+ * and where each such ask of it stands. The instructor is emailed, and
+ * answers from their Instructing page.
+ */
+function InstructorReview({ summary }: { summary: FlightSummary }) {
+  const queryClient = useQueryClient();
+  const { data: training } = useQuery({ queryKey: ["training"], queryFn: api.training.get });
+  const ask = useMutation({
+    mutationFn: (a: ReviewAsk) => api.training.askReview({ flightId: summary.id, ...a }),
+    onSuccess: next => queryClient.setQueryData(["training"], next),
+  });
+  if (!training) return null;
+  const theirs = training.instructors.filter(l => l.accepted);
+  const asked = training.reviews.filter(r => r.flight.id === summary.id);
+  const waiting = asked.some(r => !r.answeredAt);
+  return (
+    <>
+      <ListGroup
+        title="Solo cross-country"
+        footer="Before each solo cross-country, your instructor reviews its planning and the weather, and endorses it for the airplane and the day (14 CFR 61.93(c)(3), (d))."
+      >
+        {asked.map(r => (
+          <ListRow key={r.id} title={r.instructorName ?? "Your instructor"} description={`${said(r.flightOn)} · ${reviewState(r)}`}
+            data-testid="flight-review" />
+        ))}
+        {theirs.length === 0 && <ListRow title={<span className="text-muted-foreground">Ask your instructor in first, from Logbook, then Checkride</span>} />}
+      </ListGroup>
+      {!waiting && theirs.length > 0 && (
+        <ReviewAskForm
+          instructors={theirs} pending={ask.isPending} onAsk={a => ask.mutate(a)}
+          initialDay={localDay(summary.plannedFor ? new Date(summary.plannedFor) : new Date())}
+        />
+      )}
+      {ask.error && <p role="alert" className={cn("px-1", FINDING_TONE.stop, TEXT.prose)} data-testid="review-problem">{ask.error.message}</p>}
+    </>
+  );
+}
+
+/**
  * One saved flight, as the console's Flights page opens it: what was
  * filed, the risk assessment it was saved with, a way back onto the map
  * at its altitude, and its debrief.
  */
 export default function FlightPage({ summary, planHref }: { summary: FlightSummary; planHref: string }) {
   const { data: flight, isPending, error } = useQuery({ queryKey: ["flight", summary.id], queryFn: () => api.flights.get(summary.id) });
+  // The debrief comes with the subscription: without it, its place says so.
+  const entitlement = useEntitlement("DEBRIEF");
   return (
     <div className="space-y-4">
       <ListGroup footer={`Filed ${format(new Date(summary.createdAt), "d MMM yyyy")}.`}>
@@ -307,12 +356,17 @@ export default function FlightPage({ summary, planHref }: { summary: FlightSumma
           <ListRow title="Open on the map" to={planHref} data-testid="flight-open" />
         </ConsoleClose>
       </ListGroup>
+      <InstructorReview summary={summary} />
       {isPending ? (
         <p role="status" className={cn("px-1 text-muted-foreground", TEXT.note)}>Fetching its nav log…</p>
       ) : error || !flight ? (
-        <p className={cn("px-1 text-red-700 dark:text-red-400", TEXT.prose)}>Its nav log could not be fetched ({error?.message ?? "not found"}).</p>
-      ) : (
+        <p className={cn("px-1", FINDING_TONE.stop, TEXT.prose)}>Its nav log could not be fetched ({error?.message ?? "not found"}).</p>
+      ) : mayUse(entitlement) ? (
         <DebriefSection flight={flight} planHref={planHref} />
+      ) : (
+        <PaidPrompt feature="DEBRIEF">
+          Your track from ForeFlight, Garmin Pilot or a GPS, measured against this flight's nav log as an examiner would.
+        </PaidPrompt>
       )}
     </div>
   );

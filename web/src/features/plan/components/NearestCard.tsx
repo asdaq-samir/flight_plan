@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { LocateFixed, MapPin, Navigation2, X } from "lucide-react";
+import { LocateFixed, MapPin, Navigation2 } from "lucide-react";
 import { cn } from "cn";
-import { CardHead, PanelCard } from "../../../components/PanelCard";
+import { ChartMark, PillStrip, SmallMark, SmallTile } from "../../../components/Favorites";
+import { PanelCard } from "../../../components/PanelCard";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
 import { api } from "../../../lib/api/client";
 import type { NearestAirport, PlaceFound } from "../../../lib/api/types";
@@ -14,7 +15,9 @@ import { positionNow, useOwnShip } from "../../../lib/map/ownShip";
 import { nearestQuery } from "../../../lib/queryClient";
 import { inkOn } from "../../../lib/scoreScale";
 import { TEXT } from "../../../lib/text";
+import { useTabSearch } from "../../../lib/tabSearch";
 import { altFt } from "../../../lib/units";
+import { FINDING_TONE } from "../../../lib/status";
 
 export interface NearFrom {
   label: string;
@@ -29,14 +32,18 @@ const TYPING_MS = 250;
 /**
  * Where Nearest is from: the pilot's position until a place is typed --
  * a town, a street address, an airport -- at the pilot's ask, as Maps'
- * search asks where. The field reads "Current position" until then;
- * what answers comes up under it, and its clear goes back to the
- * position.
+ * search asks where. Typed in Nearest's field, in the panel's head
+ * (PlanWorkspace, lib/tabSearch), which reads "Current position" until
+ * then; what answers comes up here, at the top of the list, and the
+ * field's clear goes back to the position.
  */
-function NearField({ from, onFrom }: { from: NearFrom | null; onFrom: (from: NearFrom | null) => void }) {
-  const [typed, setTyped] = useState(from?.label ?? "");
+function NearAnswers({ from, onFrom }: { from: NearFrom | null; onFrom: (from: NearFrom | null) => void }) {
+  const typed = useTabSearch(s => s.near);
   const [asked, setAsked] = useState("");
-  const input = useRef<HTMLInputElement>(null);
+  // The field shows the place picked, as it did when it was this card's.
+  useEffect(() => {
+    useTabSearch.setState({ near: from?.label ?? "" });
+  }, [from?.label]);
   useEffect(() => {
     const later = window.setTimeout(() => setAsked(typed.trim()), TYPING_MS);
     return () => window.clearTimeout(later);
@@ -53,58 +60,40 @@ function NearField({ from, onFrom }: { from: NearFrom | null; onFrom: (from: Nea
   const found = current ? answered : undefined;
   const pick = (place: PlaceFound | null) => {
     onFrom(place && { label: place.label, lat: place.lat, lon: place.lon });
-    setTyped(place?.label ?? "");
-    input.current?.blur();
+    useTabSearch.setState({ near: place?.label ?? "" });
+    (document.activeElement as HTMLElement | null)?.blur();
   };
+  // Return in the field: the first that answers. The clear: the position.
+  const first = found?.[0];
+  useEffect(() => {
+    useTabSearch.setState({ submitNear: () => { if (first) pick(first); }, clearNear: () => pick(null) });
+  });
+  useEffect(() => () => useTabSearch.setState({ submitNear: null, clearNear: null }), []);
+  if (!searching) return null;
   return (
-    <div className="pt-3">
-      {/* The search bar's field (PanelCapsule's SearchField), a pin for
-          the magnifier: where from, not what. */}
-      <label className={cn("flex h-[2.5625rem] items-center gap-2 rounded-full bg-foreground/8 px-3.5 text-muted-foreground", TEXT.row)}>
-        <MapPin className="size-5 shrink-0 text-foreground" strokeWidth={1.75} aria-hidden="true" />
-        <input
-          ref={input} type="search" enterKeyHint="search" autoComplete="off" autoCorrect="off" spellCheck={false}
-          value={typed} onChange={e => setTyped(e.target.value)}
-          onKeyDown={e => { if (e.key === "Enter" && found?.[0]) pick(found[0]); }}
-          placeholder="Current position" aria-label="Nearest to: a town, an address or an airport" data-testid="nearest-from"
-          className="min-w-0 flex-1 bg-transparent text-foreground outline-none placeholder:text-muted-foreground [&::-webkit-search-cancel-button]:hidden"
-        />
-        {(typed || from) && (
-          <button
-            type="button" aria-label="Nearest to your position" data-testid="nearest-from-clear"
-            onClick={() => pick(null)}
-            className="relative grid size-5 shrink-0 place-items-center rounded-full bg-muted-foreground/50 text-background outline-none after:absolute after:-inset-3 after:content-[''] focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            <X className="size-3" strokeWidth={3} />
-          </button>
+    <div className="pb-4">
+      <ListGroup>
+        {(found ?? []).map(place => (
+          <ListRow
+            key={`${place.kind}-${place.label}`} media={<MapPin className="size-5 text-muted-foreground" />}
+            title={place.label} description={place.kind === "airport" ? "Airport" : place.kind === "town" ? "Town" : "Address"}
+            onClick={() => pick(place)} data-testid="nearest-from-option"
+          />
+        ))}
+        {found && !found.length && !isFetching && (
+          <ListRow title={<span className="text-muted-foreground">Nothing by that name</span>} />
         )}
-      </label>
-      {searching && (
-        <div className="pt-3">
-          <ListGroup>
-            {(found ?? []).map(place => (
-              <ListRow
-                key={`${place.kind}-${place.label}`} media={<MapPin className="size-5 text-muted-foreground" />}
-                title={place.label} description={place.kind === "airport" ? "Airport" : place.kind === "town" ? "Town" : "Address"}
-                onClick={() => pick(place)} data-testid="nearest-from-option"
-              />
-            ))}
-            {found && !found.length && !isFetching && (
-              <ListRow title={<span className="text-muted-foreground">Nothing by that name</span>} />
-            )}
-            {current && isError && (
-              <ListRow title={<span className={cn("text-destructive", TEXT.detail)}>Couldn't search. Try again.</span>} />
-            )}
-            {!found && !(current && isError) && <ListRow title={<span className={cn("text-muted-foreground", TEXT.detail)}>Looking…</span>} />}
-            {from && (
-              <ListRow
-                media={<LocateFixed className="size-5 text-tint" />} title="Current position"
-                onClick={() => pick(null)} data-testid="nearest-from-position"
-              />
-            )}
-          </ListGroup>
-        </div>
-      )}
+        {current && isError && (
+          <ListRow title={<span className={cn("text-destructive", TEXT.detail)}>Couldn't search. Try again.</span>} />
+        )}
+        {!found && !(current && isError) && <ListRow title={<span className={cn("text-muted-foreground", TEXT.detail)}>Looking…</span>} />}
+        {from && (
+          <ListRow
+            media={<LocateFixed className="size-5 text-tint" />} title="Current position"
+            onClick={() => pick(null)} data-testid="nearest-from-position"
+          />
+        )}
+      </ListGroup>
     </div>
   );
 }
@@ -167,7 +156,7 @@ function NearestRow({ field, ahead, reach, onOpen }: {
           {parts.map((part, i) => (
             <span key={part}>{i > 0 && " · "}<span className="whitespace-nowrap">{part}</span></span>
           ))}
-          {reach && <>{parts.length > 0 && " · "}<span className="font-semibold whitespace-nowrap text-green-700 dark:text-green-400">within glide</span></>}
+          {reach && <>{parts.length > 0 && " · "}<span className={cn("font-semibold whitespace-nowrap", FINDING_TONE.ok)}>within glide</span></>}
         </>
       }
       chevron onClick={onOpen} data-testid="nearest-airport"
@@ -191,6 +180,52 @@ function NearestRow({ field, ahead, reach, onOpen }: {
   );
 }
 
+/** How many fields the pill shows, nearest first; more slide in sideways. */
+const STRIP_FIELDS = 8;
+
+/**
+ * Airport's pill's NEAREST strip, under the Favorites, at the owner's ask ("Nearest can show
+ * nearby airports as small icons"): the nearest fields as small tiles,
+ * each its chart mark -- its airspace's colour, its weather's dot -- its
+ * ident and how far, nearest first; a tap opens the field's card, as a row
+ * of the list does. With no position yet, the way to show it. The list in
+ * full is the tab's, half way up.
+ */
+export function NearestStrip({ fields, located, onOpen }: {
+  fields: NearestAirport[] | undefined;
+  /** Whether there is a position (or a place typed) to be near. */
+  located: boolean;
+  onOpen: (ident: string) => void;
+}) {
+  const setEnabled = useOwnShip(s => s.setEnabled);
+  if (!located) {
+    return (
+      <button
+        type="button" onClick={() => setEnabled(true)} data-testid="nearest-strip-position"
+        className={cn("relative mx-auto block px-2 py-1 text-tint after:absolute after:-inset-y-2 after:inset-x-0", TEXT.row)}
+      >
+        Show my position
+      </button>
+    );
+  }
+  if (!fields) return <p className={cn("py-1 text-center text-foreground/65", TEXT.note)} role="status">Looking…</p>;
+  return (
+    <PillStrip testId="nearest-strip">
+      {fields.slice(0, STRIP_FIELDS).map(field => {
+        const use = field.military === "military" ? "military" : field.private ? "private" : null;
+        return (
+          <SmallTile
+            key={field.ident} onClick={() => onOpen(field.ident)} testId="nearest-strip-field"
+            label={`${field.ident}, ${field.name}, ${Math.round(field.distance_nm)} nm ${compassPoint(field.bearing_deg)}`}
+            mark={<SmallMark icon={<ChartMark space={field.airspace_class ?? null} category={field.flight_category} use={use} size={56} />} className="[&_svg]:size-14" />}
+            title={field.ident} detail={`${Math.round(field.distance_nm)} nm`}
+          />
+        );
+      })}
+    </PillStrip>
+  );
+}
+
 /**
  * Nearest, as an EFB's, a card in the panel at the pilot's ask -- half
  * way up with the map fitted to the fields above it (RouteMap's FitTo),
@@ -202,9 +237,8 @@ function NearestRow({ field, ahead, reach, onOpen }: {
  * address, an airport. A tap on one opens its card over this one, and
  * its close comes back here. With no position yet, it offers to show it.
  */
-export default function NearestCard({ onOpen, onClose, from, onFrom }: {
+export default function NearestCard({ onOpen, from, onFrom }: {
   onOpen: (ident: string) => void;
-  onClose: () => void;
   /** The place typed, where it is from one (the page's, in its address). */
   from: NearFrom | null;
   onFrom: (from: NearFrom | null) => void;
@@ -227,13 +261,8 @@ export default function NearestCard({ onOpen, onClose, from, onFrom }: {
   const ahead = !from && fix?.headingDeg != null && (fix.speedKt ?? 0) >= MOVING_KT ? fix.headingDeg : null;
   return (
     <PanelCard testId="nearest-card">
-      <CardHead
-        name="Nearest Airports"
-        line={from ? `Near ${from.label}` : !fix ? "From your position" : glide != null ? `Within a glide: about ${Math.round(glide)} nm` : "From your position now"}
-        onClose={onClose} closeTestId="nearest-close"
-      />
-      <NearField from={from} onFrom={onFrom} />
-      <div className="pt-4">
+      <NearAnswers from={from} onFrom={onFrom} />
+      <div className="pt-1">
         {!origin ? (
           <ListGroup footer="The nearest fields are found from your position, which stays on this device, or from a place typed above.">
             {enabled
@@ -242,6 +271,8 @@ export default function NearestCard({ onOpen, onClose, from, onFrom }: {
           </ListGroup>
         ) : (
           <ListGroup
+            // What the list is from, where the card's name and line said it.
+            title={from ? `Near ${from.label}` : glide != null ? `Within a glide: about ${Math.round(glide)} nm` : "Nearest to you"}
             footer={[
               from
                 ? `From ${from.label}. Clear the field for the nearest to your position.`

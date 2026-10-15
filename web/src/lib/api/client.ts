@@ -1,15 +1,7 @@
 import createClient, { type Middleware } from "openapi-fetch";
 import type { paths } from "./schema";
 import type { paths as WebappPaths } from "./webapp-schema";
-import type {
-  Aircraft, AircraftChoice, AircraftProfiles, AircraftRequest, AirportPlace, AirportSearch, AirportsInView, AltitudeChoice, Briefing,
-  ChartInfo, ChartPages, ChartRefreshStarted, PlacesFound, CheckpointDescriptionMessage, CheckpointNoteSaved, Checkpoints, Classification, Course, Detour,
-  Flight, FlightSummary, ModelComparison, NarrativeMessage, NarrativeRequest, NavLogMessage, PickDeleted, PickSaved,
-  AirspaceAt, AlertsAhead, ClassBResponse, FlightDetail, FlightRoute, GoogleMaps, Traffic, TrafficFound, NearestAirports, RouteProfile, Tfrs, DevServices, DevServiceStarted, Pilot, Rating, RetrainStarted, Role, SaveFlightRequest,
-  SignInCapabilities, AppleSignedIn, LogbookEntry, LogbookEntryRequest, Currency, CurrencyDatesRequest,
-  Status, StreamMessage, Totals, WaypointsInView, Training, SavedTrack,
-  OralQuestion, OralQuestionRequest, OralGrade, OralGradeRequest, ProcedureDrawing, ProcedureList,
-} from "./types";
+import type { Aircraft, AircraftBases, AircraftChoice, AircraftProfiles, AircraftRequest, AirportPlace, AirportSearch, AirportsInView, AirspaceAt, AlertsAhead, Alternates, AltitudeChoice, AppleSignedIn, Briefing, ChartInfo, ChartPages, ChartRefreshStarted, ChecklistDto, CheckpointDescriptionMessage, CheckpointNoteSaved, Checkpoints, ClassBResponse, Classification, Course, Currency, CurrencyDatesRequest, Detour, DeviceCode, DevServices, DevServiceStarted, Flight, FlightDetail, FlightPlanFiled, FlightPlanFilingRequest, FlightRoute, FlightServiceStatus, FlightSummary, GoogleMaps, InspectionsRequest, Instructor, InstructorRequest, LogbookEntry, LogbookEntryRequest, LogbookImportResult, ModelComparison, NarrativeMessage, NarrativeRequest, NavLogMessage, NearestAirports, OralGrade, OralGradeRequest, OralQuestion, OralQuestionRequest, PastFlight, PastFlights, PickDeleted, PickSaved, Pilot, PlacesFound, ProcedureDrawing, ProcedureList, Rating, Reminders, RetrainStarted, Role, RouteProfile, SavedTrack, SaveFlightRequest, SignRequest, SignInCapabilities, SpeedDay, Squawk, SquawkRequest, Status, StreamMessage, Subscription, Tfrs, Totals, Traffic, TrafficFound, Training, VorCheckRequest, WaypointsInView } from "./types";
 
 /**
  * Every call the pages make. Both servers' calls go through
@@ -206,7 +198,7 @@ export const api = {
   async *navlog(
     dep: string, dest: string, altitudeFt?: string, aircraft?: AircraftChoice, altitudeChoice?: AltitudeChoice,
     depart?: string, signal?: AbortSignal, stops?: string[], classBClearance?: boolean, altitudes?: string,
-    checkpoints = true,
+    checkpoints = true, rules: "vfr" | "ifr" = "vfr", alternate = "",
   ): AsyncGenerator<NavLogMessage> {
     const result = await planner.GET("/api/navlog", {
       params: {
@@ -225,6 +217,10 @@ export const api = {
           class_b_clearance: classBClearance || undefined,
           altitudes: altitudes || undefined,
           checkpoints: checkpoints ? undefined : false,
+          // Under IFR (the planner's vfr.ifr); VFR, the default, unsaid.
+          rules: rules === "ifr" ? rules : undefined,
+          // The IFR alternate filed, whose fuel is in the totals.
+          alternate: rules === "ifr" && alternate ? alternate : undefined,
         },
       },
       parseAs: "stream", signal,
@@ -256,10 +252,17 @@ export const api = {
       .then(data<DevServiceStarted>),
 
   /** The stock performance profiles the nav log can be computed for. */
+  /** Under IFR: the destination's "1-2-3" (14 CFR 91.169(b)) for an ETA,
+   *  the pilot's alternate checked at its own (91.169(c)), and the nearest
+   *  fields that will do, reached at `tasKt`. */
+  alternate: (dest: string, eta: string, tasKt: number, alternate?: string) =>
+    planner.GET("/api/alternate", { params: { query: { dest, eta, tas_kt: tasKt, alternate: alternate || undefined } } })
+      .then(data<Alternates>),
+
   /** A flight from one airport back to it, with no stops -- the pattern,
    *  practice approaches: its time aloft at the airplane's burn, and the
    *  fuel check. */
-  localFlight: (ident: string, durationMin: number, aircraft?: AircraftChoice, depart?: string) =>
+  localFlight: (ident: string, durationMin: number, aircraft?: AircraftChoice, depart?: string, rules: "vfr" | "ifr" = "vfr") =>
     planner.GET("/api/local-flight", {
       params: {
         query: {
@@ -267,6 +270,7 @@ export const api = {
           cruise_tas_kt: aircraft?.cruiseTasKt, fuel_burn_gph: aircraft?.fuelBurnGph, usable_fuel_gal: aircraft?.usableFuelGal,
           climb_tas_kt: aircraft?.climbTasKt, climb_fuel_burn_gph: aircraft?.climbFuelBurnGph,
           cruise_power_pct: aircraft?.cruisePowerPct, depart: depart || undefined,
+          rules: rules === "ifr" ? rules : undefined,
         },
       },
     }).then(data<Totals>),
@@ -429,13 +433,30 @@ export const api = {
   traffic: (ask: { lat: number; lon: number; radius: number }) =>
     planner.GET("/api/traffic", { params: { query: ask } }).then(data<Traffic>),
 
+  /** Where airplanes are based, the field their last flights keep to; the
+   *  ones still being looked up pending (the Aircraft tab's "based at"). */
+  trafficBased: (hexes: string[]) =>
+    planner.GET("/api/traffic/based", { params: { query: { hex: hexes.join(",") } } }).then(data<AircraftBases>),
+
   /** The airplanes in the air a pilot names, by callsign, registration or
-   *  ICAO address, to track one (AircraftCard). */
+   *  ICAO address, to track one (AircraftCard); with none in the air, the
+   *  FAA's record of the one named, to open its card all the same. */
   trafficFind: (q: string) =>
-    planner.GET("/api/traffic/find", { params: { query: { q } } }).then(data<TrafficFound>).then(r => r.aircraft),
+    planner.GET("/api/traffic/find", { params: { query: { q } } }).then(data<TrafficFound>),
 
   /** A tracked flight's airplane, where it took off and its path today,
    *  and a US airplane's FAA registration. */
+  /** An airplane's flights of the last seven days, newest first. */
+  /** Its last ten flights found, or those before a day (`until`) and a
+   *  takeoff (`before`, the last listed): the list's next page. */
+  trafficHistory: (hex: string, from?: { until?: string; before?: number }) =>
+    planner.GET("/api/traffic/flight/{hex_id}/history", {
+      params: { path: { hex_id: hex }, query: { until: from?.until, before: from?.before } },
+    }).then(data<PastFlights>),
+  /** One of them, its reports, for its track log and its replay. */
+  trafficPastFlight: (hex: string, id: number) =>
+    planner.GET("/api/traffic/flight/{hex_id}/history/{flight_id}", { params: { path: { hex_id: hex, flight_id: id } } })
+      .then(data<PastFlight>),
   trafficFlight: (hex: string) =>
     planner.GET("/api/traffic/flight/{hex_id}", { params: { path: { hex_id: hex } } }).then(data<FlightDetail>),
 
@@ -472,6 +493,29 @@ export const api = {
    *  session (AppleNativeSignInController); answers where to go next. */
   signInWithAppleNative: (identityToken: string) =>
     webapp.POST("/api/auth/apple/native", { body: { identityToken } }).then(data<AppleSignedIn>),
+
+  /** A code for this TV to be signed in with from a phone
+   *  (DeviceSignInController): shown, with the address to type it at. */
+  deviceCode: () => webapp.POST("/api/auth/device").then(data<DeviceCode>),
+
+  /** Whether this TV's code has been typed in on a phone: not yet
+   *  ("waiting"), signed in now with where to go, or run out ("gone"),
+   *  for which the TV asks for a new one. */
+  deviceToken: async (deviceCode: string): Promise<AppleSignedIn | "waiting" | "gone"> => {
+    try {
+      const { data: answer, response } = await webapp.POST("/api/auth/device/token", { body: { deviceCode } });
+      return response.status === 202 ? "waiting" : answer as AppleSignedIn;
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 410) return "gone";
+      throw err;
+    }
+  },
+
+  /** The code a TV shows, typed in by the pilot signed in here: the TV
+   *  is signed in as them at its next ask. */
+  approveDevice: async (userCode: string): Promise<void> => {
+    await webapp.POST("/api/auth/device/approve", { body: { userCode } });
+  },
 
   /** Deletes the signed-in pilot's account and everything that was
    *  theirs, on every device, and signs them out (a 204). A 502 deleted
@@ -561,7 +605,47 @@ export const api = {
     remove: async (id: number): Promise<void> => {
       await webapp.DELETE("/api/aircraft/{id}", { params: { path: { id } } });
     },
+    /** Its VOR check for IFR, recorded (14 CFR 91.171(d)). */
+    vorCheck: (id: number, request: VorCheckRequest) =>
+      webapp.PUT("/api/aircraft/{id}/vor-check", { params: { path: { id } }, body: request }).then(data<Aircraft>),
+    /** Its inspections and tests, recorded all at once (14 CFR 91.409,
+     *  91.411, 91.413, 91.207). */
+    inspections: (id: number, request: InspectionsRequest) =>
+      webapp.PUT("/api/aircraft/{id}/inspections", { params: { path: { id } }, body: request }).then(data<Aircraft>),
+    /** Its checklist, as its owner wrote it, and that replaced whole. */
+    checklist: (id: number) =>
+      webapp.GET("/api/aircraft/{id}/checklist", { params: { path: { id } } }).then(data<ChecklistDto>),
+    saveChecklist: (id: number, checklist: ChecklistDto) =>
+      webapp.PUT("/api/aircraft/{id}/checklist", { params: { path: { id } }, body: checklist }).then(data<ChecklistDto>),
+    /** Its squawks, newest first; one written, changed or fixed, or taken out. */
+    squawks: (id: number) => webapp.GET("/api/aircraft/{id}/squawks", { params: { path: { id } } }).then(data<Squawk[]>),
+    addSquawk: (id: number, squawk: SquawkRequest) =>
+      webapp.POST("/api/aircraft/{id}/squawks", { params: { path: { id } }, body: squawk }).then(data<Squawk>),
+    updateSquawk: (id: number, squawkId: number, squawk: SquawkRequest) =>
+      webapp.PUT("/api/aircraft/{id}/squawks/{squawkId}", { params: { path: { id, squawkId } }, body: squawk }).then(data<Squawk>),
+    removeSquawk: async (id: number, squawkId: number): Promise<void> => {
+      await webapp.DELETE("/api/aircraft/{id}/squawks/{squawkId}", { params: { path: { id, squawkId } } });
+    },
   },
+
+  /** The signed-in pilot's subscription to the paid features, and the
+   *  free month started: once an account, a 409 after. */
+  subscription: {
+    get: () => webapp.GET("/api/subscription").then(data<Subscription>),
+    startTrial: () => webapp.POST("/api/subscription/trial").then(data<Subscription>),
+  },
+
+  /** Flight Service's filing through the app (FlightServiceController):
+   *  whether it is connected, and a flight plan filed in the pilot's name. */
+  flightService: {
+    status: () => webapp.GET("/api/flight-service").then(data<FlightServiceStatus>),
+    file: (plan: FlightPlanFilingRequest) =>
+      webapp.POST("/api/flight-service/flight-plans", { body: plan }).then(data<FlightPlanFiled>),
+  },
+
+  /** The web app's speed, a day at a time (SpeedController): the
+   *  developer's Speed page. */
+  speedTrend: (days = 90) => webapp.GET("/api/speed", { params: { query: { days } } }).then(data<SpeedDay[]>),
 
   /** A signed-in pilot's logbook and currency. */
   logbook: {
@@ -574,6 +658,12 @@ export const api = {
     },
     currency: () => webapp.GET("/api/logbook/currency").then(data<Currency>),
     setCurrencyDates: (request: CurrencyDatesRequest) => webapp.PUT("/api/logbook/currency", { body: request }).then(data<Currency>),
+    /** Whether the pilot is emailed before their currency runs out. */
+    reminders: () => webapp.GET("/api/logbook/reminders").then(data<Reminders>),
+    setReminders: (on: boolean) => webapp.PUT("/api/logbook/reminders", { body: { on } }).then(data<Reminders>),
+    /** Flights from a file, those already in the logbook left out. */
+    importAll: (entries: LogbookEntryRequest[]) =>
+      webapp.POST("/api/logbook/import", { body: { entries } }).then(data<LogbookImportResult>),
   },
 
   /** A student's way to the checkride, beside the logbook. */
@@ -585,6 +675,37 @@ export const api = {
       webapp.PUT("/api/training/endorsements/{code}", { params: { path: { code } }, body: { endorsedOn } }).then(data<Training>),
     withdraw: (code: string) =>
       webapp.DELETE("/api/training/endorsements/{code}", { params: { path: { code } } }).then(data<Training>),
+    /** Their name as their certificate gives it, which endorsements use. */
+    setName: (fullName: string) => webapp.PUT("/api/training/name", { body: { fullName } }).then(data<Training>),
+    /** An instructor asked in by address, who is emailed. */
+    askInstructor: (email: string) => webapp.POST("/api/training/instructors", { body: { email } }).then(data<Training>),
+    dropInstructor: (id: number) =>
+      webapp.DELETE("/api/training/instructors/{id}", { params: { path: { id } } }).then(data<Training>),
+    /** A saved flight put to an instructor for its solo cross-country review. */
+    askReview: (body: { flightId: number; instructorId: number; makeModel: string; flightOn: string; note: string | null }) =>
+      webapp.POST("/api/training/reviews", { body }).then(data<Training>),
+    withdrawReview: (id: number) =>
+      webapp.DELETE("/api/training/reviews/{id}", { params: { path: { id } } }).then(data<Training>),
+  },
+
+  /** The pilot as a flight instructor: their certificate, students,
+   *  reviews and the endorsements they sign. */
+  instructor: {
+    get: () => webapp.GET("/api/instructor").then(data<Instructor>),
+    set: (body: InstructorRequest) => webapp.PUT("/api/instructor", { body }).then(data<Instructor>),
+    stop: () => webapp.DELETE("/api/instructor").then(data<Instructor>),
+    accept: (linkId: number) =>
+      webapp.POST("/api/instructor/students/{linkId}/accept", { params: { path: { linkId } } }).then(data<Instructor>),
+    leave: (linkId: number) =>
+      webapp.DELETE("/api/instructor/students/{linkId}", { params: { path: { linkId } } }).then(data<Instructor>),
+    student: (studentId: number) =>
+      webapp.GET("/api/instructor/students/{studentId}/training", { params: { path: { studentId } } }).then(data<Training>),
+    sign: (studentId: number, body: SignRequest) =>
+      webapp.POST("/api/instructor/students/{studentId}/endorsements", { params: { path: { studentId } }, body }).then(data<Training>),
+    voidEndorsement: (id: number) =>
+      webapp.POST("/api/instructor/endorsements/{id}/void", { params: { path: { id } } }).then(data<Instructor>),
+    decline: (id: number, note: string) =>
+      webapp.POST("/api/instructor/reviews/{id}/decline", { params: { path: { id } }, body: { note } }).then(data<Instructor>),
   },
 
   /** A signed-in pilot's own filed flights. */

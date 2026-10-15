@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { settle, slow } from "./helpers";
+import { settle, slow, grabberTo } from "./helpers";
 
 /**
  * The traffic about the map (TrafficLayer), from adsb.lol through the
@@ -83,4 +83,53 @@ test("off, as it is unless shown, nothing is asked and nothing drawn", async ({ 
   expect(asks).toHaveLength(0);
   await expect(page.locator("svg[data-traffic]")).toHaveCount(0);
   await expect(page.locator(".leaflet-control-attribution")).toHaveCount(0);
+});
+
+test("the traffic is asked about wherever the map is panned, own ship or not, and further out for a map zoomed out", async ({ page, context }) => {
+  // Own ship at Campbell (C81): the traffic was asked about it whatever
+  // the map showed, so a map panned to Madison showed none there.
+  await context.grantPermissions(["geolocation"]);
+  await context.setGeolocation({ latitude: 42.32, longitude: -88.07 });
+  const asks = await showTraffic(page, true);
+  await page.goto("/app/plan?place=KMSN");
+  await settle(page);
+  await expect.poll(() => asks.length, { timeout: slow(15_000) }).toBeGreaterThan(0);
+  const last = () => asks[asks.length - 1]!.searchParams;
+  // About Madison, the map's middle (a little off it, clear of the card),
+  // not Campbell, 65 nm away to the south-east.
+  await expect.poll(() => {
+    const lat = Number(last().get("lat")), lon = Number(last().get("lon"));
+    const from = (a: number, b: number) => Math.hypot(lat - a, (lon - b) * 0.73);
+    return from(43.14, -89.34) < from(42.32, -88.07);
+  }, { timeout: slow(15_000) }).toBe(true);
+  // Zoomed out to a state: asked further than the near regions' 60 nm --
+  // the card's link opens all the way up, so down to its pill first.
+  await grabberTo(page, "peek");
+  const map = (await page.locator(".leaflet-container").boundingBox())!;
+  await page.mouse.move(map.x + map.width / 2, map.y + map.height / 4);
+  for (let i = 0; i < 4; i++) {
+    await page.mouse.wheel(0, 400);
+    await page.waitForTimeout(400);
+  }
+  await expect.poll(() => Number(last().get("radius")), { timeout: slow(15_000) }).toBeGreaterThan(60);
+});
+
+test("an answer missed while the map is panned is not said; traffic is said unavailable only after half a minute without one", async ({ page }) => {
+  await page.addInitScript(() => {
+    const kept = JSON.parse(localStorage.getItem("vfr.preferences") ?? '{"state":{},"version":0}');
+    localStorage.setItem("vfr.preferences", JSON.stringify({ ...kept, state: { ...kept.state, traffic: true } }));
+  });
+  let down = false;
+  await page.route(url => url.pathname.endsWith("/api/planner/traffic"), route => (down
+    ? route.fulfill({ status: 503, json: { detail: "Traffic isn't available right now: adsb.lol has not answered for a minute." } })
+    : route.fulfill({ json: TRAFFIC })));
+  await page.clock.install();
+  await page.goto("/app/plan?place=C81");
+  await settle(page);
+  await expect(page.locator("svg[data-traffic]")).toHaveCount(2, { timeout: slow(15_000) });
+  down = true;
+  await page.clock.runFor(10_000);
+  await expect(page.getByText("Traffic isn't available right now.")).toHaveCount(0);
+  await page.clock.runFor(35_000);
+  await expect(page.getByText("Traffic isn't available right now.")).toBeVisible({ timeout: slow(10_000) });
 });

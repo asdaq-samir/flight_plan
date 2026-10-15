@@ -1,5 +1,5 @@
 import { test, expect, type Route } from "@playwright/test";
-import { library } from "./helpers";
+import { library, openConsole, showTabs } from "./helpers";
 
 /**
  * The pilot console's Logbook: where the pilot stands first, then the
@@ -29,7 +29,8 @@ test("the logbook says where the pilot stands, and a flight logged is posted as 
   });
 
   await page.goto("/app/plan");
-  await page.getByTestId("settings-button").click();
+  await showTabs(page);
+  await openConsole(page);
   const console = page.getByTestId("console-sheet");
   await library(console, "Logbook");
 

@@ -12,6 +12,7 @@ import { useAirportSearch, type AirportSearchRow } from "../lib/useAirportSearch
 import { useIsMobile } from "../hooks/use-mobile";
 import { useKeyboardInset } from "../hooks/use-viewport";
 import CloseButton from "./CloseButton";
+import ClearButton from "./ClearButton";
 
 interface Props {
   value: string;
@@ -26,6 +27,13 @@ interface Props {
   /** A stop's: the VFR and GPS waypoints as well as the airports
    *  (useAirportSearch), a route flying through one. */
   fixes?: boolean;
+  /** Whether the search is out, where its opener is elsewhere -- a
+   *  route's airport, whose tap opens its card, changed from its menu
+   *  (RouteBox) -- with what to do as it opens or closes. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  /** What a tap on the button does in place of opening the search. */
+  onTap?: () => void;
 }
 
 /**
@@ -44,8 +52,11 @@ interface Props {
  */
 export default function AirportPicker({
   value, onChange, placeholder, ariaLabel, invalid, className, look = "field", testId, fixes = false,
+  open: shown, onOpenChange, onTap,
 }: Props) {
-  const [open, setOpen] = useState(false);
+  const [ownOpen, setOwnOpen] = useState(false);
+  const open = shown ?? ownOpen;
+  const setOpen = onOpenChange ?? setOwnOpen;
   const [query, setQuery] = useState("");
   const input = useRef<HTMLInputElement>(null);
   const onPhone = useIsMobile();
@@ -75,17 +86,22 @@ export default function AirportPicker({
   return (
     // From the top of a phone's screen, where the keyboard cannot come up
     // over the field: from the bottom it came up over it, field and all.
-    <ResponsivePopover open={open} onOpenChange={next => { setOpen(next); if (!next) setQuery(""); }} phoneEdge="top" handleOnly>
+    <ResponsivePopover open={open} onOpenChange={next => { setOpen(next); if (!next) setQuery(""); }} phoneEdge="top">
       <ResponsivePopoverTrigger asChild>
         <Button
           type="button"
           variant="ghost"
           size="sm"
-          role="combobox"
-          aria-expanded={open}
+          // A combobox where a tap opens the search; a button where it
+          // opens the airport's card (`onTap`), the search its menu's.
+          role={onTap ? undefined : "combobox"}
+          aria-expanded={onTap ? undefined : open}
           aria-label={ariaLabel}
           aria-invalid={invalid}
           data-testid={testId}
+          // A tap the caller's (`onTap`), not the trigger's opening:
+          // Radix's own toggle runs only where nothing prevented it.
+          onClick={onTap ? e => { e.preventDefault(); onTap(); } : undefined}
           // A field, as a search box is: its ident in the text's colour
           // (not a button's tint) at a row's size (TEXT). A route's pill
           // in the system face, semibold, at a line under a row's (15):
@@ -138,7 +154,7 @@ export default function AirportPicker({
                 aria-label={fixes ? "Search airports and waypoints" : `Search for a ${ariaLabel.toLowerCase()}`}
                 value={query}
                 onValueChange={setQuery}
-                className="min-w-0 flex-1 bg-transparent text-foreground outline-none placeholder:text-muted-foreground"
+                className="min-w-0 flex-1 bg-transparent text-foreground outline-none placeholder:text-muted-foreground [&::-webkit-search-cancel-button]:hidden"
                 onKeyDown={e => {
                   // What was typed goes through when the rows are not the
                   // answer to it yet, and when the lookup has nothing for it
@@ -149,6 +165,7 @@ export default function AirportPicker({
                   }
                 }}
               />
+              {query && <ClearButton label="Clear the search" onClear={() => { setQuery(""); input.current?.focus(); }} />}
             </div>
             <CloseButton onClick={() => { setOpen(false); setQuery(""); }} data-testid="picker-close" />
           </div>
@@ -237,7 +254,7 @@ export function AirportRow({ airport, recent = false, waypoint = false, onSelect
     <CommandItem value={airport.ident} onSelect={onSelect} className="min-h-11 gap-3 rounded-lg px-2 py-2" data-testid={testId}>
       {/* Its magenta as fill and stroke, not the text colour: a row's
           highlight recolours its icons' text, and the diamond went black. */}
-      {waypoint ? <Diamond className="size-5 fill-[#b02e7c] stroke-[#b02e7c] dark:fill-[#e070b0] dark:stroke-[#e070b0]" />
+      {waypoint ? <Diamond className="size-5 fill-[#c0309f] stroke-[#c0309f] dark:fill-[#e070b0] dark:stroke-[#e070b0]" />
         : recent ? <History className="size-5 text-muted-foreground" /> : <Search className="size-5 text-muted-foreground" />}
       <span className="min-w-0 flex-1">
         <span className={cn("block truncate", TEXT.row)}><span className="font-mono font-semibold">{airport.ident}</span> · {airport.name}</span>

@@ -40,7 +40,7 @@ from PIL import Image
 
 from . import charts
 from .config import VFR_SECTIONAL_MAX_ZOOM
-from .geo import along_track_distance_nm, cross_track_distance_nm, distance_nm
+from .geo import along_track_distance_nm, cross_track_distance_nm, distance_nm, tile_lat_lon, tile_xy
 
 TILE_PX = 256
 DEFAULT_ZOOM = VFR_SECTIONAL_MAX_ZOOM  # 12; the chart's own maximum
@@ -281,17 +281,12 @@ _COLOUR_BITS.update({spec.test: 1 << i for i, spec in enumerate(PALETTE + LINEAR
 
 def latlon_to_global_px(lat: float, lon: float, zoom: int = DEFAULT_ZOOM) -> tuple:
     """Web-mercator pixel coordinates at `zoom`, in the whole-world plane."""
-    scale = (2 ** zoom) * TILE_PX
-    x = (lon + 180.0) / 360.0 * scale
-    y = (1.0 - math.asinh(math.tan(math.radians(lat))) / math.pi) / 2.0 * scale
-    return x, y
+    x, y = tile_xy(lat, lon, zoom)
+    return x * TILE_PX, y * TILE_PX
 
 
 def global_px_to_latlon(x: float, y: float, zoom: int = DEFAULT_ZOOM) -> tuple:
-    scale = (2 ** zoom) * TILE_PX
-    lon = x / scale * 360.0 - 180.0
-    lat = math.degrees(math.atan(math.sinh(math.pi * (1.0 - 2.0 * y / scale))))
-    return lat, lon
+    return tile_lat_lon(x / TILE_PX, y / TILE_PX, zoom)
 
 
 def metres_per_pixel(lat: float, zoom: int = DEFAULT_ZOOM) -> float:
@@ -708,10 +703,8 @@ def great_circle_pixels(start: tuple, end: tuple, zoom: int = DEFAULT_ZOOM) -> n
 
     lat = np.degrees(np.arcsin(np.clip(points[:, 2], -1.0, 1.0)))
     lon = np.degrees(np.arctan2(points[:, 1], points[:, 0]))
-    scale = (2 ** zoom) * TILE_PX
-    px = (lon + 180.0) / 360.0 * scale
-    py = (1.0 - np.arcsinh(np.tan(np.radians(lat))) / math.pi) / 2.0 * scale
-    return np.column_stack([px, py])
+    px, py = tile_xy(lat, lon, zoom)
+    return np.column_stack([px, py]) * TILE_PX
 
 
 def linear_crossings(

@@ -6,10 +6,14 @@ import com.northflyers.vfr.dto.CurrencyDatesRequest;
 import com.northflyers.vfr.dto.CurrencyDto;
 import com.northflyers.vfr.dto.LogbookEntryDto;
 import com.northflyers.vfr.dto.LogbookEntryRequest;
+import com.northflyers.vfr.dto.RemindersDto;
+import com.northflyers.vfr.dto.LogbookImportRequest;
+import com.northflyers.vfr.dto.LogbookImportResult;
 import com.northflyers.vfr.service.CurrencyService;
 import com.northflyers.vfr.service.LogbookService;
 import com.northflyers.vfr.service.PilotService;
 import jakarta.validation.Valid;
+import java.time.LocalDate;
 import java.util.List;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -54,6 +58,12 @@ public class LogbookController {
         return PilotResponses.withPilot(pilots, authentication, pilot -> ResponseEntity.ok(toDto(logbook.add(pilot, request))));
     }
 
+    /** A logbook brought in from a file, its flights not already here added. */
+    @PostMapping("/import")
+    public ResponseEntity<LogbookImportResult> importAll(Authentication authentication, @Valid @RequestBody LogbookImportRequest request) {
+        return PilotResponses.withPilot(pilots, authentication, pilot -> ResponseEntity.ok(logbook.importAll(pilot, request.entries())));
+    }
+
     @PutMapping("/{id}")
     public ResponseEntity<LogbookEntryDto> update(
             Authentication authentication, @PathVariable Long id, @Valid @RequestBody LogbookEntryRequest request) {
@@ -73,20 +83,34 @@ public class LogbookController {
         return PilotResponses.withPilot(pilots, authentication, pilot -> ResponseEntity.ok(currencyOf(pilot)));
     }
 
+    /** Whether the pilot is emailed before their currency runs out
+     *  (ReminderService). */
+    @GetMapping("/reminders")
+    public ResponseEntity<RemindersDto> reminders(Authentication authentication) {
+        return PilotResponses.withPilot(pilots, authentication, pilot -> ResponseEntity.ok(new RemindersDto(pilot.isReminders())));
+    }
+
+    @PutMapping("/reminders")
+    public ResponseEntity<RemindersDto> setReminders(Authentication authentication, @RequestBody RemindersDto request) {
+        return PilotResponses.withPilot(pilots, authentication, pilot ->
+                ResponseEntity.ok(new RemindersDto(logbook.setReminders(pilot, request.on()).isReminders())));
+    }
+
     @PutMapping("/currency")
     public ResponseEntity<CurrencyDto> setCurrencyDates(Authentication authentication, @RequestBody CurrencyDatesRequest request) {
         return PilotResponses.withPilot(pilots, authentication, pilot -> ResponseEntity.ok(currencyOf(
-                logbook.setCurrencyDates(pilot, request.flightReviewOn(), request.medicalExpiresOn()))));
+                logbook.setCurrencyDates(pilot, request.flightReviewOn(), request.medicalExpiresOn(), request.ipcOn()))));
     }
 
     private CurrencyDto currencyOf(Pilot pilot) {
-        return currency.currency(logbook.list(pilot), pilot.getFlightReviewOn(), pilot.getMedicalExpiresOn());
+        return currency.currency(logbook.list(pilot), pilot.getFlightReviewOn(), pilot.getMedicalExpiresOn(),
+                pilot.getIpcOn(), LocalDate.now());
     }
 
     private static LogbookEntryDto toDto(LogbookEntry e) {
         return new LogbookEntryDto(e.getId(), e.getFlownOn(), e.getAircraft(), e.getAircraftType(), e.getRoute(),
                 e.getTotalHours(), e.getNightHours(), e.getCrossCountryHours(), e.getDayLandings(), e.getNightLandings(),
                 e.getRemarks(), e.getDualHours(), e.getSoloHours(), e.getInstrumentHours(), e.getToweredLandings(),
-                e.getDistanceNm(), e.getLongestLegNm());
+                e.getDistanceNm(), e.getLongestLegNm(), e.getApproaches(), e.isHolding(), e.isTracking());
     }
 }

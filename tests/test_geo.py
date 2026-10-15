@@ -16,6 +16,8 @@ from vfr.geo import (
     distance_nm,
     nearest_neighbour_nm,
     neighbours_within_nm,
+    tile_lat_lon,
+    tile_xy,
     track_distances_nm,
 )
 
@@ -225,3 +227,39 @@ def test_neighbours_within_includes_the_point_itself_and_nothing_further():
     assert sorted(within[0]) == [0, 1]
     assert sorted(within[1]) == [0, 1, 2]
     assert sorted(within[2]) == [1, 2]
+
+
+# The tile grid, against PROJ's own EPSG:3857: metres from its origin
+# over the world's width are the fraction of the grid a point is at.
+
+_MERCATOR_HALF_WORLD_M = 20037508.342789244
+
+
+def test_tiles_match_projs_web_mercator():
+    from pyproj import Transformer
+    to_3857 = Transformer.from_crs("EPSG:4326", "EPSG:3857", always_xy=True)
+    rng = random.Random(31)
+    for _ in range(300):
+        lat, lon, zoom = rng.uniform(-85, 85), rng.uniform(-180, 180), rng.randint(0, 16)
+        mx, my = to_3857.transform(lon, lat)
+        x, y = tile_xy(lat, lon, zoom)
+        assert x == pytest.approx((mx + _MERCATOR_HALF_WORLD_M) / (2 * _MERCATOR_HALF_WORLD_M) * 2 ** zoom, abs=1e-7)
+        assert y == pytest.approx((_MERCATOR_HALF_WORLD_M - my) / (2 * _MERCATOR_HALF_WORLD_M) * 2 ** zoom, abs=1e-7)
+        assert tile_lat_lon(x, y, zoom) == pytest.approx((lat, lon), abs=1e-9)
+
+
+def test_a_known_tile():
+    # Zoom 0 is one tile, its north-west corner at 85.0511 N, 180 W (the
+    # latitude where Web Mercator's square ends); Harry Reid (KLAS,
+    # 36.08 N 115.152 W) is in tile 737, 1607 at zoom 12.
+    assert tile_lat_lon(0, 0, 0) == pytest.approx((85.0511287798, -180.0))
+    x, y = tile_xy(36.08, -115.152, 12)
+    assert (int(x), int(y)) == (737, 1607)
+
+
+def test_tiles_take_arrays_and_give_plain_floats_for_scalars():
+    lats, lons = np.array([36.08, 44.0]), np.array([-115.152, -89.0])
+    xs, ys = tile_xy(lats, lons, 10)
+    for i in range(2):
+        assert (xs[i], ys[i]) == pytest.approx(tile_xy(lats[i], lons[i], 10))
+    assert all(type(v) is float for v in tile_xy(36.08, -115.152, 10) + tile_lat_lon(184.3, 401.7, 10))

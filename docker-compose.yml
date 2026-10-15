@@ -202,6 +202,9 @@ services:
       # The map's Google overlay (routers/basemaps): a browser key for
       # Google's Map Tiles API, none by default.
       GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY:-}
+      # ADS-B Exchange through RapidAPI, the traffic's fallback where
+      # adsb.lol turns the planner away (vfr.traffic): off without it.
+      ADSBX_RAPIDAPI_KEY: ${ADSBX_RAPIDAPI_KEY:-}
       # /api/status probes these; /api/retrain starts the training DAG.
       # All optional -- the AWS task sets none of them.
       NAV_LOG_AGENT_URL: http://nav-log-agent:8000
@@ -447,6 +450,8 @@ services:
       # as (web/e2e/auth.setup.ts), and whichever APP_DEVELOPER_EMAILS in
       # .env adds -- yours, comma-separated.
       APP_DEVELOPER_EMAILS: developer@example.com,${APP_DEVELOPER_EMAILS:-}
+      # The speed lab's token, for a lab run sent to this stack (SpeedController).
+      APP_SPEED_LAB_TOKEN: ${APP_SPEED_LAB_TOKEN:-}
       # The emailed link's throttle, per address and per caller, loose
       # here: a Playwright run asks for a handful, and a morning of runs
       # would meet the deployed limits of 5 and 20 an hour.

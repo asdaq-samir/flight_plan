@@ -5,7 +5,8 @@ import {
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "./ui/alert-dialog";
 import { Button } from "./ui/button";
-import { Drawer, DrawerClose, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle } from "./ui/drawer";
+import { Sheet, SheetClose, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "./ui/sheet";
+import { phoneSheet } from "./phoneSheet";
 import { useIsMobile } from "../hooks/use-mobile";
 import { useNavEdge } from "../hooks/use-nav-edge";
 import { TEXT } from "../lib/text";
@@ -24,7 +25,7 @@ interface ConfirmOptions {
  * AlertDialog in the middle of the screen from `md` up, and on a phone
  * a sheet from the header's edge (useNavEdge) with the action over
  * Cancel -- from the bottom, by default, as iOS asks about something
- * just tapped (an action sheet, shadcn's Drawer).
+ * just tapped (an action sheet, shadcn's Sheet).
  * `window.confirm` was what asked before -- the browser's own box,
  * unthemed, headed by the site's address, and in an iOS app's web view
  * nothing at all (it returns false unless the native host draws one),
@@ -42,25 +43,25 @@ export function useConfirm({ title, description, confirmLabel, destructive, onCo
   const cancel = useRef<HTMLButtonElement>(null);
   const confirm = () => { setOpen(false); onConfirm(); };
   const dialog = onPhone ? (
-    <Drawer direction={edge} open={open} onOpenChange={setOpen}>
+    <Sheet open={open} onOpenChange={setOpen}>
       {/* An alert, as the AlertDialog is; Cancel takes the focus, as it
           does there, so a keyboard's Enter never confirms unasked. */}
-      <DrawerContent
+      <SheetContent
+        side={edge} showCloseButton={false} className={phoneSheet(edge)}
         role="alertdialog" onOpenAutoFocus={e => { e.preventDefault(); cancel.current?.focus(); }}
-        className={edge === "top" ? "pt-[env(safe-area-inset-top)]" : undefined}
       >
         {/* As iOS asks: the question 17 points and semibold, what it
             does 13 under it, the buttons at a button's 17 (TEXT). */}
-        <DrawerHeader>
-          <DrawerTitle className={cn("font-semibold", TEXT.title)}>{title}</DrawerTitle>
-          <DrawerDescription className={TEXT.note}>{description}</DrawerDescription>
-        </DrawerHeader>
-        <DrawerFooter className={edge === "top" ? undefined : "pb-[max(1rem,env(safe-area-inset-bottom))]"}>
+        <SheetHeader className="text-center">
+          <SheetTitle className={cn("font-semibold", TEXT.title)}>{title}</SheetTitle>
+          <SheetDescription className={TEXT.note}>{description}</SheetDescription>
+        </SheetHeader>
+        <SheetFooter className={edge === "top" ? undefined : "pb-[max(1rem,env(safe-area-inset-bottom))]"}>
           <Button variant={destructive ? "destructive" : "default"} onClick={confirm}>{confirmLabel}</Button>
-          <DrawerClose asChild><Button ref={cancel} variant="outline">Cancel</Button></DrawerClose>
-        </DrawerFooter>
-      </DrawerContent>
-    </Drawer>
+          <SheetClose asChild><Button ref={cancel} variant="outline">Cancel</Button></SheetClose>
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
   ) : (
     <AlertDialog open={open} onOpenChange={setOpen}>
       <AlertDialogContent>

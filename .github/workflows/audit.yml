@@ -56,6 +56,10 @@ jobs:
   audit:
     strategy:
       fail-fast: false
+      # One audit at a time: seven at once opened their pull requests and
+      # issues in the same minutes, the kind of burst GitHub suspends an
+      # account for.
+      max-parallel: 1
       matrix:
         audit: [design, code, speed, aviation, market, launch, marketing]
     if: github.ref == 'refs/heads/main'
@@ -145,8 +149,13 @@ jobs:
             numbers before and after). Keep it to what one person can review
             in ten minutes.
 
-            Everything else worth doing goes in one issue per finding, with
-            where, why and what you would do, labelled "audit" and
+            Everything else worth doing goes in issues, at most three a
+            run: the three most valuable, one issue each, with where, why
+            and what you would do; list the rest in the job's summary. Open
+            them one at a time, waiting at least ten seconds between any two
+            writes to GitHub (sleep 10), never in a loop or a burst: GitHub
+            suspends accounts whose API writes come in bursts. Each is
+            labelled "audit" and
             "${{ matrix.audit }}", and one of:
             - "ready": work that needs no decision from the owner -- a bug,
               a wrong or uncited figure, duplicated code, a measured
@@ -163,4 +172,4 @@ jobs:
             Create a label that is missing. If you find nothing worth
             changing, say so in the job's summary and open nothing.
           claude_args: |
-            --allowedTools "Skill,WebFetch,WebSearch,Edit,MultiEdit,Write,Read,Glob,Grep,LS,Bash(git:*),Bash(gh:*),Bash(npm:*),Bash(npx:*),Bash(node:*),Bash(python:*),Bash(python3:*),Bash(pip:*),Bash(mvn:*),Bash(time:*),Bash(du:*),Bash(ls:*),Bash(cd:*),Bash(cat:*),Bash(head:*),Bash(tail:*),Bash(grep:*),Bash(find:*),Bash(wc:*),Bash(diff:*),Bash(pytest:*),Bash(ruff:*),Bash(uv:*),Bash(java:*)"
+            --allowedTools "Skill,WebFetch,WebSearch,Edit,MultiEdit,Write,Read,Glob,Grep,LS,Bash(git:*),Bash(gh:*),Bash(npm:*),Bash(npx:*),Bash(node:*),Bash(python:*),Bash(python3:*),Bash(pip:*),Bash(mvn:*),Bash(time:*),Bash(du:*),Bash(ls:*),Bash(cd:*),Bash(cat:*),Bash(head:*),Bash(tail:*),Bash(grep:*),Bash(find:*),Bash(wc:*),Bash(diff:*),Bash(pytest:*),Bash(ruff:*),Bash(uv:*),Bash(java:*),Bash(sleep:*)"

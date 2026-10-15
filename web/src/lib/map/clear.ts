@@ -21,7 +21,25 @@ function insetsOf(map: L.Map): { top: number; bottom: number; left: number } {
 /** Where to centre the map, at `zoom`, for `point` to sit in the middle
  *  of what the panel leaves of it -- for setView and flyTo. */
 export function centreClear(map: L.Map, point: L.LatLngExpression, zoom: number): L.LatLng {
+  return map.unproject(map.project(point, zoom).subtract(offsetOf(insetsOf(map))), zoom);
+}
+
+/** The same before there is a map to ask, for the panel's `insets` as
+ *  given: the map made where it would be put, on the projection it is
+ *  made with (Leaflet's own, Web Mercator). */
+export function centreClearFor(point: L.LatLngExpression, zoom: number, insets: { top: number; bottom: number; left: number }): L.LatLng {
+  const crs = L.CRS.EPSG3857;
+  return crs.pointToLatLng(crs.latLngToPoint(L.latLng(point), zoom).subtract(offsetOf(insets)), zoom);
+}
+
+/** How far the middle of what the panel leaves is from the map's own. */
+function offsetOf({ top, bottom, left }: { top: number; bottom: number; left: number }): L.Point {
+  return L.point(left / 2, (top - bottom) / 2);
+}
+
+/** Padding for fitBounds that keeps what is fitted in what the panel
+ *  leaves of the map, with `margin` to spare round it. */
+export function paddingClear(map: L.Map, margin = 24): L.FitBoundsOptions {
   const { top, bottom, left } = insetsOf(map);
-  const offset = L.point(left / 2, (top - bottom) / 2);
-  return map.unproject(map.project(point, zoom).subtract(offset), zoom);
+  return { paddingTopLeft: [left + margin, top + margin], paddingBottomRight: [margin, bottom + margin] };
 }

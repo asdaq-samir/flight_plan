@@ -1,8 +1,11 @@
 import { Children, Fragment, useId, type ComponentProps, type ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { ChevronRight, ExternalLink } from "lucide-react";
+import { Check, ChevronRight, ExternalLink } from "lucide-react";
+import { RadioGroup as RadioGroupPrimitive } from "radix-ui";
+import { RadioGroup } from "./ui/radio-group";
 import { cn } from "cn";
 import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemSeparator, ItemTitle } from "./ui/item";
+import { Checkbox } from "./ui/checkbox";
 import { Label } from "./ui/label";
 import { GROUP_HEADING, TEXT } from "../lib/text";
 
@@ -78,7 +81,7 @@ const LABEL = cn("font-normal", TEXT.row);
 const DESCRIPTION = cn("line-clamp-none", TEXT.detail);
 const VALUE = cn("text-muted-foreground tabular-nums", TEXT.row);
 
-export function ListRow({ id, media, title, description, value, href, to, chevron, children, ...buttonProps }: {
+export function ListRow({ id, media, title, description, value, href, to, chevron, checkbox, radio, children, ...buttonProps }: {
   id?: string;
   media?: ReactNode;
   title: ReactNode;
@@ -87,9 +90,20 @@ export function ListRow({ id, media, title, description, value, href, to, chevro
   href?: string;
   to?: string;
   chevron?: boolean;
+  /** A row that is a checkbox: shadcn's (Radix's) at its start, the whole
+   *  row its label, so a tap anywhere on it ticks it. The row's test id
+   *  goes on the checkbox, which carries `aria-checked`. */
+  checkbox?: { checked: boolean; onChange: (checked: boolean) => void };
+  /** A row that is one of a radio group's choices, this its value: Radix's
+   *  radio item (arrow keys between the choices, `aria-checked`), marked
+   *  with iOS's checkmark in the tint, as a list's one choice is on iOS
+   *  (the HIG), not a radio's dot. Inside a `ListChoices`. */
+  radio?: string;
   children?: ReactNode;
 } & Omit<ComponentProps<"button">, "title" | "value" | "children">) {
-  const choice = buttonProps.role === "checkbox" || buttonProps.role === "radio" || buttonProps["aria-pressed"] !== undefined;
+  const choice = !!checkbox || radio !== undefined || buttonProps["aria-pressed"] !== undefined;
+  // A radio's mark, iOS's checkmark, shown by the item's own state.
+  const mark = radio !== undefined ? <Check className="size-4 text-tint invisible group-data-[state=checked]:visible" aria-hidden /> : media;
   const opens = chevron || to !== undefined;
   const action = href !== undefined || (!!buttonProps.onClick && !opens && !choice);
   // The words wrap, where the stock Item cuts its title at one line and
@@ -97,7 +111,14 @@ export function ListRow({ id, media, title, description, value, href, to, chevro
   // and a row's words are all of what it says.
   const body = (
     <>
-      {media && <ItemMedia className={cn(action && "text-tint")}>{media}</ItemMedia>}
+      {checkbox ? (
+        <ItemMedia>
+          <Checkbox
+            checked={checkbox.checked} onCheckedChange={on => checkbox.onChange(on === true)}
+            data-testid={(buttonProps as { "data-testid"?: string })["data-testid"]}
+          />
+        </ItemMedia>
+      ) : mark && <ItemMedia className={cn(action && "text-tint")}>{mark}</ItemMedia>}
       <ItemContent className="min-w-0 gap-0.5">
         <ItemTitle className={action ? TITLE_ACTION : TITLE}>
           {id ? <Label htmlFor={id} className={LABEL}>{title}</Label> : title}
@@ -140,6 +161,23 @@ export function ListRow({ id, media, title, description, value, href, to, chevro
       </Item>
     );
   }
+  if (checkbox) {
+    // A label round the row, so a tap anywhere on it is a tap on the box.
+    return (
+      <Item asChild size="sm" className="min-h-11 cursor-pointer rounded-none border-0 py-2 hover:bg-muted/50 pointer-coarse:active:bg-muted">
+        <label className={buttonProps.className}>{body}</label>
+      </Item>
+    );
+  }
+  if (radio !== undefined) {
+    return (
+      <Item asChild size="sm" className="group min-h-11 rounded-none border-0 py-2 text-left hover:bg-muted/50 disabled:pointer-events-none disabled:opacity-50 pointer-coarse:active:bg-muted">
+        <RadioGroupPrimitive.Item value={radio} asChild disabled={buttonProps.disabled}>
+          <button type="button" {...buttonProps}>{body}</button>
+        </RadioGroupPrimitive.Item>
+      </Item>
+    );
+  }
   if (buttonProps.onClick) {
     return (
       <Item asChild size="sm" className="min-h-11 rounded-none border-0 py-2 text-left hover:bg-muted/50 disabled:pointer-events-none disabled:opacity-50 pointer-coarse:active:bg-muted">
@@ -153,5 +191,23 @@ export function ListRow({ id, media, title, description, value, href, to, chevro
     <Item size="sm" className="min-h-11 rounded-none border-0 py-2" data-testid={(buttonProps as { "data-testid"?: string })["data-testid"]}>
       {body}
     </Item>
+  );
+}
+
+/**
+ * A list's one choice, as iOS has it: its rows (`ListRow` with `radio`)
+ * a Radix radio group -- arrow keys between them, one checked, the
+ * group named -- around the grouped list.
+ */
+export function ListChoices({ value, onChange, label, children }: {
+  value: string;
+  onChange: (value: string) => void;
+  label?: string;
+  children: ReactNode;
+}) {
+  return (
+    <RadioGroup value={value} onValueChange={onChange} aria-label={label} className="block">
+      {children}
+    </RadioGroup>
   );
 }

@@ -19,10 +19,10 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException
-from vfr import airports, airspace, altitude, geo, pattern, publications, runway_wind, tfr, weather
+from vfr import airports, airspace, alternates, altitude, geo, pattern, publications, runway_wind, tfr, weather
 
 from ..common import load_route
-from ..schemas import Briefing, Tfrs
+from ..schemas import Alternates, Briefing, Tfrs
 
 #: How long past the arrival the forecast is read over, and the flight
 #: assumed when the caller does not say how long it is.
@@ -220,3 +220,43 @@ def briefing(dep: str, dest: str, stops: str = "", depart: datetime | None = Non
             for ident in idents
         },
     }
+
+
+@router.get("/api/alternate")
+def alternate(dest: str, eta: datetime, tas_kt: float = 110.0, alternate: str = "") -> Alternates:
+    """The IFR alternate for a flight arriving at `dest` at `eta` (UTC when
+    naive): whether the destination needs one (14 CFR 91.169(b), the
+    "1-2-3" rule, from its TAF an hour either side of the ETA), the
+    pilot's `alternate` checked against its minimums at the ETA there
+    (91.169(c)), and the nearest fields with a TAF that will do, each
+    reached at `tas_kt` from the destination (vfr.alternates)."""
+    arrival = (eta if eta.tzinfo else eta.replace(tzinfo=timezone.utc)).timestamp()
+    try:
+        dest_airport = airports.get_airport(dest)
+    except ValueError as err:
+        raise HTTPException(404, f"No airport goes by {dest!r}.") from err
+    at = (dest_airport["lat"], dest_airport["lon"])
+    speed = max(tas_kt, 40.0)
+
+    def eta_at(lat: float, lon: float) -> float:
+        return arrival + geo.distance_nm(*at, lat, lon) / speed * 3600
+
+    try:
+        chosen = None
+        if alternate.strip():
+            try:
+                alt_airport = airports.get_airport(alternate)
+            except ValueError as err:
+                raise HTTPException(404, f"No airport goes by {alternate!r}.") from err
+            chosen = {
+                **alternates.alternate(alt_airport.get("ident") or alternate.upper(), eta_at(alt_airport["lat"], alt_airport["lon"])),
+                "distance_nm": round(geo.distance_nm(*at, alt_airport["lat"], alt_airport["lon"]), 1),
+            }
+        ident = dest_airport.get("ident") or dest.upper()
+        return Alternates(
+            destination=alternates.destination(ident, arrival),
+            alternate=chosen,
+            suggestions=alternates.nearby(at, ident, eta_at),
+        )
+    except weather.WeatherServiceError as err:
+        raise HTTPException(502, "aviationweather.gov did not answer, so the alternate could not be checked.") from err

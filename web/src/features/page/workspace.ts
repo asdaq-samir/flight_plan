@@ -17,10 +17,6 @@ export interface WorkspacePieces {
   /** The panel's second row, in sight at rest: the airplane and the
    *  departure time, the rating's progress. */
   controls?: ReactNode;
-  /** The panel's head all the way up, in place of the top row and the
-   *  controls: the route's figures alone over its tabs, at the pilot's
-   *  ask (MapPanel's `figures`). */
-  figures?: ReactNode;
   /** Beside the route form, in sight at rest: the workspace's own few
    *  actions (save, the narrative and print; filter, undo and more). */
   actions?: ReactNode;
@@ -42,6 +38,18 @@ export interface WorkspacePieces {
    *  controls over it: an airport's card opened over a route,
    *  as a place in Maps takes the sheet from the directions. */
   alone?: boolean;
+  /** That card is another tab's (an airport's over FPL): on a phone the
+   *  bar minimized to its kind, with Back (MapPanel's `cardOver`). */
+  cardOver?: boolean;
+  /** The planner's tab bar (TabBar): the sheet's first row at half and all
+   *  the way up (MapPanel's `bar`). */
+  bar?: ReactNode;
+  /** Pinned at the sheet's foot at half and all the way up: the route's
+   *  figures, while there is a route (MapPanel's `foot`). */
+  foot?: ReactNode;
+  /** The foot over the body's room half way and up (MapPanel's footFills):
+   *  FPL's dry run, grown up to the route. */
+  footFills?: boolean;
   /** The panel's body down to the sheet's own edge, over the home
    *  indicator (MapPanel's toEdge): an airport's card, its tiles and tabs
    *  at its foot. */

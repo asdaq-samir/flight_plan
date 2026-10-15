@@ -1,5 +1,5 @@
 import { expect, type Page } from "@playwright/test";
-import { controlsInSight, openSection, openSettings, openTab, settle, sideDrawer, slow } from "../helpers";
+import { consolePage, controlsInSight, grabberTo, openConsole, openPanel, openSection, openSettings, openTab, settle, showTabs, sideDrawer, slow } from "../helpers";
 
 /** One state of the app as a pilot sees it, reached from a fresh page. */
 export type Screen = { name: string; ready: (page: Page) => Promise<void> };
@@ -30,19 +30,21 @@ export const SCREENS: Screen[] = [
     name: "flight planning drawer",
     ready: async page => {
       await page.goto(`/app/plan?${ROUTE}&view=briefing`);
-      await expect(page.getByRole("tab", { name: "Nav Log" })).toBeVisible({ timeout: slow(30000) });
+      await expect(page.getByRole("tab", { name: "Preflight" })).toBeVisible({ timeout: slow(30000) });
       await expect(sideDrawer(page).getByTestId("navlog-eta")).toBeVisible({ timeout: slow(120000) });
     },
   },
   {
-    // Half way: the route's box, the airplane, the time, Save and Print.
+    // Half way: the route's box, the airplane, the time, Approaches and
+    // Share, the figures at the card's foot.
     name: "route panel, half way",
     ready: async page => {
       await page.goto(`/app/plan?${ROUTE}&view=briefing`);
-      await expect(page.getByRole("tab", { name: "Nav Log" })).toBeVisible({ timeout: slow(30000) });
+      await expect(page.getByRole("tab", { name: "Preflight" })).toBeVisible({ timeout: slow(30000) });
       await controlsInSight(page);
-      // Save enabled, as on the map: not judged fading in.
-      await expect(page.getByTestId("save-flight-button")).toBeEnabled({ timeout: slow(30000) });
+      // The plan in, its figures whole: not judged fading in.
+      await expect(page.getByTestId("navlog-eta")).toBeVisible({ timeout: slow(30000) });
+      await expect(page.getByTestId("share-route")).toBeEnabled();
     },
   },
   {
@@ -52,7 +54,7 @@ export const SCREENS: Screen[] = [
       // Not tapped when it is up already: a tap on the tab up takes the
       // panel back to half, and the map's tooltips came up under the
       // pointer where the panel had been, fading in, read at 1:1 (P15).
-      await openTab(page, "Nav Log");
+      await openTab(page, "En route");
       await page.getByTestId("fuel-check").waitFor({ timeout: slow(120000) });
       // A tap's click, without Playwright's own scroll into view first:
       // where the table is wider than its drawer (every column, on a
@@ -63,23 +65,21 @@ export const SCREENS: Screen[] = [
     },
   },
   // The panel's other tabs, each laid out once its briefing is in: the
-  // Brief's narrative answered by a line of the test's own (openTab), not
-  // a billed call.
+  // narrative asked for only by a tap, not here.
   ...([
-    ["Brief", "verdict"], ["Weather", "weather-places"], ["Performance", "takeoff-landing"], ["Airports", "airport-section"],
+    ["Preflight", "verdict"], ["Depart", "takeoff-landing"], ["En route", "weather-places"], ["Arrive", "weather-places"],
   ] as const).map(([tab, shown]): Screen => ({
     name: `panel, ${tab} tab`,
     ready: async page => {
       await page.goto(`/app/plan?${ROUTE}&view=briefing`);
       await page.getByTestId("navlog-eta").waitFor({ timeout: slow(120000) });
       await openTab(page, tab);
-      // The Weather's places are under their own pill (SectionTabs).
-      if (tab === "Weather") await openSection(page, "Along the Route");
-      await expect(sideDrawer(page).getByTestId(shown).first()).toBeVisible({ timeout: slow(30000) });
+      if (tab === "En route") await openSection(page, "Along the Route");
+      await expect(sideDrawer(page).locator('[role="tabpanel"][data-state="active"]').getByTestId(shown).first()).toBeVisible({ timeout: slow(30000) });
       // And the briefing in: the Brief's Go / No-Go says what it found, and
       // the mock oral's button is enabled once its question table loads --
       // measured as it faded in, it read 2:1 on CI's iPad.
-      if (tab === "Brief") {
+      if (tab === "Preflight") {
         await expect(sideDrawer(page).getByTestId("verdict-weather")).not.toHaveAttribute("data-finding", "pending", { timeout: slow(60000) });
         const ask = sideDrawer(page).getByTestId("oral-ask");
         if (await ask.count()) await expect(ask).toBeEnabled({ timeout: slow(30000) });
@@ -98,19 +98,20 @@ export const SCREENS: Screen[] = [
     ready: async page => {
       await page.goto(`/app/dev?${ROUTE}`);
       await settle(page);
-      await page.getByTestId("sidebar-trigger-button").click();
+      await grabberTo(page, "full");
       const rows = sideDrawer(page).locator("[data-waypoint-row]");
       await expect.poll(() => rows.count(), { timeout: slow(60000) }).toBeGreaterThan(10);
       await rows.nth(2).click();
-      await expect(sideDrawer(page).getByRole("button", { name: "Rate 5" })).toBeVisible();
+      await expect(sideDrawer(page).getByTestId("rating-card").getByRole("button", { name: "Rate 5" })).toBeVisible();
     },
   },
   {
     name: "developer console, System tab",
     ready: async page => {
       await page.goto("/app/dev");
-      await page.getByTestId("settings-button").click();
-      await page.getByRole("tab", { name: "System" }).click();
+      await showTabs(page);
+      await openConsole(page);
+      await consolePage(page, "Status");
       await expect(page.getByTestId("dev-refresh")).toBeVisible();
     },
   },
@@ -118,8 +119,9 @@ export const SCREENS: Screen[] = [
     name: "pilot console, Guide tab",
     ready: async page => {
       await page.goto("/app/plan");
-      await page.getByTestId("settings-button").click();
-      await page.getByRole("tab", { name: "Guide" }).click();
+      await showTabs(page);
+      await openConsole(page);
+      await consolePage(page, "Guide");
       await expect(page.getByRole("heading", { name: "Plan a flight" })).toBeVisible();
     },
   },
@@ -129,8 +131,9 @@ export const SCREENS: Screen[] = [
     name: "pilot console, Personal tab",
     ready: async page => {
       await page.goto("/app/plan");
-      await page.getByTestId("settings-button").click();
-      await page.getByRole("tab", { name: "Personal" }).click();
+      await showTabs(page);
+      await openConsole(page);
+      await consolePage(page, "Account");
       await expect(page.getByTestId("library-section")).toBeVisible();
     },
   },
@@ -139,12 +142,32 @@ export const SCREENS: Screen[] = [
     name: "pilot console, Personal's Aircraft page",
     ready: async page => {
       await page.goto("/app/plan");
-      await page.getByTestId("settings-button").click();
-      await page.getByRole("tab", { name: "Personal" }).click();
+      await showTabs(page);
+      await openConsole(page);
+      await consolePage(page, "Account");
       await page.getByTestId("library-section").getByRole("button", { name: /^Aircraft/ }).click();
       await expect(page.getByRole("heading", { name: "Aircraft", exact: true })).toBeVisible();
     },
   },
+  // The Logbook's training pages: the Checkride page (61.109, the ACS
+  // codes, the endorsements and the student's instructor) and the
+  // Instructing page, where the developer, no instructor, has the form
+  // for a flight instructor certificate.
+  ...([
+    ["Checkride", "Private pilot experience"],
+    ["Instructing", "Your flight instructor certificate"],
+  ] as const).map(([row, heading]): Screen => ({
+    name: `pilot console, Logbook's ${row} page`,
+    ready: async page => {
+      await page.goto("/app/plan");
+      await showTabs(page);
+      await openConsole(page);
+      await consolePage(page, "Account");
+      await page.getByTestId("library-section").getByRole("button", { name: /^Logbook/ }).click();
+      await page.getByRole("button", { name: new RegExp(`^${row}`) }).click();
+      await expect(page.getByRole("heading", { name: heading })).toBeVisible();
+    },
+  })),
   // The Guide's Practice pages: a drill's card with its answer shown, the
   // holding page's fields and drawing, the lost-comms page's segments.
   ...([
@@ -162,8 +185,9 @@ export const SCREENS: Screen[] = [
     name,
     ready: async page => {
       await page.goto("/app/plan");
-      await page.getByTestId("settings-button").click();
-      await page.getByRole("tab", { name: "Guide" }).click();
+      await showTabs(page);
+      await openConsole(page);
+      await consolePage(page, "Guide");
       await page.getByRole("button", { name: new RegExp(`^${row}`) }).click();
       await open(page);
     },
@@ -172,8 +196,9 @@ export const SCREENS: Screen[] = [
     name: "developer console, Guide tab",
     ready: async page => {
       await page.goto("/app/dev");
-      await page.getByTestId("settings-button").click();
-      await page.getByRole("tab", { name: "Guide" }).click();
+      await showTabs(page);
+      await openConsole(page);
+      await consolePage(page, "Guide");
       await expect(page.getByRole("heading", { name: "Train the model" })).toBeVisible();
     },
   },
@@ -182,7 +207,48 @@ export const SCREENS: Screen[] = [
     ready: async page => {
       await page.goto("/app/plan");
       await openSettings(page);
-      await expect(page.getByTestId("role-menu")).toBeVisible();
+      await expect(page.getByTestId("settings-panel")).toBeVisible();
+    },
+  },
+  {
+    name: "pilot console, About tab",
+    ready: async page => {
+      await page.goto("/app/plan");
+      await openSettings(page);
+      await consolePage(page.getByTestId("console-sheet"), "About");
+      await expect(page.getByTestId("about-build")).toBeVisible();
+    },
+  },
+  // The tab bar's other places, each as it opens: the airplanes about
+  // and the airports nearest, half way up.
+  {
+    name: "Aircraft tab",
+    ready: async page => {
+      await page.goto("/app/plan?aircraft=1");
+      await settle(page);
+      await openPanel(page);
+      await expect(sideDrawer(page).getByTestId("aircraft-search")).toBeVisible();
+    },
+  },
+  {
+    name: "Nearest list",
+    ready: async page => {
+      await page.goto("/app/plan?near=1");
+      await settle(page);
+      await openPanel(page);
+      await expect(sideDrawer(page).getByTestId("nearest-card")).toBeVisible();
+    },
+  },
+  {
+    name: "developer page, Perf tab",
+    ready: async page => {
+      await page.goto("/app/dev");
+      await settle(page);
+      await showTabs(page);
+      await page.getByTestId("tab-perf").click();
+      // The training page's pill is its tabs: Perf all the way up.
+      await grabberTo(page, "full");
+      await expect(sideDrawer(page).getByTestId("perf-panel").getByText("Model comparison")).toBeVisible({ timeout: slow(30000) });
     },
   },
   {
@@ -226,9 +292,9 @@ export const SCREENS: Screen[] = [
       await page.getByTestId("depart-date").click({ timeout: slow(30000) });
       await page.locator('[data-slot="calendar"] td button').nth(20).click();
       await expect(page.getByTestId("depart-time")).toBeVisible();
-      // The plan made again for that day: Save enabled behind the sheet,
+      // The plan made again for that day, its arrival in behind the sheet:
       // not judged greyed out mid-plan.
-      await expect(page.getByTestId("save-flight-button")).toBeEnabled({ timeout: slow(120000) });
+      await expect(page.getByTestId("navlog-eta")).toBeAttached({ timeout: slow(120000) });
     },
   },
   {
@@ -247,6 +313,7 @@ export const SCREENS: Screen[] = [
     ready: async page => {
       await page.goto("/app/plan?dep=C81&dest=C81&view=briefing");
       await expect(page.locator('[data-slot="section-summary"]').first()).toContainText("Aloft", { timeout: slow(30000) });
+      await openTab(page, "En route");
       await expect(page.getByTestId("fuel-check")).toBeVisible();
     },
   },

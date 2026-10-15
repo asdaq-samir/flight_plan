@@ -33,6 +33,19 @@ describe("the Go / No-Go", () => {
     expect(verdictLine(items)).toEqual({ finding: "stop", words: "No-go as planned: Weather, TFRs & special use, Altitude, Fuel" });
   });
 
+  it("under IFR cites the IFR reserve's rule", () => {
+    const items = verdictItems({ ...quiet, fuel: { ...quiet.fuel, marginGal: -2.25, reserveMin: 45, ifr: true } });
+    expect(items.find(i => i.key === "fuel")!.detail).toBe("2.3 gal short of the fuel and its 45 min reserve (14 CFR 91.167)");
+  });
+
+  it("under IFR asks for another look at icing at the altitude flown, before the hazards it may come from", () => {
+    const icing = "Icing possible at 6,000 ft: the freezing level at 5,000 ft, in cloud";
+    const item = finding({ ...quiet, weather: { ...quiet.weather, icing, hazards: ["Icing G-AIRMET"] } }, "weather");
+    expect(item).toMatchObject({ finding: "caution", detail: icing, section: "Adverse Conditions" });
+    // Your own minimums come first.
+    expect(finding({ ...quiet, weather: { ...quiet.weather, icing, underMinimums: ["KDLH 800 ft"] } }, "weather").finding).toBe("stop");
+  });
+
   it("asks for another look at hazards, an area in use, a pilot's own altitude and a crosswind", () => {
     const input: VerdictInput = {
       ...quiet,

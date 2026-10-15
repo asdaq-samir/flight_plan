@@ -18,7 +18,7 @@ describe("closeTopmost", () => {
   });
 
   it("closes what takes Escape, a card or a menu, and goes no further", () => {
-    document.body.innerHTML = '<div data-slot="map-panel" data-panel="half"></div>';
+    document.body.innerHTML = '<div data-slot="map-panel" data-panel="full"></div>';
     let lowered = false;
     on(document.querySelector("[data-slot=map-panel]")!, () => { lowered = true; });
     on(document, event => { if (event.key === "Escape") event.preventDefault(); });
@@ -27,7 +27,7 @@ describe("closeTopmost", () => {
   });
 
   it("closes the card on top, an airport's over Nearest's, before the panel", () => {
-    document.body.innerHTML = '<div data-slot="map-panel" data-panel="half"></div>';
+    document.body.innerHTML = '<div data-slot="map-panel" data-panel="full"></div>';
     const closed: string[] = [];
     let lowered = false;
     on(document.querySelector("[data-slot=map-panel]")!, () => { lowered = true; });

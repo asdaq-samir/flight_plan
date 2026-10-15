@@ -3,7 +3,7 @@ import { Navigation } from "lucide-react";
 import { showError } from "../lib/problems";
 import { cn } from "cn";
 import IconButton from "./IconButton";
-import { ownShipAvailable, useOwnShip } from "../lib/map/ownShip";
+import { APPROXIMATE_M, ownShipAvailable, useOwnShip } from "../lib/map/ownShip";
 
 /**
  * My position, among the map's buttons, as Maps and every map app has
@@ -33,6 +33,15 @@ export default function MyPositionButton() {
     // Said once, as it happens: a refusal of the browser's prompt.
     if (error) showError("No position", error);
   }, [error]);
+  // Precise Location off: said once as the position comes in that way,
+  // since everything drawn from it may be a mile or more out.
+  const approximate = useOwnShip(s => s.fix !== null && s.fix.accuracyM >= APPROXIMATE_M);
+  useEffect(() => {
+    if (approximate) {
+      showError("Approximate position",
+        "Precise Location is off for Wingtip Maps, so your position, the glide ring and what is ahead may be a mile or more out. Turn it on in the phone's Settings, under Privacy and Location Services.");
+    }
+  }, [approximate]);
   const following = enabled && follow;
   const tap = () => {
     if (!ownShipAvailable()) {

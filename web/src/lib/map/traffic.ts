@@ -2,12 +2,13 @@ import type { TrafficAircraft } from "../api/types";
 import { destination, distanceNm, type LatLon } from "../geo";
 import { grouped } from "../units";
 import type { Fix } from "./ownShip";
+import type { Report } from "./tracking";
 
 /** Within this of own ship's height an airplane is drawn amber, the
  *  traffic to look for first. A design choice: 1,000 ft is the vertical
  *  spacing VFR cruising altitudes keep between opposite directions'
  *  (91.159), the nearest another airplane is meant to be passing. */
-export const NEAR_FT = 1000;
+const NEAR_FT = 1000;
 /** A vertical rate this or more gets an arrow by the height, as a TCAS
  *  display draws one (the FAA's Introduction to TCAS II, version 7.1). */
 const ARROW_FPM = 500;
@@ -68,7 +69,7 @@ export function ownShipHex(planes: TrafficAircraft[], fix: Fix | null): string |
 export const CARRY_S = 30;
 /** How far ahead its line reaches, seconds: ForeFlight's TrafficTrend
  *  vector shows where a target will be in the next 60. */
-export const TREND_S = 60;
+const TREND_S = 60;
 
 /** Where an airplane is `seconds` after its report, carried on along its
  *  track at its ground speed, as ForeFlight carries internet traffic on
@@ -140,4 +141,29 @@ export function closestApproach(own: Fix, plane: TrafficAircraft): { inMin: numb
   const aboveFt = plane.altitude_ft == null || own.altitudeFt == null ? null
     : plane.altitude_ft + (plane.vertical_fpm ?? 0) * hours * 60 - own.altitudeFt;
   return { inMin: hours * 60, nm, aboveFt };
+}
+
+/**
+ * The internet's airplanes and a cockpit receiver's (lib/map/receiver),
+ * as one list by ICAO address: of an airplane both hear, the fresher
+ * report, keeping the internet's registration and type, which GDL 90
+ * does not send, and its callsign where the receiver has none; own ship's
+ * echo (the receiver's own address) left out. Null with neither yet.
+ */
+export function mergeTraffic(internet: Report[] | null, cockpit: Report[], ownHex: string | null): Report[] | null {
+  if (internet === null && !cockpit.length) return null;
+  const byHex = new Map<string, Report>((internet ?? []).map(r => [r.plane.hex, r]));
+  for (const heard of cockpit) {
+    const held = byHex.get(heard.plane.hex);
+    if (held && held.at > heard.at) continue;
+    byHex.set(heard.plane.hex, held ? {
+      plane: {
+        ...heard.plane, callsign: heard.plane.callsign ?? held.plane.callsign,
+        registration: held.plane.registration, type: held.plane.type,
+      },
+      at: heard.at,
+    } : heard);
+  }
+  if (ownHex) byHex.delete(ownHex);
+  return [...byHex.values()];
 }

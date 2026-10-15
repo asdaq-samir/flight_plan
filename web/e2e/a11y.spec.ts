@@ -1,6 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { test, expect, type Page } from "@playwright/test";
-import { settle, settled, slow, openTab } from "./helpers";
+import { openConsole, openTab, settle, settled, showTabs, slow, consolePage } from "./helpers";
 
 /**
  * Accessibility by axe-core, beside the iOS audit's measured rules
@@ -46,7 +46,7 @@ test("a route's panel out, each of its tabs", async ({ page }) => {
   await page.goto("/app/plan?dep=C81&dest=KDLH&view=briefing");
   await settle(page);
   await expect(page.getByTestId("navlog-eta")).toBeVisible({ timeout: slow(120000) });
-  for (const tab of ["Nav Log", "Weather", "Brief", "Performance", "Airports"] as const) {
+  for (const tab of ["Nav Log", "Weather", "Brief", "Performance"] as const) {
     await openTab(page, tab);
     await page.waitForTimeout(600);
     expect(await violations(page), tab).toEqual([]);
@@ -56,8 +56,9 @@ test("a route's panel out, each of its tabs", async ({ page }) => {
 test("the console's Settings", async ({ page }) => {
   await page.goto("/app/plan");
   await settle(page);
-  await page.getByTestId("settings-button").click();
-  await page.getByTestId("console-sheet").getByRole("tab", { name: "Settings" }).click();
+  await showTabs(page);
+  await openConsole(page);
+  await consolePage(page.getByTestId("console-sheet"), "Settings");
   // Come to rest: sliding in, its glass is over the moving map, and its
   // words were read against that.
   await page.getByTestId("console-sheet").evaluate(el => Promise.all(el.getAnimations({ subtree: true })

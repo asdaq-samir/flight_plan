@@ -12,15 +12,25 @@ type Space = AirspaceClass;
 
 /** The sectional's blue and magenta, a shade lighter so a glyph in them
  *  reads on the panel's dark material too -- the map's airport marks'
- *  as well (lib/map/icons). */
+ *  as well (lib/map/icons). The magenta nearer the chart's ink, at the
+ *  owner's ask ("Why is class C color red instead of magenta?"): it was
+ *  #b02e7c, which read as red beside IFR's. */
 export const BLUE = "#2465b8";
-export const MAGENTA = "#b02e7c";
+export const MAGENTA = "#c0309f";
 
 /**
  * A field's airspace as the sectional draws it, on its tile: Class B a
  * solid blue line, C solid magenta, D dashed blue, an E surface area
  * dashed magenta, and G no line at all -- the field under the shaded
- * magenta edge of the Class E above it, here a ring of the same shading.
+ * magenta edge of the Class E above it, here a ring of the same shading
+ * (FAA Aeronautical Chart User's Guide, 9 Jul 2026, VFR Terms and
+ * Symbols: Class D "a blue dashed line", Class E (SFC) "a magenta dashed
+ * line", Class E floors "narrow bands of vignette"). The airspace's lines,
+ * not the airport symbol's colour, which the chart sets by its tower
+ * ("Airports having control towers (CT) are shown in blue, all others are
+ * shown in magenta"): a Class C field here is magenta, towered all the
+ * same -- the owner's call, asked on 2026-10-12 ("Airspace color for
+ * class C"), over the chart's tower blue.
  * Solid as a fill, dashed as a dashed ring on a wash of the colour --
  * an outline drawn inside the edge, not a border, so a dashed pill is no
  * bigger than a solid one beside it (the route's box had KDLH's dashed
@@ -29,7 +39,7 @@ export const MAGENTA = "#b02e7c";
  * --airspace-*-ink): the sectional's own blue on its wash, over the glass,
  * was 4.2:1 in the light and 2:1 in the dark, under WCAG's 4.5.
  */
-export const AIRSPACE: Record<Space, { name: string; style: CSSProperties }> = {
+const AIRSPACE: Record<Space, { name: string; style: CSSProperties }> = {
   B: { name: "Class B", style: { backgroundColor: BLUE, color: "#ffffff" } },
   C: { name: "Class C", style: { backgroundColor: MAGENTA, color: "#ffffff" } },
   D: { name: "Class D", style: { outline: `2.5px dashed ${BLUE}`, outlineOffset: -2.5, backgroundColor: `${BLUE}1f`, color: "var(--airspace-blue-ink)" } },

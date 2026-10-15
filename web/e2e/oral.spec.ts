@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { test, expect } from "@playwright/test";
-import { settle, sideDrawer, slow, openTab, openSection, sectionTab } from "./helpers";
+import { settle, sideDrawer, slow, openTab, openSection } from "./helpers";
 
 /**
  * The briefing's Mock Oral (MockOral, the planner's app.oral): the
@@ -54,7 +54,6 @@ test("a pilot who is not the developer has no mock oral yet", async ({ page }) =
   await settle(page);
   await expect(page.getByTestId("navlog-eta")).toBeVisible({ timeout: slow(120000) });
   await openTab(page, "Brief");
-  await expect(sectionTab(page, "Risk Assessment")).toBeVisible();
-  await expect(sectionTab(page, "Mock Oral")).toHaveCount(0);
+  await expect(sideDrawer(page).locator('[data-title="Risk Assessment"]')).toBeAttached();
   await expect(sideDrawer(page).locator('[data-title="Mock Oral"]')).toHaveCount(0);
 });

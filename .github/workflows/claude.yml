@@ -31,6 +31,13 @@ permissions:
   id-token: write
   actions: read
 
+# One run at a time for each issue or pull request, the next queued behind
+# it rather than racing it on the same branch: several comments in a row
+# started as many runs, each writing to GitHub at once.
+concurrency:
+  group: claude-${{ github.event.issue.number || github.event.pull_request.number }}
+  cancel-in-progress: false
+
 jobs:
   claude:
     if: |

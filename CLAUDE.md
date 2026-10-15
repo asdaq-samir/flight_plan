@@ -13,6 +13,9 @@ It is headed for an iOS app. README.md has the services and the layout.
   moves, Sync merges it back into maps-layout.
 - Never push to `main`. Never force-push. Pull before pushing to
   maps-layout: Sync may have added a merge.
+- Write to GitHub gently, as the `ship` skill says: one write at a time,
+  ten seconds apart, a long list as one issue's checklist. A burst of API
+  writes got the owner's account suspended in October 2026.
 - Every week the Audit workflow checks design, code, speed and aviation,
   and once a month the market, the launch and the marketing. It opens
   `claude/audit-*` pull requests, and issues labelled "audit".
@@ -57,6 +60,9 @@ from: `python -m app.openapi` in planning-service, or `WRITE_OPENAPI=1 mvn
 
 The browser tests (Playwright, `web/e2e`) need the whole stack and run in
 CI; write or update the spec for a change a pilot sees, and let CI run it.
+On the owner's Mac run only the specs a change touches, and every browser
+run, image build and measurement through `scripts/one-at-a-time.sh`, so
+sessions sharing the Mac take turns (the `checks` skill).
 
 ## The app on the phone
 

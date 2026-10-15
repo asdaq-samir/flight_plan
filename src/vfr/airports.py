@@ -435,6 +435,38 @@ def nearest(lat: float, lon: float, limit: int = 10, cache_path: Path = DEFAULT_
     ]
 
 
+@lru_cache(maxsize=2)
+def _abroad_of(path: str, _mtime: float) -> pd.DataFrame:
+    """The landing fields outside the US, for naming where a tracked
+    airplane flew from and to abroad (vfr.traffic.history) -- never for
+    planning, which is the US's alone (`_us_airports_of`). Its ident the
+    ICAO code where it has one, else OurAirports' own."""
+    df = _read_table(path, _mtime)
+    abroad = df[(df["iso_country"] != "US") & df["type"].isin(list(_FIELD_KINDS))].copy()
+    has_icao = abroad["icao_code"].notna() & (abroad["icao_code"] != "")
+    abroad["_display_ident"] = abroad["icao_code"].where(has_icao, abroad["ident"])
+    return abroad
+
+
+def nearest_abroad(lat: float, lon: float, limit: int = 3, cache_path: Path = DEFAULT_CACHE_PATH) -> list[dict]:
+    """As `nearest`, among the fields outside the US: a European airline's
+    flight, followed on the map, named by its own airports (LEBL, EGKK)
+    rather than none."""
+    path = _ensure_cached(OURAIRPORTS_URL, cache_path)
+    fields = _abroad_of(str(path), path.stat().st_mtime)
+    half = 0.5
+    box = fields[fields["latitude_deg"].between(lat - half, lat + half)
+                 & fields["longitude_deg"].between(lon - half * 2, lon + half * 2)]
+    if box.empty:
+        return []
+    lats, lons = box["latitude_deg"].to_numpy(dtype=float), box["longitude_deg"].to_numpy(dtype=float)
+    ordered = box.assign(_d=geo.distance_nm(lat, lon, lats, lons), _b=geo.bearing_deg(lat, lon, lats, lons)).sort_values("_d").head(limit)
+    return [
+        {**_place_of(row), "distance_nm": round(float(row["_d"]), 1), "bearing_deg": round(float(row["_b"])) % 360}
+        for _, row in ordered.iterrows()
+    ]
+
+
 def get_runways(ident: str, cache_path: Path = RUNWAYS_CACHE_PATH) -> list[dict]:
     """This airport's runways, for the briefing's own airport-
     information section. Keyed by `airport_ident` directly --

@@ -27,7 +27,6 @@ export type Course = Schemas["Course"];
 export type Detour = Schemas["Detour"];
 /** An altitude the pilot set for a hop and what is wrong with it (the
  *  planner's own_altitude_caution): a warning, not a refusal. */
-export type AltitudeCaution = Schemas["AltitudeCaution"];
 /** One chart kind the map may draw, with its zooms -- and, for an
  *  overlay, its sheets and where each is. */
 export type ChartLayer = Schemas["ChartLayer"];
@@ -35,7 +34,6 @@ export type ChartSheet = Schemas["ChartSheet"];
 /** A scored OSM candidate. `selected` is set by the server's greedy pass. */
 export type Candidate = Schemas["Candidate"];
 export type Checkpoints = Schemas["Checkpoints"];
-export type Wind = Schemas["Wind"];
 /** One dead-reckoning leg. `wind` is null when no winds-aloft station is
  *  near enough, which is not the same as calm; groundspeed/ETE/fuel are
  *  null when the wind exceeds true airspeed and the leg cannot be flown. */
@@ -46,13 +44,18 @@ export type TopOfClimb = Schemas["TopOfClimb"];
 /** Where a leg's descent starts (TOD), to what and at what rate. */
 export type TopOfDescent = Schemas["TopOfDescent"];
 export type Totals = Schemas["Totals"];
-export type Hazard = Schemas["Hazard"];
 export type AltitudeBreakdown = Schemas["AltitudeBreakdown"];
 export type AltitudeSegment = Schemas["AltitudeSegment"];
 /** One of the four plans: lowest, highest, fastest for the winds, and
  *  economical, the least fuel, climb and cruise. */
 export type AltitudeOption = Schemas["AltitudeOption"];
 export type AltitudeChoice = AltitudeOption["kind"];
+/** An airplane's flights of the last seven days (vfr.traffic.history). */
+export type PastFlights = Schemas["PastFlights"];
+export type PastFlightSummary = Schemas["PastFlightSummary"];
+/** One past flight's reports, for its track log and replay. */
+export type PastFlight = Schemas["PastFlight"];
+export type PastFlightPoint = Schemas["PastFlightPoint"];
 export type AircraftProfile = Schemas["AircraftProfile"];
 /** How an airplane is loaded: its POH's stations, limits and envelope. */
 export type Loading = Schemas["Loading"];
@@ -62,13 +65,19 @@ export type ShortField = Schemas["ShortField"];
  *  "altitude" the moment that's decided, one "leg" per leg, then "done"
  *  with the totals; "error" for an unflyable route. */
 export type NavLogMessage = Schemas["NavLogMessage"];
-export type Forecast = Schemas["Forecast"];
 export type Runway = Schemas["Runway"];
 export type Frequency = Schemas["Frequency"];
 export type Briefing = Schemas["Briefing"];
+/** `GET /api/alternate`: under IFR, whether the destination needs an
+ *  alternate (14 CFR 91.169(b)), the pilot's alternate checked against its
+ *  minimums at its ETA (91.169(c)), and the nearest fields that will do. */
+export type Alternates = Schemas["Alternates"];
+export type AlternateCheck = Schemas["AlternateCheck"];
+
 export type ChartInfo = Schemas["ChartInfo"];
 export type AirportSearch = Schemas["AirportSearch"];
 export type AirportPlace = Schemas["AirportPlace"];
+export type Metar = Schemas["Metar"];
 export type TerminalChart = Schemas["TerminalChart"];
 /** A field's instrument procedures from the FAA's CIFP, and one drawn
  *  with the transition picked (the planner's vfr.procedures). */
@@ -115,6 +124,7 @@ export type AlertsAhead = Schemas["AlertsAhead"];
 export type AheadAlert = Schemas["AheadAlert"];
 /** The airplanes ADS-B receivers hear near a point (vfr.traffic). */
 export type Traffic = Schemas["Traffic"];
+export type AircraftBases = Schemas["AircraftBases"];
 export type TrafficAircraft = Schemas["TrafficAircraft"];
 export type TrafficFound = Schemas["TrafficFound"];
 /** A tracked flight: its airplane, where it took off, its path today. */
@@ -204,14 +214,42 @@ export type Pilot = Webapp["PilotDto"];
 /** How this deployment is reached -- SIGN_IN, OPEN or CLOSED -- asked
  *  before anyone has signed in (`/api/auth/capabilities`). */
 export type SignInCapabilities = Webapp["Capabilities"];
+/** Who has the features Claude writes where no subscription is sold. */
+export type ClaudeFeatures = SignInCapabilities["claudeFeatures"];
+/** `GET /api/subscription`: the signed-in pilot's subscription to the
+ *  paid features (SubscriptionService) -- FREE, TRIAL, SUBSCRIBED or
+ *  COMPED, until when, whether the free month is still theirs to start,
+ *  and this month's uses of each Claude-written feature against its cap.
+ *  For showing: the server checks it again on every paid call. */
+export type Subscription = Webapp["SubscriptionDto"];
+/** What the subscription unlocks: NARRATIVE, CHECKPOINT_NOTES, ORAL, DEBRIEF. */
+export type PaidFeature = Subscription["uses"][number]["feature"];
 /** The iOS app's Apple sign-in, done: where to go next. */
 export type AppleSignedIn = Webapp["SignedIn"];
+/** A TV's code to be signed in with from a phone (DeviceSignInController). */
+export type DeviceCode = Webapp["DeviceCode"];
 
 /** A pilot's own airplane, from `/api/aircraft`. `usableFuelGal` is
  *  null when the owner has not said, and then the nav log makes no
  *  fuel check. */
 export type Aircraft = Webapp["AircraftDto"];
 export type AircraftRequest = Webapp["AircraftRequest"];
+/** A VOR check for IFR as the pilot records it (14 CFR 91.171(d)). */
+export type VorCheckRequest = Webapp["VorCheckRequest"];
+export type InspectionsRequest = Webapp["InspectionsRequest"];
+export type Inspections = Webapp["InspectionsDto"];
+export type ChecklistDto = Webapp["ChecklistDto"];
+export type Squawk = Webapp["SquawkDto"];
+export type SquawkRequest = Webapp["SquawkRequest"];
+export type Reminders = Webapp["RemindersDto"];
+export type LogbookImportResult = Webapp["LogbookImportResult"];
+export type FlightPlanFilingRequest = Webapp["FlightPlanFilingRequest"];
+export type FlightServiceStatus = Webapp["FlightServiceStatus"];
+export type FlightPlanFiled = Webapp["FlightPlanFiled"];
+/** One day of one speed metric from one source and kind of device (SpeedController). */
+export type SpeedDay = Webapp["SpeedDay"];
+/** A page's Core Web Vitals from this browser (SpeedController, lib/speed). */
+export type SpeedFieldReport = Webapp["FieldReport"];
 
 /** One row of "My Flights" -- totals only; `Flight` carries the full
  *  filed nav log, fetched one flight at a time. */
@@ -234,6 +272,19 @@ export type CurrencyDatesRequest = Webapp["CurrencyDatesRequest"];
  *  logbook, the knowledge test report's ACS codes, the endorsements. */
 export type Training = Webapp["TrainingDto"];
 export type ExperienceItem = Webapp["ExperienceItemDto"];
+/** One of the student endorsements, AC 61-65K's words with its blanks. */
+export type EndorsementKind = Webapp["EndorsementKindDto"];
+/** An endorsement an instructor signed in the app. */
+export type SignedEndorsement = Webapp["SignedEndorsementDto"];
+/** A solo cross-country put to an instructor (14 CFR 61.93(c)(3)). */
+export type CrossCountryReview = Webapp["CrossCountryReviewDto"];
+/** A pilot as a flight instructor: certificate, students, reviews, record. */
+export type Instructor = Webapp["InstructorDto"];
+export type InstructorRequest = Webapp["InstructorRequest"];
+export type StudentRow = Webapp["StudentDto"];
+/** One of a student's instructors, asked or taken. */
+export type InstructorLink = Webapp["InstructorLinkDto"];
+export type SignRequest = Webapp["SignRequest"];
 
 // ---------------------------------------------------------------------
 // The narrative agents, reached through ComparisonProxyController, which

@@ -4,14 +4,15 @@ import { ChartContainer, type ChartConfig } from "../../../../components/ui/char
 import ChartTick from "../../../../components/chartTick";
 import type { RouteProfile } from "../../../../lib/api/types";
 import { altFt } from "../../../../lib/units";
-import type { planProfile } from "./profile";
+import { ceilingOverFloor, ceilings, type planProfile } from "./profile";
 
 /** The sectional's airspace colours: Class B solid blue, C magenta, D
  *  blue dashed. */
-const AIRSPACE: Record<string, { stroke: string; dash?: string }> = {
-  B: { stroke: "#2465b8" },
-  C: { stroke: "#b02e7c" },
-  D: { stroke: "#2465b8", dash: "5 4" },
+// Each name in its colour as text, lightened on a dark card (index.css).
+const AIRSPACE: Record<string, { stroke: string; text: string; dash?: string }> = {
+  B: { stroke: "#2465b8", text: "var(--airspace-blue-text)" },
+  C: { stroke: "#c0309f", text: "var(--airspace-magenta-text)" },
+  D: { stroke: "#2465b8", text: "var(--airspace-blue-text)", dash: "5 4" },
 };
 
 const config = {
@@ -35,7 +36,9 @@ export default memo(function ProfileChart({ profile, plan }: { profile: RoutePro
     ...profile.terrain.map(t => ({ x: t.along_nm, ground: t.ground_ft })),
     ...plan.points.map(p => ({ x: p.along_nm * scale, plan: p.plan_ft })),
   ].sort((a, b) => a.x - b.x);
-  const highest = Math.max(0, ...profile.terrain.map(t => t.ground_ft), ...plan.points.map(p => p.plan_ft));
+  // The airspace's ceilings over the plan's line, as the pill's side view
+  // has them (MiniProfile), at the owner's ask.
+  const highest = Math.max(0, ...profile.terrain.map(t => t.ground_ft), ...plan.points.map(p => p.plan_ft), ...ceilings(profile.airspace));
   const top = Math.ceil((highest + 1500) / 1000) * 1000;
   return (
     // Its labels on SVG's own leading; its axes' figures are ChartTick's,
@@ -58,11 +61,16 @@ export default memo(function ProfileChart({ profile, plan }: { profile: RoutePro
         />
         {profile.airspace.map((a, i) => {
           const look = AIRSPACE[a.class] ?? AIRSPACE.D!;
+          // Its airport's ident over its widest piece, as the pill's side
+          // view has it (MiniProfile), at the owner's ask.
+          const label = a.ident || `Class ${a.class}`;
+          const widest = profile.airspace.every(b => (b.ident || `Class ${b.class}`) !== label || b === a || b.to_nm - b.from_nm < a.to_nm - a.from_nm);
           return (
             <ReferenceArea
               key={i} x1={a.from_nm} x2={a.to_nm} y1={a.floor_ft} y2={Math.min(a.ceiling_ft ?? top, top)}
               stroke={look.stroke} strokeDasharray={look.dash} strokeOpacity={0.8} fill={look.stroke} fillOpacity={0.08}
               ifOverflow="hidden"
+              label={widest ? { value: `${label} ${ceilingOverFloor(a)}`.trim(), position: "insideTop", fontSize: 11, fontWeight: 600, fill: look.text } : undefined}
             />
           );
         })}

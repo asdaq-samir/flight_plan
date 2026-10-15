@@ -11,10 +11,12 @@ import com.northflyers.vfr.service.PilotService;
 import com.northflyers.vfr.service.UnverifiedEmailException;
 import java.time.Instant;
 import java.util.List;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import org.springframework.security.oauth2.jwt.BadJwtException;
@@ -28,6 +30,16 @@ import org.springframework.security.web.context.HttpSessionSecurityContextReposi
  * anything else signs nobody in.
  */
 class AppleNativeSignInControllerTest {
+
+    // Signing in here sets the thread's security context (SessionSignIn),
+    // and with the controller called outside the filter chain nothing
+    // clears it: left behind, it signed in every later MockMvc request on
+    // the thread -- the anonymous reader of the speed trend got 403, not
+    // 401 (SpeedControllerTest, in CI's run of the whole suite).
+    @AfterEach
+    void signOutOfThisThread() {
+        SecurityContextHolder.clearContext();
+    }
 
     private static Jwt token(String audience) {
         return Jwt.withTokenValue("apple-token").header("alg", "RS256")

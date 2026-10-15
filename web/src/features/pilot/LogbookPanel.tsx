@@ -1,7 +1,7 @@
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format, parseISO } from "date-fns";
-import { CircleMinus, GraduationCap, Plus } from "lucide-react";
+import { CircleMinus, FileDown, FileUp, GraduationCap, Mail, MailX, Plus, Users } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "cn";
 import { ConsolePages, PageRow } from "../../components/ConsolePages";
@@ -11,19 +11,26 @@ import { ResponsivePopover, ResponsivePopoverAnchor, ResponsivePopoverContent, R
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { useConfirm } from "../../components/useConfirm";
-import { api } from "../../lib/api/client";
+import TogglePill from "../../components/TogglePill";
+import { api, describeError } from "../../lib/api/client";
+import { shareFile } from "../../lib/flightPlanFiles";
+import { importLogbook, logbookCsv } from "../../lib/logbookCsv";
+import { showError } from "../../lib/problems";
 import type { Currency, LogbookEntry, LogbookEntryRequest } from "../../lib/api/types";
 import { TEXT } from "../../lib/text";
 import CheckridePage from "./CheckridePage";
+import InstructorPage from "./InstructorPage";
+import { localDay } from "../../lib/clock";
+import { FINDING_TONE } from "../../lib/status";
 
 const day = (iso: string) => format(parseISO(iso), "d MMM yyyy");
-const today = () => format(new Date(), "yyyy-MM-dd");
+const today = () => localDay();
 
 /** "To 19 Dec 2026" in the tint's green, or "Not current" in red. */
 function Until({ date, what }: { date: string | null | undefined; what: string }) {
   const current = !!date && date >= today();
   return (
-    <span className={cn("tabular-nums", current ? "text-green-700 dark:text-green-400" : "text-red-700 dark:text-red-400")} data-testid={`currency-${what}`}>
+    <span className={cn("tabular-nums", current ? FINDING_TONE.ok : FINDING_TONE.stop)} data-testid={`currency-${what}`}>
       {!date ? "Not current" : current ? `To ${day(date)}` : `Ended ${day(date)}`}
     </span>
   );
@@ -45,6 +52,7 @@ const BLANK: LogbookEntryRequest = {
   flownOn: today(), aircraft: "", aircraftType: "", route: "", totalHours: 0, nightHours: 0, crossCountryHours: 0,
   dayLandings: 1, nightLandings: 0, remarks: "",
   dualHours: 0, soloHours: 0, instrumentHours: 0, toweredLandings: 0, distanceNm: 0, longestLegNm: 0,
+  approaches: 0, holding: false, tracking: false,
 };
 
 /** One entry's form: a paper logbook's columns. */
@@ -80,6 +88,16 @@ function EntryForm({ initial, onSave, saving }: { initial: LogbookEntryRequest; 
       {field("toweredLandings", "Towered landings", "number")}
       {field("distanceNm", "Distance (nm)", "number")}
       {field("longestLegNm", "Longest leg (nm)", "number")}
+      {/* What instrument currency is counted from (14 CFR 61.57(c)): the
+          approaches, holding and tracking courses, actual or simulated. */}
+      {field("approaches", "Approaches", "number")}
+      <div className={cn("grid grid-cols-[8rem_1fr] items-center gap-2", TEXT.detail)}>
+        <span>Also flew</span>
+        <span className="flex gap-2">
+          <TogglePill pressed={entry.holding} onPressedChange={holding => setEntry({ ...entry, holding })} label="Holding" testId="logbook-holding" />
+          <TogglePill pressed={entry.tracking} onPressedChange={tracking => setEntry({ ...entry, tracking })} label="Tracking" testId="logbook-tracking" />
+        </span>
+      </div>
       {field("remarks", "Remarks")}
       <div className="flex justify-end pt-1">
         <Button type="submit" size="sm" disabled={saving || !entry.flownOn} data-testid="logbook-save">Save</Button>
@@ -92,7 +110,8 @@ function EntryForm({ initial, onSave, saving }: { initial: LogbookEntryRequest; 
  * The pilot's logbook and their currency, the Library's Logbook:
  * where they stand first -- passengers by day and at night (14 CFR
  * 61.57), the flight review (61.56) and the medical, with the two dates
- * they give -- then the totals and the flights, newest first. Add opens
+ * they give, and instrument currency (61.57(c)) with the last proficiency
+ * check -- then the totals and the flights, newest first. Add opens
  * the entry's form,
  * filled in with the airplane picked for planning; a row opens it to
  * change; Edit takes one out.
@@ -117,7 +136,7 @@ export function LogbookPanel({ aircraft }: { aircraft?: string }) {
   });
   const remove = useMutation({ mutationFn: (id: number) => api.logbook.remove(id), onSuccess: () => { setToDelete(null); refresh(); } });
   const dates = useMutation({
-    mutationFn: (next: { flightReviewOn: string | null; medicalExpiresOn: string | null }) => api.logbook.setCurrencyDates(next),
+    mutationFn: (next: { flightReviewOn: string | null; medicalExpiresOn: string | null; ipcOn: string | null }) => api.logbook.setCurrencyDates(next),
     onSuccess: (c: Currency) => queryClient.setQueryData(["currency"], c),
   });
   const [askDelete, deleteDialog] = useConfirm({
@@ -125,30 +144,106 @@ export function LogbookPanel({ aircraft }: { aircraft?: string }) {
     confirmLabel: "Delete", destructive: true, onConfirm: () => { if (toDelete) remove.mutate(toDelete.id); },
   });
 
+  // Emailed 30 and 7 days before each of these runs out (ReminderService),
+  // at the pilot's ask.
+  const { data: reminders } = useQuery({ queryKey: ["reminders"], queryFn: api.logbook.reminders });
+  const remind = useMutation({
+    mutationFn: (on: boolean) => api.logbook.setReminders(on),
+    onSuccess: r => queryClient.setQueryData(["reminders"], r),
+  });
   const reviewOn = currency?.flightReviewOn ?? null;
   const medicalOn = currency?.medicalExpiresOn ?? null;
+  const ipcOn = currency?.ipcOn ?? null;
+  // The dates given, each changed on its own.
+  const setDates = (change: Partial<{ flightReviewOn: string | null; medicalExpiresOn: string | null; ipcOn: string | null }>) =>
+    dates.mutate({ flightReviewOn: reviewOn, medicalExpiresOn: medicalOn, ipcOn, ...change });
+  // Lapsed more than six calendar months: only a check restores it (61.57(d)).
+  const ipcNeeded = !!currency?.ipcNeededAfter && currency.ipcNeededAfter < today();
   const met = training?.experience.filter(i => i.met).length ?? 0;
+  // The logbook to and from a file (lib/logbookCsv): ForeFlight's export,
+  // or this one's own, read on the device and sent as entries; what was
+  // left out, and why, said under the rows.
+  const fileInput = useRef<HTMLInputElement>(null);
+  const [imported, setImported] = useState<string | null>(null);
+  const bringIn = useMutation({
+    mutationFn: async (file: File) => {
+      const read = importLogbook(await file.text());
+      if (!read.entries.length) return { read, result: { added: 0, duplicates: 0 } };
+      return { read, result: await api.logbook.importAll(read.entries) };
+    },
+    onSuccess: ({ read, result }) => {
+      const left = read.skipped.slice(0, 3).map(s => `line ${s.line}: ${s.reason}`).join("; ");
+      setImported([
+        `${result.added} flight${result.added === 1 ? "" : "s"} added`,
+        result.duplicates ? `${result.duplicates} already in your logbook` : "",
+        read.skipped.length ? `${read.skipped.length} row${read.skipped.length === 1 ? "" : "s"} left out (${left}${read.skipped.length > 3 ? "; …" : ""})` : "",
+      ].filter(Boolean).join(", ") + ".");
+      refresh();
+    },
+    onError: err => showError("Could not import the logbook", describeError(err)),
+  });
+  const exportFile = async () => {
+    try {
+      await shareFile(`logbook-${today()}.csv`, "text/csv", logbookCsv(entries ?? []));
+    } catch (err) {
+      if ((err as Error).name !== "AbortError") showError("Could not export the logbook", (err as Error).message);
+    }
+  };
   return (
     <ConsolePages
       back="Logbook"
-      pages={{ checkride: { title: "Private pilot checkride", content: <CheckridePage training={training} /> } }}
+      pages={{
+        checkride: { title: "Private pilot checkride", content: <CheckridePage training={training} /> },
+        instructing: { title: "Instructing", content: <InstructorPage /> },
+      }}
     >
     <section aria-label="Logbook" className="space-y-5">
       <ListGroup>
         <PageRow
           page="checkride" title="Checkride" media={<GraduationCap className="size-5 text-tint" />}
-          description="61.109 experience, knowledge test codes, endorsements"
+          description="61.109 experience, knowledge test codes, endorsements, your instructor"
           value={training ? `${met} of ${training.experience.length}` : undefined}
+        />
+        {/* A flight instructor's students, their reviews and what they
+            signed (InstructorPage): for anyone to set up, as a student
+            asks an instructor in by address. */}
+        <PageRow
+          page="instructing" title="Instructing" media={<Users className="size-5 text-tint" />}
+          description="Your students, their solo cross-countries and the endorsements you sign"
         />
       </ListGroup>
       <ListGroup title="Currency" footer="From your logbook and the two dates above it: no one's sign-off. 61.57 counts takeoffs and landings in the same category and class; at night, to a full stop.">
         <ListRow title="Passengers by day" description="3 takeoffs and landings in 90 days"><Until date={currency?.dayPassengersUntil} what="day" /></ListRow>
         <ListRow title="Passengers at night" description="3 to a full stop at night in 90 days"><Until date={currency?.nightPassengersUntil} what="night" /></ListRow>
         <ListRow title="Flight review" description={currency?.flightReviewUntil ? <Until date={currency.flightReviewUntil} what="review" /> : "Within 24 calendar months"}>
-          <DateField value={reviewOn} label="Flight review date" testId="flight-review-date" onChange={v => dates.mutate({ flightReviewOn: v, medicalExpiresOn: medicalOn })} />
+          <DateField value={reviewOn} label="Flight review date" testId="flight-review-date" onChange={v => setDates({ flightReviewOn: v })} />
         </ListRow>
         <ListRow title="Medical" description={medicalOn ? <Until date={medicalOn} what="medical" /> : "The day it expires"}>
-          <DateField value={medicalOn} label="Medical expires" testId="medical-date" onChange={v => dates.mutate({ flightReviewOn: reviewOn, medicalExpiresOn: v })} />
+          <DateField value={medicalOn} label="Medical expires" testId="medical-date" onChange={v => setDates({ medicalExpiresOn: v })} />
+        </ListRow>
+        <ListRow title="Reminders" description="An email 30 and 7 days before each runs out">
+          <TogglePill
+            pressed={!!reminders?.on} onPressedChange={on => remind.mutate(on)} disabled={!reminders || remind.isPending}
+            icon={reminders?.on ? <Mail /> : <MailX />} label="Email" testId="reminders-toggle"
+          />
+        </ListRow>
+      </ListGroup>
+
+      {/* Instrument currency (14 CFR 61.57(c), (d)), from the approaches,
+          holding and tracking logged with each flight, and the last check. */}
+      <ListGroup
+        title="Instrument"
+        footer="Six approaches, holding and tracking courses in the 6 calendar months before the month you fly, actual or simulated; this month's count from next month. More than six months past, only an instrument proficiency check restores it."
+      >
+        <ListRow
+          title="Instrument currency"
+          description={`${currency?.approachesInWindow ?? 0} of 6 approaches${currency?.holdingInWindow ? ", holding" : ""}${currency?.trackingInWindow ? ", tracking" : ""} in the window`}
+        >
+          {ipcNeeded ? <span className={FINDING_TONE.stop} data-testid="currency-instrument">IPC needed</span>
+            : <Until date={currency?.instrumentCurrentUntil} what="instrument" />}
+        </ListRow>
+        <ListRow title="Proficiency check" description={ipcOn ? `On ${day(ipcOn)}` : "The day of your last IPC"}>
+          <DateField value={ipcOn} label="Instrument proficiency check date" testId="ipc-date" onChange={v => setDates({ ipcOn: v })} />
         </ListRow>
       </ListGroup>
 
@@ -160,6 +255,28 @@ export function LogbookPanel({ aircraft }: { aircraft?: string }) {
           <ListRow title="Landings" value={currency.landings} />
         </ListGroup>
       )}
+
+      <input
+        ref={fileInput} type="file" accept=".csv,text/csv" className="hidden" data-testid="logbook-import-file"
+        onChange={e => {
+          const file = e.target.files?.[0];
+          e.target.value = "";
+          if (file) bringIn.mutate(file);
+        }}
+      />
+      <ListGroup
+        title="File"
+        footer={imported ?? "A CSV file: ForeFlight's logbook export, or this logbook's own. A flight already here -- the same day, airplane, route and time -- is not added twice."}
+      >
+        <ListRow
+          title="Import a logbook" media={<FileUp className="size-5" />}
+          onClick={() => fileInput.current?.click()} disabled={bringIn.isPending} data-testid="logbook-import"
+        />
+        <ListRow
+          title="Export as CSV" media={<FileDown className="size-5" />}
+          onClick={() => void exportFile()} disabled={!entries?.length} data-testid="logbook-export"
+        />
+      </ListGroup>
 
       {/* A row opens its flight's form, placed by the list. */}
       <ResponsivePopover open={!!changing} onOpenChange={open => { if (!open) setChanging(null); }}>

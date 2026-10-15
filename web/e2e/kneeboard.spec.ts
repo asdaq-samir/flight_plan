@@ -26,7 +26,7 @@ test("Print offers the kneeboard card, and prints it alone on half-letter paper"
   await expect(card).toContainText("KDLH · Duluth");
 
   await controlsInSight(page);
-  await page.getByTestId("print-button").click();
+  await page.getByTestId("share-route").click();
   await expect(page.getByTestId("print-briefing")).toBeVisible();
   await page.getByTestId("print-kneeboard").click();
   await expect.poll(() => page.evaluate(() => (window as unknown as { printed?: string }).printed ?? "")).toContain("print-kneeboard");

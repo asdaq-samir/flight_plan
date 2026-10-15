@@ -20,6 +20,28 @@ const FROM_ZOOM = 8;
  *  under it still readable. */
 const REPORTING_FROM_ZOOM = 7;
 
+/** Further out than REPORTING_FROM_ZOOM, the biggest fields that report
+ *  still wear their marks, fewer at each zoom out, as Maps keeps the big
+ *  cities' names (the owner's ask, "show bigger airports gradually as we
+ *  zoom out"): from this zoom, the whole country on a phone at 4. */
+const FARTHEST_ZOOM = 4;
+/** Out there, a field's mark only where no bigger one's is this near on
+ *  the screen, px: a mark and its ident, so none sit on each other. */
+const OUT_APART_PX = 80;
+/** And at 4 and 5 the large and medium fields alone: the airline
+ *  airports and the regional ones a pilot steers by. */
+const BIG_ONLY_BELOW_ZOOM = 6;
+/** Which kind first, out there, where only some fit. */
+const KIND_RANK: Record<AirportPin["kind"], number> = { large: 0, medium: 1, small: 2, other: 3 };
+/** While the map moves, how often the marks catch up with it, ms: the
+ *  fields coming into sight drawn under a finger's pan, not after it
+ *  lifts (the owner's ask, "airports should show on map even while finger
+ *  is on the map panning"). */
+const PANNING_MS = 200;
+/** What is drawn round the view, a share of it on each side: a pan
+ *  shows marks already there as it starts. */
+const PAD = 0.3;
+
 /** From this zoom the fields with no report wear a mark too, its dot in the
  *  grey of no report: the sectional's own scale, where they are a
  *  handful on the screen rather than every strip in half a state.
@@ -50,17 +72,20 @@ const AirportMark = memo(function AirportMark({ airport: a, chip, onSelect }: {
   chip: boolean;
   onSelect: (ident: string) => void;
 }) {
-  const events = { click: (e: L.LeafletMouseEvent) => { L.DomEvent.stopPropagation(e); onSelect(a.ident); } };
+  const events = useMemo(() => ({
+    click: (e: L.LeafletMouseEvent) => { L.DomEvent.stopPropagation(e); onSelect(a.ident); },
+  }), [onSelect, a.ident]);
+  const at = useMemo((): L.LatLngTuple => [a.lat, a.lon], [a.lat, a.lon]);
   return chip ? (
     <Marker
-      position={[a.lat, a.lon]} eventHandlers={events}
+      position={at} eventHandlers={events}
       icon={airportMarkIcon(a.ident, a.airspace_class ?? null, colourOf(a.flight_category), a.military === "military" ? "military" : a.private ? "private" : null)}
     >
       {hovers && <MapTooltip>{a.ident} · {a.name} · {a.flight_category ?? "no report"}</MapTooltip>}
     </Marker>
   ) : (
     <CircleMarker
-      center={[a.lat, a.lon]} radius={TARGET_RADIUS}
+      center={at} radius={TARGET_RADIUS}
       // The class at creation (Leaflet takes it only then), the rest as style.
       className="leaflet-airport-target"
       pathOptions={TARGET_STYLE}
@@ -69,7 +94,18 @@ const AirportMark = memo(function AirportMark({ airport: a, chip, onSelect }: {
       {hovers && <MapTooltip>{a.ident} · {a.name}</MapTooltip>}
     </CircleMarker>
   );
-});
+// The same field as it was drawn, whatever its object: each answer for a
+// new view is new objects for the fields already on the map, and drawn
+// again each one was moved, its handlers bound again -- every mark on
+// every zoom and pan.
+}, (was, now) => was.chip === now.chip && was.onSelect === now.onSelect && samePin(was.airport, now.airport));
+
+/** What a field's mark is drawn from (AirportMark): its place, its
+ *  report's category, its airspace and its use, and its name (the hover's). */
+function samePin(a: AirportPin, b: AirportPin): boolean {
+  return a === b || (a.ident === b.ident && a.lat === b.lat && a.lon === b.lon && a.flight_category === b.flight_category
+    && a.airspace_class === b.airspace_class && a.military === b.military && a.private === b.private && a.name === b.name);
+}
 
 /**
  * The chart's own airports, made tappable, from zoom 8 in -- the ones
@@ -102,13 +138,18 @@ export function AirportsLayer({ selected, onSelect, exclude, route }: {
   // with the service's permission.
   const showMilitary = usePreferences(s => s.military);
   const map = useMap();
+  // The view as it rests, what the planner is asked by; and as it is
+  // now, a few times a second while it moves, what the marks are drawn for.
   const [view, setView] = useState(() => boxOf(map));
+  const [seen, setSeen] = useState(() => map.getBounds());
+  const panned = useRef(0);
   // The zoom a zoom is going to, as it starts: the route's chips draw
   // while the map is still easing in, not after it settles.
   const [easingTo, setEasingTo] = useState<number | null>(null);
   // The box asked for: the view with as much again round it
   // (aheadOf), asked again only when the view leaves it -- at a zoom's
-  // start, for where it will end, and at a move's end. The marks waited
+  // start, for where it will end, as a pan takes it out, and at a move's
+  // end. The marks waited
   // for the map to stop, its glide after a finger lifts too, and then for
   // the planner (0.35 to 0.5 s from a drag's end on a laptop, 2026-10-09);
   // a pan or a zoom in inside the box now has its answer already, and the
@@ -130,7 +171,22 @@ export function AirportsLayer({ selected, onSelect, exclude, route }: {
   const drawn = useRef<AirportPin[]>([]);
   const handlers = useMemo(() => ({
     zoomanim: (e: L.ZoomAnimEvent) => { setEasingTo(e.zoom); ask(boundsAt(map, e.center, e.zoom)); },
-    moveend: () => { setView(boxOf(map)); setEasingTo(null); ask(map.getBounds()); },
+    // Drawn again only as the view nears the edge of what is drawn, not
+    // at every step of a move: a draw a few times a second under a finger
+    // held a busy phone's pan up.
+    // And asked for again as the view leaves the box asked for, under the
+    // finger too: a pan more than a screen long reached fields nobody had
+    // asked about, bare until the finger lifted, at the owner's notice
+    // ("until I let go of the finger, the airports don't show up").
+    move: () => {
+      const now = performance.now();
+      if (now - panned.current < PANNING_MS) return;
+      panned.current = now;
+      const bounds = map.getBounds();
+      setSeen(was => (was.pad(PAD).contains(bounds) ? was : bounds));
+      ask(bounds);
+    },
+    moveend: () => { setView(boxOf(map)); setSeen(map.getBounds()); setEasingTo(null); ask(map.getBounds()); },
     click: (e: L.LeafletMouseEvent) => {
       let best: { ident: string; px: number } | null = null;
       for (const a of drawn.current) {
@@ -143,7 +199,7 @@ export function AirportsLayer({ selected, onSelect, exclude, route }: {
   useMapEvents(handlers);
   const zoom = easingTo ?? view.zoom;
   const near = zoom >= FROM_ZOOM;
-  const reports = zoom >= REPORTING_FROM_ZOOM;
+  const reports = zoom >= FARTHEST_ZOOM;
   // At zoom 7 the view asks for the fields that report alone -- at the
   // zoom a zoom is going to, so the question goes as it starts.
   const reportingOnly = zoom < FROM_ZOOM;
@@ -165,7 +221,7 @@ export function AirportsLayer({ selected, onSelect, exclude, route }: {
   const { data: inView } = useQuery({
     queryKey: ["airportsInView", asked.key, reportingOnly],
     queryFn: () => api.airportsInView({ ...asked.box, reporting: reportingOnly, limit: AIRPORTS_LIMIT }),
-    enabled: zoom >= REPORTING_FROM_ZOOM,
+    enabled: zoom >= FARTHEST_ZOOM,
     staleTime: 10 * 60_000,
     placeholderData: keepPreviousData,
     meta: { silent: true },
@@ -184,18 +240,36 @@ export function AirportsLayer({ selected, onSelect, exclude, route }: {
     meta: { silent: true },
   });
   const data = useMemo(() => {
+    // The view as it rested, on its half-degree grid, and as it is now
+    // with some of it again round it (PAD), so a pan under way has marks.
+    const padded = seen.pad(PAD);
     const { south, west, north, east } = view.box;
+    const inside = (a: AirportPin) => (a.lat >= south && a.lat <= north && a.lon >= west && a.lon <= east) || padded.contains([a.lat, a.lon]);
     const byIdent = new Map<string, AirportPin>();
     for (const list of [alongRoute, inView, full ? inViewAlone : undefined]) {
       for (const a of list ?? []) {
-        if (a.lat >= south && a.lat <= north && a.lon >= west && a.lon <= east) byIdent.set(a.ident, a);
+        if (inside(a)) byIdent.set(a.ident, a);
       }
     }
     return [...byIdent.values()];
-  }, [alongRoute, inView, inViewAlone, full, view.box]);
-  const shown = useMemo(() => (reports
-    ? data.filter(a => !exclude.has(a.ident) && (near || a.flight_category) && (showMilitary || a.military !== "military"))
-    : []), [reports, data, exclude, near, showMilitary]);
+  }, [alongRoute, inView, inViewAlone, full, seen, view.box]);
+  const shown = useMemo(() => {
+    if (!reports) return [];
+    const kept = data.filter(a => !exclude.has(a.ident) && (near || a.flight_category) && (showMilitary || a.military !== "military"));
+    if (zoom >= REPORTING_FROM_ZOOM) return kept;
+    // Out past the sectional's scale: the biggest first, each only where
+    // no bigger one's mark is on it -- fewer and bigger at each zoom out.
+    const room: L.Point[] = [];
+    const out: AirportPin[] = [];
+    for (const a of [...kept].sort((x, y) => KIND_RANK[x.kind] - KIND_RANK[y.kind])) {
+      if (zoom < BIG_ONLY_BELOW_ZOOM && KIND_RANK[a.kind] > KIND_RANK.medium) break;
+      const at = map.project([a.lat, a.lon], zoom);
+      if (room.some(p => p.distanceTo(at) < OUT_APART_PX)) continue;
+      room.push(at);
+      out.push(a);
+    }
+    return out;
+  }, [reports, data, exclude, near, showMilitary, zoom, map]);
   useEffect(() => { drawn.current = shown; }, [shown]);
   // One callback for every mark, so a new onSelect -- the page's, made
   // again as its state changes -- draws none of them again.

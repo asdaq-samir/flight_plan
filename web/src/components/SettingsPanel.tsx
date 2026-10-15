@@ -1,15 +1,15 @@
 import { useState, type ReactNode } from "react";
-import { CloudSun, FileText, Hand, Hexagon, Info, LifeBuoy, Lightbulb, Monitor, Moon, Palette, PanelBottom, PanelTop, Sparkles, Sun, SunMoon } from "lucide-react";
+import { CloudSun, Hexagon, Lightbulb, Monitor, Moon, Navigation, Palette, PanelBottom, PanelTop, Sparkles, Sun, SunMoon } from "lucide-react";
 import { useTheme } from "next-themes";
 import { ListGroup, ListRow } from "./GroupedList";
-import AboutLimits from "./AboutLimits";
 import Segmented from "./Segmented";
 import { useNavEdge } from "../hooks/use-nav-edge";
 import { usePreferences, type NarrativeFramework, type NavEdge, type RouteColours } from "../lib/preferences";
-import { LEGAL_PAGES } from "../lib/legal";
 import { useTips } from "../lib/tips";
 import { SETTING_BADGE } from "../lib/rowBadges";
 import { RowBadge } from "./RowBadge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
+import { OWN_SHIP_LOOKS, ownShipSvg, type OwnShipLook } from "../lib/map/ownShipLook";
 
 /**
  * The settings, the consoles' last tab (ConsoleTabs), laid out the way
@@ -33,7 +33,8 @@ import { RowBadge } from "./RowBadge";
  * paragraph under nearly every control, twice the height; the last two
  * lines under a group went too, at the pilot's ask: no descriptions.
  * Each row leads with its glyph in a colour of its own, as iOS's Settings
- * has them, at the pilot's ask.
+ * has them, at the pilot's ask. What the app is, its limits, its sources
+ * and the legal pages are the next tab's, About (AboutPanel).
  */
 export default function SettingsPanel() {
   return (
@@ -41,7 +42,6 @@ export default function SettingsPanel() {
       <AppearanceGroup />
       <BriefGroup />
       <TipsGroup />
-      <AboutGroup />
     </div>
   );
 }
@@ -66,24 +66,6 @@ const NARRATIVES = [
   { value: "langgraph", label: "LangGraph" },
   { value: "crewai", label: "CrewAI" },
 ];
-
-const LEGAL_GLYPHS: Record<(typeof LEGAL_PAGES)[number]["key"], ReactNode> = {
-  privacy: <Hand />, terms: <FileText />, support: <LifeBuoy />,
-};
-
-/** About & limits, then the privacy policy, terms and support pages
- *  (lib/legal), which App Review wants a link to inside the app: one
- *  group, where they were two under the same heading. */
-function AboutGroup() {
-  return (
-    <ListGroup title="About">
-      <AboutLimits media={badge("about", <Info />)} />
-      {LEGAL_PAGES.map(p => (
-        <ListRow key={p.key} media={badge("about", LEGAL_GLYPHS[p.key])} title={p.title} href={p.href} data-testid={`legal-${p.key}`} />
-      ))}
-    </ListGroup>
-  );
-}
 
 /** A settings row's glyph on its colour (RowBadge). */
 const badge = (kind: keyof typeof SETTING_BADGE, glyph: ReactNode) => <RowBadge colour={SETTING_BADGE[kind]}>{glyph}</RowBadge>;
@@ -132,6 +114,8 @@ function AppearanceGroup() {
   const setNavBar = usePreferences(s => s.setNavBar);
   const routeColours = usePreferences(s => s.routeColours);
   const setRouteColours = usePreferences(s => s.setRouteColours);
+  const look = usePreferences(s => s.ownShipLook);
+  const setLook = usePreferences(s => s.setOwnShipLook);
   return (
     <ListGroup title="Appearance">
       <ListRow media={badge("theme", <SunMoon />)} title="Theme">
@@ -147,6 +131,24 @@ function AppearanceGroup() {
           label="Route colours" value={routeColours} onChange={v => setRouteColours(v as RouteColours)}
           testId="route-colours-select" options={ROUTE_COLOURS}
         />
+      </ListRow>
+      {/* Own ship on the chart, a plane or the arrow, at the owner's ask
+          ("can we change the current location marker on map to be a plane
+          that can be picked from setup"): a menu, each with its picture. */}
+      <ListRow media={badge("position", <Navigation />)} title="You on the map">
+        <Select value={look} onValueChange={v => setLook(v as OwnShipLook)}>
+          <SelectTrigger size="sm" aria-label="You on the map" data-testid="own-ship-look">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent align="end">
+            {OWN_SHIP_LOOKS.map(o => (
+              <SelectItem key={o.value} value={o.value} data-testid={`own-ship-look-${o.value}`}>
+                <span className="size-5 shrink-0" dangerouslySetInnerHTML={{ __html: ownShipSvg(o.value, "#2563eb", 20) }} />
+                {o.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </ListRow>
     </ListGroup>
   );

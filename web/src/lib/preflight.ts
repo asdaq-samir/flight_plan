@@ -21,13 +21,13 @@ export interface PreflightItem extends Where {
 }
 
 export const PREFLIGHT_ITEMS: PreflightItem[] = [
-  { key: "notams", title: "NOTAMs", rule: "91.103: all available information", tab: "brief", section: "TFRs & Special Use" },
-  { key: "weather", title: "Weather reports and forecasts", rule: "91.103(a)", tab: "weather" },
-  { key: "delays", title: "Known ATC delays", rule: "91.103(a)", tab: "brief" },
-  { key: "runways", title: "Runway lengths at each airport", rule: "91.103(b)", tab: "airports" },
-  { key: "alternatives", title: "Alternatives if the flight cannot be completed", rule: "91.103(a)", tab: "navlog" },
-  { key: "fuel", title: "Fuel requirements", rule: "91.103(a), 91.151", tab: "navlog" },
-  { key: "distances", title: "Takeoff and landing distances", rule: "91.103(b)", tab: "performance", section: "Takeoff & Landing" },
+  { key: "notams", title: "NOTAMs", rule: "91.103: all available information", tab: "preflight", section: "TFRs & Special Use" },
+  { key: "weather", title: "Weather reports and forecasts", rule: "91.103(a)", tab: "enroute" },
+  { key: "delays", title: "Known ATC delays", rule: "91.103(a)", tab: "preflight" },
+  { key: "runways", title: "Runway lengths at each airport", rule: "91.103(b)", tab: "depart" },
+  { key: "alternatives", title: "Alternatives if the flight cannot be completed", rule: "91.103(a)", tab: "enroute" },
+  { key: "fuel", title: "Fuel requirements", rule: "91.103(a), 91.151", tab: "enroute", section: "Legs" },
+  { key: "distances", title: "Takeoff and landing distances", rule: "91.103(b)", tab: "depart", section: "Takeoff" },
 ];
 
 const NONE: Record<string, boolean> = {};

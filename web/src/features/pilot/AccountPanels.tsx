@@ -8,24 +8,30 @@ import { Check, CircleMinus, Info, Plus, Route } from "lucide-react";
 import EmptyState from "../../components/EmptyState";
 import IconButton from "../../components/IconButton";
 import { cn } from "cn";
+import { planHrefOf } from "../../lib/flightLink";
 import { routeName } from "../../lib/identSchema";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText } from "../../components/ui/input-group";
 import { Spinner } from "../../components/ui/spinner";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
 import { ListGroup, ListRow } from "../../components/GroupedList";
 import { ResponsivePopover, ResponsivePopoverContent, ResponsivePopoverTrigger } from "../../components/ResponsivePopover";
 import { useConfirm } from "../../components/useConfirm";
 import { ConsolePages, PageRow } from "../../components/ConsolePages";
 import FlightPage from "./FlightPage";
+import ChecklistPage from "./ChecklistPage";
+import SquawksPage from "./SquawksPage";
 import { aircraftKey, choiceOf } from "../../lib/aircraftChoice";
 import { api } from "../../lib/api/client";
-import type { Aircraft, AircraftRequest, FlightSummary } from "../../lib/api/types";
+import type { Aircraft, AircraftRequest, FlightSummary, InspectionsRequest, VorCheckRequest } from "../../lib/api/types";
 import { CRUISE_REFERENCE_FT } from "../../lib/performance";
 import { usePreferences } from "../../lib/preferences";
 import { TEXT } from "../../lib/text";
 import { altFt, feet } from "../../lib/units";
 import { LEVEL_TONE, riskLine, type RiskLevel } from "../../lib/frat";
+import { localDay } from "../../lib/clock";
+import { FINDING_TONE } from "../../lib/status";
 
 // Mirrors springboot-app's own AircraftRequest validation
 // (@NotBlank/@Positive in dto/AircraftRequest.java) so a bad value is
@@ -87,6 +93,178 @@ const EMPTY_AIRCRAFT_FORM: AircraftFormValues = {
  *  form as a new one's), and delete. The picker under the route offers
  *  the same choice. The Library's (PilotPanel), shown only to someone
  *  signed in: it says once, for all three, what signing in keeps. */
+const VOR_CHECKS: { value: VorCheckRequest["kind"]; label: string; limit: number }[] = [
+  { value: "VOT", label: "VOT", limit: 4 },
+  { value: "REPAIR_STATION", label: "Repair station signal", limit: 4 },
+  { value: "GROUND", label: "Ground checkpoint", limit: 4 },
+  { value: "AIRBORNE", label: "Airborne checkpoint", limit: 6 },
+  { value: "RADIAL", label: "Airway radial in flight", limit: 6 },
+  { value: "DUAL", label: "Dual receivers", limit: 4 },
+];
+
+/**
+ * The airplane's VOR check for IFR (14 CFR 91.171): the last one and how
+ * long it is good for -- 30 days, its error within its kind's limit (4
+ * degrees at a VOT, a repair station's signal, a ground checkpoint or
+ * between two receivers; 6 at an airborne checkpoint or on a radial) --
+ * and the next recorded with the date, kind, place and error 91.171(d)
+ * asks for. Its own Record, apart from the airplane's Save.
+ */
+function VorCheckGroup({ aircraft }: { aircraft: Aircraft }) {
+  const queryClient = useQueryClient();
+  const id = useId();
+  const [check, setCheck] = useState<VorCheckRequest>({
+    checkedOn: localDay(), kind: "VOT", place: "", errorDeg: 0,
+  });
+  const record = useMutation({
+    mutationFn: () => api.aircraft.vorCheck(aircraft.id, { ...check, place: check.place || null }),
+    onSuccess: () => { toast.success("VOR check recorded"); void queryClient.invalidateQueries({ queryKey: ["aircraft"] }); },
+  });
+  const last = aircraft.vorCheck;
+  const today = localDay();
+  const good = !!last && last.withinLimit && last.goodThrough >= today;
+  return (
+    <ListGroup
+      title="VOR check"
+      footer="For IFR by VOR: every 30 days, within 4° at a VOT, a repair station's signal, a ground checkpoint or between two receivers, within 6° at an airborne checkpoint or on an airway's radial (14 CFR 91.171)."
+    >
+      <ListRow
+        title="Last check"
+        description={last ? `${last.checkedOn} · ${VOR_CHECKS.find(k => k.value === last.kind)?.label ?? last.kind}${last.place ? ` · ${last.place}` : ""} · ${last.errorDeg}°` : "None recorded"}
+        value={!last ? undefined : (
+          <span className={cn(good ? FINDING_TONE.ok : FINDING_TONE.stop)} data-testid="vor-check-standing">
+            {!last.withinLimit ? `Over ${last.limitDeg}°` : good ? `To ${last.goodThrough}` : `Ended ${last.goodThrough}`}
+          </span>
+        )}
+      />
+      <ListRow id={`${id}-on`} title="Checked on">
+        <Input id={`${id}-on`} type="date" className="h-8 w-40" value={check.checkedOn} max={today}
+          onChange={e => setCheck({ ...check, checkedOn: e.target.value })} aria-label="VOR check date" data-testid="vor-check-date" />
+      </ListRow>
+      <ListRow title="How">
+        <Select value={check.kind} onValueChange={kind => setCheck({ ...check, kind: kind as VorCheckRequest["kind"] })}>
+          <SelectTrigger size="sm" aria-label="How the VOR was checked" data-testid="vor-check-kind"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {VOR_CHECKS.map(k => <SelectItem key={k.value} value={k.value}>{k.label} (±{k.limit}°)</SelectItem>)}
+          </SelectContent>
+        </Select>
+      </ListRow>
+      <ListRow id={`${id}-place`} title="Where">
+        <Input id={`${id}-place`} className="h-8 w-40 text-right" placeholder="KDLH VOT" value={check.place ?? ""}
+          onChange={e => setCheck({ ...check, place: e.target.value })} aria-label="Where the VOR was checked" />
+      </ListRow>
+      <ListRow id={`${id}-error`} title="Bearing error">
+        <Input id={`${id}-error`} type="number" inputMode="decimal" step="any" className="h-8 w-24 text-right" value={String(check.errorDeg)}
+          onChange={e => setCheck({ ...check, errorDeg: Number(e.target.value || 0) })} aria-label="Bearing error in degrees" data-testid="vor-check-error" />
+      </ListRow>
+      <ListRow
+        title={<span className="font-medium text-tint">Record check</span>}
+        onClick={() => record.mutate()} disabled={record.isPending || !check.checkedOn} data-testid="vor-check-record"
+      />
+    </ListGroup>
+  );
+}
+
+/** The inspections' dates, each with the rule that asks for it. */
+const DATED: { key: "annualOn" | "staticCheckOn" | "transponderCheckOn" | "eltInspectedOn"; through: "annualGoodThrough" | "staticCheckGoodThrough" | "transponderCheckGoodThrough" | "eltInspectionGoodThrough"; title: string; rule: string }[] = [
+  { key: "annualOn", through: "annualGoodThrough", title: "Annual", rule: "12 calendar months, 14 CFR 91.409(a)" },
+  { key: "staticCheckOn", through: "staticCheckGoodThrough", title: "Altimeter and static", rule: "24 calendar months, for IFR, 91.411" },
+  { key: "transponderCheckOn", through: "transponderCheckGoodThrough", title: "Transponder", rule: "24 calendar months, 91.413" },
+  { key: "eltInspectedOn", through: "eltInspectionGoodThrough", title: "ELT inspection", rule: "12 calendar months, 91.207(d)" },
+];
+
+/** How a last good day stands today: in green to it, red past it. */
+function Standing({ through, testId }: { through: string | null | undefined; testId: string }) {
+  if (!through) return null;
+  const today = localDay();
+  const good = through >= today;
+  return (
+    <span className={cn(good ? FINDING_TONE.ok : FINDING_TONE.stop)} data-testid={testId}>
+      {good ? `To ${through}` : `Past due since ${through}`}
+    </span>
+  );
+}
+
+/**
+ * The airplane's inspections and tests, as its owner records them from its
+ * maintenance records, each with the last day it is good for (the webapp
+ * works it out by the rule's calendar months) -- what the risk assessment
+ * reads for whether it may be flown (lib/airworthiness). Saved together.
+ */
+function InspectionsGroup({ aircraft }: { aircraft: Aircraft }) {
+  const queryClient = useQueryClient();
+  const id = useId();
+  const recorded = aircraft.inspections;
+  const [form, setForm] = useState<InspectionsRequest>({
+    annualOn: recorded?.annualOn ?? null, hundredHourAtHours: recorded?.hundredHourAtHours ?? null, hoursNow: recorded?.hoursNow ?? null,
+    staticCheckOn: recorded?.staticCheckOn ?? null, transponderCheckOn: recorded?.transponderCheckOn ?? null,
+    eltInspectedOn: recorded?.eltInspectedOn ?? null, eltBatteryDueOn: recorded?.eltBatteryDueOn ?? null,
+  });
+  const save = useMutation({
+    mutationFn: () => api.aircraft.inspections(aircraft.id, form),
+    onSuccess: () => { toast.success("Inspections saved"); void queryClient.invalidateQueries({ queryKey: ["aircraft"] }); },
+  });
+  const today = localDay();
+  const hours = (value: string) => (value === "" ? null : Number(value));
+  const due = recorded?.hundredHourDueAtHours;
+  return (
+    <ListGroup
+      title="Inspections"
+      footer="From the airplane's maintenance records. The 100-hour is owed only when it is flown for hire, or for instruction in it by the one who provides it (91.409(b)); the ELT's are not owed on a training flight within 50 nm of its departure (91.207(f))."
+    >
+      {DATED.map(d => (
+        <ListRow
+          key={d.key} id={`${id}-${d.key}`} title={d.title}
+          description={<>{d.rule}{recorded?.[d.through] && <> · <Standing through={recorded[d.through]} testId={`inspection-${d.key}`} /></>}</>}
+        >
+          <Input
+            id={`${id}-${d.key}`} type="date" className="h-8 w-40" value={form[d.key] ?? ""} max={today}
+            onChange={e => setForm({ ...form, [d.key]: e.target.value || null })} data-testid={`inspection-${d.key}-date`}
+          />
+        </ListRow>
+      ))}
+      <ListRow
+        id={`${id}-battery`} title="ELT battery replace by"
+        description={<>As marked on the transmitter, 91.207(c){recorded?.eltBatteryDueOn && (
+          <> · <span className={cn(recorded.eltBatteryDueOn > today ? FINDING_TONE.ok : FINDING_TONE.stop)} data-testid="inspection-eltBattery">
+            {recorded.eltBatteryDueOn > today ? `By ${recorded.eltBatteryDueOn}` : `Due since ${recorded.eltBatteryDueOn}`}
+          </span></>
+        )}</>}
+      >
+        <Input
+          id={`${id}-battery`} type="date" className="h-8 w-40" value={form.eltBatteryDueOn ?? ""}
+          onChange={e => setForm({ ...form, eltBatteryDueOn: e.target.value || null })} data-testid="inspection-eltBattery-date"
+        />
+      </ListRow>
+      <ListRow
+        id={`${id}-at`} title="Hours at last 100-hour"
+        description={due != null ? <>Due at {due.toFixed(1)} h{recorded?.hoursNow != null && (
+          <span className={cn(recorded.hoursNow < due ? FINDING_TONE.ok : FINDING_TONE.stop)} data-testid="inspection-hundredHour">
+            {recorded.hoursNow < due ? `, ${(due - recorded.hoursNow).toFixed(1)} h to go` : ", due now"}
+          </span>
+        )}</> : "Time in service, at the last annual or 100-hour"}
+      >
+        <Input
+          id={`${id}-at`} type="number" inputMode="decimal" step="any" min={0} className="h-8 w-28 text-right"
+          value={form.hundredHourAtHours ?? ""} onChange={e => setForm({ ...form, hundredHourAtHours: hours(e.target.value) })}
+          data-testid="inspection-hundredHourAt"
+        />
+      </ListRow>
+      <ListRow id={`${id}-now`} title="Hours now">
+        <Input
+          id={`${id}-now`} type="number" inputMode="decimal" step="any" min={0} className="h-8 w-28 text-right"
+          value={form.hoursNow ?? ""} onChange={e => setForm({ ...form, hoursNow: hours(e.target.value) })}
+          data-testid="inspection-hoursNow"
+        />
+      </ListRow>
+      <ListRow
+        title={<span className="font-medium text-tint">Save inspections</span>}
+        onClick={() => save.mutate()} disabled={save.isPending} data-testid="inspections-save"
+      />
+    </ListGroup>
+  );
+}
+
 export function AircraftPanel() {
   const queryClient = useQueryClient();
   const { data: list, isLoading } = useQuery({ queryKey: ["aircraft"], queryFn: api.aircraft.list });
@@ -178,9 +356,18 @@ export function AircraftPanel() {
   const formElementId = `${formId}-form`;
   const problem = (message?: string) => (message ? <span className="text-destructive">{message}</span> : undefined);
 
+  // The airplane's checklist, a page of the form's (ChecklistPage).
+  const checklistPages = editing
+    ? {
+      [`checklist-${editing.id}`]: { title: `${editing.tailNumber} checklist`, content: <ChecklistPage aircraft={editing} /> },
+      [`squawks-${editing.id}`]: { title: `${editing.tailNumber} squawks`, content: <SquawksPage aircraft={editing} /> },
+    }
+    : {};
+
   // The tab says what this is: no heading over the list, only the
   // group's own, as an iOS page under a segmented control has.
   return (
+    <ConsolePages back="Aircraft" pages={checklistPages}>
     <section aria-label="Aircraft">
       {isLoading ? (
         <p role="status" className={cn("px-1 text-muted-foreground", TEXT.note)}>Fetching your aircraft…</p>
@@ -322,6 +509,17 @@ export function AircraftPanel() {
                   field={register("usableFuelGal")} error={errors.usableFuelGal?.message}
                 />
               </ListGroup>
+              {editing && (
+                <ListGroup>
+                  <PageRow page={`checklist-${editing.id}`} title="Checklist" description="Yours, from its flight manual, to run" />
+                  <PageRow
+                    page={`squawks-${editing.id}`} title="Squawks" description="What was found, and its fix"
+                    value={editing.openSquawks?.length ? `${editing.openSquawks.length} open` : undefined}
+                  />
+                </ListGroup>
+              )}
+              {editing && <InspectionsGroup key={editing.id} aircraft={editing} />}
+              {editing && <VorCheckGroup aircraft={editing} />}
               {editingId !== null && (
                 <ListGroup>
                   <ListRow
@@ -336,6 +534,7 @@ export function AircraftPanel() {
         </ResponsivePopover>
       )}
     </section>
+    </ConsolePages>
   );
 }
 
@@ -396,19 +595,10 @@ export function FlightsPanel() {
     onConfirm: () => { if (flightToDelete) remove.mutate(flightToDelete.id); },
   });
 
-  /** Back to the planner on this flight's route, through its stops, at
-   *  its altitude and the ones the pilot set at its points. */
-  const planHref = (f: FlightSummary) => `/plan?${new URLSearchParams({
-    dep: f.departureIdent, dest: f.destinationIdent,
-    ...(f.stops.length ? { stops: f.stops.join(",") } : {}),
-    ...(f.cruiseAltitudeFt != null ? { altitude_ft: String(f.cruiseAltitudeFt) } : {}),
-    ...(f.altitudes ? { altitudes: f.altitudes } : {}),
-  })}`;
-
   // A page a flight (FlightPage), opened from its row.
   const pages = Object.fromEntries((list ?? []).map(f => [`flight-${f.id}`, {
     title: routeName(f.departureIdent, f.destinationIdent, f.stops),
-    content: <FlightPage summary={f} planHref={planHref(f)} />,
+    content: <FlightPage summary={f} planHref={planHrefOf(f)} />,
   }]));
 
   return (

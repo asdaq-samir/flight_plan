@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { openMapSettings, openPanel, settle, sideDrawer, slow } from "./helpers";
+import { closeCard, grabberTo, openMapSettings, settle, showTabs, sideDrawer, slow } from "./helpers";
 
 /**
  * Nearest as a card of the panel's (NearestCard), at the pilot's ask: half
@@ -23,12 +23,22 @@ test("Nearest opens as a card half way up, a field over it as a layer, and its c
   }));
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
-  await openPanel(page);
-  // Among the map's buttons on its left.
-  await page.locator("[data-map-controls-left]").getByTestId("nearest-button").click();
+  // Airport's pill's NEAREST, its title the list in full: four tabs,
+  // Nearest folded into Airport, at the owner's pick of the redesign.
+  await grabberTo(page, "peek");
+  await showTabs(page);
+  await page.getByTestId("tab-airport").click();
+  // The strip's title's menu: the nearest fields (the Favorites first).
+  await sideDrawer(page).getByTestId("airport-strip-shows").click();
+  await page.getByTestId("airport-shows-nearest").click();
+  // With no position yet, the strip offers to show it.
+  await sideDrawer(page).getByTestId("nearest-strip-position").or(sideDrawer(page).getByTestId("nearest-strip-field").first()).first().click({ trial: true });
+  if (await sideDrawer(page).getByTestId("nearest-strip-position").isVisible()) await sideDrawer(page).getByTestId("nearest-strip-position").click();
+  await expect(sideDrawer(page).getByTestId("nearest-strip-field").first()).toBeVisible({ timeout: slow(15000) });
+  await sideDrawer(page).getByTestId("pill-section-nearest-more").click();
   const card = sideDrawer(page).getByTestId("nearest-card");
   await expect(card).toBeVisible();
-  await expect(sideDrawer(page)).toHaveAttribute("data-panel", "half");
+  await expect(sideDrawer(page)).toHaveAttribute("data-panel", "full");
   const rows = card.getByTestId("nearest-airport");
   await expect(rows).toHaveCount(3, { timeout: slow(15000) });
   await expect(rows.nth(2)).toContainText("joint use");
@@ -43,12 +53,16 @@ test("Nearest opens as a card half way up, a field over it as a layer, and its c
 
   await rows.nth(1).click();
   await expect(sideDrawer(page).getByTestId("place-card")).toBeVisible();
-  await sideDrawer(page).getByTestId("place-close").click();
+  await closeCard(page, "place-close");
   await expect(card).toBeVisible();
-  await card.getByTestId("nearest-close").click();
+  // Back to the route by its own tab.
+  await showTabs(page);
+  await page.getByTestId("tab-fpl").click();
   await expect(card).toHaveCount(0);
-  await expect(sideDrawer(page).getByTestId("panel-tab-navlog")).toBeVisible();
-  await expect(sideDrawer(page)).toHaveAttribute("data-panel", "half");
+  // All the way up still, as another tab tapped there stays (TabBar):
+  // the route's pages.
+  await expect(sideDrawer(page)).toHaveAttribute("data-panel", "full");
+  await expect(sideDrawer(page).getByTestId("panel-tab-enroute")).toBeVisible();
 });
 
 test("a field the armed services keep to themselves is off the map until Military is on", async ({ page }) => {
@@ -91,7 +105,8 @@ test("Nearest is from a place typed -- a town, an address, an airport -- and bac
   await page.goto("/app/plan?near=1");
   await settle(page);
   const card = sideDrawer(page).getByTestId("nearest-card");
-  const field = card.getByTestId("nearest-from");
+  // NRST's field is the panel's head, as the airport search's is.
+  const field = sideDrawer(page).getByTestId("nearest-from");
   await expect(field).toHaveAttribute("placeholder", "Current position");
 
   await field.fill("madison");
@@ -102,7 +117,7 @@ test("Nearest is from a place typed -- a town, an address, an airport -- and bac
   expect(asked).toContain("43.1,-89.4");
 
   // Its clear: from the position again.
-  await card.getByTestId("nearest-from-clear").click();
+  await sideDrawer(page).getByTestId("search-clear").click();
   await expect(page).not.toHaveURL(/nearAt=/);
   await expect(field).toHaveValue("");
 });

@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { library } from "./helpers";
+import { library, openConsole, showTabs } from "./helpers";
 
 /**
  * A saved flight's debrief (FlightPage, lib/debrief, lib/track): its page
@@ -73,7 +73,8 @@ test("a saved flight's page, and its debrief from a GPX track: kept on the devic
   const saved: { body: unknown }[] = [];
   await signedIn(page, saved);
   await page.goto("/app/plan");
-  await page.getByTestId("settings-button").click();
+  await showTabs(page);
+  await openConsole(page);
   await library(page, "Flights");
   await page.getByRole("button", { name: /C81 → KUGN/ }).click();
 
@@ -82,7 +83,7 @@ test("a saved flight's page, and its debrief from a GPX track: kept on the devic
   await expect(flightPage.getByRole("heading", { name: "C81 → KUGN" })).toBeVisible();
   // Its way back is to the Flights, the Flights page's own back to
   // Personal stepping aside, as one pushed page covers another.
-  await expect(page.getByRole("button", { name: "Personal", exact: true })).toBeHidden();
+  await expect(page.getByRole("button", { name: "Account", exact: true })).toBeHidden();
   await expect(flightPage).toContainText("Under 100 hours in your logbook");
   await expect(flightPage.getByTestId("flight-open")).toBeVisible();
 
@@ -101,7 +102,7 @@ test("a saved flight's page, and its debrief from a GPX track: kept on the devic
 
   // Kept on the device: back to the list and in again, it is still there.
   await page.getByRole("button", { name: "Flights", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Personal", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Account", exact: true })).toBeVisible();
   await page.getByRole("button", { name: /C81 → KUGN/ }).click();
   await expect(flightPage.getByTestId("debrief-source")).toContainText("on this device");
 
@@ -118,7 +119,8 @@ test("a saved flight's page, and its debrief from a GPX track: kept on the devic
 test("Show on the map draws the flown track over its route, and the map's button hides it", async ({ page }) => {
   await signedIn(page, []);
   await page.goto("/app/plan");
-  await page.getByTestId("settings-button").click();
+  await showTabs(page);
+  await openConsole(page);
   await library(page, "Flights");
   await page.getByRole("button", { name: /C81 → KUGN/ }).click();
   await page.getByTestId("debrief-file").setInputFiles({ name: "flight.gpx", mimeType: "application/gpx+xml", buffer: Buffer.from(gpx()) });
@@ -137,7 +139,8 @@ test("Show on the map draws the flown track over its route, and the map's button
 test("a file that is not a track says so where it was imported", async ({ page }) => {
   await signedIn(page, []);
   await page.goto("/app/plan");
-  await page.getByTestId("settings-button").click();
+  await showTabs(page);
+  await openConsole(page);
   await library(page, "Flights");
   await page.getByRole("button", { name: /C81 → KUGN/ }).click();
   await page.getByTestId("debrief-file").setInputFiles({ name: "notes.gpx", mimeType: "application/gpx+xml", buffer: Buffer.from("<gpx><trk/></gpx>") });

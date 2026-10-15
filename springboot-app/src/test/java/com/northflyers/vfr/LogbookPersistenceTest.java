@@ -60,7 +60,7 @@ class LogbookPersistenceTest {
     @Test
     void aPilotsCurrencyDatesAreKept() {
         Pilot pilot = newPilot();
-        pilot.setCurrencyDates(LocalDate.of(2025, 6, 14), LocalDate.of(2027, 6, 30));
+        pilot.setCurrencyDates(LocalDate.of(2025, 6, 14), LocalDate.of(2027, 6, 30), null);
         pilots.save(pilot);
 
         Pilot found = pilots.findById(pilot.getId()).orElseThrow();

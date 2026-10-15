@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { settle, slow } from "./helpers";
+import { closeCard, grabberTo, settle, showTabs, slow } from "./helpers";
 
 /**
  * Tracking an airplane, as FlightAware and ForeFlight do, at the pilot's
@@ -45,7 +45,10 @@ const DETAIL = {
 async function sky(page: Page, detail: object = DETAIL) {
   const reported = Date.now();
   await page.route(url => url.pathname.endsWith("/api/planner/traffic"), route =>
-    route.fulfill({ json: { aircraft: [UAL, CESSNA], age_s: (Date.now() - reported) / 1000, source: "adsb.lol", license: "ODbL 1.0" } }));
+    // Seconds old, as the planner's answer is -- never past the half
+    // minute the map carries an airplane on for (CARRY_S), however long
+    // the test has run: a slow run's airplanes had all aged off the map.
+    route.fulfill({ json: { aircraft: [UAL, CESSNA], age_s: Math.min(5, (Date.now() - reported) / 1000), source: "adsb.lol", license: "ODbL 1.0" } }));
   await page.route(url => url.pathname.startsWith("/api/planner/traffic/flight/"), route => route.fulfill({ json: detail }));
   await page.route(url => url.pathname.endsWith("/api/planner/traffic/route"), route =>
     route.fulfill({ json: new URL(route.request().url()).searchParams.get("callsign") === "UAL2088" ? ROUTE : null }));
@@ -57,28 +60,41 @@ test.afterEach(async ({ page }) => {
   await page.unrouteAll({ behavior: "ignoreErrors" });
 });
 
-test("Aircraft sits under Nearest, lists the airplanes about, and a tap on one tracks it: its card, its path, the map on it", async ({ page }) => {
+test("Aircraft is a tab, finds an airplane by its callsign, and a tap on one tracks it: its card, its path, the map on it", async ({ page }) => {
   await sky(page);
   await page.goto("/app/plan");
   await settle(page);
-  const nearest = (await page.getByTestId("nearest-button").boundingBox())!;
-  const aircraft = page.getByTestId("aircraft-button");
-  const box = (await aircraft.boundingBox())!;
-  expect(box.y).toBeGreaterThan(nearest.y + nearest.height - 1);
-  expect(Math.abs(box.x - nearest.x)).toBeLessThan(2);
-  await aircraft.click();
+  // Out of the tabs alone, which a fresh load opens as.
+  await grabberTo(page, "full");
+  // The tab bar's Aircraft, at the pilot's ask, where it was a button under Nearest's.
+  await showTabs(page);
+  await page.getByTestId("tab-aircraft").click();
+  await showTabs(page);
+  await expect(page.getByTestId("tab-aircraft")).toHaveAttribute("aria-current", "page");
+  // A tab tapped opens at the pill's size (TabBar); its list all the way up.
+  await grabberTo(page, "full");
   const list = page.getByTestId("aircraft-card");
-  await expect(list.getByTestId("aircraft-row")).toHaveCount(2, { timeout: slow(15_000) });
-  await list.getByTestId("aircraft-row").filter({ hasText: "UAL2088" }).click();
+  // No list of everything about, nor its filters, at the owner's ask
+  // ("don't need the extra filters at the bottom"): found by the search.
+  await expect(list.getByTestId("filter-row")).toHaveCount(0);
+  await page.getByTestId("aircraft-search").fill("UAL2088");
+  await list.getByTestId("aircraft-found").filter({ hasText: "UAL2088" }).first().click();
   await expect(page).toHaveURL(/[?&]flight=a0b7d8/);
   const card = page.getByTestId("flight-card");
-  await expect(card.getByTestId("flight-name")).toHaveText("UAL2088");
-  await expect(card.getByTestId("flight-line")).toContainText("Airbus A-321neo · United Airlines Inc");
+  // At the pill's size, as every card opens; its pages all the way up.
+  await grabberTo(page, "full");
+  await expect(page.getByTestId("tab-title")).toHaveText("UAL2088");
+  // Its name alone over the tabs, at the owner's ask: what it is is Info's.
+  await expect(card.getByTestId("flight-line")).toHaveCount(0);
   await expect(card.getByTestId("flight-departed")).toContainText("TJSJ");
   await expect(card.getByTestId("flight-altitude")).toContainText("7,000 ft");
   // Its flight number's route, and its FAA registration, at the pilot's ask.
   await expect(card.getByTestId("flight-route")).toContainText("TJSJ → KORD");
   await expect(card.getByTestId("flight-route")).toContainText("San Juan to Chicago");
+  // What it is, under Info: its make and model and who flies it first.
+  await card.getByTestId("flight-tab-info").click();
+  await expect(card.getByTestId("flight-model")).toHaveText("Airbus A-321neo");
+  await expect(card.getByTestId("flight-operator")).toHaveText("United Airlines Inc");
   await expect(card.getByTestId("faa-owner")).toContainText("United Airlines Inc · Corporation · Chicago, IL");
   await expect(card.getByTestId("faa-status")).toContainText("Valid");
   await expect(card.getByTestId("faa-status")).toContainText(/expires (Apr 30, 2031|30 Apr 2031)/);
@@ -89,7 +105,7 @@ test("Aircraft sits under Nearest, lists the airplanes about, and a tap on one t
   await expect(page.locator("[data-traffic-tracked]")).toHaveCount(1);
   await expect(page.locator(".leaflet-overlay-pane path.tracked-path").first()).toBeAttached();
   // Put away: the list again, as an airport's card over Nearest.
-  await card.getByTestId("flight-close").click();
+  await closeCard(page, "flight-close");
   await expect(page).not.toHaveURL(/[?&]flight=/);
   await expect(list).toBeVisible();
 });
@@ -104,15 +120,15 @@ test("an airplane is found by its callsign, and a tap on one on the map tracks i
   await page.getByTestId("aircraft-search").press("Enter");
   await expect(page).toHaveURL(/[?&]flight=a0b7d8/);
   // No field it took off from in its track: no Departed row.
-  await expect(page.getByTestId("flight-card").getByTestId("flight-name")).toHaveText("UAL2088");
+  await expect(page.getByTestId("tab-title")).toHaveText("UAL2088");
   await expect(page.getByTestId("flight-departed")).toHaveCount(0);
   // One tapped on the map: the Cessna, the second heard.
-  await page.getByTestId("flight-close").click();
+  await closeCard(page, "flight-close");
   const hits = page.locator("[data-traffic-hit]");
   await expect(hits).toHaveCount(2);
   await hits.nth(1).dispatchEvent("click");
   await expect(page).toHaveURL(/[?&]flight=a128b9/);
-  await expect(page.getByTestId("flight-card").getByTestId("flight-name")).toHaveText("N174HA");
+  await expect(page.getByTestId("tab-title")).toHaveText("N174HA");
 });
 
 test("a search finds the airplanes about as it is typed, and asks the planner one name at a time, the last typed", async ({ page }) => {
@@ -128,7 +144,6 @@ test("a search finds the airplanes about as it is typed, and asks the planner on
   await page.goto("/app/plan?aircraft=1");
   await settle(page);
   const card = page.getByTestId("aircraft-card");
-  await expect(card.getByTestId("aircraft-row")).toHaveCount(2, { timeout: slow(15_000) });
   const search = page.getByTestId("aircraft-search");
   // On the map already: found as it is typed, before any answer.
   await search.fill("N17");
@@ -142,6 +157,69 @@ test("a search finds the airplanes about as it is typed, and asks the planner on
   await expect(card.getByTestId("aircraft-found")).toHaveText([/N654FL/], { timeout: slow(15_000) });
   expect(asked.at(-1)).toBe("N654FL");
   expect(asked.filter(q => q === "N654" || q === "N654F")).toEqual([]);
+});
+
+test("an airplane not in the air is found by its registration, and its card says when it was last heard", async ({ page }) => {
+  const piper = {
+    ...FAA, n_number: "N654FL", mode_s_hex: "a89c1e", manufacturer: "Piper", model: "PA-28-140", year: 1971, engines: 1, seats: 4,
+    engine: "Lycoming 0-320 Series", engine_type: "Reciprocating", horsepower: 180, thrust_lb: null, owner: "Roca Roja LLC", owner_type: "LLC",
+    city: "Meridian", state: "ID",
+  };
+  const landed = Date.now() / 1000 - 3600;
+  await sky(page, { hex: "a89c1e", faa: piper, registration: "N654FL", departed: null,
+    trail: [{ t: landed - 600, lat: 43.5, lon: -116.3, alt_ft: 3000 }, { t: landed, lat: 43.56, lon: -116.22, alt_ft: null }] });
+  await page.route(url => url.pathname.endsWith("/api/planner/traffic/find"), route => route.fulfill({ json: { aircraft: [], registered: piper } }));
+  await page.goto("/app/plan?aircraft=1");
+  await settle(page);
+  await page.getByTestId("aircraft-search").fill("N654FL");
+  const row = page.getByTestId("aircraft-card").getByTestId("aircraft-registered");
+  await expect(row).toContainText("N654FL", { timeout: slow(15_000) });
+  await expect(row).toContainText("Piper PA-28-140 · not in the air now");
+  await row.click();
+  await expect(page).toHaveURL(/[?&]flight=a89c1e/);
+  const card = page.getByTestId("flight-card");
+  // Named by its FAA record, not its address, with no trace today to name it.
+  await expect(page.getByTestId("tab-title")).toHaveText("N654FL");
+  // Not heard now: the card opens on its flights, all the way up.
+  await grabberTo(page, "full");
+  await expect(card.getByTestId("flight-tab-activity")).toHaveAttribute("data-state", "active");
+  await card.getByTestId("flight-tab-now").click();
+  await expect(card.getByTestId("flight-not-heard")).toContainText("Last heard");
+  await card.getByTestId("flight-tab-info").click();
+  await expect(card.getByTestId("faa-owner")).toContainText("Roca Roja LLC · LLC · Meridian, ID");
+});
+
+test("while adsb.lol is busy a search shows what it can -- the FAA's record -- and asks again until it is answered", async ({ page }) => {
+  // What the pilot met with N654FL: adsb.lol answers one request every few
+  // seconds, and the planner answers a search it could not ask with
+  // `checked` false and the registry's record.
+  const piper = { ...FAA, n_number: "N654FL", mode_s_hex: "a89c1e", manufacturer: "Piper", model: "PA-28-140" };
+  const flying = { ...CESSNA, hex: "a89c1e", callsign: "N654FL", registration: "N654FL", type: "P28A", lat: 42.4, lon: -88.2 };
+  await sky(page);
+  let asked = 0;
+  let busy = 1;
+  await page.route(url => url.pathname.endsWith("/api/planner/traffic/find"), route => {
+    asked += 1;
+    return route.fulfill({ json: asked <= busy ? { aircraft: [], registered: piper, checked: false } : { aircraft: [flying], checked: true } });
+  });
+  await page.goto("/app/plan?aircraft=1");
+  await settle(page);
+  const card = page.getByTestId("aircraft-card");
+  await page.getByTestId("aircraft-search").fill("N654FL");
+  // At once, the registration, not "Couldn't search"; then the airplane in the air.
+  await expect(card.getByTestId("aircraft-registered")).toContainText("Piper PA-28-140 · not yet known whether it is flying", { timeout: slow(15_000) });
+  await expect(card.getByTestId("aircraft-unchecked")).toBeVisible();
+  await expect(card.getByTestId("aircraft-found").first()).toContainText("N654FL", { timeout: slow(20_000) });
+  await expect(card.getByTestId("aircraft-unchecked")).toHaveCount(0);
+  await expect(card.getByText("Couldn't search")).toHaveCount(0);
+
+  // Busy every time: the record stays, and after three tries again it says so and stops asking.
+  busy = Infinity;
+  asked = 0;
+  await page.getByTestId("aircraft-search").fill("N12345");
+  await expect(card.getByTestId("aircraft-unchecked")).toContainText("Try again in a moment", { timeout: slow(40_000) });
+  await page.waitForTimeout(8000);
+  expect(asked).toBe(4);
 });
 
 test("in the air, own ship's path flown is drawn behind it", async ({ page }) => {
@@ -169,4 +247,184 @@ test("in the air, own ship's path flown is drawn behind it", async ({ page }) =>
   await page.goto("/app/plan");
   await settle(page);
   await expect(page.locator(".leaflet-overlay-pane path.own-trail")).toBeAttached({ timeout: slow(15_000) });
+});
+
+test("an airplane's past flights are listed on its card, and one is drawn on the map, replayed and logged", async ({ page }) => {
+  // N654FL's morning as FlightAware has it: LWM to LCI, then LCI to LWM.
+  const off = Date.now() / 1000 - 6 * 3600;
+  const lci = { ident: "LCI", name: "Laconia Municipal Airport", city: "Laconia", region: "US-NH" };
+  const lwm = { ident: "LWM", name: "Lawrence Municipal Airport", city: "Lawrence", region: "US-MA" };
+  const points = Array.from({ length: 80 }, (_, i) => ({
+    t: off + i * 60, lat: 43.57 - i * 0.0107, lon: -71.42 + i * 0.0038, alt_ft: 800 + Math.min(i, 79 - i) * 120,
+    gs_kt: 100, track_deg: 165, vrate_fpm: i < 40 ? 500 : -500,
+  }));
+  await sky(page);
+  await page.route(url => /\/api\/planner\/traffic\/flight\/a0b7d8\/history$/.test(url.pathname), route => route.fulfill({ json: {
+    hex: "a0b7d8", registration: "N654FL", type: "P28A", flights: [
+      { id: Math.floor(off), origin: lci, destination: lwm, off, on: off + 79 * 60, landed: true, in_air: false, max_alt_ft: 5520 },
+      { id: Math.floor(off) - 7200, origin: lwm, destination: lci, off: off - 7200, on: off - 4400, landed: true, in_air: false, max_alt_ft: 4100 },
+    ] } }));
+  await page.route(url => /\/api\/planner\/traffic\/flight\/a0b7d8\/history\/\d+$/.test(url.pathname),
+    route => route.fulfill({ json: { id: Math.floor(off), points } }));
+  await page.goto("/app/plan?flight=a0b7d8");
+  await settle(page);
+  const card = page.getByTestId("flight-card");
+  // At the pill's size, as every card opens; its pages all the way up.
+  await grabberTo(page, "full");
+  await card.getByTestId("flight-tab-activity").click();
+  const rows = card.getByTestId("past-flight");
+  await expect(rows).toHaveCount(2, { timeout: slow(15_000) });
+  await expect(rows.first()).toContainText("LCI → LWM");
+  await expect(rows.first()).toContainText("Arrived");
+  await rows.first().click();
+  // Its own card over the airplane's, at the pilot's ask: the replay, its
+  // figures and its track log; drawn on the map in its heights' colours.
+  await expect(page).toHaveURL(/[?&]past=\d+/);
+  const flight = page.getByTestId("past-flight-card");
+  await expect(flight.getByTestId("past-flight-name")).toHaveText("LCI → LWM");
+  await expect(flight.getByTestId("past-flight-off")).toContainText("LCI");
+  await expect(flight.getByTestId("past-flight-on")).toContainText("LWM");
+  await expect(flight.getByTestId("past-flight-flown")).toContainText(/\d+ nm/);
+  await expect(page.locator("path.past-flight-path").first()).toBeAttached({ timeout: slow(10_000) });
+  // All the way up, the controls and the whole graph, its time axis too,
+  // in sight: the axis was cut off on the owner's phone.
+  await grabberTo(page, "full");
+  await expect.poll(async () => (await flight.getByTestId("replay-chart-box").boundingBox())!.height).toBeGreaterThanOrEqual(72);
+  await expect(flight.getByTestId("replay-chart-box")).toBeInViewport({ ratio: 1 });
+  // The graph drawn to its box, axis and all.
+  await expect.poll(async () => (await flight.getByTestId("replay-chart-box").locator("svg.recharts-surface").boundingBox())?.height)
+    .toBeGreaterThanOrEqual(72);
+  await expect(flight.getByTestId("track-log").locator("tbody tr")).toHaveCount(60);
+  await flight.getByTestId("track-log-all").click();
+  await expect(flight.getByTestId("track-log").locator("tbody tr")).toHaveCount(80);
+  // Played at 200 times: where the airplane is, said under the controls.
+  await flight.getByTestId("replay-speed").getByText("200×").click();
+  await flight.getByTestId("replay-play").click();
+  await expect(flight.getByTestId("replay-now")).toContainText(/ft · 100 kt · S/);
+  // Another tab and back, at the owner's ask: the past flight still out
+  // over the Aircraft tab, its replay on where it was.
+  await showTabs(page);
+  await page.getByTestId("tab-fpl").click();
+  await expect(flight).toHaveCount(0);
+  await showTabs(page);
+  await page.getByTestId("tab-aircraft").click();
+  await expect(page).toHaveURL(/[?&]past=\d+/);
+  await expect(flight.getByTestId("replay-now")).toContainText(/ft · 100 kt · S/);
+  // At the pill's size, as a tab tapped opens; its controls all the way up.
+  await grabberTo(page, "full");
+  await flight.getByTestId("replay-stop").click();
+  await expect(flight.getByTestId("replay-now")).toHaveCount(0);
+  // Closed: back to the airplane's card on its Activity, the path put away.
+  await closeCard(page, "past-flight-close");
+  await expect(page).not.toHaveURL(/[?&]past=/);
+  await expect(card.getByTestId("flight-tab-activity")).toHaveAttribute("data-state", "active");
+  await expect(page.locator("path.past-flight-path")).toHaveCount(0);
+});
+
+test("an airplane's last flights found are listed, the ones before them on asking, and from a day picked", async ({ page }) => {
+  // The owner's ask: "make it last 10 flights you were able to find. But
+  // also give an option to fetch more by date".
+  const lci = { ident: "LCI", name: "Laconia Municipal Airport", city: "Laconia", region: "US-NH" };
+  const lwm = { ident: "LWM", name: "Lawrence Municipal Airport", city: "Lawrence", region: "US-MA" };
+  const flight = (off: number, from: typeof lci, to: typeof lci) =>
+    ({ id: Math.floor(off), origin: from, destination: to, off, on: off + 3600, landed: true, in_air: false, max_alt_ft: 4500 });
+  const now = Date.now() / 1000;
+  const asked: URLSearchParams[] = [];
+  await sky(page);
+  await page.route(url => /\/api\/planner\/traffic\/flight\/a0b7d8\/history$/.test(url.pathname), route => {
+    const query = new URL(route.request().url()).searchParams;
+    asked.push(query);
+    const base = { hex: "a0b7d8", registration: "N14511", type: "A21N" };
+    if (query.get("before")) {
+      return route.fulfill({ json: { ...base, flights: [flight(now - 20 * 86400, lci, lwm)], next_until: null } });
+    }
+    if (query.get("until")) {
+      return route.fulfill({ json: { ...base, flights: [flight(now - 30 * 86400, lwm, lci)], next_until: null } });
+    }
+    return route.fulfill({ json: { ...base, flights: [flight(now - 86400, lci, lwm), flight(now - 2 * 86400, lwm, lci)], next_until: "2026-10-01" } });
+  });
+  await page.goto("/app/plan?flight=a0b7d8");
+  await settle(page);
+  const card = page.getByTestId("flight-card");
+  // At the pill's size, as every card opens; its pages all the way up.
+  await grabberTo(page, "full");
+  await card.getByTestId("flight-tab-activity").click();
+  const rows = card.getByTestId("past-flight");
+  await expect(rows).toHaveCount(2, { timeout: slow(15_000) });
+  // The ones before, from where the list ends: before its last takeoff.
+  await card.getByTestId("past-flights-more").click();
+  await expect(rows).toHaveCount(3);
+  expect(asked.at(-1)?.get("until")).toBe("2026-10-01");
+  expect(Number(asked.at(-1)?.get("before"))).toBe(Math.floor(now - 2 * 86400));
+  // The archive's end: no more to ask for.
+  await expect(card.getByTestId("past-flights-more")).toHaveCount(0);
+  // From a day picked, on the stock calendar: the first of this month,
+  // in its grid and in the archive's six weeks.
+  await card.getByTestId("past-flights-date").click();
+  const picker = page.getByTestId("past-flights-picker");
+  const { label, iso } = await page.evaluate(() => {
+    const first = new Date();
+    first.setDate(1);
+    return { label: first.toLocaleDateString(), iso: `${first.getFullYear()}-${String(first.getMonth() + 1).padStart(2, "0")}-01` };
+  });
+  await picker.locator(`button[data-day="${label}"]`).click();
+  await expect(rows).toHaveCount(1);
+  expect(asked.at(-1)?.get("until")).toBe(iso);
+  await expect(card).toContainText("On and before");
+  await expect(card.getByTestId("past-flights-date")).not.toContainText("Pick a day");
+  // Back to the latest: the list as it was, the earlier ones still with it.
+  // Once the picker has gone: tapped again while it was going, a desktop's
+  // popover took the tap that reopened it for one outside and shut again,
+  // in CI's run (Latest never showed).
+  await expect(picker).toHaveCount(0);
+  await card.getByTestId("past-flights-date").click();
+  await page.getByTestId("past-flights-latest").click();
+  await expect(rows).toHaveCount(3);
+  await expect(card.getByTestId("past-flights-date")).toContainText("Pick a day");
+});
+
+test("an airplane quiet for a fortnight is looked for further back by itself, and said to be unheard where the archive ends", async ({ page }) => {
+  // The owner's N3429J: nothing in its first fortnight, "Look further
+  // back" alone on the card.
+  const asked: URLSearchParams[] = [];
+  await sky(page);
+  await page.route(url => /\/api\/planner\/traffic\/flight\/a0b7d8\/history$/.test(url.pathname), route => {
+    const query = new URL(route.request().url()).searchParams;
+    asked.push(query);
+    const base = { hex: "a0b7d8", registration: "N3429J", type: "C150", flights: [] };
+    const next = { "": "2026-09-28", "2026-09-28": "2026-09-14", "2026-09-14": null }[query.get("until") ?? ""] ?? null;
+    return route.fulfill({ json: { ...base, next_until: next } });
+  });
+  await page.goto("/app/plan?flight=a0b7d8");
+  await settle(page);
+  const card = page.getByTestId("flight-card");
+  // At the pill's size, as every card opens; its pages all the way up.
+  await grabberTo(page, "full");
+  await card.getByTestId("flight-tab-activity").click();
+  await expect(card).toContainText("None heard in adsb.lol's archive", { timeout: slow(15_000) });
+  expect(asked.map(q => q.get("until"))).toEqual([null, "2026-09-28", "2026-09-14"]);
+  await expect(card.getByTestId("past-flights-more")).toHaveCount(0);
+});
+
+test("an airplane opened is in the Aircraft card's Recents, and one starred on its card is in its Favorites, as airports are", async ({ page }) => {
+  await sky(page);
+  await page.goto("/app/plan?flight=a0b7d8");
+  await settle(page);
+  const card = page.getByTestId("flight-card");
+  await expect(page.getByTestId("tab-title")).toHaveText("UAL2088", { timeout: slow(15_000) });
+  const star = card.getByTestId("flight-favorite");
+  await expect(star).toHaveAttribute("aria-pressed", "false");
+  await star.click();
+  await expect(star).toHaveAttribute("aria-pressed", "true");
+  await closeCard(page, "flight-close");
+  await page.goto("/app/plan?aircraft=1");
+  await settle(page);
+  const list = page.getByTestId("aircraft-card");
+  await expect(list.getByTestId("pill-aircraft-favorite")).toHaveCount(1);
+  await expect(list.getByTestId("pill-aircraft-favorite")).toContainText("N14511");
+  await expect(list.getByTestId("aircraft-recent").first()).toContainText("N14511");
+  // A tile opens its card again.
+  await list.getByTestId("pill-aircraft-favorite").click();
+  await expect(page).toHaveURL(/[?&]flight=a0b7d8/);
+  await expect(page.getByTestId("flight-card").getByTestId("flight-favorite")).toHaveAttribute("aria-pressed", "true");
 });

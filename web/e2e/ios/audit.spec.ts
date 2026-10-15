@@ -2,7 +2,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { test, expect } from "@playwright/test";
 import { SCREENS } from "./screens";
 import {
-  componentFindings, contrastFindings, emulateSafeArea, hitAreaMisses, horizontalOverflow, outsideSafeArea, quiet, roleFindings, still,
+  componentFindings, keyboardFindings, contrastFindings, emulateSafeArea, hitAreaMisses, horizontalOverflow, outsideSafeArea, quiet, roleFindings, still,
   typeFindings, type Insets,
 } from "./metrics";
 
@@ -49,6 +49,7 @@ for (const screen of SCREENS) {
     const { offScale, offLeading, offFace } = await typeFindings(page);
     const greyed = await roleFindings(page);
     const components = await componentFindings(page);
+    const keyboards = await keyboardFindings(page);
     // P15 in both schemes: the app follows the system's (Settings,
     // Appearance), and dark is a palette of its own to pass or fail --
     // each with no transitions: a section laid out only near the screen
@@ -108,7 +109,7 @@ for (const screen of SCREENS) {
 
     await info.attach("findings", {
       contentType: "application/json",
-      body: JSON.stringify({ misses, offScale, offLeading, offFace, greyed, components, contrast, contrastDark, overflow, zoomed, insets: insets ?? null, outside, wcag22 }),
+      body: JSON.stringify({ misses, offScale, offLeading, offFace, greyed, components, keyboards, contrast, contrastDark, overflow, zoomed, insets: insets ?? null, outside, wcag22 }),
     });
     expect.soft(wcag22, "WCAG 2.2 AA (axe-core): no serious or critical violation").toEqual([]);
     expect.soft(misses, "P1: every control owns a 44 × 44 pt hit region").toEqual([]);
@@ -117,6 +118,7 @@ for (const screen of SCREENS) {
     expect.soft(offFace, "P16: the app's own typeface").toEqual([]);
     expect.soft(greyed, "P17: reading text and headings in the text's own colour").toEqual([]);
     expect.soft(components, "P18: the same component at the same size wherever it is").toEqual([]);
+    expect.soft(keyboards, "P19: every typed field names its return key and its AutoFill").toEqual([]);
     expect.soft(contrast, "P15: WCAG contrast, light").toEqual([]);
     expect.soft(contrastDark, "P15: WCAG contrast, dark").toEqual([]);
     expect.soft(overflow, "P11: no sideways scroll").toBeLessThanOrEqual(0);

@@ -2,6 +2,7 @@ package com.northflyers.vfr.controller;
 
 import com.northflyers.vfr.domain.Flight;
 import com.northflyers.vfr.domain.FlightCheckpoint;
+import com.northflyers.vfr.domain.PaidFeature;
 import com.northflyers.vfr.dto.FlightCheckpointDto;
 import com.northflyers.vfr.dto.FlightDto;
 import com.northflyers.vfr.dto.FlightSummaryDto;
@@ -10,6 +11,7 @@ import com.northflyers.vfr.dto.SaveFlightRequest;
 import com.northflyers.vfr.dto.TrackDto;
 import com.northflyers.vfr.service.FlightService;
 import com.northflyers.vfr.service.PilotService;
+import com.northflyers.vfr.service.SubscriptionService;
 import jakarta.validation.Valid;
 import java.util.List;
 import org.springframework.http.ResponseEntity;
@@ -32,16 +34,18 @@ public class FlightController {
 
     private final FlightService flightService;
     private final PilotService pilots;
+    private final SubscriptionService subscriptions;
 
-    public FlightController(FlightService flightService, PilotService pilots) {
+    public FlightController(FlightService flightService, PilotService pilots, SubscriptionService subscriptions) {
         this.flightService = flightService;
         this.pilots = pilots;
+        this.subscriptions = subscriptions;
     }
 
     @GetMapping
     public ResponseEntity<List<FlightSummaryDto>> list(Authentication authentication) {
         return PilotResponses.withPilot(pilots, authentication, pilot ->
-                ResponseEntity.ok(flightService.list(pilot).stream().map(FlightController::toSummaryDto).toList()));
+                ResponseEntity.ok(flightService.list(pilot).stream().map(FlightSummaryDto::of).toList()));
     }
 
     @PostMapping
@@ -65,8 +69,16 @@ public class FlightController {
                 flightService.track(pilot, id).map(ResponseEntity::ok).orElse(ResponseEntity.notFound().build()));
     }
 
+    /** A track kept on the account for its debrief, a paid feature: the
+     *  debrief itself is measured on the device, so keeping its track is
+     *  what the server can hold back (SubscriptionService). Reading one
+     *  back, or deleting it, never is: what a pilot saved stays theirs. */
     @PutMapping("/{id}/track")
     public ResponseEntity<Void> saveTrack(Authentication authentication, @PathVariable Long id, @Valid @RequestBody TrackDto track) {
+        var refused = subscriptions.refusal(authentication, PaidFeature.DEBRIEF);
+        if (refused.isPresent()) {
+            return ResponseEntity.status(refused.get().status()).build();
+        }
         return PilotResponses.withPilot(pilots, authentication, pilot ->
                 flightService.saveTrack(pilot, id, track) ? ResponseEntity.noContent().build() : ResponseEntity.notFound().build());
     }
@@ -81,13 +93,6 @@ public class FlightController {
     public ResponseEntity<Void> delete(Authentication authentication, @PathVariable Long id) {
         return PilotResponses.withPilot(pilots, authentication, pilot ->
                 flightService.delete(pilot, id) ? ResponseEntity.noContent().build() : ResponseEntity.notFound().build());
-    }
-
-    private static FlightSummaryDto toSummaryDto(Flight f) {
-        return new FlightSummaryDto(f.getId(), f.getDepartureIdent(), f.getDestinationIdent(), f.getStops(),
-                f.getAircraft() == null ? null : f.getAircraft().getTailNumber(),
-                f.getCruiseAltitudeFt(), f.getTotalDistanceNm(), f.getTotalEteMin(), f.getTotalFuelGal(),
-                f.getPlannedFor(), f.getCreatedAt(), riskOf(f), f.getOwnAltitudes());
     }
 
     private static RiskAssessmentDto riskOf(Flight f) {

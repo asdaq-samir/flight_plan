@@ -67,46 +67,53 @@ test("an airport's card has its diagram as a row, and a tap shows it full screen
   await expect(card(page)).toBeVisible();
 });
 
-test("the card's sketch of the runways sits between the name and the close, star and weather chip stacked at the right, over the tiles, with the elevation at its top left", async ({ page }) => {
+test("the card's sketch of the runways sits between the name and the star and weather chip stacked at the right, over the tiles, with the elevation at its top left, the same all the way up", async ({ page }) => {
   await withDiagram(page, "drawn");
   await withChartPages(page);
   await page.goto("/app/plan?place=KDLH");
   await settle(page);
+  // Half way, as every card opens, as Maps opens a place: the sketch
+  // beside the name (the owner's pick of the redesign, 1b).
+  await expect(sideDrawer(page)).toHaveAttribute("data-panel", "half");
   const sketch = card(page).getByTestId("place-runway-sketch");
   // KDLH's runways, named for a screen reader.
   await expect(sketch).toHaveAttribute("aria-label", /^KDLH runways .*09\/27.*, north up\./, { timeout: slow(15000) });
-  // The ident's pill at the end of the name, and no line under it with nothing
-  // to measure from (places.spec has the distance); the elevation, "Elev"
-  // and the figure and its feet, at the sketch's top left.
+  // The ident's pill at the end of the name, and no line under it with
+  // nothing to measure from (places.spec has the distance); the
+  // elevation, "Elev" and the figure and its feet, at the sketch's top left.
   const name = card(page).getByTestId("place-name");
   await expect(name).toHaveText("Duluth International Airport KDLH");
   await expect(card(page).getByTestId("place-line")).toHaveCount(0);
-  // The FAA's diagram cropped to its runways, the field having one.
   await expect(sketch.getByTestId("place-diagram-runways")).toHaveAttribute("src", "/api/planner/airport-diagram/2610/runways/KDLH.png");
   const elevation = card(page).getByTestId("place-elevation");
   // "Elev 788 ft" to the eye, "Elevation 788 ft" to a screen reader.
   await expect(elevation).toHaveText(/Elevation [\d,]+ ft$/);
   await expect(elevation.locator('[aria-hidden="true"]')).toHaveText("Elev");
-  const [height, box, named, close, star, chip, call] = await Promise.all([
-    elevation, sketch, name, card(page).getByTestId("place-close"), card(page).getByTestId("place-favorite"),
-    card(page).getByTestId("place-category"), card(page).getByTestId("place-call"),
-  ].map(async l => (await l.boundingBox())!));
-  // The name, then the sketch from the card's top, then the column: the
-  // close, the star under it and the weather's chip under that, their
-  // right edges one.
-  expect(box.x).toBeGreaterThan(named.x + named.width - 1);
-  expect(Math.abs(box.y - close.y)).toBeLessThan(1);
-  expect(box.x + box.width).toBeLessThan(Math.min(close.x, star.x, chip.x));
-  expect(star.y).toBeGreaterThan(close.y + close.height - 1);
-  expect(chip.y).toBeGreaterThan(star.y + star.height - 1);
-  // One width, the star's, so the sketch reaches as far right as it can.
-  for (const b of [star, chip]) {
-    expect(Math.abs(b.x + b.width - (close.x + close.width))).toBeLessThan(1.5);
-    expect(Math.abs(b.width - close.width)).toBeLessThan(1);
-  }
-  expect(height.x).toBeLessThan(box.x + 12);
-  expect(height.y).toBeLessThan(box.y + 12);
-  expect(box.y + box.height).toBeLessThanOrEqual(call.y);
+  const layout = async (across = true) => {
+    const [height, box, named, star, chip, call] = await Promise.all([
+      elevation, sketch, name, card(page).getByTestId("place-favorite"),
+      card(page).getByTestId("place-category"), card(page).getByTestId("place-call"),
+    ].map(async l => (await l.boundingBox())!));
+    // The column at the right: the star, then the weather's chip, their
+    // right edges one (the close is the bar's, kept for a keyboard); the
+    // sketch between the name and the column, from its top.
+    if (across) {
+      expect(box.x).toBeGreaterThan(named.x + named.width - 1);
+      expect(box.x + box.width).toBeLessThan(Math.min(star.x, chip.x));
+      expect(Math.abs(chip.x + chip.width - (star.x + star.width))).toBeLessThan(1.5);
+    }
+    expect(Math.abs(box.y - star.y)).toBeLessThanOrEqual(1);
+    expect(chip.y).toBeGreaterThan(star.y + star.height - 1);
+    expect(height.x).toBeLessThan(box.x + 12);
+    expect(height.y).toBeLessThan(box.y + 12);
+    expect(box.y + box.height).toBeLessThanOrEqual(call.y);
+    return [Math.round(box.y - named.y), Math.round(call.y - named.y)];
+  };
+  const half = await layout();
+  // All the way up, the same head where it was, the owner's "the top half
+  // stay the same as half card".
+  await grabberTo(page, "full");
+  await expect.poll(() => layout(false)).toEqual(half);
 
   await sketch.click();
   await expect(page.getByTestId("airport-diagram-viewer").getByRole("heading", { name: "KDLH airport diagram" })).toBeVisible();
@@ -166,6 +173,8 @@ test("the Diagrams tab's charts and the Chart Supplement open in the app, the fi
   const asked = await withChartPages(page);
   await page.goto("/app/plan?place=KDLH");
   await settle(page);
+  // At the pill's size, as every card opens; its pages all the way up.
+  await grabberTo(page, "full");
   await card(page).getByTestId("place-tab-diagrams").click();
   const panel = card(page).getByRole("tabpanel");
   // No link out of the app in the tab.
@@ -262,7 +271,9 @@ test("a tap on the card's sketch of a field the FAA draws no diagram for shows t
   const viewer = page.getByTestId("airport-sketch-viewer");
   await expect(viewer.getByRole("heading", { name: "C81 runways" })).toBeVisible();
   await expect(viewer.getByTestId("runway-sketch").locator("line").first()).toBeVisible();
-  // Not the Runways tab, which the tap used to open.
+  // Not the Runways tab, which the tap used to open: the card still half
+  // way, on its first tab.
+  await expect(sideDrawer(page)).toHaveAttribute("data-panel", "half");
   await expect(card(page).getByTestId("place-tab-runways")).not.toHaveAttribute("data-state", "active");
   await viewer.getByTestId("airport-sketch-close").click();
   await expect(viewer).toHaveCount(0);

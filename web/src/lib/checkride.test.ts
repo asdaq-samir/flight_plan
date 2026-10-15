@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { acsCodesIn, ENDORSEMENTS, endorsementUntil, lookUp, type AcsTable } from "./checkride";
+import { acsCodesIn, lookUp, renderEndorsement, type AcsTable } from "./checkride";
 import acs from "./acs.json";
 
 describe("the checkride page's reading", () => {
@@ -10,10 +10,18 @@ describe("the checkride page's reading", () => {
     expect(acsCodesIn("nothing here")).toEqual([]);
   });
 
-  test("a solo endorsement runs out after 90 days, a knowledge test's does not", () => {
-    const solo = ENDORSEMENTS.find(e => e.code === "solo-90")!;
-    expect(endorsementUntil(solo, "2026-09-01")).toBe("2026-11-30");
-    expect(endorsementUntil(ENDORSEMENTS.find(e => e.code === "knowledge-test")!, "2026-09-01")).toBeNull();
+  // AC 61-65K A.10 filled in as the webapp's EndorsementKindTest fills it:
+  // the two must make the same words, or the webapp refuses the signature.
+  test("an endorsement's words as they will be signed, a blank left empty leaving nothing", () => {
+    const template = "I have reviewed the cross-country planning of {student}. I find the planning and preparation to be correct"
+      + " to make the solo flight from {from} to {to} via {via} with landings at {landings} in a {mm} aircraft on {date}."
+      + " {conditions}";
+    expect(renderEndorsement(template, "Avery B. Student", {
+      from: "KUGN", to: "KUGN", via: "KRFD, KJVL", landings: "KRFD, KJVL and KUGN", mm: "Cessna  172", date: "10-14-2026", conditions: "",
+    })).toBe(
+      "I have reviewed the cross-country planning of Avery B. Student. I find the planning and preparation to be correct to make"
+      + " the solo flight from KUGN to KUGN via KRFD, KJVL with landings at KRFD, KJVL and KUGN in a Cessna 172 aircraft on 10-14-2026.",
+    );
   });
 
   test("a code looked up in the FAA's own words", () => {

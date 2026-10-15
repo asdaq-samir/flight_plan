@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { openSettings, noTips } from "./helpers";
+import { noTips, openConsole, openSettings, showTabs, consolePage } from "./helpers";
 
 /**
  * The privacy policy, terms and support pages (public/*.html): served
@@ -28,9 +28,12 @@ test.describe("without JavaScript", () => {
   }
 });
 
-test("Settings links the three pages", async ({ page }) => {
+test("the console's About links the three pages", async ({ page }) => {
   await page.goto("/app/plan");
   await openSettings(page);
+  // With the app's build and its sources, since About took them from
+  // under Settings.
+  await consolePage(page.getByTestId("console-sheet"), "About");
   for (const [key, p] of [["privacy", PAGES[0]!], ["terms", PAGES[1]!], ["support", PAGES[2]!]] as const) {
     await expect(page.getByTestId(`legal-${key}`)).toHaveAttribute("href", p.path);
   }
@@ -41,9 +44,10 @@ test.describe("signed out", () => {
   test.use({ storageState: { cookies: [], origins: [] } });
   test("the sign-in dialog links them", async ({ page }) => {
     await page.goto("/app/plan");
-    await page.getByTestId("settings-button").click();
-    await page.getByTestId("console-sheet").getByRole("tab", { name: "Personal" }).click();
-    await page.getByTestId("console-sheet").getByRole("tabpanel").getByRole("button", { name: "Sign in" }).click();
+    await showTabs(page);
+    await openConsole(page);
+    await consolePage(page.getByTestId("console-sheet"), "Account");
+    await page.getByTestId("console-sheet").getByTestId("setup-page").getByRole("button", { name: "Sign in" }).click();
     const legal = page.getByRole("dialog", { name: "Sign in to Wingtip Maps" }).getByTestId("sign-in-legal");
     await expect(page.getByTestId("sign-in-accept")).toHaveText("By signing in you accept the");
     await expect(legal.getByRole("link", { name: "Terms of use" })).toHaveAttribute("href", "/app/terms.html");

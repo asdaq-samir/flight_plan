@@ -1,4 +1,5 @@
 import L from "leaflet";
+import { ownShipSvg, type OwnShipLook } from "./ownShipLook";
 import type { AirspaceClass } from "../preferences";
 import { inkOn } from "../scoreScale";
 import { textWidth } from "../textWidth";
@@ -82,23 +83,24 @@ export const dotIcon = made(function dotIcon(fill: string, label?: string | numb
   });
 });
 
-/** Own ship: an arrow the size of a checkpoint dot, blue with a white
- *  casing so it holds over any chart colour, turned to the GPS heading
- *  -- a plain dot while stationary, when there is none. */
-export function ownShipIcon(headingDeg: number | null, off = false) {
+/** Own ship: the arrow, or the plane the pilot picked (lib/map/ownShipLook),
+ *  blue in a white casing so it holds over any chart colour, turned to the
+ *  GPS heading -- the arrow a plain dot while stationary, when there is
+ *  none; a plane nose up then, as it is drawn in the settings. */
+export function ownShipIcon(headingDeg: number | null, off = false, look: OwnShipLook = "arrow") {
   // Grey where own ship is off: the last position, no longer watched, as
   // Maps greys its dot when it stops knowing where you are.
   const fill = off ? "#9ca3af" : "#2563eb";
+  const plane = look !== "arrow";
+  const size = plane ? 34 : 28;
   return L.divIcon({
     className: "",
-    iconSize: [28, 28],
-    iconAnchor: [14, 14],
-    html: headingDeg === null || off
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+    html: !plane && (headingDeg === null || off)
       ? `<div data-own-ship="${off ? "off" : "on"}" class="absolute left-1/2 top-1/2 size-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-[2.5px] border-white shadow-[0_1px_4px_rgba(0,0,0,.45)]" style="background:${fill}"></div>`
-      : `<svg viewBox="0 0 28 28" width="28" height="28" aria-hidden="true" data-own-ship="on"` +
-        ` class="absolute left-0 top-0 drop-shadow-[0_1px_3px_rgba(0,0,0,.5)]"` +
-        ` style="transform:rotate(${Number(headingDeg)}deg)">` +
-        `<path d="M14 3 L23 24 L14 19 L5 24 Z" fill="${fill}" stroke="#ffffff" stroke-width="2.5" stroke-linejoin="round"/></svg>`,
+      : ownShipSvg(look, fill, size,
+        `data-own-ship="${off ? "off" : "on"}" data-look="${look}" class="absolute left-0 top-0 drop-shadow-[0_1px_3px_rgba(0,0,0,.5)]" style="transform:rotate(${Number(headingDeg ?? 0)}deg)"`),
   });
 }
 
@@ -166,7 +168,7 @@ export const selectionIcon = made(function selectionIcon() {
 });
 
 /** The sectional's magenta, a VFR waypoint's colour on the chart. */
-const WAYPOINT_MAGENTA = "#b02e7c";
+const WAYPOINT_MAGENTA = "#c0309f";
 
 /** A VFR waypoint on the chart (VPBNG): a magenta diamond and no words,
  *  as small as the chart's own flag, in a finger's 44 points of target. */
@@ -189,20 +191,20 @@ export const waypointIcon = made(function waypointIcon(ident: string) {
     className: "",
     iconSize: [width, 24], iconAnchor: [width / 2, 12],
     html:
-      `<span class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded-full border-2 border-[#b02e7c] bg-white px-1.5 py-0.5 text-[11px] font-bold text-[#8a1f5f] shadow-sm"` +
+      `<span class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded-full border-2 border-[#c0309f] bg-white px-1.5 py-0.5 text-[11px] font-bold text-[#8a1f5f] shadow-sm"` +
       `>&#9670;&#8202;${text(ident)}</span>`,
   });
 });
 
 /** A top of climb or descent on the course line: "TOC" or "TOD" in a
- *  small white tag edged in the line's orange, under the checkpoints'
+ *  small white tag edged in the line's magenta, under the checkpoints'
  *  dots (it is a point the plan works out, not one to look for). */
 export const legPointIcon = made(function legPointIcon(label: "TOC" | "TOD") {
   return L.divIcon({
     className: "",
     iconSize: [38, 20], iconAnchor: [19, 10],
     html:
-      `<span class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded-sm border-[1.5px] border-[#ff3b00] bg-white px-1 text-[11px] leading-[13px] font-bold text-[#1c1a17] shadow-sm"` +
+      `<span class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded-sm border-[1.5px] border-[#e600e6] bg-white px-1 text-[11px] leading-[13px] font-bold text-[#1c1a17] shadow-sm"` +
       `>${text(label)}</span>`,
   });
 });
