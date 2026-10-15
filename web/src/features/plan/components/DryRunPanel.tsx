@@ -72,14 +72,20 @@ export function DryRunControls({ run, onClose }: { run: DryRun; onClose: () => v
         </RoundButton>
         <CloseButton onClick={onClose} data-testid="dry-run-close" />
       </div>
-      {/* Short at the pill, taller as the sheet comes up, its height its
-          own -- the chart is drawn to it; a min-height alone left it none
-          all the way up, and the chart blank (the owner's recording) --
-          and growing into any room the row leaves over the figures. */}
-      <div className="h-[calc(3rem+6rem*var(--sheet-progress,1))] flex-[1_0_auto]">
-        <Suspense fallback={<div className="h-full" />}>
-          <FlightChart points={run.points} at={second} alongNm={run.alongNm} />
-        </Suspense>
+      {/* Six rem, and all the room up to the route where the panel gives it
+          the body's (MapPanel's footFills, the owner's "Dry run should expand
+          up to the route"), three at the least: a flex size the chart is
+          drawn to -- a min-height alone left it none all the way up, and the
+          chart blank (the owner's recording). */}
+      <div className="relative min-h-12 flex-[1_1_6rem]">
+        {/* Drawn to the box's own size, whatever the flex gave it: WebKit
+            gives a grown flex item's child no height of its own to be a
+            share of, and the chart stayed three rem tall all the way up. */}
+        <div className="absolute inset-0">
+          <Suspense fallback={null}>
+            <FlightChart points={run.points} at={second} alongNm={run.alongNm} />
+          </Suspense>
+        </div>
       </div>
     </div>
   );

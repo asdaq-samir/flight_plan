@@ -57,20 +57,23 @@ test("the tabs swap the panel's head and body, FPL's empty box with no route", a
   await expect(page.getByTestId("tab-fpl")).toHaveAttribute("aria-current", "page");
 });
 
-test("a route rests as the tabs over its figures, and half way another tab keeps the panel's height and the route", async ({ page }) => {
+test("a route rests as its figures in the tabs' place, the pill's own height, and half way another tab keeps the panel's height and the route", async ({ page }) => {
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   const panel = sideDrawer(page);
-  // At rest the tabs, the route's figures pinned under them, at the owner's
-  // ask ("If a route is entered, then let's pin the calculations at the
-  // bottom").
+  // At rest the route's figures in the tabs' place, the pill as tall as the
+  // tabs', at the owner's ask ("When a route is entered the calculations
+  // should replace the tabs in the pill while keeping it the same size");
+  // a tap on them half way.
   await expect(panel).toHaveAttribute("data-capsule", "true");
-  await expect(panel.getByTestId("tab-bar")).toBeVisible();
   const figures = panel.getByTestId("flight-line");
   await expect(figures).toContainText(/\d+ nm/, { timeout: slow(30000) });
-  expect((await figures.boundingBox())!.y).toBeGreaterThan((await panel.getByTestId("tab-bar").boundingBox())!.y);
+  await expect(panel.getByTestId("tab-bar")).toBeHidden();
   await expect(panel.getByTestId("mini-profile")).toBeHidden();
-  await grabberTo(page, "half");
+  await settled(panel);
+  expect((await panel.boundingBox())!.height).toBeLessThan(64);
+  await panel.getByTestId("panel-foot").click();
+  await expect(panel).toHaveAttribute("data-panel", "half");
   // Half way, the tabs still the sheet's first row.
   await expect(page.getByTestId("tab-fpl")).toHaveAttribute("aria-current", "page");
   // Measured at rest: caught on its way up, the bar was still at the pill's.

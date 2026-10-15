@@ -1445,6 +1445,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     // keep the calculations pinned at the bottom"; "Why can't the half card
     // have calculations pinned at the very bottom as the full card, just
     // make them bigger smoothly as expanded").
+    footFills: tab === "fpl" && !place && !heldPoint && !flight && !!dryRunning,
     foot: tab === "fpl" && !place && !heldPoint && !flight ? routed && (
       // The foot's whole row in the pill while a dry run is up, its chart
       // taking what the figures leave, so they sit at the very bottom as

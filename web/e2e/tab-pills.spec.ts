@@ -28,7 +28,7 @@ async function pickHalf(page: Page, tab: string) {
   await grabberTo(page, "half");
 }
 
-test("each tab's pill is the tabs, FPL's with its figures under them, and half way is one height on every tab", async ({ page }) => {
+test("each tab's pill is the tabs, FPL's with a route its figures in their place at the same height, and half way is one height on every tab", async ({ page }) => {
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   const panel = sideDrawer(page);
@@ -36,8 +36,8 @@ test("each tab's pill is the tabs, FPL's with its figures under them, and half w
     await settled(panel);
     return (await panel.boundingBox())!.height;
   };
-  await expect(panel.getByTestId("tab-bar")).toBeVisible();
   await expect(panel.getByTestId("flight-line")).toBeVisible({ timeout: 30_000 });
+  await expect(panel.getByTestId("tab-bar")).toBeHidden();
   const fpl = await height();
   // Another tab picked at the pill: half way, then down: the tabs alone.
   await showTabs(page);
@@ -46,7 +46,8 @@ test("each tab's pill is the tabs, FPL's with its figures under them, and half w
   await expect(panel.getByTestId("tab-bar")).toBeVisible();
   await expect(panel.getByTestId("search-airports")).toBeHidden();
   await expect(panel.getByTestId("flight-line")).toHaveCount(0);
-  expect(await height()).toBeLessThan(fpl);
+  // The same height as FPL's figures (the owner's "keeping it the same size").
+  expect(Math.abs(await height() - fpl)).toBeLessThan(1);
   // Half way one height on every tab, FPL's with its route too (the
   // owner's "Keep the half card consistent in size for all tabs including
   // fpl").

@@ -151,9 +151,23 @@ test("an airport's card keeps one layout whatever the field: a long name set sma
     await expect(card(page).getByTestId("fly-here")).toBeEnabled({ timeout: slow(15000) });
     // The tabs' bar under the tiles, all the way up.
     // From the name's top, wherever the card has scrolled to.
-    const [name, tiles, radio] = await Promise.all([card(page).getByTestId("place-name"), card(page).getByTestId("fly-here"), card(page).getByRole("tablist")].map(async l => (await l.boundingBox())!));
-    const size = await card(page).getByTestId("place-name-fit").evaluate(el => parseFloat(getComputedStyle(el).fontSize));
-    return { tiles: Math.round(tiles.y - name.y), radio: Math.round(radio.y - name.y), size };
+    const measure = async () => {
+      const [name, tiles, radio] = await Promise.all([card(page).getByTestId("place-name"), card(page).getByTestId("fly-here"), card(page).getByRole("tablist")].map(async l => (await l.boundingBox())!));
+      const size = await card(page).getByTestId("place-name-fit").evaluate(el => parseFloat(getComputedStyle(el).fontSize));
+      return { tiles: Math.round(tiles.y - name.y), radio: Math.round(radio.y - name.y), size };
+    };
+    // Once the card holds still: measured as the name was still being
+    // fitted, or the sheet still rising, the tiles came out 4 to 16 points
+    // off now and then.
+    let last = await measure();
+    await expect.poll(async () => {
+      await page.waitForTimeout(300);
+      const now = await measure();
+      const still = JSON.stringify(now) === JSON.stringify(last);
+      last = now;
+      return still;
+    }, { timeout: slow(10000) }).toBe(true);
+    return last;
   };
   const short = await layout("C81");
   // A name long enough to need its size brought down to fit its half.

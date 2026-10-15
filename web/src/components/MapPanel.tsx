@@ -44,10 +44,15 @@ interface Props {
    *  Back to the tab, at the owner's ask ("don't make the tabs into a
    *  centered label unless going from another tab"); else the tabs. */
   cardOver?: boolean;
-  /** Pinned at the sheet's foot at half and all the way up: the route's
-   *  figures, at the pilot's ask. Its height is added to each detent. The
-   *  pill is its one row (`compact`), with no foot. */
+  /** Pinned at the sheet's foot at every size: the route's figures, at the
+   *  pilot's ask -- in the pill in the tabs' place, the pill's own height
+   *  (the owner's "the calculations should replace the tabs in the pill
+   *  while keeping it the same size"), a tap on them half way. */
   foot?: ReactNode;
+  /** The foot takes the body's room half way and all the way up: FPL's dry
+   *  run, its chart grown up to the route (the owner's "Dry run should
+   *  expand up to the route"). */
+  footFills?: boolean;
   /** The body down to the sheet's own edge, over the home indicator's
    *  inset, where the rest of the way is kept clear for every other
    *  panel: an airport's card, its tiles and tabs at its foot (PlaceCard),
@@ -124,7 +129,7 @@ const RANK: Record<PanelState, number> = { peek: 0, half: 1, full: 2 };
  * drawer that never closes held the keyboard's focus inside itself and
  * hid the map, and any dialog opened before it, from a screen reader.
  */
-export default function MapPanel({ label, top, controls, compact, children, state, onStateChange, onInsetsChange, toEdge: edgeAsked = false, bar, layer = "tab", cardOver: overAsked = false, foot }: Props) {
+export default function MapPanel({ label, top, controls, compact, children, state, onStateChange, onInsetsChange, toEdge: edgeAsked = false, bar, layer = "tab", cardOver: overAsked = false, foot, footFills = false }: Props) {
   // A tab's options for a tab, a card's for a card: what each layer takes.
   const cardInPill = layer === "card";
   const cardOver = layer !== "console" && overAsked;
@@ -354,6 +359,11 @@ export default function MapPanel({ label, top, controls, compact, children, stat
   // hundred (measured by the other session). On the way up from the pill
   // the sheet's layout comes at once, where it is still below the screen.
   const pillShape = capsule || (!!bar && dragged !== null && state !== "peek" && morph < 1);
+  // The pill with a route: its figures in the tabs' place, at the tabs'
+  // height (3.625rem: their row and its margins).
+  const figuresPill = pillShape && !!bar && footShown;
+  // The dry run grown up to the route: the body put away under it.
+  const fills = footFills && !pillShape;
   if (morphing && morph < 1 && shape === "inset") {
     geometry.side = SHEET_INSET;
     geometry.gap = between(capsuleGap, SHEET_INSET, morph);
@@ -564,6 +574,7 @@ export default function MapPanel({ label, top, controls, compact, children, stat
               // In the pill the pill's whole, round its grabber; out of it
               // the line under the sheet's first row.
               pillShape ? (fromBottom ? "mt-1.5 mb-1" : "mt-1 mb-1.5") : "border-b border-border/60",
+              figuresPill && "hidden",
               !fromBottom && onPhone && "h-auto pt-[env(safe-area-inset-top)]",
             )}
             // A swipe up or down on the tabs drags the panel as the head
@@ -635,6 +646,7 @@ export default function MapPanel({ label, top, controls, compact, children, stat
           // keyboard's reach -- unclipped, a card open in it (an airplane's,
           // its name, Follow and close) ran over the pill's figures.
           pillShape && "invisible overflow-clip",
+          fills && "hidden",
         )}
         // The foot as it is at half, whatever the height now: a card laid
         // out to it keeps one layout all the way up.
@@ -661,7 +673,8 @@ export default function MapPanel({ label, top, controls, compact, children, stat
             // In the pill under the tabs, the figures alone: what the foot
             // keeps for half way and up (FPL's side view, data-pill-hides)
             // put away.
-            pillShape ? "pt-1 pb-3 [&_[data-pill-hides]]:hidden" : "border-t border-border/60 pt-2 pb-2.5",
+            pillShape ? "h-[3.625rem] shrink-0 justify-center [&_[data-pill-hides]]:hidden" : "border-t border-border/60 pt-2 pb-2.5",
+            fills && "flex-1",
           )}
           style={{
             ...(toEdge && fromBottom && !pillShape ? { paddingBottom: Math.max(10, edgeRoom) } : {}),
@@ -678,8 +691,12 @@ export default function MapPanel({ label, top, controls, compact, children, stat
           } as CSSProperties}
           data-testid="panel-foot"
           // In the pill a finger anywhere on it drags the sheet, as the tabs
-          // do.
+          // do; a tap on it opens it half way, the tabs over the route.
           onPointerDown={capsule ? startDrag : undefined}
+          role={capsule ? "button" : undefined} tabIndex={capsule ? 0 : undefined}
+          aria-label={capsule ? "Show the route" : undefined}
+          onClick={capsule ? () => onStateChange("half") : undefined}
+          onKeyDown={capsule ? event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onStateChange("half"); } } : undefined}
         >{foot}</div>
       )}
       {/* The grabber last on a sheet from the top. */}

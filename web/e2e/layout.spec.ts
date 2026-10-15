@@ -46,7 +46,9 @@ test.describe("/app/plan", () => {
     await page.goto("/app/plan?dep=C81&dest=KDLH");
     await settle(page);
     await expect(sideDrawer(page)).toHaveAttribute("data-capsule", "true");
+    // With a route, its figures in the tabs' place.
     await expect(sideDrawer(page).getByTestId("flight-line")).toContainText(/\d+ nm/, { timeout: slow(30000) });
+    await expect(sideDrawer(page).getByTestId("tab-bar")).toBeHidden();
     await page.getByTestId("sidebar-trigger-button").click();
     await expect(sideDrawer(page)).toHaveAttribute("data-panel", "half");
     await expect(page.getByTestId("tab-fpl")).toHaveAttribute("aria-current", "page");
