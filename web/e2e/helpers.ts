@@ -48,6 +48,10 @@ export const sideDrawer = (page: Page) => page.locator('[data-slot="map-panel"]'
  *  show them all. Not in the pill, which is one row (MapPanel): the sheet
  *  half way for them. */
 export async function showTabs(page: Page) {
+  // From the sheet at rest: settling to the pill it keeps the half's
+  // layout, tabs and all, until it lands (MapPanel), and tabs seen then
+  // were gone a moment later under the route's figures.
+  await settled(sideDrawer(page));
   const title = page.getByTestId("tab-title");
   // The minimized line can turn back into the tabs by itself as it is
   // tapped -- the card it named put away by the step before -- so the tap
@@ -63,6 +67,9 @@ export async function showTabs(page: Page) {
 export async function openPanel(page: Page) {
   const panel = sideDrawer(page);
   await panel.waitFor();
+  // Once it has come to rest: on its way down to the pill it is not the
+  // capsule yet, and was taken for one out already.
+  await settled(panel);
   if (await panel.getAttribute("data-capsule") === null) return;
   await grabberTo(page, "half");
 }
@@ -95,7 +102,7 @@ export async function grabberTo(page: Page, state: "peek" | "half" | "full") {
   const size = async () => (await panel.getAttribute("data-panel")) as keyof typeof RANK;
   for (let steps = 0; steps < 6; steps++) {
     const now = await size();
-    if (now === state) return;
+    if (now === state) break;
     // Pressed again if it did not take: a layer opening in the panel (the
     // console's) takes the focus as it comes, and an arrow pressed just
     // then went to it (the iOS audit's iPad).
@@ -109,6 +116,8 @@ export async function grabberTo(page: Page, state: "peek" | "half" | "full") {
     }).toPass({ timeout: 15_000 });
   }
   await expect(panel).toHaveAttribute("data-panel", state);
+  // And come to rest there, its layout the size's own.
+  await settled(panel);
 }
 
 /** The route's controls in sight -- its box, the airplane, the time,
