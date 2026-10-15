@@ -164,9 +164,9 @@ test("the panel all the way out goes over the line, and its grabber still lowers
   const over = await page.evaluate(([x, y]) => document.elementFromPoint(x, y)?.closest('[data-slot="map-panel"]') !== null,
     [box.x + box.width / 2, box.y + box.height / 2]);
   expect(over).toBe(true);
-  // A tap: down to the pill (MapPanel's).
+  // A tap: down a size, to half (MapPanel's three sizes).
   await page.getByTestId("sidebar-trigger-button").click();
-  await expect(sheet).toHaveAttribute("data-panel", "peek");
+  await expect(sheet).toHaveAttribute("data-panel", "half");
 });
 
 test("the progress line spans the screen and is centred on it", async ({ page }) => {
