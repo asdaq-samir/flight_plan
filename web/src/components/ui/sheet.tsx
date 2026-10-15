@@ -55,6 +55,7 @@ function SheetContent({
   showCloseButton = true,
   onInteractOutside,
   onPointerDownOutside,
+  onCloseAutoFocus,
   ...props
 }: React.ComponentProps<typeof SheetPrimitive.Content> & {
   side?: "top" | "right" | "bottom" | "left"
@@ -98,6 +99,16 @@ function SheetContent({
             event.preventDefault()
           }
           onPointerDownOutside?.(event)
+        }}
+        // Gone, it gives the focus back to its button -- unless the focus is
+        // somewhere already: the route's box, which the route's problem's
+        // Fly via put it in as it closed the sheet, lost it to the problem's
+        // mark a fifth of a second later, and the ways round under the box
+        // shut with it (plans:268 on a phone).
+        onCloseAutoFocus={event => {
+          const active = document.activeElement
+          if (active && active !== document.body) event.preventDefault()
+          onCloseAutoFocus?.(event)
         }}
         className={cn(
           "fixed z-50 flex flex-col gap-4 bg-card bg-clip-padding text-sm text-card-foreground shadow-lg transition duration-200 ease-in-out data-[side=bottom]:inset-x-0 data-[side=bottom]:bottom-0 data-[side=bottom]:h-auto data-[side=bottom]:border-t data-[side=left]:inset-y-0 data-[side=left]:left-0 data-[side=left]:h-full data-[side=left]:w-3/4 data-[side=left]:border-r data-[side=right]:inset-y-0 data-[side=right]:right-0 data-[side=right]:h-full data-[side=right]:w-3/4 data-[side=right]:border-l data-[side=top]:inset-x-0 data-[side=top]:top-0 data-[side=top]:h-auto data-[side=top]:border-b data-[side=left]:sm:max-w-sm data-[side=right]:sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-closed:pointer-events-none data-[side=bottom]:data-open:slide-in-from-bottom-10 data-[side=left]:data-open:slide-in-from-left-10 data-[side=right]:data-open:slide-in-from-right-10 data-[side=top]:data-open:slide-in-from-top-10 data-closed:animate-out data-closed:fade-out-0 data-[side=bottom]:data-closed:slide-out-to-bottom-10 data-[side=left]:data-closed:slide-out-to-left-10 data-[side=right]:data-closed:slide-out-to-right-10 data-[side=top]:data-closed:slide-out-to-top-10",
