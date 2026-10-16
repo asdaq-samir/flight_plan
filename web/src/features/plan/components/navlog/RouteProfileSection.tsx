@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import AccordionSection from "../../../../components/AccordionSection";
 import AfterPaint from "../../../../components/AfterPaint";
 import { ListGroup, ListRow } from "../../../../components/GroupedList";
+import { titleCase } from "../../../../lib/advisories";
 import { routeProfileQuery } from "../../../../lib/queryClient";
 import { altFt } from "../../../../lib/units";
 import { planProfile } from "./profile";
@@ -12,8 +13,6 @@ import type { NavLogRow, RouteEnds } from "./rows";
  *  critical path, as the console's charts are). */
 const ProfileChart = lazy(() => import("./ProfileChart"));
 
-/** "Chicago Class B" from the FAA's "CHICAGO CLASS B". */
-const titled = (name: string) => name.toLowerCase().replace(/\b\w/g, c => c.toUpperCase()).replace(/\bClass\b/i, "Class");
 
 /**
  * The route from the side (ProfileChart): the ground, the controlled
@@ -69,7 +68,7 @@ export default function RouteProfileSection({ ends, rows, wanted, eager = false 
                 {crossed.map(a => (
                   <ListRow
                     key={`${a.name}-${a.floor_ft}-${a.from_nm}`}
-                    title={titled(a.name)}
+                    title={titleCase(a.name)}
                     description={`${a.floor_ft === 0 ? "Surface" : `${altFt(a.floor_ft)} ft`} to ${a.ceiling_ft != null ? `${altFt(a.ceiling_ft)} ft` : "—"}`}
                     value={`${Math.round(a.from_nm)}–${Math.round(a.to_nm)} nm`}
                   />

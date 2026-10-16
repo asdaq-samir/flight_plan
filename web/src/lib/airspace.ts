@@ -1,6 +1,7 @@
 /** How the airspace over a point is written (AirspaceCard). */
 import type { VfrMinimums } from "./api/types";
 import type { LatLon } from "./geo";
+import { titleCase } from "./advisories";
 import { altFt } from "./units";
 
 export { degreesMinutes } from "./coords";
@@ -15,7 +16,7 @@ export function minimumsLine(m: VfrMinimums): string {
 
 /** "CHICAGO, DUPAGE AIRPORT CLASS D" as "Chicago, Dupage Airport". */
 export function shortAirspaceName(name: string): string {
-  return name.replace(/\s+CLASS\s+[A-G]\d?$/i, "").toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+  return titleCase(name.replace(/\s+CLASS\s+[A-G]\d?$/i, ""));
 }
 
 

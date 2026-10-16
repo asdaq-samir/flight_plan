@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Leg, Totals } from "../../lib/api/types";
 import { inkOn, SCORE_STEPS } from "../../lib/scoreScale";
-import { bearing, clockTime, cruiseByAltitude, decimalHours, elapsed, hhmm, legsWithoutWind, one, runwayWind, scoreColor } from "./format";
+import { bearing, clockTime, cruiseByAltitude, decimalHours, hhmm, legsWithoutWind, one, runwayWind, scoreColor } from "./format";
 
 describe("scoreColor", () => {
   it("bands on the boundary, not just inside it", () => {
@@ -78,11 +78,6 @@ describe("legsWithoutWind", () => {
     expect(legsWithoutWind({ ...base, legs_without_wind: 1 })).toBe("1 leg without wind data"));
   it("pluralises more", () =>
     expect(legsWithoutWind({ ...base, legs_without_wind: 3 })).toBe("3 legs without wind data"));
-});
-
-describe("elapsed", () => {
-  it("pads the seconds", () => expect(elapsed(65_000)).toBe("1:05"));
-  it("starts at zero", () => expect(elapsed(0)).toBe("0:00"));
 });
 
 describe("cruiseByAltitude", () => {

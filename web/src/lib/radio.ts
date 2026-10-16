@@ -14,6 +14,7 @@
  * kneeboard -- a controller may ask for something else, and the pilot
  * says what they ask.
  */
+import { titleCase } from "./advisories";
 import type { Briefing, Frequency, Leg } from "./api/types";
 import { compassWord, exitFor, runwayInUse, runwayNumber, type RunwayEnd } from "./pattern";
 import { ctafOf, frequencyOf, mhzText } from "./frequencies";
@@ -83,7 +84,7 @@ function facilityName(f: Frequency, field: string): string {
     .replace(/\b(TWR|TOWER|GND|GROUND|APP|DEP|APCH|APP\/DEP|A\/D|CLNC|DEL|CLD|CTAF|UNICOM|ATIS|AWOS|ASOS|RDO)\b/g, "")
     .replace(/[/\s]+/g, " ")
     .trim();
-  return own ? own.toLowerCase().replace(/\b\w/g, c => c.toUpperCase()) : field;
+  return own ? titleCase(own) : field;
 }
 
 export interface RadioCall {
