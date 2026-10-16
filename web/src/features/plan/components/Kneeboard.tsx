@@ -2,8 +2,10 @@ import { createPortal } from "react-dom";
 import { format } from "date-fns";
 import type { Briefing, Candidate, Course, Frequency, Leg, NavLogAltitude, Totals } from "../../../lib/api/types";
 import { runwayInUse, runwayNumber } from "../../../lib/pattern";
+import { hoursMinutes } from "../../../lib/clock";
+import { routeName } from "../../../lib/identSchema";
 import { altFt } from "../../../lib/units";
-import { deg, etaAt, one } from "../format";
+import { bearing, etaAt, one } from "../format";
 import { isLegPoint, legOf, navLogRows, rowPoint } from "./navlog/rows";
 
 /** A field's radio as a kneeboard lists it: short names, the tower's
@@ -36,6 +38,14 @@ function altitudes(legs: Leg[], fallback: number | null | undefined): string | n
 }
 
 /** A line to write on: the label and a rule after it. */
+/** The time en route as a paper nav log writes it, "1:05", its minutes
+ *  rounded first (lib/clock): the remainder rounded on its own printed
+ *  119.6 minutes as "1:60". */
+function hm(minutes: number): string {
+  const t = hoursMinutes(minutes);
+  return `${t.hours}:${String(t.minutes).padStart(2, "0")}`;
+}
+
 function Blank({ label, wide = false }: { label: string; wide?: boolean }) {
   return (
     <span className="inline-flex items-end gap-1">
@@ -70,7 +80,9 @@ export default function Kneeboard({ course, selected, legs, totals, nav, briefin
   const rows = navLogRows(course, selected, legs);
   const special = nav?.altitude_selection.special_use ?? [];
   const tfrs = briefing?.tfrs.filter(t => t.crosses) ?? [];
-  const route = [course.departure.ident, ...(course.stops ?? []).map(s => s.ident), course.destination.ident].join(" → ");
+  // As the route's box and a saved flight name it (routeName): a present
+  // position by its coordinates, a local flight "KDLH local".
+  const route = routeName(course.departure.ident, course.destination.ident, (course.stops ?? []).map(s => s.ident));
   return createPortal(
     <section className="kneeboard bg-white font-sans text-[8.5pt] leading-[1.25] text-black" aria-hidden data-testid="kneeboard">
       {/* A div, not a header: the page has one header, the panel's,
@@ -83,7 +95,7 @@ export default function Kneeboard({ course, selected, legs, totals, nav, briefin
         {aircraftLabel}
         {altitudes(legs, nav?.altitude_ft) && ` · ${altitudes(legs, nav?.altitude_ft)}`}
         {totals && ` · ${Math.round(totals.distance_nm)} nm`}
-        {totals?.ete_min != null && ` · ${Math.floor(totals.ete_min / 60)}:${String(Math.round(totals.ete_min % 60)).padStart(2, "0")}`}
+        {totals?.ete_min != null && ` · ${hm(totals.ete_min)}`}
         {totals?.fuel_gal != null && ` · ${one(totals.fuel_gal)} gal`}
         {totals?.fuel_required_gal != null && ` (${one(totals.fuel_required_gal)} with reserve${totals.usable_fuel_gal != null ? `, ${one(totals.usable_fuel_gal)} usable` : ""})`}
       </p>
@@ -101,7 +113,7 @@ export default function Kneeboard({ course, selected, legs, totals, nav, briefin
               <tr key={r.key} className={isLegPoint(r) ? "italic" : undefined}>
                 <td className="max-w-[1.6in] truncate">{rowPoint(r).name}</td>
                 <td>{altFt(alt)}</td>
-                <td>{leg ? deg(leg.magnetic_heading_deg) : ""}</td>
+                <td>{leg ? bearing(leg.magnetic_heading_deg) : ""}</td>
                 <td>{leg ? leg.distance_nm.toFixed(1) : ""}</td>
                 <td>{leg?.groundspeed_kt != null ? Math.round(leg.groundspeed_kt) : ""}</td>
                 <td>{leg ? one(leg.ete_min) : ""}</td>

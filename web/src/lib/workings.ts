@@ -7,17 +7,11 @@
  * student's own figures against them within an E6B's accuracy.
  */
 import type { Leg } from "./api/types";
-import { grouped } from "./units";
+import { bearing, grouped } from "./units";
 
 /** An angle as -180 to 180. */
 function wrap(deg: number): number {
   return ((((deg + 180) % 360) + 360) % 360) - 180;
-}
-
-/** A heading as 001 to 360, as a pilot writes it. */
-export function heading(deg: number): string {
-  const whole = ((Math.round(deg) % 360) + 360) % 360;
-  return `${String(whole === 0 ? 360 : whole).padStart(3, "0")}°`;
 }
 
 /** What the student works out, and how far off an E6B allows. */
@@ -64,28 +58,28 @@ export function workingsOf(leg: Leg): Workings | null {
   const east = variation >= 0;
   const r1 = (n: number) => n.toFixed(1);
   const steps = [
-    { name: "True course", sum: "measured on the chart", result: heading(tc) },
+    { name: "True course", sum: "measured on the chart", result: bearing(tc) },
     {
       name: "Wind",
       sum: leg.wind ? `forecast at ${grouped(leg.altitude_ft)} ft, from true north` : "no forecast near: calm",
-      result: `${heading(windDir)} at ${Math.round(windKt)} kt`,
+      result: `${bearing(windDir)} at ${Math.round(windKt)} kt`,
     },
     { name: "True airspeed", sum: `${Math.round(leg.power_pct)}% power at a density altitude of ${grouped(leg.density_altitude_ft)} ft`, result: `${Math.round(tas)} kt` },
     {
       name: "Wind correction",
-      sum: `sin⁻¹(${Math.round(windKt)} × sin(${heading(windDir)} − ${heading(tc)}) ÷ ${Math.round(tas)})`,
+      sum: `sin⁻¹(${Math.round(windKt)} × sin(${bearing(windDir)} − ${bearing(tc)}) ÷ ${Math.round(tas)})`,
       result: Math.round(wca) === 0 ? "0° (none)" : `${wca >= 0 ? "+" : "−"}${Math.abs(wca).toFixed(0)}° (${wca >= 0 ? "right" : "left"})`,
     },
-    { name: "True heading", sum: `${heading(tc)} ${wca >= 0 ? "+" : "−"} ${Math.abs(wca).toFixed(0)}°`, result: heading(th) },
+    { name: "True heading", sum: `${bearing(tc)} ${wca >= 0 ? "+" : "−"} ${Math.abs(wca).toFixed(0)}°`, result: bearing(th) },
     {
       name: "Magnetic heading",
-      sum: `${heading(th)} ${east ? "−" : "+"} ${Math.abs(variation).toFixed(0)}° ${east ? "E" : "W"} (east is least, west is best)`,
-      result: heading(mh),
+      sum: `${bearing(th)} ${east ? "−" : "+"} ${Math.abs(variation).toFixed(0)}° ${east ? "E" : "W"} (east is least, west is best)`,
+      result: bearing(mh),
     },
-    { name: "Compass heading", sum: "the magnetic heading with the deviation card's correction for it", result: heading(mh) },
+    { name: "Compass heading", sum: "the magnetic heading with the deviation card's correction for it", result: bearing(mh) },
     {
       name: "Ground speed",
-      sum: `${Math.round(tas)} × cos ${Math.abs(wca).toFixed(0)}° − ${Math.round(windKt)} × cos(${heading(windDir)} − ${heading(tc)})`,
+      sum: `${Math.round(tas)} × cos ${Math.abs(wca).toFixed(0)}° − ${Math.round(windKt)} × cos(${bearing(windDir)} − ${bearing(tc)})`,
       result: `${Math.round(gs)} kt`,
     },
     { name: "Time", sum: `${r1(leg.distance_nm)} nm ÷ ${Math.round(gs)} kt × 60`, result: `${Math.round(ete)} min` },

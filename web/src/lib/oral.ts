@@ -7,6 +7,7 @@
  */
 import type { AcsTable } from "./checkride";
 import { lookUp } from "./checkride";
+import { hoursMinutes } from "./clock";
 import { grouped } from "./units";
 
 export interface PlanFacts {
@@ -24,6 +25,14 @@ export interface PlanFacts {
   hazards: string[];
   specialUse: string[];
   tfrs: number;
+}
+
+/** The time en route in words for the facts, "1 h 5 min", its minutes
+ *  rounded first (lib/clock): the remainder rounded on its own sent 119.6
+ *  minutes as "1 h 60 min". */
+function enRoute(minutes: number): string {
+  const t = hoursMinutes(minutes);
+  return `${t.hours} h ${t.minutes} min`;
 }
 
 const ft = (n: number) => `${grouped(n)} ft`;
@@ -45,7 +54,7 @@ export function planFacts(f: PlanFacts): string {
     f.aircraft && `Aircraft: ${f.aircraft}`,
     f.cruiseFt != null && `cruise ${ft(f.cruiseFt)}`,
     f.distanceNm != null && `${Math.round(f.distanceNm)} nm`,
-    f.eteMin != null && `${Math.floor(f.eteMin / 60)} h ${Math.round(f.eteMin % 60)} min en route`,
+    f.eteMin != null && `${enRoute(f.eteMin)} en route`,
     f.fuelGal != null && `${f.fuelGal.toFixed(1)} gal planned`,
     f.reserveMin != null && `${Math.round(f.reserveMin)}-minute reserve`,
   ].filter(Boolean);

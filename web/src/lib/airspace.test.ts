@@ -5,6 +5,8 @@ describe("the airspace card's words", () => {
   test("a position in degrees and decimal minutes, as a chart's margin writes it", () => {
     expect(degreesMinutes({ lat: 42.3172, lon: -88.0905 })).toBe("N42°19.0′ W088°05.4′");
     expect(degreesMinutes({ lat: -33.9, lon: 151.18 })).toBe("S33°54.0′ E151°10.8′");
+    // 59.97 minutes is the next degree, not "N42°60.0′".
+    expect(degreesMinutes({ lat: 42.99995, lon: -88.99995 })).toBe("N43°00.0′ W089°00.0′");
   });
 
   test("91.155's minimums in a line", () => {

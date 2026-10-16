@@ -15,7 +15,7 @@ import { distanceNm } from "../../../lib/geo";
 import { REPLAY_SPEEDS, pausePastFlight, playPastFlight, positionAt, stopPastFlight, usePastFlight } from "../../../lib/map/pastFlight";
 import { BADGE } from "../../../lib/rowBadges";
 import { TEXT } from "../../../lib/text";
-import { altFt, grouped } from "../../../lib/units";
+import { altFt, bearing, grouped } from "../../../lib/units";
 import { dayOf, lasted, legOf, statusOf, when } from "./pastFlightFormat";
 import { pastFlightsQuery } from "./pastFlightsQuery";
 
@@ -235,7 +235,7 @@ const LogTable = memo(function LogTable({ points }: { points: PastFlightPoint[] 
           {rows.map(p => (
             <TableRow key={p.t}>
               <TableCell>{clockTime(when(p.t))}</TableCell>
-              <TableCell>{p.track_deg != null ? `${compassPoint(p.track_deg)} ${Math.round(p.track_deg)}°` : "—"}</TableCell>
+              <TableCell>{p.track_deg != null ? `${compassPoint(p.track_deg)} ${bearing(p.track_deg)}` : "—"}</TableCell>
               <TableCell className="text-right">{p.gs_kt != null ? Math.round(p.gs_kt) : "—"}</TableCell>
               <TableCell className="text-right">{p.alt_ft != null ? altFt(p.alt_ft) : "ground"}</TableCell>
               <TableCell className="text-right">{p.vrate_fpm != null ? grouped(p.vrate_fpm) : ""}</TableCell>

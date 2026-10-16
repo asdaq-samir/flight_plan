@@ -103,10 +103,17 @@ export function tfrTimes(t: Pick<RouteTfr, "effective" | "expires">): string | n
 
 /** A special-use area's floor and ceiling as the chart's tables write
  *  them: "Surface to 18,000 ft", "8,000 ft to FL180", "500 ft AGL to
- *  FL180". */
-export function suaAltitudes(a: { floor_ft?: number | null; floor_ref?: string | null; ceiling_ft?: number | null; ceiling_ref?: string | null }): string {
+ *  FL180" -- the one way the app says them, where the airspace card wrote
+ *  "8,000 MSL to 18,000 STD" and the altitude reasoning "8,000 ft to
+ *  18,000 ft" for the same area: a ceiling the FAA's data gives as STD
+ *  is a flight level, a 29.92 pressure level (14 CFR 1.1). In a
+ *  sentence's middle (`midSentence`) the surface is "the surface". */
+export function suaAltitudes(
+  a: { floor_ft?: number | null; floor_ref?: string | null; ceiling_ft?: number | null; ceiling_ref?: string | null },
+  { midSentence = false }: { midSentence?: boolean } = {},
+): string {
   const height = (ft: number | null | undefined, ref: string | null | undefined, bottom: boolean) => {
-    if (ref === "SFC" || (bottom && ft === 0)) return "Surface";
+    if (ref === "SFC" || (bottom && ft === 0)) return midSentence ? "the surface" : "Surface";
     if (ft == null) return "unstated";
     if (ref === "STD") return `FL${Math.round(ft / 100)}`;
     return `${altFt(ft)} ft${ref === "AGL" ? " AGL" : ""}`;

@@ -21,7 +21,7 @@ import type { AircraftRegistration } from "../../../lib/api/types";
 import { flightQuery, routeQuery } from "../../../lib/queryClient";
 import { BADGE } from "../../../lib/rowBadges";
 import { TEXT } from "../../../lib/text";
-import { altFt, grouped } from "../../../lib/units";
+import { altFt, bearing, grouped } from "../../../lib/units";
 import { clockTime } from "../format";
 import PastFlights from "./PastFlights";
 import TrailSketch from "./TrailSketch";
@@ -253,7 +253,7 @@ export default function FlightCard({ hex, onClose, onOpenPast, onExpand, onLower
         ) : plane && (
           <PillSection title="In the air" onMore={() => { setPicked("now"); onExpand?.(); }} testId="flight-summary-now">
             <ListGroup>
-              <ListRow title="Ground speed · track" value={`${plane.speed_kt == null ? "—" : `${Math.round(plane.speed_kt)} kt`} · ${plane.track_deg == null ? "—" : `${String(Math.round(plane.track_deg) % 360).padStart(3, "0")}°`}`} />
+              <ListRow title="Ground speed · track" value={`${plane.speed_kt == null ? "—" : `${Math.round(plane.speed_kt)} kt`} · ${plane.track_deg == null ? "—" : bearing(plane.track_deg)}`} />
             </ListGroup>
           </PillSection>
         )}
@@ -295,7 +295,7 @@ export default function FlightCard({ hex, onClose, onOpenPast, onExpand, onLower
               />
               <ListRow
                 media={<RowBadge colour={BADGE.weather}><Compass /></RowBadge>} title="Track"
-                value={<span className="font-semibold text-foreground">{plane.track_deg == null ? "—" : `${String(Math.round(plane.track_deg) % 360).padStart(3, "0")}° true`}</span>}
+                value={<span className="font-semibold text-foreground">{plane.track_deg == null ? "—" : `${bearing(plane.track_deg)} true`}</span>}
               />
               {squawk && (
                 <ListRow

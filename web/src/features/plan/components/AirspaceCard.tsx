@@ -14,6 +14,7 @@ import { CardHead, PanelCard } from "../../../components/PanelCard";
 import { RowBadge } from "../../../components/RowBadge";
 import { BADGE } from "../../../lib/rowBadges";
 import { FINDING_TONE } from "../../../lib/status";
+import { suaAltitudes } from "../../../lib/advisories";
 
 /** One of a band's rules on a line of its own, its glyph before it: the
  *  weather minimums, what it takes to go in, what the airplane carries,
@@ -146,7 +147,7 @@ export default function AirspaceCard({ point, onClose, summary = false, onExpand
                       key={area.name} media={<RowBadge colour={BADGE.hazard}><ShieldAlert /></RowBadge>}
                       title={<><span className="font-semibold">{area.name}</span><span className="text-muted-foreground"> · {area.kind}</span></>}
                       description={[
-                        `${area.floor_ft == null ? "?" : area.floor_ft === 0 ? "Surface" : `${altFt(area.floor_ft)} ${area.floor_ref ?? ""}`.trim()} to ${area.ceiling_ft == null ? "?" : `${altFt(area.ceiling_ft)} ${area.ceiling_ref ?? ""}`.trim()}`,
+                        suaAltitudes(area),
                         area.times_of_use, area.controlling_agency,
                       ].filter(Boolean).join(" · ")}
                       data-testid="airspace-sua"

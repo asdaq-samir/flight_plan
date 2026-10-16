@@ -23,7 +23,7 @@ import { routeName } from "../../../../lib/identSchema";
 import { revealRow } from "../../../../lib/revealRow";
 import { GROUP_HEADING, TEXT } from "../../../../lib/text";
 import { type Description, descriptionKey } from "../../hooks/useCheckpointNotes";
-import { altFt, clockTime, deg, etaAt, one, signed, totalsParts } from "../../format";
+import { altFt, bearing, clockTime, etaAt, one, signed, totalsParts } from "../../format";
 import type { BriefingPart } from "../briefing/sections";
 import { isLegPoint, legOf, navLogRows, rowPoint, type NavLogRow, type RouteEnds } from "./rows";
 import LegWorkings from "./LegWorkings";
@@ -266,10 +266,10 @@ function legPointNote(point: TopOfClimb | TopOfDescent, descent: TopOfDescent | 
 
 function LegLine({ leg, at }: { leg: Leg; at: { name: string; lat: number; lon: number } }) {
   const figures: [string, string][] = [
-    ["TC", deg(leg.true_course_deg)],
-    ["Wind", leg.wind ? `${deg(leg.wind.wind_dir_true_deg)}/${Math.round(leg.wind.wind_speed_kt)}` : "no data"],
+    ["TC", bearing(leg.true_course_deg)],
+    ["Wind", leg.wind ? `${bearing(leg.wind.wind_dir_true_deg)}/${Math.round(leg.wind.wind_speed_kt)}` : "no data"],
     ["WCA", signed(leg.wca_deg)],
-    ["TH", deg(leg.true_heading_deg)],
+    ["TH", bearing(leg.true_heading_deg)],
     ["Var", signed(leg.magnetic_variation_deg)],
     ["TAS", tas(leg)],
     ["GS", leg.groundspeed_kt === null ? "—" : String(Math.round(leg.groundspeed_kt))],
@@ -482,7 +482,7 @@ export default function NavLogView({
       id: "tc",
       header: () => <Heading name="TC" unit="true" spoken="True course" />,
       meta: { className: "hidden print:table-cell" },
-      cell: ({ row }) => (legOf(row.original) ? deg(legOf(row.original)!.true_course_deg) : "—"),
+      cell: ({ row }) => (legOf(row.original) ? bearing(legOf(row.original)!.true_course_deg) : "—"),
     },
     {
       id: "wind",
@@ -490,7 +490,7 @@ export default function NavLogView({
       meta: { className: "hidden print:table-cell" },
       cell: ({ row }) => {
         const leg = legOf(row.original);
-        return leg ? (leg.wind ? `${deg(leg.wind.wind_dir_true_deg)}/${Math.round(leg.wind.wind_speed_kt)}` : "no data") : "—";
+        return leg ? (leg.wind ? `${bearing(leg.wind.wind_dir_true_deg)}/${Math.round(leg.wind.wind_speed_kt)}` : "no data") : "—";
       },
     },
     {
@@ -503,7 +503,7 @@ export default function NavLogView({
       id: "th",
       header: () => <Heading name="TH" unit="true" spoken="True heading" />,
       meta: { className: "hidden print:table-cell" },
-      cell: ({ row }) => (legOf(row.original) ? deg(legOf(row.original)!.true_heading_deg) : "—"),
+      cell: ({ row }) => (legOf(row.original) ? bearing(legOf(row.original)!.true_heading_deg) : "—"),
     },
     {
       id: "var",
@@ -514,7 +514,7 @@ export default function NavLogView({
     {
       id: "mh",
       header: () => <Heading name="MH" unit="mag" spoken="Magnetic heading" />,
-      cell: ({ row }) => (legOf(row.original) ? deg(legOf(row.original)!.magnetic_heading_deg) : "—"),
+      cell: ({ row }) => (legOf(row.original) ? bearing(legOf(row.original)!.magnetic_heading_deg) : "—"),
     },
     {
       // Each leg's own: the airplane's cruise in the forecast air at the
@@ -798,7 +798,7 @@ export default function NavLogView({
           const short = hop.fuel_margin_gal != null && hop.fuel_margin_gal < 0 ? -hop.fuel_margin_gal : null;
           return (
             <ListRow
-              key={`${departure}-${destination}`} title={`${departure} → ${destination}`}
+              key={`${departure}-${destination}`} title={routeName(departure, destination)}
               description={`${one(hop.distance_nm)} nm, with a ${hop.reserve_min} min reserve`}
               value={hop.fuel_required_gal == null ? "—" : short === null
                 ? `${one(hop.fuel_required_gal)}${hop.usable_fuel_gal != null ? ` of ${hop.usable_fuel_gal}` : ""} gal`

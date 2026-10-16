@@ -1,9 +1,9 @@
 import type { AltitudeOption, Leg, Runway, Totals } from "../../lib/api/types";
 import { SCORE_STEPS } from "../../lib/scoreScale";
-import { altFt, flightLevel } from "../../lib/units";
-import { clockTime } from "../../lib/clock";
+import { altFt, bearing, flightLevel } from "../../lib/units";
+import { clockTime, hoursMinutes } from "../../lib/clock";
 
-export { altFt };
+export { altFt, bearing };
 
 /**
  * The planner's pure half: colours and number formatting.
@@ -24,16 +24,6 @@ export function scoreColor(s: number): string {
   return SCORE_STEPS[0];
 }
 
-/**
- * A bearing as a pilot writes it: three digits, and 360 shown as 000.
- *
- * The modulo is not cosmetic. Rounding 359.7 gives 360, which is a
- * heading no chart or clearance ever uses.
- */
-export function deg(d: number): string {
-  return String(Math.round(d) % 360).padStart(3, "0") + "°";
-}
-
 /** One decimal, or an em dash. null and undefined are ordinary here --
  *  an unflyable leg has no ETE and no fuel burn. */
 export function one(n: number | null | undefined): string {
@@ -52,8 +42,8 @@ export function signed(n: number): string {
  *  rounding the remainder on its own turned 179.6 minutes into "2h 60m". */
 export function hhmm(minutes: number | null): string {
   if (minutes === null) return "ETE n/a";
-  const whole = Math.round(minutes);
-  return `${Math.floor(whole / 60)}h ${String(whole % 60).padStart(2, "0")}m`;
+  const t = hoursMinutes(minutes);
+  return `${t.hours}h ${String(t.minutes).padStart(2, "0")}m`;
 }
 
 /** Total time in decimal hours, as a logbook keeps it: "19.9h", where

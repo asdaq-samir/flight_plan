@@ -11,15 +11,14 @@ import { Input } from "../../../../components/ui/input";
 import { api } from "../../../../lib/api/client";
 import type { Leg } from "../../../../lib/api/types";
 import { ALLOWANCES, divert, reasonable, stopwatch, type Diversion, type EstimateKey } from "../../../../lib/diversion";
-import { heading } from "../../../../lib/workings";
 import { TEXT } from "../../../../lib/text";
 import { altFt } from "../../format";
-import { grouped } from "../../../../lib/units";
+import { bearing, grouped } from "../../../../lib/units";
 import { FINDING_TONE } from "../../../../lib/status";
 
 /** A figure as the student would write it. */
 function written(key: EstimateKey, value: number): string {
-  if (key === "mh") return heading(value);
+  if (key === "mh") return bearing(value);
   if (key === "fuel") return `${value.toFixed(1)} gal`;
   return `${Math.round(value)} ${key === "gs" ? "kt" : "min"}`;
 }
@@ -27,10 +26,10 @@ function written(key: EstimateKey, value: number): string {
 /** The diversion worked out, step by step, once checked. */
 function Answer({ ident, d }: { ident: string; d: Diversion }) {
   const steps: [string, string][] = [
-    ["True course", `${heading(d.tc)}, ${d.distanceNm.toFixed(1)} nm`],
+    ["True course", `${bearing(d.tc)}, ${d.distanceNm.toFixed(1)} nm`],
     ["Wind correction", `${d.wca >= 0 ? "+" : "−"}${Math.abs(d.wca).toFixed(0)}°`],
-    ["True heading", heading(d.th)],
-    ["Magnetic heading", heading(d.mh)],
+    ["True heading", bearing(d.th)],
+    ["Magnetic heading", bearing(d.mh)],
     ["Ground speed", `${Math.round(d.gs)} kt`],
     ["Time", `${Math.round(d.ete)} min`],
     ["Fuel", `${d.fuel.toFixed(1)} gal`],

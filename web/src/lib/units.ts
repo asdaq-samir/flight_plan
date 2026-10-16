@@ -39,3 +39,16 @@ export function flightLevel(ft: number | null | undefined): string {
 export function miles(sm: number | null | undefined): string {
   return sm === null || sm === undefined ? "—" : `${sm} sm`;
 }
+
+/**
+ * A course, a heading, a track or a wind's direction as a pilot writes it:
+ * three figures, whole degrees, north as 360 -- as ATC states a heading
+ * ("Use heading 360 degrees to indicate a north heading", FAA Order JO
+ * 7110.65, 2-4-17) and as a METAR codes a wind from the north (36010KT,
+ * 000 only for a calm one) -- at the owner's pick ("Yes to 360"), where
+ * the nav log wrote 000 and its own workings 360.
+ */
+export function bearing(deg: number): string {
+  const whole = ((Math.round(deg) % 360) + 360) % 360;
+  return `${String(whole === 0 ? 360 : whole).padStart(3, "0")}°`;
+}

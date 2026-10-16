@@ -98,7 +98,7 @@ const ARROW = " → ";
 export const routeName = (dep: string, dest: string, stops: string[] = []) =>
   // A local flight, one airport to itself: "KDLH local". A present
   // position by its coordinates (pointName).
-  dep && dep === dest && stops.length === 0 ? `${dep} local` : [dep, ...stops, dest].map(pointName).join(ARROW);
+  dep && dep === dest && stops.length === 0 ? `${pointName(dep)} local` : [dep, ...stops, dest].map(pointName).join(ARROW);
 
 /** Points' own altitudes from the address, feet by ident -- "VPBNG:4500,
  *  KMSN:1900": a waypoint's flown to it, an airport's its pattern (the

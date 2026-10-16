@@ -14,6 +14,7 @@ import { MapShell } from "../../../lib/map/MapShell";
 import { MapTooltip } from "../../../lib/map/MapTooltip";
 import { usePreferences } from "../../../lib/preferences";
 import { COLORS, hasRating, isVisible, modelNote, pointKey, prettyCategory, type Filters } from "../logic";
+import { bearing } from "../../../lib/units";
 
 interface Props {
   course: Course | null;
@@ -119,7 +120,7 @@ export default function ChartMap({
               18 px line is too specific to hit by accident. */}
           <CourseLine
             line={course.course_line as [number, number][]}
-            tooltip={`${course.departure.ident} → ${course.destination.ident} · ${course.distance_nm} nm · ${String(course.bearing_deg).padStart(3, "0")}°T`}
+            tooltip={`${course.departure.ident} → ${course.destination.ident} · ${course.distance_nm} nm · ${bearing(course.bearing_deg)}T`}
             onClick={latlng => onAddAt(latlng.lat, latlng.lng)}
           />
           {endpoints.filter(isEndpoint).map(e => (
