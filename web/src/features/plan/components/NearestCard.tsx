@@ -9,6 +9,7 @@ import { ListGroup, ListRow } from "../../../components/GroupedList";
 import { api } from "../../../lib/api/client";
 import type { NearestAirport, PlaceFound } from "../../../lib/api/types";
 import { compassPoint } from "../../../lib/compass";
+import { nmAway, nmFigure } from "../../../lib/useAway";
 import { mhzText } from "../../../lib/frequencies";
 import { colourOf } from "../../../lib/map/flightCategory";
 import { glideRangeNm } from "../../../lib/map/glide";
@@ -170,10 +171,10 @@ function NearestRow({ field, ahead, reach, onOpen }: {
             spoken form is text in the row: VoiceOver would spell out "nm"
             and the compass letters. The bearing is true (the footer says so). */}
         <span className="flex flex-col items-end" aria-hidden="true">
-          <span className={cn("font-semibold text-foreground tabular-nums", TEXT.row)}>{field.distance_nm} nm</span>
+          <span className={cn("font-semibold text-foreground tabular-nums", TEXT.row)}>{nmAway(field.distance_nm)}</span>
           <span className={cn("text-muted-foreground", TEXT.note)}>{point}</span>
         </span>
-        <span className="sr-only">{field.distance_nm} nautical miles, true bearing {COMPASS_WORDS[point] ?? point}</span>
+        <span className="sr-only">{nmFigure(field.distance_nm)} nautical miles, true bearing {COMPASS_WORDS[point] ?? point}</span>
       </span>
     </ListRow>
   );
@@ -215,9 +216,9 @@ export function NearestStrip({ fields, located, onOpen }: {
         return (
           <SmallTile
             key={field.ident} onClick={() => onOpen(field.ident)} testId="nearest-strip-field"
-            label={`${field.ident}, ${field.name}, ${Math.round(field.distance_nm)} nm ${compassPoint(field.bearing_deg)}`}
+            label={`${field.ident}, ${field.name}, ${nmAway(field.distance_nm)} ${compassPoint(field.bearing_deg)}`}
             mark={<SmallMark icon={<ChartMark space={field.airspace_class ?? null} category={field.flight_category} use={use} size={56} />} className="[&_svg]:size-14" />}
-            title={field.ident} detail={`${Math.round(field.distance_nm)} nm`}
+            title={field.ident} detail={nmAway(field.distance_nm)}
           />
         );
       })}

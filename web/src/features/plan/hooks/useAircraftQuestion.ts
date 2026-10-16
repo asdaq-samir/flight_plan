@@ -4,6 +4,7 @@ import { api } from "../../../lib/api/client";
 import type { TrafficAircraft } from "../../../lib/api/types";
 import { type AircraftFilter, filtering, inEmergency, keptFilter, matches, relationTo, sameField } from "../../../lib/fbo";
 import { distanceNm, type LatLon } from "../../../lib/geo";
+import { nmAway } from "../../../lib/useAway";
 import { usePreferences } from "../../../lib/preferences";
 import { airportQuery } from "../../../lib/queryClient";
 
@@ -115,7 +116,7 @@ type Field = LatLon & { elevation_ft?: number | null };
 export function strip(q: Question, planes: TrafficAircraft[], from: LatLon | null, field: Field | null | undefined):
   { plane: TrafficAircraft; detail: string }[] {
   const nm = (a: LatLon | null | undefined, p: TrafficAircraft) => (a ? distanceNm(a, p) : Infinity);
-  const miles = (n: number) => (Number.isFinite(n) ? `${Math.round(n)} nm` : "");
+  const miles = (n: number) => (Number.isFinite(n) ? nmAway(n) : "");
   const rows = planes.map(plane => {
     if (q === "near") return { plane, key: nm(from, plane), detail: miles(nm(from, plane)) };
     if (q === "emergency") {

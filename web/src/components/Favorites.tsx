@@ -2,10 +2,8 @@ import { ChevronLeft, ChevronRight, CircleMinus, GripVertical, House, ListFilter
 import { Fragment, useEffect, useId, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "cn";
-import { distanceNm } from "../lib/geo";
 import { airportMarkSvg } from "../lib/map/airportMark";
 import { colourOf } from "../lib/map/flightCategory";
-import { useOwnShip } from "../lib/map/ownShip";
 import type { AirspaceClass, RecentAirport } from "../lib/preferences";
 import { useAirspace } from "../lib/useAirspace";
 import { holdOpenCard } from "../lib/openCards";
@@ -36,11 +34,7 @@ export function FavoriteTiles({ home, favorites, onOpen, onAddHome, trailing }: 
 }) {
   // How far, from own ship's fix as it is: the tiles' own, drawn again at
   // each, where the page round them is not (useOwnShipNear).
-  const from = useOwnShip(o => (o.enabled ? o.fix : null));
-  const away = (a: RecentAirport) =>
-    from && a.lat !== undefined && a.lon !== undefined
-      ? `${Math.round(distanceNm(from, { lat: a.lat, lon: a.lon }))} nm`
-      : a.municipality ?? a.name;
+  const away = useAway();
   return (
     // Out to the sheet's edges as it scrolls, its margin kept inside.
     <div className="-mx-4 flex gap-4 overflow-x-auto px-4 pb-1 [scrollbar-width:none]" data-testid="favorites">
@@ -532,10 +526,10 @@ export function FavoriteStrip({ home, favorites, onOpen, onAddHome, onAddFavorit
     <PillStrip testId="pill-favorites">
       <SmallTile
         mark={<SmallMark icon={<House />} className="bg-teal-600 text-white" />} title="Home"
-        detail={home ? away(home) ?? home.ident : "Add"} label={home ? `Home, ${home.ident}` : "Add Home"}
+        detail={home ? away(home) : "Add"} label={home ? `Home, ${home.ident}` : "Add Home"}
         onClick={home ? () => onOpen(home) : onAddHome} testId="pill-home"
       />
-      {favorites.map(a => <SmallAirportTile key={a.ident} airport={a} detail={away(a) ?? ""} onClick={() => onOpen(a)} />)}
+      {favorites.map(a => <SmallAirportTile key={a.ident} airport={a} detail={away(a)} onClick={() => onOpen(a)} />)}
       <SmallTile
         mark={<SmallMark icon={<Plus />} className="bg-foreground/8 text-tint" />} title="Add" label="Add a Favorite"
         onClick={onAddFavorite} testId="pill-favorite-add"

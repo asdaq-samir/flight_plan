@@ -3,9 +3,8 @@ import { ListGroup, ListRow } from "../../../components/GroupedList";
 import type { FlightRoute, TrafficAircraft } from "../../../lib/api/types";
 import { clockTime } from "../../../lib/clock";
 import { SQUAWKS } from "../../../lib/squawks";
-import { compassPoint } from "../../../lib/compass";
-import { bearingDeg, distanceNm } from "../../../lib/geo";
 import type { Fix } from "../../../lib/map/ownShip";
+import { awayFrom, nmAway } from "../../../lib/useAway";
 import { TEXT } from "../../../lib/text";
 import { altFt, bearing } from "../../../lib/units";
 import { FlightEnds } from "./PastFlights";
@@ -93,7 +92,7 @@ export default function NowFlight({ plane, type, departed, departedPlace, route,
             )}
             {fix && here && (
               <span className={cn("text-muted-foreground", TEXT.detail)} data-testid="flight-from-you">
-                {`${distanceNm({ lat: fix.lat, lon: fix.lon }, here).toFixed(1)} nm ${compassPoint(bearingDeg({ lat: fix.lat, lon: fix.lon }, here))} of you`}
+                {`${awayFrom({ lat: fix.lat, lon: fix.lon }, here)} of you`}
                 {fix.altitudeFt != null && plane.altitude_ft != null ? `, ${against(plane.altitude_ft - fix.altitudeFt)}` : ""}
                 {cpa && (
                   <span
@@ -101,7 +100,7 @@ export default function NowFlight({ plane, type, departed, departedPlace, route,
                     className={cn(cpa.nm < 1 && (cpa.aboveFt == null || Math.abs(cpa.aboveFt) < 1000) && "font-semibold text-destructive-ink")}
                   >
                     {" · closest "}{cpa.inMin < 0.5 ? "now, drawing apart" : `in ${Math.round(cpa.inMin)} min`}
-                    {`: ${cpa.nm.toFixed(1)} nm${cpa.aboveFt != null ? `, ${against(cpa.aboveFt)}` : ""}`}
+                    {`: ${nmAway(cpa.nm)}${cpa.aboveFt != null ? `, ${against(cpa.aboveFt)}` : ""}`}
                   </span>
                 )}
               </span>
