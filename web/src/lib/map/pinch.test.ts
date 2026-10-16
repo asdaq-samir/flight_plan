@@ -16,6 +16,8 @@ describe("pinch patch", () => {
     expect(grid._setZoomTransform).toBeTypeOf("function");
     expect(grid._resetView).toBeTypeOf("function");
     expect(map._getNewPixelOrigin).toBeTypeOf("function");
+    const touchZoom = (L.Map as unknown as { TouchZoom: { prototype: Record<string, unknown> } }).TouchZoom.prototype;
+    expect(touchZoom._onTouchEnd).toBeTypeOf("function");
   });
 
   it("puts a marker at its exact place while a zoom goes frame by frame, and on a whole pixel otherwise", () => {
