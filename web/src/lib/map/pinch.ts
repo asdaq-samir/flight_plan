@@ -76,3 +76,27 @@ L.GridLayer.include({
     L.DomUtil.setTransform(level.el, level.origin.multiplyBy(scale).subtract(map._getNewPixelOrigin(center, zoom)), scale);
   },
 });
+
+/**
+ * A pinch is left where the fingers leave it, as ForeFlight leaves its own
+ * (the owner's recording of it, 2026-10-16: two rests 2.9 times apart, where
+ * settling on whole levels makes two or four), the nearest level's tiles
+ * drawn up to 1.4 times their size between levels; the owner had tried both
+ * (the map's settings' Pinch, a trial). A wheel's zoom, a double tap and the
+ * map's fits still land where they did. Leaflet rounds a pinch's last zoom
+ * to its zoomSnap as the fingers lift (TouchZoom._onTouchEnd): none for that.
+ */
+type PinchHandler = { _map: L.Map; _onTouchEnd: () => void };
+const touchZoom = (L.Map as unknown as { TouchZoom: { prototype: PinchHandler; include: (props: object) => void } }).TouchZoom;
+const pinchEnd = touchZoom.prototype._onTouchEnd;
+touchZoom.include({
+  _onTouchEnd(this: PinchHandler) {
+    const snap = this._map.options.zoomSnap;
+    this._map.options.zoomSnap = 0;
+    try {
+      pinchEnd.call(this);
+    } finally {
+      this._map.options.zoomSnap = snap;
+    }
+  },
+});

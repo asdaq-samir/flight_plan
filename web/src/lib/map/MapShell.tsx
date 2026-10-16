@@ -13,7 +13,7 @@ import { chartQuery } from "../queryClient";
 import { ChartTiles } from "./ChartTiles";
 import { OverlayTiles } from "./OverlayTiles";
 import { ClassBLayer } from "./ClassBLayer";
-import { PinchEnd, ResizeAware } from "./MapEffects";
+import { ResizeAware } from "./MapEffects";
 import { centreClear, centreClearFor } from "./clear";
 // The marks held to the chart under a pinch: a patch to Leaflet's markers.
 import "./pinch";
@@ -265,7 +265,6 @@ export function MapShell({ course, onReady, children, onSelectPlace, held = fals
           {onTv && <ZoomControl position="bottomright" />}
           {onTv && <TvMapKeys />}
           <ResizeAware />
-          <PinchEnd />
           <ChartTiles chart={chart} previewing={previewing} />
           <OverlayTiles />
           {/* Both maps get it: a Class B is worth seeing whether

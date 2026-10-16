@@ -8,7 +8,7 @@ import { Button } from "./ui/button";
 import { clearOwnTrail, useOwnTrail } from "../lib/map/ownTrail";
 import { say } from "../lib/speech";
 import { keepingAvailable } from "../lib/map/keepRoute";
-import { BASE_CHARTS, usePreferences, type BaseChart, type MapOverlay, type OverlayStrength, type PinchEndKind } from "../lib/preferences";
+import { BASE_CHARTS, usePreferences, type BaseChart, type MapOverlay, type OverlayStrength } from "../lib/preferences";
 import { useShownOverlay } from "../lib/map/useShownOverlay";
 import { useGoogleSession } from "../lib/map/googleSession";
 import { cn } from "../lib/utils";
@@ -58,8 +58,6 @@ export default function MapSettings() {
   const setOverlay = usePreferences(s => s.setOverlay);
   const strength = usePreferences(s => s.overlayStrength);
   const setStrength = usePreferences(s => s.setOverlayStrength);
-  const pinch = usePreferences(s => s.pinch);
-  const setPinch = usePreferences(s => s.setPinch);
   // Google's only where the deployment has a key for it.
   const { data: google } = useQuery(googleMapsQuery);
   const googleSession = useGoogleSession(overlay === "google-satellite" ? "satellite" : "map", overlay.startsWith("google"));
@@ -116,15 +114,6 @@ export default function MapSettings() {
           />
         </ListRow>
       )}
-      {/* How a pinch ends, a trial at the owner's ask (PinchEnd): settled
-          on a whole level, the chart sharp, or where the fingers leave it,
-          the chart a little stretched between levels. */}
-      <ListRow title="Pinch">
-        <Segmented
-          label="Pinch" value={pinch} onChange={v => setPinch(v as PinchEndKind)} testId="pinch-select"
-          options={[{ value: "settle", label: "Settle" }, { value: "stay", label: "Stay" }]}
-        />
-      </ListRow>
       {/* The Class B airports' two things, on one line: their weather
           now, as chips on the map, and the terminal sheet over the base
           wherever there is one -- the TAC over the sectional, the IFR
