@@ -4,6 +4,7 @@ import type { FlightRoute, TrafficAircraft } from "../../../lib/api/types";
 import { clockTime } from "../../../lib/clock";
 import { SQUAWKS } from "../../../lib/squawks";
 import type { Fix } from "../../../lib/map/ownShip";
+import { nearInHeight } from "../../../lib/map/traffic";
 import { awayFrom, nmAway } from "../../../lib/useAway";
 import { TEXT } from "../../../lib/text";
 import { altFt, bearing } from "../../../lib/units";
@@ -97,7 +98,7 @@ export default function NowFlight({ plane, type, departed, departedPlace, route,
                 {cpa && (
                   <span
                     data-testid="flight-closest"
-                    className={cn(cpa.nm < 1 && (cpa.aboveFt == null || Math.abs(cpa.aboveFt) < 1000) && "font-semibold text-destructive-ink")}
+                    className={cn(cpa.nm < 1 && (cpa.aboveFt == null || nearInHeight(cpa.aboveFt)) && "font-semibold text-destructive-ink")}
                   >
                     {" · closest "}{cpa.inMin < 0.5 ? "now, drawing apart" : `in ${Math.round(cpa.inMin)} min`}
                     {`: ${nmAway(cpa.nm)}${cpa.aboveFt != null ? `, ${against(cpa.aboveFt)}` : ""}`}

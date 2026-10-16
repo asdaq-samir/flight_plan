@@ -26,9 +26,14 @@ export function trafficLabel(plane: TrafficAircraft, ownFt: number | null): stri
   return `${hundreds >= 0 ? "+" : "-"}${String(Math.abs(hundreds)).padStart(2, "0")}${arrow}`;
 }
 
+/** Whether two heights are within NEAR_FT of each other: the map's
+ *  traffic coloured so, and the airplane card's closest approach said in
+ *  red, which took "within" as under 1,000 ft where the map took 1,000. */
+export const nearInHeight = (apartFt: number) => Math.abs(apartFt) <= NEAR_FT;
+
 /** Whether it is within NEAR_FT of own ship's height. */
 export function nearOwnHeight(plane: TrafficAircraft, ownFt: number | null): boolean {
-  return ownFt != null && plane.altitude_ft != null && Math.abs(plane.altitude_ft - ownFt) <= NEAR_FT;
+  return ownFt != null && plane.altitude_ft != null && nearInHeight(plane.altitude_ft - ownFt);
 }
 
 /** The airplanes as they were `ageS` seconds before the answer was
