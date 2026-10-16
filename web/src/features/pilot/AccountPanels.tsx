@@ -575,7 +575,7 @@ function NumberRow({ id, title, unit, placeholder, name, field, error }: {
  *  end, and before that a card a flight on a phone and a six-column
  *  table from md up. */
 export function FlightsPanel({ onBack }: {
-  /** Shown as FPL's Saved in full (SavedStrip's See All): headed as its
+  /** Shown as FPL's Saved in full (SavedStrip's title): headed as its
    *  Recents' page is, Back at its left and Edit at its right, at the
    *  owner's notice ("When clicking on See All for Saved it's not giving
    *  option to go back like recents or favorites"). */

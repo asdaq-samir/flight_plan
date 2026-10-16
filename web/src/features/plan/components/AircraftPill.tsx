@@ -3,7 +3,7 @@ import { Plane } from "lucide-react";
 import { create } from "zustand";
 import { cn } from "cn";
 import AirportPicker from "../../../components/AirportPicker";
-import { PillMenu, PillSection, PillStrip, SeeAll, SmallTile } from "../../../components/Favorites";
+import { PillMenu, PillSection, PillStrip, SmallTile } from "../../../components/Favorites";
 import { Switch } from "../../../components/ui/switch";
 import type { TrafficAircraft } from "../../../lib/api/types";
 import { inEmergency } from "../../../lib/fbo";
@@ -28,15 +28,15 @@ const useStripShows = create<{ favorites: boolean }>(() => ({ favorites: true })
 
 /**
  * The Aircraft tab's pill, the owner's picks of the redesign: under the
- * search bar one strip, its title a menu of what to list (the owner's
- * "one row, it can have the favorites with the filter"): the Favorites
- * (Plane first), or the nearest, those around, inbound to, departing or
- * based at an airport, or emergencies -- the airport a pill of its own
- * beside it to change; and at the row's right one switch, Map, that
- * leaves only these airplanes on the map, the rest faded ("Map: show only
- * these"), and on the Favorites See All after it, the airplanes kept in
- * full, as Airport's Favorites have it (the owner's "What about aircraft
- * fav?").
+ * search bar one strip (the owner's "one row, it can have the favorites
+ * with the filter"): the Favorites (Plane first), or the nearest, those
+ * around, inbound to, departing or based at an airport, or emergencies --
+ * the airport a pill of its own beside the title to change. The
+ * Favorites' title is the way to the airplanes kept in full, as Airport's
+ * is (the owner's "What about aircraft fav?"); at the row's right what it
+ * shows, a menu, then one switch, Map, that leaves only these airplanes on
+ * the map, the rest faded ("Map: show only these") -- the owner's "for
+ * aircraft we can have the selection and show map controls to the right".
  */
 export default function AircraftPill({ onOpen, onAddMine, onAddFavorite, onPick, onAllFavorites }: {
   onOpen: (hex: string) => void;
@@ -80,29 +80,26 @@ export default function AircraftPill({ onOpen, onAddMine, onAddFavorite, onPick,
     <div className="flex flex-col gap-2" data-testid="aircraft-pill">
       <PillSection
         testId="pill-section-question"
-        title={(
-          <div className="flex min-w-0 items-center gap-1.5">
+        title={favorites ? "Favorites" : TITLES[question]} onMore={favorites ? onAllFavorites : undefined}
+        beside={asks?.airport && (
+          // The airport asked of, a pill of its own to change: Home and
+          // the Favorites first, then a search (AirportPicker).
+          <AirportPicker
+            value={filter.airport} onChange={airport => change({ airport })} placeholder="Airport" ariaLabel="Traffic at"
+            look="pill" testId="question-airport" open={picking} onOpenChange={setPicking}
+            className="h-7 rounded-full bg-foreground/8 px-2.5"
+          />
+        )}
+        right={(
+          <>
             <PillMenu
-              label={favorites ? "Favorites" : TITLES[question]} value={favorites ? "favorites" : question} testId="aircraft-question"
+              label={`Showing ${favorites ? "Favorites" : TITLES[question]}`} value={favorites ? "favorites" : question} testId="aircraft-question"
               options={[
                 { value: "favorites", label: "Favorites", testId: "question-favorites" },
                 ...QUESTIONS.map(q => ({ value: q.value, label: `${q.label}${q.airport ? "…" : ""}`, testId: `question-${q.value}` })),
               ]}
               onChange={pick} apart className="min-w-52"
             />
-            {asks?.airport && (
-              // The airport asked of, a pill of its own to change: Home
-              // and the Favorites first, then a search (AirportPicker).
-              <AirportPicker
-                value={filter.airport} onChange={airport => change({ airport })} placeholder="Airport" ariaLabel="Traffic at"
-                look="pill" testId="question-airport" open={picking} onOpenChange={setPicking}
-                className="h-7 rounded-full bg-foreground/8 px-2.5"
-              />
-            )}
-          </div>
-        )}
-        right={(
-          <>
             <label htmlFor="aircraft-map-only" className={cn("text-foreground/65", TEXT.note)}>Map</label>
             <Switch
               id="aircraft-map-only" checked={map} data-testid="aircraft-map-only"
@@ -111,7 +108,6 @@ export default function AircraftPill({ onOpen, onAddMine, onAddFavorite, onPick,
               className="pointer-coarse:h-[31px]! pointer-coarse:w-[51px]! pointer-coarse:[&>span]:size-[27px]! pointer-coarse:[&>span]:data-checked:translate-x-[22px]!"
               onCheckedChange={on => useTrafficFocus.setState({ on, only: on ? useTrafficFocus.getState().only : null })}
             />
-            {favorites && <SeeAll onClick={onAllFavorites} testId="aircraft-favorites-all" />}
           </>
         )}
       >

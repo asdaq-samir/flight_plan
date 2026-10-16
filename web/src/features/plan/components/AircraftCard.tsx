@@ -147,7 +147,7 @@ export default function AircraftCard({ onPick, onPickHex, strip }: {
   }, []);
   const from = fix ? { lat: fix.lat, lon: fix.lon } : null;
   const ownFt = fix?.altitudeFt ?? null;
-  // The Recents in full, from their section's See All: every one, and
+  // The Recents in full, from their section's title: every one, and
   // Clear for all of them.
   const recentRow = (a: KeptAircraft) => (
     <SwipeToDelete key={a.hex} label={`Remove ${a.name} from Recents`} onDelete={() => removeRecent(a.hex)}>
@@ -228,10 +228,10 @@ export default function AircraftCard({ onPick, onPickHex, strip }: {
       {!searching && strip}
       {!searching && recents.length > 0 && (
         // The airplanes opened last as the Favorites' tiles, at the owner's
-        // ask ("Recents should also have symbols instead of a list"); See
-        // All the list, where each is taken off and Clear, as the airports'
-        // Recents are.
-        <PillSection title="Recents" testId="aircraft-recents" onSeeAll={() => setAllRecents(true)}>
+        // ask ("Recents should also have symbols instead of a list"); the
+        // title the list, where each is taken off and Clear, as the
+        // airports' Recents are.
+        <PillSection title="Recents" testId="aircraft-recents" onMore={() => setAllRecents(true)}>
           <PillStrip testId="pill-aircraft-recents">
             {recents.map(a => <KeptAircraftTile key={a.hex} aircraft={a} onClick={() => pickKept(a)} testId="aircraft-recent" />)}
           </PillStrip>

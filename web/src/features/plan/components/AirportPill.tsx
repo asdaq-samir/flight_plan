@@ -1,12 +1,13 @@
 import type { ReactNode } from "react";
-import { PillMenu, PillSection, SeeAll } from "../../../components/Favorites";
+import { PillMenu, PillSection } from "../../../components/Favorites";
 import { useAirportStripShows } from "../hooks/useAirportStripShows";
 
 /**
- * The Airport tab's pill under its search bar: one strip, its title a menu
- * of what it shows, the Favorites or the nearest fields -- the owner's
- * "one row", as Aircraft's -- and See All at the row's right, the list in
- * full: the nearest fields, or the Favorites to change.
+ * The Airport tab's pill under its search bar: one strip, the Favorites or
+ * the nearest fields -- the owner's "one row", as Aircraft's -- its title
+ * the way to the list in full (the Favorites to change, or the nearest
+ * fields), and what it shows a menu at the row's right, as Aircraft's is
+ * (the owner's "make saved, favorites and recents into links").
  */
 export default function AirportPill({ favorites, nearest, onAllNearest, onAllFavorites }: {
   favorites: ReactNode;
@@ -16,13 +17,15 @@ export default function AirportPill({ favorites, nearest, onAllNearest, onAllFav
   onAllFavorites: () => void;
 }) {
   const showsNearest = useAirportStripShows(s => s.nearest);
+  const shows = showsNearest ? "Nearest" : "Favorites";
   return (
     <div className="flex flex-col gap-2" data-testid="airport-pill">
       <PillSection
         testId={showsNearest ? "pill-section-nearest" : "pill-section-favorites"}
-        title={(
+        title={shows} onMore={showsNearest ? onAllNearest : onAllFavorites}
+        right={(
           <PillMenu
-            label={showsNearest ? "Nearest" : "Favorites"} value={showsNearest ? "nearest" : "favorites"} testId="airport-strip-shows"
+            label={`Showing ${shows}`} value={showsNearest ? "nearest" : "favorites"} testId="airport-strip-shows"
             options={[
               { value: "favorites", label: "Favorites", testId: "airport-shows-favorites" },
               { value: "nearest", label: "Nearest", testId: "airport-shows-nearest" },
@@ -30,7 +33,6 @@ export default function AirportPill({ favorites, nearest, onAllNearest, onAllFav
             onChange={v => useAirportStripShows.setState({ nearest: v === "nearest" })}
           />
         )}
-        right={<SeeAll onClick={showsNearest ? onAllNearest : onAllFavorites} testId={showsNearest ? "pill-section-nearest-more" : "favorites-all"} />}
       >
         {showsNearest ? nearest : favorites}
       </PillSection>

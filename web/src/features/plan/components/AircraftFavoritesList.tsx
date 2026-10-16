@@ -5,7 +5,7 @@ import { ListGroup, ListRow } from "../../../components/GroupedList";
 import { usePreferences, type KeptAircraft } from "../../../lib/preferences";
 
 /**
- * The Aircraft tab's Favorites in full, from their See All, at the owner's
+ * The Aircraft tab's Favorites in full, from their title, at the owner's
  * ask ("What about aircraft fav?"), as Airport's are (FavoritesList): the
  * Plane, the pilot's own, which a tap changes through the search, and the
  * airplanes kept, which a tap opens -- and with Edit, a minus before each

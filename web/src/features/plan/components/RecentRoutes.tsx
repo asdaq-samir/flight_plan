@@ -20,17 +20,17 @@ const STRIP_MOST = 10;
  * FPL's Recents under its Saved, at the owner's ask ("Can we have recents
  * under saved ?"): the latest routes planned, newest first, kept on this
  * device -- the airports' and the airplanes' Recents for routes -- a tap
- * planning one again; See All the rest and Clear (RecentRoutesPage).
+ * planning one again; its title the rest and Clear (RecentRoutesPage).
  * Tiles, as Saved's are, not a list, at the owner's ask ("Recents should
  * also have symbols instead of a list"): the route and the day under a
  * round mark. Nothing while there are none.
  */
-export function RecentRoutes({ onSeeAll }: { onSeeAll: () => void }) {
+export function RecentRoutes({ onMore }: { onMore: () => void }) {
   const routes = usePreferences(s => s.recentRoutes);
   const navigate = useNavigate();
   if (!routes.length) return null;
   return (
-    <PillSection title="Recents" testId="route-recents" onSeeAll={onSeeAll}>
+    <PillSection title="Recents" testId="route-recents" onMore={onMore}>
       <PillStrip testId="route-recents-strip">
         {routes.slice(0, STRIP_MOST).map(route => {
           const dep = pointName(route.dep), dest = pointName(route.dest);
@@ -48,7 +48,7 @@ export function RecentRoutes({ onSeeAll }: { onSeeAll: () => void }) {
   );
 }
 
-/** FPL's Recents in full, from their See All: every one, and Clear for all
+/** FPL's Recents in full, from their title: every one, and Clear for all
  *  of them, asked first. */
 export function RecentRoutesPage({ onBack }: { onBack: () => void }) {
   const routes = usePreferences(s => s.recentRoutes);

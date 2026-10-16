@@ -231,8 +231,8 @@ export const SCREENS: Screen[] = [
     },
   },
   // FPL with no route, all the way up: Saved, and the routes planned last
-  // under it, each headed with its See All (the Recents seeded in this
-  // browser: nothing is written to the planner).
+  // under it, each title the way to its list in full (the Recents seeded
+  // in this browser: nothing is written to the planner).
   {
     name: "FPL, Saved and Recents",
     ready: async page => {

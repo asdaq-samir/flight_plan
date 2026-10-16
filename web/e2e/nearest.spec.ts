@@ -28,7 +28,8 @@ test("Nearest opens as a card half way up, a field over it as a layer, and its c
   await grabberTo(page, "peek");
   await showTabs(page);
   await page.getByTestId("tab-airport").click();
-  // The strip's title's menu: the nearest fields (the Favorites first).
+  // The menu at the strip's heading's right: the nearest fields (the
+  // Favorites first).
   await sideDrawer(page).getByTestId("airport-strip-shows").click();
   await page.getByTestId("airport-shows-nearest").click();
   // With no position yet, the strip offers to show it.

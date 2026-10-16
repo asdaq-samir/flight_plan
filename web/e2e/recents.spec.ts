@@ -7,10 +7,10 @@ import { grabberTo, openPanel, settle, sideDrawer, airportSearch } from "./helpe
  * pilot's ask ("I should be able to clear recents or delete individual
  * ones by sliding left") -- the airports' under the search bar, the
  * airplanes' on the Aircraft card and the routes' under FPL's Saved. Each
- * tab shows its latest three, headed as the Favorites are, See All the
- * rest and Clear, at the owner's asks ("Can we have recents under saved
- * ?", "consistent look just like Favorites of Airport with See All on the
- * right side").
+ * tab shows them as tiles, headed as the Favorites are, the title the
+ * way to the rest and Clear, at the owner's asks ("Can we have recents
+ * under saved ?", "make saved, favorites and recents into links, when
+ * clicked shows what See All does").
  */
 
 const AIRPORTS = [
@@ -38,12 +38,12 @@ async function swipeLeft(row: Locator) {
   await expect.poll(() => row.evaluate(el => el.scrollLeft)).toBeGreaterThan(40);
 }
 
-/** Airport's Recents in full, all the way up: the list their See All
+/** Airport's Recents in full, all the way up: the list their title
  *  opens, where they are taken off (tiles under the search). */
 async function airportRecentsList(page: Page) {
   await airportSearch(page);
   await grabberTo(page, "full");
-  await sideDrawer(page).getByTestId("airport-recents-all").click();
+  await sideDrawer(page).getByTestId("airport-recents-more").click();
   await expect(sideDrawer(page).getByTestId("airport-recents-page")).toBeVisible();
 }
 
@@ -104,7 +104,7 @@ test("a swipe to the left uncovers a Delete that takes an airport off the Recent
   await expect(recents).toHaveCount(0);
 });
 
-test("the airports' Recents are tiles with their chart's symbols, newest first, and See All lists them, Back to the search", async ({ page }) => {
+test("the airports' Recents are tiles with their chart's symbols, newest first, and their title lists them, Back to the search", async ({ page }) => {
   await seed(page, [
     ...AIRPORTS,
     { ident: "KMSN", name: "Dane County Regional Airport", municipality: "Madison" },
@@ -131,10 +131,10 @@ test("the airports' Recents are tiles with their chart's symbols, newest first, 
   await settle(page);
   await airportSearch(page);
   await grabberTo(page, "full");
-  // See All at the heading's right, in the tint, as the Favorites' is: the
-  // list, where they are taken off.
-  const all = panel.getByTestId("airport-recents-all");
-  await expect(all).toHaveText("See All");
+  // The title, in the tint, as the Favorites' is: the list, where they are
+  // taken off.
+  const all = panel.getByTestId("airport-recents-more");
+  await expect(all).toHaveText("Recents");
   await all.click();
   await expect(panel.getByTestId("airport-recents-page")).toBeVisible();
   await expect(panel.getByTestId("swipe-row")).toHaveCount(5);
@@ -149,9 +149,9 @@ test("the airplanes' Recents: a long press or a right click offers the Delete to
   await grabberTo(page, "full");
   const card = page.getByTestId("aircraft-card");
   const recents = card.getByTestId("aircraft-recent");
-  // Tiles as the Favorites' are, the list in full their See All.
+  // Tiles as the Favorites' are, the list in full their title.
   await expect(card.getByTestId("pill-aircraft-recents").getByTestId("aircraft-recent")).toHaveCount(2);
-  await card.getByTestId("aircraft-recents-all").click();
+  await card.getByTestId("aircraft-recents-more").click();
   await expect(card.getByTestId("aircraft-recents-page")).toBeVisible();
   await expect(recents).toHaveCount(2);
 
@@ -165,7 +165,7 @@ test("the airplanes' Recents: a long press or a right click offers the Delete to
   await expect(recents).toHaveCount(0);
 });
 
-test("FPL's Recents under Saved: the latest routes planned as tiles, See All the rest, a tap plans one again and it comes first", async ({ page }) => {
+test("FPL's Recents under Saved: the latest routes planned as tiles, their title the rest, a tap plans one again and it comes first", async ({ page }) => {
   const day = (d: number) => Date.UTC(2026, 9, d, 15);
   await seed(page, AIRPORTS, [
     { dep: "C81", dest: "KDLH", stops: [], at: day(15) },
@@ -177,8 +177,10 @@ test("FPL's Recents under Saved: the latest routes planned as tiles, See All the
   await settle(page);
   await grabberTo(page, "half");
   const panel = sideDrawer(page);
-  // Under Saved, both headed as Airport's Favorites are: See All at the right.
-  await expect(panel.getByTestId("pill-section-saved-all")).toHaveText("See All");
+  // Under Saved, both headed as Airport's Favorites are: each title the
+  // way to the list in full, in the tint.
+  await expect(panel.getByTestId("pill-section-saved-more")).toHaveText("Saved");
+  await expect(panel.getByTestId("route-recents-more")).toHaveText("Recents");
   // Tiles, as Saved's are: the route and the day, its stops said to a
   // screen reader.
   const section = panel.getByTestId("route-recents");
@@ -187,7 +189,7 @@ test("FPL's Recents under Saved: the latest routes planned as tiles, See All the
   await expect(section.getByTestId("route-recent").nth(2)).toHaveAccessibleName(/C81 to KMSP by KLSE/);
 
   // The rest, all the way up, and a tap on the oldest plans it again.
-  await section.getByTestId("route-recents-all").click();
+  await section.getByTestId("route-recents-more").click();
   await expect(panel.getByTestId("route-recents-page")).toBeVisible();
   const all = panel.getByTestId("route-recent");
   await expect(all).toHaveCount(4);
@@ -202,7 +204,7 @@ test("FPL's Recents under Saved: the latest routes planned as tiles, See All the
   await expect(panel.getByTestId("route-recent").first()).toContainText("C81→KMSN");
 
   // Clear, asked first, from the Recents in full: none under Saved then.
-  await panel.getByTestId("route-recents-all").click();
+  await panel.getByTestId("route-recents-more").click();
   await panel.getByTestId("route-recents-clear").click();
   await page.getByRole("button", { name: "Clear", exact: true }).last().click();
   await expect(panel.getByTestId("route-recent")).toHaveCount(0);
@@ -211,12 +213,12 @@ test("FPL's Recents under Saved: the latest routes planned as tiles, See All the
   await expect(panel.getByTestId("pill-section-saved")).toBeVisible();
 });
 
-test("Saved's See All opens the flights in full with Back to FPL, as the Recents' does", async ({ page }) => {
+test("Saved's title opens the flights in full with Back to FPL, as the Recents' does", async ({ page }) => {
   await page.goto("/app/plan");
   await settle(page);
   await grabberTo(page, "half");
   const panel = sideDrawer(page);
-  await panel.getByTestId("pill-section-saved-all").click();
+  await panel.getByTestId("pill-section-saved-more").click();
   await expect(page).toHaveURL(/[?&]saved=1/);
   await expect(panel.getByTestId("saved-page")).toContainText("Saved");
   await panel.getByTestId("saved-page-back").click();

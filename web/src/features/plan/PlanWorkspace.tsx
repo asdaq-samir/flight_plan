@@ -713,12 +713,12 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     course?.stops?.some(a => a.ident === stop && a.kind === "fix") || !identOf(stop)
     || (isAirwayToken(stop) && !course?.stops?.some(a => a.ident === stop)))), [planned.stops, course]);
   // Favorites in full (FavoritesList), in place of the recents, and each
-  // tab's Recents in full from their See All (Airport's, FPL's routes);
+  // tab's Recents in full from their titles (Airport's, FPL's routes);
   // put away as a tab is picked.
   const [favoritesOpen, setFavoritesOpen] = useState(false);
   const [airportRecentsOpen, setAirportRecentsOpen] = useState(false);
   const [routeRecentsOpen, setRouteRecentsOpen] = useState(false);
-  // Aircraft's Favorites in full, from their See All.
+  // Aircraft's Favorites in full, from their title.
   const [aircraftFavoritesOpen, setAircraftFavoritesOpen] = useState(false);
   const listsAway = useCallback(() => {
     setFavoritesOpen(false);
@@ -1457,7 +1457,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
             // Saved, and the routes planned last under it.
             <TabPage>
               <SavedStrip onMore={openSaved} />
-              <RecentRoutes onSeeAll={() => { setRouteRecentsOpen(true); setPanel("full"); }} />
+              <RecentRoutes onMore={() => { setRouteRecentsOpen(true); setPanel("full"); }} />
             </TabPage>
           )
         )}

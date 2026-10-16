@@ -25,9 +25,9 @@ export default function SavedStrip({ onMore }: { onMore: () => void }) {
   const { data: flights } = useQuery({ queryKey: ["flights"], queryFn: api.flights.list, enabled: !!pilot, meta: { silent: true } });
   const shown = [...(flights ?? [])].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, STRIP_MOST);
   return (
-    // Its heading as the Favorites' is, See All at its right (the owner's
-    // "consistent look just like Favorites of Airport").
-    <PillSection title="Saved" onSeeAll={pilot ? onMore : undefined} testId="pill-section-saved">
+    // Its heading as every section's is, its title the way to them all
+    // (the owner's "make saved, favorites and recents into links").
+    <PillSection title="Saved" onMore={pilot ? onMore : undefined} testId="pill-section-saved">
       {!pilot ? (
         <p className={cn("py-1 text-foreground/65", TEXT.note)}>Sign in to keep the flights you plan.</p>
       ) : flights && !shown.length ? (
