@@ -566,7 +566,7 @@ function NumberRow({ id, title, unit, placeholder, name, field, error }: {
 }
 
 /** A signed-in pilot's own filed flights. Filing one happens from the
- *  planning panel's own Save, beside the route; here a flight opens
+ *  route's Share menu (Save); here a flight opens
  *  back on the planner (same route and altitude) or is deleted. A
  *  grouped list at every width, as iOS lists things: a tap on a row
  *  opens the flight and puts the console away, and Edit over the list
@@ -575,7 +575,7 @@ function NumberRow({ id, title, unit, placeholder, name, field, error }: {
  *  end, and before that a card a flight on a phone and a six-column
  *  table from md up. */
 export function FlightsPanel({ onBack }: {
-  /** Shown as FPL's Saved in full (SavedStrip's See All): headed as its
+  /** Shown as FPL's Saved in full (SavedStrip's title): headed as its
    *  Recents' page is, Back at its left and Edit at its right, at the
    *  owner's notice ("When clicking on See All for Saved it's not giving
    *  option to go back like recents or favorites"). */
@@ -627,7 +627,7 @@ export function FlightsPanel({ onBack }: {
           <p role="status" className={cn("px-1 text-muted-foreground", TEXT.note)}>Fetching your flights…</p>
         ) : error ? null : list?.length === 0 ? (
           <EmptyState icon={<Route />} title="No Flights">
-            Plan a route, then Save beside it, and the flight is kept here.
+            Plan a route and Save it from Share; it is kept here.
           </EmptyState>
         ) : (
           <ListGroup

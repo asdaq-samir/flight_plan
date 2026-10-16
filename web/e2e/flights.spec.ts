@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { consoleSheet, controlsInSight, grabberTo, library, openConsole, openMapSettings, openPanel, showTabs } from "./helpers";
+import { consoleSheet, controlsInSight, grabberTo, library, openConsole, openMapSettings, openPanel, showTabs, sideDrawer } from "./helpers";
 
 /**
  * "Save this flight", at the head of the briefing drawer's sections, for
@@ -128,6 +128,25 @@ test("opening a saved flight puts its route in the header, and Load plans that r
   await expect(page).toHaveURL(/altitude_ft=5500/);
   // And at the altitudes the pilot set at its points: Duluth's pattern.
   await expect(page).toHaveURL(/altitudes=KDLH%3A2400/);
+});
+
+test("a saved flight opened from FPL's Saved opens its page, and Open on the map plans it", async ({ page }) => {
+  // The same page as Setup's, outside Setup: its Open on the map was a
+  // dialog's close with no dialog round it, which threw as the page was
+  // drawn and took the whole planner down.
+  await signedIn(page, [], [{
+    id: 9, departureIdent: "KMSP", destinationIdent: "KDLH", stops: [], cruiseAltitudeFt: 5500, aircraftTailNumber: null,
+    createdAt: "2026-09-20T12:00:00Z", plannedFor: null, totalDistanceNm: 120, totalEteMin: 55, totalFuelGal: 8,
+  }]);
+  await page.goto("/app/plan");
+  await grabberTo(page, "half");
+  const panel = sideDrawer(page);
+  await panel.getByTestId("pill-section-saved-more").click();
+  await panel.getByRole("button", { name: /KMSP → KDLH/ }).click();
+  await expect(panel.getByTestId("flight-open")).toBeVisible();
+  await panel.getByTestId("flight-open").click();
+  await expect(page).toHaveURL(/dep=KMSP/);
+  await expect(page).not.toHaveURL(/[?&]saved=/);
 });
 
 test("Edit over the saved flights puts a minus before each, and the minus deletes one once asked", async ({ page }) => {

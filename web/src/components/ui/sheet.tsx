@@ -53,6 +53,7 @@ function SheetContent({
   children,
   side = "right",
   showCloseButton = true,
+  overlayClassName,
   onInteractOutside,
   onPointerDownOutside,
   onCloseAutoFocus,
@@ -60,10 +61,13 @@ function SheetContent({
 }: React.ComponentProps<typeof SheetPrimitive.Content> & {
   side?: "top" | "right" | "bottom" | "left"
   showCloseButton?: boolean
+  /** The overlay's own classes: clear, where what is under the sheet is
+   *  what the sheet is for (the route's Procedures over the map). */
+  overlayClassName?: string
 }) {
   return (
     <SheetPortal>
-      <SheetOverlay />
+      <SheetOverlay className={overlayClassName} />
       <SheetPrimitive.Content
         data-slot="sheet-content"
         data-side={side}

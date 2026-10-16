@@ -96,7 +96,7 @@ export function SearchResults({ query, onPick, places, onAllRecents }: {
   onPick: (airport: RecentAirport) => void;
   /** Over the recents before anything is typed: Favorites. */
   places?: ReactNode;
-  /** The Recents in full (AirportRecentsPage), from the section's See All. */
+  /** The Recents in full (AirportRecentsPage), from the section's title. */
   onAllRecents?: () => void;
 }) {
   const { typed, rows, answered } = useAirportSearch(query);
@@ -104,13 +104,13 @@ export function SearchResults({ query, onPick, places, onAllRecents }: {
   // Each a section of the tab's page (TabPage), headed as the Favorites
   // are: the airports opened last as the Favorites' tiles, their chart's
   // symbols, at the owner's ask ("Recents should also have symbols instead
-  // of a list"); See All the list, where each is taken off and Clear.
+  // of a list"); the title the list, where each is taken off and Clear.
   if (!typed) {
     return (
       <>
         {places}
         {recents.length > 0 ? (
-          <PillSection title="Recents" testId="airport-recents" onSeeAll={onAllRecents}>
+          <PillSection title="Recents" testId="airport-recents" onMore={onAllRecents}>
             <RecentAirportStrip recents={recents} onPick={onPick} />
           </PillSection>
         ) : (
@@ -170,7 +170,7 @@ function RecentAirportRows({ recents, onPick }: { recents: RecentAirport[]; onPi
   );
 }
 
-/** The airports' Recents in full, from their section's See All: every one,
+/** The airports' Recents in full, from their section's title: every one,
  *  and Clear for all of them, asked first. */
 export function AirportRecentsPage({ onBack, onPick }: { onBack: () => void; onPick: (airport: RecentAirport) => void }) {
   const recents = usePreferences(s => s.recentAirports);

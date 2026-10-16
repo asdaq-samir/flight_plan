@@ -88,24 +88,30 @@ test("each tab half way shows its own: Airport its Favorites and Nearest, Aircra
   await expect(panel.getByTestId("aircraft-search")).toBeVisible();
 
   // One strip, the owner's "one row, it can have the favorites with the
-  // filter": its title a menu, the Favorites first, the questions after
-  // them, and the Map switch at the row's right.
-  await expect(panel.getByTestId("aircraft-question")).toHaveText(/Favorites/i);
+  // filter": its title the Favorites' way to them in full, what it shows a
+  // menu at the row's right -- the Favorites first, the questions after
+  // them -- and the Map switch after it.
+  const question = panel.getByTestId("pill-section-question");
+  await expect(question.getByTestId("pill-section-question-more")).toHaveText("Favorites");
   await expect(panel.getByTestId("aircraft-map-only")).toHaveAttribute("aria-checked", "false");
   await panel.getByTestId("aircraft-question").click();
   await page.getByTestId("question-near").click();
-  await expect(panel.getByTestId("aircraft-question")).toHaveText(/Nearest/i);
+  // A question's title names it, with no list in full to open.
+  await expect(question.getByRole("heading", { name: "Nearest" })).toBeVisible();
+  await expect(question.getByTestId("pill-section-question-more")).toHaveCount(0);
   await expect(panel.getByTestId("pill-aircraft-mine")).toHaveCount(0);
   await panel.getByTestId("aircraft-question").click();
   await page.getByTestId("question-favorites").click();
   await expect(panel.getByTestId("pill-aircraft-mine")).toBeVisible();
 
-  // Airport's one strip, its title's menu the nearest fields too (NRST
-  // folded in, four tabs), or with no position the way to show it.
+  // Airport's one strip, the nearest fields too from the menu at its
+  // heading's right (NRST folded in, four tabs), or with no position the
+  // way to show it; its title the way to the list in full.
   await pickHalf(page, "tab-airport");
-  await expect(panel.getByTestId("airport-strip-shows")).toHaveText(/Favorites/i);
+  await expect(panel.getByTestId("pill-section-favorites-more")).toHaveText("Favorites");
   await panel.getByTestId("airport-strip-shows").click();
   await page.getByTestId("airport-shows-nearest").click();
+  await expect(panel.getByTestId("pill-section-nearest-more")).toHaveText("Nearest");
   await expect(panel.getByTestId("nearest-strip").or(panel.getByTestId("nearest-strip-position"))).toBeVisible();
   await expect(panel.getByTestId("pill-favorites")).toHaveCount(0);
   await panel.getByTestId("airport-strip-shows").click();
@@ -196,8 +202,9 @@ test("Plane, the pilot's own, is first among the Aircraft card's Favorites, with
   await expect(page).toHaveURL(/[?&]flight=a1c2d3/);
 });
 
-test("Aircraft's Favorites have See All after the Map switch: the airplanes kept in full, Edit letting one go and moving another", async ({ page }) => {
-  // The owner's "What about aircraft fav?": as Airport's Favorites are.
+test("Aircraft's Favorites' title opens the airplanes kept in full, Edit letting one go and moving another", async ({ page }) => {
+  // The owner's "What about aircraft fav?": as Airport's Favorites are,
+  // the title the way in ("make saved, favorites and recents into links").
   await keep(page, {
     myAircraft: { hex: "a0b7d8", name: "N14511", type: "B39M" },
     favoriteAircraft: [{ hex: "a1c2d3", name: "N200XY", type: "C172" }, { hex: "a2c2d3", name: "N300XY", type: "PA28" }, { hex: "a3c2d3", name: "N400XY", type: "SR22" }],
@@ -206,11 +213,16 @@ test("Aircraft's Favorites have See All after the Map switch: the airplanes kept
   await settle(page);
   await grabberTo(page, "full");
   const panel = sideDrawer(page);
-  // At the heading's right, the Map switch kept just before it.
-  const all = panel.getByTestId("aircraft-favorites-all");
-  await expect(all).toHaveText("See All");
+  // The title at the heading's left; at its right what the strip shows,
+  // then the Map switch (the owner's "for aircraft we can have the
+  // selection and show map controls to the right").
+  const all = panel.getByTestId("pill-section-question-more");
+  await expect(all).toHaveText("Favorites");
+  const title = (await all.boundingBox())!;
+  const menu = (await panel.getByTestId("aircraft-question").boundingBox())!;
   const map = (await panel.getByTestId("aircraft-map-only").boundingBox())!;
-  expect(map.x + map.width).toBeLessThanOrEqual((await all.boundingBox())!.x);
+  expect(title.x + title.width).toBeLessThan(menu.x);
+  expect(menu.x + menu.width).toBeLessThanOrEqual(map.x);
   await all.click();
   const list = panel.getByTestId("aircraft-favorites-list");
   await expect(list.getByTestId("aircraft-favorites-mine")).toContainText("N14511");

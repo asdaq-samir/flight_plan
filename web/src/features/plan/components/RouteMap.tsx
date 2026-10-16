@@ -66,6 +66,10 @@ interface Props {
   /** The one just picked ("KBUR:I08-Y:LAX@<when>"), for the map to go to
    *  it once it is drawn. */
   procedureFocus?: string | null;
+  /** How much of the screen's top or foot the Procedures' sheet covers
+   *  while it is out on a phone, for the procedure to be brought in clear
+   *  of it. */
+  procedureCover?: { top: number; bottom: number };
   /** The airport whose card is open, and the way to open one from the
    *  chart (AirportsLayer) -- or, with null, to put it away. */
   place: { ident: string; lat: number; lon: number } | null;
@@ -420,7 +424,7 @@ const PLACE_ZOOM = 9;
 export default memo(function RouteMap({
   course, candidates, selected, focus, onSelectCandidate, onSelectPoint,
   airportWeather, place, onSelectPlace, onAddStop, legs, heldPoint, onHoldPoint, nearest = null, patterns = NO_PATTERNS, patternFocus = null,
-  procedures = NO_PROCEDURES, procedureFocus = null,
+  procedures = NO_PROCEDURES, procedureFocus = null, procedureCover,
 }: Props) {
   const focusZoom = course?.max_zoom ?? 12;
   const dryRunning = usePastFlight(p => p.hex === DRY_RUN);
@@ -497,7 +501,7 @@ export default memo(function RouteMap({
           <PatternLayer patterns={patterns} />
           <ProcedureLayer drawings={procedures} />
           {/* A procedure just picked, all of it in sight clear of the panel. */}
-          <FitTo points={focusedProcedure} fitKey={focusedProcedure.length ? procedureFocus : null} maxZoom={12} />
+          <FitTo points={focusedProcedure} fitKey={focusedProcedure.length ? procedureFocus : null} maxZoom={12} cover={procedureCover} />
           {/* A pattern just picked, all of it in sight clear of the panel. */}
           <FitTo points={focusedPattern} fitKey={focusedPattern.length ? patternFocus : null} maxZoom={13} />
           <Endpoints course={course} weather={airportWeather} onSelectPoint={onSelectPoint} onSelectPlace={onSelectPlace} />

@@ -697,7 +697,7 @@ test("with no route the panel is a search bar: Home is set from Favorites, an ai
 
   // Favorites in full: Edit lets KDLH go.
   await search.click();
-  await page.getByTestId("favorites-all").click();
+  await page.getByTestId("pill-section-favorites-more").click();
   const list = page.getByTestId("favorites-list");
   await expect(list).toContainText("KDLH");
   await list.getByTestId("favorites-edit").click();

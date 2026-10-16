@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronLeft, ChevronRight, CircleMinus, GripVertical, House, Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, CircleMinus, GripVertical, House, ListFilter, Plus } from "lucide-react";
 import { Fragment, useId, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "cn";
@@ -263,22 +263,22 @@ export function SmallTile({ mark, title, detail, label, onClick, testId, wide = 
 
 /**
  * One of a pill's labelled rows, the redesign's pattern at the owner's ask
- * ("make the minimal layout this big, and then design all the tabs"):
- * a small caps title over its strip of tiles -- FAVORITES, NEAREST,
- * SAVED -- the title's chevron opening the list in full where there is
- * one (`onMore`), and anything that acts on the row at its right
- * (`right`: Aircraft's Map switch). The title itself can be a menu
- * (`title` as a node).
+ * ("make the minimal layout this big, and then design all the tabs"): a
+ * title over its strip of tiles -- Saved, Favorites, Recents, Nearest --
+ * and anything that acts on the row at its right (`right`: what the strip
+ * shows, Aircraft's Map switch).
  */
-export function PillSection({ title, onMore, onSeeAll, right, children, testId }: {
-  title: ReactNode;
+export function PillSection({ title, onMore, beside, right, children, testId }: {
+  title: string;
+  /** The list in full, the title the way to it, in the tint with its
+   *  chevron -- every section's alike, the tabs' Saved, Favorites and
+   *  Recents as the cards' are -- at the owner's ask ("make saved,
+   *  favorites and recents into links, when clicked shows what See All
+   *  does"), where the tabs' had a See All at the row's right. */
   onMore?: () => void;
-  /** See All at the row's right, the list in full, as Airport's
-   *  Favorites has it: the one way in from every section's heading --
-   *  Saved, Favorites and Recents alike -- at the owner's ask ("I want
-   *  Saved and Favorite/Recents to have consistent look just like
-   *  Favorites of Airport with See All on the right side"). */
-  onSeeAll?: () => void;
+  /** Beside the title: what the strip is of, to change there (Aircraft's
+   *  airport asked of). */
+  beside?: ReactNode;
   right?: ReactNode;
   children: ReactNode;
   testId?: string;
@@ -302,29 +302,12 @@ export function PillSection({ title, onMore, onSeeAll, right, children, testId }
             {title}
             <ChevronRight className="size-5" aria-hidden="true" />
           </button>
-        ) : typeof title === "string" ? <h3 className={heading}>{title}</h3> : title}
-        {(right || onSeeAll) && (
-          <div className="ml-auto flex items-center gap-2">
-            {right}
-            {onSeeAll && <SeeAll onClick={onSeeAll} testId={testId && `${testId}-all`} />}
-          </div>
-        )}
+        ) : <h3 className={heading}>{title}</h3>}
+        {beside}
+        {right && <div className="ml-auto flex items-center gap-2">{right}</div>}
       </div>
       {children}
     </section>
-  );
-}
-
-/** A section's See All, the list in full: the tint's words, their hit area
- *  round them (index.css's 44 points), as Airport's Favorites' is. */
-export function SeeAll({ onClick, testId }: { onClick: () => void; testId?: string }) {
-  return (
-    <button
-      type="button" onClick={onClick} data-testid={testId}
-      className={cn("relative text-tint outline-none focus-visible:ring-2 focus-visible:ring-ring after:absolute after:-inset-2", TEXT.row)}
-    >
-      See All
-    </button>
   );
 }
 
@@ -350,11 +333,15 @@ export function ListPageHead({ title, backLabel, onBack, action, testId }: {
   );
 }
 
-/** A strip's title that is a menu of what the strip shows -- Favorites
- *  first, then what else it can list, a line after the first where
- *  `apart` says so -- in the title's type, its chevron down, as the
- *  Airport and Aircraft pills' are (AirportPill, AircraftPill). */
+/** What a strip shows -- the Favorites first, then what else it can list,
+ *  a line after the first where `apart` says so -- a menu at its
+ *  heading's right behind iOS's filter glyph, as Mail's filter is, where
+ *  it was the heading's title: the title is the way to the list in full
+ *  now, at the owner's ask ("for aircraft we can have the selection and
+ *  show map controls to the right"), Airport's as Aircraft's
+ *  (AirportPill, AircraftPill). */
 export function PillMenu<V extends string>({ label, value, options, onChange, apart = false, testId, className }: {
+  /** Its name, to a screen reader and a long press: what it shows now. */
   label: string;
   value: V;
   options: { value: V; label: string; testId?: string }[];
@@ -366,17 +353,14 @@ export function PillMenu<V extends string>({ label, value, options, onChange, ap
 }) {
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger
-        data-testid={testId}
-        className={cn(
-          "relative flex items-center gap-0.5 font-medium text-tint outline-none",
-          "focus-visible:ring-2 focus-visible:ring-ring after:absolute after:-inset-2", TEXT.title,
-        )}
-      >
-        {label}
-        <ChevronDown className="size-5" aria-hidden="true" />
+      <DropdownMenuTrigger asChild>
+        {/* The app's one icon-only button, 36 with a 20 glyph (the iOS
+            audit's P18), the heading's height kept round it. */}
+        <IconButton label={label} className="-my-2 text-tint" data-testid={testId}>
+          <ListFilter className="size-5" />
+        </IconButton>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className={cn("min-w-44", className)}>
+      <DropdownMenuContent align="end" className={cn("min-w-44", className)}>
         <DropdownMenuRadioGroup value={value} onValueChange={v => onChange(v as V)}>
           {options.map((o, i) => (
             <Fragment key={o.value}>

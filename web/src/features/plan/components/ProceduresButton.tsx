@@ -1,9 +1,12 @@
-import { Fragment, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useState, type ReactNode } from "react";
 import { useQueries } from "@tanstack/react-query";
-import { PlaneLanding, PlaneTakeoff, Route } from "lucide-react";
+import { Check, PlaneLanding, PlaneTakeoff, Route } from "lucide-react";
+import { cn } from "cn";
 import { ConsolePages, PageRow } from "../../../components/ConsolePages";
 import { ListChoices, ListGroup, ListRow } from "../../../components/GroupedList";
+import CloseButton from "../../../components/CloseButton";
 import RoundButton from "../../../components/RoundButton";
+import { Button } from "../../../components/ui/button";
 import { ResponsivePopover, ResponsivePopoverContent, ResponsivePopoverTrigger } from "../../../components/ResponsivePopover";
 import { ChartBadge, RowBadge } from "../../../components/RowBadge";
 import { api } from "../../../lib/api/client";
@@ -12,6 +15,7 @@ import { runwayInUse, runwayNumber } from "../../../lib/pattern";
 import { kindsFor, sameField, type PickedProcedure } from "../../../lib/procedures";
 import { BADGE } from "../../../lib/rowBadges";
 import { trafficPattern } from "../../../lib/trafficPattern";
+import { TEXT } from "../../../lib/text";
 import { altFt } from "../../../lib/units";
 
 /** The radio value of a list's "None" (no pattern, no procedure, no
@@ -37,13 +41,15 @@ export interface ProcedureAirport {
  * flown on and the pattern's altitude -- and its instrument procedures
  * from the FAA's CIFP (vfr.procedures): a departure's departures, a
  * destination's arrivals and approaches, a stop's all three, each kind a
- * page of its own as iOS's Settings opens one (ConsolePages), a
- * procedure picked there and then its transition, drawn on the map as
- * ForeFlight draws it (ProcedureLayer), at the pilot's ask. And the
- * destination's approach charts, as the button opened before.
+ * page of its own as iOS's Settings opens one (ConsolePages), and each
+ * procedure a page of its own in turn, picked as ForeFlight's Procedure
+ * Advisor picks one, at the owner's pick: its transition, the map above
+ * the sheet drawing it as it is chosen (`onPreview`, ProcedureLayer), and
+ * Add to Route at the page's foot. And the destination's approach charts,
+ * as the button opened before.
  */
 export default function ProceduresButton({
-  airports, picked, onPick, onCharts, chartsDisabled, procedures, onProcedures, open: asked, onOpenChange,
+  airports, picked, onPick, onCharts, chartsDisabled, procedures, onProcedures, onPreview, open: asked, onOpenChange,
 }: {
   airports: ProcedureAirport[];
   /** The runway end picked for each field's pattern. */
@@ -57,6 +63,9 @@ export default function ProceduresButton({
   /** All of them as they are to be, and the one just picked, for the map
    *  to go to. */
   onProcedures: (next: PickedProcedure[], picked: PickedProcedure | null) => void;
+  /** The procedure on its page, not yet added, for the map to draw and go
+   *  to; null as the page is left. */
+  onPreview: (procedure: PickedProcedure | null) => void;
   /** Opened from elsewhere too -- a procedure's chip in the route's box --
    *  where these are given. */
   open?: boolean;
@@ -74,13 +83,22 @@ export default function ProceduresButton({
       </ResponsivePopoverTrigger>
       {/* On a phone a sheet that keeps its height from page to page, as
           an iOS sheet does pushing one: sized to each page, it dropped
-          from nearly the screen's height to a few rows and back. */}
+          from nearly the screen's height to a few rows and back. Half the
+          screen (PROCEDURES_SHEET), the map above it in sight and clear --
+          no shade over it -- as a procedure is picked, as ForeFlight's
+          Procedure Advisor keeps it, at the owner's pick. */}
       <ResponsivePopoverContent
-        title="Procedures" className="max-h-[70vh] w-80 overflow-y-auto p-3" sheetClassName="h-[85dvh]" align="end" side="left"
+        title="Procedures" className="max-h-[70vh] w-80 overflow-y-auto p-3" align="end" side="left"
+        // Its close at the title's end, as ForeFlight's Procedure Advisor
+        // and every other panel have one (the commonality audit's C-4):
+        // the sheet had none, put away only by a tap on the map or Escape.
+        action={<CloseButton onClick={() => setOpen(false)} data-testid="procedures-close" />}
+        sheetClassName="data-[side=bottom]:h-[55dvh] data-[side=top]:h-[55dvh]"
+        sheetOverlayClassName="bg-transparent dark:bg-transparent supports-backdrop-filter:backdrop-blur-none"
       >
         <ProceduresSheet
           airports={airports} picked={picked} onPick={onPick} onCharts={onCharts} chartsDisabled={chartsDisabled}
-          procedures={procedures} onProcedures={onProcedures} close={() => setOpen(false)}
+          procedures={procedures} onProcedures={onProcedures} onPreview={onPreview} close={() => setOpen(false)}
         />
       </ResponsivePopoverContent>
     </ResponsivePopover>
@@ -93,7 +111,7 @@ export default function ProceduresButton({
  * every render of the button, were 85 ms of the half sheet's opening at a
  * phone's speed with the sheet shut (profiled 2026-10-12).
  */
-function ProceduresSheet({ airports, picked, onPick, onCharts, chartsDisabled, procedures, onProcedures, close }: {
+function ProceduresSheet({ airports, picked, onPick, onCharts, chartsDisabled, procedures, onProcedures, onPreview, close }: {
   airports: ProcedureAirport[];
   picked: Map<string, string>;
   onPick: (ident: string, end: string | null) => void;
@@ -101,6 +119,7 @@ function ProceduresSheet({ airports, picked, onPick, onCharts, chartsDisabled, p
   chartsDisabled: boolean;
   procedures: PickedProcedure[];
   onProcedures: (next: PickedProcedure[], picked: PickedProcedure | null) => void;
+  onPreview: (procedure: PickedProcedure | null) => void;
   close: () => void;
 }) {
   const destination = airports.find(a => a.role === "Destination");
@@ -127,8 +146,8 @@ function ProceduresSheet({ airports, picked, onPick, onCharts, chartsDisabled, p
     title: `${a.ident} ${KIND_TITLE[kind].toLowerCase()}`,
     content: (
       <ProcedurePicker
-        kind={kind} list={lists[i]?.data} chosen={pickOf(a.ident, kind)}
-        onPick={next => pick(a.ident, kind, next)}
+        ident={a.ident} kind={kind} list={lists[i]?.data} chosen={pickOf(a.ident, kind)}
+        onPick={next => pick(a.ident, kind, next)} onAdded={close} onPreview={onPreview}
       />
     ),
   }])));
@@ -219,56 +238,113 @@ function ProceduresSheet({ airports, picked, onPick, onCharts, chartsDisabled, p
 }
 
 /**
- * One kind of a field's procedures, picked from: None, or each by its
- * chart's title, and once one is picked its transitions under it -- an
- * approach from vectors or from one of its feeder fixes, an arrival or a
- * departure on its own or by one of its enroute transitions. Drawn from
- * the FAA's coded procedure: a sketch on the chart, not the chart.
+ * One kind of a field's procedures, each by its chart's title, a page of
+ * its own a tap away (ProcedurePage), the one in the route checked. Drawn
+ * from the FAA's coded procedure: a sketch on the chart, not the chart.
  */
-function ProcedurePicker({ kind, list, chosen, onPick }: {
+function ProcedurePicker({ ident, kind, list, chosen, onPick, onAdded, onPreview }: {
+  ident: string;
   kind: Kind;
   list: ProcedureList | undefined;
   chosen: PickedProcedure | null;
   onPick: (next: { id: string; transition: string | null } | null) => void;
+  /** The sheet put away once one is added, as ForeFlight's is. */
+  onAdded: () => void;
+  onPreview: (procedure: PickedProcedure | null) => void;
 }) {
   if (!list) return <p role="status" className="px-1 text-muted-foreground">Looking the procedures up…</p>;
   const of = list.procedures.filter(p => p.kind === kind);
-  const current = of.find(p => p.id === chosen?.id) ?? null;
   const runways = (p: ProcedureSummary) => p.runway_transitions.length
     ? p.runway_transitions.includes("ALL") ? "All runways" : `Runway ${p.runway_transitions.map(r => r.replace(/^RW/, "").replace(/B$/, "")).join(", ")}`
     : undefined;
+  const footer = `From the FAA's coded procedures (CIFP), the cycle of ${cycleDate(list.cycle)}${list.stale ? ", OUT OF DATE (the current cycle could not be had)" : ""}: a sketch on the chart to plan by, not for navigation. Fly the FAA's chart.`;
+  const pages = Object.fromEntries(of.map(p => [p.id, {
+    title: `${ident} ${p.name}`,
+    content: (
+      <ProcedurePage
+        kind={kind} ident={ident} procedure={p} chosen={chosen?.id === p.id ? chosen : null} footer={footer}
+        onAdd={transition => { onPick({ id: p.id, transition }); onAdded(); }} onRemove={() => onPick(null)} onPreview={onPreview}
+      />
+    ),
+  }]));
+  return (
+    <ConsolePages back={`${ident} ${KIND_TITLE[kind].toLowerCase()}`} pages={pages}>
+      <ListGroup footer={footer}>
+        {of.map(p => {
+          const mine = chosen?.id === p.id ? chosen : null;
+          return (
+            <PageRow
+              key={p.id} page={p.id} title={p.name} testId="procedure-option"
+              description={mine
+                ? `In the route${mine.transition ? `, via ${mine.transition}` : kind === "approach" ? ", from vectors" : ""}`
+                : kind === "approach" ? undefined : runways(p)}
+              value={mine ? <Check className="size-4 text-tint" aria-label="In the route" /> : undefined}
+            />
+          );
+        })}
+      </ListGroup>
+    </ConsolePages>
+  );
+}
+
+/**
+ * One procedure's own page, as ForeFlight's Procedure Advisor has it: its
+ * transitions to choose from -- an approach's feeder fixes and vectors to
+ * the final, an arrival's or a departure's enroute transitions or none --
+ * the map above the sheet drawing the one chosen as it is chosen, and Add
+ * to Route at the foot (Remove from Route, where it is the route's).
+ */
+function ProcedurePage({ kind, ident, procedure, chosen, footer, onAdd, onRemove, onPreview }: {
+  kind: Kind;
+  ident: string;
+  procedure: ProcedureSummary;
+  /** This procedure as the route has it, if it does. */
+  chosen: PickedProcedure | null;
+  footer: string;
+  onAdd: (transition: string | null) => void;
+  onRemove: () => void;
+  onPreview: (procedure: PickedProcedure | null) => void;
+}) {
+  const [transition, setTransition] = useState<string | null>(chosen?.transition ?? null);
+  // Drawn as it is chosen, before it is added; off the map as the page is
+  // left (Back, or the sheet put away).
+  useEffect(() => {
+    onPreview({ ident, id: procedure.id, transition });
+    return () => onPreview(null);
+  }, [ident, procedure.id, transition, onPreview]);
+  const inRoute = !!chosen && chosen.transition === transition;
   return (
     <div className="space-y-5">
-      <ListChoices
-        value={current?.id ?? NONE} label="Procedure"
-        onChange={v => onPick(v === NONE ? null : { id: v, transition: current?.id === v ? chosen?.transition ?? null : null })}
-      >
-      <ListGroup
-        footer={`From the FAA's coded procedures (CIFP), the cycle of ${cycleDate(list.cycle)}${list.stale ? ", OUT OF DATE (the current cycle could not be had)" : ""}: a sketch on the chart to plan by, not for navigation. Fly the FAA's chart.`}
-      >
-        <ListRow radio={NONE} title="None" />
-        {of.map(p => (
-          <ListRow
-            key={p.id} radio={p.id}
-            title={p.name} description={kind === "approach" ? undefined : runways(p)}
-            data-testid="procedure-option"
-          />
-        ))}
-      </ListGroup>
-      </ListChoices>
-      {current && current.transitions.length > 0 && (
-        <ListChoices
-          value={chosen?.transition ?? NONE} label="Transition"
-          onChange={v => onPick({ id: current.id, transition: v === NONE ? null : v })}
-        >
-        <ListGroup title={`${current.name} · transition`}>
-          <ListRow radio={NONE} title={kind === "approach" ? "Vectors" : "None"} data-testid="procedure-transition" />
-          {current.transitions.map(t => (
-            <ListRow key={t} radio={t} title={`Via ${t}`} data-testid="procedure-transition" />
-          ))}
-        </ListGroup>
+      {procedure.transitions.length > 0 && (
+        <ListChoices value={transition ?? NONE} onChange={v => setTransition(v === NONE ? null : v)} label="Transition">
+          <ListGroup title="Transition">
+            {procedure.transitions.map(t => <ListRow key={t} radio={t} title={t} data-testid="procedure-transition" />)}
+            <ListRow radio={NONE} title={kind === "approach" ? "Vectors to final" : "None"} data-testid="procedure-transition" />
+          </ListGroup>
         </ListChoices>
       )}
+      <p className={cn("px-1 text-muted-foreground", TEXT.note)}>{footer}</p>
+      {/* At the phone's sheet's foot as the page scrolls, as ForeFlight's
+          Add to Route is: down over the sheet's own padding under it, so
+          no line of the page shows below the button. In the popover from
+          md up, at the page's end: pinned there it reached into an iPhone
+          held sideways' notch with the popover (the iOS audit's P12). */}
+      <div
+        className={cn(
+          "sticky bottom-[calc(-1*max(1rem,env(safe-area-inset-bottom)))] -mx-4 bg-popover px-4 pt-2 pb-[max(1rem,env(safe-area-inset-bottom))]",
+          "md:static md:mx-0 md:p-0",
+        )}
+      >
+        {inRoute ? (
+          <Button type="button" variant="outline" className="w-full text-destructive" onClick={onRemove} data-testid="procedure-remove">
+            Remove from Route
+          </Button>
+        ) : (
+          <Button type="button" className="w-full" onClick={() => onAdd(transition)} data-testid="procedure-add">
+            Add to Route
+          </Button>
+        )}
+      </div>
     </div>
   );
 }

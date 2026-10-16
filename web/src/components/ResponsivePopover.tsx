@@ -73,10 +73,13 @@ type ContentProps = ComponentProps<typeof PopoverContent> & {
   /** The phone's sheet's own classes: a fixed height, say, where it is
    *  sized to its content otherwise. */
   sheetClassName?: string;
+  /** The phone's sheet's overlay's: clear, where the map under it is
+   *  what the sheet is for. */
+  sheetOverlayClassName?: string;
 };
 
 export function ResponsivePopoverContent({
-  title, description, titleHidden, action, leading, className, sheetClassName, children, align, side, sideOffset, alignOffset,
+  title, description, titleHidden, action, leading, className, sheetClassName, sheetOverlayClassName, children, align, side, sideOffset, alignOffset,
   collisionPadding, ...props
 }: ContentProps) {
   const edge = useContext(OnPhone);
@@ -106,7 +109,7 @@ export function ResponsivePopoverContent({
     // width classes are left behind.
     <SheetContent
       side={edge} showCloseButton={false}
-      className={cn(phoneSheet(edge), sheetClassName)}
+      className={cn(phoneSheet(edge), sheetClassName)} overlayClassName={sheetOverlayClassName}
       {...props}
     >
       <SheetHeader
