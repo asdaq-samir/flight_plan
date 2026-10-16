@@ -33,6 +33,8 @@ import { LEVEL_TONE, riskLine, type RiskLevel } from "../../lib/frat";
 import { localDay } from "../../lib/clock";
 import { FINDING_TONE } from "../../lib/status";
 import { ListPageHead } from "../../components/Favorites";
+import { aircraftListQuery, aircraftProfilesQuery, flightsQuery } from "../../lib/queryClient";
+import QueryState from "../../components/QueryState";
 
 // Mirrors springboot-app's own AircraftRequest validation
 // (@NotBlank/@Positive in dto/AircraftRequest.java) so a bad value is
@@ -268,12 +270,12 @@ function InspectionsGroup({ aircraft }: { aircraft: Aircraft }) {
 
 export function AircraftPanel() {
   const queryClient = useQueryClient();
-  const { data: list, isLoading } = useQuery({ queryKey: ["aircraft"], queryFn: api.aircraft.list });
+  const { data: list, isLoading } = useQuery(aircraftListQuery);
   // Which the nav log flies, remembered per browser, and the stock
   // profiles a pilot's own rides on (PlanWorkspace asks the same).
   const flying = usePreferences(s => s.aircraft);
   const fly = usePreferences(s => s.setAircraft);
-  const { data: profiles } = useQuery({ queryKey: ["aircraftProfiles"], queryFn: api.aircraftProfiles, staleTime: Infinity });
+  const { data: profiles } = useQuery(aircraftProfilesQuery);
   const [editingId, setEditingId] = useState<number | null>(null);
   // The form is behind the list's New aircraft row: open for a new
   // airplane from there, or for one of the rows from its ⓘ. Closed
@@ -584,7 +586,8 @@ export function FlightsPanel({ onBack }: {
   const queryClient = useQueryClient();
   const [flightToDelete, setFlightToDelete] = useState<FlightSummary | null>(null);
   const [editing, setEditing] = useState(false);
-  const { data: list, isLoading, error } = useQuery({ queryKey: ["flights"], queryFn: api.flights.list });
+  const asked = useQuery(flightsQuery);
+  const list = asked.data;
 
   const remove = useMutation({
     mutationFn: (id: number) => api.flights.remove(id),
@@ -623,9 +626,11 @@ export function FlightsPanel({ onBack }: {
         {onBack && (
           <ListPageHead title="Saved" backLabel="Back to FPL" onBack={onBack} action={list?.length ? edit : undefined} testId="saved-page" />
         )}
-        {isLoading ? (
-          <p role="status" className={cn("px-1 text-muted-foreground", TEXT.note)}>Fetching your flights…</p>
-        ) : error ? null : list?.length === 0 ? (
+        {!list ? (
+          // Where they could not be fetched, said here with Try again, where
+          // the list showed nothing.
+          <QueryState query={asked} fetching="Fetching your flights…" failed="Your flights could not be fetched." />
+        ) : list.length === 0 ? (
           <EmptyState icon={<Route />} title="No Flights">
             Plan a route and Save it from Share; it is kept here.
           </EmptyState>

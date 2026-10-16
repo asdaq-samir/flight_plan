@@ -1,7 +1,7 @@
 import { useEffect, type CSSProperties } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { api } from "./api/client";
 import { usePreferences, type AirspaceClass, type RecentAirport } from "./preferences";
+import { airportQuery } from "./queryClient";
 
 /**
  * An airport drawn as the sectional draws its airspace -- the Favorites'
@@ -65,10 +65,7 @@ export function pillLook(space: { name: string; style?: CSSProperties }): CSSPro
  *  every fresh load where the field was Class B or D. The answer is
  *  remembered with the airport for the next load. */
 export function useAirspace(airport: RecentAirport, enabled = true): { name: string; style?: CSSProperties; className?: string } {
-  const { data } = useQuery({
-    queryKey: ["airport", airport.ident], queryFn: () => api.airport(airport.ident), staleTime: 60 * 60_000, meta: { silent: true },
-    enabled,
-  });
+  const { data } = useQuery({ ...airportQuery(airport.ident), enabled });
   const answered = data?.airspace_class ?? undefined;
   useEffect(() => {
     if (answered && answered !== airport.airspace) usePreferences.getState().rememberAirspace(airport.ident, answered);

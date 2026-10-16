@@ -44,3 +44,22 @@ test("the logbook says where the pilot stands, and a flight logged is posted as 
   await expect.poll(() => posted.length).toBe(1);
   expect(posted[0]).toMatchObject({ totalHours: 3.4, dayLandings: 1 });
 });
+
+test("a logbook that could not be fetched says so in place, and Try again fetches it", async ({ page }) => {
+  // The commonality audit's N-12: a failure read "No flights logged yet".
+  await page.route("**/api/me", route => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(A_PILOT) }));
+  let failing = true;
+  await page.route("**/api/logbook", route => (failing
+    ? route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ detail: "down" }) })
+    : route.fulfill({ status: 200, contentType: "application/json", body: "[]" })));
+  await page.goto("/app/plan");
+  await showTabs(page);
+  await openConsole(page);
+  const console = page.getByTestId("console-sheet");
+  await library(console, "Logbook");
+  await expect(console.getByText("Your logbook could not be fetched.")).toBeVisible();
+  await expect(console.getByText("No flights logged yet")).toHaveCount(0);
+  failing = false;
+  await console.getByTestId("query-retry").click();
+  await expect(console.getByText("No flights logged yet: the plus logs one.")).toBeVisible();
+});

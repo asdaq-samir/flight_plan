@@ -13,7 +13,7 @@ import AccordionSection from "../../../../components/AccordionSection";
 import { ListGroup, ListRow } from "../../../../components/GroupedList";
 import { GROUP_HEADING, TEXT } from "../../../../lib/text";
 import { api } from "../../../../lib/api/client";
-import { pilotQuery } from "../../../../lib/queryClient";
+import { aircraftListQuery, currencyQuery, pilotQuery, trainingQuery } from "../../../../lib/queryClient";
 import AltitudeReasoning from "../AltitudeReasoning";
 import type {
   Briefing, Candidate, Course, Leg, NavLogAltitude, SaveFlightRequest, Totals,
@@ -335,7 +335,7 @@ export function SaveFlightButton(flight: FlightToSave) {
  */
 export function ReviewAskItem({ flight, onAsk }: { flight: FlightToSave; onAsk: () => void }) {
   const { data: pilot } = useQuery(pilotQuery);
-  const { data: training } = useQuery({ queryKey: ["training"], queryFn: api.training.get, enabled: !!pilot });
+  const { data: training } = useQuery({ ...trainingQuery, enabled: !!pilot });
   const request = useSaveRequest(flight);
   if (!pilot || !training?.instructors.some(l => l.accepted)) return null;
   return (
@@ -353,7 +353,7 @@ export function ReviewAskItem({ flight, onAsk }: { flight: FlightToSave; onAsk: 
  */
 export function ReviewAskSheet({ flight, onDone }: { flight: FlightToSave; onDone: () => void }) {
   const queryClient = useQueryClient();
-  const { data: training } = useQuery({ queryKey: ["training"], queryFn: api.training.get });
+  const { data: training } = useQuery(trainingQuery);
   const request = useSaveRequest(flight);
   const save = useMutation({ mutationKey: SAVE_FLIGHT, mutationFn: api.flights.save });
   // The flights saved this session, by their plan: one already saved is
@@ -530,11 +530,11 @@ export default memo(function FlightBriefingView({
   // logbook's factors, and what the pilot ticks. Published for the Save
   // button, which files it with the flight.
   const { data: pilot } = useQuery(pilotQuery);
-  const { data: currency } = useQuery({ queryKey: ["currency"], queryFn: api.logbook.currency, enabled: !!pilot, staleTime: 60_000 });
+  const { data: currency } = useQuery({ ...currencyQuery, enabled: !!pilot });
   // The pilot's own airplane being flown, for its inspections and, under
   // IFR, its VOR check.
   const flyingId = usePreferences(p => p.aircraft.aircraftId);
-  const { data: ownAircraft } = useQuery({ queryKey: ["aircraft"], queryFn: api.aircraft.list, enabled: !!pilot && flyingId != null, staleTime: 60_000 });
+  const { data: ownAircraft } = useQuery({ ...aircraftListQuery, enabled: !!pilot && flyingId != null });
   const flownOwn = flyingId == null ? undefined : ownAircraft?.find(a => a.id === flyingId);
   const ticked = useRisk(s => s.ticked);
   const setAssessment = useRisk(s => s.setAssessment);

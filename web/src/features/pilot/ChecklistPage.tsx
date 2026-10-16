@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { cn } from "cn";
 import { ListGroup, ListRow } from "../../components/GroupedList";
+import QueryState from "../../components/QueryState";
 import { Textarea } from "../../components/ui/textarea";
 import { api } from "../../lib/api/client";
 import type { Aircraft } from "../../lib/api/types";
@@ -19,7 +20,9 @@ import { TEXT } from "../../lib/text";
  */
 export default function ChecklistPage({ aircraft }: { aircraft: Aircraft }) {
   const queryClient = useQueryClient();
-  const { data: checklist, isLoading } = useQuery({ queryKey: ["checklist", aircraft.id], queryFn: () => api.aircraft.checklist(aircraft.id) });
+  // Quiet: the page says in place what it could not fetch (QueryState).
+  const asked = useQuery({ queryKey: ["checklist", aircraft.id], queryFn: () => api.aircraft.checklist(aircraft.id), meta: { silent: true } });
+  const checklist = asked.data;
   const [writing, setWriting] = useState<string | null>(null);
   const [ticked, setTicked] = useState<Record<string, boolean>>({});
   const save = useMutation({
@@ -31,7 +34,7 @@ export default function ChecklistPage({ aircraft }: { aircraft: Aircraft }) {
       toast.success("Checklist saved");
     },
   });
-  if (isLoading || !checklist) return <p role="status" className={cn("px-1 text-muted-foreground", TEXT.note)}>Fetching the checklist…</p>;
+  if (!checklist) return <QueryState query={asked} fetching="Fetching the checklist…" failed="The checklist could not be fetched." />;
 
   if (writing !== null) {
     return (

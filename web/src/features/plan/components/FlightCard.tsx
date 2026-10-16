@@ -18,14 +18,13 @@ import { useOwnShip } from "../../../lib/map/ownShip";
 import { carriedOn, closestApproach } from "../../../lib/map/traffic";
 import { useTracking } from "../../../lib/map/tracking";
 import type { AircraftRegistration } from "../../../lib/api/types";
-import { flightQuery, routeQuery } from "../../../lib/queryClient";
+import { airportQuery, flightQuery, routeQuery } from "../../../lib/queryClient";
 import { BADGE } from "../../../lib/rowBadges";
 import { TEXT } from "../../../lib/text";
 import { altFt, bearing, grouped } from "../../../lib/units";
 import { clockTime } from "../format";
 import PastFlights from "./PastFlights";
 import TrailSketch from "./TrailSketch";
-import { api } from "../../../lib/api/client";
 import { CardAction } from "./CardAction";
 import { CardTabBar, CardTabPanel } from "../../../components/CardTabs";
 import { useCardTab } from "../../../lib/cardTab";
@@ -84,8 +83,7 @@ function against(feet: number): string {
 /** A field's place, for the trace's sketch, as an airport card asks for it
  *  (the same query, so a card opened on it after has it already). */
 const sketchField = (ident: string | null) => ({
-  queryKey: ["airport", ident], queryFn: () => api.airport(ident!), enabled: !!ident, staleTime: 5 * 60_000,
-  meta: { silent: true },
+  ...airportQuery(ident ?? ""), enabled: !!ident,
   select: (field: { ident: string; lat: number; lon: number }) => ({ ident: field.ident, lat: field.lat, lon: field.lon }),
 });
 

@@ -22,6 +22,7 @@ import { localDay } from "../../lib/clock";
 import { reviewState, said } from "../../lib/endorsements";
 import { ReviewAskForm, type ReviewAsk } from "./ReviewAsk";
 import { FINDING_TONE } from "../../lib/status";
+import { airportQuery, trainingQuery } from "../../lib/queryClient";
 
 /** Minutes as a nav log writes them: "0:18", "1:35". */
 function hm(min: number): string {
@@ -185,7 +186,7 @@ function DebriefSection({ flight, planHref }: { flight: Flight; planHref: string
     [local, saved.data],
   );
   const fields = [...new Set(flight.checkpoints.filter(c => ["departure", "stop", "destination"].includes(c.category)).map(c => c.name))];
-  const places = useQueries({ queries: fields.map(ident => ({ queryKey: ["airport", ident], queryFn: () => api.airport(ident), staleTime: 3_600_000 })) });
+  const places = useQueries({ queries: fields.map(airportQuery) });
   const patterns = Object.fromEntries(fields.flatMap((ident, i) => {
     const ft = places[i]?.data?.pattern?.altitude_ft;
     return ft == null ? [] : [[ident, ft]];
@@ -295,7 +296,7 @@ function Row({ title, value }: { title: string; value: ReactNode }) {
  */
 function InstructorReview({ summary }: { summary: FlightSummary }) {
   const queryClient = useQueryClient();
-  const { data: training } = useQuery({ queryKey: ["training"], queryFn: api.training.get });
+  const { data: training } = useQuery(trainingQuery);
   const ask = useMutation({
     mutationFn: (a: ReviewAsk) => api.training.askReview({ flightId: summary.id, ...a }),
     onSuccess: next => queryClient.setQueryData(["training"], next),

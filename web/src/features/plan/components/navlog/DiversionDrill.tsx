@@ -8,13 +8,13 @@ import {
 } from "../../../../components/ResponsivePopover";
 import { Button } from "../../../../components/ui/button";
 import { Input } from "../../../../components/ui/input";
-import { api } from "../../../../lib/api/client";
 import type { Leg } from "../../../../lib/api/types";
 import { ALLOWANCES, divert, reasonable, stopwatch, type Diversion, type EstimateKey } from "../../../../lib/diversion";
 import { TEXT } from "../../../../lib/text";
 import { altFt } from "../../format";
 import { bearing, grouped } from "../../../../lib/units";
 import { FINDING_TONE } from "../../../../lib/status";
+import { nearestQuery } from "../../../../lib/queryClient";
 
 /** A figure as the student would write it. */
 function written(key: EstimateKey, value: number): string {
@@ -57,12 +57,9 @@ export default function DiversionDrill({ leg, at }: { leg: Leg; at: { name: stri
   const [stopped, setStopped] = useState<number | null>(null);
   const [field, setField] = useState<string | null>(null);
   const [typed, setTyped] = useState<Partial<Record<EstimateKey, string>>>({});
-  const nearest = useQuery({
-    queryKey: ["nearest-airports", at.lat, at.lon],
-    queryFn: () => api.nearestAirports(at.lat, at.lon),
-    enabled: started != null,
-    staleTime: 5 * 60_000,
-  });
+  // The fields nearest, as Nearest asks for them (nearestQuery), one
+  // answer for both where they were asked under two keys.
+  const nearest = useQuery({ ...nearestQuery(at.lat, at.lon), enabled: started != null });
   useEffect(() => {
     if (started == null || stopped != null) return;
     const tick = setInterval(() => setNow(Date.now()), 1000);

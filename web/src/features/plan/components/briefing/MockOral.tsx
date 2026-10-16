@@ -10,7 +10,7 @@ import { Textarea } from "../../../../components/ui/textarea";
 import { api } from "../../../../lib/api/client";
 import type { OralCitation, OralGrade, OralQuestion } from "../../../../lib/api/types";
 import { nextFocus } from "../../../../lib/oral";
-import { pilotQuery } from "../../../../lib/queryClient";
+import { pilotQuery, trainingQuery } from "../../../../lib/queryClient";
 import { TEXT } from "../../../../lib/text";
 import { useAcsTable } from "../../../../lib/useAcsTable";
 import { FINDING_TONE } from "../../../../lib/status";
@@ -49,7 +49,7 @@ export default function MockOral({ plan }: { plan: string }) {
   const answerId = useId();
   const table = useAcsTable();
   const { data: pilot } = useQuery(pilotQuery);
-  const { data: training } = useQuery({ queryKey: ["training"], queryFn: api.training.get, enabled: !!pilot });
+  const { data: training } = useQuery({ ...trainingQuery, enabled: !!pilot });
   const [asked, setAsked] = useState<{ codes: string[]; questions: string[] }>({ codes: [], questions: [] });
   const [answer, setAnswer] = useState("");
   const question = useMutation({

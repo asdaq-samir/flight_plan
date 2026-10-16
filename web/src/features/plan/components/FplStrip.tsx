@@ -2,10 +2,10 @@ import { useQuery } from "@tanstack/react-query";
 import { Route } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { PillStrip, SmallMark, SmallTile, StripNote, StripSection } from "../../../components/Favorites";
-import { api } from "../../../lib/api/client";
 import { planHrefOf } from "../../../lib/flightLink";
 import { pointName } from "../../../lib/identSchema";
-import { pilotQuery } from "../../../lib/queryClient";
+import { flightsQuery, pilotQuery } from "../../../lib/queryClient";
+import QueryState from "../../../components/QueryState";
 import { useStripShows } from "../hooks/useStripShows";
 import { RecentRouteTiles } from "./RecentRoutes";
 
@@ -48,9 +48,13 @@ export default function FplStrip({ onAllSaved, onAllRecents }: {
  *  would be. */
 function SavedTiles({ signedIn }: { signedIn: boolean }) {
   const navigate = useNavigate();
-  const { data: flights } = useQuery({ queryKey: ["flights"], queryFn: api.flights.list, enabled: signedIn, meta: { silent: true } });
+  const flightsAsked = useQuery({ ...flightsQuery, enabled: signedIn });
+  const flights = flightsAsked.data;
   const shown = [...(flights ?? [])].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, STRIP_MOST);
   if (!signedIn) return <StripNote>Sign in to keep the flights you plan.</StripNote>;
+  // Could not be fetched: said here, with Try again, as every list says it
+  // (QueryState), where the strip was left blank.
+  if (flightsAsked.isError) return <QueryState query={flightsAsked} fetching="Fetching your flights…" failed="Your flights could not be fetched." />;
   if (flights && !shown.length) return <StripNote>Plan a route and Save it from Share; it is kept here.</StripNote>;
   return (
     <PillStrip testId="saved-strip">

@@ -4,6 +4,7 @@ import { LocateFixed, MapPin, Navigation2 } from "lucide-react";
 import { cn } from "cn";
 import { ChartMark, ListPageHead, PillStrip, SmallMark, SmallTile } from "../../../components/Favorites";
 import { PanelCard } from "../../../components/PanelCard";
+import QueryState from "../../../components/QueryState";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
 import { api } from "../../../lib/api/client";
 import type { NearestAirport, PlaceFound } from "../../../lib/api/types";
@@ -250,7 +251,8 @@ export default function NearestCard({ onOpen, from, onFrom, onBack }: {
   const setEnabled = useOwnShip(s => s.setEnabled);
   const fix = useOwnShip(s => (s.enabled ? s.fix : null));
   const origin = from ?? fix;
-  const { data } = useQuery({ ...nearestQuery(origin?.lat ?? 0, origin?.lon ?? 0), enabled: !!origin });
+  const nearestAsked = useQuery({ ...nearestQuery(origin?.lat ?? 0, origin?.lon ?? 0), enabled: !!origin });
+  const data = nearestAsked.data;
   // Asked for the nearest fields, the position is wanted: own ship turned
   // on quietly where the browser already lets it be read (positionNow),
   // as Fly Here does; else the card offers to show it.
@@ -290,7 +292,9 @@ export default function NearestCard({ onOpen, from, onFrom, onBack }: {
             {(data ?? []).map(a => (
               <NearestRow key={a.ident} field={a} ahead={ahead} reach={glide != null && a.distance_nm <= glide} onOpen={() => onOpen(a.ident)} />
             ))}
-            {!data && <ListRow title={<span className={cn("text-muted-foreground", TEXT.detail)}>Looking…</span>} />}
+            {/* Where they could not be found, said with Try again, where the
+                list stayed on "Looking…" (QueryState). */}
+            {!data && <QueryState row query={nearestAsked} fetching="Looking…" failed="The nearest fields could not be found." />}
           </ListGroup>
         )}
       </div>
