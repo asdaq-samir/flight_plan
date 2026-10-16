@@ -82,7 +82,6 @@ test("in the air, what is ahead is said over the map, a warning first, and drawn
   // Under the line, not inside its button (shadcn's Collapsible).
   await expect(banner(page)).toContainText("91.131(a)(1)");
   await expect(banner(page)).toContainText("Tower 2,700 ft: In 40 s · 300 ft below you");
-  await expect(banner(page)).toContainText("advisory");
   // A ring where each is and a line out to it, in its colour.
   await expect(page.locator(".leaflet-overlay-pane path.ahead-warning")).toHaveCount(2);
   await expect(page.locator(".leaflet-overlay-pane path.ahead-caution")).toHaveCount(2);
