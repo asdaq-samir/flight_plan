@@ -15,7 +15,7 @@ import { TEXT } from "../../lib/text";
 import { keepTrack, keptTrack, readTrack, thin, TrackError, type TrackPoint } from "../../lib/track";
 import { useFlownTrack } from "../../lib/map/flownTrack";
 import { routeName } from "../../lib/identSchema";
-import { altFt, feet, grouped } from "../../lib/units";
+import { altFt, bearing, feet, grouped } from "../../lib/units";
 import { mayUse, useEntitlement } from "../../lib/subscription";
 import PaidPrompt from "../../components/PaidPrompt";
 import { localDay } from "../../lib/clock";
@@ -119,7 +119,7 @@ function Findings({ d }: { d: Debrief }) {
                   </span>
                   {leg.courseWithin != null && leg.courseDeg != null && (
                     <span className="block">
-                      Course: {Math.round(leg.courseWithin * 100)}% within {COURSE_DEG}° of {String(Math.round(leg.courseDeg) % 360 || 360).padStart(3, "0")}°
+                      Course: {Math.round(leg.courseWithin * 100)}% within {COURSE_DEG}° of {bearing(leg.courseDeg)}
                       {leg.worstOffNm != null && `, at most ${Math.abs(leg.worstOffNm).toFixed(1)} nm ${leg.worstOffNm >= 0 ? "right" : "left"} of the line`}
                     </span>
                   )}

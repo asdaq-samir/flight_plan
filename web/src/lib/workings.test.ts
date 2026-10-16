@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import type { Leg } from "./api/types";
-import { checks, heading, workingsOf } from "./workings";
+import { bearing } from "./units";
+import { checks, workingsOf } from "./workings";
 
 // C81 to the first checkpoint, as the planner flew it: west-northwest
 // into a southwest wind.
@@ -35,6 +36,6 @@ describe("a leg worked out", () => {
 
   test("no figures to work out for a leg the wind will not let fly", () => {
     expect(workingsOf({ ...LEG, groundspeed_kt: null, ete_min: null, fuel_gal: null } as Leg)).toBeNull();
-    expect(heading(0)).toBe("360°");
+    expect(bearing(0)).toBe("360°");
   });
 });

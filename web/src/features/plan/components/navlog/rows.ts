@@ -1,4 +1,5 @@
 import type { Airport, Candidate, Course, Leg, SaveFlightRequest, TopOfClimb, TopOfDescent } from "../../../../lib/api/types";
+import { pointName } from "../../../../lib/identSchema";
 import { descriptionKey } from "../../hooks/useCheckpointNotes";
 
 /**
@@ -115,7 +116,10 @@ export const isLegPoint = (row: NavLogRow): row is Extract<NavLogRow, { kind: "t
 export function rowPoint(row: NavLogRow): { name: string; lat: number; lon: number } {
   if (row.kind === "checkpoint") return { name: row.cp.name || row.cp.category, lat: row.cp.lat, lon: row.cp.lon };
   if (isLegPoint(row)) return { name: row.kind.toUpperCase(), lat: row.point.lat, lon: row.point.lon };
-  return { name: row.airport.ident, lat: row.airport.lat, lon: row.airport.lon };
+  // A present position by its coordinates, as the route's box names it
+  // (pointName), where the log, the kneeboard and the map's card showed
+  // the planner's own "@42.3246,-88.0741,3500".
+  return { name: pointName(row.airport.ident), lat: row.airport.lat, lon: row.airport.lon };
 }
 
 /**
@@ -133,7 +137,9 @@ export function savedCheckpoints(rows: NavLogRow[], distanceNm: number): SaveFli
     const leg = row.kind === "departure" ? undefined : row.leg;
     flownNm += leg?.distance_nm ?? 0;
     return {
-      sequenceNo, name, lat, lon,
+      // An airport's as the planner names it -- a present position its own
+      // "@lat,lon,alt" -- what is stored, not the coordinates it is shown by.
+      sequenceNo, name: row.kind === "checkpoint" ? name : row.airport.ident, lat, lon,
       category: row.kind === "checkpoint" ? row.cp.category
         : row.kind === "stop" && row.airport.kind === "fix" ? "waypoint" : row.kind,
       alongTrackNm: row.kind === "departure" ? 0 : row.kind === "checkpoint" ? row.cp.along_track_nm

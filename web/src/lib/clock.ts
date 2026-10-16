@@ -35,3 +35,13 @@ export function zuluTime(at: Date): string {
 export function localDay(at: Date = new Date()): string {
   return `${at.getFullYear()}-${two(at.getMonth() + 1)}-${two(at.getDate())}`;
 }
+
+/** A duration's hours and minutes, the minutes rounded first: rounding
+ *  the remainder on its own turned 119.6 minutes into "1h 60m" on the
+ *  strip's estimate, "1:60" on the kneeboard and "1 h 60 min" in the mock
+ *  oral's facts. Each writes them its own way; this is how they are
+ *  counted. */
+export function hoursMinutes(minutes: number): { hours: number; minutes: number } {
+  const whole = Math.round(minutes);
+  return { hours: Math.floor(whole / 60), minutes: whole % 60 };
+}

@@ -51,4 +51,11 @@ describe("tripFigures", () => {
     expect(ete!.value.startsWith("≈")).toBe(true);
     expect(fuel!.value.startsWith("≈")).toBe(true);
   });
+
+  it("writes an estimate's time as the nav log's own, its minutes rounded first", () => {
+    // 199.33 nm at 100 kt is 119.6 minutes: two hours, where the minutes
+    // rounded on their own read "1h 60m".
+    const est = { totals: null, depart: "", local: false, estimate: { distanceNm: 199.33, cruiseTasKt: 100, fuelBurnGph: 10 } };
+    expect(tripFigures(est, false)[1]!.value).toBe("≈2h 00m");
+  });
 });

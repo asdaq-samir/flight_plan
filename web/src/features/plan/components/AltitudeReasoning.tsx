@@ -5,8 +5,8 @@ import { usePrinting } from "../../../lib/usePrinting";
 import type { AltitudeOption, AltitudeSegment, Leg, NavLogAltitude } from "../../../lib/api/types";
 import { CRUISE_REFERENCE_FT } from "../../../lib/performance";
 import { TEXT } from "../../../lib/text";
-import { faaWords } from "../../../lib/advisories";
-import { altFt, cruiseByAltitude, deg, describeFuel, describeSteps, describeTime } from "../format";
+import { faaWords, suaAltitudes } from "../../../lib/advisories";
+import { altFt, bearing, cruiseByAltitude, describeFuel, describeSteps, describeTime } from "../format";
 
 interface Props {
   /** The nav log's own altitude and, unless the pilot typed one, the
@@ -16,6 +16,18 @@ interface Props {
    *  air, which the performance step says. */
   legs: Leg[];
 }
+
+/** The two halves of the direction of flight, in the rule's own words:
+ *  "a magnetic course of zero degrees through 179 degrees", "180 degrees
+ *  through 359 degrees" (14 CFR 91.159(a), 91.179(b)). */
+const EASTBOUND = "eastbound (0° through 179°)";
+const WESTBOUND = "westbound (180° through 359°)";
+
+/** A course as the rule sorts it: cut to the whole degree, not rounded,
+ *  as the planner sorts the exact course (vfr.altitude.is_eastbound) --
+ *  a course of 179.6° rounded read "180° is eastbound" -- north as 360,
+ *  as every bearing is written (lib/units' bearing). */
+const ruleCourse = (course: number) => bearing(Math.floor(course));
 
 /** "a, b and c" -- the ceiling is the lowest of up to three things. */
 function join(parts: string[]): string {
@@ -56,13 +68,6 @@ function ceilingRuns(segments: AltitudeSegment[]): AltitudeSegment[] {
 /** Words set in a sentence's middle: their first letter small, unless
  *  it starts a code ("NOTAM"). */
 const midSentence = (words: string) => (/^[A-Z][a-z]/.test(words) ? words.charAt(0).toLowerCase() + words.slice(1) : words);
-
-/** A special-use area's floor or ceiling as the FAA states it. */
-function limit(ft: number | null | undefined, ref: string | null | undefined): string {
-  if (ref === "SFC") return "the surface";
-  if (ft === null || ft === undefined) return "unstated";
-  return `${altFt(ft)} ft${ref === "AGL" ? " AGL" : ""}`;
-}
 
 export default function AltitudeReasoning({ nav, legs }: Props) {
   const s = nav.altitude_selection;
@@ -197,7 +202,7 @@ export default function AltitudeReasoning({ nav, legs }: Props) {
       head: <>{s.eastbound ? "Eastbound: odd" : "Westbound: even"} thousands (14 CFR 91.179)</>,
       body: (
         <>
-          {`A magnetic course of ${deg(s.course_magnetic_deg)} is ${s.eastbound ? "eastbound (000–179°)" : "westbound (180–359°)"}. `}
+          {`A magnetic course of ${ruleCourse(s.course_magnetic_deg)} is ${s.eastbound ? EASTBOUND : WESTBOUND}. `}
           ATC assigns the altitude in controlled airspace (91.179(a)), by this same direction of flight (FAA Order JO
           7110.65, 4-5-2); in uncontrolled airspace it is the rule (91.179(b)).{" "}
           {s.candidates_ft.length > 0
@@ -253,8 +258,8 @@ export default function AltitudeReasoning({ nav, legs }: Props) {
       head: <>{s.eastbound ? "Eastbound: odd" : "Westbound: even"} thousands plus 500 ft (14 CFR 91.159)</>,
       body: (
         <>
-          {`A magnetic course of ${deg(s.course_magnetic_deg)} is `}
-          {s.eastbound ? "eastbound (000–179°)" : "westbound (180–359°)"}
+          {`A magnetic course of ${ruleCourse(s.course_magnetic_deg)} is `}
+          {s.eastbound ? EASTBOUND : WESTBOUND}
           {s.hemispheric_rule_from_ft != null && s.hemispheric_rule_from_ft >= s.floor_ft
             ? `. The rule applies above ${altFt(s.hemispheric_rule_from_ft)} ft, 3,000 ft over the lowest ground; below that every 500 ft is legal too. `
             : ". "}
@@ -263,7 +268,7 @@ export default function AltitudeReasoning({ nav, legs }: Props) {
             : "No one altitude is legal for the whole route"}
           {otherHalf.length > 0 &&
             `. ${otherHalf.length === 1 ? "One leg flies" : `${otherHalf.length} legs fly`} a magnetic course in the other half (${
-              otherHalf.map(seg => `${deg(seg.course_magnetic_deg ?? 0)} from ${seg.from_nm} nm`).join(", ")
+              otherHalf.map(seg => `${ruleCourse(seg.course_magnetic_deg ?? 0)} from ${seg.from_nm} nm`).join(", ")
             }) and ${otherHalf.length === 1 ? "is" : "are"} rounded to its altitudes`}
           {Number.isFinite(highestLegal) && highestLegal > (s.candidates_ft[s.candidates_ft.length - 1] ?? -Infinity)
             ? `; leg by leg, up to ${altFt(highestLegal)} ft.`
@@ -340,7 +345,7 @@ export default function AltitudeReasoning({ nav, legs }: Props) {
       body: (
         <>
           {join(specialUse.map(a =>
-            `${a.name} (${a.kind}, ${limit(a.floor_ft, a.floor_ref)} to ${limit(a.ceiling_ft, a.ceiling_ref)}, ${a.along_track_nm} nm out${
+            `${a.name} (${a.kind}, ${suaAltitudes(a, { midSentence: true })}, ${a.along_track_nm} nm out${
               a.type === "P" ? ", no altitude through it" : a.times_of_use ? `, in use ${midSentence(faaWords(a.times_of_use))}` : ""})`))}.
           {specialUse.some(a => a.type !== "P") &&
             " Check whether each is active with its controlling agency or flight service before you go."}

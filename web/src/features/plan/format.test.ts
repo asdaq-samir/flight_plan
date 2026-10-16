@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Leg, Totals } from "../../lib/api/types";
 import { inkOn, SCORE_STEPS } from "../../lib/scoreScale";
-import { clockTime, cruiseByAltitude, decimalHours, deg, elapsed, hhmm, one, runwayWind, scoreColor, signed, totalsParts } from "./format";
+import { bearing, clockTime, cruiseByAltitude, decimalHours, elapsed, hhmm, one, runwayWind, scoreColor, signed, totalsParts } from "./format";
 
 describe("scoreColor", () => {
   it("bands on the boundary, not just inside it", () => {
@@ -27,13 +27,16 @@ describe("inkOn", () => {
   });
 });
 
-describe("deg", () => {
-  it("pads to three digits", () => expect(deg(7)).toBe("007°"));
-  it("shows a full turn as 000, never 360", () => {
-    expect(deg(360)).toBe("000°");
-    expect(deg(359.7)).toBe("000°");   // rounds to 360 before the modulo
+describe("bearing", () => {
+  it("pads to three digits", () => expect(bearing(7)).toBe("007°"));
+  // As ATC states a north heading (JO 7110.65, 2-4-17), the owner's pick.
+  it("writes north as 360, never 000", () => {
+    expect(bearing(0)).toBe("360°");
+    expect(bearing(360)).toBe("360°");
+    expect(bearing(359.7)).toBe("360°");   // rounds to 360
+    expect(bearing(0.4)).toBe("360°");
   });
-  it("rounds rather than truncating", () => expect(deg(89.6)).toBe("090°"));
+  it("rounds rather than truncating", () => expect(bearing(89.6)).toBe("090°"));
 });
 
 describe("one", () => {

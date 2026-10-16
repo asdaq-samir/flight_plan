@@ -20,7 +20,7 @@ import { compassPoint } from "../../../lib/compass";
 import { bearingDeg, distanceNm, type LatLon } from "../../../lib/geo";
 import { chipColourOf } from "../../../lib/map/flightCategory";
 import { inkOn } from "../../../lib/scoreScale";
-import { feet, miles } from "../../../lib/units";
+import { bearing, feet, miles } from "../../../lib/units";
 import { ChartBadge, RowBadge } from "../../../components/RowBadge";
 import { BADGE } from "../../../lib/rowBadges";
 import { FrequencyRow } from "./FrequencyRow";
@@ -74,7 +74,7 @@ function frequenciesTitle(place: AirportPlace): string {
  *  kt, gusts 18". */
 function windLine(metar: NonNullable<AirportPlace["metar"]>): string {
   if (!metar.wind_speed_kt) return "Calm";
-  const from = metar.wind_dir_true_deg == null ? "Variable" : `${String(Math.round(metar.wind_dir_true_deg)).padStart(3, "0")}°`;
+  const from = metar.wind_dir_true_deg == null ? "Variable" : bearing(metar.wind_dir_true_deg);
   return `${from} at ${Math.round(metar.wind_speed_kt)} kt${metar.wind_gust_kt ? `, gusts ${Math.round(metar.wind_gust_kt)}` : ""}`;
 }
 

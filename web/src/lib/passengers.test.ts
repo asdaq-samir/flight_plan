@@ -17,4 +17,13 @@ describe("the passengers' briefing", () => {
     // No time picked, no name, no report: what is known.
     expect(passengerMessage({ dep: "C81", dest: "KDLH", destName: null, depart: null, eteMin: 45, weather: null })).toBe("C81 to KDLH\nAbout 45 min in the air.");
   });
+
+  it("lands at the nav log's arrival, and names a present position by its coordinates", () => {
+    // 59.6 minutes from 15:05 is 16:04:36: the nav log's 16:04 (etaAt),
+    // where the rounded minutes said 16:05.
+    const depart = new Date(2026, 9, 11, 15, 5);
+    const text = passengerMessage({ dep: "@42.3172,-88.0905,1200", dest: "KDLH", destName: null, depart, eteMin: 59.6, weather: null });
+    expect(text.split("\n")[0]).toBe("N42°19.0′ W088°05.4′ to KDLH");
+    expect(text).toContain("landing about 16:04.");
+  });
 });

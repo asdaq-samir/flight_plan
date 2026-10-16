@@ -5,7 +5,7 @@ import { ListGroup, ListRow } from "../../components/GroupedList";
 import Segmented from "../../components/Segmented";
 import { Input } from "../../components/ui/input";
 import { approachRelative, holdingEntry, holdingWind, type Entry, type Turns } from "../../lib/holding";
-import { heading } from "../../lib/workings";
+import { bearing } from "../../lib/units";
 import { TEXT } from "../../lib/text";
 
 const ENTRY_NAME: Record<Entry, string> = { direct: "Direct", teardrop: "Teardrop", parallel: "Parallel" };
@@ -14,12 +14,12 @@ const ENTRY_NAME: Record<Entry, string> = { direct: "Direct", teardrop: "Teardro
 function entrySteps(entry: Entry, inbound: number, turns: Turns): string {
   const outbound = (inbound + 180) % 360;
   const away = turns === "right" ? "left" : "right";
-  if (entry === "direct") return `Fly to the fix and turn ${turns} to follow the pattern: outbound on ${heading(outbound)}.`;
+  if (entry === "direct") return `Fly to the fix and turn ${turns} to follow the pattern: outbound on ${bearing(outbound)}.`;
   if (entry === "teardrop") {
     const tear = turns === "right" ? outbound - 30 : outbound + 30;
-    return `Fly to the fix, then turn to ${heading(tear)}, 30° into the holding side, for one minute; turn ${turns} to intercept the inbound course, ${heading(inbound)}.`;
+    return `Fly to the fix, then turn to ${bearing(tear)}, 30° into the holding side, for one minute; turn ${turns} to intercept the inbound course, ${bearing(inbound)}.`;
   }
-  return `At the fix, turn to ${heading(outbound)}, parallel to the holding course on the non-holding side, for one minute; then turn ${away}, toward the holding side, through more than 180° to intercept the inbound course or return to the fix.`;
+  return `At the fix, turn to ${bearing(outbound)}, parallel to the holding course on the non-holding side, for one minute; then turn ${away}, toward the holding side, through more than 180° to intercept the inbound course or return to the fix.`;
 }
 
 /** A point `r` from the fix at a bearing `deg` measured on the page, up
@@ -64,7 +64,7 @@ function HoldDiagram({ inbound, headingTo, turns, entry }: { inbound: number; he
     path = `M${fx} ${fy} C${fx} ${fy + 15} ${px} ${fy + 10} ${px} ${fy + 35} L${px} ${fy + len} `
       + `C${px} ${fy + len + 45} ${fx + side * 40} ${fy + len + 40} ${fx} ${fy + len * 0.5}`;
   }
-  const label = `${ENTRY_NAME[entry]} entry to a hold with ${turns} turns on an inbound course of ${heading(inbound)}, arriving on a heading of ${heading(headingTo)}.`;
+  const label = `${ENTRY_NAME[entry]} entry to a hold with ${turns} turns on an inbound course of ${bearing(inbound)}, arriving on a heading of ${bearing(headingTo)}.`;
   return (
     <svg viewBox="0 0 300 270" className="mx-auto h-auto w-full max-w-80 text-foreground leading-4" role="img" aria-label={label} data-testid="hold-diagram">
       <line x1={fx} y1={4} x2={fx} y2={266} stroke="currentColor" strokeOpacity={0.25} strokeDasharray="4 4" />
@@ -157,8 +157,8 @@ export default function HoldingPage() {
       </ListGroup>
       {wind ? (
         <ListGroup footer={`An inbound leg of ${wind.legMin === 1 ? "a minute" : "a minute and a half"}, at or below 14,000 ft MSL a minute (AIM 5-3-8); outbound timing from over or abeam the fix, whichever is later.`}>
-          <ListRow title="Inbound heading" description={`${signed(wind.inbound.wca)} for the wind, ${Math.round(wind.inbound.gs)} kt over the ground`} value={heading(wind.inbound.heading)} data-testid="hold-in-heading" />
-          <ListRow title="Outbound heading" description={`Three times the inbound correction, ${signed(wind.outbound.wca)}, the turns' drift taken up too`} value={heading(wind.outbound.heading)} data-testid="hold-out-heading" />
+          <ListRow title="Inbound heading" description={`${signed(wind.inbound.wca)} for the wind, ${Math.round(wind.inbound.gs)} kt over the ground`} value={bearing(wind.inbound.heading)} data-testid="hold-in-heading" />
+          <ListRow title="Outbound heading" description={`Three times the inbound correction, ${signed(wind.outbound.wca)}, the turns' drift taken up too`} value={bearing(wind.outbound.heading)} data-testid="hold-out-heading" />
           <ListRow
             title="Outbound time"
             description={`So the inbound leg takes ${wind.legMin === 1 ? "a minute" : "a minute and a half"} at ${Math.round(wind.inbound.gs)} kt; by the rule of a second a knot, ${Math.round(wind.ruleSec)} s`}

@@ -65,10 +65,8 @@ export function fitFigures(exact: Figure[], rounded: Figure[], fits: (f: Figure)
  *  marked "≈", none of the nav log's climb, wind or legs in it. */
 function guess({ distanceNm, cruiseTasKt, fuelBurnGph }: { distanceNm: number; cruiseTasKt: number | null; fuelBurnGph: number | null }) {
   const minutes = cruiseTasKt ? (distanceNm / cruiseTasKt) * 60 : null;
-  const hours = minutes == null ? null : Math.floor(minutes / 60);
   const fuelGal = minutes != null && fuelBurnGph ? (minutes / 60) * fuelBurnGph : null;
-  return {
-    minutes, distanceNm, fuelGal,
-    time: minutes == null ? "—" : `${hours ? `${hours}h ` : ""}${Math.round(minutes - hours! * 60)}m`,
-  };
+  // Written as the nav log's own time is once it is in (enRoute): this
+  // one rounded its minutes on their own, and 119.6 read "1h 60m".
+  return { minutes, distanceNm, fuelGal, time: minutes == null ? "—" : enRoute(minutes) };
 }

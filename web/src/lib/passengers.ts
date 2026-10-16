@@ -1,5 +1,6 @@
 import type { Where } from "./verdict";
 import { clockTime, zuluTime } from "./clock";
+import { pointName } from "./identSchema";
 
 /**
  * The passengers' briefing on the Brief, ticked off before engine start:
@@ -37,9 +38,11 @@ export function passengerMessage(f: {
 }): string {
   const minutes = f.eteMin == null ? null : Math.round(f.eteMin);
   const flying = minutes == null ? null : minutes < 60 ? `${minutes} min` : `${Math.floor(minutes / 60)} h ${String(minutes % 60).padStart(2, "0")} min`;
-  const lands = f.depart && minutes != null ? new Date(f.depart.getTime() + minutes * 60_000) : null;
+  // From the exact minutes, as the nav log's and the kneeboard's arrival
+  // is (etaAt): from the rounded ones it said 10:00 where they said 09:59.
+  const lands = f.depart && f.eteMin != null ? new Date(f.depart.getTime() + f.eteMin * 60_000) : null;
   return [
-    `${f.dep} to ${f.destName ? `${f.destName} (${f.dest})` : f.dest}`,
+    `${pointName(f.dep)} to ${f.destName ? `${f.destName} (${f.dest})` : f.dest}`,
     f.depart
       ? `Leaving ${clockTime(f.depart)} (${zuluTime(f.depart)})${flying ? `, about ${flying} in the air` : ""}${lands ? `, landing about ${clockTime(lands)}` : ""}.`
       : flying ? `About ${flying} in the air.` : null,
