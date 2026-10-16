@@ -1,7 +1,5 @@
 import type { ReactNode } from "react";
-import { cn } from "cn";
-import { PillMenu, PillSection } from "../../../components/Favorites";
-import { TEXT } from "../../../lib/text";
+import { PillMenu, PillSection, SeeAll } from "../../../components/Favorites";
 import { useAirportStripShows } from "../hooks/useAirportStripShows";
 
 /**
@@ -32,15 +30,7 @@ export default function AirportPill({ favorites, nearest, onAllNearest, onAllFav
             onChange={v => useAirportStripShows.setState({ nearest: v === "nearest" })}
           />
         )}
-        right={(
-          <button
-            type="button" onClick={showsNearest ? onAllNearest : onAllFavorites}
-            data-testid={showsNearest ? "pill-section-nearest-more" : "favorites-all"}
-            className={cn("relative text-tint outline-none focus-visible:ring-2 focus-visible:ring-ring after:absolute after:-inset-2", TEXT.row)}
-          >
-            See All
-          </button>
-        )}
+        right={<SeeAll onClick={showsNearest ? onAllNearest : onAllFavorites} testId={showsNearest ? "pill-section-nearest-more" : "favorites-all"} />}
       >
         {showsNearest ? nearest : favorites}
       </PillSection>

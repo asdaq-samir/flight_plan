@@ -1,12 +1,16 @@
 import { test, expect, type Locator, type Page } from "@playwright/test";
-import { grabberTo, settle, sideDrawer, airportSearch } from "./helpers";
+import { grabberTo, openPanel, settle, sideDrawer, airportSearch } from "./helpers";
 
 /**
  * The Recents taken off one at a time, by a swipe to the left that
  * uncovers a Delete (SwipeToDelete), or all at once by Clear, at the
  * pilot's ask ("I should be able to clear recents or delete individual
- * ones by sliding left") -- the airports' under the search bar and the
- * airplanes' on the Aircraft card.
+ * ones by sliding left") -- the airports' under the search bar, the
+ * airplanes' on the Aircraft card and the routes' under FPL's Saved. Each
+ * tab shows its latest three, headed as the Favorites are, See All the
+ * rest and Clear, at the owner's asks ("Can we have recents under saved
+ * ?", "consistent look just like Favorites of Airport with See All on the
+ * right side").
  */
 
 const AIRPORTS = [
@@ -19,13 +23,13 @@ const AIRCRAFT = [
   { hex: "a1c2d3", name: "N200XY", type: "C172" },
 ];
 
-async function seed(page: Page) {
-  await page.addInitScript(({ recentAirports, recentAircraft }) => {
+async function seed(page: Page, recentAirports = AIRPORTS, recentRoutes: unknown[] = []) {
+  await page.addInitScript(({ recentAirports, recentAircraft, recentRoutes }) => {
     // Once: a reload keeps what the test took off.
     if (sessionStorage.getItem("recents-seeded")) return;
     sessionStorage.setItem("recents-seeded", "1");
-    localStorage.setItem("vfr.preferences", JSON.stringify({ state: { recentAirports, recentAircraft }, version: 0 }));
-  }, { recentAirports: AIRPORTS, recentAircraft: AIRCRAFT });
+    localStorage.setItem("vfr.preferences", JSON.stringify({ state: { recentAirports, recentAircraft, recentRoutes }, version: 0 }));
+  }, { recentAirports, recentAircraft: AIRCRAFT, recentRoutes });
 }
 
 /** A swipe to the left, as the browser's own scrolling takes it: the row's scroller to its end. */
@@ -88,10 +92,37 @@ test("a swipe to the left uncovers a Delete that takes an airport off the Recent
   await page.keyboard.press("Enter");
   await expect(recents).toHaveCount(1);
 
-  // Clear, asked first.
+  // Clear, asked first, with the Recents in full (their See All).
+  await panel.getByTestId("airport-recents-all").click();
+  await expect(panel.getByTestId("airport-recents-page")).toBeVisible();
   await panel.getByTestId("recents-clear").click();
   await page.getByRole("button", { name: "Clear", exact: true }).last().click();
   await expect(recents).toHaveCount(0);
+});
+
+test("the airports' Recents show the latest three, and See All the rest, Back to the search", async ({ page }) => {
+  await seed(page, [
+    ...AIRPORTS,
+    { ident: "KMSN", name: "Dane County Regional Airport", municipality: "Madison" },
+    { ident: "KOSH", name: "Wittman Regional Airport", municipality: "Oshkosh" },
+  ]);
+  await page.goto("/app/plan");
+  await settle(page);
+  await airportSearch(page);
+  await grabberTo(page, "full");
+  const panel = sideDrawer(page);
+  const section = panel.getByTestId("airport-recents");
+  await expect(section.getByTestId("airport-recent")).toHaveCount(3);
+  await expect(section.getByTestId("airport-recent").first()).toContainText("KDLH");
+  // See All at the heading's right, in the tint, as the Favorites' is.
+  const all = panel.getByTestId("airport-recents-all");
+  await expect(all).toHaveText("See All");
+  await all.click();
+  const page_ = panel.getByTestId("airport-recents-page");
+  await expect(page_).toBeVisible();
+  await expect(panel.getByTestId("airport-recent")).toHaveCount(5);
+  await panel.getByTestId("airport-recents-page-back").click();
+  await expect(section.getByTestId("airport-recent")).toHaveCount(3);
 });
 
 test("the airplanes' Recents: a long press or a right click offers the Delete too, and Clear takes them all", async ({ page }) => {
@@ -108,7 +139,53 @@ test("the airplanes' Recents: a long press or a right click offers the Delete to
   await expect(recents).toHaveCount(1);
   await expect(recents.first()).toContainText("N200XY");
 
+  await card.getByTestId("aircraft-recents-all").click();
+  await expect(card.getByTestId("aircraft-recents-page")).toBeVisible();
   await card.getByTestId("aircraft-recents-clear").click();
   await page.getByRole("button", { name: "Clear", exact: true }).last().click();
   await expect(recents).toHaveCount(0);
+});
+
+test("FPL's Recents under Saved: the latest three routes planned, See All the rest, a tap plans one again and it comes first", async ({ page }) => {
+  const day = (d: number) => Date.UTC(2026, 9, d, 15);
+  await seed(page, AIRPORTS, [
+    { dep: "C81", dest: "KDLH", stops: [], at: day(15) },
+    { dep: "KRFD", dest: "KMKE", stops: [], at: day(14) },
+    { dep: "C81", dest: "KMSP", stops: ["KLSE"], at: day(13) },
+    { dep: "C81", dest: "KMSN", stops: [], at: day(12) },
+  ]);
+  await page.goto("/app/plan");
+  await settle(page);
+  await grabberTo(page, "half");
+  const panel = sideDrawer(page);
+  // Under Saved, both headed as Airport's Favorites are: See All at the right.
+  await expect(panel.getByTestId("pill-section-saved-all")).toHaveText("See All");
+  const section = panel.getByTestId("route-recents");
+  await expect(section.getByTestId("route-recent")).toHaveCount(3);
+  await expect(section.getByTestId("route-recent").first()).toContainText("C81 → KDLH");
+  await expect(section.getByTestId("route-recent").nth(2)).toContainText("By KLSE");
+
+  // The rest, all the way up, and a tap on the oldest plans it again.
+  await section.getByTestId("route-recents-all").click();
+  await expect(panel.getByTestId("route-recents-page")).toBeVisible();
+  const all = panel.getByTestId("route-recent");
+  await expect(all).toHaveCount(4);
+  await all.last().click();
+  await expect(page).toHaveURL(/[?&]dep=C81&dest=KMSN/);
+  // Kept first once the planner has answered it.
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("vfr.preferences")!).state.recentRoutes[0]?.dest), { timeout: 30_000 })
+    .toBe("KMSN");
+  // Cleared from the route's box, the sheet out where the box is.
+  await openPanel(page);
+  await panel.getByTestId("route-box-clear").click();
+  await expect(panel.getByTestId("route-recent").first()).toContainText("C81 → KMSN");
+
+  // Clear, asked first, from the Recents in full: none under Saved then.
+  await panel.getByTestId("route-recents-all").click();
+  await panel.getByTestId("route-recents-clear").click();
+  await page.getByRole("button", { name: "Clear", exact: true }).last().click();
+  await expect(panel.getByTestId("route-recent")).toHaveCount(0);
+  await panel.getByTestId("route-recents-page-back").click();
+  await expect(panel.getByTestId("route-recents")).toHaveCount(0);
+  await expect(panel.getByTestId("pill-section-saved")).toBeVisible();
 });

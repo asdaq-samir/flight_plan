@@ -6,9 +6,9 @@ import { ListGroup, ListRow } from "../../../components/GroupedList";
 import { api } from "../../../lib/api/client";
 import type { AircraftRegistration, TrafficAircraft } from "../../../lib/api/types";
 import { useOwnShip } from "../../../lib/map/ownShip";
-import { usePreferences, type KeptAircraft } from "../../../lib/preferences";
+import { RECENTS_SHOWN, usePreferences, type KeptAircraft } from "../../../lib/preferences";
 import { useTabSearch } from "../../../lib/tabSearch";
-import { HomePlane, PillSection, PillStrip, SmallMark, SmallTile } from "../../../components/Favorites";
+import { HomePlane, ListPageHead, PillSection, PillStrip, SmallMark, SmallTile } from "../../../components/Favorites";
 import TabPage from "../../../components/TabPage";
 import { ClearList, SwipeToDelete } from "../../../components/SwipeToDelete";
 import AircraftRow from "./AircraftRow";
@@ -102,6 +102,7 @@ export default function AircraftCard({ onPick, onPickHex, strip }: {
     : onPick(plane));
   const pickKept = (kept: KeptAircraft) => (keep ? keep(kept) : onPickHex(kept.hex));
   const recents = usePreferences(s => s.recentAircraft);
+  const [allRecents, setAllRecents] = useState(false);
   const removeRecent = usePreferences(s => s.removeRecentAircraft);
   const clearRecents = usePreferences(s => s.clearRecentAircraft);
   const seen = useTracking(s => s.seen);
@@ -146,6 +147,30 @@ export default function AircraftCard({ onPick, onPickHex, strip }: {
   }, []);
   const from = fix ? { lat: fix.lat, lon: fix.lon } : null;
   const ownFt = fix?.altitudeFt ?? null;
+  // The Recents in full, from their section's See All: every one, and
+  // Clear for all of them.
+  const recentRow = (a: KeptAircraft) => (
+    <SwipeToDelete key={a.hex} label={`Remove ${a.name} from Recents`} onDelete={() => removeRecent(a.hex)}>
+      <ListRow
+        media={<Plane className="size-5 text-muted-foreground" />} data-testid="aircraft-recent"
+        title={<span className="font-semibold">{a.name}</span>} description={a.type ?? undefined}
+        chevron onClick={() => pickKept(a)}
+      />
+    </SwipeToDelete>
+  );
+  if (allRecents && !searching) {
+    return (
+      <TabPage testId="aircraft-card">
+        <ListPageHead
+          title="Recents" backLabel="Back to the airplanes" onBack={() => setAllRecents(false)} testId="aircraft-recents-page"
+          action={recents.length > 0 && <ClearList title="Clear the Recents?" description="The airplanes opened last are forgotten in this browser. Favorites stay." onClear={clearRecents} testId="aircraft-recents-clear" />}
+        />
+        {recents.length > 0
+          ? <ListGroup>{recents.map(recentRow)}</ListGroup>
+          : <p className={cn("px-1 text-muted-foreground", TEXT.note)}>None yet: the airplanes opened are kept here.</p>}
+      </TabPage>
+    );
+  }
   return (
     // The Aircraft tab's own page, as Airport's is (TabPage), its sections
     // headed as Airport's are.
@@ -202,22 +227,11 @@ export default function AircraftCard({ onPick, onPickHex, strip }: {
           filter to stay when it's full"). */}
       {!searching && strip}
       {!searching && recents.length > 0 && (
-        // Each taken off by a swipe to the left, or all of them by Clear,
-        // as the airports' Recents are.
-        <PillSection
-          title="Recents" testId="aircraft-recents"
-          right={<ClearList title="Clear the Recents?" description="The airplanes opened last are forgotten in this browser. Favorites stay." onClear={clearRecents} testId="aircraft-recents-clear" />}
-        >
+        // The latest few, each taken off by a swipe to the left; See All
+        // the rest and Clear, as the airports' Recents are.
+        <PillSection title="Recents" testId="aircraft-recents" onSeeAll={() => setAllRecents(true)}>
           <ListGroup>
-            {recents.map(a => (
-              <SwipeToDelete key={a.hex} label={`Remove ${a.name} from Recents`} onDelete={() => removeRecent(a.hex)}>
-                <ListRow
-                  media={<Plane className="size-5 text-muted-foreground" />} data-testid="aircraft-recent"
-                  title={<span className="font-semibold">{a.name}</span>} description={a.type ?? undefined}
-                  chevron onClick={() => pickKept(a)}
-                />
-              </SwipeToDelete>
-            ))}
+            {recents.slice(0, RECENTS_SHOWN).map(recentRow)}
           </ListGroup>
         </PillSection>
       )}

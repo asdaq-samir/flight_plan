@@ -31,7 +31,9 @@ export function SwipeToDelete({ label, onDelete, children }: {
     <ContextMenu>
       <ContextMenuTrigger asChild>
         <div
-          ref={scroller} data-testid="swipe-row"
+          // Made to slide sideways, its Delete past its end: the iOS
+          // audit's sideways-scroll rule passes over it (data-slides).
+          ref={scroller} data-testid="swipe-row" data-slides=""
           // Over the group's gaps to the hairlines either side (ItemGroup
           // spaces its small rows 10 apart), the row's words kept where they
           // were, so the Delete is as tall as the row looks, as iOS's is.
@@ -53,8 +55,11 @@ export function SwipeToDelete({ label, onDelete, children }: {
           </div>
           <button
             type="button" aria-label={label} onClick={onDelete} onBlur={cover} data-testid="swipe-delete"
+            // The light theme's red in the dark too: the dark theme's
+            // lighter one gave the white word 2.9:1 (the iOS audit's P15),
+            // this one 4.8.
             className={cn(
-              "w-20 shrink-0 snap-end bg-destructive font-medium text-white outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
+              "w-20 shrink-0 snap-end bg-red-600 font-medium text-white outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
               TEXT.row,
             )}
           >

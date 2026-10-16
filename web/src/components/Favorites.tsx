@@ -246,9 +246,15 @@ export function SmallTile({ mark, title, detail, label, onClick, testId, wide = 
  * (`right`: Aircraft's Map switch). The title itself can be a menu
  * (`title` as a node).
  */
-export function PillSection({ title, onMore, right, children, testId }: {
+export function PillSection({ title, onMore, onSeeAll, right, children, testId }: {
   title: ReactNode;
   onMore?: () => void;
+  /** See All at the row's right, the list in full, as Airport's
+   *  Favorites has it: the one way in from every section's heading --
+   *  Saved, Favorites and Recents alike -- at the owner's ask ("I want
+   *  Saved and Favorite/Recents to have consistent look just like
+   *  Favorites of Airport with See All on the right side"). */
+  onSeeAll?: () => void;
   right?: ReactNode;
   children: ReactNode;
   testId?: string;
@@ -273,10 +279,50 @@ export function PillSection({ title, onMore, right, children, testId }: {
             <ChevronRight className="size-5" aria-hidden="true" />
           </button>
         ) : typeof title === "string" ? <h3 className={heading}>{title}</h3> : title}
-        {right && <div className="ml-auto flex items-center gap-2">{right}</div>}
+        {(right || onSeeAll) && (
+          <div className="ml-auto flex items-center gap-2">
+            {right}
+            {onSeeAll && <SeeAll onClick={onSeeAll} testId={testId && `${testId}-all`} />}
+          </div>
+        )}
       </div>
       {children}
     </section>
+  );
+}
+
+/** A section's See All, the list in full: the tint's words, their hit area
+ *  round them (index.css's 44 points), as Airport's Favorites' is. */
+export function SeeAll({ onClick, testId }: { onClick: () => void; testId?: string }) {
+  return (
+    <button
+      type="button" onClick={onClick} data-testid={testId}
+      className={cn("relative text-tint outline-none focus-visible:ring-2 focus-visible:ring-ring after:absolute after:-inset-2", TEXT.row)}
+    >
+      See All
+    </button>
+  );
+}
+
+/** A list in full's head, as Favorites' (FavoritesList): Back to the
+ *  section it came from, its name, and what acts on the whole list at its
+ *  right (Edit, Clear). */
+export function ListPageHead({ title, backLabel, onBack, action, testId }: {
+  title: string;
+  /** Back's name to a screen reader: where it goes. */
+  backLabel: string;
+  onBack: () => void;
+  action?: ReactNode;
+  testId?: string;
+}) {
+  return (
+    <div className="flex items-center gap-1" data-testid={testId}>
+      <IconButton label={backLabel} onClick={onBack} className="-ml-2" data-testid={testId && `${testId}-back`}>
+        <ChevronLeft className="size-5" />
+      </IconButton>
+      <h3 className={cn("flex-1 font-bold", TEXT.title)}>{title}</h3>
+      {action}
+    </div>
   );
 }
 

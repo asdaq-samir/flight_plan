@@ -377,8 +377,8 @@ export function componentFindings(page: Page): Promise<ComponentFinding[]> {
       for (const el of document.querySelectorAll<HTMLElement>("*")) {
         const s = getComputedStyle(el);
         if (!/auto|scroll/.test(s.overflowX) || !on(el)) continue;
-        // A line made to slide, the route's pills (RouteBox, the capsule):
-        // one line of tokens, as ForeFlight's route is, at the pilot's ask.
+        // What is made to slide: a row's swipe to its Delete
+        // (SwipeToDelete), as iOS's lists slide.
         if (el.hasAttribute("data-slides")) continue;
         if (el.scrollWidth - el.clientWidth > 1) found.push({ rule: "no sideways scroll in a panel", what: name(el), measured: `${el.scrollWidth} in ${el.clientWidth}` });
       }

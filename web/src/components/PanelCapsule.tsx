@@ -3,10 +3,10 @@ import { useRef, type ReactNode, type RefObject } from "react";
 import { cn } from "cn";
 import { TEXT } from "../lib/text";
 import { useAirportSearch } from "../lib/useAirportSearch";
-import { usePreferences, type RecentAirport } from "../lib/preferences";
+import { RECENTS_SHOWN, usePreferences, type RecentAirport } from "../lib/preferences";
 import { ListGroup, ListRow } from "./GroupedList";
 import { ClearList, SwipeToDelete } from "./SwipeToDelete";
-import { PillSection } from "./Favorites";
+import { ListPageHead, PillSection } from "./Favorites";
 import ClearButton from "./ClearButton";
 import { PANEL_FIELD } from "./panelField";
 
@@ -90,41 +90,26 @@ export function SearchField({
  * answer what is typed -- ident, name and town, a tap opening the
  * field's card.
  */
-export function SearchResults({ query, onPick, places }: {
+export function SearchResults({ query, onPick, places, onAllRecents }: {
   query: string;
   onPick: (airport: RecentAirport) => void;
   /** Over the recents before anything is typed: Favorites. */
   places?: ReactNode;
+  /** The Recents in full (AirportRecentsPage), from the section's See All. */
+  onAllRecents?: () => void;
 }) {
   const { typed, rows, answered } = useAirportSearch(query);
   const recents = usePreferences(s => s.recentAirports);
-  const remove = usePreferences(s => s.removeRecentAirport);
-  const clear = usePreferences(s => s.clearRecentAirports);
-  // Each a section of the tab's page (TabPage), the Favorites' heading
-  // theirs: the Recents' was a list's small capitals under the strip's.
+  // Each a section of the tab's page (TabPage), headed as the Favorites
+  // are: the latest few, See All the rest and Clear (Maps' Recents and
+  // their More), at the owner's pick.
   if (!typed) {
     return (
       <>
         {places}
         {recents.length > 0 ? (
-          // Each taken off by a swipe to the left, or all of them by Clear,
-          // at the pilot's ask, as Maps' Recents are.
-          <PillSection
-            title="Recents" testId="airport-recents"
-            right={<ClearList title="Clear the Recents?" description="The airports opened last are forgotten in this browser. Favorites stay." onClear={clear} testId="recents-clear" />}
-          >
-            <ListGroup>
-              {recents.map(a => (
-                <SwipeToDelete key={a.ident} label={`Remove ${a.ident} from Recents`} onDelete={() => remove(a.ident)}>
-                  <ListRow
-                    media={<History className="size-5 text-muted-foreground" />}
-                    title={<><span className="font-mono font-semibold">{a.ident}</span> · {a.name}</>}
-                    description={a.municipality ?? undefined}
-                    onClick={() => onPick(a)} data-testid="airport-recent"
-                  />
-                </SwipeToDelete>
-              ))}
-            </ListGroup>
+          <PillSection title="Recents" testId="airport-recents" onSeeAll={onAllRecents}>
+            <RecentAirportRows recents={recents.slice(0, RECENTS_SHOWN)} onPick={onPick} />
           </PillSection>
         ) : (
           <p className={cn("px-1 text-muted-foreground", TEXT.note)}>Search by an airport's ident, its name or its town.</p>
@@ -147,5 +132,43 @@ export function SearchResults({ query, onPick, places }: {
         ))}
       </ListGroup>
     </PillSection>
+  );
+}
+
+/** The airports picked last, each taken off by a swipe to the left (or a
+ *  long press), at the pilot's ask, as Maps' Recents are. */
+function RecentAirportRows({ recents, onPick }: { recents: RecentAirport[]; onPick: (airport: RecentAirport) => void }) {
+  const remove = usePreferences(s => s.removeRecentAirport);
+  return (
+    <ListGroup>
+      {recents.map(a => (
+        <SwipeToDelete key={a.ident} label={`Remove ${a.ident} from Recents`} onDelete={() => remove(a.ident)}>
+          <ListRow
+            media={<History className="size-5 text-muted-foreground" />}
+            title={<><span className="font-mono font-semibold">{a.ident}</span> · {a.name}</>}
+            description={a.municipality ?? undefined}
+            onClick={() => onPick(a)} data-testid="airport-recent"
+          />
+        </SwipeToDelete>
+      ))}
+    </ListGroup>
+  );
+}
+
+/** The airports' Recents in full, from their section's See All: every one,
+ *  and Clear for all of them, asked first. */
+export function AirportRecentsPage({ onBack, onPick }: { onBack: () => void; onPick: (airport: RecentAirport) => void }) {
+  const recents = usePreferences(s => s.recentAirports);
+  const clear = usePreferences(s => s.clearRecentAirports);
+  return (
+    <>
+      <ListPageHead
+        title="Recents" backLabel="Back to the search" onBack={onBack} testId="airport-recents-page"
+        action={recents.length > 0 && <ClearList title="Clear the Recents?" description="The airports opened last are forgotten in this browser. Favorites stay." onClear={clear} testId="recents-clear" />}
+      />
+      {recents.length > 0
+        ? <RecentAirportRows recents={recents} onPick={onPick} />
+        : <p className={cn("px-1 text-muted-foreground", TEXT.note)}>None yet: the airports opened are kept here.</p>}
+    </>
   );
 }
