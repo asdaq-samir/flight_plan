@@ -1,9 +1,11 @@
 import { useId, useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, Circle } from "lucide-react";
 import { cn } from "cn";
 import FieldHit from "../../components/FieldHit";
 import { ListGroup, ListRow } from "../../components/GroupedList";
+import QueryState from "../../components/QueryState";
+import { trainingQuery } from "../../lib/queryClient";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Textarea } from "../../components/ui/textarea";
@@ -191,15 +193,20 @@ function Instructors({ training }: { training: Training }) {
  * their instructor. None of it is a sign-off: the instructor's
  * endorsement is.
  */
-export default function CheckridePage({ training }: { training: Training | undefined }) {
+export default function CheckridePage() {
   const queryClient = useQueryClient();
+  // The record the logbook reads too (trainingQuery), and where it could
+  // not be fetched, said here with Try again, where the page stayed on
+  // "Fetching your record…" for good.
+  const asked = useQuery(trainingQuery);
+  const training = asked.data;
   const keep = (next: Training) => queryClient.setQueryData(["training"], next);
   const codes = useMutation({ mutationFn: api.training.setKnowledgeTest, onSuccess: keep });
   const endorse = useMutation({
     mutationFn: ({ code, on }: { code: string; on: string | null }) => (on ? api.training.endorse(code, on) : api.training.withdraw(code)),
     onSuccess: keep,
   });
-  if (!training) return <p className={cn("text-muted-foreground", TEXT.prose)}>Fetching your record…</p>;
+  if (!training) return <QueryState query={asked} fetching="Fetching your record…" failed="Your record could not be fetched." />;
   const recorded = new Map(training.endorsements.map(e => [e.code, e]));
   const signed = inForce(training.signed);
   const voided = training.signed.filter(e => e.voided);

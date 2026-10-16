@@ -14,7 +14,7 @@ import { PillSection } from "../../../components/Favorites";
 import { CardAction as Action } from "./CardAction";
 import { useCardTab } from "../../../lib/cardTab";
 import { Tabs } from "../../../components/ui/tabs";
-import { ApiError, api } from "../../../lib/api/client";
+import { ApiError } from "../../../lib/api/client";
 import type { AirportPin, AirportPlace, ClassBAirport, TerminalChart } from "../../../lib/api/types";
 import { compassPoint } from "../../../lib/compass";
 import { bearingDeg, distanceNm, type LatLon } from "../../../lib/geo";
@@ -33,6 +33,7 @@ import { TEXT } from "../../../lib/text";
 import { diagramRunwaysPicture } from "../../../lib/diagram";
 import { useHeardMetar } from "../../../lib/map/receiver";
 import { zuluTime } from "../../../lib/clock";
+import { airportQuery } from "../../../lib/queryClient";
 
 const SketchViewer = lazy(() => import("./SketchViewer"));
 
@@ -203,9 +204,7 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
    *  Maps opens a place, at the owner's pick of the redesign. */
   summary?: boolean;
 }) {
-  const { data: place, isLoading, error, refetch, isFetching } = useQuery({
-    queryKey: ["airport", ident], queryFn: () => api.airport(ident), staleTime: 5 * 60_000,
-  });
+  const { data: place, isLoading, error, refetch, isFetching } = useQuery(airportQuery(ident));
   // What the map knows of it already -- its name and its weather's
   // colour, from the chip that was tapped (AirportsLayer, ClassBLayer) --
   // at once: the card read "Looking the airport up…" until its own

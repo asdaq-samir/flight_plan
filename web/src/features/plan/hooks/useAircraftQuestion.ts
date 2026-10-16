@@ -5,6 +5,7 @@ import type { TrafficAircraft } from "../../../lib/api/types";
 import { type AircraftFilter, filtering, inEmergency, keptFilter, matches, relationTo, sameField } from "../../../lib/fbo";
 import { distanceNm, type LatLon } from "../../../lib/geo";
 import { usePreferences } from "../../../lib/preferences";
+import { airportQuery } from "../../../lib/queryClient";
 
 const NONE: TrafficAircraft[] = [];
 
@@ -65,10 +66,7 @@ export { useTrafficFocus } from "../../../lib/map/tracking";
 export function useFilteredAircraft(seen: TrafficAircraft[], from: LatLon | null) {
   const filter = asAsked({ ...keptFilter(usePreferences(s => s.aircraftFilter)), kind: "any", band: "any", operator: "" });
   const ident = filter.place === "airport" ? filter.airport.trim().toUpperCase() : "";
-  const { data: field, isError: noField } = useQuery({
-    queryKey: ["airport", ident], queryFn: () => api.airport(ident), enabled: ident.length >= 3, staleTime: 5 * 60_000,
-    meta: { silent: true },
-  });
+  const { data: field, isError: noField } = useQuery({ ...airportQuery(ident), enabled: ident.length >= 3 });
   // The traffic the place asks for: round the airport, or near the pilot;
   // the map's own where it is the map.
   const center = filter.place === "airport" ? (field ? { lat: field.lat, lon: field.lon } : null)

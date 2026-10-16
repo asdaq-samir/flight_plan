@@ -19,9 +19,11 @@ import { showError } from "../../lib/problems";
 import type { Currency, LogbookEntry, LogbookEntryRequest } from "../../lib/api/types";
 import { TEXT } from "../../lib/text";
 import CheckridePage from "./CheckridePage";
+import QueryState from "../../components/QueryState";
 import InstructorPage from "./InstructorPage";
 import { localDay } from "../../lib/clock";
 import { FINDING_TONE } from "../../lib/status";
+import { currencyQuery, trainingQuery } from "../../lib/queryClient";
 
 const day = (iso: string) => format(parseISO(iso), "d MMM yyyy");
 const today = () => localDay();
@@ -122,9 +124,12 @@ export function LogbookPanel({ aircraft }: { aircraft?: string }) {
   const [changing, setChanging] = useState<LogbookEntry | null>(null);
   const [editing, setEditing] = useState(false);
   const [toDelete, setToDelete] = useState<LogbookEntry | null>(null);
-  const { data: entries, isLoading } = useQuery({ queryKey: ["logbook"], queryFn: api.logbook.list });
-  const { data: currency } = useQuery({ queryKey: ["currency"], queryFn: api.logbook.currency });
-  const { data: training } = useQuery({ queryKey: ["training"], queryFn: api.training.get });
+  // Quiet: the list says in place what it could not fetch (QueryState),
+  // where a failure read "No flights logged yet".
+  const entriesAsked = useQuery({ queryKey: ["logbook"], queryFn: api.logbook.list, meta: { silent: true } });
+  const entries = entriesAsked.data;
+  const { data: currency } = useQuery(currencyQuery);
+  const { data: training } = useQuery(trainingQuery);
   const refresh = () => {
     void queryClient.invalidateQueries({ queryKey: ["logbook"] });
     void queryClient.invalidateQueries({ queryKey: ["currency"] });
@@ -193,7 +198,7 @@ export function LogbookPanel({ aircraft }: { aircraft?: string }) {
     <ConsolePages
       back="Logbook"
       pages={{
-        checkride: { title: "Private pilot checkride", content: <CheckridePage training={training} /> },
+        checkride: { title: "Private pilot checkride", content: <CheckridePage /> },
         instructing: { title: "Instructing", content: <InstructorPage /> },
       }}
     >
@@ -302,8 +307,8 @@ export function LogbookPanel({ aircraft }: { aircraft?: string }) {
                 </span>
               )}
             >
-              {isLoading ? <ListRow title={<span className="text-muted-foreground">Fetching your logbook…</span>} />
-                : !entries?.length ? <ListRow title={<span className="text-muted-foreground">No flights logged yet: the plus logs one.</span>} />
+              {!entries ? <QueryState row query={entriesAsked} fetching="Fetching your logbook…" failed="Your logbook could not be fetched." />
+                : !entries.length ? <ListRow title={<span className="text-muted-foreground">No flights logged yet: the plus logs one.</span>} />
                   : entries.map(e => (
                     <ListRow
                       key={e.id}

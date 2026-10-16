@@ -6,7 +6,7 @@ import { navLogRows } from "./components/navlog/rows";
 import { fromChunk } from "../../lib/fromChunk";
 import { cn } from "cn";
 import { api } from "../../lib/api/client";
-import { checkpointsQuery, courseQuery, nearestQuery, pilotQuery, queryClient } from "../../lib/queryClient";
+import { aircraftListQuery, aircraftProfilesQuery, airportQuery, checkpointsQuery, courseQuery, nearestQuery, pilotQuery, queryClient } from "../../lib/queryClient";
 import type { AircraftChoice, AirportPlace, AltitudeChoice, Candidate, ProcedureDrawing } from "../../lib/api/types";
 import { aircraftKey, choiceOf } from "../../lib/aircraftChoice";
 import { bestStopIndex } from "../../lib/geo";
@@ -215,9 +215,9 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // The stock profiles, plus a signed-in pilot's own airplanes on top
   // of them -- the same ["pilot"]/["aircraft"] queries the pilot
   // console keeps.
-  const { data: profiles } = useQuery({ queryKey: ["aircraftProfiles"], queryFn: api.aircraftProfiles, staleTime: Infinity });
+  const { data: profiles } = useQuery(aircraftProfilesQuery);
   const { data: pilot } = useQuery(pilotQuery);
-  const { data: myAircraft } = useQuery({ queryKey: ["aircraft"], queryFn: api.aircraft.list, enabled: !!pilot });
+  const { data: myAircraft } = useQuery({ ...aircraftListQuery, enabled: !!pilot });
   const aircraftOptions = useMemo<AircraftChoice[]>(() => {
     const options: AircraftChoice[] = [
       ...(profiles ?? []).map(p => ({ profile: p.name, label: `${p.name.toUpperCase()} · ${p.type}` })),
@@ -358,10 +358,10 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       key={flight} hex={flight} onClose={() => closeCard(() => selectFlight(null))} onOpenPast={selectPast}
       onExpand={() => setPanel("full")} onLower={() => setPanel("half")}
     /> : null;
-  const { data: destCard } = useQuery({
-    queryKey: ["airport", planned.dest], queryFn: () => api.airport(planned.dest!), enabled: !!planned.dest, staleTime: 5 * 60_000,
-    meta: { silent: true },
-  });
+  // The ident as a string of its own (`${…}`): the route's object's field
+  // handed straight to a function counted, to the React Compiler, as the
+  // object handed over and maybe changed, and it gave up every memo after.
+  const { data: destCard } = useQuery({ ...airportQuery(`${planned.dest}`), enabled: !!planned.dest });
   // Greyed only once its card says it has none; a planner older than the
   // list says nothing, and the button stays.
   const noApproaches = !!destCard?.procedures && !destCard.procedures.some(c => c.kind === "IAP");
@@ -496,9 +496,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     landed.current = true;
     if (!place && !heldPoint && !planned.dep && !planned.dest) void locateOnOpen();
   }, [place, heldPoint, planned.dep, planned.dest]);
-  const { data: placeData } = useQuery({
-    queryKey: ["airport", place], queryFn: () => api.airport(place!), enabled: !!place, staleTime: 5 * 60_000,
-  });
+  const { data: placeData } = useQuery({ ...airportQuery(place ?? ""), enabled: !!place });
   // Where it is, from the card's answer -- or at once, where this browser
   // keeps where it is (Home, a Favorite, one picked lately): the map and
   // its ring waited on the answer, which on a page just loaded queues
@@ -861,9 +859,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       return;
     }
     // Where it is, for how far it is from own ship.
-    const full = await queryClient.fetchQuery({
-      queryKey: ["airport", airport.ident], queryFn: () => api.airport(airport.ident), staleTime: 5 * 60_000,
-    }).catch(() => null);
+    const full = await queryClient.fetchQuery(airportQuery(airport.ident)).catch(() => null);
     const kept = full ? { ident: full.ident, name: full.name, municipality: full.municipality, lat: full.lat, lon: full.lon } : airport;
     if (picking === "home") setHomeAirport(kept);
     else if (!favorites.some(a => a.ident === kept.ident)) toggleFavoriteAirport(kept);
@@ -956,9 +952,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     const homeListed = searchParams.get("home");
     if (seeded.current || (!listed && !homeListed)) return;
     seeded.current = true;
-    const look = (ident: string) => queryClient.fetchQuery({
-      queryKey: ["airport", ident], queryFn: () => api.airport(ident), staleTime: 5 * 60_000,
-    }).then(a => ({ ident: a.ident, name: a.name, municipality: a.municipality, lat: a.lat, lon: a.lon })).catch(() => null);
+    const look = (ident: string) => queryClient.fetchQuery(airportQuery(ident)).then(a => ({ ident: a.ident, name: a.name, municipality: a.municipality, lat: a.lat, lon: a.lon })).catch(() => null);
     void (async () => {
       for (const ident of (listed ?? "").split(",").map(identOf).filter(Boolean)) {
         if (usePreferences.getState().favoriteAirports.some(a => a.ident === ident)) continue;

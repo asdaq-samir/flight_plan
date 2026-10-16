@@ -238,3 +238,41 @@ export const classBQuery = queryOptions({
   queryKey: ["classB"], queryFn: () => api.classB(), staleTime: 5 * 60_000, meta: { silent: true },
 });
 
+/** An airport's card's data -- its weather, frequencies, runways, pattern
+ *  and airspace -- for everything that asks of one: the card, the tiles'
+ *  chart marks and colours, the route's ends, a saved flight's fields, the
+ *  traffic question's field, a Favorite kept. Ten wrote it out, fresh for
+ *  five minutes or for an hour, raising the page's problem or not, so
+ *  whether a failed lookup showed depended on which had mounted last (the
+ *  commonality audit's N-13). Five minutes, a report's freshness; quiet,
+ *  the card saying in place what it could not have (PlaceCard). */
+export const airportQuery = (ident: string) => queryOptions({
+  queryKey: ["airport", ident], queryFn: () => api.airport(ident), staleTime: 5 * 60_000, meta: { silent: true },
+});
+
+/** The pilot's saved flights, for FPL's Saved and its list in full: quiet,
+ *  each saying in place what it could not fetch (QueryState). */
+export const flightsQuery = queryOptions({
+  queryKey: ["flights"], queryFn: () => api.flights.list(), meta: { silent: true },
+});
+
+/** The pilot's training record: the logbook's, the checkride's, the
+ *  Brief's mock oral and solo review's, a flight's page's. */
+export const trainingQuery = queryOptions({ queryKey: ["training"], queryFn: () => api.training.get() });
+
+/** The pilot's own airplanes, for the aircraft chips, the Brief and
+ *  Setup's Aircraft: fresh for a minute. */
+export const aircraftListQuery = queryOptions({
+  queryKey: ["aircraft"], queryFn: () => api.aircraft.list(), staleTime: 60_000,
+});
+
+/** The airplanes' book figures the planner flies: the same while the page
+ *  is open. */
+export const aircraftProfilesQuery = queryOptions({
+  queryKey: ["aircraftProfiles"], queryFn: () => api.aircraftProfiles(), staleTime: Infinity,
+});
+
+/** The pilot's currency from the logbook: fresh for a minute. */
+export const currencyQuery = queryOptions({
+  queryKey: ["currency"], queryFn: () => api.logbook.currency(), staleTime: 60_000,
+});

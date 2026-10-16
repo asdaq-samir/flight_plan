@@ -1,15 +1,14 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { cn } from "cn";
 import { ListGroup, ListRow } from "../../components/GroupedList";
+import QueryState from "../../components/QueryState";
 import TogglePill from "../../components/TogglePill";
 import { Input } from "../../components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
 import { Textarea } from "../../components/ui/textarea";
 import { api } from "../../lib/api/client";
 import type { Aircraft, Squawk, SquawkRequest } from "../../lib/api/types";
-import { TEXT } from "../../lib/text";
 import { localDay } from "../../lib/clock";
 
 const today = () => localDay();
@@ -39,7 +38,9 @@ const asRequest = (s: Squawk): SquawkRequest => ({
  */
 export default function SquawksPage({ aircraft }: { aircraft: Aircraft }) {
   const queryClient = useQueryClient();
-  const { data: squawks, isLoading } = useQuery({ queryKey: ["squawks", aircraft.id], queryFn: () => api.aircraft.squawks(aircraft.id) });
+  // Quiet: the page says in place what it could not fetch (QueryState).
+  const asked = useQuery({ queryKey: ["squawks", aircraft.id], queryFn: () => api.aircraft.squawks(aircraft.id), meta: { silent: true } });
+  const squawks = asked.data;
   const [draft, setDraft] = useState<SquawkRequest>({ reportedOn: today(), text: "", inoperative: false, deferredFor: null, fixedOn: null, fixNote: null });
   const [fixing, setFixing] = useState<{ squawk: Squawk; note: string } | null>(null);
   const refresh = () => {
@@ -55,7 +56,7 @@ export default function SquawksPage({ aircraft }: { aircraft: Aircraft }) {
     mutationFn: ({ id, request }: { id: number; request: SquawkRequest }) => api.aircraft.updateSquawk(aircraft.id, id, request),
     onSuccess: () => { setFixing(null); refresh(); },
   });
-  if (isLoading || !squawks) return <p role="status" className={cn("px-1 text-muted-foreground", TEXT.note)}>Fetching the squawks…</p>;
+  if (!squawks) return <QueryState query={asked} fetching="Fetching the squawks…" failed="The squawks could not be fetched." />;
   const open = squawks.filter(s => !s.fixedOn);
   const fixed = squawks.filter(s => s.fixedOn);
   const standing = (s: Squawk) => !s.inoperative ? undefined

@@ -2,7 +2,6 @@ import { ChevronLeft, ChevronRight, CircleMinus, GripVertical, House, ListFilter
 import { Fragment, useId, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "cn";
-import { api } from "../lib/api/client";
 import { distanceNm } from "../lib/geo";
 import { airportMarkSvg } from "../lib/map/airportMark";
 import { colourOf } from "../lib/map/flightCategory";
@@ -17,6 +16,7 @@ import {
 } from "./ui/dropdown-menu";
 import { ListGroup, ListRow } from "./GroupedList";
 import IconButton from "./IconButton";
+import { airportQuery } from "../lib/queryClient";
 
 /**
  * The row of round tiles itself -- Home, then the favorites -- shared by
@@ -469,9 +469,7 @@ export function ChartMark({ space, category, use, size = 22 }: {
  *  planner has it -- the query useAirspace asks, so none more -- its
  *  weather and whose it is with its airspace. */
 function KeptChartMark({ airport, size }: { airport: RecentAirport; size?: number }) {
-  const { data } = useQuery({
-    queryKey: ["airport", airport.ident], queryFn: () => api.airport(airport.ident), staleTime: 60 * 60_000, meta: { silent: true },
-  });
+  const { data } = useQuery(airportQuery(airport.ident));
   const use = data?.military === "military" ? "military" : data?.private ? "private" : null;
   return <ChartMark space={data?.airspace_class ?? airport.airspace ?? null} category={data?.metar?.flight_category} use={use} size={size} />;
 }
