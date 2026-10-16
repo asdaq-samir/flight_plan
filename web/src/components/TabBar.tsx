@@ -85,7 +85,16 @@ export default function TabBar<T extends string>({ tabs, tab, over, title, onPic
       setConsoleOpen(true);
       return;
     }
-    if (consoleOpen) setConsoleOpen(false);
+    if (consoleOpen) {
+      setConsoleOpen(false);
+      // Back from Setup to the tab under it: that tab as it was left, a
+      // card open over it still open, as each of an iOS app's tabs keeps
+      // its own screen -- not the tab up tapped again, which puts its card
+      // away, at the owner's notice ("When I open an aircraft card and go
+      // to setup and come back, to aircraft tab, the card is not there
+      // anymore").
+      if (value === tab) return;
+    }
     onPick(value as T);
   };
   // A swipe across the panel goes to the tab beside the one up, at the
