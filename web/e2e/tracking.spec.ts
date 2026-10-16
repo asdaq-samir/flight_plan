@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { closeCard, grabberTo, settle, showTabs, sideDrawer, slow } from "./helpers";
+import { closeCard, grabberTo, settle, showTabs, sideDrawer, slow, stripShows } from "./helpers";
 
 /**
  * Tracking an airplane, as FlightAware and ForeFlight do, at the pilot's
@@ -422,7 +422,10 @@ test("an airplane opened is in the Aircraft card's Recents, and one starred on i
   const list = page.getByTestId("aircraft-card");
   await expect(list.getByTestId("pill-aircraft-favorite")).toHaveCount(1);
   await expect(list.getByTestId("pill-aircraft-favorite")).toContainText("N14511");
+  // The Recents from the strip's filter, as every tab's lists are.
+  await stripShows(page, "aircraft-question", "question-recents");
   await expect(list.getByTestId("aircraft-recent").first()).toContainText("N14511");
+  await stripShows(page, "aircraft-question", "question-favorites");
   // A tile opens its card again.
   await list.getByTestId("pill-aircraft-favorite").click();
   await expect(page).toHaveURL(/[?&]flight=a0b7d8/);

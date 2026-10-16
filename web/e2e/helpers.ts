@@ -495,6 +495,15 @@ export async function consolePage(scope: Page | Locator, name: "Account" | "Sett
 
 /** Airport's search bar, in sight: on the Airport tab, its pill's one row
  *  or its head half way (FPL is the tab a fresh load opens on). */
+/** A tab's one strip set to show one of its lists -- FPL's Saved or
+ *  Recents, Airport's Favorites, Recents or Nearest, Aircraft's Favorites,
+ *  Recents or a question -- from the filter menu at its heading's right
+ *  (StripSection). */
+export async function stripShows(page: Page, menu: "fpl-strip-shows" | "airport-strip-shows" | "aircraft-question", item: string) {
+  await sideDrawer(page).getByTestId(menu).click();
+  await page.getByTestId(item).click();
+}
+
 export async function airportSearch(page: Page) {
   const search = page.getByTestId("search-airports");
   if (await search.isVisible()) return search;

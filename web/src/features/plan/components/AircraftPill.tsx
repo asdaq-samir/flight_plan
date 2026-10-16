@@ -1,18 +1,19 @@
 import { useEffect, useState } from "react";
 import { Plane } from "lucide-react";
-import { create } from "zustand";
 import { cn } from "cn";
 import AirportPicker from "../../../components/AirportPicker";
-import { PillMenu, PillSection, PillStrip, SmallTile } from "../../../components/Favorites";
+import { PillStrip, SmallTile, StripNote, StripSection } from "../../../components/Favorites";
 import { Switch } from "../../../components/ui/switch";
 import type { TrafficAircraft } from "../../../lib/api/types";
 import { inEmergency } from "../../../lib/fbo";
 import { useOwnShip } from "../../../lib/map/ownShip";
 import { useTracking } from "../../../lib/map/tracking";
 import { usePreferences } from "../../../lib/preferences";
+import { pickKeptAircraft } from "../../../lib/tabSearch";
 import { TEXT } from "../../../lib/text";
 import { filterFor, QUESTIONS, questionOf, strip, useFilteredAircraft, useTrafficFocus, type Question } from "../hooks/useAircraftQuestion";
-import { AircraftFavoriteStrip } from "./AircraftCard";
+import { useStripShows } from "../hooks/useStripShows";
+import { AircraftFavoriteStrip, AircraftRecentTiles } from "./AircraftCard";
 
 /** The strip's title for each question: what it lists, the airport after
  *  it where it asks of one. */
@@ -22,29 +23,30 @@ const TITLES: Record<Question, string> = {
 /** The most the strip shows: a finger's width each, sliding for more. */
 const STRIP_MOST = 12;
 
-/** The strip shows the Favorites, or the airplanes a question finds; the
- *  pick kept while the app is open, the Favorites first. */
-const useStripShows = create<{ favorites: boolean }>(() => ({ favorites: true }));
-
 /**
  * The Aircraft tab's pill, the owner's picks of the redesign: under the
  * search bar one strip (the owner's "one row, it can have the favorites
- * with the filter"): the Favorites (Plane first), or the nearest, those
- * around, inbound to, departing or based at an airport, or emergencies --
- * the airport a pill of its own beside the title to change. The
- * Favorites' title is the way to the airplanes kept in full, as Airport's
- * is (the owner's "What about aircraft fav?"); at the row's right what it
- * shows, a menu, then one switch, Map, that leaves only these airplanes on
- * the map, the rest faded ("Map: show only these") -- the owner's "for
- * aircraft we can have the selection and show map controls to the right".
+ * with the filter"): the Favorites (Plane first), the airplanes opened
+ * last, or the nearest, those around, inbound to, departing or based at
+ * an airport, or emergencies -- the airport a pill of its own beside the
+ * title to change -- picked from the filter menu at the row's right, as
+ * every tab's strip is (the owner's "apply the filter to other cards too
+ * ... favorites and recents in airport/aircraft"). The Favorites' and the
+ * Recents' titles are the way to them in full (the owner's "What about
+ * aircraft fav?"); after the menu one switch, Map, that leaves only these
+ * airplanes on the map, the rest faded ("Map: show only these") -- the
+ * owner's "for aircraft we can have the selection and show map controls
+ * to the right".
  */
-export default function AircraftPill({ onOpen, onAddMine, onAddFavorite, onPick, onAllFavorites }: {
+export default function AircraftPill({ onOpen, onAddMine, onAddFavorite, onPick, onAllFavorites, onAllRecents }: {
   onOpen: (hex: string) => void;
   onAddMine: () => void;
   onAddFavorite: () => void;
   onPick: (plane: TrafficAircraft) => void;
   /** The Favorites in full, where they are changed (AircraftFavoritesList). */
   onAllFavorites: () => void;
+  /** The Recents in full, where they are taken off (AircraftRecentsPage). */
+  onAllRecents: () => void;
 }) {
   const seen = useTracking(s => s.seen);
   const planes = useSeenPlanes(seen);
@@ -53,34 +55,43 @@ export default function AircraftPill({ onOpen, onAddMine, onAddFavorite, onPick,
   const { filter, field, kept: found } = useFilteredAircraft(planes, from);
   const change = usePreferences(s => s.setAircraftFilter);
   const question = questionOf(filter);
-  const favorites = useStripShows(s => s.favorites);
-  const asks = favorites ? null : QUESTIONS.find(q => q.value === question)!;
+  const shows = useStripShows(s => s.aircraft);
+  const asks = shows === "question" ? QUESTIONS.find(q => q.value === question)! : null;
   const [picking, setPicking] = useState(false);
   const favoriteList = usePreferences(s => s.favoriteAircraft);
+  const recentList = usePreferences(s => s.recentAircraft);
   const mine = usePreferences(s => s.myAircraft);
-  const pick = (value: string) => {
-    useStripShows.setState({ favorites: value === "favorites" });
-    if (value === "favorites") return;
-    const q = value as Question;
-    change(filterFor(q));
+  const pick = (value: "favorites" | "recents" | Question) => {
+    if (value === "favorites" || value === "recents") {
+      useStripShows.setState({ aircraft: value });
+      return;
+    }
+    useStripShows.setState({ aircraft: "question" });
+    change(filterFor(value));
     // An airport's question with none named yet: which one, at once.
-    if (QUESTIONS.find(x => x.value === q)!.airport && !filter.airport) setPicking(true);
+    if (QUESTIONS.find(x => x.value === value)!.airport && !filter.airport) setPicking(true);
   };
   const rows = strip(question, found, from, field).slice(0, STRIP_MOST);
   const map = useTrafficFocus(s => s.on);
   // The airplanes left on the map, as the strip's change: the Favorites
-  // and the Plane, or the question's answer.
-  const only = favorites
+  // and the Plane, the Recents, or the question's answer.
+  const only = shows === "favorites"
     ? [...(mine ? [mine.hex] : []), ...favoriteList.map(a => a.hex)].join(",")
-    : rows.map(r => r.plane.hex).join(",");
+    : shows === "recents" ? recentList.map(a => a.hex).join(",")
+      : rows.map(r => r.plane.hex).join(",");
   useEffect(() => {
     if (map) useTrafficFocus.setState({ only: new Set(only ? only.split(",") : []) });
   }, [map, only]);
   return (
     <div className="flex flex-col gap-2" data-testid="aircraft-pill">
-      <PillSection
-        testId="pill-section-question"
-        title={favorites ? "Favorites" : TITLES[question]} onMore={favorites ? onAllFavorites : undefined}
+      <StripSection
+        lists={[
+          { value: "favorites", label: "Favorites", onMore: onAllFavorites, section: "pill-section-question", testId: "question-favorites" },
+          { value: "recents", label: "Recents", onMore: onAllRecents, section: "aircraft-recents", testId: "question-recents", apart: true },
+          // A question's title names it, with no list in full to open.
+          ...QUESTIONS.map(q => ({ value: q.value, label: TITLES[q.value], item: `${q.label}${q.airport ? "…" : ""}`, section: "pill-section-question", testId: `question-${q.value}` })),
+        ]}
+        shows={shows === "question" ? question : shows} onShow={pick} menuTestId="aircraft-question" menuClassName="min-w-52"
         beside={asks?.airport && (
           // The airport asked of, a pill of its own to change: Home and
           // the Favorites first, then a search (AirportPicker).
@@ -92,14 +103,6 @@ export default function AircraftPill({ onOpen, onAddMine, onAddFavorite, onPick,
         )}
         right={(
           <>
-            <PillMenu
-              label={`Showing ${favorites ? "Favorites" : TITLES[question]}`} value={favorites ? "favorites" : question} testId="aircraft-question"
-              options={[
-                { value: "favorites", label: "Favorites", testId: "question-favorites" },
-                ...QUESTIONS.map(q => ({ value: q.value, label: `${q.label}${q.airport ? "…" : ""}`, testId: `question-${q.value}` })),
-              ]}
-              onChange={pick} apart className="min-w-52"
-            />
             <label htmlFor="aircraft-map-only" className={cn("text-foreground/65", TEXT.note)}>Map</label>
             <Switch
               id="aircraft-map-only" checked={map} data-testid="aircraft-map-only"
@@ -111,8 +114,10 @@ export default function AircraftPill({ onOpen, onAddMine, onAddFavorite, onPick,
           </>
         )}
       >
-        {favorites ? (
+        {shows === "favorites" ? (
           <AircraftFavoriteStrip onOpen={onOpen} onAddMine={onAddMine} onAddFavorite={onAddFavorite} />
+        ) : shows === "recents" ? (
+          <AircraftRecentTiles onPick={kept => pickKeptAircraft(kept, onOpen)} />
         ) : question === "near" && !from ? (
           <button
             type="button" onClick={() => setOwnShip(true)} data-testid="aircraft-strip-position"
@@ -121,7 +126,7 @@ export default function AircraftPill({ onOpen, onAddMine, onAddFavorite, onPick,
             Show my position
           </button>
         ) : asks?.airport && !field ? (
-          <p className={cn("py-1 text-center text-foreground/65", TEXT.note)}>Pick an airport</p>
+          <StripNote>Pick an airport</StripNote>
         ) : rows.length ? (
           <PillStrip testId="aircraft-strip">
             {rows.map(({ plane, detail }) => {
@@ -141,9 +146,9 @@ export default function AircraftPill({ onOpen, onAddMine, onAddFavorite, onPick,
             })}
           </PillStrip>
         ) : (
-          <p className={cn("py-1 text-center text-foreground/65", TEXT.note)} role="status">None heard now</p>
+          <StripNote status>None heard now</StripNote>
         )}
-      </PillSection>
+      </StripSection>
     </div>
   );
 }

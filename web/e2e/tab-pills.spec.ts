@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { grabberTo, settle, settled, showTabs, sideDrawer } from "./helpers";
+import { grabberTo, settle, settled, showTabs, sideDrawer, stripShows } from "./helpers";
 
 /**
  * Each tab's pill, the tabs, at the owner's ask ("When no route is entered,
@@ -120,6 +120,50 @@ test("each tab half way shows its own: Airport its Favorites and Nearest, Aircra
   await expect(page.getByTestId("tab-nrst")).toHaveCount(0);
   await tile.click();
   await expect(page).toHaveURL(/[?&]place=KDLH/);
+});
+
+test("each tab's one strip picks its list from the filter at its heading's right, the title opening that list in full", async ({ page }) => {
+  // The owner's ask: "apply the filter to other cards too so for example
+  // saved and recents in fpl can be filtered or favorites and recents in
+  // airport/aircraft".
+  await keep(page, {
+    favoriteAirports: [KDLH],
+    recentAirports: [{ ident: "KMSN", name: "Dane County Regional Airport", municipality: "Madison" }],
+    recentAircraft: [{ hex: "a1c2d3", name: "N200XY", type: "C172" }],
+    recentRoutes: [{ dep: "C81", dest: "KDLH", stops: [], at: Date.UTC(2026, 9, 15, 15) }],
+  });
+  await page.goto("/app/plan");
+  await settle(page);
+  const panel = sideDrawer(page);
+
+  // FPL: Saved first, then the routes planned last.
+  await pickHalf(page, "tab-fpl");
+  await expect(panel.getByTestId("pill-section-saved-more")).toHaveText("Saved");
+  await stripShows(page, "fpl-strip-shows", "fpl-shows-recents");
+  await expect(panel.getByTestId("route-recents-more")).toHaveText("Recents");
+  await expect(panel.getByTestId("route-recent")).toContainText("C81→KDLH");
+
+  // Airport: the Favorites, the airports opened last, the nearest fields.
+  await pickHalf(page, "tab-airport");
+  await expect(panel.getByTestId("pill-section-favorites-more")).toHaveText("Favorites");
+  await stripShows(page, "airport-strip-shows", "airport-shows-recents");
+  await expect(panel.getByTestId("airport-recents-more")).toHaveText("Recents");
+  await expect(panel.getByTestId("airport-recent")).toContainText("KMSN");
+  await panel.getByTestId("airport-recents-more").click();
+  await expect(panel.getByTestId("airport-recents-page")).toBeVisible();
+  await panel.getByTestId("airport-recents-page-back").click();
+  await expect(panel.getByTestId("airport-recent")).toContainText("KMSN");
+
+  // Aircraft: the Favorites, the airplanes opened last, then the questions.
+  await pickHalf(page, "tab-aircraft");
+  await expect(panel.getByTestId("pill-section-question-more")).toHaveText("Favorites");
+  await stripShows(page, "aircraft-question", "question-recents");
+  await expect(panel.getByTestId("aircraft-recents-more")).toHaveText("Recents");
+  await expect(panel.getByTestId("pill-aircraft-recents").getByTestId("aircraft-recent")).toContainText("N200XY");
+  await panel.getByTestId("aircraft-recents-more").click();
+  await expect(panel.getByTestId("aircraft-recents-page")).toBeVisible();
+  await panel.getByTestId("aircraft-recents-page-back").click();
+  await expect(panel.getByTestId("pill-aircraft-recents")).toBeVisible();
 });
 
 test("on a phone, a card opened from another tab has Back at the top left of the tabs' line, and its close puts the sheet down", async ({ page }) => {

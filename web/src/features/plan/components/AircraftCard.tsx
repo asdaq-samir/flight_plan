@@ -7,8 +7,8 @@ import { api } from "../../../lib/api/client";
 import type { AircraftRegistration, TrafficAircraft } from "../../../lib/api/types";
 import { useOwnShip } from "../../../lib/map/ownShip";
 import { usePreferences, type KeptAircraft } from "../../../lib/preferences";
-import { useTabSearch } from "../../../lib/tabSearch";
-import { HomePlane, ListPageHead, PillSection, PillStrip, SmallMark, SmallTile } from "../../../components/Favorites";
+import { pickKeptAircraft, useTabSearch } from "../../../lib/tabSearch";
+import { HomePlane, ListPageHead, PillSection, PillStrip, SmallMark, SmallTile, StripNote } from "../../../components/Favorites";
 import TabPage from "../../../components/TabPage";
 import { ClearList, SwipeToDelete } from "../../../components/SwipeToDelete";
 import AircraftRow from "./AircraftRow";
@@ -84,27 +84,13 @@ export default function AircraftCard({ onPick, onPickHex, strip }: {
   // found, its FAA record, a Favorite, a recent -- is kept as theirs
   // rather than opened, as the airport search's Home is.
   const pickingMine = useTabSearch(s => s.pickingMine);
-  const keepMine = (kept: KeptAircraft) => {
-    usePreferences.getState().setMyAircraft(kept);
-    useTabSearch.setState({ pickingMine: false, aircraft: "" });
-  };
   // The Favorites' Add: the one picked kept as a Favorite, as the airport
   // search's Add keeps a field.
   const pickingFavorite = useTabSearch(s => s.pickingFavorite);
-  const keepFavorite = (kept: KeptAircraft) => {
-    const prefs = usePreferences.getState();
-    if (!prefs.favoriteAircraft.some(a => a.hex === kept.hex)) prefs.toggleFavoriteAircraft(kept);
-    useTabSearch.setState({ pickingFavorite: false, aircraft: "" });
-  };
-  const keep = pickingMine ? keepMine : pickingFavorite ? keepFavorite : null;
-  const pickPlane = (plane: TrafficAircraft) => (keep
-    ? keep({ hex: plane.hex, name: plane.registration ?? plane.callsign ?? plane.hex.toUpperCase(), type: plane.type ?? null })
-    : onPick(plane));
-  const pickKept = (kept: KeptAircraft) => (keep ? keep(kept) : onPickHex(kept.hex));
+  const picking = pickingMine || pickingFavorite;
+  const pickKept = (kept: KeptAircraft) => pickKeptAircraft(kept, onPickHex);
+  const pickPlane = (plane: TrafficAircraft) => (picking ? pickKept(keptPlane(plane)) : onPick(plane));
   const recents = usePreferences(s => s.recentAircraft);
-  const [allRecents, setAllRecents] = useState(false);
-  const removeRecent = usePreferences(s => s.removeRecentAircraft);
-  const clearRecents = usePreferences(s => s.clearRecentAircraft);
   const seen = useTracking(s => s.seen);
   // The airplanes about whose name begins with what is typed: found as it
   // is typed, asking nothing, before adsb.lol's answer for the rest.
@@ -147,30 +133,6 @@ export default function AircraftCard({ onPick, onPickHex, strip }: {
   }, []);
   const from = fix ? { lat: fix.lat, lon: fix.lon } : null;
   const ownFt = fix?.altitudeFt ?? null;
-  // The Recents in full, from their section's title: every one, and
-  // Clear for all of them.
-  const recentRow = (a: KeptAircraft) => (
-    <SwipeToDelete key={a.hex} label={`Remove ${a.name} from Recents`} onDelete={() => removeRecent(a.hex)}>
-      <ListRow
-        media={<Plane className="size-5 text-muted-foreground" />} data-testid="aircraft-recent"
-        title={<span className="font-semibold">{a.name}</span>} description={a.type ?? undefined}
-        chevron onClick={() => pickKept(a)}
-      />
-    </SwipeToDelete>
-  );
-  if (allRecents && !searching) {
-    return (
-      <TabPage testId="aircraft-card">
-        <ListPageHead
-          title="Recents" backLabel="Back to the airplanes" onBack={() => setAllRecents(false)} testId="aircraft-recents-page"
-          action={recents.length > 0 && <ClearList title="Clear the Recents?" description="The airplanes opened last are forgotten in this browser. Favorites stay." onClear={clearRecents} testId="aircraft-recents-clear" />}
-        />
-        {recents.length > 0
-          ? <ListGroup>{recents.map(recentRow)}</ListGroup>
-          : <p className={cn("px-1 text-muted-foreground", TEXT.note)}>None yet: the airplanes opened are kept here.</p>}
-      </TabPage>
-    );
-  }
   return (
     // The Aircraft tab's own page, as Airport's is (TabPage), its sections
     // headed as Airport's are.
@@ -222,21 +184,16 @@ export default function AircraftCard({ onPick, onPickHex, strip }: {
         </p>
       )}
       {/* The pill's own strip, where it was at the pill's size -- its
-          title the menu, the Favorites first -- so the top stays as it
-          was all the way up, at the owner's ask ("I want the favorites
-          filter to stay when it's full"). */}
-      {!searching && strip}
-      {!searching && recents.length > 0 && (
-        // The airplanes opened last as the Favorites' tiles, at the owner's
-        // ask ("Recents should also have symbols instead of a list"); the
-        // title the list, where each is taken off and Clear, as the
-        // airports' Recents are.
-        <PillSection title="Recents" testId="aircraft-recents" onMore={() => setAllRecents(true)}>
-          <PillStrip testId="pill-aircraft-recents">
-            {recents.map(a => <KeptAircraftTile key={a.hex} aircraft={a} onClick={() => pickKept(a)} testId="aircraft-recent" />)}
-          </PillStrip>
+          filter the Favorites, the Recents or a question -- so the top
+          stays as it was all the way up, at the owner's ask ("I want the
+          favorites filter to stay when it's full"). Asked for an airplane
+          to keep, the airplanes opened last in its place to pick it from,
+          as the airport search's Home and Add offer theirs. */}
+      {!searching && (picking ? recents.length > 0 && (
+        <PillSection title="Recents" testId="aircraft-recents">
+          <AircraftRecentTiles onPick={pickKept} />
         </PillSection>
-      )}
+      ) : strip)}
     </TabPage>
   );
 }
@@ -283,4 +240,55 @@ function KeptAircraftTile({ aircraft, onClick, testId }: { aircraft: KeptAircraf
  *  N-number and its model. */
 function keptOf(record: AircraftRegistration): KeptAircraft {
   return { hex: record.mode_s_hex!.toLowerCase(), name: record.n_number, type: record.model ?? null };
+}
+
+/** What is kept of an airplane heard: its address, the name it is kept by
+ *  (its registration first) and its type. */
+function keptPlane(plane: TrafficAircraft): KeptAircraft {
+  return { hex: plane.hex, name: plane.registration ?? plane.callsign ?? plane.hex.toUpperCase(), type: plane.type ?? null };
+}
+
+/** The airplanes opened last as tiles, newest first, as the Favorites' are,
+ *  at the owner's ask ("Recents should also have symbols instead of a
+ *  list"): one of the lists Aircraft's strip shows (AircraftPill), and the
+ *  ones to pick from when the search is asked for one to keep. A word of
+ *  what is kept while there are none. */
+export function AircraftRecentTiles({ onPick }: { onPick: (kept: KeptAircraft) => void }) {
+  const recents = usePreferences(s => s.recentAircraft);
+  if (!recents.length) return <StripNote>None yet: the airplanes opened are kept here.</StripNote>;
+  return (
+    <PillStrip testId="pill-aircraft-recents">
+      {recents.map(a => <KeptAircraftTile key={a.hex} aircraft={a} onClick={() => onPick(a)} testId="aircraft-recent" />)}
+    </PillStrip>
+  );
+}
+
+/** The airplanes' Recents in full, from their title, as the airports' and
+ *  the routes' are: every one, each taken off by a swipe to the left (or a
+ *  long press), and Clear for all of them, asked first. */
+export function AircraftRecentsPage({ onBack, onPick }: { onBack: () => void; onPick: (kept: KeptAircraft) => void }) {
+  const recents = usePreferences(s => s.recentAircraft);
+  const removeRecent = usePreferences(s => s.removeRecentAircraft);
+  const clearRecents = usePreferences(s => s.clearRecentAircraft);
+  return (
+    <TabPage testId="aircraft-recents-list">
+      <ListPageHead
+        title="Recents" backLabel="Back to the airplanes" onBack={onBack} testId="aircraft-recents-page"
+        action={recents.length > 0 && <ClearList title="Clear the Recents?" description="The airplanes opened last are forgotten in this browser. Favorites stay." onClear={clearRecents} testId="aircraft-recents-clear" />}
+      />
+      {recents.length > 0 ? (
+        <ListGroup>
+          {recents.map(a => (
+            <SwipeToDelete key={a.hex} label={`Remove ${a.name} from Recents`} onDelete={() => removeRecent(a.hex)}>
+              <ListRow
+                media={<Plane className="size-5 text-muted-foreground" />} data-testid="aircraft-recent"
+                title={<span className="font-semibold">{a.name}</span>} description={a.type ?? undefined}
+                chevron onClick={() => onPick(a)}
+              />
+            </SwipeToDelete>
+          ))}
+        </ListGroup>
+      ) : <p className={cn("px-1 text-muted-foreground", TEXT.note)}>None yet: the airplanes opened are kept here.</p>}
+    </TabPage>
+  );
 }

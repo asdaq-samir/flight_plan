@@ -1,16 +1,17 @@
 import { test, expect, type Locator, type Page } from "@playwright/test";
-import { grabberTo, openPanel, settle, sideDrawer, airportSearch } from "./helpers";
+import { grabberTo, openPanel, settle, sideDrawer, stripShows, airportSearch } from "./helpers";
 
 /**
  * The Recents taken off one at a time, by a swipe to the left that
  * uncovers a Delete (SwipeToDelete), or all at once by Clear, at the
  * pilot's ask ("I should be able to clear recents or delete individual
  * ones by sliding left") -- the airports' under the search bar, the
- * airplanes' on the Aircraft card and the routes' under FPL's Saved. Each
- * tab shows them as tiles, headed as the Favorites are, the title the
- * way to the rest and Clear, at the owner's asks ("Can we have recents
- * under saved ?", "make saved, favorites and recents into links, when
- * clicked shows what See All does").
+ * airplanes' on the Aircraft card and the routes' in FPL. Each tab's strip
+ * shows them as tiles from its filter, headed as the Favorites are, the
+ * title the way to the rest and Clear, at the owner's asks ("Can we have
+ * recents under saved ?", "make saved, favorites and recents into links,
+ * when clicked shows what See All does", "apply the filter to other cards
+ * too").
  */
 
 const AIRPORTS = [
@@ -39,10 +40,12 @@ async function swipeLeft(row: Locator) {
 }
 
 /** Airport's Recents in full, all the way up: the list their title
- *  opens, where they are taken off (tiles under the search). */
+ *  opens, where they are taken off (tiles under the search, from the
+ *  strip's filter). */
 async function airportRecentsList(page: Page) {
   await airportSearch(page);
   await grabberTo(page, "full");
+  await stripShows(page, "airport-strip-shows", "airport-shows-recents");
   await sideDrawer(page).getByTestId("airport-recents-more").click();
   await expect(sideDrawer(page).getByTestId("airport-recents-page")).toBeVisible();
 }
@@ -115,9 +118,10 @@ test("the airports' Recents are tiles with their chart's symbols, newest first, 
   await airportSearch(page);
   await grabberTo(page, "full");
   const panel = sideDrawer(page);
-  // As the Favorites' tiles: each its chart symbol and its ident, its town
-  // under it with own ship off, at the owner's ask ("Recents should also
-  // have symbols instead of a list").
+  // As the Favorites' tiles, from the strip's filter: each its chart
+  // symbol and its ident, its town under it with own ship off, at the
+  // owner's ask ("Recents should also have symbols instead of a list").
+  await stripShows(page, "airport-strip-shows", "airport-shows-recents");
   const section = panel.getByTestId("airport-recents");
   const tiles = section.getByTestId("airport-recent");
   await expect(tiles).toHaveCount(5);
@@ -133,6 +137,7 @@ test("the airports' Recents are tiles with their chart's symbols, newest first, 
   await grabberTo(page, "full");
   // The title, in the tint, as the Favorites' is: the list, where they are
   // taken off.
+  await stripShows(page, "airport-strip-shows", "airport-shows-recents");
   const all = panel.getByTestId("airport-recents-more");
   await expect(all).toHaveText("Recents");
   await all.click();
@@ -147,25 +152,28 @@ test("the airplanes' Recents: a long press or a right click offers the Delete to
   await page.goto("/app/plan?aircraft=1");
   await settle(page);
   await grabberTo(page, "full");
+  const panel = sideDrawer(page);
   const card = page.getByTestId("aircraft-card");
-  const recents = card.getByTestId("aircraft-recent");
-  // Tiles as the Favorites' are, the list in full their title.
+  // Tiles as the Favorites' are, from the strip's filter, the list in full
+  // their title.
+  await stripShows(page, "aircraft-question", "question-recents");
   await expect(card.getByTestId("pill-aircraft-recents").getByTestId("aircraft-recent")).toHaveCount(2);
   await card.getByTestId("aircraft-recents-more").click();
-  await expect(card.getByTestId("aircraft-recents-page")).toBeVisible();
+  await expect(panel.getByTestId("aircraft-recents-page")).toBeVisible();
+  const recents = panel.getByTestId("aircraft-recents-list").getByTestId("aircraft-recent");
   await expect(recents).toHaveCount(2);
 
-  await card.getByTestId("swipe-row").first().click({ button: "right" });
+  await panel.getByTestId("swipe-row").first().click({ button: "right" });
   await page.getByTestId("swipe-menu-delete").click();
   await expect(recents).toHaveCount(1);
   await expect(recents.first()).toContainText("N200XY");
 
-  await card.getByTestId("aircraft-recents-clear").click();
+  await panel.getByTestId("aircraft-recents-clear").click();
   await page.getByRole("button", { name: "Clear", exact: true }).last().click();
   await expect(recents).toHaveCount(0);
 });
 
-test("FPL's Recents under Saved: the latest routes planned as tiles, their title the rest, a tap plans one again and it comes first", async ({ page }) => {
+test("FPL's strip shows Saved or, from its filter, the latest routes planned as tiles, their title the rest, a tap plans one again and it comes first", async ({ page }) => {
   const day = (d: number) => Date.UTC(2026, 9, d, 15);
   await seed(page, AIRPORTS, [
     { dep: "C81", dest: "KDLH", stops: [], at: day(15) },
@@ -177,9 +185,11 @@ test("FPL's Recents under Saved: the latest routes planned as tiles, their title
   await settle(page);
   await grabberTo(page, "half");
   const panel = sideDrawer(page);
-  // Under Saved, both headed as Airport's Favorites are: each title the
-  // way to the list in full, in the tint.
+  // Saved first; the Recents from the strip's filter, as every tab's lists
+  // are: each title the way to the list in full, in the tint.
   await expect(panel.getByTestId("pill-section-saved-more")).toHaveText("Saved");
+  await expect(panel.getByTestId("route-recents")).toHaveCount(0);
+  await stripShows(page, "fpl-strip-shows", "fpl-shows-recents");
   await expect(panel.getByTestId("route-recents-more")).toHaveText("Recents");
   // Tiles, as Saved's are: the route and the day, its stops said to a
   // screen reader.
@@ -203,13 +213,15 @@ test("FPL's Recents under Saved: the latest routes planned as tiles, their title
   await panel.getByTestId("route-box-clear").click();
   await expect(panel.getByTestId("route-recent").first()).toContainText("C81→KMSN");
 
-  // Clear, asked first, from the Recents in full: none under Saved then.
+  // Clear, asked first, from the Recents in full: the strip says none yet
+  // then, and Saved is back from its filter.
   await panel.getByTestId("route-recents-more").click();
   await panel.getByTestId("route-recents-clear").click();
   await page.getByRole("button", { name: "Clear", exact: true }).last().click();
   await expect(panel.getByTestId("route-recent")).toHaveCount(0);
   await panel.getByTestId("route-recents-page-back").click();
-  await expect(panel.getByTestId("route-recents")).toHaveCount(0);
+  await expect(panel.getByTestId("route-recents")).toContainText("None yet");
+  await stripShows(page, "fpl-strip-shows", "fpl-shows-saved");
   await expect(panel.getByTestId("pill-section-saved")).toBeVisible();
 });
 
