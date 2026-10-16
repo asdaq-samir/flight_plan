@@ -134,3 +134,72 @@ test("a pinch is left where the fingers leave it, as ForeFlight's is, between th
   // Left between levels: no level of the chart at its own size.
   await expect.poll(async () => (await scales()).some(s => Math.abs(s - 1) < 0.001)).toBe(false);
 });
+
+test("a pinch draws the course line again at its own width as it zooms, not scaled up and settling back", async ({ page }) => {
+  // The owner's notice (2026-10-16): "The course line seems to get thicker
+  // with the zoom and then settles back". Leaflet's SVG renderer scaled
+  // what it had drawn, strokes and all, until the fingers lifted.
+  await openOnC81(page);
+  await page.goto("/app/plan?dep=C81&dest=KDLH");
+  await settle(page);
+  const core = page.locator('.leaflet-overlay-pane path[stroke="#e600e6"]');
+  await expect(core).toBeAttached({ timeout: slow(30_000) });
+  await mapStill(page);
+  // How much the renderer's <svg> is scaled, and the core's own width.
+  const scale = () => page.evaluate(() => {
+    const svg = document.querySelector('.leaflet-overlay-pane path[stroke="#e600e6"]')!.closest("svg")!;
+    return new DOMMatrixReadOnly(getComputedStyle(svg).transform).a;
+  });
+  const at = await chartMiddle(page);
+  const touch = await fingers(page);
+  // From 60 to 180 points apart: three times as close, a level and a half in.
+  await touch("touchStart", [[at.x - 30, at.y], [at.x + 30, at.y]]);
+  const seen: number[] = [];
+  for (let i = 1; i <= 20; i++) {
+    await touch("touchMove", [[at.x - 30 - i * 3, at.y], [at.x + 30 + i * 3, at.y]]);
+    await page.waitForTimeout(30);
+    seen.push(await scale());
+  }
+  // Still held: the line drawn again as the fingers zoom it, scaled a
+  // little at most between two draws (PINCH_REDRAW_MS) -- where it was
+  // scaled up to three times until they lifted.
+  expect(Math.max(...seen), `the renderer's scale under the pinch: ${seen.map(s => s.toFixed(2)).join(" ")}`).toBeLessThan(1.2);
+  await expect(core).toHaveAttribute("stroke-width", "2.5");
+  await touch("touchEnd", []);
+});
+
+test("a pinch out fills the chart's edges with tiles before the fingers lift, under half a level", async ({ page }) => {
+  // The owner's notice (2026-10-16): "map is updating fine while panning
+  // but not when zooming in or out". Leaflet asks for a pinch's tiles only
+  // as it crosses half a level; the chart's layers ask as the map moves
+  // (LIVE_TILES), a pinch's frames among them, so a pinch out short of
+  // that fills the edges it bares as it goes. Kept so.
+  await openOnC81(page);
+  await page.route(url => url.pathname.startsWith("/api/planner/chart-tile/"), route => route.fulfill({ body: PIXEL, contentType: "image/png" }));
+  await page.goto("/app/plan");
+  await settle(page);
+  await mapStill(page);
+  // How far the chart's tiles reach past the map's edges, points (bare where negative).
+  const reach = () => page.evaluate(() => {
+    const map = document.querySelector(".leaflet-container")!.getBoundingClientRect();
+    const tiles = [...document.querySelectorAll(".leaflet-tile-pane img.leaflet-tile-loaded")].map(t => t.getBoundingClientRect());
+    return Math.min(
+      map.left - Math.min(...tiles.map(t => t.left)), map.top - Math.min(...tiles.map(t => t.top)),
+      Math.max(...tiles.map(t => t.right)) - map.right, Math.max(...tiles.map(t => t.bottom)) - map.bottom,
+    );
+  });
+  await expect.poll(reach, { timeout: slow(15_000) }).toBeGreaterThanOrEqual(0);
+  // Two fingers near the top, from 180 to 130 points apart: 0.47 of a level
+  // out, its foot drawn out past where the tiles reached.
+  const map = (await page.locator(".leaflet-container").boundingBox())!;
+  const at = { x: map.x + map.width / 2, y: map.y + 120 };
+  const touch = await fingers(page);
+  await touch("touchStart", [[at.x - 90, at.y], [at.x + 90, at.y]]);
+  for (let i = 1; i <= 25; i++) {
+    await touch("touchMove", [[at.x - 90 + i, at.y], [at.x + 90 - i, at.y]]);
+    await page.waitForTimeout(30);
+  }
+  // Still held: the edges filled with the level's own tiles.
+  await expect.poll(reach, { timeout: slow(5_000) }).toBeGreaterThanOrEqual(0);
+  await touch("touchEnd", []);
+});

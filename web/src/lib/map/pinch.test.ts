@@ -18,6 +18,32 @@ describe("pinch patch", () => {
     expect(map._getNewPixelOrigin).toBeTypeOf("function");
     const touchZoom = (L.Map as unknown as { TouchZoom: { prototype: Record<string, unknown> } }).TouchZoom.prototype;
     expect(touchZoom._onTouchEnd).toBeTypeOf("function");
+    const svg = L.SVG.prototype as unknown as Record<string, unknown>;
+    for (const name of ["_onZoom", "_update", "_updatePaths", "_updateTransform"]) expect(svg[name]).toBeTypeOf("function");
+    const path = L.Polyline.prototype as unknown as Record<string, unknown>;
+    expect(path._project).toBeTypeOf("function");
+    expect(path._update).toBeTypeOf("function");
+  });
+
+  it("draws a line again at the zoom a pinch has reached, frame by frame, where it was only scaled", () => {
+    const container = document.createElement("div");
+    Object.defineProperty(container, "clientWidth", { value: 400 });
+    Object.defineProperty(container, "clientHeight", { value: 800 });
+    // Fractional zooms, as a pinch leaves the map (pinch.ts's TouchZoom).
+    const map = L.map(container, { zoomAnimation: false, fadeAnimation: false, zoomSnap: 0 }).setView([42.3, -88.0], 9);
+    const line = L.polyline([[42.2, -88.2], [42.5, -87.8]]).addTo(map);
+    const d = () => (line.getElement() as SVGPathElement).getAttribute("d");
+    const before = d();
+    const moving = map as unknown as { _move: (center: L.LatLng, zoom: number, data: object) => void };
+    // A pinch's frame: the zoom a level and a half in, the fingers still
+    // down, past the time between two draws (PINCH_REDRAW_MS).
+    moving._move(map.getCenter(), 10.5, { pinch: true });
+    expect(d()).not.toBe(before);
+    // Drawn where the line's ends are at that zoom, both well inside the
+    // view, so none of it is clipped.
+    const [a, b] = [map.latLngToLayerPoint([42.2, -88.2]), map.latLngToLayerPoint([42.5, -87.8])];
+    expect(d()).toBe(`M${a.x} ${a.y}L${b.x} ${b.y}`);
+    map.remove();
   });
 
   it("puts a marker at its exact place while a zoom goes frame by frame, and on a whole pixel otherwise", () => {

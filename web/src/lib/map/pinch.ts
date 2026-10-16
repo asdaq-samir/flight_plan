@@ -56,6 +56,7 @@ type Grid = L.GridLayer & {
   _setZoomTransform: (level: Level, center: L.LatLng, zoom: number) => void;
   _resetView: (e?: Smooth) => void;
 };
+
 const grid = L.GridLayer.prototype as unknown as Grid;
 const roundedLevel = grid._setZoomTransform;
 const resetView = grid._resetView;
@@ -74,6 +75,63 @@ L.GridLayer.include({
     if (!map || !(this._smooth || map.touchZoom?._zooming) || !L.Browser.any3d) return roundedLevel.call(this, level, center, zoom);
     const scale = map.getZoomScale(zoom, level.zoom);
     L.DomUtil.setTransform(level.el, level.origin.multiplyBy(scale).subtract(map._getNewPixelOrigin(center, zoom)), scale);
+  },
+});
+
+/**
+ * The lines and shapes drawn on the chart -- the course, the airspace,
+ * TFRs, a pattern's and a procedure's lines, traffic's paths -- drawn
+ * again at the zoom a pinch or a flight in has reached, each frame, at
+ * their own widths. Leaflet's SVG renderer only scales what it drew last
+ * as the map zooms (Renderer._onZoom, a CSS scale on its <svg>), strokes
+ * and all, and draws again once the map rests: the course line grew
+ * thicker under the fingers and settled back as they lifted (the owner's
+ * notice, 2026-10-16). `vector-effect: non-scaling-stroke` does not undo a
+ * CSS scale on the <svg> itself: a 2 px stroke under scale(3) measured
+ * 6 px in Chromium and WebKit alike. So the view box is set for the zoom
+ * now and each path projected and drawn again, as Leaflet does at a
+ * zoom's end (Renderer._reset, less its second draw of every path) --
+ * every PINCH_REDRAW_MS, Leaflet's scale between: with the Class B and
+ * the TFRs drawn (78 paths), a draw every frame took a pinch from 60 to
+ * 30 frames a second at a quarter of this Mac's speed (CPU 4x), where
+ * every 50 ms it costs a frame in three and a line grows at most a tenth
+ * between two.
+ */
+export const PINCH_REDRAW_MS = 50;
+type Redrawn = { _project: () => void; _update: () => void };
+type Svg = L.SVG & {
+  _map?: ZoomingMap;
+  _layers: Record<string, Redrawn>;
+  _center: L.LatLng;
+  _zoom: number;
+  /** When it last drew its paths again under a pinch or a flight, ms. */
+  _redrawnAt?: number;
+  _update: () => void;
+  _updatePaths: () => void;
+  _updateTransform: (center: L.LatLng, zoom: number) => void;
+  _onZoom: (e?: Smooth) => void;
+};
+const svg = L.SVG.prototype as unknown as Svg;
+const scaledOnZoom = svg._onZoom;
+L.SVG.include({
+  _onZoom(this: Svg, e?: Smooth) {
+    const now = performance.now();
+    if (!smooth(this._map, e) || now - (this._redrawnAt ?? -Infinity) < PINCH_REDRAW_MS) return scaledOnZoom.call(this, e);
+    this._redrawnAt = now;
+    // The view box at the zoom now, its paths not drawn twice: the
+    // renderer's own 'update' draws each from where it was projected.
+    this.off("update", this._updatePaths, this);
+    try {
+      this._update();
+    } finally {
+      this.on("update", this._updatePaths, this);
+    }
+    this._updateTransform(this._center, this._zoom);
+    for (const id in this._layers) {
+      const path = this._layers[id]!;
+      path._project();
+      path._update();
+    }
   },
 });
 
