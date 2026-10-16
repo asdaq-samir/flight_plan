@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { closeCard, grabberTo, settle, showTabs, slow } from "./helpers";
+import { closeCard, grabberTo, settle, showTabs, sideDrawer, slow } from "./helpers";
 
 /**
  * Tracking an airplane, as FlightAware and ForeFlight do, at the pilot's
@@ -427,4 +427,61 @@ test("an airplane opened is in the Aircraft card's Recents, and one starred on i
   await list.getByTestId("pill-aircraft-favorite").click();
   await expect(page).toHaveURL(/[?&]flight=a0b7d8/);
   await expect(page.getByTestId("flight-card").getByTestId("flight-favorite")).toHaveAttribute("aria-pressed", "true");
+});
+
+test("the card's sketch of where an airplane has flown is in its heights' colours, as the map's path, with the fields it left and is bound for", async ({ page }) => {
+  // The owner's ask: "Can the aircraft trace in the thumbnail have the
+  // origin/destination airport? And the trace color green just like on
+  // the map?"
+  await sky(page);
+  const fields: Record<string, { lat: number; lon: number; name: string }> = {
+    TJSJ: { lat: 18.4394, lon: -66.0018, name: "Luis Munoz Marin International Airport" },
+    KORD: { lat: 41.9786, lon: -87.9048, name: "Chicago O'Hare International Airport" },
+  };
+  await page.route(url => /\/api\/planner\/airport\/(TJSJ|KORD)$/.test(url.pathname), route => {
+    const ident = route.request().url().split("/").pop()!;
+    return route.fulfill({ json: { ident, ...fields[ident] } });
+  });
+  await page.goto("/app/plan?flight=a0b7d8");
+  await settle(page);
+  const sketch = page.getByTestId("flight-card").getByTestId("trail-sketch");
+  await expect(sketch).toBeVisible({ timeout: slow(15_000) });
+  // The fields, each its dot and its ident.
+  await expect(sketch.locator('[data-sketch-field="TJSJ"]')).toHaveText("TJSJ");
+  await expect(sketch.locator('[data-sketch-field="KORD"]')).toHaveText("KORD");
+  // Its trace in the colours of its heights (heightColour), 7,000 to
+  // 12,000 ft here, not the tint it was.
+  const colours = await sketch.locator("[data-sketch-run]").evaluateAll(runs => runs.map(r => r.getAttribute("stroke")));
+  expect(colours.length).toBeGreaterThan(0);
+  for (const colour of colours) expect(colour).toMatch(/^hsl\(\d+ 85% 45%\)$/);
+});
+
+test("an airplane's card is laid out as an airport's: its actions and its tabs where the airport card's are, and its name set to fit its column", async ({ page }) => {
+  // The owner's ask: "Do airport and aircraft cards have same layouts?" --
+  // the airplane's actions sat 6 points lower, its tabs 12 further under
+  // them, and its name was cut where its thumbnail began.
+  await sky(page, { ...DETAIL, description: "PIPER PA-28-140/150/160/180 CHEROKEE" });
+  const panel = sideDrawer(page);
+  // How far down the half sheet the card's actions and its tabs start.
+  const places = async (card: string, action: string) => {
+    await grabberTo(page, "half");
+    const sheet = (await panel.boundingBox())!.y;
+    const at = async (testId: string) => (await page.getByTestId(testId).first().boundingBox())!.y - sheet;
+    const tabs = (await page.getByTestId(card).getByRole("tablist").first().boundingBox())!.y - sheet;
+    return { actions: await at(action), tabs };
+  };
+  await page.goto("/app/plan?place=C81");
+  await settle(page);
+  await expect(page.getByTestId("fly-here")).toBeEnabled({ timeout: slow(15_000) });
+  const airport = await places("place-card", "fly-here");
+  await page.goto("/app/plan?flight=a0b7d8");
+  await settle(page);
+  await expect(page.getByTestId("flight-follow")).toBeVisible({ timeout: slow(15_000) });
+  const airplane = await places("flight-card", "flight-follow");
+  expect(Math.abs(airplane.actions - airport.actions), `actions ${airplane.actions} and ${airport.actions}`).toBeLessThan(1.5);
+  expect(Math.abs(airplane.tabs - airport.tabs), `tabs ${airplane.tabs} and ${airport.tabs}`).toBeLessThan(1.5);
+  // The long model whole, set smaller to fit, not cut off.
+  const name = page.getByTestId("flight-name");
+  await expect(name).toContainText("Cherokee");
+  expect(await name.evaluate(el => el.scrollHeight <= el.clientHeight + 1 && el.scrollWidth <= el.clientWidth + 1)).toBe(true);
 });

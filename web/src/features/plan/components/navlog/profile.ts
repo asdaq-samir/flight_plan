@@ -83,6 +83,35 @@ export function ceilings(airspace: { class: string; ceiling_ft?: number | null }
   return airspace.filter(a => ["B", "C", "D"].includes(a.class) && a.ceiling_ft != null).map(a => a.ceiling_ft!);
 }
 
+/** The sectional's airspace colours: Class B solid blue, C magenta, D
+ *  blue dashed (FAA Aeronautical Chart User's Guide, Airspace); each name
+ *  in its colour as text, lightened on a dark card (index.css). */
+export const AIRSPACE: Record<string, { stroke: string; text: string; dashed?: boolean }> = {
+  B: { stroke: "#2465b8", text: "var(--airspace-blue-text)" },
+  C: { stroke: "#c0309f", text: "var(--airspace-magenta-text)" },
+  D: { stroke: "#2465b8", text: "var(--airspace-blue-text)", dashed: true },
+};
+
+/** Each Class B, C and D's widest piece along the route, by the name it
+ *  is labelled with -- its airport's ident, else its class: where the
+ *  name goes, once. */
+export function namedPieces<A extends { class: string; ident?: string; from_nm: number; to_nm: number }>(airspace: A[]): Map<string, A> {
+  const widest = new Map<string, A>();
+  for (const a of airspace) {
+    if (!AIRSPACE[a.class]) continue;
+    const label = a.ident || `Class ${a.class}`;
+    const held = widest.get(label);
+    if (!held || a.to_nm - a.from_nm > held.to_nm - held.from_nm) widest.set(label, a);
+  }
+  return widest;
+}
+
+/** Whether an airspace's piece is wide enough on a side view of the
+ *  route for its name: eighteen of the side view's 340 (MiniProfile). */
+export function nameFits(a: { from_nm: number; to_nm: number }, lengthNm: number): boolean {
+  return lengthNm > 0 && (a.to_nm - a.from_nm) / lengthNm > 18 / 340;
+}
+
 /** An airspace's ceiling over its floor as the sectional prints them: in
  *  hundreds of feet MSL, the surface SFC (FAA Aeronautical Chart User's
  *  Guide, Airspace; vfr.airspace keeps an SFC floor as 0 MSL). */

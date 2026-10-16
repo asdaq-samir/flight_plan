@@ -1,11 +1,12 @@
 import { memo, useMemo } from "react";
-import { Area, ComposedChart, Line, ReferenceLine, XAxis, YAxis } from "recharts";
+import { Area, ComposedChart, Line, ReferenceArea, ReferenceLine, XAxis, YAxis } from "recharts";
 import { ChartContainer, type ChartConfig } from "../../../components/ui/chart";
-import type { PastFlightPoint } from "../../../lib/api/types";
+import type { PastFlightPoint, RouteProfile } from "../../../lib/api/types";
 import { clockTime } from "../../../lib/clock";
 import { grouped } from "../../../lib/units";
 import { when } from "./pastFlightFormat";
 import { TRACES } from "./flightTraces";
+import { AIRSPACE, ceilingOverFloor, ceilings, nameFits, namedPieces } from "./navlog/profile";
 
 // Green height and amber speed (flightTraces): the theme's chart greys
 // read as one line.
@@ -22,7 +23,13 @@ const chartConfig = {
  *  traces said over it instead; room over the traces at the top; and
  *  across, the distance flown, not the time ("x axis can be just
  *  distance"), its mark where the moment is along the course. */
-const FlightChart = memo(function FlightChart({ points, at, alongNm }: { points: PastFlightPoint[]; at: number | null; alongNm?: number[] }) {
+const FlightChart = memo(function FlightChart({ points, at, alongNm, airspace = null }: {
+  points: PastFlightPoint[];
+  at: number | null;
+  alongNm?: number[];
+  /** The route from the side (vfr.profile), for a dry run's airspace. */
+  airspace?: RouteProfile | null;
+}) {
   const data = useMemo(() => points.map((p, i) => ({ t: p.t, nm: alongNm?.[i] ?? null, alt: p.alt_ft ?? 0, kt: p.gs_kt ?? null })), [points, alongNm]);
   const plain = !!alongNm;
   // The moment's distance along the course, between the points either side.
@@ -41,6 +48,25 @@ const FlightChart = memo(function FlightChart({ points, at, alongNm }: { points:
   // 108 kt drew both as one line along the top).
   const headroom = (max: number) => Math.ceil(max * 1.25);
   const lowerHalf = (max: number) => Math.ceil(max * 2.2);
+  // The Class B, C and D the course passes through, floor to ceiling
+  // where the run crosses them, as the side view draws them (MiniProfile),
+  // at the owner's ask ("Also draw the airspace on the dry run as well"):
+  // the profile's distances, along the straight route, laid onto the
+  // run's, as the side view lays the plan's onto the route's; the chart
+  // tall enough for their ceilings, as the side view's is.
+  const start = alongNm?.[0] ?? 0, runNm = (alongNm?.at(-1) ?? 0) - start;
+  const route = plain && airspace && airspace.length_nm > 0 ? airspace : null;
+  const pieces = route ? route.airspace.filter(a => AIRSPACE[a.class]) : [];
+  const k = route ? runNm / route.length_nm : 1;
+  const named = new Set([...namedPieces(pieces).values()].filter(a => nameFits(a, route?.length_nm ?? 0)));
+  const tops = ceilings(pieces);
+  const airspaceTop = tops.length ? Math.ceil((Math.max(...tops) + 300) / 500) * 500 : 0;
+  // A name at the run's ends kept inside the chart: set from the box's
+  // edge there, not its middle.
+  const placed = (a: (typeof pieces)[number]) => {
+    const middle = runNm > 0 ? ((a.from_nm + a.to_nm) / 2) * k / runNm : 0.5;
+    return middle < 0.2 ? "insideTopLeft" : middle > 0.8 ? "insideTopRight" : "insideTop";
+  };
   return (
     <ChartContainer config={chartConfig} className="aspect-auto h-full w-full">
       <ComposedChart data={data} margin={{ left: plain ? 12 : 0, right: plain ? 12 : 0, top: 4, bottom: 0 }}>
@@ -51,8 +77,26 @@ const FlightChart = memo(function FlightChart({ points, at, alongNm }: { points:
           <XAxis dataKey="t" type="number" domain={["dataMin", "dataMax"]} tickLine={false} axisLine={false} minTickGap={32}
             tickFormatter={(t: number) => clockTime(when(t))} />
         )}
-        <YAxis yAxisId="alt" hide={plain} domain={plain ? [0, headroom] : undefined} tickLine={false} axisLine={false} width={44} tickFormatter={(v: number) => `${grouped(v)}`} />
+        <YAxis
+          yAxisId="alt" hide={plain} domain={plain ? [0, (max: number) => Math.max(headroom(max), airspaceTop)] : undefined}
+          tickLine={false} axisLine={false} width={44} tickFormatter={(v: number) => `${grouped(v)}`}
+        />
         <YAxis yAxisId="kt" hide={plain} domain={plain ? [0, lowerHalf] : undefined} orientation="right" tickLine={false} axisLine={false} width={32} />
+        {/* Under the traces, each name once, over its widest piece, as the
+            side view's: its airport's ident with its ceiling over its floor. */}
+        {pieces.map((a, i) => {
+          const look = AIRSPACE[a.class]!;
+          return (
+            <ReferenceArea
+              key={i} yAxisId="alt" x1={start + a.from_nm * k} x2={start + a.to_nm * k} y1={a.floor_ft} y2={a.ceiling_ft ?? undefined}
+              stroke={look.stroke} strokeDasharray={look.dashed ? "5 4" : undefined} strokeOpacity={0.8} fill={look.stroke} fillOpacity={0.08}
+              ifOverflow="hidden"
+              label={named.has(a) ? {
+                value: `${a.ident || `Class ${a.class}`} ${ceilingOverFloor(a)}`.trim(), position: placed(a), fontSize: 11, fontWeight: 600, fill: look.text,
+              } : undefined}
+            />
+          );
+        })}
         <Area yAxisId="alt" dataKey="alt" type="monotone" stroke="var(--color-alt)" fill="var(--color-alt)" fillOpacity={0.15}
           strokeWidth={2} isAnimationActive={false} dot={false} />
         <Line yAxisId="kt" dataKey="kt" type="monotone" stroke="var(--color-kt)" strokeWidth={1.5} dot={false} isAnimationActive={false} connectNulls />

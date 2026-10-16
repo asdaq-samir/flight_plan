@@ -284,8 +284,20 @@ export default function TabBar<T extends string>({ tabs, tab, over, title, onPic
       </nav>
     );
   }
+  // The tab up in a capsule of its own, as iOS 26's tab bar draws it, at
+  // the owner's ask ("Can we have a selection bubble like target tabs does
+  // at the bottom"): a little in from its quarter's sides, sliding to the
+  // tab picked. Under the tabs, which take the taps.
+  const upAt = all.findIndex(t => t.value === up);
   return (
-    <nav ref={bar} aria-label="Tabs" className={cn("flex h-full w-full items-stretch print:hidden", className)} data-testid="tab-bar">
+    <nav ref={bar} aria-label="Tabs" className={cn("relative flex h-full w-full items-stretch print:hidden", className)} data-testid="tab-bar">
+      {upAt >= 0 && (
+        <span
+          aria-hidden="true" data-testid="tab-bubble"
+          className="pointer-events-none absolute inset-y-0.5 rounded-full bg-foreground/[0.07] transition-[left] duration-300 ease-out dark:bg-foreground/[0.12]"
+          style={{ left: `calc(${upAt} * 100% / ${all.length} + 4px)`, width: `calc(100% / ${all.length} - 8px)` }}
+        />
+      )}
       {all.map(({ value, label, icon: Icon }) => {
         const current = value === up;
         const mark = value === "setup" ? undefined : marks?.[value as T];
@@ -318,7 +330,8 @@ export default function TabBar<T extends string>({ tabs, tab, over, title, onPic
             // Its mark said to a reader, after its name.
             aria-label={mark ? `${label}, ${mark === "stop" ? "warning" : "caution"}` : undefined}
             className={cn(
-              "flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              // Over the bubble (positioned, so drawn after it).
+              "relative flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring",
               // The others a grey that reads on the glass over any chart
               // (WCAG's 4.5:1 at the words' 11 points), where the muted
               // one fell to 4.35 there.

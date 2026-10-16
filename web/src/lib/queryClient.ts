@@ -148,6 +148,15 @@ export const checkpointsQuery = (dep: string, dest: string, stops: string[] = []
   queryFn: ({ signal }) => api.checkpoints(dep, dest, stops, signal), staleTime: Infinity,
 });
 
+/** The route from the side -- the ground under it and the Class B, C and
+ *  D it passes through -- for FPL's side view, the nav log's Profile and a
+ *  dry run's chart alike, one answer for all three (its key). Quiet: each
+ *  draws the route without it where it fails. */
+export const routeProfileQuery = (dep: string, dest: string, stops: string[] = []) => queryOptions({
+  queryKey: ["route-profile", dep, ...stops, dest],
+  queryFn: () => api.routeProfile(dep, dest, stops), staleTime: Infinity, meta: { silent: true },
+});
+
 /** The Class B airports and their weather. The airspace never moves and
  *  the planner holds the weather for minutes, so refetching per pan
  *  would ask the same cache the same question; and quiet, because the

@@ -4,16 +4,7 @@ import { ChartContainer, type ChartConfig } from "../../../../components/ui/char
 import ChartTick from "../../../../components/chartTick";
 import type { RouteProfile } from "../../../../lib/api/types";
 import { altFt } from "../../../../lib/units";
-import { ceilingOverFloor, ceilings, type planProfile } from "./profile";
-
-/** The sectional's airspace colours: Class B solid blue, C magenta, D
- *  blue dashed. */
-// Each name in its colour as text, lightened on a dark card (index.css).
-const AIRSPACE: Record<string, { stroke: string; text: string; dash?: string }> = {
-  B: { stroke: "#2465b8", text: "var(--airspace-blue-text)" },
-  C: { stroke: "#c0309f", text: "var(--airspace-magenta-text)" },
-  D: { stroke: "#2465b8", text: "var(--airspace-blue-text)", dash: "5 4" },
-};
+import { AIRSPACE, ceilingOverFloor, ceilings, type planProfile } from "./profile";
 
 const config = {
   ground: { label: "Ground", color: "#8b6f47" },
@@ -68,7 +59,7 @@ export default memo(function ProfileChart({ profile, plan }: { profile: RoutePro
           return (
             <ReferenceArea
               key={i} x1={a.from_nm} x2={a.to_nm} y1={a.floor_ft} y2={Math.min(a.ceiling_ft ?? top, top)}
-              stroke={look.stroke} strokeDasharray={look.dash} strokeOpacity={0.8} fill={look.stroke} fillOpacity={0.08}
+              stroke={look.stroke} strokeDasharray={look.dashed ? "5 4" : undefined} strokeOpacity={0.8} fill={look.stroke} fillOpacity={0.08}
               ifOverflow="hidden"
               label={widest ? { value: `${label} ${ceilingOverFloor(a)}`.trim(), position: "insideTop", fontSize: 11, fontWeight: 600, fill: look.text } : undefined}
             />

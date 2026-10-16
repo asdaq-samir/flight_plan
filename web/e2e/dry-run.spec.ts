@@ -37,6 +37,35 @@ test("the dry run flies own ship along the route, and gives it back as it was", 
   expect(kept.trail).toBeNull();
 });
 
+test("the dry run's chart draws the airspace the course passes through, named as the side view names it", async ({ page }) => {
+  // The owner's ask: "Also draw the airspace on the dry run as well". Out
+  // of C81, under Chicago's Class B, to Madison's Class C.
+  await page.goto("/app/plan?dep=C81&dest=KMSN");
+  await settle(page);
+  await openPanel(page);
+  const side = sideDrawer(page).getByTestId("mini-profile-airspace");
+  await expect(side.first()).toBeVisible({ timeout: slow(60_000) });
+  const names = (await side.allTextContents()).map(t => t.trim()).sort();
+  expect(names.some(n => n.startsWith("KMSN "))).toBe(true);
+
+  await sideDrawer(page).getByTestId("dry-run-start").click();
+  const run = sideDrawer(page).getByTestId("dry-run");
+  // Each piece drawn, and each name once, as the side view had them (the
+  // chart's only labels: recharts draws them in a layer of their own).
+  await expect.poll(() => run.locator(".recharts-reference-area").count(), { timeout: slow(10_000) }).toBeGreaterThanOrEqual(names.length);
+  const drawn = async () => (await run.locator(".recharts-label").allTextContents()).map(t => t.trim()).sort();
+  await expect.poll(drawn).toEqual(names);
+  // Inside the chart, its ends' names too.
+  const chart = (await run.locator(".recharts-surface").boundingBox())!;
+  for (const box of await run.locator(".recharts-label").evaluateAll(els => els.map(el => {
+    const r = el.getBoundingClientRect();
+    return { left: r.left, right: r.right };
+  }))) {
+    expect(box.left).toBeGreaterThanOrEqual(chart.x - 1);
+    expect(box.right).toBeLessThanOrEqual(chart.x + chart.width + 1);
+  }
+});
+
 /** Own ship's marker, on screen. */
 async function shipAt(page: Page) {
   const box = (await page.locator(".leaflet-marker-icon").filter({ has: page.locator('[data-own-ship="on"]') }).last().boundingBox())!;

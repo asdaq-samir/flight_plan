@@ -1,6 +1,7 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { cn } from "cn";
 import CloseButton from "./CloseButton";
+import { FitText } from "./FitText";
 import { holdOpenCard } from "../lib/openCards";
 import { TEXT } from "../lib/text";
 
@@ -73,6 +74,58 @@ export function CardHead({ name, line, nameTestId, lineClassName, lineTestId, on
       </div>
       {children}
       <CardClose onClose={onClose} testId={closeTestId} className="-mr-1" />
+    </div>
+  );
+}
+
+/**
+ * A card's top, the airport card's (PlaceCard), which the airplane's
+ * (FlightCard) is laid out as too, at the owner's ask ("Do airport and
+ * aircraft cards have same layouts?"; the airplane's buttons sat 6 points
+ * lower and its tabs 12 further under them, and its name was cut where its
+ * thumbnail began): three columns -- the name, the lines under it, a
+ * picture beside them (an airport's runways, an airplane's trace), and at
+ * the right the close, the star and a chip one over another -- and the
+ * actions under them, all one height at every size, so the card keeps its
+ * layout whatever it shows. A long name is set smaller to fit its column
+ * (FitText) rather than pushing the actions down.
+ */
+export function CardTop({ name, nameTestId, nameFitTestId, lines, picture, side, actions, columns, children }: {
+  name: ReactNode;
+  nameTestId: string;
+  nameFitTestId?: string;
+  /** Under the name, a note's grey. */
+  lines?: ReactNode;
+  /** Beside the name, its own box (min-w-0 flex-1). */
+  picture: ReactNode;
+  /** The right's column: the close, the star, a chip. */
+  side: ReactNode;
+  actions: ReactNode;
+  /** The actions' columns. */
+  columns: 3 | 4;
+  /** In the top's row besides, out of its flow: a full-screen viewer. */
+  children?: ReactNode;
+}) {
+  return (
+    <div className="flex h-[10.5rem] flex-col" data-to-edge="">
+      <div className="flex min-h-0 flex-1 gap-2">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          <h2
+            tabIndex={-1} data-testid={nameTestId}
+            className={cn("min-h-0 flex-1 font-bold tracking-tight break-words text-foreground outline-none", TEXT.card)}
+          >
+            {/* From iOS's Title 1, 28 on 34, where the name fits its box at
+                that, as Maps sets a place's. */}
+            <FitText className="h-full text-[1.75rem] leading-[2.125rem]" data-testid={nameFitTestId}>{name}</FitText>
+          </h2>
+          {lines}
+        </div>
+        {picture}
+        {/* Eight apart, so the buttons' 44-point hit areas (index.css) meet. */}
+        <div className="-mr-1 flex w-9 shrink-0 flex-col items-center gap-2">{side}</div>
+        {children}
+      </div>
+      <div className={cn("mt-1.5 grid gap-2", columns === 4 ? "grid-cols-4" : "grid-cols-3")}>{actions}</div>
     </div>
   );
 }

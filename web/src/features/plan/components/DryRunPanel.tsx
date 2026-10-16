@@ -1,14 +1,17 @@
 import { Suspense, lazy, useRef, type KeyboardEvent, type PointerEvent } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Pause, Play, RotateCcw } from "lucide-react";
 import { cn } from "cn";
 import CloseButton from "../../../components/CloseButton";
 import RoundButton from "../../../components/RoundButton";
 import { clockTime } from "../../../lib/clock";
 import { REPLAY_SPEEDS, pausePastFlight, playPastFlight, positionAt, usePastFlight } from "../../../lib/map/pastFlight";
+import { routeProfileQuery } from "../../../lib/queryClient";
 import FigureStrip from "../../../components/FigureStrip";
 import { TEXT } from "../../../lib/text";
 import { altFt } from "../../../lib/units";
 import { dryRunAt, type DryRun } from "./navlog/dryRun";
+import type { RouteEnds } from "./navlog/rows";
 import { TRACES } from "./flightTraces";
 import { when } from "./pastFlightFormat";
 
@@ -24,8 +27,14 @@ const FlightChart = lazy(() => import("./PastFlightChart"));
  * (DryRunLayer). In FPL's foot in the side view's place, the figures
  * under it (DryRunFigures); the chart growing with the sheet.
  */
-export function DryRunControls({ run, onClose }: { run: DryRun; onClose: () => void }) {
+export function DryRunControls({ run, ends, onClose }: { run: DryRun; ends: RouteEnds | null; onClose: () => void }) {
   const playing = usePastFlight(s => s.playing);
+  // The airspace the course passes through, the side view's answer
+  // (routeProfileQuery): it was drawn there before the run's play.
+  const { data: profile } = useQuery({
+    ...routeProfileQuery(ends?.departure.ident ?? "", ends?.destination.ident ?? "", (ends?.stops ?? []).map(s => s.ident)),
+    enabled: !!ends,
+  });
   const speed = usePastFlight(s => s.speed);
   const second = usePastFlight(s => (s.at === null ? null : Math.floor(s.at)));
   const here = second === null ? null : positionAt(run.points, second);
@@ -117,7 +126,7 @@ export function DryRunControls({ run, onClose }: { run: DryRun; onClose: () => v
             share of, and the chart stayed three rem tall all the way up. */}
         <div className="absolute inset-0">
           <Suspense fallback={null}>
-            <FlightChart points={run.points} at={second} alongNm={run.alongNm} />
+            <FlightChart points={run.points} at={second} alongNm={run.alongNm} airspace={profile} />
           </Suspense>
         </div>
         {/* Over the chart, its own drag: not the sheet's (touch-none) nor

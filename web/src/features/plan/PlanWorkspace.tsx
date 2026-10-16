@@ -1459,7 +1459,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
             (MapPanel's --sheet-progress), where the nav log's Profile
             section, under its Legs, takes over from it. */}
         {dryRunning ? (
-          <div className="flex min-h-0 flex-1 flex-col pb-2" data-pill-hides=""><DryRunControls run={dryRunning} onClose={stopDryRun} /></div>
+          <div className="flex min-h-0 flex-1 flex-col pb-2" data-pill-hides=""><DryRunControls run={dryRunning} ends={course} onClose={stopDryRun} /></div>
         ) : miniProfile && (
           <div
             // Out of sight all the way up, not only see-through: its words

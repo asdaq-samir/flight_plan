@@ -5,7 +5,7 @@ import {
   Ruler, Share, UserRound,
 } from "lucide-react";
 import { cn } from "cn";
-import { CardClose, PanelCard } from "../../../components/PanelCard";
+import { CardClose, CardTop, PanelCard } from "../../../components/PanelCard";
 import { useCardTitle } from "../../../components/mapChrome";
 import { PillSection } from "../../../components/Favorites";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
@@ -25,6 +25,7 @@ import { altFt, grouped } from "../../../lib/units";
 import { clockTime } from "../format";
 import PastFlights from "./PastFlights";
 import TrailSketch from "./TrailSketch";
+import { api } from "../../../lib/api/client";
 import { CardAction } from "./CardAction";
 import { CardTabBar, CardTabPanel } from "../../../components/CardTabs";
 import { useCardTab } from "../../../lib/cardTab";
@@ -79,6 +80,14 @@ function against(feet: number): string {
   if (rounded === 0) return "level";
   return `${altFt(Math.abs(rounded))} ft ${rounded > 0 ? "above" : "below"}`;
 }
+
+/** A field's place, for the trace's sketch, as an airport card asks for it
+ *  (the same query, so a card opened on it after has it already). */
+const sketchField = (ident: string | null) => ({
+  queryKey: ["airport", ident], queryFn: () => api.airport(ident!), enabled: !!ident, staleTime: 5 * 60_000,
+  meta: { silent: true },
+  select: (field: { ident: string; lat: number; lon: number }) => ({ ident: field.ident, lat: field.lat, lon: field.lon }),
+});
 
 /**
  * An airplane being tracked, as FlightAware's flight page and ForeFlight's
@@ -164,10 +173,20 @@ export default function FlightCard({ hex, onClose, onOpenPast, onExpand, onLower
     : plane ? { word: rate >= 300 ? "CLB" : rate <= -300 ? "DES" : "LVL", alarm: false } : null;
   // Where it has flown, in the diagram's place: its trace, its height and
   // speed over it.
-  const trail = useMemo(() => (detail?.trail ?? []).map(p => ({ lat: p.lat, lon: p.lon })), [detail?.trail]);
+  const trail = useMemo(() => (detail?.trail ?? []).map(p => ({ lat: p.lat, lon: p.lon, altFt: p.alt_ft ?? null })), [detail?.trail]);
+  // The fields it left and is bound for, on the sketch: where its trace
+  // says it took off, else its flight number's route's first; the route's
+  // last where the route is the one it is flying.
+  const fromIdent = detail?.departed?.ident ?? route?.airports[0]?.ident ?? null;
+  const toIdent = route && route.plausible !== false && route.airports.length > 1 ? route.airports[route.airports.length - 1]!.ident : null;
+  const { data: fromField } = useQuery(sketchField(fromIdent));
+  const { data: toField } = useQuery(sketchField(toIdent));
   const trailBox = (className: string) => (
     <div className={cn("relative min-h-0 overflow-hidden rounded-xl bg-background/70", className)} data-testid="flight-trail">
-      <TrailSketch points={trail} now={here} trackDeg={plane?.track_deg ?? null} />
+      <TrailSketch
+        points={trail} now={here && { ...here, altFt: plane?.altitude_ft ?? null }} trackDeg={plane?.track_deg ?? null}
+        from={fromField ?? null} to={toField ?? null}
+      />
       {plane && (
         <span className={cn("pointer-events-none absolute top-1 left-1.5 rounded-md bg-background/75 px-1 font-semibold text-foreground", TEXT.note)}>
           {plane.altitude_ft == null ? "—" : `${altFt(Math.round(plane.altitude_ft / 100) * 100)} ft`}
@@ -185,34 +204,41 @@ export default function FlightCard({ hex, onClose, onOpenPast, onExpand, onLower
           speed on it; the star and its state (climbing, level,
           descending, or an emergency's code) in a column under the close.
           The same all the way up, the rest under it. */}
-      <div className="flex h-[7rem] gap-2">
-        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-          <h2 className={cn("line-clamp-2 font-bold tracking-tight text-foreground", TEXT.card)} data-testid="flight-name">{model ?? name}</h2>
-          {away && <p className={cn("truncate text-muted-foreground", TEXT.note)} data-testid="flight-away">{away}</p>}
-          {operator && <p className={cn("line-clamp-2 text-muted-foreground", TEXT.note)} data-testid="flight-what">{operator}</p>}
-        </div>
-        {trailBox("min-w-0 flex-1")}
-        <div className="-mr-1 flex w-9 shrink-0 flex-col items-center gap-2">
-          <CardClose onClose={onClose} testId="flight-close" />
-          <FavoriteButton kept={kept} />
-          {state && (
-            <span
-              className={cn("flex w-9 justify-center rounded-md py-0.5 font-bold text-white", TEXT.caption, state.alarm ? "bg-destructive" : "bg-teal-700")}
-              data-testid="flight-state"
-            >{state.word}</span>
-          )}
-        </div>
-      </div>
-      {/* Follow, its flights, the FAA's record of it, and a link to it. */}
-      <div className="mt-2 grid grid-cols-4 gap-2">
-        <CardAction
-          icon={<Crosshair />} label="Follow" filled={follow} testId="flight-follow"
-          onClick={() => useTracking.setState({ follow: !follow })} pressed={follow}
-        />
-        <CardAction icon={<History />} label="Flights" testId="flight-flights" onClick={() => { setPicked("activity"); onExpand?.(); }} />
-        <CardAction icon={<IdCard />} label="Registry" testId="flight-registry" onClick={() => { setPicked("info"); onExpand?.(); }} />
-        <CardAction icon={<Share />} label="Share" testId="flight-share" onClick={() => void shareFlight(name, hex)} />
-      </div>
+      <CardTop
+        name={model ?? name} nameTestId="flight-name" nameFitTestId="flight-name-fit"
+        lines={(
+          <>
+            {away && <p className={cn("truncate text-muted-foreground", TEXT.note)} data-testid="flight-away">{away}</p>}
+            {operator && <p className={cn("line-clamp-2 text-muted-foreground", TEXT.note)} data-testid="flight-what">{operator}</p>}
+          </>
+        )}
+        picture={trailBox("min-w-0 flex-1")}
+        side={(
+          <>
+            <CardClose onClose={onClose} testId="flight-close" />
+            <FavoriteButton kept={kept} />
+            {state && (
+              <span
+                className={cn("flex w-9 justify-center rounded-md py-0.5 font-bold text-white", TEXT.caption, state.alarm ? "bg-destructive" : "bg-teal-700")}
+                data-testid="flight-state"
+              >{state.word}</span>
+            )}
+          </>
+        )}
+        columns={4}
+        // Follow, its flights, the FAA's record of it, and a link to it.
+        actions={(
+          <>
+            <CardAction
+              icon={<Crosshair />} label="Follow" filled={follow} testId="flight-follow"
+              onClick={() => useTracking.setState({ follow: !follow })} pressed={follow}
+            />
+            <CardAction icon={<History />} label="Flights" testId="flight-flights" onClick={() => { setPicked("activity"); onExpand?.(); }} />
+            <CardAction icon={<IdCard />} label="Registry" testId="flight-registry" onClick={() => { setPicked("info"); onExpand?.(); }} />
+            <CardAction icon={<Share />} label="Share" testId="flight-share" onClick={() => void shareFlight(name, hex)} />
+          </>
+        )}
+      />
       {/* At the pill's size its route under the actions, or with none
           known how it flies; all the way up the pages under the actions
           instead, Now first with both, as the airport card's (the owner's
@@ -233,7 +259,7 @@ export default function FlightCard({ hex, onClose, onOpenPast, onExpand, onLower
         )}
       </div>}
       {!summary && (
-      <Tabs value={tab} className="gap-0 pt-3">
+      <Tabs value={tab} className="gap-0">
         {/* The cards' tabs (CardTabBar), the airport card's: tapped, the
             panel all the way up, as its are. */}
         <CardTabBar tabs={FLIGHT_TABS} value={tab} onPick={setPicked} testIdPrefix="flight-tab" raise={raise} barRef={tabsRef} className="mt-3" />

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Airport, Leg } from "../../../../lib/api/types";
-import { planProfile, ceilingOverFloor, ceilings } from "./profile";
+import { planProfile, ceilingOverFloor, ceilings, nameFits, namedPieces } from "./profile";
 import { navLogRows } from "./rows";
 
 const airport = (ident: string, elevation: number): Airport =>
@@ -36,5 +36,22 @@ describe("the airspace's ceilings on the side views", () => {
       { class: "B", ceiling_ft: 10000 }, { class: "C", ceiling_ft: 4800 }, { class: "D", ceiling_ft: 3200 },
       { class: "E", ceiling_ft: 17999 }, { class: "D", ceiling_ft: null },
     ])).toEqual([10000, 4800, 3200]);
+  });
+  it("names each B, C and D once, over its widest piece, and none of another class", () => {
+    // C81 to Madison (vfr.profile's answer): Chicago's shelf, and Madison's
+    // Class C over its shelf and down to the surface.
+    const shelf = { class: "C", ident: "KMSN", from_nm: 64.18, to_nm: 74.17 };
+    const named = namedPieces([
+      { class: "B", ident: "KORD", from_nm: 0, to_nm: 3.82 }, shelf, { class: "C", ident: "KMSN", from_nm: 69.17, to_nm: 74.17 },
+      { class: "E", ident: "", from_nm: 0, to_nm: 74.2 },
+    ]);
+    expect([...named.keys()]).toEqual(["KORD", "KMSN"]);
+    expect(named.get("KMSN")).toBe(shelf);
+  });
+  it("names a piece only where it is wide enough on the side view for the name", () => {
+    // Eighteen of the side view's 340 across: Chicago's 3.8 nm of 74 is not.
+    expect(nameFits({ from_nm: 0, to_nm: 3.82 }, 74.2)).toBe(false);
+    expect(nameFits({ from_nm: 64.18, to_nm: 74.17 }, 74.2)).toBe(true);
+    expect(nameFits({ from_nm: 0, to_nm: 10 }, 0)).toBe(false);
   });
 });
