@@ -731,7 +731,8 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // stops where it bends the route least (bestStopIndex): landed at, or
   // flown through.
   const addStopAt = useCallback((at: { ident: string; lat: number; lon: number }) => {
-    if (!course) return;
+    // The planner's limit, as the airport card's Add Stop keeps it.
+    if (!course || planned.stops.length >= MAX_STOPS) return;
     const points = [course.departure, ...(course.stops ?? []), course.destination];
     if (points.some(p => p.ident === at.ident)) return;
     const stops = [...planned.stops];
@@ -832,6 +833,15 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     });
     setPanel("full");
   }, [setSearchParams, setPanel]);
+  // And its Back, to Airport's start: the list and the place it was from
+  // put away.
+  const closeNearest = useCallback(() => {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      for (const key of ["near", "nearAt", "nearName"]) next.delete(key);
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
   // The route's box and its nav log are FPL's, a route or none -- with none
   // the box is empty to type one in, at the pilot's ask.
   const started = tab === "fpl";
@@ -1439,7 +1449,9 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           place={placePin}
           nearest={nearOpen ? nearestPoints : null}
           onSelectPlace={selectPlaceOnChart}
-          onAddStop={addStopAt}
+          // A VFR waypoint's "Add as a Stop" only while there is room for one,
+          // as the airport card's Add Stop is offered (MAX_STOPS).
+          onAddStop={planned.stops.length < MAX_STOPS ? addStopAt : undefined}
           legs={s.legs}
           heldPoint={heldPoint}
           onHoldPoint={holdPoint}
@@ -1481,7 +1493,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
             <AircraftCard onPick={plane => selectFlight(plane.hex, plane)} onPickHex={hex => selectFlight(hex)} strip={panel !== "peek" || dragging ? aircraftStrip : null} />
           )))
         ) : nearOpen ? (
-          <NearestCard onOpen={selectPlace} from={nearFrom} onFrom={setNearFrom} />
+          <NearestCard onOpen={selectPlace} from={nearFrom} onFrom={setNearFrom} onBack={closeNearest} />
         ) : tab === "airport" ? (
           favoritesOpen ? (
             <TabPage testId="favorites-page">

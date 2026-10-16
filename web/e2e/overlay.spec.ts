@@ -106,3 +106,14 @@ test("Google's session refused says so in the settings; a kept session of anothe
   await page.getByTestId("google-overlay-select").getByRole("radio", { name: "Satellite" }).click();
   await expect(page.getByTestId("google-problem")).toBeVisible({ timeout: slow(30000) });
 });
+
+test("on a phone the map's settings sheet has the app's close, the way out besides a tap on the map", async ({ page }) => {
+  // The commonality audit's C-4: the sheet was put away only by a tap on
+  // the map under it.
+  test.skip((page.viewportSize()?.width ?? 0) >= 768, "a phone's sheet");
+  await page.goto("/app/plan");
+  await settle(page);
+  await openMapSettings(page);
+  await page.getByTestId("sheet-close").click();
+  await expect(page.getByTestId("map-settings")).toBeHidden();
+});

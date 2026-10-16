@@ -52,6 +52,8 @@ interface Props {
  */
 /** Where a map with no route on it opens: the lower 48, whole on a
  *  phone, as Maps opens on the country before it knows where you are. */
+/** No route's airports: one array, the same at every render. */
+const NO_IDENTS: string[] = [];
 const COUNTRY: [number, number] = [39.5, -98.35];
 const COUNTRY_ZOOM = 4;
 
@@ -271,7 +273,7 @@ export function MapShell({ course, onReady, children, onSelectPlace, held = fals
               planning a route past it or rating chart detections
               near it. Draws nothing unless switched on. */}
           <ClassBLayer
-            chart={chart} endpoints={course ? [course.departure.ident, course.destination.ident] : []}
+            chart={chart} route={course ? [course.departure.ident, ...(course.stops ?? []).map(s => s.ident), course.destination.ident] : NO_IDENTS}
             onPreview={setPreviewing} onSelectPlace={onSelectPlace}
           />
           {children}
