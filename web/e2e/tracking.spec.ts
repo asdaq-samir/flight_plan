@@ -429,6 +429,25 @@ test("an airplane opened is in the Aircraft card's Recents, and one starred on i
   await expect(page.getByTestId("flight-card").getByTestId("flight-favorite")).toHaveAttribute("aria-pressed", "true");
 });
 
+test("an airplane's card on Aircraft is still open after Setup and back to Aircraft", async ({ page }) => {
+  // The owner's notice: "When I open an aircraft card and go to setup and
+  // come back, to aircraft tab, the card is not there anymore". Aircraft
+  // was taken for the tab up tapped again, which puts its card away.
+  await sky(page);
+  await page.goto("/app/plan?aircraft=1&flight=a0b7d8");
+  await settle(page);
+  const card = page.getByTestId("flight-card");
+  await expect(card.getByTestId("flight-favorite")).toBeVisible({ timeout: slow(15_000) });
+  await showTabs(page);
+  await page.getByTestId("setup-button").click();
+  await expect(sideDrawer(page).getByTestId("setup-page")).toBeVisible();
+  await showTabs(page);
+  await page.getByTestId("tab-aircraft").click();
+  await expect(sideDrawer(page).getByTestId("setup-page")).toBeHidden();
+  await expect(page).toHaveURL(/[?&]flight=a0b7d8/);
+  await expect(card.getByTestId("flight-favorite")).toBeVisible();
+});
+
 test("the card's sketch of where an airplane has flown is in its heights' colours, as the map's path, with the fields it left and is bound for", async ({ page }) => {
   // The owner's ask: "Can the aircraft trace in the thumbnail have the
   // origin/destination airport? And the trace color green just like on

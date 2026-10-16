@@ -93,12 +93,76 @@ function PlaceTile({ icon, className, style, title, label, detail, tinted, onCli
 }
 
 /** A row's small round mark, the tile's at a list row's size. */
-function Mark({ icon, className, style }: { icon: ReactNode; className?: string; style?: CSSProperties }) {
+export function Mark({ icon, className, style }: { icon: ReactNode; className?: string; style?: CSSProperties }) {
   return <span className={cn("grid size-8 place-items-center rounded-full [&_svg]:size-4", className)} style={style} aria-hidden="true">{icon}</span>;
 }
 
 function KeptMark({ airport }: { airport: RecentAirport }) {
   return <KeptChartMark airport={airport} size={26} />;
+}
+
+/** A list's Edit, Done while it is being edited (the Favorites' in full). */
+export function EditToggle({ editing, onToggle, testId }: { editing: boolean; onToggle: () => void; testId?: string }) {
+  return (
+    <Button
+      type="button" variant="ghost" size="sm"
+      className={cn("-mr-1 h-auto px-1 py-0.5 font-normal text-tint", TEXT.row, editing && "font-semibold")}
+      onClick={onToggle} data-testid={testId}
+    >
+      {editing ? "Done" : "Edit"}
+    </Button>
+  );
+}
+
+/** The minus before a row being edited, letting it go. */
+export function RemoveMinus({ label, onClick, testId }: { label: string; onClick: () => void; testId?: string }) {
+  return (
+    <IconButton label={label} className="-ml-1.5 text-destructive" onClick={onClick} data-testid={testId}>
+      <CircleMinus className="size-5 fill-destructive text-white dark:text-background" />
+    </IconButton>
+  );
+}
+
+/** The handle after a row being edited: a drag moves its row a place
+ *  each time the finger passes half a row, the list re-ordering under it
+ *  as it goes, and the arrow keys a place at a time. */
+export function MoveHandle({ label, index, count, onMove }: {
+  label: string;
+  index: number;
+  count: number;
+  onMove: (from: number, to: number) => void;
+}) {
+  const drag = (start: ReactPointerEvent<HTMLButtonElement>) => {
+    const handle = start.currentTarget;
+    const row = handle.closest("[data-slot=item]") as HTMLElement | null;
+    const height = row?.offsetHeight ?? 52;
+    handle.setPointerCapture(start.pointerId);
+    let at = index, anchor = start.clientY;
+    const move = (event: PointerEvent) => {
+      const dy = event.clientY - anchor;
+      if (dy > height / 2 && at < count - 1) { onMove(at, at + 1); at += 1; anchor += height; }
+      else if (dy < -height / 2 && at > 0) { onMove(at, at - 1); at -= 1; anchor -= height; }
+    };
+    const end = () => {
+      handle.removeEventListener("pointermove", move);
+      handle.removeEventListener("pointerup", end);
+      handle.removeEventListener("pointercancel", end);
+    };
+    handle.addEventListener("pointermove", move);
+    handle.addEventListener("pointerup", end);
+    handle.addEventListener("pointercancel", end);
+  };
+  return (
+    <IconButton
+      label={label} className="touch-none" onPointerDown={drag}
+      onKeyDown={e => {
+        if (e.key === "ArrowUp" && index > 0) { e.preventDefault(); onMove(index, index - 1); }
+        if (e.key === "ArrowDown" && index < count - 1) { e.preventDefault(); onMove(index, index + 1); }
+      }}
+    >
+      <GripVertical className="size-5 text-muted-foreground" />
+    </IconButton>
+  );
 }
 
 /**
@@ -120,33 +184,6 @@ export function FavoritesList({ home, favorites, onBack, onOpen, onChangeHome, o
   onAdd: () => void;
 }) {
   const [editing, setEditing] = useState(false);
-  // A drag on a handle moves its row a place each time the finger passes
-  // half a row, the list re-ordering under it as it goes.
-  const drag = (index: number) => (start: ReactPointerEvent<HTMLButtonElement>) => {
-    const handle = start.currentTarget;
-    const row = handle.closest("[data-slot=item]") as HTMLElement | null;
-    const height = row?.offsetHeight ?? 52;
-    handle.setPointerCapture(start.pointerId);
-    let at = index, anchor = start.clientY;
-    const move = (event: PointerEvent) => {
-      const dy = event.clientY - anchor;
-      if (dy > height / 2 && at < favorites.length - 1) { onMove(at, at + 1); at += 1; anchor += height; }
-      else if (dy < -height / 2 && at > 0) { onMove(at, at - 1); at -= 1; anchor -= height; }
-    };
-    const end = () => {
-      handle.removeEventListener("pointermove", move);
-      handle.removeEventListener("pointerup", end);
-      handle.removeEventListener("pointercancel", end);
-    };
-    handle.addEventListener("pointermove", move);
-    handle.addEventListener("pointerup", end);
-    handle.addEventListener("pointercancel", end);
-  };
-  const minus = (label: string, onClick: () => void, testId?: string) => (
-    <IconButton label={label} className="-ml-1.5 text-destructive" onClick={onClick} data-testid={testId}>
-      <CircleMinus className="size-5 fill-destructive text-white dark:text-background" />
-    </IconButton>
-  );
   return (
     <div className="space-y-6" data-testid="favorites-list">
       <div className="flex items-center gap-1">
@@ -154,20 +191,14 @@ export function FavoritesList({ home, favorites, onBack, onOpen, onChangeHome, o
           <ChevronLeft className="size-5" />
         </IconButton>
         <h3 className={cn("flex-1 font-bold", TEXT.title)}>Favorites</h3>
-        <Button
-          type="button" variant="ghost" size="sm"
-          className={cn("-mr-1 h-auto px-1 py-0.5 font-normal text-tint", TEXT.row, editing && "font-semibold")}
-          onClick={() => setEditing(e => !e)} data-testid="favorites-edit"
-        >
-          {editing ? "Done" : "Edit"}
-        </Button>
+        <EditToggle editing={editing} onToggle={() => setEditing(e => !e)} testId="favorites-edit" />
       </div>
       <ListGroup title="Home" footer={home && !editing ? "A tap changes it." : undefined}>
         {!home ? (
           <ListRow media={<Plus className="size-5" />} title="Add Home" onClick={onChangeHome} data-testid="favorites-home" />
         ) : editing ? (
           <ListRow
-            media={minus(`Remove ${home.ident} as Home`, onRemoveHome, "favorites-home-remove")}
+            media={<RemoveMinus label={`Remove ${home.ident} as Home`} onClick={onRemoveHome} testId="favorites-home-remove" />}
             title={<><span className="font-mono font-semibold">{home.ident}</span> · {home.name}</>}
             description={home.municipality ?? undefined}
           />
@@ -182,19 +213,11 @@ export function FavoritesList({ home, favorites, onBack, onOpen, onChangeHome, o
       <ListGroup title="Airports" footer={favorites.length === 0 ? "A star on an airport's card adds it here." : editing ? "Drag a handle to order them." : undefined}>
         {favorites.map((a, index) => (editing ? (
           <ListRow
-            key={a.ident} media={minus(`Remove ${a.ident} from Favorites`, () => onRemove(a))}
+            key={a.ident} media={<RemoveMinus label={`Remove ${a.ident} from Favorites`} onClick={() => onRemove(a)} />}
             title={<><span className="font-mono font-semibold">{a.ident}</span> · {a.name}</>}
             description={a.municipality ?? undefined}
           >
-            <IconButton
-              label={`Move ${a.ident}`} className="touch-none" onPointerDown={drag(index)}
-              onKeyDown={e => {
-                if (e.key === "ArrowUp" && index > 0) { e.preventDefault(); onMove(index, index - 1); }
-                if (e.key === "ArrowDown" && index < favorites.length - 1) { e.preventDefault(); onMove(index, index + 1); }
-              }}
-            >
-              <GripVertical className="size-5 text-muted-foreground" />
-            </IconButton>
+            <MoveHandle label={`Move ${a.ident}`} index={index} count={favorites.length} onMove={onMove} />
           </ListRow>
         ) : (
           <ListRow

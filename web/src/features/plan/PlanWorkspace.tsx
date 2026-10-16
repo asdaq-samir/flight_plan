@@ -40,6 +40,7 @@ import { runwayNumber } from "../../lib/pattern";
 import NearestCard, { NearestStrip } from "./components/NearestCard";
 import AircraftCard from "./components/AircraftCard";
 import AircraftPill from "./components/AircraftPill";
+import AircraftFavoritesList from "./components/AircraftFavoritesList";
 import TabPage from "../../components/TabPage";
 import { useAirportStripShows } from "./hooks/useAirportStripShows";
 import AirportPill from "./components/AirportPill";
@@ -717,10 +718,13 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const [favoritesOpen, setFavoritesOpen] = useState(false);
   const [airportRecentsOpen, setAirportRecentsOpen] = useState(false);
   const [routeRecentsOpen, setRouteRecentsOpen] = useState(false);
+  // Aircraft's Favorites in full, from their See All.
+  const [aircraftFavoritesOpen, setAircraftFavoritesOpen] = useState(false);
   const listsAway = useCallback(() => {
     setFavoritesOpen(false);
     setAirportRecentsOpen(false);
     setRouteRecentsOpen(false);
+    setAircraftFavoritesOpen(false);
   }, []);
   // Each route the planner answers kept as FPL's Recents, newest first, at
   // the owner's ask ("Can we have recents under saved ?"): once it is
@@ -861,7 +865,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       label="Find an aircraft: callsign, registration or ICAO address" testId="aircraft-search" capitals
       // Up, the list under the field in sight -- not by an Add's focus,
       // which leaves the panel where it is (focusQuietly).
-      onFocus={() => { if (panel === "peek" && !quietFocus.current) setPanel("full"); }}
+      onFocus={() => { setAircraftFavoritesOpen(false); if (panel === "peek" && !quietFocus.current) setPanel("full"); }}
       onCancel={() => { useTabSearch.setState({ aircraft: "", pickingMine: false, pickingFavorite: false }); setPanel("peek"); }}
       onSubmit={() => useTabSearch.getState().submitAircraft?.()}
     />
@@ -1344,7 +1348,10 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   );
   // With the Map switch at its right (AircraftPill).
   const aircraftStrip = (
-    <AircraftPill onOpen={hex => selectFlight(hex)} onAddMine={() => addFromPill("mine")} onAddFavorite={() => addFromPill("airplane")} onPick={plane => selectFlight(plane.hex, plane)} />
+    <AircraftPill
+      onOpen={hex => selectFlight(hex)} onAddMine={() => addFromPill("mine")} onAddFavorite={() => addFromPill("airplane")} onPick={plane => selectFlight(plane.hex, plane)}
+      onAllFavorites={() => { setAircraftFavoritesOpen(true); setPanel("full"); }}
+    />
   );
 
   return children({
@@ -1395,11 +1402,19 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
         ) : heldPoint ? (
           <AirspaceCard key={`${heldPoint.lat},${heldPoint.lon}`} point={heldPoint} onClose={() => closeCard(() => selectPlace(null))} />
         ) : tab === "aircraft" ? (
-          flightCard ?? (aircraftOpen && (
+          flightCard ?? (aircraftOpen && (aircraftFavoritesOpen && !aircraftTyped ? (
+            <TabPage testId="aircraft-favorites">
+              <AircraftFavoritesList
+                onBack={() => setAircraftFavoritesOpen(false)} onOpen={hex => selectFlight(hex)}
+                onChangeMine={() => { setAircraftFavoritesOpen(false); addFromPill("mine"); }}
+                onAdd={() => { setAircraftFavoritesOpen(false); addFromPill("airplane"); }}
+              />
+            </TabPage>
+          ) : (
             // The strip once, in the pill or here: at the pill's size the
             // body is out of sight but for a finger taking it up.
             <AircraftCard onPick={plane => selectFlight(plane.hex, plane)} onPickHex={hex => selectFlight(hex)} strip={panel !== "peek" || dragging ? aircraftStrip : null} />
-          ))
+          )))
         ) : nearOpen ? (
           <NearestCard onOpen={selectPlace} from={nearFrom} onFrom={setNearFrom} />
         ) : tab === "airport" ? (

@@ -221,6 +221,17 @@ test("each tab keeps the card open over it: another tab picked and this one agai
   await page.getByTestId("tab-fpl").click();
   await expect(page).toHaveURL(/[?&]place=KDLH/);
   await expect(name).toContainText("KDLH");
+  // Setup and back to the tab under it: the card still over it, as it
+  // was left -- not the tab up tapped again (the owner's notice of an
+  // airplane's card gone after Setup).
+  await showTabs(page);
+  await page.getByTestId("setup-button").click();
+  await expect(sideDrawer(page).getByTestId("setup-page")).toBeVisible();
+  await showTabs(page);
+  await page.getByTestId("tab-fpl").click();
+  await expect(sideDrawer(page).getByTestId("setup-page")).toBeHidden();
+  await expect(page).toHaveURL(/[?&]place=KDLH/);
+  await expect(name).toContainText("KDLH");
   // The tab up tapped again puts it away, as an iOS tab's first screen.
   await showTabs(page);
   await sideDrawer(page).locator('[data-testid="tab-bar"] button[aria-current="page"]').click();
