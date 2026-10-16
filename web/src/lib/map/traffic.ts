@@ -1,5 +1,5 @@
 import type { TrafficAircraft } from "../api/types";
-import { destination, distanceNm, type LatLon } from "../geo";
+import { angleBetween, destination, distanceNm, type LatLon } from "../geo";
 import { grouped } from "../units";
 import type { Fix } from "./ownShip";
 import type { Report } from "./tracking";
@@ -54,7 +54,7 @@ export function ownShipHex(planes: TrafficAircraft[], fix: Fix | null): string |
     if (plane.track_deg == null || plane.speed_kt == null) continue;
     const then = destination({ lat: fix.lat, lon: fix.lon }, (fix.headingDeg + 180) % 360, (fix.speedKt * (plane.seen_s ?? 0)) / 3600);
     const nm = distanceNm(then, { lat: plane.lat, lon: plane.lon });
-    const turn = Math.abs(((plane.track_deg - fix.headingDeg + 540) % 360) - 180);
+    const turn = angleBetween(plane.track_deg, fix.headingDeg);
     const height = fix.altitudeFt != null && plane.altitude_ft != null ? Math.abs(plane.altitude_ft - fix.altitudeFt) : 0;
     if (nm > 0.5 || height > 400 || turn > 20 || Math.abs(plane.speed_kt - fix.speedKt) > Math.max(20, fix.speedKt * 0.3)) continue;
     if (!best || nm < best.nm) best = { hex: plane.hex, nm };

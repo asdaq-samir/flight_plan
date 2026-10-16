@@ -14,16 +14,14 @@
  * close to what the examiner sees, not it -- the page says so.
  */
 import type { Flight } from "./api/types";
+import { angleBetween, bearingDeg, distanceNm } from "./geo";
+import { AIRBORNE_KT } from "./map/glide";
 import type { TrackPoint } from "./track";
 
 type Checkpoint = Flight["checkpoints"][number];
 
-const R_NM = 3440.065;
 const rad = (d: number) => (d * Math.PI) / 180;
-const deg = (r: number) => (r * 180) / Math.PI;
 
-/** Faster than this over the ground is flying; slower, taxiing. */
-const AIRBORNE_KT = 40;
 /** PA.VI.A's tolerances: S7's altitude, and its heading applied to the
  *  ground track; S5's distance from the planned route; S6's time at each
  *  checkpoint against its estimate. */
@@ -35,23 +33,6 @@ export const ETA_MIN = 5;
  *  pattern altitude. */
 export const PATTERN_NM = 1.5;
 export const PATTERN_FT = 100;
-
-function distanceNm(a: { lat: number; lon: number }, b: { lat: number; lon: number }): number {
-  const dLat = rad(b.lat - a.lat), dLon = rad(b.lon - a.lon);
-  const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLon / 2) ** 2;
-  return 2 * R_NM * Math.asin(Math.min(1, Math.sqrt(h)));
-}
-
-function bearingDeg(a: { lat: number; lon: number }, b: { lat: number; lon: number }): number {
-  const y = Math.sin(rad(b.lon - a.lon)) * Math.cos(rad(b.lat));
-  const x = Math.cos(rad(a.lat)) * Math.sin(rad(b.lat)) - Math.sin(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.cos(rad(b.lon - a.lon));
-  return (deg(Math.atan2(y, x)) + 360) % 360;
-}
-
-function angleOff(a: number, b: number): number {
-  const d = Math.abs((((a - b) % 360) + 540) % 360 - 180);
-  return d;
-}
 
 /** Ground speed at each point, knots: over at least ten seconds round
  *  it, which a one-second GPS's jitter would otherwise make a mess of. */
@@ -243,7 +224,7 @@ export function debrief(flight: Flight, points: TrackPoint[], patterns: Record<s
         let j = i, k = i;
         while (points[k]!.t - points[j]!.t < 20_000 && (j > start || k < end)) { if (j > start) j--; if (k < end) k++; }
         if (k > j) {
-          const off = angleOff(bearingDeg(points[j]!, points[k]!), best.to.trueCourseDeg);
+          const off = angleBetween(bearingDeg(points[j]!, points[k]!), best.to.trueCourseDeg);
           g.courseW += weight;
           if (off <= COURSE_DEG) g.courseIn += weight;
         }

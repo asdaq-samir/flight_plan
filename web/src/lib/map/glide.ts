@@ -7,7 +7,7 @@ const GLIDE_NM_PER_1000_FT = 1.5;
 /** Below this over the ground, or slower than this, the airplane is on
  *  the ground or about to be, and there is no ring to draw. */
 const AIRBORNE_AGL_FT = 500;
-const AIRBORNE_KT = 40;
+export const AIRBORNE_KT = 40;
 
 /** How far own ship glides in still air from its GPS altitude over
  *  `groundFt` -- the nearest field's elevation, as near as the page

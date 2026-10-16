@@ -67,6 +67,9 @@ interface OwnShip {
  *  from here goes to, some 200 nm across a phone -- four levels out from
  *  the location arrow's close-in view, the pilot found it too close. */
 export const OPEN_ZOOM = 7;
+/** Where a map with no route and no position opens: the lower 48, whole
+ *  on a phone, as Maps opens on the country before it knows where you are. */
+export const COUNTRY_ZOOM = 4;
 
 export function ownShipAvailable(): boolean {
   return typeof navigator !== "undefined" && "geolocation" in navigator && window.isSecureContext;

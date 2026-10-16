@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bearingDeg, bestStopIndex, distanceNm } from "./geo";
+import { angleBetween, bearingDeg, bestStopIndex, distanceNm, signedTurn } from "./geo";
 
 describe("geo", () => {
   const campbell = { lat: 42.3246, lon: -88.0741 };
@@ -31,5 +31,21 @@ describe("geo", () => {
     expect(bestStopIndex([campbell, minneapolis, duluth], madison)).toBe(0);
     // And a stop near Duluth goes after it.
     expect(bestStopIndex([campbell, minneapolis, duluth], { lat: 46.5, lon: -92.5 })).toBe(1);
+  });
+});
+
+describe("two directions apart, and the turn between them", () => {
+  it("measures the angle round the compass the short way, 0 to 180", () => {
+    expect(angleBetween(358, 2)).toBe(4);
+    expect(angleBetween(2, 358)).toBe(4);
+    expect(angleBetween(90, 270)).toBe(180);
+    expect(angleBetween(10, 10)).toBe(0);
+    expect(angleBetween(-600, 120)).toBe(0);
+  });
+
+  it("turns right positive, left negative", () => {
+    expect(signedTurn(90, 120)).toBe(30);
+    expect(signedTurn(350, 10)).toBe(20);
+    expect(signedTurn(10, 350)).toBe(-20);
   });
 });

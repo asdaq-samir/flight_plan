@@ -9,17 +9,13 @@
  * heading and time worked to make it so in the wind.
  */
 import { windTriangle } from "./diversion";
+import { angleBetween } from "./geo";
 
 export type Entry = "direct" | "teardrop" | "parallel";
 export type Turns = "right" | "left";
 
 const norm = (deg: number) => ((deg % 360) + 360) % 360;
 
-/** How far apart two directions are, 0 to 180. */
-const apart = (a: number, b: number) => {
-  const d = norm(a - b);
-  return d > 180 ? 360 - d : d;
-};
 
 /**
  * The entry for an airplane heading `headingDeg` to the fix of a hold on
@@ -34,7 +30,7 @@ export function holdingEntry(inboundDeg: number, headingDeg: number, turns: Turn
   const off = norm(turns === "right" ? headingDeg - inboundDeg : inboundDeg - headingDeg);
   const entry: Entry = off <= 110 || off >= 290 ? "direct" : off <= 180 ? "teardrop" : "parallel";
   const edges: [number, Entry, Entry][] = [[110, "direct", "teardrop"], [180, "teardrop", "parallel"], [290, "parallel", "direct"]];
-  const near = edges.find(([at]) => apart(off, at) <= 5);
+  const near = edges.find(([at]) => angleBetween(off, at) <= 5);
   return { entry, either: near ? (near[1] === entry ? near[2] : near[1]) : null };
 }
 

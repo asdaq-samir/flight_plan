@@ -1,7 +1,7 @@
 import type { Runway } from "./api/types";
+import { FT_PER_NM } from "./geo";
 
-/** Feet in a nautical mile, and nautical miles in a degree of latitude. */
-export const FT_PER_NM = 6076.12;
+/** Nautical miles in a degree of latitude. */
 const NM_PER_DEG = 60;
 
 export interface Strip {

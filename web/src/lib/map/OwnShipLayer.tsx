@@ -6,7 +6,7 @@ import { nearestQuery } from "../queryClient";
 import { glideRangeNm } from "./glide";
 import { centreClear } from "./clear";
 import { ownShipIcon } from "./icons";
-import { OPEN_ZOOM, useOwnShip } from "./ownShip";
+import { COUNTRY_ZOOM, OPEN_ZOOM, useOwnShip } from "./ownShip";
 import { usePreferences } from "../preferences";
 
 /**
@@ -25,9 +25,9 @@ import { usePreferences } from "../preferences";
  *  a phone. */
 const LOCAL_ZOOM = 11;
 
-/** As far out as the map opens (MapShell's COUNTRY_ZOOM), and a little
- *  further in: the country, not a place the pilot is looking at. */
-const COUNTRY_ZOOM = 5;
+/** As far out as the map opens (COUNTRY_ZOOM), and a level further in:
+ *  the country, not a place the pilot is looking at. */
+const COUNTRY_VIEW = COUNTRY_ZOOM + 1;
 
 // Constants, not literals: react-leaflet restyles a path whenever its
 // pathOptions is a new object, and own ship draws at every fix.
@@ -73,7 +73,7 @@ export function OwnShipLayer() {
       // straight there, as Maps opens on the position: a flight in from the
       // country was a second of the chart streaming by.
       const zoom = recentreZoom ?? Math.min(map.getMaxZoom(), Math.max(map.getZoom(), LOCAL_ZOOM));
-      if (map.getZoom() <= COUNTRY_ZOOM) {
+      if (map.getZoom() <= COUNTRY_VIEW) {
         map.setView(centreClear(map, [fix.lat, fix.lon], zoom), zoom, { animate: false });
         return;
       }
