@@ -1,9 +1,10 @@
-import { Fragment, memo, useMemo, useState } from "react";
+import { Fragment, memo } from "react";
 import L from "leaflet";
-import { Marker, Pane, Polyline, useMap, useMapEvents } from "react-leaflet";
+import { Marker, Pane, Polyline } from "react-leaflet";
 import { bearingDeg, type LatLon } from "../geo";
 import type { TrafficPattern } from "../trafficPattern";
 import { altFt } from "../units";
+import { useLiveZoom } from "./useView";
 
 /**
  * The traffic patterns the pilot picked (the route's Procedures), on the
@@ -47,9 +48,8 @@ function labelIcon(words: string) {
 }
 
 export const PatternLayer = memo(function PatternLayer({ patterns }: { patterns: TrafficPattern[] }) {
-  const map = useMap();
-  const [zoom, setZoom] = useState(() => map.getZoom());
-  useMapEvents(useMemo(() => ({ zoomend: () => setZoom(map.getZoom()) }), [map]));
+  // The names from their zoom as a pinch passes it, not once it ends.
+  const zoom = useLiveZoom();
   if (patterns.length === 0) return null;
   const words = zoom >= WORDS_FROM_ZOOM;
   return (

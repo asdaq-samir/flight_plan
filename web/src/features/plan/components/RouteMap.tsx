@@ -1,4 +1,4 @@
-import { memo, useMemo, useState } from "react";
+import { memo, useMemo } from "react";
 import L from "leaflet";
 import { CircleMarker, Marker, useMap, useMapEvents } from "react-leaflet";
 import { Badge } from "../../../components/ui/badge";
@@ -35,6 +35,7 @@ import { MapShell } from "../../../lib/map/MapShell";
 import { MapTooltip } from "../../../lib/map/MapTooltip";
 import { hovers } from "../../../lib/map/view";
 import { useCardedMarker } from "../../../lib/map/useCardedMarker";
+import { useScreenView } from "../../../lib/map/useView";
 import DryRunLayer from "../../../lib/map/DryRunLayer";
 import { DRY_RUN, usePastFlight } from "../../../lib/map/pastFlight";
 import { usePreferences } from "../../../lib/preferences";
@@ -332,22 +333,14 @@ const labelOf = (c: Pick<Candidate, "waypoint" | "name">) => (c.waypoint ?? c.na
  * neither fits -- over a name, another checkpoint's dot or one of the
  * route's airports' chips (FOREST VIEW lay over KMDW's) -- until the map
  * is closer in, where ForeFlight piles them on one another along a whole
- * route. Worked out again as the map settles after a move.
+ * route. Worked out again as the map settles after a move, and at each
+ * whole level a zoom passes (useScreenView).
  */
 function useLabelled(
   selected: Candidate[], airports: { ident: string; lat: number; lon: number }[],
 ): Map<string, { name: string; side: "right" | "left" }> {
   const map = useMap();
-  // A new one at every move's end, wherever the map came to rest: keyed on
-  // the view itself, the names were not worked out again when the
-  // checkpoints came in while the map flew to the route and the flight
-  // ended on the view a move before it had ended on (the route fitted
-  // twice as the page opened), and they stayed where the dots had been in
-  // mid-flight -- two names of twenty-four on CI's runners, one past the
-  // screen's edge here.
-  const [view, setView] = useState(() => ({ width: map.getSize().x }));
-  // Memoized handlers: see Leaflet handler churn (AirportsLayer).
-  useMapEvents(useMemo(() => ({ moveend: () => setView({ width: map.getSize().x }) }), [map]));
+  const view = useScreenView();
   return useMemo(() => {
     const { width } = view;
     const at = selected.map(c => map.latLngToContainerPoint([c.lat, c.lon]));
