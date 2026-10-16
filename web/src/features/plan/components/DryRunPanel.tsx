@@ -10,6 +10,7 @@ import { routeProfileQuery } from "../../../lib/queryClient";
 import FigureStrip from "../../../components/FigureStrip";
 import { TEXT } from "../../../lib/text";
 import { altFt, one } from "../../../lib/units";
+import { enRoute } from "../figures";
 import { dryRunAt, type DryRun } from "./navlog/dryRun";
 import type { RouteEnds } from "./navlog/rows";
 import { TRACES } from "./flightTraces";
@@ -169,11 +170,6 @@ function timeAt(run: DryRun, nm: number): number {
   return points[i - 1]!.t + (points[i]!.t - points[i - 1]!.t) * f;
 }
 
-const hoursMinutes = (s: number) => {
-  const m = Math.round(s / 60);
-  return m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`;
-};
-
 /** The figures as the dry run goes, in the flight figures' place at the
  *  panel's foot: the distance and time still to fly, the arrival, and the
  *  fuel still to burn of the plan's. */
@@ -184,7 +180,9 @@ export function DryRunFigures({ run }: { run: DryRun }) {
   const total = run.fuelGal.at(-1) ?? 0;
   const figures = [
     { name: "Dist left", value: left ? one(left.leftNm) : "—", unit: "nm" },
-    { name: "Time left", value: left ? hoursMinutes(left.leftS) : "—" },
+    // As the flight's own figures write a time en route: "2h 5m" sat where
+    // the strip says "2h 05m".
+    { name: "Time left", value: left ? enRoute(left.leftS / 60) : "—" },
     { name: "ETA", value: run.points.length ? clockTime(when(run.points.at(-1)!.t)) : "—" },
     { name: "To burn", value: left ? one(total - left.burntGal) : "—", unit: "gal" },
   ];

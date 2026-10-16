@@ -48,8 +48,9 @@ export function tripFigures({ totals, estimate, depart, local }: TripInput, whol
 }
 
 /** A time en route as the strip writes it: "15m" under an hour, where
- *  "0h 15m" took a column's room for its nought, and "2h 45m" from one. */
-function enRoute(minutes: number): string {
+ *  "0h 15m" took a column's room for its nought, and "2h 45m" from one;
+ *  the dry run's time left too. */
+export function enRoute(minutes: number): string {
   return Math.round(minutes) < 60 ? `${Math.round(minutes)}m` : hhmm(minutes);
 }
 

@@ -11,6 +11,7 @@ import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Textarea } from "../../components/ui/textarea";
 import { api } from "../../lib/api/client";
+import { hm } from "../../lib/clock";
 import type { CrossCountryReview, EndorsementKind, Instructor, InstructorRequest, StudentRow } from "../../lib/api/types";
 import { planHrefOf } from "../../lib/flightLink";
 import { LEVEL_TONE, riskLine, type RiskLevel } from "../../lib/frat";
@@ -22,7 +23,6 @@ import { acDay, inForce, reviewRoute, said } from "../../lib/endorsements";
 import { GoodTo, SignedRow, SignForm } from "./Endorsements";
 
 /** Minutes as a nav log writes them: "1:35". */
-const hm = (min: number) => `${Math.floor(Math.round(min) / 60)}:${String(Math.round(min) % 60).padStart(2, "0")}`;
 
 /** The certificate as endorsements print it, given or changed. */
 function CertificateForm({ instructor, onDone }: { instructor: Instructor; onDone?: () => void }) {

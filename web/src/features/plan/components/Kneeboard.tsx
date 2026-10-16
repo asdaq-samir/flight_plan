@@ -3,7 +3,7 @@ import { format } from "date-fns";
 import type { Briefing, Candidate, Course, Leg, NavLogAltitude, Totals } from "../../../lib/api/types";
 import { kneeboardRadio, mhzText } from "../../../lib/frequencies";
 import { runwayInUse, runwayNumber } from "../../../lib/pattern";
-import { hoursMinutes } from "../../../lib/clock";
+import { hm } from "../../../lib/clock";
 import { routeName } from "../../../lib/identSchema";
 import { altFt, gal, nm } from "../../../lib/units";
 import { bearing, etaAt, one } from "../format";
@@ -18,14 +18,6 @@ function altitudes(legs: Leg[], fallback: number | null | undefined): string | n
 }
 
 /** A line to write on: the label and a rule after it. */
-/** The time en route as a paper nav log writes it, "1:05", its minutes
- *  rounded first (lib/clock): the remainder rounded on its own printed
- *  119.6 minutes as "1:60". */
-function hm(minutes: number): string {
-  const t = hoursMinutes(minutes);
-  return `${t.hours}:${String(t.minutes).padStart(2, "0")}`;
-}
-
 function Blank({ label, wide = false }: { label: string; wide?: boolean }) {
   return (
     <span className="inline-flex items-end gap-1">

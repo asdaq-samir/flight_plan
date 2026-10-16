@@ -18,17 +18,11 @@ import { routeName } from "../../lib/identSchema";
 import { altFt, bearing, feet, gal, grouped, nm } from "../../lib/units";
 import { mayUse, useEntitlement } from "../../lib/subscription";
 import PaidPrompt from "../../components/PaidPrompt";
-import { localDay } from "../../lib/clock";
+import { hm, localDay } from "../../lib/clock";
 import { reviewState, said } from "../../lib/endorsements";
 import { ReviewAskForm, type ReviewAsk } from "./ReviewAsk";
 import { FINDING_TONE } from "../../lib/status";
 import { airportQuery, trainingQuery } from "../../lib/queryClient";
-
-/** Minutes as a nav log writes them: "0:18", "1:35". */
-function hm(min: number): string {
-  const whole = Math.round(min);
-  return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")}`;
-}
 
 /** A difference as said, its sign after rounding: "+3 min", "±0 min". */
 function signed(n: number, unit = ""): string {
