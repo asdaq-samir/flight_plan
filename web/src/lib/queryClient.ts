@@ -1,6 +1,7 @@
 import { MutationCache, QueryCache, QueryClient, queryOptions } from "@tanstack/react-query";
 import { ApiError, api, describeError } from "./api/client";
 import type { ChartInfo } from "./api/types";
+import { readKept, writeKept } from "./storage";
 import { clearProblem, raiseProblem, showError } from "./problems";
 
 declare module "@tanstack/react-query" {
@@ -170,21 +171,14 @@ export const routeProfileQuery = (dep: string, dest: string, stops: string[] = [
 const CHART_KEY = "wingtip.chart";
 type Kept = { at: number; chart: ChartInfo };
 function keptChart(): Kept | undefined {
-  try {
-    return JSON.parse(localStorage.getItem(CHART_KEY) ?? "null") ?? undefined;
-  } catch {
-    return undefined;
-  }
+  return readKept<Kept | undefined>(CHART_KEY, undefined) ?? undefined;
 }
 export const chartQuery = queryOptions({
   queryKey: ["chart"],
   queryFn: async () => {
     const chart = await api.chart();
-    try {
-      localStorage.setItem(CHART_KEY, JSON.stringify({ at: Date.now(), chart } satisfies Kept));
-    } catch {
-      // No storage: the next load asks again, as it always did.
-    }
+    // No storage: the next load asks again, as it always did.
+    writeKept(CHART_KEY, { at: Date.now(), chart } satisfies Kept);
     return chart;
   },
   staleTime: 60 * 60_000,

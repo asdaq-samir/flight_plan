@@ -11,6 +11,7 @@
  * again before the session ends. Kept in this browser: a student's own
  * progress, nobody else's to read.
  */
+import { readKept, writeKept } from "./storage";
 
 export type Light = "green" | "red" | "white";
 
@@ -117,17 +118,11 @@ const KEY = (deck: DeckKey) => `wingtip.drill.${deck}`;
 /** A deck's progress as kept in this browser; none where storage cannot
  *  be had. */
 export function keptProgress(deck: DeckKey): Progress {
-  try {
-    return JSON.parse(localStorage.getItem(KEY(deck)) ?? "{}") as Progress;
-  } catch {
-    return {};
-  }
+  return readKept<Progress>(KEY(deck), {});
 }
 
+/** A private window keeps none: the session still runs, and starts afresh
+ *  next time. */
 export function keepProgress(deck: DeckKey, progress: Progress): void {
-  try {
-    localStorage.setItem(KEY(deck), JSON.stringify(progress));
-  } catch {
-    // A private window: the session still runs, and starts afresh next time.
-  }
+  writeKept(KEY(deck), progress);
 }

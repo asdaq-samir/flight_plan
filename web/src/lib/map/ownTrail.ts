@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { distanceNm } from "../geo";
+import { readKept, writeKept } from "../storage";
 import { underway } from "./glide";
 import { useOwnShip } from "./ownShip";
 import type { PathPoint } from "./tracking";
@@ -20,13 +21,9 @@ const NEW_FLIGHT_MS = 10 * 60_000;
 const MOST = 5000;
 
 function kept(): PathPoint[] {
-  try {
-    const held = JSON.parse(localStorage.getItem(KEY) ?? "[]") as PathPoint[];
-    const last = held.at(-1);
-    return last && Date.now() - last.t < NEW_FLIGHT_MS ? held : [];
-  } catch {
-    return [];
-  }
+  const held = readKept<PathPoint[]>(KEY, []);
+  const last = Array.isArray(held) ? held.at(-1) : undefined;
+  return last && Date.now() - last.t < NEW_FLIGHT_MS ? held : [];
 }
 
 export const useOwnTrail = create<{ path: PathPoint[] }>(() => ({ path: kept() }));
@@ -45,12 +42,12 @@ useOwnShip.subscribe(s => {
   // Written down at most every half minute: a phone's storage is slow.
   if (fix.at - saved > 30_000) {
     saved = fix.at;
-    try { localStorage.setItem(KEY, JSON.stringify(next)); } catch { /* private window: this page's alone */ }
+    writeKept(KEY, next);   // a private window: this page's alone
   }
 });
 
 /** The path put away, as its button in the map's settings asks. */
 export function clearOwnTrail() {
   useOwnTrail.setState({ path: [] });
-  try { localStorage.removeItem(KEY); } catch { /* nothing kept */ }
+  writeKept(KEY, null);
 }
