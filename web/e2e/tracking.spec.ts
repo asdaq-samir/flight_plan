@@ -54,6 +54,8 @@ async function sky(page: Page, detail: object = DETAIL) {
     route.fulfill({ json: new URL(route.request().url()).searchParams.get("callsign") === "UAL2088" ? ROUTE : null }));
   await page.route(url => url.pathname.endsWith("/api/planner/traffic/find"), route =>
     route.fulfill({ json: { aircraft: new URL(route.request().url()).searchParams.get("q") === "UAL2088" ? [UAL] : [] } }));
+  // No photo of it, unless a test gives one: Planespotters' sky is not the suite's either.
+  await page.route(url => url.hostname === "api.planespotters.net", route => route.fulfill({ json: { photos: [] } }));
 }
 
 test.afterEach(async ({ page }) => {
@@ -86,13 +88,17 @@ test("Aircraft is a tab, finds an airplane by its callsign, and a tap on one tra
   await expect(page.getByTestId("tab-title")).toHaveText("UAL2088");
   // Its name alone over the tabs, at the owner's ask: what it is is Info's.
   await expect(card.getByTestId("flight-line")).toHaveCount(0);
+  // The flight it is on first in its Flights, as FlightAware's: where it
+  // left and where it is bound, and how it is flying.
+  await expect(card.getByTestId("flight-tab-activity")).toHaveAttribute("data-state", "active");
   await expect(card.getByTestId("flight-departed")).toContainText("TJSJ");
+  await expect(card.getByTestId("flight-bound")).toContainText("KORD");
   await expect(card.getByTestId("flight-altitude")).toContainText("7,000 ft");
+  // What it is, under Info: its make and model and who flies it first.
+  await card.getByTestId("flight-tab-info").click();
   // Its flight number's route, and its FAA registration, at the pilot's ask.
   await expect(card.getByTestId("flight-route")).toContainText("TJSJ → KORD");
   await expect(card.getByTestId("flight-route")).toContainText("San Juan to Chicago");
-  // What it is, under Info: its make and model and who flies it first.
-  await card.getByTestId("flight-tab-info").click();
   await expect(card.getByTestId("flight-model")).toHaveText("Airbus A-321neo");
   await expect(card.getByTestId("flight-operator")).toHaveText("United Airlines Inc");
   await expect(card.getByTestId("faa-owner")).toContainText("United Airlines Inc · Corporation · Chicago, IL");
@@ -180,11 +186,13 @@ test("an airplane not in the air is found by its registration, and its card says
   const card = page.getByTestId("flight-card");
   // Named by its FAA record, not its address, with no trace today to name it.
   await expect(page.getByTestId("tab-title")).toHaveText("N654FL");
-  // Not heard now: the card opens on its flights, all the way up.
+  // Not heard now: on its flights, and its sketch says when it was last
+  // heard, on the ground where its trace ends there.
   await grabberTo(page, "full");
   await expect(card.getByTestId("flight-tab-activity")).toHaveAttribute("data-state", "active");
-  await card.getByTestId("flight-tab-now").click();
-  await expect(card.getByTestId("flight-not-heard")).toContainText("Last heard");
+  await expect(card.getByTestId("flight-now")).toHaveCount(0);
+  await expect(card.getByTestId("flight-chip")).toContainText("Last heard");
+  await expect(card.getByTestId("flight-state")).toHaveText("GND");
   await card.getByTestId("flight-tab-info").click();
   await expect(card.getByTestId("faa-owner")).toContainText("Roca Roja LLC · LLC · Meridian, ID");
 });
@@ -274,8 +282,11 @@ test("an airplane's past flights are listed on its card, and one is drawn on the
   await card.getByTestId("flight-tab-activity").click();
   const rows = card.getByTestId("past-flight");
   await expect(rows).toHaveCount(2, { timeout: slow(15_000) });
-  await expect(rows.first()).toContainText("LCI → LWM");
-  await expect(rows.first()).toContainText("Arrived");
+  // FlightAware's row: how it ended and how long, then each end's field,
+  // its town and when.
+  await expect(rows.first()).toContainText("Landed · 1 h 19 min");
+  await expect(rows.first()).toContainText(/LCI\s*Laconia, NH/);
+  await expect(rows.first()).toContainText(/LWM\s*Lawrence, MA/);
   await rows.first().click();
   // Its own card over the airplane's, at the pilot's ask: the replay, its
   // figures and its track log; drawn on the map in its heights' colours.
@@ -401,7 +412,7 @@ test("an airplane quiet for a fortnight is looked for further back by itself, an
   // At the pill's size, as every card opens; its pages all the way up.
   await grabberTo(page, "full");
   await card.getByTestId("flight-tab-activity").click();
-  await expect(card).toContainText("None heard in adsb.lol's archive", { timeout: slow(15_000) });
+  await expect(card.getByTestId("past-flights-none")).toHaveText("No flights heard in the last six weeks", { timeout: slow(15_000) });
   expect(asked.map(q => q.get("until"))).toEqual([null, "2026-09-28", "2026-09-14"]);
   await expect(card.getByTestId("past-flights-more")).toHaveCount(0);
 });
@@ -478,17 +489,25 @@ test("the card's sketch of where an airplane has flown is in its heights' colour
   for (const colour of colours) expect(colour).toMatch(/^hsl\(\d+ 85% 45%\)$/);
 });
 
-test("an airplane's card is laid out as an airport's: its actions and its tabs where the airport card's are, and its name set to fit its column", async ({ page }) => {
+test("an airplane's card is laid out as an airport's, a line taller for its column of three, and its name set to fit its column", async ({ page }) => {
   // The owner's ask: "Do airport and aircraft cards have same layouts?" --
   // the airplane's actions sat 6 points lower, its tabs 12 further under
-  // them, and its name was cut where its thumbnail began.
+  // them, and its name was cut where its thumbnail began. Since its star,
+  // Follow and Share are a column (the owner's "follow and share icons
+  // just below the fav icon button"), its head is one line, 16 points,
+  // taller, and its actions and tabs that much lower, and no more.
   await sky(page, { ...DETAIL, description: "PIPER PA-28-140/150/160/180 CHEROKEE" });
   const panel = sideDrawer(page);
-  // How far down the half sheet the card's actions and its tabs start.
+  // How far down the half sheet the card's actions end and its tabs start.
   const places = async (card: string, action: string) => {
     await grabberTo(page, "half");
     const sheet = (await panel.boundingBox())!.y;
-    const at = async (testId: string) => (await page.getByTestId(testId).first().boundingBox())!.y - sheet;
+    // The row's foot: a filled tile (the airport's Fly Here) is two points
+    // taller than a pane of glass, which moved the row's top, not its foot.
+    const at = async (testId: string) => {
+      const box = (await page.getByTestId(testId).first().boundingBox())!;
+      return box.y + box.height - sheet;
+    };
     const tabs = (await page.getByTestId(card).getByRole("tablist").first().boundingBox())!.y - sheet;
     return { actions: await at(action), tabs };
   };
@@ -498,12 +517,145 @@ test("an airplane's card is laid out as an airport's: its actions and its tabs w
   const airport = await places("place-card", "fly-here");
   await page.goto("/app/plan?flight=a0b7d8");
   await settle(page);
-  await expect(page.getByTestId("flight-follow")).toBeVisible({ timeout: slow(15_000) });
-  const airplane = await places("flight-card", "flight-follow");
-  expect(Math.abs(airplane.actions - airport.actions), `actions ${airplane.actions} and ${airport.actions}`).toBeLessThan(1.5);
-  expect(Math.abs(airplane.tabs - airport.tabs), `tabs ${airplane.tabs} and ${airport.tabs}`).toBeLessThan(1.5);
+  await expect(page.getByTestId("flight-alert")).toBeVisible({ timeout: slow(15_000) });
+  const airplane = await places("flight-card", "flight-alert");
+  expect(Math.abs(airplane.actions - airport.actions - 16), `actions ${airplane.actions} and ${airport.actions}`).toBeLessThan(1.5);
+  expect(Math.abs(airplane.tabs - airport.tabs - 16), `tabs ${airplane.tabs} and ${airport.tabs}`).toBeLessThan(1.5);
   // The long model whole, set smaller to fit, not cut off.
   const name = page.getByTestId("flight-name");
   await expect(name).toContainText("Cherokee");
   expect(await name.evaluate(el => el.scrollHeight <= el.clientHeight + 1 && el.scrollWidth <= el.clientWidth + 1)).toBe(true);
+});
+
+test("an airplane's card has its star, Follow and Share in a column, its state and height on its sketch, and its airport a tap away", async ({ page }) => {
+  // The owner's picks of the redesign: "I want the follow and share icons
+  // just below the fav icon button", "the status badge can be on the
+  // sketch. Also make sure everything is visible in the sketch".
+  await sky(page, { ...DETAIL, departed: { ident: "C81", name: "Campbell Airport", at: Date.now() / 1000 - 3600 } });
+  await page.goto("/app/plan?flight=a0b7d8");
+  await settle(page);
+  const card = page.getByTestId("flight-card");
+  await expect(card.getByTestId("flight-follow")).toBeVisible({ timeout: slow(15_000) });
+  const column = await Promise.all(["flight-favorite", "flight-follow", "flight-share"].map(async id => (await card.getByTestId(id).boundingBox())!));
+  for (let i = 1; i < column.length; i++) {
+    expect(Math.abs(column[i]!.x - column[0]!.x), "one column").toBeLessThan(1);
+    expect(column[i]!.y, "each under the one before").toBeGreaterThanOrEqual(column[i - 1]!.y + column[i - 1]!.height);
+  }
+  // Descending 1,200 ft a minute, at 7,000 ft and 250 kt: said on the sketch, inside its box.
+  await expect(card.getByTestId("flight-state")).toHaveText("DES");
+  await expect(card.getByTestId("flight-chip")).toHaveText("7,000 ft · 250 kt");
+  const box = (await card.getByTestId("flight-trail").boundingBox())!;
+  for (const id of ["flight-state", "flight-chip"]) {
+    const part = (await card.getByTestId(id).boundingBox())!;
+    expect(part.x >= box.x && part.y >= box.y && part.x + part.width <= box.x + box.width + 0.5 && part.y + part.height <= box.y + box.height + 0.5,
+      `${id} inside the sketch`).toBe(true);
+  }
+  // Its airport: the field it left, its card over the airplane's, and its
+  // close back to the airplane's.
+  const airport = card.getByTestId("flight-airport");
+  await expect(airport).toContainText("C81");
+  await airport.click();
+  await expect(page).toHaveURL(/[?&]place=C81/);
+  await expect(page.getByTestId("place-card")).toBeVisible({ timeout: slow(15_000) });
+  await closeCard(page, "place-close");
+  await expect(page).not.toHaveURL(/[?&]place=/);
+  await expect(page).toHaveURL(/[?&]flight=a0b7d8/);
+  await expect(page.getByTestId("flight-card")).toBeVisible();
+});
+
+test("an airplane not heard now has its last flight sketched, on the ground where it landed, and Debrief opens it", async ({ page }) => {
+  // The owner's ask: "if it's not flying now, sketch the last flight."
+  const off = Date.now() / 1000 - 30 * 3600;
+  const lci = { ident: "LCI", name: "Laconia Municipal Airport", city: "Laconia", region: "US-NH" };
+  const lwm = { ident: "LWM", name: "Lawrence Municipal Airport", city: "Lawrence", region: "US-MA" };
+  const points = Array.from({ length: 80 }, (_, i) => ({
+    t: off + i * 60, lat: 43.57 - i * 0.0107, lon: -71.42 + i * 0.0038, alt_ft: 800 + Math.min(i, 79 - i) * 120,
+    gs_kt: 100, track_deg: 165, vrate_fpm: i < 40 ? 500 : -500,
+  }));
+  await sky(page, { hex: "a89c1e", registration: "N654FL", type: "P28A", departed: null, trail: [] });
+  await page.route(url => /\/api\/planner\/traffic\/flight\/a89c1e\/history$/.test(url.pathname), route => route.fulfill({ json: {
+    hex: "a89c1e", registration: "N654FL", type: "P28A",
+    flights: [{ id: Math.floor(off), origin: lci, destination: lwm, off, on: off + 79 * 60, landed: true, in_air: false, max_alt_ft: 5520 }],
+  } }));
+  await page.route(url => /\/api\/planner\/traffic\/flight\/a89c1e\/history\/\d+$/.test(url.pathname),
+    route => route.fulfill({ json: { id: Math.floor(off), points } }));
+  await page.goto("/app/plan?flight=a89c1e");
+  await settle(page);
+  const card = page.getByTestId("flight-card");
+  await expect(card.getByTestId("flight-chip")).toHaveText(/^Landed LWM \d{1,2} [A-Z][a-z]{2}$/, { timeout: slow(15_000) });
+  await expect(card.getByTestId("flight-state")).toHaveText("GND");
+  await expect(card.getByTestId("trail-sketch")).toBeVisible();
+  // Its airport: where it landed.
+  await expect(card.getByTestId("flight-airport")).toContainText("LWM");
+  await card.getByTestId("flight-debrief").click();
+  await expect(page).toHaveURL(new RegExp(`[?&]past=${Math.floor(off)}`));
+  await expect(page.getByTestId("past-flight-card").getByTestId("past-flight-name")).toHaveText("LCI → LWM");
+});
+
+test("an airplane's photo is a swipe across its sketch, the photographer named on it and the photo linked to its page", async ({ page }) => {
+  // The owner's ask: "I also like the idea of having the actual airframe
+  // photo", as Planespotters' terms have it shown.
+  await sky(page);
+  await page.route(url => url.hostname === "api.planespotters.net", route => route.fulfill({ json: { photos: [{
+    id: "1773250", thumbnail_large: { src: "https://t.plnspttrs.net/30652/1773250_280.jpg", size: { width: 420, height: 280 } },
+    link: "https://www.planespotters.net/photo/1773250/n14511", photographer: "Jane Spotter",
+  }] } }));
+  await page.route(url => url.hostname === "t.plnspttrs.net", route => route.fulfill({
+    contentType: "image/png",
+    body: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=", "base64"),
+  }));
+  await page.goto("/app/plan?flight=a0b7d8");
+  await settle(page);
+  const card = page.getByTestId("flight-card");
+  const photo = card.getByTestId("flight-photo");
+  await expect(photo).toHaveAttribute("href", "https://www.planespotters.net/photo/1773250/n14511", { timeout: slow(15_000) });
+  await expect(photo).toHaveAttribute("target", "_blank");
+  await expect(photo).not.toHaveAttribute("rel", /nofollow/);
+  await expect(card.getByTestId("flight-photo-credit")).toHaveText("© Jane Spotter · Planespotters");
+  // The sketch first; the photo a page across.
+  await expect(card.getByTestId("flight-trail")).toBeInViewport({ ratio: 0.9 });
+  await photo.evaluate(el => el.parentElement!.scrollTo({ left: el.parentElement!.clientWidth }));
+  await expect(photo).toBeInViewport({ ratio: 0.9 });
+});
+
+test("an alert set on an airplane goes off on the map when it lands, once, and Show opens its card", async ({ page }) => {
+  // The owner's pick: "Just the alert button for all alerts".
+  await sky(page);
+  let landed = false;
+  let asked = 0;
+  await page.route(url => /\/api\/planner\/traffic\/flight\/a0b7d8\/status$/.test(url.pathname), route => {
+    asked += 1;
+    return route.fulfill({ json: landed
+      ? { hex: "a0b7d8", heard_s: 130, airborne: false, aircraft: null, departed: null,
+          arrived: { ident: "KORD", name: "Chicago O'Hare International Airport", city: "Chicago", region: "US-IL", at: Date.now() / 1000 - 60 } }
+      : { hex: "a0b7d8", heard_s: 1, airborne: true, aircraft: UAL, departed: null, arrived: null } });
+  });
+  await page.goto("/app/plan?flight=a0b7d8");
+  await settle(page);
+  const card = page.getByTestId("flight-card");
+  await card.getByTestId("flight-alert").click();
+  const menu = page.getByTestId("flight-alert-menu");
+  await expect(menu).toContainText("Tell me when UAL2088");
+  // In the air now: not "takes off"; and no own ship, so not "near me".
+  await expect(menu.getByTestId("flight-alert-takeoff")).toHaveAttribute("aria-disabled", "true");
+  await expect(menu.getByTestId("flight-alert-takeoff")).toContainText("It is in the air now");
+  await expect(menu.getByTestId("flight-alert-near-me")).toContainText("Your position is off");
+  await menu.getByTestId("flight-alert-land").click();
+  await expect(menu.getByTestId("flight-alert-land")).toHaveAttribute("aria-checked", "true");
+  await page.keyboard.press("Escape");
+  await expect(menu).toHaveCount(0);
+  await expect(card.getByTestId("flight-alerts-set")).toHaveText("When it lands");
+  // Watched with the card put away.
+  await closeCard(page, "flight-close");
+  await expect.poll(() => asked, { timeout: slow(15_000) }).toBeGreaterThan(0);
+  landed = true;
+  const banner = page.getByTestId("aircraft-alert");
+  await expect(banner.getByTestId("aircraft-alert-title")).toHaveText("UAL2088 landed at KORD", { timeout: slow(45_000) });
+  await expect(banner).toContainText("Chicago");
+  await expect(banner).toHaveCount(1);
+  // Show: its card again, the alert let go once said.
+  await banner.getByTestId("aircraft-alert-show").click();
+  await expect(banner).toHaveCount(0);
+  await expect(page).toHaveURL(/[?&]flight=a0b7d8/);
+  await expect(page.getByTestId("flight-card").getByTestId("flight-alerts-set")).toHaveCount(0);
 });

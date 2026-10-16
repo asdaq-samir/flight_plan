@@ -352,10 +352,31 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     // it is drawn.
     else if (nearOpen) setPanel("full");
   }, [place, heldPoint, nearOpen, setSearchParams, setPanel, setApproachesOf]);
+  // An airplane's airport opened from its card (its airport's tile): the
+  // airport's card over the airplane's, and its close back to the
+  // airplane's at the height it was, as Maps puts one card back under
+  // another -- not at the height before any card, which closeCard keeps.
+  const panelUnderAirport = useRef<PanelState | null>(null);
+  const openAirportOverFlight = useCallback((ident: string) => {
+    panelUnderAirport.current = panel;
+    selectPlace(ident);
+  }, [panel, selectPlace]);
+  useEffect(() => {
+    if (!place) panelUnderAirport.current = null;
+  }, [place]);
+  const closePlace = useCallback(() => {
+    const under = panelUnderAirport.current;
+    panelUnderAirport.current = null;
+    if (flight && under) {
+      selectPlace(null);
+      setPanel(under);
+    } else closeCard(() => selectPlace(null));
+  }, [flight, selectPlace, setPanel, closeCard]);
   const flightCard = flight && past
     ? <PastFlightCard key={`${flight}-${past}`} hex={flight} id={past} onClose={() => selectPast(null)} />
     : flight ? <FlightCard
       key={flight} hex={flight} onClose={() => closeCard(() => selectFlight(null))} onOpenPast={selectPast}
+      onOpenAirport={openAirportOverFlight}
       onExpand={() => setPanel("full")} onLower={() => setPanel("half")}
     /> : null;
   // The ident as a string of its own (`${…}`): the route's object's field
@@ -1324,7 +1345,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const placeCard = (summary: boolean) => place && (
     <PlaceCard
       key={place} ident={place} from={measuredFrom} summary={summary}
-      onClose={() => closeCard(() => selectPlace(null))} onFlyHere={to => void flyHere(to)} onExpand={() => setPanel("full")} onLower={() => setPanel("half")}
+      onClose={closePlace} onFlyHere={to => void flyHere(to)} onExpand={() => setPanel("full")} onLower={() => setPanel("half")}
       // None for a point of the route, or past the planner's most stops.
       onAddStop={[planned.dep, ...planned.stops, planned.dest].includes(place) || planned.stops.length >= MAX_STOPS ? undefined : addStop}
       startOn={approachesOf === place ? "approaches" : undefined} onStarted={() => setApproachesOf(null)}

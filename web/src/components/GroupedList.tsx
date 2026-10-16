@@ -81,8 +81,12 @@ const LABEL = cn("font-normal", TEXT.row);
 const DESCRIPTION = cn("line-clamp-none", TEXT.detail);
 const VALUE = cn("text-muted-foreground tabular-nums", TEXT.row);
 
-export function ListRow({ id, media, title, description, value, href, to, chevron, checkbox, radio, children, ...buttonProps }: {
+export function ListRow({ id, media, title, description, value, href, to, chevron, checkbox, radio, wide, children, ...buttonProps }: {
   id?: string;
+  /** The title the row's whole width, for a row laid out in columns of
+   *  its own (a flight's two ends, FlightEnds): the stock title is as wide
+   *  as its words. */
+  wide?: boolean;
   media?: ReactNode;
   title: ReactNode;
   description?: ReactNode;
@@ -120,7 +124,7 @@ export function ListRow({ id, media, title, description, value, href, to, chevro
         </ItemMedia>
       ) : mark && <ItemMedia className={cn(action && "text-tint")}>{mark}</ItemMedia>}
       <ItemContent className="min-w-0 gap-0.5">
-        <ItemTitle className={action ? TITLE_ACTION : TITLE}>
+        <ItemTitle className={cn(action ? TITLE_ACTION : TITLE, wide && "w-full")}>
           {id ? <Label htmlFor={id} className={LABEL}>{title}</Label> : title}
         </ItemTitle>
         {description && <ItemDescription className={DESCRIPTION}>{description}</ItemDescription>}

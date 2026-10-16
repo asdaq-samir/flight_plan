@@ -62,6 +62,8 @@ export default memo(function TrailSketch({ points, now, trackDeg, from = null, t
             <circle cx={fx} cy={fy} r={3.5} fill="var(--background)" stroke="var(--foreground)" strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
             <text
               x={fx + (right ? 6 : -6)} y={fy + 4} textAnchor={right ? "start" : "end"} fontSize={11} fontWeight={600}
+              // iOS's Caption 2, 11 on 13, as the audit's P3 has every size on its leading.
+              style={{ lineHeight: 13 / 11 }}
               fill="var(--foreground)" stroke="var(--background)" strokeWidth={3} paintOrder="stroke"
             >
               {field.ident}

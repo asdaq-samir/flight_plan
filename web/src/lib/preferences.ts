@@ -2,6 +2,7 @@ import { NO_FILTER, type AircraftFilter } from "./fbo";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { DEFAULT_FILTERS, type FilterKey, type Filters } from "../features/train/logic";
+import type { AircraftAlert, AircraftAlertKind } from "./aircraftAlerts";
 import type { AircraftChoice } from "./api/types";
 import { NO_MINIMUMS, type Minimums } from "./minimums";
 import type { Load } from "./weightBalance";
@@ -153,6 +154,13 @@ interface Preferences {
   toggleFavoriteAircraft: (aircraft: KeptAircraft) => void;
   /** A Favorite airplane moved up or down the list, as the airports' are. */
   moveFavoriteAircraft: (from: number, to: number) => void;
+  /** What the pilot asked to be told of airplanes, from a card's Alert
+   *  (lib/aircraftAlerts): each kept until it goes off or is turned off,
+   *  so a reload or a phone put away and taken out again keeps watching. */
+  aircraftAlerts: AircraftAlert[];
+  /** One set, in place of any of its kind for the same airplane. */
+  setAircraftAlert: (alert: AircraftAlert) => void;
+  removeAircraftAlert: (hex: string, kind: AircraftAlertKind) => void;
   setBase: (base: BaseChart) => void;
   setTac: (tac: boolean) => void;
   setWaypoints: (waypoints: boolean) => void;
@@ -260,6 +268,11 @@ export const usePreferences = create<Preferences>()(
         if (moved) favoriteAircraft.splice(to, 0, moved);
         return { favoriteAircraft };
       }),
+      aircraftAlerts: [],
+      setAircraftAlert: alert => set(s => ({
+        aircraftAlerts: [...s.aircraftAlerts.filter(a => !(a.hex === alert.hex && a.kind === alert.kind)), alert],
+      })),
+      removeAircraftAlert: (hex, kind) => set(s => ({ aircraftAlerts: s.aircraftAlerts.filter(a => !(a.hex === hex && a.kind === kind)) })),
       toggleFavoriteAircraft: aircraft => set(s => ({
         favoriteAircraft: s.favoriteAircraft.some(a => a.hex === aircraft.hex)
           ? s.favoriteAircraft.filter(a => a.hex !== aircraft.hex)
@@ -322,6 +335,7 @@ export const usePreferences = create<Preferences>()(
         recentAircraft: s.recentAircraft, favoriteAircraft: s.favoriteAircraft, myAircraft: s.myAircraft,
         recentRoutes: s.recentRoutes,
         aircraftFilter: s.aircraftFilter,
+        aircraftAlerts: s.aircraftAlerts,
       }),
     },
   ),

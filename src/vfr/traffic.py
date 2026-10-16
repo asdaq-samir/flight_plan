@@ -436,6 +436,8 @@ _TRACES: TTLCache = TTLCache(maxsize=64, ttl=TRACE_TTL_S)
 RECENT_URL = GLOBE + "/data/traces/{last2}/trace_recent_{hex}.json"
 #: A recent trace is read again after this long, s.
 RECENT_TTL_S = 5
+#: Each airplane's recent trace as read (None for a 404), for its search's
+#: answer and its alerts' state (`status`).
 _RECENT: TTLCache = TTLCache(maxsize=256, ttl=RECENT_TTL_S)
 #: A search's answer from adsb.lol is given again this long, s.
 FOUND_TTL_S = 15
@@ -598,29 +600,39 @@ def _address_of(text: str) -> str | None:
     return None
 
 
-def _recent(hex_id: str) -> list[dict] | None:
-    """The airplane with this address as its recent trace last has it, as
-    `_aircraft` gives it: [it] in the air and heard within STALE_S, [] on
-    the ground, not heard that recently or with no recent trace (a 404),
-    None where the trace cannot be read now (the API is asked instead)."""
+def _recent_trace(hex_id: str):
+    """An airplane's recent trace (RECENT_URL), kept RECENT_TTL_S: a dict,
+    None where it has none (a 404), UNREAD where it cannot be read now."""
     with _LOCK:
         if hex_id in _RECENT:
             return _RECENT[hex_id]
     try:
         resp = requests.get(RECENT_URL.format(last2=hex_id[-2:], hex=hex_id), headers=HEADERS, timeout=TIMEOUT_S)
         if resp.status_code == 404:
-            found: list[dict] = []
+            trace = None
         elif resp.status_code == 200:
             trace = resp.json()
-            plane = _last_heard(trace) if isinstance(trace, dict) else None
-            found = [plane] if plane is not None else []
+            if not isinstance(trace, dict):
+                trace = None
         else:
-            return None
+            return UNREAD
     except (requests.RequestException, ValueError):
-        return None
+        return UNREAD
     with _LOCK:
-        _RECENT[hex_id] = found
-    return found
+        _RECENT[hex_id] = trace
+    return trace
+
+
+def _recent(hex_id: str) -> list[dict] | None:
+    """The airplane with this address as its recent trace last has it, as
+    `_aircraft` gives it: [it] in the air and heard within STALE_S, [] on
+    the ground, not heard that recently or with no recent trace (a 404),
+    None where the trace cannot be read now (the API is asked instead)."""
+    trace = _recent_trace(hex_id)
+    if trace is UNREAD:
+        return None
+    plane = _last_heard(trace) if trace else None
+    return [plane] if plane is not None else []
 
 
 def _last_heard(trace: dict) -> dict | None:
@@ -1124,6 +1136,68 @@ def past_flight(hex_id: str, flight_id: int, today=None) -> dict | None:
         return {"id": flight_id, "points": [{k: p[k] for k in ("t", "lat", "lon", "alt_ft", "gs_kt", "track_deg", "vrate_fpm")}
                                            for p in kept]}
     return None
+
+
+# --- An airplane's state now, for the alerts a pilot sets on it ---
+
+#: An airplane last heard in the air, low near a field or coming down to
+#: it, is taken to have landed there once it has gone unheard this long,
+#: s: a small airplane in the pattern often drops out of the receivers'
+#: hearing for half a minute on its downwind and comes back. Where its
+#: last report is on the ground, it has landed at once.
+LANDED_UNHEARD_S = 120
+
+
+def status(hex_id: str) -> dict:
+    """An airplane's state now, for the alerts a pilot sets on it (the
+    card's Alert): {"hex", "heard_s" (s since its last report, None with
+    none), "airborne" (that report in the air and within STALE_S, as the
+    map would draw it), "aircraft" (it, as the map draws it, while
+    airborne), "departed" (the field this flight took off from, where its
+    recent trace shows it on the ground at one or going up from one), and
+    "arrived" (where it has landed, while it is not airborne: on the
+    ground at a field, or last heard low near one or coming down to it,
+    `_field_at`, and unheard for LANDED_UNHEARD_S since; with "at", when
+    it was last heard)}. From its recent trace, seconds old; where it has
+    none, from its trace of today. TrafficUnavailable where the recent
+    trace cannot be read now."""
+    hex_id = hex_id.lower()
+    trace = _recent_trace(hex_id)
+    if trace is UNREAD:
+        raise TrafficUnavailable("adsb.lol's recent trace could not be read")
+    if trace is None:
+        trace = _trace(hex_id)
+    raw = [p for p in (trace or {}).get("trace") or []
+           if isinstance(p, list) and len(p) > 6 and _number(p[1]) is not None and _number(p[2]) is not None]
+    points = _points(trace) if raw else []
+    state = {"hex": hex_id, "heard_s": None, "airborne": False, "aircraft": None, "departed": None, "arrived": None}
+    if not points:
+        return state
+    last = points[-1]
+    ground = [p[3] == "ground" for p in raw]
+    state["heard_s"] = round(max(0.0, _wall() - last["t"]), 1)
+    aircraft = _last_heard(trace) if not ground[-1] else None
+    if aircraft is not None:
+        # The run in the air it is on: back to the stretch on the ground
+        # it took off from, readsb's own new leg, or a silence of LEG_GAP_S.
+        start = len(points) - 1
+        while (start > 0 and not ground[start - 1] and not points[start]["new_leg"]
+               and points[start]["t"] - points[start - 1]["t"] <= LEG_GAP_S):
+            start -= 1
+        if start > 0 and ground[start - 1]:
+            on = points[start - 1]
+            near = airports.nearest(on["lat"], on["lon"], limit=1)
+            if near and near[0]["distance_nm"] <= DEPARTED_WITHIN_NM:
+                state["departed"] = {"ident": near[0]["ident"], "name": near[0].get("name"),
+                                     "city": near[0].get("municipality"), "region": near[0].get("region")}
+        else:
+            state["departed"] = _field_at(points[start], landing=False)
+        state.update(airborne=True, aircraft=aircraft)
+    elif ground[-1] or state["heard_s"] >= LANDED_UNHEARD_S:
+        field = _field_at(last, landing=True)
+        if field is not None:
+            state["arrived"] = {**field, "at": last["t"]}
+    return state
 
 
 # --- Where an airplane is based: the field its own flights keep to ---

@@ -90,7 +90,7 @@ export function CardHead({ name, line, nameTestId, lineClassName, lineTestId, on
  * layout whatever it shows. A long name is set smaller to fit its column
  * (FitText) rather than pushing the actions down.
  */
-export function CardTop({ name, nameTestId, nameFitTestId, lines, picture, side, actions, columns, children }: {
+export function CardTop({ name, nameTestId, nameFitTestId, lines, picture, side, actions, columns, tall = false, children }: {
   name: ReactNode;
   nameTestId: string;
   nameFitTestId?: string;
@@ -103,11 +103,15 @@ export function CardTop({ name, nameTestId, nameFitTestId, lines, picture, side,
   actions: ReactNode;
   /** The actions' columns. */
   columns: 3 | 4;
+  /** A head a line taller, for a column of three round buttons (the
+   *  airplane card's star, Follow and Share), which at the airport card's
+   *  height met the actions under them. */
+  tall?: boolean;
   /** In the top's row besides, out of its flow: a full-screen viewer. */
   children?: ReactNode;
 }) {
   return (
-    <div className="flex h-[10.5rem] flex-col" data-to-edge="">
+    <div className={cn("flex flex-col", tall ? "h-[11.5rem]" : "h-[10.5rem]")} data-to-edge="">
       <div className="flex min-h-0 flex-1 gap-2">
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           <h2

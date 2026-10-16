@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { ComponentProps, ReactNode } from "react";
 import { Loader2 } from "lucide-react";
 import { cn } from "cn";
 import { Button } from "../../../components/ui/button";
@@ -19,7 +19,7 @@ import { TEXT } from "../../../lib/text";
  *  points, its word in the reader's size: the glyph, padding and gap are
  *  fixed, but the word's line still grows with the text size (checked at
  *  a 19 px root, not at the largest sizes). */
-export function CardAction({ icon, label, spoken, filled, busy, disabled, onClick, href, testId, pressed }: {
+export function CardAction({ icon, label, spoken, filled, busy, disabled, onClick, href, testId, pressed, ...trigger }: {
   icon: ReactNode; label: string; filled?: boolean; onClick?: () => void; testId: string;
   /** A switch's state, said: Follow on or off. */
   pressed?: boolean;
@@ -34,7 +34,7 @@ export function CardAction({ icon, label, spoken, filled, busy, disabled, onClic
    *  which turns on the compositor while the page is busy drawing what
    *  the tap asked for. */
   busy?: boolean;
-}) {
+} & Omit<ComponentProps<"button">, "children" | "onClick" | "disabled">) {
   // Its sides four points in, not the stock button's ten: the room a
   // word needs to stay on its one line (below) at the text sizes a reader
   // sets larger.
@@ -59,8 +59,11 @@ export function CardAction({ icon, label, spoken, filled, busy, disabled, onClic
     );
   }
   return (
+    // What a menu's trigger hands its button (DropdownMenuTrigger asChild:
+    // its ref, its pointer and key handlers, aria-expanded) goes on it, so
+    // a tile can open a menu, as the airplane card's Alert does.
     <Button
-      type="button" variant={filled ? "default" : "secondary"} onClick={onClick} disabled={disabled}
+      type="button" variant={filled ? "default" : "secondary"} {...trigger} onClick={onClick} disabled={disabled}
       data-testid={testId} aria-label={spoken} aria-busy={busy || undefined} aria-pressed={pressed} className={look}
     >
       {face}

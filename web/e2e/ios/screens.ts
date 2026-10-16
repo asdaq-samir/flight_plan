@@ -230,6 +230,40 @@ export const SCREENS: Screen[] = [
       await expect(sideDrawer(page).getByTestId("aircraft-search")).toBeVisible();
     },
   },
+  // An airplane's card in the air, half way as it opens: its column of three,
+  // its sketch, Alert, Debrief and its airport, the flight it is on and
+  // the one before (adsb.lol and Planespotters stubbed); then its Alert's
+  // menu open.
+  ...["card", "Alert menu"].map(part => ({
+    name: `an airplane's ${part}`,
+    ready: async (page: Page) => {
+      const now = Date.now() / 1000;
+      const plane = { hex: "a89c1e", callsign: "N654FL", registration: "N654FL", type: "P28A", lat: 42.35, lon: -88.0,
+        altitude_ft: 4500, pressure_altitude: false, track_deg: 45, speed_kt: 112, vertical_fpm: 500, seen_s: 0.5, squawk: "1200" };
+      const c81 = { ident: "C81", name: "Campbell Airport", city: "Grayslake", region: "US-IL" };
+      await page.route(url => url.pathname.endsWith("/api/planner/traffic"), route =>
+        route.fulfill({ json: { aircraft: [plane], age_s: 1, source: "adsb.lol", license: "ODbL 1.0" } }));
+      await page.route(url => /\/api\/planner\/traffic\/flight\/a89c1e\/history$/.test(url.pathname), route => route.fulfill({ json: {
+        hex: "a89c1e", registration: "N654FL", type: "P28A", flights: [
+          { id: Math.floor(now - 3600), origin: c81, destination: null, off: now - 3600, on: now - 5, landed: false, in_air: true, max_alt_ft: 4500 },
+          { id: Math.floor(now - 90000), origin: c81, destination: c81, off: now - 90000, on: now - 86100, landed: true, in_air: false, max_alt_ft: 3000 },
+        ] } }));
+      await page.route(url => /\/api\/planner\/traffic\/flight\/a89c1e$/.test(url.pathname), route => route.fulfill({ json: {
+        hex: "a89c1e", registration: "N654FL", type: "P28A", description: "PIPER PA-28-140/150/160/180", operator: "RYALIS LLC",
+        departed: { ident: "C81", name: "Campbell Airport", at: now - 3600 },
+        trail: [{ t: now - 3600, lat: 42.32, lon: -88.07, alt_ft: null }, { t: now - 1800, lat: 42.42, lon: -88.2, alt_ft: 3500 }, { t: now - 5, lat: 42.35, lon: -88.0, alt_ft: 4500 }],
+      } }));
+      await page.route(url => url.hostname === "api.planespotters.net", route => route.fulfill({ json: { photos: [] } }));
+      await page.goto("/app/plan?flight=a89c1e");
+      await settle(page);
+      // Half way, as it opens.
+      await expect(sideDrawer(page).getByTestId("flight-now")).toBeAttached({ timeout: slow(30000) });
+      if (part === "Alert menu") {
+        await sideDrawer(page).getByTestId("flight-alert").click();
+        await expect(page.getByTestId("flight-alert-menu")).toBeVisible();
+      }
+    },
+  })),
   // FPL with no route, all the way up: its strip showing the routes
   // planned last, from its filter (the Recents seeded in this browser:
   // nothing is written to the planner).
