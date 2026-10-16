@@ -1,5 +1,5 @@
 import { expect, type Page } from "@playwright/test";
-import { consolePage, controlsInSight, grabberTo, openConsole, openPanel, openSection, openSettings, openTab, settle, showTabs, sideDrawer, slow } from "../helpers";
+import { consolePage, controlsInSight, grabberTo, openConsole, openPanel, openSection, openSettings, openTab, settle, showTabs, sideDrawer, slow, stripShows } from "../helpers";
 
 /** One state of the app as a pilot sees it, reached from a fresh page. */
 export type Screen = { name: string; ready: (page: Page) => Promise<void> };
@@ -230,9 +230,9 @@ export const SCREENS: Screen[] = [
       await expect(sideDrawer(page).getByTestId("aircraft-search")).toBeVisible();
     },
   },
-  // FPL with no route, all the way up: Saved, and the routes planned last
-  // under it, each title the way to its list in full (the Recents seeded
-  // in this browser: nothing is written to the planner).
+  // FPL with no route, all the way up: its strip showing the routes
+  // planned last, from its filter (the Recents seeded in this browser:
+  // nothing is written to the planner).
   {
     name: "FPL, Saved and Recents",
     ready: async page => {
@@ -247,6 +247,7 @@ export const SCREENS: Screen[] = [
       await page.goto("/app/plan");
       await settle(page);
       await grabberTo(page, "full");
+      await stripShows(page, "fpl-strip-shows", "fpl-shows-recents");
       await expect(sideDrawer(page).getByTestId("route-recent").first()).toBeVisible();
     },
   },

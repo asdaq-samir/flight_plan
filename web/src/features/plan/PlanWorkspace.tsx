@@ -12,7 +12,7 @@ import { aircraftKey, choiceOf } from "../../lib/aircraftChoice";
 import { bestStopIndex } from "../../lib/geo";
 import { useKeepOffline } from "../../lib/map/keepStatus";
 import { locateOnOpen, positionNow, useOwnShip, useOwnShipNear } from "../../lib/map/ownShip";
-import { useTabSearch } from "../../lib/tabSearch";
+import { pickKeptAircraft, useTabSearch } from "../../lib/tabSearch";
 import TabBar, { type BarTab } from "../../components/TabBar";
 import { useTabAsk } from "./components/navlog/panelTab";
 import { useAddressCards, usePanelTabs, type PanelTab } from "./hooks/useTabCards";
@@ -30,7 +30,7 @@ import RoundButton from "../../components/RoundButton";
 import ShareMenu from "./components/ShareMenu";
 import TipHost from "../../components/TipHost";
 import { useCardTitle, usePanelDragging } from "../../components/mapChrome";
-import { AirportRecentsPage, SearchField, SearchResults } from "../../components/PanelCapsule";
+import { AirportRecentsPage, RecentAirportTiles, SearchField, SearchResults } from "../../components/PanelCapsule";
 import { chipColourOf } from "../../lib/map/flightCategory";
 import { FavoriteStrip, FavoritesList } from "../../components/Favorites";
 import FlightLine from "./components/FlightLine";
@@ -41,14 +41,14 @@ import { patternsOf, patternsParam, trafficPattern, type TrafficPattern } from "
 import { proceduresOf, proceduresParam, sameField, type PickedProcedure } from "../../lib/procedures";
 import { runwayNumber } from "../../lib/pattern";
 import NearestCard, { NearestStrip } from "./components/NearestCard";
-import AircraftCard from "./components/AircraftCard";
+import AircraftCard, { AircraftRecentsPage } from "./components/AircraftCard";
 import AircraftPill from "./components/AircraftPill";
 import AircraftFavoritesList from "./components/AircraftFavoritesList";
 import TabPage from "../../components/TabPage";
-import { useAirportStripShows } from "./hooks/useAirportStripShows";
+import { useStripShows } from "./hooks/useStripShows";
 import AirportPill from "./components/AirportPill";
-import SavedStrip from "./components/SavedStrip";
-import { RecentRoutes, RecentRoutesPage } from "./components/RecentRoutes";
+import FplStrip from "./components/FplStrip";
+import { RecentRoutesPage } from "./components/RecentRoutes";
 import MiniProfile from "./components/navlog/MiniProfile";
 import { dryRunOf, type DryRun } from "./components/navlog/dryRun";
 import { DryRunControls, DryRunFigures } from "./components/DryRunPanel";
@@ -771,13 +771,15 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const [favoritesOpen, setFavoritesOpen] = useState(false);
   const [airportRecentsOpen, setAirportRecentsOpen] = useState(false);
   const [routeRecentsOpen, setRouteRecentsOpen] = useState(false);
-  // Aircraft's Favorites in full, from their title.
+  // Aircraft's Favorites and Recents in full, from their titles.
   const [aircraftFavoritesOpen, setAircraftFavoritesOpen] = useState(false);
+  const [aircraftRecentsOpen, setAircraftRecentsOpen] = useState(false);
   const listsAway = useCallback(() => {
     setFavoritesOpen(false);
     setAirportRecentsOpen(false);
     setRouteRecentsOpen(false);
     setAircraftFavoritesOpen(false);
+    setAircraftRecentsOpen(false);
   }, []);
   // Each route the planner answers kept as FPL's Recents, newest first, at
   // the owner's ask ("Can we have recents under saved ?"): once it is
@@ -800,7 +802,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // while the strip is in sight.
   // Airport's strip in sight, at the pill or all the way up.
   const airportPill = tab === "airport" && !place && !heldPoint && !nearOpen && !favoritesOpen && !airportRecentsOpen;
-  const showsNearest = useAirportStripShows(s => s.nearest);
+  const showsNearest = useStripShows(s => s.airport === "nearest");
   const { data: nearStrip } = useQuery({ ...nearestQuery(nearOrigin?.lat ?? 0, nearOrigin?.lon ?? 0), enabled: airportPill && showsNearest && !!nearOrigin });
   // FPL's saved flights in full, a card over it (SAVED's title, the chips'
   // Saved button).
@@ -918,7 +920,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       label="Find an aircraft: callsign, registration or ICAO address" testId="aircraft-search" capitals
       // Up, the list under the field in sight -- not by an Add's focus,
       // which leaves the panel where it is (focusQuietly).
-      onFocus={() => { setAircraftFavoritesOpen(false); if (panel === "peek" && !quietFocus.current) setPanel("full"); }}
+      onFocus={() => { setAircraftFavoritesOpen(false); setAircraftRecentsOpen(false); if (panel === "peek" && !quietFocus.current) setPanel("full"); }}
       onCancel={() => { useTabSearch.setState({ aircraft: "", pickingMine: false, pickingFavorite: false }); setPanel("peek"); }}
       onSubmit={() => useTabSearch.getState().submitAircraft?.()}
     />
@@ -1389,14 +1391,18 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       </div>
     </div>
   );
-  // Each tab's strip, its title the menu of what it shows, the Favorites
-  // first: the pill's row, and all the way up the same, where it was, at
-  // the owner's ask ("I want the favorites filter to stay when it's full").
+  // Each tab's one strip, what it shows picked from its filter, the
+  // Favorites first: half way, and all the way up the same, where it was,
+  // at the owner's ask ("I want the favorites filter to stay when it's
+  // full"); each list's title opens it in full, all the way up.
   const airportStrip = (
     <AirportPill
       favorites={<FavoriteStrip home={home} favorites={favorites} onOpen={a => selectPlace(a.ident)} onAddHome={() => addFromPill("home")} onAddFavorite={() => askFor("favorite")} />}
+      recents={<RecentAirportTiles onPick={airport => void pickPlace(airport)} />}
       nearest={<NearestStrip fields={nearStrip} located={!!nearOrigin} onOpen={selectPlace} />}
-      onAllNearest={openNearest} onAllFavorites={() => { setFavoritesOpen(true); setPanel("full"); }}
+      onAllFavorites={() => { setFavoritesOpen(true); setPanel("full"); }}
+      onAllRecents={() => { setAirportRecentsOpen(true); setPanel("full"); }}
+      onAllNearest={openNearest}
     />
   );
   // With the Map switch at its right (AircraftPill).
@@ -1404,6 +1410,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     <AircraftPill
       onOpen={hex => selectFlight(hex)} onAddMine={() => addFromPill("mine")} onAddFavorite={() => addFromPill("airplane")} onPick={plane => selectFlight(plane.hex, plane)}
       onAllFavorites={() => { setAircraftFavoritesOpen(true); setPanel("full"); }}
+      onAllRecents={() => { setAircraftRecentsOpen(true); setPanel("full"); }}
     />
   );
 
@@ -1464,6 +1471,10 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
                 onAdd={() => { setAircraftFavoritesOpen(false); addFromPill("airplane"); }}
               />
             </TabPage>
+          ) : aircraftRecentsOpen && !aircraftTyped ? (
+            // Kept open under an airplane's card opened from it, as the
+            // Favorites in full are: its close comes back here.
+            <AircraftRecentsPage onBack={() => setAircraftRecentsOpen(false)} onPick={kept => pickKeptAircraft(kept, hex => selectFlight(hex))} />
           ) : (
             // The strip once, in the pill or here: at the pill's size the
             // body is out of sight but for a finger taking it up.
@@ -1508,10 +1519,10 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
               <RecentRoutesPage onBack={() => setRouteRecentsOpen(false)} />
             </TabPage>
           ) : (
-            // Saved, and the routes planned last under it.
+            // The flights saved or the routes planned last, picked from its
+            // filter as every tab's strip is.
             <TabPage>
-              <SavedStrip onMore={openSaved} />
-              <RecentRoutes onMore={() => { setRouteRecentsOpen(true); setPanel("full"); }} />
+              <FplStrip onAllSaved={openSaved} onAllRecents={() => { setRouteRecentsOpen(true); setPanel("full"); }} />
             </TabPage>
           )
         )}

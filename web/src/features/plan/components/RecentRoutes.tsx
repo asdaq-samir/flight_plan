@@ -1,7 +1,7 @@
 import { History } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { cn } from "cn";
-import { ListPageHead, PillSection, PillStrip, SmallMark, SmallTile } from "../../../components/Favorites";
+import { ListPageHead, PillStrip, SmallMark, SmallTile, StripNote } from "../../../components/Favorites";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
 import { ClearList, SwipeToDelete } from "../../../components/SwipeToDelete";
 import { pointName } from "../../../lib/identSchema";
@@ -17,34 +17,32 @@ function hrefOf(route: RecentRoute): string {
 const STRIP_MOST = 10;
 
 /**
- * FPL's Recents under its Saved, at the owner's ask ("Can we have recents
- * under saved ?"): the latest routes planned, newest first, kept on this
- * device -- the airports' and the airplanes' Recents for routes -- a tap
- * planning one again; its title the rest and Clear (RecentRoutesPage).
- * Tiles, as Saved's are, not a list, at the owner's ask ("Recents should
- * also have symbols instead of a list"): the route and the day under a
- * round mark. Nothing while there are none.
+ * FPL's Recents, at the owner's ask ("Can we have recents under saved ?"),
+ * one of the lists its strip shows (FplStrip): the latest routes planned,
+ * newest first, kept on this device -- the airports' and the airplanes'
+ * Recents for routes -- a tap planning one again; the title the rest and
+ * Clear (RecentRoutesPage). Tiles, as Saved's are, at the owner's ask
+ * ("Recents should also have symbols instead of a list"): the route and
+ * the day under a round mark.
  */
-export function RecentRoutes({ onMore }: { onMore: () => void }) {
+export function RecentRouteTiles() {
   const routes = usePreferences(s => s.recentRoutes);
   const navigate = useNavigate();
-  if (!routes.length) return null;
+  if (!routes.length) return <StripNote>None yet: the routes planned are kept here.</StripNote>;
   return (
-    <PillSection title="Recents" testId="route-recents" onMore={onMore}>
-      <PillStrip testId="route-recents-strip">
-        {routes.slice(0, STRIP_MOST).map(route => {
-          const dep = pointName(route.dep), dest = pointName(route.dest);
-          const day = new Date(route.at).toLocaleDateString(undefined, { month: "short", day: "numeric" });
-          return (
-            <SmallTile
-              key={recentRouteKey(route)} onClick={() => navigate(hrefOf(route))} testId="route-recent" title={`${dep}→${dest}`} detail={day} wide
-              label={`${dep} to ${dest}${route.stops.length ? ` by ${route.stops.map(pointName).join(", ")}` : ""}, planned ${day}`}
-              mark={<SmallMark icon={<History />} className="bg-foreground/8 text-tint" />}
-            />
-          );
-        })}
-      </PillStrip>
-    </PillSection>
+    <PillStrip testId="route-recents-strip">
+      {routes.slice(0, STRIP_MOST).map(route => {
+        const dep = pointName(route.dep), dest = pointName(route.dest);
+        const day = new Date(route.at).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+        return (
+          <SmallTile
+            key={recentRouteKey(route)} onClick={() => navigate(hrefOf(route))} testId="route-recent" title={`${dep}→${dest}`} detail={day} wide
+            label={`${dep} to ${dest}${route.stops.length ? ` by ${route.stops.map(pointName).join(", ")}` : ""}, planned ${day}`}
+            mark={<SmallMark icon={<History />} className="bg-foreground/8 text-tint" />}
+          />
+        );
+      })}
+    </PillStrip>
   );
 }
 

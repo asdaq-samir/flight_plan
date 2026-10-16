@@ -333,21 +333,73 @@ export function ListPageHead({ title, backLabel, onBack, action, testId }: {
   );
 }
 
-/** What a strip shows -- the Favorites first, then what else it can list,
- *  a line after the first where `apart` says so -- a menu at its
- *  heading's right behind iOS's filter glyph, as Mail's filter is, where
- *  it was the heading's title: the title is the way to the list in full
- *  now, at the owner's ask ("for aircraft we can have the selection and
- *  show map controls to the right"), Airport's as Aircraft's
- *  (AirportPill, AircraftPill). */
-export function PillMenu<V extends string>({ label, value, options, onChange, apart = false, testId, className }: {
+/**
+ * A tab's one strip, the list it shows picked from the filter menu at its
+ * heading's right, at the owner's asks ("for aircraft we can have the
+ * selection and show map controls to the right"; "apply the filter to
+ * other cards too so for example saved and recents in fpl can be filtered
+ * or favorites and recents in airport/aircraft"): FPL's Saved and Recents,
+ * Airport's Favorites, Recents and Nearest, Aircraft's Favorites, Recents
+ * and its questions. The title names the list shown and is the way to it
+ * in full, as every section's is.
+ */
+export function StripSection<V extends string>({ lists, shows, onShow, menuTestId, menuClassName, beside, right, children }: {
+  /** What it can show, in the menu's order, the first the one at first. */
+  lists: StripList<V>[];
+  shows: V;
+  onShow: (value: V) => void;
+  menuTestId?: string;
+  menuClassName?: string;
+  beside?: ReactNode;
+  /** After the menu, at the row's right (Aircraft's Map switch). */
+  right?: ReactNode;
+  children: ReactNode;
+}) {
+  const list = lists.find(l => l.value === shows) ?? lists[0]!;
+  return (
+    <PillSection
+      title={list.label} onMore={list.onMore} beside={beside} testId={list.section}
+      right={(
+        <>
+          <PillMenu
+            label={`Showing ${list.label}`} value={list.value} onChange={onShow} testId={menuTestId} className={menuClassName}
+            options={lists.map(l => ({ value: l.value, label: l.item ?? l.label, testId: l.testId, apart: l.apart }))}
+          />
+          {right}
+        </>
+      )}
+    >
+      {children}
+    </PillSection>
+  );
+}
+
+/** One of the lists a strip can show (StripSection): its name -- the
+ *  heading's title and its item in the menu -- and the way to it in full. */
+export interface StripList<V extends string> {
+  value: V;
+  label: string;
+  /** Its item in the menu, where that says more ("Inbound…"). */
+  item?: string;
+  /** A line after it in the menu. */
+  apart?: boolean;
+  /** The list in full, the title the way to it. */
+  onMore?: () => void;
+  /** The section's test id while it shows this list. */
+  section?: string;
+  /** Its item's in the menu. */
+  testId?: string;
+}
+
+/** What a strip shows, a menu behind iOS's filter glyph at its heading's
+ *  right, as Mail's filter is, a line after any item `apart` says so
+ *  (StripSection). */
+export function PillMenu<V extends string>({ label, value, options, onChange, testId, className }: {
   /** Its name, to a screen reader and a long press: what it shows now. */
   label: string;
   value: V;
-  options: { value: V; label: string; testId?: string }[];
+  options: { value: V; label: string; testId?: string; apart?: boolean }[];
   onChange: (value: V) => void;
-  /** A separator after the first option. */
-  apart?: boolean;
   testId?: string;
   className?: string;
 }) {
@@ -362,16 +414,23 @@ export function PillMenu<V extends string>({ label, value, options, onChange, ap
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className={cn("min-w-44", className)}>
         <DropdownMenuRadioGroup value={value} onValueChange={v => onChange(v as V)}>
-          {options.map((o, i) => (
+          {options.map(o => (
             <Fragment key={o.value}>
               <DropdownMenuRadioItem value={o.value} data-testid={o.testId}>{o.label}</DropdownMenuRadioItem>
-              {apart && i === 0 && <DropdownMenuSeparator />}
+              {o.apart && <DropdownMenuSeparator />}
             </Fragment>
           ))}
         </DropdownMenuRadioGroup>
       </DropdownMenuContent>
     </DropdownMenu>
   );
+}
+
+/** A word in place of a strip's tiles -- none yet, sign in, pick an
+ *  airport -- where the tiles start, in their second line's grey: one
+ *  look for every strip's, where each had its own (centred or not). */
+export function StripNote({ children, status = false }: { children: ReactNode; status?: boolean }) {
+  return <p className={cn("py-1 text-foreground/65", TEXT.note)} role={status ? "status" : undefined}>{children}</p>;
 }
 
 /** A pill's row of small tiles, along it, sliding sideways where more

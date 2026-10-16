@@ -6,7 +6,7 @@ import { useAirportSearch } from "../lib/useAirportSearch";
 import { usePreferences, type RecentAirport } from "../lib/preferences";
 import { ListGroup, ListRow } from "./GroupedList";
 import { ClearList, SwipeToDelete } from "./SwipeToDelete";
-import { ListPageHead, PillSection, PillStrip, SmallAirportTile } from "./Favorites";
+import { ListPageHead, PillSection, PillStrip, SmallAirportTile, StripNote } from "./Favorites";
 import { useAway } from "../lib/useAway";
 import ClearButton from "./ClearButton";
 import { PANEL_FIELD } from "./panelField";
@@ -86,37 +86,32 @@ export function SearchField({
 }
 
 /**
- * Under the search bar with the sheet out: the airports last picked
- * before anything is typed, as Maps' Recents, then the airports that
- * answer what is typed -- ident, name and town, a tap opening the
- * field's card.
+ * Under the search bar with the sheet out: before anything is typed, the
+ * tab's strip (`places`), its filter the Favorites, the Recents or the
+ * nearest fields (AirportPill); then the airports that answer what is
+ * typed -- ident, name and town, a tap opening the field's card.
  */
 export function SearchResults({ query, onPick, places, onAllRecents }: {
   query: string;
   onPick: (airport: RecentAirport) => void;
-  /** Over the recents before anything is typed: Favorites. */
+  /** Before anything is typed: the tab's strip. */
   places?: ReactNode;
   /** The Recents in full (AirportRecentsPage), from the section's title. */
   onAllRecents?: () => void;
 }) {
   const { typed, rows, answered } = useAirportSearch(query);
   const recents = usePreferences(s => s.recentAirports);
-  // Each a section of the tab's page (TabPage), headed as the Favorites
-  // are: the airports opened last as the Favorites' tiles, their chart's
-  // symbols, at the owner's ask ("Recents should also have symbols instead
-  // of a list"); the title the list, where each is taken off and Clear.
   if (!typed) {
-    return (
-      <>
-        {places}
-        {recents.length > 0 ? (
-          <PillSection title="Recents" testId="airport-recents" onMore={onAllRecents}>
-            <RecentAirportStrip recents={recents} onPick={onPick} />
-          </PillSection>
-        ) : (
-          <p className={cn("px-1 text-muted-foreground", TEXT.note)}>Search by an airport's ident, its name or its town.</p>
-        )}
-      </>
+    // Asked for an airport to keep -- Home, a Favorite -- with no strip:
+    // the airports opened last to pick it from, as the Aircraft search
+    // offers its own (AircraftCard).
+    if (places) return <>{places}</>;
+    return recents.length > 0 ? (
+      <PillSection title="Recents" testId="airport-recents" onMore={onAllRecents}>
+        <RecentAirportStrip recents={recents} onPick={onPick} />
+      </PillSection>
+    ) : (
+      <p className={cn("px-1 text-muted-foreground", TEXT.note)}>Search by an airport's ident, its name or its town.</p>
     );
   }
   return (
@@ -135,6 +130,17 @@ export function SearchResults({ query, onPick, places, onAllRecents }: {
       </ListGroup>
     </PillSection>
   );
+}
+
+/** The airports opened last as tiles, one of the lists Airport's strip
+ *  shows (AirportPill), at the owner's ask ("Recents should also have
+ *  symbols instead of a list"); a word of what is kept while there are
+ *  none. */
+export function RecentAirportTiles({ onPick }: { onPick: (airport: RecentAirport) => void }) {
+  const recents = usePreferences(s => s.recentAirports);
+  return recents.length > 0
+    ? <RecentAirportStrip recents={recents} onPick={onPick} />
+    : <StripNote>None yet: the airports opened are kept here.</StripNote>;
 }
 
 /** The airports picked last as tiles, newest first: each its chart symbol,
