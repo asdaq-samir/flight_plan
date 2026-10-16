@@ -1,8 +1,8 @@
 import { Plane } from "lucide-react";
 import { ListRow } from "../../../components/GroupedList";
 import type { TrafficAircraft } from "../../../lib/api/types";
-import { compassPoint } from "../../../lib/compass";
-import { bearingDeg, distanceNm, type LatLon } from "../../../lib/geo";
+import type { LatLon } from "../../../lib/geo";
+import { awayFrom } from "../../../lib/useAway";
 import { trafficLabel } from "../../../lib/map/traffic";
 import { altFt } from "../../../lib/units";
 
@@ -11,7 +11,7 @@ import { altFt } from "../../../lib/units";
 export default function AircraftRow({ plane, from, ownFt, onPick, testId = "aircraft-row" }: {
   plane: TrafficAircraft; from: LatLon | null; ownFt: number | null; onPick: () => void; testId?: string;
 }) {
-  const where = from ? `${distanceNm(from, plane).toFixed(1)} nm ${compassPoint(bearingDeg(from, plane))}` : undefined;
+  const where = from ? awayFrom(from, plane) : undefined;
   const height = plane.altitude_ft == null ? null
     : ownFt != null ? trafficLabel(plane, ownFt) : `${altFt(Math.round(plane.altitude_ft / 100) * 100)} ft`;
   return (

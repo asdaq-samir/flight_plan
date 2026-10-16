@@ -150,7 +150,7 @@ function RecentAirportStrip({ recents, onPick }: { recents: RecentAirport[]; onP
   return (
     <PillStrip testId="pill-airport-recents">
       {recents.map(a => (
-        <SmallAirportTile key={a.ident} airport={a} detail={away(a) ?? a.municipality ?? ""} onClick={() => onPick(a)} testId="airport-recent" />
+        <SmallAirportTile key={a.ident} airport={a} detail={away(a)} onClick={() => onPick(a)} testId="airport-recent" />
       ))}
     </PillStrip>
   );

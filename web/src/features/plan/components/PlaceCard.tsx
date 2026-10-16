@@ -17,7 +17,8 @@ import { Tabs } from "../../../components/ui/tabs";
 import { ApiError } from "../../../lib/api/client";
 import type { AirportPin, AirportPlace, ClassBAirport, TerminalChart } from "../../../lib/api/types";
 import { compassPoint } from "../../../lib/compass";
-import { bearingDeg, distanceNm, type LatLon } from "../../../lib/geo";
+import { distanceNm, type LatLon } from "../../../lib/geo";
+import { awayFrom } from "../../../lib/useAway";
 import { chipColourOf } from "../../../lib/map/flightCategory";
 import { inkOn } from "../../../lib/scoreScale";
 import { bearing, feet, miles } from "../../../lib/units";
@@ -39,8 +40,7 @@ const SketchViewer = lazy(() => import("./SketchViewer"));
 
 /** "18 nm NE", from wherever the card is measured from. */
 function away(from: LatLon, to: LatLon): string {
-  const nm = distanceNm(from, to);
-  return nm < 0.5 ? "here" : `${nm < 10 ? nm.toFixed(1) : Math.round(nm)} nm ${compassPoint(bearingDeg(from, to))}`;
+  return distanceNm(from, to) < 0.5 ? "here" : awayFrom(from, to);
 }
 
 /** A note's own leading, iOS's Footnote's 18 on its 13 (16 on a mouse's
