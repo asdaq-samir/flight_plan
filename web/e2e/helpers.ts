@@ -325,13 +325,21 @@ export async function closeSidebarWithTheStockKey(page: Page) {
  *  briefing's Write button, its visibility easing as the sheet came
  *  down to the pill, for a minute. */
 export async function settled(locator: Locator) {
-  await locator.evaluate(el => Promise.all(el.getAnimations({ subtree: true })
-    .filter(a => a.effect?.getTiming().iterations !== Infinity)
-    .filter(a => {
-      const target = a.effect instanceof KeyframeEffect ? a.effect.target : null;
-      return !target || target.checkVisibility({ contentVisibilityAuto: true });
-    })
-    .map(a => a.finished.catch(() => undefined))));
+  // And never past a few seconds: an animation the browser stops updating
+  // in a way the filters above do not see never finishes, and held CI's
+  // iPad audit of "no legal altitude, opened" to its six-minute timeout
+  // three times running on PR #238. Waited out, the test goes on with the
+  // page as it is, as it would a moment later.
+  await locator.evaluate(el => Promise.race([
+    Promise.all(el.getAnimations({ subtree: true })
+      .filter(a => a.effect?.getTiming().iterations !== Infinity)
+      .filter(a => {
+        const target = a.effect instanceof KeyframeEffect ? a.effect.target : null;
+        return !target || target.checkVisibility({ contentVisibilityAuto: true });
+      })
+      .map(a => a.finished.catch(() => undefined))),
+    new Promise(done => window.setTimeout(done, 5000)),
+  ]));
 }
 
 /** The panel's box once it is out and done moving: measured 300 ms
