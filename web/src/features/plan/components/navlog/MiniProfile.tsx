@@ -1,23 +1,13 @@
 import { memo, useMemo } from "react";
-import { ceilingOverFloor, ceilings } from "./profile";
+import { AIRSPACE, ceilingOverFloor, ceilings, nameFits, namedPieces } from "./profile";
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "cn";
-import { api } from "../../../../lib/api/client";
 import type { Candidate, Leg } from "../../../../lib/api/types";
+import { routeProfileQuery } from "../../../../lib/queryClient";
 import { TEXT } from "../../../../lib/text";
 import { altFt } from "../../../../lib/units";
 import { planProfile } from "./profile";
 import { navLogRows, type RouteEnds } from "./rows";
-
-/** The sectional's airspace colours, as the full chart's (ProfileChart):
- *  Class B solid blue, C magenta, D blue dashed (FAA Aeronautical Chart
- *  User's Guide, Airspace). */
-// Each name in its colour as text, lightened on a dark card (index.css).
-const AIRSPACE: Record<string, { stroke: string; text: string; dash?: string }> = {
-  B: { stroke: "#2465b8", text: "var(--airspace-blue-text)" },
-  C: { stroke: "#c0309f", text: "var(--airspace-magenta-text)" },
-  D: { stroke: "#2465b8", text: "var(--airspace-blue-text)", dash: "4 3" },
-};
 const W = 340, H = 64;
 const miles = (nm: number) => `${Math.round(nm)}`;
 
@@ -41,10 +31,7 @@ export default memo(function MiniProfile({ ends, selected, legs, onOpen }: {
 }) {
   const dep = ends.departure.ident, dest = ends.destination.ident;
   const stops = (ends.stops ?? []).map(s => s.ident);
-  const { data: profile } = useQuery({
-    queryKey: ["route-profile", dep, ...stops, dest],
-    queryFn: () => api.routeProfile(dep, dest, stops), staleTime: Infinity, meta: { silent: true },
-  });
+  const { data: profile } = useQuery(routeProfileQuery(dep, dest, stops));
   const plan = useMemo(() => planProfile(navLogRows(ends, selected, legs)), [ends, selected, legs]);
   const cruise = Math.max(0, ...plan.points.map(p => p.plan_ft));
   if (!profile) return <div className="h-24 rounded-xl bg-background/60" aria-hidden="true" />;
@@ -62,16 +49,9 @@ export default memo(function MiniProfile({ ends, selected, legs, onOpen }: {
   const ground = `M0 ${H} ${profile.terrain.map(t => `L${x(t.along_nm).toFixed(1)} ${y(t.ground_ft).toFixed(1)}`).join(" ")} L${W} ${H}Z`;
   // Each airspace's label once, over its widest piece: its airport's
   // ident, else its class.
-  const widest = new Map<string, (typeof profile.airspace)[number]>();
-  for (const a of profile.airspace) {
-    if (!AIRSPACE[a.class]) continue;
-    const label = a.ident || `Class ${a.class}`;
-    const held = widest.get(label);
-    if (!held || a.to_nm - a.from_nm > held.to_nm - held.from_nm) widest.set(label, a);
-  }
-  const named = [...widest].map(([label, a]) => ({ ...a, label, key: `${label}${a.from_nm}` }))
+  const named = [...namedPieces(profile.airspace)].map(([label, a]) => ({ ...a, label, key: `${label}${a.from_nm}` }))
     // Wide enough on the chart for its words.
-    .filter(a => x(a.to_nm) - x(a.from_nm) > 18);
+    .filter(a => nameFits(a, profile.length_nm));
   const line = plan.points.map((p, i) => `${i ? "L" : "M"}${x(p.along_nm * scale).toFixed(1)} ${y(p.plan_ft).toFixed(1)}`).join(" ");
   return (
     <button
@@ -91,7 +71,7 @@ export default memo(function MiniProfile({ ends, selected, legs, onOpen }: {
           return (
             <rect
               key={i} x={x(a.from_nm)} width={Math.max(1, x(a.to_nm) - x(a.from_nm))} y={top_} height={Math.max(1, bottom - top_)}
-              fill={look.stroke} fillOpacity={0.08} stroke={look.stroke} strokeOpacity={0.7} strokeDasharray={look.dash}
+              fill={look.stroke} fillOpacity={0.08} stroke={look.stroke} strokeOpacity={0.7} strokeDasharray={look.dashed ? "4 3" : undefined}
               vectorEffect="non-scaling-stroke"
             />
           );

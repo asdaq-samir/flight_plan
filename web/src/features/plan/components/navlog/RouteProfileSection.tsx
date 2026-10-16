@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import AccordionSection from "../../../../components/AccordionSection";
 import AfterPaint from "../../../../components/AfterPaint";
 import { ListGroup, ListRow } from "../../../../components/GroupedList";
-import { api } from "../../../../lib/api/client";
+import { routeProfileQuery } from "../../../../lib/queryClient";
 import { altFt } from "../../../../lib/units";
 import { planProfile } from "./profile";
 import type { NavLogRow, RouteEnds } from "./rows";
@@ -38,11 +38,7 @@ export default function RouteProfileSection({ ends, rows, wanted, eager = false 
     observer.observe(spot);
     return () => observer.disconnect();
   }, [spot, near]);
-  const { data: profile, isError } = useQuery({
-    queryKey: ["route-profile", dep, ...stops, dest],
-    queryFn: () => api.routeProfile(dep, dest, stops),
-    enabled: wanted && (near || eager), staleTime: Infinity, meta: { silent: true },
-  });
+  const { data: profile, isError } = useQuery({ ...routeProfileQuery(dep, dest, stops), enabled: wanted && (near || eager) });
   // The same plan while the rows are: recharts measures its line's whole
   // length at every draw, and a new plan drew the chart again at every
   // row picked in the nav log.
