@@ -110,3 +110,39 @@ test("a pinch brings in the airports and the VFR waypoints of each level it pass
   await expect.poll(() => diamonds.count(), { timeout: slow(5_000) }).toBeGreaterThan(0);
   await touch("touchEnd", []);
 });
+
+test("the map's settings' Pinch: on Stay a pinch leaves the chart where the fingers leave it, on Settle on a whole level", async ({ page }) => {
+  // A trial at the owner's ask, "I wanna try both slightly stretched vs
+  // settled" (PinchEnd). Where the map rests is read off the chart's
+  // tiles: a level at its own size on a whole one, scaled between two.
+  await openOnC81(page);
+  await page.goto("/app/plan");
+  await settle(page);
+  const scales = () => page.evaluate(() => [...document.querySelectorAll(".leaflet-tile-container")]
+    .map(c => Number((c as HTMLElement).style.transform.match(/scale\(([\d.]+)\)/)?.[1] ?? 1)));
+  const pinch = async () => {
+    await mapStill(page);
+    const at = await chartMiddle(page);
+    const touch = await fingers(page);
+    await touch("touchStart", [[at.x - 30, at.y], [at.x + 30, at.y]]);
+    // From 60 to 82 points apart: under half a level in.
+    for (let i = 1; i <= 10; i++) {
+      await touch("touchMove", [[at.x - 30 - i * 1.1, at.y], [at.x + 30 + i * 1.1, at.y]]);
+      await page.waitForTimeout(30);
+    }
+    await touch("touchEnd", []);
+    await mapStill(page);
+  };
+  const choose = async (name: "Settle" | "Stay") => {
+    await openMapSettings(page);
+    await page.getByTestId("pinch-select").getByRole("radio", { name }).click();
+    await page.keyboard.press("Escape");
+  };
+  await choose("Stay");
+  await pinch();
+  // Left between levels: no level of the chart at its own size.
+  await expect.poll(async () => (await scales()).some(s => Math.abs(s - 1) < 0.001)).toBe(false);
+  await choose("Settle");
+  await pinch();
+  await expect.poll(async () => (await scales()).some(s => Math.abs(s - 1) < 0.001)).toBe(true);
+});

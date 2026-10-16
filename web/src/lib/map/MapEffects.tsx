@@ -2,6 +2,7 @@ import { useContext, useEffect } from "react";
 import L from "leaflet";
 import { useMap } from "react-leaflet";
 import { MapInsetsContext, SHEET_SECONDS } from "../../components/mapChrome";
+import { usePreferences } from "../preferences";
 import { centreClear } from "./clear";
 import { useOwnShip } from "./ownShip";
 import { useClearOfPanel } from "./useClearOfPanel";
@@ -25,6 +26,27 @@ export function ResizeAware() {
     return () => observer.disconnect();
   }, [map]);
   return null;
+}
+
+/**
+ * How a pinch ends, a trial at the owner's ask (2026-10-16, "I wanna try
+ * both slightly stretched vs settled"), the map's settings' Pinch: settled
+ * on the nearest whole level, the chart's tiles at their own size, as it
+ * always has; or left where the fingers leave it, the nearest level's
+ * tiles scaled by up to 1.4 between levels. Leaflet reads the snap as
+ * each zoom ends, a wheel's too; a route is fitted at quarter levels
+ * either way (MapShell's fitAtQuarterLevels).
+ */
+export function PinchEnd() {
+  const map = useMap();
+  const pinch = usePreferences(s => s.pinch);
+  useEffect(() => snapTo(map, pinch === "stay" ? 0 : 1), [map, pinch]);
+  return null;
+}
+
+/** Leaflet's own option, set on the map: read as each zoom ends. */
+function snapTo(map: L.Map, snap: number) {
+  map.options.zoomSnap = snap;
 }
 
 /** Brings the map to `point` whenever it changes, zooming in to
