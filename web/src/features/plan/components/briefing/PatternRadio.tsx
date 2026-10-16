@@ -6,6 +6,7 @@ import { compassWord, entryFor, exitFor, patternSideDeg, runwayNumber, type Runw
 import { radioScript, type RadioCall, type RadioPhase } from "../../../../lib/radio";
 import { TEXT } from "../../../../lib/text";
 import { altFt } from "../../format";
+import { Mhz } from "../FrequencyRow";
 
 type Facilities = Briefing["airports"][string];
 
@@ -107,7 +108,7 @@ function CallRow({ call }: { call: RadioCall }) {
           {call.note && <span className="block pt-0.5">{call.note}</span>}
         </>
       )}
-      value={call.mhz ?? undefined}
+      value={call.mhz != null ? <Mhz mhz={call.mhz} /> : undefined}
       data-testid="radio-call"
     />
   );

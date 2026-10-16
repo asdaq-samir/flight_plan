@@ -9,6 +9,7 @@ import { ListGroup, ListRow } from "../../../components/GroupedList";
 import { api } from "../../../lib/api/client";
 import type { NearestAirport, PlaceFound } from "../../../lib/api/types";
 import { compassPoint } from "../../../lib/compass";
+import { mhzText } from "../../../lib/frequencies";
 import { colourOf } from "../../../lib/map/flightCategory";
 import { glideRangeNm } from "../../../lib/map/glide";
 import { airportMarkSvg } from "../../../lib/map/airportMark";
@@ -99,9 +100,6 @@ function NearAnswers({ from, onFrom }: { from: NearFrom | null; onFrom: (from: N
   );
 }
 
-/** A frequency as pilots write it: 120.7, 122.95, 124.475. */
-const mhz = (value: number) => value.toFixed(3).replace(/0{1,2}$/, "");
-
 /** Faster than this over the ground, the airplane is going somewhere and
  *  its GPS track is steady enough to point the rows' arrows from. */
 const MOVING_KT = 30;
@@ -131,7 +129,7 @@ function NearestRow({ field, ahead, reach, onOpen }: {
   const use = field.military === "military" ? "military" : field.private ? "private" : null;
   const parts = [
     field.longest_runway_ft ? `${altFt(field.longest_runway_ft)} ft` : null,
-    field.radio ? `${field.radio.kind} ${mhz(field.radio.mhz)}` : null,
+    field.radio ? `${field.radio.kind} ${mhzText(field.radio.mhz)}` : null,
     // Listed whoever owns it, and said: in an emergency the pilot in
     // command lands where the emergency needs (14 CFR 91.3(b)), and a
     // military or a private field may be it.

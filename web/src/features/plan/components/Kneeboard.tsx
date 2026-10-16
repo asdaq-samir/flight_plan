@@ -1,33 +1,13 @@
 import { createPortal } from "react-dom";
 import { format } from "date-fns";
-import type { Briefing, Candidate, Course, Frequency, Leg, NavLogAltitude, Totals } from "../../../lib/api/types";
+import type { Briefing, Candidate, Course, Leg, NavLogAltitude, Totals } from "../../../lib/api/types";
+import { kneeboardRadio, mhzText } from "../../../lib/frequencies";
 import { runwayInUse, runwayNumber } from "../../../lib/pattern";
 import { hoursMinutes } from "../../../lib/clock";
 import { routeName } from "../../../lib/identSchema";
 import { altFt } from "../../../lib/units";
 import { bearing, etaAt, one } from "../format";
 import { isLegPoint, legOf, navLogRows, rowPoint } from "./navlog/rows";
-
-/** A field's radio as a kneeboard lists it: short names, the tower's
- *  before the CTAF's (a towered field's CTAF is for when it is closed). */
-const RADIO: [string[], string][] = [
-  [["ATIS"], "ATIS"], [["AWOS", "ASOS"], "AWOS"], [["CLD"], "CLR"], [["GND"], "GND"], [["TWR"], "TWR"],
-  [["CTAF"], "CTAF"], [["UNIC", "UNICOM"], "UNICOM"], [["APP", "A/D", "DEP"], "APP"],
-];
-
-function radio(frequencies: Frequency[]): [string, number][] {
-  const out: [string, number][] = [];
-  for (const [types, name] of RADIO) {
-    const f = frequencies.find(x => types.includes((x.type ?? "").toUpperCase()) && x.frequency_mhz != null);
-    if (!f) continue;
-    // UNICOM where there is no tower and it is not the CTAF already: a
-    // towered field's is the FBO's, not the air's. A UNICOM the table
-    // calls the CTAF too ("CTAF/UNICOM") is the CTAF.
-    if (name === "UNICOM" && out.some(([n, mhz]) => n === "TWR" || mhz === f.frequency_mhz)) continue;
-    out.push([name === "UNICOM" && /CTAF/i.test(f.description ?? "") && !out.some(([n]) => n === "CTAF") ? "CTAF" : name, f.frequency_mhz!]);
-  }
-  return out;
-}
 
 /** The altitudes the legs fly: "4,500 ft", or "2,500-3,000 ft" where it steps. */
 function altitudes(legs: Leg[], fallback: number | null | undefined): string | null {
@@ -134,7 +114,7 @@ export default function Kneeboard({ course, selected, legs, totals, nav, briefin
           return (
             <div key={`${ident}${i}`} className="border border-black p-1">
               <p className="font-bold">{ident}{info?.name ? ` · ${info.name}` : ""}</p>
-              <p>{info ? radio(info.frequencies).map(([name, mhz]) => `${name} ${mhz}`).join(" · ") || "No published radio" : ""}</p>
+              <p>{info ? kneeboardRadio(info.frequencies).map(([name, mhz]) => `${name} ${mhzText(mhz)}`).join(" · ") || "No published radio" : ""}</p>
               {info?.pattern?.altitude_ft != null && (
                 <p>
                   TPA {altFt(info.pattern.altitude_ft)}

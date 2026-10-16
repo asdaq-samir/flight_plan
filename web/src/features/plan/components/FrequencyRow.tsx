@@ -29,8 +29,14 @@ export function FrequencyRow({ type, description, mhz, testId }: {
     <ListRow
       media={<RowBadge colour={BADGE[line.kind]}>{GLYPH[line.kind]}</RowBadge>}
       title={line.name} description={line.detail ?? undefined}
-      value={mhz != null ? <span className="font-semibold text-foreground">{mhzText(mhz)}</span> : "—"}
+      value={mhz != null ? <Mhz mhz={mhz} /> : "—"}
       data-testid={testId}
     />
   );
+}
+
+/** A frequency at a row's right, as pilots write it and in the text's own
+ *  colour: the radio calls' were a bare figure in grey. */
+export function Mhz({ mhz }: { mhz: number }) {
+  return <span className="font-semibold text-foreground">{mhzText(mhz)}</span>;
 }
