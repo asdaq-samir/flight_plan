@@ -146,7 +146,7 @@ test("the airplanes' Recents: a long press or a right click offers the Delete to
   await expect(recents).toHaveCount(0);
 });
 
-test("FPL's Recents under Saved: the latest three routes planned, See All the rest, a tap plans one again and it comes first", async ({ page }) => {
+test("FPL's Recents under Saved: the latest routes planned as tiles, See All the rest, a tap plans one again and it comes first", async ({ page }) => {
   const day = (d: number) => Date.UTC(2026, 9, d, 15);
   await seed(page, AIRPORTS, [
     { dep: "C81", dest: "KDLH", stops: [], at: day(15) },
@@ -160,10 +160,12 @@ test("FPL's Recents under Saved: the latest three routes planned, See All the re
   const panel = sideDrawer(page);
   // Under Saved, both headed as Airport's Favorites are: See All at the right.
   await expect(panel.getByTestId("pill-section-saved-all")).toHaveText("See All");
+  // Tiles, as Saved's are: the route and the day, its stops said to a
+  // screen reader.
   const section = panel.getByTestId("route-recents");
-  await expect(section.getByTestId("route-recent")).toHaveCount(3);
-  await expect(section.getByTestId("route-recent").first()).toContainText("C81 → KDLH");
-  await expect(section.getByTestId("route-recent").nth(2)).toContainText("By KLSE");
+  await expect(section.getByTestId("route-recents-strip").getByTestId("route-recent")).toHaveCount(4);
+  await expect(section.getByTestId("route-recent").first()).toContainText("C81→KDLH");
+  await expect(section.getByTestId("route-recent").nth(2)).toHaveAccessibleName(/C81 to KMSP by KLSE/);
 
   // The rest, all the way up, and a tap on the oldest plans it again.
   await section.getByTestId("route-recents-all").click();
@@ -178,7 +180,7 @@ test("FPL's Recents under Saved: the latest three routes planned, See All the re
   // Cleared from the route's box, the sheet out where the box is.
   await openPanel(page);
   await panel.getByTestId("route-box-clear").click();
-  await expect(panel.getByTestId("route-recent").first()).toContainText("C81 → KMSN");
+  await expect(panel.getByTestId("route-recent").first()).toContainText("C81→KMSN");
 
   // Clear, asked first, from the Recents in full: none under Saved then.
   await panel.getByTestId("route-recents-all").click();
@@ -187,5 +189,18 @@ test("FPL's Recents under Saved: the latest three routes planned, See All the re
   await expect(panel.getByTestId("route-recent")).toHaveCount(0);
   await panel.getByTestId("route-recents-page-back").click();
   await expect(panel.getByTestId("route-recents")).toHaveCount(0);
+  await expect(panel.getByTestId("pill-section-saved")).toBeVisible();
+});
+
+test("Saved's See All opens the flights in full with Back to FPL, as the Recents' does", async ({ page }) => {
+  await page.goto("/app/plan");
+  await settle(page);
+  await grabberTo(page, "half");
+  const panel = sideDrawer(page);
+  await panel.getByTestId("pill-section-saved-all").click();
+  await expect(page).toHaveURL(/[?&]saved=1/);
+  await expect(panel.getByTestId("saved-page")).toContainText("Saved");
+  await panel.getByTestId("saved-page-back").click();
+  await expect(page).not.toHaveURL(/[?&]saved=/);
   await expect(panel.getByTestId("pill-section-saved")).toBeVisible();
 });

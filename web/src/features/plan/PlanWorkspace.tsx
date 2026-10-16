@@ -756,6 +756,14 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     });
     setPanel("full");
   }, [setSearchParams, setPanel]);
+  // And back from it to FPL's start, its own Back (FlightsPanel's head).
+  const closeSaved = useCallback(() => {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      next.delete("saved");
+      return next;
+    });
+  }, [setSearchParams]);
   // The strip's title opens the list in full, over Airport.
   const openNearest = useCallback(() => {
     setSearchParams(prev => {
@@ -1440,7 +1448,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
         )}
         {tab === "fpl" && savedOpen && !place && !heldPoint && (
           <TabPage testId="saved-flights">
-            <Suspense fallback={null}><SavedFlights /></Suspense>
+            <Suspense fallback={null}><SavedFlights onBack={closeSaved} /></Suspense>
           </TabPage>
         )}
         {/* FPL's tabs once there is a route, at the pilot's ask: the empty
