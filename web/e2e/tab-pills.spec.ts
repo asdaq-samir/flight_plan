@@ -196,6 +196,38 @@ test("Plane, the pilot's own, is first among the Aircraft card's Favorites, with
   await expect(page).toHaveURL(/[?&]flight=a1c2d3/);
 });
 
+test("Aircraft's Favorites have See All after the Map switch: the airplanes kept in full, Edit letting one go and moving another", async ({ page }) => {
+  // The owner's "What about aircraft fav?": as Airport's Favorites are.
+  await keep(page, {
+    myAircraft: { hex: "a0b7d8", name: "N14511", type: "B39M" },
+    favoriteAircraft: [{ hex: "a1c2d3", name: "N200XY", type: "C172" }, { hex: "a2c2d3", name: "N300XY", type: "PA28" }, { hex: "a3c2d3", name: "N400XY", type: "SR22" }],
+  });
+  await page.goto("/app/plan?aircraft=1");
+  await settle(page);
+  await grabberTo(page, "full");
+  const panel = sideDrawer(page);
+  // At the heading's right, the Map switch kept just before it.
+  const all = panel.getByTestId("aircraft-favorites-all");
+  await expect(all).toHaveText("See All");
+  const map = (await panel.getByTestId("aircraft-map-only").boundingBox())!;
+  expect(map.x + map.width).toBeLessThanOrEqual((await all.boundingBox())!.x);
+  await all.click();
+  const list = panel.getByTestId("aircraft-favorites-list");
+  await expect(list.getByTestId("aircraft-favorites-mine")).toContainText("N14511");
+  await expect(list.getByTestId("aircraft-favorites-row")).toHaveCount(3);
+  // Edit: one let go, another moved up a place with the keyboard.
+  await list.getByTestId("aircraft-favorites-edit").click();
+  await list.getByRole("button", { name: "Remove N300XY from Favorites" }).click();
+  // Exactly: "Remove N400XY…" holds "move N400XY" too.
+  await list.getByRole("button", { name: "Move N400XY", exact: true }).focus();
+  await page.keyboard.press("ArrowUp");
+  await list.getByTestId("aircraft-favorites-edit").click();
+  await expect(list.getByTestId("aircraft-favorites-row")).toHaveText([/N400XY/, /N200XY/]);
+  // Back: the strip as the list left it.
+  await panel.getByTestId("aircraft-favorites-page-back").click();
+  await expect(panel.getByTestId("pill-aircraft-favorite")).toHaveText([/N400XY/, /N200XY/]);
+});
+
 test("on a phone, all the way up, Setup's page starts where Airport's search bar does", async ({ page }) => {
   test.skip((page.viewportSize()?.width ?? 0) >= 768, "the console is the panel's layer on a phone only");
   // The owner's notice: "Why do the tabs within their setup seem lower

@@ -3,7 +3,7 @@ import { Plane } from "lucide-react";
 import { create } from "zustand";
 import { cn } from "cn";
 import AirportPicker from "../../../components/AirportPicker";
-import { PillMenu, PillSection, PillStrip, SmallTile } from "../../../components/Favorites";
+import { PillMenu, PillSection, PillStrip, SeeAll, SmallTile } from "../../../components/Favorites";
 import { Switch } from "../../../components/ui/switch";
 import type { TrafficAircraft } from "../../../lib/api/types";
 import { inEmergency } from "../../../lib/fbo";
@@ -34,13 +34,17 @@ const useStripShows = create<{ favorites: boolean }>(() => ({ favorites: true })
  * based at an airport, or emergencies -- the airport a pill of its own
  * beside it to change; and at the row's right one switch, Map, that
  * leaves only these airplanes on the map, the rest faded ("Map: show only
- * these").
+ * these"), and on the Favorites See All after it, the airplanes kept in
+ * full, as Airport's Favorites have it (the owner's "What about aircraft
+ * fav?").
  */
-export default function AircraftPill({ onOpen, onAddMine, onAddFavorite, onPick }: {
+export default function AircraftPill({ onOpen, onAddMine, onAddFavorite, onPick, onAllFavorites }: {
   onOpen: (hex: string) => void;
   onAddMine: () => void;
   onAddFavorite: () => void;
   onPick: (plane: TrafficAircraft) => void;
+  /** The Favorites in full, where they are changed (AircraftFavoritesList). */
+  onAllFavorites: () => void;
 }) {
   const seen = useTracking(s => s.seen);
   const planes = useSeenPlanes(seen);
@@ -107,6 +111,7 @@ export default function AircraftPill({ onOpen, onAddMine, onAddFavorite, onPick 
               className="pointer-coarse:h-[31px]! pointer-coarse:w-[51px]! pointer-coarse:[&>span]:size-[27px]! pointer-coarse:[&>span]:data-checked:translate-x-[22px]!"
               onCheckedChange={on => useTrafficFocus.setState({ on, only: on ? useTrafficFocus.getState().only : null })}
             />
+            {favorites && <SeeAll onClick={onAllFavorites} testId="aircraft-favorites-all" />}
           </>
         )}
       >

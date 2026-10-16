@@ -151,6 +151,8 @@ interface Preferences {
   removeRecentAircraft: (hex: string) => void;
   clearRecentAircraft: () => void;
   toggleFavoriteAircraft: (aircraft: KeptAircraft) => void;
+  /** A Favorite airplane moved up or down the list, as the airports' are. */
+  moveFavoriteAircraft: (from: number, to: number) => void;
   setBase: (base: BaseChart) => void;
   setTac: (tac: boolean) => void;
   setWaypoints: (waypoints: boolean) => void;
@@ -252,6 +254,12 @@ export const usePreferences = create<Preferences>()(
       })),
       removeRecentAircraft: hex => set(s => ({ recentAircraft: s.recentAircraft.filter(a => a.hex !== hex) })),
       clearRecentAircraft: () => set({ recentAircraft: [] }),
+      moveFavoriteAircraft: (from, to) => set(s => {
+        const favoriteAircraft = [...s.favoriteAircraft];
+        const [moved] = favoriteAircraft.splice(from, 1);
+        if (moved) favoriteAircraft.splice(to, 0, moved);
+        return { favoriteAircraft };
+      }),
       toggleFavoriteAircraft: aircraft => set(s => ({
         favoriteAircraft: s.favoriteAircraft.some(a => a.hex === aircraft.hex)
           ? s.favoriteAircraft.filter(a => a.hex !== aircraft.hex)
