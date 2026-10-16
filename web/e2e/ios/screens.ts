@@ -250,6 +250,39 @@ export const SCREENS: Screen[] = [
       await expect(sideDrawer(page).getByTestId("route-recent").first()).toBeVisible();
     },
   },
+  // The route's Procedures with an approach's own page open, as ForeFlight
+  // picks one: its transitions and Add to Route under the map. The list
+  // and the drawing stubbed, as procedures.spec has them: the FAA's file
+  // is not read on CI's runner.
+  {
+    name: "procedures, an approach's page",
+    ready: async page => {
+      await page.route(url => /\/airport\/[^/]+\/procedures/.test(url.pathname), route => {
+        const path = new URL(route.request().url()).pathname;
+        if (path.endsWith("/KDLH/procedures")) {
+          return route.fulfill({ json: { airport: "KDLH", cycle: "261001", procedures: [
+            { kind: "approach", id: "I09", name: "ILS RWY 09", runway: "09", transitions: ["DLH"], runway_transitions: [] },
+          ] } });
+        }
+        if (path.endsWith("/KDLH/procedures/I09")) {
+          return route.fulfill({ json: {
+            airport: "KDLH", kind: "approach", id: "I09", name: "ILS RWY 09", transition: null, cycle: "261001",
+            lines: [{ role: "final", name: null, points: [[46.84, -92.40], [46.84, -92.30], [46.842, -92.21]] }],
+            holds: [], fixes: [{ ident: "FAKER", lat: 46.84, lon: -92.30, roles: ["FAF"], min_ft: 2700, max_ft: 2700, speed_kt: null, missed: false }],
+          } });
+        }
+        return route.fulfill({ json: { airport: "C81", cycle: "261001", procedures: [] } });
+      });
+      await page.goto(`/app/plan?${ROUTE}`);
+      await settle(page);
+      await controlsInSight(page);
+      await sideDrawer(page).getByTestId("route-approaches").click();
+      await page.getByTestId("procedures").locator("section").filter({ hasText: "KDLH · instrument procedures" })
+        .getByRole("button", { name: /^Approaches/ }).click({ timeout: slow(30000) });
+      await page.getByTestId("procedure-option").first().click();
+      await expect(page.getByTestId("procedure-add")).toBeVisible();
+    },
+  },
   {
     name: "Nearest list",
     ready: async page => {

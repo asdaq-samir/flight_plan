@@ -37,11 +37,19 @@ export function ResizeAware() {
  *  is fitted (MapShell), when `fitKey` changes and again as the panel
  *  settles at another height while they are up. Not past `maxZoom`, so
  *  one field near the position is not the whole screen. */
-export function FitTo({ points, fitKey, maxZoom = 11 }: {
+const NO_COVER = { top: 0, bottom: 0 };
+
+export function FitTo({ points, fitKey, maxZoom = 11, cover = NO_COVER }: {
   points: { lat: number; lon: number }[]; fitKey: string | null; maxZoom?: number;
+  /** What a sheet over the panel covers from the screen's top or foot,
+   *  where it is more than the panel does (the route's Procedures on a
+   *  phone). */
+  cover?: { top: number; bottom: number };
 }) {
   const map = useMap();
-  const { top, bottom, left } = useContext(MapInsetsContext);
+  const insets = useContext(MapInsetsContext);
+  const { left } = insets;
+  const top = Math.max(insets.top, cover.top), bottom = Math.max(insets.bottom, cover.bottom);
   useEffect(() => {
     if (!fitKey || points.length === 0) return;
     // The map gone to them: own ship stops pulling it back to the

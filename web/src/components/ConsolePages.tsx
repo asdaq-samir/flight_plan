@@ -85,18 +85,19 @@ export function ConsolePages({ back, pages, children }: {
 
 /** A row that opens one of the tab's pages: its name, what it holds at
  *  its end as a value, and the chevron. */
-export function PageRow({ page, title, description, value, media }: {
+export function PageRow({ page, title, description, value, media, testId }: {
   page: string;
   title: ReactNode;
   description?: ReactNode;
   value?: ReactNode;
   media?: ReactNode;
+  testId?: string;
 }) {
   const pages = useContext(Pages);
   const row = useRef<HTMLButtonElement>(null);
   const back = pages?.from === page;
   useEffect(() => { if (back) row.current?.focus(); }, [back]);
-  return <ListRow ref={row} title={title} description={description} value={value} media={media} chevron onClick={() => pages?.open(page)} />;
+  return <ListRow ref={row} title={title} description={description} value={value} media={media} chevron onClick={() => pages?.open(page)} data-testid={testId} />;
 }
 
 /** A numbered step, as a row: its number in the tint's disc, what to

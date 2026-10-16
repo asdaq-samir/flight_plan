@@ -54,7 +54,7 @@ const DRAWN = {
   ],
 };
 
-test("a field's approach is picked with its transition, kept in the address and drawn on the map with its missed approach and its fixes' altitudes", async ({ page }) => {
+test("a field's approach is picked on its own page with its transition, drawn on the map as it is chosen, and added to the route with Add to Route, as ForeFlight picks one", async ({ page }) => {
   const asked: string[] = [];
   await page.route(url => /\/airport\/[^/]+\/procedures/.test(url.pathname), route => {
     const url = new URL(route.request().url());
@@ -75,17 +75,21 @@ test("a field's approach is picked with its transition, kept in the address and 
   const kdlh = procedures.locator("section").filter({ hasText: "KDLH · instrument procedures" });
   await kdlh.getByRole("button", { name: /^Approaches/ }).click();
   await expect(page.getByRole("heading", { name: "KDLH approaches" })).toBeVisible();
+  // Its own page: drawn on the map from vectors as it opens, before it is
+  // added -- the route's address untouched.
   await page.getByTestId("procedure-option").filter({ hasText: "ILS RWY 09" }).click();
-  await expect(page).toHaveURL(/[?&]procs=KDLH(%3A|:)I09(&|$)/);
-  // From vectors first; then by DLH.
-  await page.getByTestId("procedure-transition").filter({ hasText: "Via DLH" }).click();
-  await expect(page).toHaveURL(/[?&]procs=KDLH(%3A|:)I09(%3A|:)DLH(&|$)/);
-  // The drawing is fetched after the address changes, so wait for it.
+  await expect(page.getByRole("heading", { name: "KDLH ILS RWY 09" })).toBeVisible();
+  await expect.poll(() => asked, { timeout: slow(10000) }).toContain("/api/planner/airport/KDLH/procedures/I09");
+  await expect(page.locator("path.instrument-procedure").first()).toBeAttached({ timeout: slow(10000) });
+  await expect(page).not.toHaveURL(/[?&]procs=/);
+  // By DLH, drawn as it is chosen.
+  await page.getByTestId("procedure-transition").filter({ hasText: "DLH" }).click();
   await expect.poll(() => asked, { timeout: slow(10000) }).toContain("/api/planner/airport/KDLH/procedures/I09?transition=DLH");
-  await page.keyboard.press("Escape");
-  // Gone, not going: opened again as it eased out, the sheet is the one
-  // still on its way out, on the page it was left at.
-  await expect(page.getByRole("heading", { name: "KDLH approaches" })).toBeHidden();
+  await expect(page).not.toHaveURL(/[?&]procs=/);
+  // Add to Route: in the address, and the sheet put away.
+  await page.getByTestId("procedure-add").click();
+  await expect(page).toHaveURL(/[?&]procs=KDLH(%3A|:)I09(%3A|:)DLH(&|$)/);
+  await expect(page.getByRole("heading", { name: "KDLH ILS RWY 09" })).toBeHidden();
 
   // On the map: the transition and the final, the missed approach dashed,
   // its hold, and the fixes with their altitudes.
@@ -102,10 +106,18 @@ test("a field's approach is picked with its transition, kept in the address and 
   await expect(page.getByTestId("procedures")).toBeVisible();
   await page.keyboard.press("Escape");
 
-  // None takes it off the map and the address.
+  // Checked in the list, and on its page Remove from Route takes it off
+  // the address, and off the map once the sheet is put away.
   await sideDrawer(page).getByTestId("route-approaches").click();
   await procedures.locator("section").filter({ hasText: "KDLH · instrument procedures" }).getByRole("button", { name: /^Approaches/ }).click();
-  await page.getByRole("radio", { name: "None" }).click();
+  const ils = page.getByTestId("procedure-option").filter({ hasText: "ILS RWY 09" });
+  await expect(ils).toContainText("In the route, via DLH");
+  await ils.click();
+  await page.getByTestId("procedure-remove").click();
   await expect(page).not.toHaveURL(/[?&]procs=/);
+  await expect(page.getByTestId("procedure-add")).toBeVisible();
+  // Put away by its own close.
+  await page.getByTestId("procedures-close").click();
+  await expect(page.getByTestId("procedures")).toBeHidden();
   await expect(page.locator("path.instrument-procedure")).toHaveCount(0);
 });

@@ -23,6 +23,9 @@ import { RouteMap } from "./routeMapChunk";
 import { useProgressToast } from "../../lib/useProgressToast";
 import { useSearchParamsNow } from "../../lib/useSearchParamsNow";
 import type { WorkspaceProps } from "../page/workspace";
+import type { PanelState } from "../../components/mapChrome";
+import { useIsMobile } from "../../hooks/use-mobile";
+import { useNavEdge } from "../../hooks/use-nav-edge";
 import RoundButton from "../../components/RoundButton";
 import ShareMenu from "./components/ShareMenu";
 import TipHost from "../../components/TipHost";
@@ -261,8 +264,13 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const pickedProcedures = useMemo(() => proceduresOf(procedureParam), [procedureParam]);
   // The procedure just picked, for the map to go to it once it is drawn.
   const [procedureFocus, setProcedureFocus] = useState<string | null>(null);
+  // The panel's height before the Procedures lowered it (below).
+  const panelBeforeProcedures = useRef<PanelState | null>(null);
   const pickProcedures = useCallback((next: PickedProcedure[], picked: PickedProcedure | null) => {
     if (picked) setProcedureFocus(`${proceduresParam([picked])}@${Date.now()}`);
+    // Added: its sheet put away leaves the panel half way, the procedure
+    // on the map above it.
+    if (picked) panelBeforeProcedures.current = null;
     setSearchParams(prev => {
       const params = new URLSearchParams(prev);
       if (next.length) params.set("procs", proceduresParam(next)); else params.delete("procs");
@@ -413,7 +421,52 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     return { departure: at(planned.dep, "departure"), arrival: at(planned.dest, "arrival") };
   }, [procedureDrawings, planned.dep, planned.dest]);
   const [proceduresOpen, setProceduresOpen] = useState(false);
-  const openProcedures = useCallback(() => setProceduresOpen(true), []);
+  // The procedure on its own page in the Procedures, drawn on the map and
+  // brought in above the sheet before it is added to the route, as
+  // ForeFlight's Procedure Advisor previews one (the owner's pick); the
+  // route's own of its kind at that field left off the map meanwhile.
+  const [procedurePreview, setProcedurePreview] = useState<PickedProcedure | null>(null);
+  const previewProcedure = useCallback((p: PickedProcedure | null) => {
+    setProcedurePreview(p);
+    if (p) setProcedureFocus(`${proceduresParam([p])}@${Date.now()}`);
+  }, []);
+  const { data: previewDrawing } = useQuery({
+    queryKey: ["procedure", procedurePreview?.ident, procedurePreview?.id, procedurePreview?.transition ?? null],
+    queryFn: () => api.procedure(procedurePreview!.ident, procedurePreview!.id, procedurePreview!.transition),
+    enabled: !!procedurePreview, staleTime: 6 * 60 * 60_000,
+  });
+  const mapProcedures = useMemo(() => {
+    const preview = procedurePreview ? previewDrawing : undefined;
+    return preview
+      ? [...procedureDrawings.filter(d => !(d.kind === preview.kind && sameField(d.airport, preview.airport))), preview]
+      : procedureDrawings;
+  }, [procedureDrawings, procedurePreview, previewDrawing]);
+  // On a phone the sheet is half the screen (ProceduresButton), the map
+  // above it the procedure's: the panel lowered half way while it is out
+  // if it was all the way up over the map, and put back as it was unless
+  // a procedure was added, which is then on the map to be seen.
+  const isMobile = useIsMobile();
+  const setProceduresShown = useCallback((open: boolean) => {
+    setProceduresOpen(open);
+    if (!open) setProcedurePreview(null);
+    if (!isMobile) return;
+    if (open && panel === "full") {
+      panelBeforeProcedures.current = panel;
+      setPanel("half");
+    } else if (!open && panelBeforeProcedures.current) {
+      setPanel(panelBeforeProcedures.current);
+      panelBeforeProcedures.current = null;
+    }
+  }, [isMobile, panel, setPanel]);
+  const openProcedures = useCallback(() => setProceduresShown(true), [setProceduresShown]);
+  // What the sheet covers of the screen, from the navigation bar's edge
+  // it comes from, for the map to bring the procedure in clear of it: its
+  // 55% (the sheet's 55dvh, ProceduresButton).
+  const navEdge = useNavEdge();
+  const procedureCover = useMemo(() => {
+    const covered = isMobile && proceduresOpen ? Math.round(window.innerHeight * 0.55) : 0;
+    return navEdge === "top" ? { top: covered, bottom: 0 } : { top: 0, bottom: covered };
+  }, [isMobile, proceduresOpen, navEdge]);
   const selectPlaceOnChart = useCallback((ident: string | null) => {
     // A tap on the chart past Nearest's list lowers it, the tab kept.
     if (!ident && nearOpen && !place) {
@@ -1327,8 +1380,8 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
         )}
         <ProceduresButton
             airports={procedureAirports} picked={pickedPatterns} onPick={pickPattern}
-            procedures={pickedProcedures} onProcedures={pickProcedures}
-            open={proceduresOpen} onOpenChange={setProceduresOpen}
+            procedures={pickedProcedures} onProcedures={pickProcedures} onPreview={previewProcedure}
+            open={proceduresOpen} onOpenChange={setProceduresShown}
             onCharts={() => { if (planned.dest) { setApproachesOf(planned.dest); selectPlace(planned.dest); } }}
             chartsDisabled={!planned.dest || noApproaches}
           />
@@ -1373,8 +1426,9 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           airportWeather={s.briefing}
           patterns={patterns}
           patternFocus={patternFocus}
-          procedures={procedureDrawings}
+          procedures={mapProcedures}
           procedureFocus={procedureFocus}
+          procedureCover={procedureCover}
           place={placePin}
           nearest={nearOpen ? nearestPoints : null}
           onSelectPlace={selectPlaceOnChart}
