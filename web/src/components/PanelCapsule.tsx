@@ -3,10 +3,11 @@ import { useRef, type ReactNode, type RefObject } from "react";
 import { cn } from "cn";
 import { TEXT } from "../lib/text";
 import { useAirportSearch } from "../lib/useAirportSearch";
-import { RECENTS_SHOWN, usePreferences, type RecentAirport } from "../lib/preferences";
+import { usePreferences, type RecentAirport } from "../lib/preferences";
 import { ListGroup, ListRow } from "./GroupedList";
 import { ClearList, SwipeToDelete } from "./SwipeToDelete";
-import { ListPageHead, PillSection } from "./Favorites";
+import { ListPageHead, PillSection, PillStrip, SmallAirportTile } from "./Favorites";
+import { useAway } from "../lib/useAway";
 import ClearButton from "./ClearButton";
 import { PANEL_FIELD } from "./panelField";
 
@@ -101,15 +102,16 @@ export function SearchResults({ query, onPick, places, onAllRecents }: {
   const { typed, rows, answered } = useAirportSearch(query);
   const recents = usePreferences(s => s.recentAirports);
   // Each a section of the tab's page (TabPage), headed as the Favorites
-  // are: the latest few, See All the rest and Clear (Maps' Recents and
-  // their More), at the owner's pick.
+  // are: the airports opened last as the Favorites' tiles, their chart's
+  // symbols, at the owner's ask ("Recents should also have symbols instead
+  // of a list"); See All the list, where each is taken off and Clear.
   if (!typed) {
     return (
       <>
         {places}
         {recents.length > 0 ? (
           <PillSection title="Recents" testId="airport-recents" onSeeAll={onAllRecents}>
-            <RecentAirportRows recents={recents.slice(0, RECENTS_SHOWN)} onPick={onPick} />
+            <RecentAirportStrip recents={recents} onPick={onPick} />
           </PillSection>
         ) : (
           <p className={cn("px-1 text-muted-foreground", TEXT.note)}>Search by an airport's ident, its name or its town.</p>
@@ -132,6 +134,19 @@ export function SearchResults({ query, onPick, places, onAllRecents }: {
         ))}
       </ListGroup>
     </PillSection>
+  );
+}
+
+/** The airports picked last as tiles, newest first: each its chart symbol,
+ *  its ident, and how far it is from own ship, else its town. */
+function RecentAirportStrip({ recents, onPick }: { recents: RecentAirport[]; onPick: (airport: RecentAirport) => void }) {
+  const away = useAway();
+  return (
+    <PillStrip testId="pill-airport-recents">
+      {recents.map(a => (
+        <SmallAirportTile key={a.ident} airport={a} detail={away(a) ?? a.municipality ?? ""} onClick={() => onPick(a)} testId="airport-recent" />
+      ))}
+    </PillStrip>
   );
 }
 
