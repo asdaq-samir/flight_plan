@@ -249,7 +249,7 @@ def test_an_airplane_named_by_its_address_or_n_number_is_found_from_its_recent_t
     assert (plane["lat"], plane["lon"], plane["altitude_ft"], plane["speed_kt"]) == (42.30128, -88.14525, 1325, 93.7)
     assert plane["vertical_fpm"] == -384 and plane["seen_s"] == 4.0
     # The trace read once: the address's search found the N-number's answer kept.
-    assert asked == ["https://globe.adsb.lol/data/traces/b9/trace_recent_a128b9.json"]
+    assert asked == ["https://adsb.lol/data/traces/b9/trace_recent_a128b9.json"]
 
 
 @pytest.mark.parametrize("answer", [
@@ -361,7 +361,7 @@ def test_a_tracked_flight_is_what_it_is_where_it_took_off_and_its_track_since(cl
     with patch("vfr.traffic.requests.get", return_value=Mock(status_code=200, json=Mock(return_value=TRACE))) as get:
         found = traffic.flight("A0B7D8")
         traffic.flight("a0b7d8")
-    assert get.call_args.args[0] == "https://globe.adsb.lol/data/traces/d8/trace_full_a0b7d8.json"
+    assert get.call_args.args[0] == "https://adsb.lol/data/traces/d8/trace_full_a0b7d8.json"
     assert get.call_count == 1
     assert {k: found[k] for k in ("registration", "type", "description", "operator", "year")} == {
         "registration": "N14511", "type": "A21N", "description": "AIRBUS A-321neo", "operator": "UNITED AIRLINES INC", "year": "2024"}
@@ -584,7 +584,7 @@ def test_a_past_days_trace_is_read_from_the_archive_once(clock):
         assert traffic._day_trace("a89c1e", day)["r"] == "N654FL"
         traffic._day_trace("a89c1e", day)
     assert get.call_count == 1
-    assert get.call_args.args[0] == "https://globe.adsb.lol/globe_history/2026/10/10/traces/1e/trace_full_a89c1e.json"
+    assert get.call_args.args[0] == "https://adsb.lol/globe_history/2026/10/10/traces/1e/trace_full_a89c1e.json"
 
 
 def test_a_flight_last_heard_heading_down_to_a_field_further_out_landed_there(clock, monkeypatch):
@@ -823,12 +823,12 @@ def test_a_search_is_asked_of_ads_b_exchange_first_by_what_the_name_is_and_credi
 def test_an_address_ads_b_exchange_does_not_have_is_read_from_the_free_recent_trace(adsbx, clock):
     get, asked = _routed({
         "adsbexchange-com1.p.rapidapi.com/v2/icao/a128b9": _answer([]),
-        "globe.adsb.lol/data/traces/b9/trace_recent_a128b9.json": _status(200, RECENT),
+        "adsb.lol/data/traces/b9/trace_recent_a128b9.json": _status(200, RECENT),
     })
     with patch("vfr.traffic.requests.get", side_effect=get):
         found, credit = traffic.find_credited("a128b9")
     assert credit == traffic.ADSB_LOL_SOURCE
-    assert [u.split("/")[2] for u in asked] == ["adsbexchange-com1.p.rapidapi.com", "globe.adsb.lol"]
+    assert [u.split("/")[2] for u in asked] == ["adsbexchange-com1.p.rapidapi.com", "adsb.lol"]
     assert [a["hex"] for a in found] == ["a128b9"]
 
 

@@ -406,9 +406,14 @@ def near(lat: float, lon: float, radius_nm: float) -> dict:
 # --- One airplane: found by what a pilot knows it by, and its flight ---
 
 FIND_URL = "https://api.adsb.lol/v2/{by}/{value}"
+#: The same open data's globe (adsb.lol's tar1090), where the traces are:
+#: adsb.lol itself, as globe.adsb.lol answers every read with a redirect
+#: here (seen 2026-10-16), a hop that cost 0.4 s a file (1.1 s against
+#: 0.7 s, three reads each way).
+GLOBE = "https://adsb.lol"
 #: The day's track of an airplane, by its ICAO address: readsb's trace,
-#: on the same open data's globe (adsb.lol's tar1090), gzip JSON.
-TRACE_URL = "https://globe.adsb.lol/data/traces/{last2}/trace_full_{hex}.json"
+#: on the globe, gzip JSON.
+TRACE_URL = GLOBE + "/data/traces/{last2}/trace_full_{hex}.json"
 #: A trace is read again after this long, s: the map adds the reports
 #: between (TrafficLayer).
 TRACE_TTL_S = 60
@@ -428,7 +433,7 @@ _TRACES: TTLCache = TTLCache(maxsize=64, ttl=TRACE_TTL_S)
 #: writes every few seconds (3 to 8 s old, measured 2026-10-12, where the
 #: full trace was 4 to 7 minutes behind). A static file, not the API, so
 #: a search by registration or address costs none of the API's turns.
-RECENT_URL = "https://globe.adsb.lol/data/traces/{last2}/trace_recent_{hex}.json"
+RECENT_URL = GLOBE + "/data/traces/{last2}/trace_recent_{hex}.json"
 #: A recent trace is read again after this long, s.
 RECENT_TTL_S = 5
 _RECENT: TTLCache = TTLCache(maxsize=256, ttl=RECENT_TTL_S)
@@ -849,7 +854,7 @@ def route(callsign: str, lat: float | None = None, lon: float | None = None) -> 
 #: A day's trace of an airplane, by its ICAO address, from adsb.lol's
 #: archive of the globe's traces (the same open data, kept a day at a
 #: time, UTC days): gzip JSON, as today's.
-HISTORY_URL = "https://globe.adsb.lol/globe_history/{day:%Y/%m/%d}/traces/{last2}/trace_full_{hex}.json"
+HISTORY_URL = GLOBE + "/globe_history/{day:%Y/%m/%d}/traces/{last2}/trace_full_{hex}.json"
 #: How many of an airplane's flights are listed at a time, the newest
 #: found, at the owner's ask ("make it last 10 flights you were able to
 #: find"), where it was the last seven days' whatever their number.
