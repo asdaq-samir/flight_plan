@@ -35,6 +35,13 @@ export function sheetAt(overlay: ChartLayer | null, lat: number, lon: number): C
  * asks the network -- one phone showed a white sliver the planner had
  * long since stopped drawing.
  */
+/** Every tile layer's: its tiles asked for while a finger moves the map,
+ *  not once it lifts. Leaflet waits for a pan to end on a phone
+ *  (updateWhenIdle, by its own check for one): the chart was asked for
+ *  under the finger already, the imagery over it only after (the owner's
+ *  notice, 2026-10-16: "Only updates when the finger is off the screen"). */
+export const LIVE_TILES = { updateWhenIdle: false } as const;
+
 export function tileTemplate(chart: ChartInfo, kind: string): string {
   // A course cached offline from before the planner reported one has none.
   const revision = chart.chart_revision ?? 0;

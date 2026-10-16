@@ -112,7 +112,8 @@ test("Personal's Subscription page says what the pilot has, and the month's uses
   const panel = console.getByTestId("subscription-panel");
   await expect(panel.getByTestId("subscription-standing")).toContainText(/Free until \d{1,2} November/);
   await expect(panel.getByTestId("subscription-use-NARRATIVE")).toContainText("1 of 60");
-  await expect(panel).toContainText("Planning and flying are free.");
+  // What it adds, a row, where it was a footnote.
+  await expect(panel).toContainText("The written briefing, checkpoint descriptions, the mock oral and the debrief");
 });
 
 // The proof of concept, at the owner's ask: no subscription sold and no

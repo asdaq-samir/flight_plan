@@ -129,6 +129,8 @@ export type TrafficAircraft = Schemas["TrafficAircraft"];
 export type TrafficFound = Schemas["TrafficFound"];
 /** A tracked flight: its airplane, where it took off, its path today. */
 export type FlightDetail = Schemas["FlightDetail"];
+/** An airplane's state now, for the alerts a pilot sets on it (vfr.traffic.status). */
+export type FlightStatus = Schemas["FlightStatus"];
 /** A US airplane's record in the FAA's registry (vfr.registry). */
 export type AircraftRegistration = Schemas["AircraftRegistration"];
 /** The route a flight number is scheduled to fly (vfr.traffic.route). */

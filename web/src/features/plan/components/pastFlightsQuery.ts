@@ -1,4 +1,4 @@
-import { infiniteQueryOptions } from "@tanstack/react-query";
+import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 import { api } from "../../../lib/api/client";
 
 /** Where a page of an airplane's past flights starts: a UTC day and,
@@ -23,4 +23,12 @@ export const pastFlightsQuery = (hex: string, from: string | null) => infiniteQu
     : undefined),
   staleTime: 5 * 60_000,
   meta: { silent: true },
+});
+
+/** One of those flights' reports (vfr.traffic.past_flight): its path on
+ *  the map (PastFlightPath) and, where it is the airplane's last and it is
+ *  not heard now, the card's sketch (FlightCard). A past flight does not
+ *  change: asked once. */
+export const pastFlightQuery = (hex: string, id: number) => queryOptions({
+  queryKey: ["pastFlight", hex, id], queryFn: () => api.trafficPastFlight(hex, id), staleTime: Infinity, meta: { silent: true },
 });

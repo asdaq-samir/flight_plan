@@ -7,7 +7,7 @@
  * student's own figures against them within an E6B's accuracy.
  */
 import type { Leg } from "./api/types";
-import { bearing, grouped } from "./units";
+import { bearing, grouped, magneticVariation, windCorrection } from "./units";
 
 /** An angle as -180 to 180. */
 function wrap(deg: number): number {
@@ -68,12 +68,12 @@ export function workingsOf(leg: Leg): Workings | null {
     {
       name: "Wind correction",
       sum: `sin⁻¹(${Math.round(windKt)} × sin(${bearing(windDir)} − ${bearing(tc)}) ÷ ${Math.round(tas)})`,
-      result: Math.round(wca) === 0 ? "0° (none)" : `${wca >= 0 ? "+" : "−"}${Math.abs(wca).toFixed(0)}° (${wca >= 0 ? "right" : "left"})`,
+      result: Math.round(wca) === 0 ? "0° (none)" : `${windCorrection(wca)} (${wca >= 0 ? "right" : "left"})`,
     },
     { name: "True heading", sum: `${bearing(tc)} ${wca >= 0 ? "+" : "−"} ${Math.abs(wca).toFixed(0)}°`, result: bearing(th) },
     {
       name: "Magnetic heading",
-      sum: `${bearing(th)} ${east ? "−" : "+"} ${Math.abs(variation).toFixed(0)}° ${east ? "E" : "W"} (east is least, west is best)`,
+      sum: `${bearing(th)} ${east ? "−" : "+"} ${magneticVariation(variation)} (east is least, west is best)`,
       result: bearing(mh),
     },
     { name: "Compass heading", sum: "the magnetic heading with the deviation card's correction for it", result: bearing(mh) },

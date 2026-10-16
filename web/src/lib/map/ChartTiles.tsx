@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef } from "react";
 import { TileLayer, useMap, useMapEvents } from "react-leaflet";
 import type { ChartInfo } from "../api/types";
 import { usePreferences } from "../preferences";
-import { chartPair, tileTemplate } from "./tiles";
+import { LIVE_TILES, chartPair, tileTemplate } from "./tiles";
 
 interface Props {
   /** The chart: a route's course, or the chart alone with no route. */
@@ -26,9 +26,9 @@ interface Props {
  *
  * Tiles fetch only the new edge on a pan, scale the previous zoom's
  * tiles under the zoom animation, and prefetch a ring beyond the
- * viewport, all Leaflet's own; `updateWhenIdle` off asks for tiles
- * during a pan too, which a pilot panning across a route felt as the
- * chart arriving late otherwise. A ring of tiles one deep around the
+ * viewport, all Leaflet's own; LIVE_TILES asks for tiles during a pan
+ * too, which a pilot panning across a route felt as the chart arriving
+ * late otherwise. A ring of tiles one deep around the
  * view is fetched once the map comes to rest, so the next pan finds
  * its tiles in the browser's cache (and, installed, the service
  * worker's). Each kind is its own layer instance (`key`): Leaflet reads
@@ -83,14 +83,14 @@ export function ChartTiles({ chart, previewing }: Props) {
         key={baseLayer.kind} ref={baseRef}
         url={tileTemplate(chart, baseLayer.kind)}
         minZoom={baseLayer.min_zoom} maxNativeZoom={baseLayer.max_zoom} maxZoom={baseLayer.max_zoom + 3}
-        keepBuffer={4} updateWhenIdle={false}
+        keepBuffer={4} {...LIVE_TILES}
       />
       {overlay && (pinned || previewing) && (
         <TileLayer
           key={overlay.kind}
           url={tileTemplate(chart, overlay.kind)}
           minZoom={overlay.min_zoom} maxNativeZoom={overlay.max_zoom} maxZoom={overlay.max_zoom + 3}
-          keepBuffer={2} zIndex={5} updateWhenIdle={false}
+          keepBuffer={2} zIndex={5} {...LIVE_TILES}
         />
       )}
     </>

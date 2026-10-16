@@ -27,10 +27,9 @@ export default function PassengerBriefing({ flight, message }: { flight: string;
   return (
     <AccordionSection title="Passengers">
       <div className="space-y-4" data-testid="passengers">
-        <ListGroup
-          title={`Brief them · ${done} of ${PASSENGER_ITEMS.length}`}
-          footer="91.107 asks the first two of the pilot in command before every takeoff; the rest is good practice."
-        >
+        {/* 91.107 asks the first two of the pilot in command before every
+            takeoff; the rest is good practice. */}
+        <ListGroup title={`Brief them · ${done} of ${PASSENGER_ITEMS.length}`}>
           {PASSENGER_ITEMS.map(item => (
             <ListRow
               key={item.key} checkbox={{ checked: !!ticked[item.key], onChange: on => tick(flight, item.key, on) }}
@@ -39,8 +38,12 @@ export default function PassengerBriefing({ flight, message }: { flight: string;
             />
           ))}
         </ListGroup>
-        <ListGroup footer={message.split("\n").join(" ")}>
-          <ListRow title={copied === "message" ? "Copied" : "Send the flight to your passengers"} onClick={() => void send()} data-testid="passenger-send" />
+        {/* What is sent, under the row that sends it, where it was a footnote. */}
+        <ListGroup>
+          <ListRow
+            title={copied === "message" ? "Copied" : "Send the flight to your passengers"} description={message.split("\n").join(" ")}
+            onClick={() => void send()} data-testid="passenger-send"
+          />
         </ListGroup>
       </div>
     </AccordionSection>

@@ -119,3 +119,19 @@ def test_a_search_ads_b_exchange_answered_says_so_for_its_credit(monkeypatch):
     monkeypatch.setattr(traffic, "find_credited", lambda q: ([plane], traffic.ADSBX_SOURCE))
     body = client.get("/api/traffic/find", params={"q": "UAL2088"}).json()
     assert (body["source"], body["license"]) == ("ADS-B Exchange", "ADS-B Exchange terms")
+
+
+def test_an_airplanes_state_for_its_alerts_and_a_503_where_it_cannot_be_read(monkeypatch):
+    state = {"hex": "a06d40", "heard_s": 4.0, "airborne": False, "aircraft": None, "departed": None,
+             "arrived": {"ident": "10C", "name": "Galt Field Airport", "city": "Greenwood/Wonder Lake", "region": "US-IL",
+                         "at": 1791800116.0}}
+    monkeypatch.setattr(traffic, "status", lambda hex_id: state)
+    assert client.get("/api/traffic/flight/a06d40/status").json() == state
+
+    def unread(hex_id):
+        raise traffic.TrafficUnavailable("down")
+
+    monkeypatch.setattr(traffic, "status", unread)
+    response = client.get("/api/traffic/flight/a06d40/status")
+    assert response.status_code == 503 and "adsb.lol" in response.json()["detail"]
+    assert client.get("/api/traffic/flight/nothex/status").status_code == 422

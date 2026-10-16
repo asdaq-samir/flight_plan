@@ -82,7 +82,7 @@ export default function PilotGuide() {
                 <ListRow media={<Navigation className="size-5 text-tint" />} title="My position" description="Where you are, from the phone's GPS, the map brought in close and kept on you; again to hide it" />
                 <ListRow media={<Maximize className="size-5 text-tint" />} title="Full screen" description="Where your browser allows it" />
               </ListGroup>
-              <ListGroup title="In the settings" footer="Close in over a terminal area and a pin on the map pins that sheet.">
+              <ListGroup title="In the settings">
                 <ListRow media={<Layers className="size-5 text-tint" />} title="Charts" description="Sectional, IFR low or IFR high, the terminal area chart over it, and the Class B airports" />
                 <ListRow media={<Download className="size-5 text-tint" />} title="Offline" description="Keep each route's charts on this device for the air" />
               </ListGroup>
@@ -112,7 +112,7 @@ export default function PilotGuide() {
           <StepRow n={5} title="Take it with you" description="Print, beside the route, for the nav log on paper; and Offline in the settings keeps each route's charts on this device for the air." />
         </ListGroup>
 
-        <ListGroup title="Checkpoint colours" footer="Each checkpoint is rated for how findable it is from the cockpit, 0 to 5.">
+        <ListGroup title="Checkpoint colours">
           {/* A row a colour, its dot before the words, as the app's lists
               are (the developer's rating scale is the same). */}
           {BUCKETS.map(([color, label]) => (
@@ -123,7 +123,7 @@ export default function PilotGuide() {
           ))}
         </ListGroup>
 
-        <ListGroup title="Practice" footer="Cards to go through until you know them, kept in this browser; and two of the instrument rating's, worked out.">
+        <ListGroup title="Practice">
           <PageRow page="light-gun" title="Light gun signals" description="14 CFR 91.125" />
           <PageRow page="vfr-minimums" title="VFR weather minimums" description="14 CFR 91.155" />
           <PageRow page="holding" title="Holding entries" description="AIM 5-3-8: the entry, drawn, and the wind" />

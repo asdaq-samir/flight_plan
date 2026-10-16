@@ -16,6 +16,7 @@
  */
 import type { Briefing, Frequency, Leg } from "./api/types";
 import { compassWord, exitFor, runwayInUse, runwayNumber, type RunwayEnd } from "./pattern";
+import { ctafOf, frequencyOf, mhzText } from "./frequencies";
 
 type Facilities = Briefing["airports"][string];
 
@@ -84,23 +85,6 @@ function facilityName(f: Frequency, field: string): string {
   return own ? own.toLowerCase().replace(/\b\w/g, c => c.toUpperCase()) : field;
 }
 
-function find(frequencies: Frequency[], ...types: string[]): Frequency | null {
-  for (const type of types) {
-    const f = frequencies.find(x => (x.type ?? "").toUpperCase() === type && x.frequency_mhz != null);
-    if (f) return f;
-  }
-  return null;
-}
-
-/** The CTAF: the one so called, else a UNICOM that is also the CTAF,
- *  else MULTICOM's 122.9 (AC 90-66C 9.6). */
-function ctafOf(frequencies: Frequency[]): Frequency {
-  return find(frequencies, "CTAF")
-    ?? frequencies.find(f => (f.type ?? "").toUpperCase().startsWith("UNIC") && /CTAF/i.test(f.description ?? ""))
-    ?? find(frequencies, "UNIC", "UNICOM")
-    ?? { type: "MULTICOM", description: "MULTICOM", frequency_mhz: 122.9 };
-}
-
 export interface RadioCall {
   /** Who is called, or listened to: "Waukegan Tower", "ATIS". */
   to: string;
@@ -142,14 +126,14 @@ function hopLegs(legs: Leg[], from: string, to: string): Leg[] {
 
 /** At a part-time tower, what to do when it is closed: its CTAF. */
 function whenClosed(frequencies: Frequency[]): string {
-  const ctaf = find(frequencies, "CTAF");
-  return ctaf ? ` When the tower is closed, self-announce on the CTAF, ${ctaf.frequency_mhz}.` : "";
+  const ctaf = frequencyOf(frequencies, "CTAF");
+  return ctaf ? ` When the tower is closed, self-announce on the CTAF, ${mhzText(ctaf.frequency_mhz!)}.` : "";
 }
 
 function listenFirst(frequencies: Frequency[], field: string): RadioCall[] {
-  const atis = find(frequencies, "ATIS");
+  const atis = frequencyOf(frequencies, "ATIS");
   if (atis) return [{ to: `${field} ATIS`, mhz: atis.frequency_mhz ?? null, words: "The weather, the runway in use and the information letter.", listen: true }];
-  const auto = find(frequencies, "AWOS", "ASOS");
+  const auto = frequencyOf(frequencies, "AWOS", "ASOS");
   if (auto) return [{ to: `${field} ${(auto.type ?? "").toUpperCase()}`, mhz: auto.frequency_mhz ?? null, words: "The wind, the altimeter setting and the weather.", listen: true }];
   return [];
 }
@@ -168,10 +152,10 @@ function departure(input: RadioInput, i: number): RadioPhase {
   const altitude = first ? spokenAltitude(first.altitude_ft) : "[altitude]";
   const f = facilities.frequencies;
   const calls = listenFirst(f, field);
-  const tower = find(f, "TWR");
+  const tower = frequencyOf(f, "TWR");
   if (tower) {
-    const atis = find(f, "ATIS") ? ", with information [letter]" : "";
-    const clearance = find(f, "CLD");
+    const atis = frequencyOf(f, "ATIS") ? ", with information [letter]" : "";
+    const clearance = frequencyOf(f, "CLD");
     if (clearance && (facilities.airspace_class === "B" || facilities.airspace_class === "C")) {
       calls.push({
         to: `${facilityName(clearance, field)} Clearance`, mhz: clearance.frequency_mhz ?? null,
@@ -179,7 +163,7 @@ function departure(input: RadioInput, i: number): RadioPhase {
         note: `Class ${facilities.airspace_class}: where the Chart Supplement sends VFR departures to clearance delivery first.`,
       });
     }
-    const ground = find(f, "GND");
+    const ground = frequencyOf(f, "GND");
     if (ground) {
       calls.push({
         to: `${facilityName(ground, field)} Ground`, mhz: ground.frequency_mhz ?? null,
@@ -202,7 +186,7 @@ function departure(input: RadioInput, i: number): RadioPhase {
       },
     );
   }
-  const radar = find(f, "DEP", "A/D", "APP");
+  const radar = frequencyOf(f, "DEP", "A/D", "APP");
   const facility = radar ? `${facilityName(radar, field)} ${(radar.type ?? "").toUpperCase() === "APP" ? "Approach" : "Departure"}` : "Approach or Center";
   calls.push(
     {
@@ -244,10 +228,10 @@ function arrival(input: RadioInput, i: number): RadioPhase {
   const f = facilities.frequencies;
   const calls = listenFirst(f, field);
   if (calls.length) calls[0]!.note = "About 25 miles out, before the first call.";
-  const tower = find(f, "TWR");
-  const atis = find(f, "ATIS") ? ", with information [letter]" : "";
+  const tower = frequencyOf(f, "TWR");
+  const atis = frequencyOf(f, "ATIS") ? ", with information [letter]" : "";
   if (tower) {
-    const radar = find(f, "APP", "A/D");
+    const radar = frequencyOf(f, "APP", "A/D");
     const busy = facilities.airspace_class === "B" || facilities.airspace_class === "C";
     if (busy && radar) {
       const approach = `${facilityName(radar, field)} Approach`;
@@ -268,7 +252,7 @@ function arrival(input: RadioInput, i: number): RadioPhase {
         ? "When approach hands you over."
         : `Well before the Class D, about 4 miles round the field: the tower answering with your call sign is two-way communication (91.129). Fly the entry it gives.${whenClosed(f)}`,
     });
-    const ground = find(f, "GND");
+    const ground = frequencyOf(f, "GND");
     if (ground) {
       calls.push({
         to: `${facilityName(ground, field)} Ground`, mhz: ground.frequency_mhz ?? null,

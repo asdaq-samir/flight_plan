@@ -5,7 +5,7 @@ import datetime as dt
 from fastapi import APIRouter, HTTPException, Path, Query
 from vfr import traffic
 
-from ..schemas import AircraftBases, FlightDetail, FlightRoute, PastFlight, PastFlights, Traffic, TrafficFound
+from ..schemas import AircraftBases, FlightDetail, FlightRoute, FlightStatus, PastFlight, PastFlights, Traffic, TrafficFound
 
 router = APIRouter()
 
@@ -48,6 +48,18 @@ def traffic_flight(hex_id: str = Path(pattern=r"^~?[0-9a-fA-F]{6}$")) -> FlightD
     and its track today (vfr.traffic.flight); no track where its trace
     cannot be had."""
     return FlightDetail(**traffic.flight(hex_id))
+
+
+@router.get("/api/traffic/flight/{hex_id}/status", response_model=FlightStatus)
+def traffic_status(hex_id: str = Path(pattern=r"^~?[0-9a-fA-F]{6}$")) -> FlightStatus:
+    """An airplane's state now, for the alerts a pilot sets on it -- takes
+    off, lands, comes near (vfr.traffic.status): from adsb.lol's recent
+    trace, seconds old, which costs none of its API's turns. A 503 where
+    that trace cannot be read now."""
+    try:
+        return FlightStatus(**traffic.status(hex_id))
+    except traffic.TrafficUnavailable as err:
+        raise HTTPException(503, "The airplane's state isn't available right now: adsb.lol did not answer.") from err
 
 
 @router.get("/api/traffic/route", response_model=FlightRoute | None)

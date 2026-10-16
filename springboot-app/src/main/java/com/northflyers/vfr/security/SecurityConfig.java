@@ -68,6 +68,11 @@ public class SecurityConfig {
     /** The overlay's tile hosts (see the headers below). */
     private static final String OVERLAY_IMAGES = "https://basemap.nationalmap.gov https://tile.googleapis.com";
     private static final String OVERLAY_CONNECT = "https://tile.googleapis.com";
+    // An airplane's photo on its card (web/src/lib/planePhoto.ts): asked of
+    // Planespotters.net's API by the browser, as its terms have an app's
+    // pages do, and its thumbnail shown from Planespotters' own server.
+    private static final String PHOTO_IMAGES = "https://t.plnspttrs.net";
+    private static final String PHOTO_CONNECT = "https://api.planespotters.net";
 
     private final boolean oauthConfigured;
     private final String chartTilesOrigin;
@@ -302,10 +307,10 @@ public class SecurityConfig {
                         .referrerPolicy(referrer -> referrer.policy(ReferrerPolicy.NO_REFERRER))
                         .contentSecurityPolicy(csp -> csp.policyDirectives(
                                 "default-src 'self'; "
-                                        + "img-src 'self' data:" + chartTilesOrigin + " " + OVERLAY_IMAGES + "; "
+                                        + "img-src 'self' data:" + chartTilesOrigin + " " + OVERLAY_IMAGES + " " + PHOTO_IMAGES + "; "
                                         + "style-src 'self' 'unsafe-inline'; "
                                         + "script-src 'self'; "
-                                        + "connect-src 'self' " + OVERLAY_CONNECT + "; "
+                                        + "connect-src 'self' " + OVERLAY_CONNECT + " " + PHOTO_CONNECT + "; "
                                         + "object-src 'none'; "
                                         + "base-uri 'self'; "
                                         + "frame-ancestors 'none'")));

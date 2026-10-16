@@ -1,6 +1,5 @@
 import { useId, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { format, parseISO } from "date-fns";
 import { Loader2, TriangleAlert } from "lucide-react";
 import { cn } from "cn";
 import { ListGroup, ListRow } from "../../../../components/GroupedList";
@@ -141,12 +140,7 @@ export default function MockOral({ plan }: { plan: string }) {
 
       {problem && <p className={cn(FINDING_TONE.stop, TEXT.prose)} role="alert">{problem.message}</p>}
 
-      {q && (
-        <p className={cn("px-1 text-muted-foreground", TEXT.note)}>
-          14 CFR as of {q.editions.cfr_issued ? format(parseISO(q.editions.cfr_issued), "d MMM yyyy") : "lately"}; the AIM
-          as read {q.editions.aim_fetched ? format(parseISO(q.editions.aim_fetched), "d MMM yyyy") : "lately"}.
-        </p>
-      )}
+
     </div>
   );
 }

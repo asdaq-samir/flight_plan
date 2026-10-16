@@ -8,7 +8,7 @@ import { Button } from "./ui/button";
 import { clearOwnTrail, useOwnTrail } from "../lib/map/ownTrail";
 import { say } from "../lib/speech";
 import { keepingAvailable } from "../lib/map/keepRoute";
-import { BASE_CHARTS, usePreferences, type BaseChart, type MapOverlay, type OverlayStrength } from "../lib/preferences";
+import { BASE_CHARTS, usePreferences, type BaseChart, type MapOverlay, type OverlayStrength, type PinchEndKind } from "../lib/preferences";
 import { useShownOverlay } from "../lib/map/useShownOverlay";
 import { useGoogleSession } from "../lib/map/googleSession";
 import { cn } from "../lib/utils";
@@ -58,6 +58,8 @@ export default function MapSettings() {
   const setOverlay = usePreferences(s => s.setOverlay);
   const strength = usePreferences(s => s.overlayStrength);
   const setStrength = usePreferences(s => s.setOverlayStrength);
+  const pinch = usePreferences(s => s.pinch);
+  const setPinch = usePreferences(s => s.setPinch);
   // Google's only where the deployment has a key for it.
   const { data: google } = useQuery(googleMapsQuery);
   const googleSession = useGoogleSession(overlay === "google-satellite" ? "satellite" : "map", overlay.startsWith("google"));
@@ -73,10 +75,7 @@ export default function MapSettings() {
   // (ODbL 1.0, 4.3) asks it be credited; what it is good for, once on.
   const { data: chart } = useQuery(chartQuery);
   return (
-    <ListGroup
-      title="Map"
-      footer={`${chart ? `Charts from the FAA, the ${editionOf(chart.chart_cycle)} edition.` : "Charts from the FAA."} Traffic from adsb.lol, under the Open Database License${traffic ? ": seconds old, for knowing what is about, not for avoiding it." : "."}`}
-    >
+    <ListGroup title="Map">
       <ListRow title="Chart">
         <Segmented
           label="Chart" value={base} onChange={v => setBase(v as BaseChart)} testId="base-chart-select"
@@ -117,6 +116,15 @@ export default function MapSettings() {
           />
         </ListRow>
       )}
+      {/* How a pinch ends, a trial at the owner's ask (PinchEnd): settled
+          on a whole level, the chart sharp, or where the fingers leave it,
+          the chart a little stretched between levels. */}
+      <ListRow title="Pinch">
+        <Segmented
+          label="Pinch" value={pinch} onChange={v => setPinch(v as PinchEndKind)} testId="pinch-select"
+          options={[{ value: "settle", label: "Settle" }, { value: "stay", label: "Stay" }]}
+        />
+      </ListRow>
       {/* The Class B airports' two things, on one line: their weather
           now, as chips on the map, and the terminal sheet over the base
           wherever there is one -- the TAC over the sectional, the IFR
@@ -194,6 +202,12 @@ export default function MapSettings() {
           icon={<Download />} label="Keep charts" testId="keep-offline-toggle"
         />
       </ListRow>
+      {/* The chart's edition and the traffic's source, rows where they were
+          a footnote (the owner's "Avoid putting so many footnotes"): the
+          edition is what a pilot checks, and adsb.lol's licence (ODbL 1.0,
+          4.3) asks it be credited, as the owner asked it be here. */}
+      <ListRow title="Charts" value={<span className="text-foreground">{chart ? `FAA, ${editionOf(chart.chart_cycle)}` : "FAA"}</span>} data-testid="chart-edition" />
+      <ListRow title="Traffic data" value={<span className="text-foreground">adsb.lol · ODbL</span>} />
     </ListGroup>
   );
 }

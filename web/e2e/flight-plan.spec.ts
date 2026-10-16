@@ -28,7 +28,9 @@ test("under VFR the flight plan flies direct, with no alternate, and says where 
   await expect(form.getByTestId("flight-plan-level")).toContainText(/A0\d{2}/);
   await expect(form.getByTestId("flight-plan-alternate")).toHaveCount(0);
   await expect(form.getByTestId("flight-plan-file")).toHaveAttribute("href", "https://www.1800wxbrief.com");
-  await expect(form).toContainText("5-1-14");
+  // Open as you leave and close when you land, on the row that files it
+  // (AIM 5-1-5, 5-1-14), where it was a footnote.
+  await expect(form.getByTestId("flight-plan-file")).toContainText("close it when you land");
   // The whole form, an item to a line.
   await form.getByTestId("flight-plan-copy").click();
   await expect(form.getByTestId("flight-plan-copy")).toHaveText("Copied");

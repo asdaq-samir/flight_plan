@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { clearTheRoute, closeCard, consoleSheet, expectDrawerClosed, grabberTo, mapStill, openConsole, openMapSettings, openPanel, settle, showTabs, sideDrawer, slow, tapTheChart, controlsInSight } from "./helpers";
+import { clearTheRoute, closeCard, consoleSheet, expectDrawerClosed, grabberTo, mapStill, openConsole, openMapSettings, openPanel, settle, showTabs, sideDrawer, slow, tapNear, tapTheChart, controlsInSight } from "./helpers";
 
 /**
  * Airports as places, as Maps has them: a tap on one on the chart opens
@@ -80,7 +80,9 @@ test("a field with no report wears the nearest station's category as \"≈\" wit
   const from = card(page).getByTestId("place-nearby-metar");
   await expect(from).toContainText("Nearest report, 6.2 nm E");
   await expect(from).toContainText("KUGN 102152Z");
-  await expect(from).toContainText("Not this field's own");
+  // When it was observed on its row, where a footnote said it was not
+  // this field's own (the title says it is the nearest's).
+  await expect(from).toContainText(/\d{4}Z · (just now|\d+ (min|h) ago)/);
 
   // Twelve miles off: the report still said, no chip.
   await page.unrouteAll({ behavior: "ignoreErrors" });
@@ -106,12 +108,11 @@ test("a field with no report wears the category modelled there, before a near st
   await grabberTo(page, "full");
   await card(page).getByTestId("place-tab-weather").click();
   const model = card(page).getByTestId("place-modelled-weather");
-  await expect(model).toContainText("Modelled for the hour");
+  // Its hour in its title, where a footnote named the model.
+  await expect(model).toContainText("Modelled for 2200Z");
   await expect(model).toContainText("IFR");
   await expect(model).toContainText("900 ft");
   await expect(model).toContainText("4 sm");
-  await expect(model).toContainText("Gridded LAMP for 2200Z");
-  await expect(model).toContainText("not an observation");
   // The near station's report is still there, under it.
   await expect(card(page).getByTestId("place-nearby-metar")).toContainText("KUGN 102152Z");
 });
@@ -590,6 +591,23 @@ test("closer in, the airports that report wear their weather's colour, and a tap
   await expect(card(page).getByTestId("fly-here")).toBeVisible({ timeout: slow(15000) });
 });
 
+test("a tap a little off an airport's mark opens its card, the route's own as any field of the chart's", async ({ page }) => {
+  // One field of the chart's own, Waukegan, some 90 points from the
+  // route's departure at a card's zoom; no other. A tap that near the
+  // route's own field put the card away: only the chart's own were near.
+  await page.route(url => url.pathname.endsWith("/api/planner/airports/in-view"), route => route.fulfill({
+    status: 200, contentType: "application/json", body: JSON.stringify({ airports: [
+      { ident: "KUGN", name: "Waukegan National", lat: 42.4222, lon: -87.8679, kind: "medium", flight_category: "VFR", military: null, airspace_class: "D" },
+    ] }),
+  }));
+  await page.goto("/app/plan?dep=C81&dest=KDLH&place=KUGN");
+  await settle(page);
+  await expect(card(page)).toBeVisible({ timeout: slow(15000) });
+  // The departure's chip, the route's (the marker pane), not the chart's.
+  await tapNear(page, page.locator(".leaflet-marker-pane .leaflet-marker-icon", { hasText: "C81" }).first(), /[?&]place=C81(&|$)/);
+  await tapNear(page, page.locator(".leaflet-airports-pane .leaflet-marker-icon", { hasText: "KUGN" }), /[?&]place=KUGN(&|$)/);
+});
+
 test("the airport search answers from the phone's own copy, asking the planner nothing as it is typed", async ({ page }) => {
   // The planner's index (vfr.airports.search_index), two fields of it.
   await page.route(url => url.pathname.endsWith("/api/planner/airports/index"), route => route.fulfill({ json: { airports: [
@@ -704,7 +722,7 @@ test("with no route the panel is a search bar: Home is set from Favorites, an ai
   // Its minus brings out the row's Delete, as iOS's does (SwipeToDelete).
   await list.getByRole("button", { name: "Remove KDLH from Favorites…", exact: true }).click();
   await list.getByRole("button", { name: "Remove KDLH from Favorites", exact: true }).click();
-  await expect(list).toContainText("A star on an airport's card adds it here.");
+  await expect(list).toContainText("A star on an airport's card adds it here");
 });
 
 test("an airport's card says which lights a pilot turns on with the mic, and the weather it reads out on so many clicks", async ({ page }) => {
@@ -718,7 +736,8 @@ test("an airport's card says which lights a pilot turns on with the mic, and the
   // them on.
   const lights = card(page).getByTestId("place-lighting");
   await expect(lights.first()).toContainText("Activate REIL runway 08 & 26");
-  await expect(card(page)).toContainText("Key the mic on the frequency 7 times within 5 seconds for high intensity, 5 for medium, 3 for low.");
+  // The standard keying a row of its own, where it was a footnote.
+  await expect(card(page).getByTestId("place-keying")).toContainText("7 high · 5 medium · 3 low");
   await expect(card(page)).toContainText("Weather advisory - CTAF 5 clicks");
 });
 

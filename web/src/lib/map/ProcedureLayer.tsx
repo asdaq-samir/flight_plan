@@ -1,10 +1,11 @@
-import { Fragment, memo, useMemo, useState } from "react";
+import { Fragment, memo } from "react";
 import L from "leaflet";
-import { Marker, Pane, Polyline, useMap, useMapEvents } from "react-leaflet";
+import { Marker, Pane, Polyline } from "react-leaflet";
 import type { ProcedureDrawing, ProcedureFix } from "../api/types";
 import { altitudeLines, speedWords } from "../procedures";
 import { BADGE } from "../rowBadges";
 import { made } from "./icons";
+import { useLiveZoom } from "./useView";
 
 /**
  * The instrument procedures the pilot picked (the route's Procedures), on
@@ -63,9 +64,8 @@ const fixIcon = made(function fixIcon(fix: ProcedureFix, words: boolean, stale: 
 });
 
 export const ProcedureLayer = memo(function ProcedureLayer({ drawings }: { drawings: ProcedureDrawing[] }) {
-  const map = useMap();
-  const [zoom, setZoom] = useState(() => map.getZoom());
-  useMapEvents(useMemo(() => ({ zoomend: () => setZoom(map.getZoom()) }), [map]));
+  // The names from their zoom as a pinch passes it, not once it ends.
+  const zoom = useLiveZoom();
   if (drawings.length === 0) return null;
   const words = zoom >= WORDS_FROM_ZOOM;
   return (

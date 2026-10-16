@@ -28,7 +28,7 @@ import type { Aircraft, AircraftRequest, FlightSummary, InspectionsRequest, VorC
 import { CRUISE_REFERENCE_FT } from "../../lib/performance";
 import { usePreferences } from "../../lib/preferences";
 import { TEXT } from "../../lib/text";
-import { altFt, feet } from "../../lib/units";
+import { altFt, feet, nm } from "../../lib/units";
 import { LEVEL_TONE, riskLine, type RiskLevel } from "../../lib/frat";
 import { localDay } from "../../lib/clock";
 import { FINDING_TONE } from "../../lib/status";
@@ -128,10 +128,10 @@ function VorCheckGroup({ aircraft }: { aircraft: Aircraft }) {
   const today = localDay();
   const good = !!last && last.withinLimit && last.goodThrough >= today;
   return (
-    <ListGroup
-      title="VOR check"
-      footer="For IFR by VOR: every 30 days, within 4° at a VOT, a repair station's signal, a ground checkpoint or between two receivers, within 6° at an airborne checkpoint or on an airway's radial (14 CFR 91.171)."
-    >
+    // For IFR by VOR: every 30 days, within 4° at a VOT, a repair station's
+    // signal, a ground checkpoint or between two receivers, within 6° at an
+    // airborne checkpoint or on an airway's radial (14 CFR 91.171).
+    <ListGroup title="VOR check">
       <ListRow
         title="Last check"
         description={last ? `${last.checkedOn} · ${VOR_CHECKS.find(k => k.value === last.kind)?.label ?? last.kind}${last.place ? ` · ${last.place}` : ""} · ${last.errorDeg}°` : "None recorded"}
@@ -212,10 +212,11 @@ function InspectionsGroup({ aircraft }: { aircraft: Aircraft }) {
   const hours = (value: string) => (value === "" ? null : Number(value));
   const due = recorded?.hundredHourDueAtHours;
   return (
-    <ListGroup
-      title="Inspections"
-      footer="From the airplane's maintenance records. The 100-hour is owed only when it is flown for hire, or for instruction in it by the one who provides it (91.409(b)); the ELT's are not owed on a training flight within 50 nm of its departure (91.207(f))."
-    >
+    // From the airplane's maintenance records. The 100-hour is owed only when
+    // it is flown for hire, or for instruction in it by the one who provides
+    // it (91.409(b)); the ELT's are not owed on a training flight within 50
+    // nm of its departure (91.207(f)).
+    <ListGroup title="Inspections">
       {DATED.map(d => (
         <ListRow
           key={d.key} id={`${id}-${d.key}`} title={d.title}
@@ -383,14 +384,12 @@ export function AircraftPanel() {
         // to add one; then a row that opened the form, and which one the
         // nav log flew was said only under the route.
         <ResponsivePopover open={formOpen} onOpenChange={open => (open ? setAdding(true) : cancelEdit())}>
-          <ListGroup
-            title="Your aircraft"
-            footer={list?.length === 0
-              ? "Add your airplane, and the nav log flies its speed and fuel burn."
-              : flying.aircraftId != null
-                ? "The nav log flies the one ticked. Tap another to fly it, or ⓘ for its figures."
-                : `The nav log flies the stock ${flying.label} now. Tap one of yours to fly it.`}
-          >
+          <ListGroup title="Your aircraft">
+            {/* Which the nav log flies where it is none of these, said in its
+                place as a row: the one ticked otherwise. */}
+            {!!list?.length && flying.aircraftId == null && (
+              <ListRow title={<span className="text-muted-foreground">Flying the stock {flying.label}</span>} data-testid="aircraft-stock" />
+            )}
             {(list ?? []).map(a => {
               const chosen = aircraftKey(flying) === `mine:${a.id}`;
               return (
@@ -485,7 +484,8 @@ export function AircraftPanel() {
                   field={register("cruiseTasKt")} error={errors.cruiseTasKt?.message}
                 />
               </ListGroup>
-              <ListGroup title="Fuel burn" footer="Climb is optional: left blank, the nav log climbs at the type's book figures.">
+              {/* Climb is optional: left blank, the nav log climbs at the type's book figures. */}
+              <ListGroup title="Fuel burn">
                 <NumberRow
                   id={`${formId}-climb-burn`} title="Climb" unit="gph" placeholder="11" name="Climb fuel burn in gallons per hour"
                   field={register("climbFuelBurnGph")} error={errors.climbFuelBurnGph?.message}
@@ -499,15 +499,17 @@ export function AircraftPanel() {
                   they are typed: they are the airplane's at this power at
                   the reference altitude, and each leg flies them in its own
                   air (vfr.performance). */}
-              <ListGroup
-                footer={`The cruise speed and burn at this power at ${altFt(CRUISE_REFERENCE_FT)} ft on a standard day, as a handbook's cruise table gives them. Each leg flies them in the forecast air at its altitude. Left blank, the type's.`}
-              >
+              // The cruise speed and burn are the handbook cruise table's at
+              // this power at the reference altitude on a standard day, which
+              // the group's title says; each leg flies them in its own air.
+              <ListGroup title={`Cruise figures at ${altFt(CRUISE_REFERENCE_FT)} ft, standard day`}>
                 <NumberRow
                   id={`${formId}-power`} title="Cruise power" unit="%" placeholder="65" name="Cruise power in percent"
                   field={register("cruisePowerPct")} error={errors.cruisePowerPct?.message}
                 />
               </ListGroup>
-              <ListGroup footer="Usable fuel is optional; without it the nav log makes no fuel check.">
+              {/* Usable fuel is optional; without it the nav log makes no fuel check. */}
+              <ListGroup>
                 <NumberRow
                   id={`${formId}-usable`} title="Usable fuel" unit="gal" placeholder="40" name="Usable fuel in gallons"
                   field={register("usableFuelGal")} error={errors.usableFuelGal?.message}
@@ -632,7 +634,6 @@ export function FlightsPanel({ onBack }: {
           <ListGroup
             title={onBack ? undefined : "Saved flights"}
             action={onBack ? undefined : edit}
-            footer={editing ? "Delete a flight with the minus before it, or a swipe to the left." : "A flight opens with its nav log, on the map at its altitude, and its debrief from your track."}
           >
             {(list ?? []).map(f => {
               const name = routeName(f.departureIdent, f.destinationIdent, f.stops);
@@ -642,7 +643,7 @@ export function FlightsPanel({ onBack }: {
                   {f.aircraftTailNumber && <span className="text-muted-foreground"> {f.aircraftTailNumber}</span>}
                 </>,
                 description: <span className="tabular-nums">
-                  {feet(f.cruiseAltitudeFt)}{f.totalDistanceNm != null && ` · ${f.totalDistanceNm.toFixed(1)} nm`} · filed {new Date(f.createdAt).toLocaleDateString()}
+                  {feet(f.cruiseAltitudeFt)}{f.totalDistanceNm != null && ` · ${nm(f.totalDistanceNm)}`} · filed {new Date(f.createdAt).toLocaleDateString()}
                   {/* The risk assessment it was saved with (lib/frat). */}
                   {f.risk && <span className={cn("block", LEVEL_TONE[f.risk.level as RiskLevel])} data-testid="flight-risk">Risk {riskLine(f.risk).toLowerCase()}</span>}
                 </span>,

@@ -24,8 +24,10 @@ test("the passengers are briefed as 91.107 asks, and sent the flight", async ({ 
   await expect(section).toContainText("Brief them · 1 of 5");
   // Sent once the nav log has the time in the air.
   await expect(section).toContainText("in the air", { timeout: slow(90000) });
+  // What is sent under the row that sends it, where it was a footnote.
+  await expect(section.getByTestId("passenger-send")).toContainText("KMSN to");
   await section.getByTestId("passenger-send").click();
-  await expect(section.getByTestId("passenger-send")).toHaveText("Copied");
+  await expect(section.getByTestId("passenger-send")).toContainText("Copied");
   const text = await page.evaluate(() => navigator.clipboard.readText());
   expect(text.split("\n")[0]).toMatch(/^KMSN to .*\(KOSH\)$|^KMSN to KOSH$/);
   expect(text).toContain("in the air");

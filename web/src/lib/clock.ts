@@ -45,3 +45,11 @@ export function hoursMinutes(minutes: number): { hours: number; minutes: number 
   const whole = Math.round(minutes);
   return { hours: Math.floor(whole / 60), minutes: whole % 60 };
 }
+
+/** A time en route as a paper nav log writes it, "0:18", "1:35": the
+ *  kneeboard, a saved flight's page and its debrief, and the instructor's
+ *  review, which each had a copy of it. */
+export function hm(minutes: number): string {
+  const t = hoursMinutes(minutes);
+  return `${t.hours}:${String(t.minutes).padStart(2, "0")}`;
+}

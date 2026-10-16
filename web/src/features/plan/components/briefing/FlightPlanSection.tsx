@@ -48,10 +48,9 @@ export default function FlightPlanSection({ forms, ifr }: { forms: FlightPlanFor
           return (
             <ListGroup
               key={`${form.departure}-${form.destination}-${i}`}
+              // FAA Form 7233-4, item by item as AIM Appendix 4 writes each;
+              // the filing service's profiles hold the rest (items 10, 19).
               title={forms.length > 1 ? `${form.departure} to ${form.destination}` : undefined}
-              footer={i === forms.length - 1
-                ? "The FAA's flight plan form, FAA Form 7233-4, item by item as AIM Appendix 4 writes each. Your filing service's aircraft and pilot profiles hold the rest: the equipment (item 10), and the persons on board, the airplane's colour and your name and telephone (item 19)."
-                : undefined}
             >
               {form.items.map(f => (
                 <ListRow
@@ -83,13 +82,15 @@ export default function FlightPlanSection({ forms, ifr }: { forms: FlightPlanFor
           );
         })}
         {/* Flight Service's site and numbers, AIM 5-1-1. */}
-        <ListGroup
-          title="File it"
-          footer={ifr
-            ? "File an IFR flight plan at least 30 minutes before departure (AIM 5-1-6)."
-            : "Activate a VFR flight plan with Flight Service when you leave, and close it when you land: half an hour past your ETA unclosed, a search starts (AIM 5-1-5, 5-1-14)."}
-        >
-          <ListRow title="1800wxbrief.com" href="https://www.1800wxbrief.com" data-testid="flight-plan-file" />
+        {/* IFR filed at least 30 minutes before departure (AIM 5-1-6); VFR
+            opened with Flight Service on leaving and closed on landing, a
+            search starting half an hour past the ETA unclosed (AIM 5-1-5,
+            5-1-14): said on the row, where it was a footnote. */}
+        <ListGroup title="File it">
+          <ListRow
+            title="1800wxbrief.com" description={ifr ? "At least 30 min before departure" : "Open it as you leave, close it when you land"}
+            href="https://www.1800wxbrief.com" data-testid="flight-plan-file"
+          />
           <ListRow title="Flight Service" description="1-800-WX-BRIEF" href="tel:18009927433" />
           <ListRow title="Flight Service in Alaska" description="1-833-AK-BRIEF" href="tel:18332527433" />
         </ListGroup>

@@ -2,7 +2,7 @@ import L from "leaflet";
 import { useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Polyline, useMap } from "react-leaflet";
-import { api } from "../api/client";
+import { pastFlightQuery } from "../../features/plan/components/pastFlightsQuery";
 import { paddingClear } from "./clear";
 import { usePastFlight } from "./pastFlight";
 import { colourRuns } from "./traffic";
@@ -27,10 +27,7 @@ const styleOf = (colour: string) => {
  */
 export default function PastFlightPath({ hex, id }: { hex: string; id: number }) {
   const map = useMap();
-  // A past flight does not change: asked once.
-  const { data } = useQuery({
-    queryKey: ["pastFlight", hex, id], queryFn: () => api.trafficPastFlight(hex, id), staleTime: Infinity, meta: { silent: true },
-  });
+  const { data } = useQuery(pastFlightQuery(hex, id));
   useEffect(() => {
     if (data) usePastFlight.setState({ points: data.points });
   }, [data]);

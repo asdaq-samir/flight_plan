@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { flightCategory, metarOf, observedAt } from "./metarText";
+import { categoryOf } from "./map/flightCategory";
+import { metarOf, observedAt } from "./metarText";
 
 const NOW = new Date("2026-10-11T16:20:00Z");
 
@@ -21,11 +22,11 @@ describe("a METAR read from its text", () => {
 
   it("no ceiling with only scattered cloud, and the categories at their edges", () => {
     expect(metarOf("METAR KATW 111555Z 18008KT 5SM HZ SCT008 20/12 A3001", NOW)).toMatchObject({ ceiling_ft: null, flight_category: "MVFR" });
-    expect(flightCategory(3000, 10)).toBe("MVFR");
-    expect(flightCategory(3100, 6)).toBe("VFR");
-    expect(flightCategory(900, 10)).toBe("IFR");
-    expect(flightCategory(null, 0.75)).toBe("LIFR");
-    expect(flightCategory(null, null)).toBeNull();
+    expect(categoryOf(3000, 10)).toBe("MVFR");
+    expect(categoryOf(3100, 6)).toBe("VFR");
+    expect(categoryOf(900, 10)).toBe("IFR");
+    expect(categoryOf(null, 0.75)).toBe("LIFR");
+    expect(categoryOf(null, null)).toBeNull();
   });
 
   it("a day still to come this month is last month's", () => {

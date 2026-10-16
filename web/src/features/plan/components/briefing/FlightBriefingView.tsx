@@ -758,10 +758,10 @@ export default memo(function FlightBriefingView({
                 </div>
                 {specialUse.length > 0 && (
                   <div data-testid="special-use">
-                    <ListGroup
-                      title="Special-use airspace"
-                      footer="Times of use as the FAA publishes them; LOCAL read as this device's time. Ask flight service or the controlling agency whether each is active."
-                    >
+                    {/* Times of use as the FAA publishes them, LOCAL read as
+                        this device's time: whether each is active is flight
+                        service's or the controlling agency's to say. */}
+                    <ListGroup title="Special-use airspace">
                       {specialUse.map(({ area, pass, when }) => (
                         <ListRow
                           key={area.name}
@@ -991,7 +991,9 @@ export default memo(function FlightBriefingView({
             {!stretches.some(st => st.wind) ? (
               <p>{legs.length ? "No winds-aloft data available for this route." : "Waiting on the nav log's legs…"}</p>
             ) : (
-              <ListGroup footer="The forecast winds and temperatures each stretch of legs is flown in, from the nearest winds-aloft station.">
+              // The forecast winds and temperatures each stretch of legs is
+              // flown in, from the nearest winds-aloft station.
+              <ListGroup>
                 {stretches.map((st, i) => (
                   <ListRow
                     key={i}

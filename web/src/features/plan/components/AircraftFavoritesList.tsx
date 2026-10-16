@@ -34,7 +34,7 @@ export default function AircraftFavoritesList({ onBack, onOpen, onChangeMine, on
         title="Favorites" backLabel="Back to the airplanes" onBack={onBack} testId="aircraft-favorites-page"
         action={<EditToggle editing={editing} onToggle={() => setEditing(e => !e)} testId="aircraft-favorites-edit" />}
       />
-      <ListGroup title="Plane" footer={mine && !editing ? "A tap changes it." : undefined}>
+      <ListGroup title="Plane">
         {!mine ? (
           <ListRow media={<Plus className="size-5" />} title="Add your Plane" onClick={onChangeMine} data-testid="aircraft-favorites-mine" />
         ) : (
@@ -54,7 +54,8 @@ export default function AircraftFavoritesList({ onBack, onOpen, onChangeMine, on
           </SwipeToDelete>
         )}
       </ListGroup>
-      <ListGroup title="Airplanes" footer={favorites.length === 0 ? "A star on an airplane's card adds it here." : editing ? "Drag a handle to order them." : undefined}>
+      <ListGroup title="Airplanes">
+        {favorites.length === 0 && <ListRow title={<span className="text-muted-foreground">A star on an airplane's card adds it here</span>} />}
         {favorites.map((a, index) => (
           <SwipeToDelete key={a.hex} label={`Remove ${a.name} from Favorites`} onDelete={() => remove(a)}>
             {editing ? (

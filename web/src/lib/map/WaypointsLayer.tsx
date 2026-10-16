@@ -1,10 +1,11 @@
 import L from "leaflet";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { Marker, Pane, useMap, useMapEvents } from "react-leaflet";
+import { Marker, Pane, useMap } from "react-leaflet";
 import { Button } from "../../components/ui/button";
 import { api } from "../api/client";
-import { boxOf, hovers } from "./view";
+import { hovers } from "./view";
+import { useAhead, useLiveZoom } from "./useView";
 import { diamondIcon } from "./icons";
 import { MapCard } from "./MapCard";
 import { MapPopup } from "./MapPopup";
@@ -28,29 +29,29 @@ export function WaypointsLayer({ exclude, onAddStop }: {
   onAddStop?: (waypoint: { ident: string; lat: number; lon: number }) => void;
 }) {
   const map = useMap();
-  const [view, setView] = useState(() => boxOf(map));
-  // Memoized: see AirportsLayer. Drawn again only when the box asked for
-  // changes, not at every move's end: a pan inside the same half-degree
-  // box drew every diamond, and its open card, again (MapPopup).
-  const handlers = useMemo(() => ({
-    moveend: () => setView(was => {
-      const now = boxOf(map);
-      return now.key === was.key && now.zoom === was.zoom ? was : now;
-    }),
-  }), [map]);
-  useMapEvents(handlers);
+  // As the airports' marks are asked for and drawn (useAhead, useLiveZoom):
+  // the view and a screen round it, asked again under a finger's pan or
+  // pinch, and the zoom each whole level a pinch passes. The diamonds were
+  // asked for only once the map had stopped, so none came in under the
+  // finger, a pan's or a pinch's.
+  const zoom = useLiveZoom();
+  const asked = useAhead();
   const { data } = useQuery({
-    queryKey: ["waypointsInView", view.key],
-    queryFn: () => api.waypointsInView(view.box),
-    enabled: view.zoom >= FROM_ZOOM,
+    queryKey: ["waypointsInView", asked.key],
+    queryFn: () => api.waypointsInView(asked.box),
+    enabled: zoom >= FROM_ZOOM,
     staleTime: Infinity,
     placeholderData: keepPreviousData,
     meta: { silent: true },
   });
-  if (view.zoom < FROM_ZOOM) return null;
+  // The diamonds made again only when the answer changes, not at each
+  // level a zoom passes: a pan inside the same half-degree box drew every
+  // diamond, and its open card, again (MapPopup).
+  const diamonds = useMemo(() => (data ?? []).filter(w => !exclude.has(w.ident)), [data, exclude]);
+  if (zoom < FROM_ZOOM) return null;
   return (
     <Pane name="waypoints" style={{ zIndex: 440 }}>
-      {(data ?? []).filter(w => !exclude.has(w.ident)).map(w => (
+      {diamonds.map(w => (
         <Marker
           key={w.ident} position={[w.lat, w.lon]} icon={diamondIcon()}
           eventHandlers={{ click: e => L.DomEvent.stopPropagation(e) }}

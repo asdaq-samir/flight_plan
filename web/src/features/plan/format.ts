@@ -1,9 +1,9 @@
 import type { AltitudeOption, Leg, Runway, Totals } from "../../lib/api/types";
 import { SCORE_STEPS } from "../../lib/scoreScale";
-import { altFt, bearing, flightLevel } from "../../lib/units";
+import { altFt, bearing, flightLevel, one } from "../../lib/units";
 import { clockTime, hoursMinutes } from "../../lib/clock";
 
-export { altFt, bearing };
+export { altFt, bearing, one };
 
 /**
  * The planner's pure half: colours and number formatting.
@@ -24,18 +24,6 @@ export function scoreColor(s: number): string {
   return SCORE_STEPS[0];
 }
 
-/** One decimal, or an em dash. null and undefined are ordinary here --
- *  an unflyable leg has no ETE and no fuel burn. */
-export function one(n: number | null | undefined): string {
-  return n === null || n === undefined ? "—" : n.toFixed(1);
-}
-
-
-/** Signed to one decimal: a wind correction of -3 reads as a correction,
- *  where "3" reads as a magnitude. */
-export function signed(n: number): string {
-  return (n >= 0 ? "+" : "") + n.toFixed(1) + "°";
-}
 
 /** Total time as hours and minutes. Minutes are padded so the width does
  *  not jump as the number crosses ten. Rounded to whole minutes first:
@@ -54,17 +42,13 @@ export function decimalHours(minutes: number): string {
   return `${(Math.ceil(Math.round(minutes) / 6) / 10).toFixed(1)}h`;
 }
 
-/** Totals for the nav-log bar. Returns parts rather than markup so the
- *  warning can be styled without parsing a string back apart. */
-export function totalsParts(t: Totals) {
-  return {
-    distance: `${t.distance_nm} nm`,
-    time: hhmm(t.ete_min),
-    fuel: `${t.fuel_gal === null ? "—" : t.fuel_gal} gal`,
-    warning: t.legs_without_wind
-      ? `${t.legs_without_wind} leg${t.legs_without_wind === 1 ? "" : "s"} without wind data`
-      : null,
-  };
+/** The nav log's warning that some legs were worked out with no wind:
+ *  "3 legs without wind data", or null with every leg's. (Its totals'
+ *  distance, time and fuel were made here too, and read nowhere.) */
+export function legsWithoutWind(t: Totals): string | null {
+  return t.legs_without_wind
+    ? `${t.legs_without_wind} leg${t.legs_without_wind === 1 ? "" : "s"} without wind data`
+    : null;
 }
 
 /** One altitude plan's steps: "2,500 ft all the way", or "2,500 ft to

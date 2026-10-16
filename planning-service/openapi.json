@@ -4042,6 +4042,58 @@
         "title": "DistanceTable",
         "type": "object"
       },
+      "FlightArrival": {
+        "description": "The field an airplane has landed at, and when it was last heard (Unix seconds).",
+        "properties": {
+          "at": {
+            "title": "At",
+            "type": "number"
+          },
+          "city": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "City"
+          },
+          "ident": {
+            "title": "Ident",
+            "type": "string"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "region": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Region"
+          }
+        },
+        "required": [
+          "ident",
+          "at"
+        ],
+        "title": "FlightArrival",
+        "type": "object"
+      },
       "FlightDeparted": {
         "description": "The field a flight took off from, and when (Unix seconds).",
         "properties": {
@@ -4195,6 +4247,66 @@
           "airports"
         ],
         "title": "FlightRoute",
+        "type": "object"
+      },
+      "FlightStatus": {
+        "description": "An airplane's state now, for the alerts a pilot sets on it\n(vfr.traffic.status): how long since it was heard, whether it is in\nthe air -- and where, as the map draws it -- the field it took off\nfrom, and, not in the air, the field it has landed at; from adsb.lol's\nopen data (ODbL 1.0).",
+        "properties": {
+          "airborne": {
+            "default": false,
+            "title": "Airborne",
+            "type": "boolean"
+          },
+          "aircraft": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TrafficAircraft"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "arrived": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FlightArrival"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "departed": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PastFlightField"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "heard_s": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Heard S"
+          },
+          "hex": {
+            "title": "Hex",
+            "type": "string"
+          }
+        },
+        "required": [
+          "hex"
+        ],
+        "title": "FlightStatus",
         "type": "object"
       },
       "Forecast": {
@@ -13021,6 +13133,47 @@
           }
         },
         "summary": "Traffic Past Flight"
+      }
+    },
+    "/api/traffic/flight/{hex_id}/status": {
+      "get": {
+        "description": "An airplane's state now, for the alerts a pilot sets on it -- takes\noff, lands, comes near (vfr.traffic.status): from adsb.lol's recent\ntrace, seconds old, which costs none of its API's turns. A 503 where\nthat trace cannot be read now.",
+        "operationId": "traffic_status_api_traffic_flight__hex_id__status_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "hex_id",
+            "required": true,
+            "schema": {
+              "pattern": "^~?[0-9a-fA-F]{6}$",
+              "title": "Hex Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FlightStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Traffic Status"
       }
     },
     "/api/traffic/route": {

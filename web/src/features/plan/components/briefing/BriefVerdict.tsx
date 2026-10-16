@@ -25,7 +25,7 @@ export default function BriefVerdict({ items }: { items: VerdictItem[] }) {
           <FindingIcon finding={line.finding} className="mt-0.5" />
           <span>{line.words}</span>
         </p>
-        <ListGroup footer="Tap a finding to see it in full. The decision is yours as pilot in command (14 CFR 91.3).">
+        <ListGroup>
           {items.map(item => (
             <ListRow
               key={item.key} media={<FindingIcon finding={item.finding} />}

@@ -1,33 +1,13 @@
 import { createPortal } from "react-dom";
 import { format } from "date-fns";
-import type { Briefing, Candidate, Course, Frequency, Leg, NavLogAltitude, Totals } from "../../../lib/api/types";
+import type { Briefing, Candidate, Course, Leg, NavLogAltitude, Totals } from "../../../lib/api/types";
+import { kneeboardRadio, mhzText } from "../../../lib/frequencies";
 import { runwayInUse, runwayNumber } from "../../../lib/pattern";
-import { hoursMinutes } from "../../../lib/clock";
+import { hm } from "../../../lib/clock";
 import { routeName } from "../../../lib/identSchema";
-import { altFt } from "../../../lib/units";
+import { altFt, gal, nm } from "../../../lib/units";
 import { bearing, etaAt, one } from "../format";
 import { isLegPoint, legOf, navLogRows, rowPoint } from "./navlog/rows";
-
-/** A field's radio as a kneeboard lists it: short names, the tower's
- *  before the CTAF's (a towered field's CTAF is for when it is closed). */
-const RADIO: [string[], string][] = [
-  [["ATIS"], "ATIS"], [["AWOS", "ASOS"], "AWOS"], [["CLD"], "CLR"], [["GND"], "GND"], [["TWR"], "TWR"],
-  [["CTAF"], "CTAF"], [["UNIC", "UNICOM"], "UNICOM"], [["APP", "A/D", "DEP"], "APP"],
-];
-
-function radio(frequencies: Frequency[]): [string, number][] {
-  const out: [string, number][] = [];
-  for (const [types, name] of RADIO) {
-    const f = frequencies.find(x => types.includes((x.type ?? "").toUpperCase()) && x.frequency_mhz != null);
-    if (!f) continue;
-    // UNICOM where there is no tower and it is not the CTAF already: a
-    // towered field's is the FBO's, not the air's. A UNICOM the table
-    // calls the CTAF too ("CTAF/UNICOM") is the CTAF.
-    if (name === "UNICOM" && out.some(([n, mhz]) => n === "TWR" || mhz === f.frequency_mhz)) continue;
-    out.push([name === "UNICOM" && /CTAF/i.test(f.description ?? "") && !out.some(([n]) => n === "CTAF") ? "CTAF" : name, f.frequency_mhz!]);
-  }
-  return out;
-}
 
 /** The altitudes the legs fly: "4,500 ft", or "2,500-3,000 ft" where it steps. */
 function altitudes(legs: Leg[], fallback: number | null | undefined): string | null {
@@ -38,14 +18,6 @@ function altitudes(legs: Leg[], fallback: number | null | undefined): string | n
 }
 
 /** A line to write on: the label and a rule after it. */
-/** The time en route as a paper nav log writes it, "1:05", its minutes
- *  rounded first (lib/clock): the remainder rounded on its own printed
- *  119.6 minutes as "1:60". */
-function hm(minutes: number): string {
-  const t = hoursMinutes(minutes);
-  return `${t.hours}:${String(t.minutes).padStart(2, "0")}`;
-}
-
 function Blank({ label, wide = false }: { label: string; wide?: boolean }) {
   return (
     <span className="inline-flex items-end gap-1">
@@ -94,9 +66,9 @@ export default function Kneeboard({ course, selected, legs, totals, nav, briefin
       <p className="mb-1.5">
         {aircraftLabel}
         {altitudes(legs, nav?.altitude_ft) && ` · ${altitudes(legs, nav?.altitude_ft)}`}
-        {totals && ` · ${Math.round(totals.distance_nm)} nm`}
+        {totals && ` · ${nm(totals.distance_nm)}`}
         {totals?.ete_min != null && ` · ${hm(totals.ete_min)}`}
-        {totals?.fuel_gal != null && ` · ${one(totals.fuel_gal)} gal`}
+        {totals?.fuel_gal != null && ` · ${gal(totals.fuel_gal)}`}
         {totals?.fuel_required_gal != null && ` (${one(totals.fuel_required_gal)} with reserve${totals.usable_fuel_gal != null ? `, ${one(totals.usable_fuel_gal)} usable` : ""})`}
       </p>
 
@@ -114,7 +86,7 @@ export default function Kneeboard({ course, selected, legs, totals, nav, briefin
                 <td className="max-w-[1.6in] truncate">{rowPoint(r).name}</td>
                 <td>{altFt(alt)}</td>
                 <td>{leg ? bearing(leg.magnetic_heading_deg) : ""}</td>
-                <td>{leg ? leg.distance_nm.toFixed(1) : ""}</td>
+                <td>{leg ? one(leg.distance_nm) : ""}</td>
                 <td>{leg?.groundspeed_kt != null ? Math.round(leg.groundspeed_kt) : ""}</td>
                 <td>{leg ? one(leg.ete_min) : ""}</td>
                 <td>{depart ? etaAt(depart, r.minutesFlown) : ""}</td>
@@ -134,7 +106,7 @@ export default function Kneeboard({ course, selected, legs, totals, nav, briefin
           return (
             <div key={`${ident}${i}`} className="border border-black p-1">
               <p className="font-bold">{ident}{info?.name ? ` · ${info.name}` : ""}</p>
-              <p>{info ? radio(info.frequencies).map(([name, mhz]) => `${name} ${mhz}`).join(" · ") || "No published radio" : ""}</p>
+              <p>{info ? kneeboardRadio(info.frequencies).map(([name, mhz]) => `${name} ${mhzText(mhz)}`).join(" · ") || "No published radio" : ""}</p>
               {info?.pattern?.altitude_ft != null && (
                 <p>
                   TPA {altFt(info.pattern.altitude_ft)}

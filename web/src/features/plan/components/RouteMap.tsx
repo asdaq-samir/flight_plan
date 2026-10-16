@@ -1,4 +1,4 @@
-import { memo, useMemo, useState } from "react";
+import { memo, useMemo } from "react";
 import L from "leaflet";
 import { CircleMarker, Marker, useMap, useMapEvents } from "react-leaflet";
 import { Badge } from "../../../components/ui/badge";
@@ -35,11 +35,12 @@ import { MapShell } from "../../../lib/map/MapShell";
 import { MapTooltip } from "../../../lib/map/MapTooltip";
 import { hovers } from "../../../lib/map/view";
 import { useCardedMarker } from "../../../lib/map/useCardedMarker";
+import { useScreenView } from "../../../lib/map/useView";
 import DryRunLayer from "../../../lib/map/DryRunLayer";
 import { DRY_RUN, usePastFlight } from "../../../lib/map/pastFlight";
 import { usePreferences } from "../../../lib/preferences";
 import { inkOn } from "../../../lib/scoreScale";
-import { feet } from "../../../lib/units";
+import { feet, nm } from "../../../lib/units";
 import { scoreColor } from "../format";
 
 interface Props {
@@ -332,22 +333,14 @@ const labelOf = (c: Pick<Candidate, "waypoint" | "name">) => (c.waypoint ?? c.na
  * neither fits -- over a name, another checkpoint's dot or one of the
  * route's airports' chips (FOREST VIEW lay over KMDW's) -- until the map
  * is closer in, where ForeFlight piles them on one another along a whole
- * route. Worked out again as the map settles after a move.
+ * route. Worked out again as the map settles after a move, and at each
+ * whole level a zoom passes (useScreenView).
  */
 function useLabelled(
   selected: Candidate[], airports: { ident: string; lat: number; lon: number }[],
 ): Map<string, { name: string; side: "right" | "left" }> {
   const map = useMap();
-  // A new one at every move's end, wherever the map came to rest: keyed on
-  // the view itself, the names were not worked out again when the
-  // checkpoints came in while the map flew to the route and the flight
-  // ended on the view a move before it had ended on (the route fitted
-  // twice as the page opened), and they stayed where the dots had been in
-  // mid-flight -- two names of twenty-four on CI's runners, one past the
-  // screen's edge here.
-  const [view, setView] = useState(() => ({ width: map.getSize().x }));
-  // Memoized handlers: see Leaflet handler churn (AirportsLayer).
-  useMapEvents(useMemo(() => ({ moveend: () => setView({ width: map.getSize().x }) }), [map]));
+  const view = useScreenView();
   return useMemo(() => {
     const { width } = view;
     const at = selected.map(c => map.latLngToContainerPoint([c.lat, c.lon]));
@@ -443,14 +436,16 @@ export default memo(function RouteMap({
   // The route's airports, one array while the course is the same answer:
   // the checkpoints' names keep off their chips.
   const airports = useMemo(() => (course ? routeAirports(course) : []), [course]);
-  // The fields that wear a chip of their own already: the route's two,
+  // The fields that wear a chip of their own already: the route's own,
   // and the Class B ones while they are on (ClassBLayer).
   const showClassB = usePreferences(s => s.classB);
   const { data: classBAirports } = useQuery({ ...classBQuery, enabled: false });
-  const chipped = useMemo(() => new Set([
-    ...(course ? routeAirports(course).map(a => a.ident) : []),
-    ...(showClassB ? (classBAirports ?? []).map(a => a.ident) : []),
-  ]), [course, showClassB, classBAirports]);
+  const chippedFields = useMemo(() => [
+    ...airports.filter(a => a.kind === "airport"),
+    ...(showClassB ? classBAirports ?? [] : []),
+  ], [airports, showClassB, classBAirports]);
+  // And the route's waypoints, which the VFR waypoints' layer leaves to it.
+  const chipped = useMemo(() => new Set([...airports, ...chippedFields].map(a => a.ident)), [airports, chippedFields]);
 
   // The route's box, half a degree round it, on the half-degree grid the
   // layer asks in: one question for its reporting fields however the
@@ -476,7 +471,7 @@ export default memo(function RouteMap({
     >
       {/* The chart's own airports with no route as well: a tap on a field
           opens its card, and Fly Here makes the route. */}
-      {layered && <AirportsLayer selected={place} onSelect={onSelectPlace} exclude={chipped} route={routeBox} />}
+      {layered && <AirportsLayer selected={place} onSelect={onSelectPlace} others={chippedFields} route={routeBox} />}
       {layered && <TfrLayer />}
       {layered && <WaypointsLayer exclude={chipped} onAddStop={course ? onAddStop : undefined} />}
       {/* The airport whose card opens comes to the middle of the chart
@@ -492,7 +487,7 @@ export default memo(function RouteMap({
         <>
           <CourseLine
             line={course.course_line as [number, number][]}
-            tooltip={`${routeAirports(course, true).map(a => pointName(a.ident)).join(" → ")} · ${course.distance_nm} nm`}
+            tooltip={`${routeAirports(course, true).map(a => pointName(a.ident)).join(" → ")} · ${nm(course.distance_nm)}`}
           />
           {/* A saved flight's flown track over it, from its debrief. */}
           <FlownTrackLayer course={course} />

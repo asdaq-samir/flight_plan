@@ -217,6 +217,16 @@ export const flightQuery = (hex: string) => queryOptions({
   meta: { silent: true },
 });
 
+/** An airplane's state now, for the alerts a pilot set on it
+ *  (AircraftAlerts): asked every fifteen seconds while the app is open and
+ *  an alert waits on it -- the planner reads adsb.lol's recent trace, a
+ *  static file, no turn of its API -- and not while the page is hidden.
+ *  Quiet: a missed answer is the next one's to make up. */
+export const flightStatusQuery = (hex: string) => queryOptions({
+  queryKey: ["flight-status", hex], queryFn: () => api.trafficStatus(hex), staleTime: 10_000, refetchInterval: 15_000,
+  retry: false, meta: { silent: true },
+});
+
 /** The route a tracked flight's number is scheduled to fly, asked once a
  *  callsign (vfr.traffic.route; the planner keeps it six hours): where the
  *  airplane is says whether it is on it, so the position, to a degree, is

@@ -68,7 +68,8 @@ export function WeightBalanceSection({ aircraft, tripFuelGal }: { aircraft: Airc
         </p>
       ) : (
         <div className="space-y-4" data-testid="weight-balance">
-          <ListGroup title="The airplane" footer="From its own weight and balance record; the POH's sample airplane until set.">
+          {/* From its own weight and balance record; the POH's sample airplane until set. */}
+          <ListGroup title="The airplane">
             <ListRow title="Empty weight">
               <NumberField value={load.emptyWeightLb} unit="lb" label="Empty weight" onChange={n => setLoad({ ...load, emptyWeightLb: n })} testId="wb-empty-weight" />
             </ListRow>
@@ -89,7 +90,8 @@ export function WeightBalanceSection({ aircraft, tripFuelGal }: { aircraft: Airc
               <NumberField value={load.fuelGal} unit="gal" label="Fuel" onChange={n => setLoad({ ...load, fuelGal: n })} testId="wb-fuel" />
             </ListRow>
           </ListGroup>
-          <ListGroup title="Balance" footer={`${loading.source}. The start and taxi's ${loading.start_taxi_fuel_lb} lb of fuel off at takeoff; the trip's at landing.`}>
+          {/* The loading's source (its POH); the start and taxi's fuel off at takeoff, the trip's at landing. */}
+          <ListGroup title="Balance">
             <ListRow title="Takeoff" value={`${pounds(result.takeoff.weightLb)} · ${result.takeoff.armIn.toFixed(1)} in`} />
             <ListRow title="Landing" value={`${pounds(result.landing.weightLb)} · ${result.landing.armIn.toFixed(1)} in`} />
             {result.problems.length === 0 ? (
@@ -178,15 +180,19 @@ export function TakeoffLandingSection({ aircraft, briefing, course, landing: lan
                 // No heading on Depart's or Arrive's tab, its one field the
                 // tab's own; a stop's named, on En route.
                 key={`${c.field.ident}${i}`} title={phase === "depart" || phase === "arrive" ? undefined : `${c.field.ident} · ${c.role}`}
-                footer={c.runway
-                  ? `Runway ${c.runway.wind?.end ?? c.runway.ends} (${length != null ? `${altFt(length)} ft` : "length unknown"}${c.grass ? ", grass" : ""}): ${c.runway.wind ? "the one most into the wind" : "the longest, with no wind reported"}`
-                  : "No runway data"}
               >
+                {/* The runway the distances are for, first: a row, where it was a footnote. */}
+                <ListRow
+                  title={c.runway ? `Runway ${c.runway.wind?.end ?? c.runway.ends}` : <span className="text-muted-foreground">No runway data</span>}
+                  description={c.runway ? (c.runway.wind ? "Most into the wind" : "The longest, no wind reported") : undefined}
+                  value={c.runway ? `${length != null ? `${altFt(length)} ft` : "length unknown"}${c.grass ? " · grass" : ""}` : undefined}
+                  data-testid="performance-runway"
+                />
                 {c.distances.map(d => (
                   <ListRow
                     key={d.kind}
                     media={<FindingIcon finding={length == null ? "unknown" : d.over ? "stop" : "ok"} />}
-                    title={d.kind === "takeoff" ? "Takeoff" : "Landing"}
+                    title={d.kind === "takeoff" ? "Takeoff over 50 ft" : "Landing over 50 ft"}
                     description={(
                       <>
                         {length != null && <RunwayBar distance={d} lengthFt={length} />}
@@ -216,10 +222,10 @@ export function TakeoffLandingSection({ aircraft, briefing, course, landing: lan
               </ListGroup>
             );
           })}
-          <p className={cn("text-muted-foreground", TEXT.note)}>
-            Distances over a 50 ft obstacle, from the POH&apos;s short-field tables{demonstrated ? " and its demonstrated crosswind" : ""}, in the wind and temperature reported now.
-            Sources: {[takeoffTable.source, landingTable.source, demonstrated?.source].filter(Boolean).join("; ")}.
-          </p>
+          {/* Distances over a 50 ft obstacle (the rows say so), from the
+              POH's short-field tables and its demonstrated crosswind, in the
+              wind and temperature reported now: takeoffTable.source,
+              landingTable.source and demonstrated.source name the tables. */}
         </div>
       )}
     </AccordionSection>

@@ -80,7 +80,7 @@ export default function AlertsBanner() {
               </div>
             ))}
             {first && (failed || unavailable.length > 0) && <p className="text-muted-foreground">{unread}.</p>}
-            <p className="text-muted-foreground">From the phone's GPS and the FAA's data: advisory, not a terrain or traffic warning system.</p>
+
           </CollapsibleContent>
         </Collapsible>
         {alerts.length > 0 && (

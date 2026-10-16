@@ -2,6 +2,7 @@ import { NO_FILTER, type AircraftFilter } from "./fbo";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { DEFAULT_FILTERS, type FilterKey, type Filters } from "../features/train/logic";
+import type { AircraftAlert, AircraftAlertKind } from "./aircraftAlerts";
 import type { AircraftChoice } from "./api/types";
 import { NO_MINIMUMS, type Minimums } from "./minimums";
 import type { Load } from "./weightBalance";
@@ -32,6 +33,9 @@ export const BASE_CHARTS: { kind: BaseChart; label: string }[] = [
 export type MapOverlay = "none" | "usgs" | "google-map" | "google-satellite";
 /** How strongly the overlay covers the chart. */
 export type OverlayStrength = "faint" | "half" | "full";
+/** How a pinch ends (PinchEnd), a trial at the owner's ask: settled on a
+ *  whole level, or left where the fingers leave it. */
+export type PinchEndKind = "settle" | "stay";
 
 /** The screen edge the map panel is on -- and so what the consoles and
  *  panels come in from, and which edge the map's buttons keep clear
@@ -93,6 +97,7 @@ interface Preferences {
   /** What is drawn over the chart (OverlayTiles), and how strongly. */
   overlay: MapOverlay;
   overlayStrength: OverlayStrength;
+  pinch: PinchEndKind;
   /** The pilot's personal minimums (lib/minimums), each off until set. */
   minimums: Minimums;
   /** Each airplane's load as last set (lib/weightBalance), by its name. */
@@ -153,6 +158,13 @@ interface Preferences {
   toggleFavoriteAircraft: (aircraft: KeptAircraft) => void;
   /** A Favorite airplane moved up or down the list, as the airports' are. */
   moveFavoriteAircraft: (from: number, to: number) => void;
+  /** What the pilot asked to be told of airplanes, from a card's Alert
+   *  (lib/aircraftAlerts): each kept until it goes off or is turned off,
+   *  so a reload or a phone put away and taken out again keeps watching. */
+  aircraftAlerts: AircraftAlert[];
+  /** One set, in place of any of its kind for the same airplane. */
+  setAircraftAlert: (alert: AircraftAlert) => void;
+  removeAircraftAlert: (hex: string, kind: AircraftAlertKind) => void;
   setBase: (base: BaseChart) => void;
   setTac: (tac: boolean) => void;
   setWaypoints: (waypoints: boolean) => void;
@@ -164,6 +176,7 @@ interface Preferences {
   setMilitary: (military: boolean) => void;
   setOverlay: (overlay: MapOverlay) => void;
   setOverlayStrength: (overlayStrength: OverlayStrength) => void;
+  setPinch: (pinch: PinchEndKind) => void;
   setMinimum: (key: keyof Minimums, value: number | null) => void;
   setLoad: (aircraft: string, load: Load) => void;
   setKeepOffline: (keepOffline: boolean) => void;
@@ -220,6 +233,7 @@ export const usePreferences = create<Preferences>()(
       military: false,
       overlay: "none",
       overlayStrength: "half",
+      pinch: "settle",
       minimums: NO_MINIMUMS,
       loads: {},
       keepOffline: false,
@@ -260,6 +274,11 @@ export const usePreferences = create<Preferences>()(
         if (moved) favoriteAircraft.splice(to, 0, moved);
         return { favoriteAircraft };
       }),
+      aircraftAlerts: [],
+      setAircraftAlert: alert => set(s => ({
+        aircraftAlerts: [...s.aircraftAlerts.filter(a => !(a.hex === alert.hex && a.kind === alert.kind)), alert],
+      })),
+      removeAircraftAlert: (hex, kind) => set(s => ({ aircraftAlerts: s.aircraftAlerts.filter(a => !(a.hex === hex && a.kind === kind)) })),
       toggleFavoriteAircraft: aircraft => set(s => ({
         favoriteAircraft: s.favoriteAircraft.some(a => a.hex === aircraft.hex)
           ? s.favoriteAircraft.filter(a => a.hex !== aircraft.hex)
@@ -276,6 +295,7 @@ export const usePreferences = create<Preferences>()(
       setMilitary: military => set({ military }),
       setOverlay: overlay => set({ overlay }),
       setOverlayStrength: overlayStrength => set({ overlayStrength }),
+      setPinch: pinch => set({ pinch }),
       setMinimum: (key, value) => set(s => ({ minimums: { ...s.minimums, [key]: value } })),
       setLoad: (aircraft, load) => set(s => ({ loads: { ...s.loads, [aircraft]: load } })),
       setKeepOffline: keepOffline => set({ keepOffline }),
@@ -317,11 +337,12 @@ export const usePreferences = create<Preferences>()(
       // The functions are not state; only the values are written.
       partialize: s => ({
         base: s.base, tac: s.tac, waypoints: s.waypoints, classB: s.classB, tfrs: s.tfrs, alerts: s.alerts, speakAlerts: s.speakAlerts, traffic: s.traffic, military: s.military, minimums: s.minimums, loads: s.loads, keepOffline: s.keepOffline, aircraft: s.aircraft, filters: s.filters, navBar: s.navBar, routeColours: s.routeColours, ownShipLook: s.ownShipLook, narrative: s.narrative,
-        flightRules: s.flightRules,
+        flightRules: s.flightRules, pinch: s.pinch,
         recentAirports: s.recentAirports, homeAirport: s.homeAirport, favoriteAirports: s.favoriteAirports,
         recentAircraft: s.recentAircraft, favoriteAircraft: s.favoriteAircraft, myAircraft: s.myAircraft,
         recentRoutes: s.recentRoutes,
         aircraftFilter: s.aircraftFilter,
+        aircraftAlerts: s.aircraftAlerts,
       }),
     },
   ),

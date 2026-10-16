@@ -1,5 +1,5 @@
 import { test, expect, type Page, type Route } from "@playwright/test";
-import { beforeTheRoute, openMapSettings } from "./helpers";
+import { beforeTheRoute, openMapSettings, sideDrawer, slow, tapNear } from "./helpers";
 
 /**
  * The Class B airports on the map.
@@ -122,6 +122,19 @@ test("tapping one opens its card in the panel, with Fly Here, as any airport on 
   await expect(page.getByTestId("place-name")).toContainText("O'Hare", { timeout: 15000 });
   await expect(page.getByTestId("fly-here")).toBeVisible();
   await expect(page.locator(".leaflet-popup")).toHaveCount(0);
+});
+
+test("a tap a little off one's mark opens its card, as off any airport on the chart", async ({ page }) => {
+  // None of the chart's own fields round O'Hare: a tap near KORD is its or
+  // nobody's. It put the card away, where near any other field it opened
+  // that field's.
+  await mockClassB(page);
+  await page.route(url => url.pathname.endsWith("/airports/in-view"), route => route.fulfill({ json: { airports: [] } }));
+  await showClassBFirst(page);
+  // Chicago Executive's card, O'Hare's chip some 65 points south of it.
+  await page.goto("/app/plan?place=KPWK");
+  await expect(sideDrawer(page).getByTestId("place-card")).toBeVisible({ timeout: slow(15000) });
+  await tapNear(page, chips(page).filter({ hasText: "KORD" }).first(), /[?&]place=KORD(&|$)/);
 });
 
 test("on the training map, which has no card, a tap goes to the field at its terminal chart's zoom", async ({ page }) => {

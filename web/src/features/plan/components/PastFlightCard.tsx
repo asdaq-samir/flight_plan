@@ -68,7 +68,7 @@ function Figures({ flight, points }: { flight: PastFlightSummary; points: PastFl
   const hours = (flight.on - flight.off) / 3600;
   const value = (text: string) => <span className="font-semibold text-foreground tabular-nums">{text}</span>;
   return (
-    <ListGroup title="Flight" footer="Times are this device's. Where it was first or last heard is where the receivers heard it, which for a small airplane is often short of the runway.">
+    <ListGroup title="Flight">
       <ListRow
         media={<RowBadge colour={BADGE.weather}><PlaneTakeoff /></RowBadge>} title={flight.origin?.ident ?? "First heard"}
         description={flight.origin?.name ?? undefined} value={value(clockTime(when(flight.off)))} data-testid="past-flight-off"
@@ -206,10 +206,7 @@ function useHalfFit(box: RefObject<HTMLDivElement | null>): number | null {
  *  pilot uses (feet, knots, degrees, feet a minute). */
 function TrackLog({ points }: { points: PastFlightPoint[] }) {
   return (
-    <ListGroup
-      title="Track log"
-      footer={`${grouped(points.length)} reports; green the altitude, amber the ground speed. Heights are GNSS where the airplane sends one, else pressure altitude.`}
-    >
+    <ListGroup title="Track log">
       <LogTable points={points} />
     </ListGroup>
   );

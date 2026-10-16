@@ -5,6 +5,7 @@ import { googleMapsQuery } from "../queryClient";
 import { TileLayer, useMap, useMapEvents } from "react-leaflet";
 import { usePreferences, type MapOverlay, type OverlayStrength } from "../preferences";
 import { GOOGLE, useGoogleSession } from "./googleSession";
+import { LIVE_TILES } from "./tiles";
 import { useShownOverlay } from "./useShownOverlay";
 
 /** Above the base chart (1) and the terminal sheet (5, ChartTiles): a
@@ -46,7 +47,7 @@ function Usgs({ opacity }: { opacity: number }) {
     const credit = L.control.attribution({ prefix: false, position: "bottomleft" }).addAttribution(USGS_CREDIT).addTo(map);
     return () => { credit.remove(); };
   }, [map]);
-  return <TileLayer url={USGS_URL} maxNativeZoom={16} maxZoom={20} opacity={opacity} zIndex={OVERLAY_Z} />;
+  return <TileLayer url={USGS_URL} maxNativeZoom={16} maxZoom={20} opacity={opacity} zIndex={OVERLAY_Z} {...LIVE_TILES} />;
 }
 
 function Google({ kind, opacity, overlay }: { kind: "map" | "satellite"; opacity: number; overlay: MapOverlay }) {
@@ -84,7 +85,7 @@ function Google({ kind, opacity, overlay }: { kind: "map" | "satellite"; opacity
     <TileLayer
       key={`${overlay}-${session.session}`}
       url={`${GOOGLE}/v1/2dtiles/{z}/{x}/{y}?session=${encodeURIComponent(session.session)}&key=${encodeURIComponent(google.key)}`}
-      maxNativeZoom={kind === "map" ? 22 : 20} maxZoom={22} opacity={opacity} zIndex={OVERLAY_Z}
+      maxNativeZoom={kind === "map" ? 22 : 20} maxZoom={22} opacity={opacity} zIndex={OVERLAY_Z} {...LIVE_TILES}
     />
   );
 }

@@ -9,7 +9,7 @@ import Segmented from "../../../../components/Segmented";
 import { Button } from "../../../../components/ui/button";
 import { Input } from "../../../../components/ui/input";
 import type { Leg } from "../../../../lib/api/types";
-import { bearing } from "../../../../lib/units";
+import { bearing, windCorrection } from "../../../../lib/units";
 import { ANSWERS, checks, workingsOf, type AnswerKey, type Workings } from "../../../../lib/workings";
 import { TEXT } from "../../../../lib/text";
 import { FINDING_TONE } from "../../../../lib/status";
@@ -18,21 +18,25 @@ import { FINDING_TONE } from "../../../../lib/status";
  *  the correction signed, the rest to its unit's precision. */
 function written(key: AnswerKey, value: number): string {
   if (key === "th" || key === "mh") return bearing(value);
-  if (key === "wca") return `${value >= 0 ? "+" : "−"}${Math.abs(value).toFixed(0)}°`;
+  if (key === "wca") return windCorrection(value);
   if (key === "fuel") return `${value.toFixed(1)} gal`;
   return `${Math.round(value)} ${key === "gs" ? "kt" : "min"}`;
 }
 
 function Worked({ workings }: { workings: Workings }) {
   return (
-    <ListGroup
-      footer={workings.climb
-        ? `The log's time and fuel add the climb's ${Math.round(workings.climb.min)} min and ${workings.climb.gal.toFixed(1)} gal, flown at climb speed and burn.`
-        : "Headings to the nearest degree, as an E6B gives them."}
-    >
+    <ListGroup>
       {workings.steps.map(step => (
         <ListRow key={step.name} title={step.name} description={step.sum} value={step.result} data-testid="working-step" />
       ))}
+      {/* The climb the log's time and fuel add, flown at climb speed and
+          burn: a row, where it was a footnote. */}
+      {workings.climb && (
+        <ListRow
+          title="Climb, added" description="At climb speed and burn"
+          value={`${Math.round(workings.climb.min)} min · ${workings.climb.gal.toFixed(1)} gal`} data-testid="working-climb"
+        />
+      )}
     </ListGroup>
   );
 }
@@ -48,7 +52,7 @@ function TryIt({ workings }: { workings: Workings }) {
       className="space-y-3" onSubmit={e => { e.preventDefault(); setChecked(true); }}
       aria-label="Work the leg out yourself"
     >
-      <ListGroup footer="The wind correction signed: + right, − left. Time and fuel for the cruise, without the climb.">
+      <ListGroup>
         {ANSWERS.map(answer => {
           const value = typed[answer.key];
           const number = value === undefined || value.trim() === "" ? null : Number(value);
@@ -60,7 +64,10 @@ function TryIt({ workings }: { workings: Workings }) {
             <ListRow
               key={answer.key} id={`${id}-${answer.key}`}
               title={answer.label}
-              description={marked && !right ? `Not quite: ${written(answer.key, workings.answers[answer.key])}` : undefined}
+              // How each is written, in its row (it was a footnote): the
+              // correction signed, the time and fuel the cruise's alone.
+              description={marked && !right ? `Not quite: ${written(answer.key, workings.answers[answer.key])}`
+                : answer.key === "wca" ? "+ right, − left" : answer.key === "ete" || answer.key === "fuel" ? "Cruise only" : undefined}
               data-testid={`try-${answer.key}`}
             >
               <span className="flex items-center gap-1.5">

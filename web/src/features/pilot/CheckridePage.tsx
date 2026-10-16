@@ -28,10 +28,9 @@ function amount(item: ExperienceItem): string {
 export function KnowledgeCodes({ codes }: { codes: string[] }) {
   const table = useAcsTable();
   return (
-    <ListGroup
-      title="Knowledge test"
-      footer="The codes on the Airman Knowledge Test Report. The examiner must go over each one again at the practical test, and the instructor must endorse that they have been reviewed (61.39(a)(6)(iii))."
-    >
+    // The codes on the Airman Knowledge Test Report: the examiner goes over
+    // each one again, and the instructor endorses their review (61.39(a)(6)(iii)).
+    <ListGroup title="Knowledge test">
       {codes.length === 0 ? (
         <ListRow title={<span className="text-muted-foreground">No codes yet</span>} />
       ) : codes.map(code => {
@@ -80,10 +79,10 @@ function KnowledgeTest({ codes, onSave, saving }: { codes: string[]; onSave: (co
  *  instructor's alike. */
 export function ExperienceGroup({ training }: { training: Training }) {
   return (
-    <ListGroup
-      title="Private pilot experience"
-      footer="14 CFR 61.109(a), for an airplane single-engine rating, from the logbook's columns. Dual and cross-country are counted as the smaller of the two on each flight."
-    >
+    // 14 CFR 61.109(a), for an airplane single-engine rating, from the
+    // logbook's columns: dual and cross-country counted as the smaller of
+    // the two on each flight.
+    <ListGroup title="Private pilot experience">
       {training.experience.map(item => (
         <ListRow
           key={item.key}
@@ -125,10 +124,10 @@ function Instructors({ training }: { training: Training }) {
   const named = !!(training.fullName ?? name.trim());
   return (
     <>
-      <ListGroup
-        title="Your instructor"
-        footer="An instructor you ask in sees your experience, endorsements and knowledge test codes here, reviews your solo cross-countries (14 CFR 61.93(c)(3)) and signs your endorsements. They answer by signing in with the address you ask, and either of you can end it."
-      >
+      {/* An instructor asked in sees the experience, endorsements and
+          knowledge test codes here, reviews the solo cross-countries (14 CFR
+          61.93(c)(3)) and signs the endorsements; either can end it. */}
+      <ListGroup title="Your instructor">
         <ListRow id={nameId} title="Your name" description="As on your student pilot certificate">
           <FieldHit htmlFor={nameId}><Input
             id={nameId} value={name} placeholder="Avery B. Student" maxLength={120} className="h-8 w-44 sm:w-56" autoComplete="name"
@@ -162,7 +161,7 @@ function Instructors({ training }: { training: Training }) {
         />
       </ListGroup>
       {training.reviews.length > 0 && (
-        <ListGroup title="Solo cross-countries" footer="Put to your instructor from a saved flight, under Flights.">
+        <ListGroup title="Solo cross-countries">
           {training.reviews.map(r => (
             <ListRow
               key={r.id} title={<span className="font-mono">{reviewRoute(r)}</span>}
@@ -216,10 +215,9 @@ export default function CheckridePage() {
 
       <KnowledgeTest codes={training.knowledgeTestCodes} saving={codes.isPending} onSave={next => codes.mutate(next)} />
 
-      <ListGroup
-        title="Endorsements"
-        footer="AC 61-65K's student endorsements: signed here by your instructor, or the day one was signed in your paper logbook. Clear a date to take one out."
-      >
+      {/* AC 61-65K's student endorsements: signed here by the instructor, or
+          the day one was signed in the paper logbook. */}
+      <ListGroup title="Endorsements">
         {training.kinds.map(kind => {
           const e = signed.get(kind.code);
           if (e) return <SignedRow key={kind.code} kind={kind} e={e} />;
@@ -241,7 +239,7 @@ export default function CheckridePage() {
         })}
       </ListGroup>
       {voided.length > 0 && (
-        <ListGroup title="Voided" footer="Signed and later voided by the instructor who signed them, for a correction.">
+        <ListGroup title="Voided">
           {voided.map(e => <SignedRow key={e.id} kind={training.kinds.find(k => k.code === e.code)} e={e} />)}
         </ListGroup>
       )}

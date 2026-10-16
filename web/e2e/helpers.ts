@@ -325,13 +325,21 @@ export async function closeSidebarWithTheStockKey(page: Page) {
  *  briefing's Write button, its visibility easing as the sheet came
  *  down to the pill, for a minute. */
 export async function settled(locator: Locator) {
-  await locator.evaluate(el => Promise.all(el.getAnimations({ subtree: true })
-    .filter(a => a.effect?.getTiming().iterations !== Infinity)
-    .filter(a => {
-      const target = a.effect instanceof KeyframeEffect ? a.effect.target : null;
-      return !target || target.checkVisibility({ contentVisibilityAuto: true });
-    })
-    .map(a => a.finished.catch(() => undefined))));
+  // And never past a few seconds: an animation the browser stops updating
+  // in a way the filters above do not see never finishes, and held CI's
+  // iPad audit of "no legal altitude, opened" to its six-minute timeout
+  // three times running on PR #238. Waited out, the test goes on with the
+  // page as it is, as it would a moment later.
+  await locator.evaluate(el => Promise.race([
+    Promise.all(el.getAnimations({ subtree: true })
+      .filter(a => a.effect?.getTiming().iterations !== Infinity)
+      .filter(a => {
+        const target = a.effect instanceof KeyframeEffect ? a.effect.target : null;
+        return !target || target.checkVisibility({ contentVisibilityAuto: true });
+      })
+      .map(a => a.finished.catch(() => undefined))),
+    new Promise(done => window.setTimeout(done, 5000)),
+  ]));
 }
 
 /** The panel's box once it is out and done moving: measured 300 ms
@@ -452,6 +460,30 @@ export async function tapTheChart(page: Page) {
   });
   expect(at, "somewhere on the chart with nothing on it").not.toBeNull();
   await page.mouse.click(at!.x, at!.y);
+}
+
+/** A tap on the chart a little off a mark: 16 points from its middle,
+ *  inside a near miss's 22 (AirportsLayer) and clear of the mark's own 26,
+ *  on a side with nothing else under the finger. Not to the right, where
+ *  an airport's ident is. Measured and tapped again until the address is
+ *  `opens`: a card opening flies the map to its field and moves it again
+ *  as the panel settles, and on CI's runners the mark moved from under a
+ *  tap measured between the two (PR #238, three tries of three). */
+export async function tapNear(page: Page, mark: Locator, opens: RegExp) {
+  await expect(async () => {
+    await mapStill(page);
+    const box = (await mark.boundingBox())!;
+    const at = await page.evaluate(([x, y]) => {
+      for (const [dx, dy] of [[0, 16], [-16, 0], [0, -16], [-11, 11], [-11, -11], [11, 11], [11, -11]]) {
+        const hit = document.elementFromPoint(x! + dx!, y! + dy!);
+        if (hit?.matches("img.leaflet-tile, .leaflet-container, .leaflet-pane, .leaflet-layer, .leaflet-tile-container")) return { x: x! + dx!, y: y! + dy! };
+      }
+      return null;
+    }, [box.x + box.width / 2, box.y + box.height / 2]);
+    expect(at, "the chart beside the mark, nothing else there").not.toBeNull();
+    await page.mouse.click(at!.x, at!.y);
+    await expect(page).toHaveURL(opens, { timeout: 2000 });
+  }).toPass({ timeout: slow(20_000) });
 }
 
 /** A card put away by its way back: on a phone with the sheet up, the

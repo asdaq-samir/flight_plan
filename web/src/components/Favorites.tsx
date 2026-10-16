@@ -200,7 +200,7 @@ export function FavoritesList({ home, favorites, onBack, onOpen, onChangeHome, o
         title="Favorites" backLabel="Back to the search" onBack={onBack} testId="favorites-page"
         action={<EditToggle editing={editing} onToggle={() => setEditing(e => !e)} testId="favorites-edit" />}
       />
-      <ListGroup title="Home" footer={home && !editing ? "A tap changes it." : undefined}>
+      <ListGroup title="Home">
         {!home ? (
           <ListRow media={<Plus className="size-5" />} title="Add Home" onClick={onChangeHome} data-testid="favorites-home" />
         ) : (
@@ -223,7 +223,8 @@ export function FavoritesList({ home, favorites, onBack, onOpen, onChangeHome, o
           </SwipeToDelete>
         )}
       </ListGroup>
-      <ListGroup title="Airports" footer={favorites.length === 0 ? "A star on an airport's card adds it here." : editing ? "Drag a handle to order them." : undefined}>
+      <ListGroup title="Airports">
+        {favorites.length === 0 && <ListRow title={<span className="text-muted-foreground">A star on an airport's card adds it here</span>} />}
         {favorites.map((a, index) => (
           <SwipeToDelete key={a.ident} label={`Remove ${a.ident} from Favorites`} onDelete={() => onRemove(a)}>
             {editing ? (

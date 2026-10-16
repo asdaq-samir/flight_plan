@@ -12,7 +12,7 @@ import type { Leg } from "../../../../lib/api/types";
 import { ALLOWANCES, divert, reasonable, stopwatch, type Diversion, type EstimateKey } from "../../../../lib/diversion";
 import { TEXT } from "../../../../lib/text";
 import { altFt } from "../../format";
-import { bearing, grouped } from "../../../../lib/units";
+import { bearing, grouped, windCorrection } from "../../../../lib/units";
 import { FINDING_TONE } from "../../../../lib/status";
 import { nearestQuery } from "../../../../lib/queryClient";
 
@@ -27,7 +27,7 @@ function written(key: EstimateKey, value: number): string {
 function Answer({ ident, d }: { ident: string; d: Diversion }) {
   const steps: [string, string][] = [
     ["True course", `${bearing(d.tc)}, ${d.distanceNm.toFixed(1)} nm`],
-    ["Wind correction", `${d.wca >= 0 ? "+" : "−"}${Math.abs(d.wca).toFixed(0)}°`],
+    ["Wind correction", windCorrection(d.wca)],
     ["True heading", bearing(d.th)],
     ["Magnetic heading", bearing(d.mh)],
     ["Ground speed", `${Math.round(d.gs)} kt`],
@@ -115,7 +115,9 @@ export default function DiversionDrill({ leg, at }: { leg: Leg; at: { name: stri
                 <span>{stopwatch((stopped ?? now) - started)}</span>
               </p>
               <ListChoices value={field ?? ""} onChange={setField} label="Divert to">
-              <ListGroup title="Divert to" footer="The nearest fields, with their longest runway and their weather: how far and which way are on the chart.">
+              {/* The nearest fields, with their longest runway and their
+                  weather: how far and which way are the chart's to read. */}
+              <ListGroup title="Divert to">
                 {nearest.isPending ? (
                   <ListRow title={<span className="text-muted-foreground">Finding the nearest fields…</span>} />
                 ) : fields.length === 0 ? (
@@ -133,10 +135,10 @@ export default function DiversionDrill({ leg, at }: { leg: Leg; at: { name: stri
                 ))}
               </ListGroup>
               </ListChoices>
-              <ListGroup
-                title="Your estimates"
-                footer="The ACS asks for a reasonable estimate (PA.VI.C.S2) and gives no figures: within 10° and 10 kt, 3 minutes and a gallon is this drill's own."
-              >
+              {/* The ACS asks for a reasonable estimate (PA.VI.C.S2) and
+                  gives no figures: within 10° and 10 kt, 3 minutes and a
+                  gallon is this drill's own (ALLOWANCES). */}
+              <ListGroup title="Your estimates">
                 {ALLOWANCES.map(a => {
                   const value = number(a.key);
                   const marked = checked && !!exact && value !== null && Number.isFinite(value);

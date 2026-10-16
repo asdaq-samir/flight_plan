@@ -5,7 +5,7 @@ import { ListGroup, ListRow } from "../../components/GroupedList";
 import Segmented from "../../components/Segmented";
 import { Input } from "../../components/ui/input";
 import { approachRelative, holdingEntry, holdingWind, type Entry, type Turns } from "../../lib/holding";
-import { bearing } from "../../lib/units";
+import { bearing, windCorrection } from "../../lib/units";
 import { TEXT } from "../../lib/text";
 
 const ENTRY_NAME: Record<Entry, string> = { direct: "Direct", teardrop: "Teardrop", parallel: "Parallel" };
@@ -125,7 +125,6 @@ export default function HoldingPage() {
   const found = valid ? holdingEntry(i, h, turns) : null;
   const wind = valid && [tas, windFrom, windKt, altitude].every(v => Number.isFinite(num(v)))
     ? holdingWind(i, num(tas), num(windFrom), num(windKt), num(altitude)) : null;
-  const signed = (n: number) => `${n >= 0 ? "+" : "−"}${Math.abs(n).toFixed(0)}°`;
 
   return (
     <div className="space-y-4">
@@ -141,24 +140,37 @@ export default function HoldingPage() {
       {found && (
         <>
           <HoldDiagram inbound={i} headingTo={h} turns={turns} entry={found.entry} />
-          <ListGroup
-            footer={found.either ? `Within 5° of the line between two sectors: the AIM lets you fly either, ${ENTRY_NAME[found.entry].toLowerCase()} or ${ENTRY_NAME[found.either].toLowerCase()}.` : "AIM 5-3-8's three sectors, divided by the holding course and the 70° line on the holding side."}
-          >
+          {/* AIM 5-3-8's three sectors, divided by the holding course and the
+              70° line on the holding side; within 5° of a line between two,
+              either entry is allowed, said in a row of its own. */}
+          <ListGroup>
             <ListRow title={<span className="font-semibold">{ENTRY_NAME[found.entry]} entry</span>} description={entrySteps(found.entry, i, turns)} data-testid="hold-entry" />
+            {found.either && (
+              <ListRow
+                title={`Or ${ENTRY_NAME[found.either].toLowerCase()}`} description="Within 5° of the line between the two"
+                data-testid="hold-entry-either"
+              />
+            )}
           </ListGroup>
         </>
       )}
 
-      <ListGroup title="In the wind" footer="The course and the wind in the same reference: magnetic, as a clearance gives the course (winds aloft are true). Turns at standard rate.">
+      {/* The course and the wind in the same reference: magnetic, as a
+          clearance gives the course (winds aloft are true, so the row says
+          which). Turns at standard rate. */}
+      <ListGroup title="In the wind">
         <NumberRow id={`${id}-tas`} title="True airspeed" value={tas} onChange={setTas} unit="kt" testId="hold-tas" />
-        <NumberRow id={`${id}-wd`} title="Wind from" value={windFrom} onChange={setWindFrom} unit="°" testId="hold-wind-from" />
+        <NumberRow id={`${id}-wd`} title="Wind from, magnetic" value={windFrom} onChange={setWindFrom} unit="°" testId="hold-wind-from" />
         <NumberRow id={`${id}-ws`} title="Wind speed" value={windKt} onChange={setWindKt} unit="kt" testId="hold-wind-kt" />
         <NumberRow id={`${id}-alt`} title="Altitude" value={altitude} onChange={setAltitude} unit="ft" testId="hold-altitude" />
       </ListGroup>
       {wind ? (
-        <ListGroup footer={`An inbound leg of ${wind.legMin === 1 ? "a minute" : "a minute and a half"}, at or below 14,000 ft MSL a minute (AIM 5-3-8); outbound timing from over or abeam the fix, whichever is later.`}>
-          <ListRow title="Inbound heading" description={`${signed(wind.inbound.wca)} for the wind, ${Math.round(wind.inbound.gs)} kt over the ground`} value={bearing(wind.inbound.heading)} data-testid="hold-in-heading" />
-          <ListRow title="Outbound heading" description={`Three times the inbound correction, ${signed(wind.outbound.wca)}, the turns' drift taken up too`} value={bearing(wind.outbound.heading)} data-testid="hold-out-heading" />
+        // An inbound leg of a minute at or below 14,000 ft MSL, a minute and
+        // a half above (AIM 5-3-8); outbound timing from over or abeam the
+        // fix, whichever is later.
+        <ListGroup>
+          <ListRow title="Inbound heading" description={`${windCorrection(wind.inbound.wca)} for the wind, ${Math.round(wind.inbound.gs)} kt over the ground`} value={bearing(wind.inbound.heading)} data-testid="hold-in-heading" />
+          <ListRow title="Outbound heading" description={`Three times the inbound correction, ${windCorrection(wind.outbound.wca)}, the turns' drift taken up too`} value={bearing(wind.outbound.heading)} data-testid="hold-out-heading" />
           <ListRow
             title="Outbound time"
             description={`So the inbound leg takes ${wind.legMin === 1 ? "a minute" : "a minute and a half"} at ${Math.round(wind.inbound.gs)} kt; by the rule of a second a knot, ${Math.round(wind.ruleSec)} s`}

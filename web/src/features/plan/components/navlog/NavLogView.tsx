@@ -18,12 +18,12 @@ import {
   Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow,
 } from "../../../../components/ui/table";
 import type { Candidate, Leg, NavLogAltitude, Totals, TopOfClimb, TopOfDescent } from "../../../../lib/api/types";
-import { feet } from "../../../../lib/units";
+import { feet, magneticVariation, nm, windCorrection } from "../../../../lib/units";
 import { routeName } from "../../../../lib/identSchema";
 import { revealRow } from "../../../../lib/revealRow";
 import { GROUP_HEADING, TEXT } from "../../../../lib/text";
 import { type Description, descriptionKey } from "../../hooks/useCheckpointNotes";
-import { altFt, bearing, clockTime, etaAt, one, signed, totalsParts } from "../../format";
+import { altFt, bearing, clockTime, etaAt, legsWithoutWind, one } from "../../format";
 import type { BriefingPart } from "../briefing/sections";
 import { isLegPoint, legOf, navLogRows, rowPoint, type NavLogRow, type RouteEnds } from "./rows";
 import LegWorkings from "./LegWorkings";
@@ -268,9 +268,9 @@ function LegLine({ leg, at }: { leg: Leg; at: { name: string; lat: number; lon: 
   const figures: [string, string][] = [
     ["TC", bearing(leg.true_course_deg)],
     ["Wind", leg.wind ? `${bearing(leg.wind.wind_dir_true_deg)}/${Math.round(leg.wind.wind_speed_kt)}` : "no data"],
-    ["WCA", signed(leg.wca_deg)],
+    ["WCA", windCorrection(leg.wca_deg, 1)],
     ["TH", bearing(leg.true_heading_deg)],
-    ["Var", signed(leg.magnetic_variation_deg)],
+    ["Var", magneticVariation(leg.magnetic_variation_deg, 1)],
     ["TAS", tas(leg)],
     ["GS", leg.groundspeed_kt === null ? "—" : String(Math.round(leg.groundspeed_kt))],
     ["Fuel", `${one(leg.fuel_gal)} gal`],
@@ -337,7 +337,7 @@ export default function NavLogView({
   selectedPoint, onSelectPoint, onDeselectPoint, drawerOpen,
   aircraftLabel, onTabTap,
 }: Props) {
-  const parts = totals ? totalsParts(totals) : null;
+  const noWind = totals ? legsWithoutWind(totals) : null;
   // The other tabs' code fetched while nothing else is, once the log is
   // in, so the first opening of each draws rather than downloads: the
   // weight and balance envelope was 0.4 s of the Performance tab's first.
@@ -476,7 +476,7 @@ export default function NavLogView({
     {
       id: "dist",
       header: () => <Heading name="Dist" unit="nm" spoken="Distance, nautical miles" />,
-      cell: ({ row }) => (legOf(row.original) ? legOf(row.original)!.distance_nm.toFixed(1) : "—"),
+      cell: ({ row }) => (legOf(row.original) ? one(legOf(row.original)!.distance_nm) : "—"),
     },
     {
       id: "tc",
@@ -497,7 +497,7 @@ export default function NavLogView({
       id: "wca",
       header: () => <Heading name="WCA" unit="°" spoken="Wind correction angle" />,
       meta: { className: "hidden print:table-cell" },
-      cell: ({ row }) => (legOf(row.original) ? signed(legOf(row.original)!.wca_deg) : "—"),
+      cell: ({ row }) => (legOf(row.original) ? windCorrection(legOf(row.original)!.wca_deg, 1) : "—"),
     },
     {
       id: "th",
@@ -509,7 +509,7 @@ export default function NavLogView({
       id: "var",
       header: () => <Heading name="Var" unit="°" spoken="Magnetic variation" />,
       meta: { className: "hidden print:table-cell" },
-      cell: ({ row }) => (legOf(row.original) ? signed(legOf(row.original)!.magnetic_variation_deg) : "—"),
+      cell: ({ row }) => (legOf(row.original) ? magneticVariation(legOf(row.original)!.magnetic_variation_deg, 1) : "—"),
     },
     {
       id: "mh",
@@ -760,10 +760,10 @@ export default function NavLogView({
   // table is the rest, as the pilot asked. (The altitude, which opens how
   // it was chosen, is the Alt column's head.)
   const cloudsUnplaced = !!nav && !nav.altitude_selection.cloud_clearance_kept && !perLeg;
-  const summary = (!!parts?.warning || cloudsUnplaced) && (
+  const summary = (!!noWind || cloudsUnplaced) && (
     <div className="mb-3" data-testid="navlog-summary">
       <ListGroup>
-        {parts?.warning && <ListRow title={<span className="text-destructive">{parts.warning}</span>} />}
+        {noWind && <ListRow title={<span className="text-destructive">{noWind}</span>} />}
         {/* The clouds forecast near a leg leave it no legal altitude (14
             CFR 91.155): the plan still stands, over the band without
             them, and the briefing says so (Current Conditions, the
@@ -793,13 +793,13 @@ export default function NavLogView({
   // a row each -- what it needs, against the tanks.
   const hopsNote = totals && totals.hops.length > 0 && (
     <div className="mt-3" data-testid="fuel-check">
-      <ListGroup title="Fuel, stop to stop" footer="The tanks filled at each stop: each flight is checked on its own, with its reserve.">
+      <ListGroup title="Fuel, tanks filled at each stop">
         {totals.hops.map(({ departure, destination, totals: hop }) => {
           const short = hop.fuel_margin_gal != null && hop.fuel_margin_gal < 0 ? -hop.fuel_margin_gal : null;
           return (
             <ListRow
               key={`${departure}-${destination}`} title={routeName(departure, destination)}
-              description={`${one(hop.distance_nm)} nm, with a ${hop.reserve_min} min reserve`}
+              description={`${nm(hop.distance_nm)}, with a ${hop.reserve_min} min reserve`}
               value={hop.fuel_required_gal == null ? "—" : short === null
                 ? `${one(hop.fuel_required_gal)}${hop.usable_fuel_gal != null ? ` of ${hop.usable_fuel_gal}` : ""} gal`
                 : <span className="font-semibold text-destructive">{one(hop.fuel_required_gal)} gal, {one(short)} short</span>}

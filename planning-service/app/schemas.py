@@ -1110,6 +1110,27 @@ class PastFlight(BaseModel):
     points: list[PastFlightPoint]
 
 
+class FlightArrival(PastFlightField):
+    """The field an airplane has landed at, and when it was last heard (Unix seconds)."""
+
+    at: float
+
+
+class FlightStatus(BaseModel):
+    """An airplane's state now, for the alerts a pilot sets on it
+    (vfr.traffic.status): how long since it was heard, whether it is in
+    the air -- and where, as the map draws it -- the field it took off
+    from, and, not in the air, the field it has landed at; from adsb.lol's
+    open data (ODbL 1.0)."""
+
+    hex: str
+    heard_s: float | None = None
+    airborne: bool = False
+    aircraft: TrafficAircraft | None = None
+    departed: PastFlightField | None = None
+    arrived: FlightArrival | None = None
+
+
 class FlightDetail(BaseModel):
     """An airplane and its flight today (vfr.traffic.flight): what it is,
     who flies it, where it took off from where its track shows that, and

@@ -9,6 +9,7 @@ import { ListGroup, ListRow } from "../../../components/GroupedList";
 import { api } from "../../../lib/api/client";
 import type { NearestAirport, PlaceFound } from "../../../lib/api/types";
 import { compassPoint } from "../../../lib/compass";
+import { mhzText } from "../../../lib/frequencies";
 import { colourOf } from "../../../lib/map/flightCategory";
 import { glideRangeNm } from "../../../lib/map/glide";
 import { airportMarkSvg } from "../../../lib/map/airportMark";
@@ -99,9 +100,6 @@ function NearAnswers({ from, onFrom }: { from: NearFrom | null; onFrom: (from: N
   );
 }
 
-/** A frequency as pilots write it: 120.7, 122.95, 124.475. */
-const mhz = (value: number) => value.toFixed(3).replace(/0{1,2}$/, "");
-
 /** Faster than this over the ground, the airplane is going somewhere and
  *  its GPS track is steady enough to point the rows' arrows from. */
 const MOVING_KT = 30;
@@ -131,7 +129,7 @@ function NearestRow({ field, ahead, reach, onOpen }: {
   const use = field.military === "military" ? "military" : field.private ? "private" : null;
   const parts = [
     field.longest_runway_ft ? `${altFt(field.longest_runway_ft)} ft` : null,
-    field.radio ? `${field.radio.kind} ${mhz(field.radio.mhz)}` : null,
+    field.radio ? `${field.radio.kind} ${mhzText(field.radio.mhz)}` : null,
     // Listed whoever owns it, and said: in an emergency the pilot in
     // command lands where the emergency needs (14 CFR 91.3(b)), and a
     // military or a private field may be it.
@@ -270,7 +268,7 @@ export default function NearestCard({ onOpen, from, onFrom, onBack }: {
       <NearAnswers from={from} onFrom={onFrom} />
       <div className="pt-1">
         {!origin ? (
-          <ListGroup footer="The nearest fields are found from your position, which stays on this device, or from a place typed above.">
+          <ListGroup>
             {enabled
               ? <ListRow title={<span className="text-muted-foreground">Finding your position…</span>} />
               : <ListRow title="Show my position" onClick={() => setEnabled(true)} data-testid="nearest-show-position" />}
@@ -278,16 +276,11 @@ export default function NearestCard({ onOpen, from, onFrom, onBack }: {
         ) : (
           <ListGroup
             // What the list is from, where the card's name and line said it.
+            // No footnote under it, at the owner's ask: the glide is a
+            // still-air one, 1.5 nm for every 1,000 ft over the nearest
+            // field (the dashed ring); each row its longest runway and its
+            // listed tower, CTAF or UNICOM frequency.
             title={from ? `Near ${from.label}` : glide != null ? `Within a glide: about ${Math.round(glide)} nm` : "Nearest to you"}
-            footer={[
-              from
-                ? `From ${from.label}. Clear the field for the nearest to your position.`
-                : glide != null
-                  ? `Within a still-air glide: about ${Math.round(glide)} nm from here, at 1.5 nm for every 1,000 ft over the nearest field -- the dashed ring.`
-                  : "In the air, the ones within a glide are marked.",
-              ahead != null ? "The arrows point the way from your track." : null,
-              "Each field's longest runway and its listed tower, CTAF or UNICOM frequency. Check the Chart Supplement for the tower's hours. Bearings are true.",
-            ].filter(Boolean).join(" ")}
           >
             {(data ?? []).map(a => (
               <NearestRow key={a.ident} field={a} ahead={ahead} reach={glide != null && a.distance_nm <= glide} onOpen={() => onOpen(a.ident)} />
