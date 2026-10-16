@@ -166,6 +166,62 @@ test("each tab's one strip picks its list from the filter at its heading's right
   await expect(panel.getByTestId("pill-aircraft-recents")).toBeVisible();
 });
 
+test("a list in full keeps its place as a card does: another tab and back, Setup and back, a link to it; the tab up tapped again puts it away", async ({ page }) => {
+  // The owner's pick ("Yes to both"): lists keep their place as cards do.
+  await keep(page, { favoriteAirports: [KDLH] });
+  await page.goto("/app/plan");
+  await settle(page);
+  const panel = sideDrawer(page);
+  await pickHalf(page, "tab-airport");
+  await panel.getByTestId("pill-section-favorites-more").click();
+  const list = panel.getByTestId("favorites-list");
+  await expect(list).toBeVisible();
+  await expect(page).toHaveURL(/[?&]list=favorites/);
+  // Another tab, and back to Airport: the list again.
+  await showTabs(page);
+  await page.getByTestId("tab-fpl").click();
+  await expect(list).toHaveCount(0);
+  await showTabs(page);
+  await page.getByTestId("tab-airport").click();
+  await expect(list).toBeVisible();
+  // Setup, and back.
+  await showTabs(page);
+  await page.getByTestId("setup-button").click();
+  await expect(panel.getByTestId("setup-page")).toBeVisible();
+  await showTabs(page);
+  await page.getByTestId("tab-airport").click();
+  await expect(list).toBeVisible();
+  // A link to it -- the address as it is -- lands on the list all the way
+  // up, as a link to a card does. A reload starts clean, as before
+  // (lib/freshLoad): the owner's fresh start, as Maps opens.
+  await page.goto(page.url());
+  await settle(page);
+  await expect(list).toBeVisible();
+  await expect(panel).toHaveAttribute("data-panel", "full");
+  // The tab up tapped again puts it away, the sheet where it is, as it
+  // puts a card away.
+  await showTabs(page);
+  await page.getByTestId("tab-airport").click();
+  await expect(list).toHaveCount(0);
+  await expect(page).not.toHaveURL(/[?&]list=/);
+  await expect(panel).toHaveAttribute("data-panel", "full");
+});
+
+test("a Favorite is taken off as a Recent is: a swipe to the left uncovers its Delete", async ({ page }) => {
+  // The owner's pick of one way to remove ("Yes to both"): a swipe on
+  // every kept list, Edit's minus bringing out the same Delete.
+  await keep(page, { favoriteAirports: [KDLH] });
+  await page.goto("/app/plan?list=favorites");
+  await settle(page);
+  const list = sideDrawer(page).getByTestId("favorites-list");
+  await expect(list).toBeVisible();
+  const row = list.getByTestId("swipe-row").filter({ hasText: "KDLH" });
+  await row.evaluate(el => el.scrollTo({ left: el.scrollWidth }));
+  await expect.poll(() => row.evaluate(el => el.scrollLeft)).toBeGreaterThan(40);
+  await row.getByTestId("swipe-delete").click();
+  await expect(list).toContainText("A star on an airport's card adds it here.");
+});
+
 test("on a phone, a card opened from another tab has Back at the top left of the tabs' line, and its close puts the sheet down", async ({ page }) => {
   test.skip((page.viewportSize()?.width ?? 0) >= 768, "the tabs minimize on a phone only");
   // An airport's card over FPL (a route's field): the bar its kind and
@@ -273,7 +329,9 @@ test("Aircraft's Favorites' title opens the airplanes kept in full, Edit letting
   await expect(list.getByTestId("aircraft-favorites-row")).toHaveCount(3);
   // Edit: one let go, another moved up a place with the keyboard.
   await list.getByTestId("aircraft-favorites-edit").click();
-  await list.getByRole("button", { name: "Remove N300XY from Favorites" }).click();
+  // Its minus brings out the row's Delete, as iOS's does (SwipeToDelete).
+  await list.getByRole("button", { name: "Remove N300XY from Favorites…", exact: true }).click();
+  await list.getByRole("button", { name: "Remove N300XY from Favorites", exact: true }).click();
   // Exactly: "Remove N400XY…" holds "move N400XY" too.
   await list.getByRole("button", { name: "Move N400XY", exact: true }).focus();
   await page.keyboard.press("ArrowUp");

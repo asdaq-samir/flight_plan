@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Plane, Plus } from "lucide-react";
 import { EditToggle, HomePlane, ListPageHead, Mark, MoveHandle, RemoveMinus } from "../../../components/Favorites";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
+import { SwipeToDelete } from "../../../components/SwipeToDelete";
 import { usePreferences, type KeptAircraft } from "../../../lib/preferences";
 
 /**
@@ -36,32 +37,41 @@ export default function AircraftFavoritesList({ onBack, onOpen, onChangeMine, on
       <ListGroup title="Plane" footer={mine && !editing ? "A tap changes it." : undefined}>
         {!mine ? (
           <ListRow media={<Plus className="size-5" />} title="Add your Plane" onClick={onChangeMine} data-testid="aircraft-favorites-mine" />
-        ) : editing ? (
-          <ListRow
-            media={<RemoveMinus label={`Remove ${mine.name} as your Plane`} onClick={() => setMine(null)} testId="aircraft-favorites-mine-remove" />}
-            title={name(mine)} description={mine.type ?? undefined}
-          />
         ) : (
-          <ListRow
-            media={<Mark icon={<HomePlane />} className="bg-teal-600 text-white" />} chevron
-            title={name(mine)} description={mine.type ?? undefined} onClick={onChangeMine} data-testid="aircraft-favorites-mine"
-          />
+          // Taken off as every kept list's rows are (SwipeToDelete).
+          <SwipeToDelete label={`Remove ${mine.name} as your Plane`} onDelete={() => setMine(null)}>
+            {editing ? (
+              <ListRow
+                media={<RemoveMinus label={`Remove ${mine.name} as your Plane…`} testId="aircraft-favorites-mine-remove" />}
+                title={name(mine)} description={mine.type ?? undefined}
+              />
+            ) : (
+              <ListRow
+                media={<Mark icon={<HomePlane />} className="bg-teal-600 text-white" />} chevron
+                title={name(mine)} description={mine.type ?? undefined} onClick={onChangeMine} data-testid="aircraft-favorites-mine"
+              />
+            )}
+          </SwipeToDelete>
         )}
       </ListGroup>
       <ListGroup title="Airplanes" footer={favorites.length === 0 ? "A star on an airplane's card adds it here." : editing ? "Drag a handle to order them." : undefined}>
-        {favorites.map((a, index) => (editing ? (
-          <ListRow
-            key={a.hex} media={<RemoveMinus label={`Remove ${a.name} from Favorites`} onClick={() => remove(a)} />}
-            title={name(a)} description={a.type ?? undefined}
-          >
-            <MoveHandle label={`Move ${a.name}`} index={index} count={favorites.length} onMove={move} />
-          </ListRow>
-        ) : (
-          <ListRow
-            key={a.hex} media={<Mark icon={<Plane />} className="bg-sky-600 text-white" />} chevron
-            title={name(a)} description={a.type ?? undefined} onClick={() => onOpen(a.hex)} data-testid="aircraft-favorites-row"
-          />
-        )))}
+        {favorites.map((a, index) => (
+          <SwipeToDelete key={a.hex} label={`Remove ${a.name} from Favorites`} onDelete={() => remove(a)}>
+            {editing ? (
+              <ListRow
+                media={<RemoveMinus label={`Remove ${a.name} from Favorites…`} />}
+                title={name(a)} description={a.type ?? undefined} data-testid="aircraft-favorites-row"
+              >
+                <MoveHandle label={`Move ${a.name}`} index={index} count={favorites.length} onMove={move} />
+              </ListRow>
+            ) : (
+              <ListRow
+                media={<Mark icon={<Plane />} className="bg-sky-600 text-white" />} chevron
+                title={name(a)} description={a.type ?? undefined} onClick={() => onOpen(a.hex)} data-testid="aircraft-favorites-row"
+              />
+            )}
+          </SwipeToDelete>
+        ))}
         <ListRow media={<Plus className="size-5" />} title="Add a Favorite" onClick={onAdd} data-testid="aircraft-favorites-add" />
       </ListGroup>
     </div>

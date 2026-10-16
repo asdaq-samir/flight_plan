@@ -20,10 +20,18 @@ export type PanelTab = "fpl" | "airport" | "aircraft";
 
 /** The address's keys of what is open over a tab: an airport's card, the
  *  airspace over a point held, an airplane, its past flight, Nearest's
- *  list and its place, FPL's saved flights. */
+ *  list and its place, FPL's saved flights, and a tab's other lists in
+ *  full (`list`). */
 // Nearest's list among them, Airport's card now (four tabs), and FPL's
 // saved flights.
-const CARD_KEYS = ["place", "at", "flight", "past", "near", "nearAt", "nearName", "saved"] as const;
+const CARD_KEYS = ["place", "at", "flight", "past", "near", "nearAt", "nearName", "saved", "list"] as const;
+
+/** A tab's list in full, from its strip's title, in the address
+ *  (`?list=favorites`): Airport's Favorites and Recents, FPL's routes
+ *  planned, Aircraft's Favorites and Recents. Saved and Nearest have keys
+ *  of their own (`saved`, `near`). */
+const LISTS = ["favorites", "recents", "routes", "aircraft-favorites", "aircraft-recents"] as const;
+export type TabList = (typeof LISTS)[number];
 
 /**
  * The cards the address holds, so a link or Back lands on them: an
@@ -35,6 +43,31 @@ const CARD_KEYS = ["place", "at", "flight", "past", "near", "nearAt", "nearName"
  * which the route's Approaches ask for too.
  */
 export function useAddressCards(searchParams: URLSearchParams, setSearchParams: SetURLSearchParams, setPanel: (state: PanelState) => void) {
+  // A list in full over its tab, as a card is: in the address, so it is
+  // kept for its tab and opened again on coming back to it and after
+  // Setup, and a link to it lands on it, at the owner's pick ("Yes to
+  // both": lists keep their place as cards do), where four were the
+  // workspace's own state, put away at any tab picked, and one the
+  // Aircraft card's. A reload starts clean, cards and lists alike
+  // (lib/freshLoad).
+  const listParam = searchParams.get("list");
+  const list = (LISTS as readonly string[]).includes(listParam ?? "") ? listParam as TabList : null;
+  const openList = useCallback((name: TabList) => {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      next.set("list", name);
+      return next;
+    }, { replace: true });
+    // A list in full all the way up, as each opened before.
+    setPanel("full");
+  }, [setSearchParams, setPanel]);
+  const closeList = useCallback(() => {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      next.delete("list");
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
   // The airport whose card is open in the panel (PlaceCard), as Maps
   // opens a place's: from a tap on the chart, held in the address so a
   // link lands on it. Opened from the map at the pill's size, as its
@@ -122,7 +155,7 @@ export function useAddressCards(searchParams: URLSearchParams, setSearchParams: 
     useTracking.setState({ pick: (hex, plane) => selectFlight(hex, plane) });
     return () => useTracking.setState({ pick: null });
   }, [selectFlight]);
-  return { place, heldPoint, nearOpen, aircraftOpen, flight, past, nearFrom, setNearFrom, selectFlight, selectPast };
+  return { place, heldPoint, nearOpen, aircraftOpen, flight, past, nearFrom, setNearFrom, selectFlight, selectPast, list, openList, closeList };
 }
 
 /**
@@ -138,7 +171,7 @@ export function useAddressCards(searchParams: URLSearchParams, setSearchParams: 
  * ("the cards should stay where they are when coming back to the tab"),
  * as each of an iOS app's tabs keeps its own screen. Not past a reload.
  */
-export function usePanelTabs({ cards, route, hasRoute, panel, setPanel, searchParams, setSearchParams, onPicked }: {
+export function usePanelTabs({ cards, route, hasRoute, panel, setPanel, searchParams, setSearchParams }: {
   cards: ReturnType<typeof useAddressCards>;
   /** The route as the address has it, any change of which is a new one. */
   route: string;
@@ -147,10 +180,8 @@ export function usePanelTabs({ cards, route, hasRoute, panel, setPanel, searchPa
   setPanel: (state: PanelState) => void;
   searchParams: URLSearchParams;
   setSearchParams: SetURLSearchParams;
-  /** A tab picked, for what the workspace puts away with it (Favorites in full). */
-  onPicked: () => void;
 }) {
-  const { place, heldPoint, flight, past, aircraftOpen, nearOpen } = cards;
+  const { place, heldPoint, flight, past, aircraftOpen, nearOpen, list } = cards;
   const savedOpen = searchParams.get("saved") === "1";
   const [tabPick, setTabPick] = useState<PanelTab | null>(null);
   const [routeSeen, setRouteSeen] = useState(route);
@@ -182,7 +213,12 @@ export function usePanelTabs({ cards, route, hasRoute, panel, setPanel, searchPa
   // link, a tap on the chart -- is over FPL, the tab up, its Back to it
   // (the owner's "tapping the airport from FPL then it can have the back
   // button should get it back to fpl").
-  const tab: PanelTab = flight || aircraftOpen ? "aircraft" : nearOpen ? "airport" : tabPick ?? "fpl";
+  // A list in full is its tab's: Airport's for its Favorites and Recents
+  // -- a link or a reload landing on one lands on Airport -- FPL's for the
+  // routes; Aircraft's by the address's `aircraft` already.
+  const tab: PanelTab = flight || aircraftOpen ? "aircraft"
+    : nearOpen || list === "favorites" || list === "recents" ? "airport"
+      : list === "routes" ? "fpl" : tabPick ?? "fpl";
 
   const keptCards = useRef<Partial<Record<PanelTab, [string, string][]>>>({});
   const keptReplay = useRef<{ hex: string; id: number; at: number | null; playing: boolean } | null>(null);
@@ -223,28 +259,27 @@ export function usePanelTabs({ cards, route, hasRoute, panel, setPanel, searchPa
       for (const [key, value] of back) out.set(key, value);
       return out;
     }, { replace: true });
-    onPicked();
-  }, [setSearchParams, searchParams, tab, flight, past, onPicked]);
+  }, [setSearchParams, searchParams, tab, flight, past]);
 
   // The tab up tapped again where the tab bar has no panel to size (the
-  // panel's own does, TabBar): on the pill, half way; out already, a
-  // card over it put away, as an iOS tab tapped again goes back to its
-  // first screen.
+  // panel's own does, TabBar), or over a list in full (TabBar's
+  // `listOver`): on the pill, half way; out already, a card or a list over
+  // it put away, as an iOS tab tapped again goes back to its first screen.
   const tabUp = useCallback(() => {
     if (panel === "peek") {
       setPanel("half");
       return;
     }
-    if (place || heldPoint || flight || nearOpen || savedOpen) pickTab(tab);
-  }, [place, heldPoint, flight, nearOpen, savedOpen, pickTab, tab, panel, setPanel]);
+    if (place || heldPoint || flight || nearOpen || savedOpen || list) pickTab(tab);
+  }, [place, heldPoint, flight, nearOpen, savedOpen, list, pickTab, tab, panel, setPanel]);
 
   // The minimized tab bar's close, at the owner's ask: a card open over
   // the tab put away, as the tab tapped again does, and the sheet down to
   // its pill.
   const closeSheet = useCallback(() => {
-    if (place || heldPoint || flight || nearOpen || savedOpen) pickTab(tab);
+    if (place || heldPoint || flight || nearOpen || savedOpen || list) pickTab(tab);
     setPanel("peek");
-  }, [place, heldPoint, flight, nearOpen, savedOpen, pickTab, tab, setPanel]);
+  }, [place, heldPoint, flight, nearOpen, savedOpen, list, pickTab, tab, setPanel]);
 
   return { tab, setTabPick, pickTab, tabUp, closeSheet };
 }

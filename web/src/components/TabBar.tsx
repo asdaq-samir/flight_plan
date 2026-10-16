@@ -41,7 +41,7 @@ export interface BarTab<T extends string> {
  *  events, heard by the new one, took a second step. */
 const WHEEL = { sum: { x: 0, y: 0 }, quietUntil: 0, idle: 0 };
 
-export default function TabBar<T extends string>({ tabs, tab, over, title, onPick, onUp, marks, onClose, className }: {
+export default function TabBar<T extends string>({ tabs, tab, over, title, onPick, onUp, marks, onClose, listOver = false, className }: {
   tabs: BarTab<T>[];
   tab: T;
   /** The tab whose card is open over `tab` -- Airport's, an airport's card
@@ -62,6 +62,11 @@ export default function TabBar<T extends string>({ tabs, tab, over, title, onPic
   /** The minimized bar's close, at its right: whatever is open over the
    *  tab put away and the sheet down to its pill, at the owner's ask. */
   onClose?: () => void;
+  /** A list in full open over the tab -- its Favorites, Saved, Nearest --
+   *  which the tab up tapped again puts away (`onUp`), the sheet where it
+   *  is, as it puts a card away: lists keep their place as cards do, at
+   *  the owner's pick ("Yes to both"). */
+  listOver?: boolean;
   className?: string;
 }) {
   const consoleOpen = useConsoleOpen(s => s.open);
@@ -332,6 +337,7 @@ export default function TabBar<T extends string>({ tabs, tab, over, title, onPic
                 pick(value);
                 if (size.size === "peek") size.to("half");
               } else if (size.card) onClose?.();
+              else if (listOver && size.size !== "peek") onUp?.();
               else size.to(size.size === "full" ? "half" : size.size === "half" ? "peek" : "half");
             }}
             data-testid={value === "setup" ? "setup-button" : `tab-${value}`} data-current={current || undefined}

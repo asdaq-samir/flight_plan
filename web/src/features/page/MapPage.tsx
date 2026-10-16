@@ -119,15 +119,16 @@ export default function MapPage({ mode }: { mode: Mode }) {
   // How far the panel is out. All the way, on the planner, is the
   // address; resting is this page's own. Opened, the panel rests as its
   // pill (MapPanel).
-  // An address that opens a list -- the Aircraft or Nearest list, a past
-  // flight's log -- opens all the way up on it; a field's card, the
+  // An address that opens a list -- the Aircraft or Nearest list, Saved,
+  // a tab's Favorites or Recents in full, a past flight's log -- opens all
+  // the way up on it; a field's card, the
   // airspace at a point or an airplane half way, where every card opens,
   // as on 2026-10-11 (the owner's "pill to half to full worked really
   // well").
   const [localPanel, setLocalPanel] = useState<PanelState>(() => (
     mode !== "pilot" ? "peek"
       : ["place", "at", "flight"].some(key => searchParams.has(key)) ? "half"
-        : ["past", "aircraft", "near"].some(key => searchParams.has(key)) ? "full" : "peek"));
+        : ["past", "aircraft", "near", "saved", "list"].some(key => searchParams.has(key)) ? "full" : "peek"));
   // The airport index downloaded ahead of the first search, which at rest
   // is out of sight (lib/airportIndex).
   useWarmAirportIndex(mode === "pilot");

@@ -1,5 +1,5 @@
 import { ChevronLeft, ChevronRight, CircleMinus, GripVertical, House, ListFilter, Plus } from "lucide-react";
-import { Fragment, useId, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import { Fragment, useEffect, useId, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "cn";
 import { distanceNm } from "../lib/geo";
@@ -8,6 +8,9 @@ import { colourOf } from "../lib/map/flightCategory";
 import { useOwnShip } from "../lib/map/ownShip";
 import type { AirspaceClass, RecentAirport } from "../lib/preferences";
 import { useAirspace } from "../lib/useAirspace";
+import { holdOpenCard } from "../lib/openCards";
+import { SwipeToDelete } from "./SwipeToDelete";
+import { useSwipeRow } from "./swipeRow";
 import { useAway } from "../lib/useAway";
 import { TEXT } from "../lib/text";
 import { Button } from "./ui/button";
@@ -114,10 +117,16 @@ export function EditToggle({ editing, onToggle, testId }: { editing: boolean; on
   );
 }
 
-/** The minus before a row being edited, letting it go. */
-export function RemoveMinus({ label, onClick, testId }: { label: string; onClick: () => void; testId?: string }) {
+/** The minus before a row being edited. In a row with a Delete behind it
+ *  (SwipeToDelete) it brings the Delete out, as iOS's minus does, the
+ *  Delete then taking it away: one way to remove from every kept list, at
+ *  the owner's pick ("Yes to both"), where a tap on it took the row away
+ *  at once on some lists. Elsewhere -- a form's segments -- it takes the
+ *  row away itself (`onClick`). */
+export function RemoveMinus({ label, onClick, testId }: { label: string; onClick?: () => void; testId?: string }) {
+  const row = useSwipeRow();
   return (
-    <IconButton label={label} className="-ml-1.5 text-destructive" onClick={onClick} data-testid={testId}>
+    <IconButton label={label} className="-ml-1.5 text-destructive" onClick={row ? row.reveal : onClick} data-testid={testId}>
       <CircleMinus className="size-5 fill-destructive text-white dark:text-background" />
     </IconButton>
   );
@@ -186,46 +195,54 @@ export function FavoritesList({ home, favorites, onBack, onOpen, onChangeHome, o
   const [editing, setEditing] = useState(false);
   return (
     <div className="space-y-6" data-testid="favorites-list">
-      <div className="flex items-center gap-1">
-        <IconButton label="Back to the search" onClick={onBack} className="-ml-2" data-testid="favorites-back">
-          <ChevronLeft className="size-5" />
-        </IconButton>
-        <h3 className={cn("flex-1 font-bold", TEXT.title)}>Favorites</h3>
-        <EditToggle editing={editing} onToggle={() => setEditing(e => !e)} testId="favorites-edit" />
-      </div>
+      {/* Every list's head (ListPageHead), where this was a copy of it. */}
+      <ListPageHead
+        title="Favorites" backLabel="Back to the search" onBack={onBack} testId="favorites-page"
+        action={<EditToggle editing={editing} onToggle={() => setEditing(e => !e)} testId="favorites-edit" />}
+      />
       <ListGroup title="Home" footer={home && !editing ? "A tap changes it." : undefined}>
         {!home ? (
           <ListRow media={<Plus className="size-5" />} title="Add Home" onClick={onChangeHome} data-testid="favorites-home" />
-        ) : editing ? (
-          <ListRow
-            media={<RemoveMinus label={`Remove ${home.ident} as Home`} onClick={onRemoveHome} testId="favorites-home-remove" />}
-            title={<><span className="font-mono font-semibold">{home.ident}</span> · {home.name}</>}
-            description={home.municipality ?? undefined}
-          />
         ) : (
-          <ListRow
-            media={<Mark icon={<House />} className="bg-teal-600 text-white" />} chevron
-            title={<><span className="font-mono font-semibold">{home.ident}</span> · {home.name}</>}
-            description={home.municipality ?? undefined} onClick={onChangeHome} data-testid="favorites-home"
-          />
+          // Taken off as every kept list's rows are: a swipe to the left, or
+          // Edit's minus bringing out the Delete (SwipeToDelete).
+          <SwipeToDelete label={`Remove ${home.ident} as Home`} onDelete={onRemoveHome}>
+            {editing ? (
+              <ListRow
+                media={<RemoveMinus label={`Remove ${home.ident} as Home…`} testId="favorites-home-remove" />}
+                title={<><span className="font-mono font-semibold">{home.ident}</span> · {home.name}</>}
+                description={home.municipality ?? undefined}
+              />
+            ) : (
+              <ListRow
+                media={<Mark icon={<House />} className="bg-teal-600 text-white" />} chevron
+                title={<><span className="font-mono font-semibold">{home.ident}</span> · {home.name}</>}
+                description={home.municipality ?? undefined} onClick={onChangeHome} data-testid="favorites-home"
+              />
+            )}
+          </SwipeToDelete>
         )}
       </ListGroup>
       <ListGroup title="Airports" footer={favorites.length === 0 ? "A star on an airport's card adds it here." : editing ? "Drag a handle to order them." : undefined}>
-        {favorites.map((a, index) => (editing ? (
-          <ListRow
-            key={a.ident} media={<RemoveMinus label={`Remove ${a.ident} from Favorites`} onClick={() => onRemove(a)} />}
-            title={<><span className="font-mono font-semibold">{a.ident}</span> · {a.name}</>}
-            description={a.municipality ?? undefined}
-          >
-            <MoveHandle label={`Move ${a.ident}`} index={index} count={favorites.length} onMove={onMove} />
-          </ListRow>
-        ) : (
-          <ListRow
-            key={a.ident} media={<KeptMark airport={a} />} chevron
-            title={<><span className="font-mono font-semibold">{a.ident}</span> · {a.name}</>}
-            description={a.municipality ?? undefined} onClick={() => onOpen(a)}
-          />
-        )))}
+        {favorites.map((a, index) => (
+          <SwipeToDelete key={a.ident} label={`Remove ${a.ident} from Favorites`} onDelete={() => onRemove(a)}>
+            {editing ? (
+              <ListRow
+                media={<RemoveMinus label={`Remove ${a.ident} from Favorites…`} />}
+                title={<><span className="font-mono font-semibold">{a.ident}</span> · {a.name}</>}
+                description={a.municipality ?? undefined}
+              >
+                <MoveHandle label={`Move ${a.ident}`} index={index} count={favorites.length} onMove={onMove} />
+              </ListRow>
+            ) : (
+              <ListRow
+                media={<KeptMark airport={a} />} chevron
+                title={<><span className="font-mono font-semibold">{a.ident}</span> · {a.name}</>}
+                description={a.municipality ?? undefined} onClick={() => onOpen(a)}
+              />
+            )}
+          </SwipeToDelete>
+        ))}
         <ListRow media={<Plus className="size-5" />} title="Add a Favorite" onClick={onAdd} data-testid="favorites-add" />
       </ListGroup>
     </div>
@@ -311,9 +328,10 @@ export function PillSection({ title, onMore, beside, right, children, testId }: 
   );
 }
 
-/** A list in full's head, as Favorites' (FavoritesList): Back to the
- *  section it came from, its name, and what acts on the whole list at its
- *  right (Edit, Clear). */
+/** A list in full's head, every list's: Back to the section it came from,
+ *  its name, and what acts on the whole list at its right (Edit, Clear).
+ *  Its Back is a device's Back too (lib/openCards, lib/back), as a card's
+ *  close is: Android's Back put the sheet down and left the list open. */
 export function ListPageHead({ title, backLabel, onBack, action, testId }: {
   title: string;
   /** Back's name to a screen reader: where it goes. */
@@ -322,6 +340,9 @@ export function ListPageHead({ title, backLabel, onBack, action, testId }: {
   action?: ReactNode;
   testId?: string;
 }) {
+  const back = useRef(onBack);
+  useEffect(() => { back.current = onBack; });
+  useEffect(() => holdOpenCard({ close: () => back.current(), inBar: false }), []);
   return (
     <div className="flex items-center gap-1" data-testid={testId}>
       <IconButton label={backLabel} onClick={onBack} className="-ml-2" data-testid={testId && `${testId}-back`}>
