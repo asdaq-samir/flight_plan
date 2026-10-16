@@ -6,6 +6,7 @@ import { pointOf } from "../../../lib/airspace";
 import { identOf } from "../../../lib/identSchema";
 import { choosePastFlight, clearPastFlight, usePastFlight } from "../../../lib/map/pastFlight";
 import { track, useTracking } from "../../../lib/map/tracking";
+import { patched } from "../../../lib/useSearchParamsNow";
 
 /**
  * The planner's tabs and the cards open over them, apart from the route
@@ -54,18 +55,14 @@ export function useAddressCards(searchParams: URLSearchParams, setSearchParams: 
   const list = (LISTS as readonly string[]).includes(listParam ?? "") ? listParam as TabList : null;
   const openList = useCallback((name: TabList) => {
     setSearchParams(prev => {
-      const next = new URLSearchParams(prev);
-      next.set("list", name);
-      return next;
+      return patched(prev, { list: name });
     }, { replace: true });
     // A list in full all the way up, as each opened before.
     setPanel("full");
   }, [setSearchParams, setPanel]);
   const closeList = useCallback(() => {
     setSearchParams(prev => {
-      const next = new URLSearchParams(prev);
-      next.delete("list");
-      return next;
+      return patched(prev, { list: null });
     }, { replace: true });
   }, [setSearchParams]);
   // The airport whose card is open in the panel (PlaceCard), as Maps
@@ -107,37 +104,26 @@ export function useAddressCards(searchParams: URLSearchParams, setSearchParams: 
   }, [nearAtParam, nearNameParam]);
   const setNearFrom = useCallback((from: { label: string; lat: number; lon: number } | null) => {
     setSearchParams(prev => {
-      const next = new URLSearchParams(prev);
-      if (from) {
-        next.set("nearAt", `${from.lat.toFixed(4)},${from.lon.toFixed(4)}`);
-        next.set("nearName", from.label);
-      } else {
-        next.delete("nearAt");
-        next.delete("nearName");
-      }
-      return next;
+      return patched(prev, from
+        ? { nearAt: `${from.lat.toFixed(4)},${from.lon.toFixed(4)}`, nearName: from.label }
+        : { nearAt: null, nearName: null });
     }, { replace: true });
   }, [setSearchParams]);
   const selectFlight = useCallback((hex: string | null, plane?: TrafficAircraft) => {
     track(hex, plane);
     setSearchParams(prev => {
-      const next = new URLSearchParams(prev);
-      if (hex) next.set("flight", hex);
-      else next.delete("flight");
-      for (const key of ["place", "at", "near", "nearAt", "nearName", "past"]) next.delete(key);
       // An airplane's card half way, wherever it is opened from, as an
       // airport's is (the owner's ask).
-      if (hex) next.delete("view");
-      return next;
+      return patched(prev, {
+        flight: hex ?? null, place: null, at: null, near: null, nearAt: null, nearName: null, past: null,
+        view: hex ? null : undefined,
+      });
     }, { replace: true });
     if (hex) setPanel("half");
   }, [setSearchParams, setPanel]);
   const selectPast = useCallback((id: number | null) => {
     setSearchParams(prev => {
-      const next = new URLSearchParams(prev);
-      if (id) next.set("past", String(id));
-      else next.delete("past");
-      return next;
+      return patched(prev, { past: id ? String(id) : null });
     }, { replace: true });
     // A past flight: its card all the way up.
     setPanel("full");

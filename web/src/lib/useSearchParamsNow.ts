@@ -20,6 +20,20 @@ import { createSearchParams, useNavigate, useSearchParams, type SetURLSearchPara
  */
 let pending: string | null = null;
 
+/** The address with these keys changed: a value set, null or an empty
+ *  string taken out, undefined left as it is. The "copy the address, change
+ *  a key, write it back" that the planner wrote out 23 times (the
+ *  commonality audit's D-23). */
+export function patched(params: URLSearchParams, changes: Record<string, string | null | undefined>): URLSearchParams {
+  const next = new URLSearchParams(params);
+  for (const [key, value] of Object.entries(changes)) {
+    if (value === undefined) continue;
+    if (value) next.set(key, value);
+    else next.delete(key);
+  }
+  return next;
+}
+
 export function useSearchParamsNow(): [URLSearchParams, SetURLSearchParams] {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();

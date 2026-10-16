@@ -14,9 +14,11 @@
  * kneeboard -- a controller may ask for something else, and the pilot
  * says what they ask.
  */
+import { titleCase } from "./advisories";
 import type { Briefing, Frequency, Leg } from "./api/types";
 import { compassWord, exitFor, runwayInUse, runwayNumber, type RunwayEnd } from "./pattern";
 import { ctafOf, frequencyOf, mhzText } from "./frequencies";
+import { DESCENT_FT_PER_NM } from "./geo";
 
 type Facilities = Briefing["airports"][string];
 
@@ -82,7 +84,7 @@ function facilityName(f: Frequency, field: string): string {
     .replace(/\b(TWR|TOWER|GND|GROUND|APP|DEP|APCH|APP\/DEP|A\/D|CLNC|DEL|CLD|CTAF|UNICOM|ATIS|AWOS|ASOS|RDO)\b/g, "")
     .replace(/[/\s]+/g, " ")
     .trim();
-  return own ? own.toLowerCase().replace(/\b\w/g, c => c.toUpperCase()) : field;
+  return own ? titleCase(own) : field;
 }
 
 export interface RadioCall {
@@ -209,7 +211,7 @@ function departure(input: RadioInput, i: number): RadioPhase {
  *  miles out, no higher than its cruise: as the nav log flies it. */
 function tenMilesOutFt(cruiseFt: number, patternFt: number | null | undefined): number {
   if (patternFt == null) return cruiseFt;
-  return Math.min(cruiseFt, Math.round((patternFt + 10 * 1000 / 3) / 100) * 100);
+  return Math.min(cruiseFt, Math.round((patternFt + 10 * DESCENT_FT_PER_NM) / 100) * 100);
 }
 
 function arrival(input: RadioInput, i: number): RadioPhase {

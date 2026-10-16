@@ -7,12 +7,8 @@
  * student's own figures against them within an E6B's accuracy.
  */
 import type { Leg } from "./api/types";
+import { angleBetween } from "./geo";
 import { bearing, grouped, magneticVariation, windCorrection } from "./units";
-
-/** An angle as -180 to 180. */
-function wrap(deg: number): number {
-  return ((((deg + 180) % 360) + 360) % 360) - 180;
-}
 
 /** What the student works out, and how far off an E6B allows. */
 export const ANSWERS = [
@@ -96,6 +92,6 @@ export function workingsOf(leg: Leg): Workings | null {
  *  headings compared round the compass (359° is 1° from 000°). */
 export function checks(key: AnswerKey, typed: number, answer: number): boolean {
   const { tolerance } = ANSWERS.find(a => a.key === key)!;
-  const off = key === "th" || key === "mh" ? Math.abs(wrap(typed - answer)) : Math.abs(typed - answer);
+  const off = key === "th" || key === "mh" ? angleBetween(typed, answer) : Math.abs(typed - answer);
   return off <= tolerance + 1e-9;
 }

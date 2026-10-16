@@ -1,4 +1,4 @@
-import { bearingDeg, distanceNm, type LatLon } from "./geo";
+import { angleBetween, bearingDeg, distanceNm, type LatLon } from "./geo";
 import type { TrafficAircraft } from "./api/types";
 
 /**
@@ -109,8 +109,6 @@ const RELATION_ABOVE_FT = 12_000;
 const HEADED_DEG = 30;
 /** Coming down, or going up, this fast, ft/min. */
 const CHANGING_FPM = 200;
-
-const angleBetween = (a: number, b: number) => Math.abs(((a - b + 540) % 360) - 180);
 
 /**
  * How an airplane in the air stands to a field, read from its position,

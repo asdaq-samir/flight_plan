@@ -108,12 +108,6 @@ export function etaAt(departIso: string, minutes: number | null): string {
   return clockTime(new Date(new Date(departIso).getTime() + minutes * 60_000));
 }
 
-/** Elapsed time on a build job, as m:ss. */
-export function elapsed(ms: number): string {
-  const secs = Math.floor(ms / 1000);
-  return `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}`;
-}
-
 const SURFACE_NAMES: Record<string, string> = {
   ASP: "asphalt", ASPH: "asphalt", CON: "concrete", CONC: "concrete", TURF: "turf", GRS: "grass", GRASS: "grass",
   GRVL: "gravel", GRAVEL: "gravel", DIRT: "dirt", WATER: "water", SNOW: "snow",

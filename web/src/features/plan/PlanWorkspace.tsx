@@ -21,7 +21,7 @@ import { useKeptAirport, usePreferences, type RecentAirport } from "../../lib/pr
 import { SearchNear, useAirportSearch } from "../../lib/useAirportSearch";
 import { RouteMap } from "./routeMapChunk";
 import { useProgressToast } from "../../lib/useProgressToast";
-import { useSearchParamsNow } from "../../lib/useSearchParamsNow";
+import { patched, useSearchParamsNow } from "../../lib/useSearchParamsNow";
 import type { WorkspaceProps } from "../page/workspace";
 import type { PanelState } from "../../components/mapChrome";
 import { useIsMobile } from "../../hooks/use-mobile";
@@ -253,9 +253,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     setSearchParams(prev => {
       const picked = patternsOf(prev.get("pattern"));
       if (end) picked.set(ident, end); else picked.delete(ident);
-      const next = new URLSearchParams(prev);
-      if (picked.size) next.set("pattern", patternsParam(picked)); else next.delete("pattern");
-      return next;
+      return patched(prev, { pattern: picked.size ? patternsParam(picked) : null });
     }, { replace: true });
   }, [setSearchParams]);
   // The instrument procedures picked for the route's fields, kept in the
@@ -272,17 +270,12 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     // on the map above it.
     if (picked) panelBeforeProcedures.current = null;
     setSearchParams(prev => {
-      const params = new URLSearchParams(prev);
-      if (next.length) params.set("procs", proceduresParam(next)); else params.delete("procs");
-      return params;
+      return patched(prev, { procs: next.length ? proceduresParam(next) : null });
     }, { replace: true });
   }, [setSearchParams]);
   const changeLocalMin = useCallback((minutes: number) => {
     setSearchParams(prev => {
-      const next = new URLSearchParams(prev);
-      if (minutes === 60) next.delete("local_min");
-      else next.set("local_min", String(minutes));
-      return next;
+      return patched(prev, { local_min: minutes === 60 ? null : String(minutes) });
     }, { replace: true });
   }, [setSearchParams]);
   const { course, selected } = s;
@@ -336,16 +329,11 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     setApproachesOf(of => (of === ident ? of : null));
     if ((ident ?? null) === place && !heldPoint) return;
     setSearchParams(prev => {
-      const next = new URLSearchParams(prev);
-      if (ident) next.set("place", ident);
-      else next.delete("place");
-      next.delete("at");
       // Opened half way, from the map, a strip or a list all the way up
       // alike, and dragged up from there, at the owner's ask ("should have
       // the half layout ... that should expand to full, not the other way
       // around"). Put away, the height it was.
-      if (ident) next.delete("view");
-      return next;
+      return patched(prev, { place: ident ?? null, at: null, view: ident ? null : undefined });
     }, { replace: true });
     if (ident) setPanel("half");
     // Put away over Nearest's list: the list again, all the way up where
@@ -499,11 +487,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   }, [selectPlace, nearOpen, place, heldPoint, setPanel]);
   const holdPoint = useCallback((point: { lat: number; lon: number }) => {
     setSearchParams(prev => {
-      const next = new URLSearchParams(prev);
-      next.set("at", `${point.lat.toFixed(4)},${point.lon.toFixed(4)}`);
-      next.delete("place");
-      next.delete("view");
-      return next;
+      return patched(prev, { at: `${point.lat.toFixed(4)},${point.lon.toFixed(4)}`, place: null, view: null });
     }, { replace: true });
     // A point held on the chart: its card half way.
     setPanel("half");
@@ -691,14 +675,9 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     const whole = routeOf(dep, dest, via);
     if (whole) void queryClient.prefetchQuery(courseQuery(whole.dep, whole.dest, via));
     setSearchParams(prev => {
-      const next = new URLSearchParams(prev);
       // A point's own altitude goes with it out of the route.
       const kept = Object.entries(altitudesOf(prev.get("altitudes"))).filter(([ident]) => [dep, ...stops, dest].includes(ident));
-      for (const [key, value] of [["dep", dep], ["dest", dest], ["stops", stops.join(",")], ["altitudes", altitudesParam(Object.fromEntries(kept))]] as const) {
-        if (value) next.set(key, value);
-        else next.delete(key);
-      }
-      return next;
+      return patched(prev, { dep, dest, stops: stops.join(","), altitudes: altitudesParam(Object.fromEntries(kept)) });
     }, { replace: true });
   }, [setSearchParams]);
   // An airport's card's Add Stop, at the pilot's ask: the field the
@@ -716,27 +695,21 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     // One change of the address: two in a row, the second read the first's
     // address from before it.
     setSearchParams(prev => {
-      const next = new URLSearchParams(prev);
-      next.set("dep", points[0]!);
-      if (points.length > 2) next.set("stops", points.slice(1, -1).join(","));
-      else next.delete("stops");
-      if (points.length > 1) next.set("dest", points.at(-1)!);
-      else next.delete("dest");
-      next.delete("place");
-      return next;
+      return patched(prev, {
+        dep: points[0]!,
+        stops: points.length > 2 ? points.slice(1, -1).join(",") : null,
+        dest: points.length > 1 ? points.at(-1)! : null,
+        place: null,
+      });
     }, { replace: true });
   }, [planned.dep, planned.stops, planned.dest, setSearchParams]);
   // A point's own altitude set, or (null) given back to the plan.
   const setPointAltitude = useCallback((ident: string, feet: number | null) => {
     setSearchParams(prev => {
-      const next = new URLSearchParams(prev);
       const own = altitudesOf(prev.get("altitudes"));
       if (feet === null) delete own[ident];
       else own[ident] = feet;
-      const value = altitudesParam(own);
-      if (value) next.set("altitudes", value);
-      else next.delete("altitudes");
-      return next;
+      return patched(prev, { altitudes: altitudesParam(own) });
     }, { replace: true });
   }, [setSearchParams]);
   const setStops = useCallback(
@@ -760,10 +733,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   }, [course, planned.stops, setStops]);
   const acceptClassB = useCallback((accept: boolean) => {
     setSearchParams(prev => {
-      const next = new URLSearchParams(prev);
-      if (accept) next.set("class_b", "1");
-      else next.delete("class_b");
-      return next;
+      return patched(prev, { class_b: accept ? "1" : null });
     }, { replace: true });
   }, [setSearchParams]);
 
@@ -827,26 +797,20 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // through Saved and Nearest alone of the lists.
   const openSaved = useCallback(() => {
     setSearchParams(prev => {
-      const next = new URLSearchParams(prev);
-      next.set("saved", "1");
-      return next;
+      return patched(prev, { saved: "1" });
     }, { replace: true });
     setPanel("full");
   }, [setSearchParams, setPanel]);
   // And back from it to FPL's start, its own Back (FlightsPanel's head).
   const closeSaved = useCallback(() => {
     setSearchParams(prev => {
-      const next = new URLSearchParams(prev);
-      next.delete("saved");
-      return next;
+      return patched(prev, { saved: null });
     }, { replace: true });
   }, [setSearchParams]);
   // The strip's title opens the list in full, over Airport.
   const openNearest = useCallback(() => {
     setSearchParams(prev => {
-      const next = new URLSearchParams(prev);
-      next.set("near", "1");
-      return next;
+      return patched(prev, { near: "1" });
     }, { replace: true });
     setPanel("full");
   }, [setSearchParams, setPanel]);
@@ -854,9 +818,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // put away.
   const closeNearest = useCallback(() => {
     setSearchParams(prev => {
-      const next = new URLSearchParams(prev);
-      for (const key of ["near", "nearAt", "nearName"]) next.delete(key);
-      return next;
+      return patched(prev, { near: null, nearAt: null, nearName: null });
     }, { replace: true });
   }, [setSearchParams]);
   // The route's box and its nav log are FPL's, a route or none -- with none
@@ -981,10 +943,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       const home = homeListed && await look(identOf(homeListed));
       if (home) usePreferences.getState().setHomeAirport(home);
       setSearchParams(prev => {
-        const next = new URLSearchParams(prev);
-        next.delete("favorites");
-        next.delete("home");
-        return next;
+        return patched(prev, { favorites: null, home: null });
       }, { replace: true });
     })();
   }, [searchParams, setSearchParams]);
@@ -1030,10 +989,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // kept in the address like the rest, which is what re-plans.
   const changeDepart = useCallback((iso: string) => {
     setSearchParams(prev => {
-      const next = new URLSearchParams(prev);
-      if (iso) next.set("depart", iso);
-      else next.delete("depart");
-      return next;
+      return patched(prev, { depart: iso || null });
     }, { replace: true });
   }, [setSearchParams]);
 
@@ -1043,11 +999,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // draft belonged to the old address) empties with it.
   const changeAltitudeChoice = useCallback((choice: AltitudeChoice) => {
     setSearchParams(prev => {
-      const next = new URLSearchParams(prev);
-      next.delete("altitude_ft");
-      if (choice === "fastest") next.delete("altitude_choice");
-      else next.set("altitude_choice", choice);
-      return next;
+      return patched(prev, { altitude_ft: null, altitude_choice: choice === "fastest" ? null : choice });
     }, { replace: true });
   }, [setSearchParams]);
 

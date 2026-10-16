@@ -1,6 +1,6 @@
 import { Suspense, lazy, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { showError } from "../../lib/problems";
-import { useSearchParamsNow } from "../../lib/useSearchParamsNow";
+import { patched, useSearchParamsNow } from "../../lib/useSearchParamsNow";
 import { cn } from "cn";
 import { PagesShown } from "../../components/pagesShown";
 import DevGuard from "../../components/DevGuard";
@@ -110,9 +110,7 @@ export default function MapPage({ mode }: { mode: Mode }) {
       "The provider has not verified that account's email address. Verify it there, or sign in with an emailed link.",
     );
     setSearchParams(prev => {
-      const next = new URLSearchParams(prev);
-      next.delete("signin");
-      return next;
+      return patched(prev, { signin: null });
     }, { replace: true });
   }, [refused, setSearchParams]);
 
@@ -145,10 +143,7 @@ export default function MapPage({ mode }: { mode: Mode }) {
     setLocalPanel(next);
     if (mode !== "pilot" || (next === "full") === briefingInAddress) return;
     setSearchParams(prev => {
-      const params = new URLSearchParams(prev);
-      if (next === "full") params.set("view", "briefing");
-      else params.delete("view");
-      return params;
+      return patched(prev, { view: next === "full" ? "briefing" : null });
     }, { replace: true, flushSync: true });
   }, [mode, briefingInAddress, setSearchParams]);
   // Landed on a list's address, all the way up, as its link asks (above):

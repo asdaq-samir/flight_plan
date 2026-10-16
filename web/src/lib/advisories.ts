@@ -28,6 +28,14 @@ const CODES = new Set([
 ]);
 const DAYS: Record<string, string> = { MON: "Mon", TUE: "Tue", WED: "Wed", THU: "Thu", FRI: "Fri", SAT: "Sat", SUN: "Sun" };
 
+/** A name the FAA writes in capitals, written as a name is: "CHICAGO
+ *  CLASS B" as "Chicago Class B", "ROCKFORD" as "Rockford" -- a place's, a
+ *  facility's, an airspace's -- where its prose is set in sentence case
+ *  (faaWords). Three places had a copy of it. */
+export function titleCase(text: string): string {
+  return text.toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+}
+
 /**
  * The FAA's capitalised text -- a special-use area's times of use, a
  * G-AIRMET's cause, a TFR's purpose -- in sentence case, its codes kept:

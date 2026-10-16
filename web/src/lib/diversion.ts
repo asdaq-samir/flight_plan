@@ -12,6 +12,7 @@
  * head and off the chart while flying the airplane.
  */
 import type { Leg } from "./api/types";
+import { angleBetween } from "./geo";
 
 /** The figures a student estimates, and how far off is still reasonable. */
 export const ALLOWANCES = [
@@ -70,7 +71,7 @@ export function divert(leg: Leg, tcDeg: number, distanceNm: number): Diversion |
  *  round the compass (358° is 4° from 002°). */
 export function reasonable(key: EstimateKey, typed: number, exact: number): boolean {
   const { allowance } = ALLOWANCES.find(a => a.key === key)!;
-  const off = key === "mh" ? Math.abs(((typed - exact + 540) % 360) - 180) : Math.abs(typed - exact);
+  const off = key === "mh" ? angleBetween(typed, exact) : Math.abs(typed - exact);
   return off <= allowance + 1e-9;
 }
 

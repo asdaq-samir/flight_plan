@@ -1,5 +1,5 @@
 import type { TrafficAircraft } from "../api/types";
-import { destination, distanceNm, type LatLon } from "../geo";
+import { angleBetween, destination, distanceNm, type LatLon } from "../geo";
 import { grouped } from "../units";
 import type { Fix } from "./ownShip";
 import type { Report } from "./tracking";
@@ -26,9 +26,14 @@ export function trafficLabel(plane: TrafficAircraft, ownFt: number | null): stri
   return `${hundreds >= 0 ? "+" : "-"}${String(Math.abs(hundreds)).padStart(2, "0")}${arrow}`;
 }
 
+/** Whether two heights are within NEAR_FT of each other: the map's
+ *  traffic coloured so, and the airplane card's closest approach said in
+ *  red, which took "within" as under 1,000 ft where the map took 1,000. */
+export const nearInHeight = (apartFt: number) => Math.abs(apartFt) <= NEAR_FT;
+
 /** Whether it is within NEAR_FT of own ship's height. */
 export function nearOwnHeight(plane: TrafficAircraft, ownFt: number | null): boolean {
-  return ownFt != null && plane.altitude_ft != null && Math.abs(plane.altitude_ft - ownFt) <= NEAR_FT;
+  return ownFt != null && plane.altitude_ft != null && nearInHeight(plane.altitude_ft - ownFt);
 }
 
 /** The airplanes as they were `ageS` seconds before the answer was
@@ -54,7 +59,7 @@ export function ownShipHex(planes: TrafficAircraft[], fix: Fix | null): string |
     if (plane.track_deg == null || plane.speed_kt == null) continue;
     const then = destination({ lat: fix.lat, lon: fix.lon }, (fix.headingDeg + 180) % 360, (fix.speedKt * (plane.seen_s ?? 0)) / 3600);
     const nm = distanceNm(then, { lat: plane.lat, lon: plane.lon });
-    const turn = Math.abs(((plane.track_deg - fix.headingDeg + 540) % 360) - 180);
+    const turn = angleBetween(plane.track_deg, fix.headingDeg);
     const height = fix.altitudeFt != null && plane.altitude_ft != null ? Math.abs(plane.altitude_ft - fix.altitudeFt) : 0;
     if (nm > 0.5 || height > 400 || turn > 20 || Math.abs(plane.speed_kt - fix.speedKt) > Math.max(20, fix.speedKt * 0.3)) continue;
     if (!best || nm < best.nm) best = { hex: plane.hex, nm };

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { faaWords, gairmetAltitudes, gairmetTitle, pirepConditions, sigmetHazard, suaAltitudes, tfrAltitudes, tfrTimes } from "./advisories";
+import { faaWords, gairmetAltitudes, gairmetTitle, pirepConditions, sigmetHazard, suaAltitudes, tfrAltitudes, tfrTimes, titleCase } from "./advisories";
 
 const gairmet = { hazard: "Icing", severity: "MOD", due_to: "ICE", valid_at: null, altitude_low_ft: null, from_freezing_level: true, altitude_high_ft: 22000 };
 
@@ -45,5 +45,12 @@ describe("the FAA's capitals in sentence case", () => {
     expect(sigmetHazard("CONVECTIVE")).toBe("Convective");
     expect(sigmetHazard("MTN OBSCN")).toBe("Mountain obscuration");
     expect(sigmetHazard(null, "SIGMET")).toBe("SIGMET");
+  });
+});
+
+describe("a name the FAA writes in capitals", () => {
+  it("is written as a name is", () => {
+    expect(titleCase("CHICAGO CLASS B")).toBe("Chicago Class B");
+    expect(titleCase("ROCKFORD")).toBe("Rockford");
   });
 });

@@ -33,6 +33,28 @@ export function bearingDeg(a: LatLon, b: LatLon): number {
   return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
 }
 
+/** How far apart two directions are, 0 to 180: a track off a course, a
+ *  wind off a runway, an estimate off its answer round the compass (358
+ *  is 4 from 002). It was written eight times, two ways. */
+export function angleBetween(a: number, b: number): number {
+  const d = (((a - b) % 360) + 360) % 360;
+  return d > 180 ? 360 - d : d;
+}
+
+/** The turn from one direction to another, -180 to 180, right of it
+ *  positive. */
+export function signedTurn(from: number, to: number): number {
+  return ((((to - from) % 360) + 540) % 360) - 180;
+}
+
+/** Feet in a nautical mile (1,852 m). */
+export const FT_PER_NM = 6076.12;
+
+/** Feet lost for every nautical mile of a descent: three to one, as the
+ *  nav log descends (vfr.navlog.with_descents). It was named FT_PER_NM
+ *  too, beside the 6,076 of a nautical mile. */
+export const DESCENT_FT_PER_NM = 1000 / 3;
+
 /** Where a great circle from `a` on a true bearing reaches `nm` out. */
 export function destination(a: LatLon, bearing: number, nm: number): LatLon {
   const d = nm / EARTH_NM, b = rad(bearing), lat1 = rad(a.lat), lon1 = rad(a.lon);

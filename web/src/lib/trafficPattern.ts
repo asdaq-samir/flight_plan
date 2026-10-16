@@ -23,7 +23,7 @@
  * pattern is the pilot's, flown as the field and its traffic need.
  */
 import type { Runway } from "./api/types";
-import { bearingDeg, destination, distanceNm, type LatLon } from "./geo";
+import { FT_PER_NM, bearingDeg, destination, distanceNm, signedTurn, type LatLon } from "./geo";
 import { patternSideDeg, runwayNumber, type RunwayEnd } from "./pattern";
 
 /** Three-quarters of a statute mile, in nautical miles: the middle of the
@@ -64,7 +64,7 @@ export function trafficPattern(ident: string, runway: Runway, endIdent: string, 
   if (!end || !threshold || end.heading_true_deg == null) return null;
   const other = ends.find(e => e !== end);
   const heading = end.heading_true_deg;
-  const far = at(other) ?? (runway.length_ft ? destination(threshold, heading, runway.length_ft / 6076.12) : null);
+  const far = at(other) ?? (runway.length_ft ? destination(threshold, heading, runway.length_ft / FT_PER_NM) : null);
   if (!far) return null;
   // Along the runway as it is laid, not its painted heading, where both
   // ends are known.
@@ -81,7 +81,7 @@ export function trafficPattern(ident: string, runway: Runway, endIdent: string, 
   const midfield = destination(destination(threshold, along, distanceNm(threshold, far) / 2), side, DOWNWIND_NM);
   // From out on the pattern's side, behind the downwind's direction: the
   // bisector of the landing direction and the pattern's side.
-  const turn = ((side - along + 540) % 360) - 180;
+  const turn = signedTurn(along, side);
   const entryFrom = destination(midfield, (along + turn / 2 + 360) % 360, ENTRY_NM);
   return {
     ident, runway: runwayNumber(end.ident), traffic: end.traffic, altitudeFt,

@@ -8,6 +8,7 @@
  * Nothing here leaves the device: a track is the pilot's, kept in this
  * browser (keepTrack) unless they save it to their account.
  */
+import { readKept, writeKept } from "./storage";
 
 export interface TrackPoint {
   /** When, ms since the epoch. */
@@ -89,22 +90,11 @@ const KEY = (flightId: number) => `wingtip.track.${flightId}`;
 /** A flight's track as kept in this browser, or null: none kept, or
  *  storage not to be had (a private window). */
 export function keptTrack(flightId: number): { source: string; points: TrackPoint[] } | null {
-  try {
-    const raw = localStorage.getItem(KEY(flightId));
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
-  }
+  return readKept<{ source: string; points: TrackPoint[] } | null>(KEY(flightId), null);
 }
 
 /** Keeps a flight's track in this browser, or forgets it (null). False
  *  where storage cannot be had or is full. */
 export function keepTrack(flightId: number, track: { source: string; points: TrackPoint[] } | null): boolean {
-  try {
-    if (track) localStorage.setItem(KEY(flightId), JSON.stringify(track));
-    else localStorage.removeItem(KEY(flightId));
-    return true;
-  } catch {
-    return false;
-  }
+  return writeKept(KEY(flightId), track);
 }

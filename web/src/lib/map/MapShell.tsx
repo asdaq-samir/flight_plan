@@ -21,7 +21,7 @@ import { OwnShipLayer } from "./OwnShipLayer";
 import { OwnTrailLayer } from "./OwnTrailLayer";
 import { AheadLayer } from "./AheadLayer";
 import { TrafficLayer } from "./TrafficLayer";
-import { OPEN_ZOOM, useOwnShip } from "./ownShip";
+import { COUNTRY_ZOOM, OPEN_ZOOM, useOwnShip } from "./ownShip";
 import TvMapKeys from "./TvMapKeys";
 import { tvPlatform } from "../tv";
 import { underway } from "./glide";
@@ -50,12 +50,10 @@ interface Props {
  * preview state and the placeholder before a course arrives were the
  * same code in both files.
  */
-/** Where a map with no route on it opens: the lower 48, whole on a
- *  phone, as Maps opens on the country before it knows where you are. */
 /** No route's airports: one array, the same at every render. */
 const NO_IDENTS: string[] = [];
+/** Where a map with no route on it opens (COUNTRY_ZOOM): the lower 48. */
 const COUNTRY: [number, number] = [39.5, -98.35];
-const COUNTRY_ZOOM = 4;
 
 /** The least the map is fitted to round a route: about 10 nm across. */
 const MIN_FIT_M = 18_520;

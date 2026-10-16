@@ -8,10 +8,8 @@ import { airportMarkIcon } from "./icons";
 import { MapTooltip } from "./MapTooltip";
 import { chartPair, sheetAt } from "./tiles";
 import { centreClear } from "./clear";
+import { hovers } from "./view";
 import type L from "leaflet";
-
-/** A pointer that hovers: a name shows under it. */
-const hovers = typeof window !== "undefined" && window.matchMedia("(hover: hover)").matches;
 
 /**
  * Every Class B airport, on the map, at every zoom: a pill each, its

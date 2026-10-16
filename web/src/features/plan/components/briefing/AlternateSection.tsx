@@ -3,7 +3,7 @@ import AccordionSection from "../../../../components/AccordionSection";
 import { ListGroup, ListRow } from "../../../../components/GroupedList";
 import { describeError } from "../../../../lib/api/client";
 import type { AlternateCheck } from "../../../../lib/api/types";
-import { useSearchParamsNow } from "../../../../lib/useSearchParamsNow";
+import { patched, useSearchParamsNow } from "../../../../lib/useSearchParamsNow";
 import { ceilingAndVisibility } from "../../format";
 import { useAlternate, type AlternateWhere } from "../../hooks/useAlternate";
 
@@ -24,12 +24,7 @@ function standing(check: AlternateCheck): string {
 export default function AlternateSection(where: AlternateWhere) {
   const { filed, data, isPending, error } = useAlternate(where);
   const [, setParams] = useSearchParamsNow();
-  const file = (ident: string | null) => setParams(prev => {
-    const next = new URLSearchParams(prev);
-    if (ident) next.set("alternate", ident);
-    else next.delete("alternate");
-    return next;
-  }, { replace: true });
+  const file = (ident: string | null) => setParams(prev => patched(prev, { alternate: ident }), { replace: true });
   return (
     <AccordionSection title="Alternate">
       <div className="space-y-4" data-testid="alternate">

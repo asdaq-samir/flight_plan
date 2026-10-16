@@ -8,6 +8,7 @@
  * field 500 ft above it and back to the 45 from the other.
  */
 import type { Runway } from "./api/types";
+import { angleBetween } from "./geo";
 
 export type RunwayEnd = NonNullable<Runway["runway_ends"]>[number];
 
@@ -16,12 +17,6 @@ const POINTS = ["north", "northeast", "east", "southeast", "south", "southwest",
 /** A true bearing as a pilot says a direction: "southwest". */
 export function compassWord(bearingDeg: number): string {
   return POINTS[Math.round((((bearingDeg % 360) + 360) % 360) / 45) % 8]!;
-}
-
-/** The difference between two bearings, 0 to 180. */
-function apart(a: number, b: number): number {
-  const d = Math.abs((((a - b) % 360) + 360) % 360);
-  return d > 180 ? 360 - d : d;
 }
 
 export interface InUse {
@@ -82,7 +77,7 @@ export interface Entry {
  */
 export function entryFor(end: RunwayEnd, courseDeg: number): Entry {
   const fromDeg = (courseDeg + 180) % 360;
-  const patternSide = apart(fromDeg, patternSideDeg(end)) < 90;
+  const patternSide = angleBetween(fromDeg, patternSideDeg(end)) < 90;
   const downwind = `${end.traffic} downwind for runway ${runwayNumber(end.ident)}`;
   const from = compassWord(fromDeg);
   return {

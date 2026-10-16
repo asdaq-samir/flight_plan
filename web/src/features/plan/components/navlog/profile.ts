@@ -1,8 +1,6 @@
+import { DESCENT_FT_PER_NM } from "../../../../lib/geo";
 import { legOf, type NavLogRow } from "./rows";
 
-/** Feet lost for every nautical mile of a descent: three to one
- *  (vfr.navlog.with_descents). */
-const FT_PER_NM = 1000 / 3;
 /** Where the pattern altitude is reached before a field: the downwind's
  *  abeam, about a mile out. */
 const PATTERN_NM = 1;
@@ -57,7 +55,7 @@ export function planProfile(rows: NavLogRow[]): { points: ProfilePoint[]; marks:
     } else if (row.kind === "tod") {
       point(along, row.point.altitude_ft);
       marks.push({ kind: "TOD", along_nm: along, plan_ft: row.point.altitude_ft });
-      descent = { to: row.point.to_ft, pattern: row.point.pattern, at: along + (row.point.altitude_ft - row.point.to_ft) / FT_PER_NM };
+      descent = { to: row.point.to_ft, pattern: row.point.pattern, at: along + (row.point.altitude_ft - row.point.to_ft) / DESCENT_FT_PER_NM };
       level = null;
     } else if ((row.kind === "stop" || row.kind === "destination") && row.airport.kind !== "fix") {
       // A landing: the pattern a mile out, the field, and a climb anew.
