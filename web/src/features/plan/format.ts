@@ -25,12 +25,6 @@ export function scoreColor(s: number): string {
 }
 
 
-/** Signed to one decimal: a wind correction of -3 reads as a correction,
- *  where "3" reads as a magnitude. */
-export function signed(n: number): string {
-  return (n >= 0 ? "+" : "") + n.toFixed(1) + "°";
-}
-
 /** Total time as hours and minutes. Minutes are padded so the width does
  *  not jump as the number crosses ten. Rounded to whole minutes first:
  *  rounding the remainder on its own turned 179.6 minutes into "2h 60m". */

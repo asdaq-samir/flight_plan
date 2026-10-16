@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Leg, Totals } from "../../lib/api/types";
 import { inkOn, SCORE_STEPS } from "../../lib/scoreScale";
-import { bearing, clockTime, cruiseByAltitude, decimalHours, elapsed, hhmm, legsWithoutWind, one, runwayWind, scoreColor, signed } from "./format";
+import { bearing, clockTime, cruiseByAltitude, decimalHours, elapsed, hhmm, legsWithoutWind, one, runwayWind, scoreColor } from "./format";
 
 describe("scoreColor", () => {
   it("bands on the boundary, not just inside it", () => {
@@ -45,12 +45,6 @@ describe("one", () => {
     expect(one(undefined)).toBe("—");
   });
   it("keeps a zero as a number", () => expect(one(0)).toBe("0.0"));
-});
-
-describe("signed", () => {
-  it("marks a positive correction", () => expect(signed(3)).toBe("+3.0°"));
-  it("leaves a negative sign alone", () => expect(signed(-3)).toBe("-3.0°"));
-  it("treats zero as positive", () => expect(signed(0)).toBe("+0.0°"));
 });
 
 describe("hhmm", () => {

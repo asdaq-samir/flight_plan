@@ -35,6 +35,29 @@ export function flightLevel(ft: number | null | undefined): string {
   return ft === null || ft === undefined ? "FL---" : `FL${String(Math.round(ft / 100)).padStart(3, "0")}`;
 }
 
+/**
+ * A wind correction as it is applied to a course: "+3°" to the right,
+ * "−3°" to the left (a minus sign, not a hyphen), and "0°" under half a
+ * degree, where "−0°" and "-0.0°" read as a correction to make. Whole
+ * degrees, as a heading is flown; the nav log's columns are to a tenth
+ * (`digits`).
+ */
+export function windCorrection(deg: number, digits = 0): string {
+  const shown = Number(Math.abs(deg).toFixed(digits));
+  return `${shown === 0 ? "" : deg > 0 ? "+" : "−"}${shown.toFixed(digits)}°`;
+}
+
+/**
+ * A magnetic variation as the sectional's isogonic lines write it, east
+ * or west: "5° E", "3° W". The nav log wrote "+5.2°", which reads as a
+ * figure to add where an east variation is taken off the true heading
+ * ("east is least, west is best", FAA-H-8083-25C, chapter 16).
+ */
+export function magneticVariation(deg: number, digits = 0): string {
+  const shown = Number(Math.abs(deg).toFixed(digits));
+  return shown === 0 ? `${shown.toFixed(digits)}°` : `${shown.toFixed(digits)}° ${deg > 0 ? "E" : "W"}`;
+}
+
 /** A figure to a tenth, as the planner sends a route's distances and
  *  fuel and the nav log writes them: "102.4", "12.0". An em dash with
  *  none: an unflyable leg has no time and no fuel. */

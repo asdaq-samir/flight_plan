@@ -18,12 +18,12 @@ import {
   Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow,
 } from "../../../../components/ui/table";
 import type { Candidate, Leg, NavLogAltitude, Totals, TopOfClimb, TopOfDescent } from "../../../../lib/api/types";
-import { feet, nm } from "../../../../lib/units";
+import { feet, magneticVariation, nm, windCorrection } from "../../../../lib/units";
 import { routeName } from "../../../../lib/identSchema";
 import { revealRow } from "../../../../lib/revealRow";
 import { GROUP_HEADING, TEXT } from "../../../../lib/text";
 import { type Description, descriptionKey } from "../../hooks/useCheckpointNotes";
-import { altFt, bearing, clockTime, etaAt, legsWithoutWind, one, signed } from "../../format";
+import { altFt, bearing, clockTime, etaAt, legsWithoutWind, one } from "../../format";
 import type { BriefingPart } from "../briefing/sections";
 import { isLegPoint, legOf, navLogRows, rowPoint, type NavLogRow, type RouteEnds } from "./rows";
 import LegWorkings from "./LegWorkings";
@@ -268,9 +268,9 @@ function LegLine({ leg, at }: { leg: Leg; at: { name: string; lat: number; lon: 
   const figures: [string, string][] = [
     ["TC", bearing(leg.true_course_deg)],
     ["Wind", leg.wind ? `${bearing(leg.wind.wind_dir_true_deg)}/${Math.round(leg.wind.wind_speed_kt)}` : "no data"],
-    ["WCA", signed(leg.wca_deg)],
+    ["WCA", windCorrection(leg.wca_deg, 1)],
     ["TH", bearing(leg.true_heading_deg)],
-    ["Var", signed(leg.magnetic_variation_deg)],
+    ["Var", magneticVariation(leg.magnetic_variation_deg, 1)],
     ["TAS", tas(leg)],
     ["GS", leg.groundspeed_kt === null ? "—" : String(Math.round(leg.groundspeed_kt))],
     ["Fuel", `${one(leg.fuel_gal)} gal`],
@@ -497,7 +497,7 @@ export default function NavLogView({
       id: "wca",
       header: () => <Heading name="WCA" unit="°" spoken="Wind correction angle" />,
       meta: { className: "hidden print:table-cell" },
-      cell: ({ row }) => (legOf(row.original) ? signed(legOf(row.original)!.wca_deg) : "—"),
+      cell: ({ row }) => (legOf(row.original) ? windCorrection(legOf(row.original)!.wca_deg, 1) : "—"),
     },
     {
       id: "th",
@@ -509,7 +509,7 @@ export default function NavLogView({
       id: "var",
       header: () => <Heading name="Var" unit="°" spoken="Magnetic variation" />,
       meta: { className: "hidden print:table-cell" },
-      cell: ({ row }) => (legOf(row.original) ? signed(legOf(row.original)!.magnetic_variation_deg) : "—"),
+      cell: ({ row }) => (legOf(row.original) ? magneticVariation(legOf(row.original)!.magnetic_variation_deg, 1) : "—"),
     },
     {
       id: "mh",

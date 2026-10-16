@@ -12,7 +12,7 @@ import type { Leg } from "../../../../lib/api/types";
 import { ALLOWANCES, divert, reasonable, stopwatch, type Diversion, type EstimateKey } from "../../../../lib/diversion";
 import { TEXT } from "../../../../lib/text";
 import { altFt } from "../../format";
-import { bearing, grouped } from "../../../../lib/units";
+import { bearing, grouped, windCorrection } from "../../../../lib/units";
 import { FINDING_TONE } from "../../../../lib/status";
 import { nearestQuery } from "../../../../lib/queryClient";
 
@@ -27,7 +27,7 @@ function written(key: EstimateKey, value: number): string {
 function Answer({ ident, d }: { ident: string; d: Diversion }) {
   const steps: [string, string][] = [
     ["True course", `${bearing(d.tc)}, ${d.distanceNm.toFixed(1)} nm`],
-    ["Wind correction", `${d.wca >= 0 ? "+" : "−"}${Math.abs(d.wca).toFixed(0)}°`],
+    ["Wind correction", windCorrection(d.wca)],
     ["True heading", bearing(d.th)],
     ["Magnetic heading", bearing(d.mh)],
     ["Ground speed", `${Math.round(d.gs)} kt`],

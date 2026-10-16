@@ -9,7 +9,7 @@ import Segmented from "../../../../components/Segmented";
 import { Button } from "../../../../components/ui/button";
 import { Input } from "../../../../components/ui/input";
 import type { Leg } from "../../../../lib/api/types";
-import { bearing } from "../../../../lib/units";
+import { bearing, windCorrection } from "../../../../lib/units";
 import { ANSWERS, checks, workingsOf, type AnswerKey, type Workings } from "../../../../lib/workings";
 import { TEXT } from "../../../../lib/text";
 import { FINDING_TONE } from "../../../../lib/status";
@@ -18,7 +18,7 @@ import { FINDING_TONE } from "../../../../lib/status";
  *  the correction signed, the rest to its unit's precision. */
 function written(key: AnswerKey, value: number): string {
   if (key === "th" || key === "mh") return bearing(value);
-  if (key === "wca") return `${value >= 0 ? "+" : "−"}${Math.abs(value).toFixed(0)}°`;
+  if (key === "wca") return windCorrection(value);
   if (key === "fuel") return `${value.toFixed(1)} gal`;
   return `${Math.round(value)} ${key === "gs" ? "kt" : "min"}`;
 }
