@@ -1,5 +1,6 @@
 import { parseMetar } from "metar-taf-parser";
 import type { Metar } from "./api/types";
+import { categoryOf } from "./map/flightCategory";
 import { observedAt } from "./reportTime";
 
 export { observedAt };
@@ -13,21 +14,9 @@ export { observedAt };
  * visibility in feet above the ground, the temperature, dew point and
  * altimeter), and turned into the figures the card shows. The ceiling is
  * 14 CFR 1.1's: the lowest layer broken or overcast, or the vertical
- * visibility into an obscuration; the flight category AIM 7-1-7's, as
- * the planner's (vfr.glmp).
+ * visibility into an obscuration; the flight category AIM 7-1-7's, by
+ * the one rule a TAF period's is worked out by too (categoryOf).
  */
-
-/** AIM 7-1-7's categories, as vfr.glmp.flight_category has them: LIFR
- *  under a 500 ft ceiling or 1 sm; IFR under 1,000 ft or 3 sm; MVFR at
- *  3,000 ft or 5 sm and under; VFR above both. */
-export function flightCategory(ceilingFt: number | null, visibilitySm: number | null): string | null {
-  if (visibilitySm == null) return null;
-  const ceiling = ceilingFt ?? Infinity;
-  if (ceiling < 500 || visibilitySm < 1) return "LIFR";
-  if (ceiling < 1000 || visibilitySm < 3) return "IFR";
-  if (ceiling <= 3000 || visibilitySm <= 5) return "MVFR";
-  return "VFR";
-}
 
 /** Knots and inches of mercury, from a station that reports in metres a
  *  second or hectopascals. */
@@ -57,7 +46,7 @@ export function metarOf(text: string, now: Date = new Date()): Metar | null {
   return {
     raw,
     observed_at: observedAt(time, now),
-    flight_category: flightCategory(ceiling, sm),
+    flight_category: categoryOf(ceiling, sm),
     ceiling_ft: ceiling,
     visibility_sm: sm,
     wind_dir_true_deg: wind?.degrees ?? null,

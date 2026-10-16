@@ -23,4 +23,13 @@ describe("a forecast's flight category, as AIM 7-1-7 bounds it", () => {
     expect(categoryOf(800, 10)).toBe("IFR");
     expect(categoryOf(null, null)).toBeNull();
   });
+
+  it("with no visibility, says only what the ceiling decides alone", () => {
+    // Under 500 ft it is LIFR whatever the visibility; over it the
+    // visibility could still make it worse, so a VFR or an MVFR (a TAF
+    // period's read gave them) would be a guess.
+    expect(categoryOf(400, null)).toBe("LIFR");
+    expect(categoryOf(800, null)).toBeNull();
+    expect(categoryOf(5000, undefined)).toBeNull();
+  });
 });
