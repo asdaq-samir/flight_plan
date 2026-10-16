@@ -9,6 +9,7 @@ import { colourOf } from "../lib/map/flightCategory";
 import { useOwnShip } from "../lib/map/ownShip";
 import type { AirspaceClass, RecentAirport } from "../lib/preferences";
 import { useAirspace } from "../lib/useAirspace";
+import { useAway } from "../lib/useAway";
 import { TEXT } from "../lib/text";
 import { Button } from "./ui/button";
 import {
@@ -409,14 +410,21 @@ function KeptChartMark({ airport, size }: { airport: RecentAirport; size?: numbe
   return <ChartMark space={data?.airspace_class ?? airport.airspace ?? null} category={data?.metar?.flight_category} use={use} size={size} />;
 }
 
-function SmallAirportTile({ airport, detail, onClick }: { airport: RecentAirport; detail: string; onClick: () => void }) {
+/** A kept airport -- a Favorite, a Recent -- as a pill's small tile: its
+ *  chart symbol, its ident and `detail`, opening its card. */
+export function SmallAirportTile({ airport, detail, onClick, testId = "pill-favorite" }: {
+  airport: RecentAirport;
+  detail: string;
+  onClick: () => void;
+  testId?: string;
+}) {
   const space = useAirspace(airport);
   return (
     <SmallTile
       // The chart's mark the whole tile, no grey round it, at the owner's
       // ask ("make fav airport icons fill the grey space around it").
       mark={<SmallMark icon={<KeptChartMark airport={airport} size={56} />} className="[&_svg]:size-14" />}
-      title={airport.ident} detail={detail} label={`${airport.ident}, ${space.name}`} onClick={onClick} testId="pill-favorite"
+      title={airport.ident} detail={detail} label={`${airport.ident}, ${space.name}`} onClick={onClick} testId={testId}
     />
   );
 }
@@ -433,9 +441,7 @@ export function FavoriteStrip({ home, favorites, onOpen, onAddHome, onAddFavorit
   /** The Favorites' Add, at the strip's end, as the full card's. */
   onAddFavorite: () => void;
 }) {
-  const from = useOwnShip(o => (o.enabled ? o.fix : null));
-  const away = (a: RecentAirport) =>
-    from && a.lat !== undefined && a.lon !== undefined ? `${Math.round(distanceNm(from, { lat: a.lat, lon: a.lon }))} nm` : undefined;
+  const away = useAway();
   return (
     <PillStrip testId="pill-favorites">
       <SmallTile

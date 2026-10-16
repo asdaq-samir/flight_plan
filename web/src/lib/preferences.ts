@@ -319,10 +319,6 @@ export const usePreferences = create<Preferences>()(
   ),
 );
 
-/** How many of a tab's Recents its page shows before their See All (Maps'
- *  Recents and their More). */
-export const RECENTS_SHOWN = 3;
-
 /** A route planned, as FPL's Recents keep it: its ends, its stops in
  *  order, and when it was planned. */
 export interface RecentRoute {

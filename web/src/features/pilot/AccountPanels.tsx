@@ -32,6 +32,7 @@ import { altFt, feet } from "../../lib/units";
 import { LEVEL_TONE, riskLine, type RiskLevel } from "../../lib/frat";
 import { localDay } from "../../lib/clock";
 import { FINDING_TONE } from "../../lib/status";
+import { ListPageHead } from "../../components/Favorites";
 
 // Mirrors springboot-app's own AircraftRequest validation
 // (@NotBlank/@Positive in dto/AircraftRequest.java) so a bad value is
@@ -573,7 +574,13 @@ function NumberRow({ id, title, unit, placeholder, name, field, error }: {
  *  the app's own sheet. It was an Open and a Delete at every row's
  *  end, and before that a card a flight on a phone and a six-column
  *  table from md up. */
-export function FlightsPanel() {
+export function FlightsPanel({ onBack }: {
+  /** Shown as FPL's Saved in full (SavedStrip's See All): headed as its
+   *  Recents' page is, Back at its left and Edit at its right, at the
+   *  owner's notice ("When clicking on See All for Saved it's not giving
+   *  option to go back like recents or favorites"). */
+  onBack?: () => void;
+} = {}) {
   const queryClient = useQueryClient();
   const [flightToDelete, setFlightToDelete] = useState<FlightSummary | null>(null);
   const [editing, setEditing] = useState(false);
@@ -601,9 +608,21 @@ export function FlightsPanel() {
     content: <FlightPage summary={f} planHref={planHrefOf(f)} />,
   }]));
 
+  const edit = (
+    <Button
+      type="button" variant="ghost" size="sm"
+      className={cn("-mr-1 h-auto px-1 py-0.5 font-normal text-tint", TEXT.row, editing && "font-semibold")}
+      onClick={() => setEditing(e => !e)} data-testid="flights-edit"
+    >
+      {editing ? "Done" : "Edit"}
+    </Button>
+  );
   return (
     <ConsolePages back="Flights" pages={pages}>
-      <section aria-label="Flights">
+      <section aria-label="Flights" className={onBack ? "space-y-3" : undefined}>
+        {onBack && (
+          <ListPageHead title="Saved" backLabel="Back to FPL" onBack={onBack} action={list?.length ? edit : undefined} testId="saved-page" />
+        )}
         {isLoading ? (
           <p role="status" className={cn("px-1 text-muted-foreground", TEXT.note)}>Fetching your flights…</p>
         ) : error ? null : list?.length === 0 ? (
@@ -612,16 +631,8 @@ export function FlightsPanel() {
           </EmptyState>
         ) : (
           <ListGroup
-            title="Saved flights"
-            action={(
-              <Button
-                type="button" variant="ghost" size="sm"
-                className={cn("-mr-1 h-auto px-1 py-0.5 font-normal text-tint", TEXT.row, editing && "font-semibold")}
-                onClick={() => setEditing(e => !e)} data-testid="flights-edit"
-              >
-                {editing ? "Done" : "Edit"}
-              </Button>
-            )}
+            title={onBack ? undefined : "Saved flights"}
+            action={onBack ? undefined : edit}
             footer={editing ? "Delete a flight with the minus before it." : "A flight opens with its nav log, on the map at its altitude, and its debrief from your track."}
           >
             {(list ?? []).map(f => {

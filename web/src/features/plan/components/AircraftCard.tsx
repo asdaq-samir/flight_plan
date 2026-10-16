@@ -6,7 +6,7 @@ import { ListGroup, ListRow } from "../../../components/GroupedList";
 import { api } from "../../../lib/api/client";
 import type { AircraftRegistration, TrafficAircraft } from "../../../lib/api/types";
 import { useOwnShip } from "../../../lib/map/ownShip";
-import { RECENTS_SHOWN, usePreferences, type KeptAircraft } from "../../../lib/preferences";
+import { usePreferences, type KeptAircraft } from "../../../lib/preferences";
 import { useTabSearch } from "../../../lib/tabSearch";
 import { HomePlane, ListPageHead, PillSection, PillStrip, SmallMark, SmallTile } from "../../../components/Favorites";
 import TabPage from "../../../components/TabPage";
@@ -227,12 +227,14 @@ export default function AircraftCard({ onPick, onPickHex, strip }: {
           filter to stay when it's full"). */}
       {!searching && strip}
       {!searching && recents.length > 0 && (
-        // The latest few, each taken off by a swipe to the left; See All
-        // the rest and Clear, as the airports' Recents are.
+        // The airplanes opened last as the Favorites' tiles, at the owner's
+        // ask ("Recents should also have symbols instead of a list"); See
+        // All the list, where each is taken off and Clear, as the airports'
+        // Recents are.
         <PillSection title="Recents" testId="aircraft-recents" onSeeAll={() => setAllRecents(true)}>
-          <ListGroup>
-            {recents.slice(0, RECENTS_SHOWN).map(recentRow)}
-          </ListGroup>
+          <PillStrip testId="pill-aircraft-recents">
+            {recents.map(a => <KeptAircraftTile key={a.hex} aircraft={a} onClick={() => pickKept(a)} testId="aircraft-recent" />)}
+          </PillStrip>
         </PillSection>
       )}
     </TabPage>
@@ -257,17 +259,23 @@ export function AircraftFavoriteStrip({ onOpen, onAddMine, onAddFavorite }: {
         mark={<SmallMark icon={<HomePlane />} className="bg-teal-600 text-white" />} title="Plane" detail={mine?.name ?? "Add"}
         label={mine ? `Plane, ${mine.name}` : "Add your Plane"} onClick={mine ? () => onOpen(mine.hex) : onAddMine} testId="pill-aircraft-mine"
       />
-      {favorites.map(a => (
-        <SmallTile
-          key={a.hex} mark={<SmallMark icon={<Plane />} className="bg-sky-600 text-white" />} title={a.name} detail={a.type ?? undefined}
-          label={`${a.name}${a.type ? `, ${a.type}` : ""}`} onClick={() => onOpen(a.hex)} testId="pill-aircraft-favorite"
-        />
-      ))}
+      {favorites.map(a => <KeptAircraftTile key={a.hex} aircraft={a} onClick={() => onOpen(a.hex)} testId="pill-aircraft-favorite" />)}
       <SmallTile
         mark={<SmallMark icon={<Plus />} className="bg-foreground/8 text-tint" />} title="Add" label="Add a Favorite"
         onClick={onAddFavorite} testId="pill-aircraft-favorite-add"
       />
     </PillStrip>
+  );
+}
+
+/** A kept airplane -- a Favorite, a Recent -- as a pill's small tile: the
+ *  airplane's mark, its name and its type, opening its card. */
+function KeptAircraftTile({ aircraft, onClick, testId }: { aircraft: KeptAircraft; onClick: () => void; testId: string }) {
+  return (
+    <SmallTile
+      mark={<SmallMark icon={<Plane />} className="bg-sky-600 text-white" />} title={aircraft.name} detail={aircraft.type ?? undefined}
+      label={`${aircraft.name}${aircraft.type ? `, ${aircraft.type}` : ""}`} onClick={onClick} testId={testId}
+    />
   );
 }
 
