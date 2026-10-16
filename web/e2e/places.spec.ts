@@ -603,10 +603,8 @@ test("a tap a little off an airport's mark opens its card, the route's own as an
   await settle(page);
   await expect(card(page)).toBeVisible({ timeout: slow(15000) });
   // The departure's chip, the route's (the marker pane), not the chart's.
-  await tapNear(page, page.locator(".leaflet-marker-pane .leaflet-marker-icon", { hasText: "C81" }).first());
-  await expect(page).toHaveURL(/[?&]place=C81(&|$)/, { timeout: slow(10000) });
-  await tapNear(page, page.locator(".leaflet-airports-pane .leaflet-marker-icon", { hasText: "KUGN" }));
-  await expect(page).toHaveURL(/[?&]place=KUGN(&|$)/, { timeout: slow(10000) });
+  await tapNear(page, page.locator(".leaflet-marker-pane .leaflet-marker-icon", { hasText: "C81" }).first(), /[?&]place=C81(&|$)/);
+  await tapNear(page, page.locator(".leaflet-airports-pane .leaflet-marker-icon", { hasText: "KUGN" }), /[?&]place=KUGN(&|$)/);
 });
 
 test("the airport search answers from the phone's own copy, asking the planner nothing as it is typed", async ({ page }) => {

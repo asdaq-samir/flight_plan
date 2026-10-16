@@ -134,8 +134,7 @@ test("a tap a little off one's mark opens its card, as off any airport on the ch
   // Chicago Executive's card, O'Hare's chip some 65 points south of it.
   await page.goto("/app/plan?place=KPWK");
   await expect(sideDrawer(page).getByTestId("place-card")).toBeVisible({ timeout: slow(15000) });
-  await tapNear(page, chips(page).filter({ hasText: "KORD" }).first());
-  await expect(page).toHaveURL(/[?&]place=KORD(&|$)/, { timeout: slow(10000) });
+  await tapNear(page, chips(page).filter({ hasText: "KORD" }).first(), /[?&]place=KORD(&|$)/);
 });
 
 test("on the training map, which has no card, a tap goes to the field at its terminal chart's zoom", async ({ page }) => {

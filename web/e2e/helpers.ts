@@ -457,19 +457,25 @@ export async function tapTheChart(page: Page) {
 /** A tap on the chart a little off a mark: 16 points from its middle,
  *  inside a near miss's 22 (AirportsLayer) and clear of the mark's own 26,
  *  on a side with nothing else under the finger. Not to the right, where
- *  an airport's ident is. */
-export async function tapNear(page: Page, mark: Locator) {
-  await mapStill(page);
-  const box = (await mark.boundingBox())!;
-  const at = await page.evaluate(([x, y]) => {
-    for (const [dx, dy] of [[0, 16], [-16, 0], [0, -16], [-11, 11], [-11, -11], [11, 11], [11, -11]]) {
-      const hit = document.elementFromPoint(x! + dx!, y! + dy!);
-      if (hit?.matches("img.leaflet-tile, .leaflet-container, .leaflet-pane, .leaflet-layer, .leaflet-tile-container")) return { x: x! + dx!, y: y! + dy! };
-    }
-    return null;
-  }, [box.x + box.width / 2, box.y + box.height / 2]);
-  expect(at, "the chart beside the mark, nothing else there").not.toBeNull();
-  await page.mouse.click(at!.x, at!.y);
+ *  an airport's ident is. Measured and tapped again until the address is
+ *  `opens`: a card opening flies the map to its field and moves it again
+ *  as the panel settles, and on CI's runners the mark moved from under a
+ *  tap measured between the two (PR #238, three tries of three). */
+export async function tapNear(page: Page, mark: Locator, opens: RegExp) {
+  await expect(async () => {
+    await mapStill(page);
+    const box = (await mark.boundingBox())!;
+    const at = await page.evaluate(([x, y]) => {
+      for (const [dx, dy] of [[0, 16], [-16, 0], [0, -16], [-11, 11], [-11, -11], [11, 11], [11, -11]]) {
+        const hit = document.elementFromPoint(x! + dx!, y! + dy!);
+        if (hit?.matches("img.leaflet-tile, .leaflet-container, .leaflet-pane, .leaflet-layer, .leaflet-tile-container")) return { x: x! + dx!, y: y! + dy! };
+      }
+      return null;
+    }, [box.x + box.width / 2, box.y + box.height / 2]);
+    expect(at, "the chart beside the mark, nothing else there").not.toBeNull();
+    await page.mouse.click(at!.x, at!.y);
+    await expect(page).toHaveURL(opens, { timeout: 2000 });
+  }).toPass({ timeout: slow(20_000) });
 }
 
 /** A card put away by its way back: on a phone with the sheet up, the
