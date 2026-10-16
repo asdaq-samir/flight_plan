@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { grabberTo, settle, sideDrawer, slow } from "./helpers";
+import { grabberTo, settle, settled, sideDrawer, slow } from "./helpers";
 
 /**
  * An airport's diagram in its card, a row as the Chart Supplement's is
@@ -248,9 +248,12 @@ test("a field the FAA draws no diagram for has the row all the same, showing the
   await row.click();
   const viewer = page.getByTestId("airport-sketch-viewer");
   await expect(viewer.getByRole("heading", { name: "C81 runways" })).toBeVisible();
-  // Its runways drawn across the screen, not a thumbnail's box.
+  // Its runways drawn across the screen, not a thumbnail's box -- measured
+  // once the dialog has grown in (its zoom-in from 95%): on CI's desktop
+  // it measured 1,275 of 1,280 at the animation's end.
   const sketch = viewer.getByTestId("runway-sketch");
   await expect(sketch.locator("line").first()).toBeVisible();
+  await settled(viewer);
   const box = (await sketch.boundingBox())!;
   expect(box.width).toBeGreaterThan(page.viewportSize()!.width - 2);
   await expect(viewer).toContainText("Not an FAA airport diagram");

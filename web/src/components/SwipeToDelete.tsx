@@ -1,10 +1,11 @@
-import { useRef, type ReactNode } from "react";
+import { useMemo, useRef, type ReactNode } from "react";
 import { Trash2 } from "lucide-react";
 import { cn } from "cn";
 import { Button } from "./ui/button";
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from "./ui/context-menu";
 import { TEXT } from "../lib/text";
 import { useConfirm } from "./useConfirm";
+import { SwipeRow } from "./swipeRow";
 
 /**
  * A list's row with a Delete behind it that a swipe to the left uncovers,
@@ -26,8 +27,14 @@ export function SwipeToDelete({ label, onDelete, children }: {
   children: ReactNode;
 }) {
   const scroller = useRef<HTMLDivElement>(null);
+  const deleteButton = useRef<HTMLButtonElement>(null);
   const cover = () => scroller.current?.scrollTo({ left: 0, behavior: "smooth" });
+  // The Delete brought out by the row's minus in Edit (RemoveMinus), as
+  // iOS's minus slides its row over: focused, it scrolls into sight, and
+  // goes back under as the focus leaves it.
+  const row = useMemo(() => ({ reveal: () => deleteButton.current?.focus() }), []);
   return (
+    <SwipeRow.Provider value={row}>
     <ContextMenu>
       <ContextMenuTrigger asChild>
         <div
@@ -54,7 +61,7 @@ export function SwipeToDelete({ label, onDelete, children }: {
             {children}
           </div>
           <button
-            type="button" aria-label={label} onClick={onDelete} onBlur={cover} data-testid="swipe-delete"
+            ref={deleteButton} type="button" aria-label={label} onClick={onDelete} onBlur={cover} data-testid="swipe-delete"
             // The light theme's red in the dark too: the dark theme's
             // lighter one gave the white word 2.9:1 (the iOS audit's P15),
             // this one 4.8.
@@ -73,6 +80,7 @@ export function SwipeToDelete({ label, onDelete, children }: {
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>
+    </SwipeRow.Provider>
   );
 }
 

@@ -15,7 +15,7 @@ import { locateOnOpen, positionNow, useOwnShip, useOwnShipNear } from "../../lib
 import { pickKeptAircraft, useTabSearch } from "../../lib/tabSearch";
 import TabBar, { type BarTab } from "../../components/TabBar";
 import { useTabAsk } from "./components/navlog/panelTab";
-import { useAddressCards, usePanelTabs, type PanelTab } from "./hooks/useTabCards";
+import { useAddressCards, usePanelTabs, type PanelTab, type TabList } from "./hooks/useTabCards";
 import { MAX_STOPS, altitudesOf, altitudesParam, departureOf, identOf, isAirwayToken, positionIdent, routeOf, stopsOf } from "../../lib/identSchema";
 import { useKeptAirport, usePreferences, type RecentAirport } from "../../lib/preferences";
 import { SearchNear, useAirportSearch } from "../../lib/useAirportSearch";
@@ -306,7 +306,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // (useTabCards), the airport's opened here (selectPlace), which the
   // route's Approaches ask for too.
   const cards = useAddressCards(searchParams, setSearchParams, setPanel);
-  const { place, heldPoint, nearOpen, aircraftOpen, flight, past, nearFrom, setNearFrom, selectFlight, selectPast } = cards;
+  const { place, heldPoint, nearOpen, aircraftOpen, flight, past, nearFrom, setNearFrom, selectFlight, selectPast, list, openList, closeList } = cards;
   const cardOpen = !!place || !!heldPoint || !!flight;
   // A card's own Close puts the sheet back at the height it had before the
   // card opened, as Apple Maps does, not the height the card was dragged
@@ -764,22 +764,17 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const waypointStops = useMemo(() => new Set(planned.stops.filter(stop =>
     course?.stops?.some(a => a.ident === stop && a.kind === "fix") || !identOf(stop)
     || (isAirwayToken(stop) && !course?.stops?.some(a => a.ident === stop)))), [planned.stops, course]);
-  // Favorites in full (FavoritesList), in place of the recents, and each
-  // tab's Recents in full from their titles (Airport's, FPL's routes);
-  // put away as a tab is picked.
-  const [favoritesOpen, setFavoritesOpen] = useState(false);
-  const [airportRecentsOpen, setAirportRecentsOpen] = useState(false);
-  const [routeRecentsOpen, setRouteRecentsOpen] = useState(false);
-  // Aircraft's Favorites and Recents in full, from their titles.
-  const [aircraftFavoritesOpen, setAircraftFavoritesOpen] = useState(false);
-  const [aircraftRecentsOpen, setAircraftRecentsOpen] = useState(false);
-  const listsAway = useCallback(() => {
-    setFavoritesOpen(false);
-    setAirportRecentsOpen(false);
-    setRouteRecentsOpen(false);
-    setAircraftFavoritesOpen(false);
-    setAircraftRecentsOpen(false);
-  }, []);
+  // Each tab's lists in full -- Airport's Favorites and Recents, FPL's
+  // routes planned, Aircraft's Favorites and Recents -- the address's
+  // (`list`, useAddressCards), kept for their tab as its cards are.
+  const favoritesOpen = list === "favorites";
+  const airportRecentsOpen = list === "recents";
+  const routeRecentsOpen = list === "routes";
+  const aircraftFavoritesOpen = list === "aircraft-favorites";
+  const aircraftRecentsOpen = list === "aircraft-recents";
+  // That list put away, where it is the one open: a search field's focus
+  // and an Add take the list's place.
+  const listAway = (name: TabList) => { if (list === name) closeList(); };
   // Each route the planner answers kept as FPL's Recents, newest first, at
   // the owner's ask ("Can we have recents under saved ?"): once it is
   // answered, so a route typed wrong is not kept.
@@ -795,7 +790,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const { tab, setTabPick, pickTab, tabUp, closeSheet } = usePanelTabs({
     cards, route: `${planned.dep}|${planned.stops.join(",")}|${planned.dest}`,
     hasRoute: routed || !!planned.dep || !!planned.dest || planned.stops.length > 0,
-    panel, setPanel, searchParams, setSearchParams, onPicked: listsAway,
+    panel, setPanel, searchParams, setSearchParams,
   });
   // Airport's pill's NEAREST strip: the list's own question, shared, asked
   // while the strip is in sight.
@@ -806,12 +801,15 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // FPL's saved flights in full, a card over it (SAVED's title, the chips'
   // Saved button).
   const savedOpen = searchParams.get("saved") === "1";
+  // Each written in place of the address's last, as every panel change is
+  // (lib/back): they pushed onto the history, the browser's Back stepping
+  // through Saved and Nearest alone of the lists.
   const openSaved = useCallback(() => {
     setSearchParams(prev => {
       const next = new URLSearchParams(prev);
       next.set("saved", "1");
       return next;
-    });
+    }, { replace: true });
     setPanel("full");
   }, [setSearchParams, setPanel]);
   // And back from it to FPL's start, its own Back (FlightsPanel's head).
@@ -820,7 +818,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       const next = new URLSearchParams(prev);
       next.delete("saved");
       return next;
-    });
+    }, { replace: true });
   }, [setSearchParams]);
   // The strip's title opens the list in full, over Airport.
   const openNearest = useCallback(() => {
@@ -828,7 +826,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       const next = new URLSearchParams(prev);
       next.set("near", "1");
       return next;
-    });
+    }, { replace: true });
     setPanel("full");
   }, [setSearchParams, setPanel]);
   // And its Back, to Airport's start: the list and the place it was from
@@ -879,7 +877,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // field, focused within the tap so the keyboard comes up.
   const askFor = (what: "home" | "favorite") => {
     setPicking(what);
-    setFavoritesOpen(false);
+    listAway("favorites");
     focusQuietly(() => searchInput.current?.focus());
   };
   // Home's, My Plane's or the airplane Favorites' Add on the pill: the
@@ -897,8 +895,8 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     <SearchField
       value={query} onChange={q => { setQuery(q); upAsTyped(q); }} inputRef={searchInput}
       placeholder={picking === "home" ? "Search for your home airport" : picking === "favorite" ? "Search for an airport to keep" : "Search airports"}
-      onFocus={() => { if (place) selectPlace(null); setFavoritesOpen(false); if (!quietFocus.current) setPanel("full"); }}
-      onCancel={() => { setQuery(""); setPicking("place"); setFavoritesOpen(false); if (place) selectPlace(null); setPanel("peek"); }}
+      onFocus={() => { if (place) selectPlace(null); listAway("favorites"); if (!quietFocus.current) setPanel("full"); }}
+      onCancel={() => { setQuery(""); setPicking("place"); listAway("favorites"); if (place) selectPlace(null); setPanel("peek"); }}
       onSubmit={() => {
         const first = search.answered ? search.rows[0] : undefined;
         if (first) void pickPlace({ ident: first.ident, name: first.name, municipality: first.municipality });
@@ -926,7 +924,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       label="Find an aircraft: callsign, registration or ICAO address" testId="aircraft-search" capitals
       // Up, the list under the field in sight -- not by an Add's focus,
       // which leaves the panel where it is (focusQuietly).
-      onFocus={() => { setAircraftFavoritesOpen(false); setAircraftRecentsOpen(false); if (panel === "peek" && !quietFocus.current) setPanel("full"); }}
+      onFocus={() => { listAway("aircraft-favorites"); listAway("aircraft-recents"); if (panel === "peek" && !quietFocus.current) setPanel("full"); }}
       onCancel={() => { useTabSearch.setState({ aircraft: "", pickingMine: false, pickingFavorite: false }); setPanel("peek"); }}
       onSubmit={() => useTabSearch.getState().submitAircraft?.()}
     />
@@ -1404,8 +1402,8 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       favorites={<FavoriteStrip home={home} favorites={favorites} onOpen={a => selectPlace(a.ident)} onAddHome={() => addFromPill("home")} onAddFavorite={() => askFor("favorite")} />}
       recents={<RecentAirportTiles onPick={airport => void pickPlace(airport)} />}
       nearest={<NearestStrip fields={nearStrip} located={!!nearOrigin} onOpen={selectPlace} />}
-      onAllFavorites={() => { setFavoritesOpen(true); setPanel("full"); }}
-      onAllRecents={() => { setAirportRecentsOpen(true); setPanel("full"); }}
+      onAllFavorites={() => openList("favorites")}
+      onAllRecents={() => openList("recents")}
       onAllNearest={openNearest}
     />
   );
@@ -1413,8 +1411,8 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const aircraftStrip = (
     <AircraftPill
       onOpen={hex => selectFlight(hex)} onAddMine={() => addFromPill("mine")} onAddFavorite={() => addFromPill("airplane")} onPick={plane => selectFlight(plane.hex, plane)}
-      onAllFavorites={() => { setAircraftFavoritesOpen(true); setPanel("full"); }}
-      onAllRecents={() => { setAircraftRecentsOpen(true); setPanel("full"); }}
+      onAllFavorites={() => openList("aircraft-favorites")}
+      onAllRecents={() => openList("aircraft-recents")}
     />
   );
 
@@ -1472,15 +1470,15 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           flightCard ?? (aircraftOpen && (aircraftFavoritesOpen && !aircraftTyped ? (
             <TabPage testId="aircraft-favorites">
               <AircraftFavoritesList
-                onBack={() => setAircraftFavoritesOpen(false)} onOpen={hex => selectFlight(hex)}
-                onChangeMine={() => { setAircraftFavoritesOpen(false); addFromPill("mine"); }}
-                onAdd={() => { setAircraftFavoritesOpen(false); addFromPill("airplane"); }}
+                onBack={closeList} onOpen={hex => selectFlight(hex)}
+                onChangeMine={() => { closeList(); addFromPill("mine"); }}
+                onAdd={() => { closeList(); addFromPill("airplane"); }}
               />
             </TabPage>
           ) : aircraftRecentsOpen && !aircraftTyped ? (
             // Kept open under an airplane's card opened from it, as the
             // Favorites in full are: its close comes back here.
-            <AircraftRecentsPage onBack={() => setAircraftRecentsOpen(false)} onPick={kept => pickKeptAircraft(kept, hex => selectFlight(hex))} />
+            <AircraftRecentsPage onBack={closeList} onPick={kept => pickKeptAircraft(kept, hex => selectFlight(hex))} />
           ) : (
             // The strip once, in the pill or here: at the pill's size the
             // body is out of sight but for a finger taking it up.
@@ -1493,7 +1491,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
             <TabPage testId="favorites-page">
               <FavoritesList
                 home={home} favorites={favorites}
-                onBack={() => setFavoritesOpen(false)} onOpen={airport => selectPlace(airport.ident)}
+                onBack={closeList} onOpen={airport => selectPlace(airport.ident)}
                 onChangeHome={() => askFor("home")} onRemoveHome={() => setHomeAirport(null)}
                 onRemove={toggleFavoriteAirport} onMove={moveFavoriteAirport} onAdd={() => askFor("favorite")}
               />
@@ -1501,8 +1499,8 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           ) : airportRecentsOpen && !query ? (
             <TabPage testId="airport-recents-list">
               <AirportRecentsPage
-                onBack={() => setAirportRecentsOpen(false)}
-                onPick={airport => { setAirportRecentsOpen(false); void pickPlace(airport); }}
+                onBack={closeList}
+                onPick={airport => { closeList(); void pickPlace(airport); }}
               />
             </TabPage>
           ) : (
@@ -1511,7 +1509,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
                 query={query} onPick={airport => void pickPlace(airport)}
                 // The pill's strip where it was, the Recents under it.
                 places={picking === "place" && (panel !== "peek" || dragging) && airportStrip}
-                onAllRecents={() => { setAirportRecentsOpen(true); setPanel("full"); }}
+                onAllRecents={() => openList("recents")}
               />
             </TabPage>
           )
@@ -1522,13 +1520,13 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
         {tab === "fpl" && !savedOpen && !hasPoints && !place && !heldPoint && (panel !== "peek" || dragging) && (
           routeRecentsOpen ? (
             <TabPage testId="route-recents-list">
-              <RecentRoutesPage onBack={() => setRouteRecentsOpen(false)} />
+              <RecentRoutesPage onBack={closeList} />
             </TabPage>
           ) : (
             // The flights saved or the routes planned last, picked from its
             // filter as every tab's strip is.
             <TabPage>
-              <FplStrip onAllSaved={openSaved} onAllRecents={() => { setRouteRecentsOpen(true); setPanel("full"); }} />
+              <FplStrip onAllSaved={openSaved} onAllRecents={() => openList("routes")} />
             </TabPage>
           )
         )}
@@ -1560,7 +1558,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     // The planner's tabs, the panel's first row, and at rest the pill
     // itself, at the pilot's ask: no search bar or route under them
     // (MapPanel).
-    bar: <TabBar tabs={PLANNER_TABS} tab={tab} over={(place || heldPoint) && tab !== "airport" ? "airport" : undefined} title={cardTitle} onPick={pickTab} onUp={tabUp} onClose={closeSheet} marks={s.unflyable ? { fpl: "stop" } : undefined} />,
+    bar: <TabBar tabs={PLANNER_TABS} tab={tab} over={(place || heldPoint) && tab !== "airport" ? "airport" : undefined} title={cardTitle} onPick={pickTab} onUp={tabUp} onClose={closeSheet} listOver={!!list || savedOpen || nearOpen} marks={s.unflyable ? { fpl: "stop" } : undefined} />,
     // The route's figures -- the distance, the time en route, the arrival
     // and the fuel -- pinned at FPL's foot while there is a route, at every
     // height, the pill too, at the pilot's ask: they were the last of the

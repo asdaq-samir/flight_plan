@@ -76,7 +76,7 @@ test("a saved flight's page, and its debrief from a GPX track: kept on the devic
   await showTabs(page);
   await openConsole(page);
   await library(page, "Flights");
-  await page.getByRole("button", { name: /C81 → KUGN/ }).click();
+  await page.getByRole("button", { name: /^C81 → KUGN/ }).click();
 
   // The flight's page, over the Flights page it was opened from.
   const flightPage = page.getByTestId("console-page").last();
@@ -103,7 +103,7 @@ test("a saved flight's page, and its debrief from a GPX track: kept on the devic
   // Kept on the device: back to the list and in again, it is still there.
   await page.getByRole("button", { name: "Flights", exact: true }).click();
   await expect(page.getByRole("button", { name: "Account", exact: true })).toBeVisible();
-  await page.getByRole("button", { name: /C81 → KUGN/ }).click();
+  await page.getByRole("button", { name: /^C81 → KUGN/ }).click();
   await expect(flightPage.getByTestId("debrief-source")).toContainText("on this device");
 
   await flightPage.getByTestId("debrief-save").click();
@@ -122,7 +122,7 @@ test("Show on the map draws the flown track over its route, and the map's button
   await showTabs(page);
   await openConsole(page);
   await library(page, "Flights");
-  await page.getByRole("button", { name: /C81 → KUGN/ }).click();
+  await page.getByRole("button", { name: /^C81 → KUGN/ }).click();
   await page.getByTestId("debrief-file").setInputFiles({ name: "flight.gpx", mimeType: "application/gpx+xml", buffer: Buffer.from(gpx()) });
   await page.getByTestId("debrief-show").click();
 
@@ -142,7 +142,7 @@ test("a file that is not a track says so where it was imported", async ({ page }
   await showTabs(page);
   await openConsole(page);
   await library(page, "Flights");
-  await page.getByRole("button", { name: /C81 → KUGN/ }).click();
+  await page.getByRole("button", { name: /^C81 → KUGN/ }).click();
   await page.getByTestId("debrief-file").setInputFiles({ name: "notes.gpx", mimeType: "application/gpx+xml", buffer: Buffer.from("<gpx><trk/></gpx>") });
   await expect(page.getByTestId("debrief-problem")).toContainText("There is no track in this file.");
 });

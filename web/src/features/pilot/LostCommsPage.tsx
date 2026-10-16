@@ -1,15 +1,15 @@
 import { useId, useState } from "react";
-import { CircleMinus, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import { cn } from "cn";
 import FieldHit from "../../components/FieldHit";
 import { ListGroup, ListRow } from "../../components/GroupedList";
-import IconButton from "../../components/IconButton";
 import Segmented from "../../components/Segmented";
 import { Input } from "../../components/ui/input";
 import TogglePill from "../../components/TogglePill";
 import { leaveLimit, ROUTES, segmentAltitudes, type RouteKey, type Segment } from "../../lib/lostComms";
 import { TEXT } from "../../lib/text";
 import { altFt } from "../../lib/units";
+import { RemoveMinus } from "../../components/Favorites";
 
 const BECAUSE = { assigned: "assigned", minimum: "the minimum", expected: "expected" } as const;
 
@@ -86,12 +86,15 @@ export default function LostCommsPage() {
           return [
             <ListRow
               key={`seg-${i}`}
-              media={(
-                <IconButton label={`Remove ${s.name || "this segment"}`} className="-ml-1.5 text-destructive" disabled={segments.length === 1}
-                  onClick={() => { setSegments(list => list.filter((_, j) => j !== i)); setExpectedFrom(e => Math.max(0, Math.min(e, segments.length - 2))); }}>
-                  <CircleMinus className="size-5" />
-                </IconButton>
-              )}
+              // The app's one minus (RemoveMinus), where this was a hollow one of
+              // its own; a segment of a form, taken away at its tap. The last
+              // segment keeps no minus: a route has one at least.
+              media={segments.length > 1 ? (
+                <RemoveMinus
+                  label={`Remove ${s.name || "this segment"}`}
+                  onClick={() => { setSegments(list => list.filter((_, j) => j !== i)); setExpectedFrom(e => Math.max(0, Math.min(e, segments.length - 2))); }}
+                />
+              ) : undefined}
               title={<FieldHit htmlFor={`${id}-seg${i}`}><Input id={`${id}-seg${i}`} aria-label="Segment" className="h-8" value={s.name} onChange={e => edit(i, { name: e.target.value })} /></FieldHit>}
               data-testid="lost-segment"
             >

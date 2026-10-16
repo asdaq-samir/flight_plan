@@ -116,7 +116,7 @@ test("opening a saved flight puts its route in the header, and Load plans that r
   await library(page, "Flights");
   // The row opens the flight's page; Open on the map is the way in, and
   // it puts the console away.
-  await page.getByRole("button", { name: /KMSP → KDLH/ }).click();
+  await page.getByRole("button", { name: /^KMSP → KDLH/ }).click();
   await page.getByTestId("flight-open").click();
   await expect(page).toHaveURL(/dep=KMSP/);
   await expect(consoleSheet(page)).toHaveCount(0);
@@ -142,7 +142,7 @@ test("a saved flight opened from FPL's Saved opens its page, and Open on the map
   await grabberTo(page, "half");
   const panel = sideDrawer(page);
   await panel.getByTestId("pill-section-saved-more").click();
-  await panel.getByRole("button", { name: /KMSP → KDLH/ }).click();
+  await panel.getByRole("button", { name: /^KMSP → KDLH/ }).click();
   await expect(panel.getByTestId("flight-open")).toBeVisible();
   await panel.getByTestId("flight-open").click();
   await expect(page).toHaveURL(/dep=KMSP/);
@@ -163,14 +163,17 @@ test("Edit over the saved flights puts a minus before each, and the minus delete
   await showTabs(page);
   await openConsole(page);
   await library(page, "Flights");
-  // Out of Edit, the row opens the flight's page and there is nothing to
-  // delete.
-  await expect(page.getByRole("button", { name: /^Delete/ })).toHaveCount(0);
+  // Out of Edit, the row opens the flight's page and has no minus (its
+  // Delete is behind it, for a swipe).
+  await expect(page.getByRole("button", { name: /^Delete .*…$/ })).toHaveCount(0);
 
   await page.getByTestId("flights-edit").click();
   await expect(page.getByTestId("flights-edit")).toHaveText("Done");
   await expect(page.getByRole("link", { name: /KMSP → KDLH/ })).toHaveCount(0);
-  await page.getByRole("button", { name: "Delete KMSP → KDLH" }).click();
+  // The minus brings out the row's Delete, as iOS's does, and the Delete
+  // asks first: the flight is the server's.
+  await page.getByRole("button", { name: "Delete KMSP → KDLH…", exact: true }).click();
+  await page.getByRole("button", { name: "Delete KMSP → KDLH", exact: true }).click();
   await page.getByRole("button", { name: "Delete flight" }).click();
   await expect(page.locator("[data-sonner-toast]", { hasText: "Flight deleted" })).toBeVisible();
   expect(removed).toEqual(["DELETE"]);

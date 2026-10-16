@@ -1,7 +1,7 @@
 import { useId, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format, parseISO } from "date-fns";
-import { CircleMinus, FileDown, FileUp, GraduationCap, Mail, MailX, Plus, Users } from "lucide-react";
+import { FileDown, FileUp, GraduationCap, Mail, MailX, Plus, Users } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "cn";
 import { ConsolePages, PageRow } from "../../components/ConsolePages";
@@ -24,6 +24,8 @@ import InstructorPage from "./InstructorPage";
 import { localDay } from "../../lib/clock";
 import { FINDING_TONE } from "../../lib/status";
 import { currencyQuery, trainingQuery } from "../../lib/queryClient";
+import { EditToggle, RemoveMinus } from "../../components/Favorites";
+import { SwipeToDelete } from "../../components/SwipeToDelete";
 
 const day = (iso: string) => format(parseISO(iso), "d MMM yyyy");
 const today = () => localDay();
@@ -291,11 +293,8 @@ export function LogbookPanel({ aircraft }: { aircraft?: string }) {
               title="Flights"
               action={(
                 <span className="flex items-center gap-1">
-                  {(entries?.length ?? 0) > 0 && (
-                    <Button type="button" variant="ghost" size="sm" className={cn("h-auto px-1 py-0.5 font-normal text-tint", TEXT.row)} onClick={() => setEditing(e => !e)} data-testid="logbook-edit">
-                      {editing ? "Done" : "Edit"}
-                    </Button>
-                  )}
+                  {/* Every list's Edit (EditToggle), where this was a copy of it. */}
+                  {(entries?.length ?? 0) > 0 && <EditToggle editing={editing} onToggle={() => setEditing(e => !e)} testId="logbook-edit" />}
                   <ResponsivePopover open={adding} onOpenChange={setAdding}>
                     <ResponsivePopoverTrigger asChild>
                       <IconButton label="Log a flight" className="text-tint" data-testid="logbook-add"><Plus /></IconButton>
@@ -310,19 +309,19 @@ export function LogbookPanel({ aircraft }: { aircraft?: string }) {
               {!entries ? <QueryState row query={entriesAsked} fetching="Fetching your logbook…" failed="Your logbook could not be fetched." />
                 : !entries.length ? <ListRow title={<span className="text-muted-foreground">No flights logged yet: the plus logs one.</span>} />
                   : entries.map(e => (
-                    <ListRow
-                      key={e.id}
-                      media={editing ? (
-                        <IconButton label={`Delete the flight of ${day(e.flownOn)}`} className="text-destructive" onClick={() => { setToDelete(e); askDelete(); }}>
-                          <CircleMinus />
-                        </IconButton>
-                      ) : undefined}
-                      title={`${day(e.flownOn)}${e.route ? ` · ${e.route}` : ""}`}
-                      description={[e.aircraft, e.aircraftType, `${e.dayLandings + e.nightLandings} landing${e.dayLandings + e.nightLandings === 1 ? "" : "s"}`, e.remarks].filter(Boolean).join(" · ")}
-                      value={`${e.totalHours.toFixed(1)} h`}
-                      onClick={editing ? undefined : () => setChanging(e)}
-                      data-testid="logbook-entry"
-                    />
+                    // Taken off as every kept list's rows are -- a swipe to
+                    // the left, or Edit's minus bringing out the Delete --
+                    // asked first, the entry being the server's.
+                    <SwipeToDelete key={e.id} label={`Delete the flight of ${day(e.flownOn)}`} onDelete={() => { setToDelete(e); askDelete(); }}>
+                      <ListRow
+                        media={editing ? <RemoveMinus label={`Delete the flight of ${day(e.flownOn)}…`} /> : undefined}
+                        title={`${day(e.flownOn)}${e.route ? ` · ${e.route}` : ""}`}
+                        description={[e.aircraft, e.aircraftType, `${e.dayLandings + e.nightLandings} landing${e.dayLandings + e.nightLandings === 1 ? "" : "s"}`, e.remarks].filter(Boolean).join(" · ")}
+                        value={`${e.totalHours.toFixed(1)} h`}
+                        onClick={editing ? undefined : () => setChanging(e)}
+                        data-testid="logbook-entry"
+                      />
+                    </SwipeToDelete>
                   ))}
             </ListGroup>
           </div>

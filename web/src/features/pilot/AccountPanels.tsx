@@ -4,7 +4,7 @@ import { useForm, type UseFormRegisterReturn } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
-import { Check, CircleMinus, Info, Plus, Route } from "lucide-react";
+import { Check, Info, Plus, Route } from "lucide-react";
 import EmptyState from "../../components/EmptyState";
 import IconButton from "../../components/IconButton";
 import { cn } from "cn";
@@ -32,9 +32,10 @@ import { altFt, feet } from "../../lib/units";
 import { LEVEL_TONE, riskLine, type RiskLevel } from "../../lib/frat";
 import { localDay } from "../../lib/clock";
 import { FINDING_TONE } from "../../lib/status";
-import { ListPageHead } from "../../components/Favorites";
+import { EditToggle, ListPageHead, RemoveMinus } from "../../components/Favorites";
 import { aircraftListQuery, aircraftProfilesQuery, flightsQuery } from "../../lib/queryClient";
 import QueryState from "../../components/QueryState";
+import { SwipeToDelete } from "../../components/SwipeToDelete";
 
 // Mirrors springboot-app's own AircraftRequest validation
 // (@NotBlank/@Positive in dto/AircraftRequest.java) so a bad value is
@@ -611,15 +612,8 @@ export function FlightsPanel({ onBack }: {
     content: <FlightPage summary={f} planHref={planHrefOf(f)} />,
   }]));
 
-  const edit = (
-    <Button
-      type="button" variant="ghost" size="sm"
-      className={cn("-mr-1 h-auto px-1 py-0.5 font-normal text-tint", TEXT.row, editing && "font-semibold")}
-      onClick={() => setEditing(e => !e)} data-testid="flights-edit"
-    >
-      {editing ? "Done" : "Edit"}
-    </Button>
-  );
+  // Every list's Edit (EditToggle), where this was a copy of it.
+  const edit = <EditToggle editing={editing} onToggle={() => setEditing(e => !e)} testId="flights-edit" />;
   return (
     <ConsolePages back="Flights" pages={pages}>
       <section aria-label="Flights" className={onBack ? "space-y-3" : undefined}>
@@ -638,7 +632,7 @@ export function FlightsPanel({ onBack }: {
           <ListGroup
             title={onBack ? undefined : "Saved flights"}
             action={onBack ? undefined : edit}
-            footer={editing ? "Delete a flight with the minus before it." : "A flight opens with its nav log, on the map at its altitude, and its debrief from your track."}
+            footer={editing ? "Delete a flight with the minus before it, or a swipe to the left." : "A flight opens with its nav log, on the map at its altitude, and its debrief from your track."}
           >
             {(list ?? []).map(f => {
               const name = routeName(f.departureIdent, f.destinationIdent, f.stops);
@@ -653,22 +647,19 @@ export function FlightsPanel({ onBack }: {
                   {f.risk && <span className={cn("block", LEVEL_TONE[f.risk.level as RiskLevel])} data-testid="flight-risk">Risk {riskLine(f.risk).toLowerCase()}</span>}
                 </span>,
               };
-              return editing ? (
-                <ListRow
-                  key={f.id} {...row}
-                  media={(
-                    <IconButton
-                      label={`Delete ${name}`} className="-ml-1.5 text-destructive"
-                      onClick={() => { setFlightToDelete(f); askDelete(); }} disabled={remove.isPending}
-                    >
-                      <CircleMinus className="size-5 fill-destructive text-white dark:text-background" />
-                    </IconButton>
+              // Taken off as every kept list's rows are -- a swipe to the
+              // left, or Edit's minus bringing out the Delete -- asked first,
+              // the flight being the server's (SwipeToDelete, useConfirm).
+              return (
+                <SwipeToDelete key={f.id} label={`Delete ${name}`} onDelete={() => { setFlightToDelete(f); askDelete(); }}>
+                  {editing ? (
+                    <ListRow {...row} media={<RemoveMinus label={`Delete ${name}…`} />} />
+                  ) : (
+                    // Its own page: what was filed, the way back onto the
+                    // map, and its debrief.
+                    <PageRow page={`flight-${f.id}`} {...row} />
                   )}
-                />
-              ) : (
-                // Its own page: what was filed, the way back onto the map,
-                // and its debrief.
-                <PageRow key={f.id} page={`flight-${f.id}`} {...row} />
+                </SwipeToDelete>
               );
             })}
           </ListGroup>

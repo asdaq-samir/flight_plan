@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from "vitest";
 import { closeTopmost } from "./back";
-import { holdOpenCard } from "./openCards";
+import { holdOpenCard, useOpenCards } from "./openCards";
 
 /** Android's back as Escape: the topmost thing open closed, else the
  *  panel lowered, else nothing (and the app put away). */
@@ -39,6 +39,16 @@ describe("closeTopmost", () => {
     nearest();
     expect(closed).toEqual(["airport", "nearest"]);
     expect(lowered).toBe(false);
+  });
+
+  it("closes a list in full by its Back, as a card, though the tab bar's Back counts cards alone", () => {
+    document.body.innerHTML = '<div data-slot="map-panel" data-panel="full"></div>';
+    const closed: string[] = [];
+    const list = holdOpenCard({ close: () => closed.push("favorites"), inBar: false });
+    expect(useOpenCards.getState().count).toBe(0);
+    expect(closeTopmost()).toBe(true);
+    list();
+    expect(closed).toEqual(["favorites"]);
   });
 
   it("lowers the panel when nothing else is open", () => {
