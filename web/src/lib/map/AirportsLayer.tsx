@@ -120,16 +120,18 @@ function samePin(a: AirportPin, b: AirportPin): boolean {
  * know an airport was tapped on it. A pointer turns to a hand over one
  * and names it. Under the route's own markers, which keep their taps,
  * and not for a field something else draws a mark for already
- * (`exclude`: the route's two, the Class B ones). The selected one
+ * (`others`: the route's own, the Class B ones). The selected one
  * wears the ring a picked point wears on the map, round its mark
  * (selectionIcon) and over all of them.
  *
  * A tap anywhere else on the chart puts the card away, as it does in Maps.
  */
-export function AirportsLayer({ selected, onSelect, exclude, route }: {
+export function AirportsLayer({ selected, onSelect, others, route }: {
   selected: { ident: string; lat: number; lon: number } | null;
   onSelect: (ident: string | null) => void;
-  exclude: Set<string>;
+  /** The fields another layer draws a mark for, left to it: a tap a
+   *  little off one of those is that field's all the same. */
+  others: { ident: string; lat: number; lon: number }[];
   /** The route's box: its reporting fields asked for once, ahead. */
   route: { south: number; west: number; north: number; east: number } | null;
 }) {
@@ -167,8 +169,11 @@ export function AirportsLayer({ selected, onSelect, exclude, route }: {
   // half-width of it, the 44 points Apple asks for -- is that field's, the
   // nearest's where there are two, at the pilot's ask for a kinder map: a
   // mark is only 26 across, and a box grown to 44 covered its neighbours'.
-  // Anywhere else, the card is put away.
+  // Every field's mark, the route's and the Class B ones' too (`others`):
+  // a tap a little off those put the card away, where off any other field
+  // it opened one. Anywhere else, the card is put away.
   const drawn = useRef<AirportPin[]>([]);
+  const elsewhere = useRef(others);
   const handlers = useMemo(() => ({
     zoomanim: (e: L.ZoomAnimEvent) => { setEasingTo(e.zoom); ask(boundsAt(map, e.center, e.zoom)); },
     // Drawn again only as the view nears the edge of what is drawn, not
@@ -189,7 +194,7 @@ export function AirportsLayer({ selected, onSelect, exclude, route }: {
     moveend: () => { setView(boxOf(map)); setSeen(map.getBounds()); setEasingTo(null); ask(map.getBounds()); },
     click: (e: L.LeafletMouseEvent) => {
       let best: { ident: string; px: number } | null = null;
-      for (const a of drawn.current) {
+      for (const a of [...drawn.current, ...elsewhere.current]) {
         const px = map.latLngToContainerPoint([a.lat, a.lon]).distanceTo(e.containerPoint);
         if (px <= NEAR_MISS_PX && (!best || px < best.px)) best = { ident: a.ident, px };
       }
@@ -253,6 +258,7 @@ export function AirportsLayer({ selected, onSelect, exclude, route }: {
     }
     return [...byIdent.values()];
   }, [alongRoute, inView, inViewAlone, full, seen, view.box]);
+  const exclude = useMemo(() => new Set(others.map(a => a.ident)), [others]);
   const shown = useMemo(() => {
     if (!reports) return [];
     const kept = data.filter(a => !exclude.has(a.ident) && (near || a.flight_category) && (showMilitary || a.military !== "military"));
@@ -271,6 +277,7 @@ export function AirportsLayer({ selected, onSelect, exclude, route }: {
     return out;
   }, [reports, data, exclude, near, showMilitary, zoom, map]);
   useEffect(() => { drawn.current = shown; }, [shown]);
+  useEffect(() => { elsewhere.current = others; }, [others]);
   // One callback for every mark, so a new onSelect -- the page's, made
   // again as its state changes -- draws none of them again.
   const latest = useRef(onSelect);

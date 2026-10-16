@@ -443,14 +443,16 @@ export default memo(function RouteMap({
   // The route's airports, one array while the course is the same answer:
   // the checkpoints' names keep off their chips.
   const airports = useMemo(() => (course ? routeAirports(course) : []), [course]);
-  // The fields that wear a chip of their own already: the route's two,
+  // The fields that wear a chip of their own already: the route's own,
   // and the Class B ones while they are on (ClassBLayer).
   const showClassB = usePreferences(s => s.classB);
   const { data: classBAirports } = useQuery({ ...classBQuery, enabled: false });
-  const chipped = useMemo(() => new Set([
-    ...(course ? routeAirports(course).map(a => a.ident) : []),
-    ...(showClassB ? (classBAirports ?? []).map(a => a.ident) : []),
-  ]), [course, showClassB, classBAirports]);
+  const chippedFields = useMemo(() => [
+    ...airports.filter(a => a.kind === "airport"),
+    ...(showClassB ? classBAirports ?? [] : []),
+  ], [airports, showClassB, classBAirports]);
+  // And the route's waypoints, which the VFR waypoints' layer leaves to it.
+  const chipped = useMemo(() => new Set([...airports, ...chippedFields].map(a => a.ident)), [airports, chippedFields]);
 
   // The route's box, half a degree round it, on the half-degree grid the
   // layer asks in: one question for its reporting fields however the
@@ -476,7 +478,7 @@ export default memo(function RouteMap({
     >
       {/* The chart's own airports with no route as well: a tap on a field
           opens its card, and Fly Here makes the route. */}
-      {layered && <AirportsLayer selected={place} onSelect={onSelectPlace} exclude={chipped} route={routeBox} />}
+      {layered && <AirportsLayer selected={place} onSelect={onSelectPlace} others={chippedFields} route={routeBox} />}
       {layered && <TfrLayer />}
       {layered && <WaypointsLayer exclude={chipped} onAddStop={course ? onAddStop : undefined} />}
       {/* The airport whose card opens comes to the middle of the chart

@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { clearTheRoute, closeCard, consoleSheet, expectDrawerClosed, grabberTo, mapStill, openConsole, openMapSettings, openPanel, settle, showTabs, sideDrawer, slow, tapTheChart, controlsInSight } from "./helpers";
+import { clearTheRoute, closeCard, consoleSheet, expectDrawerClosed, grabberTo, mapStill, openConsole, openMapSettings, openPanel, settle, showTabs, sideDrawer, slow, tapNear, tapTheChart, controlsInSight } from "./helpers";
 
 /**
  * Airports as places, as Maps has them: a tap on one on the chart opens
@@ -588,6 +588,25 @@ test("closer in, the airports that report wear their weather's colour, and a tap
     await expect(page).toHaveURL(new RegExp(`[?&]place=${at!.ident}`), { timeout: 2000 });
   }).toPass({ timeout: slow(20000) });
   await expect(card(page).getByTestId("fly-here")).toBeVisible({ timeout: slow(15000) });
+});
+
+test("a tap a little off an airport's mark opens its card, the route's own as any field of the chart's", async ({ page }) => {
+  // One field of the chart's own, Waukegan, some 90 points from the
+  // route's departure at a card's zoom; no other. A tap that near the
+  // route's own field put the card away: only the chart's own were near.
+  await page.route(url => url.pathname.endsWith("/api/planner/airports/in-view"), route => route.fulfill({
+    status: 200, contentType: "application/json", body: JSON.stringify({ airports: [
+      { ident: "KUGN", name: "Waukegan National", lat: 42.4222, lon: -87.8679, kind: "medium", flight_category: "VFR", military: null, airspace_class: "D" },
+    ] }),
+  }));
+  await page.goto("/app/plan?dep=C81&dest=KDLH&place=KUGN");
+  await settle(page);
+  await expect(card(page)).toBeVisible({ timeout: slow(15000) });
+  // The departure's chip, the route's (the marker pane), not the chart's.
+  await tapNear(page, page.locator(".leaflet-marker-pane .leaflet-marker-icon", { hasText: "C81" }).first());
+  await expect(page).toHaveURL(/[?&]place=C81(&|$)/, { timeout: slow(10000) });
+  await tapNear(page, page.locator(".leaflet-airports-pane .leaflet-marker-icon", { hasText: "KUGN" }));
+  await expect(page).toHaveURL(/[?&]place=KUGN(&|$)/, { timeout: slow(10000) });
 });
 
 test("the airport search answers from the phone's own copy, asking the planner nothing as it is typed", async ({ page }) => {

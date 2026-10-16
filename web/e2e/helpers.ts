@@ -454,6 +454,24 @@ export async function tapTheChart(page: Page) {
   await page.mouse.click(at!.x, at!.y);
 }
 
+/** A tap on the chart a little off a mark: 16 points from its middle,
+ *  inside a near miss's 22 (AirportsLayer) and clear of the mark's own 26,
+ *  on a side with nothing else under the finger. Not to the right, where
+ *  an airport's ident is. */
+export async function tapNear(page: Page, mark: Locator) {
+  await mapStill(page);
+  const box = (await mark.boundingBox())!;
+  const at = await page.evaluate(([x, y]) => {
+    for (const [dx, dy] of [[0, 16], [-16, 0], [0, -16], [-11, 11], [-11, -11], [11, 11], [11, -11]]) {
+      const hit = document.elementFromPoint(x! + dx!, y! + dy!);
+      if (hit?.matches("img.leaflet-tile, .leaflet-container, .leaflet-pane, .leaflet-layer, .leaflet-tile-container")) return { x: x! + dx!, y: y! + dy! };
+    }
+    return null;
+  }, [box.x + box.width / 2, box.y + box.height / 2]);
+  expect(at, "the chart beside the mark, nothing else there").not.toBeNull();
+  await page.mouse.click(at!.x, at!.y);
+}
+
 /** A card put away by its way back: on a phone with the sheet up, the
  *  minimized tab bar's Back at its top left (TabBar), at the owner's ask,
  *  in place of the card's close; elsewhere the card's own close. */
