@@ -130,6 +130,13 @@ interface Preferences {
    *  ones the pilot starred, as the airports' are: what the Aircraft card
    *  offers before anything is typed (AircraftCard), at the pilot's ask. */
   recentAircraft: KeptAircraft[];
+  /** The routes planned last, newest first, kept on this device: FPL's
+   *  Recents under its Saved, at the owner's ask ("Can we have recents
+   *  under saved?"), a tap planning one again. */
+  recentRoutes: RecentRoute[];
+  addRecentRoute: (route: RecentRoute) => void;
+  removeRecentRoute: (key: string) => void;
+  clearRecentRoutes: () => void;
   favoriteAircraft: KeptAircraft[];
   /** The pilot's own airplane, first among the Aircraft card's Favorites
    *  as Home is among the airports', at the owner's ask: "My Plane". */
@@ -226,6 +233,12 @@ export const usePreferences = create<Preferences>()(
       homeAirport: null,
       favoriteAirports: [],
       recentAircraft: [],
+      recentRoutes: [],
+      addRecentRoute: route => set(s => ({
+        recentRoutes: [route, ...s.recentRoutes.filter(r => recentRouteKey(r) !== recentRouteKey(route))].slice(0, RECENTS),
+      })),
+      removeRecentRoute: key => set(s => ({ recentRoutes: s.recentRoutes.filter(r => recentRouteKey(r) !== key) })),
+      clearRecentRoutes: () => set({ recentRoutes: [] }),
       favoriteAircraft: [],
       myAircraft: null,
       setMyAircraft: myAircraft => set({ myAircraft }),
@@ -299,11 +312,31 @@ export const usePreferences = create<Preferences>()(
         flightRules: s.flightRules,
         recentAirports: s.recentAirports, homeAirport: s.homeAirport, favoriteAirports: s.favoriteAirports,
         recentAircraft: s.recentAircraft, favoriteAircraft: s.favoriteAircraft, myAircraft: s.myAircraft,
+        recentRoutes: s.recentRoutes,
         aircraftFilter: s.aircraftFilter,
       }),
     },
   ),
 );
+
+/** How many of a tab's Recents its page shows before their See All (Maps'
+ *  Recents and their More). */
+export const RECENTS_SHOWN = 3;
+
+/** A route planned, as FPL's Recents keep it: its ends, its stops in
+ *  order, and when it was planned. */
+export interface RecentRoute {
+  dep: string;
+  dest: string;
+  stops: string[];
+  at: number;
+}
+
+/** One key a route, for its place in the Recents: the same ends and stops
+ *  are the same route, planned again. */
+export function recentRouteKey(route: Pick<RecentRoute, "dep" | "dest" | "stops">): string {
+  return `${route.dep}|${route.stops.join(",")}|${route.dest}`;
+}
 
 /** What this browser keeps of an airplane picked or starred: its ICAO
  *  address, what it is called (its registration, else its callsign) and

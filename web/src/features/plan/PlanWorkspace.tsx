@@ -27,7 +27,7 @@ import RoundButton from "../../components/RoundButton";
 import ShareMenu from "./components/ShareMenu";
 import TipHost from "../../components/TipHost";
 import { useCardTitle, usePanelDragging } from "../../components/mapChrome";
-import { SearchField, SearchResults } from "../../components/PanelCapsule";
+import { AirportRecentsPage, SearchField, SearchResults } from "../../components/PanelCapsule";
 import { chipColourOf } from "../../lib/map/flightCategory";
 import { FavoriteStrip, FavoritesList } from "../../components/Favorites";
 import FlightLine from "./components/FlightLine";
@@ -44,6 +44,7 @@ import TabPage from "../../components/TabPage";
 import { useAirportStripShows } from "./hooks/useAirportStripShows";
 import AirportPill from "./components/AirportPill";
 import SavedStrip from "./components/SavedStrip";
+import { RecentRoutes, RecentRoutesPage } from "./components/RecentRoutes";
 import MiniProfile from "./components/navlog/MiniProfile";
 import { dryRunOf, type DryRun } from "./components/navlog/dryRun";
 import { DryRunControls, DryRunFigures } from "./components/DryRunPanel";
@@ -710,22 +711,38 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const waypointStops = useMemo(() => new Set(planned.stops.filter(stop =>
     course?.stops?.some(a => a.ident === stop && a.kind === "fix") || !identOf(stop)
     || (isAirwayToken(stop) && !course?.stops?.some(a => a.ident === stop)))), [planned.stops, course]);
-  // Favorites in full (FavoritesList), in place of the recents; put away
-  // as a tab is picked.
+  // Favorites in full (FavoritesList), in place of the recents, and each
+  // tab's Recents in full from their See All (Airport's, FPL's routes);
+  // put away as a tab is picked.
   const [favoritesOpen, setFavoritesOpen] = useState(false);
-  const favoritesAway = useCallback(() => setFavoritesOpen(false), []);
+  const [airportRecentsOpen, setAirportRecentsOpen] = useState(false);
+  const [routeRecentsOpen, setRouteRecentsOpen] = useState(false);
+  const listsAway = useCallback(() => {
+    setFavoritesOpen(false);
+    setAirportRecentsOpen(false);
+    setRouteRecentsOpen(false);
+  }, []);
+  // Each route the planner answers kept as FPL's Recents, newest first, at
+  // the owner's ask ("Can we have recents under saved ?"): once it is
+  // answered, so a route typed wrong is not kept.
+  const answered = !!course && course.departure.ident === planned.dep && course.destination.ident === planned.dest;
+  const stopsKey = planned.stops.join(",");
+  useEffect(() => {
+    if (!answered) return;
+    usePreferences.getState().addRecentRoute({ dep: planned.dep, dest: planned.dest, stops: stopsKey ? stopsKey.split(",") : [], at: Date.now() });
+  }, [answered, planned.dep, planned.dest, stopsKey]);
   // The tab bar's place (TabBar) and what each tab keeps open over it
   // (useTabCards): FPL, the route's box and its nav log; Airport, the
   // search and the nearest fields; Aircraft, the traffic.
   const { tab, setTabPick, pickTab, tabUp, closeSheet } = usePanelTabs({
     cards, route: `${planned.dep}|${planned.stops.join(",")}|${planned.dest}`,
     hasRoute: routed || !!planned.dep || !!planned.dest || planned.stops.length > 0,
-    panel, setPanel, searchParams, setSearchParams, onPicked: favoritesAway,
+    panel, setPanel, searchParams, setSearchParams, onPicked: listsAway,
   });
   // Airport's pill's NEAREST strip: the list's own question, shared, asked
   // while the strip is in sight.
   // Airport's strip in sight, at the pill or all the way up.
-  const airportPill = tab === "airport" && !place && !heldPoint && !nearOpen && !favoritesOpen;
+  const airportPill = tab === "airport" && !place && !heldPoint && !nearOpen && !favoritesOpen && !airportRecentsOpen;
   const showsNearest = useAirportStripShows(s => s.nearest);
   const { data: nearStrip } = useQuery({ ...nearestQuery(nearOrigin?.lat ?? 0, nearOrigin?.lon ?? 0), enabled: airportPill && showsNearest && !!nearOrigin });
   // FPL's saved flights in full, a card over it (SAVED's title, the chips'
@@ -1387,12 +1404,20 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
                 onRemove={toggleFavoriteAirport} onMove={moveFavoriteAirport} onAdd={() => askFor("favorite")}
               />
             </TabPage>
+          ) : airportRecentsOpen && !query ? (
+            <TabPage testId="airport-recents-list">
+              <AirportRecentsPage
+                onBack={() => setAirportRecentsOpen(false)}
+                onPick={airport => { setAirportRecentsOpen(false); void pickPlace(airport); }}
+              />
+            </TabPage>
           ) : (
             <TabPage testId="airport-page">
               <SearchResults
                 query={query} onPick={airport => void pickPlace(airport)}
                 // The pill's strip where it was, the Recents under it.
                 places={picking === "place" && (panel !== "peek" || dragging) && airportStrip}
+                onAllRecents={() => { setAirportRecentsOpen(true); setPanel("full"); }}
               />
             </TabPage>
           )
@@ -1401,9 +1426,17 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
             sight then (the owner's notice, "Fpl hides Saved while dragging
             up"). */}
         {tab === "fpl" && !savedOpen && !hasPoints && !place && !heldPoint && (panel !== "peek" || dragging) && (
-          <TabPage scroll={false}>
-            <SavedStrip onMore={openSaved} />
-          </TabPage>
+          routeRecentsOpen ? (
+            <TabPage testId="route-recents-list">
+              <RecentRoutesPage onBack={() => setRouteRecentsOpen(false)} />
+            </TabPage>
+          ) : (
+            // Saved, and the routes planned last under it.
+            <TabPage>
+              <SavedStrip onMore={openSaved} />
+              <RecentRoutes onSeeAll={() => { setRouteRecentsOpen(true); setPanel("full"); }} />
+            </TabPage>
+          )
         )}
         {tab === "fpl" && savedOpen && !place && !heldPoint && (
           <TabPage testId="saved-flights">
