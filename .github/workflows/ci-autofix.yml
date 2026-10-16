@@ -114,7 +114,7 @@ jobs:
         if: steps.mode.outputs.mode == 'fix' || steps.mode.outputs.mode == 'nightly'
         working-directory: web
         run: npm ci
-      - uses: anthropics/claude-code-action@6fed3ca145920b639991cb756090506e1bcaf515  # v1.0.245
+      - uses: anthropics/claude-code-action@1d6de8cb0c237e7c15e9e1bdf973826ebae490cc  # v1.0.248
         if: steps.mode.outputs.mode != ''
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
