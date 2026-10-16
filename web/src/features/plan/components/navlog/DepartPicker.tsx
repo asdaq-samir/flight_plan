@@ -75,7 +75,8 @@ export default function DepartPicker({ value, onChange }: Props) {
         </Button>
       </ResponsivePopoverTrigger>
       {/* A sheet from the bottom on a phone, the calendar centred in it. */}
-      <ResponsivePopoverContent title="Departure" className="w-auto p-0" align="start">
+      {/* Its Done at the foot its way out (no close). */}
+      <ResponsivePopoverContent title="Departure" className="w-auto p-0" align="start" closeButton={false}>
         <div className="flex flex-col items-center gap-3 pb-3" data-testid="depart-picker">
           {/* Sized like the grid it stands in for, so the popover does
               not jump once it arrives. */}

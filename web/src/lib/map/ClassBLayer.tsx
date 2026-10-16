@@ -31,10 +31,12 @@ const hovers = typeof window !== "undefined" && window.matchMedia("(hover: hover
  * (the settings' Class B, Weather): useful on a cross-country that
  * passes near one, clutter on a route that does not.
  */
-export function ClassBLayer({ chart, endpoints, onPreview, onSelectPlace }: {
+export function ClassBLayer({ chart, route, onPreview, onSelectPlace }: {
   chart: ChartInfo;
-  /** The route's two airports, which draw their own chips. */
-  endpoints: string[];
+  /** The route's own airports -- its ends and its stops -- which draw
+   *  their own marks: a Class B stop was drawn twice, the route's mark
+   *  and this one over it. */
+  route: string[];
   onPreview: (on: boolean) => void;
   onSelectPlace?: (ident: string) => void;
 }) {
@@ -53,7 +55,7 @@ export function ClassBLayer({ chart, endpoints, onPreview, onSelectPlace }: {
   // too stacked two chips on one field, each answering a tap differently.
   return (
     <>
-      {data.filter(airport => !endpoints.includes(airport.ident)).map(airport => {
+      {data.filter(airport => !route.includes(airport.ident)).map(airport => {
         const sheet = sheetAt(overlay, airport.lat, airport.lon);
         return (
           <Marker

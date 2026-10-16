@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { LocateFixed, MapPin, Navigation2 } from "lucide-react";
 import { cn } from "cn";
-import { ChartMark, PillStrip, SmallMark, SmallTile } from "../../../components/Favorites";
+import { ChartMark, ListPageHead, PillStrip, SmallMark, SmallTile } from "../../../components/Favorites";
 import { PanelCard } from "../../../components/PanelCard";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
 import { api } from "../../../lib/api/client";
@@ -237,8 +237,11 @@ export function NearestStrip({ fields, located, onOpen }: {
  * address, an airport. A tap on one opens its card over this one, and
  * its close comes back here. With no position yet, it offers to show it.
  */
-export default function NearestCard({ onOpen, from, onFrom }: {
+export default function NearestCard({ onOpen, from, onFrom, onBack }: {
   onOpen: (ident: string) => void;
+  /** Back to Airport's start: the list put away, as every list in full has
+   *  its Back (ListPageHead), where this one had no way out but a tab. */
+  onBack: () => void;
   /** The place typed, where it is from one (the page's, in its address). */
   from: NearFrom | null;
   onFrom: (from: NearFrom | null) => void;
@@ -261,6 +264,7 @@ export default function NearestCard({ onOpen, from, onFrom }: {
   const ahead = !from && fix?.headingDeg != null && (fix.speedKt ?? 0) >= MOVING_KT ? fix.headingDeg : null;
   return (
     <PanelCard testId="nearest-card">
+      <ListPageHead title="Nearest" backLabel="Back to the search" onBack={onBack} testId="nearest-page" />
       <NearAnswers from={from} onFrom={onFrom} />
       <div className="pt-1">
         {!origin ? (

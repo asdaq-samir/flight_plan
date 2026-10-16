@@ -1,6 +1,7 @@
 import { createContext, useContext, type ComponentProps, type ReactNode } from "react";
 import { cn } from "cn";
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "./ui/sheet";
+import { Sheet, SheetClose, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "./ui/sheet";
+import CloseButton from "./CloseButton";
 import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from "./ui/popover";
 import { useIsMobile } from "../hooks/use-mobile";
 import { useNavEdge } from "../hooks/use-nav-edge";
@@ -76,11 +77,17 @@ type ContentProps = ComponentProps<typeof PopoverContent> & {
   /** The phone's sheet's overlay's: clear, where the map under it is
    *  what the sheet is for. */
   sheetOverlayClassName?: string;
+  /** On a phone, the app's close (CloseButton) at the title row's end
+   *  where nothing else is there (`action`, `leading`): every sheet with
+   *  a way out besides a tap on the map under it, where the Map
+   *  settings', the altitude's and the drills' sheets had none (the
+   *  commonality audit's C-4). False where the sheet's own Done is it. */
+  closeButton?: boolean;
 };
 
 export function ResponsivePopoverContent({
-  title, description, titleHidden, action, leading, className, sheetClassName, sheetOverlayClassName, children, align, side, sideOffset, alignOffset,
-  collisionPadding, ...props
+  title, description, titleHidden, action, leading, className, sheetClassName, sheetOverlayClassName, closeButton, children, align, side, sideOffset,
+  alignOffset, collisionPadding, ...props
 }: ContentProps) {
   const edge = useContext(OnPhone);
   if (!edge) {
@@ -102,6 +109,9 @@ export function ResponsivePopoverContent({
       </PopoverContent>
     );
   }
+  const end = (closeButton ?? (action === undefined && !leading))
+    ? <SheetClose asChild><CloseButton data-testid="sheet-close" /></SheetClose>
+    : action;
   return (
     // At most 85% of the screen's height, the title above and the
     // panel's own content scrolling under it, clear of the notch from
@@ -115,15 +125,15 @@ export function ResponsivePopoverContent({
       <SheetHeader
         className={titleHidden ? "sr-only" : cn(
           "pb-2 text-left",
-          action !== undefined && "flex-row flex-wrap items-center justify-between",
+          end !== undefined && "flex-row flex-wrap items-center justify-between",
         )}
       >
         {leading}
         {/* A sheet's title at the app's size for one (TEXT), with a
             control beside it or not: without one it was the stock 14. */}
         <SheetTitle className={cn("font-semibold", TEXT.title, leading && "flex-1 text-center")}>{title}</SheetTitle>
-        {action}
-        {description ? <SheetDescription className={action !== undefined ? "basis-full" : undefined}>{description}</SheetDescription> : null}
+        {end}
+        {description ? <SheetDescription className={end !== undefined ? "basis-full" : undefined}>{description}</SheetDescription> : null}
       </SheetHeader>
       <div className={cn("min-h-0 overflow-y-auto px-4", edge === "top" ? "pb-4" : "pb-[max(1rem,env(safe-area-inset-bottom))]", titleHidden && "pt-4")}>
         {children}

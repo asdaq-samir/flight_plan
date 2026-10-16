@@ -5,7 +5,7 @@ import { BADGE } from "../rowBadges";
 import { useQuery } from "@tanstack/react-query";
 import { Polygon } from "react-leaflet";
 import type { LatLngExpression, PathOptions } from "leaflet";
-import { tfrAltitudes, tfrTimes } from "../advisories";
+import { faaWords, tfrAltitudes, tfrTimes } from "../advisories";
 import type { Tfr } from "../api/types";
 import { usePreferences } from "../preferences";
 import { tfrsQuery } from "../queryClient";
@@ -103,7 +103,9 @@ function TfrCard({ tfr, active }: { tfr: Tfr; active: boolean }) {
       <div className="space-y-1 text-left" data-testid="tfr-card">
         {tfrAltitudes(tfr) && <p>{tfrAltitudes(tfr)}</p>}
         {tfrTimes(tfr) && <p>{tfrTimes(tfr)}</p>}
-        {(tfr.purpose ?? tfr.rule) && <p className="text-muted-foreground">{tfr.purpose ?? tfr.rule}</p>}
+        {/* The FAA's capitals in sentence case, its codes kept (faaWords),
+            as the Brief sets the same TFR's purpose. */}
+        {(tfr.purpose ?? tfr.rule) && <p className="text-muted-foreground">{faaWords(tfr.purpose ?? tfr.rule)}</p>}
         <a className="text-tint" href={`https://tfr.faa.gov/tfr3/?page=detail_${tfr.notam_id.replace("/", "_")}`} target="_blank" rel="noreferrer">
           The NOTAM on tfr.faa.gov
         </a>
