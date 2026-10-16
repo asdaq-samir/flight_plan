@@ -53,14 +53,16 @@ export default function LostCommsPage() {
         In IFR conditions, the rest of this page.
       </p>
 
-      <ListGroup title="Route" footer={ROUTES.find(r => r.key === route)!.rule}>
+      <ListGroup title="Route">
         <ListRow title="Which applies first">
           <Segmented label="Route" value={route} onChange={v => setRoute(v as RouteKey)} testId="lost-route"
             options={ROUTES.map(r => ({ value: r.key, label: r.label }))} />
         </ListRow>
+        {/* The rule for the route picked, a row of its own: it was a footnote. */}
+        <ListRow title={<span className={TEXT.detail}>{ROUTES.find(r => r.key === route)!.rule}</span>} data-testid="lost-route-rule" />
       </ListGroup>
 
-      <ListGroup title="The clearance" footer="Example figures: put in your own.">
+      <ListGroup title="The clearance">
         <ListRow id={`${id}-assigned`} title="Assigned">
           <FieldHit htmlFor={`${id}-assigned`}>
             <Input id={`${id}-assigned`} inputMode="numeric" className="h-8 w-24 text-right tabular-nums" value={assigned} onChange={e => setAssigned(e.target.value)} data-testid="lost-assigned" />
@@ -73,10 +75,9 @@ export default function LostCommsPage() {
         </ListRow>
       </ListGroup>
 
-      <ListGroup
-        title="The route's segments"
-        footer="Each segment's minimum for IFR operations: its MEA, or the OROCA or MOCA off airways. Tap a segment's altitude to say the expected altitude applies from there."
-      >
+      {/* Each segment's minimum for IFR operations: its MEA, or the OROCA
+          or MOCA off airways. */}
+      <ListGroup title="The route's segments">
         {/* Each segment two rows: its name and minimum, then what is flown
             on it, a tap saying the expected altitude applies from there. The
             altitude was a line under the name, and its tap area reached into
@@ -129,10 +130,10 @@ export default function LostCommsPage() {
         </ListRow>
         <ListRow title={<span className="font-normal" data-testid="lost-leave">{leaveLimit(approachFix, efc.trim(), eta.trim())}</span>} />
       </ListGroup>
-      <p className={cn("px-1 text-muted-foreground", TEXT.note)}>
-        14 CFR 91.185(c): the route by the first of assigned, vectored, expected and filed; on each segment, the highest of
-        the altitude assigned, the minimum for IFR operations and the altitude ATC said to expect.
-      </p>
+      {/* 14 CFR 91.185(c): the route by the first of assigned, vectored,
+          expected and filed; on each segment, the highest of the altitude
+          assigned, the minimum for IFR operations and the altitude ATC said
+          to expect. */}
     </div>
   );
 }

@@ -115,7 +115,9 @@ export default function DiversionDrill({ leg, at }: { leg: Leg; at: { name: stri
                 <span>{stopwatch((stopped ?? now) - started)}</span>
               </p>
               <ListChoices value={field ?? ""} onChange={setField} label="Divert to">
-              <ListGroup title="Divert to" footer="The nearest fields, with their longest runway and their weather: how far and which way are on the chart.">
+              {/* The nearest fields, with their longest runway and their
+                  weather: how far and which way are the chart's to read. */}
+              <ListGroup title="Divert to">
                 {nearest.isPending ? (
                   <ListRow title={<span className="text-muted-foreground">Finding the nearest fields…</span>} />
                 ) : fields.length === 0 ? (
@@ -133,10 +135,10 @@ export default function DiversionDrill({ leg, at }: { leg: Leg; at: { name: stri
                 ))}
               </ListGroup>
               </ListChoices>
-              <ListGroup
-                title="Your estimates"
-                footer="The ACS asks for a reasonable estimate (PA.VI.C.S2) and gives no figures: within 10° and 10 kt, 3 minutes and a gallon is this drill's own."
-              >
+              {/* The ACS asks for a reasonable estimate (PA.VI.C.S2) and
+                  gives no figures: within 10° and 10 kt, 3 minutes and a
+                  gallon is this drill's own (ALLOWANCES). */}
+              <ListGroup title="Your estimates">
                 {ALLOWANCES.map(a => {
                   const value = number(a.key);
                   const marked = checked && !!exact && value !== null && Number.isFinite(value);

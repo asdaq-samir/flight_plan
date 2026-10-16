@@ -61,6 +61,7 @@ test("the map's settings credit adsb.lol for the traffic as they credit the FAA 
   await settle(page);
   await openMapSettings(page);
   const settings = page.getByTestId("map-settings");
-  await expect(settings).toContainText("Charts from the FAA");
-  await expect(settings).toContainText("Traffic from adsb.lol, under the Open Database License.");
+  // Rows of their own, where they were a footnote.
+  await expect(settings.getByTestId("chart-edition")).toContainText("FAA");
+  await expect(settings).toContainText("adsb.lol · ODbL");
 });

@@ -39,7 +39,9 @@ export default function ChecklistPage({ aircraft }: { aircraft: Aircraft }) {
   if (writing !== null) {
     return (
       <div className="space-y-3">
-        <ListGroup footer="A line starting # is a section; every other line an item, its response after a dash: Fuel selector -- Both. From the airplane's own flight manual.">
+        {/* A line starting # is a section; every other line an item, its
+            response after a dash, as the placeholder shows. */}
+        <ListGroup>
           <div className="p-2">
             <Textarea
               value={writing} onChange={e => setWriting(e.target.value)} rows={14} className="font-mono"
@@ -60,7 +62,7 @@ export default function ChecklistPage({ aircraft }: { aircraft: Aircraft }) {
   return (
     <div className="space-y-4" data-testid="checklist">
       {empty && (
-        <ListGroup footer="Write it from the airplane's flight manual: the app writes no checklist of its own.">
+        <ListGroup>
           <ListRow title="No checklist yet" />
         </ListGroup>
       )}

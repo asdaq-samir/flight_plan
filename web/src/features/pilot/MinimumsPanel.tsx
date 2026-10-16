@@ -22,7 +22,8 @@ export default function MinimumsPanel() {
   const minimums = usePreferences(s => s.minimums);
   const setMinimum = usePreferences(s => s.setMinimum);
   return (
-    <ListGroup title="Personal minimums" footer="The briefing says where the weather is under them.">
+    // The briefing says where the weather is under them.
+    <ListGroup title="Personal minimums">
       {MINIMUM_ROWS.map(({ key, title, unit }) => (
         <ListRow key={key} title={title}>
           <Select value={minimums[key] == null ? "off" : String(minimums[key])} onValueChange={v => setMinimum(key, v === "off" ? null : Number(v))}>

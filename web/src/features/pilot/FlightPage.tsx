@@ -8,7 +8,7 @@ import ConsoleClose from "../../components/ConsoleClose";
 import { api } from "../../lib/api/client";
 import type { Flight, FlightSummary } from "../../lib/api/types";
 import {
-  ALTITUDE_FT, COURSE_DEG, debrief, ETA_MIN, OFF_ROUTE_NM, PATTERN_FT, PATTERN_NM, type Debrief,
+  ALTITUDE_FT, COURSE_DEG, debrief, ETA_MIN, OFF_ROUTE_NM, PATTERN_FT, type Debrief,
 } from "../../lib/debrief";
 import { LEVEL_TONE, riskLine, type RiskLevel } from "../../lib/frat";
 import { TEXT } from "../../lib/text";
@@ -94,10 +94,11 @@ function Findings({ d }: { d: Debrief }) {
         {d.hasAltitude && <Profile d={d} />}
       </ListGroup>
 
-      <ListGroup
-        title="Leg by leg"
-        footer={`PA.VI.A: within ${OFF_ROUTE_NM} nm of the route, and ${ALTITUDE_FT} ft and ${COURSE_DEG}° in the cruise, the climb and the descent left out. GPS altitude is not the altimeter's, and a ground track is not a heading: close to what an examiner sees, not it.`}
-      >
+      {/* PA.VI.A's tolerances in the title, where they were a footnote:
+          within OFF_ROUTE_NM of the route, and ALTITUDE_FT and COURSE_DEG in
+          the cruise, the climb and the descent left out. GPS altitude is not
+          the altimeter's, and a ground track is not a heading. */}
+      <ListGroup title={`Leg by leg · within ${OFF_ROUTE_NM} nm, ${ALTITUDE_FT} ft, ${COURSE_DEG}°`}>
         {d.legs.map((leg, i) => {
           const altOk = leg.worstAltFt == null || Math.abs(leg.worstAltFt) <= ALTITUDE_FT;
           const routeOk = leg.worstOffNm == null || Math.abs(leg.worstOffNm) <= OFF_ROUTE_NM;
@@ -126,7 +127,8 @@ function Findings({ d }: { d: Debrief }) {
         })}
       </ListGroup>
 
-      <ListGroup title="Checkpoints" footer={`PA.VI.A: each within ${ETA_MIN} minutes of its estimate, from the takeoff.`}>
+      {/* PA.VI.A: each within ETA_MIN minutes of its estimate, from the takeoff. */}
+      <ListGroup title={`Checkpoints · within ${ETA_MIN} min`}>
         {d.passes.map((p, i) => {
           const landed = p.category === "destination" || p.category === "stop";
           const late = p.dueMin != null && p.passedMin != null ? p.passedMin - p.dueMin : null;
@@ -146,7 +148,9 @@ function Findings({ d }: { d: Debrief }) {
       </ListGroup>
 
       {d.patterns.length > 0 && (
-        <ListGroup title="Into the pattern" footer={`PA.III.B: pattern altitude within ${PATTERN_FT} ft, read ${PATTERN_NM} nm from the field, about where the downwind starts.`}>
+        // PA.III.B: pattern altitude within PATTERN_FT, read PATTERN_NM from
+        // the field, about where the downwind starts.
+        <ListGroup title={`Into the pattern · within ${PATTERN_FT} ft`}>
           {d.patterns.map(p => (
             <ListRow
               key={p.ident} media={<Mark ok={Math.abs(p.altFt - p.patternFt) <= PATTERN_FT} />}
@@ -221,10 +225,10 @@ function DebriefSection({ flight, planHref }: { flight: Flight; planHref: string
   const onAccount = !!saved.data;
   return (
     <div className="space-y-4" data-testid="debrief">
-      <ListGroup
-        title="Debrief"
-        footer="Your track log from ForeFlight, Garmin Pilot or a GPS, as GPX or KML, read against this flight's nav log. It stays on this device unless you save it to your account."
-      >
+      {/* A track log from ForeFlight, Garmin Pilot or a GPS, as GPX or KML,
+          read against this flight's nav log; kept on this device unless
+          saved to the account. */}
+      <ListGroup title="Debrief">
         {track && (
           <ListRow
             title={track.source}
@@ -301,10 +305,9 @@ function InstructorReview({ summary }: { summary: FlightSummary }) {
   const waiting = asked.some(r => !r.answeredAt);
   return (
     <>
-      <ListGroup
-        title="Solo cross-country"
-        footer="Before each solo cross-country, your instructor reviews its planning and the weather, and endorses it for the airplane and the day (14 CFR 61.93(c)(3), (d))."
-      >
+      {/* Before each solo cross-country the instructor reviews its planning
+          and the weather and endorses it (14 CFR 61.93(c)(3), (d)). */}
+      <ListGroup title="Solo cross-country">
         {asked.map(r => (
           <ListRow key={r.id} title={r.instructorName ?? "Your instructor"} description={`${said(r.flightOn)} · ${reviewState(r)}`}
             data-testid="flight-review" />
@@ -333,7 +336,8 @@ export default function FlightPage({ summary, planHref }: { summary: FlightSumma
   const entitlement = useEntitlement("DEBRIEF");
   return (
     <div className="space-y-4">
-      <ListGroup footer={`Filed ${format(new Date(summary.createdAt), "d MMM yyyy")}.`}>
+      <ListGroup>
+        <Row title="Filed" value={format(new Date(summary.createdAt), "d MMM yyyy")} />
         {summary.aircraftTailNumber && <Row title="Aircraft" value={summary.aircraftTailNumber} />}
         <Row title="Altitude" value={feet(summary.cruiseAltitudeFt)} />
         {summary.totalDistanceNm != null && <Row title="Distance" value={nm(summary.totalDistanceNm)} />}

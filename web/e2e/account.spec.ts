@@ -151,7 +151,7 @@ test("the airplane the nav log flies is ticked, and a tap on another flies that 
   const pick = (tail: string) => console.locator("[data-aircraft-row]", { hasText: tail }).locator("button[aria-pressed]");
   // A stock profile to start with: neither of these is ticked.
   await expect(console.locator('button[aria-pressed="true"]')).toHaveCount(0);
-  await expect(console).toContainText("flies the stock C172");
+  await expect(console.getByTestId("aircraft-stock")).toHaveText("Flying the stock C172");
 
   await pick("N2").click();
   await expect(pick("N2")).toHaveAttribute("aria-pressed", "true");

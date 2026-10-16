@@ -69,7 +69,8 @@ export default function DrillPage({ deck: key }: { deck: DeckKey }) {
     const next = nextDue(deck, progress, now);
     return (
       <div className="space-y-4" data-testid="drill-done">
-        <ListGroup footer={`From ${deck.source}. Each card known comes back later: a day, three, a week, a fortnight.`}>
+        {/* Each card known comes back later: a day, three, a week, a fortnight. */}
+        <ListGroup>
           <ListRow
             title={done ? `${done} card${done === 1 ? "" : "s"} done` : "Nothing due"}
             description={next ? `The next one is due in ${formatDistanceStrict(next, now)}.` : "Every card is new: start whenever you like."}
@@ -105,7 +106,7 @@ export default function DrillPage({ deck: key }: { deck: DeckKey }) {
           <Button type="button" onClick={() => answer(true)} data-testid="drill-knew">Knew it</Button>
         </div>
       )}
-      <ListGroup footer="Your progress is kept in this browser.">
+      <ListGroup>
         <ListRow title={deck.source} description="The regulation, in its own words" href={deck.url} />
       </ListGroup>
     </div>

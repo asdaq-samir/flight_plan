@@ -33,14 +33,19 @@ export default function SubscriptionPanel() {
   }
   return (
     <div className="space-y-4" data-testid="subscription-panel">
-      <ListGroup footer={`Planning and flying are free. The subscription, ${PRICE.monthly} or ${PRICE.yearly}, adds the written briefing, checkpoint descriptions, the mock oral and the debrief.`}>
+      {/* What it is and costs, rows where they were a footnote: planning and
+          flying are free; the subscription adds the written features. */}
+      <ListGroup>
         <ListRow title="Status" value={standing(subscription)} data-testid="subscription-standing" />
         {subscription.plan && <ListRow title="Plan" value={PLANS[subscription.plan]} />}
         {subscription.store && <ListRow title="Bought on" value={STORES[subscription.store]} />}
+        <ListRow title="Adds" description="The written briefing, checkpoint descriptions, the mock oral and the debrief" />
+        <ListRow title="Price" value={`${PRICE.monthly} or ${PRICE.yearly}`} />
       </ListGroup>
       {subscription.entitled ? (
         subscription.state !== "COMPED" && (
-          <ListGroup title="This Month" footer="Each one is written by Claude as you ask for it. The month starts again on the 1st.">
+          // Each written by Claude as it is asked for; the month starts again on the 1st.
+          <ListGroup title="This Month">
             {subscription.uses.map(use => (
               <ListRow key={use.feature} title={COUNTED[use.feature]} value={`${use.used} of ${use.cap}`}
                 data-testid={`subscription-use-${use.feature}`} />

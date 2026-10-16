@@ -7,7 +7,7 @@ import { phasesOf, type Phase } from "./sections";
 import { FrequencyRow } from "../FrequencyRow";
 import { PublicationRows } from "../PublicationRows";
 import { RunwayRow } from "../RunwayRow";
-import PatternRadio, { RadioNote } from "./PatternRadio";
+import PatternRadio from "./PatternRadio";
 
 /**
  * The Brief's airports: a section for each field the flight leaves or
@@ -70,7 +70,6 @@ export default function AirportSections({ briefing, landings, legs, callSign, ph
           </AccordionSection>
         );
       })}
-      {landings.length > 1 && (!phase || phase === "arrive") && <RadioNote />}
     </>
   );
 }

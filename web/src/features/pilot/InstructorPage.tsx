@@ -39,10 +39,11 @@ function CertificateForm({ instructor, onDone }: { instructor: Instructor; onDon
   const ready = draft.fullName.trim() && /^[A-Za-z0-9]{4,20}$/.test(draft.certificate.trim()) && draft.until;
   return (
     <>
-      <ListGroup
-        title="Your flight instructor certificate"
-        footer="As every endorsement you sign carries it (AC 61-65K): your name, the certificate number with its ratings' letters, and the end of your recent experience (14 CFR 61.197) or, on an older certificate, its expiration date."
-      >
+      {/* As every endorsement signed carries it (AC 61-65K): the name, the
+          certificate number with its ratings' letters, and the end of the
+          recent experience (14 CFR 61.197) or an older certificate's
+          expiration date. */}
+      <ListGroup title="Your flight instructor certificate">
         <ListRow id={ids.name} title="Name">
           <FieldHit htmlFor={ids.name}><Input id={ids.name} value={draft.fullName} placeholder="J. J. Jones" maxLength={120} className="h-8 w-44 sm:w-56"
             onChange={e => setDraft({ ...draft, fullName: e.target.value })} data-testid="cfi-name" /></FieldHit>
@@ -95,10 +96,9 @@ function ReviewSection({ review, kind, studentId, studentName, instructor }: {
   const landings = [...f.stops, f.destinationIdent];
   return (
     <div className="space-y-4" data-testid="review">
-      <ListGroup
-        title={`${reviewRoute(review)}, ${said(review.flightOn)}`}
-        footer={review.note ? `“${review.note}”` : undefined}
-      >
+      <ListGroup title={`${reviewRoute(review)}, ${said(review.flightOn)}`}>
+        {/* The student's note with it, first, where it was a footnote. */}
+        {review.note && <ListRow title={<span className="italic">“{review.note}”</span>} data-testid="review-note" />}
         <ListRow title="Airplane" value={[review.makeModel, f.aircraftTailNumber].filter(Boolean).join(" · ")} />
         <ListRow title="Altitude" value={feet(f.cruiseAltitudeFt)} />
         {f.totalDistanceNm != null && <ListRow title="Distance" value={nm(f.totalDistanceNm)} />}
@@ -114,7 +114,8 @@ function ReviewSection({ review, kind, studentId, studentName, instructor }: {
           <ListRow title="Open on the map" description="Its nav log, and today's weather and NOTAMs along it" to={planHrefOf(f)} data-testid="review-open" />
         </ConsoleClose>
       </ListGroup>
-      <ListGroup title="The student's endorsements" footer="14 CFR 61.93(d)(4) and (5), as their record has them.">
+      {/* 14 CFR 61.93(d)(4) and (5), as their record has them. */}
+      <ListGroup title="The student's endorsements">
         {review.checks.map(c => (
           <ListRow
             key={c.rule} title={c.label} description={`${c.rule} · ${c.detail}`} data-testid="review-check"
@@ -132,7 +133,8 @@ function ReviewSection({ review, kind, studentId, studentName, instructor }: {
           onDone={() => setAnswering(null)} onCancel={() => setAnswering(null)}
         />
       ) : answering === "decline" ? (
-        <ListGroup title="Not endorsed" footer="Your note goes to the student by email and on their Checkride page.">
+        // The note goes to the student by email and on their Checkride page.
+        <ListGroup title="Not endorsed">
           <div className="p-2">
             <Textarea value={note} onChange={e => setNote(e.target.value)} rows={3} maxLength={500}
               placeholder="Why, and what to change" aria-label="Why not" data-testid="review-decline-note" />
@@ -181,10 +183,10 @@ function StudentPage({ row, instructor }: { row: StudentRow; instructor: Instruc
           onDone={() => setSigning(null)} onCancel={() => setSigning(null)}
         />
       ) : (
-        <ListGroup
-          title="Endorsements"
-          footer={training.fullName ? "Tap one to sign it, in AC 61-65K's words." : "They have not given their name as on their certificate yet: an endorsement names them by it."}
-        >
+        // Each signed in AC 61-65K's words, which name the student as on
+        // their certificate: none until they have given it.
+        <ListGroup title="Endorsements">
+          {!training.fullName && <ListRow title={<span className="text-muted-foreground">Waiting for their name as on their certificate</span>} />}
           {training.kinds.map(kind => {
             const e = signed.get(kind.code);
             if (e) return <SignedRow key={kind.code} kind={kind} e={e} />;
@@ -243,7 +245,7 @@ export default function InstructorPage() {
         )}
 
         {instructor.asking.length > 0 && (
-          <ListGroup title="Asking you" footer="Students who asked you to be their instructor, at this address.">
+          <ListGroup title="Asking you">
             {instructor.asking.map(s => (
               <ListRow key={s.linkId} title={s.name} description={s.email} data-testid="student-ask">
                 <span className="flex gap-1">
@@ -255,10 +257,7 @@ export default function InstructorPage() {
           </ListGroup>
         )}
 
-        <ListGroup
-          title="Students"
-          footer={instructor.students.length ? "Each with their experience, endorsements and the solo cross-countries waiting on you." : "A student asks you in from their Checkride page, with your address."}
-        >
+        <ListGroup title="Students">
           {instructor.students.length === 0 ? (
             <ListRow title={<span className="text-muted-foreground">None yet</span>} />
           ) : instructor.students.map(s => (
@@ -274,10 +273,9 @@ export default function InstructorPage() {
         </ListGroup>
 
         {instructor.signed.length > 0 && (
-          <ListGroup
-            title="Signed"
-            footer="What you have signed here in the last 3 years, the record 14 CFR 61.189 asks you to keep: kept when a student's account goes. Void one to correct it, and sign it again."
-          >
+          // What was signed here in the last 3 years, the record 14 CFR
+          // 61.189 asks an instructor to keep: kept when a student's account goes.
+          <ListGroup title="Signed">
             {instructor.signed.map(e => (
               <SignedRow
                 key={e.id} kind={kindOf(e.code)} e={e} who={e.studentName}
@@ -288,7 +286,7 @@ export default function InstructorPage() {
         )}
 
         {instructor.certificate && !editing && (
-          <ListGroup footer="What you have signed stays signed, and your students stay yours until either of you ends it.">
+          <ListGroup>
             <ListRow title={<span className="text-destructive">Stop instructing here</span>} disabled={stop.isPending} onClick={() => stop.mutate()} />
           </ListGroup>
         )}

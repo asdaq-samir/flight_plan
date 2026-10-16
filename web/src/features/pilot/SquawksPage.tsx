@@ -64,7 +64,7 @@ export default function SquawksPage({ aircraft }: { aircraft: Aircraft }) {
 
   return (
     <div className="space-y-4" data-testid="squawks">
-      <ListGroup title="Open" footer={open.length ? "Tap one to write its fix." : undefined}>
+      <ListGroup title="Open">
         {open.length === 0 ? <ListRow title={<span className="text-muted-foreground">None open</span>} />
           : open.map(s => (
             <ListRow
@@ -90,10 +90,12 @@ export default function SquawksPage({ aircraft }: { aircraft: Aircraft }) {
           <ListRow title="Cancel" onClick={() => setFixing(null)} />
         </ListGroup>
       )}
-      <ListGroup
-        title="Write a squawk"
-        footer="An instrument or equipment that does not work may be deferred, without a minimum equipment list, for the kinds of flight it is not required for (91.205, the equipment list, the kinds of operations list, an AD), removed or deactivated and placarded INOPERATIVE, by a pilot or a mechanic who finds it no hazard (14 CFR 91.213(d))."
-      >
+      {/* An instrument or equipment that does not work may be deferred,
+          without a minimum equipment list, for the kinds of flight it is not
+          required for (91.205, the equipment list, the kinds of operations
+          list, an AD), removed or deactivated and placarded INOPERATIVE, by a
+          pilot or a mechanic who finds it no hazard (14 CFR 91.213(d)). */}
+      <ListGroup title="Write a squawk">
         <div className="p-2">
           <Textarea
             value={draft.text} onChange={e => setDraft({ ...draft, text: e.target.value })} rows={2} maxLength={500}

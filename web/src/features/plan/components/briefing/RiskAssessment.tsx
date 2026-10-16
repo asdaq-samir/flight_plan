@@ -2,7 +2,7 @@ import FindingIcon from "../../../../components/FindingIcon";
 import { cn } from "cn";
 import { ListGroup, ListRow } from "../../../../components/GroupedList";
 import {
-  CAUTION_FROM, HIGH_FROM, LEVEL_TONE, LEVEL_WORDS, SELF_CHECKS, riskLine, useRisk, type Assessment,
+  HIGH_FROM, LEVEL_TONE, LEVEL_WORDS, SELF_CHECKS, riskLine, useRisk, type Assessment,
 } from "../../../../lib/frat";
 import { TEXT } from "../../../../lib/text";
 
@@ -47,11 +47,9 @@ export default function RiskAssessment({ assessment }: { assessment: Assessment 
           ))}
         </ListGroup>
       ))}
-      <p className={cn("px-1 text-muted-foreground", TEXT.note)}>
-        After the FAA Risk Management Handbook’s PAVE and IMSAFE (FAA-H-8083-2). Amber from {CAUTION_FROM} points and red
-        from {HIGH_FROM} are the planner’s own guide, not a rule: the decision is yours as pilot in command (91.3, 91.103).
-        Saved with the flight.
-      </p>
+      {/* After the FAA Risk Management Handbook's PAVE and IMSAFE
+          (FAA-H-8083-2): amber from CAUTION_FROM points and red from
+          HIGH_FROM are the planner's own guide, not a rule (91.3, 91.103). */}
     </div>
   );
 }

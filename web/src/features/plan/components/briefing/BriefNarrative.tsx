@@ -70,7 +70,9 @@ export default function BriefNarrative({ ready, onGenerateNarrative, langgraphNa
           )}
           {narrative.error && <p className="text-destructive" role="alert">Narrative unavailable: {narrative.error}</p>}
           {narrative.text && <p className="whitespace-pre-wrap">{narrative.text}</p>}
-          {narrative.text && <p className={cn("pt-2 text-muted-foreground", TEXT.note)}>Written by the {FRAMEWORK_LABEL[framework]} agent; Settings, Brief to change it.{left && ` ${left}.`}</p>}
+          {/* What is left of the month's briefings, under the text; which
+              agent wrote it is Settings' to say, not a footnote's. */}
+          {narrative.text && left && <p className={cn("pt-2 text-muted-foreground", TEXT.note)}>{left}.</p>}
         </div>
       </AccordionSection>
     </div>

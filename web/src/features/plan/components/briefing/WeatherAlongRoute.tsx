@@ -7,7 +7,6 @@ import { pirepConditions } from "../../../../lib/advisories";
 import { distanceNm } from "../../../../lib/geo";
 import { categoryOf } from "../../../../lib/map/flightCategory";
 import { passTime } from "../../../../lib/passTimes";
-import { TEXT } from "../../../../lib/text";
 import { altFt, ceilingAndVisibility, clockTime } from "../../format";
 import CategoryBadge from "./CategoryBadge";
 import { phasesOf, type Phase } from "./sections";
@@ -230,10 +229,9 @@ export default function WeatherAlongRoute({ briefing, course, legs, departIso, u
             </Fragment>
           );
         })}
-        <p className={cn("px-1 text-muted-foreground", TEXT.note)}>
-          Each TAF read for an hour either side of when the flight gets there, TEMPO and PROB groups included: the worst it allows then.
-          Pilot reports from the last 90 minutes, where they were made.
-        </p>
+        {/* Each TAF read for an hour either side of when the flight gets
+            there, TEMPO and PROB groups included: the worst it allows then;
+            pilot reports from the last 90 minutes, where they were made. */}
       </div>
     </AccordionSection>
   );

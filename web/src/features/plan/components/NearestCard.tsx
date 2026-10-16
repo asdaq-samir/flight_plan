@@ -268,7 +268,7 @@ export default function NearestCard({ onOpen, from, onFrom, onBack }: {
       <NearAnswers from={from} onFrom={onFrom} />
       <div className="pt-1">
         {!origin ? (
-          <ListGroup footer="The nearest fields are found from your position, which stays on this device, or from a place typed above.">
+          <ListGroup>
             {enabled
               ? <ListRow title={<span className="text-muted-foreground">Finding your position…</span>} />
               : <ListRow title="Show my position" onClick={() => setEnabled(true)} data-testid="nearest-show-position" />}
@@ -276,16 +276,11 @@ export default function NearestCard({ onOpen, from, onFrom, onBack }: {
         ) : (
           <ListGroup
             // What the list is from, where the card's name and line said it.
+            // No footnote under it, at the owner's ask: the glide is a
+            // still-air one, 1.5 nm for every 1,000 ft over the nearest
+            // field (the dashed ring); each row its longest runway and its
+            // listed tower, CTAF or UNICOM frequency.
             title={from ? `Near ${from.label}` : glide != null ? `Within a glide: about ${Math.round(glide)} nm` : "Nearest to you"}
-            footer={[
-              from
-                ? `From ${from.label}. Clear the field for the nearest to your position.`
-                : glide != null
-                  ? `Within a still-air glide: about ${Math.round(glide)} nm from here, at 1.5 nm for every 1,000 ft over the nearest field -- the dashed ring.`
-                  : "In the air, the ones within a glide are marked.",
-              ahead != null ? "The arrows point the way from your track." : null,
-              "Each field's longest runway and its listed tower, CTAF or UNICOM frequency. Check the Chart Supplement for the tower's hours. Bearings are true.",
-            ].filter(Boolean).join(" ")}
           >
             {(data ?? []).map(a => (
               <NearestRow key={a.ident} field={a} ahead={ahead} reach={glide != null && a.distance_nm <= glide} onOpen={() => onOpen(a.ident)} />

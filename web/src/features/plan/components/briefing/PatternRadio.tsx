@@ -4,7 +4,6 @@ import { ListGroup, ListRow } from "../../../../components/GroupedList";
 import type { Briefing, Leg } from "../../../../lib/api/types";
 import { compassWord, entryFor, exitFor, patternSideDeg, runwayNumber, type RunwayEnd } from "../../../../lib/pattern";
 import { radioScript, type RadioCall, type RadioPhase } from "../../../../lib/radio";
-import { TEXT } from "../../../../lib/text";
 import { altFt } from "../../format";
 import { Mhz } from "../FrequencyRow";
 
@@ -119,13 +118,13 @@ function CallRow({ call }: { call: RadioCall }) {
 function PatternRows({ phase, facilities, courseDeg }: { phase: RadioPhase; facilities: Facilities; courseDeg: number | null }) {
   const end = phase.end;
   const pattern = facilities.pattern;
-  const towered = facilities.frequencies.some(f => (f.type ?? "").toUpperCase() === "TWR");
   const runway = facilities.runways.find(r => r.runway_ends?.some(e => e.ident === end?.ident));
   const opposite = runway?.runway_ends?.find(e => e.ident !== end?.ident)?.ident ?? null;
   const rightEnds = facilities.runways.flatMap(r => r.runway_ends ?? []).filter(e => e.traffic === "right" && e.ident !== end?.ident);
   const entry = end && phase.kind === "arrival" && courseDeg != null ? entryFor(end, courseDeg) : null;
   return (
-    <ListGroup title={phase.title} footer={towered ? "A towered field: the tower gives the runway and the pattern. Be ready for either side." : undefined}>
+    // At a towered field the tower gives the runway and the pattern, either side.
+    <ListGroup title={phase.title}>
       {end && (
         <div className="px-3 py-2">
           <PatternDiagram end={end} opposite={opposite} fromDeg={entry ? (courseDeg! + 180) % 360 : null} />
@@ -197,12 +196,6 @@ export default function PatternRadio({ briefing, landings, legs, callSign, at }:
   );
 }
 
-/** Where the calls' words come from, once under every field's. */
-export function RadioNote() {
-  return (
-    <p className={cn("py-3 text-muted-foreground", TEXT.note)}>
-      The calls are worded as the AIM (4-1-9, 4-2) and AC 90-66C word them, figures as they are spoken. The words in brackets
-      are yours to fill in, and a controller may ask for something else: say what they ask.
-    </p>
-  );
-}
+// The calls are worded as the AIM (4-1-9, 4-2) and AC 90-66C word them,
+// figures as they are spoken, the words in brackets the pilot's to fill in:
+// said here, where it was a footnote under every field's calls.

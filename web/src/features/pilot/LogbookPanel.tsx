@@ -219,7 +219,10 @@ export function LogbookPanel({ aircraft }: { aircraft?: string }) {
           description="Your students, their solo cross-countries and the endorsements you sign"
         />
       </ListGroup>
-      <ListGroup title="Currency" footer="From your logbook and the two dates above it: no one's sign-off. 61.57 counts takeoffs and landings in the same category and class; at night, to a full stop.">
+      {/* From the logbook and the two dates above it, no one's sign-off: 61.57
+          counts takeoffs and landings in the same category and class; at
+          night, to a full stop. */}
+      <ListGroup title="Currency">
         <ListRow title="Passengers by day" description="3 takeoffs and landings in 90 days"><Until date={currency?.dayPassengersUntil} what="day" /></ListRow>
         <ListRow title="Passengers at night" description="3 to a full stop at night in 90 days"><Until date={currency?.nightPassengersUntil} what="night" /></ListRow>
         <ListRow title="Flight review" description={currency?.flightReviewUntil ? <Until date={currency.flightReviewUntil} what="review" /> : "Within 24 calendar months"}>
@@ -238,10 +241,10 @@ export function LogbookPanel({ aircraft }: { aircraft?: string }) {
 
       {/* Instrument currency (14 CFR 61.57(c), (d)), from the approaches,
           holding and tracking logged with each flight, and the last check. */}
-      <ListGroup
-        title="Instrument"
-        footer="Six approaches, holding and tracking courses in the 6 calendar months before the month you fly, actual or simulated; this month's count from next month. More than six months past, only an instrument proficiency check restores it."
-      >
+      {/* Six approaches, holding and tracking in the 6 calendar months
+          before the month flown, actual or simulated; more than six months
+          past, only an instrument proficiency check restores it. */}
+      <ListGroup title="Instrument">
         <ListRow
           title="Instrument currency"
           description={`${currency?.approachesInWindow ?? 0} of 6 approaches${currency?.holdingInWindow ? ", holding" : ""}${currency?.trackingInWindow ? ", tracking" : ""} in the window`}
@@ -271,10 +274,11 @@ export function LogbookPanel({ aircraft }: { aircraft?: string }) {
           if (file) bringIn.mutate(file);
         }}
       />
-      <ListGroup
-        title="File"
-        footer={imported ?? "A CSV file: ForeFlight's logbook export, or this logbook's own. A flight already here -- the same day, airplane, route and time -- is not added twice."}
-      >
+      {/* A CSV file: ForeFlight's logbook export, or this logbook's own; a
+          flight already here (the same day, airplane, route and time) is
+          not added twice. What an import brought in, said in a row. */}
+      <ListGroup title="File">
+        {imported && <ListRow title={<span className="text-muted-foreground">{imported}</span>} data-testid="logbook-imported" />}
         <ListRow
           title="Import a logbook" media={<FileUp className="size-5" />}
           onClick={() => fileInput.current?.click()} disabled={bringIn.isPending} data-testid="logbook-import"

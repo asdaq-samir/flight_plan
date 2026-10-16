@@ -119,7 +119,9 @@ export function SignForm({ kind, studentId, studentName, instructor, initial, re
   const ready = missing.length === 0 && !lapsed && (!crossCountry || determined.every(Boolean));
   return (
     <div className="space-y-4" data-testid="sign-form">
-      <ListGroup title={kind.label} footer={`AC 61-65K ${kind.paragraph}, 14 CFR ${kind.rule}.`}>
+      {/* The endorsement's AC 61-65K paragraph and 14 CFR section are its
+          kind's (kind.paragraph, kind.rule). */}
+      <ListGroup title={kind.label}>
         {kind.fields.map(f => (
           <ListRow key={f.key} id={`sign-${kind.code}-${f.key}`} title={f.label}>
             <FieldHit htmlFor={`sign-${kind.code}-${f.key}`}><Input
@@ -131,7 +133,8 @@ export function SignForm({ kind, studentId, studentName, instructor, initial, re
         ))}
       </ListGroup>
       {crossCountry && (
-        <ListGroup title="Your determination" footer="14 CFR 61.93(d): yours to determine before a solo cross-country. The student's endorsements, (4) and (5), are above.">
+        // 14 CFR 61.93(d): the instructor's to determine before a solo cross-country.
+        <ListGroup title="Your determination">
           {DETERMINATIONS.map((d, i) => (
             <ListRow
               key={d.rule} checkbox={{ checked: !!determined[i], onChange: next => setDetermined(prev => prev.map((on, j) => (j === i ? next : on))) }}
@@ -140,10 +143,10 @@ export function SignForm({ kind, studentId, studentName, instructor, initial, re
           ))}
         </ListGroup>
       )}
-      <ListGroup
-        title="Instructor's signature"
-        footer="What you sign: the words, and under them your signature with the date, your certificate number and its date, as AC 61-65K asks. Once signed it is not changed; a correction voids it for a new one."
-      >
+      {/* The words, and under them the signature with the date, the
+          certificate number and its date, as AC 61-65K asks; once signed it
+          is not changed, and a correction voids it for a new one. */}
+      <ListGroup title="Instructor's signature">
         <SignedWords text={text} signature={signatureLine(instructor, signedOn)} />
         <ListRow
           title={<span className="font-medium text-tint">Sign as {instructor.fullName}</span>}

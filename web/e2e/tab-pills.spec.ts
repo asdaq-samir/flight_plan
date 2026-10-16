@@ -219,7 +219,7 @@ test("a Favorite is taken off as a Recent is: a swipe to the left uncovers its D
   await row.evaluate(el => el.scrollTo({ left: el.scrollWidth }));
   await expect.poll(() => row.evaluate(el => el.scrollLeft)).toBeGreaterThan(40);
   await row.getByTestId("swipe-delete").click();
-  await expect(list).toContainText("A star on an airport's card adds it here.");
+  await expect(list).toContainText("A star on an airport's card adds it here");
 });
 
 test("on a phone, a card opened from another tab has Back at the top left of the tabs' line, and its close puts the sheet down", async ({ page }) => {

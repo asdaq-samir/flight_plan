@@ -168,10 +168,10 @@ function ProceduresSheet({ airports, picked, onPick, onCharts, chartsDisabled, p
         return (
           <Fragment key={a.ident}>
           <ListChoices value={chosen ?? NONE} onChange={v => onPick(a.ident, v === NONE ? null : v)} label={`${a.ident} traffic pattern`}>
-          <ListGroup
-            title={`${a.ident} · ${a.role} · traffic pattern`}
-            footer="Drawn on the map as the FAA's Airplane Flying Handbook flies a pattern: the downwind about three-quarters of a mile out, the base 45° from the runway's end, the 45° entry abeam midfield. A sketch to fly by, not a procedure; the field's own pattern may differ."
-          >
+          {/* Drawn on the map as the FAA's Airplane Flying Handbook flies a
+              pattern: the downwind about three-quarters of a mile out, the
+              base 45° from the runway's end, the 45° entry abeam midfield. */}
+          <ListGroup title={`${a.ident} · ${a.role} · traffic pattern`}>
             {a.runways === null ? (
               <ListRow title={<span className="text-muted-foreground">Looking the runways up…</span>} />
             ) : (
@@ -257,19 +257,24 @@ function ProcedurePicker({ ident, kind, list, chosen, onPick, onAdded, onPreview
   const runways = (p: ProcedureSummary) => p.runway_transitions.length
     ? p.runway_transitions.includes("ALL") ? "All runways" : `Runway ${p.runway_transitions.map(r => r.replace(/^RW/, "").replace(/B$/, "")).join(", ")}`
     : undefined;
-  const footer = `From the FAA's coded procedures (CIFP), the cycle of ${cycleDate(list.cycle)}${list.stale ? ", OUT OF DATE (the current cycle could not be had)" : ""}: a sketch on the chart to plan by, not for navigation. Fly the FAA's chart.`;
+  // From the FAA's coded procedures (CIFP): a sketch on the chart to plan
+  // by, not for navigation. No footnote under them (the owner's "Avoid
+  // putting so many footnotes"); a cycle out of date is still said, as a
+  // warning in its place.
+  const stale = list.stale ? `Out of date: the ${cycleDate(list.cycle)} cycle, as the current one could not be had` : null;
   const pages = Object.fromEntries(of.map(p => [p.id, {
     title: `${ident} ${p.name}`,
     content: (
       <ProcedurePage
-        kind={kind} ident={ident} procedure={p} chosen={chosen?.id === p.id ? chosen : null} footer={footer}
+        kind={kind} ident={ident} procedure={p} chosen={chosen?.id === p.id ? chosen : null} stale={stale}
         onAdd={transition => { onPick({ id: p.id, transition }); onAdded(); }} onRemove={() => onPick(null)} onPreview={onPreview}
       />
     ),
   }]));
   return (
     <ConsolePages back={`${ident} ${KIND_TITLE[kind].toLowerCase()}`} pages={pages}>
-      <ListGroup footer={footer}>
+      <ListGroup>
+        {stale && <ListRow title={<span className="text-destructive-ink">{stale}</span>} data-testid="procedures-stale" />}
         {of.map(p => {
           const mine = chosen?.id === p.id ? chosen : null;
           return (
@@ -294,13 +299,14 @@ function ProcedurePicker({ ident, kind, list, chosen, onPick, onAdded, onPreview
  * the map above the sheet drawing the one chosen as it is chosen, and Add
  * to Route at the foot (Remove from Route, where it is the route's).
  */
-function ProcedurePage({ kind, ident, procedure, chosen, footer, onAdd, onRemove, onPreview }: {
+function ProcedurePage({ kind, ident, procedure, chosen, stale, onAdd, onRemove, onPreview }: {
   kind: Kind;
   ident: string;
   procedure: ProcedureSummary;
   /** This procedure as the route has it, if it does. */
   chosen: PickedProcedure | null;
-  footer: string;
+  /** Its cycle's warning where it is out of date. */
+  stale: string | null;
   onAdd: (transition: string | null) => void;
   onRemove: () => void;
   onPreview: (procedure: PickedProcedure | null) => void;
@@ -323,7 +329,7 @@ function ProcedurePage({ kind, ident, procedure, chosen, footer, onAdd, onRemove
           </ListGroup>
         </ListChoices>
       )}
-      <p className={cn("px-1 text-muted-foreground", TEXT.note)}>{footer}</p>
+      {stale && <p className={cn("px-1 text-destructive-ink", TEXT.detail)}>{stale}</p>}
       {/* At the phone's sheet's foot as the page scrolls, as ForeFlight's
           Add to Route is: down over the sheet's own padding under it, so
           no line of the page shows below the button. In the popover from

@@ -114,9 +114,9 @@ export default function AirspaceCard({ point, onClose, summary = false, onExpand
       {data && (
         <div className="pt-3">
           <PillSection title="Airspace here" onMore={summary ? onExpand : undefined} testId="airspace-summary">
-            <ListGroup
-              footer={summary ? undefined : `Feet MSL, from the FAA's airspace file${ground !== null ? " and the ground's height there" : ""}. Check the chart: it is the authority.`}
-            >
+            {/* Feet MSL (each range says so), from the FAA's airspace file
+                and the ground's height there: the chart is the authority. */}
+            <ListGroup>
               {(summary ? data.bands.slice(0, 2) : data.bands).map(band => <BandRow key={`${band.floor_ft}-${band.class}`} band={band} ground={ground} />)}
             </ListGroup>
           </PillSection>

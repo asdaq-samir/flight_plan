@@ -793,7 +793,7 @@ export default function NavLogView({
   // a row each -- what it needs, against the tanks.
   const hopsNote = totals && totals.hops.length > 0 && (
     <div className="mt-3" data-testid="fuel-check">
-      <ListGroup title="Fuel, stop to stop" footer="The tanks filled at each stop: each flight is checked on its own, with its reserve.">
+      <ListGroup title="Fuel, tanks filled at each stop">
         {totals.hops.map(({ departure, destination, totals: hop }) => {
           const short = hop.fuel_margin_gal != null && hop.fuel_margin_gal < 0 ? -hop.fuel_margin_gal : null;
           return (

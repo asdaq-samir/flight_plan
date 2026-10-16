@@ -34,7 +34,8 @@ export default function PreflightAction({ flight, found }: {
       )}
     >
       <div className="space-y-4">
-        <ListGroup footer="What 14 CFR 91.103 asks a pilot in command to know before a flight. Tick each once you have.">
+        {/* What 14 CFR 91.103 asks a pilot in command to know before a flight. */}
+        <ListGroup>
           {PREFLIGHT_ITEMS.map(item => {
             const what = found[item.key];
             return (
@@ -57,7 +58,9 @@ export default function PreflightAction({ flight, found }: {
             );
           })}
         </ListGroup>
-        <ListGroup title="Not fetched here" footer="The FAA’s NOTAM and flow-control feeds need operator credentials, so these open where a pilot reads them.">
+        {/* The FAA's NOTAM and flow-control feeds need operator credentials:
+            these open where a pilot reads them. */}
+        <ListGroup title="Not fetched here">
           <ListRow title="NOTAMs" description="1800wxbrief.com" href="https://www.1800wxbrief.com" />
           <ListRow title="NOTAM search" description="notams.aim.faa.gov" href="https://notams.aim.faa.gov/notamSearch/" />
           <ListRow title="ATC delays" description="fly.faa.gov" href="https://www.fly.faa.gov" />

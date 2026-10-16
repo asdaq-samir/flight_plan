@@ -86,13 +86,13 @@ function zuluOf(at: string): string {
 }
 
 /** When the report was made: "Observed 1255Z, 14 minutes ago". */
-function observedLine(at: string, wind = true): string {
+function observedLine(at: string): string {
   const when = new Date(at);
   if (Number.isNaN(when.getTime())) return "";
   const zulu = zuluOf(at);
   const minutes = Math.max(0, Math.round((Date.now() - when.getTime()) / 60_000));
-  const ago = minutes < 1 ? "just now" : minutes < 90 ? `${minutes} minute${minutes === 1 ? "" : "s"} ago` : `${Math.round(minutes / 60)} hours ago`;
-  return `Observed ${zulu}, ${ago}.${wind ? " Wind true, as reported." : ""}`;
+  const ago = minutes < 1 ? "just now" : minutes < 90 ? `${minutes} min ago` : `${Math.round(minutes / 60)} h ago`;
+  return `${zulu} · ${ago}`;
 }
 
 /** The field's name alone, at the pilot's ask, its ident taken off to
@@ -570,14 +570,16 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
               // -- with the radio, as it is the mic that turns them on.
               <div className="pt-5">
                 <PillSection title="Lights">
-                <ListGroup
-                  footer={place.standard_keying
-                    ? "Key the mic on the frequency 7 times within 5 seconds for high intensity, 5 for medium, 3 for low."
-                    : undefined}
-                >
+                <ListGroup>
                   {place.lighting.map(note => (
                     <ListRow key={note} media={<RowBadge colour={BADGE.lights}><Lightbulb /></RowBadge>} title={note} data-testid="place-lighting" />
                   ))}
+                  {/* The standard keying (AIM 2-1-9): the mic keyed 7 times
+                      within 5 seconds for high intensity, 5 for medium, 3 for
+                      low -- a row, where it was a footnote. */}
+                  {place.standard_keying && (
+                    <ListRow title="Keying" value={<span className="text-foreground">7 high · 5 medium · 3 low</span>} data-testid="place-keying" />
+                  )}
                 </ListGroup>
                 </PillSection>
               </div>
@@ -613,13 +615,18 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
           </CardTabPanel>
 
           <CardTabPanel value="weather" className="space-y-0">
-            <ListGroup
-              footer={metar?.observed_at
-                ? `${observedLine(metar.observed_at)}${viaReceiver ? " Heard from your ADS-B receiver (FIS-B)." : ""}`
-                : undefined}
-            >
+            <ListGroup>
               {metar ? (
                 <>
+                  {/* When it was observed, first: a report's age is what a
+                      pilot weighs it by (and where it came from, where it is
+                      own ship's receiver). Its wind is true, as reported. */}
+                  {metar.observed_at && (
+                    <ListRow
+                      title="Observed" data-testid="place-observed"
+                      value={<span className="text-foreground">{observedLine(metar.observed_at)}{viaReceiver ? " · FIS-B" : ""}</span>}
+                    />
+                  )}
                   {/* Each figure with its glyph, its value at the right in
                       the text's own colour; the report as it was sent
                       under them. */}
@@ -661,10 +668,9 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
                 chip -- ceiling and visibility, and that it is a model's. */}
             {modelled && (
               <div className="pt-5" data-testid="place-modelled-weather">
-                <ListGroup
-                  title="Modelled for the hour"
-                  footer={`The National Weather Service's Gridded LAMP for ${zuluOf(modelled.valid_at)}: planning guidance from a model, not an observation.`}
-                >
+                {/* The National Weather Service's Gridded LAMP: planning
+                    guidance from a model, not an observation. */}
+                <ListGroup title={`Modelled for ${zuluOf(modelled.valid_at)}`}>
                   <ListRow
                     media={<RowBadge colour={BADGE.weather}><CloudSun /></RowBadge>} title="Flight category"
                     value={<span className="font-semibold text-foreground">{modelled.flight_category}</span>}
@@ -686,12 +692,10 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
                 card's "≈" chip where nothing is modelled. */}
             {nearby && (
               <div className="pt-5" data-testid="place-nearby-metar">
-                <ListGroup
-                  title={`Nearest report, ${nearby.distance_nm} nm ${compassPoint(nearby.bearing_deg)}`}
-                  footer={`${nearby.metar.observed_at ? `${observedLine(nearby.metar.observed_at, false)} ` : ""}Not this field's own: the weather can differ over a few miles.`}
-                >
+                <ListGroup title={`Nearest report, ${nearby.distance_nm} nm ${compassPoint(nearby.bearing_deg)}`}>
                   <ListRow
                     title={<span className="font-semibold">{nearby.ident}</span>}
+                    description={nearby.metar.observed_at ? observedLine(nearby.metar.observed_at) : undefined}
                     value={nearbyCategory ? <span className="font-semibold text-foreground">{nearbyCategory}</span> : undefined}
                   />
                   {nearby.metar.raw && <ListRow title={<span className="font-mono break-words">{nearby.metar.raw}</span>} />}
