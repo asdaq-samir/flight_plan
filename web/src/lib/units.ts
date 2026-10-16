@@ -35,6 +35,25 @@ export function flightLevel(ft: number | null | undefined): string {
   return ft === null || ft === undefined ? "FL---" : `FL${String(Math.round(ft / 100)).padStart(3, "0")}`;
 }
 
+/** A figure to a tenth, as the planner sends a route's distances and
+ *  fuel and the nav log writes them: "102.4", "12.0". An em dash with
+ *  none: an unflyable leg has no time and no fuel. */
+export function one(n: number | null | undefined): string {
+  return n === null || n === undefined ? "—" : n.toFixed(1);
+}
+
+/** A distance with its unit, to a tenth: "102.4 nm". A route's total read
+ *  "102 nm" on the strip, "102.0 nm" on Flights and was rounded down to
+ *  "102 nm" on the kneeboard. */
+export function nm(n: number | null | undefined): string {
+  return n === null || n === undefined ? "—" : `${one(n)} nm`;
+}
+
+/** Fuel with its unit, to a tenth: "12.0 gal". */
+export function gal(n: number | null | undefined): string {
+  return n === null || n === undefined ? "—" : `${one(n)} gal`;
+}
+
 /** Statute miles as reported: "2.5 sm". */
 export function miles(sm: number | null | undefined): string {
   return sm === null || sm === undefined ? "—" : `${sm} sm`;

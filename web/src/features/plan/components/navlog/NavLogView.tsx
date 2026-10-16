@@ -18,12 +18,12 @@ import {
   Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow,
 } from "../../../../components/ui/table";
 import type { Candidate, Leg, NavLogAltitude, Totals, TopOfClimb, TopOfDescent } from "../../../../lib/api/types";
-import { feet } from "../../../../lib/units";
+import { feet, nm } from "../../../../lib/units";
 import { routeName } from "../../../../lib/identSchema";
 import { revealRow } from "../../../../lib/revealRow";
 import { GROUP_HEADING, TEXT } from "../../../../lib/text";
 import { type Description, descriptionKey } from "../../hooks/useCheckpointNotes";
-import { altFt, bearing, clockTime, etaAt, one, signed, totalsParts } from "../../format";
+import { altFt, bearing, clockTime, etaAt, legsWithoutWind, one, signed } from "../../format";
 import type { BriefingPart } from "../briefing/sections";
 import { isLegPoint, legOf, navLogRows, rowPoint, type NavLogRow, type RouteEnds } from "./rows";
 import LegWorkings from "./LegWorkings";
@@ -337,7 +337,7 @@ export default function NavLogView({
   selectedPoint, onSelectPoint, onDeselectPoint, drawerOpen,
   aircraftLabel, onTabTap,
 }: Props) {
-  const parts = totals ? totalsParts(totals) : null;
+  const noWind = totals ? legsWithoutWind(totals) : null;
   // The other tabs' code fetched while nothing else is, once the log is
   // in, so the first opening of each draws rather than downloads: the
   // weight and balance envelope was 0.4 s of the Performance tab's first.
@@ -476,7 +476,7 @@ export default function NavLogView({
     {
       id: "dist",
       header: () => <Heading name="Dist" unit="nm" spoken="Distance, nautical miles" />,
-      cell: ({ row }) => (legOf(row.original) ? legOf(row.original)!.distance_nm.toFixed(1) : "—"),
+      cell: ({ row }) => (legOf(row.original) ? one(legOf(row.original)!.distance_nm) : "—"),
     },
     {
       id: "tc",
@@ -760,10 +760,10 @@ export default function NavLogView({
   // table is the rest, as the pilot asked. (The altitude, which opens how
   // it was chosen, is the Alt column's head.)
   const cloudsUnplaced = !!nav && !nav.altitude_selection.cloud_clearance_kept && !perLeg;
-  const summary = (!!parts?.warning || cloudsUnplaced) && (
+  const summary = (!!noWind || cloudsUnplaced) && (
     <div className="mb-3" data-testid="navlog-summary">
       <ListGroup>
-        {parts?.warning && <ListRow title={<span className="text-destructive">{parts.warning}</span>} />}
+        {noWind && <ListRow title={<span className="text-destructive">{noWind}</span>} />}
         {/* The clouds forecast near a leg leave it no legal altitude (14
             CFR 91.155): the plan still stands, over the band without
             them, and the briefing says so (Current Conditions, the
@@ -799,7 +799,7 @@ export default function NavLogView({
           return (
             <ListRow
               key={`${departure}-${destination}`} title={routeName(departure, destination)}
-              description={`${one(hop.distance_nm)} nm, with a ${hop.reserve_min} min reserve`}
+              description={`${nm(hop.distance_nm)}, with a ${hop.reserve_min} min reserve`}
               value={hop.fuel_required_gal == null ? "—" : short === null
                 ? `${one(hop.fuel_required_gal)}${hop.usable_fuel_gal != null ? ` of ${hop.usable_fuel_gal}` : ""} gal`
                 : <span className="font-semibold text-destructive">{one(hop.fuel_required_gal)} gal, {one(short)} short</span>}

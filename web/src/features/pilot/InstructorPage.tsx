@@ -16,7 +16,7 @@ import { planHrefOf } from "../../lib/flightLink";
 import { LEVEL_TONE, riskLine, type RiskLevel } from "../../lib/frat";
 import { FINDING_TONE } from "../../lib/status";
 import { TEXT } from "../../lib/text";
-import { feet } from "../../lib/units";
+import { feet, gal, nm } from "../../lib/units";
 import { ExperienceGroup, KnowledgeCodes } from "./CheckridePage";
 import { acDay, inForce, reviewRoute, said } from "../../lib/endorsements";
 import { GoodTo, SignedRow, SignForm } from "./Endorsements";
@@ -101,9 +101,9 @@ function ReviewSection({ review, kind, studentId, studentName, instructor }: {
       >
         <ListRow title="Airplane" value={[review.makeModel, f.aircraftTailNumber].filter(Boolean).join(" · ")} />
         <ListRow title="Altitude" value={feet(f.cruiseAltitudeFt)} />
-        {f.totalDistanceNm != null && <ListRow title="Distance" value={`${f.totalDistanceNm.toFixed(1)} nm`} />}
+        {f.totalDistanceNm != null && <ListRow title="Distance" value={nm(f.totalDistanceNm)} />}
         {f.totalEteMin != null && <ListRow title="Time" value={hm(f.totalEteMin)} />}
-        {f.totalFuelGal != null && <ListRow title="Fuel" value={`${f.totalFuelGal.toFixed(1)} gal`} />}
+        {f.totalFuelGal != null && <ListRow title="Fuel" value={gal(f.totalFuelGal)} />}
         {f.risk && (
           <ListRow
             title="Risk" description={f.risk.factors.join(" · ") || undefined}

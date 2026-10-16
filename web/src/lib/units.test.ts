@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { altFt, feet, grouped } from "./units";
+import { altFt, feet, gal, grouped, nm } from "./units";
 
 describe("figures written as the FAA writes them", () => {
   it("puts a comma between each three figures, rounded to a whole number", () => {
@@ -18,5 +18,13 @@ describe("figures written as the FAA writes them", () => {
     expect(altFt(4500)).toBe("4,500");
     expect(feet(17999.6)).toBe("18,000 ft");
     expect(altFt(null)).toBe("—");
+  });
+
+  it("writes a route's distance and fuel to a tenth, a whole one too, and none as a dash", () => {
+    expect(nm(102.4)).toBe("102.4 nm");
+    expect(nm(102)).toBe("102.0 nm");
+    expect(gal(12.34)).toBe("12.3 gal");
+    expect(nm(null)).toBe("—");
+    expect(gal(undefined)).toBe("—");
   });
 });

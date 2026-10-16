@@ -39,7 +39,7 @@ import DryRunLayer from "../../../lib/map/DryRunLayer";
 import { DRY_RUN, usePastFlight } from "../../../lib/map/pastFlight";
 import { usePreferences } from "../../../lib/preferences";
 import { inkOn } from "../../../lib/scoreScale";
-import { feet } from "../../../lib/units";
+import { feet, nm } from "../../../lib/units";
 import { scoreColor } from "../format";
 
 interface Props {
@@ -494,7 +494,7 @@ export default memo(function RouteMap({
         <>
           <CourseLine
             line={course.course_line as [number, number][]}
-            tooltip={`${routeAirports(course, true).map(a => pointName(a.ident)).join(" → ")} · ${course.distance_nm} nm`}
+            tooltip={`${routeAirports(course, true).map(a => pointName(a.ident)).join(" → ")} · ${nm(course.distance_nm)}`}
           />
           {/* A saved flight's flown track over it, from its debrief. */}
           <FlownTrackLayer course={course} />

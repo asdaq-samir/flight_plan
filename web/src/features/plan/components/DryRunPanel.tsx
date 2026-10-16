@@ -9,7 +9,7 @@ import { REPLAY_SPEEDS, pausePastFlight, playPastFlight, positionAt, usePastFlig
 import { routeProfileQuery } from "../../../lib/queryClient";
 import FigureStrip from "../../../components/FigureStrip";
 import { TEXT } from "../../../lib/text";
-import { altFt } from "../../../lib/units";
+import { altFt, one } from "../../../lib/units";
 import { dryRunAt, type DryRun } from "./navlog/dryRun";
 import type { RouteEnds } from "./navlog/rows";
 import { TRACES } from "./flightTraces";
@@ -183,10 +183,10 @@ export function DryRunFigures({ run }: { run: DryRun }) {
   const left = dryRunAt(run, at ?? start);
   const total = run.fuelGal.at(-1) ?? 0;
   const figures = [
-    { name: "Dist left", value: left ? left.leftNm.toFixed(1) : "—", unit: "nm" },
+    { name: "Dist left", value: left ? one(left.leftNm) : "—", unit: "nm" },
     { name: "Time left", value: left ? hoursMinutes(left.leftS) : "—" },
     { name: "ETA", value: run.points.length ? clockTime(when(run.points.at(-1)!.t)) : "—" },
-    { name: "To burn", value: left ? (total - left.burntGal).toFixed(1) : "—", unit: "gal" },
+    { name: "To burn", value: left ? one(total - left.burntGal) : "—", unit: "gal" },
   ];
   // The figures every tab pins at the panel's foot, one look for all of
   // them (FigureStrip), growing as the sheet comes up, at the owner's ask

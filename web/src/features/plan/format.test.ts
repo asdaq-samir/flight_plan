@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Leg, Totals } from "../../lib/api/types";
 import { inkOn, SCORE_STEPS } from "../../lib/scoreScale";
-import { bearing, clockTime, cruiseByAltitude, decimalHours, elapsed, hhmm, one, runwayWind, scoreColor, signed, totalsParts } from "./format";
+import { bearing, clockTime, cruiseByAltitude, decimalHours, elapsed, hhmm, legsWithoutWind, one, runwayWind, scoreColor, signed } from "./format";
 
 describe("scoreColor", () => {
   it("bands on the boundary, not just inside it", () => {
@@ -72,22 +72,18 @@ describe("decimalHours", () => {
   it("rounds to whole minutes first", () => expect(decimalHours(179.6)).toBe("3.0h"));
 });
 
-describe("totalsParts", () => {
+describe("legsWithoutWind", () => {
   const base: Totals = {
     distance_nm: 210, ete_min: 125, fuel_gal: 17.5, unflyable_legs: 0, legs_without_wind: 0,
     reserve_min: null, reserve_gal: null, taxi_gal: null, fuel_required_gal: null, usable_fuel_gal: null, fuel_margin_gal: null, night: null, rules: "vfr", alternate: null, hops: [],
   };
 
   it("has no warning when every leg has wind", () =>
-    expect(totalsParts(base).warning).toBeNull());
+    expect(legsWithoutWind(base)).toBeNull());
   it("singularises one leg", () =>
-    expect(totalsParts({ ...base, legs_without_wind: 1 }).warning)
-      .toBe("1 leg without wind data"));
+    expect(legsWithoutWind({ ...base, legs_without_wind: 1 })).toBe("1 leg without wind data"));
   it("pluralises more", () =>
-    expect(totalsParts({ ...base, legs_without_wind: 3 }).warning)
-      .toBe("3 legs without wind data"));
-  it("dashes fuel that could not be worked out", () =>
-    expect(totalsParts({ ...base, fuel_gal: null }).fuel).toBe("— gal"));
+    expect(legsWithoutWind({ ...base, legs_without_wind: 3 })).toBe("3 legs without wind data"));
 });
 
 describe("elapsed", () => {

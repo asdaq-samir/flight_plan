@@ -15,7 +15,7 @@ import { TEXT } from "../../lib/text";
 import { keepTrack, keptTrack, readTrack, thin, TrackError, type TrackPoint } from "../../lib/track";
 import { useFlownTrack } from "../../lib/map/flownTrack";
 import { routeName } from "../../lib/identSchema";
-import { altFt, bearing, feet, grouped } from "../../lib/units";
+import { altFt, bearing, feet, gal, grouped, nm } from "../../lib/units";
 import { mayUse, useEntitlement } from "../../lib/subscription";
 import PaidPrompt from "../../components/PaidPrompt";
 import { localDay } from "../../lib/clock";
@@ -342,9 +342,9 @@ export default function FlightPage({ summary, planHref }: { summary: FlightSumma
       <ListGroup footer={`Filed ${format(new Date(summary.createdAt), "d MMM yyyy")}.`}>
         {summary.aircraftTailNumber && <Row title="Aircraft" value={summary.aircraftTailNumber} />}
         <Row title="Altitude" value={feet(summary.cruiseAltitudeFt)} />
-        {summary.totalDistanceNm != null && <Row title="Distance" value={`${summary.totalDistanceNm.toFixed(1)} nm`} />}
+        {summary.totalDistanceNm != null && <Row title="Distance" value={nm(summary.totalDistanceNm)} />}
         {summary.totalEteMin != null && <Row title="Time" value={hm(summary.totalEteMin)} />}
-        {summary.totalFuelGal != null && <Row title="Fuel" value={`${summary.totalFuelGal.toFixed(1)} gal`} />}
+        {summary.totalFuelGal != null && <Row title="Fuel" value={gal(summary.totalFuelGal)} />}
         {summary.plannedFor && <Row title="Planned for" value={format(new Date(summary.plannedFor), "d MMM, HH:mm")} />}
         {summary.risk && (
           <ListRow

@@ -5,7 +5,7 @@ import { kneeboardRadio, mhzText } from "../../../lib/frequencies";
 import { runwayInUse, runwayNumber } from "../../../lib/pattern";
 import { hoursMinutes } from "../../../lib/clock";
 import { routeName } from "../../../lib/identSchema";
-import { altFt } from "../../../lib/units";
+import { altFt, gal, nm } from "../../../lib/units";
 import { bearing, etaAt, one } from "../format";
 import { isLegPoint, legOf, navLogRows, rowPoint } from "./navlog/rows";
 
@@ -74,9 +74,9 @@ export default function Kneeboard({ course, selected, legs, totals, nav, briefin
       <p className="mb-1.5">
         {aircraftLabel}
         {altitudes(legs, nav?.altitude_ft) && ` · ${altitudes(legs, nav?.altitude_ft)}`}
-        {totals && ` · ${Math.round(totals.distance_nm)} nm`}
+        {totals && ` · ${nm(totals.distance_nm)}`}
         {totals?.ete_min != null && ` · ${hm(totals.ete_min)}`}
-        {totals?.fuel_gal != null && ` · ${one(totals.fuel_gal)} gal`}
+        {totals?.fuel_gal != null && ` · ${gal(totals.fuel_gal)}`}
         {totals?.fuel_required_gal != null && ` (${one(totals.fuel_required_gal)} with reserve${totals.usable_fuel_gal != null ? `, ${one(totals.usable_fuel_gal)} usable` : ""})`}
       </p>
 
@@ -94,7 +94,7 @@ export default function Kneeboard({ course, selected, legs, totals, nav, briefin
                 <td className="max-w-[1.6in] truncate">{rowPoint(r).name}</td>
                 <td>{altFt(alt)}</td>
                 <td>{leg ? bearing(leg.magnetic_heading_deg) : ""}</td>
-                <td>{leg ? leg.distance_nm.toFixed(1) : ""}</td>
+                <td>{leg ? one(leg.distance_nm) : ""}</td>
                 <td>{leg?.groundspeed_kt != null ? Math.round(leg.groundspeed_kt) : ""}</td>
                 <td>{leg ? one(leg.ete_min) : ""}</td>
                 <td>{depart ? etaAt(depart, r.minutesFlown) : ""}</td>
