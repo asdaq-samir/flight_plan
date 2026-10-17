@@ -1,5 +1,9 @@
 import { Fragment } from "react";
+import { ChevronRight } from "lucide-react";
 import { cn } from "cn";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../../../../components/ui/collapsible";
+import { usePrinting } from "../../../../lib/usePrinting";
+import { TEXT } from "../../../../lib/text";
 import AccordionSection from "../../../../components/AccordionSection";
 import { ListGroup, ListRow } from "../../../../components/GroupedList";
 import type { Briefing, Course, Leg } from "../../../../lib/api/types";
@@ -7,7 +11,7 @@ import { pirepConditions } from "../../../../lib/advisories";
 import { distanceNm } from "../../../../lib/geo";
 import { categoryOf } from "../../../../lib/map/flightCategory";
 import { passTime } from "../../../../lib/passTimes";
-import { altFt, ceilingAndVisibility, clockTime } from "../../format";
+import { altFt, ceilingAndVisibility, clockTime, windLine } from "../../format";
 import CategoryBadge from "./CategoryBadge";
 import { phasesOf, type Phase } from "./sections";
 import { FINDING_TONE } from "../../../../lib/status";
@@ -56,6 +60,20 @@ const ownStation = (stations: Station[], ident: string) =>
 
 /** A line's first letter capitalised: the figures open a row's line. */
 const sentence = (words: string) => words.charAt(0).toUpperCase() + words.slice(1);
+
+/** A METAR's figures past its wind, in words, as FAA Order JO 7900.5
+ *  codes them and the planner reads them: the ceiling and the visibility
+ *  (ceilingAndVisibility), the temperature and dew point (°C), and the
+ *  altimeter setting (inHg). */
+function metarFigures(metar: NonNullable<Briefing["metars"][string]>): string {
+  // Below zero with the minus sign, not a hyphen (M02 is −2).
+  const degrees = (c: number) => `${Math.round(c) < 0 ? "−" : ""}${Math.abs(Math.round(c))}`;
+  return [
+    sentence(ceilingAndVisibility(metar.ceiling_ft, metar.visibility_sm)),
+    metar.temp_c != null && `${degrees(metar.temp_c)} °C${metar.dewpoint_c != null ? `, dew point ${degrees(metar.dewpoint_c)}` : ""}`,
+    metar.altimeter_in_hg != null && `${metar.altimeter_in_hg.toFixed(2)} inHg`,
+  ].filter(Boolean).join(" · ");
+}
 
 /** A TAF read for when the flight is there, in words: its ceiling and
  *  visibility then, or that it says nothing about then. */
@@ -122,6 +140,7 @@ export default function WeatherAlongRoute({ briefing, course, legs, departIso, u
   departIso: string;
   unchecked: (source: Briefing["weather_unavailable"][number]) => boolean;
 }) {
+  const printing = usePrinting();
   const places = placesOf(course);
   const stations = briefing.forecast.stations;
   const own = new Map(places.map(p => [p.ident, ownStation(stations, p.ident)]));
@@ -166,9 +185,12 @@ export default function WeatherAlongRoute({ briefing, course, legs, departIso, u
                 {unchecked("metars") ? (
                   <ListRow title="Now" description={<span className="text-amber-700 dark:text-amber-300">Not checked: aviationweather.gov did not answer</span>} />
                 ) : (
+                  // The report in words first, at the owner's pick of the
+                  // redesign: the wind, then the rest; as sent, a tap away
+                  // (below).
                   <ListRow
-                    title="Now"
-                    description={metar?.raw ? <span className="font-mono whitespace-pre-wrap">{metar.raw}</span> : "No current report"}
+                    title={metar?.raw ? `Now · wind ${windLine(metar).replace(/^(Calm|Variable)/, w => w.toLowerCase())}` : "Now"}
+                    description={metar?.raw ? metarFigures(metar) : "No current report"}
                     data-testid="place-metar"
                   >
                     <CategoryBadge category={metar?.flight_category} />
@@ -187,7 +209,6 @@ export default function WeatherAlongRoute({ briefing, course, legs, departIso, u
                       <>
                         <span className="block text-foreground">{atEta((station ?? nearest!.s))}</span>
                         {!station && <span className="block">{`No TAF here: ${nearest!.s.icaoId}'s, ${Math.round(nearest!.nm)} nm away`}</span>}
-                        {station?.raw && <span className="block font-mono whitespace-pre-wrap">{station.raw}</span>}
                       </>
                     )}
                     data-testid="place-taf"
@@ -196,6 +217,19 @@ export default function WeatherAlongRoute({ briefing, course, legs, departIso, u
                   </ListRow>
                 ) : (
                   <ListRow title="Forecast" description={`No TAF here or within ${NEAREST_TAF_NM} nm`} data-testid="place-taf" />
+                )}
+                {/* The reports as sent, a tap away; on paper, with them. */}
+                {(metar?.raw || station?.raw) && (
+                  <Collapsible open={printing || undefined} data-testid="place-raw">
+                    <CollapsibleTrigger className={cn("group flex w-full items-center justify-between px-4 py-3 text-left text-tint outline-none focus-visible:ring-2 focus-visible:ring-ring print:hidden", TEXT.row)}>
+                      <span>{metar?.raw && station?.raw ? "METAR and TAF" : metar?.raw ? "METAR" : "TAF"}</span>
+                      <ChevronRight className="size-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-90" aria-hidden />
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className={cn("space-y-2 px-4 pb-3 font-mono whitespace-pre-wrap text-muted-foreground", TEXT.note)}>
+                      {metar?.raw && <p>{metar.raw}</p>}
+                      {station?.raw && <p>{station.raw}</p>}
+                    </CollapsibleContent>
+                  </Collapsible>
                 )}
               </ListGroup>}
               {next && stretchShown && (

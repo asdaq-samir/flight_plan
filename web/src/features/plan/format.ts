@@ -135,6 +135,15 @@ export function runwayWind(wind: NonNullable<Runway["wind"]>): string {
 }
 
 /** Ceiling and visibility the way a briefer says them. */
+/** The wind as a METAR reports it, true: "240° at 15 kt, gusts 25",
+ *  "Calm" (00000KT), "Variable at 4 kt" (VRB) -- FAA Order JO 7900.5's
+ *  codes as the planner reads them. The airport's card's and the Brief's. */
+export function windLine(metar: { wind_speed_kt?: number | null; wind_dir_true_deg?: number | null; wind_gust_kt?: number | null }): string {
+  if (!metar.wind_speed_kt) return "Calm";
+  const from = metar.wind_dir_true_deg == null ? "Variable" : bearing(metar.wind_dir_true_deg);
+  return `${from} at ${Math.round(metar.wind_speed_kt)} kt${metar.wind_gust_kt ? `, gusts ${Math.round(metar.wind_gust_kt)}` : ""}`;
+}
+
 export function ceilingAndVisibility(ceilingFt: number | null | undefined, visibilitySm: number | null | undefined): string {
   return `${ceilingFt == null ? "no ceiling" : `${altFt(ceilingFt)} ft`} · ${visibilitySm == null ? "—" : `${visibilitySm} sm`}`;
 }
