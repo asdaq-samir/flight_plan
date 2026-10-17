@@ -66,6 +66,27 @@ test("the dry run's chart draws the airspace the course passes through, named as
   }
 });
 
+test("the dry run waits for the legs: its button dimmed until they are all in, and then it flies", async ({ page }) => {
+  // A tap before the legs had streamed in did nothing (the side view is
+  // drawn before them): seen as the phone's run of this spec tapped it.
+  let release!: () => void;
+  const held = new Promise<void>(done => { release = done; });
+  await page.route(url => url.pathname.endsWith("/planner/navlog"), async route => {
+    await held;
+    await route.continue();
+  });
+  await page.goto("/app/plan?dep=C81&dest=KDLH");
+  await settle(page);
+  await openPanel(page);
+  const start = sideDrawer(page).getByTestId("dry-run-start");
+  await expect(start).toBeVisible({ timeout: slow(60_000) });
+  await expect(start).toBeDisabled();
+  release();
+  await expect(start).toBeEnabled({ timeout: slow(60_000) });
+  await start.click();
+  await expect(page.locator('[data-own-ship="on"]')).toHaveCount(1);
+});
+
 /** Own ship's marker, on screen. */
 async function shipAt(page: Page) {
   const box = (await page.locator(".leaflet-marker-icon").filter({ has: page.locator('[data-own-ship="on"]') }).last().boundingBox())!;
