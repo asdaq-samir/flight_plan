@@ -112,10 +112,10 @@ function Replay() {
               label={playing ? "Pause" : "Play"} onClick={playing ? pausePastFlight : playPastFlight}
               disabled={!points.length} data-testid="replay-play"
             >
-              {playing ? <Pause className="size-4" /> : <Play className="size-4" />}
+              {playing ? <Pause className="size-5" /> : <Play className="size-5" />}
             </RoundButton>
             <RoundButton label="Stop" onClick={stopPastFlight} disabled={!started} data-testid="replay-stop">
-              <Square className="size-4" />
+              <Square className="size-5" />
             </RoundButton>
           </span>
         }

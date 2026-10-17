@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Airport, Leg } from "../../../../lib/api/types";
-import { dryRunAt, dryRunOf } from "./dryRun";
+import { dryRunAt, dryRunOf, dryRunRow } from "./dryRun";
 import { navLogRows } from "./rows";
 
 const airport = (ident: string, lat: number, elevation: number): Airport =>
@@ -37,6 +37,16 @@ describe("the planned flight, flown on paper", () => {
     const end = dryRunAt(run, 1_000 + 36 * 60)!;
     expect(end.leftNm).toBe(0);
     expect(end.burntGal).toBeCloseTo(5);
+  });
+
+  it("names the nav log's row it is flying to as it goes, the log's rows each reached in turn", () => {
+    expect(run.rowT).toHaveLength(rows.length);
+    expect(run.rowT[0]).toBe(1_000);
+    expect(run.rowT.at(-1)).toBeCloseTo(1_000 + 36 * 60);
+    expect(dryRunRow(run, 1_000)).toBe(0);
+    expect(dryRunRow(run, 1_001)).toBe(1);
+    expect(dryRunRow(run, 1_000 + 36 * 60 - 1)).toBe(rows.length - 1);
+    expect(dryRunRow(run, 9_999_999)).toBe(rows.length - 1);
   });
 
   it("flies the course line the map draws, not straight across the latitudes and longitudes", () => {

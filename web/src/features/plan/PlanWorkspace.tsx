@@ -1159,6 +1159,26 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const descriptionsPaywall = useMemo(() => (paywalled ? (
     <PaidPrompt feature="CHECKPOINT_NOTES">A line for each checkpoint on what to look for from the air.</PaidPrompt>
   ) : undefined), [paywalled]);
+  // The flight flown on paper (dryRunOf), started from the side view's
+  // play, at the owner's ask ("a dry run of the flight with altitude and
+  // speed profile as well as the calculations at the bottom"): the replay's
+  // airplane flown along the course (DryRunLayer), its controls and chart
+  // in the side view's place, its figures as it goes under them. Put away
+  // with its close, or as the replay is another's (a past flight's).
+  const [dryRun, setDryRun] = useState<DryRun | null>(null);
+  const dryRunHeld = usePastFlight(p => p.hex === DRY_RUN);
+  const dryRunning = dryRun && dryRunHeld && routed ? dryRun : null;
+  const startDryRun = () => {
+    if (!course) return;
+    const run = dryRunOf(navLogRows(course, selected, s.legs), Math.round((depart ? Date.parse(depart) : Date.now()) / 1000), course.course_line);
+    if (run.points.length < 2) return;
+    setDryRun(run);
+    usePastFlight.setState({ hex: DRY_RUN, id: 0, points: run.points, at: run.points[0]!.t, playing: true });
+  };
+  const stopDryRun = () => {
+    setDryRun(null);
+    clearPastFlight();
+  };
   const navLog = useMemo(() => (
     <Suspense fallback={<div className="min-h-0 flex-1" />}>
     <NavLogView
@@ -1173,7 +1193,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       descriptionsLoading={descriptionsLoading}
       descriptionsPaywall={descriptionsPaywall} descriptionsHidden={descriptionsHidden}
       selectedPoint={selectedPoint} onSelectPoint={selectPointAt} onDeselectPoint={deselectPoint}
-      drawerOpen={drawerOpen} onTabTap={tabTap}
+      drawerOpen={drawerOpen} onTabTap={tabTap} dryRun={dryRunning}
       aircraftLabel={aircraft.label}
       marks={marks}
       tabContent={tabContent}
@@ -1193,7 +1213,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     </Suspense>
   ), [s.totals, s.nav, s.legs, depart, planned.dep, planned.dest, course, s.logSelected, s.descriptions, s.saveDescription,
     s.generateDescriptions, descriptionsLoading, descriptionsPaywall, descriptionsHidden, selectedPoint, selectPointAt, deselectPoint, drawerOpen, tabTap, aircraft.label,
-    marks, tabContent, s.briefing, s.local, landedStops, s.langgraphNarrative, s.crewaiNarrative, unflyableBrief, kneeboardLater, metarColour]);
+    marks, tabContent, s.briefing, s.local, landedStops, s.langgraphNarrative, s.crewaiNarrative, unflyableBrief, kneeboardLater, metarColour, dryRunning]);
 
   // The airplane, the altitude and the time, made again only when one of
   // them changes, as the chips are drawn again only then (fromRoutePanel's
@@ -1307,26 +1327,6 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // The route from the side (MiniProfile), a tap the nav log all the way up.
   const miniProfile = routed && course && !local
     ? <MiniProfile ends={course} selected={selected} legs={s.legs} onOpen={() => setPanel("full")} /> : null;
-  // The flight flown on paper (dryRunOf), started from the side view's
-  // play, at the owner's ask ("a dry run of the flight with altitude and
-  // speed profile as well as the calculations at the bottom"): the replay's
-  // airplane flown along the course (DryRunLayer), its controls and chart
-  // in the side view's place, its figures as it goes under them. Put away
-  // with its close, or as the replay is another's (a past flight's).
-  const [dryRun, setDryRun] = useState<DryRun | null>(null);
-  const dryRunHeld = usePastFlight(p => p.hex === DRY_RUN);
-  const dryRunning = dryRun && dryRunHeld && routed ? dryRun : null;
-  const startDryRun = () => {
-    if (!course) return;
-    const run = dryRunOf(navLogRows(course, selected, s.legs), Math.round((depart ? Date.parse(depart) : Date.now()) / 1000), course.course_line);
-    if (run.points.length < 2) return;
-    setDryRun(run);
-    usePastFlight.setState({ hex: DRY_RUN, id: 0, points: run.points, at: run.points[0]!.t, playing: true });
-  };
-  const stopDryRun = () => {
-    setDryRun(null);
-    clearPastFlight();
-  };
   // The route's chips: the airplane, the altitude, the time, Saved,
   // Approaches and Share (`controls`), and with no route the pill's too.
   const routeControls = started && (
@@ -1544,39 +1544,44 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     // keep the calculations pinned at the bottom"; "Why can't the half card
     // have calculations pinned at the very bottom as the full card, just
     // make them bigger smoothly as expanded").
-    footFills: tab === "fpl" && !place && !heldPoint && !flight && !!dryRunning,
+    // A dry run's chart takes the body's room half way, where the map is
+    // what is watched; all the way up it keeps the side view's place, the
+    // nav log scrolling over it and following the run (NavLogView), at the
+    // owner's ask ("I wanna be able to do the dry run with navlog in full
+    // fpl").
+    footFills: tab === "fpl" && !place && !heldPoint && !flight && !!dryRunning && panel !== "full",
     foot: tab === "fpl" && !place && !heldPoint && !flight ? routed && (
       // The foot's whole row in the pill while a dry run is up, its chart
       // taking what the figures leave, so they sit at the very bottom as
       // they do without one (the owner's "calculation are not pinned at
       // the bottom for dry run").
-      <div className={cn("flex min-h-0 w-full flex-col", dryRunning && "flex-1")}>
-        {/* The side view pinned over the figures in the pill, at the
-            owner's ask ("pin the profile above calculations but transition
-            to just below the legs"): it folds away as the sheet comes up
-            (MapPanel's --sheet-progress), where the nav log's Profile
-            section, under its Legs, takes over from it. */}
+      <div className={cn("flex min-h-0 w-full flex-col", dryRunning && panel !== "full" && "flex-1")}>
+        {/* The side view pinned over the figures at every height out of the
+            pill, the nav log scrolling over it all the way up, at the
+            owner's ask ("I think we should keep the profile at the bottom
+            as you pull up the scrollable navlog"); it folded away there, the
+            nav log's Profile section under its Legs taking over. Its dry
+            run plays in its place, all the way up too. There the two take a
+            fifth of the screen at most, so a short one keeps rows of the
+            log to read, and the side view none under 560 points (a phone on
+            its side), where the log's own Profile section has it. */}
         {dryRunning ? (
-          <div className="flex min-h-0 flex-1 flex-col pb-2" data-pill-hides=""><DryRunControls run={dryRunning} ends={course} onClose={stopDryRun} /></div>
+          <div className={cn("flex min-h-0 flex-col pb-2", panel === "full" ? "h-[min(10rem,20dvh)] min-h-24 flex-none" : "flex-1")} data-pill-hides=""><DryRunControls run={dryRunning} ends={course} onClose={stopDryRun} /></div>
         ) : miniProfile && (
           <div
-            // Out of sight all the way up, not only see-through: its words
-            // read as words there (the audit's P15), behind nothing.
             // All the half sheet leaves it, at the owner's ask ("make the
             // profile view taller within fpl"): asking for ten rem, it gives
             // way to what the sheet has, the chart drawn to that, the figures
             // under it kept whole. It was six rem at most. Eight points
             // between it and the figures, as a dry run's chart has, at the
-            // owner's ask ("small space between profile calculations"):
-            // inside it, so folded away all the way up it leaves none.
-            className={cn("min-h-0 shrink overflow-hidden [&_[data-testid=mini-profile]]:h-full", panel === "full" && !dragging && "invisible")} inert={panel === "full" && !dragging} data-pill-hides=""
-            style={{ height: "calc(10rem * (1 - var(--sheet-progress, 1)))", opacity: "calc(1 - var(--sheet-progress, 1))" }}
+            // owner's ask ("small space between profile calculations").
+            className={cn("min-h-0 shrink overflow-hidden [&_[data-testid=mini-profile]]:h-full", panel === "full" ? "h-[min(10rem,20dvh)] [@media(max-height:560px)]:hidden" : "h-40")} data-pill-hides=""
           >
             <div className="relative h-full pb-2">
               {miniProfile}
               {/* Its dry run, at its top right: the flight flown on paper. */}
               <RoundButton label="Dry run" onClick={startDryRun} className="absolute top-1.5 right-1.5" data-testid="dry-run-start">
-                <Play className="size-4" />
+                <Play className="size-5" />
               </RoundButton>
             </div>
           </div>

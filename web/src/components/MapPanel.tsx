@@ -390,8 +390,7 @@ export default function MapPanel({ label, top, controls, compact, children, stat
   // nearly whole.
   const nearFull = shown >= (detents.half + detents.full) / 2;
   // 0 at half and below, 1 all the way up, between as a finger takes it:
-  // what grows with the sheet past half (FlightLine's figures) and what
-  // folds away as the nav log takes over (FPL's side view at the foot).
+  // what grows with the sheet past half (FlightLine's figures).
   const progress = Math.min(1, Math.max(0, (shown - detents.half) / Math.max(1, detents.full - detents.half)));
   const shape: "capsule" | "inset" | "edge" = capsule ? "capsule" : nearFull ? "edge" : "inset";
   const geometry = {

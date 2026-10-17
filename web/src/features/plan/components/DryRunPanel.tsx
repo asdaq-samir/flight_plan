@@ -103,10 +103,10 @@ export function DryRunControls({ run, ends, onClose }: { run: DryRun; ends: Rout
       {/* Over the chart's drag where their hit areas reach into it. */}
       <div className="absolute top-1.5 right-1.5 z-10 flex items-center gap-2">
         <RoundButton label="From the start" onClick={again} data-testid="dry-run-again">
-          <RotateCcw className="size-4" />
+          <RotateCcw className="size-5" />
         </RoundButton>
         <RoundButton label={playing ? "Pause" : "Play"} onClick={playing ? pausePastFlight : playPastFlight} data-testid="dry-run-play">
-          {playing ? <Pause className="size-4" /> : <Play className="size-4" />}
+          {playing ? <Pause className="size-5" /> : <Play className="size-5" />}
         </RoundButton>
         <RoundButton
           label={`${speed} times as fast; ${nextSpeed} times next`} onClick={() => usePastFlight.setState({ speed: nextSpeed })}

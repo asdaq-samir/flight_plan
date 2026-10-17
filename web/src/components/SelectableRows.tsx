@@ -14,9 +14,12 @@ import { TEXT } from "../lib/text";
  * it.
  */
 export function SelectableRow({
-  selected, estimated = false, expands = false, onSelect, scrollRef, kind, children,
+  selected, flying = false, estimated = false, expands = false, onSelect, scrollRef, kind, children,
 }: {
   selected: boolean;
+  /** The row the dry run is flying to (the nav log's): the tint's own
+   *  blue behind it, as the place a run is at, under the selection's grey. */
+  flying?: boolean;
   /** What the row is, as `data-kind`: the nav log's checkpoint, airport
    *  or top of climb or descent. */
   kind?: string;
@@ -39,6 +42,7 @@ export function SelectableRow({
       onClick={onSelect}
       tabIndex={0}
       data-selected={selected || undefined}
+      data-flying={flying || undefined}
       data-kind={kind}
       aria-current={selected || undefined}
       data-expanded={expands ? selected : undefined}
@@ -65,6 +69,7 @@ export function SelectableRow({
         // answers the touch before the map and the note do. The training
         // list's own tints.
         "hover:bg-foreground/5 focus-visible:bg-foreground/5 active:bg-foreground/8",
+        flying && "bg-tint/12 text-foreground hover:bg-tint/12",
         // Last, because `cn` resolves conflicting Tailwind classes in
         // favour of the last one: the muted text and the hover tint
         // above are simply overridden. No rule between it and the note
