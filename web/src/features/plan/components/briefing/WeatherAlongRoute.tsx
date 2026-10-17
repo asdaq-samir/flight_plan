@@ -180,8 +180,11 @@ export default function WeatherAlongRoute({ briefing, course, legs, departIso, u
               {/* On its phase's tab the field's ident alone: the tab says
                   whether it is the departure or the destination, and the
                   section under says it again (the owner's notice of
-                  "C81 · DEPARTURE" three times on Depart). */}
-              {placeShown && <ListGroup title={phase === "depart" || phase === "arrive" ? place.ident : `${place.ident} · ${place.role}`} badge={<CategoryBadge category={metar?.flight_category} />}>
+                  "C81 · DEPARTURE" three times on Depart). Its flight
+                  category is its report's, on the report's row: beside the
+                  ident as well, it was said twice (each fact once, the
+                  owner's pick of the redesign). */}
+              {placeShown && <ListGroup title={phase === "depart" || phase === "arrive" ? place.ident : `${place.ident} · ${place.role}`}>
                 {unchecked("metars") ? (
                   <ListRow title="Now" description={<span className="text-amber-700 dark:text-amber-300">Not checked: aviationweather.gov did not answer</span>} />
                 ) : (
