@@ -143,7 +143,7 @@ test("Depart has the takeoff's runway check: a runway too short is red, on the t
   await page.unrouteAll({ behavior: "ignoreErrors" });
 });
 
-test("each field is a section of its phase's tab, its pattern and calls with its runways", async ({ page }) => {
+test("each field is a section of its phase's tab, its pattern and calls first, each frequency said once", async ({ page }) => {
   await planned(page);
   const drawer = sideDrawer(page);
   // The departure's on Depart, the destination's on Arrive.
@@ -155,11 +155,12 @@ test("each field is a section of its phase's tab, its pattern and calls with its
   const into = drawer.locator('[data-tab="arrive"]').getByTestId("airport-section");
   await expect(into).toHaveCount(1);
   await expect(into.getByTestId("radio-phase")).toContainText("Into KDLH");
-  // Each frequency as the field's card lists it: its name in words and
-  // its glyph, the figure as pilots write it.
-  const tower = into.getByTestId("airport-frequency").filter({ hasText: "Tower" }).first();
+  // The calls first, each with its frequency, the figure as pilots write
+  // it; the frequencies no call is on listed after them, the tower's not
+  // again (the owner's pick of the redesign, each fact once).
+  const tower = into.getByTestId("radio-call").filter({ hasText: "Tower" }).first();
   await expect(tower).toContainText("118.3");
-  await expect(tower.locator("svg").first()).toBeAttached();
+  await expect(into.getByTestId("airport-frequency").filter({ hasText: "Tower" })).toHaveCount(0);
 });
 
 test("a route from the pilot's position has a section for its airports alone, none for the position", async ({ page }) => {

@@ -552,9 +552,30 @@ test("closer in, the airports that report wear their weather's colour, and a tap
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   const chips = page.locator(".leaflet-airports-pane .leaflet-marker-icon");
-  // Not at the whole route's zoom: a state's worth would bury the chart.
   await expect(page.locator(".leaflet-marker-icon", { hasText: "KDLH" }).first()).toBeVisible({ timeout: slow(30000) });
-  expect(await chips.count()).toBe(0);
+  // At the whole route's zoom on a phone, past the sectional's scale, only
+  // the biggest fields that report wear their marks, each with its room
+  // round it (AirportsLayer's OUT_APART_PX, 80 px), where a state's worth
+  // would bury the chart; a computer's view of the route is zoom 7 or in,
+  // where every field that reports wears one (REPORTING_FROM_ZOOM). Measured
+  // once they are in: the count of none this asked for lost the race with
+  // their answer (CI, 2026-10-17, 52 of them as they should be).
+  if (page.viewportSize()!.width < 768) {
+    await mapStill(page);
+    await expect.poll(() => chips.count(), { timeout: slow(20000) }).toBeGreaterThan(0);
+    const nearest = await chips.evaluateAll(marks => {
+      const at = marks.map(mark => {
+        const box = mark.getBoundingClientRect();
+        return { x: box.left + box.width / 2, y: box.top + box.height / 2 };
+      });
+      let least = Number.POSITIVE_INFINITY;
+      for (let i = 0; i < at.length; i++) {
+        for (let j = i + 1; j < at.length; j++) least = Math.min(least, Math.hypot(at[i]!.x - at[j]!.x, at[i]!.y - at[j]!.y));
+      }
+      return least;
+    });
+    expect(nearest).toBeGreaterThanOrEqual(78);
+  }
 
   // In on the departure, a notch at a time with the map still between
   // them, as tapTheChart waits: turned while the route was still being

@@ -9,7 +9,7 @@ import type { AircraftProfile, Briefing, Course } from "../../../../lib/api/type
 import { runwayChecks, type RunwayDistance } from "../../../../lib/runwayCheck";
 import { FINDING_TONE } from "../../../../lib/status";
 import FindingIcon from "../../../../components/FindingIcon";
-import { runwayWind } from "../../format";
+import { windOnRunway } from "../../format";
 import { TEXT } from "../../../../lib/text";
 import { altFt, grouped } from "../../../../lib/units";
 import { useLoad } from "../../hooks/useLoad";
@@ -181,10 +181,19 @@ export function TakeoffLandingSection({ aircraft, briefing, course, landing: lan
                 // tab's own; a stop's named, on En route.
                 key={`${c.field.ident}${i}`} title={phase === "depart" || phase === "arrive" ? undefined : `${c.field.ident} · ${c.role}`}
               >
-                {/* The runway the distances are for, first: a row, where it was a footnote. */}
+                {/* The runway the distances are for, first, and the wind on
+                    it -- said once, here, where it was a row of its own and
+                    again under the field's runways and its pattern (the
+                    owner's pick of the redesign, each fact once). */}
                 <ListRow
+                  media={c.crosswindOver ? <FindingIcon finding="caution" /> : undefined}
                   title={c.runway ? `Runway ${c.runway.wind?.end ?? c.runway.ends}` : <span className="text-muted-foreground">No runway data</span>}
-                  description={c.runway ? (c.runway.wind ? "Most into the wind" : "The longest, no wind reported") : undefined}
+                  description={!c.runway ? undefined : c.runway.wind ? (
+                    <span className={cn(c.crosswindOver && FINDING_TONE.caution)} data-testid="runway-wind-check">
+                      {`Most into the wind: ${windOnRunway(c.runway.wind)}`}
+                      {c.crosswindOver && demonstrated && `, over the ${demonstrated.demonstrated_kt} kt the POH demonstrates`}
+                    </span>
+                  ) : "The longest, no wind reported: the wind indicator decides, and the distances are for calm"}
                   value={c.runway ? `${length != null ? `${altFt(length)} ft` : "length unknown"}${c.grass ? " · grass" : ""}` : undefined}
                   data-testid="performance-runway"
                 />
@@ -210,14 +219,6 @@ export function TakeoffLandingSection({ aircraft, briefing, course, landing: lan
                   description={`Pressure altitude ${altFt(c.pressureAltFt)} ft · ${Math.round(c.tempC)} °C ${c.reported ? "reported" : "(standard day; no report)"}`}
                   value={`${altFt(Math.round(c.densityAltFt / 10) * 10)} ft`}
                   data-testid="density-altitude"
-                />
-                <ListRow
-                  media={c.crosswindOver ? <FindingIcon finding="caution" /> : undefined}
-                  title="Wind"
-                  description={c.runway?.wind
-                    ? <span className={cn(c.crosswindOver && FINDING_TONE.caution)}>{runwayWind(c.runway.wind)}{c.crosswindOver && demonstrated && `: over the ${demonstrated.demonstrated_kt} kt the POH demonstrates`}</span>
-                    : "None reported: the distances are for calm"}
-                  data-testid="runway-wind-check"
                 />
               </ListGroup>
             );
