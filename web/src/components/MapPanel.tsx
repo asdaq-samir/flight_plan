@@ -49,10 +49,6 @@ interface Props {
    *  (the owner's "the calculations should replace the tabs in the pill
    *  while keeping it the same size"), a tap on them half way. */
   foot?: ReactNode;
-  /** The foot takes the body's room half way and all the way up: FPL's dry
-   *  run, its chart grown up to the route (the owner's "Dry run should
-   *  expand up to the route"). */
-  footFills?: boolean;
   /** The body down to the sheet's own edge, over the home indicator's
    *  inset, where the rest of the way is kept clear for every other
    *  panel: an airport's card, its tiles and tabs at its foot (PlaceCard),
@@ -70,14 +66,22 @@ interface Props {
 const CAPSULE_PAD = 9;
 /** The grabber's button: 16 tall, its pill five in from the panel's edge. */
 const GRABBER = 16;
-/** The half sheet's height, in rem, the same on every tab: FPL's Saved
- *  flights whole under its route's box and chips, their dates and all, at
- *  the owner's ask ("Can we make the half card this tall?", their iPhone's
- *  screenshot of the sheet 316 points tall in Safari, its text at 16 px).
- *  It was 18.6rem, Setup's account and its email whole and no more ("Make
- *  it this tall only"). FPL's route fits it by its side view giving way
- *  (PlanWorkspace). */
-const HALF_REM = 19.75;
+/** The half sheet's height, in rem, the same on every tab: FPL's route
+ *  whole in it -- its box, its chips, the side view at its ten rem with
+ *  the dry run's play, and the figures -- at the owner's ask ("Let's make
+ *  the half card this tall. This way we won't have to hide the buttons for
+ *  dry run", their iPhone's screenshot of the sheet 368 points tall in
+ *  Safari, its text at 16 px). A dry run plays in the side view's place,
+ *  the chips kept over it (PlanWorkspace). It was 19.75rem, FPL's Saved
+ *  flights whole and the side view 109 points of its 160; before that
+ *  18.6rem, Setup's account and its email whole and no more. */
+const HALF_REM = 23;
+/** The most of all the way up the half sheet takes, so the two stay two
+ *  sizes: on a short screen -- a phone on its side, 402 points -- its rem
+ *  came to all the way up, and a drag up from half had nowhere to go (the
+ *  iOS audit's iphone-landscape, #253). There it is the 328 points the old
+ *  19.75rem made, near enough; on a phone held upright it is not reached. */
+const HALF_MOST = 0.85;
 /** The root's font size, which the text size the reader has set moves:
  *  read once, as the page has it. Read at each of the panel's renders as
  *  the page opened, it made the browser work out the page's styles there
@@ -136,7 +140,7 @@ const RANK: Record<PanelState, number> = { peek: 0, half: 1, full: 2 };
  * the keyboard's focus inside itself and hide the map, and any dialog
  * opened before it, from a screen reader.
  */
-export default function MapPanel({ label, top, controls, compact, children, state, onStateChange, onInsetsChange, toEdge: edgeAsked = false, bar, layer = "tab", cardOver: overAsked = false, foot, footFills = false }: Props) {
+export default function MapPanel({ label, top, controls, compact, children, state, onStateChange, onInsetsChange, toEdge: edgeAsked = false, bar, layer = "tab", cardOver: overAsked = false, foot }: Props) {
   // A tab's options for a tab, a card's for a card: what each layer takes.
   const cardInPill = layer === "card";
   const cardOver = layer !== "console" && overAsked;
@@ -342,7 +346,7 @@ export default function MapPanel({ label, top, controls, compact, children, stat
       : settling ? capsuleHeight : hasPill && !capsule ? Math.min(capsuleHeight, peek) : peek;
     // Never taller than its rem, whatever a tab holds (the owner's "this
     // tall only"): what does not fit gives way in it.
-    const half = Math.max(lowest, Math.round(HALF_REM * rootPx()) + halfChrome);
+    const half = Math.max(lowest, Math.min(Math.round(HALF_REM * rootPx()) + halfChrome, Math.round(full * HALF_MOST)));
     return { peek: lowest, half: Math.min(half, full), full };
   }, [peek, room, halfChrome, hasPill, capsule, capsuleHeight, settling, bar, fromBottom, capsuleGap]);
   // The body's height at half, for what it shows first to fill and no
@@ -421,8 +425,6 @@ export default function MapPanel({ label, top, controls, compact, children, stat
   // The pill with a route: its figures in the tabs' place, at the tabs'
   // height (3.625rem: their row and its margins).
   const figuresPill = pillShape && !!bar && footShown;
-  // The dry run grown up to the route: the body put away under it.
-  const fills = footFills && !pillShape;
   // With a route's figures at its foot, the sheet is laid out from the foot
   // up, the head giving way at the top where there is not room for both
   // and the figures never less than their row (footRow), as the owner
@@ -801,7 +803,6 @@ export default function MapPanel({ label, top, controls, compact, children, stat
           // keyboard's reach -- unclipped, a card open in it (an airplane's,
           // its name, Follow and close) ran over the pill's figures.
           pillShape && "invisible overflow-clip",
-          fills && "hidden",
         )}
         // The foot as it is at half, whatever the height now: a card laid
         // out to it keeps one layout all the way up.
@@ -831,7 +832,6 @@ export default function MapPanel({ label, top, controls, compact, children, stat
             // Its content centred there, the dry run's too, whose figures
             // sat at the pill's top under the grabber, its column grown.
             pillShape ? "h-[3.625rem] shrink-0 justify-center [&_[data-pill-hides]]:hidden [&>*]:flex-none" : "border-t border-border/60 pt-1 pb-2.5",
-            fills && "flex-1",
           )}
           style={{
             ...(toEdge && fromBottom && !pillShape ? { paddingBottom: Math.max(10, edgeRoom) } : {}),

@@ -47,9 +47,6 @@ export interface WorkspacePieces {
   /** Pinned at the sheet's foot at half and all the way up: the route's
    *  figures, while there is a route (MapPanel's `foot`). */
   foot?: ReactNode;
-  /** The foot over the body's room half way and up (MapPanel's footFills):
-   *  FPL's dry run, grown up to the route. */
-  footFills?: boolean;
   /** The panel's body down to the sheet's own edge, over the home
    *  indicator (MapPanel's toEdge): an airport's card, its tiles and tabs
    *  at its foot. */

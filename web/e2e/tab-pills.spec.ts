@@ -21,6 +21,23 @@ async function keep(page: Page, state: Record<string, unknown>) {
   }, state);
 }
 
+/** A finger's pointer events across the panel, `by` points sideways: on
+ *  the tab bar's row, in its margin beside the tabs, as what is under the
+ *  row changes with the tab, a row that slides sideways keeps the finger,
+ *  and on the tabs themselves a finger slides their lens. */
+async function swipeAcross(page: Page, by: number) {
+  const panel = sideDrawer(page);
+  const row = (await panel.getByTestId("tab-bar").locator("xpath=..").boundingBox())!;
+  const x0 = by > 0 ? row.x + 5 : row.x + row.width - 5;
+  const y = row.y + row.height / 2;
+  await panel.evaluate((el, [from, to, at]) => {
+    const target = document.elementFromPoint(from, at) ?? el;
+    const opts = { bubbles: true, cancelable: true, composed: true, isPrimary: true, pointerId: 7, pointerType: "touch" };
+    target.dispatchEvent(new PointerEvent("pointerdown", { ...opts, clientX: from, clientY: at }));
+    target.dispatchEvent(new PointerEvent("pointerup", { ...opts, clientX: to, clientY: at + 4 }));
+  }, [x0, x0 + by, y]);
+}
+
 /** A tab picked half way. */
 async function pickHalf(page: Page, tab: string) {
   await showTabs(page);
@@ -371,21 +388,7 @@ test("a finger's swipe across the panel goes to the tab beside it, and a short o
   await settle(page);
   await grabberTo(page, "half");
   const panel = sideDrawer(page);
-  // A finger's pointer events across the panel, `by` points sideways.
-  const swipe = async (by: number) => {
-    // On the tab bar's row, in its margin beside the tabs: what is under
-    // the row changes with the tab, a row that slides sideways keeps the
-    // finger, and on the tabs themselves a finger slides their lens.
-    const row = (await panel.getByTestId("tab-bar").locator("xpath=..").boundingBox())!;
-    const x0 = by > 0 ? row.x + 5 : row.x + row.width - 5;
-    const y = row.y + row.height / 2;
-    await panel.evaluate((el, [from, to, at]) => {
-      const target = document.elementFromPoint(from, at) ?? el;
-      const opts = { bubbles: true, cancelable: true, composed: true, isPrimary: true, pointerId: 7, pointerType: "touch" };
-      target.dispatchEvent(new PointerEvent("pointerdown", { ...opts, clientX: from, clientY: at }));
-      target.dispatchEvent(new PointerEvent("pointerup", { ...opts, clientX: to, clientY: at + 4 }));
-    }, [x0, x0 + by, y]);
-  };
+  const swipe = (by: number) => swipeAcross(page, by);
   const up = () => panel.locator('[data-testid="tab-bar"] button[aria-current="page"]');
   await showTabs(page);
   await expect(up()).toHaveAttribute("data-testid", "tab-fpl");
@@ -412,4 +415,26 @@ test("a finger's swipe across the panel goes to the tab beside it, and a short o
     await showTabs(page);
     await expect(up()).toHaveAttribute("data-testid", next);
   }
+});
+
+test("with Back showing, a swipe across the panel goes back, not to the tab beside", async ({ page }) => {
+  test.skip((page.viewportSize()?.width ?? 0) >= 768, "Back shows where the tabs minimize, on a phone");
+  // The owner's ask: "When back button is visible then swiping should go
+  // back instead of switching tabs". An airport's card over FPL.
+  await page.goto("/app/plan?dep=C81&dest=KDLH&place=KDLH");
+  await settle(page);
+  const panel = sideDrawer(page);
+  await expect(panel.getByTestId("place-card")).toBeVisible();
+  await expect(page.getByTestId("tab-back")).toBeVisible();
+  // To the left, nothing: no tab beside, and nothing forward.
+  await swipeAcross(page, -130);
+  await page.waitForTimeout(300);
+  await expect(panel.getByTestId("place-card")).toBeVisible();
+  await expect(page).toHaveURL(/[?&]place=KDLH/);
+  // To the right, back: the card put away, FPL as it was.
+  await swipeAcross(page, 130);
+  await expect(page).not.toHaveURL(/[?&]place=/);
+  await expect(page.getByTestId("tab-back")).toHaveCount(0);
+  await showTabs(page);
+  await expect(panel.locator('[data-testid="tab-bar"] button[aria-current="page"]')).toHaveAttribute("data-testid", "tab-fpl");
 });

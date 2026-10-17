@@ -204,17 +204,31 @@ export default function TabBar<T extends string>({ tabs, tab, over, title, onPic
     else if (listOver && size.size !== "peek") onUp?.();
     else size.to(size.size === "full" ? "half" : size.size === "half" ? "peek" : "half");
   };
+  // A card open over the tab -- an airport's, an airplane's, a past
+  // flight's, the Brief -- has its way back here, at the top left on the
+  // tab's line, in place of its own close, at the owner's ask: only while
+  // the tabs are not shown (minimized), as iOS's navigation bar's Back.
+  const cards = useOpenCards(s => s.count);
+  const back = minimized && !consoleOpen && cards > 0;
   // A swipe across the panel goes to the tab beside the one up, at the
   // owner's ask ("Can swiping left/right switch tabs?"): to the left the
   // next, as a page of iOS's swipes on; not past either end. Listened for
   // on the whole panel, the bar a row of it, so the card's own rows swipe
   // too -- but not a field, a slider or anything that scrolls sideways
   // (the Favorites' strip, the nav log's table), which keep the finger,
-  // nor the tabs themselves, along which a finger slides the lens.
+  // nor the tabs themselves, along which a finger slides the lens. With
+  // Back showing, the swipe is Back's, at the owner's ask ("When back
+  // button is visible then swiping should go back instead of switching
+  // tabs"): to the right, as iOS's swipe back goes, the card put away;
+  // to the left, nothing, as there is nothing forward.
   const bar = useRef<HTMLElement | null>(null);
   const step = useRef<(by: 1 | -1) => void>(() => {});
   useEffect(() => {
     step.current = by => {
+      if (back) {
+        if (by < 0) closeTopCard();
+        return;
+      }
       const order = all.map(t => t.value);
       const next = order[order.indexOf(up) + by];
       if (next !== undefined) pick(next);
@@ -383,12 +397,6 @@ export default function TabBar<T extends string>({ tabs, tab, over, title, onPic
       shrinking.current = panel.animate({ scale: [now, "1"] }, { duration: 220, easing: EASE });
     };
   }, [lifted]);
-  // A card open over the tab -- an airport's, an airplane's, a past
-  // flight's -- has its way back here, at the top left on the tab's
-  // line, in place of its own close, at the owner's ask: only while the
-  // tabs are not shown (minimized), as iOS's navigation bar's Back.
-  const cards = useOpenCards(s => s.count);
-  const back = minimized && !consoleOpen && cards > 0;
   if (minimized && !shown) {
     // The card's kind, where it is another tab's over this one.
     const named = (over && all.find(t => t.value === over)) || upTab;

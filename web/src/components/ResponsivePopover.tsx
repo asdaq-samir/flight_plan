@@ -1,12 +1,12 @@
 import { createContext, useContext, type ComponentProps, type ReactNode } from "react";
 import { cn } from "cn";
-import { Sheet, SheetClose, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "./ui/sheet";
+import { Sheet, SheetClose, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "./ui/sheet";
 import CloseButton from "./CloseButton";
 import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from "./ui/popover";
 import { useIsMobile } from "../hooks/use-mobile";
 import { useNavEdge } from "../hooks/use-nav-edge";
 import type { NavEdge } from "../lib/preferences";
-import { phoneSheet } from "./phoneSheet";
+import { PhoneSheetContent } from "./PhoneSheet";
 import { TEXT } from "../lib/text";
 
 /**
@@ -113,18 +113,16 @@ export function ResponsivePopoverContent({
     ? <SheetClose asChild><CloseButton data-testid="sheet-close" /></SheetClose>
     : action;
   return (
-    // At most 85% of the screen's height, the title above and the
-    // panel's own content scrolling under it, clear of the notch from
-    // the top and the home indicator from the bottom. The popover's
-    // width classes are left behind.
-    <SheetContent
-      side={edge} showCloseButton={false}
-      className={cn(phoneSheet(edge), sheetClassName)} overlayClassName={sheetOverlayClassName}
-      {...props}
-    >
+    // The floating sheet's look (PhoneSheetContent), at most 85% of the
+    // screen's height, the title above and the panel's own content
+    // scrolling under it; the title's row is what a swipe takes it away
+    // by, with the grabber. The popover's width classes are left behind.
+    <PhoneSheetContent edge={edge} className={sheetClassName} overlayClassName={sheetOverlayClassName} {...props}>
       <SheetHeader
+        data-swipe-handle=""
         className={titleHidden ? "sr-only" : cn(
-          "pb-2 text-left",
+          "touch-none pb-2 text-left",
+          edge === "bottom" && "pt-5",
           end !== undefined && "flex-row flex-wrap items-center justify-between",
         )}
       >
@@ -135,9 +133,11 @@ export function ResponsivePopoverContent({
         {end}
         {description ? <SheetDescription className={end !== undefined ? "basis-full" : undefined}>{description}</SheetDescription> : null}
       </SheetHeader>
-      <div className={cn("min-h-0 overflow-y-auto px-4", edge === "top" ? "pb-4" : "pb-[max(1rem,env(safe-area-inset-bottom))]", titleHidden && "pt-4")}>
+      {/* Clear of the grabber at its far edge, and of the home indicator
+          the sheet floats eight points over. */}
+      <div className={cn("min-h-0 overflow-y-auto px-4", edge === "top" ? "pb-5" : "pb-[max(1rem,calc(env(safe-area-inset-bottom)-0.5rem))]", titleHidden && "pt-5")}>
         {children}
       </div>
-    </SheetContent>
+    </PhoneSheetContent>
   );
 }

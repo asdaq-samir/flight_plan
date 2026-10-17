@@ -257,7 +257,10 @@ export type ComponentFinding = { rule: string; what: string; measured: string };
  *  - one radius for what floats, the theme's: sheets, pop-ups, dialogs,
  *    map cards, list cards and toasts -- but the map's panel on a phone,
  *    in Maps' own shapes: at rest a rectangle 24 round, its medium sheet
- *    36, and the console's sheet at half the same 36;
+ *    36, and the console's sheet at half the same 36; a phone's other
+ *    sheets the same 36, floating as it does (PhoneSheetContent), and the
+ *    centred dialogs in glass 28, as iOS's alerts are -- the owner's pick
+ *    of the sheets audit (D1, D3, 2026-10-17);
  *  - one icon-only button, 36 with a 20 glyph -- outside the navigation
  *    bar, whose sizes are a decision still open, the map's markers, and
  *    the route's fold on the separator, small at the pilot's ask;
@@ -279,7 +282,7 @@ export function componentFindings(page: Page): Promise<ComponentFinding[]> {
       return r.width > 1 && r.height > 1 && getComputedStyle(el).visibility === "visible";
     };
     const name = (el: Element) => (el.getAttribute("aria-label") ?? (el as HTMLElement).dataset?.testid ?? el.getAttribute("data-slot") ?? el.className.toString().split(" ")[0]).slice(0, 40);
-    for (const grab of document.querySelectorAll('[data-slot="console-sheet"] [data-grabber]')) {
+    for (const grab of document.querySelectorAll('[data-slot="console-sheet"] [data-grabber], [data-floating] [data-swipe-handle] > span')) {
       const r = grab.getBoundingClientRect();
       if (!on(grab) || r.height > 12) continue;
       if (Math.abs(r.width - 36) > 0.5 || Math.abs(r.height - 5) > 0.5) found.push({ rule: "grabber 36×5", what: "sheet grabber", measured: `${r.width}×${r.height}` });
@@ -299,8 +302,9 @@ export function componentFindings(page: Page): Promise<ComponentFinding[]> {
       // pilot's ask (mapChrome's PILL_RADIUS); a phone's sheet (the map's
       // panel, the console) 36, inset or on the screen's edges with its
       // far corners round.
-      const sheet = box.matches('[data-slot="map-panel"][data-sheet], [data-slot="console-sheet"]');
-      const shape = box.matches("[data-capsule]") ? Math.min(24, box.getBoundingClientRect().height / 2) : sheet ? 36 : radius;
+      const sheet = box.matches('[data-slot="map-panel"][data-sheet], [data-slot="console-sheet"], [data-floating]');
+      const shape = box.matches("[data-capsule]") ? Math.min(24, box.getBoundingClientRect().height / 2)
+        : sheet ? 36 : box.matches("[data-glass]") ? 28 : radius;
       if (Math.abs(r - shape) > 0.5) found.push({ rule: `one radius, ${Math.round(shape)}`, what: name(box), measured: `${r}` });
     }
     for (const button of document.querySelectorAll<HTMLElement>('button, a[data-slot="button"]')) {

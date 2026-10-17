@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Mail } from "lucide-react";
 import { cn } from "cn";
@@ -7,8 +7,11 @@ import GoogleLogo from "../../components/icons/GoogleLogo";
 import IconButton from "../../components/IconButton";
 import { Button } from "../../components/ui/button";
 import {
-  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger,
+  Dialog, DialogClose, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger,
 } from "../../components/ui/dialog";
+import CloseButton from "../../components/CloseButton";
+import { PhoneSheetContent } from "../../components/PhoneSheet";
+import { useIsMobile } from "../../hooks/use-mobile";
 import { Input } from "../../components/ui/input";
 import { Spinner } from "../../components/ui/spinner";
 import { ApiError, api } from "../../lib/api/client";
@@ -79,6 +82,11 @@ export default function SignInModal({ plain = false }: {
         : linkError instanceof ApiError && linkError.status < 500 ? "Couldn't send that link. Reload the page and try again."
           : "Couldn't reach the sign-in service. Try again in a minute.";
   const sent = magicLink.isSuccess ? magicLink.variables : null;
+  // On a phone a sheet from the bottom, as iOS asks to sign in, in the
+  // floating sheet's look (PhoneSheetContent), at the owner's pick of the
+  // sheets audit (D3, 2026-10-17); wider, the dialog in the middle.
+  const onPhone = useIsMobile();
+  const Content = onPhone ? PhoneSheetBody : DialogContent;
 
   return (
     <Dialog open={open} onOpenChange={o => {
@@ -98,8 +106,8 @@ export default function SignInModal({ plain = false }: {
           </Button>
         ) : <Button variant="outline" size="sm">Sign in</Button>}
       </DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
+      <Content>
+        <DialogHeader data-swipe-handle="" className="touch-none">
           <DialogTitle>Sign in to Wingtip Maps</DialogTitle>
           <DialogDescription>Save your airplanes and filed flights to your own account.</DialogDescription>
         </DialogHeader>
@@ -189,7 +197,21 @@ export default function SignInModal({ plain = false }: {
             <a key={p.key} className="relative after:absolute after:-inset-x-1 after:-inset-y-3.5" href={p.href} target="_blank" rel="noreferrer">{p.title}</a>
           ))}
         </nav>
-      </DialogContent>
+      </Content>
     </Dialog>
+  );
+}
+
+/** The sign-in's words in a phone's floating sheet: room round them as the
+ *  dialog's p-6 gives, its own close at the top right as the dialog's,
+ *  scrolling inside when the keyboard leaves it less than it holds. */
+function PhoneSheetBody({ children }: { children: ReactNode }) {
+  return (
+    <PhoneSheetContent edge="bottom">
+      <div className="grid min-h-0 gap-4 overflow-y-auto px-5 pt-6 pb-[max(1.25rem,calc(env(safe-area-inset-bottom)-0.5rem))]">
+        {children}
+      </div>
+      <DialogClose asChild><CloseButton className="absolute top-3 right-3" /></DialogClose>
+    </PhoneSheetContent>
   );
 }

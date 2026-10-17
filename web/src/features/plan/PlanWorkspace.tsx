@@ -1644,18 +1644,15 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     // keep the calculations pinned at the bottom"; "Why can't the half card
     // have calculations pinned at the very bottom as the full card, just
     // make them bigger smoothly as expanded").
-    // A dry run's chart takes the body's room half way, where the map is
-    // what is watched; all the way up it keeps the side view's place, the
-    // nav log scrolling over it and following the run (NavLogView), at the
-    // owner's ask ("I wanna be able to do the dry run with navlog in full
-    // fpl").
-    footFills: tab === "fpl" && !place && !heldPoint && !flight && !briefShown && !!dryRunning && panel !== "full",
+    // A dry run's chart in the side view's place and its size, at every
+    // height: still as the sheet is dragged, the nav log coming out over it,
+    // as the side view is, at the owner's ask ("the dry run drags up instead
+    // of staying still like the profile"); all the way up the log scrolls
+    // over it and follows the run (NavLogView), at the owner's ask ("I wanna
+    // be able to do the dry run with navlog in full fpl"). It took the
+    // body's room half way, and grew with the sheet under a finger.
     foot: tab === "fpl" && !place && !heldPoint && !flight && !briefShown ? routed && (
-      // The foot's whole row in the pill while a dry run is up, its chart
-      // taking what the figures leave, so they sit at the very bottom as
-      // they do without one (the owner's "calculation are not pinned at
-      // the bottom for dry run").
-      <div className={cn("flex min-h-0 w-full flex-col", dryRunning && panel !== "full" && "flex-1")}>
+      <div className="flex min-h-0 w-full flex-col">
         {/* The side view pinned over the figures at every height out of the
             pill, the nav log scrolling over it all the way up, the one side
             view on screen, at the owner's asks ("I think we should keep the
@@ -1668,7 +1665,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
             its side), where the card's head over the log leaves it no room:
             pinned there, it left the log none at all. It is there half way. */}
         {dryRunning ? (
-          <div className={cn("flex min-h-0 flex-col pb-2", panel === "full" ? "h-[min(10rem,20dvh)] min-h-24 flex-none" : "flex-1")} data-pill-hides=""><DryRunControls run={dryRunning} ends={course} onClose={stopDryRun} /></div>
+          <div className={cn("flex min-h-0 flex-col pb-2", panel === "full" ? "h-[min(10rem,20dvh)] min-h-24 flex-none" : "h-40 shrink")} data-pill-hides=""><DryRunControls run={dryRunning} ends={course} onClose={stopDryRun} /></div>
         ) : miniProfile && (
           <div
             // All the half sheet leaves it, at the owner's ask ("make the
@@ -1732,11 +1729,11 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     // size, which on the pilot's phone is a step up from iOS's default.
     // Narrower than that, the actions take a line of their own rather than
     // run off the screen. With the route cleared or half typed, all of it
-    // still, what needs a route greyed (routeActions). Not while a dry run
-    // is up: the route's box, then the dry run, then its figures, at the
-    // owner's ask ("dry run should show the route box then dry run and
-    // calculations").
-    controls: dryRunning ? undefined : routeControls,
+    // still, what needs a route greyed (routeActions). While a dry run is up
+    // too, the half sheet now tall enough for both, at the owner's ask
+    // ("This way we won't have to hide the buttons for dry run"): they made
+    // way for it before.
+    controls: routeControls,
     console: <PilotPanel />,
     submit,
     loading: s.stage !== null,
