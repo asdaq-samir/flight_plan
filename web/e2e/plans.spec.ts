@@ -67,7 +67,9 @@ test("plan page: the nav log's altitude opens the planner's own reasoning, and t
   await popover.getByTestId("custom-altitude-fly").click();
   await expect(page).toHaveURL(/[?&]altitude_ft=3500/);
   await expect(page.getByTestId("altitude-why")).toHaveAccessibleName(/FL035/, { timeout: slow(30000) });
-  await expect(sideDrawer(page).locator('[role="row"][data-kind="checkpoint"]').first()).toContainText("3,500 ft", { timeout: slow(30000) });
+  // The log at it: said where the altitude is reached -- a top of climb's
+  // level, or the first leg's where the climb ends before its checkpoint.
+  await expect(sideDrawer(page).getByTestId("navlog-list")).toContainText("3,500 ft", { timeout: slow(30000) });
   await page.getByTestId("altitude-why").click();
   await expect(popover).toBeVisible();
   await expect(popover.getByTestId("altitude-plan-lowest")).toHaveAttribute("aria-pressed", "false");
