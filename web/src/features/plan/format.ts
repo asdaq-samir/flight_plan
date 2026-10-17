@@ -51,6 +51,12 @@ export function legsWithoutWind(t: Totals): string | null {
     : null;
 }
 
+/** An altitude plan's name, as the Brief and the Go / No-Go say it
+ *  ("Fastest plan"): the planner's four (vfr.navlog.altitude_profiles). */
+export const PLAN_NAME: Record<AltitudeOption["kind"], string> = {
+  lowest: "Lowest", highest: "Highest", fastest: "Fastest", economical: "Economical",
+};
+
 /** One altitude plan's steps: "2,500 ft all the way", or "2,500 ft to
  *  Mill Pond, 6,500 ft to Big Falls Flowage, 2,500 ft to KDLH". */
 export function describeSteps(option: AltitudeOption): string {
