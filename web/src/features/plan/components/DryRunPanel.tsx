@@ -11,7 +11,7 @@ import FigureStrip from "../../../components/FigureStrip";
 import { TEXT } from "../../../lib/text";
 import { altFt, one } from "../../../lib/units";
 import { enRoute } from "../figures";
-import { dryRunAt, type DryRun } from "./navlog/dryRun";
+import { dryRunAt, runNmAt, type DryRun } from "./navlog/dryRun";
 import type { RouteEnds } from "./navlog/rows";
 import { TRACES } from "./flightTraces";
 import { when } from "./pastFlightFormat";
@@ -127,7 +127,10 @@ export function DryRunControls({ run, ends, onClose }: { run: DryRun; ends: Rout
             share of, and the chart stayed three rem tall all the way up. */}
         <div className="absolute inset-0">
           <Suspense fallback={null}>
-            <FlightChart points={run.points} at={second} alongNm={run.alongNm} airspace={profile} />
+            <FlightChart
+              points={run.points} at={second} alongNm={run.alongNm} airspace={profile}
+              laid={fraction => runNmAt(run, fraction * (run.bends.at(-1)?.route ?? 0))}
+            />
           </Suspense>
         </div>
         {/* Over the chart, its own drag: not the sheet's (touch-none) nor

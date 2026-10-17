@@ -23,12 +23,16 @@ const chartConfig = {
  *  traces said over it instead; room over the traces at the top; and
  *  across, the distance flown, not the time ("x axis can be just
  *  distance"), its mark where the moment is along the course. */
-const FlightChart = memo(function FlightChart({ points, at, alongNm, airspace = null }: {
+const FlightChart = memo(function FlightChart({ points, at, alongNm, airspace = null, laid }: {
   points: PastFlightPoint[];
   at: number | null;
   alongNm?: number[];
   /** The route from the side (vfr.profile), for a dry run's airspace. */
   airspace?: RouteProfile | null;
+  /** Where a fraction of the way along the route is along the run, for
+   *  the airspace: a dry run's own where an approach flown has made the
+   *  run longer than the route near its end (runNmAt), else evenly. */
+  laid?: (fraction: number) => number;
 }) {
   const data = useMemo(() => points.map((p, i) => ({ t: p.t, nm: alongNm?.[i] ?? null, alt: p.alt_ft ?? 0, kt: p.gs_kt ?? null })), [points, alongNm]);
   const plain = !!alongNm;
@@ -57,14 +61,17 @@ const FlightChart = memo(function FlightChart({ points, at, alongNm, airspace = 
   const start = alongNm?.[0] ?? 0, runNm = (alongNm?.at(-1) ?? 0) - start;
   const route = plain && airspace && airspace.length_nm > 0 ? airspace : null;
   const pieces = route ? route.airspace.filter(a => AIRSPACE[a.class]) : [];
-  const k = route ? runNm / route.length_nm : 1;
+  const runAt = (nm: number) => {
+    const fraction = route ? nm / route.length_nm : 0;
+    return laid ? laid(fraction) : start + fraction * runNm;
+  };
   const named = new Set([...namedPieces(pieces).values()].filter(a => nameFits(a, route?.length_nm ?? 0)));
   const tops = ceilings(pieces);
   const airspaceTop = tops.length ? Math.ceil((Math.max(...tops) + 300) / 500) * 500 : 0;
   // A name at the run's ends kept inside the chart: set from the box's
   // edge there, not its middle.
   const placed = (a: (typeof pieces)[number]) => {
-    const middle = runNm > 0 ? ((a.from_nm + a.to_nm) / 2) * k / runNm : 0.5;
+    const middle = runNm > 0 ? (runAt((a.from_nm + a.to_nm) / 2) - start) / runNm : 0.5;
     return middle < 0.2 ? "insideTopLeft" : middle > 0.8 ? "insideTopRight" : "insideTop";
   };
   return (
@@ -88,7 +95,7 @@ const FlightChart = memo(function FlightChart({ points, at, alongNm, airspace = 
           const look = AIRSPACE[a.class]!;
           return (
             <ReferenceArea
-              key={i} yAxisId="alt" x1={start + a.from_nm * k} x2={start + a.to_nm * k} y1={a.floor_ft} y2={a.ceiling_ft ?? undefined}
+              key={i} yAxisId="alt" x1={runAt(a.from_nm)} x2={runAt(a.to_nm)} y1={a.floor_ft} y2={a.ceiling_ft ?? undefined}
               stroke={look.stroke} strokeDasharray={look.dashed ? "5 4" : undefined} strokeOpacity={0.8} fill={look.stroke} fillOpacity={0.08}
               ifOverflow="hidden"
               label={named.has(a) ? {
