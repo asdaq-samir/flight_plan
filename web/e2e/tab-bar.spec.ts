@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 import { closeCard, closeConsole, grabberTo, openTab, openPanel, settle, settled, showTabs, sideDrawer, slow } from "./helpers";
 
 /**
@@ -349,4 +349,106 @@ test("a tab's own page is there at once as its tab is picked, as Airport's is: A
     expect(await entering("quick-controls")).toEqual([]);
     await closeConsole(page);
   }
+});
+
+test.describe("the tabs under a finger", () => {
+  test.use({ hasTouch: true });
+
+  /** One finger, through Chromium's own touches (CDP). */
+  async function finger(page: Page) {
+    const cdp = await page.context().newCDPSession(page);
+    return (type: "touchStart" | "touchMove" | "touchEnd", at?: { x: number; y: number }) =>
+      cdp.send("Input.dispatchTouchEvent", { type, touchPoints: at ? [{ ...at, id: 1 }] : [] });
+  }
+
+  /** The middle of each of the tab bar's tabs. */
+  async function tabMiddles(page: Page) {
+    const bar = page.getByTestId("tab-bar");
+    const box = (await bar.boundingBox())!;
+    const count = await bar.locator("button").count();
+    return (i: number) => ({ x: box.x + (box.width / count) * (i + 0.5), y: box.y + box.height / 2 });
+  }
+
+  test("a finger held on the tabs lifts the lens, the pill growing; slid along, the lens follows, and let go it picks the tab under it", async ({ page }) => {
+    // The owner's recording of iOS 26's tab bar, Netflix's (2026-10-16).
+    await page.goto("/app/plan");
+    await settle(page);
+    const panel = sideDrawer(page);
+    await showTabs(page);
+    const size = (await panel.getAttribute("data-panel"))!;
+    const tabs = panel.getByTestId("tab-bar");
+    const bubble = panel.getByTestId("tab-bubble");
+    const at = await tabMiddles(page);
+    await expect(tabs.getByTestId("tab-fpl")).toHaveAttribute("aria-current", "page");
+    const touch = await finger(page);
+    await touch("touchStart", at(0));
+    // Held, the lens is up, and the pill -- a phone's panel at rest -- is
+    // a little bigger, still clear of the screen's sides.
+    await expect(bubble).toHaveAttribute("data-lifted", "");
+    if (size === "peek") {
+      await expect.poll(() => panel.evaluate(el => Number(getComputedStyle(el).scale))).toBeGreaterThan(1.01);
+      const grown = (await panel.boundingBox())!;
+      expect(grown.x).toBeGreaterThanOrEqual(2);
+      expect(grown.x + grown.width).toBeLessThanOrEqual(page.viewportSize()!.width - 2);
+    }
+    // Slid along to Aircraft, a frame a move: the tab under the lens is
+    // lit on the way, Airport half way, and the sheet stays where it is.
+    for (let step = 1; step <= 12; step++) {
+      await touch("touchMove", { x: at(0).x + ((at(2).x - at(0).x) * step) / 12, y: at(0).y + 2 });
+      await page.waitForTimeout(16);
+      if (step === 6) await expect(tabs.getByTestId("tab-airport")).toHaveAttribute("data-lit", "true");
+    }
+    await expect(tabs.getByTestId("tab-aircraft")).toHaveAttribute("data-lit", "true");
+    await expect(tabs.getByTestId("tab-fpl")).toHaveAttribute("aria-current", "page");
+    await expect(panel).toHaveAttribute("data-panel", size);
+    // Let go: Aircraft is the tab up, as a tap on it makes it, and the lens
+    // and the pill are as they were.
+    await touch("touchEnd");
+    await expect(tabs.getByTestId("tab-aircraft")).toHaveAttribute("aria-current", "page");
+    await expect(bubble).not.toHaveAttribute("data-lifted");
+    await expect.poll(() => panel.evaluate(el => getComputedStyle(el).scale)).toMatch(/^(none|1)$/);
+  });
+
+  test("the lens let go on the tab it was lifted from leaves the tab and the sheet as they were, and up or down the tabs drag the sheet, the lens staying down", async ({ page }) => {
+    test.skip(page.viewportSize()!.width >= 768, "a phone's sheet");
+    await page.goto("/app/plan");
+    await settle(page);
+    const panel = sideDrawer(page);
+    await showTabs(page);
+    await grabberTo(page, "half");
+    await settled(panel);
+    const tabs = panel.getByTestId("tab-bar");
+    const at = await tabMiddles(page);
+    const touch = await finger(page);
+    // Out to Airport and back to FPL, held: FPL as it was, the sheet half
+    // way -- not lowered, as a tap on the tab up lowers it.
+    await touch("touchStart", at(0));
+    await expect(panel.getByTestId("tab-bubble")).toHaveAttribute("data-lifted", "");
+    for (const x of [at(0).x + 30, at(1).x, at(0).x + 30, at(0).x]) {
+      await touch("touchMove", { x, y: at(0).y });
+      await page.waitForTimeout(16);
+    }
+    await touch("touchEnd");
+    await expect(tabs.getByTestId("tab-fpl")).toHaveAttribute("aria-current", "page");
+    await page.waitForTimeout(500);
+    await expect(panel).toHaveAttribute("data-panel", "half");
+    // Up from Airport's place, a drag of the sheet: all the way up, FPL
+    // still the tab, and the lens never lifted under it.
+    await page.evaluate(() => {
+      const seen = window as unknown as { lensLifted: number };
+      seen.lensLifted = 0;
+      new MutationObserver(() => { if (document.querySelector("[data-lifted]")) seen.lensLifted++; })
+        .observe(document.body, { subtree: true, attributes: true, attributeFilter: ["data-lifted"] });
+    });
+    const from = at(1);
+    await touch("touchStart", from);
+    for (let step = 1; step <= 20; step++) {
+      await touch("touchMove", { x: from.x + step * 0.5, y: from.y - step * 20 });
+      await page.waitForTimeout(16);
+    }
+    await touch("touchEnd");
+    await expect(panel).toHaveAttribute("data-panel", "full");
+    await expect(tabs.getByTestId("tab-fpl")).toHaveAttribute("aria-current", "page");
+    expect(await page.evaluate(() => (window as unknown as { lensLifted: number }).lensLifted)).toBe(0);
+  });
 });

@@ -123,6 +123,9 @@ export function useDetentDrag<S extends string>({ detents, shown, fromBottom, on
     // iPhone, each a render of the sheet.
     let frame = 0;
     const move = (event: PointerEvent) => {
+      // A move a control in the head has taken for its own -- the tab bar's
+      // lens, slid along its tabs (TabBar) -- is not the sheet's.
+      if (event.defaultPrevented) return;
       if (!moved && Math.abs(event.clientY - start.clientY) < DRAG_SLOP) return;
       moved = true;
       follow(track, event.clientY, event.timeStamp);
