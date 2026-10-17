@@ -127,11 +127,12 @@ test("an airport tapped in the route opens its card, and is changed from its men
   await expect(page.getByPlaceholder("Search for a destination")).toBeVisible();
 });
 
-test("the side view is over the figures at the foot half way and all the way up, the nav log's sections scrolling over it", async ({ page }) => {
+test("the side view is over the figures at the foot half way and all the way up, the one on screen, the nav log's sections scrolling over it", async ({ page }) => {
   // The owner's asks: "pin the profile above calculations"; "Make the
-  // subtabs into sections Legs, Profile"; and, all the way up, "keep the
+  // subtabs into sections Legs, Profile"; all the way up, "keep the
   // profile at the bottom as you pull up the scrollable navlog", where it
-  // folded away into the nav log's Profile under its Legs.
+  // folded away into the nav log's Profile under its Legs; and "let's
+  // cleanup the clutter with redesign", that Profile on paper only.
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   await grabberTo(page, "half");
@@ -149,14 +150,16 @@ test("the side view is over the figures at the foot half way and all the way up,
   await settled(panel);
   const [up, under] = [(await profile.boundingBox())!, (await figures.boundingBox())!];
   expect(up.y + up.height).toBeLessThanOrEqual(under.y + 1);
+  // A picture there, with nothing to open: the sheet is up already.
+  await expect(profile).toHaveAttribute("role", "img");
   await openTab(page, "En route");
   const log = panel.locator('[data-tab="enroute"]');
   await expect(log.locator('[data-testid="section-tabs"]')).toHaveCount(0);
-  const legs = log.locator('[data-title="Legs"]');
-  const route = log.locator('[data-title="Profile"]');
-  await expect(legs.getByRole("heading", { name: "Legs" })).toBeVisible();
-  await expect(route.getByRole("heading", { name: "Profile" })).toBeAttached();
-  expect((await route.boundingBox())!.y).toBeGreaterThan((await legs.boundingBox())!.y);
+  await expect(log.locator('[data-title="Legs"]').getByRole("heading", { name: "Legs" })).toBeVisible();
+  // The legs and then the altitude, no second side view between them.
+  await expect(log.locator('[data-title="Cruise Altitude"]')).toBeAttached();
+  await expect(log.locator('[data-title="Profile"]')).toHaveCount(0);
+  await expect(profile).toBeVisible();
 });
 
 test("a card opens half way; on a phone, lowered to the pill it is its name and its close, which puts it away", async ({ page }) => {

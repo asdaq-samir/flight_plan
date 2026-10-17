@@ -189,9 +189,9 @@ export default function PanelTabs({ rootRef, before, contents, notice, footer, c
           <GoToTab.Provider value={goTo}>
             {/* Every tab's sections one under another, each under its
                 title, not pills to pick one by, at the owner's ask ("Make
-                the subtabs into sections Legs, Profile"); En route's Profile
-                under its Legs, where the pill's side view goes as the sheet
-                comes up. */}
+                the subtabs into sections Legs, Profile"); the side view is
+                the one pinned at the sheet's foot now, the Profile under the
+                Legs on paper only. */}
             {drawn && (printing ? PRINTED : TABS.map(t => t.value).filter(t => opened.includes(t))).map(t => {
               const away = !printing && t !== tab;
               return (

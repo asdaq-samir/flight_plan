@@ -1328,9 +1328,10 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     />
   );
 
-  // The route from the side (MiniProfile), a tap the nav log all the way up.
+  // The route from the side (MiniProfile), a tap the nav log all the way up;
+  // there, a picture of the flight, nothing to tap.
   const miniProfile = routed && course && !local
-    ? <MiniProfile ends={course} selected={selected} legs={s.legs} onOpen={() => setPanel("full")} /> : null;
+    ? <MiniProfile ends={course} selected={selected} legs={s.legs} onOpen={panel === "full" ? undefined : () => setPanel("full")} /> : null;
   // The route's chips: the airplane, the altitude, the time, Saved,
   // Approaches and Share (`controls`), and with no route the pill's too.
   const routeControls = started && (
@@ -1561,14 +1562,16 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       // the bottom for dry run").
       <div className={cn("flex min-h-0 w-full flex-col", dryRunning && panel !== "full" && "flex-1")}>
         {/* The side view pinned over the figures at every height out of the
-            pill, the nav log scrolling over it all the way up, at the
-            owner's ask ("I think we should keep the profile at the bottom
-            as you pull up the scrollable navlog"); it folded away there, the
-            nav log's Profile section under its Legs taking over. Its dry
-            run plays in its place, all the way up too. There the two take a
-            fifth of the screen at most, so a short one keeps rows of the
+            pill, the nav log scrolling over it all the way up, the one side
+            view on screen, at the owner's asks ("I think we should keep the
+            profile at the bottom as you pull up the scrollable navlog";
+            "let's cleanup the clutter with redesign"): it folded away there
+            into the nav log's own Profile, which is now on paper only. Its
+            dry run plays in its place, all the way up too. There the two take
+            a fifth of the screen at most, so a short one keeps rows of the
             log to read, and the side view none under 560 points (a phone on
-            its side), where the log's own Profile section has it. */}
+            its side), where the card's head over the log leaves it no room:
+            pinned there, it left the log none at all. It is there half way. */}
         {dryRunning ? (
           <div className={cn("flex min-h-0 flex-col pb-2", panel === "full" ? "h-[min(10rem,20dvh)] min-h-24 flex-none" : "flex-1")} data-pill-hides=""><DryRunControls run={dryRunning} ends={course} onClose={stopDryRun} /></div>
         ) : miniProfile && (

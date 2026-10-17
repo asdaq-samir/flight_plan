@@ -15,19 +15,20 @@ const miles = (nm: number) => `${Math.round(nm)}`;
  * FPL's pill's side view of the flight, at the owner's pick of the
  * redesign ("FPL 3, profile", the profile above the figures): the ground,
  * the Class B, C and D crossed and the plan's altitudes over them, as the
- * nav log's Profile draws them full (ProfileChart) -- here plain SVG, so
+ * printed nav log's Profile draws them full (ProfileChart) -- here plain SVG, so
  * the page's first load keeps recharts out, its axes' figures words beside
  * and under it (an SVG stretched to the width would stretch them), at the
  * owner's ask ("profile can show the axis and numbers etc. since we have
  * some empty space"). The same question as
  * the full one (its query key), asked once there is a route. A tap opens
- * the nav log full on it (`onOpen`).
+ * the nav log full on it (`onOpen`); with nothing to open, all the way up,
+ * it is a picture, not a button.
  */
 export default memo(function MiniProfile({ ends, selected, legs, onOpen }: {
   ends: RouteEnds;
   selected: Candidate[];
   legs: Leg[];
-  onOpen: () => void;
+  onOpen?: () => void;
 }) {
   const dep = ends.departure.ident, dest = ends.destination.ident;
   const stops = (ends.stops ?? []).map(s => s.ident);
@@ -53,15 +54,13 @@ export default memo(function MiniProfile({ ends, selected, legs, onOpen }: {
     // Wide enough on the chart for its words.
     .filter(a => nameFits(a, profile.length_nm));
   const line = plan.points.map((p, i) => `${i ? "L" : "M"}${x(p.along_nm * scale).toFixed(1)} ${y(p.plan_ft).toFixed(1)}`).join(" ");
-  return (
-    <button
-      type="button" onClick={onOpen} data-testid="mini-profile"
-      aria-label={`Profile: ${cruise ? `cruise ${altFt(cruise)} ft` : "the route from the side"}; opens the nav log`}
-      className={cn(
-        "grid h-24 w-full shrink-0 grid-rows-[1fr_auto] overflow-hidden rounded-xl bg-background/70 px-2 pt-1.5 pb-1",
-        "text-muted-foreground tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-ring", TEXT.caption,
-      )}
-    >
+  const label = `Profile: ${cruise ? `cruise ${altFt(cruise)} ft` : "the route from the side"}`;
+  const look = cn(
+    "grid h-24 w-full shrink-0 grid-rows-[1fr_auto] overflow-hidden rounded-xl bg-background/70 px-2 pt-1.5 pb-1",
+    "text-muted-foreground tabular-nums", TEXT.caption,
+  );
+  const chart = (
+    <>
       <span className="relative block min-h-0">
       <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="block h-full w-full" aria-hidden="true">
         {profile.airspace.map((a, i) => {
@@ -113,6 +112,16 @@ export default memo(function MiniProfile({ ends, selected, legs, onOpen }: {
       <span className="flex justify-between" aria-hidden="true">
         <span>0</span><span>{miles(profile.length_nm / 2)}</span><span>{miles(profile.length_nm)} nm</span>
       </span>
+    </>
+  );
+  return onOpen ? (
+    <button
+      type="button" onClick={onOpen} data-testid="mini-profile" aria-label={`${label}; opens the nav log`}
+      className={cn(look, "outline-none focus-visible:ring-2 focus-visible:ring-ring")}
+    >
+      {chart}
     </button>
+  ) : (
+    <div role="img" data-testid="mini-profile" aria-label={label} className={look}>{chart}</div>
   );
 });
