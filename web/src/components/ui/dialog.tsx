@@ -2,6 +2,7 @@ import * as React from "react"
 import { cn } from "cn"
 import { Dialog as DialogPrimitive } from "radix-ui"
 import CloseButton from "../CloseButton"
+import { GLASS_SHEET_FULL } from "../mapChrome"
 
 function Dialog({
   ...props
@@ -44,16 +45,22 @@ function DialogContent({
   className,
   children,
   showCloseButton = true,
+  glass = true,
   onInteractOutside,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean
+  /** Liquid Glass with an iOS alert's round corners, over a light dim,
+   *  at the owner's pick of the sheets audit (D3, 2026-10-17); false for
+   *  what fills the screen (an airport's diagram), opaque and square. */
+  glass?: boolean
 }) {
   return (
     <DialogPortal>
-      <DialogOverlay />
+      <DialogOverlay className={glass ? "bg-black/20" : undefined} />
       <DialogPrimitive.Content
         data-slot="dialog-content"
+        data-glass={glass ? "" : undefined}
         // A toast is not "outside" (see SheetContent): tapping its close
         // button closed this instead of the toast. A caller's own handler
         // runs after the guard, taken out of `props` so it cannot replace it.
@@ -64,7 +71,8 @@ function DialogContent({
           onInteractOutside?.(event)
         }}
         className={cn(
-          "fixed top-1/2 left-1/2 z-50 grid w-full max-w-sm -translate-x-1/2 -translate-y-1/2 gap-4 rounded-lg bg-popover p-6 text-popover-foreground shadow-lg ring-1 ring-foreground/10 duration-100 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+          "fixed top-1/2 left-1/2 z-50 grid w-full max-w-sm -translate-x-1/2 -translate-y-1/2 gap-4 p-6 duration-100 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+          glass ? cn(GLASS_SHEET_FULL, "rounded-[28px] text-foreground") : "rounded-lg bg-popover text-popover-foreground shadow-lg ring-1 ring-foreground/10",
           className
         )}
         {...props}

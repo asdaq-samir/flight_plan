@@ -23,7 +23,7 @@ export default function SketchViewer({ ident, runways, lat, lon, onClose }: {
   return (
     <Dialog open onOpenChange={open => { if (!open) onClose(); }}>
       <DialogContent
-        aria-describedby={undefined} data-testid="airport-sketch-viewer" showCloseButton={false}
+        aria-describedby={undefined} glass={false} data-testid="airport-sketch-viewer" showCloseButton={false}
         className="inset-0 top-0 left-0 flex h-dvh w-screen max-w-none translate-x-0 translate-y-0 flex-col gap-0 rounded-none bg-background p-0 ring-0 sm:max-w-none"
       >
         <div className="flex shrink-0 items-center gap-4 pt-[max(0.5rem,env(safe-area-inset-top))] pr-[max(0.75rem,env(safe-area-inset-right))] pb-2 pl-[max(1rem,env(safe-area-inset-left))]">

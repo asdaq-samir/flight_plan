@@ -5,8 +5,8 @@ import {
   AlertDialogTitle,
 } from "./ui/alert-dialog";
 import { Button } from "./ui/button";
-import { Sheet, SheetClose, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "./ui/sheet";
-import { phoneSheet } from "./phoneSheet";
+import { Sheet, SheetClose, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "./ui/sheet";
+import { PhoneSheetContent } from "./PhoneSheet";
 import { useIsMobile } from "../hooks/use-mobile";
 import { useNavEdge } from "../hooks/use-nav-edge";
 import { TEXT } from "../lib/text";
@@ -38,15 +38,15 @@ export default function ErrorAlert() {
   if (onPhone) {
     return (
       <Sheet open={!!failed} onOpenChange={close}>
-        <SheetContent side={edge} showCloseButton={false} className={phoneSheet(edge)} role="alertdialog" {...described} data-testid="error-alert">
-          <SheetHeader className="text-center">
+        <PhoneSheetContent edge={edge} role="alertdialog" {...described} data-testid="error-alert">
+          <SheetHeader data-swipe-handle="" className={cn("touch-none text-center", edge === "bottom" && "pt-5")}>
             <SheetTitle className={cn("font-semibold", TEXT.title)}>{failed?.title}</SheetTitle>
             {failed?.description && <SheetDescription className={TEXT.note}>{failed.description}</SheetDescription>}
           </SheetHeader>
-          <SheetFooter className={edge === "top" ? undefined : "pb-[max(1rem,env(safe-area-inset-bottom))]"}>
+          <SheetFooter className={edge === "top" ? "pb-5" : "pb-[max(1rem,calc(env(safe-area-inset-bottom)-0.5rem))]"}>
             <SheetClose asChild><Button>OK</Button></SheetClose>
           </SheetFooter>
-        </SheetContent>
+        </PhoneSheetContent>
       </Sheet>
     );
   }
