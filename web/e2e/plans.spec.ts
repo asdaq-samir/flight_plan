@@ -92,13 +92,21 @@ test("plan page: the nav log's altitude opens the planner's own reasoning, and t
   // The pill as it was, its chips still in sight.
   await expect(page.getByTestId("altitude-why")).toBeVisible();
 
-  // The briefing's Cruise Altitude section, under the nav log's side
-  // view, carries the same steps.
+  // The Brief's Cruise Altitude section carries the same steps, the plan
+  // flown first with its time and fuel, and says the floor and the
+  // ceiling once each, with their reasons (the owner's pick of the
+  // redesign): there is no list over the steps that said them again.
   const drawer = sideDrawer(page);
   await openTab(page, "Nav Log");
   await openSection(page, "Cruise Altitude");
-  await expect(drawer.locator('[data-title="Cruise Altitude"]')).toBeVisible();
+  const cruise = drawer.locator('[data-title="Cruise Altitude"]');
+  await expect(cruise).toBeVisible();
   await expect(drawer.getByText("14 CFR 91.159")).toBeVisible();
+  const steps = cruise.getByTestId("altitude-steps").locator('[data-slot="accordion-trigger"]');
+  await expect(steps.first()).toContainText(/^Fastest plan.+\d+h \d{2}m · [\d.]+ gal$/);
+  await expect(steps.nth(1)).toContainText(/^FloorTerrain and obstacles, with margin[\d,]+ ft$/);
+  await expect(cruise.getByText(/^(Floor|Ceiling)\b/)).toHaveCount(2);
+  await expect(cruise).not.toContainText("How it was chosen");
 });
 
 test("plan page: a departure time gives every checkpoint its time, and the nav log's line the arrival", async ({ page }) => {

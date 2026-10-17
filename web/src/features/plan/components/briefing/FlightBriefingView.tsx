@@ -20,7 +20,7 @@ import type {
 } from "../../../../lib/api/types";
 import type { FrameworkNarrative } from "../../hooks/useNarratives";
 import type { BriefingState } from "../../hooks/usePlan";
-import { altFt, bearing, ceilingAndVisibility, clockTime, describeFuel, describeSteps, describeTime } from "../../format";
+import { altFt, bearing, ceilingAndVisibility, clockTime, PLAN_NAME } from "../../format";
 import { flightLevel, grouped } from "../../../../lib/units";
 import { identOf, isAirwayToken, withoutAltitude } from "../../../../lib/identSchema";
 import { navLogRows, savedCheckpoints } from "../navlog/rows";
@@ -183,17 +183,6 @@ function windStretches(legs: Leg[]): Stretch[] {
     else stretches.push({ from: leg.from, to: leg.to, altitudeFt: leg.altitude_ft, wind, oatC });
   }
   return stretches;
-}
-
-const PLAN_LABEL: Record<string, string> = { lowest: "Lowest", highest: "Highest", fastest: "Fastest", economical: "Economical" };
-
-/** What sets the whole route's ceiling: the clouds (14 CFR 91.155's
- *  distance under the lowest one forecast near a leg), a Class B shelf,
- *  or the airplane. */
-function ceilingReason(s: NavLogAltitude["altitude_selection"]): string {
-  if (s.cloud_ceiling_ft != null && s.cloud_ceiling_ft === s.band_ceiling_ft) return `Under the clouds near ${s.cloud_station}`;
-  if (s.airspace_ceiling_ft != null && s.airspace_ceiling_ft === s.band_ceiling_ft) return "The Class B shelf";
-  return "The airplane's service ceiling";
 }
 
 /** The altitudes a plan flies as the nav log's header gives them: one
@@ -617,7 +606,7 @@ export default memo(function FlightBriefingView({
     altitude: {
       pending: !nav, problem,
       cautions: nav?.cautions.flatMap(c => c.reasons) ?? [],
-      flown: !nav ? null : nav.flown === "custom" ? `${flightLevel(nav.altitude_ft)}, your own` : `${altitudeRange(nav)}${chosen ? ` · ${PLAN_LABEL[chosen.kind]} plan` : ""}`,
+      flown: !nav ? null : nav.flown === "custom" ? `${flightLevel(nav.altitude_ft)}, your own` : `${altitudeRange(nav)}${chosen ? ` · ${PLAN_NAME[chosen.kind]} plan` : ""}`,
     },
     fuel: {
       pending: !totals,
@@ -858,35 +847,15 @@ export default memo(function FlightBriefingView({
         </>
       )}
 
-      {/* Under the side view: the altitude it shows, and the figures it was chosen within. */}
+      {/* En route's first: the altitude the side view shows. */}
       {part === "profile" && (
-        // The plan being flown and the figures it was made within, first;
-        // then how the planner got there, step by step -- the same steps
-        // the FL chip's popover shows, here for the paper (a popover
-        // prints nothing) and for a pilot reading top to bottom. From
-        // `nav.altitude_selection`, which arrives with the nav log.
+        // The plan flown, with its time and fuel, then the floor and the
+        // ceiling it was chosen within, each with its reason, and the rest
+        // of how the planner got there -- a row a step, its working folded
+        // under it, the steps the FL chip's popover shows (AltitudeReasoning).
+        // From `nav.altitude_selection`, which arrives with the nav log.
         <AccordionSection title="Cruise Altitude">
-          {!nav ? <Pending>Waiting on the nav log&apos;s altitude…</Pending> : (
-            <div className="space-y-3">
-              <ListGroup>
-                <ListRow
-                  title={nav.flown === "custom" ? "Your own" : chosen ? `${PLAN_LABEL[chosen.kind]} plan` : "No plan"}
-                  description={nav.flown === "custom" ? `${flightLevel(nav.altitude_ft)} all the way` : chosen ? describeSteps(chosen) : "The winds aloft could not be read."}
-                  value={chosen ? `${describeTime(chosen)} · ${describeFuel(chosen)}` : undefined}
-                />
-                <ListRow title="Floor" description="Terrain and obstacles, with margin" value={`${altFt(nav.altitude_selection.floor_ft)} ft`} />
-                <ListRow
-                  title="Ceiling"
-                  description={ceilingReason(nav.altitude_selection)}
-                  value={nav.altitude_selection.band_ceiling_ft == null ? "none" : `${altFt(nav.altitude_selection.band_ceiling_ft)} ft`}
-                />
-              </ListGroup>
-              <div>
-                <h3 className={cn("px-1 pb-1.5", GROUP_HEADING)}>How it was chosen</h3>
-                <AltitudeReasoning nav={nav} legs={legs} />
-              </div>
-            </div>
-          )}
+          {!nav ? <Pending>Waiting on the nav log&apos;s altitude…</Pending> : <AltitudeReasoning nav={nav} legs={legs} />}
         </AccordionSection>
       )}
 

@@ -230,7 +230,7 @@ export default function AltitudeButton({ nav, legs, problem, ownAltitude = true,
         {nav && (
           <>
             <div className={cn("mb-2", GROUP_HEADING)}>How the altitude was chosen</div>
-            <AltitudeReasoning nav={nav} legs={legs} />
+            <AltitudeReasoning nav={nav} legs={legs} plansAbove />
           </>
         )}
       </ResponsivePopoverContent>

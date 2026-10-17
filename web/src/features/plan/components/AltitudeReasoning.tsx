@@ -2,11 +2,12 @@ import { useState, type ReactNode } from "react";
 import { cn } from "cn";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "../../../components/ui/accordion";
 import { usePrinting } from "../../../lib/usePrinting";
-import type { AltitudeOption, AltitudeSegment, Leg, NavLogAltitude } from "../../../lib/api/types";
+import type { AltitudeSegment, Leg, NavLogAltitude } from "../../../lib/api/types";
 import { CRUISE_REFERENCE_FT } from "../../../lib/performance";
 import { TEXT } from "../../../lib/text";
+import { flightLevel } from "../../../lib/units";
 import { faaWords, suaAltitudes } from "../../../lib/advisories";
-import { altFt, bearing, cruiseByAltitude, describeFuel, describeSteps, describeTime } from "../format";
+import { altFt, bearing, cruiseByAltitude, describeFuel, describeSteps, describeTime, PLAN_NAME } from "../format";
 
 interface Props {
   /** The nav log's own altitude and, unless the pilot typed one, the
@@ -15,6 +16,22 @@ interface Props {
   /** The legs flown, as they stream in: each one's cruise in its own
    *  air, which the performance step says. */
   legs: Leg[];
+  /** The four plans are said above the steps, as the FL chip's buttons
+   *  (AltitudeButton): their step comes after the rule, and says how
+   *  they were made. Without it (the Brief) the plan flown comes first,
+   *  with its time and fuel, as the answer. */
+  plansAbove?: boolean;
+}
+
+/** One step: its name, the reason in a line under it, and its figure at
+ *  the end, as a list's row has them (ListRow); how it was reached folds
+ *  under it. */
+interface Step {
+  key: string;
+  title: ReactNode;
+  detail?: ReactNode;
+  value?: string;
+  body: ReactNode;
 }
 
 /** The two halves of the direction of flight, in the rule's own words:
@@ -35,9 +52,20 @@ function join(parts: string[]): string {
   return `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
 }
 
-const KIND_LABEL: Record<AltitudeOption["kind"], string> = {
-  lowest: "Lowest", highest: "Highest", fastest: "Fastest", economical: "Economical",
-};
+/** What sets the whole route's VFR ceiling, the lowest of three
+ *  (vfr.altitude's band_ceiling): the clouds (14 CFR 91.155's distance
+ *  under the lowest forecast near a leg), a Class B shelf, or the
+ *  airplane. */
+function ceilingReason(s: NavLogAltitude["altitude_selection"]): string | null {
+  if (s.band_ceiling_ft == null) return null;
+  if (s.cloud_ceiling_ft != null && s.cloud_ceiling_ft === s.band_ceiling_ft) return `Under the clouds near ${s.cloud_station}`;
+  if (s.airspace_ceiling_ft != null && s.airspace_ceiling_ft === s.band_ceiling_ft) return "The Class B shelf";
+  return "The airplane's service ceiling";
+}
+
+/** Words set in a sentence's middle: their first letter small, unless
+ *  it starts a code ("NOTAM"). */
+const midSentence = (words: string) => (/^[A-Z][a-z]/.test(words) ? words.charAt(0).toLowerCase() + words.slice(1) : words);
 
 /** Consecutive segments under the same shelf, for "the ceiling leg by
  *  leg": [{from_nm, to_nm, airspace_ceiling_ft, band_ceiling_ft}]. */
@@ -62,14 +90,17 @@ function ceilingRuns(segments: AltitudeSegment[]): AltitudeSegment[] {
  * airplane's performance in the day's air they were flown at, and
  * the weather that was checked but does not move the numbers. Every
  * figure is the planner's own, so the pilot can check each one against
- * the chart -- the nav log header's "why" popover and the briefing's
- * Cruise Altitude section are both this.
+ * the chart -- the FL chip's popover and the Brief's Cruise Altitude
+ * section are both this.
+ *
+ * A row a step, in a list's box: its name, its reason and its figure
+ * ("Floor · Terrain and obstacles, with margin · 2,600 ft"), with how it
+ * was reached folded under it. In the Brief the plan flown comes first,
+ * and these are the whole section, at the owner's pick of the redesign
+ * (each fact said once): a list of the plan, the floor and the ceiling
+ * sat over the steps, which said all three again.
  */
-/** Words set in a sentence's middle: their first letter small, unless
- *  it starts a code ("NOTAM"). */
-const midSentence = (words: string) => (/^[A-Z][a-z]/.test(words) ? words.charAt(0).toLowerCase() + words.slice(1) : words);
-
-export default function AltitudeReasoning({ nav, legs }: Props) {
+export default function AltitudeReasoning({ nav, legs, plansAbove = false }: Props) {
   const s = nav.altitude_selection;
   // Under IFR the floor, the ceiling and the rule are IFR's (the
   // planner's vfr.ifr): said in their words below.
@@ -145,7 +176,7 @@ export default function AltitudeReasoning({ nav, legs }: Props) {
 
   const highestLegal = Math.max(...s.segments.flatMap(seg => seg.candidates_ft), ...s.candidates_ft);
   const chosen = nav.options.find(o => o.kind === nav.flown);
-  const needOxygen = nav.options.filter(o => o.needs_oxygen).map(o => KIND_LABEL[o.kind].toLowerCase());
+  const needOxygen = nav.options.filter(o => o.needs_oxygen).map(o => PLAN_NAME[o.kind].toLowerCase());
 
   const cloudsLeaveNone = !s.cloud_clearance_kept && s.cloud_base_ft != null;
   const checkedSummary = s.weather_unavailable.includes("ceiling_visibility")
@@ -165,10 +196,20 @@ export default function AltitudeReasoning({ nav, legs }: Props) {
   // flown over three segments of the same MEA is one line.
   const airways = s.segments.flatMap(seg => (seg.airway ? [seg.airway] : []))
     .filter((a, i, all) => all.findIndex(b => b.id === a.id && b.mea_ft === a.mea_ft && b.maa_ft === a.maa_ft) === i);
-  const ifrSteps: { key: string; head: ReactNode; body: ReactNode }[] = [
+  // Under IFR the ceiling is the airplane's service ceiling, or an
+  // airway's MAA under it (vfr.altitude's band): no shelf or cloud.
+  const ifrCeilingReason = s.band_ceiling_ft == null ? null
+    : s.band_ceiling_ft === (ceilingToday ?? bookCeiling) ? "The airplane's service ceiling"
+      : airways.some(a => a.maa_ft === s.band_ceiling_ft) ? "The airway's MAA" : null;
+  const ceilingValue = s.band_ceiling_ft !== null ? `${altFt(s.band_ceiling_ft)} ft` : "none";
+  const ifrSteps: Step[] = [
     {
       key: "floor",
-      head: <>Minimum IFR altitude {altFt(s.floor_ft)} ft</>,
+      title: "Minimum IFR altitude",
+      // 14 CFR 91.177(a): an airway's MEA, else 1,000 ft (2,000 in the
+      // mountains) over the highest obstacle within 4 nm of the course.
+      detail: airways.length > 0 ? "The airway's MEA, or obstacles within 4 nm" : "Obstacles within 4 nm, with margin",
+      value: `${altFt(s.floor_ft)} ft`,
       body: (
         <>
           1,000 ft above the highest obstacle within 4 nm of the course, 2,000 ft over a mountainous area the FAA
@@ -187,7 +228,9 @@ export default function AltitudeReasoning({ nav, legs }: Props) {
     },
     {
       key: "ceiling",
-      head: <>Ceiling {s.band_ceiling_ft !== null ? `${altFt(s.band_ceiling_ft)} ft` : "none"}</>,
+      title: "Ceiling",
+      detail: ifrCeilingReason,
+      value: ceilingValue,
       body: (
         <>
           {ceilingToday != null && Math.abs(ceilingToday - bookCeiling) >= 100
@@ -199,7 +242,7 @@ export default function AltitudeReasoning({ nav, legs }: Props) {
     },
     {
       key: "rule",
-      head: <>{s.eastbound ? "Eastbound: odd" : "Westbound: even"} thousands (14 CFR 91.179)</>,
+      title: `${s.eastbound ? "Eastbound: odd" : "Westbound: even"} thousands (14 CFR 91.179)`,
       body: (
         <>
           {`A magnetic course of ${ruleCourse(s.course_magnetic_deg)} is ${s.eastbound ? EASTBOUND : WESTBOUND}. `}
@@ -215,10 +258,12 @@ export default function AltitudeReasoning({ nav, legs }: Props) {
       ),
     },
   ];
-  const steps: { key: string; head: ReactNode; body: ReactNode }[] = [
-    ...(ifr ? ifrSteps : [{
+  const vfrSteps: Step[] = [
+    {
       key: "floor",
-      head: <>Floor {altFt(s.floor_ft)} ft</>,
+      title: "Floor",
+      detail: "Terrain and obstacles, with margin",
+      value: `${altFt(s.floor_ft)} ft`,
       body: (
         <>
           The highest ground along the course plus 1,000 ft (14 CFR 91.119 over a town, which the planner cannot tell
@@ -229,16 +274,18 @@ export default function AltitudeReasoning({ nav, legs }: Props) {
     },
     {
       key: "ceiling",
-      head: (
+      title: "Ceiling",
+      detail: (
         <>
-          Ceiling {s.band_ceiling_ft !== null ? `${altFt(s.band_ceiling_ft)} ft` : "none"}
+          {ceilingReason(s)}
           {cloudsLeaveNone && (
-            <span className="block font-normal text-destructive">
+            <span className="block text-destructive">
               Under the clouds near {s.cloud_station}, no VFR altitude on {s.segments.some(seg => seg.cloud_clearance_kept) ? "some legs" : "the route"}
             </span>
           )}
         </>
       ),
+      value: ceilingValue,
       body: (
         <>
           The lowest of {join(ceilingParts)}.
@@ -255,7 +302,7 @@ export default function AltitudeReasoning({ nav, legs }: Props) {
     },
     {
       key: "rule",
-      head: <>{s.eastbound ? "Eastbound: odd" : "Westbound: even"} thousands plus 500 ft (14 CFR 91.159)</>,
+      title: `${s.eastbound ? "Eastbound: odd" : "Westbound: even"} thousands plus 500 ft (14 CFR 91.159)`,
       body: (
         <>
           {`A magnetic course of ${ruleCourse(s.course_magnetic_deg)} is `}
@@ -275,41 +322,52 @@ export default function AltitudeReasoning({ nav, legs }: Props) {
             : "."}
         </>
       ),
-    }]),
-    nav.options.length > 0 ? {
-      key: "plans",
-      head: (
-        <>
-          Four plans
-          {nav.flown === "custom" ? `: flying ${altFt(nav.altitude_ft)} ft, your own` : nav.flown === null ? ": none flown, the winds aloft could not be read" : chosen && `: flying the ${KIND_LABEL[chosen.kind].toLowerCase()}`}
-        </>
-      ),
-      body: (
-        <>
-          Lowest and highest keep to the bottom and the top of the legal altitudes; fastest takes the winds aloft for
-          the least time, and economical for the least fuel, every climb counted.{" "}
-          {nav.options.map(o => (
-            `${KIND_LABEL[o.kind]}: ${describeSteps(o)}, ${describeTime(o)}, ${describeFuel(o)}`
-            + (o.climb_penalty_min > 0 ? `, ${Math.round(o.climb_penalty_min)} min of it climbing` : "")
-            + (o.tailwind_kt !== null ? `, ${Math.abs(Math.round(o.tailwind_kt))} kt ${o.tailwind_kt >= 0 ? "tailwind" : "headwind"} on average` : "")
-            + "."
-          )).join(" ")}
-          {needOxygen.length > 0 && ` The ${join(needOxygen)} ${needOxygen.length === 1 ? "plan climbs" : "plans climb"} above the altitude where more than 30 minutes needs supplemental oxygen (14 CFR 91.211).`}
-        </>
-      ),
-    } : {
-      // No plans only when the winds could not be read before they were
-      // made: a route with no legal altitude on some leg ends in an error
-      // instead, with no altitude message at all.
-      key: "plans",
-      // Why, in the row itself: folded, the reason was the one thing a
-      // pilot had to open the step to learn.
-      head: <>No plan: the winds aloft could not be read</>,
-      body: <>No plan can be made or flown without them. Try again shortly.</>,
     },
+  ];
+  // The plans, how the four were made: the plan flown first in the Brief,
+  // with its time and fuel; after the rule where they are the buttons
+  // over the steps (`plansAbove`).
+  const plans: Step = nav.options.length > 0 ? {
+    key: "plans",
+    ...(plansAbove ? {
+      title: `Four plans${nav.flown === "custom" ? `: flying ${altFt(nav.altitude_ft)} ft, your own` : nav.flown === null
+        ? ": none flown, the winds aloft could not be read" : chosen ? `: flying the ${PLAN_NAME[chosen.kind].toLowerCase()}` : ""}`,
+    } : {
+      title: nav.flown === "custom" ? "Your own" : chosen ? `${PLAN_NAME[chosen.kind]} plan` : "No plan",
+      detail: nav.flown === "custom" ? `${flightLevel(nav.altitude_ft)} all the way` : chosen ? describeSteps(chosen) : "The winds aloft could not be read",
+      value: chosen ? `${describeTime(chosen)} · ${describeFuel(chosen)}` : undefined,
+    }),
+    body: (
+      <>
+        Lowest and highest keep to the bottom and the top of the legal altitudes; fastest takes the winds aloft for
+        the least time, and economical for the least fuel, every climb counted.{" "}
+        {nav.options.map(o => (
+          `${PLAN_NAME[o.kind]}: ${describeSteps(o)}, ${describeTime(o)}, ${describeFuel(o)}`
+          + (o.climb_penalty_min > 0 ? `, ${Math.round(o.climb_penalty_min)} min of it climbing` : "")
+          + (o.tailwind_kt !== null ? `, ${Math.abs(Math.round(o.tailwind_kt))} kt ${o.tailwind_kt >= 0 ? "tailwind" : "headwind"} on average` : "")
+          + "."
+        )).join(" ")}
+        {needOxygen.length > 0 && ` The ${join(needOxygen)} ${needOxygen.length === 1 ? "plan climbs" : "plans climb"} above the altitude where more than 30 minutes needs supplemental oxygen (14 CFR 91.211).`}
+      </>
+    ),
+  } : {
+    // No plans only when the winds could not be read before they were
+    // made: a route with no legal altitude on some leg ends in an error
+    // instead, with no altitude message at all.
+    key: "plans",
+    // Why, in the row itself: folded, the reason was the one thing a
+    // pilot had to open the step to learn.
+    title: "No plan",
+    detail: "The winds aloft could not be read",
+    body: <>No plan can be made or flown without them. Try again shortly.</>,
+  };
+  const steps: Step[] = [
+    ...(plansAbove ? [] : [plans]),
+    ...(ifr ? ifrSteps : vfrSteps),
+    ...(plansAbove ? [plans] : []),
     ...(cruiseInItsAir.length > 0 ? [{
       key: "performance",
-      head: <>Performance in the day&apos;s air</>,
+      title: "Performance in the day's air",
       body: (
         <>
           {`The airplane's ${aircraft.cruise_tas_kt} kt and ${aircraft.fuel_burn_gph} gph are its cruise${
@@ -326,7 +384,7 @@ export default function AltitudeReasoning({ nav, legs }: Props) {
     }] : []),
     {
       key: "checked",
-      head: <>Checked as well: {checkedSummary}</>,
+      title: `Checked as well: ${checkedSummary}`,
       body: (
         <>
           {s.weather_unavailable.includes("ceiling_visibility")
@@ -341,7 +399,7 @@ export default function AltitudeReasoning({ nav, legs }: Props) {
     },
     ...(specialUse.length > 0 ? [{
       key: "special-use",
-      head: <>Special-use airspace: {join(specialUse.map(a => a.name))}</>,
+      title: `Special-use airspace: ${join(specialUse.map(a => a.name))}`,
       body: (
         <>
           {join(specialUse.map(a =>
@@ -354,12 +412,12 @@ export default function AltitudeReasoning({ nav, legs }: Props) {
     }] : []),
     ...(s.weather_unavailable.includes("special_use") ? [{
       key: "special-use-unchecked",
-      head: <>Special-use airspace not checked</>,
+      title: "Special-use airspace not checked",
       body: <>Look for prohibited and restricted areas and MOAs on the chart yourself.</>,
     }] : []),
     ...(s.airspace_transits.length > 0 ? [{
       key: "transits",
-      head: <>A radio call on the way: {join(s.airspace_transits.map(t => t.name))}</>,
+      title: `A radio call on the way: ${join(s.airspace_transits.map(t => t.name))}`,
       body: (
         <>
           Not a ceiling: {join(s.airspace_transits.map(t =>
@@ -370,13 +428,23 @@ export default function AltitudeReasoning({ nav, legs }: Props) {
   ];
 
   return (
-    <Accordion type="multiple" value={printing ? steps.map(step => step.key) : open} onValueChange={setOpen} data-testid="altitude-steps">
+    // A list's box (ListGroup's), a row a step at a row's sizes (ListRow's):
+    // its name in the text's colour, its reason and its figure in grey, the
+    // whole row the fold's tap, 44 at the least.
+    <Accordion
+      type="multiple" value={printing ? steps.map(step => step.key) : open} onValueChange={setOpen}
+      className="rounded-lg border border-border bg-card" data-testid="altitude-steps"
+    >
       {steps.map(step => (
         <AccordionItem key={step.key} value={step.key}>
-          <AccordionTrigger className={cn("py-3 font-semibold", TEXT.prose)}>
-            <span>{step.head}</span>
+          <AccordionTrigger className="min-h-11 items-center gap-2.5 rounded-none px-3 py-2 font-normal hover:bg-muted/50 hover:no-underline">
+            <span className="min-w-0 flex-1">
+              <span className={cn("block", TEXT.row)}>{step.title}</span>
+              {step.detail && <span className={cn("mt-0.5 block text-muted-foreground", TEXT.detail)}>{step.detail}</span>}
+            </span>
+            {step.value && <span className={cn("shrink-0 text-right text-muted-foreground tabular-nums", TEXT.row)}>{step.value}</span>}
           </AccordionTrigger>
-          <AccordionContent className={cn("pb-3", TEXT.prose)}>{step.body}</AccordionContent>
+          <AccordionContent className={cn("px-3 pb-3", TEXT.prose)}>{step.body}</AccordionContent>
         </AccordionItem>
       ))}
     </Accordion>
