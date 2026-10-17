@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { slow, settle, sideDrawer, expectDrawerClosed, expectDrawerOpen, closeSidebarWithTheStockKey, openedDrawerBox, openBriefing, openTab, openSection, panelTabs, openSettings, closeConsole, grabberTo, controlsInSight } from "./helpers";
+import { slow, settle, sideDrawer, expectDrawerClosed, expectDrawerOpen, closeSidebarWithTheStockKey, openedDrawerBox, openBrief, openBriefing, openTab, openSection, panelTabs, openSettings, closeConsole, grabberTo, controlsInSight } from "./helpers";
 
 /**
  * The flight planning panel: how it opens -- from its grabber, a pasted
@@ -48,7 +48,8 @@ test("plan page: the flight planning drawer opens the way the Model Training dra
   // the totals and the descriptions button above the table.
   // "Perf" on its tab, its name whole (PanelTabs). No Airports tab: the
   // airports are the Brief's sections, at the pilot's ask.
-  // All the way up, the route's pages.
+  // The route's pages, the Brief's, all the way up.
+  await openBrief(page);
   await grabberTo(page, "full");
   await expect(panelTabs(page).getByRole("tab")).toHaveText(["Preflight", "Depart", "En route", "Arrive"]);
   // All four on the panel's line, none past its edge.
@@ -59,9 +60,9 @@ test("plan page: the flight planning drawer opens the way the Model Training dra
     expect(box.x + box.width).toBeLessThanOrEqual(tabsBox.x + tabsBox.width + 1);
   }
   await expect(panelTabs(page).getByRole("tab", { name: "Preflight" })).toHaveAttribute("aria-selected", "true");
-  await openTab(page, "En route");
+  await openTab(page, "Nav Log");
   await expect(drawer.getByRole("table", { name: /Navigation log from/i })).toBeVisible();
-  await expect(drawer.locator('[role="tabpanel"] [data-testid="generate-descriptions-button"]')).toBeVisible();
+  await expect(drawer.getByTestId("navlog-scroller").getByTestId("generate-descriptions-button")).toBeVisible();
   // The altitude, its chip beside the airplane in the pill, once the log
   // has streamed in.
   await controlsInSight(page);
@@ -73,9 +74,10 @@ test("plan page: the flight planning drawer opens the way the Model Training dra
   await expect(drawer.locator('[data-tab="depart"]').getByRole("heading", { name: "Weather" })).toBeVisible();
   await expect(drawer.getByRole("table", { name: /Navigation log from/i })).toHaveCount(0);
 
-  // All the way up, the route's box over its chips and side view, where
-  // the pill has them, the figures pinned at the foot; Settings a tab, not
-  // a gear in the head.
+  // Back on FPL all the way up, the route's box over its chips and side
+  // view, where the pill has them, the figures pinned at the foot;
+  // Settings a tab, not a gear in the head.
+  await openTab(page, "Nav Log");
   await expect(drawer.getByTestId("flight-line")).toBeVisible();
   expect(await page.locator("header").getByLabel("Departure", { exact: true }).count()).toBe(1);
   expect(await page.locator("header").getByTestId("setup-button").count()).toBe(0);
@@ -108,11 +110,11 @@ test("plan page: the nav log and the summary on screen, the 'planning aid only' 
   await expect(sideDrawer(page).getByTestId("planning-aid-note")).toHaveCount(0);
   await expect(page.locator("[data-sonner-toast]", { hasText: "planning aid for VFR flight" })).toHaveCount(0);
 
-  // One nav log, En route's, and the briefing in the other tabs. No
+  // One nav log, FPL's, and the briefing in the Brief's pages. No
   // "Flight Plan Summary": the nav log's line carries the totals, its chip
   // beside the airplane the altitude.
   const drawer = sideDrawer(page);
-  await openTab(page, "En route");
+  await openTab(page, "Nav Log");
   const navLog = drawer.locator("table");
   await expect(drawer.getByRole("table", { name: /Navigation log from/i })).toBeVisible();
   await expect(drawer.getByText("Flight Plan Summary")).toHaveCount(0);
@@ -138,8 +140,9 @@ test("plan page: the Brief is a tab after the Nav Log, its narrative from LangGr
   // nothing billed.
   const asked: string[] = [];
   page.on("request", r => { if (r.url().includes("/api/comparison")) asked.push(new URL(r.url()).searchParams.get("framework") ?? ""); });
-  // Preflight up as the panel opens, and nothing asked for until a tap:
+  // Preflight up as the Brief opens, and nothing asked for until a tap:
   // each is billed, and Preflight is up for every route looked at.
+  await openBrief(page);
   await expect(panelTabs(page).getByRole("tab", { name: "Preflight" })).toHaveAttribute("aria-selected", "true");
   await openTab(page, "Preflight");
   await openSection(page, "Narrative");

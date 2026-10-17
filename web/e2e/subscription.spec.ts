@@ -87,9 +87,9 @@ test("without the subscription the nav log's wand says checkpoint descriptions c
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   await openBriefing(page);
-  await openTab(page, "En route");
+  await openTab(page, "Nav Log");
   const drawer = sideDrawer(page);
-  const wand = drawer.locator('[role="tabpanel"] [data-testid="generate-descriptions-button"]');
+  const wand = drawer.getByTestId("navlog-scroller").getByTestId("generate-descriptions-button");
   await expect(wand).toBeEnabled({ timeout: slow(60000) });
   await wand.click();
   const paywall = page.getByTestId("descriptions-paywall");
@@ -125,7 +125,6 @@ test.describe("where no subscription is sold", () => {
     await sold(page, { subscriptions: false, claudeFeatures: "EVERYONE" });
     await page.addInitScript(() => {
       localStorage.setItem("vfr.tips", JSON.stringify({ state: { seen: ["*"] }, version: 0 }));
-      localStorage.setItem("vfr.limits", JSON.stringify({ state: { acknowledged: true }, version: 0 }));
     });
     await page.goto("/app/plan?dep=C81&dest=KDLH");
     await settle(page);
@@ -143,7 +142,6 @@ test.describe("where no subscription is sold", () => {
     await sold(page, { subscriptions: false, claudeFeatures: "EVERYONE" });
     await page.addInitScript(() => {
       localStorage.setItem("vfr.tips", JSON.stringify({ state: { seen: ["*"] }, version: 0 }));
-      localStorage.setItem("vfr.limits", JSON.stringify({ state: { acknowledged: true }, version: 0 }));
     });
     await page.goto("/app/plan");
     await settle(page);

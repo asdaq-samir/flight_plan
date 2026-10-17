@@ -126,8 +126,29 @@ export async function grabberTo(page: Page, state: "peek" | "half" | "full") {
 export async function controlsInSight(page: Page) {
   const panel = sideDrawer(page);
   await panel.waitFor();
+  // The Brief, a card over FPL, has them out of sight: put away.
+  await closeBrief(page);
   await grabberTo(page, "full");
   await settled(panel);
+}
+
+/** FPL's Brief, a card over the route (BriefCard), from the chips' Brief:
+ *  its pages -- Preflight, Depart, En route and Arrive -- are its. */
+export async function openBrief(page: Page) {
+  const card = sideDrawer(page).getByTestId("brief-card");
+  if (await card.isVisible().catch(() => false)) return;
+  await openPanel(page);
+  await sideDrawer(page).getByTestId("route-brief").click({ timeout: slow(30000) });
+  await expect(card).toBeVisible();
+}
+
+/** The Brief put away, by the minimized tab bar's Back or, wider, its own
+ *  close (closeCard): FPL's route and nav log again. */
+export async function closeBrief(page: Page) {
+  const card = sideDrawer(page).getByTestId("brief-card");
+  if (!(await card.isVisible().catch(() => false))) return;
+  await closeCard(page, "brief-close");
+  await expect(card).toHaveCount(0);
 }
 
 /** The panel all the way out, as a finger takes it: a drag on its
@@ -378,12 +399,19 @@ export async function openBriefing(page: Page) {
  *  answered with a line of its own. */
 /** The planning panel's tabs by the names they had before they were the
  *  flight's phases (the owner's pick of the redesign, "C"): the Brief's
- *  go / no-go is Preflight's, the nav log and the weather on the way En
- *  route's, the takeoff Depart's. */
-const PHASE_OF = { Brief: "Preflight", "Nav Log": "En route", Local: "En route", Weather: "En route", Performance: "Depart" } as const;
+ *  go / no-go is Preflight's, the weather on the way En route's, the
+ *  takeoff Depart's -- the Brief's pages now, a card over FPL. The nav log
+ *  is FPL's own (Nav Log, Local): all the way up, the Brief put away. */
+const PHASE_OF = { Brief: "Preflight", Weather: "En route", Performance: "Depart" } as const;
 type PhaseTab = "Preflight" | "Depart" | "En route" | "Arrive";
 
-export async function openTab(page: Page, name: keyof typeof PHASE_OF | PhaseTab) {
+export async function openTab(page: Page, name: keyof typeof PHASE_OF | PhaseTab | "Nav Log" | "Local") {
+  if (name === "Nav Log" || name === "Local") {
+    await closeBrief(page);
+    await panelFull(page);
+    return;
+  }
+  await openBrief(page);
   // The tabs are past the half panel's foot, which ends at the flight's
   // line: all the way out, as a finger drags it, to reach them.
   await panelFull(page);
@@ -411,6 +439,13 @@ const PHASES: PhaseTab[] = ["Preflight", "Depart", "En route", "Arrive"];
  *  Arrive, the winds on En route), its sections one under another. */
 export async function openSection(page: Page, title: string) {
   const panel = sideDrawer(page);
+  // The legs, FPL's own: the nav log all the way up.
+  if (title === "Legs") {
+    await openTab(page, "Nav Log");
+    await expect(async () => { await panel.locator('[data-title="Legs"]').first().scrollIntoViewIfNeeded({ timeout: 2000 }); }).toPass({ timeout: 10000 });
+    return;
+  }
+  await openBrief(page);
   const here = panel.locator(`[role="tabpanel"][data-state="active"] [data-title="${title}"]`).first();
   if (!(await here.isVisible().catch(() => false))) {
     for (const phase of PHASES) {

@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { slow, settle, sideDrawer, openBriefing, openTab, grabberTo, panelTabs } from "./helpers";
+import { slow, settle, sideDrawer, openBrief, openBriefing, openTab, grabberTo, panelTabs } from "./helpers";
 
 /**
  * The nav log's checkpoints: selected by a click, by Enter or by a pick
@@ -54,8 +54,9 @@ test("plan page: a click or Enter selects a nav log checkpoint, with the briefin
   await expect(rows.nth(1)).toHaveAttribute("data-selected");
   await expect(selectedRow).toHaveCount(1);
 
-  // The panel's tabs take the stock tabs' own arrows, Right to the next:
+  // The Brief's tabs take the stock tabs' own arrows, Right to the next:
   // Arrive, after En route.
+  await openBrief(page);
   const tabs = panelTabs(page).getByRole("tab");
   await panelTabs(page).getByRole("tab", { name: "En route" }).focus();
   await page.keyboard.press("ArrowRight");

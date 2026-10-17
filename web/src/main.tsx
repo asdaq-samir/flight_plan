@@ -6,7 +6,6 @@ import { ThemeProvider } from "next-themes";
 import { chartQuery, courseQuery, queryClient } from "./lib/queryClient";
 import { routeOf, stopsOf } from "./lib/identSchema";
 import AppToaster from "./components/AppToaster";
-import LimitsDialog from "./components/LimitsDialog";
 import ErrorAlert from "./components/ErrorAlert";
 import { TooltipProvider } from "./components/ui/tooltip";
 import { registerSW } from "virtual:pwa-register";
@@ -168,7 +167,6 @@ ReactDOM.createRoot(document.getElementById("root")!, {
       </TooltipProvider>
       <AppToaster />
       <ErrorAlert />
-      <LimitsDialog />
     </QueryClientProvider>
     </ThemeProvider>
   </React.StrictMode>,

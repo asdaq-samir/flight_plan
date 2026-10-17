@@ -2,33 +2,22 @@ import { test, expect } from "@playwright/test";
 import { openMapSettings, openSettings, settle, consolePage } from "./helpers";
 
 /**
- * The first-launch acknowledgement (lib/limits, LimitsDialog): seen once
- * on a fresh device, closed only by "I understand", and not again. The
- * suite's session has it given; this spec starts without it.
+ * What the planner is not (lib/limits): said in About and at the
+ * briefing's foot, not in a dialog to accept before the map, at the
+ * owner's ask ("no aviation app does that").
  */
-test.beforeEach(async ({ page }) => {
+test("a fresh device opens straight onto the map, and About says what the planner is not", async ({ page }) => {
+  // A device that has been here before carries the acknowledgement the
+  // first-launch dialog kept (vfr.limits); this one has none.
   await page.addInitScript(() => {
     if (sessionStorage.getItem("limits-fresh")) return;
     localStorage.removeItem("vfr.limits");
     sessionStorage.setItem("limits-fresh", "1");
   });
-});
-
-test("a fresh device is told what the planner is not, once, and Settings has it again", async ({ page }) => {
   await page.goto("/app/plan");
-  const dialog = page.getByTestId("limits-dialog");
-  await expect(dialog).toContainText("planning aid for VFR flight");
-  await expect(dialog).toContainText("14 CFR 91.3, 91.103");
-
-  // Only the button closes it.
-  await page.keyboard.press("Escape");
-  await expect(dialog).toBeVisible();
-  await page.getByTestId("limits-acknowledge").click();
-  await expect(dialog).toHaveCount(0);
-
-  await page.reload();
   await settle(page);
-  await expect(dialog).toHaveCount(0);
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(page.getByText("Before you fly")).toHaveCount(0);
 
   // The console's About tab, after Settings, says it again in full, at
   // the owner's ask -- the app, its build and chart, where its data comes
@@ -56,7 +45,6 @@ test("a fresh device is told what the planner is not, once, and Settings has it 
 // The traffic's source credited under the map's settings beside the
 // FAA's charts, at the owner's ask, whether the traffic is shown or not.
 test("the map's settings credit adsb.lol for the traffic as they credit the FAA for the charts", async ({ page }) => {
-  await page.addInitScript(() => localStorage.setItem("vfr.limits", JSON.stringify({ state: { acknowledged: true }, version: 0 })));
   await page.goto("/app/plan");
   await settle(page);
   await openMapSettings(page);

@@ -13,8 +13,8 @@ test("plan page: a route from an airport to itself is a local flight: the field'
   await grabberTo(page, "full");
   await expect(sideDrawer(page).getByTestId("navlog-ete")).toHaveText("1h 00m", { timeout: slow(30000) });
   await expect(sideDrawer(page).locator('[data-slot="section-summary"] dt').first()).toHaveText("Aloft");
-  // Its fuel check En route's, where a route's legs are.
-  await openTab(page, "En route");
+  // Its fuel check under the legs, FPL's own.
+  await openTab(page, "Local");
   await expect(page.getByTestId("fuel-check")).toContainText("Fuel required");
 
   // Longer aloft: its chip in the pill, in the address, and more fuel.
@@ -151,7 +151,7 @@ test("plan page: VFR Checkpoints draws the route's checkpoints and the landmarks
   await expect(numbered).toHaveCount(0);
   await expect(landmarks).toHaveCount(0);
   await openPanel(page);
-  await openTab(page, "En route");
+  await openTab(page, "Nav Log");
   const rows = sideDrawer(page).locator("table tbody tr[data-kind]");
   await expect(page.getByTestId("navlog-eta")).toBeAttached({ timeout: slow(60000) });
   await expect(sideDrawer(page).locator('table tbody tr[data-kind="checkpoint"]')).toHaveCount(0);

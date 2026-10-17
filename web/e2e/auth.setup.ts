@@ -9,9 +9,8 @@ import { noTips, roleMenu, consolePage } from "./helpers";
  * mode, Developer the role in the console's title.
  */
 setup("the developer signs in from the pilot console, and lands in dev mode", async ({ page }) => {
-  // The first-launch dialog (lib/limits) is up on a fresh device from
-  // the first page and takes every click, the sign-in's too, so it is
-  // acknowledged before the page loads, not after the session is made.
+  // The first-run tips seen before the page loads, as every spec starts
+  // with them seen (the session saved below).
   await page.addInitScript(noTips);
   await page.goto("/app/plan");
   await signInByEmail(page, DEVELOPER);

@@ -26,11 +26,12 @@ export const SCREENS: Screen[] = [
     },
   },
   {
-    // All the way up: the route's figures alone over the tabs.
+    // All the way up: the route, its nav log, the side view and the
+    // figures (FPL's own, the Brief a card of its own).
     name: "flight planning drawer",
     ready: async page => {
       await page.goto(`/app/plan?${ROUTE}&view=briefing`);
-      await expect(page.getByRole("tab", { name: "Preflight" })).toBeVisible({ timeout: slow(30000) });
+      await expect(sideDrawer(page).getByRole("table", { name: /Navigation log from/i })).toBeVisible({ timeout: slow(30000) });
       await expect(sideDrawer(page).getByTestId("navlog-eta")).toBeVisible({ timeout: slow(120000) });
     },
   },
@@ -40,7 +41,7 @@ export const SCREENS: Screen[] = [
     name: "route panel, half way",
     ready: async page => {
       await page.goto(`/app/plan?${ROUTE}&view=briefing`);
-      await expect(page.getByRole("tab", { name: "Preflight" })).toBeVisible({ timeout: slow(30000) });
+      await expect(sideDrawer(page).getByTestId("route-brief")).toBeVisible({ timeout: slow(30000) });
       await controlsInSight(page);
       // The plan in, its figures whole: not judged fading in.
       await expect(page.getByTestId("navlog-eta")).toBeVisible({ timeout: slow(30000) });
@@ -54,7 +55,7 @@ export const SCREENS: Screen[] = [
       // Not tapped when it is up already: a tap on the tab up takes the
       // panel back to half, and the map's tooltips came up under the
       // pointer where the panel had been, fading in, read at 1:1 (P15).
-      await openTab(page, "En route");
+      await openTab(page, "Nav Log");
       await page.getByTestId("fuel-check").waitFor({ timeout: slow(120000) });
       // A tap's click, without Playwright's own scroll into view first:
       // where the table is wider than its drawer (every column, on a
@@ -64,7 +65,7 @@ export const SCREENS: Screen[] = [
       await expect(page.locator("tbody textarea").first()).toBeVisible();
     },
   },
-  // The panel's other tabs, each laid out once its briefing is in: the
+  // The Brief's pages, each laid out once its briefing is in: the
   // narrative asked for only by a tap, not here.
   ...([
     ["Preflight", "verdict"], ["Depart", "takeoff-landing"], ["En route", "weather-places"], ["Arrive", "weather-places"],
@@ -401,7 +402,8 @@ export const SCREENS: Screen[] = [
     ready: async page => {
       await page.goto("/app/plan?dep=C81&dest=C81&view=briefing");
       await expect(page.locator('[data-slot="section-summary"]').first()).toContainText("Aloft", { timeout: slow(30000) });
-      await openTab(page, "En route");
+      // Its fuel check under the legs' place, FPL's own.
+      await openTab(page, "Local");
       await expect(page.getByTestId("fuel-check")).toBeVisible();
     },
   },

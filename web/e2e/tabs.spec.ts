@@ -33,8 +33,10 @@ test("Preflight opens on its Go / No-Go: VFR not recommended is no-go, marked on
   });
   await planned(page);
   const drawer = sideDrawer(page);
-  await expect(page.getByTestId("panel-tab-mark-enroute")).toHaveAttribute("data-finding", "stop");
+  // Marked on the chips' Brief, and in the Brief on En route.
+  await expect(drawer.getByTestId("route-brief")).toHaveAttribute("data-finding", "stop");
   await openTab(page, "Brief");
+  await expect(page.getByTestId("panel-tab-mark-enroute")).toHaveAttribute("data-finding", "stop");
   const weather = drawer.getByTestId("verdict-weather");
   await expect(weather).toHaveAttribute("data-finding", "stop");
   await expect(weather).toContainText("VFR not recommended: KDLH currently reporting IFR");
@@ -86,12 +88,12 @@ test("the weather goes place by place, each TAF read for when the flight is ther
     ];
   });
   await planned(page);
-  // En route's sections one under another, after the legs: the side view
-  // is the one pinned at the sheet's foot.
+  // The Brief's En route, its sections one under another: the legs are
+  // FPL's own, and the side view the one pinned at its foot.
   await openTab(page, "En route");
   await expect.poll(() => sideDrawer(page).locator('[data-tab="enroute"] [data-title]')
     .evaluateAll(sections => sections.map(s => s.getAttribute("data-title"))))
-    .toEqual(["Legs", "Cruise Altitude", "Adverse Conditions", "Along the Route", "Winds Aloft"]);
+    .toEqual(["Cruise Altitude", "Adverse Conditions", "Along the Route", "Winds Aloft"]);
   await openSection(page, "Along the Route");
   const enRoute = sideDrawer(page).locator('[data-tab="enroute"]').getByTestId("weather-places");
   await expect(enRoute).toBeVisible();
@@ -119,8 +121,9 @@ test("Depart has the takeoff's runway check: a runway too short is red, on the t
   });
   await planned(page);
   const drawer = sideDrawer(page);
-  await expect(page.getByTestId("panel-tab-mark-depart")).toHaveAttribute("data-finding", "stop");
+  await expect(drawer.getByTestId("route-brief")).toHaveAttribute("data-finding", "stop");
   await openTab(page, "Depart");
+  await expect(page.getByTestId("panel-tab-mark-depart")).toHaveAttribute("data-finding", "stop");
   await expect(drawer.getByTestId("tl-flag")).toContainText("Runway too short");
   const takeoff = drawer.getByTestId("runway-takeoff");
   await expect(takeoff).toContainText(/ft past the end/);

@@ -69,9 +69,9 @@ test("Nearest opens as a card half way up, a field over it as a layer, and its c
   await page.getByTestId("tab-fpl").click();
   await expect(card).toHaveCount(0);
   // All the way up still, as another tab tapped there stays (TabBar):
-  // the route's pages.
+  // the route's nav log.
   await expect(sideDrawer(page)).toHaveAttribute("data-panel", "full");
-  await expect(sideDrawer(page).getByTestId("panel-tab-enroute")).toBeVisible();
+  await expect(sideDrawer(page).getByTestId("navlog-scroller")).toBeVisible();
 });
 
 test("a field the armed services keep to themselves is off the map until Military is on", async ({ page }) => {

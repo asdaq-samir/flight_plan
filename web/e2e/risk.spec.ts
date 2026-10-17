@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { settle, sideDrawer, slow, openTab, openSection, controlsInSight, grabberTo } from "./helpers";
+import { settle, sideDrawer, slow, openTab, openSection, controlsInSight } from "./helpers";
 
 /**
  * The briefing's Risk Assessment (lib/frat): what the briefing raises
@@ -60,8 +60,9 @@ test("a quiet day is low, what the pilot ticks raises it, and Save files it with
   expect(filed!.risk!.factors).toEqual(expect.arrayContaining([
     "Somewhere to be by a time, or people counting on it", "Alcohol in the last 8 hours, or still feeling it",
   ]));
-  // About the pilot today, not the route: put back for the next test.
-  await grabberTo(page, "full");
+  // About the pilot today, not the route: put back for the next test,
+  // in the Brief's Preflight where the risk is.
+  await openSection(page, "Risk Assessment");
   await drawer.getByTestId("risk-check-alcohol").click();
   await page.unrouteAll({ behavior: "ignoreErrors" });
 });

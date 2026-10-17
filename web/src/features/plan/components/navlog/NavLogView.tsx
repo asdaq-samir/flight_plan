@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useId, useMemo, useState, type ReactNode } from "react";
+import { Fragment, useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { cn } from "cn";
 import { Loader2, WandSparkles } from "lucide-react";
 import {
@@ -98,15 +98,15 @@ interface Props {
   descriptionsPaywall?: ReactNode;
   /** The descriptions not offered in this deployment: no wand at all. */
   descriptionsHidden?: boolean;
-  /** The briefing's sections for each tab but the nav log's own
-   *  (FlightBriefingView's parts, and the Brief's narrative). */
+  /** The briefing's pages (FlightBriefingView's parts, and the Brief's
+   *  narrative), printed after the legs: on screen they are the Brief's
+   *  card's (BriefCard). */
   tabContent: (part: BriefingPart) => ReactNode;
-  /** Beside the tabs, out of sight: Print's kneeboard card. */
+  /** Beside the log, out of sight: Print's kneeboard card. */
   children?: ReactNode;
-  /** Tabs whose part has a warning, a red mark on each. */
+  /** Pages whose part has a warning, marked on paper as on the Brief. */
   marks?: Partial<Record<PanelTab, "stop" | "caution">>;
-  /** What must be seen on opening the drawer, above every section
-   *  (the briefing's warnings). */
+  /** The briefing's warnings, over its pages on paper. */
   notice?: ReactNode;
   /** The drawer's last line, under every section (the planning-aid
    *  reminder). */
@@ -132,12 +132,12 @@ interface Props {
    *  half way it ends at the tabs' bar. The view stays mounted whether or
    *  not it is. */
   drawerOpen: boolean;
-  /** A tab tapped (PanelTabs' `onTap`): the panel up to show it, or the
-   *  one up tapped again, back down. */
-  onTabTap?: (again: boolean) => void;
   /** The planned flight's dry run while one is up: the log follows it, the
    *  row it is flying to tinted and kept in sight. */
   dryRun?: DryRun | null;
+  /** Bumped as the fuel check is asked for (the Brief's Go / No-Go fuel
+   *  row): brought into sight under the legs. */
+  fuelAsked?: number;
 }
 
 /**
@@ -340,7 +340,7 @@ export default function NavLogView({
   selected, descriptions, onSaveDescription,
   onGenerateDescriptions, descriptionsLoading, descriptionsPaywall, descriptionsHidden = false, tabContent, children, marks, notice, footer, local = false, metarColourOf = noWeather,
   selectedPoint, onSelectPoint, onDeselectPoint, drawerOpen,
-  aircraftLabel, onTabTap, dryRun = null,
+  aircraftLabel, dryRun = null, fuelAsked = 0,
 }: Props) {
   const noWind = totals ? legsWithoutWind(totals) : null;
   // The other tabs' code fetched while nothing else is, once the log is
@@ -356,10 +356,7 @@ export default function NavLogView({
     });
     return () => (window.cancelIdleCallback ?? window.clearTimeout)(handle);
   }, [logIn]);
-  // A checkpoint picked on the map with the drawer out: the nav log's tab
-  // comes up for it (PanelTabs).
-  const pick = drawerOpen && selectedPoint ? descriptionKey(selectedPoint.lat, selectedPoint.lon) : null;
-  // For the printer every tab, one after another: the paper is the whole
+  // For the printer every page, one after another: the paper is the whole
   // briefing whatever was up on screen (usePrinting).
   const printing = usePrinting();
   // One row per waypoint the plan knows about, regardless of how many
@@ -630,6 +627,16 @@ export default function NavLogView({
   // closed, so a row revealed then was revealed off screen. (A pick brings
   // its tab up, PanelTabs.)
   useEffect(() => revealRow(selectedRow), [selectedRow, selectedPoint, drawerOpen]);
+  // The fuel check asked for from the Brief's Go / No-Go (`fuelAsked`):
+  // brought into sight under the legs as a picked row is, once for each
+  // ask, the sheet still coming up as it is.
+  const [fuelCheck, setFuelCheck] = useState<HTMLDivElement | null>(null);
+  const fuelSeen = useRef(fuelAsked);
+  useEffect(() => {
+    if (fuelAsked === fuelSeen.current || !fuelCheck) return;
+    fuelSeen.current = fuelAsked;
+    return revealRow(fuelCheck);
+  }, [fuelAsked, fuelCheck]);
   const isSelected = (lat: number, lon: number) =>
     !!selectedPoint && descriptionKey(lat, lon) === descriptionKey(selectedPoint.lat, selectedPoint.lon);
 
@@ -847,58 +854,83 @@ export default function NavLogView({
     </div>
   );
 
+  // The legs, FPL's own at the owner's ask ("FPL is simple with route,
+  // navlog, profile and calculations"): no heading on screen, where they
+  // are all FPL shows under the route; the briefing's pages are the Brief's
+  // card's (BriefCard).
+  const legsSection = (
+    <SectionPane title={LEGS} heading={printing && !local}>
+      {!local && summary}
+      {!local && navLogTable}
+      <div ref={setFuelCheck}>{fuelNote}</div>
+      {!local && hopsNote}
+    </SectionPane>
+  );
+  const title = routeName(dep, dest, ends?.stops?.map(s => s.ident));
   return (
-    <PanelTabs
-      printing={printing} marks={marks} pick={pick} onTap={onTabTap}
-      route={routeName(dep, dest, ends?.stops?.map(s => s.ident))}
-      notice={notice} footer={footer}
-      before={(
-        <>
-          {/* Printed, this header is the briefing's title: the panel's own
-              head (the route form, the airplane and the departure time) is
-              print:hidden, so they are named here instead, as a line of
-              text. On screen the name is the panel's tab's, said once there;
-              here it is for a screen reader. */}
+    <>
+      {printing ? (
+        // On paper the whole briefing, as it always printed: every page in
+        // turn, the legs first in En route's, under the briefing's title.
+        <PanelTabs
+          printing marks={marks} route={title} notice={notice} footer={footer}
+          before={(
+            <>
+              {/* On paper only, at paper's own 14: no finger, no type scale.
+                  The panel's own head (the route form, the airplane and the
+                  departure time) is print:hidden, so they are named here
+                  instead, as a line of text. */}
+              <div className="hidden flex-col gap-1 border-b border-border px-4 py-3 text-sm print:flex">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className={cn("font-semibold", TEXT.title)}>Wingtip Maps</span>
+                  <span className="text-muted-foreground">{title}</span>
+                </div>
+                <div className="text-muted-foreground">
+                  {aircraftLabel}
+                  {depart && ` · departing ${new Date(depart).toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" })} ${clockTime(new Date(depart))}`}
+                </div>
+              </div>
+            </>
+          )}
+          contents={{
+            preflight: tabContent("preflight"),
+            depart: tabContent("depart"),
+            enroute: (
+              <section aria-label={local ? "Local Flight" : "Nav Log"} className={TEXT.prose}>
+                {legsSection}
+                {/* The same legs from the side, on paper only: on screen the
+                    side view pinned at the sheet's foot is the one, the log
+                    scrolling over it, at the owner's ask ("let's cleanup the
+                    clutter with redesign. Keep the profile pinned at the
+                    bottom as you pull up the navlog"). Then the figures the
+                    altitude was chosen within. */}
+                {!local && ends && <RouteProfileSection ends={ends} rows={data} />}
+                {!local && tabContent("profile")}
+                {tabContent("enroute")}
+              </section>
+            ),
+            arrive: tabContent("arrive"),
+          }}
+        />
+      ) : (
+        <div className="flex min-h-0 flex-1 flex-col">
+          {/* The drawer's name for a screen reader: on screen it is the
+              tab's, said once there. */}
           <span className="sr-only" data-testid="drawer-title">Flight Planning</span>
-          {/* On paper only, at paper's own 14: no finger, no type scale. */}
-          <div className="hidden flex-col gap-1 border-b border-border px-4 py-3 text-sm print:flex">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className={cn("font-semibold", TEXT.title)}>Wingtip Maps</span>
-              <span className="text-muted-foreground">{routeName(dep, dest, ends?.stops?.map(s => s.ident))}</span>
-            </div>
-            <div className="text-muted-foreground">
-              {aircraftLabel}
-              {depart && ` · departing ${new Date(depart).toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" })} ${clockTime(new Date(depart))}`}
-            </div>
+          {/* The bottom inset clears the home indicator on an installed
+              app, so the last row is not under it. */}
+          <div
+            className="@container min-h-0 flex-1 overflow-auto pr-4 pb-[env(safe-area-inset-bottom)] pl-[max(1rem,env(safe-area-inset-left))]"
+            data-testid="navlog-scroller"
+          >
+            <section aria-label={local ? "Local Flight" : "Nav Log"} className={TEXT.prose}>{legsSection}</section>
+            {footer}
           </div>
-        </>
+        </div>
       )}
-      contents={{
-        preflight: tabContent("preflight"),
-        depart: tabContent("depart"),
-        enroute: (
-          <section aria-label={local ? "Local Flight" : "Nav Log"} className={TEXT.prose}>
-            <SectionPane title={LEGS} heading={!local}>
-              {!local && summary}
-              {!local && navLogTable}
-              {fuelNote}
-              {!local && hopsNote}
-            </SectionPane>
-            {/* The same legs from the side on paper only: on screen the side
-                view pinned at the sheet's foot is the one, the log scrolling
-                over it, at the owner's ask ("let's cleanup the clutter with
-                redesign. Keep the profile pinned at the bottom as you pull up
-                the navlog"). Then the figures the altitude was chosen
-                within. */}
-            {!local && ends && printing && <RouteProfileSection ends={ends} rows={data} />}
-            {!local && tabContent("profile")}
-            {tabContent("enroute")}
-          </section>
-        ),
-        arrive: tabContent("arrive"),
-      }}
-    >
+      {/* Where it is either way, so turning to paper does not draw it
+          afresh: the kneeboard's card is printed from it. */}
       {children}
-    </PanelTabs>
+    </>
   );
 }
