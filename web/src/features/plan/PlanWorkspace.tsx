@@ -2,7 +2,7 @@ import { Suspense, lazy, memo, useCallback, useDeferredValue, useEffect, useMemo
 import { flushSync } from "react-dom";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { Play, FolderOpen, MapPin, Plane, Route, TowerControl } from "lucide-react";
-import { navLogRows } from "./components/navlog/rows";
+import { legOf, navLogRows } from "./components/navlog/rows";
 import { fromChunk } from "../../lib/fromChunk";
 import { cn } from "cn";
 import { api } from "../../lib/api/client";
@@ -1179,6 +1179,14 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     setDryRun(run);
     usePastFlight.setState({ hex: DRY_RUN, id: 0, points: run.points, at: run.points[0]!.t, playing: true });
   };
+  // Flown once every leg is in: the side view is drawn before the legs
+  // have streamed in, and a tap on its Dry run then did nothing (the run
+  // too short to fly) -- seen as the dry-run spec's phone tapped it early.
+  // Its button waits for them, dimmed.
+  const dryRunReady = useMemo(
+    () => !!course && navLogRows(course, selected, s.legs).slice(1).every(row => !!legOf(row)),
+    [course, selected, s.legs],
+  );
   const stopDryRun = () => {
     setDryRun(null);
     clearPastFlight();
@@ -1587,7 +1595,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
             <div className="relative h-full pb-2">
               {miniProfile}
               {/* Its dry run, at its top right: the flight flown on paper. */}
-              <RoundButton label="Dry run" onClick={startDryRun} className="absolute top-1.5 right-1.5" data-testid="dry-run-start">
+              <RoundButton label="Dry run" onClick={startDryRun} disabled={!dryRunReady} className="absolute top-1.5 right-1.5" data-testid="dry-run-start">
                 <Play className="size-5" />
               </RoundButton>
             </div>
