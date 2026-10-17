@@ -3,7 +3,7 @@ import { cn } from "cn";
 import { ListGroup, ListRow } from "../../../../components/GroupedList";
 import type { Briefing, Leg } from "../../../../lib/api/types";
 import { compassWord, entryFor, exitFor, patternSideDeg, runwayNumber, type RunwayEnd } from "../../../../lib/pattern";
-import { radioScript, type RadioCall, type RadioPhase } from "../../../../lib/radio";
+import { fieldPhases, type RadioCall, type RadioPhase } from "../../../../lib/radio";
 import { altFt } from "../../format";
 import { Mhz } from "../FrequencyRow";
 
@@ -140,12 +140,10 @@ function PatternRows({ phase, facilities, courseDeg }: { phase: RadioPhase; faci
           data-testid="pattern-altitude"
         />
       )}
+      {/* Which runway and why is the takeoff's or landing's to say
+          (TakeoffLandingSection): here, which side its pattern is on. */}
       {end ? (
-        <ListRow
-          title={`Runway ${runwayNumber(end.ident)} · ${end.traffic} traffic`}
-          description={phase.byWind ? "The runway most into the reported wind" : "No wind reported, so the longest runway: the wind indicator decides"}
-          data-testid="pattern-runway"
-        />
+        <ListRow title={`Runway ${runwayNumber(end.ident)} · ${end.traffic} traffic`} data-testid="pattern-runway" />
       ) : (
         <ListRow title={<span className="text-muted-foreground">No runway with a heading to draw</span>} />
       )}
@@ -175,9 +173,8 @@ export default function PatternRadio({ briefing, landings, legs, callSign, at }:
   /** The field whose calls these are. */
   at: string;
 }) {
-  const airports = landings.filter(ident => briefing.airports[ident]).map(ident => ({ ident, facilities: briefing.airports[ident]! }));
-  if (airports.length < 2) return null;
-  const phases = radioScript({ callSign, airports, legs }).filter(phase => phase.ident === at);
+  const phases = fieldPhases(briefing, landings, legs, callSign, at);
+  if (!phases.length) return null;
   const courseInto = (ident: string) => {
     const into = legs.filter(l => l.to === ident);
     return into.length ? into[into.length - 1]!.true_course_deg : null;

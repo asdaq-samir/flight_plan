@@ -127,14 +127,21 @@ export function surfaceName(surface: string | null | undefined): string | null {
  *  gusts" -- a tailwind where every end has one. */
 export function runwayWind(wind: NonNullable<Runway["wind"]>): string {
   if (wind.headwind_kt === 0 && wind.crosswind_kt === 0 && wind.gust_crosswind_kt == null) return `Calm on ${wind.end}`;
+  return `Favors ${wind.end}: ${windOnRunway(wind)}`;
+}
+
+/** The wind's parts on the runway it favours, without naming it: "13 kt
+ *  headwind, 8 kt crosswind from the left, 13 in the gusts" -- for a row
+ *  that names the runway itself (TakeoffLandingSection). */
+export function windOnRunway(wind: NonNullable<Runway["wind"]>): string {
+  if (wind.headwind_kt === 0 && wind.crosswind_kt === 0 && wind.gust_crosswind_kt == null) return "Calm";
   const along = wind.headwind_kt >= 0 ? `${wind.headwind_kt} kt headwind` : `${-wind.headwind_kt} kt tailwind`;
   const side = wind.crosswind_kt > 0 ? " from the right" : wind.crosswind_kt < 0 ? " from the left" : "";
   const gusts = wind.gust_crosswind_kt != null && Math.abs(wind.gust_crosswind_kt) !== Math.abs(wind.crosswind_kt)
     ? `, ${Math.abs(wind.gust_crosswind_kt)} in the gusts` : "";
-  return `Favors ${wind.end}: ${along}, ${Math.abs(wind.crosswind_kt)} kt crosswind${side}${gusts}`;
+  return `${along}, ${Math.abs(wind.crosswind_kt)} kt crosswind${side}${gusts}`;
 }
 
-/** Ceiling and visibility the way a briefer says them. */
 /** The wind as a METAR reports it, true: "240° at 15 kt, gusts 25",
  *  "Calm" (00000KT), "Variable at 4 kt" (VRB) -- FAA Order JO 7900.5's
  *  codes as the planner reads them. The airport's card's and the Brief's. */
@@ -144,6 +151,7 @@ export function windLine(metar: { wind_speed_kt?: number | null; wind_dir_true_d
   return `${from} at ${Math.round(metar.wind_speed_kt)} kt${metar.wind_gust_kt ? `, gusts ${Math.round(metar.wind_gust_kt)}` : ""}`;
 }
 
+/** Ceiling and visibility the way a briefer says them. */
 export function ceilingAndVisibility(ceilingFt: number | null | undefined, visibilitySm: number | null | undefined): string {
   return `${ceilingFt == null ? "no ceiling" : `${altFt(ceilingFt)} ft`} · ${visibilitySm == null ? "—" : `${visibilitySm} sm`}`;
 }

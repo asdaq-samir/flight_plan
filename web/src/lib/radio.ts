@@ -291,3 +291,13 @@ export function radioScript(input: RadioInput): RadioPhase[] {
   });
   return phases;
 }
+
+/** One field's leaving and arriving: its part of the route's script
+ *  (radioScript), none for a local flight, with no route to call along.
+ *  The Brief's airport sections (AirportSections, PatternRadio) read it,
+ *  and leave out the frequencies and runways its calls and pattern say. */
+export function fieldPhases(briefing: Briefing, landings: string[], legs: Leg[], callSign: string, at: string): RadioPhase[] {
+  const airports = landings.filter(ident => briefing.airports[ident]).map(ident => ({ ident, facilities: briefing.airports[ident]! }));
+  if (airports.length < 2) return [];
+  return radioScript({ callSign, airports, legs }).filter(phase => phase.ident === at);
+}
