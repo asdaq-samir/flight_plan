@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { PAGES, grabberTo, settle, slow, expectDrawerClosed, openSidebar, sideDrawer, openSettings, openPanel, closeSidebarWithTheStockKey, showTabs } from "./helpers";
+import { PAGES, grabberTo, settle, slow, expectDrawerClosed, openBrief, openSidebar, sideDrawer, openSettings, openPanel, closeSidebarWithTheStockKey, showTabs } from "./helpers";
 
 /**
  * The regressions this file exists to catch (see playwright.config.ts
@@ -106,10 +106,11 @@ test.describe("/app/plan", () => {
   // and an airport's card the same, what comes next under them (the
   // Recents, the weather) out of sight. The route cleared keeps its
   // shape and height; its close again shows the search under it.
-  // All the way up, the route's pages: a page tapped is that page.
+  // All the way up, the Brief's pages: a page tapped is that page.
   test("a route's page tapped all the way up is that page", async ({ page }) => {
     await page.goto("/app/plan?dep=C81&dest=KDLH");
     await settle(page);
+    await openBrief(page);
     await grabberTo(page, "full");
     await page.getByTestId("panel-tab-enroute").click();
     await expect(sideDrawer(page)).toHaveAttribute("data-panel", "full");

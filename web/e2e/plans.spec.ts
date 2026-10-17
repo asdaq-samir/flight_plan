@@ -235,7 +235,7 @@ test("plan page: no legal altitude is the route's own problem: its chip says so 
   await expect(problem).toHaveCount(0);
   // By its slot: on a phone the chip's sheet hides the page from the
   // accessibility tree, and a role lookup with it.
-  const navLogTab = page.getByTestId("panel-tab-enroute");
+  const navLog = sideDrawer(page).getByTestId("navlog-scroller");
 
   // A tap on the mark: where, why as a list -- with no Try again, which
   // would only say the same -- and the section left as it was.
@@ -247,7 +247,8 @@ test("plan page: no legal altitude is the route's own problem: its chip says so 
     "The aircraft's service ceiling stops at 11,700 ft.",
   ]);
   await expect(problem.getByRole("button", { name: "Try again" })).toHaveCount(0);
-  await expect(navLogTab).toHaveAttribute("aria-selected", "true");
+  await expect(navLog).toBeAttached();
+  await expect(sideDrawer(page).getByTestId("brief-card")).toHaveCount(0);
 
   // An altitude of the pilot's own, as a flight level: planned anyway, at it.
   await page.getByTestId("custom-altitude").fill("125");

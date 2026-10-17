@@ -39,7 +39,7 @@ test("the nav log fits a phone's panel with long names, five-figure altitudes an
   await settle(page);
   await expect(page.getByTestId("navlog-eta")).toBeVisible({ timeout: slow(120000) });
   await openTab(page, "Nav Log");
-  const container = page.locator('[data-tab="enroute"] [data-slot="table-container"]');
+  const container = page.getByTestId("navlog-scroller").locator('[data-slot="table-container"]');
   await expect(container.locator("tbody tr").first()).toBeVisible();
   await expect(container.locator("tbody")).toContainText("10,500");
   await expect(container.locator("thead")).toContainText("ETA");
@@ -54,7 +54,7 @@ test("the nav log fits a phone's panel with long names, five-figure altitudes an
     container.locator("thead").boundingBox(),
   ]);
   expect(Math.abs(head!.y - scroller!.y)).toBeLessThanOrEqual(1);
-  await expect(page.locator('[data-tab="enroute"] [data-testid="section-tabs"]')).toHaveCount(0);
+  await expect(page.getByTestId("navlog-scroller").locator('[data-testid="section-tabs"]')).toHaveCount(0);
   await controlsInSight(page);
 });
 

@@ -2,7 +2,7 @@ import { useCallback, useDeferredValue, useEffect, useLayoutEffect, useRef, useS
 import { cn } from "cn";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../../../components/ui/tabs";
 import { SectionsOpen } from "../../../../components/sectionLayout";
-import { GoToTab, useTabAsk, type PanelTab } from "./panelTab";
+import { GoToTab, LEGS, useTabAsk, type PanelTab } from "./panelTab";
 
 /** The panel's tabs in the order the flight is flown, at the owner's pick
  *  of the redesign ("I like C concept"): Preflight -- the go / no-go and
@@ -20,10 +20,10 @@ const TABS: { value: PanelTab; label: string }[] = [
 const PRINTED: PanelTab[] = TABS.map(t => t.value);
 
 /**
- * The planning panel's tabs and what is under them (NavLogView's), with
- * the tab up kept here: a switch draws this and nothing else -- the tabs'
- * contents come in as elements made by the panel, unchanged by a switch,
- * so React leaves them be. Each tab is kept once opened, hidden, and back
+ * The Brief's pages and what is under them (BriefCard's, and the printed
+ * briefing's, NavLogView's), with the page up kept here: a switch draws
+ * this and nothing else -- the pages' contents come in as elements made by
+ * the panel, unchanged by a switch, so React leaves them be. Each tab is kept once opened, hidden, and back
  * at once, scrolled where it was left -- a switch drew the whole tab
  * again, 0.4 to 0.75 s of a phone's main thread each time (measured at a
  * quarter of a laptop's speed), and every tab shared one scroll. Hidden
@@ -32,12 +32,12 @@ const PRINTED: PanelTab[] = TABS.map(t => t.value);
  * its layout kept (index.css's tab-away), not taken out of it: shown
  * again from display: none, a tab was laid out from nothing -- 0.6 s of
  * the Nav Log's on a phone -- and its charts, measured at nothing while
- * hidden, drawn again from nothing. The nav log's is
- * up to begin with -- the Brief's narrative is a billed call, asked for
- * when its tab opens -- and again when a checkpoint is picked on the map
- * (`pick`): that is what the pilot opened the panel to see.
+ * hidden, drawn again from nothing. Preflight is up to begin with.
+ * The legs are FPL's own (NavLogView), not a page here: a section asked
+ * for among them -- the Go / No-Go's fuel, under the legs -- is
+ * `onLegs`'s.
  */
-export default function PanelTabs({ rootRef, before, contents, notice, footer, children, printing, marks, pick, onTap, route }: {
+export default function PanelTabs({ rootRef, before, contents, notice, footer, children, printing, marks, onTap, onLegs, route }: {
   rootRef?: (el: HTMLDivElement | null) => void;
   /** Over the tabs: the printed title. */
   before: ReactNode;
@@ -49,12 +49,13 @@ export default function PanelTabs({ rootRef, before, contents, notice, footer, c
   /** A tab whose findings (lib/verdict) have something to fix, or to
    *  look at. */
   marks?: Partial<Record<PanelTab, "stop" | "caution">>;
-  /** A checkpoint picked on the map with the panel out, by its key. */
-  pick: string | null;
   /** A tab tapped, the one up too (`again`): the panel all the way up to
    *  show it, at the pilot's ask -- at half the bar is the panel's last
    *  line -- and the one up tapped again there, back to half. */
   onTap?: (again: boolean) => void;
+  /** The legs asked for (LEGS): FPL's nav log, under which the fuel is
+   *  checked, in place of the Brief. */
+  onLegs?: () => void;
   /** Which route the contents are of: drawn just after the frame that
    *  shows a new one (below). */
   route: string;
@@ -72,14 +73,6 @@ export default function PanelTabs({ rootRef, before, contents, notice, footer, c
   const [tab, setTab] = useState<PanelTab>("preflight");
   const [opened, setOpened] = useState<PanelTab[]>(["preflight"]);
   if (!opened.includes(tab)) setOpened([...opened, tab]);
-  // Once per pick, En route up, its legs first; state adjusted during
-  // render, React's own pattern for a change of props, rather than an
-  // effect that would draw twice.
-  const [pickedFor, setPickedFor] = useState<string | null>(null);
-  if (pick !== pickedFor) {
-    setPickedFor(pick);
-    if (pick && tab !== "enroute") setTab("enroute");
-  }
   const scroller = useRef<HTMLDivElement>(null);
   // The tab that was up as a finger or a key pressed one, before Radix
   // makes the pressed one the tab up (on its mouse down or key down, ahead
@@ -95,11 +88,15 @@ export default function PanelTabs({ rootRef, before, contents, notice, footer, c
     setTab(next as PanelTab);
   }, [tab]);
   const goTo = useCallback((next: PanelTab, section?: string) => {
+    if (section === LEGS) {
+      onLegs?.();
+      return;
+    }
     wanted.current = section ?? null;
     if (section) scrolls.current[next] = 0;
     choose(next);
     setAsked(n => n + 1);
-  }, [choose]);
+  }, [choose, onLegs]);
   useLayoutEffect(() => {
     const box = scroller.current;
     if (!box) return;
@@ -182,16 +179,14 @@ export default function PanelTabs({ rootRef, before, contents, notice, footer, c
         // `flight-briefing`: index.css's print rules lay every tab out on
         // paper.
         className="flight-briefing @container min-h-0 flex-1 overflow-auto pr-4 pb-[env(safe-area-inset-bottom)] pl-[max(1rem,env(safe-area-inset-left))] print:h-auto print:overflow-visible print:pb-0"
-        data-testid="navlog-scroller"
+        data-testid="brief-scroller"
       >
         {notice}
         <SectionsOpen.Provider value>
           <GoToTab.Provider value={goTo}>
-            {/* Every tab's sections one under another, each under its
+            {/* Every page's sections one under another, each under its
                 title, not pills to pick one by, at the owner's ask ("Make
-                the subtabs into sections Legs, Profile"); the side view is
-                the one pinned at the sheet's foot now, the Profile under the
-                Legs on paper only. */}
+                the subtabs into sections Legs, Profile"). */}
             {drawn && (printing ? PRINTED : TABS.map(t => t.value).filter(t => opened.includes(t))).map(t => {
               const away = !printing && t !== tab;
               return (

@@ -142,14 +142,14 @@ test("all the way up the dry run plays at the foot under the nav log, the row it
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   await grabberTo(page, "full");
-  await openTab(page, "En route");
+  await openTab(page, "Nav Log");
   const panel = sideDrawer(page);
   const start = panel.getByTestId("dry-run-start");
   await expect(start).toBeVisible({ timeout: slow(60_000) });
   await start.click();
   // Its chart in the side view's place, the nav log still over it.
   await expect(panel.getByTestId("dry-run")).toBeVisible();
-  await expect(panel.locator('[data-tab="enroute"] [data-title="Legs"]')).toBeVisible();
+  await expect(panel.getByTestId("navlog-scroller").locator('[data-title="Legs"]')).toBeVisible();
   // Held, and stepped along the course from its chart, five miles a key:
   // the tinted row moves on with it, in sight.
   await panel.getByTestId("dry-run-play").click();

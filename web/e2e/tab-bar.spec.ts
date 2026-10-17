@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { closeCard, closeConsole, grabberTo, openTab, openPanel, settle, settled, showTabs, sideDrawer, slow } from "./helpers";
+import { closeCard, closeConsole, grabberTo, openTab, openPanel, panelTabs, settle, settled, showTabs, sideDrawer, slow } from "./helpers";
 
 /**
  * The planner's tab bar, at the pilot's ask in place of the map's buttons
@@ -127,12 +127,13 @@ test("an airport tapped in the route opens its card, and is changed from its men
   await expect(page.getByPlaceholder("Search for a destination")).toBeVisible();
 });
 
-test("the side view is over the figures at the foot half way and all the way up, the one on screen, the nav log's sections scrolling over it", async ({ page }) => {
-  // The owner's asks: "pin the profile above calculations"; "Make the
-  // subtabs into sections Legs, Profile"; all the way up, "keep the
-  // profile at the bottom as you pull up the scrollable navlog", where it
-  // folded away into the nav log's Profile under its Legs; and "let's
-  // cleanup the clutter with redesign", that Profile on paper only.
+test("the side view is over the figures at the foot half way and all the way up, the one on screen, the nav log scrolling over it", async ({ page }) => {
+  // The owner's asks: "pin the profile above calculations"; all the way
+  // up, "keep the profile at the bottom as you pull up the scrollable
+  // navlog", where it folded away into the nav log's Profile under its
+  // Legs; "let's cleanup the clutter with redesign", that Profile on paper
+  // only; and "FPL is simple with route, navlog, profile and
+  // calculations", the briefing's pages the Brief's.
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   await grabberTo(page, "half");
@@ -152,14 +153,49 @@ test("the side view is over the figures at the foot half way and all the way up,
   expect(up.y + up.height).toBeLessThanOrEqual(under.y + 1);
   // A picture there, with nothing to open: the sheet is up already.
   await expect(profile).toHaveAttribute("role", "img");
-  await openTab(page, "En route");
-  const log = panel.locator('[data-tab="enroute"]');
-  await expect(log.locator('[data-testid="section-tabs"]')).toHaveCount(0);
-  await expect(log.locator('[data-title="Legs"]').getByRole("heading", { name: "Legs" })).toBeVisible();
-  // The legs and then the altitude, no second side view between them.
-  await expect(log.locator('[data-title="Cruise Altitude"]')).toBeAttached();
+  // FPL all the way up is the legs alone: no pages, no other section, no
+  // second side view.
+  const log = panel.getByTestId("navlog-scroller");
+  await expect(log.getByRole("table", { name: /Navigation log from/i })).toBeVisible();
+  await expect(panel.locator('[role="tablist"][data-tip="tabs"]')).toHaveCount(0);
+  await expect(log.locator("[data-title]")).toHaveCount(1);
   await expect(log.locator('[data-title="Profile"]')).toHaveCount(0);
   await expect(profile).toBeVisible();
+});
+
+test("the Brief is a card over FPL, from the chips' Brief: Preflight, Depart, En route and Arrive, with Back to the nav log", async ({ page }) => {
+  // The owner's ask: "we don't need the folder button because we have a
+  // saved section with tiles instead. So then we can have a brief button
+  // which can open a new brief card to have everything preflight, depart,
+  // enroute, arrive. But FPL is simple with route, navlog, profile and
+  // calculations".
+  await page.goto("/app/plan?dep=C81&dest=KDLH");
+  await settle(page);
+  await grabberTo(page, "full");
+  const panel = sideDrawer(page);
+  await expect(panel.getByTestId("route-saved")).toHaveCount(0);
+  await panel.getByTestId("route-brief").click();
+  // Half way, as an airport's card opens; the route's name at its head,
+  // its pages under it, the route's box and figures out of sight.
+  await expect(panel).toHaveAttribute("data-panel", "half");
+  const card = panel.getByTestId("brief-card");
+  await expect(card).toBeVisible();
+  await expect(card.getByTestId("brief-name")).toHaveText("C81 → KDLH");
+  await expect(card.getByTestId("brief-line")).toContainText("Campbell to Duluth");
+  await expect(panelTabs(page).getByRole("tab")).toHaveText(["Preflight", "Depart", "En route", "Arrive"]);
+  await expect(panel.getByTestId("route-box")).toBeHidden();
+  await expect(panel.getByTestId("flight-line")).toBeHidden();
+  await expect(page).toHaveURL(/[?&]brief=1/);
+  // En route's without the legs, FPL's own.
+  await openTab(page, "En route");
+  await expect(card.locator('[data-tab="enroute"] [data-title="Cruise Altitude"]')).toBeAttached();
+  await expect(card.locator('[data-tab="enroute"] [data-title="Legs"]')).toHaveCount(0);
+  // Back: FPL as it was before the Brief, all the way up on its nav log.
+  await closeCard(page, "brief-close");
+  await expect(card).toHaveCount(0);
+  await expect(page).not.toHaveURL(/[?&]brief=/);
+  await expect(panel).toHaveAttribute("data-panel", "full");
+  await expect(panel.getByTestId("navlog-scroller").getByRole("table", { name: /Navigation log from/i })).toBeVisible();
 });
 
 test("a card opens half way; on a phone, lowered to the pill it is its name and its close, which puts it away", async ({ page }) => {

@@ -25,7 +25,7 @@ export type PanelTab = "fpl" | "airport" | "aircraft";
  *  full (`list`). */
 // Nearest's list among them, Airport's card now (four tabs), and FPL's
 // saved flights.
-const CARD_KEYS = ["place", "at", "flight", "past", "near", "nearAt", "nearName", "saved", "list"] as const;
+const CARD_KEYS = ["place", "at", "flight", "past", "near", "nearAt", "nearName", "saved", "list", "brief"] as const;
 
 /** A tab's list in full, from its strip's title, in the address
  *  (`?list=favorites`): Airport's Favorites and Recents, FPL's routes
@@ -169,6 +169,8 @@ export function usePanelTabs({ cards, route, hasRoute, panel, setPanel, searchPa
 }) {
   const { place, heldPoint, flight, past, aircraftOpen, nearOpen, list } = cards;
   const savedOpen = searchParams.get("saved") === "1";
+  // FPL's Brief, a card over it (PlanWorkspace's briefOpen).
+  const briefOpen = searchParams.get("brief") === "1";
   const [tabPick, setTabPick] = useState<PanelTab | null>(null);
   const [routeSeen, setRouteSeen] = useState(route);
   if (route !== routeSeen) {
@@ -256,16 +258,16 @@ export function usePanelTabs({ cards, route, hasRoute, panel, setPanel, searchPa
       setPanel("half");
       return;
     }
-    if (place || heldPoint || flight || nearOpen || savedOpen || list) pickTab(tab);
-  }, [place, heldPoint, flight, nearOpen, savedOpen, list, pickTab, tab, panel, setPanel]);
+    if (place || heldPoint || flight || nearOpen || savedOpen || briefOpen || list) pickTab(tab);
+  }, [place, heldPoint, flight, nearOpen, savedOpen, briefOpen, list, pickTab, tab, panel, setPanel]);
 
   // The minimized tab bar's close, at the owner's ask: a card open over
   // the tab put away, as the tab tapped again does, and the sheet down to
   // its pill.
   const closeSheet = useCallback(() => {
-    if (place || heldPoint || flight || nearOpen || savedOpen || list) pickTab(tab);
+    if (place || heldPoint || flight || nearOpen || savedOpen || briefOpen || list) pickTab(tab);
     setPanel("peek");
-  }, [place, heldPoint, flight, nearOpen, savedOpen, list, pickTab, tab, setPanel]);
+  }, [place, heldPoint, flight, nearOpen, savedOpen, briefOpen, list, pickTab, tab, setPanel]);
 
   return { tab, setTabPick, pickTab, tabUp, closeSheet };
 }

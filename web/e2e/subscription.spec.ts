@@ -87,9 +87,9 @@ test("without the subscription the nav log's wand says checkpoint descriptions c
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   await openBriefing(page);
-  await openTab(page, "En route");
+  await openTab(page, "Nav Log");
   const drawer = sideDrawer(page);
-  const wand = drawer.locator('[role="tabpanel"] [data-testid="generate-descriptions-button"]');
+  const wand = drawer.getByTestId("navlog-scroller").getByTestId("generate-descriptions-button");
   await expect(wand).toBeEnabled({ timeout: slow(60000) });
   await wand.click();
   const paywall = page.getByTestId("descriptions-paywall");
