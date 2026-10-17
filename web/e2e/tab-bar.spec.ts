@@ -127,9 +127,11 @@ test("an airport tapped in the route opens its card, and is changed from its men
   await expect(page.getByPlaceholder("Search for a destination")).toBeVisible();
 });
 
-test("half way the side view is over the figures at the foot, and all the way up it is the nav log's Profile, under its Legs", async ({ page }) => {
-  // The owner's asks: "pin the profile above calculations but transition
-  // to just below the legs. Make the subtabs into sections Legs, Profile".
+test("the side view is over the figures at the foot half way and all the way up, the nav log's sections scrolling over it", async ({ page }) => {
+  // The owner's asks: "pin the profile above calculations"; "Make the
+  // subtabs into sections Legs, Profile"; and, all the way up, "keep the
+  // profile at the bottom as you pull up the scrollable navlog", where it
+  // folded away into the nav log's Profile under its Legs.
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   await grabberTo(page, "half");
@@ -141,9 +143,12 @@ test("half way the side view is over the figures at the foot, and all the way up
   expect(side.y + side.height).toBeLessThanOrEqual(line.y + 1);
   await grabberTo(page, "full");
   await expect(figures).toBeVisible();
-  // Folded away with the sheet up, the nav log's sections one under another.
-  const fold = panel.locator("[data-pill-hides]:has([data-testid=mini-profile])");
-  await expect.poll(async () => (await fold.boundingBox())?.height ?? 0).toBeLessThan(1);
+  // Still over the figures with the sheet up, the nav log's sections one
+  // under another over it.
+  await expect(profile).toBeVisible();
+  await settled(panel);
+  const [up, under] = [(await profile.boundingBox())!, (await figures.boundingBox())!];
+  expect(up.y + up.height).toBeLessThanOrEqual(under.y + 1);
   await openTab(page, "En route");
   const log = panel.locator('[data-tab="enroute"]');
   await expect(log.locator('[data-testid="section-tabs"]')).toHaveCount(0);

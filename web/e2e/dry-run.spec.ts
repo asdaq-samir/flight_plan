@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { grabberTo, openPanel, settle, settled, sideDrawer, slow } from "./helpers";
+import { grabberTo, openPanel, openTab, settle, settled, sideDrawer, slow } from "./helpers";
 
 /**
  * The planned flight's dry run flies own ship, as if a pilot were flying
@@ -112,4 +112,32 @@ test("the dry run's airplane is brought back to the middle of what the panel lea
   await inTheMiddle();
   await grabberTo(page, "half");
   await inTheMiddle();
+});
+
+test("all the way up the dry run plays at the foot under the nav log, the row it is flying to tinted and kept in sight", async ({ page }) => {
+  // The owner's asks: "I wanna be able to do the dry run with navlog in
+  // full fpl"; "keep the profile at the bottom as you pull up the
+  // scrollable navlog".
+  await page.goto("/app/plan?dep=C81&dest=KDLH");
+  await settle(page);
+  await grabberTo(page, "full");
+  await openTab(page, "En route");
+  const panel = sideDrawer(page);
+  const start = panel.getByTestId("dry-run-start");
+  await expect(start).toBeVisible({ timeout: slow(60_000) });
+  await start.click();
+  // Its chart in the side view's place, the nav log still over it.
+  await expect(panel.getByTestId("dry-run")).toBeVisible();
+  await expect(panel.locator('[data-tab="enroute"] [data-title="Legs"]')).toBeVisible();
+  // Held, and stepped along the course from its chart, five miles a key:
+  // the tinted row moves on with it, in sight.
+  await panel.getByTestId("dry-run-play").click();
+  const flying = panel.locator("tr[data-flying]");
+  await expect(flying).toHaveCount(1);
+  const place = () => flying.evaluate(row => [...row.parentElement!.children].indexOf(row));
+  const first = await place();
+  await panel.getByTestId("dry-run-scrub").focus();
+  for (let i = 0; i < 12; i++) await page.keyboard.press("ArrowRight");
+  await expect.poll(place, { timeout: slow(10_000) }).toBeGreaterThan(first);
+  await expect(flying).toBeInViewport();
 });

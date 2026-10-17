@@ -16,6 +16,9 @@ export interface DryRun {
   alongNm: number[];
   /** Fuel burnt by each point, gal. */
   fuelGal: number[];
+  /** When the airplane reaches each of the nav log's rows, s since 1970:
+   *  the log's row for the leg being flown, as the run goes (dryRunRow). */
+  rowT: number[];
 }
 
 interface Anchor { along: number; lat: number; lon: number; t: number; fuel: number; gs: number | null; track: number | null }
@@ -62,7 +65,7 @@ function walker(line: [number, number][], total: number) {
  * With no line, on the great circle between the rows' points.
  */
 export function dryRunOf(rows: NavLogRow[], startS: number, line?: [number, number][]): DryRun {
-  const empty = { points: [], alongNm: [], fuelGal: [] };
+  const empty = { points: [], alongNm: [], fuelGal: [], rowT: [] };
   const first = rows[0];
   if (!first || first.kind !== "departure") return empty;
   const anchors: Anchor[] = [{ along: 0, ...rowPoint(first), t: startS, fuel: 0, gs: null, track: null }];
@@ -93,7 +96,7 @@ export function dryRunOf(rows: NavLogRow[], startS: number, line?: [number, numb
   const end = anchors.at(-1)!.along;
   const marks = new Set<number>([...anchors.map(a => a.along), ...profile.map(p => p.along_nm).filter(a => a <= end)]);
   for (let a = STEP_NM; a < end; a += STEP_NM) marks.add(a);
-  const out: DryRun = { points: [], alongNm: [], fuelGal: [] };
+  const out: DryRun = { points: [], alongNm: [], fuelGal: [], rowT: anchors.map(a => a.t) };
   const onLine = line && line.length >= 2 ? walker(line, end) : null;
   let seg = 1;
   for (const along of [...marks].sort((x, y) => x - y)) {
@@ -112,6 +115,16 @@ export function dryRunOf(rows: NavLogRow[], startS: number, line?: [number, numb
     out.fuelGal.push(a.fuel + (b.fuel - a.fuel) * f);
   }
   return out;
+}
+
+/** The nav log's row the dry run is flying to at `t`: the first it has not
+ *  reached yet, the departure's before it starts and the last once it is
+ *  in, so the log can follow it, a row at a time (NavLogView). */
+export function dryRunRow(run: DryRun, t: number): number {
+  const { rowT } = run;
+  if (!rowT.length) return 0;
+  const next = rowT.findIndex(at => at >= t);
+  return next < 0 ? rowT.length - 1 : next;
 }
 
 /** What the dry run has left at `t`: the distance and time to go, and the

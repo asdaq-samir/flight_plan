@@ -29,6 +29,8 @@ import { isLegPoint, legOf, navLogRows, rowPoint, type NavLogRow, type RouteEnds
 import LegWorkings from "./LegWorkings";
 import DiversionDrill from "./DiversionDrill";
 import RouteProfileSection from "./RouteProfileSection";
+import { dryRunRow, type DryRun } from "./dryRun";
+import { DRY_RUN, usePastFlight } from "../../../../lib/map/pastFlight";
 import { PointMark } from "./PointMark";
 
 
@@ -133,6 +135,9 @@ interface Props {
   /** A tab tapped (PanelTabs' `onTap`): the panel up to show it, or the
    *  one up tapped again, back down. */
   onTabTap?: (again: boolean) => void;
+  /** The planned flight's dry run while one is up: the log follows it, the
+   *  row it is flying to tinted and kept in sight. */
+  dryRun?: DryRun | null;
 }
 
 /**
@@ -335,7 +340,7 @@ export default function NavLogView({
   selected, descriptions, onSaveDescription,
   onGenerateDescriptions, descriptionsLoading, descriptionsPaywall, descriptionsHidden = false, tabContent, children, marks, notice, footer, local = false, metarColourOf = noWeather,
   selectedPoint, onSelectPoint, onDeselectPoint, drawerOpen,
-  aircraftLabel, onTabTap,
+  aircraftLabel, onTabTap, dryRun = null,
 }: Props) {
   const noWind = totals ? legsWithoutWind(totals) : null;
   // The other tabs' code fetched while nothing else is, once the log is
@@ -586,6 +591,15 @@ export default function NavLogView({
   // pick was left under the drawer's foot (checkpoints.spec, one run in
   // three with two workers). Its arrival is a reason to look again.
   const [selectedRow, setSelectedRow] = useState<HTMLTableRowElement | null>(null);
+  // The row the dry run is flying to, at the owner's ask ("I wanna be
+  // able to do the dry run with navlog in full fpl"): a row at a time (the
+  // run's every frame is not this view's), brought into sight as it moves
+  // on, where the pilot's own selection is brought, and left where it is
+  // once in sight -- all the way up only: half way the sheet shows the
+  // route and the run's chart, which a scroll to the log would move.
+  const flying = usePastFlight(p => (dryRun && p.hex === DRY_RUN && p.at !== null ? dryRunRow(dryRun, p.at) : null));
+  const [flyingRow, setFlyingRow] = useState<HTMLTableRowElement | null>(null);
+  useEffect(() => (drawerOpen ? revealRow(flyingRow) : undefined), [flyingRow, flying, drawerOpen]);
   // Whether the table fits the drawer's width (see navLogTable): watched,
   // since a departure time adds a column and the text size moves every
   // one of them. From a ref, not an effect: the table is there only
@@ -693,13 +707,14 @@ export default function NavLogView({
                   every row's figures were grey. */}
               <SelectableRow
                 selected={rowSelected}
+                flying={row.index === flying}
                 kind={r.kind}
                 estimated={r.kind !== "departure" && !leg?.wind}
                 expands
                 // The selected row tapped again is deselected, on the
                 // map too, which closes its note.
                 onSelect={() => (rowSelected ? onDeselectPoint() : onSelectPoint(lat, lon))}
-                scrollRef={rowSelected ? setSelectedRow : undefined}
+                scrollRef={rowSelected ? setSelectedRow : row.index === flying ? setFlyingRow : undefined}
               >
                 {row.getAllCells().map(cell => (
                   <TableCell key={cell.id} className={cell.column.columnDef.meta?.className}>
