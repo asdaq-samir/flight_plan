@@ -153,9 +153,9 @@ test("all the way up the dry run plays at the foot under the nav log, the row it
   // Held, and stepped along the course from its chart, five miles a key:
   // the tinted row moves on with it, in sight.
   await panel.getByTestId("dry-run-play").click();
-  const flying = panel.locator("tr[data-flying]");
+  const flying = panel.locator('[role="row"][data-flying]');
   await expect(flying).toHaveCount(1);
-  const place = () => flying.evaluate(row => [...row.parentElement!.children].indexOf(row));
+  const place = () => flying.evaluate(row => [...row.closest('[role="table"]')!.querySelectorAll('[role="row"][data-kind]')].indexOf(row));
   const first = await place();
   await panel.getByTestId("dry-run-scrub").focus();
   for (let i = 0; i < 12; i++) await page.keyboard.press("ArrowRight");

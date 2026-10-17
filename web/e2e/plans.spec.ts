@@ -67,7 +67,7 @@ test("plan page: the nav log's altitude opens the planner's own reasoning, and t
   await popover.getByTestId("custom-altitude-fly").click();
   await expect(page).toHaveURL(/[?&]altitude_ft=3500/);
   await expect(page.getByTestId("altitude-why")).toHaveAccessibleName(/FL035/, { timeout: slow(30000) });
-  await expect(sideDrawer(page).locator('table tbody tr[data-kind="checkpoint"]').first().locator("td").nth(1)).toHaveText("3,500", { timeout: slow(30000) });
+  await expect(sideDrawer(page).locator('[role="row"][data-kind="checkpoint"]').first()).toContainText("3,500 ft", { timeout: slow(30000) });
   await page.getByTestId("altitude-why").click();
   await expect(popover).toBeVisible();
   await expect(popover.getByTestId("altitude-plan-lowest")).toHaveAttribute("aria-pressed", "false");
@@ -77,9 +77,9 @@ test("plan page: the nav log's altitude opens the planner's own reasoning, and t
   await expect(page).not.toHaveURL(/[?&]altitude_ft=/);
   await expect(page).not.toHaveURL(/[?&]altitude_choice=/);
   await flies("fastest");
-  // No altitude box in the table's head: Alt is a heading that opens the plans.
-  await expect(sideDrawer(page).locator('table thead')).not.toContainText("Cruise altitude");
-  expect(await sideDrawer(page).locator('table thead input').count()).toBe(0);
+  // No altitude box over the log: the altitude's chip opens the plans.
+  await expect(sideDrawer(page).getByTestId("navlog-head")).not.toContainText("Cruise altitude");
+  expect(await sideDrawer(page).getByTestId("navlog-head").locator("input").count()).toBe(0);
 
   // Escape closes the popover (open from the check above, opened here
   // if the re-plan has closed it since) and leaves the drawer open.
@@ -99,13 +99,13 @@ test("plan page: the nav log's altitude opens the planner's own reasoning, and t
   await expect(drawer.getByText("14 CFR 91.159")).toBeVisible();
 });
 
-test("plan page: a departure time gives every checkpoint an ETA, and the nav log's line the arrival", async ({ page }) => {
+test("plan page: a departure time gives every checkpoint its time, and the nav log's line the arrival", async ({ page }) => {
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   await page.getByTestId("sidebar-trigger-button").click();
   await openTab(page, "Nav Log");
   const table = page.getByRole("table", { name: /Navigation log from/i });
-  await expect(table.locator("thead")).not.toContainText("ETA");
+  const times = table.getByTestId("navlog-row-eta");
 
   // The day after tomorrow at 15:00 in the browser's own zone: always
   // more than 18 hours out, so the 24-hour winds product, and daytime
@@ -133,20 +133,15 @@ test("plan page: a departure time gives every checkpoint an ETA, and the nav log
   await page.getByTestId("depart-done").click();
   await expect(calendar).toHaveCount(0);
   await expect(page.getByTestId("depart-date")).toContainText("15:00");
-  // The nav log's table all the way up.
+  // The nav log all the way up: the departure row's time is the
+  // departure itself.
   await grabberTo(page, "full");
-  await expect(table.locator("thead")).toContainText("ETA");
-  // The ETA column by its heading: the print-only ATA and fuel columns
-  // sit after it, empty on screen.
-  const etaIndex = (await table.locator("thead th").allTextContents()).findIndex(text => text.startsWith("ETA"));
-  expect(etaIndex).toBeGreaterThan(0);
-  // The departure row's own ETA is the departure time itself.
-  await expect(table.locator("tbody tr[tabindex='0']").first().locator("td").nth(etaIndex)).toHaveText("15:00");
+  await expect(times.first()).toHaveText("15:00");
   // The route's figures say when it arrives, and the time en route.
   await expect(page.getByTestId("navlog-eta")).toHaveText(/^\d\d:\d\d$/, { timeout: slow(60000) });
   await expect(page.getByTestId("navlog-ete")).toHaveText(/^\d+h \d\dm$/);
   // Every later row has a time once its leg is in.
-  await expect.poll(async () => (await table.locator("tbody tr[tabindex='0']").last().locator("td").nth(etaIndex).textContent())?.trim(), { timeout: slow(60000) }).toMatch(/^\d\d:\d\d$/);
+  await expect.poll(async () => (await times.last().textContent())?.trim(), { timeout: slow(60000) }).toMatch(/^\d\d:\d\d$/);
   // And the fuel check, against the stock C172's 40 usable gallons,
   // with the day reserve for a mid-afternoon flight -- under the table,
   // where the fuel column it sums ends.
