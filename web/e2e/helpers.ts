@@ -454,6 +454,11 @@ export async function openSection(page: Page, title: string) {
   // A section drawn again as its tab's content arrives can be detached
   // between finding it and scrolling to it: tried until it holds still.
   await expect(async () => { await here.scrollIntoViewIfNeeded({ timeout: 2000 }); }).toPass({ timeout: 10000 });
+  // A folded one -- Preflight's under its checks -- opened.
+  if ((await here.getAttribute("data-state")) === "closed") {
+    await here.locator('[data-slot="accordion-trigger"]').first().click();
+    await expect(here).toHaveAttribute("data-state", "open");
+  }
 }
 
 /** Once the map has stopped moving: its panes where they were 300 ms
