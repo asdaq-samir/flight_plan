@@ -1170,7 +1170,11 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const dryRunning = dryRun && dryRunHeld && routed ? dryRun : null;
   const startDryRun = () => {
     if (!course) return;
-    const run = dryRunOf(navLogRows(course, selected, s.legs), Math.round((depart ? Date.parse(depart) : Date.now()) / 1000), course.course_line);
+    // Into a field with an approach picked, the approach flown.
+    const run = dryRunOf(
+      navLogRows(course, selected, s.legs), Math.round((depart ? Date.parse(depart) : Date.now()) / 1000), course.course_line,
+      procedureDrawings.filter(d => d.kind === "approach"),
+    );
     if (run.points.length < 2) return;
     setDryRun(run);
     usePastFlight.setState({ hex: DRY_RUN, id: 0, points: run.points, at: run.points[0]!.t, playing: true });

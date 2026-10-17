@@ -141,3 +141,64 @@ test("all the way up the dry run plays at the foot under the nav log, the row it
   await expect.poll(place, { timeout: slow(10_000) }).toBeGreaterThan(first);
   await expect(flying).toBeInViewport();
 });
+
+// Duluth's RNAV (GPS) RWY 27 via PLANE as the planner draws it
+// (vfr.procedures, the 2026-10 cycle), stubbed: the FAA's file is not read
+// on CI's runner. From PLANE, south-east of the field, north to HOMUV, and
+// west down its final through CIRUS to the runway.
+const R27 = {
+  airport: "KDLH", kind: "approach", id: "R27", name: "RNAV (GPS) RWY 27", transition: "PLANE", cycle: "261001", stale: false,
+  lines: [
+    { role: "transition", name: "PLANE", points: [[46.733597, -91.910758], [46.833461, -91.904417]] },
+    { role: "final", name: null, points: [[46.833461, -91.904417], [46.837675, -92.048269], [46.841361, -92.180119]] },
+    { role: "missed", name: null, points: [[46.841361, -92.180119], [46.842746, -92.228777], [46.849967, -92.511453]] },
+  ],
+  holds: [],
+  fixes: [
+    { ident: "PLANE", lat: 46.733597, lon: -91.910758, roles: ["IAF"], min_ft: null, max_ft: null, speed_kt: null, missed: false },
+    { ident: "HOMUV", lat: 46.833461, lon: -91.904417, roles: ["IF", "FACF"], min_ft: 4000, max_ft: null, speed_kt: null, missed: false },
+    { ident: "CIRUS", lat: 46.837675, lon: -92.048269, roles: ["FAF"], min_ft: 3200, max_ft: null, speed_kt: null, missed: false },
+    { ident: "RW27", lat: 46.841361, lon: -92.180119, roles: ["MAP"], min_ft: null, max_ft: null, speed_kt: null, missed: false },
+    { ident: "UDTEG", lat: 46.849967, lon: -92.511453, roles: ["hold"], min_ft: 3300, max_ft: null, speed_kt: null, missed: true },
+  ],
+};
+
+test("with an approach picked, the dry run flies it into the field: out to its first fix and down its final", async ({ page }) => {
+  // The owner's notice: "Dry run is not following approach when selected".
+  await page.route(url => /\/airport\/KDLH\/procedures\/R27$/.test(url.pathname), route => route.fulfill({ json: R27 }));
+  await page.goto("/app/plan?dep=C81&dest=KDLH&procs=KDLH:R27:PLANE");
+  await settle(page);
+  await openPanel(page);
+  const start = sideDrawer(page).getByTestId("dry-run-start");
+  await expect(start).toBeVisible({ timeout: slow(60_000) });
+  // The approach drawn, so in hand as the run starts.
+  await expect(page.locator('[data-procedure-fix="CIRUS"]')).toHaveCount(1, { timeout: slow(10_000) });
+  await start.click();
+  await expect(page.locator('[data-own-ship="on"]')).toHaveCount(1);
+  // Held at its end, then ten miles back: on the final, between HOMUV and
+  // CIRUS -- where straight in it was still south-east of the field.
+  const panel = sideDrawer(page);
+  await panel.getByTestId("dry-run-play").click();
+  const scrub = panel.getByTestId("dry-run-scrub");
+  const box = (await scrub.boundingBox())!;
+  await page.mouse.click(box.x + box.width - 2, box.y + box.height / 2);
+  await expect(scrub).toHaveAttribute("aria-valuenow", (await scrub.getAttribute("aria-valuemax"))!);
+  await scrub.focus();
+  await page.keyboard.press("ArrowLeft");
+  await page.keyboard.press("ArrowLeft");
+  const fixAt = async (ident: string) => {
+    const b = (await page.locator(`[data-procedure-fix="${ident}"]`).boundingBox())!;
+    return { x: b.x + b.width / 2, y: b.y + b.height / 2 };
+  };
+  await expect(async () => {
+    const ship = await shipAt(page), from = await fixAt("HOMUV"), to = await fixAt("CIRUS");
+    // HOMUV to CIRUS is 5.9 nm: the ship within half a mile of the line
+    // between them, and between them along it.
+    const dx = to.x - from.x, dy = to.y - from.y, length = Math.hypot(dx, dy);
+    const along = ((ship.x - from.x) * dx + (ship.y - from.y) * dy) / (length * length);
+    const off = Math.abs((ship.x - from.x) * dy - (ship.y - from.y) * dx) / length;
+    expect(along).toBeGreaterThan(0);
+    expect(along).toBeLessThan(1);
+    expect(off).toBeLessThan((length / 5.9) * 0.5);
+  }).toPass({ timeout: slow(10_000) });
+});
