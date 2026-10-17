@@ -125,7 +125,6 @@ test.describe("where no subscription is sold", () => {
     await sold(page, { subscriptions: false, claudeFeatures: "EVERYONE" });
     await page.addInitScript(() => {
       localStorage.setItem("vfr.tips", JSON.stringify({ state: { seen: ["*"] }, version: 0 }));
-      localStorage.setItem("vfr.limits", JSON.stringify({ state: { acknowledged: true }, version: 0 }));
     });
     await page.goto("/app/plan?dep=C81&dest=KDLH");
     await settle(page);
@@ -143,7 +142,6 @@ test.describe("where no subscription is sold", () => {
     await sold(page, { subscriptions: false, claudeFeatures: "EVERYONE" });
     await page.addInitScript(() => {
       localStorage.setItem("vfr.tips", JSON.stringify({ state: { seen: ["*"] }, version: 0 }));
-      localStorage.setItem("vfr.limits", JSON.stringify({ state: { acknowledged: true }, version: 0 }));
     });
     await page.goto("/app/plan");
     await settle(page);
