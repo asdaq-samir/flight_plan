@@ -308,7 +308,7 @@ export default function MapPage({ mode }: { mode: Mode }) {
             // no pill of its own: at rest it is the tabs, for the way back to
             // the others.
             bar={pieces.bar} layer={consoleLayer ? "console" : pieces.alone ? "card" : "tab"}
-            foot={consoleLayer ? undefined : pieces.foot} footFills={!consoleLayer && !!pieces.footFills}
+            foot={consoleLayer ? undefined : pieces.foot}
             cardOver={!!pieces.cardOver}
             top={topRow}
           >

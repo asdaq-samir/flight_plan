@@ -116,11 +116,10 @@ export function DryRunControls({ run, ends, onClose }: { run: DryRun; ends: Rout
         </RoundButton>
         <CloseButton onClick={onClose} data-testid="dry-run-close" />
       </div>
-      {/* Six rem, and all the room up to the route where the panel gives it
-          the body's (MapPanel's footFills, the owner's "Dry run should expand
-          up to the route"), three at the least: a flex size the chart is
-          drawn to -- a min-height alone left it none all the way up, and the
-          chart blank (the owner's recording). */}
+      {/* Six rem, and what the side view's place leaves it, three at the
+          least: a flex size the chart is drawn to -- a min-height alone left
+          it none all the way up, and the chart blank (the owner's
+          recording). */}
       <div className="relative min-h-12 flex-[1_1_6rem]">
         {/* Drawn to the box's own size, whatever the flex gave it: WebKit
             gives a grown flex item's child no height of its own to be a

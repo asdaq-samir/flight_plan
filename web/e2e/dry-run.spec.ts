@@ -135,6 +135,39 @@ test("the dry run's airplane is brought back to the middle of what the panel lea
   await inTheMiddle();
 });
 
+test("half way the side view is whole, its dry run plays under the route's chips, and stays still as the sheet is dragged up", async ({ page }) => {
+  test.skip((page.viewportSize()?.width ?? 0) >= 768, "a phone's sheet");
+  // The owner's asks: "Let's make the half card this tall. This way we
+  // won't have to hide the buttons for dry run"; "the dry run drags up
+  // instead of staying still like the profile".
+  await page.goto("/app/plan?dep=C81&dest=KDLH");
+  await settle(page);
+  await grabberTo(page, "half");
+  const panel = sideDrawer(page);
+  const start = panel.getByTestId("dry-run-start");
+  await expect(start).toBeVisible({ timeout: slow(60_000) });
+  // The side view at its ten rem, nothing of it given way.
+  const side = start.locator("xpath=ancestor::*[@data-pill-hides][1]");
+  expect((await side.boundingBox())!.height).toBeGreaterThanOrEqual(159);
+  await start.click();
+  const run = panel.getByTestId("dry-run");
+  await expect(run).toBeVisible();
+  await expect(panel.getByTestId("route-brief")).toBeVisible();
+  // Dragged up and held: the run where it was and its size, the nav log
+  // coming out over it.
+  await settled(panel);
+  const before = (await run.boundingBox())!;
+  const grabber = (await page.getByTestId("sidebar-trigger-button").boundingBox())!;
+  await page.mouse.move(grabber.x + grabber.width / 2, grabber.y + grabber.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(grabber.x + grabber.width / 2, grabber.y + grabber.height / 2 - 150, { steps: 12 });
+  await expect.poll(async () => (await panel.getByTestId("navlog-scroller").boundingBox())?.height ?? 0).toBeGreaterThan(100);
+  const held = (await run.boundingBox())!;
+  expect(Math.abs(held.y - before.y)).toBeLessThan(2);
+  expect(Math.abs(held.height - before.height)).toBeLessThan(2);
+  await page.mouse.up();
+});
+
 test("all the way up the dry run plays at the foot under the nav log, the row it is flying to tinted and kept in sight", async ({ page }) => {
   // The owner's asks: "I wanna be able to do the dry run with navlog in
   // full fpl"; "keep the profile at the bottom as you pull up the
