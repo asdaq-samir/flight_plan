@@ -884,11 +884,13 @@ export default function NavLogView({
               {fuelNote}
               {!local && hopsNote}
             </SectionPane>
-            {/* The same legs from the side, and the figures the altitude was
-                chosen within: asked for once the log is whole, so its
-                terrain read does not hold up the legs' (the planner is one
-                process). */}
-            {!local && ends && <RouteProfileSection ends={ends} rows={data} wanted={!!totals || printing} eager={printing} />}
+            {/* The same legs from the side on paper only: on screen the side
+                view pinned at the sheet's foot is the one, the log scrolling
+                over it, at the owner's ask ("let's cleanup the clutter with
+                redesign. Keep the profile pinned at the bottom as you pull up
+                the navlog"). Then the figures the altitude was chosen
+                within. */}
+            {!local && ends && printing && <RouteProfileSection ends={ends} rows={data} />}
             {!local && tabContent("profile")}
             {tabContent("enroute")}
           </section>

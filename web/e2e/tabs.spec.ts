@@ -86,11 +86,12 @@ test("the weather goes place by place, each TAF read for when the flight is ther
     ];
   });
   await planned(page);
-  // En route's sections one under another, after the legs and the profile.
+  // En route's sections one under another, after the legs: the side view
+  // is the one pinned at the sheet's foot.
   await openTab(page, "En route");
   await expect.poll(() => sideDrawer(page).locator('[data-tab="enroute"] [data-title]')
     .evaluateAll(sections => sections.map(s => s.getAttribute("data-title"))))
-    .toEqual(["Legs", "Profile", "Cruise Altitude", "Adverse Conditions", "Along the Route", "Winds Aloft"]);
+    .toEqual(["Legs", "Cruise Altitude", "Adverse Conditions", "Along the Route", "Winds Aloft"]);
   await openSection(page, "Along the Route");
   const enRoute = sideDrawer(page).locator('[data-tab="enroute"]').getByTestId("weather-places");
   await expect(enRoute).toBeVisible();
