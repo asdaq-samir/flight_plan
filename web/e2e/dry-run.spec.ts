@@ -149,10 +149,20 @@ test("half way the side view is whole, its dry run plays under the route's chips
   // The side view at its ten rem, nothing of it given way.
   const side = start.locator("xpath=ancestor::*[@data-pill-hides][1]");
   expect((await side.boundingBox())!.height).toBeGreaterThanOrEqual(159);
+  // The chart's level as the route was fitted, a quarter level at that:
+  // the run follows its airplane at it, the chart not drawn again at the
+  // whole level beside it (the owner's "When tapping play for a dry run,
+  // the map seems to reload").
+  const level = () => page.evaluate(() => [...document.querySelectorAll<HTMLElement>(".leaflet-tile-container")]
+    .filter(c => c.querySelector(".leaflet-tile-loaded")).map(c => c.style.transform.match(/scale\(([\d.]+)\)/)?.[1] ?? "1").join());
+  await settled(panel);
+  const fitted = await level();
   await start.click();
   const run = panel.getByTestId("dry-run");
   await expect(run).toBeVisible();
   await expect(panel.getByTestId("route-brief")).toBeVisible();
+  await page.waitForTimeout(1500);
+  expect(await level()).toBe(fitted);
   // Dragged up and held: the run where it was and its size, the nav log
   // coming out over it.
   await settled(panel);

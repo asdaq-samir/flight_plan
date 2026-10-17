@@ -4,7 +4,7 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Circle, Marker, useMap, useMapEvents } from "react-leaflet";
 import { nearestQuery } from "../queryClient";
 import { glideRangeNm } from "./glide";
-import { centreClear } from "./clear";
+import { centreClear, panClear } from "./clear";
 import { ownShipIcon } from "./icons";
 import { COUNTRY_ZOOM, OPEN_ZOOM, useOwnShip } from "./ownShip";
 import { usePreferences } from "../preferences";
@@ -97,7 +97,7 @@ export function OwnShipLayer() {
       map.flyTo(target, zoom, { duration: 0.8 });
       return;
     }
-    map.panTo(centreClear(map, [fix.lat, fix.lon], map.getZoom()), { animate: true, duration: 0.5 });
+    panClear(map, [fix.lat, fix.lon], { animate: true, duration: 0.5 });
   }, [map, enabled, fix, follow, recentred, recentreZoom]);
   // The still-air glide from the GPS's altitude over the nearest field
   // (lib/map/glide), a dashed ring in the air, as an EFB's glide advisor

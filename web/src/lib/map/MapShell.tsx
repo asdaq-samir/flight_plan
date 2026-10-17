@@ -14,7 +14,7 @@ import { ChartTiles } from "./ChartTiles";
 import { OverlayTiles } from "./OverlayTiles";
 import { ClassBLayer } from "./ClassBLayer";
 import { ResizeAware } from "./MapEffects";
-import { centreClear, centreClearFor } from "./clear";
+import { centreClearFor, panClear } from "./clear";
 // The marks held to the chart under a pinch: a patch to Leaflet's markers.
 import "./pinch";
 import { OwnShipLayer } from "./OwnShipLayer";
@@ -240,7 +240,7 @@ export function MapShell({ course, onReady, children, onSelectPlace, held = fals
     if (what === "route") fit(true);
     else if (what === "ship") {
       const ship = useOwnShip.getState().fix;
-      if (ship) map.panTo(centreClear(map, [ship.lat, ship.lon], map.getZoom()), { animate: true, duration: SHEET_SECONDS });
+      if (ship) panClear(map, [ship.lat, ship.lon], { animate: true, duration: SHEET_SECONDS });
     }
   }, [insets, map, course, bounds, routeKey, held, fit]);
 
