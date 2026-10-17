@@ -371,43 +371,44 @@ test("a finger's swipe across the panel goes to the tab beside it, and a short o
   await settle(page);
   await grabberTo(page, "half");
   const panel = sideDrawer(page);
-  // A finger's pointer events, from one point to another on the panel.
-  const swipe = async (fromX: number, toX: number) => {
-    const box = (await panel.boundingBox())!;
-    // On the tab bar's row: what is under it changes with the tab, and
-    // a row that slides sideways keeps the finger.
-    const bar = (await panel.getByTestId("tab-bar").boundingBox())!;
-    const y = bar.y + bar.height / 2;
-    await panel.evaluate((el, [x0, x1, at]) => {
-      const target = document.elementFromPoint(x0, at) ?? el;
+  // A finger's pointer events across the panel, `by` points sideways.
+  const swipe = async (by: number) => {
+    // On the tab bar's row, in its margin beside the tabs: what is under
+    // the row changes with the tab, a row that slides sideways keeps the
+    // finger, and on the tabs themselves a finger slides their lens.
+    const row = (await panel.getByTestId("tab-bar").locator("xpath=..").boundingBox())!;
+    const x0 = by > 0 ? row.x + 5 : row.x + row.width - 5;
+    const y = row.y + row.height / 2;
+    await panel.evaluate((el, [from, to, at]) => {
+      const target = document.elementFromPoint(from, at) ?? el;
       const opts = { bubbles: true, cancelable: true, composed: true, isPrimary: true, pointerId: 7, pointerType: "touch" };
-      target.dispatchEvent(new PointerEvent("pointerdown", { ...opts, clientX: x0, clientY: at }));
-      target.dispatchEvent(new PointerEvent("pointerup", { ...opts, clientX: x1, clientY: at + 4 }));
-    }, [box.x + fromX, box.x + toX, y]);
+      target.dispatchEvent(new PointerEvent("pointerdown", { ...opts, clientX: from, clientY: at }));
+      target.dispatchEvent(new PointerEvent("pointerup", { ...opts, clientX: to, clientY: at + 4 }));
+    }, [x0, x0 + by, y]);
   };
   const up = () => panel.locator('[data-testid="tab-bar"] button[aria-current="page"]');
   await showTabs(page);
   await expect(up()).toHaveAttribute("data-testid", "tab-fpl");
   // FPL first (the owner's "Swap fpl and aircraft tab positions"): to the
   // right, nothing before it; to the left, the next, Airport; back.
-  await swipe(120, 250);
+  await swipe(130);
   await showTabs(page);
   await expect(up()).toHaveAttribute("data-testid", "tab-fpl");
-  await swipe(250, 120);
+  await swipe(-130);
   await showTabs(page);
   await expect(up()).toHaveAttribute("data-testid", "tab-airport");
-  await swipe(120, 250);
+  await swipe(130);
   await showTabs(page);
   await expect(up()).toHaveAttribute("data-testid", "tab-fpl");
   // Short of 50 points: nothing.
-  await swipe(200, 170);
+  await swipe(-30);
   await showTabs(page);
   await expect(up()).toHaveAttribute("data-testid", "tab-fpl");
   // On through Airport and Aircraft to Setup, the last. (From md up its
   // console is a sheet of its own, over the page, which the swipe back
   // would land on.)
   for (const next of ["tab-airport", "tab-aircraft", "setup-button"]) {
-    await swipe(250, 120);
+    await swipe(-130);
     await showTabs(page);
     await expect(up()).toHaveAttribute("data-testid", next);
   }
