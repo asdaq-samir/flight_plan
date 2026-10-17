@@ -16,17 +16,17 @@ test("plan page: a click or Enter selects a nav log checkpoint, with the briefin
   const table = page.getByRole("table", { name: /Navigation log from/i });
   // The rows arrive with the scored checkpoints; wait for more than
   // the departure and the destination.
-  await expect.poll(async () => table.locator("tbody tr[data-selected], tbody tr").count(), { timeout: slow(15000) }).toBeGreaterThan(4);
+  await expect.poll(async () => table.locator('[role="row"][data-kind]').count(), { timeout: slow(15000) }).toBeGreaterThan(4);
   // And the legs: their tops of climb and descent are rows of their own,
   // put in as the legs arrive, and a row counted before them moves.
   await expect(page.getByTestId("fuel-check")).toBeVisible({ timeout: slow(120000) });
-  const selectedRow = table.locator("tbody tr[data-selected]");
+  const selectedRow = table.locator('[role="row"][data-selected]');
   await expect(selectedRow).toHaveCount(0);
 
   // Each row led by its point's mark as the map draws it: the fields'
   // symbols at the ends, the checkpoints' dots numbered as the map's are,
   // from 1 in the order flown, and a top of climb's tag.
-  const marks = await table.locator("tbody tr[tabindex='0'] [data-mark]")
+  const marks = await table.locator('[role="row"][tabindex="0"] [data-mark]')
     .evaluateAll(els => els.map(e => [e.getAttribute("data-mark") ?? "", (e.textContent ?? "").trim()] as const));
   expect(marks[0]![0]).toBe("airport");
   expect(marks.at(-1)![0]).toBe("airport");
@@ -40,7 +40,7 @@ test("plan page: a click or Enter selects a nav log checkpoint, with the briefin
   // by its words: a leg the clouds leave no altitude on gains its
   // warning when the altitude streams in, after the rows, and a name
   // read before that was compared with one read after.
-  const rows = table.locator("tbody tr[tabindex='0']");
+  const rows = table.locator('[role="row"][tabindex="0"]');
   await rows.nth(2).click();
   await expect(selectedRow).toHaveCount(1);
   await expect(rows.nth(2)).toHaveAttribute("data-selected");
@@ -89,7 +89,7 @@ test("plan page: a checkpoint picked on the map is brought to the middle of the 
   // no title to find and press first.
   const table = page.getByRole("table", { name: /Navigation log from/i });
   await expect(table).toBeVisible();
-  const selectedRow = table.locator("tbody tr[data-selected]");
+  const selectedRow = table.locator('[role="row"][data-selected]');
   await expect(selectedRow).toHaveCount(1);
   const scroller = sideDrawer(page).getByTestId("navlog-scroller");
   const middle = async () => {
@@ -103,12 +103,9 @@ test("plan page: a checkpoint picked on the map is brought to the middle of the 
   await expect.poll(middle, { timeout: slow(10000) }).toBeLessThan(0.25);
 
   // The row above it, in view beside it, clicked: selected, and
-  // nothing moves. Clicked on its first cell, where a finger would: on
-  // a desktop the table scrolls sideways inside the drawer, and the
-  // middle of the row, where a bare click lands, is past the drawer's
-  // edge -- over the map, so Playwright scrolled the drawer to reach it.
-  const rows = table.locator("tbody tr[tabindex='0']");
-  const index = await selectedRow.evaluate(row => Array.from(row.parentElement!.querySelectorAll("tr[tabindex='0']")).indexOf(row));
+  // nothing moves. Clicked on its name, where a finger would.
+  const rows = table.locator('[role="row"][tabindex="0"]');
+  const index = await selectedRow.evaluate(row => Array.from(row.closest('[role="table"]')!.querySelectorAll('[role="row"][tabindex="0"]')).indexOf(row));
   const neighbour = rows.nth(index - 1);
   // In view whole first, as the claim is about: centred to within a
   // quarter of the middle, the row above can sit half under the top
@@ -122,10 +119,9 @@ test("plan page: a checkpoint picked on the map is brought to the middle of the 
   // in give a row above a second line -- 22 px, on a CI phone.
   const onScreen = async () => (await neighbour.boundingBox())!.y;
   const before = await onScreen();
-  await neighbour.locator("td").first().click();
-  // By the cell's words: its mark (PointMark) is a box of its own, which
-  // innerText sets on a line apart.
-  await expect(selectedRow.first().locator("td").first()).toHaveText((await neighbour.locator("td").first().textContent()) ?? "");
+  await neighbour.getByRole("rowheader").click();
+  // By its name.
+  await expect(selectedRow.first().getByRole("rowheader")).toHaveText((await neighbour.getByRole("rowheader").textContent()) ?? "");
   await page.waitForTimeout(400);
   expect(Math.abs((await onScreen()) - before)).toBeLessThan(2);
 
@@ -138,9 +134,9 @@ test("plan page: a checkpoint picked on the map is brought to the middle of the 
 
   // The selected row clicked again: deselected, and its note closed.
   await expect(selectedRow).toHaveAttribute("data-expanded", "true");
-  await neighbour.locator("td").first().click();
+  await neighbour.getByRole("rowheader").click();
   await expect(selectedRow).toHaveCount(0);
-  await expect(table.locator('tbody tr[data-expanded="true"]')).toHaveCount(0);
+  await expect(table.locator('[role="row"][data-expanded="true"]')).toHaveCount(0);
 });
 
 test("plan page: the briefing's nav log scrolls inside the drawer, not the page", async ({ page }) => {
@@ -157,15 +153,9 @@ test("plan page: the briefing's nav log scrolls inside the drawer, not the page"
 
   const scroller = page.getByTestId("navlog-scroller");
   const info = await scroller.evaluate(el => ({ scrollWidth: el.scrollWidth, clientWidth: el.clientWidth }));
-  // A route's worth of columns (12, `whitespace-nowrap`) at a phone
-  // width is wider than the viewport -- the scroller itself should be
-  // the thing that overflows and scrolls, which is only meaningful to
-  // assert once it actually has content (the "reading"/generating
-  // placeholder is a single centered line, not the wide table).
-  const hasTable = await scroller.locator("table").count();
-  if (hasTable > 0) {
-    expect(info.scrollWidth).toBeGreaterThanOrEqual(info.clientWidth);
-  }
+  // The log a line a point, as wide as the drawer: nothing past its
+  // side, the scroller scrolling down alone.
+  expect(info.scrollWidth).toBeLessThanOrEqual(info.clientWidth + 1);
 });
 
 test("plan page: iOS never zooms the page in on a phone's field: the viewport forbids it, and every field but the nav log's notes is 16px", async ({ page }) => {
@@ -189,13 +179,13 @@ test("plan page: iOS never zooms the page in on a phone's field: the viewport fo
   // its title is clicked, and each under its own row, closed until
   // that row is selected.
   await openTab(page, "Nav Log");
-  const rows = sideDrawer(page).locator("table tbody tr[data-kind='checkpoint']");
+  const rows = sideDrawer(page).locator('[role="row"][data-kind="checkpoint"]');
   await expect.poll(() => rows.count(), { timeout: slow(15000) }).toBeGreaterThan(0);
   await rows.first().click();
   await expect.poll(() => page.locator("textarea").count(), { timeout: slow(15000) }).toBeGreaterThan(0);
   const small = await page.evaluate(() =>
     [...document.querySelectorAll<HTMLElement>("input, textarea, select")]
-      .filter(el => !el.closest('[data-testid="navlog-scroller"] tbody'))
+      .filter(el => !el.closest('[data-testid="navlog-list"]'))
       .map(el => ({
         field: el.getAttribute("aria-label") ?? el.getAttribute("placeholder") ?? el.tagName,
         px: parseFloat(getComputedStyle(el).fontSize),

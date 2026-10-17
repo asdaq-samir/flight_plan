@@ -58,7 +58,7 @@ test("a stop added in the panel lands the route there: the capsule, the nav log 
   // The nav log lands at it, at the field's elevation, and the fuel is
   // checked flight by flight.
   await openTab(page, "Nav Log");
-  const landing = sideDrawer(page).locator("tr", { hasText: "KMSN" });
+  const landing = sideDrawer(page).locator('[role="row"][data-kind]', { hasText: "KMSN" });
   await expect(landing).toBeVisible({ timeout: slow(30000) });
   const fuel = sideDrawer(page).getByTestId("fuel-check");
   await expect(fuel).toContainText("C81 → KMSN", { timeout: slow(30000) });

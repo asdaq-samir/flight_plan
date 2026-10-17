@@ -32,6 +32,7 @@ import RouteProfileSection from "./RouteProfileSection";
 import { dryRunRow, type DryRun } from "./dryRun";
 import { DRY_RUN, usePastFlight } from "../../../../lib/map/pastFlight";
 import { PointMark } from "./PointMark";
+import { NavLogList } from "./NavLogList";
 
 
 // TanStack Table's own extension point for arbitrary per-column data --
@@ -409,6 +410,14 @@ export default function NavLogView({
         : <WandSparkles className="size-5" />}
     </IconButton>
   );
+  // Without the subscription the wand says what it would do and how to
+  // have it, beside it (PaidPrompt), rather than writing.
+  const wandSlot = descriptionsHidden ? null : descriptionsPaywall ? (
+    <Popover>
+      <PopoverTrigger asChild>{wand}</PopoverTrigger>
+      <PopoverContent className="w-80 p-0" data-testid="descriptions-paywall">{descriptionsPaywall}</PopoverContent>
+    </Popover>
+  ) : wand;
   const columns: ColumnDef<typeof navLogTableFeatures, NavLogRow>[] = [
     {
       id: "waypoint",
@@ -420,14 +429,7 @@ export default function NavLogView({
       // its own.
       header: () => (
         <span className="inline-flex items-center">
-          {/* Without the subscription the wand says what it would do and
-              how to have it, beside it (PaidPrompt), rather than writing. */}
-          {descriptionsHidden ? null : descriptionsPaywall ? (
-            <Popover>
-              <PopoverTrigger asChild>{wand}</PopoverTrigger>
-              <PopoverContent className="w-80 p-0" data-testid="descriptions-paywall">{descriptionsPaywall}</PopoverContent>
-            </Popover>
-          ) : wand}
+          {wandSlot}
           Waypoint
         </span>
       ),
@@ -587,7 +589,7 @@ export default function NavLogView({
   // the drawer had opened, so a reveal asked for then found no row and the
   // pick was left under the drawer's foot (checkpoints.spec, one run in
   // three with two workers). Its arrival is a reason to look again.
-  const [selectedRow, setSelectedRow] = useState<HTMLTableRowElement | null>(null);
+  const [selectedRow, setSelectedRow] = useState<HTMLElement | null>(null);
   // The row the dry run is flying to, at the owner's ask ("I wanna be
   // able to do the dry run with navlog in full fpl"): a row at a time (the
   // run's every frame is not this view's), brought into sight as it moves
@@ -595,7 +597,7 @@ export default function NavLogView({
   // once in sight -- all the way up only: half way the sheet shows the
   // route and the run's chart, which a scroll to the log would move.
   const flying = usePastFlight(p => (dryRun && p.hex === DRY_RUN && p.at !== null ? dryRunRow(dryRun, p.at) : null));
-  const [flyingRow, setFlyingRow] = useState<HTMLTableRowElement | null>(null);
+  const [flyingRow, setFlyingRow] = useState<HTMLElement | null>(null);
   useEffect(() => (drawerOpen ? revealRow(flyingRow) : undefined), [flyingRow, flying, drawerOpen]);
   // Whether the table fits the drawer's width (see navLogTable): watched,
   // since a departure time adds a column and the text size moves every
@@ -639,6 +641,40 @@ export default function NavLogView({
   }, [fuelAsked, fuelCheck]);
   const isSelected = (lat: number, lon: number) =>
     !!selectedPoint && descriptionKey(lat, lon) === descriptionKey(selectedPoint.lat, selectedPoint.lon);
+  // What opens under a row -- the selected one on screen, every one on
+  // paper: the leg's figures a phone has no room for, and the checkpoint's
+  // description or the field's name, the training drawer's rating buttons'
+  // way: every row open at once was three lines a waypoint, and a log of
+  // twenty scrolled for a screen and a half.
+  const noteOf = (r: NavLogRow, rowSelected: boolean) => {
+    const leg = legOf(r);
+    return (
+      <>
+        {leg && <LegLine leg={leg} at={rowPoint(r)} />}
+        {r.kind === "departure" ? (
+          // The departure airport's own name, not editable and never
+          // AI-generated -- there's no "how to spot it" for an airport and
+          // no LLM service behind this one, just a fact the course
+          // response already carries. Same slot a checkpoint's own
+          // description sits in, so the pair still reads as one group.
+          (r.airport.name ?? "—")
+        ) : isLegPoint(r) ? (
+          legPointNote(r.point, r.kind === "tod" ? r.point : null)
+        ) : r.kind === "checkpoint" ? (
+          <DescriptionCell
+            description={descriptions[r.key]}
+            onSave={text => onSaveDescription(r.cp.lat, r.cp.lon, text)}
+            selected={rowSelected}
+            onFocus={() => onSelectPoint(r.cp.lat, r.cp.lon)}
+          />
+        ) : (
+          // The destination airport's own name -- the same plain,
+          // non-editable treatment as the departure's.
+          (r.airport.name ?? "—")
+        )}
+      </>
+    );
+  };
 
   // The table itself. With the briefing's sections under it, the table
   // scrolls sideways inside its own container so the sections below
@@ -738,35 +774,7 @@ export default function NavLogView({
                   selects it, on the map too, and opens it. On paper
                   every row is open. */}
               {(rowSelected || printing) && (
-              <NoteRow selected={rowSelected} colSpan={columns.length}>
-                {leg && <LegLine leg={leg} at={rowPoint(r)} />}
-                {r.kind === "departure" ? (
-                  // The departure airport's own name, not editable
-                  // and never AI-generated -- there's no "how to
-                  // spot it" for an airport and no LLM service
-                  // behind this one, just a fact the course
-                  // response already carries. Same slot a
-                  // checkpoint's own description sits in, and
-                  // inverts the same way when selected, so the
-                  // pair still reads as one group.
-                  (r.airport.name ?? "—")
-                ) : isLegPoint(r) ? (
-                  legPointNote(r.point, r.kind === "tod" ? r.point : null)
-                ) : r.kind === "checkpoint" ? (
-                  <DescriptionCell
-                    description={descriptions[r.key]}
-                    onSave={text => onSaveDescription(r.cp.lat, r.cp.lon, text)}
-                    selected={rowSelected}
-                    onFocus={() => onSelectPoint(r.cp.lat, r.cp.lon)}
-                  />
-                ) : (
-                  // The destination airport's own name -- same
-                  // plain, non-editable treatment as the
-                  // departure's own row above; see NoteRow's own
-                  // comment.
-                  (r.airport.name ?? "—")
-                )}
-              </NoteRow>
+                <NoteRow selected={rowSelected} colSpan={columns.length}>{noteOf(r, rowSelected)}</NoteRow>
               )}
             </Fragment>
           );
@@ -774,6 +782,28 @@ export default function NavLogView({
       </TableBody>
     </Table>
     </div>
+  );
+
+  // On screen the log a line a point (NavLogList), under a heading of its
+  // own with the wand that writes the checkpoints' descriptions; the table
+  // above is the printed page's.
+  const checkpointCount = data.filter(r => r.kind === "checkpoint").length;
+  const navLogList = data.length === 0 ? (
+    <p className={cn("py-3", TEXT.detail)}>No route planned yet</p>
+  ) : (
+    <>
+      <div className="flex items-center justify-between pt-2 pl-1.5" data-testid="navlog-head">
+        <span className={GROUP_HEADING}>{checkpointCount} checkpoint{checkpointCount === 1 ? "" : "s"}</span>
+        <span className="mr-0.5 flex items-center">{wandSlot}</span>
+      </div>
+      <NavLogList
+        rows={data} label={`Navigation log from ${dep} to ${dest}`}
+        numberOf={r => (r.kind === "checkpoint" ? numbers.get(r.key) : undefined)} weather={metarColourOf}
+        isSelected={r => { const { lat, lon } = rowPoint(r); return isSelected(lat, lon); }}
+        onSelect={r => { const { lat, lon } = rowPoint(r); onSelectPoint(lat, lon); }} onDeselect={onDeselectPoint}
+        flying={flying} selectedRef={setSelectedRow} flyingRef={setFlyingRow} depart={depart} note={noteOf}
+      />
+    </>
   );
 
   // What has to be said over the table, as rows: legs flown without wind,
@@ -861,7 +891,7 @@ export default function NavLogView({
   const legsSection = (
     <SectionPane title={LEGS} heading={printing && !local}>
       {!local && summary}
-      {!local && navLogTable}
+      {!local && (printing ? navLogTable : navLogList)}
       <div ref={setFuelCheck}>{fuelNote}</div>
       {!local && hopsNote}
     </SectionPane>

@@ -39,22 +39,16 @@ test("the nav log fits a phone's panel with long names, five-figure altitudes an
   await settle(page);
   await expect(page.getByTestId("navlog-eta")).toBeVisible({ timeout: slow(120000) });
   await openTab(page, "Nav Log");
-  const container = page.getByTestId("navlog-scroller").locator('[data-slot="table-container"]');
-  await expect(container.locator("tbody tr").first()).toBeVisible();
-  await expect(container.locator("tbody")).toContainText("10,500");
-  await expect(container.locator("thead")).toContainText("ETA");
-  const overflow = await container.evaluate(el => el.scrollWidth - el.clientWidth);
+  const scroller = page.getByTestId("navlog-scroller");
+  const log = scroller.getByTestId("navlog-list");
+  await expect(log.locator('[role="row"][data-kind]').first()).toBeVisible();
+  await expect(log).toContainText("10,500");
+  // Every row's time, the departure's the time picked, all on the
+  // drawer's width: nothing past its side.
+  await expect(log.getByTestId("navlog-row-eta").first()).toHaveText(/^\d\d:\d\d$/);
+  const overflow = await scroller.evaluate(el => el.scrollWidth - el.clientWidth);
   expect(overflow).toBeLessThanOrEqual(1);
-  // Scrolled, its headings stick at the scroller's top: its sections are
-  // one under another, no pills over them (the owner's "Make the subtabs
-  // into sections").
-  await page.getByTestId("navlog-scroller").evaluate(el => { el.scrollTop = 400; });
-  const [scroller, head] = await Promise.all([
-    page.getByTestId("navlog-scroller").boundingBox(),
-    container.locator("thead").boundingBox(),
-  ]);
-  expect(Math.abs(head!.y - scroller!.y)).toBeLessThanOrEqual(1);
-  await expect(page.getByTestId("navlog-scroller").locator('[data-testid="section-tabs"]')).toHaveCount(0);
+  await expect(scroller.locator('[data-testid="section-tabs"]')).toHaveCount(0);
   await controlsInSight(page);
 });
 

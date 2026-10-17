@@ -61,8 +61,8 @@ export const SCREENS: Screen[] = [
       // where the table is wider than its drawer (every column, on a
       // phone on its side or an iPad), that scrolled it to its far end,
       // which no finger does.
-      await page.locator("tbody tr[data-kind='checkpoint']").nth(2).dispatchEvent("click");
-      await expect(page.locator("tbody textarea").first()).toBeVisible();
+      await page.locator('[role="row"][data-kind="checkpoint"]').nth(2).dispatchEvent("click");
+      await expect(page.getByTestId("navlog-list").locator("textarea").first()).toBeVisible();
     },
   },
   // The Brief's pages, each laid out once its briefing is in: the

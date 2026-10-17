@@ -58,21 +58,27 @@ test("Preflight opens on its Go / No-Go: VFR not recommended is no-go, marked on
   await page.unrouteAll({ behavior: "ignoreErrors" });
 });
 
-test("preflight action is 14 CFR 91.103's list to tick, with what the planner found for each", async ({ page }) => {
+test("Preflight's checks are the Go / No-Go's and 14 CFR 91.103's, a tile each, counted as they are looked at", async ({ page }) => {
+  // The owner's pick of the redesign: the answer first, every check a tile
+  // opening where it is said in full, the paperwork folded under them.
   await planned(page);
   const drawer = sideDrawer(page);
   await openTab(page, "Brief");
-  await openSection(page, "Preflight Action");
-  await expect(drawer.getByTestId("preflight-count")).toHaveText("0 of 7 reviewed");
-  // Each item's words are its row's, beside the box that carries its test
-  // id and its tick (ListRow's stock Checkbox).
-  const row = (item: string) => drawer.getByTestId(`preflight-${item}`).locator('xpath=ancestor::*[@data-slot="item"][1]');
-  await expect(row("runways")).toContainText(/C81 [\d,]+ ft · KDLH [\d,]+ ft/);
-  await expect(row("distances")).toContainText("91.103(b)");
-  await drawer.getByTestId("preflight-weather").click();
-  await drawer.getByTestId("preflight-fuel").click();
-  await expect(drawer.getByTestId("preflight-fuel")).toHaveAttribute("aria-checked", "true");
-  await expect(drawer.getByTestId("preflight-count")).toHaveText("2 of 7 reviewed");
+  await expect(drawer.getByTestId("preflight-count")).toHaveText("0 of 10 looked at");
+  // The two the planner does not fetch, where a pilot reads them.
+  await expect(drawer.getByTestId("check-notams")).toHaveAttribute("href", "https://www.1800wxbrief.com");
+  await expect(drawer.getByTestId("check-delays")).toHaveAttribute("href", "https://www.fly.faa.gov");
+  // A tile opened is a check looked at: the weather's opens En route.
+  await drawer.getByTestId("verdict-weather").click();
+  await expect(panelTabs(page).getByRole("tab", { name: "En route", exact: true })).toHaveAttribute("aria-selected", "true");
+  await openTab(page, "Preflight");
+  await expect(drawer.getByTestId("verdict-weather")).toHaveAttribute("data-looked", "true");
+  // The loading's opens its own section here, folded until then.
+  const balance = drawer.locator('[data-tab="preflight"] [data-title="Weight & Balance"]');
+  await expect(balance).toHaveAttribute("data-state", "closed");
+  await drawer.getByTestId("verdict-balance").click();
+  await expect(balance).toHaveAttribute("data-state", "open");
+  await expect(drawer.getByTestId("preflight-count")).toHaveText("2 of 10 looked at");
 });
 
 test("the weather goes place by place, each TAF read for when the flight is there, the pilot reports where they were made", async ({ page }) => {

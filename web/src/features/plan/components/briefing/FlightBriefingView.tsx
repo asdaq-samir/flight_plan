@@ -37,8 +37,10 @@ import { useVerdict, verdictItems, type VerdictItem } from "../../../../lib/verd
 import { callSign } from "../../../../lib/radio";
 import { shortName } from "../../../../lib/aircraftChoice";
 import AirportSections from "./AirportSections";
-import BriefVerdict from "./BriefVerdict";
-import PreflightAction from "./PreflightAction";
+import BriefChecks from "./BriefChecks";
+import { Accordion } from "../../../../components/ui/accordion";
+import { SectionsOpen } from "../../../../components/sectionLayout";
+import { usePrinting } from "../../../../lib/usePrinting";
 import PassengerBriefing from "./PassengerBriefing";
 import { passengerMessage } from "../../../../lib/passengers";
 import WeatherAlongRoute from "./WeatherAlongRoute";
@@ -472,6 +474,10 @@ const NO_STOPS: string[] = [];
 
 // Drawn again only when its plan changes (memo): every tab is one of
 // these, and the page draws again at every row picked in the nav log.
+/** Preflight's sections its checks' tiles open (BriefChecks): the
+ *  airspace's, the risk's and the loading's. */
+const TILE_SECTIONS = ["TFRs & Special Use", "Risk Assessment", "Weight & Balance"];
+
 export default memo(function FlightBriefingView({
   part, publish = false, nav, legs, dep, dest, stops = NO_STOPS, route = NO_STOPS, procedures, course = null, totals = null, depart = "",
   briefing: briefingState,
@@ -648,6 +654,12 @@ export default memo(function FlightBriefingView({
   }, [itemsKey, setItems, publish]);
   useEffect(() => () => { if (publish) setItems([]); }, [setItems, publish]);
 
+  // Preflight's sections a tile opens and the paperwork, folded on screen
+  // under the checks (BriefChecks), each opened by its tile or a tap on
+  // its title; on paper, laid open.
+  const printing = usePrinting();
+  const [folds, setFolds] = useState<string[]>([]);
+
   if (part === null) return null;
 
   // The flight plan's airplane: the pilot's own by its registration and
@@ -670,23 +682,6 @@ export default memo(function FlightBriefingView({
     alternate: totals?.alternate?.ident ?? null,
     departureProcedure: procedures?.departure, arrivalProcedure: procedures?.arrival,
   }) : [];
-
-  // Preflight action (14 CFR 91.103): what the planner found for each.
-  const finding = (key: VerdictItem["key"]) => {
-    const item = items.find(i => i.key === key)!;
-    return { finding: item.finding, detail: item.detail };
-  };
-  const longest = (ident: string) => Math.max(0, ...(briefing?.airports[ident]?.runways ?? []).filter(r => !r.closed).map(r => r.length_ft ?? 0));
-  const found: Record<string, { finding?: Finding; detail: string }> = {
-    notams: { detail: "Not fetched here: read them at 1800wxbrief.com, below" },
-    weather: finding("weather"),
-    delays: { detail: "Not fetched here: fly.faa.gov, below" },
-    runways: !briefing ? { finding: "pending", detail: "Fetching the runways…" }
-      : { finding: "ok", detail: landings.map(i => `${i} ${longest(i) ? `${altFt(longest(i))} ft` : "no length published"}`).join(" · ") },
-    alternatives: { detail: "Airports near the route are on the chart; a leg's Divert works one out from there" },
-    fuel: finding("fuel"),
-    distances: finding("runways"),
-  };
 
   return (
     // No header, title or scroller of its own: the planning panel's tabs
@@ -711,7 +706,17 @@ export default memo(function FlightBriefingView({
               section (BriefNarrative), whose framework is a setting. */}
           <BriefingNarrativePrintBlock langgraph={langgraphNarrative.text} crewai={crewaiNarrative.text} />
 
-          <BriefVerdict items={items} />
+          <BriefChecks
+            items={items} flight={`${landings.join("-")}|${depart}`} here={TILE_SECTIONS}
+            onOpen={section => setFolds(open => (open.includes(section) ? open : [...open, section]))}
+          />
+          {/* What a tile opens, and what is done before leaving -- the
+              paperwork, the passengers -- a row each, at the owner's pick
+              of the redesign: they were laid open, ten screens of them
+              under the Go / No-Go. */}
+          <h3 className={cn("mt-2 px-1 print:hidden", GROUP_HEADING)}>Before you go</h3>
+          <SectionsOpen.Provider value={printing}>
+          <Accordion type="multiple" value={folds} onValueChange={setFolds} data-testid="before-you-go">
           {narrative}
 
           {/* The TFRs within five miles of the route during the flight,
@@ -799,8 +804,6 @@ export default memo(function FlightBriefingView({
             {!assessment ? <Pending>{briefingPendingMessage}</Pending> : <RiskAssessment assessment={assessment} />}
           </AccordionSection>
 
-          <PreflightAction flight={`${landings.join("-")}|${depart}`} found={found} />
-
           {/* The loading, done at home: its envelope and what it changes. */}
           <WeightBalanceSection aircraft={nav?.aircraft} tripFuelGal={totals?.fuel_gal ?? null} />
 
@@ -831,6 +834,8 @@ export default memo(function FlightBriefingView({
               </AccordionSection>
             </div>
           )}
+          </Accordion>
+          </SectionsOpen.Provider>
         </>
       )}
 

@@ -65,7 +65,9 @@ export default function AccordionSection({ title, description, aside, summary, c
     );
   }
   return (
-    <AccordionItem value={title} {...props}>
+    // By its title too, as a laid-open one is: a row elsewhere that opens
+    // it (GoToTab) finds it by that.
+    <AccordionItem value={title} data-title={title} {...props}>
       {/* Bold, over the stock trigger's medium: a section title is what
           the drawer is read by, and medium read as one more line. At a
           row's size (TEXT), its summary and its words at what is read,

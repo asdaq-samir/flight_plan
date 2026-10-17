@@ -115,7 +115,7 @@ test("plan page: the nav log and the summary on screen, the 'planning aid only' 
   // beside the airplane the altitude.
   const drawer = sideDrawer(page);
   await openTab(page, "Nav Log");
-  const navLog = drawer.locator("table");
+  const navLog = drawer.getByRole("table", { name: /Navigation log from/i });
   await expect(drawer.getByRole("table", { name: /Navigation log from/i })).toBeVisible();
   await expect(drawer.getByText("Flight Plan Summary")).toHaveCount(0);
   // Another tab takes its place, and back.

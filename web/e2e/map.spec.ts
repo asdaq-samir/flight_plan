@@ -152,9 +152,9 @@ test("plan page: VFR Checkpoints draws the route's checkpoints and the landmarks
   await expect(landmarks).toHaveCount(0);
   await openPanel(page);
   await openTab(page, "Nav Log");
-  const rows = sideDrawer(page).locator("table tbody tr[data-kind]");
+  const rows = sideDrawer(page).locator('[role="row"][data-kind]');
   await expect(page.getByTestId("navlog-eta")).toBeAttached({ timeout: slow(60000) });
-  await expect(sideDrawer(page).locator('table tbody tr[data-kind="checkpoint"]')).toHaveCount(0);
+  await expect(sideDrawer(page).locator('[role="row"][data-kind="checkpoint"]')).toHaveCount(0);
   expect(await rows.count()).toBeGreaterThan(0);
   expect(asked).not.toContain("checkpoints");
 });

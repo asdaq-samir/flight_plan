@@ -14,9 +14,6 @@ export const PAGES = ["/app/plan", "/app/dev"] as const;
  *  with none of the suite's saved session. */
 export function noTips() {
   localStorage.setItem("vfr.tips", JSON.stringify({ state: { seen: ["*"] }, version: 0 }));
-  // The first-launch acknowledgement (lib/limits) given too: its dialog
-  // takes every click. limits.spec starts without it.
-  localStorage.setItem("vfr.limits", JSON.stringify({ state: { acknowledged: true }, version: 0 }));
   // The route's VFR checkpoints on, as a student has them: off by default
   // (lib/preferences), and most specs read the route through them.
   if (!localStorage.getItem("vfr.preferences")) localStorage.setItem("vfr.preferences", JSON.stringify({ state: { waypoints: true }, version: 1 }));
@@ -457,6 +454,11 @@ export async function openSection(page: Page, title: string) {
   // A section drawn again as its tab's content arrives can be detached
   // between finding it and scrolling to it: tried until it holds still.
   await expect(async () => { await here.scrollIntoViewIfNeeded({ timeout: 2000 }); }).toPass({ timeout: 10000 });
+  // A folded one -- Preflight's under its checks -- opened.
+  if ((await here.getAttribute("data-state")) === "closed") {
+    await here.locator('[data-slot="accordion-trigger"]').first().click();
+    await expect(here).toHaveAttribute("data-state", "open");
+  }
 }
 
 /** Once the map has stopped moving: its panes where they were 300 ms
