@@ -76,6 +76,12 @@ const GRABBER = 16;
  *  flights whole and the side view 109 points of its 160; before that
  *  18.6rem, Setup's account and its email whole and no more. */
 const HALF_REM = 23;
+/** The most of all the way up the half sheet takes, so the two stay two
+ *  sizes: on a short screen -- a phone on its side, 402 points -- its rem
+ *  came to all the way up, and a drag up from half had nowhere to go (the
+ *  iOS audit's iphone-landscape, #253). There it is the 328 points the old
+ *  19.75rem made, near enough; on a phone held upright it is not reached. */
+const HALF_MOST = 0.85;
 /** The root's font size, which the text size the reader has set moves:
  *  read once, as the page has it. Read at each of the panel's renders as
  *  the page opened, it made the browser work out the page's styles there
@@ -340,7 +346,7 @@ export default function MapPanel({ label, top, controls, compact, children, stat
       : settling ? capsuleHeight : hasPill && !capsule ? Math.min(capsuleHeight, peek) : peek;
     // Never taller than its rem, whatever a tab holds (the owner's "this
     // tall only"): what does not fit gives way in it.
-    const half = Math.max(lowest, Math.round(HALF_REM * rootPx()) + halfChrome);
+    const half = Math.max(lowest, Math.min(Math.round(HALF_REM * rootPx()) + halfChrome, Math.round(full * HALF_MOST)));
     return { peek: lowest, half: Math.min(half, full), full };
   }, [peek, room, halfChrome, hasPill, capsule, capsuleHeight, settling, bar, fromBottom, capsuleGap]);
   // The body's height at half, for what it shows first to fill and no
