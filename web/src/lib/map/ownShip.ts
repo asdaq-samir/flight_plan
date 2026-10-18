@@ -61,6 +61,10 @@ interface OwnShip {
   /** Follow, and bring the map to the position: at `zoom`, or a local
    *  one. */
   recentre: (zoom?: number) => void;
+  /** Bumped by the location arrow's other face in a dry run, the whole
+   *  route: the map fits the route again (MapShell), and stops following. */
+  routeAsked: number;
+  showRoute: () => void;
 }
 
 /** Where the planner opens on the pilot's position: the region a flight
@@ -199,6 +203,8 @@ export const useOwnShip = create<OwnShip>()(
       },
       setFollow: follow => set({ follow }),
       recentre: zoom => set(s => ({ follow: true, recentred: s.recentred + 1, recentreZoom: zoom ?? null })),
+      routeAsked: 0,
+      showRoute: () => set(s => ({ routeAsked: s.routeAsked + 1 })),
     }),
     {
       name: "vfr.ownship",

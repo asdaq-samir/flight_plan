@@ -119,6 +119,17 @@ export function MapShell({ course, onReady, children, onSelectPlace, held = fals
     fitAtQuarterLevels(map, bounds, padding, fly);
   }, [map, bounds]);
 
+  // The whole route again, asked from the location arrow in a dry run
+  // (MyPositionButton): flown to it, own ship no longer followed.
+  const routeAsked = useOwnShip(s => s.routeAsked);
+  const routeAskedWas = useRef(routeAsked);
+  useEffect(() => {
+    if (routeAsked === routeAskedWas.current) return;
+    routeAskedWas.current = routeAsked;
+    useOwnShip.getState().setFollow(false);
+    fit(true);
+  }, [routeAsked, fit]);
+
   // Fit to the route when it changes.
   //
   // Once per route, not once per `bounds`. The course is a query: it

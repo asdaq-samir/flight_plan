@@ -44,6 +44,7 @@ export function OwnShipLayer() {
   const setFollow = useOwnShip(s => s.setFollow);
   const recentred = useOwnShip(s => s.recentred);
   const recentreZoom = useOwnShip(s => s.recentreZoom);
+  const simulated = useOwnShip(s => s.simulated);
   // Memoized handlers: see `AirportsLayer` -- a literal re-registers on
   // every commit and can miss an event fired during one. Only a pan
   // while own ship is on ends following: `follow` is remembered per
@@ -72,7 +73,10 @@ export function OwnShipLayer() {
       // OPEN_ZOOM) -- or the arrow's close in. From the whole country
       // straight there, as Maps opens on the position: a flight in from the
       // country was a second of the chart streaming by.
-      const zoom = recentreZoom ?? Math.min(map.getMaxZoom(), Math.max(map.getZoom(), LOCAL_ZOOM));
+      // In a dry run at the zoom the map is at: the arrow there takes the
+      // map from the whole route back to the airplane (MyPositionButton),
+      // not in close on it.
+      const zoom = recentreZoom ?? (simulated ? map.getZoom() : Math.min(map.getMaxZoom(), Math.max(map.getZoom(), LOCAL_ZOOM)));
       if (map.getZoom() <= COUNTRY_VIEW) {
         map.setView(centreClear(map, [fix.lat, fix.lon], zoom), zoom, { animate: false });
         return;
@@ -91,14 +95,14 @@ export function OwnShipLayer() {
         // why is there animation in the maps"), 35 points under the pill
         // over half a second. The arrow's recentre still pans.
         if (recentreZoom === OPEN_ZOOM) map.setView(target, zoom, { animate: false });
-        else map.panTo(target, { animate: true, duration: 0.5 });
+        else panClear(map, [fix.lat, fix.lon], { animate: true, duration: 0.5 });
         return;
       }
       map.flyTo(target, zoom, { duration: 0.8 });
       return;
     }
     panClear(map, [fix.lat, fix.lon], { animate: true, duration: 0.5 });
-  }, [map, enabled, fix, follow, recentred, recentreZoom]);
+  }, [map, enabled, fix, follow, recentred, recentreZoom, simulated]);
   // The still-air glide from the GPS's altitude over the nearest field
   // (lib/map/glide), a dashed ring in the air, as an EFB's glide advisor
   // draws it; nothing on the ground. The last field's answer held while
