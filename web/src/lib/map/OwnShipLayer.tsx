@@ -31,7 +31,11 @@ const COUNTRY_VIEW = COUNTRY_ZOOM + 1;
 
 // Constants, not literals: react-leaflet restyles a path whenever its
 // pathOptions is a new object, and own ship draws at every fix.
-const GLIDE_RING: PathOptions = { color: "#16a34a", weight: 2, dashArray: "8 6", fillOpacity: 0, interactive: false };
+// The glide ring in orange over a white halo, at the owner's ask ("Can
+// the glide ring be of a more visible color?"): green, it was lost on the
+// sectional's own greens, and no chart colour is orange.
+const GLIDE_RING: PathOptions = { color: "#ea580c", weight: 3, dashArray: "10 6", fillOpacity: 0, interactive: false };
+const GLIDE_HALO: PathOptions = { color: "#ffffff", weight: 7, opacity: 0.85, fillOpacity: 0, interactive: false };
 const ACCURACY: PathOptions = { color: "#1d4ed8", weight: 1, opacity: 0.5, fillColor: "#3b82f6", fillOpacity: 0.08, interactive: false };
 
 
@@ -125,6 +129,7 @@ export function OwnShipLayer() {
   // children's), then moved on a frame at a time.
   const ship = useRef<L.Marker>(null);
   const ring = useRef<L.Circle>(null);
+  const halo = useRef<L.Circle>(null);
   const accuracy = useRef<L.Circle>(null);
   const shown = useRef<{ lat: number; lon: number } | null>(null);
   useEffect(() => {
@@ -135,6 +140,7 @@ export function OwnShipLayer() {
       const at = L.latLng(from.lat + (fix.lat - from.lat) * k, from.lon + (fix.lon - from.lon) * k);
       ship.current?.setLatLng(at);
       ring.current?.setLatLng(at);
+      halo.current?.setLatLng(at);
       accuracy.current?.setLatLng(at);
     };
     put(0);
@@ -161,10 +167,10 @@ export function OwnShipLayer() {
   return (
     <>
       {glide != null && (
-        <Circle
-          ref={ring} center={[fix.lat, fix.lon]} radius={glide * 1852}
-          pathOptions={GLIDE_RING}
-        />
+        <>
+          <Circle ref={halo} center={[fix.lat, fix.lon]} radius={glide * 1852} pathOptions={GLIDE_HALO} />
+          <Circle ref={ring} center={[fix.lat, fix.lon]} radius={glide * 1852} pathOptions={GLIDE_RING} />
+        </>
       )}
       <Circle
         ref={accuracy} center={[fix.lat, fix.lon]} radius={fix.accuracyM}
