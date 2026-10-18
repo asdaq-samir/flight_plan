@@ -5,6 +5,10 @@ import type { ChartInfo } from "../api/types";
 import { usePreferences } from "../preferences";
 import { LIVE_TILES, chartPair, tileTemplate } from "./tiles";
 
+/** The level of the chart kept under it (below): a region a tile, some
+ *  eleven degrees of longitude, so a route's whole way is one or two. */
+const UNDERLAY_ZOOM = 5;
+
 interface Props {
   /** The chart: a route's course, or the chart alone with no route. */
   chart: ChartInfo;
@@ -77,8 +81,24 @@ export function ChartTiles({ chart, previewing }: Props) {
   useEffect(() => () => { if (prefetchTimer.current) clearTimeout(prefetchTimer.current); }, []);
 
   if (!baseLayer) return null;
+  // The same chart at a region's level under it, always there: one or two
+  // tiles at any zoom, loaded with the first view and kept. Where the
+  // chart's own tiles are not in yet -- round what was in sight as the map
+  // zooms out to a route, the edge of a pan -- the chart shows coarse
+  // rather than grey, as Maps' does, at the owner's notice ("going from
+  // current location to zoom out is not smooth"). Not below its level,
+  // where the chart's own are as coarse.
+  const underlay = Math.max(baseLayer.min_zoom, UNDERLAY_ZOOM);
   return (
     <>
+      {underlay < baseLayer.max_zoom && (
+        <TileLayer
+          key={`${baseLayer.kind}-under`}
+          url={tileTemplate(chart, baseLayer.kind)}
+          minZoom={underlay} maxNativeZoom={underlay} maxZoom={baseLayer.max_zoom + 3}
+          keepBuffer={1} zIndex={0} updateWhenZooming={false}
+        />
+      )}
       <TileLayer
         key={baseLayer.kind} ref={baseRef}
         url={tileTemplate(chart, baseLayer.kind)}

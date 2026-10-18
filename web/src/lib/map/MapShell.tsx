@@ -268,7 +268,7 @@ export function MapShell({ course, onReady, children, onSelectPlace, held = fals
           // minZoom 3 is where the whole country fits a phone screen,
           // and as far out as the chart layer has tiles. On a TV (lib/tv)
           // the map takes the remote's arrows while it is focused, to pan.
-          zoomControl={false} minZoom={3} keyboard={onTv} attributionControl={false}
+          zoomControl={false} minZoom={3} keyboard={onTv} attributionControl={false} zoomAnimationThreshold={12}
           className="h-full w-full bg-slate-100 dark:bg-slate-900"
         >
           {/* A remote has no pinch: Leaflet's own + and - to reach with
@@ -325,7 +325,7 @@ function lineInSight(line: [number, number][], map: L.Map, sight: L.Bounds): boo
 function fitAtQuarterLevels(map: L.Map, bounds: L.LatLngBounds, padding: L.FitBoundsOptions, fly: boolean) {
   const snap = map.options.zoomSnap;
   map.options.zoomSnap = 0.25;
-  if (fly) map.flyToBounds(bounds, { ...padding, duration: SHEET_SECONDS });
+  if (fly) map.fitBounds(bounds, { ...padding, animate: true });
   else map.fitBounds(bounds, padding);
   map.options.zoomSnap = snap;
 }
