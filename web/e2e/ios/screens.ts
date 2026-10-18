@@ -26,17 +26,18 @@ export const SCREENS: Screen[] = [
     },
   },
   {
-    // All the way up: the route, its nav log, the side view and the
-    // figures (FPL's own, the Brief a card of its own).
+    // All the way up: the route's box, the route in order (the nav log a
+    // sheet of its own), the side view and the figures (FPL's own, the
+    // Brief a card of its own).
     name: "flight planning drawer",
     ready: async page => {
       await page.goto(`/app/plan?${ROUTE}&view=briefing`);
-      await expect(sideDrawer(page).getByRole("table", { name: /Navigation log from/i })).toBeVisible({ timeout: slow(30000) });
+      await expect(sideDrawer(page).getByTestId("procedures")).toBeVisible({ timeout: slow(30000) });
       await expect(sideDrawer(page).getByTestId("navlog-eta")).toBeVisible({ timeout: slow(120000) });
     },
   },
   {
-    // Half way: the route's box, the airplane, the time, Approaches and
+    // Half way: the route's box, the airplane, the time, the Nav log and
     // Share, the figures at the card's foot.
     name: "route panel, half way",
     ready: async page => {
