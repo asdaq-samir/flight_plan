@@ -4,7 +4,7 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Circle, Marker, useMap, useMapEvents } from "react-leaflet";
 import { nearestQuery } from "../queryClient";
 import { glideRangeNm } from "./glide";
-import { centreClear, panClear } from "./clear";
+import { centreClear, hideLinesWhileZooming, panClear } from "./clear";
 import { ownShipIcon } from "./icons";
 import { COUNTRY_ZOOM, OPEN_ZOOM, SIMULATED_FIX_MS, useOwnShip } from "./ownShip";
 import { usePreferences } from "../preferences";
@@ -98,9 +98,16 @@ export function OwnShipLayer() {
         else panClear(map, [fix.lat, fix.lon], { animate: true, duration: 0.5 });
         return;
       }
-      map.flyTo(target, zoom, { duration: 0.8 });
+      // Leaflet's own zoom animation, which the browser runs apart from the
+      // page's work, where flyTo drew a frame at a time and stalled while
+      // the page was busy -- a dry run starting, a route arriving.
+      hideLinesWhileZooming(map, zoom);
+      map.setView(target, zoom, { animate: true });
       return;
     }
+    // Not under a zoom still animating (the dry run's start, in on its
+    // airplane): a pan then cut it short. The next fix catches the map up.
+    if ((map as unknown as { _animatingZoom?: boolean })._animatingZoom) return;
     // A dry run's fixes come four a second and own ship glides between
     // them (below): the map goes with it, evenly over the same quarter
     // second, where half a second eased out and cut short by the next fix

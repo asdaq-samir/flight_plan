@@ -14,7 +14,7 @@ import { ChartTiles } from "./ChartTiles";
 import { OverlayTiles } from "./OverlayTiles";
 import { ClassBLayer } from "./ClassBLayer";
 import { ResizeAware } from "./MapEffects";
-import { centreClearFor, panClear } from "./clear";
+import { centreClearFor, hideLinesWhileZooming, panClear } from "./clear";
 // The marks held to the chart under a pinch: a patch to Leaflet's markers.
 import "./pinch";
 import { OwnShipLayer } from "./OwnShipLayer";
@@ -325,7 +325,10 @@ function lineInSight(line: [number, number][], map: L.Map, sight: L.Bounds): boo
 function fitAtQuarterLevels(map: L.Map, bounds: L.LatLngBounds, padding: L.FitBoundsOptions, fly: boolean) {
   const snap = map.options.zoomSnap;
   map.options.zoomSnap = 0.25;
-  if (fly) map.fitBounds(bounds, { ...padding, animate: true });
+  if (fly) {
+    hideLinesWhileZooming(map, map.getBoundsZoom(bounds, false, L.point(0, 0)));
+    map.fitBounds(bounds, { ...padding, animate: true });
+  }
   else map.fitBounds(bounds, padding);
   map.options.zoomSnap = snap;
 }

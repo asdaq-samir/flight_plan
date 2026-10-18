@@ -160,25 +160,20 @@ test("half way the side view is whole, its dry run plays under the route's chips
   // The side view at its ten rem, nothing of it given way.
   const side = start.locator("xpath=ancestor::*[@data-pill-hides][1]");
   expect((await side.boundingBox())!.height).toBeGreaterThanOrEqual(159);
-  // The chart's level as the route was fitted, a quarter level at that:
-  // the run follows its airplane at it, the chart not drawn again at the
-  // whole level beside it (the owner's "When tapping play for a dry run,
-  // the map seems to reload").
-  // Leaflet's level in use is its tile container with the highest z-index;
-  // the others are levels still fading out.
-  const level = () => page.evaluate(() => {
-    const levels = [...document.querySelectorAll<HTMLElement>(".leaflet-tile-pane .leaflet-layer:first-child .leaflet-tile-container")];
-    const now = levels.reduce<HTMLElement | null>((top, c) => (!top || Number(c.style.zIndex) > Number(top.style.zIndex) ? c : top), null);
-    return now?.style.transform.match(/scale\(([\d.]+)\)/)?.[1] ?? "1";
-  });
+  // The finest sectional level drawn (the coarse one kept under the map,
+  // ChartTiles, aside): the route's as it was fitted, then on play the
+  // dry run's, in on its airplane, smoothly (the owner's "When play is
+  // pressed it should also zoom into plane on the route").
+  const level = () => page.evaluate(() => Math.max(0, ...[...document.querySelectorAll<HTMLImageElement>('img.leaflet-tile[src*="/sec/"]')]
+    .map(tile => Number(tile.src.match(/\/sec\/(\d+)\//)?.[1] ?? NaN)).filter(Number.isFinite)));
   await settled(panel);
   const fitted = await level();
   await start.click();
   const run = panel.getByTestId("dry-run");
   await expect(run).toBeVisible();
   await expect(panel.getByTestId("route-brief")).toBeVisible();
-  await page.waitForTimeout(1500);
-  expect(await level()).toBe(fitted);
+  expect(fitted).toBeLessThan(10);
+  await expect.poll(level, { timeout: slow(10_000) }).toBe(10);
   // Dragged up and held: the run where it was and its size, the nav log
   // coming out over it.
   await settled(panel);
