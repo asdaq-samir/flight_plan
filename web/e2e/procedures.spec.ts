@@ -13,11 +13,13 @@ test("a field's traffic pattern is picked by its runway, kept in the address and
   await controlsInSight(page);
   await sideDrawer(page).getByTestId("route-approaches").click();
   const procedures = page.getByTestId("procedures");
-  await expect(procedures).toContainText("C81 · Departure · traffic pattern");
-  const destination = procedures.locator("section").filter({ hasText: "KDLH · Destination" });
+  // The route's fields in the order they are flown, each its runways as
+  // chips under its arrival and approach.
+  await expect(procedures.getByRole("heading").first()).toHaveText("C81 · Depart");
+  const destination = procedures.getByRole("region", { name: "KDLH · Arrive" });
   const runway = destination.getByTestId("procedure-pattern").and(page.locator(":not([disabled])")).first();
   await expect(runway).toBeVisible({ timeout: slow(20000) });
-  const name = (await runway.getByText(/^Runway /).innerText()).replace("Runway ", "");
+  const name = (await runway.innerText()).trim();
   await runway.click();
   await expect(runway).toHaveAttribute("aria-checked", "true");
   await expect(page).toHaveURL(new RegExp(`[?&]pattern=KDLH(%3A|:)${name}`));
@@ -69,11 +71,11 @@ test("a field's approach is picked on its own page with its transition, drawn on
   await sideDrawer(page).getByTestId("route-approaches").click();
   const procedures = page.getByTestId("procedures");
   // The departure's departures: none at C81.
-  const c81 = procedures.locator("section").filter({ hasText: "C81 · instrument procedures" });
-  await expect(c81).toContainText(/Departures\s*None/, { timeout: slow(10000) });
+  const c81 = procedures.getByRole("region", { name: "C81 · Depart" });
+  await expect(c81).toContainText(/Departure\s*None published/, { timeout: slow(10000) });
   // The destination's approaches, a page of their own.
-  const kdlh = procedures.locator("section").filter({ hasText: "KDLH · instrument procedures" });
-  await kdlh.getByRole("button", { name: /^Approaches/ }).click();
+  const kdlh = procedures.getByRole("region", { name: "KDLH · Arrive" });
+  await kdlh.getByTestId("procedure-kind").filter({ hasText: /^Approach/ }).click();
   await expect(page.getByRole("heading", { name: "KDLH approaches" })).toBeVisible();
   // Its own page: drawn on the map from vectors as it opens, before it is
   // added -- the route's address untouched.
@@ -82,6 +84,18 @@ test("a field's approach is picked on its own page with its transition, drawn on
   await expect.poll(() => asked, { timeout: slow(10000) }).toContain("/api/planner/airport/KDLH/procedures/I09");
   await expect(page.locator("path.instrument-procedure").first()).toBeAttached({ timeout: slow(10000) });
   await expect(page).not.toHaveURL(/[?&]procs=/);
+  // Its fixes as they are flown, with the altitudes they are crossed at.
+  const fixes = page.getByTestId("procedure-fixes");
+  await expect(fixes).toContainText(/OFOFO\s*3,500 ft or above/);
+  await expect(fixes).toContainText(/FAKER\s*2,700 ft/);
+  // Back, the round button at the head's start, a page at a time.
+  await page.getByTestId("procedures-back").click();
+  await expect(page.getByRole("heading", { name: "KDLH approaches" })).toBeVisible();
+  await page.getByTestId("procedures-back").click();
+  await expect(procedures).toBeVisible();
+  await expect(page.getByTestId("procedures-back")).toHaveCount(0);
+  await kdlh.getByTestId("procedure-kind").filter({ hasText: /^Approach/ }).click();
+  await page.getByTestId("procedure-option").filter({ hasText: "ILS RWY 09" }).click();
   // By DLH, drawn as it is chosen.
   await page.getByTestId("procedure-transition").filter({ hasText: "DLH" }).click();
   await expect.poll(() => asked, { timeout: slow(10000) }).toContain("/api/planner/airport/KDLH/procedures/I09?transition=DLH");
@@ -109,7 +123,7 @@ test("a field's approach is picked on its own page with its transition, drawn on
   // Checked in the list, and on its page Remove from Route takes it off
   // the address, and off the map once the sheet is put away.
   await sideDrawer(page).getByTestId("route-approaches").click();
-  await procedures.locator("section").filter({ hasText: "KDLH · instrument procedures" }).getByRole("button", { name: /^Approaches/ }).click();
+  await kdlh.getByTestId("procedure-kind").filter({ hasText: /^Approach/ }).click();
   const ils = page.getByTestId("procedure-option").filter({ hasText: "ILS RWY 09" });
   await expect(ils).toContainText("In the route, via DLH");
   await ils.click();

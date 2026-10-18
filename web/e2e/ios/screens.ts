@@ -286,6 +286,21 @@ export const SCREENS: Screen[] = [
       await expect(sideDrawer(page).getByTestId("route-recent").first()).toBeVisible();
     },
   },
+  // The route's Procedures, its fields down a line in the order they are
+  // flown, each runway's pattern a chip (the redesign's C): the chips'
+  // hit areas and their words measured as the rows' are.
+  {
+    name: "procedures, the route's fields",
+    ready: async page => {
+      await page.route(url => /\/airport\/[^/]+\/procedures/.test(url.pathname), route =>
+        route.fulfill({ json: { airport: "KDLH", cycle: "261001", procedures: [] } }));
+      await page.goto(`/app/plan?${ROUTE}`);
+      await settle(page);
+      await controlsInSight(page);
+      await sideDrawer(page).getByTestId("route-approaches").click();
+      await expect(page.getByTestId("procedure-pattern").first()).toBeVisible({ timeout: slow(30000) });
+    },
+  },
   // The route's Procedures with an approach's own page open, as ForeFlight
   // picks one: its transitions and Add to Route under the map. The list
   // and the drawing stubbed, as procedures.spec has them: the FAA's file
@@ -313,8 +328,8 @@ export const SCREENS: Screen[] = [
       await settle(page);
       await controlsInSight(page);
       await sideDrawer(page).getByTestId("route-approaches").click();
-      await page.getByTestId("procedures").locator("section").filter({ hasText: "KDLH · instrument procedures" })
-        .getByRole("button", { name: /^Approaches/ }).click({ timeout: slow(30000) });
+      await page.getByTestId("procedures").getByRole("region", { name: "KDLH · Arrive" })
+        .getByTestId("procedure-kind").filter({ hasText: /^Approach/ }).click({ timeout: slow(30000) });
       await page.getByTestId("procedure-option").first().click();
       await expect(page.getByTestId("procedure-add")).toBeVisible();
     },
