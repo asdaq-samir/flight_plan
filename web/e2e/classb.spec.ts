@@ -148,10 +148,12 @@ test("on the training map, which has no card, a tap goes to the field at its ter
   await expect(ord).toBeVisible({ timeout: 20000 });
 
   const tileZoom = () => page.evaluate(() => {
-    // The sectional's tiles, from the planner or the CDN (tiles.spec.ts).
-    const tile = document.querySelector('img.leaflet-tile[src*="/sec/"]') as HTMLImageElement | null;
-    const m = tile?.src.match(/\/sec\/(\d+)\//);
-    return m ? Number(m[1]) : null;
+    // The sectional's tiles, from the planner or the CDN (tiles.spec.ts):
+    // the finest drawn, the region's coarse ones kept under the map
+    // (ChartTiles) aside.
+    const levels = [...document.querySelectorAll<HTMLImageElement>('img.leaflet-tile[src*="/sec/"]')]
+      .map(tile => Number(tile.src.match(/\/sec\/(\d+)\//)?.[1] ?? NaN)).filter(Number.isFinite);
+    return levels.length ? Math.max(...levels) : null;
   });
   const before = await tileZoom();
   await ord.click();
