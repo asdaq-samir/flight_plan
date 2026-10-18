@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { slow, settle, sideDrawer, expectDrawerClosed, expectDrawerOpen, closeSidebarWithTheStockKey, openedDrawerBox, openBrief, openBriefing, openTab, openSection, panelTabs, openSettings, closeConsole, grabberTo, controlsInSight } from "./helpers";
+import { slow, settle, sideDrawer, expectDrawerClosed, expectDrawerOpen, closeSidebarWithTheStockKey, openedDrawerBox, openBrief, openBriefing, openTab, openSection, panelTabs, openSettings, closeConsole, grabberTo, controlsInSight, openNavLog, closeNavLog, navLogSheet } from "./helpers";
 
 /**
  * The flight planning panel: how it opens -- from its grabber, a pasted
@@ -60,9 +60,14 @@ test("plan page: the flight planning drawer opens the way the Model Training dra
     expect(box.x + box.width).toBeLessThanOrEqual(tabsBox.x + tabsBox.width + 1);
   }
   await expect(panelTabs(page).getByRole("tab", { name: "Preflight" })).toHaveAttribute("aria-selected", "true");
+  // FPL all the way up, the route in order; the nav log in its own sheet,
+  // the descriptions' wand at its head.
   await openTab(page, "Nav Log");
-  await expect(drawer.getByRole("table", { name: /Navigation log from/i })).toBeVisible();
-  await expect(drawer.getByTestId("navlog-scroller").getByTestId("generate-descriptions-button")).toBeVisible();
+  await expect(drawer.getByTestId("procedures")).toBeVisible();
+  await openNavLog(page);
+  await expect(navLogSheet(page).getByRole("table", { name: /Navigation log from/i })).toBeVisible();
+  await expect(navLogSheet(page).getByTestId("generate-descriptions-button")).toBeVisible();
+  await closeNavLog(page);
   // The altitude, its chip beside the airplane in the pill, once the log
   // has streamed in.
   await controlsInSight(page);
@@ -82,10 +87,11 @@ test("plan page: the flight planning drawer opens the way the Model Training dra
   expect(await page.locator("header").getByLabel("Departure", { exact: true }).count()).toBe(1);
   expect(await page.locator("header").getByTestId("setup-button").count()).toBe(0);
 
-  // The route's two buttons, Approaches and Share, at the end of the
-  // airplane's, the altitude's and the time's line, at the pilot's ask;
-  // Save, filing the flight plan, Print and the route's close in Share.
-  const [approachesBox, shareBox] = await Promise.all(["route-approaches", "share-route"]
+  // The route's buttons, the Nav log (where Approaches was) and Share, at
+  // the end of the airplane's, the altitude's and the time's line, at the
+  // pilot's ask; Save, filing the flight plan, Print and the route's close
+  // in Share.
+  const [approachesBox, shareBox] = await Promise.all(["route-navlog", "share-route"]
     .map(async id => (await drawer.getByTestId(id).boundingBox())!));
   expect(approachesBox.x).toBeLessThan(shareBox.x);
   expect(Math.abs(approachesBox.y - shareBox.y)).toBeLessThan(2);
@@ -110,22 +116,25 @@ test("plan page: the nav log and the summary on screen, the 'planning aid only' 
   await expect(sideDrawer(page).getByTestId("planning-aid-note")).toHaveCount(0);
   await expect(page.locator("[data-sonner-toast]", { hasText: "planning aid for VFR flight" })).toHaveCount(0);
 
-  // One nav log, FPL's, and the briefing in the Brief's pages. No
-  // "Flight Plan Summary": the nav log's line carries the totals, its chip
-  // beside the airplane the altitude.
+  // FPL's route in order, the nav log a sheet of its own, and the briefing
+  // in the Brief's pages. No "Flight Plan Summary": the line at the foot
+  // carries the totals, its chip beside the airplane the altitude.
   const drawer = sideDrawer(page);
   await openTab(page, "Nav Log");
-  const navLog = drawer.getByRole("table", { name: /Navigation log from/i });
-  await expect(drawer.getByRole("table", { name: /Navigation log from/i })).toBeVisible();
+  const route = drawer.getByTestId("procedures");
+  await expect(route).toBeVisible();
   await expect(drawer.getByText("Flight Plan Summary")).toHaveCount(0);
+  await openNavLog(page);
+  await expect(navLogSheet(page).getByRole("table", { name: /Navigation log from/i })).toBeVisible();
+  await closeNavLog(page);
   // Another tab takes its place, and back.
   await openTab(page, "Brief");
   await openSection(page, "C81 · Departure");
   await expect(drawer.locator('[data-tab="depart"] [data-title="C81 · Departure"]')).toBeVisible();
   // Kept, hidden, for the way back (Activity).
-  await expect(navLog).toBeHidden();
+  await expect(route).toBeHidden();
   await openTab(page, "Nav Log");
-  await expect(navLog).toBeVisible();
+  await expect(route).toBeVisible();
 });
 
 test("plan page: the Brief is a tab after the Nav Log, its narrative from LangGraph or CrewAI as the settings say", async ({ page }) => {

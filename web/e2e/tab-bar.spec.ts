@@ -153,10 +153,10 @@ test("the side view is over the figures at the foot half way and all the way up,
   expect(up.y + up.height).toBeLessThanOrEqual(under.y + 1);
   // A picture there, with nothing to open: the sheet is up already.
   await expect(profile).toHaveAttribute("role", "img");
-  // FPL all the way up is the legs alone: no pages, no other section, no
-  // second side view.
+  // FPL all the way up is the route in order alone (the nav log a sheet
+  // of its own): no pages, no other section, no second side view.
   const log = panel.getByTestId("navlog-scroller");
-  await expect(log.getByRole("table", { name: /Navigation log from/i })).toBeVisible();
+  await expect(log.getByTestId("procedures")).toBeVisible();
   await expect(panel.locator('[role="tablist"][data-tip="tabs"]')).toHaveCount(0);
   await expect(log.locator("[data-title]")).toHaveCount(1);
   await expect(log.locator('[data-title="Profile"]')).toHaveCount(0);
@@ -190,12 +190,12 @@ test("the Brief is a card over FPL, from the chips' Brief: Preflight, Depart, En
   await openTab(page, "En route");
   await expect(card.locator('[data-tab="enroute"] [data-title="Cruise Altitude"]')).toBeAttached();
   await expect(card.locator('[data-tab="enroute"] [data-title="Legs"]')).toHaveCount(0);
-  // Back: FPL as it was before the Brief, all the way up on its nav log.
+  // Back: FPL as it was before the Brief, all the way up on its route.
   await closeCard(page, "brief-close");
   await expect(card).toHaveCount(0);
   await expect(page).not.toHaveURL(/[?&]brief=/);
   await expect(panel).toHaveAttribute("data-panel", "full");
-  await expect(panel.getByTestId("navlog-scroller").getByRole("table", { name: /Navigation log from/i })).toBeVisible();
+  await expect(panel.getByTestId("navlog-scroller").getByTestId("procedures")).toBeVisible();
 });
 
 test("a card opens half way; on a phone, lowered to the pill it is its name and its close, which puts it away", async ({ page }) => {

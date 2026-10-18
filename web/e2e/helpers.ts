@@ -426,6 +426,27 @@ export async function openTab(page: Page, name: keyof typeof PHASE_OF | PhaseTab
   await expect(tab).toHaveAttribute("aria-selected", "true");
 }
 
+/** The nav log, in its own sheet from the route's box's Nav log button
+ *  (NavLogView), FPL all the way up under it: FPL lists the route in
+ *  order in its place (ProceduresRoute), at the owner's ask. */
+export async function openNavLog(page: Page) {
+  await openTab(page, "Nav Log");
+  const sheet = navLogSheet(page);
+  if (!(await sheet.isVisible())) await sideDrawer(page).getByTestId("route-navlog").click();
+  await expect(sheet).toBeVisible();
+  return sheet;
+}
+
+/** The nav log's sheet, and what scrolls in it. */
+export const navLogSheet = (page: Page) => page.getByTestId("navlog-sheet");
+export const navLogScroller = (page: Page) => page.locator(".overflow-y-auto").filter({ has: navLogSheet(page) }).last();
+
+/** The nav log's sheet put away, FPL under it again. */
+export async function closeNavLog(page: Page) {
+  if (await navLogSheet(page).isVisible()) await page.getByTestId("navlog-close").click();
+  await expect(navLogSheet(page)).toHaveCount(0);
+}
+
 /** The planning panel's own tabs. */
 export const panelTabs = (page: Page) => sideDrawer(page).locator('[role="tablist"][data-tip="tabs"]');
 

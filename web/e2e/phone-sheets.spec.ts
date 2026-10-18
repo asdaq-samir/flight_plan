@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { controlsInSight, openMapSettings, settle, settled, sideDrawer } from "./helpers";
+import { controlsInSight, openMapSettings, openTab, settle, settled, sideDrawer } from "./helpers";
 
 /**
  * A phone's sheets look as the map's floating sheet does, at the owner's
@@ -100,7 +100,8 @@ test("a swipe up on a sheet opened from the map's sheet moves neither it nor the
   await controlsInSight(page);
   const panel = sideDrawer(page);
   const top = async () => (await panel.boundingBox())!.y;
-  await sideDrawer(page).getByTestId("route-approaches").click();
+  await openTab(page, "Nav Log");
+  await sideDrawer(page).getByRole("region", { name: "KDLH · Arrive" }).getByTestId("procedure-kind").filter({ hasText: /^Approach/ }).click();
   const sheet = page.locator("[data-slot=sheet-content]");
   await expect(sheet).toBeVisible();
   await sheet.evaluate(el => Promise.all(el.getAnimations().map(a => a.finished)));
@@ -114,7 +115,7 @@ test("a swipe up on a sheet opened from the map's sheet moves neither it nor the
   const title = (await sheet.locator("[data-slot=sheet-title]").boundingBox())!;
   await swipe(page, { x: title.x + title.width / 2, y: title.y + title.height / 2 }, -200);
   await page.waitForTimeout(600);
-  const body = (await page.getByTestId("procedures").boundingBox())!;
+  const body = (await page.getByTestId("procedures-none").boundingBox())!;
   await swipe(page, { x: body.x + body.width / 2, y: body.y + 40 }, -200);
   await page.waitForTimeout(600);
   await expect(sheet).toBeVisible();

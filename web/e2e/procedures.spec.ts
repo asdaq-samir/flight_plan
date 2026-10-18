@@ -1,8 +1,8 @@
 import { test, expect } from "@playwright/test";
-import { settle, sideDrawer, slow, controlsInSight } from "./helpers";
+import { openTab, settle, settled, sideDrawer, slow } from "./helpers";
 
 /**
- * The route's Procedures (ProceduresButton), at the pilot's ask: a field's
+ * The route's Procedures (ProceduresRoute), FPL's list, at the pilot's ask: a field's
  * traffic pattern picked by its runway, kept in the address, and drawn on
  * the map round the runway with its 45° entry (PatternLayer); None takes
  * it off.
@@ -10,8 +10,7 @@ import { settle, sideDrawer, slow, controlsInSight } from "./helpers";
 test("a field's traffic pattern is picked by its runway, kept in the address and drawn on the map", async ({ page }) => {
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
-  await controlsInSight(page);
-  await sideDrawer(page).getByTestId("route-approaches").click();
+  await openTab(page, "Nav Log");
   const procedures = page.getByTestId("procedures");
   // The route's fields in the order they are flown, each its runways as
   // chips under its arrival and approach.
@@ -67,12 +66,14 @@ test("a field's approach is picked on its own page with its transition, drawn on
   });
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
-  await controlsInSight(page);
-  await sideDrawer(page).getByTestId("route-approaches").click();
+  await openTab(page, "Nav Log");
   const procedures = page.getByTestId("procedures");
-  // The departure's departures: none at C81.
+  // The departure's departures: none picked at C81, its tops of climb and
+  // descent after it, as the nav log has them.
   const c81 = procedures.getByRole("region", { name: "C81 · Depart" });
-  await expect(c81).toContainText(/Departure\s*None published/, { timeout: slow(10000) });
+  await expect(c81).toContainText(/Departure\s*None/, { timeout: slow(10000) });
+  await expect(procedures.getByTestId("route-toc").first()).toContainText(/Top of climb · [\d,]+ ft/, { timeout: slow(60000) });
+  await expect(procedures.getByTestId("route-tod").first()).toBeVisible();
   // The destination's approaches, a page of their own.
   const kdlh = procedures.getByRole("region", { name: "KDLH · Arrive" });
   await kdlh.getByTestId("procedure-kind").filter({ hasText: /^Approach/ }).click();
@@ -88,13 +89,10 @@ test("a field's approach is picked on its own page with its transition, drawn on
   const fixes = page.getByTestId("procedure-fixes");
   await expect(fixes).toContainText(/OFOFO\s*3,500 ft or above/);
   await expect(fixes).toContainText(/FAKER\s*2,700 ft/);
-  // Back, the round button at the head's start, a page at a time.
+  // Back, the round button at the head's start, to the field's approaches.
   await page.getByTestId("procedures-back").click();
   await expect(page.getByRole("heading", { name: "KDLH approaches" })).toBeVisible();
-  await page.getByTestId("procedures-back").click();
-  await expect(procedures).toBeVisible();
   await expect(page.getByTestId("procedures-back")).toHaveCount(0);
-  await kdlh.getByTestId("procedure-kind").filter({ hasText: /^Approach/ }).click();
   await page.getByTestId("procedure-option").filter({ hasText: "ILS RWY 09" }).click();
   // By DLH, drawn as it is chosen.
   await page.getByTestId("procedure-transition").filter({ hasText: "DLH" }).click();
@@ -117,12 +115,17 @@ test("a field's approach is picked on its own page with its transition, drawn on
   await expect(chip).toHaveText("ILS 09 · DLH");
   await expect(chip).toHaveAccessibleName(/ILS RWY 09 via DLH/);
   await chip.click();
-  await expect(page.getByTestId("procedures")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "KDLH approaches" })).toBeVisible();
   await page.keyboard.press("Escape");
+  // Gone, and the panel at rest, before it is dragged: a drag on the
+  // sheet's way out was its own.
+  await expect(page.getByRole("heading", { name: "KDLH approaches" })).toHaveCount(0);
+  await settled(sideDrawer(page));
 
   // Checked in the list, and on its page Remove from Route takes it off
   // the address, and off the map once the sheet is put away.
-  await sideDrawer(page).getByTestId("route-approaches").click();
+  await openTab(page, "Nav Log");
+  await expect(kdlh.getByTestId("procedure-kind").filter({ hasText: /^Approach/ })).toContainText("ILS 09 · DLH");
   await kdlh.getByTestId("procedure-kind").filter({ hasText: /^Approach/ }).click();
   const ils = page.getByTestId("procedure-option").filter({ hasText: "ILS RWY 09" });
   await expect(ils).toContainText("In the route, via DLH");
@@ -132,6 +135,6 @@ test("a field's approach is picked on its own page with its transition, drawn on
   await expect(page.getByTestId("procedure-add")).toBeVisible();
   // Put away by its own close.
   await page.getByTestId("procedures-close").click();
-  await expect(page.getByTestId("procedures")).toBeHidden();
+  await expect(page.getByTestId("procedure-add")).toHaveCount(0);
   await expect(page.locator("path.instrument-procedure")).toHaveCount(0);
 });

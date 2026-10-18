@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { test, expect, type Locator, type Page } from "@playwright/test";
-import { clearTheRoute, openPanel, settle, sideDrawer, slow, openTab, openSettings, closeConsole, grabberTo, controlsInSight, showTabs } from "./helpers";
+import { clearTheRoute, openPanel, settle, sideDrawer, slow, openSettings, closeConsole, grabberTo, controlsInSight, showTabs, openNavLog, navLogSheet, closeNavLog } from "./helpers";
 
 /**
  * A route that lands on the way, as Maps' Add Stop: a stop added in the
@@ -57,9 +57,12 @@ test("a stop added in the panel lands the route there: the capsule, the nav log 
 
   // The nav log lands at it, at the field's elevation, and the fuel is
   // checked flight by flight.
-  await openTab(page, "Nav Log");
-  const landing = sideDrawer(page).locator('[role="row"][data-kind]', { hasText: "KMSN" });
+  await openNavLog(page);
+  const landing = navLogSheet(page).locator('[role="row"][data-kind]', { hasText: "KMSN" });
   await expect(landing).toBeVisible({ timeout: slow(30000) });
+  await closeNavLog(page);
+  // And FPL's route lists it as a step of its own, with its procedures.
+  await expect(sideDrawer(page).getByTestId("procedures").getByRole("region", { name: "KMSN · Stop" })).toBeVisible();
   const fuel = sideDrawer(page).getByTestId("fuel-check");
   await expect(fuel).toContainText("C81 → KMSN", { timeout: slow(30000) });
   await expect(fuel).toContainText("KMSN → KDLH");
@@ -284,7 +287,7 @@ test("the route's box is round, one line tall for a short route and the panel's 
   expect(await sideDrawer(page).getByTestId("add-stop").count()).toBe(0);
   // Round as the search bar's field is, one line tall for a route that
   // fits one (a second as one needs it, below), the panel's width to
-  // itself, at the pilot's ask; Approaches and Share under it at the
+  // itself, at the pilot's ask; the Nav log and Share under it at the
   // chips' row's end.
   const shape = await box.evaluate(el => ({ radius: parseFloat(getComputedStyle(el).borderTopLeftRadius), height: el.getBoundingClientRect().height }));
   expect(shape.radius).toBeGreaterThanOrEqual(20);
@@ -292,7 +295,7 @@ test("the route's box is round, one line tall for a short route and the panel's 
   expect(shape.height).toBeLessThanOrEqual(48);
   const boxAt = (await box.boundingBox())!, panelAt = (await sideDrawer(page).boundingBox())!;
   expect(panelAt.x + panelAt.width - (boxAt.x + boxAt.width)).toBeLessThanOrEqual(16);
-  const procedures = (await sideDrawer(page).getByTestId("route-approaches").boundingBox())!;
+  const procedures = (await sideDrawer(page).getByTestId("route-navlog").boundingBox())!;
   const share = (await sideDrawer(page).getByTestId("share-route").boundingBox())!;
   expect(procedures.y).toBeGreaterThan(boxAt.y + boxAt.height);
   expect(share.x).toBeGreaterThan(procedures.x);

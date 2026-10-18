@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { controlsInSight, openTab, settle, sideDrawer, slow } from "./helpers";
+import { controlsInSight, settle, sideDrawer, slow, openNavLog, navLogSheet, navLogScroller, closeNavLog } from "./helpers";
 
 /**
  * The nav log fits a phone's panel, with a departure time's ETA as its
@@ -38,9 +38,9 @@ test("the nav log fits a phone's panel with long names, five-figure altitudes an
   await page.goto(`/app/plan?dep=C81&dest=KDLH&depart=${encodeURIComponent(depart)}&view=briefing`);
   await settle(page);
   await expect(page.getByTestId("navlog-eta")).toBeVisible({ timeout: slow(120000) });
-  await openTab(page, "Nav Log");
-  const scroller = page.getByTestId("navlog-scroller");
-  const log = scroller.getByTestId("navlog-list");
+  await openNavLog(page);
+  const scroller = navLogScroller(page);
+  const log = navLogSheet(page).getByTestId("navlog-list");
   await expect(log.locator('[role="row"][data-kind]').first()).toBeVisible();
   await expect(log).toContainText("10,500");
   // Every row's time, the departure's the time picked, all on the
@@ -49,6 +49,7 @@ test("the nav log fits a phone's panel with long names, five-figure altitudes an
   const overflow = await scroller.evaluate(el => el.scrollWidth - el.clientWidth);
   expect(overflow).toBeLessThanOrEqual(1);
   await expect(scroller.locator('[data-testid="section-tabs"]')).toHaveCount(0);
+  await closeNavLog(page);
   await controlsInSight(page);
 });
 

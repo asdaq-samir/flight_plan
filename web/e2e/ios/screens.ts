@@ -1,5 +1,5 @@
 import { expect, type Page } from "@playwright/test";
-import { consolePage, controlsInSight, grabberTo, openConsole, openPanel, openSection, openSettings, openTab, settle, showTabs, sideDrawer, slow, stripShows } from "../helpers";
+import { consolePage, controlsInSight, openNavLog, grabberTo, openConsole, openPanel, openSection, openSettings, openTab, settle, showTabs, sideDrawer, slow, stripShows } from "../helpers";
 
 /** One state of the app as a pilot sees it, reached from a fresh page. */
 export type Screen = { name: string; ready: (page: Page) => Promise<void> };
@@ -26,17 +26,18 @@ export const SCREENS: Screen[] = [
     },
   },
   {
-    // All the way up: the route, its nav log, the side view and the
-    // figures (FPL's own, the Brief a card of its own).
+    // All the way up: the route's box, the route in order (the nav log a
+    // sheet of its own), the side view and the figures (FPL's own, the
+    // Brief a card of its own).
     name: "flight planning drawer",
     ready: async page => {
       await page.goto(`/app/plan?${ROUTE}&view=briefing`);
-      await expect(sideDrawer(page).getByRole("table", { name: /Navigation log from/i })).toBeVisible({ timeout: slow(30000) });
+      await expect(sideDrawer(page).getByTestId("procedures")).toBeVisible({ timeout: slow(30000) });
       await expect(sideDrawer(page).getByTestId("navlog-eta")).toBeVisible({ timeout: slow(120000) });
     },
   },
   {
-    // Half way: the route's box, the airplane, the time, Approaches and
+    // Half way: the route's box, the airplane, the time, the Nav log and
     // Share, the figures at the card's foot.
     name: "route panel, half way",
     ready: async page => {
@@ -57,6 +58,8 @@ export const SCREENS: Screen[] = [
       // pointer where the panel had been, fading in, read at 1:1 (P15).
       await openTab(page, "Nav Log");
       await page.getByTestId("fuel-check").waitFor({ timeout: slow(120000) });
+      // The nav log in its own sheet, from the route's box.
+      await openNavLog(page);
       // A tap's click, without Playwright's own scroll into view first:
       // where the table is wider than its drawer (every column, on a
       // phone on its side or an iPad), that scrolled it to its far end,
@@ -287,17 +290,17 @@ export const SCREENS: Screen[] = [
     },
   },
   // The route's Procedures, its fields down a line in the order they are
-  // flown, each runway's pattern a chip (the redesign's C): the chips'
-  // hit areas and their words measured as the rows' are.
+  // flown, each runway's pattern a chip (the redesign's C), FPL's own all
+  // the way up with the tops of climb and descent: the chips' hit areas
+  // and their words measured as the rows' are.
   {
-    name: "procedures, the route's fields",
+    name: "FPL, the route in order",
     ready: async page => {
       await page.route(url => /\/airport\/[^/]+\/procedures/.test(url.pathname), route =>
         route.fulfill({ json: { airport: "KDLH", cycle: "261001", procedures: [] } }));
       await page.goto(`/app/plan?${ROUTE}`);
       await settle(page);
-      await controlsInSight(page);
-      await sideDrawer(page).getByTestId("route-approaches").click();
+      await openTab(page, "Nav Log");
       await expect(page.getByTestId("procedure-pattern").first()).toBeVisible({ timeout: slow(30000) });
     },
   },
@@ -326,8 +329,7 @@ export const SCREENS: Screen[] = [
       });
       await page.goto(`/app/plan?${ROUTE}`);
       await settle(page);
-      await controlsInSight(page);
-      await sideDrawer(page).getByTestId("route-approaches").click();
+      await openTab(page, "Nav Log");
       await page.getByTestId("procedures").getByRole("region", { name: "KDLH · Arrive" })
         .getByTestId("procedure-kind").filter({ hasText: /^Approach/ }).click({ timeout: slow(30000) });
       await page.getByTestId("procedure-option").first().click();

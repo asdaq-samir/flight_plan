@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { beforeTheRoute, openPanel, openTab, settle, sideDrawer, slow, tapTheChart, grabberTo, controlsInSight } from "./helpers";
+import { beforeTheRoute, openPanel, openTab, settle, sideDrawer, slow, tapTheChart, grabberTo, controlsInSight, openNavLog, navLogSheet } from "./helpers";
 
 /**
  * The map: its popups, its zoom toggle and the dev page's zoom button,
@@ -151,10 +151,10 @@ test("plan page: VFR Checkpoints draws the route's checkpoints and the landmarks
   await expect(numbered).toHaveCount(0);
   await expect(landmarks).toHaveCount(0);
   await openPanel(page);
-  await openTab(page, "Nav Log");
-  const rows = sideDrawer(page).locator('[role="row"][data-kind]');
   await expect(page.getByTestId("navlog-eta")).toBeAttached({ timeout: slow(60000) });
-  await expect(sideDrawer(page).locator('[role="row"][data-kind="checkpoint"]')).toHaveCount(0);
+  await openNavLog(page);
+  const rows = navLogSheet(page).locator('[role="row"][data-kind]');
+  await expect(navLogSheet(page).locator('[role="row"][data-kind="checkpoint"]')).toHaveCount(0);
   expect(await rows.count()).toBeGreaterThan(0);
   expect(asked).not.toContain("checkpoints");
 });

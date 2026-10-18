@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { consoleSheet, openBriefing, openConsole, openSection, openTab, settle, showTabs, sideDrawer, slow, consolePage } from "./helpers";
+import { consoleSheet, openBriefing, openConsole, openSection, openTab, settle, showTabs, slow, consolePage, openNavLog, navLogSheet } from "./helpers";
 
 /**
  * The subscription to the paid features (lib/subscription, PaidPrompt):
@@ -87,9 +87,8 @@ test("without the subscription the nav log's wand says checkpoint descriptions c
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   await openBriefing(page);
-  await openTab(page, "Nav Log");
-  const drawer = sideDrawer(page);
-  const wand = drawer.getByTestId("navlog-scroller").getByTestId("generate-descriptions-button");
+  await openNavLog(page);
+  const wand = navLogSheet(page).getByTestId("generate-descriptions-button");
   await expect(wand).toBeEnabled({ timeout: slow(60000) });
   await wand.click();
   const paywall = page.getByTestId("descriptions-paywall");

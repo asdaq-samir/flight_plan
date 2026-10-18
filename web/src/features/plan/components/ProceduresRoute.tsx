@@ -1,14 +1,13 @@
 import { Fragment, useEffect, useState, type ReactNode } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
-import { Check, PlaneLanding, Wind } from "lucide-react";
+import { Check, Wind } from "lucide-react";
 import { cn } from "cn";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
 import BackButton from "../../../components/BackButton";
 import CloseButton from "../../../components/CloseButton";
-import RoundButton from "../../../components/RoundButton";
 import { Button } from "../../../components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "../../../components/ui/toggle-group";
-import { ResponsivePopover, ResponsivePopoverContent, ResponsivePopoverTrigger } from "../../../components/ResponsivePopover";
+import { ResponsivePopover, ResponsivePopoverAnchor, ResponsivePopoverContent } from "../../../components/ResponsivePopover";
 import { api } from "../../../lib/api/client";
 import type { ProcedureDrawing, ProcedureList, ProcedureSummary, Runway } from "../../../lib/api/types";
 import { distanceNm } from "../../../lib/geo";
@@ -18,12 +17,16 @@ import { kindsFor, sameField, type PickedProcedure } from "../../../lib/procedur
 import { trafficPattern } from "../../../lib/trafficPattern";
 import { TEXT } from "../../../lib/text";
 import { altFt } from "../../../lib/units";
+import { etaAt } from "../format";
+import { PointMark } from "./navlog/PointMark";
+import { rowPoint, type NavLogRow } from "./navlog/rows";
 
 /** The value of a choice's "None" (no pattern, no transition): a toggle's
  *  value is a string. */
 const NONE = "none";
 
-type Kind = ProcedureSummary["kind"];
+export type ProcedureKind = ProcedureSummary["kind"];
+type Kind = ProcedureKind;
 
 const KIND_TITLE: Record<Kind, string> = { approach: "Approaches", arrival: "Arrivals", departure: "Departures" };
 const KIND_ONE: Record<Kind, string> = { approach: "Approach", arrival: "Arrival", departure: "Departure" };
@@ -40,30 +43,43 @@ export interface ProcedureAirport {
   patternAltitudeFt: number | null;
 }
 
-/** The page of the sheet in sight: the route's fields, one kind of a
- *  field's procedures, or one procedure, each with its title. */
-type Page = { ident: string; kind: Kind; title: string; procedure?: ProcedureSummary } | null;
+/** Where the procedures' sheet is open: one kind of a field's. */
+export type ProceduresAt = { ident: string; kind: Kind } | null;
 
 /**
- * The route's Procedures, at the pilot's ask, where its Approaches were,
- * laid out in the order the flight meets them, at the owner's pick (the
- * redesign's C, 2026-10-17): each field of the route a step down a line,
+ * The route in FPL, in the order it is flown, at the owner's ask ("I
+ * want to replace navlog with procedures but procedures should also have
+ * the TOC and TOD and any other stops", 2026-10-18), the nav log a button
+ * away (NavLogView's sheet): each field of the route a step down a line,
  * holding what is flown there in turn -- a departure's pattern and then
  * its departure, a destination's arrival and approach and then its
- * pattern, a stop's all of them. A pattern is picked by its runway, as a
- * chip, the runway the wind favours marked (the redesign's A); it is drawn
- * on the map (PatternLayer). An instrument procedure from the FAA's CIFP
- * (vfr.procedures) is picked on pages of its own, as ForeFlight's
+ * pattern, a stop's all of them -- and between them the tops of climb and
+ * descent and the fixes flown through, each with the nav log's own mark
+ * (PointMark) and the time it is reached. The checkpoints are the nav
+ * log's alone ("Only stops in the route box and separate navlog").
+ *
+ * A pattern is picked by its runway, as a chip, the runway the wind
+ * favours marked (the redesign's A); it is drawn on the map
+ * (PatternLayer). An instrument procedure from the FAA's CIFP
+ * (vfr.procedures) is picked in a sheet of its own, as ForeFlight's
  * Procedure Advisor picks one: the field's of that kind, then the one
- * procedure, its transition chosen, the map above the sheet drawing it as
- * it is chosen (`onPreview`, ProcedureLayer), its fixes listed, and Add to
- * Route at the foot. Back is the round button at the head's start, the
- * close's twin, at the owner's ask, as the floating sheet's cards have it.
+ * procedure, its transition chosen, the map above the sheet drawing it
+ * as it is chosen (`onPreview`, ProcedureLayer), its fixes listed, and
+ * Add to Route at the foot. Back is the round button at the sheet's
+ * head, the close's twin, at the owner's ask.
  */
-export default function ProceduresButton({
-  airports, picked, onPick, onCharts, chartsDisabled, procedures, onProcedures, onPreview, open: asked, onOpenChange,
+export default function ProceduresRoute({
+  airports, rows, depart, weather, picked, onPick, onCharts, chartsDisabled, procedures, inRoute, onProcedures, onPreview, at, onAt,
 }: {
   airports: ProcedureAirport[];
+  /** The route's rows as the nav log has them (navLogRows), for its
+   *  fields' times and the points between them; empty until the course
+   *  is in, the fields then listed alone. */
+  rows: NavLogRow[];
+  /** The departure time picked, ISO; empty for now. */
+  depart: string;
+  /** An airport's weather colour, as its chip on the map. */
+  weather: (ident: string) => string | undefined;
   /** The runway end picked for each field's pattern. */
   picked: Map<string, string>;
   onPick: (ident: string, end: string | null) => void;
@@ -72,94 +88,35 @@ export default function ProceduresButton({
   chartsDisabled: boolean;
   /** The instrument procedures picked (lib/procedures). */
   procedures: PickedProcedure[];
+  /** Those drawn, by field and kind, as the route's box names them. */
+  inRoute: { ident: string; kind: Kind; label: string }[];
   /** All of them as they are to be, and the one just picked, for the map
    *  to go to. */
   onProcedures: (next: PickedProcedure[], picked: PickedProcedure | null) => void;
   /** The procedure on its page, not yet added, for the map to draw and go
    *  to; null as the page is left. */
   onPreview: (procedure: PickedProcedure | null) => void;
-  /** Opened from elsewhere too -- a procedure's chip in the route's box --
-   *  where these are given. */
-  open?: boolean;
-  onOpenChange?: (open: boolean) => void;
+  /** The sheet's kind and field, null while it is put away. */
+  at: ProceduresAt;
+  onAt: (at: ProceduresAt) => void;
 }) {
-  const [own, setOwn] = useState(false);
-  const open = asked ?? own;
-  // Each opening starts at the route's fields, as a pushed page is left
-  // behind when an iOS sheet is put away.
-  const [page, setPage] = useState<Page>(null);
-  const setOpen = (next: boolean) => {
-    setOwn(next);
-    if (!next) setPage(null);
-    onOpenChange?.(next);
-  };
-  // One level back: from a procedure to its kind's list, from there to
-  // the fields.
-  const back = () => setPage(p => (p?.procedure ? { ident: p.ident, kind: p.kind, title: listTitle(p.ident, p.kind) } : null));
-  return (
-    <ResponsivePopover open={open} onOpenChange={setOpen}>
-      <ResponsivePopoverTrigger asChild>
-        <RoundButton label="Procedures" disabled={airports.length === 0} data-testid="route-approaches">
-          <PlaneLanding className="size-5" strokeWidth={2} />
-        </RoundButton>
-      </ResponsivePopoverTrigger>
-      {/* On a phone a sheet that keeps its height from page to page, as
-          an iOS sheet does pushing one: sized to each page, it dropped
-          from nearly the screen's height to a few rows and back. Half the
-          screen (PROCEDURES_SHEET), the map above it in sight and clear --
-          no shade over it -- as a procedure is picked, as ForeFlight's
-          Procedure Advisor keeps it, at the owner's pick. */}
-      <ResponsivePopoverContent
-        title={page?.title ?? "Procedures"} className="max-h-[70vh] w-80 overflow-y-auto p-3" align="end" side="left"
-        leading={page ? <BackButton onClick={back} data-testid="procedures-back" /> : undefined}
-        // Its close at the title's end, as ForeFlight's Procedure Advisor
-        // and every other panel have one (the commonality audit's C-4):
-        // the sheet had none, put away only by a tap on the map or Escape.
-        action={<CloseButton onClick={() => setOpen(false)} data-testid="procedures-close" />}
-        sheetClassName="data-[side=bottom]:h-[55dvh] data-[side=top]:h-[55dvh]"
-        sheetOverlayClassName="bg-transparent dark:bg-transparent supports-backdrop-filter:backdrop-blur-none"
-      >
-        <ProceduresSheet
-          airports={airports} picked={picked} onPick={onPick} onCharts={onCharts} chartsDisabled={chartsDisabled}
-          procedures={procedures} onProcedures={onProcedures} onPreview={onPreview} close={() => setOpen(false)}
-          page={page} onPage={setPage}
-        />
-      </ResponsivePopoverContent>
-    </ResponsivePopover>
-  );
-}
-
-/** "KDLH approaches": a kind's list's title. */
-function listTitle(ident: string, kind: Kind): string {
-  return `${ident} ${KIND_TITLE[kind].toLowerCase()}`;
-}
-
-/**
- * What the Procedures sheet holds, drawn only while it is out: each
- * field's runway ends and its patterns, worked out for every field on
- * every render of the button, were 85 ms of the half sheet's opening at a
- * phone's speed with the sheet shut (profiled 2026-10-12).
- */
-function ProceduresSheet({ airports, picked, onPick, onCharts, chartsDisabled, procedures, onProcedures, onPreview, close, page, onPage }: {
-  airports: ProcedureAirport[];
-  picked: Map<string, string>;
-  onPick: (ident: string, end: string | null) => void;
-  onCharts: () => void;
-  chartsDisabled: boolean;
-  procedures: PickedProcedure[];
-  onProcedures: (next: PickedProcedure[], picked: PickedProcedure | null) => void;
-  onPreview: (procedure: PickedProcedure | null) => void;
-  close: () => void;
-  page: Page;
-  onPage: (page: Page) => void;
-}) {
-  const destination = airports.find(a => a.role === "Destination");
-  // Each field's procedures, asked for once the button is opened.
+  // The procedure on its own page in the sheet, over its kind's list.
+  const [page, setPage] = useState<{ at: ProceduresAt; procedure: ProcedureSummary } | null>(null);
+  // What the sheet shows, kept as it eases away: its title went back to
+  // "Procedures" and its page to nothing as it was put away.
+  const [kept, setKept] = useState<ProceduresAt>(at);
+  if (at && at !== kept) setKept(at);
+  const on = at ?? kept;
+  const procedure = page && page.at === on ? page.procedure : null;
+  // Each field's procedures, asked for as its kind's sheet opens -- not
+  // with the route: the FAA's file is 53 MB, fetched on its first ask --
+  // and said in the list from then on.
   const lists = useQueries({
     queries: airports.map(a => ({
       queryKey: ["procedures", a.ident],
       queryFn: () => api.procedures(a.ident),
       staleTime: PROCEDURE_STALE_MS,
+      enabled: at?.ident === a.ident,
     })),
   });
   // Each field's card (its weather), for the wind a field with no report
@@ -176,7 +133,6 @@ function ProceduresSheet({ airports, picked, onPick, onCharts, chartsDisabled, p
       dirTrueDeg: near.metar.wind_dir_true_deg, speedKt: near.metar.wind_speed_kt, gustKt: near.metar.wind_gust_kt,
     } : null);
   };
-  // The pick of a kind at a field, among those kept.
   const listOf = (ident: string): ProcedureList | undefined => lists[airports.findIndex(a => a.ident === ident)]?.data;
   const kindOf = (p: PickedProcedure) => listOf(p.ident)?.procedures.find(q => q.id === p.id)?.kind;
   const pickOf = (ident: string, kind: Kind) => procedures.find(p => sameField(p.ident, ident) && kindOf(p) === kind) ?? null;
@@ -186,97 +142,159 @@ function ProceduresSheet({ airports, picked, onPick, onCharts, chartsDisabled, p
     const made = next ? { ident, ...next } : null;
     onProcedures(made ? [...kept, made] : kept, made);
   };
+  const close = () => onAt(null);
+  const destination = airports.find(a => a.role === "Destination");
 
-  if (page) {
-    const a = airports.find(f => f.ident === page.ident);
-    const list = listOf(page.ident);
-    const chosen = pickOf(page.ident, page.kind);
-    const stale = list?.stale ? `Out of date: the ${cycleDate(list.cycle)} cycle, as the current one could not be had` : null;
-    // The page opens on its title's heading for a screen reader, as a
-    // pushed page does (ConsolePages); the key starts each page afresh.
-    return page.procedure ? (
-      <ProcedurePage
-        key={`${page.ident}:${page.procedure.id}`}
-        kind={page.kind} ident={page.ident} procedure={page.procedure}
-        chosen={chosen?.id === page.procedure.id ? chosen : null} stale={stale}
-        onAdd={transition => { pick(page.ident, page.kind, { id: page.procedure!.id, transition }); close(); }}
-        onRemove={() => pick(page.ident, page.kind, null)} onPreview={onPreview}
-        onChart={a === destination && !chartsDisabled ? () => { close(); onCharts(); } : null}
+  // A field's step: what is flown there, in the order it is flown.
+  const fieldStep = (a: ProcedureAirport, row: NavLogRow | undefined, last: boolean) => {
+    const list = lists[airports.indexOf(a)];
+    // A kind's row: the one in the route said at its end, "None
+    // published" where the field's list, once had, has none of it.
+    const kindRow = (kind: Kind) => {
+      const of = list?.data?.procedures.filter(p => p.kind === kind);
+      const mine = inRoute.find(p => sameField(p.ident, a.ident) && p.kind === kind);
+      return of && of.length === 0 ? (
+        <ListRow key={kind} title={KIND_ONE[kind]} value="None published" disabled />
+      ) : (
+        <ListRow
+          key={kind} title={KIND_ONE[kind]} chevron value={mine?.label ?? "None"}
+          onClick={() => onAt({ ident: a.ident, kind })} data-testid="procedure-kind"
+        />
+      );
+    };
+    const kinds = kindsFor(a.role);
+    // What is flown before the pattern (an arrival, an approach) and
+    // after it (a departure).
+    const before = kinds.filter(k => k !== "departure");
+    const after = kinds.filter(k => k === "departure");
+    const charts = a === destination ? (
+      <ListRow
+        title="Approach charts" chevron disabled={chartsDisabled}
+        onClick={onCharts} data-testid="procedure-charts"
       />
-    ) : (
-      <ProcedurePicker
-        key={`${page.ident}:${page.kind}`}
-        kind={page.kind} list={list} chosen={chosen} stale={stale} wind={a ? windOf(a.ident) : null}
-        onOpen={p => onPage({ ident: page.ident, kind: page.kind, title: `${page.ident} ${p.name}`, procedure: p })}
-      />
+    ) : null;
+    return (
+      <Step
+        key={a.ident} last={last}
+        mark={row ? <PointMark row={row} number={undefined} weather={weather} /> : <FieldDot last={last} />}
+        title={`${a.ident} · ${ROLE_STEP[a.role]}`} time={row ? etaAt(depart || new Date().toISOString(), row.minutesFlown) : null} field
+      >
+        {before.length > 0 && <ListGroup>{before.map(kindRow)}{charts}</ListGroup>}
+        <PatternChips airport={a} wind={windOf(a.ident)} chosen={picked.get(a.ident) ?? null} onPick={end => onPick(a.ident, end)} />
+        {after.length > 0 && <ListGroup>{after.map(kindRow)}</ListGroup>}
+      </Step>
     );
-  }
+  };
 
+  // The route's own rows where the course is in: its fields as steps, the
+  // tops of climb and descent and the fixes flown through between them,
+  // the checkpoints left to the nav log. Before then, the fields alone.
+  const steps: ReactNode[] = [];
+  const shown = new Set<string>();
+  const points = rows.filter(r => r.kind !== "checkpoint");
+  points.forEach((row, i) => {
+    const last = i === points.length - 1;
+    const field = "airport" in row && row.airport.kind !== "fix"
+      ? airports.find(a => a.ident === row.airport.ident && !shown.has(a.ident)) : undefined;
+    if (field) {
+      shown.add(field.ident);
+      steps.push(fieldStep(field, row, last));
+      return;
+    }
+    const name = row.kind === "toc" ? "Top of climb" : row.kind === "tod" ? "Top of descent" : rowPoint(row).name;
+    const altitude = row.kind === "toc" || row.kind === "tod" ? `${altFt(row.point.altitude_ft)} ft` : null;
+    steps.push(
+      <Step
+        key={row.key} last={last} mark={<PointMark row={row} number={undefined} weather={weather} />}
+        title={name} detail={altitude} time={etaAt(depart || new Date().toISOString(), row.minutesFlown)}
+        testId={`route-${row.kind}`}
+      />,
+    );
+  });
+  const fieldsAlone = rows.length === 0 ? airports.map((a, i) => fieldStep(a, undefined, i === airports.length - 1)) : null;
+
+  const field = on ? airports.find(a => a.ident === on.ident) : undefined;
+  const list = on ? listOf(on.ident) : undefined;
+  const chosen = on ? pickOf(on.ident, on.kind) : null;
+  const stale = list?.stale ? `Out of date: the ${cycleDate(list.cycle)} cycle, as the current one could not be had` : null;
   return (
-    <ol className="space-y-0" data-testid="procedures">
-      {airports.map((a, i) => {
-        const list = lists[i];
-        // A kind's row: the one picked said at its end, "None published"
-        // where the field has none of that kind.
-        const kindRow = (kind: Kind) => {
-          const of = list?.data?.procedures.filter(p => p.kind === kind) ?? [];
-          const mine = pickOf(a.ident, kind);
-          const name = mine && of.find(p => p.id === mine.id)?.name;
-          if (list?.isError) return null;
-          return list?.data && of.length === 0 ? (
-            <ListRow key={kind} title={KIND_ONE[kind]} value="None published" disabled />
-          ) : (
-            <ListRow
-              key={kind} title={KIND_ONE[kind]} chevron disabled={!list?.data}
-              value={!list?.data ? "…" : name ? `${name}${mine?.transition ? ` via ${mine.transition}` : ""}` : "None"}
-              onClick={() => onPage({ ident: a.ident, kind, title: listTitle(a.ident, kind) })}
-              data-testid="procedure-kind"
-            />
-          );
-        };
-        const kinds = kindsFor(a.role);
-        // What is flown before the pattern (an arrival, an approach) and
-        // after it (a departure), each in the order the flight meets it.
-        const before = kinds.filter(k => k !== "departure");
-        const after = kinds.filter(k => k === "departure");
-        const failed = list?.isError
-          ? <ListRow title={<span className="text-muted-foreground">The FAA's procedures could not be had</span>} />
-          : null;
-        const charts = a === destination
-          ? (
-            <ListRow
-              title="Approach charts" chevron disabled={chartsDisabled}
-              onClick={() => { close(); onCharts(); }} data-testid="procedure-charts"
-            />
-          )
-          : null;
-        return (
-          <FieldStep key={a.ident} title={`${a.ident} · ${ROLE_STEP[a.role]}`} last={i === airports.length - 1}>
-            {before.length > 0 && <ListGroup>{before.map(kindRow)}{failed}{charts}</ListGroup>}
-            <PatternChips airport={a} wind={windOf(a.ident)} chosen={picked.get(a.ident) ?? null} onPick={end => onPick(a.ident, end)} />
-            {after.length > 0 && <ListGroup>{after.map(kindRow)}{before.length === 0 && failed}</ListGroup>}
-          </FieldStep>
-        );
-      })}
-    </ol>
+    <ResponsivePopover open={!!at} onOpenChange={open => { if (!open) close(); }}>
+      <ResponsivePopoverAnchor asChild>
+        <ol className="pt-2 pb-1" aria-label="The route" data-testid="procedures">{fieldsAlone ?? steps}</ol>
+      </ResponsivePopoverAnchor>
+      {/* On a phone a sheet that keeps its height from page to page, as
+          an iOS sheet does pushing one. Half the screen (PROCEDURES_SHEET),
+          the map above it in sight and clear -- no shade over it -- as a
+          procedure is picked, as ForeFlight's Procedure Advisor keeps it,
+          at the owner's pick. */}
+      <ResponsivePopoverContent
+        title={on ? (procedure ? `${on.ident} ${procedure.name}` : listTitle(on.ident, on.kind)) : "Procedures"}
+        className="max-h-[70vh] w-80 overflow-y-auto p-3" align="start" side="right"
+        leading={procedure ? <BackButton onClick={() => setPage(null)} data-testid="procedures-back" /> : undefined}
+        action={<CloseButton onClick={close} data-testid="procedures-close" />}
+        sheetClassName="data-[side=bottom]:h-[55dvh] data-[side=top]:h-[55dvh]"
+        sheetOverlayClassName="bg-transparent dark:bg-transparent supports-backdrop-filter:backdrop-blur-none"
+      >
+        {on && (procedure ? (
+          <ProcedurePage
+            key={`${on.ident}:${procedure.id}`}
+            kind={on.kind} ident={on.ident} procedure={procedure}
+            chosen={chosen?.id === procedure.id ? chosen : null} stale={stale}
+            onAdd={transition => { pick(on.ident, on.kind, { id: procedure.id, transition }); close(); }}
+            onRemove={() => pick(on.ident, on.kind, null)} onPreview={onPreview}
+            onChart={field === destination && !chartsDisabled ? () => { close(); onCharts(); } : null}
+          />
+        ) : (
+          <ProcedurePicker
+            key={`${on.ident}:${on.kind}`} kind={on.kind} list={list} chosen={chosen} stale={stale}
+            failed={lists[airports.findIndex(a => a.ident === on.ident)]?.isError ?? false}
+            wind={windOf(on.ident)} onOpen={p => setPage({ at: on, procedure: p })}
+          />
+        ))}
+      </ResponsivePopoverContent>
+    </ResponsivePopover>
   );
 }
 
+/** "KDLH approaches": a kind's list's title. */
+function listTitle(ident: string, kind: Kind): string {
+  return `${ident} ${KIND_TITLE[kind].toLowerCase()}`;
+}
+
+/** A field's dot on the line before the course is in: hollow, and filled
+ *  at the flight's end. */
+function FieldDot({ last }: { last: boolean }) {
+  return <span aria-hidden="true" className={cn("mt-1 block size-3.5 rounded-full border-[3px] border-tint", last ? "bg-tint" : "bg-background")} />;
+}
+
 /**
- * One field of the route as a step down the line the flight takes: a dot
- * on the line at its start, its name and its part in the flight, and what
- * is flown there under them. The last field's dot is filled, where the
- * flight ends.
+ * One step down the line the flight takes: its mark on the line, as the
+ * nav log draws it, its name and the time it is reached, and under them
+ * what is flown there (a field's). The line runs on to the next step.
  */
-function FieldStep({ title, last, children }: { title: string; last: boolean; children: ReactNode }) {
+function Step({ mark, title, detail, time, last, field = false, testId, children }: {
+  mark: ReactNode;
+  title: string;
+  detail?: string | null;
+  time: string | null;
+  last: boolean;
+  field?: boolean;
+  testId?: string;
+  children?: ReactNode;
+}) {
+  const Name = field ? "h3" : "span";
   return (
-    <li className="flex gap-2.5">
-      <div aria-hidden="true" className="flex w-4 shrink-0 flex-col items-center pt-1.5">
-        <span className={cn("size-3.5 shrink-0 rounded-full border-[3px] border-tint", last ? "bg-tint" : "bg-background")} />
-        {!last && <span className="mt-1 w-0.5 flex-1 rounded-full bg-border" />}
-      </div>
-      <section aria-label={title} className={cn("min-w-0 flex-1 space-y-3", !last && "pb-6")}>
-        <h3 className={cn("font-semibold", TEXT.row)}>{title}</h3>
+    <li className="relative flex gap-2.5" data-testid={testId}>
+      {!last && <span aria-hidden="true" className="absolute top-3 bottom-0 left-[calc(0.875rem-1px)] w-0.5 bg-border" />}
+      <div className="relative flex w-7 shrink-0 justify-center pt-0.5">{mark}</div>
+      <section aria-label={title} className={cn("min-w-0 flex-1 space-y-3", field ? "pb-5" : "pb-4")}>
+        <div className="flex items-baseline justify-between gap-2">
+          <Name className={cn(field ? "font-semibold" : "font-normal", TEXT.row)}>
+            {title}
+            {detail && <span className="text-muted-foreground">{` · ${detail}`}</span>}
+          </Name>
+          {time && <span className={cn("font-semibold tabular-nums", TEXT.detail)}>{time}</span>}
+        </div>
         {children}
       </section>
     </li>
@@ -400,16 +418,20 @@ function windWords(wind: WindPick): string {
  * approach to the runway the wind favours said so. Drawn from the FAA's
  * coded procedure: a sketch on the chart, not the chart.
  */
-function ProcedurePicker({ kind, list, chosen, stale, wind, onOpen }: {
+function ProcedurePicker({ kind, list, failed, chosen, stale, wind, onOpen }: {
   kind: Kind;
   list: ProcedureList | undefined;
+  /** The FAA's file could not be had. */
+  failed: boolean;
   chosen: PickedProcedure | null;
   stale: string | null;
   wind: WindPick | null;
   onOpen: (procedure: ProcedureSummary) => void;
 }) {
+  if (failed) return <p role="alert" className="px-1 text-muted-foreground">The FAA's procedures could not be had</p>;
   if (!list) return <p role="status" className="px-1 text-muted-foreground">Looking the procedures up…</p>;
   const of = list.procedures.filter(p => p.kind === kind);
+  if (of.length === 0) return <p className="px-1 text-muted-foreground" data-testid="procedures-none">{`No ${KIND_TITLE[kind].toLowerCase()} published`}</p>;
   const runways = (p: ProcedureSummary) => p.runway_transitions.length
     ? p.runway_transitions.includes("ALL") ? "All runways" : `Runway ${p.runway_transitions.map(r => r.replace(/^RW/, "").replace(/B$/, "")).join(", ")}`
     : undefined;

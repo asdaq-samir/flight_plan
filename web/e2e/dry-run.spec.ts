@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { grabberTo, openPanel, openTab, settle, settled, sideDrawer, slow } from "./helpers";
+import { grabberTo, navLogSheet, openNavLog, openPanel, openTab, settle, settled, sideDrawer, slow } from "./helpers";
 
 /**
  * The planned flight's dry run flies own ship, as if a pilot were flying
@@ -185,8 +185,8 @@ test("half way the side view is whole, its dry run plays under the route's chips
   await expect(panel.getByTestId("route-brief")).toBeVisible();
   expect(fitted).toBeLessThan(10);
   await expect.poll(level, { timeout: slow(10_000) }).toBe(10);
-  // Dragged up and held: the run where it was and its size, the nav log
-  // coming out over it.
+  // Dragged up and held: the run where it was and its size, FPL's list
+  // (the route in order) coming out over it.
   await settled(panel);
   const before = (await run.boundingBox())!;
   const grabber = (await page.getByTestId("sidebar-trigger-button").boundingBox())!;
@@ -200,10 +200,11 @@ test("half way the side view is whole, its dry run plays under the route's chips
   await page.mouse.up();
 });
 
-test("all the way up the dry run plays at the foot under the nav log, the row it is flying to tinted and kept in sight", async ({ page }) => {
+test("all the way up the dry run plays at the foot under the route, and the nav log's sheet follows it, the row it is flying to tinted and kept in sight", async ({ page }) => {
   // The owner's asks: "I wanna be able to do the dry run with navlog in
   // full fpl"; "keep the profile at the bottom as you pull up the
-  // scrollable navlog".
+  // scrollable navlog"; then the nav log a sheet of its own ("Only stops
+  // in the route box and separate navlog").
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   await grabberTo(page, "full");
@@ -212,19 +213,18 @@ test("all the way up the dry run plays at the foot under the nav log, the row it
   const start = panel.getByTestId("dry-run-start");
   await expect(start).toBeVisible({ timeout: slow(60_000) });
   await start.click();
-  // Its chart in the side view's place, the nav log still over it.
+  // Its chart in the side view's place, the route still over it.
   await expect(panel.getByTestId("dry-run")).toBeVisible();
   await expect(panel.getByTestId("navlog-scroller").locator('[data-title="Legs"]')).toBeVisible();
-  // Held, and stepped along the course from its chart, five miles a key:
-  // the tinted row moves on with it, in sight.
-  await panel.getByTestId("dry-run-play").click();
-  const flying = panel.locator('[role="row"][data-flying]');
-  await expect(flying).toHaveCount(1);
+  // Flying, the nav log opened from the route's box: the tinted row moves
+  // on with the run, in sight.
+  await expect(panel.getByTestId("dry-run-play")).toBeVisible();
+  await openNavLog(page);
+  const flying = navLogSheet(page).locator('[role="row"][data-flying]');
+  await expect(flying).toHaveCount(1, { timeout: slow(10_000) });
   const place = () => flying.evaluate(row => [...row.closest('[role="table"]')!.querySelectorAll('[role="row"][data-kind]')].indexOf(row));
   const first = await place();
-  await panel.getByTestId("dry-run-scrub").focus();
-  for (let i = 0; i < 12; i++) await page.keyboard.press("ArrowRight");
-  await expect.poll(place, { timeout: slow(10_000) }).toBeGreaterThan(first);
+  await expect.poll(place, { timeout: slow(20_000) }).toBeGreaterThan(first);
   await expect(flying).toBeInViewport();
 });
 

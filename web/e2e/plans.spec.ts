@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { slow, settle, sideDrawer, expectDrawerOpen, openTab, openSection, grabberTo, controlsInSight, showTabs } from "./helpers";
+import { slow, settle, sideDrawer, expectDrawerOpen, openTab, openSection, grabberTo, controlsInSight, showTabs, openNavLog, navLogSheet, closeNavLog } from "./helpers";
 
 /**
  * What the nav log is computed from: the altitude plans and a pilot's
@@ -69,7 +69,9 @@ test("plan page: the nav log's altitude opens the planner's own reasoning, and t
   await expect(page.getByTestId("altitude-why")).toHaveAccessibleName(/FL035/, { timeout: slow(30000) });
   // The log at it: said where the altitude is reached -- a top of climb's
   // level, or the first leg's where the climb ends before its checkpoint.
-  await expect(sideDrawer(page).getByTestId("navlog-list")).toContainText("3,500 ft", { timeout: slow(30000) });
+  await openNavLog(page);
+  await expect(navLogSheet(page).getByTestId("navlog-list")).toContainText("3,500 ft", { timeout: slow(30000) });
+  await closeNavLog(page);
   await page.getByTestId("altitude-why").click();
   await expect(popover).toBeVisible();
   await expect(popover.getByTestId("altitude-plan-lowest")).toHaveAttribute("aria-pressed", "false");
@@ -79,9 +81,9 @@ test("plan page: the nav log's altitude opens the planner's own reasoning, and t
   await expect(page).not.toHaveURL(/[?&]altitude_ft=/);
   await expect(page).not.toHaveURL(/[?&]altitude_choice=/);
   await flies("fastest");
-  // No altitude box over the log: the altitude's chip opens the plans.
-  await expect(sideDrawer(page).getByTestId("navlog-head")).not.toContainText("Cruise altitude");
-  expect(await sideDrawer(page).getByTestId("navlog-head").locator("input").count()).toBe(0);
+  // No altitude box over FPL's list: the altitude's chip opens the plans.
+  await expect(sideDrawer(page).getByTestId("navlog-scroller")).not.toContainText("Cruise altitude");
+  expect(await sideDrawer(page).getByTestId("navlog-scroller").locator('input:not([type="hidden"])').count()).toBe(0);
 
   // Escape closes the popover (open from the check above, opened here
   // if the re-plan has closed it since) and leaves the drawer open.
@@ -143,22 +145,22 @@ test("plan page: a departure time gives every checkpoint its time, and the nav l
   await page.getByTestId("depart-done").click();
   await expect(calendar).toHaveCount(0);
   await expect(page.getByTestId("depart-date")).toContainText("15:00");
-  // The nav log all the way up: the departure row's time is the
-  // departure itself.
-  await grabberTo(page, "full");
+  // The nav log, in its sheet: the departure row's time is the departure
+  // itself.
+  await openNavLog(page);
   await expect(times.first()).toHaveText("15:00");
   // The route's figures say when it arrives, and the time en route.
   await expect(page.getByTestId("navlog-eta")).toHaveText(/^\d\d:\d\d$/, { timeout: slow(60000) });
   await expect(page.getByTestId("navlog-ete")).toHaveText(/^\d+h \d\dm$/);
   // Every later row has a time once its leg is in.
   await expect.poll(async () => (await times.last().textContent())?.trim(), { timeout: slow(60000) }).toMatch(/^\d\d:\d\d$/);
+  await closeNavLog(page);
   // And the fuel check, against the stock C172's 40 usable gallons,
-  // with the day reserve for a mid-afternoon flight -- under the table,
-  // where the fuel column it sums ends.
+  // with the day reserve for a mid-afternoon flight -- under FPL's route.
   const fuel = page.getByTestId("fuel-check");
   await expect(fuel.locator("[data-slot=item]", { hasText: "Usable fuel" })).toContainText("40 gal", { timeout: slow(60000) });
   await expect(fuel).toContainText("30 min day reserve");
-  const tableBox = (await table.boundingBox())!;
+  const tableBox = (await sideDrawer(page).getByTestId("procedures").boundingBox())!;
   const noteBox = (await page.getByTestId("fuel-check").boundingBox())!;
   expect(noteBox.y).toBeGreaterThanOrEqual(tableBox.y + tableBox.height);
 });

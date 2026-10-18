@@ -1,7 +1,7 @@
 import { Suspense, lazy, memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type ComponentType } from "react";
 import { flushSync } from "react-dom";
 import { useQueries, useQuery } from "@tanstack/react-query";
-import { Play, ClipboardList, MapPin, Plane, Route, TowerControl } from "lucide-react";
+import { Play, ClipboardList, ListOrdered, MapPin, Plane, Route, TowerControl } from "lucide-react";
 import { legOf, navLogRows } from "./components/navlog/rows";
 import { fromChunk } from "../../lib/fromChunk";
 import { cn } from "cn";
@@ -39,7 +39,7 @@ import { FavoriteStrip, FavoritesList } from "../../components/Favorites";
 import FlightLine from "./components/FlightLine";
 import AirspaceCard from "./components/AirspaceCard";
 import PlaceCard from "./components/PlaceCard";
-import ProceduresButton, { type ProcedureAirport } from "./components/ProceduresButton";
+import ProceduresRoute, { type ProcedureAirport, type ProceduresAt } from "./components/ProceduresRoute";
 import { patternsOf, patternsParam, trafficPattern, type TrafficPattern } from "../../lib/trafficPattern";
 import { proceduresOf, proceduresParam, sameField, type PickedProcedure } from "../../lib/procedures";
 import { runwayNumber } from "../../lib/pattern";
@@ -436,7 +436,13 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     };
     return { departure: at(planned.dep, "departure"), arrival: at(planned.dest, "arrival") };
   }, [procedureDrawings, planned.dep, planned.dest]);
-  const [proceduresOpen, setProceduresOpen] = useState(false);
+  // The Procedures' sheet, open at one kind of a field's (ProceduresRoute):
+  // from its row in FPL's route, or a procedure's chip in the route's box.
+  const [proceduresAt, setProceduresAt] = useState<ProceduresAt>(null);
+  const proceduresOpen = proceduresAt !== null;
+  // The nav log's own sheet, from the route's box's Nav log button, where
+  // FPL shows the route in order (NavLogView's `route`).
+  const [navLogOpen, setNavLogOpen] = useState(false);
   // The procedure on its own page in the Procedures, drawn on the map and
   // brought in above the sheet before it is added to the route, as
   // ForeFlight's Procedure Advisor previews one (the owner's pick); the
@@ -457,13 +463,14 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       ? [...procedureDrawings.filter(d => !(d.kind === preview.kind && sameField(d.airport, preview.airport))), preview]
       : procedureDrawings;
   }, [procedureDrawings, procedurePreview, previewDrawing]);
-  // On a phone the sheet is half the screen (ProceduresButton), the map
+  // On a phone the sheet is half the screen (ProceduresRoute), the map
   // above it the procedure's: the panel lowered half way while it is out
   // if it was all the way up over the map, and put back as it was unless
   // a procedure was added, which is then on the map to be seen.
   const isMobile = useIsMobile();
-  const setProceduresShown = useCallback((open: boolean) => {
-    setProceduresOpen(open);
+  const setProceduresShown = useCallback((at: ProceduresAt) => {
+    const open = at !== null;
+    setProceduresAt(at);
     if (!open) setProcedurePreview(null);
     if (!isMobile) return;
     if (open && panel === "full") {
@@ -474,10 +481,10 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       panelBeforeProcedures.current = null;
     }
   }, [isMobile, panel, setPanel]);
-  const openProcedures = useCallback(() => setProceduresShown(true), [setProceduresShown]);
+  const openProcedures = useCallback((p: RouteProcedure) => setProceduresShown({ ident: p.ident, kind: p.kind }), [setProceduresShown]);
   // What the sheet covers of the screen, from the navigation bar's edge
   // it comes from, for the map to bring the procedure in clear of it: its
-  // 55% (the sheet's 55dvh, ProceduresButton).
+  // 55% (the sheet's 55dvh, ProceduresRoute).
   const navEdge = useNavEdge();
   const procedureCover = useMemo(() => {
     const covered = isMobile && proceduresOpen ? Math.round(window.innerHeight * 0.55) : 0;
@@ -1227,6 +1234,21 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     setDryRun(null);
     clearPastFlight();
   };
+  // The route in order in FPL, the nav log's place: its fields with their
+  // runways and procedures, and the tops of climb and descent and the
+  // fixes flown through, by the nav log's rows.
+  const routeRows = useMemo(() => navLogRows(course, s.logSelected, s.legs), [course, s.logSelected, s.legs]);
+  const routeList = useMemo(() => (
+    <ProceduresRoute
+      airports={procedureAirports} rows={routeRows} depart={depart} weather={metarColour}
+      picked={pickedPatterns} onPick={pickPattern}
+      procedures={pickedProcedures} inRoute={routeProcedures} onProcedures={pickProcedures} onPreview={previewProcedure}
+      at={proceduresAt} onAt={setProceduresShown}
+      onCharts={() => { if (planned.dest) { setApproachesOf(planned.dest); selectPlace(planned.dest); } }}
+      chartsDisabled={!planned.dest || noApproaches}
+    />
+  ), [procedureAirports, routeRows, depart, metarColour, pickedPatterns, pickPattern, pickedProcedures, routeProcedures, pickProcedures,
+    previewProcedure, proceduresAt, setProceduresShown, planned.dest, selectPlace, noApproaches]);
   const navLog = useMemo(() => (
     <Suspense fallback={<div className="min-h-0 flex-1" />}>
     <NavLogView
@@ -1244,6 +1266,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       // In sight all the way up, the Brief not over it: a row picked is
       // brought into sight as it comes back.
       drawerOpen={drawerOpen && !briefShown} dryRun={dryRunning} fuelAsked={fuelAsked}
+      route={routeList} navLogOpen={navLogOpen} onNavLogOpenChange={setNavLogOpen}
       aircraftLabel={aircraft.label}
       marks={marks}
       tabContent={tabContent}
@@ -1263,7 +1286,8 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     </Suspense>
   ), [s.totals, s.nav, s.legs, depart, planned.dep, planned.dest, course, s.logSelected, s.descriptions, s.saveDescription,
     s.generateDescriptions, descriptionsLoading, descriptionsPaywall, descriptionsHidden, selectedPoint, selectPointAt, deselectPoint, drawerOpen, aircraft.label,
-    marks, tabContent, s.briefing, s.local, landedStops, s.langgraphNarrative, s.crewaiNarrative, unflyableBrief, kneeboardLater, metarColour, dryRunning, fuelAsked, briefShown]);
+    marks, tabContent, s.briefing, s.local, landedStops, s.langgraphNarrative, s.crewaiNarrative, unflyableBrief, kneeboardLater, metarColour, dryRunning, fuelAsked, briefShown,
+    routeList, navLogOpen]);
   // The Brief's pages (BriefCard): En route's without the legs, which are
   // FPL's own; and its warnings over them.
   const briefContents = useMemo(() => ({
@@ -1447,13 +1471,15 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
             </span>
           </RoundButton>
         )}
-        <ProceduresButton
-            airports={procedureAirports} picked={pickedPatterns} onPick={pickPattern}
-            procedures={pickedProcedures} onProcedures={pickProcedures} onPreview={previewProcedure}
-            open={proceduresOpen} onOpenChange={setProceduresShown}
-            onCharts={() => { if (planned.dest) { setApproachesOf(planned.dest); selectPlace(planned.dest); } }}
-            chartsDisabled={!planned.dest || noApproaches}
-          />
+        {/* The nav log, in a sheet of its own (NavLogView), in the
+            Procedures' place, at the owner's ask ("We can replace the
+            approaches button with the navlog button"): FPL lists the route
+            in order instead, its procedures with it (ProceduresRoute). */}
+        {routed && (
+          <RoundButton label="Nav log" onClick={() => setNavLogOpen(true)} disabled={!course} data-testid="route-navlog">
+            <ListOrdered className="size-5" strokeWidth={2} />
+          </RoundButton>
+        )}
         {shareMenu("end")}
       </div>
     </div>
