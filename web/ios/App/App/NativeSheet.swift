@@ -70,6 +70,7 @@ public class NativeSheetPlugin: CAPPlugin, CAPBridgedPlugin {
     var role: SheetRole = .map
 
     @objc func ready(_ call: CAPPluginCall) {
+        NSLog("NativeSheet: ready from the %@ page", role.rawValue)
         DispatchQueue.main.async {
             let hub = NativeSheetHub.shared
             switch self.role {
@@ -355,6 +356,7 @@ class MainViewController: CAPBridgeViewController, UISheetPresentationController
     /// The sheet, once: never put away (it is the panel), never shading
     /// the map at any size, and the map under it answering a finger.
     func presentSheet() {
+        NSLog("NativeSheet: present (sheet %@, presented %@)", self.sheet == nil ? "none" : "already", presentedViewController == nil ? "none" : String(describing: presentedViewController))
         guard self.sheet == nil, presentedViewController == nil else { return }
         let sheet = SheetContainerViewController()
         sheet.isModalInPresentation = true
