@@ -101,7 +101,10 @@ export function ResponsivePopoverContent({
         {action !== undefined && (
           <div className="flex min-h-8 items-center justify-between gap-2">
             {leading}
-            <div className={cn("font-semibold", TEXT.row, leading && "flex-1 text-center")}>{title}</div>
+            {/* A heading, as the phone's sheet's title is (Radix's), so a
+                page pushed in the popover (the Procedures') is named
+                alike on both. */}
+            <div role="heading" aria-level={2} className={cn("font-semibold", TEXT.row, leading && "flex-1 text-center")}>{title}</div>
             {action}
           </div>
         )}
