@@ -1,4 +1,4 @@
-import type { PathOptions } from "leaflet";
+import L, { type PathOptions } from "leaflet";
 import { useEffect, useMemo, useRef } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Circle, Marker, useMap, useMapEvents } from "react-leaflet";
@@ -6,7 +6,7 @@ import { nearestQuery } from "../queryClient";
 import { glideRangeNm } from "./glide";
 import { centreClear, panClear } from "./clear";
 import { ownShipIcon } from "./icons";
-import { COUNTRY_ZOOM, OPEN_ZOOM, useOwnShip } from "./ownShip";
+import { COUNTRY_ZOOM, OPEN_ZOOM, SIMULATED_FIX_MS, useOwnShip } from "./ownShip";
 import { usePreferences } from "../preferences";
 
 /**
@@ -101,8 +101,43 @@ export function OwnShipLayer() {
       map.flyTo(target, zoom, { duration: 0.8 });
       return;
     }
-    panClear(map, [fix.lat, fix.lon], { animate: true, duration: 0.5 });
+    // A dry run's fixes come four a second and own ship glides between
+    // them (below): the map goes with it, evenly over the same quarter
+    // second, where half a second eased out and cut short by the next fix
+    // moved it in jerks.
+    panClear(map, [fix.lat, fix.lon], simulated
+      ? { animate: true, duration: SIMULATED_FIX_MS / 1000, easeLinearity: 1 }
+      : { animate: true, duration: 0.5 });
   }, [map, enabled, fix, follow, recentred, recentreZoom, simulated]);
+  // A dry run's airplane, its rings with it, glides from one fix to the
+  // next over the time between them, at the owner's notice ("the dry run
+  // movement on the map is not very smooth"): put at each fix, it moved
+  // in jumps four times a second. Put back where it was after the
+  // marker's own move to the fix (an effect, a parent's running after its
+  // children's), then moved on a frame at a time.
+  const ship = useRef<L.Marker>(null);
+  const ring = useRef<L.Circle>(null);
+  const accuracy = useRef<L.Circle>(null);
+  const shown = useRef<{ lat: number; lon: number } | null>(null);
+  useEffect(() => {
+    const from = shown.current;
+    shown.current = fix ? { lat: fix.lat, lon: fix.lon } : null;
+    if (!simulated || !enabled || !fix || !from) return;
+    const put = (k: number) => {
+      const at = L.latLng(from.lat + (fix.lat - from.lat) * k, from.lon + (fix.lon - from.lon) * k);
+      ship.current?.setLatLng(at);
+      ring.current?.setLatLng(at);
+      accuracy.current?.setLatLng(at);
+    };
+    put(0);
+    const start = performance.now();
+    let frame = requestAnimationFrame(function step(now) {
+      const k = Math.min(1, (now - start) / SIMULATED_FIX_MS);
+      put(k);
+      if (k < 1) frame = requestAnimationFrame(step);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [fix, simulated, enabled]);
   // The still-air glide from the GPS's altitude over the nearest field
   // (lib/map/glide), a dashed ring in the air, as an EFB's glide advisor
   // draws it; nothing on the ground. The last field's answer held while
@@ -119,15 +154,15 @@ export function OwnShipLayer() {
     <>
       {glide != null && (
         <Circle
-          center={[fix.lat, fix.lon]} radius={glide * 1852}
+          ref={ring} center={[fix.lat, fix.lon]} radius={glide * 1852}
           pathOptions={GLIDE_RING}
         />
       )}
       <Circle
-        center={[fix.lat, fix.lon]} radius={fix.accuracyM}
+        ref={accuracy} center={[fix.lat, fix.lon]} radius={fix.accuracyM}
         pathOptions={ACCURACY}
       />
-      <Marker position={[fix.lat, fix.lon]} icon={ownShipIcon(fix.headingDeg, false, look)} interactive={false} zIndexOffset={1000} keyboard={false} />
+      <Marker ref={ship} position={[fix.lat, fix.lon]} icon={ownShipIcon(fix.headingDeg, false, look)} interactive={false} zIndexOffset={1000} keyboard={false} />
     </>
   );
 }

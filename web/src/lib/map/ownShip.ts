@@ -228,6 +228,11 @@ export const useOwnShip = create<OwnShip>()(
   ),
 );
 
+/** How often the dry run reports a fix to own ship, ms: four a second, as
+ *  a GPS might, not every frame -- each fix moves what follows own ship.
+ *  Own ship glides from one to the next over it (OwnShipLayer). */
+export const SIMULATED_FIX_MS = 250;
+
 /** A point of the planned flight's dry run (lib/map/pastFlight's). */
 export interface SimulatedPoint { t: number; lat: number; lon: number; alt_ft?: number | null; gs_kt?: number | null; track_deg?: number | null }
 

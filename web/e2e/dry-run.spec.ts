@@ -164,8 +164,13 @@ test("half way the side view is whole, its dry run plays under the route's chips
   // the run follows its airplane at it, the chart not drawn again at the
   // whole level beside it (the owner's "When tapping play for a dry run,
   // the map seems to reload").
-  const level = () => page.evaluate(() => [...document.querySelectorAll<HTMLElement>(".leaflet-tile-container")]
-    .filter(c => c.querySelector(".leaflet-tile-loaded")).map(c => c.style.transform.match(/scale\(([\d.]+)\)/)?.[1] ?? "1").join());
+  // Leaflet's level in use is its tile container with the highest z-index;
+  // the others are levels still fading out.
+  const level = () => page.evaluate(() => {
+    const levels = [...document.querySelectorAll<HTMLElement>(".leaflet-tile-pane .leaflet-layer:first-child .leaflet-tile-container")];
+    const now = levels.reduce<HTMLElement | null>((top, c) => (!top || Number(c.style.zIndex) > Number(top.style.zIndex) ? c : top), null);
+    return now?.style.transform.match(/scale\(([\d.]+)\)/)?.[1] ?? "1";
+  });
   await settled(panel);
   const fitted = await level();
   await start.click();
