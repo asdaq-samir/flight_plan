@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { slow, settle, openTab, openSection, controlsInSight } from "./helpers";
+import { slow, settle, openTab, openSection, controlsInSight, openNavLog, closeNavLog } from "./helpers";
 
 /**
  * Planning under IFR (the planner's vfr.ifr): the flight rules are the
@@ -77,10 +77,11 @@ test("under IFR an airway in the route is flown fix by fix, its published MEA th
   await page.goto("/app/plan?dep=C81&dest=KATW&stops=BAE,V191,OSH&procs=C81:BAEE1:BAE,KATW:OSHH2:OSH");
   await settle(page);
   await page.getByTestId("sidebar-trigger-button").click();
-  await openTab(page, "Nav Log");
+  await openNavLog(page);
   const log = page.getByRole("table", { name: /Navigation log from/i });
   await expect(log).toContainText("CORIR", { timeout: slow(90000) });
   await expect(log).toContainText("OSH");
+  await closeNavLog(page);
   await controlsInSight(page);
   const why = page.getByTestId("altitude-why");
   await expect(why).toHaveAccessibleName(/under IFR, FL\d[02468]0/, { timeout: slow(90000) });

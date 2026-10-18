@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { clearTheRoute, closeCard, consoleSheet, expectDrawerClosed, grabberTo, mapStill, openConsole, openMapSettings, openPanel, settle, showTabs, sideDrawer, slow, tapNear, tapTheChart, controlsInSight } from "./helpers";
+import { clearTheRoute, closeCard, consoleSheet, expectDrawerClosed, grabberTo, mapStill, openConsole, openMapSettings, openPanel, settle, showTabs, sideDrawer, slow, tapNear, tapTheChart } from "./helpers";
 
 /**
  * Airports as places, as Maps has them: a tap on one on the chart opens
@@ -287,11 +287,9 @@ test("the route's Procedures open its destination's card on its approaches, and 
   const width = page.viewportSize()!.width;
   expect((await settings.boundingBox())!.x).toBeGreaterThan(width / 2);
 
-  // The route's Procedures, its destination's approach charts among them,
-  // in the chips' row all the way up.
-  await controlsInSight(page);
-  await sideDrawer(page).getByTestId("route-approaches").click();
-  await page.getByTestId("procedure-charts").click();
+  // The destination's approach charts, in FPL's route all the way up.
+  await grabberTo(page, "full");
+  await sideDrawer(page).getByTestId("procedure-charts").click();
   await expect(card(page).getByTestId("place-name")).toHaveText("Duluth International Airport KDLH", { timeout: slow(15000) });
   await expect(card(page).getByTestId("place-tab-diagrams")).toHaveAttribute("aria-selected", "true");
   await expect(sideDrawer(page)).toHaveAttribute("data-panel", "full");

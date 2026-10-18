@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { settle, sideDrawer, slow, openTab } from "./helpers";
+import { settle, slow, openNavLog, navLogSheet } from "./helpers";
 
 /**
  * The diversion drill (DiversionDrill, lib/diversion): over a checkpoint,
@@ -18,11 +18,11 @@ test("a diversion over a checkpoint: the clock, a field picked, and the estimate
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   await page.getByTestId("sidebar-trigger-button").click();
-  await openTab(page, "Nav Log");
-  const rows = sideDrawer(page).locator("[data-kind=checkpoint]");
+  await openNavLog(page);
+  const rows = navLogSheet(page).locator("[data-kind=checkpoint]");
   await expect(rows.first()).toBeVisible({ timeout: slow(120000) });
   await rows.first().click();
-  await sideDrawer(page).getByTestId("diversion-drill").first().click();
+  await navLogSheet(page).getByTestId("diversion-drill").first().click();
 
   const sheet = page.getByTestId("diversion-content");
   await sheet.getByTestId("diversion-start").click();

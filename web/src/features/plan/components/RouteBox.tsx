@@ -88,7 +88,7 @@ export default function RouteBox({
   /** The procedures picked, after their fields' pills, and the way to the
    *  route's Procedures from one. */
   procedures?: RouteProcedure[];
-  onProcedures?: () => void;
+  onProcedures?: (procedure: RouteProcedure) => void;
   /** An airport's pill tapped: its card (PlaceCard), at the pilot's ask,
    *  the airport changed from the pill's menu instead. A waypoint's tap
    *  is still its search: it has no card. */
@@ -408,7 +408,7 @@ export default function RouteBox({
                           -- a tap opens the Procedures they were picked in.
                           Not points of the route: not dragged, not typed. */}
                       {(i === points.findIndex(p => p === point)) && procedures.filter(p => sameField(p.ident, point)).map(p => (
-                        <ProcedureChip key={`${p.kind}-${p.label}`} procedure={p} onOpen={onProcedures} />
+                        <ProcedureChip key={`${p.kind}-${p.label}`} procedure={p} onOpen={onProcedures ? () => onProcedures(p) : undefined} />
                       ))}
                     </Fragment>
                   ))}

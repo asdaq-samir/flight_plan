@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { slow, settle, sideDrawer, openBrief, openBriefing, openTab, grabberTo, panelTabs } from "./helpers";
+import { slow, settle, sideDrawer, openBrief, openBriefing, openTab, grabberTo, panelTabs, openNavLog, closeNavLog, navLogScroller, navLogSheet } from "./helpers";
 
 /**
  * The nav log's checkpoints: selected by a click, by Enter or by a pick
@@ -11,8 +11,8 @@ test("plan page: a click or Enter selects a nav log checkpoint, with the briefin
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   await page.getByTestId("sidebar-trigger-button").click();
-  // The sections start closed: open the nav log's to walk its rows.
-  await openTab(page, "Nav Log");
+  // The nav log, in its own sheet from the route's box.
+  await openNavLog(page);
   const table = page.getByRole("table", { name: /Navigation log from/i });
   // The rows arrive with the scored checkpoints; wait for more than
   // the departure and the destination.
@@ -56,6 +56,7 @@ test("plan page: a click or Enter selects a nav log checkpoint, with the briefin
 
   // The Brief's tabs take the stock tabs' own arrows, Right to the next:
   // Arrive, after En route.
+  await closeNavLog(page);
   await openBrief(page);
   const tabs = panelTabs(page).getByRole("tab");
   await panelTabs(page).getByRole("tab", { name: "En route" }).focus();
@@ -85,13 +86,13 @@ test("plan page: a checkpoint picked on the map is brought to the middle of the 
   await page.setViewportSize({ width: viewport.width, height: 462 });
   await page.waitForTimeout(300);
   await grabberTo(page, "full");
-  // The drawer opens the nav log's own section itself, for the pick:
-  // no title to find and press first.
+  // The nav log opened from the route's box shows the pick, brought in.
+  await openNavLog(page);
   const table = page.getByRole("table", { name: /Navigation log from/i });
   await expect(table).toBeVisible();
   const selectedRow = table.locator('[role="row"][data-selected]');
   await expect(selectedRow).toHaveCount(1);
-  const scroller = sideDrawer(page).getByTestId("navlog-scroller");
+  const scroller = navLogScroller(page);
   const middle = async () => {
     const row = (await selectedRow.boundingBox())!;
     const view = (await scroller.boundingBox())!;
@@ -126,9 +127,10 @@ test("plan page: a checkpoint picked on the map is brought to the middle of the 
   expect(Math.abs((await onScreen()) - before)).toBeLessThan(2);
 
   // Another tab and back: the selection kept, its row brought into view.
+  await closeNavLog(page);
   await openTab(page, "Weather");
   await expect(sideDrawer(page).getByRole("heading", { name: "Adverse Conditions" })).toBeVisible();
-  await openTab(page, "Nav Log");
+  await openNavLog(page);
   await expect(selectedRow).toBeInViewport();
   await neighbour.scrollIntoViewIfNeeded();
 
@@ -178,8 +180,8 @@ test("plan page: iOS never zooms the page in on a phone's field: the viewport fo
   // The description boxes are in the nav log's section, closed until
   // its title is clicked, and each under its own row, closed until
   // that row is selected.
-  await openTab(page, "Nav Log");
-  const rows = sideDrawer(page).locator('[role="row"][data-kind="checkpoint"]');
+  await openNavLog(page);
+  const rows = navLogSheet(page).locator('[role="row"][data-kind="checkpoint"]');
   await expect.poll(() => rows.count(), { timeout: slow(15000) }).toBeGreaterThan(0);
   await rows.first().click();
   await expect.poll(() => page.locator("textarea").count(), { timeout: slow(15000) }).toBeGreaterThan(0);

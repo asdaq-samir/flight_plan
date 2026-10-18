@@ -33,6 +33,8 @@ import { dryRunRow, type DryRun } from "./dryRun";
 import { DRY_RUN, usePastFlight } from "../../../../lib/map/pastFlight";
 import { PointMark } from "./PointMark";
 import { NavLogList } from "./NavLogList";
+import CloseButton from "../../../../components/CloseButton";
+import { ResponsivePopover, ResponsivePopoverAnchor, ResponsivePopoverContent } from "../../../../components/ResponsivePopover";
 
 
 // TanStack Table's own extension point for arbitrary per-column data --
@@ -139,6 +141,14 @@ interface Props {
   /** Bumped as the fuel check is asked for (the Brief's Go / No-Go fuel
    *  row): brought into sight under the legs. */
   fuelAsked?: number;
+  /** FPL's own list in the nav log's place on screen: the route in order
+   *  (ProceduresRoute), the nav log then in a sheet of its own, opened by
+   *  the route's box's Nav log button, at the owner's ask ("I want to
+   *  replace navlog with procedures", 2026-10-18). */
+  route?: ReactNode;
+  /** That sheet out, and put away. */
+  navLogOpen?: boolean;
+  onNavLogOpenChange?: (open: boolean) => void;
 }
 
 /**
@@ -341,8 +351,11 @@ export default function NavLogView({
   selected, descriptions, onSaveDescription,
   onGenerateDescriptions, descriptionsLoading, descriptionsPaywall, descriptionsHidden = false, tabContent, children, marks, notice, footer, local = false, metarColourOf = noWeather,
   selectedPoint, onSelectPoint, onDeselectPoint, drawerOpen,
-  aircraftLabel, dryRun = null, fuelAsked = 0,
+  aircraftLabel, dryRun = null, fuelAsked = 0, route, navLogOpen = false, onNavLogOpenChange,
 }: Props) {
+  // Where the log's rows are in sight: in its sheet where FPL shows the
+  // route, else FPL all the way up.
+  const logInSight = route ? navLogOpen : drawerOpen;
   const noWind = totals ? legsWithoutWind(totals) : null;
   // The other tabs' code fetched while nothing else is, once the log is
   // in, so the first opening of each draws rather than downloads: the
@@ -598,7 +611,7 @@ export default function NavLogView({
   // route and the run's chart, which a scroll to the log would move.
   const flying = usePastFlight(p => (dryRun && p.hex === DRY_RUN && p.at !== null ? dryRunRow(dryRun, p.at) : null));
   const [flyingRow, setFlyingRow] = useState<HTMLElement | null>(null);
-  useEffect(() => (drawerOpen ? revealRow(flyingRow) : undefined), [flyingRow, flying, drawerOpen]);
+  useEffect(() => (logInSight ? revealRow(flyingRow) : undefined), [flyingRow, flying, logInSight]);
   // Whether the table fits the drawer's width (see navLogTable): watched,
   // since a departure time adds a column and the text size moves every
   // one of them. From a ref, not an effect: the table is there only
@@ -628,7 +641,7 @@ export default function NavLogView({
   // view is mounted, and its rows laid out, while the drawer is
   // closed, so a row revealed then was revealed off screen. (A pick brings
   // its tab up, PanelTabs.)
-  useEffect(() => revealRow(selectedRow), [selectedRow, selectedPoint, drawerOpen]);
+  useEffect(() => revealRow(selectedRow), [selectedRow, selectedPoint, logInSight]);
   // The fuel check asked for from the Brief's Go / No-Go (`fuelAsked`):
   // brought into sight under the legs as a picked row is, once for each
   // ask, the sheet still coming up as it is.
@@ -891,7 +904,7 @@ export default function NavLogView({
   const legsSection = (
     <SectionPane title={LEGS} heading={printing && !local}>
       {!local && summary}
-      {!local && (printing ? navLogTable : navLogList)}
+      {!local && (printing ? navLogTable : route ?? navLogList)}
       <div ref={setFuelCheck}>{fuelNote}</div>
       {!local && hopsNote}
     </SectionPane>
@@ -953,9 +966,23 @@ export default function NavLogView({
             className="@container min-h-0 flex-1 overflow-auto pr-4 pb-[env(safe-area-inset-bottom)] pl-[max(1rem,env(safe-area-inset-left))]"
             data-testid="navlog-scroller"
           >
-            <section aria-label={local ? "Local Flight" : "Nav Log"} className={TEXT.prose}>{legsSection}</section>
+            <section aria-label={local ? "Local Flight" : route ? "Route" : "Nav Log"} className={TEXT.prose}>{legsSection}</section>
             {footer}
           </div>
+          {route && !local && (
+            // The nav log in a sheet of its own: on a phone the floating
+            // sheet's (PhoneSheetContent), as tall as it needs up to 85%
+            // of the screen; from md up a popover beside the panel.
+            <ResponsivePopover open={navLogOpen} onOpenChange={open => onNavLogOpenChange?.(open)}>
+              <ResponsivePopoverAnchor asChild><span aria-hidden="true" className="block h-0" /></ResponsivePopoverAnchor>
+              <ResponsivePopoverContent
+                title="Nav log" className="max-h-[80vh] w-[26rem] overflow-y-auto p-3" align="start" side="right"
+                action={<CloseButton onClick={() => onNavLogOpenChange?.(false)} data-testid="navlog-close" />}
+              >
+                <section aria-label="Nav Log" className={TEXT.prose} data-testid="navlog-sheet">{navLogList}</section>
+              </ResponsivePopoverContent>
+            </ResponsivePopover>
+          )}
         </div>
       )}
       {/* Where it is either way, so turning to paper does not draw it

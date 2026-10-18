@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { settle, sideDrawer, slow, openTab } from "./helpers";
+import { settle, slow, openNavLog, navLogSheet } from "./helpers";
 
 /**
  * Show the work (LegWorkings): the selected leg's wind triangle worked
@@ -9,11 +9,11 @@ test("a leg's heading worked out, and a student's magnetic heading marked", asyn
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   await page.getByTestId("sidebar-trigger-button").click();
-  await openTab(page, "Nav Log");
-  const rows = sideDrawer(page).locator("[data-kind=checkpoint]");
+  await openNavLog(page);
+  const rows = navLogSheet(page).locator("[data-kind=checkpoint]");
   await expect(rows.first()).toBeVisible({ timeout: slow(120000) });
   await rows.first().click();
-  await sideDrawer(page).getByTestId("leg-workings").first().click();
+  await navLogSheet(page).getByTestId("leg-workings").first().click();
   const sheet = page.getByTestId("leg-workings-content");
   await expect(sheet.getByTestId("working-step")).toHaveCount(10);
   await expect(sheet.getByTestId("working-step").nth(5)).toContainText("east is least, west is best");
