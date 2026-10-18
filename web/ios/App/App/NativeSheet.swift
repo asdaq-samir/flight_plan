@@ -104,9 +104,13 @@ public class NativeSheetPlugin: CAPPlugin, CAPBridgedPlugin {
     }
 }
 
-/// Tells a page which of the two it is before any of its scripts run.
-private func roleScript(_ role: SheetRole) -> WKUserScript {
-    WKUserScript(source: "window.WingtipNativeRole = '\(role.rawValue)';", injectionTime: .atDocumentStart, forMainFrameOnly: true)
+/// Tells a page which of the two it is before any of its scripts run. Put
+/// in the web view's own content controller once the bridge has made it:
+/// the bridge swaps the configuration's controller for its own, so a
+/// script added to the configuration is lost.
+private func tellRole(_ role: SheetRole, to webView: WKWebView?) {
+    let script = WKUserScript(source: "window.WingtipNativeRole = '\(role.rawValue)';", injectionTime: .atDocumentStart, forMainFrameOnly: true)
+    webView?.configuration.userContentController.addUserScript(script)
 }
 
 /// The sheet's web view: the site's panel alone, clear, so the sheet's
@@ -116,16 +120,12 @@ class SheetViewController: CAPBridgeViewController {
         let plugin = NativeSheetPlugin()
         plugin.role = .sheet
         bridge?.registerPluginInstance(plugin)
+        tellRole(.sheet, to: webView)
         webView?.isOpaque = false
         webView?.backgroundColor = .clear
         webView?.scrollView.backgroundColor = .clear
     }
 
-    override open func webViewConfiguration(for instanceConfiguration: InstanceConfiguration) -> WKWebViewConfiguration {
-        let configuration = super.webViewConfiguration(for: instanceConfiguration)
-        configuration.userContentController.addUserScript(roleScript(.sheet))
-        return configuration
-    }
 }
 
 /// The app's web view, the map, with the app's own plugins registered
@@ -139,13 +139,8 @@ class MainViewController: CAPBridgeViewController, UISheetPresentationController
         let plugin = NativeSheetPlugin()
         plugin.role = .map
         bridge?.registerPluginInstance(plugin)
+        tellRole(.map, to: webView)
         NativeSheetHub.shared.host = self
-    }
-
-    override open func webViewConfiguration(for instanceConfiguration: InstanceConfiguration) -> WKWebViewConfiguration {
-        let configuration = super.webViewConfiguration(for: instanceConfiguration)
-        configuration.userContentController.addUserScript(roleScript(.map))
-        return configuration
     }
 
     /// The pill, half way and all the way up, as Maps' sheet has them; on
