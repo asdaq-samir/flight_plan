@@ -1,6 +1,6 @@
 import { Suspense, lazy, useRef, type KeyboardEvent, type PointerEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Pause, Play, RotateCcw } from "lucide-react";
+import { Pause, Play } from "lucide-react";
 import { cn } from "cn";
 import CloseButton from "../../../components/CloseButton";
 import RoundButton from "../../../components/RoundButton";
@@ -28,7 +28,15 @@ const FlightChart = lazy(() => import("./PastFlightChart"));
  * (DryRunLayer). In FPL's foot in the side view's place, the figures
  * under it (DryRunFigures); the chart growing with the sheet.
  */
-export function DryRunControls({ run, ends, onClose }: { run: DryRun; ends: RouteEnds | null; onClose: () => void }) {
+export function DryRunControls({ run, ends, onClose, missed = false, onMissed }: {
+  run: DryRun;
+  ends: RouteEnds | null;
+  onClose: () => void;
+  /** The approach picked goes missed (dryRunOf's `missed`), and the button
+   *  that sends it, on the approach's final (`run.final`). */
+  missed?: boolean;
+  onMissed?: () => void;
+}) {
   const playing = usePastFlight(s => s.playing);
   // The airspace the course passes through, the side view's answer
   // (routeProfileQuery): it was drawn there before the run's play.
@@ -39,7 +47,10 @@ export function DryRunControls({ run, ends, onClose }: { run: DryRun; ends: Rout
   const speed = usePastFlight(s => s.speed);
   const second = usePastFlight(s => (s.at === null ? null : Math.floor(s.at)));
   const here = second === null ? null : positionAt(run.points, second);
-  const again = () => usePastFlight.setState({ at: run.points[0]?.t ?? null, playing: true });
+  // On the approach's final, not gone missed yet: the moment to go missed,
+  // at the owner's ask ("just show a go missed button when on the final of
+  // the approach").
+  const onFinal = !!run.final && !missed && !!onMissed && second !== null && second >= run.final.from && second < run.final.to;
   // The speeds in turn, a tap each: one small button on the chart, where
   // a segmented control took a row of its own.
   const nextSpeed = REPLAY_SPEEDS[(REPLAY_SPEEDS.indexOf(speed as (typeof REPLAY_SPEEDS)[number]) + 1) % REPLAY_SPEEDS.length]!;
@@ -78,13 +89,15 @@ export function DryRunControls({ run, ends, onClose }: { run: DryRun; ends: Rout
   };
   return (
     <div className="relative flex min-h-0 flex-1 flex-col rounded-xl bg-background/70 px-1 pt-1" data-testid="dry-run">
-      <p className={cn("flex min-h-9 items-center gap-2 pr-[10.5rem] pl-2 tabular-nums", TEXT.detail)}>
+      <p className={cn("flex min-h-9 items-center gap-2 pl-2 tabular-nums", onFinal ? "pr-[14rem]" : "pr-[8.25rem]", TEXT.detail)}>
         {/* Each figure in its trace's colour (flightTraces), in place of the
             chart's axes, at the owner's ask. */}
         {here ? (
-          <span className="truncate font-semibold" data-testid="dry-run-now">
+          // One over the other while Go missed takes room beside them: in a
+          // line they were cut short there.
+          <span className={cn("font-semibold", onFinal ? "flex flex-col leading-tight" : "truncate")} data-testid="dry-run-now">
             <span className={TRACES.alt.text}>{altFt(here.alt_ft)} ft</span>
-            <span className="text-muted-foreground"> · </span>
+            {!onFinal && <span className="text-muted-foreground"> · </span>}
             <span className={TRACES.kt.text}>{here.gs_kt != null ? `${Math.round(here.gs_kt)} kt` : "—"}</span>
           </span>
         ) : (
@@ -102,9 +115,17 @@ export function DryRunControls({ run, ends, onClose }: { run: DryRun; ends: Rout
           44-point hit areas their own (index.css). */}
       {/* Over the chart's drag where their hit areas reach into it. */}
       <div className="absolute top-1.5 right-1.5 z-10 flex items-center gap-2">
-        <RoundButton label="From the start" onClick={again} data-testid="dry-run-again">
-          <RotateCcw className="size-5" />
-        </RoundButton>
+        {/* No from the start, at the owner's ask ("I don't think we need the
+            replay button"): the chart's drag takes the run back. Go missed
+            on the approach's final only (above). */}
+        {onFinal && (
+          <RoundButton
+            label="Go missed" onClick={onMissed} className={cn("w-auto px-2.5 font-semibold", TEXT.note)}
+            data-testid="dry-run-missed"
+          >
+            Go missed
+          </RoundButton>
+        )}
         <RoundButton label={playing ? "Pause" : "Play"} onClick={playing ? pausePastFlight : playPastFlight} data-testid="dry-run-play">
           {playing ? <Pause className="size-5" /> : <Play className="size-5" />}
         </RoundButton>

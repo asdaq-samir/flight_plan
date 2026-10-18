@@ -287,4 +287,24 @@ test("with an approach picked, the dry run flies it into the field: out to its f
     expect(along).toBeLessThan(1);
     expect(off).toBeLessThan((length / 5.9) * 0.5);
   }).toPass({ timeout: slow(10_000) });
+
+  // No from the start (the chart's drag takes the run back), and Go
+  // missed on the final only (the owner's "I don't think we need the
+  // replay button, instead just show a go missed button when on the final
+  // of the approach"): not here, before the final approach fix; five
+  // miles on, inside CIRUS on the final, there. Pressed, the run goes on
+  // past the runway along the missed approach and ends at its hold's fix,
+  // UDTEG, where it ended at the runway.
+  await expect(panel.getByTestId("dry-run-again")).toHaveCount(0);
+  const missed = panel.getByTestId("dry-run-missed");
+  await expect(missed).toHaveCount(0);
+  await page.keyboard.press("ArrowRight");
+  await expect(missed).toBeVisible();
+  await missed.click();
+  await expect(missed).toHaveCount(0);
+  await page.mouse.click(box.x + box.width - 2, box.y + box.height / 2);
+  await expect(async () => {
+    const ship = await shipAt(page), udteg = await fixAt("UDTEG");
+    expect(Math.hypot(ship.x - udteg.x, ship.y - udteg.y)).toBeLessThan(12);
+  }).toPass({ timeout: slow(10_000) });
 });

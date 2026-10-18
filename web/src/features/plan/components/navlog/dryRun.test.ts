@@ -136,6 +136,28 @@ describe("the planned flight flown into an approach picked at its field", () => 
     expect(runNmAt(run, 60)).toBeCloseTo(48 + approachNm);
   });
 
+  it("goes missed when asked: on from the missed approach point along its missed approach, climbing at 200 ft a mile", () => {
+    expect(run.missable).toBe(true);
+    // On its final from CIRUS, the final approach fix, to the runway: when
+    // its Go missed is there.
+    expect(run.final!.from).toBeCloseTo(at(cirus!)!.t, 0);
+    expect(run.final!.to).toBeCloseTo(run.points.at(-1)!.t);
+    const missedRun = dryRunOf(rows, 1_000, undefined, [drawing], true);
+    const udteg = drawing.fixes[4]!;
+    const out = distanceNm(runway!, udteg);
+    // The same flight to the runway, at the same moments.
+    const mapIndex = run.points.length - 1;
+    expect(missedRun.points[mapIndex]).toMatchObject({ lat: 43, lon: -88 });
+    expect(missedRun.points[mapIndex]!.alt_ft).toBeCloseTo(500);
+    expect(missedRun.points[mapIndex]!.t).toBeCloseTo(run.points.at(-1)!.t);
+    // Then out west to UDTEG, climbing from the field's 500 at the
+    // standard gradient, short of its 3,300 there.
+    expect(missedRun.points.at(-1)!.lat).toBeCloseTo(43);
+    expect(missedRun.points.at(-1)!.lon).toBeCloseTo(-88.3);
+    expect(missedRun.points.at(-1)!.alt_ft).toBeCloseTo(500 + out * 200, 0);
+    expect(missedRun.alongNm.at(-1)).toBeCloseTo(run.alongNm.at(-1)! + out);
+  });
+
   it("is the route as planned into a field with no approach picked", () => {
     const other = dryRunOf(rows, 1_000, undefined, [{ ...drawing, airport: "KMSP" }]);
     expect(other.alongNm.at(-1)).toBeCloseTo(60);
