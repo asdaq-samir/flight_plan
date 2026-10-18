@@ -19,7 +19,18 @@ test("the dry run flies own ship along the route, and gives it back as it was", 
   await start.click();
   const ship = page.locator('[data-own-ship="on"]');
   await expect(ship).toHaveCount(1);
-  await expect(page.locator("[data-map-controls]").getByTestId("my-position-button")).toHaveAttribute("aria-pressed", "true");
+  // The airplane followed: the location arrow is the whole route's button
+  // (the owner's "Can the locator button change to fit line during dry
+  // run when plane is centered on the screen"). Tapped, the map takes the
+  // route, and the arrow comes back to bring the airplane to the middle.
+  const arrow = page.locator("[data-map-controls]").getByTestId("my-position-button");
+  await expect(arrow).toHaveAttribute("data-face", "route");
+  await expect(arrow).toHaveAccessibleName("Show the whole route");
+  await arrow.click();
+  await expect(arrow).toHaveAttribute("data-face", "position");
+  await expect(arrow).toHaveAccessibleName("Follow the airplane");
+  await arrow.click();
+  await expect(arrow).toHaveAttribute("data-face", "route");
   // Moving: its place on the chart changes as the run plays (with the
   // map following it, the marker itself may stay put, so the map pane's too).
   const where = () => page.evaluate(() => {

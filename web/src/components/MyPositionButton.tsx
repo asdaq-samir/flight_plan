@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Navigation } from "lucide-react";
+import { Navigation, Route } from "lucide-react";
 import { showError } from "../lib/problems";
 import { cn } from "cn";
 import IconButton from "./IconButton";
@@ -43,8 +43,18 @@ export default function MyPositionButton() {
     }
   }, [approximate]);
   const following = enabled && follow;
+  // In a dry run, with the airplane in the middle, the arrow's other
+  // face: the whole route, at the owner's ask ("Can the locator button
+  // change to fit line during dry run when plane is centered on the
+  // screen"). Tapped, the map fits the route and the arrow comes back,
+  // to bring the airplane to the middle again.
+  const simulated = useOwnShip(s => s.simulated);
+  const showRoute = useOwnShip(s => s.showRoute);
+  const routeFace = simulated && following;
   const tap = () => {
-    if (!ownShipAvailable()) {
+    if (routeFace) {
+      showRoute();
+    } else if (!ownShipAvailable()) {
       showError("No position over this connection", "The browser gives a page the phone's position only over https.");
     } else if (!enabled) {
       setEnabled(true);
@@ -57,16 +67,18 @@ export default function MyPositionButton() {
   };
   return (
     <IconButton
-      label={!enabled ? "Show my position" : follow ? "Hide my position" : "Follow my position"}
-      onClick={tap} aria-pressed={enabled} data-testid="my-position-button"
+      label={routeFace ? "Show the whole route" : simulated ? "Follow the airplane" : !enabled ? "Show my position" : follow ? "Hide my position" : "Follow my position"}
+      onClick={tap} aria-pressed={routeFace ? undefined : enabled} data-testid="my-position-button" data-face={routeFace ? "route" : "position"}
       className="text-tint"
     >
       {/* Fine and sharp-cornered, as iOS's own arrow is: lucide's is
           drawn with round joins at 2, a heavier mark than any around it. */}
-      <Navigation
-        strokeWidth={1.5} strokeLinejoin="miter"
-        className={cn("size-5", following && "fill-current", enabled && !fixed && "animate-pulse")}
-      />
+      {routeFace ? <Route strokeWidth={1.5} className="size-5" /> : (
+        <Navigation
+          strokeWidth={1.5} strokeLinejoin="miter"
+          className={cn("size-5", following && "fill-current", enabled && !fixed && "animate-pulse")}
+        />
+      )}
     </IconButton>
   );
 }
