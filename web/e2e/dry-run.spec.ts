@@ -287,4 +287,20 @@ test("with an approach picked, the dry run flies it into the field: out to its f
     expect(along).toBeLessThan(1);
     expect(off).toBeLessThan((length / 5.9) * 0.5);
   }).toPass({ timeout: slow(10_000) });
+
+  // Missed, in From the start's place (the owner's "Can I have an option
+  // to go missed after approach?"; "Replace the reset button with missed
+  // approach"): pressed, the run goes on past the runway along the missed
+  // approach and ends at its hold's fix, UDTEG, where it ended at the
+  // runway.
+  await expect(panel.getByTestId("dry-run-again")).toHaveCount(0);
+  const missed = panel.getByTestId("dry-run-missed");
+  await expect(missed).toHaveAttribute("aria-pressed", "false");
+  await missed.click();
+  await expect(missed).toHaveAttribute("aria-pressed", "true");
+  await page.mouse.click(box.x + box.width - 2, box.y + box.height / 2);
+  await expect(async () => {
+    const ship = await shipAt(page), udteg = await fixAt("UDTEG");
+    expect(Math.hypot(ship.x - udteg.x, ship.y - udteg.y)).toBeLessThan(12);
+  }).toPass({ timeout: slow(10_000) });
 });

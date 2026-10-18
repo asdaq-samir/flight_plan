@@ -28,7 +28,15 @@ const FlightChart = lazy(() => import("./PastFlightChart"));
  * (DryRunLayer). In FPL's foot in the side view's place, the figures
  * under it (DryRunFigures); the chart growing with the sheet.
  */
-export function DryRunControls({ run, ends, onClose }: { run: DryRun; ends: RouteEnds | null; onClose: () => void }) {
+export function DryRunControls({ run, ends, onClose, missed = false, onMissed }: {
+  run: DryRun;
+  ends: RouteEnds | null;
+  onClose: () => void;
+  /** The approach picked goes missed (dryRunOf's `missed`), and the button
+   *  that says so; with an approach to go missed from (`run.missable`). */
+  missed?: boolean;
+  onMissed?: () => void;
+}) {
   const playing = usePastFlight(s => s.playing);
   // The airspace the course passes through, the side view's answer
   // (routeProfileQuery): it was drawn there before the run's play.
@@ -78,7 +86,7 @@ export function DryRunControls({ run, ends, onClose }: { run: DryRun; ends: Rout
   };
   return (
     <div className="relative flex min-h-0 flex-1 flex-col rounded-xl bg-background/70 px-1 pt-1" data-testid="dry-run">
-      <p className={cn("flex min-h-9 items-center gap-2 pr-[10.5rem] pl-2 tabular-nums", TEXT.detail)}>
+      <p className={cn("flex min-h-9 items-center gap-2 pl-2 tabular-nums", run.missable && onMissed ? "pr-[12.75rem]" : "pr-[10.5rem]", TEXT.detail)}>
         {/* Each figure in its trace's colour (flightTraces), in place of the
             chart's axes, at the owner's ask. */}
         {here ? (
@@ -102,9 +110,25 @@ export function DryRunControls({ run, ends, onClose }: { run: DryRun; ends: Rout
           44-point hit areas their own (index.css). */}
       {/* Over the chart's drag where their hit areas reach into it. */}
       <div className="absolute top-1.5 right-1.5 z-10 flex items-center gap-2">
-        <RoundButton label="From the start" onClick={again} data-testid="dry-run-again">
-          <RotateCcw className="size-5" />
-        </RoundButton>
+        {/* With an approach picked, its missed approach in From the start's
+            place, at the owner's pick ("Replace the reset button with
+            missed approach"): pressed, the run goes missed at the missed
+            approach point; the chart's drag still takes it back to the
+            start. */}
+        {run.missable && onMissed ? (
+          <RoundButton
+            label={missed ? "Missed approach: on, the run goes missed" : "Missed approach: off, the run lands"} onClick={onMissed}
+            aria-pressed={missed}
+            className={cn("w-auto px-2 font-semibold", TEXT.note, missed && "bg-primary text-primary-foreground hover:bg-primary/90")}
+            data-testid="dry-run-missed"
+          >
+            Missed
+          </RoundButton>
+        ) : (
+          <RoundButton label="From the start" onClick={again} data-testid="dry-run-again">
+            <RotateCcw className="size-5" />
+          </RoundButton>
+        )}
         <RoundButton label={playing ? "Pause" : "Play"} onClick={playing ? pausePastFlight : playPastFlight} data-testid="dry-run-play">
           {playing ? <Pause className="size-5" /> : <Play className="size-5" />}
         </RoundButton>

@@ -29,6 +29,9 @@ export interface DryRun {
    *  there, the legs' own (`route`): the same but for an approach flown
    *  into a field, longer than the leg it is flown in place of (runNmAt). */
   bends: { route: number; run: number }[];
+  /** Whether an approach picked into a field has a missed approach to fly
+   *  (dryRunOf's `missed`): the run's Missed button (DryRunControls). */
+  missable?: boolean;
 }
 
 /** A procedure as the dry run flies it (approachPath, procedurePath): its
@@ -165,6 +168,43 @@ export function procedurePath(drawing: ProcedureDrawing, toward?: LatLon): Appro
 
 const lastOf = (line: [number, number][]): LatLon => ({ lat: line.at(-1)![0], lon: line.at(-1)![1] });
 
+/**
+ * An approach's missed approach as the dry run flies it, at the owner's ask
+ * ("Can I have an option to go missed after approach?"): from the missed
+ * approach point (`from`, where its final ends) along the missed approach
+ * as the map draws it, and round its hold once, the racetrack from its fix
+ * and back to it, where it ends at one (AIM 5-4-21: the published missed
+ * approach, flown at the missed approach point). With the altitude to climb
+ * to: the highest its fixes set, the hold's as a rule. Null where the
+ * approach draws none.
+ */
+export function missedPath(drawing: ProcedureDrawing, from: LatLon): { points: LatLon[]; ft: number | null } | null {
+  const path = joinedLines(drawing.lines.filter(l => l.role === "missed").map(l => l.points));
+  const start = path.findIndex(p => distanceNm(p, from) < SAME_PLACE_NM);
+  let points = start >= 0 ? path.slice(start + 1) : path;
+  const hold = drawing.holds.find(h => h.missed)?.points.map(([lat, lon]) => ({ lat, lon }));
+  const end = points.at(-1);
+  if (hold && hold.length > 2 && end && distanceNm(hold[0]!, end) < SAME_PLACE_NM) points = [...points, ...hold.slice(1)];
+  if (!points.length) return null;
+  const tops = drawing.fixes.filter(f => f.missed).map(f => f.min_ft ?? f.max_ft).filter((ft): ft is number => ft != null);
+  return { points, ft: tops.length ? Math.max(...tops) : null };
+}
+
+/** The climb a missed approach is built for, ft a nm, where its chart
+ *  publishes no steeper one: 200 (FAA Order 8260.3, the standard missed
+ *  approach climb gradient). */
+const MISSED_CLIMB_FT_PER_NM = 200;
+
+/** The heights a missed approach is flown at: from the field's at the
+ *  missed approach point (`start`, nm along the path; the decision
+ *  altitude's couple of hundred feet left out), up at the standard
+ *  gradient to `to`, and level there to the path's `end`. */
+function missedHeights(start: number, end: number, field: number, to: number): ProfilePoint[] {
+  const top = start + Math.max(0, to - field) / MISSED_CLIMB_FT_PER_NM;
+  if (top >= end) return [{ along_nm: end, plan_ft: field + (end - start) * MISSED_CLIMB_FT_PER_NM }];
+  return [{ along_nm: top, plan_ft: to }, { along_nm: end, plan_ft: to }];
+}
+
 /** How far a path turns at a point to be a course reversal there, degrees. */
 const REVERSAL_DEG = 120;
 
@@ -265,15 +305,19 @@ function approachHeights(at: number[], ft: (number | null)[], from: number, fiel
  * that is. Coming in, its heights are the procedures' (approachHeights);
  * going out alone, the plan's climb laid evenly over the departure. There
  * is no approach speed in an airplane's figures, so the leg's ground
- * speed it is. The nav log's rows stay the route's.
+ * speed it is. The nav log's rows stay the route's. With `missed`, an
+ * approach goes missed at its missed approach point instead of landing:
+ * its missed approach and once round its hold (missedPath), climbing at
+ * the standard gradient (missedHeights).
  */
-export function dryRunOf(rows: NavLogRow[], startS: number, line?: [number, number][], procedures: ProcedureDrawing[] = []): DryRun {
+export function dryRunOf(rows: NavLogRow[], startS: number, line?: [number, number][], procedures: ProcedureDrawing[] = [], missed = false): DryRun {
   const empty: DryRun = { points: [], alongNm: [], fuelGal: [], rowT: [], bends: [] };
   const first = rows[0];
   if (!first || first.kind !== "departure") return empty;
   const plan = planProfile(rows).points;
   const anchors: Anchor[] = [{ along: 0, route: 0, ...rowPoint(first), t: startS, fuel: 0, gs: null, track: null }];
   const picked = (kind: ProcedureDrawing["kind"], ident: string) => procedures.find(d => d.kind === kind && sameField(d.airport, ident));
+  let missable = false;
   for (const [i, row] of rows.entries()) {
     if (i === 0) continue;
     const part = legOf(row);
@@ -293,6 +337,10 @@ export function dryRunOf(rows: NavLogRow[], startS: number, line?: [number, numb
     const arrival = field ? picked("arrival", field.ident) : undefined;
     const star = arrival ? procedurePath(arrival, app?.points[0]) : null;
     const sid = outOf ? procedurePath(outOf) : null;
+    // The missed approach, there to fly; flown at its point when asked
+    // (`missed`), where the approach ended at the runway.
+    const miss = approach && app ? missedPath(approach, app.points.at(-1)!) : null;
+    if (miss) missable = true;
     if (sid || star || app) {
       const ground = field?.elevation_ft ?? 0;
       const pieces = [sid, star, app].filter((x): x is ApproachPath => !!x);
@@ -311,8 +359,12 @@ export function dryRunOf(rows: NavLogRow[], startS: number, line?: [number, numb
         raw.push(rowPoint(row));
         rawFt.push(null);
       }
-      const { path, ft } = withReversals(raw, rawFt, pieces.flatMap(piece => piece.holds));
+      const reversed = withReversals(raw, rawFt, pieces.flatMap(piece => piece.holds));
+      const { ft } = reversed;
+      const goMissed = missed && miss ? miss : null;
+      const path = goMissed ? [...reversed.path, ...goMissed.points] : reversed.path;
       const at = cumulative(path);
+      const atMap = at[reversed.path.length - 1]!;
       const nm = at.at(-1)!;
       const longer = part.distance_nm > 0 ? nm / part.distance_nm : 1;
       anchors.push({
@@ -320,7 +372,14 @@ export function dryRunOf(rows: NavLogRow[], startS: number, line?: [number, numb
         t: prev.t + seconds * longer, fuel: prev.fuel + fuel * longer, gs, track: part.true_course_deg,
         flown: {
           path, at,
-          heights: star || app ? approachHeights(at, ft, heightOn(plan, prev.route) ?? ground, ground) : null,
+          heights: star || app
+            ? goMissed
+              ? [
+                ...approachHeights(at.slice(0, reversed.path.length), ft, heightOn(plan, prev.route) ?? ground, ground),
+                ...missedHeights(atMap, at.at(-1)!, ground, goMissed.ft ?? heightOn(plan, prev.route) ?? ground),
+              ]
+              : approachHeights(at, ft, heightOn(plan, prev.route) ?? ground, ground)
+            : null,
         },
       });
       continue;
@@ -352,7 +411,7 @@ export function dryRunOf(rows: NavLogRow[], startS: number, line?: [number, numb
   }
   for (let a = STEP_NM; a < end; a += STEP_NM) marks.add(a);
   const out: DryRun = {
-    points: [], alongNm: [], fuelGal: [], rowT: anchors.map(a => a.t), bends: anchors.map(a => ({ route: a.route, run: a.along })),
+    points: [], alongNm: [], fuelGal: [], rowT: anchors.map(a => a.t), bends: anchors.map(a => ({ route: a.route, run: a.along })), missable,
   };
   const onLine = line && line.length >= 2 ? walker(line, anchors.at(-1)!.route) : null;
   let seg = 1;
