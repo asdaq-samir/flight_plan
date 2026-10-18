@@ -63,3 +63,28 @@ test("a phone's sheet floats in glass as the map's sheet does, and a swipe down 
   await swipe(page, from, 320);
   await expect(sheet).toHaveCount(0);
 });
+
+test("a phone's sheet swipes away from its content too, once that is scrolled to its top, and scrolls where it is not", async ({ page }) => {
+  test.skip(page.viewportSize()!.width >= 768, "a phone's sheet; wider it is a popover");
+  // The owner's pick ("Ok 1-3"): as an iOS sheet's scrolling content hands
+  // a drag down to the sheet.
+  await page.goto("/app/plan");
+  await settle(page);
+  await openMapSettings(page);
+  const sheet = page.locator("[data-slot=sheet-content]");
+  await expect(sheet).toBeVisible();
+  await sheet.evaluate(el => Promise.all(el.getAnimations().map(a => a.finished)));
+  const list = sheet.locator(".overflow-y-auto").first();
+  const box = (await list.boundingBox())!;
+  const middle = { x: box.x + box.width / 2, y: box.y + Math.min(box.height / 2, 200) };
+  // Scrolled down, a swipe down scrolls it back, the sheet where it is.
+  await list.evaluate(el => { el.scrollTop = 150; });
+  await swipe(page, middle, 120);
+  await page.waitForTimeout(500);
+  await expect(sheet).toBeVisible();
+  expect(await list.evaluate(el => el.scrollTop)).toBeLessThan(150);
+  // At its top, the same swipe, further, puts the sheet away.
+  await list.evaluate(el => { el.scrollTop = 0; });
+  await swipe(page, middle, 320);
+  await expect(sheet).toHaveCount(0);
+});
