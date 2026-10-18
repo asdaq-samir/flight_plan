@@ -1208,7 +1208,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // in the side view's place, its figures as it goes under them. Put away
   // with its close, or as the replay is another's (a past flight's).
   const [dryRun, setDryRun] = useState<DryRun | null>(null);
-  // Whether the approach picked goes missed (the run's Missed button).
+  // Whether the approach picked has gone missed (the run's Go missed).
   const [goMissed, setGoMissed] = useState(false);
   const dryRunHeld = usePastFlight(p => p.hex === DRY_RUN);
   const dryRunning = dryRun && dryRunHeld && routed ? dryRun : null;
@@ -1218,22 +1218,22 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     // and an approach.
     const run = dryRunOf(
       navLogRows(course, selected, s.legs), Math.round((depart ? Date.parse(depart) : Date.now()) / 1000), course.course_line,
-      procedureDrawings, goMissed,
+      procedureDrawings,
     );
     if (run.points.length < 2) return;
+    setGoMissed(false);
     setDryRun(run);
     usePastFlight.setState({ hex: DRY_RUN, id: 0, points: run.points, at: run.points[0]!.t, playing: true });
   };
-  // Missed or not, the run as it goes: the same up to the missed approach
-  // point, so it goes on from where it is (past its end, at its end).
-  const toggleMissed = () => {
+  // Gone missed on the final (the run's Go missed): the run that does, the
+  // same up to the missed approach point, so it goes on from where it is.
+  const goMissedNow = () => {
     if (!course || !dryRun) return;
-    const next = !goMissed;
     const run = dryRunOf(
-      navLogRows(course, selected, s.legs), dryRun.points[0]!.t, course.course_line, procedureDrawings, next,
+      navLogRows(course, selected, s.legs), dryRun.points[0]!.t, course.course_line, procedureDrawings, true,
     );
     if (run.points.length < 2) return;
-    setGoMissed(next);
+    setGoMissed(true);
     setDryRun(run);
     usePastFlight.setState(p => ({ points: run.points, at: p.at === null ? run.points[0]!.t : Math.min(p.at, run.points.at(-1)!.t) }));
   };
@@ -1707,7 +1707,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
             its side), where the card's head over the log leaves it no room:
             pinned there, it left the log none at all. It is there half way. */}
         {dryRunning ? (
-          <div className={cn("flex min-h-0 flex-col pb-2", panel === "full" ? "h-[min(10rem,20dvh)] min-h-24 flex-none" : "h-40 shrink")} data-pill-hides=""><DryRunControls run={dryRunning} ends={course} onClose={stopDryRun} missed={goMissed} onMissed={toggleMissed} /></div>
+          <div className={cn("flex min-h-0 flex-col pb-2", panel === "full" ? "h-[min(10rem,20dvh)] min-h-24 flex-none" : "h-40 shrink")} data-pill-hides=""><DryRunControls run={dryRunning} ends={course} onClose={stopDryRun} missed={goMissed} onMissed={goMissedNow} /></div>
         ) : miniProfile && (
           <div
             // All the half sheet leaves it, at the owner's ask ("make the

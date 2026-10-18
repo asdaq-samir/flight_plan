@@ -138,6 +138,10 @@ describe("the planned flight flown into an approach picked at its field", () => 
 
   it("goes missed when asked: on from the missed approach point along its missed approach, climbing at 200 ft a mile", () => {
     expect(run.missable).toBe(true);
+    // On its final from CIRUS, the final approach fix, to the runway: when
+    // its Go missed is there.
+    expect(run.final!.from).toBeCloseTo(at(cirus!)!.t, 0);
+    expect(run.final!.to).toBeCloseTo(run.points.at(-1)!.t);
     const missedRun = dryRunOf(rows, 1_000, undefined, [drawing], true);
     const udteg = drawing.fixes[4]!;
     const out = distanceNm(runway!, udteg);

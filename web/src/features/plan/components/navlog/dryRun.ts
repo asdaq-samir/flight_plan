@@ -30,8 +30,12 @@ export interface DryRun {
    *  into a field, longer than the leg it is flown in place of (runNmAt). */
   bends: { route: number; run: number }[];
   /** Whether an approach picked into a field has a missed approach to fly
-   *  (dryRunOf's `missed`): the run's Missed button (DryRunControls). */
+   *  (dryRunOf's `missed`). */
   missable?: boolean;
+  /** When the airplane is on that approach's final, s since 1970: from its
+   *  final approach fix to its missed approach point, while the run's Go
+   *  missed button is there (DryRunControls). The same in either run. */
+  final?: { from: number; to: number };
 }
 
 /** A procedure as the dry run flies it (approachPath, procedurePath): its
@@ -318,6 +322,7 @@ export function dryRunOf(rows: NavLogRow[], startS: number, line?: [number, numb
   const anchors: Anchor[] = [{ along: 0, route: 0, ...rowPoint(first), t: startS, fuel: 0, gs: null, track: null }];
   const picked = (kind: ProcedureDrawing["kind"], ident: string) => procedures.find(d => d.kind === kind && sameField(d.airport, ident));
   let missable = false;
+  let final: DryRun["final"];
   for (const [i, row] of rows.entries()) {
     if (i === 0) continue;
     const part = legOf(row);
@@ -367,6 +372,16 @@ export function dryRunOf(rows: NavLogRow[], startS: number, line?: [number, numb
       const atMap = at[reversed.path.length - 1]!;
       const nm = at.at(-1)!;
       const longer = part.distance_nm > 0 ? nm / part.distance_nm : 1;
+      if (miss && approach) {
+        // Its final from the final approach fix, the last time the path is
+        // there (after a course reversal round it), or the last five miles
+        // where the chart names none.
+        const faf = approach.fixes.find(f => !f.missed && f.roles.includes("FAF"));
+        let fafAt = -1;
+        if (faf) for (let k = 0; k < reversed.path.length; k++) if (distanceNm(reversed.path[k]!, faf) < SAME_PLACE_NM) fafAt = k;
+        const tAt = (s: number) => prev.t + (seconds * longer * s) / Math.max(1e-9, nm);
+        final = { from: tAt(fafAt >= 0 ? at[fafAt]! : Math.max(0, atMap - 5)), to: tAt(atMap) };
+      }
       anchors.push({
         along: prev.along + nm, route: prev.route + part.distance_nm, ...rowPoint(row),
         t: prev.t + seconds * longer, fuel: prev.fuel + fuel * longer, gs, track: part.true_course_deg,
@@ -411,7 +426,7 @@ export function dryRunOf(rows: NavLogRow[], startS: number, line?: [number, numb
   }
   for (let a = STEP_NM; a < end; a += STEP_NM) marks.add(a);
   const out: DryRun = {
-    points: [], alongNm: [], fuelGal: [], rowT: anchors.map(a => a.t), bends: anchors.map(a => ({ route: a.route, run: a.along })), missable,
+    points: [], alongNm: [], fuelGal: [], rowT: anchors.map(a => a.t), bends: anchors.map(a => ({ route: a.route, run: a.along })), missable, final,
   };
   const onLine = line && line.length >= 2 ? walker(line, anchors.at(-1)!.route) : null;
   let seg = 1;
