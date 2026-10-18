@@ -47,7 +47,7 @@ export default function MyPositionButton() {
   // face: the whole route, at the owner's ask ("Can the locator button
   // change to fit line during dry run when plane is centered on the
   // screen"). Tapped, the map fits the route and the arrow comes back,
-  // to bring the airplane to the middle again.
+  // to bring the map back in on the airplane (OwnShipLayer, DRY_RUN_ZOOM).
   const simulated = useOwnShip(s => s.simulated);
   const showRoute = useOwnShip(s => s.showRoute);
   const routeFace = simulated && following;

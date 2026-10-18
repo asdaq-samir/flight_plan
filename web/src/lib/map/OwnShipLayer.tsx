@@ -6,7 +6,7 @@ import { nearestQuery } from "../queryClient";
 import { glideRangeNm } from "./glide";
 import { centreClear, hideLinesWhileZooming, panClear } from "./clear";
 import { ownShipIcon } from "./icons";
-import { COUNTRY_ZOOM, OPEN_ZOOM, SIMULATED_FIX_MS, useOwnShip } from "./ownShip";
+import { COUNTRY_ZOOM, DRY_RUN_ZOOM, OPEN_ZOOM, SIMULATED_FIX_MS, useOwnShip } from "./ownShip";
 import { usePreferences } from "../preferences";
 
 /**
@@ -73,10 +73,11 @@ export function OwnShipLayer() {
       // OPEN_ZOOM) -- or the arrow's close in. From the whole country
       // straight there, as Maps opens on the position: a flight in from the
       // country was a second of the chart streaming by.
-      // In a dry run at the zoom the map is at: the arrow there takes the
-      // map from the whole route back to the airplane (MyPositionButton),
-      // not in close on it.
-      const zoom = recentreZoom ?? (simulated ? map.getZoom() : Math.min(map.getMaxZoom(), Math.max(map.getZoom(), LOCAL_ZOOM)));
+      // In a dry run, the run's own zoom: the arrow there takes the map
+      // from the whole route back in on the airplane (MyPositionButton), as
+      // play did, at the owner's notice ("It only zooms in once with the
+      // play but toggling the zoom in and out is not working").
+      const zoom = recentreZoom ?? (simulated ? DRY_RUN_ZOOM : Math.min(map.getMaxZoom(), Math.max(map.getZoom(), LOCAL_ZOOM)));
       if (map.getZoom() <= COUNTRY_VIEW) {
         map.setView(centreClear(map, [fix.lat, fix.lon], zoom), zoom, { animate: false });
         return;
