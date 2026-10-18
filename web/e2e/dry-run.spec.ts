@@ -23,14 +23,25 @@ test("the dry run flies own ship along the route, and gives it back as it was", 
   // (the owner's "Can the locator button change to fit line during dry
   // run when plane is centered on the screen"). Tapped, the map takes the
   // route, and the arrow comes back to bring the airplane to the middle.
+  // Each tap goes out to the route and back in on the airplane (the
+  // owner's "toggling the zoom in and out is not working"): the base
+  // chart's level in use, its top tile container's.
+  const level = () => page.evaluate(() => {
+    const levels = [...document.querySelectorAll<HTMLElement>(".leaflet-tile-pane .leaflet-layer:nth-child(2) .leaflet-tile-container")];
+    const top = levels.reduce<HTMLElement | null>((t, c) => (!t || Number(c.style.zIndex) > Number(t.style.zIndex) ? c : t), null);
+    return Number(top?.querySelector<HTMLImageElement>("img.leaflet-tile")?.src.match(/\/(\d+)\/\d+\/\d+/)?.[1] ?? NaN);
+  });
   const arrow = page.locator("[data-map-controls]").getByTestId("my-position-button");
   await expect(arrow).toHaveAttribute("data-face", "route");
   await expect(arrow).toHaveAccessibleName("Show the whole route");
+  await expect.poll(level, { timeout: slow(10_000) }).toBe(10);
   await arrow.click();
   await expect(arrow).toHaveAttribute("data-face", "position");
   await expect(arrow).toHaveAccessibleName("Follow the airplane");
+  await expect.poll(level, { timeout: slow(10_000) }).toBeLessThan(10);
   await arrow.click();
   await expect(arrow).toHaveAttribute("data-face", "route");
+  await expect.poll(level, { timeout: slow(10_000) }).toBe(10);
   // Moving: its place on the chart changes as the run plays (with the
   // map following it, the marker itself may stay put, so the map pane's too).
   const where = () => page.evaluate(() => {
