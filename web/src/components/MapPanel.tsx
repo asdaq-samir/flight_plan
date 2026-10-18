@@ -3,6 +3,7 @@ import { cn } from "cn";
 import { useDetentDrag } from "../hooks/use-detent-drag";
 import { useIsMobile } from "../hooks/use-mobile";
 import { useNavEdge } from "../hooks/use-nav-edge";
+import { nativeRole } from "../lib/nativeSheet";
 import { useKeyboardInset, useSafeArea, useVisualHeight, useWindowHeight } from "../hooks/use-viewport";
 import {
   GLASS, GLASS_FILL, GLASS_SHEET, GLASS_SHEET_FULL, MATERIAL, PanelSize, PILL_RADIUS, usePanelDragging, SHEET_INSET, SHEET_INSET_RADIUS, SHEET_MARGIN, SHEET_RESHAPE, SHEET_SECONDS, SETTLE_LEAST, SETTLE_MOST, SETTLE_POINTS, TabBarMinimized,
@@ -467,6 +468,9 @@ export default function MapPanel({ label, top, controls, compact, children, stat
     usePanelDragging.setState({ dragging: isDragged });
   }, [isDragged]);
   const startDrag = (event: Parameters<typeof drag>[0]) => {
+    // In the iOS app's native sheet the sheet is iOS's to drag
+    // (lib/nativeSheet): a drag of the page's own fought it.
+    if (nativeRole === "sheet") return;
     if (capsule) setCapsuleHeight(shown);
     drag(event);
   };
@@ -724,6 +728,10 @@ export default function MapPanel({ label, top, controls, compact, children, stat
               // under it: Back's and the name's hit areas reach three past
               // the row, and a card under it took them (the iOS audit's P1).
               "flex shrink-0 px-2", minimized ? "mb-1 min-h-11 pt-1.5" : "h-12", !barShown && "hidden",
+              // In the iOS app's native sheet the tab bar is Swift's, over
+              // the page (lib/nativeSheet); this one stays in the page,
+              // out of sight, to tell it what to show.
+              nativeRole === "sheet" && "hidden",
               // In the pill the pill's whole, round its grabber; out of it
               // the line under the sheet's first row.
               pillShape ? (fromBottom ? "mt-1.5 mb-1" : "mt-1 mb-1.5") : "border-b border-border/60",
@@ -795,7 +803,7 @@ export default function MapPanel({ label, top, controls, compact, children, stat
       <div
         // Dragged from anywhere under a finger, as the head is, where its
         // content is not scrolling (useDetentDrag).
-        ref={dragBody}
+        ref={nativeRole === "sheet" ? undefined : dragBody}
         className={cn(
           "flex min-h-0 flex-1 flex-col border-border/60", expanded && shown > detents.half + 1 && cn("border-t", !fromBottom && "pb-4"),
           // At rest the pill is its one row: the body, squeezed to nothing

@@ -110,11 +110,16 @@ jobs:
           xcrun simctl privacy "$udid" grant location "$WINGTIP_BUNDLE_ID" || true
           out="$RUNNER_TEMP/sheet-demo"
           mkdir -p "$out"
+          # Once to warm up: the simulator's first open of the app and its
+          # site took over a minute of the first recording.
+          xcrun simctl launch "$udid" "$WINGTIP_BUNDLE_ID"
+          sleep 45
+          xcrun simctl terminate "$udid" "$WINGTIP_BUNDLE_ID" || true
           xcrun simctl io "$udid" recordVideo --codec=h264 --force "$out/native-sheet.mp4" &
           rec=$!
           sleep 2
           xcrun simctl launch "$udid" "$WINGTIP_BUNDLE_ID" -NativeSheetDemo
-          for i in 1 2 3 4 5 6 7 8 9 10; do
+          for i in $(seq 1 16); do
             sleep 3
             xcrun simctl io "$udid" screenshot "$out/step-$i.png"
           done

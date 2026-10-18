@@ -31,13 +31,35 @@ const PANEL_OF: Record<Detent, PanelState> = { pill: "peek", medium: "half", lar
 const DETENT_OF: Record<PanelState, Detent> = { peek: "pill", half: "medium", full: "large" };
 
 interface Listener { remove: () => Promise<void> }
+
+/** The tabs as the sheet's own bar draws them (NativeSheet.swift's
+ *  SheetContainerViewController): each tab, the one up, a card's bar in
+ *  their place while one is open over the tab (its name, Back and the
+ *  close), and a tab's mark. */
+export interface NativeTabs {
+  tabs: { value: string; label: string }[];
+  up: string;
+  card: { title: string; back: boolean; close: boolean } | null;
+  marks: Record<string, "stop" | "caution">;
+}
+type TabAction = { action: "tap"; tab: string } | { action: "back" | "close" | "show" };
+
 interface NativeSheetPlugin {
   ready(): Promise<{ role: string }>;
   syncUrl(options: { search: string }): Promise<void>;
   setDetent(options: { detent: Detent }): Promise<void>;
+  setTabs(options: NativeTabs): Promise<void>;
+  cover(options: { hidden: boolean }): Promise<void>;
   addListener(event: "url", listener: (change: { search: string }) => void): Promise<Listener>;
   addListener(event: "detent", listener: (change: { detent: Detent; height: number }) => void): Promise<Listener>;
+  addListener(event: "tabAction", listener: (action: TabAction) => void): Promise<Listener>;
 }
+
+/** The plugin, once, in the app's two web views; none elsewhere, where
+ *  its package is never loaded. */
+const plugin: Promise<NativeSheetPlugin> | null = nativeRole
+  ? import("@capacitor/core").then(({ registerPlugin }) => registerPlugin<NativeSheetPlugin>("NativeSheet"))
+  : null;
 
 /**
  * The page's side of the native sheet, on the map's page (MapPage): its
@@ -52,7 +74,7 @@ export function useNativeSheet({ panel, setPanel, onHeight }: {
 }) {
   const navigate = useNavigate();
   const { search } = useLocation();
-  const plugin = useRef<NativeSheetPlugin | null>(null);
+  const sheet = useRef<NativeSheetPlugin | null>(null);
   // The address last had from the other page, not sent back to it; and the
   // size last had from the sheet, not asked of it again.
   const fromOther = useRef<string | null>(null);
@@ -62,7 +84,7 @@ export function useNativeSheet({ panel, setPanel, onHeight }: {
     handlers.current = { setPanel, onHeight };
   }, [setPanel, onHeight]);
   const send = useCallback((now: string) => {
-    if (now !== fromOther.current) void plugin.current?.syncUrl({ search: now });
+    if (now !== fromOther.current) void sheet.current?.syncUrl({ search: now }).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -70,14 +92,13 @@ export function useNativeSheet({ panel, setPanel, onHeight }: {
     let gone = false;
     const listening: Listener[] = [];
     void (async () => {
-      const { registerPlugin } = await import("@capacitor/core");
-      const sheet = registerPlugin<NativeSheetPlugin>("NativeSheet");
-      listening.push(await sheet.addListener("url", ({ search: theirs }) => {
+      const native = await plugin!;
+      listening.push(await native.addListener("url", ({ search: theirs }) => {
         if (theirs === window.location.search) return;
         fromOther.current = theirs;
         void navigate({ search: theirs }, { replace: true });
       }));
-      listening.push(await sheet.addListener("detent", ({ detent, height }) => {
+      listening.push(await native.addListener("detent", ({ detent, height }) => {
         if (nativeRole === "sheet") {
           fromSheet.current = PANEL_OF[detent];
           handlers.current.setPanel(PANEL_OF[detent]);
@@ -86,12 +107,12 @@ export function useNativeSheet({ panel, setPanel, onHeight }: {
         }
       }));
       if (gone) return;
-      plugin.current = sheet;
-      await sheet.ready();
+      sheet.current = native;
+      await native.ready();
       // The map's page has the address the app opened on: the sheet's
       // starts from it.
       if (nativeRole === "map") send(window.location.search);
-    })();
+    })().catch(() => {});
     return () => {
       gone = true;
       for (const listener of listening) void listener.remove();
@@ -105,6 +126,63 @@ export function useNativeSheet({ panel, setPanel, onHeight }: {
   useEffect(() => {
     if (nativeRole !== "sheet" || panel === fromSheet.current) return;
     fromSheet.current = panel;
-    void plugin.current?.setDetent({ detent: DETENT_OF[panel] });
+    void sheet.current?.setDetent({ detent: DETENT_OF[panel] }).catch(() => {});
   }, [panel]);
+}
+
+/**
+ * The tab bar in Swift, in the sheet (the owner's "I also want the tabs
+ * icon and selector to be in swift"): the page's TabBar, which keeps the
+ * tabs' logic, says what the bar is to show (`state`, null outside the
+ * sheet) and is told what was done on it -- a tab tapped, Back, the close,
+ * the card's name tapped to show the tabs -- as a tap on its own would.
+ */
+export function useNativeTabs(state: NativeTabs | null, handlers: {
+  tap: (tab: string) => void;
+  back: () => void;
+  close: () => void;
+  show: () => void;
+}) {
+  const latest = useRef(handlers);
+  useEffect(() => {
+    latest.current = handlers;
+  });
+  const said = state ? JSON.stringify(state) : null;
+  useEffect(() => {
+    if (said) void plugin?.then(native => native.setTabs(JSON.parse(said) as NativeTabs)).catch(() => {});
+  }, [said]);
+  const on = state !== null;
+  useEffect(() => {
+    if (!on || !plugin) return;
+    let gone = false;
+    let listening: Listener | null = null;
+    void plugin.then(async native => {
+      const sub = await native.addListener("tabAction", done => {
+        const h = latest.current;
+        if (done.action === "tap") h.tap(done.tab);
+        else h[done.action]();
+      });
+      if (gone) void sub.remove();
+      else listening = sub;
+    }).catch(() => {});
+    return () => {
+      gone = true;
+      void listening?.remove();
+    };
+  }, [on]);
+}
+
+/** The map's page's own sheet out (a phone sheet over the map: its
+ *  settings, a sheet from the map's controls): iOS's sheet, over the
+ *  map's whole page, out of its way while it is, as it would otherwise
+ *  cover it. Answers the way to bring it back. */
+let away = 0;
+export function holdNativeSheetAway(): () => void {
+  if (nativeRole !== "map" || !plugin) return () => {};
+  away += 1;
+  if (away === 1) void plugin.then(native => native.cover({ hidden: true })).catch(() => {});
+  return () => {
+    away -= 1;
+    if (away === 0) void plugin?.then(native => native.cover({ hidden: false })).catch(() => {});
+  };
 }

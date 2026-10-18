@@ -305,9 +305,13 @@ export default function MapPage({ mode }: { mode: Mode }) {
             } as CSSProperties}
           >
             <MapInsetsContext.Provider value={insets}>
-              {pieces.map}
+              {/* In the iOS app's native sheet, the map is the other web
+                  view's (lib/nativeSheet): not drawn here at all. */}
+              {nativeRole !== "sheet" && pieces.map}
             </MapInsetsContext.Provider>
           </main>
+          {/* And the panel is the sheet's web view's, not the map's. */}
+          {nativeRole !== "map" && (
           <MapPanel
             label={consoleLayer ? consoleLabel : panelLabel} controls={pieces.alone || consoleLayer ? undefined : pieces.controls}
             state={panel} onStateChange={setPanel} onInsetsChange={panelInsets}
@@ -329,6 +333,7 @@ export default function MapPage({ mode }: { mode: Mode }) {
             {/* Under the console while it is out, kept as it is. */}
             <div className={consoleLayer ? "hidden" : "contents"}>{pieces.sidebar}</div>
           </MapPanel>
+          )}
         </div>
         );
       }}

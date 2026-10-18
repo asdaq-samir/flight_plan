@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ComponentProps, type PointerEvent } f
 import { cn } from "cn";
 import { SheetClose, SheetContent } from "./ui/sheet";
 import type { NavEdge } from "../lib/preferences";
+import { holdNativeSheetAway } from "../lib/nativeSheet";
 
 /** A swipe toward the sheet's edge, let go, puts it away past this share
  *  of its height, or faster than this many points a millisecond: a
@@ -36,6 +37,9 @@ export function PhoneSheetContent({ edge, className, style, children, onPointerD
   const [swiped, setSwiped] = useState<number | null>(null);
   const [held, setHeld] = useState(false);
   const toward = edge === "bottom" ? 1 : -1;
+  // Out on the map's own page in the iOS app's native sheet, iOS's sheet
+  // stands aside while it is, as it would cover it (lib/nativeSheet).
+  useEffect(() => holdNativeSheetAway(), []);
   // From its content too, as an iOS sheet's scrolling content hands a drag
   // to the sheet, at the owner's pick ("Ok 1-3"): a finger's first move
   // toward the sheet's edge, where everything that scrolls under it is

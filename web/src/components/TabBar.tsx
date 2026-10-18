@@ -4,6 +4,7 @@ import BackButton from "./BackButton";
 import CloseButton from "./CloseButton";
 import { cn } from "cn";
 import { closeTopCard, useOpenCards } from "../lib/openCards";
+import { nativeRole, useNativeTabs } from "../lib/nativeSheet";
 import { TEXT } from "../lib/text";
 import { PanelSize, TabBarMinimized, useConsoleOpen, useTabsShown } from "./mapChrome";
 
@@ -210,6 +211,21 @@ export default function TabBar<T extends string>({ tabs, tab, over, title, onPic
   // the tabs are not shown (minimized), as iOS's navigation bar's Back.
   const cards = useOpenCards(s => s.count);
   const back = minimized && !consoleOpen && cards > 0;
+  // The card's kind, where it is another tab's over this one.
+  const named = (over && all.find(t => t.value === over)) || upTab;
+  // In the iOS app's native sheet the bar is Swift's (lib/nativeSheet):
+  // this one, out of sight there, tells it what to show and takes what
+  // is done on it, as its own taps.
+  useNativeTabs(nativeRole === "sheet" ? {
+    tabs: all.map(t => ({ value: t.value, label: t.label })), up,
+    card: minimized && !shown ? { title: title ?? named.label, back, close: !!onClose } : null,
+    marks: (marks ?? {}) as Record<string, "stop" | "caution">,
+  } : null, {
+    tap: value => tapped(value as T | "setup"),
+    back: () => { closeTopCard(); },
+    close: () => { if (consoleOpen) setConsoleOpen(false); onClose?.(); },
+    show: () => setShown(true),
+  });
   // A swipe across the panel goes to the tab beside the one up, at the
   // owner's ask ("Can swiping left/right switch tabs?"): to the left the
   // next, as a page of iOS's swipes on; not past either end. Listened for
@@ -398,8 +414,6 @@ export default function TabBar<T extends string>({ tabs, tab, over, title, onPic
     };
   }, [lifted]);
   if (minimized && !shown) {
-    // The card's kind, where it is another tab's over this one.
-    const named = (over && all.find(t => t.value === over)) || upTab;
     const Icon = named.icon;
     return (
       // A tap anywhere on the line shows the tabs, at the owner's ask
