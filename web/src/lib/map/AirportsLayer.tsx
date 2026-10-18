@@ -168,18 +168,26 @@ export function AirportsLayer({ selected, onSelect, others, route }: {
   // it opened one. Anywhere else, the card is put away.
   const drawn = useRef<AirportPin[]>([]);
   const elsewhere = useRef(others);
+  // A flight across zooms (flyTo: a route picked, the arrow's close-in)
+  // draws nothing new until it lands: the view grew as it flew out while
+  // the zoom it draws for (useLiveZoom) was still the close one, and every
+  // field in a whole state's view was drawn for a moment, hundreds of
+  // marks over the chart, at the owner's notice ("going from current
+  // location to zoom out is not smooth").
+  const flying = useRef(false);
   const handlers = useMemo(() => ({
+    zoom: (e: L.LeafletEvent & { flyTo?: boolean }) => { if (e.flyTo) flying.current = true; },
     // Drawn again only as the view nears the edge of what is drawn, not
     // at every step of a move: a draw a few times a second under a finger
     // held a busy phone's pan up.
     move: () => {
       const now = performance.now();
-      if (now - panned.current < PANNING_MS) return;
+      if (flying.current || now - panned.current < PANNING_MS) return;
       panned.current = now;
       const bounds = map.getBounds();
       setSeen(was => (was.pad(PAD).contains(bounds) ? was : bounds));
     },
-    moveend: () => { setView(boxOf(map)); setSeen(map.getBounds()); },
+    moveend: () => { flying.current = false; setView(boxOf(map)); setSeen(map.getBounds()); },
     click: (e: L.LeafletMouseEvent) => {
       let best: { ident: string; px: number } | null = null;
       for (const a of [...drawn.current, ...elsewhere.current]) {

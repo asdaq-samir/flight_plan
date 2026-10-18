@@ -4,7 +4,7 @@ import { useMap } from "react-leaflet";
 import { altFt } from "../units";
 import { panClear } from "./clear";
 import { TRAFFIC_COLOURS, trafficIcon } from "./icons";
-import { endSimulation, simulateFix } from "./ownShip";
+import { SIMULATED_FIX_MS, endSimulation, simulateFix } from "./ownShip";
 import { positionAt, stepPastFlight, usePastFlight } from "./pastFlight";
 
 /**
@@ -18,9 +18,6 @@ import { positionAt, stepPastFlight, usePastFlight } from "./pastFlight";
  * along the route (simulateFix), a few times a second as a GPS reports,
  * the map following it as it follows the pilot.
  */
-/** How often the dry run reports a fix to own ship, ms: four a second, so
- *  it moves smoothly at the faster speeds without drawing every frame. */
-const SIMULATED_FIX_MS = 250;
 
 export function useReplayMarker(asOwnShip = false) {
   const map = useMap();
