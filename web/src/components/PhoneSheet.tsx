@@ -107,6 +107,13 @@ export function PhoneSheetContent({ edge, className, style, children, onPointerD
       style={swiped === null ? style : { ...style, transform: `translateY(${toward * swiped}px)`, transition: held ? "none" : BACK }}
       onPointerDown={event => {
         onPointerDown?.(event);
+        // Its own, not the map's sheet's: a sheet opened from inside the
+        // map's sheet (the route's Procedures) is its child in React's tree
+        // though portalled out of it in the page's, and a press here went
+        // on up to the map sheet's head, whose drag (useDetentDrag) then
+        // took the finger -- a swipe up on the Procedures dragged FPL up
+        // behind it, at the owner's notice.
+        event.stopPropagation();
         if (event.button !== 0 || !(event.target as Element).closest("[data-swipe-handle]")) return;
         press.current = { id: event.pointerId, y: event.clientY, t: event.timeStamp, height: event.currentTarget.offsetHeight, moved: false };
       }}
