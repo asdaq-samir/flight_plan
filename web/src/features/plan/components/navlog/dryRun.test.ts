@@ -167,3 +167,77 @@ describe("an approach as the dry run flies it", () => {
     expect(path.ft).toEqual([null, 3200, null]);
   });
 });
+
+describe("the procedures flown around and about a field", () => {
+  // Duluth (46.84 N, 92.19 W) from the south-west, one 60 nm leg, and the
+  // field Campbell-like to the south.
+  const at = (ident: string, lat: number, lon: number, elevation: number): Airport =>
+    ({ ident, name: ident, lat, lon, elevation_ft: elevation, kind: "airport" }) as Airport;
+  const from = at("KXYZ", 46.0, -92.8, 1000), duluth = at("KDLH", 46.842, -92.194, 1428);
+  const plain = { ...leg, toc: undefined, tod: undefined, true_course_deg: 25 } as Leg;
+  const legs = navLogRows({ departure: from, destination: duluth }, [], [plain]);
+  const ils27viaDLH = {
+    airport: "KDLH", kind: "approach", id: "I27", name: "ILS RWY 27", transition: "DLH", cycle: "2610", stale: false, holds: [],
+    lines: [
+      { role: "transition", name: "DLH", points: [[46.802164, -92.202869], [46.837742, -92.050569]] },
+      { role: "final", name: null, points: [[46.831561, -91.841322], [46.837742, -92.050569], [46.841361, -92.180119]] },
+    ],
+    fixes: [
+      { ident: "ANDOE", lat: 46.837742, lon: -92.050569, roles: ["IAF", "FAF"], min_ft: 3200, max_ft: null, missed: false },
+      { ident: "RW27", lat: 46.841361, lon: -92.180119, roles: ["MAP"], min_ft: null, max_ft: null, missed: false },
+    ],
+  } as ProcedureDrawing;
+  const andoe = { lat: 46.837742, lon: -92.050569 };
+
+  it("turns round where the approach doubles back, in a teardrop out past the fix, not a hairpin at it", () => {
+    const run = dryRunOf(legs, 0, undefined, [ils27viaDLH]);
+    // Out beyond ANDOE, away from the runway: more than two miles east of it.
+    expect(run.points.some(p => p.lon > andoe.lon && distanceNm(p, andoe) > 2.5)).toBe(true);
+    // And, after it, back across ANDOE westbound, down the final to the runway.
+    const turned = run.points.reduce((best, p, i) => (p.lon > run.points[best]!.lon ? i : best), 0);
+    const inbound = run.points.slice(turned).filter(p => p.lon < andoe.lon && p.lon > -92.18);
+    expect(inbound.length).toBeGreaterThan(0);
+    expect(inbound.every(p => p.track_deg! > 260 && p.track_deg! < 280)).toBe(true);
+    expect(run.points.at(-1)).toMatchObject({ lat: 46.841361, lon: -92.180119, alt_ft: 1428 });
+  });
+
+  it("flies the chart's hold at the fix, once round, where it has one in lieu of a procedure turn", () => {
+    const far = { lat: 46.84, lon: -91.95 };
+    const hold = [[andoe.lat, andoe.lon], [46.85, -92.0], [far.lat, far.lon], [46.83, -92.0], [andoe.lat, andoe.lon]] as [number, number][];
+    const run = dryRunOf(legs, 0, undefined, [{ ...ils27viaDLH, holds: [{ fix: "ANDOE", turn: "R", inbound_deg: 272, missed: false, points: hold }] }]);
+    expect(run.points.some(p => distanceNm(p, far) < 0.05)).toBe(true);
+  });
+
+  it("leaves by the departure picked, then on to the route", () => {
+    const sid = {
+      airport: "KXYZ", kind: "departure", id: "OUT1", name: "OUT1", transition: "EAST", cycle: "2610", stale: false, holds: [],
+      lines: [
+        { role: "runway", name: "RW36", points: [[46.0, -92.8], [46.05, -92.8]] },
+        { role: "common", name: null, points: [[46.05, -92.8], [46.1, -92.6]] },
+        { role: "transition", name: "EAST", points: [[46.1, -92.6], [46.15, -92.5]] },
+      ],
+      fixes: [],
+    } as ProcedureDrawing;
+    const run = dryRunOf(legs, 0, undefined, [sid]);
+    const east = { lat: 46.15, lon: -92.5 };
+    expect(run.points.some(p => distanceNm(p, east) < 0.05)).toBe(true);
+    expect(run.points.at(-1)).toMatchObject({ lat: duluth.lat, lon: duluth.lon });
+    expect(run.alongNm.at(-1)).toBeGreaterThan(60);
+  });
+
+  it("comes in by the arrival and on into the approach, by the runway transition nearest the approach's start", () => {
+    const star = {
+      airport: "KDLH", kind: "arrival", id: "IN1", name: "IN1", transition: null, cycle: "2610", stale: false, holds: [],
+      lines: [
+        { role: "common", name: null, points: [[46.6, -92.4], [46.75, -92.3]] },
+        { role: "runway", name: "RW09", points: [[46.75, -92.3], [46.84, -92.5]] },
+        { role: "runway", name: "RW27", points: [[46.75, -92.3], [46.80, -92.21]] },
+      ],
+      fixes: [],
+    } as ProcedureDrawing;
+    const run = dryRunOf(legs, 0, undefined, [star, ils27viaDLH]);
+    const rw27end = { lat: 46.80, lon: -92.21 }, rw09end = { lat: 46.84, lon: -92.5 };
+    expect(run.points.some(p => distanceNm(p, rw27end) < 0.05)).toBe(true);
+    expect(run.points.some(p => distanceNm(p, rw09end) < 0.5)).toBe(false);
+  });
+});

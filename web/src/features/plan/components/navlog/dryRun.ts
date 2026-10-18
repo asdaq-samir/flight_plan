@@ -31,20 +31,23 @@ export interface DryRun {
   bends: { route: number; run: number }[];
 }
 
-/** An approach as the dry run flies it (approachPath): the points of its
- *  transition and its final, and the altitude its chart sets at each,
- *  where it sets one. */
+/** A procedure as the dry run flies it (approachPath, procedurePath): its
+ *  points, the altitude its chart sets at each where it sets one, and its
+ *  holds that are not the missed approach's, each a racetrack from its fix
+ *  round and back to it. */
 export interface ApproachPath {
   points: LatLon[];
   ft: (number | null)[];
+  holds: LatLon[][];
 }
 
 interface Anchor {
   along: number; route: number; lat: number; lon: number; t: number; fuel: number; gs: number | null; track: number | null;
-  /** The leg in to this row flown as an approach: its path from the row
-   *  before, the distance along it to each of its points, and the heights
-   *  it is flown at along it. */
-  approach?: { path: LatLon[]; at: number[]; heights: ProfilePoint[] };
+  /** The leg in to this row flown as procedures -- out on a departure,
+   *  in on an arrival and an approach: its path from the row before, the
+   *  distance along it to each of its points, and the heights it is flown
+   *  at along it, or null for the plan's own laid evenly over it. */
+  flown?: { path: LatLon[]; at: number[]; heights: ProfilePoint[] | null };
 }
 
 /** The point a fraction `f` of the way from `a` to `b` on the great circle
@@ -94,24 +97,13 @@ function heightOn(line: ProfilePoint[], along: number): number | null {
   return line.at(-1)!.plan_ft;
 }
 
-/**
- * An approach picked into a field (the route's Procedures) as the dry run
- * flies it, at the owner's notice ("Dry run is not following approach when
- * selected"): its transition, then its final to the missed approach point,
- * as the map draws them (ProcedureLayer) -- not the missed approach, nor a
- * hold. The final is joined where the transition ends on it: Duluth's ILS
- * RWY 27 via DLH ends at ANDOE, the final's second fix, and would have
- * gone back out to WIRSA, the final's first, before turning in. Each
- * point's altitude is the one its fix is crossed at, where the chart sets
- * one -- the lower of a window -- and none at the missed approach point,
- * whose coded altitude is not one to cross it at (vfr.procedures leaves
- * it out). Null where nothing of the approach is drawn.
- */
-export function approachPath(drawing: ProcedureDrawing): ApproachPath | null {
+/** Lines of a procedure, in the order given, as one path: each joined
+ *  where it passes the last one's end -- the final from where its
+ *  transition ends on it -- not back out at its own first point. */
+function joinedLines(lines: [number, number][][]): LatLon[] {
   const points: LatLon[] = [];
-  for (const line of drawing.lines) {
-    if (line.role !== "transition" && line.role !== "final") continue;
-    let part = line.points.map(([lat, lon]) => ({ lat, lon }));
+  for (const line of lines) {
+    let part = line.map(([lat, lon]) => ({ lat, lon }));
     const last = points.at(-1);
     if (last) {
       const joined = part.findIndex(p => distanceNm(p, last) < SAME_PLACE_NM);
@@ -119,13 +111,112 @@ export function approachPath(drawing: ProcedureDrawing): ApproachPath | null {
     }
     points.push(...part);
   }
+  return points;
+}
+
+/** A procedure's path with each point's crossing altitude, where its chart
+ *  sets one -- the lower of a window -- and none at the missed approach
+ *  point, whose coded altitude is not one to cross it at (vfr.procedures
+ *  leaves it out); and its holds, the missed approach's left out. */
+function crossings(drawing: ProcedureDrawing, points: LatLon[]): ApproachPath | null {
   if (points.length < 2) return null;
   const crossed = drawing.fixes.filter(f => !f.missed);
   const ft = points.map(p => {
     const fix = crossed.find(f => distanceNm(f, p) < SAME_PLACE_NM);
     return fix ? fix.min_ft ?? fix.max_ft ?? null : null;
   });
-  return { points, ft };
+  const holds = drawing.holds.filter(h => !h.missed).map(h => h.points.map(([lat, lon]) => ({ lat, lon })));
+  return { points, ft, holds };
+}
+
+/**
+ * An approach picked into a field (the route's Procedures) as the dry run
+ * flies it, at the owner's notice ("Dry run is not following approach when
+ * selected"): its transition, then its final to the missed approach point,
+ * as the map draws them (ProcedureLayer) -- not the missed approach. The
+ * final is joined where the transition ends on it: Duluth's ILS RWY 27 via
+ * DLH ends at ANDOE, the final's second fix, and would have gone back out
+ * to WIRSA, the final's first, before turning in. Null where nothing of the
+ * approach is drawn.
+ */
+export function approachPath(drawing: ProcedureDrawing): ApproachPath | null {
+  return crossings(drawing, joinedLines(drawing.lines.filter(l => l.role === "transition" || l.role === "final").map(l => l.points)));
+}
+
+/**
+ * An arrival (STAR) or a departure (SID) picked at a field as the dry run
+ * flies it, at the owner's pick ("Ok 1-3"): a departure's runway
+ * transition, its common route and its enroute transition; an arrival's
+ * enroute transition and common route, then of its runway transitions the
+ * one that ends nearest `toward`, the approach's first fix, where one is
+ * picked. vfr.procedures draws every runway transition of either: the
+ * runway in use is not known to the plan, so a departure leaves by the
+ * first coded. Null where nothing of it is drawn.
+ */
+export function procedurePath(drawing: ProcedureDrawing, toward?: LatLon): ApproachPath | null {
+  const of = (role: string) => drawing.lines.filter(l => l.role === role).map(l => l.points);
+  const runways = of("runway");
+  if (drawing.kind === "departure") return crossings(drawing, joinedLines([...runways.slice(0, 1), ...of("common"), ...of("transition")]));
+  const nearest = toward && runways.length
+    ? runways.reduce((best, line) => (distanceNm(lastOf(line), toward) < distanceNm(lastOf(best), toward) ? line : best))
+    : null;
+  return crossings(drawing, joinedLines([...of("transition"), ...of("common"), ...(nearest ? [nearest] : [])]));
+}
+
+const lastOf = (line: [number, number][]): LatLon => ({ lat: line.at(-1)![0], lon: line.at(-1)![1] });
+
+/** How far a path turns at a point to be a course reversal there, degrees. */
+const REVERSAL_DEG = 120;
+
+/**
+ * Where the path doubles back at a point -- Duluth's ILS RWY 27 via DLH
+ * comes to ANDOE northeastbound and its final leaves it westbound -- the
+ * course reversal a pilot flies there (AIM 5-4-9), at the owner's pick
+ * ("Ok 1-3"), where it was a hairpin at the fix: the hold the chart puts
+ * at the fix (a hold in lieu of a procedure turn), once round; or else a
+ * teardrop, out from the fix 30° off the course it came in on and round
+ * onto the inbound course a mile and a half out, within the 10 NM of the
+ * fix a procedure turn is kept to unless the chart says otherwise. Each
+ * point of it has no altitude of its own: the heights go on between the
+ * fixes' as before.
+ */
+function withReversals(path: LatLon[], ft: (number | null)[], holds: LatLon[][]): { path: LatLon[]; ft: (number | null)[] } {
+  const out: LatLon[] = [path[0]!];
+  const outFt: (number | null)[] = [ft[0] ?? null];
+  for (let i = 1; i < path.length; i++) {
+    const fix = path[i]!;
+    out.push(fix);
+    outFt.push(ft[i] ?? null);
+    if (i === path.length - 1) break;
+    const cin = bearingDeg(path[i - 1]!, fix), cout = bearingDeg(fix, path[i + 1]!);
+    const turn = Math.abs(((cout - cin + 540) % 360) - 180);
+    if (turn <= REVERSAL_DEG) continue;
+    const hold = holds.find(h => h.length > 2 && distanceNm(h[0]!, fix) < SAME_PLACE_NM);
+    const round = hold ? hold.slice(1) : teardrop(fix, cin, cout);
+    out.push(...round);
+    // Back at the fix inbound: crossed at its altitude again.
+    outFt.push(...round.map((_, k) => (k === round.length - 1 ? ft[i] ?? null : null)));
+  }
+  return { path: out, ft: outFt };
+}
+
+/** A teardrop course reversal at `fix`, come to on `cin` and left on
+ *  `cout`: out three miles 30° off `cin`, round past five miles, and in on
+ *  `cout` from a mile and a half out, to the fix. */
+function teardrop(fix: LatLon, cin: number, cout: number): LatLon[] {
+  const out = destination(fix, cin + 30, 3);
+  const tip = destination(fix, cin + 15, 5);
+  const inbound = destination(fix, cout + 180, 1.5);
+  const curve: LatLon[] = [];
+  for (let k = 1; k < 8; k++) {
+    const f = k / 8;
+    // A quadratic Bezier through the tip, near enough a turn over a few miles.
+    curve.push({
+      lat: (1 - f) ** 2 * out.lat + 2 * (1 - f) * f * tip.lat + f ** 2 * inbound.lat,
+      lon: (1 - f) ** 2 * out.lon + 2 * (1 - f) * f * tip.lon + f ** 2 * inbound.lon,
+    });
+  }
+  return [out, ...curve, inbound, fix];
 }
 
 /** The heights an approach is flown at, along its path (`at`, nm from
@@ -166,40 +257,71 @@ function approachHeights(at: number[], ft: (number | null)[], from: number, fiel
  * C81 to Duluth, the line being the great circle the legs are flown on.
  * With no line, on the great circle between the rows' points.
  *
- * Into a field with an approach picked (`approaches`, the drawings of the
- * route's procedures), the leg in is flown as the approach instead (the
- * owner's notice above): from the row before to the approach's first fix
- * and along it to the runway, at the leg's own pace and burn however much
- * longer that is, its heights the approach's (approachHeights). The nav
- * log's rows stay the route's.
+ * With procedures picked (`procedures`, the drawings of the route's), a
+ * leg is flown by them instead: out of a field by its departure, into one
+ * by its arrival and its approach (the owner's notice above, and "Ok
+ * 1-3"), each to its runway, a course reversal where the path doubles
+ * back (withReversals), at the leg's own pace and burn however much longer
+ * that is. Coming in, its heights are the procedures' (approachHeights);
+ * going out alone, the plan's climb laid evenly over the departure. There
+ * is no approach speed in an airplane's figures, so the leg's ground
+ * speed it is. The nav log's rows stay the route's.
  */
-export function dryRunOf(rows: NavLogRow[], startS: number, line?: [number, number][], approaches: ProcedureDrawing[] = []): DryRun {
+export function dryRunOf(rows: NavLogRow[], startS: number, line?: [number, number][], procedures: ProcedureDrawing[] = []): DryRun {
   const empty: DryRun = { points: [], alongNm: [], fuelGal: [], rowT: [], bends: [] };
   const first = rows[0];
   if (!first || first.kind !== "departure") return empty;
   const plan = planProfile(rows).points;
   const anchors: Anchor[] = [{ along: 0, route: 0, ...rowPoint(first), t: startS, fuel: 0, gs: null, track: null }];
-  for (const row of rows.slice(1)) {
+  const picked = (kind: ProcedureDrawing["kind"], ident: string) => procedures.find(d => d.kind === kind && sameField(d.airport, ident));
+  for (const [i, row] of rows.entries()) {
+    if (i === 0) continue;
     const part = legOf(row);
     if (!part) break;
     const prev = anchors.at(-1)!;
     const gs = part.groundspeed_kt ?? part.tas_kt;
     const seconds = part.ete_min != null ? part.ete_min * 60 : gs > 0 ? (part.distance_nm / gs) * 3600 : 0;
     const fuel = part.fuel_gal ?? (part.fuel_burn_gph * seconds) / 3600;
-    // A field landed at, and the approach picked into it.
+    // A field landed at, and what is picked out of the last and into it.
     const field = (row.kind === "stop" || row.kind === "destination") && row.airport.kind !== "fix" ? row.airport : null;
-    const into = field ? approaches.find(d => d.kind === "approach" && sameField(d.airport, field.ident)) : undefined;
-    const flown = into ? approachPath(into) : null;
-    if (field && flown) {
-      const path = [{ lat: prev.lat, lon: prev.lon }, ...flown.points];
+    // The leg out of a field, the departure's or a stop's, by its departure.
+    const before = rows[i - 1]!;
+    const from = (before.kind === "departure" || before.kind === "stop") && before.airport.kind !== "fix" ? before.airport.ident : null;
+    const outOf = from ? picked("departure", from) : undefined;
+    const approach = field ? picked("approach", field.ident) : undefined;
+    const app = approach ? approachPath(approach) : null;
+    const arrival = field ? picked("arrival", field.ident) : undefined;
+    const star = arrival ? procedurePath(arrival, app?.points[0]) : null;
+    const sid = outOf ? procedurePath(outOf) : null;
+    if (sid || star || app) {
+      const ground = field?.elevation_ft ?? 0;
+      const pieces = [sid, star, app].filter((x): x is ApproachPath => !!x);
+      const raw: LatLon[] = [{ lat: prev.lat, lon: prev.lon }];
+      const rawFt: (number | null)[] = [null];
+      for (const piece of pieces) {
+        for (let k = 0; k < piece.points.length; k++) {
+          // A point where the last piece ended is the one place.
+          if (distanceNm(piece.points[k]!, raw.at(-1)!) < SAME_PLACE_NM) continue;
+          raw.push(piece.points[k]!);
+          rawFt.push(piece.ft[k] ?? null);
+        }
+      }
+      // Out on a departure alone, on to the row as the route goes.
+      if (!star && !app) {
+        raw.push(rowPoint(row));
+        rawFt.push(null);
+      }
+      const { path, ft } = withReversals(raw, rawFt, pieces.flatMap(piece => piece.holds));
       const at = cumulative(path);
       const nm = at.at(-1)!;
       const longer = part.distance_nm > 0 ? nm / part.distance_nm : 1;
-      const ground = field.elevation_ft ?? 0;
       anchors.push({
         along: prev.along + nm, route: prev.route + part.distance_nm, ...rowPoint(row),
         t: prev.t + seconds * longer, fuel: prev.fuel + fuel * longer, gs, track: part.true_course_deg,
-        approach: { path, at, heights: approachHeights(at, [null, ...flown.ft], heightOn(plan, prev.route) ?? ground, ground) },
+        flown: {
+          path, at,
+          heights: star || app ? approachHeights(at, ft, heightOn(plan, prev.route) ?? ground, ground) : null,
+        },
       });
       continue;
     }
@@ -215,9 +337,15 @@ export function dryRunOf(rows: NavLogRow[], startS: number, line?: [number, numb
   const marks = new Set<number>(anchors.map(a => a.along));
   for (let i = 1; i < anchors.length; i++) {
     const a = anchors[i - 1]!, b = anchors[i]!;
-    if (b.approach) {
-      for (const s of b.approach.at) marks.add(a.along + s);
-      for (const h of b.approach.heights) marks.add(a.along + h.along_nm);
+    if (b.flown) {
+      const { at, heights } = b.flown;
+      for (const s of at) marks.add(a.along + s);
+      if (heights) for (const h of heights) marks.add(a.along + h.along_nm);
+      else {
+        // The plan's own bends, laid evenly over the path.
+        const k = at.at(-1)! / Math.max(1e-9, b.route - a.route);
+        for (const p of plan) if (p.along_nm > a.route && p.along_nm < b.route) marks.add(a.along + (p.along_nm - a.route) * k);
+      }
     } else {
       for (const p of plan) if (p.along_nm > a.route && p.along_nm < b.route) marks.add(a.along + p.along_nm - a.route);
     }
@@ -237,10 +365,11 @@ export function dryRunOf(rows: NavLogRow[], startS: number, line?: [number, numb
     if (out.points.length && t <= out.points.at(-1)!.t) continue;
     let at: LatLon & { track: number | null };
     let alt: number | null;
-    if (b.approach) {
+    if (b.flown) {
       const s = along - a.along;
-      at = onPath(b.approach.path, b.approach.at, s);
-      alt = heightOn(b.approach.heights, s);
+      const { path, at: lengths, heights } = b.flown;
+      at = onPath(path, lengths, s);
+      alt = heights ? heightOn(heights, s) : heightOn(plan, a.route + (s / Math.max(1e-9, lengths.at(-1)!)) * (b.route - a.route));
     } else {
       // The route's own distance, on a leg flown as it was planned.
       const route = a.route + (along - a.along);
