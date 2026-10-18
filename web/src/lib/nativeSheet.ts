@@ -56,9 +56,12 @@ interface NativeSheetPlugin {
 }
 
 /** The plugin, once, in the app's two web views; none elsewhere, where
- *  its package is never loaded. */
-const plugin: Promise<NativeSheetPlugin> | null = nativeRole
-  ? import("@capacitor/core").then(({ registerPlugin }) => registerPlugin<NativeSheetPlugin>("NativeSheet"))
+ *  its package is never loaded. Held in an object: a Capacitor plugin is a
+ *  proxy that answers every name with a method, `then` too, so a promise
+ *  resolved with it takes it for a promise and never settles -- the map's
+ *  page never said it was ready, and no sheet came. */
+const plugin: Promise<{ native: NativeSheetPlugin }> | null = nativeRole
+  ? import("@capacitor/core").then(({ registerPlugin }) => ({ native: registerPlugin<NativeSheetPlugin>("NativeSheet") }))
   : null;
 
 /**
@@ -92,7 +95,7 @@ export function useNativeSheet({ panel, setPanel, onHeight }: {
     let gone = false;
     const listening: Listener[] = [];
     void (async () => {
-      const native = await plugin!;
+      const { native } = await plugin!;
       listening.push(await native.addListener("url", ({ search: theirs }) => {
         if (theirs === window.location.search) return;
         fromOther.current = theirs;
@@ -149,14 +152,14 @@ export function useNativeTabs(state: NativeTabs | null, handlers: {
   });
   const said = state ? JSON.stringify(state) : null;
   useEffect(() => {
-    if (said) void plugin?.then(native => native.setTabs(JSON.parse(said) as NativeTabs)).catch(() => {});
+    if (said) void plugin?.then(({ native }) => native.setTabs(JSON.parse(said) as NativeTabs)).catch(() => {});
   }, [said]);
   const on = state !== null;
   useEffect(() => {
     if (!on || !plugin) return;
     let gone = false;
     let listening: Listener | null = null;
-    void plugin.then(async native => {
+    void plugin.then(async ({ native }) => {
       const sub = await native.addListener("tabAction", done => {
         const h = latest.current;
         if (done.action === "tap") h.tap(done.tab);
@@ -180,9 +183,9 @@ let away = 0;
 export function holdNativeSheetAway(): () => void {
   if (nativeRole !== "map" || !plugin) return () => {};
   away += 1;
-  if (away === 1) void plugin.then(native => native.cover({ hidden: true })).catch(() => {});
+  if (away === 1) void plugin.then(({ native }) => native.cover({ hidden: true })).catch(() => {});
   return () => {
     away -= 1;
-    if (away === 0) void plugin?.then(native => native.cover({ hidden: false })).catch(() => {});
+    if (away === 0) void plugin?.then(({ native }) => native.cover({ hidden: false })).catch(() => {});
   };
 }
