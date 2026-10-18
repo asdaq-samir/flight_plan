@@ -24,6 +24,18 @@ export function centreClear(map: L.Map, point: L.LatLngExpression, zoom: number)
   return map.unproject(map.project(point, zoom).subtract(offsetOf(insetsOf(map))), zoom);
 }
 
+/** The map moved for `point` to sit in the middle of what the panel
+ *  leaves of it, at the zoom it is at. Not panTo, which goes through
+ *  setView and so rounds the zoom to the map's zoomSnap: a route fitted
+ *  at a quarter level (MapShell) went to the whole level beside it as a
+ *  dry run's airplane was followed, the chart drawn again from nothing,
+ *  at the owner's notice ("When tapping play for a dry run, the map
+ *  seems to reload"). */
+export function panClear(map: L.Map, point: L.LatLngExpression, options?: L.PanOptions) {
+  const middle = map.getSize().divideBy(2).add(offsetOf(insetsOf(map)));
+  map.panBy(map.latLngToContainerPoint(point).subtract(middle), options);
+}
+
 /** The same before there is a map to ask, for the panel's `insets` as
  *  given: the map made where it would be put, on the projection it is
  *  made with (Leaflet's own, Web Mercator). */

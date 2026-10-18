@@ -2,7 +2,7 @@ import L from "leaflet";
 import { useEffect, useRef } from "react";
 import { useMap } from "react-leaflet";
 import { altFt } from "../units";
-import { centreClear } from "./clear";
+import { panClear } from "./clear";
 import { TRAFFIC_COLOURS, trafficIcon } from "./icons";
 import { endSimulation, simulateFix } from "./ownShip";
 import { positionAt, stepPastFlight, usePastFlight } from "./pastFlight";
@@ -58,7 +58,7 @@ export function useReplayMarker(asOwnShip = false) {
       // Kept in sight: brought back to the middle where it would leave it.
       const sight = map.getBounds().pad(-0.15);
       if (usePastFlight.getState().playing && !sight.contains([here.lat, here.lon])) {
-        map.panTo(centreClear(map, [here.lat, here.lon], map.getZoom()), { animate: false });
+        panClear(map, [here.lat, here.lon], { animate: false });
       }
     };
     frame = requestAnimationFrame(step);
