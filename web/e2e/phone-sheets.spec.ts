@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { openMapSettings, settle } from "./helpers";
+import { controlsInSight, openMapSettings, settle, settled, sideDrawer } from "./helpers";
 
 /**
  * A phone's sheets look as the map's floating sheet does, at the owner's
@@ -87,4 +87,38 @@ test("a phone's sheet swipes away from its content too, once that is scrolled to
   await list.evaluate(el => { el.scrollTop = 0; });
   await swipe(page, middle, 320);
   await expect(sheet).toHaveCount(0);
+});
+
+test("a swipe up on a sheet opened from the map's sheet moves neither it nor the map's sheet behind it", async ({ page }) => {
+  test.skip(page.viewportSize()!.width >= 768, "a phone's sheet; wider it is a popover");
+  // The owner's notice: a swipe up on the Procedures dragged FPL up from
+  // behind it, the press going on up React's tree to the map sheet's head.
+  await page.route(url => /\/airport\/[^/]+\/procedures/.test(url.pathname), route =>
+    route.fulfill({ json: { airport: "KDLH", cycle: "261001", procedures: [] } }));
+  await page.goto("/app/plan?dep=C81&dest=KDLH");
+  await settle(page);
+  await controlsInSight(page);
+  const panel = sideDrawer(page);
+  const top = async () => (await panel.boundingBox())!.y;
+  await sideDrawer(page).getByTestId("route-approaches").click();
+  const sheet = page.locator("[data-slot=sheet-content]");
+  await expect(sheet).toBeVisible();
+  await sheet.evaluate(el => Promise.all(el.getAnimations().map(a => a.finished)));
+  // Half way under it, as it opens with the Procedures (PlanWorkspace),
+  // and at rest there.
+  await settled(panel);
+  const before = await panel.getAttribute("data-panel");
+  const panelTop = await top();
+  const sheetTop = (await sheet.boundingBox())!.y;
+  // Up from its title, and up from its content.
+  const title = (await sheet.locator("[data-slot=sheet-title]").boundingBox())!;
+  await swipe(page, { x: title.x + title.width / 2, y: title.y + title.height / 2 }, -200);
+  await page.waitForTimeout(600);
+  const body = (await page.getByTestId("procedures").boundingBox())!;
+  await swipe(page, { x: body.x + body.width / 2, y: body.y + 40 }, -200);
+  await page.waitForTimeout(600);
+  await expect(sheet).toBeVisible();
+  expect(Math.abs((await sheet.boundingBox())!.y - sheetTop)).toBeLessThan(2);
+  await expect(panel).toHaveAttribute("data-panel", before!);
+  expect(Math.abs(await top() - panelTop)).toBeLessThan(2);
 });
