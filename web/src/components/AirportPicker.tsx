@@ -116,15 +116,18 @@ export default function AirportPicker({
         </Button>
       </ResponsivePopoverTrigger>
       {/* The panel's own search, as the search bar is with no route: on a
-          phone a tall sheet, the field a capsule at its top, Favorites
-          and Recents under it until something is typed. */}
+          phone a sheet from the top, the field a capsule at its top,
+          Favorites and Recents under it until something is typed. */}
       <ResponsivePopoverContent
         title={`${ariaLabel} airport`} titleHidden className="w-96 p-3" align="start"
-        // The whole screen's height, keyboard or not, as Maps' search
-        // sheet stands: sized to what was in sight above the keyboard, it
-        // stayed half a card once the keyboard went (iOS does not always
-        // say so). The list scrolls clear of the keyboard instead (below).
-        style={onPhone ? { height: "calc(100dvh - 8px)", maxHeight: "none" } : undefined}
+        // As tall as what it holds, at the owner's pick ("a tall, mostly
+        // empty glass pane" before anything was typed): the field and
+        // Favorites and Recents, growing as rows come in, to the screen's
+        // height at most. Not sized to what was in sight above the
+        // keyboard, which stayed half a card once the keyboard went (iOS
+        // does not always say so): the list's room under it for the
+        // keyboard (below) is what it grows by while the keyboard is up.
+        style={onPhone ? { maxHeight: "calc(100dvh - 1rem - env(safe-area-inset-top))" } : undefined}
         // The field focused as it opens, as the search bar is on its tap:
         // the sheet's own first focus went to the sheet itself.
         onOpenAutoFocus={e => { e.preventDefault(); input.current?.focus(); }}
