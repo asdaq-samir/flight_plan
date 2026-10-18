@@ -1,4 +1,4 @@
-import { useRef, useState, type ComponentProps, type PointerEvent } from "react";
+import { useEffect, useRef, useState, type ComponentProps, type PointerEvent } from "react";
 import { cn } from "cn";
 import { SheetClose, SheetContent } from "./ui/sheet";
 import type { NavEdge } from "../lib/preferences";
@@ -36,9 +36,73 @@ export function PhoneSheetContent({ edge, className, style, children, onPointerD
   const [swiped, setSwiped] = useState<number | null>(null);
   const [held, setHeld] = useState(false);
   const toward = edge === "bottom" ? 1 : -1;
+  // From its content too, as an iOS sheet's scrolling content hands a drag
+  // to the sheet, at the owner's pick ("Ok 1-3"): a finger's first move
+  // toward the sheet's edge, where everything that scrolls under it is
+  // at its start, takes the sheet; anything else is the content's own
+  // scroll. Decided at that first move, the one a page can still take
+  // from the browser's scrolling (as the map's sheet's body, useDetentDrag).
+  // A field, a slider or something with gestures of its own keeps the
+  // finger; the head goes by its pointer (above).
+  const [sheet, setSheet] = useState<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!sheet) return;
+    let g: { x: number; y: number; t: number; target: Element; taken: boolean | null; by: number; moving: boolean } | null = null;
+    const atStart = (target: Element) => {
+      for (let el: Element | null = target; el && el !== sheet; el = el.parentElement) {
+        if (el.matches("input, textarea, [role=slider], [contenteditable=true], [data-swipe-handle]") || getComputedStyle(el).touchAction === "none") return false;
+        const style = getComputedStyle(el);
+        if (el.scrollHeight > el.clientHeight + 1 && /auto|scroll/.test(style.overflowY)
+          && (toward > 0 ? el.scrollTop > 0 : el.scrollTop + el.clientHeight < el.scrollHeight - 1)) return false;
+      }
+      return true;
+    };
+    const start = (event: TouchEvent) => {
+      const touch = event.touches[0];
+      g = touch && event.touches.length === 1 && event.target instanceof Element
+        ? { x: touch.clientX, y: touch.clientY, t: event.timeStamp, target: event.target, taken: null, by: 0, moving: false } : null;
+    };
+    const move = (event: TouchEvent) => {
+      const touch = event.touches[0];
+      if (!g || !touch || event.touches.length !== 1) return;
+      const dx = touch.clientX - g.x, by = (touch.clientY - g.y) * toward;
+      if (g.taken === null) {
+        if (dx === 0 && by === 0) return;
+        g.taken = by > 0 && by > Math.abs(dx) && atStart(g.target);
+        if (!g.taken) { g = null; return; }
+      }
+      if (event.cancelable) event.preventDefault();
+      if (by < SLOP && !g.moving) return;
+      g.by = by;
+      if (!g.moving) setHeld(true);
+      g.moving = true;
+      setSwiped(by > 0 ? by : by / 4);
+    };
+    const end = (event: TouchEvent) => {
+      const was = g;
+      g = null;
+      if (!was?.taken) return;
+      if (event.cancelable) event.preventDefault();
+      if (!was.moving) return;
+      setHeld(false);
+      const height = sheet.offsetHeight;
+      if (was.by > height * AWAY_SHARE || was.by / Math.max(1, event.timeStamp - was.t) > AWAY_SPEED) close.current?.click();
+      else setSwiped(0);
+    };
+    sheet.addEventListener("touchstart", start, { passive: true });
+    sheet.addEventListener("touchmove", move, { passive: false });
+    sheet.addEventListener("touchend", end, { passive: false });
+    sheet.addEventListener("touchcancel", end);
+    return () => {
+      sheet.removeEventListener("touchstart", start);
+      sheet.removeEventListener("touchmove", move);
+      sheet.removeEventListener("touchend", end);
+      sheet.removeEventListener("touchcancel", end);
+    };
+  }, [sheet, toward]);
   return (
     <SheetContent
-      side={edge} glass showCloseButton={false} data-floating=""
+      ref={setSheet} side={edge} glass showCloseButton={false} data-floating=""
       className={cn("max-h-[calc(85dvh-1rem)] gap-0 rounded-[36px]", className)}
       style={swiped === null ? style : { ...style, transform: `translateY(${toward * swiped}px)`, transition: held ? "none" : BACK }}
       onPointerDown={event => {
