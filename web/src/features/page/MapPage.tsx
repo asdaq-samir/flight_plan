@@ -15,6 +15,7 @@ import TvLink from "../pilot/TvLink";
 import PlanWorkspace from "../plan/PlanWorkspace";
 import type { WorkspacePieces } from "./workspace";
 import { fromChunk } from "../../lib/fromChunk";
+import { nativeRole, useNativeSheet } from "../../lib/nativeSheet";
 
 /** Setup's pill (the switches, the account), with the console's code
  *  rather than the page's first load: asked for once the page has drawn,
@@ -164,6 +165,18 @@ export default function MapPage({ mode }: { mode: Mode }) {
   const changeInsets = useCallback((next: MapInsets) => {
     setInsets(prev => (prev.top === next.top && prev.bottom === next.bottom && prev.left === next.left && prev.out === next.out && prev.up === next.up ? prev : next));
   }, []);
+  // In the iOS app's native sheet (lib/nativeSheet): the panel's size is
+  // the sheet's, and on the map's page, which draws no panel, what covers
+  // the map is the sheet, by the height iOS gives it.
+  useNativeSheet({
+    panel, setPanel,
+    onHeight: useCallback((height: number, state: PanelState) => {
+      changeInsets({ top: 0, bottom: height, left: 0, out: state !== "peek", up: state === "full" });
+    }, [changeInsets]),
+  });
+  const panelInsets = useCallback((next: MapInsets) => {
+    if (nativeRole !== "map") changeInsets(next);
+  }, [changeInsets]);
 
   // The console, Setup: its button the tab bar's last tab (TabBar), on both
   // pages, and what it opens a layer of the map's panel itself (below), as
@@ -297,7 +310,7 @@ export default function MapPage({ mode }: { mode: Mode }) {
           </main>
           <MapPanel
             label={consoleLayer ? consoleLabel : panelLabel} controls={pieces.alone || consoleLayer ? undefined : pieces.controls}
-            state={panel} onStateChange={setPanel} onInsetsChange={changeInsets}
+            state={panel} onStateChange={setPanel} onInsetsChange={panelInsets}
             // The pill: the workspace's own (a card's summary, the route's
             // one line), or else the top row itself -- the same element, so
             // a search bar typed into keeps its focus as the sheet comes up.

@@ -586,3 +586,24 @@ html [data-sonner-toaster] [data-sonner-toast][data-styled="true"]:is([data-type
    drawing, the overlay pane's and the layers' own -- out of sight until
    it lands, where Leaflet scaled them with the chart. */
 .map-big-zoom .leaflet-pane > svg, .map-big-zoom .leaflet-pane > canvas { visibility: hidden; }
+
+/* The iOS app's native sheet (lib/nativeSheet, web/ios's NativeSheet.swift):
+   two web views, the app's own drawing the map alone and the sheet's the
+   panel alone. On the map's, no panel: iOS's sheet is over it. In the
+   sheet's, no map, the page clear, and the panel the whole of the web
+   view -- the sheet's own size, its glass, its corners and its grabber are
+   iOS's, so the panel's own glass, rounding, shadow and grabber go. */
+html[data-native="map"] [data-slot="map-panel"] { display: none !important; }
+html[data-native="sheet"], html[data-native="sheet"] body { background: transparent !important; }
+html[data-native="sheet"] main#content, html[data-native="sheet"] [data-map-controls] { display: none !important; }
+html[data-native="sheet"] [data-slot="map-panel"] {
+  inset: 0 !important;
+  height: 100% !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  box-shadow: none !important;
+  transition: none !important;
+}
+html[data-native="sheet"] [data-testid="sidebar-trigger-button"] { display: none !important; }

@@ -17,6 +17,7 @@ import MapPage from "./features/page/MapPage";
 import { prefetchRouteMap } from "./features/plan/routeMapChunk";
 import "./index.css";
 import { followAppLinks, followBackButton, inNativeApp, nativePlatform } from "./lib/native";
+import { nativeRole } from "./lib/nativeSheet";
 import { startTv, tvPlatform } from "./lib/tv";
 
 // The reader's text size from the iPhone's Settings, before the first
@@ -71,6 +72,9 @@ startFresh();
 // sign-in link in Mail -- opens here, and Android's back closes what is
 // open (lib/native).
 if (inNativeApp()) void followAppLinks();
+// Which of the iOS app's two web views this is, for index.css to draw the
+// map alone or the panel alone (lib/nativeSheet).
+if (nativeRole) document.documentElement.dataset.native = nativeRole;
 if (nativePlatform() === "android") void followBackButton();
 
 // Three views, one app -- which is the point of the port. As separate

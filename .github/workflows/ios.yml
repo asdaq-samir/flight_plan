@@ -14,6 +14,7 @@ on:
       - web/ios/**
       - web/ios-offline/**
       - web/capacitor.config.ts
+      - web/src/lib/nativeSheet.ts
       - web/package.json
       - web/package-lock.json
       - .github/workflows/ios.yml
@@ -23,6 +24,7 @@ on:
       - web/ios/**
       - web/ios-offline/**
       - web/capacitor.config.ts
+      - web/src/lib/nativeSheet.ts
       - web/package.json
       - web/package-lock.json
       - .github/workflows/ios.yml
@@ -63,6 +65,67 @@ jobs:
             -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
             CODE_SIGNING_ALLOWED=NO WINGTIP_HOST="$host" PRODUCT_BUNDLE_IDENTIFIER="$WINGTIP_BUNDLE_ID" \
             build | tail -40
+
+  # The native sheet seen moving (NativeSheet.swift, lib/nativeSheet): the
+  # app built for the simulator against the site built from this same
+  # commit, served from the runner itself, and recorded as the sheet goes
+  # through its sizes by itself (-NativeSheetDemo). The recording and its
+  # stills are the run's artifact, to watch where no Mac of the owner's
+  # runs Xcode. No planner here: the panel and the map draw, the route's
+  # answers do not come.
+  sheet-demo:
+    runs-on: macos-26
+    timeout-minutes: 40
+    env:
+      WINGTIP_URL: http://localhost/app/plan
+      WINGTIP_LOCAL: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v7
+        with:
+          node-version-file: .nvmrc
+      - name: The site, built and served on the runner, and the shell
+        working-directory: web
+        run: |
+          npm ci --no-audit --no-fund
+          npx vite build
+          sudo nohup node scripts/serve-app.mjs dist 80 > "$RUNNER_TEMP/serve.log" 2>&1 &
+          for i in $(seq 1 30); do curl -sf http://localhost/app/plan > /dev/null && break; sleep 1; done
+          curl -sf http://localhost/app/plan > /dev/null
+          npx cap sync ios
+      - name: Built for the simulator
+        working-directory: web/ios/App
+        run: |
+          xcodebuild -project App.xcodeproj -scheme App -configuration Debug \
+            -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath "$RUNNER_TEMP/dd" \
+            CODE_SIGNING_ALLOWED=NO WINGTIP_HOST=localhost PRODUCT_BUNDLE_IDENTIFIER="$WINGTIP_BUNDLE_ID" \
+            build | tail -40
+      - name: Recorded in the simulator
+        run: |
+          app="$RUNNER_TEMP/dd/Build/Products/Debug-iphonesimulator/App.app"
+          udid=$(xcrun simctl list devices available | grep -m1 -E 'iPhone [0-9]+ Pro \(' | grep -oE '[0-9A-F-]{36}')
+          xcrun simctl boot "$udid"
+          xcrun simctl bootstatus "$udid" -b
+          xcrun simctl install "$udid" "$app"
+          xcrun simctl privacy "$udid" grant location "$WINGTIP_BUNDLE_ID" || true
+          out="$RUNNER_TEMP/sheet-demo"
+          mkdir -p "$out"
+          xcrun simctl io "$udid" recordVideo --codec=h264 --force "$out/native-sheet.mp4" &
+          rec=$!
+          sleep 2
+          xcrun simctl launch "$udid" "$WINGTIP_BUNDLE_ID" -NativeSheetDemo
+          for i in 1 2 3 4 5 6 7 8; do
+            sleep 3
+            xcrun simctl io "$udid" screenshot "$out/step-$i.png"
+          done
+          kill -INT "$rec"
+          wait "$rec" || true
+          cp "$RUNNER_TEMP/serve.log" "$out/" || true
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        if: always()
+        with:
+          name: native-sheet-demo
+          path: ${{ runner.temp }}/sheet-demo
 
   testflight:
     needs: simulator

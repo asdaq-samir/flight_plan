@@ -45,7 +45,10 @@ const config: CapacitorConfig = {
     // The map draws under the status bar and the home indicator, as the
     // site does in Safari (viewport-fit=cover, env(safe-area-inset-*)).
     contentInset: "never",
-    limitsNavigationsToAppBoundDomains: true,
+    // Not for the build's own recording of the native sheet (ios.yml),
+    // which serves the site from the runner itself, http://localhost: an
+    // app-bound domain is a site's, not a machine's.
+    limitsNavigationsToAppBoundDomains: process.env.WINGTIP_LOCAL !== "1",
   },
   android: {
     // Apple's sign-in sheet is iOS's (lib/native): left out of Android's

@@ -79,11 +79,3 @@ public class Gdl90Plugin: CAPPlugin, CAPBridgedPlugin {
         }
     }
 }
-
-/// The app's web view, with the app's own plugin registered beside the
-/// packages' (Gdl90Plugin).
-class MainViewController: CAPBridgeViewController {
-    override open func capacitorDidLoad() {
-        bridge?.registerPluginInstance(Gdl90Plugin())
-    }
-}
