@@ -233,6 +233,12 @@ export const useOwnShip = create<OwnShip>()(
  *  Own ship glides from one to the next over it (OwnShipLayer). */
 export const SIMULATED_FIX_MS = 250;
 
+/** The zoom a dry run starts at, on its airplane: some fifty miles across
+ *  a phone, the route's checkpoints and fields round it named, at the
+ *  owner's ask ("When play is pressed it should also zoom into plane on
+ *  the route"). */
+export const DRY_RUN_ZOOM = 10;
+
 /** A point of the planned flight's dry run (lib/map/pastFlight's). */
 export interface SimulatedPoint { t: number; lat: number; lon: number; alt_ft?: number | null; gs_kt?: number | null; track_deg?: number | null }
 
@@ -249,7 +255,7 @@ export function simulateFix(point: SimulatedPoint) {
   if (!s.simulated) {
     beforeSimulation = { enabled: s.enabled, follow: s.follow };
     stopWatching();
-    useOwnShip.setState({ simulated: true, enabled: true, follow: true, error: null });
+    useOwnShip.setState(s => ({ simulated: true, enabled: true, follow: true, error: null, recentred: s.recentred + 1, recentreZoom: DRY_RUN_ZOOM }));
   }
   useOwnShip.setState({
     fix: {

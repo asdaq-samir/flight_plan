@@ -580,3 +580,9 @@ html [data-sonner-toaster] [data-sonner-toast][data-styled="true"]:is([data-type
       0 8px 28px rgb(0 0 0 / 0.45);
   }
 }
+
+/* An animated zoom of more than a level (lib/map/clear's
+   hideLinesWhileZooming): the map's lines and circles -- every pane's
+   drawing, the overlay pane's and the layers' own -- out of sight until
+   it lands, where Leaflet scaled them with the chart. */
+.map-big-zoom .leaflet-pane > svg, .map-big-zoom .leaflet-pane > canvas { visibility: hidden; }
