@@ -12,7 +12,8 @@ import { ResponsivePopover, ResponsivePopoverContent, ResponsivePopoverTrigger }
 import { api } from "../../../lib/api/client";
 import type { ProcedureDrawing, ProcedureList, ProcedureSummary, Runway } from "../../../lib/api/types";
 import { distanceNm } from "../../../lib/geo";
-import { runwayInUse, runwayNumber } from "../../../lib/pattern";
+import { runwayNumber, windPick, type WindPick } from "../../../lib/pattern";
+import { airportQuery } from "../../../lib/queryClient";
 import { kindsFor, sameField, type PickedProcedure } from "../../../lib/procedures";
 import { trafficPattern } from "../../../lib/trafficPattern";
 import { TEXT } from "../../../lib/text";
@@ -161,6 +162,20 @@ function ProceduresSheet({ airports, picked, onPick, onCharts, chartsDisabled, p
       staleTime: PROCEDURE_STALE_MS,
     })),
   });
+  // Each field's card (its weather), for the wind a field with no report
+  // of its own goes by: the nearest report's (windPick).
+  const cards = useQueries({ queries: airports.map(a => airportQuery(a.ident)) });
+  const windOf = (ident: string): WindPick | null => {
+    const i = airports.findIndex(a => a.ident === ident);
+    const runways = airports[i]?.runways;
+    if (!runways) return null;
+    const card = cards[i]?.data;
+    const near = card && !card.metar ? card.nearby_metar : null;
+    return windPick(runways, near ? {
+      station: near.ident, distanceNm: near.distance_nm,
+      dirTrueDeg: near.metar.wind_dir_true_deg, speedKt: near.metar.wind_speed_kt, gustKt: near.metar.wind_gust_kt,
+    } : null);
+  };
   // The pick of a kind at a field, among those kept.
   const listOf = (ident: string): ProcedureList | undefined => lists[airports.findIndex(a => a.ident === ident)]?.data;
   const kindOf = (p: PickedProcedure) => listOf(p.ident)?.procedures.find(q => q.id === p.id)?.kind;
@@ -191,7 +206,7 @@ function ProceduresSheet({ airports, picked, onPick, onCharts, chartsDisabled, p
     ) : (
       <ProcedurePicker
         key={`${page.ident}:${page.kind}`}
-        kind={page.kind} list={list} chosen={chosen} stale={stale} intoWind={a?.runways ? windwardEnd(a.runways) : null}
+        kind={page.kind} list={list} chosen={chosen} stale={stale} wind={a ? windOf(a.ident) : null}
         onOpen={p => onPage({ ident: page.ident, kind: page.kind, title: `${page.ident} ${p.name}`, procedure: p })}
       />
     );
@@ -238,7 +253,7 @@ function ProceduresSheet({ airports, picked, onPick, onCharts, chartsDisabled, p
         return (
           <FieldStep key={a.ident} title={`${a.ident} · ${ROLE_STEP[a.role]}`} last={i === airports.length - 1}>
             {before.length > 0 && <ListGroup>{before.map(kindRow)}{failed}{charts}</ListGroup>}
-            <PatternChips airport={a} chosen={picked.get(a.ident) ?? null} onPick={end => onPick(a.ident, end)} />
+            <PatternChips airport={a} wind={windOf(a.ident)} chosen={picked.get(a.ident) ?? null} onPick={end => onPick(a.ident, end)} />
             {after.length > 0 && <ListGroup>{after.map(kindRow)}{before.length === 0 && failed}</ListGroup>}
           </FieldStep>
         );
@@ -303,25 +318,21 @@ const CHIP = cn(
   TEXT.detail,
 );
 
-/** The end the reported wind favours (lib/pattern), where a wind is
- *  reported: the one a pilot would land on. */
-function windwardEnd(runways: Runway[]): { ident: string; runway: Runway } | null {
-  const inUse = runwayInUse(runways);
-  return inUse?.byWind ? { ident: runwayNumber(inUse.end.ident), runway: inUse.runway } : null;
-}
-
 /**
  * A field's traffic pattern, picked by its runway as a chip, or None: the
- * end the reported wind favours marked with the wind, as the redesign's A
- * had it at the owner's pick, and its head- and crosswind said under the
- * chips (vfr.runway_wind). Drawn on the map as the FAA's Airplane Flying
+ * end the wind favours marked with the wind, as the redesign's A had it
+ * at the owner's pick, and its head- and crosswind said under the chips
+ * (windPick) -- at a departure too, the runway to take off on, at the
+ * owner's ask, from the nearest report's wind where the field has none of
+ * its own, said as that station's. Drawn on the map as the FAA's Airplane Flying
  * Handbook flies a pattern: the downwind about three-quarters of a mile
  * out, the base 45° from the runway's end, the 45° entry abeam midfield.
  * The side its traffic is flown on and the pattern's altitude are said
  * at the head's end for the runway picked.
  */
-function PatternChips({ airport: a, chosen, onPick }: {
+function PatternChips({ airport: a, wind, chosen, onPick }: {
   airport: ProcedureAirport;
+  wind: WindPick | null;
   chosen: string | null;
   onPick: (end: string | null) => void;
 }) {
@@ -329,8 +340,7 @@ function PatternChips({ airport: a, chosen, onPick }: {
     .filter(r => !r.closed)
     .flatMap(r => (r.runway_ends ?? []).filter(e => e.heading_true_deg != null).map(e => ({ runway: r, end: e })))
     .sort((x, y) => x.end.ident.localeCompare(y.end.ident));
-  const into = a.runways ? windwardEnd(a.runways) : null;
-  const wind = into?.runway.wind;
+  const into = wind && !wind.calm ? wind.ident : null;
   const picked = ends.find(e => runwayNumber(e.end.ident) === chosen);
   // Left unless the FAA flags it right (14 CFR 91.126(b)(1)).
   const side = picked ? `${picked.end.traffic === "right" ? "Right" : "Left"} traffic` : null;
@@ -353,7 +363,7 @@ function PatternChips({ airport: a, chosen, onPick }: {
             const id = runwayNumber(end.ident);
             // An end with no surveyed threshold has no pattern to draw.
             const drawn = trafficPattern(a.ident, runway, end.ident, a.patternAltitudeFt) !== null;
-            const windward = into?.ident === id;
+            const windward = into === id;
             return (
               <ToggleGroupItem
                 key={end.ident} value={id} disabled={!drawn} className={CHIP}
@@ -367,16 +377,21 @@ function PatternChips({ airport: a, chosen, onPick }: {
           })}
         </Chips>
       )}
-      {into && wind && (
-        <p className={cn("px-1 text-muted-foreground", TEXT.note)} data-testid="procedure-wind">
-          {`${into.ident} into the wind: headwind ${Math.round(wind.headwind_kt)} kt`}
-          {Math.round(Math.abs(wind.gust_crosswind_kt ?? wind.crosswind_kt)) > 0
-            ? `, crosswind ${Math.round(Math.abs(wind.crosswind_kt))}${wind.gust_crosswind_kt != null ? ` gusting ${Math.round(Math.abs(wind.gust_crosswind_kt))}` : ""} kt`
-            : ""}
-        </p>
+      {wind && (
+        <p className={cn("px-1 text-muted-foreground", TEXT.note)} data-testid="procedure-wind">{windWords(wind)}</p>
       )}
     </div>
   );
+}
+
+/** "24 into the wind: headwind 8 kt, crosswind 2 kt (KUGN, 11 nm)", or
+ *  "Wind calm": the line under a field's runways. */
+function windWords(wind: WindPick): string {
+  const from = wind.from ? ` (${wind.from.ident}, ${wind.from.nm} nm)` : "";
+  if (wind.calm) return `Wind calm${from}`;
+  const cross = Math.abs(wind.crosswindKt), gust = wind.gustCrosswindKt == null ? null : Math.abs(wind.gustCrosswindKt);
+  const across = cross > 0 || (gust ?? 0) > 0 ? `, crosswind ${cross}${gust != null ? ` gusting ${gust}` : ""} kt` : "";
+  return `${wind.ident} into the wind: headwind ${wind.headwindKt} kt${across}${from}`;
 }
 
 /**
@@ -385,12 +400,12 @@ function PatternChips({ airport: a, chosen, onPick }: {
  * approach to the runway the wind favours said so. Drawn from the FAA's
  * coded procedure: a sketch on the chart, not the chart.
  */
-function ProcedurePicker({ kind, list, chosen, stale, intoWind, onOpen }: {
+function ProcedurePicker({ kind, list, chosen, stale, wind, onOpen }: {
   kind: Kind;
   list: ProcedureList | undefined;
   chosen: PickedProcedure | null;
   stale: string | null;
-  intoWind: { ident: string } | null;
+  wind: WindPick | null;
   onOpen: (procedure: ProcedureSummary) => void;
 }) {
   if (!list) return <p role="status" className="px-1 text-muted-foreground">Looking the procedures up…</p>;
@@ -407,7 +422,7 @@ function ProcedurePicker({ kind, list, chosen, stale, intoWind, onOpen }: {
       {stale && <ListRow title={<span className="text-destructive-ink">{stale}</span>} data-testid="procedures-stale" />}
       {of.map(p => {
         const mine = chosen?.id === p.id ? chosen : null;
-        const windward = kind === "approach" && !!p.runway && runwayNumber(p.runway) === intoWind?.ident;
+        const windward = kind === "approach" && !!p.runway && !!wind && !wind.calm && runwayNumber(p.runway) === wind.ident;
         const said = [
           mine ? `In the route${mine.transition ? `, via ${mine.transition}` : kind === "approach" ? ", from vectors" : ""}` : null,
           windward ? "Into the wind" : null,

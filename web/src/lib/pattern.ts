@@ -46,6 +46,68 @@ export function runwayInUse(runways: Runway[]): InUse | null {
   return longest && end ? { runway: longest, end, byWind: false } : null;
 }
 
+/** The wind a field's runways are chosen by: the end it favours as
+ *  painted ("27"), its head- and crosswind and the gust's crosswind to the
+ *  knot (vfr.runway_wind), whether it is calm, and where it was reported
+ *  when not at the field itself -- the nearest report's station and how
+ *  far, for a field with no report of its own. */
+export interface WindPick {
+  ident: string;
+  headwindKt: number;
+  crosswindKt: number;
+  gustCrosswindKt: number | null;
+  calm: boolean;
+  from: { ident: string; nm: number } | null;
+}
+
+/** A report's wind: true, as a METAR's is, in knots. */
+export interface ReportedWind {
+  station: string;
+  distanceNm: number;
+  dirTrueDeg: number | null | undefined;
+  speedKt: number | null | undefined;
+  gustKt: number | null | undefined;
+}
+
+/**
+ * The runway end the wind favours, for a pattern and a takeoff alike
+ * (AC 90-66C 11.5, the runway most nearly into the wind): the field's
+ * own report's, worked out by the planner on each runway (vfr.runway_wind,
+ * runwayInUse); else, for a field that reports none, the nearest report's
+ * wind (`nearby`), said as that station's, the same sums done here -- the
+ * most headwind, the longer runway on a tie. Calm is said as calm, on
+ * no end. None with no wind to go by, or a variable one.
+ */
+export function windPick(runways: Runway[], nearby?: ReportedWind | null): WindPick | null {
+  const own = runwayInUse(runways);
+  if (own?.byWind && own.runway.wind) {
+    const w = own.runway.wind;
+    const calm = w.headwind_kt === 0 && w.crosswind_kt === 0;
+    return { ident: runwayNumber(own.end.ident), headwindKt: w.headwind_kt, crosswindKt: w.crosswind_kt, gustCrosswindKt: w.gust_crosswind_kt ?? null, calm, from: null };
+  }
+  if (!nearby || nearby.speedKt == null) return null;
+  const from = { ident: nearby.station, nm: Math.round(nearby.distanceNm) };
+  const ends = runways
+    .filter(r => !r.closed)
+    .flatMap(r => (r.runway_ends ?? []).filter(e => e.heading_true_deg != null).map(e => ({ runway: r, end: e, heading: e.heading_true_deg! })));
+  if (ends.length === 0) return null;
+  if (nearby.speedKt === 0) return { ident: "", headwindKt: 0, crosswindKt: 0, gustCrosswindKt: null, calm: true, from };
+  if (nearby.dirTrueDeg == null) return null;
+  const dir = nearby.dirTrueDeg, speed = nearby.speedKt;
+  // (headwind, crosswind from the right), as vfr.runway_wind.components_kt.
+  const along = (heading: number, kt: number) => {
+    const angle = ((dir - heading) * Math.PI) / 180;
+    return { head: kt * Math.cos(angle), cross: kt * Math.sin(angle) };
+  };
+  const best = [...ends].sort((a, b) => along(b.heading, speed).head - along(a.heading, speed).head
+    || (b.runway.length_ft ?? 0) - (a.runway.length_ft ?? 0))[0]!;
+  const { head, cross } = along(best.heading, speed);
+  return {
+    ident: runwayNumber(best.end.ident), headwindKt: Math.round(head), crosswindKt: Math.round(cross),
+    gustCrosswindKt: nearby.gustKt ? Math.round(along(best.heading, nearby.gustKt).cross) : null, calm: false, from,
+  };
+}
+
 /** The true bearing from the runway to its downwind: off the left of
  *  the landing direction for left traffic, the right for right. */
 export function patternSideDeg(end: RunwayEnd): number {
