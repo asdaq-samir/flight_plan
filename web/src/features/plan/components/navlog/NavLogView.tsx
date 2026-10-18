@@ -18,7 +18,7 @@ import {
   Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow,
 } from "../../../../components/ui/table";
 import type { Candidate, Leg, NavLogAltitude, Totals, TopOfClimb, TopOfDescent } from "../../../../lib/api/types";
-import { feet, magneticVariation, nm, windCorrection } from "../../../../lib/units";
+import { feet, magneticVariation, windCorrection } from "../../../../lib/units";
 import { routeName } from "../../../../lib/identSchema";
 import { revealRow } from "../../../../lib/revealRow";
 import { GROUP_HEADING, TEXT } from "../../../../lib/text";
@@ -843,56 +843,34 @@ export default function NavLogView({
     </div>
   );
 
-  // The fuel check (14 CFR 91.151): the legs' fuel plus the reserve --
-  // 30 minutes by day, 45 at night, the day one assumed and said so
-  // without a departure time; under IFR 45 whatever the hour (91.167) --
-  // against the airplane's usable fuel
-  // when it has one, red when the tanks do not hold it. Under the
-  // table, where the fuel column it sums ends, rather than among the
-  // totals above it: rows like theirs, each figure at its row's end and
-  // what the fuel allows for under its name, where it was a sentence of
-  // two or three lines.
-  const fuelShort = totals?.fuel_margin_gal != null && totals.fuel_margin_gal < 0 ? -totals.fuel_margin_gal : null;
-  // A route with stops: the tanks are filled at each, so each flight
-  // between two landings has its own check (app.planning.route_totals),
-  // a row each -- what it needs, against the tanks.
+  // The fuel the flight needs (14 CFR 91.151, IFR's 91.167), in a line
+  // under the route, red where the tanks do not hold it; with stops, a line
+  // for each flight between two landings, the tanks filled at each. What
+  // it is made of, and the tanks' usable fuel, is the Brief's, at the
+  // owner's ask ("Fuel required number can be just one line, no need for
+  // the usable. Fuel info can be in the brief in detail").
+  const fuelLine = (required: number | null | undefined, margin: number | null | undefined) => {
+    const short = margin != null && margin < 0 ? -margin : null;
+    return required == null ? "—" : short === null
+      ? `${one(required)} gal`
+      : <span className="font-semibold text-destructive">{one(required)} gal, {one(short)} short</span>;
+  };
   const hopsNote = totals && totals.hops.length > 0 && (
     <div className="mt-3" data-testid="fuel-check">
-      <ListGroup title="Fuel, tanks filled at each stop">
-        {totals.hops.map(({ departure, destination, totals: hop }) => {
-          const short = hop.fuel_margin_gal != null && hop.fuel_margin_gal < 0 ? -hop.fuel_margin_gal : null;
-          return (
-            <ListRow
-              key={`${departure}-${destination}`} title={routeName(departure, destination)}
-              description={`${nm(hop.distance_nm)}, with a ${hop.reserve_min} min reserve`}
-              value={hop.fuel_required_gal == null ? "—" : short === null
-                ? `${one(hop.fuel_required_gal)}${hop.usable_fuel_gal != null ? ` of ${hop.usable_fuel_gal}` : ""} gal`
-                : <span className="font-semibold text-destructive">{one(hop.fuel_required_gal)} gal, {one(short)} short</span>}
-            />
-          );
-        })}
+      <ListGroup title="Fuel required">
+        {totals.hops.map(({ departure, destination, totals: hop }) => (
+          <ListRow
+            key={`${departure}-${destination}`} title={routeName(departure, destination)}
+            value={fuelLine(hop.fuel_required_gal, hop.fuel_margin_gal)}
+          />
+        ))}
       </ListGroup>
     </div>
   );
-  const fuelNote = totals && totals.fuel_required_gal != null && (
+  const fuelNote = totals && totals.fuel_required_gal != null && totals.hops.length === 0 && (
     <div className="mt-3" data-testid="fuel-check">
       <ListGroup>
-        <ListRow
-          title="Fuel required"
-          description={`With ${one(totals.taxi_gal)} gal to start, taxi and take off, ${
-            totals.alternate ? `${one(totals.alternate.fuel_gal)} gal on to ${totals.alternate.ident}${totals.alternate.still_air ? " in still air" : ""}, ` : ""
-          }and a ${totals.reserve_min} min ${
-            totals.rules === "ifr" ? "IFR reserve (14 CFR 91.167)"
-              : totals.night == null ? "day reserve (no departure time)" : totals.night ? "night reserve" : "day reserve"}`}
-          value={`${one(totals.fuel_required_gal)} gal`}
-        />
-        {totals.usable_fuel_gal != null && (
-          <ListRow
-            title="Usable fuel"
-            value={fuelShort === null ? `${totals.usable_fuel_gal} gal`
-              : <span className="font-semibold text-destructive">{totals.usable_fuel_gal} gal, {one(fuelShort)} short</span>}
-          />
-        )}
+        <ListRow title="Fuel required" value={fuelLine(totals.fuel_required_gal, totals.fuel_margin_gal)} />
       </ListGroup>
     </div>
   );

@@ -46,7 +46,9 @@ test("under IFR the altitude is chosen from the minimum IFR altitude by directio
   await popover.getByRole("button", { name: /Minimum IFR altitude/ }).click();
   await expect(popover).toContainText("14 CFR 91.177");
   await page.keyboard.press("Escape");
-  await expect(page.getByTestId("fuel-check")).toContainText("45 min IFR reserve (14 CFR 91.167)", { timeout: slow(60000) });
+  await expect(page.getByTestId("fuel-check")).toContainText("Fuel required", { timeout: slow(60000) });
+  await openSection(page, "Fuel");
+  await expect(page.getByTestId("fuel-detail")).toContainText("45 min IFR reserve (14 CFR 91.167)", { timeout: slow(60000) });
 
   // Kept: the next visit plans under IFR from the start.
   asked.length = 0;
@@ -145,8 +147,8 @@ test("under IFR the Weather tab says whether an alternate is needed, files one w
   await expect(page).toHaveURL(/[?&]alternate=KMSN/);
   await expect(section.getByTestId("alternate-filed")).toContainText("Meets 600-2");
   await expect.poll(() => navlogs.at(-1), { timeout: slow(30000) }).toBe("KMSN");
-  await openTab(page, "Nav Log");
-  await expect(page.getByTestId("fuel-check")).toContainText("on to KMSN", { timeout: slow(90000) });
+  await openSection(page, "Fuel");
+  await expect(page.getByTestId("fuel-detail")).toContainText("on to KMSN", { timeout: slow(90000) });
   // And the flight plan's alternate (item 16).
   await openTab(page, "Brief");
   await openSection(page, "Flight Plan");

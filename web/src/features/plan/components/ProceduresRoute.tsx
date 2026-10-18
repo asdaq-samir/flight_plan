@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useState, type ReactNode } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
-import { Check, Wind } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Check, Wind } from "lucide-react";
 import { cn } from "cn";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
 import BackButton from "../../../components/BackButton";
@@ -30,6 +30,11 @@ type Kind = ProcedureKind;
 
 const KIND_TITLE: Record<Kind, string> = { approach: "Approaches", arrival: "Arrivals", departure: "Departures" };
 const KIND_ONE: Record<Kind, string> = { approach: "Approach", arrival: "Arrival", departure: "Departure" };
+/** The FAA's chart codes in a field's d-TPP for each kind (its card's
+ *  terminal charts, vfr.publications): an instrument approach procedure,
+ *  a STAR, a departure procedure (a SID or a graphic obstacle departure)
+ *  or a textual one. */
+const CHART_CODES: Record<Kind, string[]> = { approach: ["IAP"], arrival: ["STAR"], departure: ["DP", "ODP"] };
 /** A field's part in the flight, as its step in the list says it. */
 const ROLE_STEP: Record<ProcedureAirport["role"], string> = { Departure: "Depart", Stop: "Stop", Destination: "Arrive" };
 
@@ -48,15 +53,17 @@ export type ProceduresAt = { ident: string; kind: Kind } | null;
 
 /**
  * The route in FPL, in the order it is flown, at the owner's ask ("I
- * want to replace navlog with procedures but procedures should also have
- * the TOC and TOD and any other stops", 2026-10-18), the nav log a button
- * away (NavLogView's sheet): each field of the route a step down a line,
- * holding what is flown there in turn -- a departure's pattern and then
- * its departure, a destination's arrival and approach and then its
- * pattern, a stop's all of them -- and between them the tops of climb and
- * descent and the fixes flown through, each with the nav log's own mark
- * (PointMark) and the time it is reached. The checkpoints are the nav
- * log's alone ("Only stops in the route box and separate navlog").
+ * want to replace navlog with procedures", 2026-10-18), the nav log a
+ * button away (NavLogView's sheet): each field of the route a step down a
+ * line, holding what is flown there in turn -- a departure's pattern and
+ * then its departure, a destination's arrival and approach and then its
+ * pattern, a stop's all of them -- and between them the fixes flown
+ * through, each with the nav log's own mark (PointMark) and the time it
+ * is reached. The checkpoints are the nav log's alone ("Only stops in the
+ * route box and separate navlog"), and since the owner's cleanup ("no
+ * need to have the toc and tod") the tops of climb and descent too; a
+ * field shows only the kinds of procedure it has, and its approach chart
+ * is the approach's page's (ProcedurePage's Chart).
  *
  * A pattern is picked by its runway, as a chip, the runway the wind
  * favours marked (the redesign's A); it is drawn on the map
@@ -134,6 +141,17 @@ export default function ProceduresRoute({
     } : null);
   };
   const listOf = (ident: string): ProcedureList | undefined => lists[airports.findIndex(a => a.ident === ident)]?.data;
+  // Whether a field has procedures of a kind: by its procedures once they
+  // are in (its kind's sheet opened), else by the FAA's charts its card
+  // lists (d-TPP), which come with the route -- the CIFP's 53 MB is not
+  // fetched for that. Not yet known, not offered: no room taken for a
+  // kind a field does not have (the owner's cleanup).
+  const hasKind = (ident: string, kind: Kind): boolean => {
+    const i = airports.findIndex(a => a.ident === ident);
+    const list = lists[i]?.data;
+    if (list) return list.procedures.some(p => p.kind === kind);
+    return cards[i]?.data?.procedures.some(c => CHART_CODES[kind].includes(c.kind)) ?? false;
+  };
   const kindOf = (p: PickedProcedure) => listOf(p.ident)?.procedures.find(q => q.id === p.id)?.kind;
   const pickOf = (ident: string, kind: Kind) => procedures.find(p => sameField(p.ident, ident) && kindOf(p) === kind) ?? null;
   // One of a kind at a field: a new pick there takes the old one's place.
@@ -147,51 +165,40 @@ export default function ProceduresRoute({
 
   // A field's step: what is flown there, in the order it is flown.
   const fieldStep = (a: ProcedureAirport, row: NavLogRow | undefined, last: boolean) => {
-    const list = lists[airports.indexOf(a)];
-    // A kind's row: the one in the route said at its end, "None
-    // published" where the field's list, once had, has none of it.
+    // A kind's row: the one in the route said at its end.
     const kindRow = (kind: Kind) => {
-      const of = list?.data?.procedures.filter(p => p.kind === kind);
       const mine = inRoute.find(p => sameField(p.ident, a.ident) && p.kind === kind);
-      return of && of.length === 0 ? (
-        <ListRow key={kind} title={KIND_ONE[kind]} value="None published" disabled />
-      ) : (
+      return (
         <ListRow
           key={kind} title={KIND_ONE[kind]} chevron value={mine?.label ?? "None"}
           onClick={() => onAt({ ident: a.ident, kind })} data-testid="procedure-kind"
         />
       );
     };
-    const kinds = kindsFor(a.role);
+    const kinds = kindsFor(a.role).filter(kind => hasKind(a.ident, kind) || inRoute.some(p => sameField(p.ident, a.ident) && p.kind === kind));
     // What is flown before the pattern (an arrival, an approach) and
     // after it (a departure).
     const before = kinds.filter(k => k !== "departure");
     const after = kinds.filter(k => k === "departure");
-    const charts = a === destination ? (
-      <ListRow
-        title="Approach charts" chevron disabled={chartsDisabled}
-        onClick={onCharts} data-testid="procedure-charts"
-      />
-    ) : null;
     return (
       <Step
         key={a.ident} last={last}
         mark={row ? <PointMark row={row} number={undefined} weather={weather} /> : <FieldDot last={last} />}
         title={`${a.ident} · ${ROLE_STEP[a.role]}`} time={row ? etaAt(depart || new Date().toISOString(), row.minutesFlown) : null} field
       >
-        {before.length > 0 && <ListGroup>{before.map(kindRow)}{charts}</ListGroup>}
+        {before.length > 0 && <ListGroup>{before.map(kindRow)}</ListGroup>}
         <PatternChips airport={a} wind={windOf(a.ident)} chosen={picked.get(a.ident) ?? null} onPick={end => onPick(a.ident, end)} />
         {after.length > 0 && <ListGroup>{after.map(kindRow)}</ListGroup>}
       </Step>
     );
   };
 
-  // The route's own rows where the course is in: its fields as steps, the
-  // tops of climb and descent and the fixes flown through between them,
-  // the checkpoints left to the nav log. Before then, the fields alone.
+  // The route's own rows where the course is in: its fields as steps and
+  // the fixes flown through between them, the checkpoints and the tops of
+  // climb and descent left to the nav log. Before then, the fields alone.
   const steps: ReactNode[] = [];
   const shown = new Set<string>();
-  const points = rows.filter(r => r.kind !== "checkpoint");
+  const points = rows.filter(r => r.kind !== "checkpoint" && r.kind !== "toc" && r.kind !== "tod");
   points.forEach((row, i) => {
     const last = i === points.length - 1;
     const field = "airport" in row && row.airport.kind !== "fix"
@@ -201,12 +208,10 @@ export default function ProceduresRoute({
       steps.push(fieldStep(field, row, last));
       return;
     }
-    const name = row.kind === "toc" ? "Top of climb" : row.kind === "tod" ? "Top of descent" : rowPoint(row).name;
-    const altitude = row.kind === "toc" || row.kind === "tod" ? `${altFt(row.point.altitude_ft)} ft` : null;
     steps.push(
       <Step
         key={row.key} last={last} mark={<PointMark row={row} number={undefined} weather={weather} />}
-        title={name} detail={altitude} time={etaAt(depart || new Date().toISOString(), row.minutesFlown)}
+        title={rowPoint(row).name} time={etaAt(depart || new Date().toISOString(), row.minutesFlown)}
         testId={`route-${row.kind}`}
       />,
     );
@@ -272,10 +277,9 @@ function FieldDot({ last }: { last: boolean }) {
  * nav log draws it, its name and the time it is reached, and under them
  * what is flown there (a field's). The line runs on to the next step.
  */
-function Step({ mark, title, detail, time, last, field = false, testId, children }: {
+function Step({ mark, title, time, last, field = false, testId, children }: {
   mark: ReactNode;
   title: string;
-  detail?: string | null;
   time: string | null;
   last: boolean;
   field?: boolean;
@@ -291,7 +295,6 @@ function Step({ mark, title, detail, time, last, field = false, testId, children
         <div className="flex items-baseline justify-between gap-2">
           <Name className={cn(field ? "font-semibold" : "font-normal", TEXT.row)}>
             {title}
-            {detail && <span className="text-muted-foreground">{` · ${detail}`}</span>}
           </Name>
           {time && <span className={cn("font-semibold tabular-nums", TEXT.detail)}>{time}</span>}
         </div>
@@ -395,21 +398,54 @@ function PatternChips({ airport: a, wind, chosen, onPick }: {
           })}
         </Chips>
       )}
-      {wind && (
-        <p className={cn("px-1 text-muted-foreground", TEXT.note)} data-testid="procedure-wind">{windWords(wind)}</p>
-      )}
+      {wind && <WindComponents wind={wind} />}
     </div>
   );
 }
 
+/**
+ * The wind on the runway it favours, as symbols, at the owner's ask ("the
+ * notes about wind can be a symbol for head/cross components"): an arrow
+ * down the runway at the pilot, green, for a headwind (up, red, for a
+ * tailwind), and one across it, the way the wind blows, for the
+ * crosswind and its gusts -- the colours ForeFlight's runway list gives
+ * them. Where the field reports none, the station it is from beside them,
+ * small: it is not the field's own. Said in words to a screen reader.
+ */
+function WindComponents({ wind }: { wind: WindPick }) {
+  const words = windWords(wind);
+  if (wind.calm) {
+    return <p className={cn("px-1 text-muted-foreground", TEXT.note)} data-testid="procedure-wind">{words}</p>;
+  }
+  const cross = Math.abs(wind.crosswindKt), gust = wind.gustCrosswindKt == null ? null : Math.abs(wind.gustCrosswindKt);
+  // From the right (windPick's sign), it blows across to the left.
+  const Across = wind.crosswindKt > 0 ? ArrowLeft : ArrowRight;
+  const Along = wind.headwindKt >= 0 ? ArrowDown : ArrowUp;
+  return (
+    <p className={cn("flex items-center gap-3 px-1 tabular-nums", TEXT.detail)} aria-label={words} role="img" data-testid="procedure-wind">
+      <span className={cn("inline-flex items-center gap-0.5 font-semibold", wind.headwindKt >= 0 ? "text-green-700 dark:text-green-400" : "text-red-700 dark:text-red-400")}>
+        <Along className="size-4" strokeWidth={2.5} aria-hidden />{Math.abs(wind.headwindKt)}
+      </span>
+      {(cross > 0 || (gust ?? 0) > 0) && (
+        <span className="inline-flex items-center gap-0.5 font-semibold text-muted-foreground">
+          <Across className="size-4" strokeWidth={2.5} aria-hidden />{cross}{gust != null ? `G${gust}` : ""}
+        </span>
+      )}
+      <span className="text-muted-foreground">kt</span>
+      {wind.from && <span className={cn("ml-auto text-muted-foreground", TEXT.note)}>{`${wind.from.ident} wind, ${wind.from.nm} nm`}</span>}
+    </p>
+  );
+}
+
 /** "24 into the wind: headwind 8 kt, crosswind 2 kt (KUGN, 11 nm)", or
- *  "Wind calm": the line under a field's runways. */
+ *  "Wind calm": what a field's wind symbols say, in words. */
 function windWords(wind: WindPick): string {
   const from = wind.from ? ` (${wind.from.ident}, ${wind.from.nm} nm)` : "";
   if (wind.calm) return `Wind calm${from}`;
   const cross = Math.abs(wind.crosswindKt), gust = wind.gustCrosswindKt == null ? null : Math.abs(wind.gustCrosswindKt);
   const across = cross > 0 || (gust ?? 0) > 0 ? `, crosswind ${cross}${gust != null ? ` gusting ${gust}` : ""} kt` : "";
-  return `${wind.ident} into the wind: headwind ${wind.headwindKt} kt${across}${from}`;
+  const along = wind.headwindKt >= 0 ? `headwind ${wind.headwindKt} kt` : `tailwind ${-wind.headwindKt} kt`;
+  return `${wind.ident} into the wind: ${along}${across}${from}`;
 }
 
 /**

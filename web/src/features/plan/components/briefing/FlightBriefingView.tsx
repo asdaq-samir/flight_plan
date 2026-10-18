@@ -45,6 +45,7 @@ import PassengerBriefing from "./PassengerBriefing";
 import { passengerMessage } from "../../../../lib/passengers";
 import WeatherAlongRoute from "./WeatherAlongRoute";
 import AlternateSection from "./AlternateSection";
+import FuelSection from "./FuelSection";
 import FlightPlanSection from "./FlightPlanSection";
 import { flightPlanForms, type FiledProcedure } from "../../../../lib/flightPlanForm";
 import { alternateFinding, useAlternate } from "../../hooks/useAlternate";
@@ -465,7 +466,7 @@ const NO_STOPS: string[] = [];
 // these, and the page draws again at every row picked in the nav log.
 /** Preflight's sections its checks' tiles open (BriefChecks): the
  *  airspace's, the risk's and the loading's. */
-const TILE_SECTIONS = ["TFRs & Special Use", "Risk Assessment", "Weight & Balance"];
+const TILE_SECTIONS = ["TFRs & Special Use", "Risk Assessment", "Fuel", "Weight & Balance"];
 
 export default memo(function FlightBriefingView({
   part, publish = false, nav, legs, dep, dest, stops = NO_STOPS, route = NO_STOPS, procedures, course = null, totals = null, depart = "",
@@ -794,6 +795,7 @@ export default memo(function FlightBriefingView({
           </AccordionSection>
 
           {/* The loading, done at home: its envelope and what it changes. */}
+          <FuelSection totals={totals} />
           <WeightBalanceSection aircraft={nav?.aircraft} tripFuelGal={totals?.fuel_gal ?? null} />
 
           {/* The FAA's flight plan form filled in from the plan, from an
