@@ -266,6 +266,9 @@ test("an airport's card has four tabs under its tiles, in sight at half, the rad
   await expect.poll(top).toEqual(up);
 });
 
+/** A field's procedures' list, not one procedure's drawing. */
+const isProcedureList = (url: string) => new URL(url).pathname.endsWith("/procedures");
+
 test("the route's Procedures open its destination's card on its approaches, and Nearest is on the map's left", async ({ page }) => {
   await page.route(url => url.pathname.endsWith("/api/planner/airport/KDLH"), async route => {
     const answer = await route.fetch();
@@ -287,9 +290,21 @@ test("the route's Procedures open its destination's card on its approaches, and 
   const width = page.viewportSize()!.width;
   expect((await settings.boundingBox())!.x).toBeGreaterThan(width / 2);
 
-  // The destination's approach charts, in FPL's route all the way up.
+  // The destination's approach charts, from an approach's page in FPL's
+  // route all the way up: the route's own Approach charts row went (the
+  // owner's "no need for the approach plates section because this can be
+  // looked at by selecting the approach").
+  await page.route(url => /\/airport\/KDLH\/procedures/.test(url.pathname), route => route.fulfill({
+    json: isProcedureList(route.request().url())
+      ? { airport: "KDLH", cycle: "261001", stale: false, procedures: [
+        { kind: "approach", id: "I09", name: "ILS OR LOC RWY 09", runway: "RW09", transitions: [], runway_transitions: [] },
+      ] }
+      : { airport: "KDLH", kind: "approach", id: "I09", name: "ILS OR LOC RWY 09", transition: null, cycle: "261001", stale: false, lines: [], holds: [], fixes: [] },
+  }));
   await grabberTo(page, "full");
-  await sideDrawer(page).getByTestId("procedure-charts").click();
+  await sideDrawer(page).getByRole("region", { name: "KDLH · Arrive" }).getByTestId("procedure-kind").filter({ hasText: /^Approach/ }).click();
+  await page.getByTestId("procedure-option").first().click();
+  await page.getByTestId("procedure-chart").click();
   await expect(card(page).getByTestId("place-name")).toHaveText("Duluth International Airport KDLH", { timeout: slow(15000) });
   await expect(card(page).getByTestId("place-tab-diagrams")).toHaveAttribute("aria-selected", "true");
   await expect(sideDrawer(page)).toHaveAttribute("data-panel", "full");

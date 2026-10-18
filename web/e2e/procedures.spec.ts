@@ -68,12 +68,15 @@ test("a field's approach is picked on its own page with its transition, drawn on
   await settle(page);
   await openTab(page, "Nav Log");
   const procedures = page.getByTestId("procedures");
-  // The departure's departures: none picked at C81, its tops of climb and
-  // descent after it, as the nav log has them.
+  // C81 publishes no departure, so none is offered there; the tops of climb
+  // and descent are the nav log's alone (the owner's cleanup: "no need to
+  // have the toc and tod", "no need to take space for departures/arrivals
+  // if it's not available").
   const c81 = procedures.getByRole("region", { name: "C81 · Depart" });
-  await expect(c81).toContainText(/Departure\s*None/, { timeout: slow(10000) });
-  await expect(procedures.getByTestId("route-toc").first()).toContainText(/Top of climb · [\d,]+ ft/, { timeout: slow(60000) });
-  await expect(procedures.getByTestId("route-tod").first()).toBeVisible();
+  await expect(c81.getByTestId("procedure-patterns")).toBeVisible({ timeout: slow(10000) });
+  await expect(c81.getByTestId("procedure-kind")).toHaveCount(0);
+  await expect(procedures.getByTestId("route-toc")).toHaveCount(0);
+  await expect(procedures.getByTestId("route-tod")).toHaveCount(0);
   // The destination's approaches, a page of their own.
   const kdlh = procedures.getByRole("region", { name: "KDLH · Arrive" });
   await kdlh.getByTestId("procedure-kind").filter({ hasText: /^Approach/ }).click();

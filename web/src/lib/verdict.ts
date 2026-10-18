@@ -140,7 +140,7 @@ export function verdictItems(input: VerdictInput): VerdictItem[] {
   });
 
   items.push({
-    key: "fuel", label: "Fuel", tab: "enroute", section: "Legs",
+    key: "fuel", label: "Fuel", tab: "preflight", section: "Fuel",
     ...(fuel.pending ? { finding: "pending", detail: "Working out the fuel…" }
       : fuel.marginGal != null && fuel.marginGal < 0
         ? { finding: "stop", detail: `${one(-fuel.marginGal)} gal short of the fuel and its ${fuel.reserveMin ?? 30} min reserve (14 CFR ${fuel.ifr ? "91.167" : "91.151"})` }

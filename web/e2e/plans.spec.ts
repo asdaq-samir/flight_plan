@@ -157,12 +157,19 @@ test("plan page: a departure time gives every checkpoint its time, and the nav l
   await closeNavLog(page);
   // And the fuel check, against the stock C172's 40 usable gallons,
   // with the day reserve for a mid-afternoon flight -- under FPL's route.
+  // FPL says the fuel required in a line; what it is made of and the
+  // tanks' usable fuel are the Brief's (the owner's "Fuel required number
+  // can be just one line, no need for the usable").
   const fuel = page.getByTestId("fuel-check");
-  await expect(fuel.locator("[data-slot=item]", { hasText: "Usable fuel" })).toContainText("40 gal", { timeout: slow(60000) });
-  await expect(fuel).toContainText("30 min day reserve");
+  await expect(fuel).toContainText(/Fuel required\s*[\d.]+ gal/, { timeout: slow(60000) });
+  await expect(fuel).not.toContainText("Usable fuel");
   const tableBox = (await sideDrawer(page).getByTestId("procedures").boundingBox())!;
   const noteBox = (await page.getByTestId("fuel-check").boundingBox())!;
   expect(noteBox.y).toBeGreaterThanOrEqual(tableBox.y + tableBox.height);
+  await openSection(page, "Fuel");
+  const detail = page.getByTestId("fuel-detail");
+  await expect(detail.locator("[data-slot=item]", { hasText: "Usable fuel" })).toContainText("40 gal");
+  await expect(detail).toContainText("30 min day reserve");
 });
 
 test("plan page: the nav log is computed for an airplane the pilot picks in its own header", async ({ page }) => {
