@@ -26,9 +26,9 @@ extension UISheetPresentationController.Detent.Identifier {
     static let pill = UISheetPresentationController.Detent.Identifier("pill")
 }
 
-/// The pill's height, in points: the panel's capsule (MapPanel's tabs
-/// over the route's figures) and the grabber's strip over it.
-private let pillHeight: CGFloat = 132
+/// The pill's height, in points: the grabber's strip and the tab bar
+/// (SheetContainerViewController's head) over the route's figures.
+private let pillHeight: CGFloat = 144
 
 /// The two web views' plugins and the sheet's host, met here: the address
 /// one changes is handed to the other, and the sheet's size to both.
@@ -193,7 +193,9 @@ final class SheetContainerViewController: UIViewController, UITabBarDelegate {
     /// Clear of iOS's grabber, five points in from the sheet's edge, as
     /// Maps' search bar is.
     private static let headTop: CGFloat = 14
-    private static let headHeight: CGFloat = 52
+    /// The bar's own height on iOS 26, icon over label; at 52 the icons
+    /// sat on their labels (the fifth recording).
+    private static let headHeight: CGFloat = 64
 
     override func viewDidLoad() {
         super.viewDidLoad()
