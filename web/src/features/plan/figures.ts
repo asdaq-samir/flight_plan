@@ -36,7 +36,7 @@ export function nextLanding(totals: Totals | null, destination: string): { to: s
 
 /** The reserve an estimate's fuel carries before the nav log's own: 45
  *  minutes at the cruise burn, the most the rules ask -- night VFR (14 CFR
- *  91.151(b)) and IFR (91.167(a)(3)) -- as whether the flight is either is
+ *  91.151(a)(2)) and IFR (91.167(a)(3)) -- as whether the flight is either is
  *  not known yet, so the estimate is never short (the audit's finding: the
  *  day's 30 minutes made it low at night and under IFR); and the start,
  *  taxi and takeoff allowance of the Cessna 172S handbook, 1.4 gal --
