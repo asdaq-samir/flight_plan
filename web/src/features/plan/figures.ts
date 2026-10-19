@@ -108,12 +108,6 @@ export function enRoute(minutes: number): string {
   return Math.round(minutes) < 60 ? `${Math.round(minutes)}m` : hhmm(minutes);
 }
 
-/** Each figure on its own: the one that does not fit its column rounded,
- *  the rest as they are. */
-export function fitFigures(exact: Figure[], rounded: Figure[], fits: (f: Figure) => boolean): Figure[] {
-  return exact.map((f, i) => (fits(f) ? f : rounded[i] ?? f));
-}
-
 /** The figures from the airplane's book alone (FlightLine's `estimate`):
  *  the distance as the course has it, and at cruise speed with no wind
  *  the time, and the fuel at the cruise burn over that time -- each

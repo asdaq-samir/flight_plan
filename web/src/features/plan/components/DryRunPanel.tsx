@@ -14,8 +14,9 @@ import { enRoute } from "../figures";
 import { dryRunAt, runNmAt, type DryRun } from "./navlog/dryRun";
 import type { RouteEnds } from "./navlog/rows";
 import { when } from "./pastFlightFormat";
+import { loadFlightChart } from "./loadFlightChart";
 
-const FlightChart = lazy(() => import("./PastFlightChart"));
+const FlightChart = lazy(loadFlightChart);
 
 /**
  * The planned flight flown on paper, at the owner's ask ("a dry run of the
@@ -194,9 +195,13 @@ export function DryRunFigures({ run }: { run: DryRun }) {
     { name: "ETA", value: run.points.length ? clockTime(when(run.points.at(-1)!.t)) : "—" },
     { name: "To burn", value: left ? one(total - left.burntGal) : "—", unit: "gal" },
   ];
+  // Too wide for a column, the distance and the fuel up to whole ones, as
+  // the flight's figures are rounded (tripFigures): up, so none is said
+  // short of what it is.
+  const rounded = figures.map(f => (left && f.unit ? { ...f, value: `${Math.ceil(f.name === "Dist left" ? left.leftNm : total - left.burntGal)}` } : f));
   // The figures every tab pins at the panel's foot, one look for all of
   // them (FigureStrip), growing as the sheet comes up, at the owner's ask
   // ("keep the calculations pinned down at the bottom for dry run as well.
   // That should be common theme for all layouts").
-  return <FigureStrip figures={figures} testId="dry-run-figures" />;
+  return <FigureStrip figures={figures} rounded={rounded} testId="dry-run-figures" />;
 }
