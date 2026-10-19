@@ -266,14 +266,19 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const pickedPatterns = useMemo(() => patternsOf(patternParam), [patternParam]);
   // The pattern just picked, for the map to go to it.
   const [patternFocus, setPatternFocus] = useState<string | null>(null);
-  const pickPattern = useCallback((ident: string, end: string | null) => {
-    if (end && end !== NO_PATTERN) setPatternFocus(`${ident}:${end}:${Date.now()}`);
+  const setPattern = useCallback((ident: string, end: string | null) => {
     setSearchParams(prev => {
       const picked = patternsOf(prev.get("pattern"));
       if (end) picked.set(ident, end); else picked.delete(ident);
       return patched(prev, { pattern: picked.size ? patternsParam(picked) : null });
     }, { replace: true });
   }, [setSearchParams]);
+  // Picked by the pilot, the map goes to it; picked for them into the wind
+  // as the route comes in (ProceduresRoute), the map stays on the route.
+  const pickPattern = useCallback((ident: string, end: string | null) => {
+    if (end && end !== NO_PATTERN) setPatternFocus(`${ident}:${end}:${Date.now()}`);
+    setPattern(ident, end);
+  }, [setPattern]);
   // The instrument procedures picked for the route's fields, kept in the
   // address too: "KBUR:I08-Y:LAX" (lib/procedures).
   const procedureParam = searchParams.get("procs");
@@ -1291,13 +1296,13 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const routeList = useMemo(() => (
     <ProceduresRoute
       airports={procedureAirports} rows={routeRows} depart={depart} weather={metarColour}
-      picked={pickedPatterns} onPick={pickPattern}
+      picked={pickedPatterns} onPick={pickPattern} onPreselect={setPattern}
       procedures={pickedProcedures} inRoute={routeProcedures} onProcedures={pickProcedures} onPreview={previewProcedure}
       at={proceduresAt} onAt={setProceduresShown}
       onCharts={() => { if (planned.dest) { setApproachesOf(planned.dest); selectPlace(planned.dest); } }}
       chartsDisabled={!planned.dest || noApproaches}
     />
-  ), [procedureAirports, routeRows, depart, metarColour, pickedPatterns, pickPattern, pickedProcedures, routeProcedures, pickProcedures,
+  ), [procedureAirports, routeRows, depart, metarColour, pickedPatterns, pickPattern, setPattern, pickedProcedures, routeProcedures, pickProcedures,
     previewProcedure, proceduresAt, setProceduresShown, planned.dest, selectPlace, noApproaches]);
   const navLog = useMemo(() => (
     <Suspense fallback={<div className="min-h-0 flex-1" />}>

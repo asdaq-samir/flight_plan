@@ -15,6 +15,10 @@ import { useLiveZoom } from "./useView";
  * into it. Not tappable: a picture of the pattern, the chart under it.
  */
 const TEAL = "#0e8f8a";
+/** A name's ground, darker: white words on the line's teal were 3.95:1,
+ *  under the 4.5:1 small words need (WCAG 1.4.3; the iOS audit). This is
+ *  5.2:1. */
+const LABEL_TEAL = "#0b7a75";
 // A path's class and whether it takes taps are read as it is made, so
 // they are its own props below, not these styles.
 const CASING: L.PathOptions = { color: "#ffffff", weight: 7, opacity: 0.9, lineJoin: "round" };
@@ -43,7 +47,7 @@ function labelIcon(words: string) {
   const width = Math.ceil(words.length * 6.6) + 12;
   return L.divIcon({
     className: "", iconSize: [width, 18], iconAnchor: [width / 2, 9],
-    html: `<span class="absolute inset-0 grid place-items-center whitespace-nowrap rounded-md text-[11px] leading-none font-bold text-white shadow-sm" style="background:${TEAL}">${words.replace(/[<>&]/g, "")}</span>`,
+    html: `<span class="absolute inset-0 grid place-items-center whitespace-nowrap rounded-md text-[11px] leading-none font-bold text-white shadow-sm" style="background:${LABEL_TEAL}">${words.replace(/[<>&]/g, "")}</span>`,
   });
 }
 

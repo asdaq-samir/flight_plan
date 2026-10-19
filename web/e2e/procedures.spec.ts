@@ -8,7 +8,8 @@ import { grabberTo, openTab, settle, settled, sideDrawer, slow } from "./helpers
  * it off.
  */
 test("a field's traffic pattern is picked by its runway, kept in the address and drawn on the map", async ({ page }) => {
-  await page.goto("/app/plan?dep=C81&dest=KDLH");
+  // C81's own runway set to none, so the one drawn is Duluth's.
+  await page.goto("/app/plan?dep=C81&dest=KDLH&pattern=C81:NONE");
   await settle(page);
   await openTab(page, "Nav Log");
   const procedures = page.getByTestId("procedures");
@@ -21,7 +22,7 @@ test("a field's traffic pattern is picked by its runway, kept in the address and
   const name = (await runway.innerText()).trim();
   await runway.click();
   await expect(runway).toHaveAttribute("aria-checked", "true");
-  await expect(page).toHaveURL(new RegExp(`[?&]pattern=KDLH(%3A|:)${name}`));
+  await expect(page).toHaveURL(new RegExp(`[?&]pattern=[^&]*KDLH(%3A|:)${name}(%2C|,|&|$)`));
   await expect(page.locator("path.traffic-pattern")).toHaveCount(1, { timeout: slow(10000) });
   await expect(page.locator("path.traffic-pattern-entry")).toHaveCount(1);
 
@@ -29,7 +30,7 @@ test("a field's traffic pattern is picked by its runway, kept in the address and
   // the wind is not picked for it again.
   await destination.getByRole("radio", { name: /None/ }).click();
   await expect(page.locator("path.traffic-pattern")).toHaveCount(0);
-  await expect(page).toHaveURL(/[?&]pattern=KDLH(%3A|:)NONE(&|$)/);
+  await expect(page).toHaveURL(/[?&]pattern=[^&]*KDLH(%3A|:)NONE(%2C|,|&|$)/);
 });
 
 // KDLH's ILS as the planner would send it (vfr.procedures), stubbed: the
@@ -177,7 +178,7 @@ test("an approach puts its field's runway on its own, and another is let only wh
     if (url.pathname.endsWith("/KDLH/procedures/SKETC1")) return route.fulfill({ json: ARRIVAL_DRAWN });
     return route.fulfill({ json: { airport: "C81", cycle: "261001", procedures: [] } });
   });
-  await page.goto("/app/plan?dep=C81&dest=KDLH&pattern=KDLH:27");
+  await page.goto("/app/plan?dep=C81&dest=KDLH&pattern=KDLH:27,C81:NONE");
   await settle(page);
   await openTab(page, "Nav Log");
   const procedures = page.getByTestId("procedures");
@@ -192,7 +193,7 @@ test("an approach puts its field's runway on its own, and another is let only wh
   await menu.getByTestId("procedure-menu-item").filter({ hasText: "ILS" }).click();
   await page.getByTestId("procedure-menu-transition").filter({ hasText: "From DLH" }).click();
   await expect(page).toHaveURL(/[?&]procs=KDLH(%3A|:)I09(%3A|:)DLH(&|$)/);
-  await expect(page).toHaveURL(/[?&]pattern=KDLH(%3A|:)9(&|$)/);
+  await expect(page).toHaveURL(/[?&]pattern=[^&]*KDLH(%3A|:)9(%2C|,|&|$)/);
   await settled(sideDrawer(page));
   await openTab(page, "Nav Log");
   await expect(kdlh.getByRole("radio", { name: /^Runway 9\b/ })).toHaveAttribute("aria-checked", "true");
@@ -219,7 +220,7 @@ test("an approach puts its field's runway on its own, and another is let only wh
   const circle = kdlh.getByRole("radio", { name: /^Runway 27/ });
   await expect(circle).toBeEnabled({ timeout: slow(20000) });
   await circle.click();
-  await expect(page).toHaveURL(/[?&]pattern=KDLH(%3A|:)27(&|$)/);
+  await expect(page).toHaveURL(/[?&]pattern=[^&]*KDLH(%3A|:)27(%2C|,|&|$)/);
   await expect(kdlh.getByTestId("procedure-landing")).toHaveText("Circle to land");
   await expect(page.locator("path.traffic-pattern")).toHaveCount(0);
 });
@@ -241,7 +242,7 @@ test("the destination's runway into the wind is picked as the route comes in, an
   await expect(windward).toHaveAttribute("aria-checked", "true");
   await expect(page).not.toHaveURL(/[?&]procs=/);
   await kdlh.getByRole("radio", { name: /None/ }).click();
-  await expect(page).toHaveURL(/[?&]pattern=KDLH(%3A|:)NONE(&|$)/);
+  await expect(page).toHaveURL(/[?&]pattern=[^&]*KDLH(%3A|:)NONE(%2C|,|&|$)/);
   await page.goto(page.url());
   await settle(page);
   await openTab(page, "Nav Log");
@@ -258,7 +259,7 @@ test("the destination's runway into the wind is picked as the route comes in, an
 test("a field typed as ORD is KORD, its arrivals offered and its runways one line", async ({ page }) => {
   await page.goto("/app/plan?dep=C81&dest=ORD&pattern=ORD:9L");
   await expect(page).toHaveURL(/[?&]dest=KORD(&|$)/, { timeout: slow(20000) });
-  await expect(page).toHaveURL(/[?&]pattern=KORD(%3A|:)9L(&|$)/);
+  await expect(page).toHaveURL(/[?&]pattern=[^&]*KORD(%3A|:)9L(%2C|,|&|$)/);
   await settle(page);
   await openTab(page, "Nav Log");
   const kord = page.getByTestId("procedures").getByRole("region", { name: "KORD · Arrive" });

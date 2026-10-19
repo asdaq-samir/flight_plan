@@ -77,7 +77,7 @@ export type ProceduresAt = { ident: string; kind: Kind } | null;
  * head, the close's twin, at the owner's ask.
  */
 export default function ProceduresRoute({
-  airports, rows, depart, weather, picked, onPick, onCharts, chartsDisabled, procedures, inRoute, onProcedures, onPreview, at, onAt,
+  airports, rows, depart, weather, picked, onPick, onPreselect, onCharts, chartsDisabled, procedures, inRoute, onProcedures, onPreview, at, onAt,
 }: {
   airports: ProcedureAirport[];
   /** The route's rows as the nav log has them (navLogRows), for its
@@ -91,6 +91,9 @@ export default function ProceduresRoute({
   /** The runway end picked for each field's pattern. */
   picked: Map<string, string>;
   onPick: (ident: string, end: string | null) => void;
+  /** The runway into the wind picked for the pilot as the route comes in:
+   *  into the address with no move of the map, which stays on the route. */
+  onPreselect: (ident: string, end: string) => void;
   /** The destination's approach charts, in its card. */
   onCharts: () => void;
   chartsDisabled: boolean;
@@ -161,9 +164,10 @@ export default function ProceduresRoute({
   // kind a field does not have (the owner's cleanup).
   const hasKind = (ident: string, kind: Kind): boolean => {
     const i = airports.findIndex(a => a.ident === ident);
-    const list = lists[i]?.data;
-    if (list) return list.procedures.some(p => p.kind === kind);
-    return cards[i]?.data?.procedures.some(c => CHART_CODES[kind].includes(c.kind)) ?? false;
+    // Either says so: the list coming in as a menu opens takes no menu
+    // away from under the finger where the CIFP has none the FAA charts.
+    return !!lists[i]?.data?.procedures.some(p => p.kind === kind)
+      || (cards[i]?.data?.procedures.some(c => CHART_CODES[kind].includes(c.kind)) ?? false);
   };
   const kindOf = (p: PickedProcedure) => listOf(p.ident)?.procedures.find(q => q.id === p.id)?.kind;
   const pickOf = (ident: string, kind: Kind) => procedures.find(p => sameField(p.ident, ident) && kindOf(p) === kind) ?? null;
@@ -185,14 +189,15 @@ export default function ProceduresRoute({
     const end = picked.get(ident) ?? null;
     return end === NO_PATTERN ? null : end;
   };
-  // A field the route lands at, its runway picked into the wind until the
+  // Each field of the route, its runway picked into the wind until the
   // pilot picks one or none, at the owner's ask ("a preselected runway into
-  // the wind"): most fly the runway ATC gives them with no approach, so no
-  // approach is picked. Once a field, so a runway picked and taken back is
-  // not picked again under the pilot's finger.
+  // the wind", "Departing runway should also be pre selected"): most fly
+  // the runway ATC gives them with no approach, so no approach is picked.
+  // Once a field, so a runway picked and taken back is not picked again
+  // under the pilot's finger.
   const preselected = useRef(new Set<string>());
   const intoWind = airports.flatMap(a => {
-    if (a.role === "Departure" || picked.has(a.ident) || landingOf(a.ident)) return [];
+    if (picked.has(a.ident) || landingOf(a.ident)) return [];
     const wind = windOf(a.ident);
     return wind && !wind.calm ? [`${a.ident}:${wind.ident}`] : [];
   }).join(",");
@@ -201,9 +206,9 @@ export default function ProceduresRoute({
       const [ident, end] = pick.split(":") as [string, string];
       if (preselected.current.has(ident)) continue;
       preselected.current.add(ident);
-      onPick(ident, end);
+      onPreselect(ident, end);
     }
-  }, [intoWind, onPick]);
+  }, [intoWind, onPreselect]);
   const destination = airports.find(a => a.role === "Destination");
 
   // A field's step: what is flown there, in the order it is flown.

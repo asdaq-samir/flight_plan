@@ -303,6 +303,8 @@ test("the route's Procedures open its destination's card on its approaches, and 
   }));
   await grabberTo(page, "full");
   await sideDrawer(page).getByRole("region", { name: "KDLH · Arrive" }).getByTestId("procedure-kind").filter({ hasText: /^Approach/ }).click();
+  // The pull-down's foot opens the field's whole list (ProcedureMenu).
+  await page.getByTestId("procedure-menu-all").click();
   await page.getByTestId("procedure-option").first().click();
   await page.getByTestId("procedure-chart").click();
   await expect(card(page).getByTestId("place-name")).toHaveText("Duluth International Airport KDLH", { timeout: slow(15000) });
