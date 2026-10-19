@@ -62,9 +62,19 @@ def test_a_fix_drawn_out_of_scale_is_left_out_and_too_few_place_nothing():
     words = [(f, (x + 8, y - 20, x + 30, y - 12)) for f, (x, y) in stars.items()]
     placing = plates.fit(words, list(stars.values()), FIXES)
     assert set(placing["fixes"]) == set(FIXES) - {"PEGHI"}
-    # Two fixes alone agree on any placing: none.
+    # Two fixes alone agree on any placing: none, unless at a plan
+    # view's own scale.
     two = {f: FIXES[f] for f in ("OMARY", "AMLIY")}
+    assert plates.fit(words, list(stars.values()), two)["fixes"] == ["OMARY", "AMLIY"]
+    stars, words = _drawn(scale=12.0)
     assert plates.fit(words, list(stars.values()), two) is None
+
+
+def test_three_fixes_place_a_plan_view_drawn_larger():
+    # KMDW's RNP plates are at 1:250,000, 21 points a nm.
+    stars, words = _drawn(scale=21.0)
+    placing = plates.fit(words, list(stars.values()), FIXES)
+    assert placing["scale"] == __import__("pytest").approx(21.0, rel=1e-6)
 
 
 def test_the_plan_view_is_the_box_of_long_lines_round_its_waypoints():
@@ -72,3 +82,13 @@ def test_the_plan_view_is_the_box_of_long_lines_round_its_waypoints():
     down = [(17.0, 190, 486), (370.0, 190, 486)]
     box = plates.plan_view_box(across, down, [(160, 230), (290, 450)], (387, 594))
     assert box == (17.0, 190.0, 370.0, 486.0)
+
+
+def test_a_plate_kept_as_not_placed_is_none_until_fit_changes(tmp_path):
+    meta = tmp_path / "R03.json"
+    meta.write_text('{"cycle": "2610", "name": "RNAV (GPS) RWY 3", "placed": false, "fit": 1}')
+    assert plates._kept(meta) is None
+    meta.write_text(f'{{"cycle": "2610", "name": "RNAV (GPS) RWY 3", "placed": false, "fit": {plates.FIT_VERSION}}}')
+    assert plates._kept(meta)["placed"] is False
+    meta.write_text('{"cycle": "2610", "name": "RNAV (GPS) RWY 3", "placed": true, "south": 46.6}')
+    assert plates._kept(meta)["south"] == 46.6
