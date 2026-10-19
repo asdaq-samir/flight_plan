@@ -32,19 +32,22 @@ const PARTS: Record<OwnShipLook, string> = {
   jet: `<rect x="14.4" y="2" width="3.2" height="27" rx="1.6"/><path d="M16 10 L30 19 L30 21.5 L16 17 L2 21.5 L2 19 Z"/><path d="M16 23.5 L22.5 28 L22.5 29.5 L16 27.5 L9.5 29.5 L9.5 28 Z"/>`,
 };
 
-/** The look's SVG at `size` points, `fill` over a white casing. In a
- *  puck (`puck`) -- the plane in white on a disc of `fill` with a white
- *  rim, as Maps draws its location -- while own ship is moving, the drawn
- *  plane alone while it is still, at the owner's pick ("1 when still and
- *  2 when moving either dry run or actual"). */
-export function ownShipSvg(look: OwnShipLook, fill: string, size = 32, attrs = "", puck = false): string {
+/** The look's SVG at `size` points, `fill` over a white casing. Moving
+ * (`beam`), the plane with Maps' fading beam ahead of its nose and a faint
+ * halo round it, so where it is going reads at a glance; still, the drawn
+ * plane alone, at the owner's pick ("1 when still and 3 when moving",
+ * from the canvas's own-ship row). The beam's box is twice the plane's,
+ * the plane at its middle, so the marker's anchor stays the airplane. */
+export function ownShipSvg(look: OwnShipLook, fill: string, size = 32, attrs = "", beam = false): string {
   const parts = PARTS[look] ?? PARTS.arrow;
-  if (puck && look !== "arrow") {
-    return `<svg viewBox="0 0 40 40" width="${size}" height="${size}" aria-hidden="true" ${attrs}>`
-      + `<circle cx="20" cy="20" r="18.5" fill="#ffffff"/><circle cx="20" cy="20" r="15.5" fill="${fill}"/>`
-      + `<g transform="translate(6.4 6.4) scale(0.85)" fill="#ffffff">${parts}</g></svg>`;
+  const plane = `<g fill="#ffffff" stroke="#ffffff" stroke-width="2.6" stroke-linejoin="round">${parts}</g><g fill="${fill}">${parts}</g>`;
+  if (beam && look !== "arrow") {
+    return `<svg viewBox="0 0 64 64" width="${size}" height="${size}" aria-hidden="true" ${attrs}>`
+      + `<defs><radialGradient id="own-ship-beam" cx="32" cy="32" r="31" gradientUnits="userSpaceOnUse">`
+      + `<stop offset="0.25" stop-color="${fill}" stop-opacity="0.45"/><stop offset="1" stop-color="${fill}" stop-opacity="0"/></radialGradient></defs>`
+      + `<path d="M32 32 L17 3 A31 31 0 0 1 47 3 Z" fill="url(#own-ship-beam)"/>`
+      + `<circle cx="32" cy="32" r="14" fill="${fill}" fill-opacity="0.12"/>`
+      + `<g transform="translate(16 16)">${plane}</g></svg>`;
   }
-  return `<svg viewBox="0 0 32 32" width="${size}" height="${size}" aria-hidden="true" ${attrs}>`
-    + `<g fill="#ffffff" stroke="#ffffff" stroke-width="2.6" stroke-linejoin="round">${parts}</g>`
-    + `<g fill="${fill}">${parts}</g></svg>`;
+  return `<svg viewBox="0 0 32 32" width="${size}" height="${size}" aria-hidden="true" ${attrs}>${plane}</svg>`;
 }
