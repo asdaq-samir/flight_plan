@@ -14,11 +14,10 @@ const PLATE_OPACITY = 0.8;
  * The approaches picked or being looked at, each its FAA plate's plan
  * view on the chart under its coded lines (ProcedureLayer), at the owner's
  * ask ("Also show the approach plate on the map when selected"): the
- * planner places the plate by its own waypoints (vfr.plates) and draws it
- * black on clear. Where it cannot -- most ILS, LOC and VOR plates, whose
- * fixes are not drawn as waypoint stars, or a plate drawn other than
- * north up -- nothing is drawn, the coded lines alone. A sketch to fly the
- * dry run against, not the chart to navigate by.
+ * planner places the plate by the FAA's own georeference in it
+ * (vfr.plates) and draws it black on clear. Where it cannot -- a plate
+ * without one -- nothing is drawn, the coded lines alone. A sketch to fly
+ * the dry run against, not the chart to navigate by.
  */
 export const PlateLayer = memo(function PlateLayer({ drawings }: { drawings: ProcedureDrawing[] }) {
   const approaches = drawings.filter(d => d.kind === "approach");

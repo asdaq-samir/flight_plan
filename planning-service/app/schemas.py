@@ -1750,8 +1750,8 @@ class PlateOverlay(BaseModel):
     """An approach's plate's plan view placed on the map (vfr.plates): the
     FAA's plate of `name` in d-TPP cycle `cycle`, its picture at
     /api/approach-plate/{cycle}/{ident}/{procedure}.png, black on clear,
-    north up between these latitudes and longitudes; `fixes` the
-    waypoints its placing was found from."""
+    north up between these latitudes and longitudes, as the plate's own
+    georeference places it; `fixes` the approach's fixes inside it."""
 
     cycle: str
     name: str

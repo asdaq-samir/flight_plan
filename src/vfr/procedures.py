@@ -459,6 +459,14 @@ def procedures_at(ident: str, on: date | None = None) -> dict | None:
     return {"airport": airport.ident, "cycle": cifp_cycle(path), "stale": cifp_stale(path, on), "procedures": found}
 
 
+
+def airport_place(ident: str, on: date | None = None) -> tuple[float, float] | None:
+    """The airport's reference point, (lat, lon), as its CIFP airport
+    record has it (ARINC 424-18 4.1.7); None where the CIFP has no such
+    airport."""
+    airport = _airport(ident, cifp_path(on))
+    return airport.place if airport else None
+
 # --- drawing it -------------------------------------------------------------
 
 def _arc(center: tuple[float, float], start: tuple[float, float], end: tuple[float, float], turn: str) -> list:

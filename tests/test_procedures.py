@@ -133,6 +133,12 @@ def test_a_departures_runway_transition_leaves_from_the_runways_far_end():
     assert drawn["lines"][-1]["role"] == "transition" and drawn["lines"][-1]["name"] == "TWINE"
 
 
+def test_an_airports_reference_point_is_its_airport_records():
+    # N34120250 W118213120: 34°12'02.50" N, 118°21'31.20" W.
+    assert procedures.airport_place("KBUR") == pytest.approx((34 + 12 / 60 + 2.5 / 3600, -(118 + 21 / 60 + 31.2 / 3600)))
+    assert procedures.airport_place("KXYZ") is None
+
+
 def test_an_unknown_procedure_is_none():
     assert procedures.procedure_drawing("KBUR", "I99") is None
     assert procedures.procedure_drawing("KXYZ", "I08-Y") is None
