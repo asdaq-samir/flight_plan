@@ -55,6 +55,10 @@ const PATH_POINTS = 2000;
 
 /** A report of the tracked airplane: its latest, and a point of its path. */
 export function reported(report: Report) {
+  // Not the tracked airplane, nothing set: the layer reports every
+  // airplane in each answer, and a set of nothing still woke every
+  // reader of the store, once an airplane.
+  if (report.plane.hex !== useTracking.getState().hex) return;
   useTracking.setState(s => {
     if (report.plane.hex !== s.hex || (s.latest && report.at <= s.latest.at && s.latest.plane.hex === s.hex)) return {};
     const point = { t: report.at, lat: report.plane.lat, lon: report.plane.lon, altFt: report.plane.altitude_ft ?? null };

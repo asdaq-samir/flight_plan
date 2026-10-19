@@ -33,7 +33,14 @@ export function centreClear(map: L.Map, point: L.LatLngExpression, zoom: number)
  *  seems to reload"). */
 export function panClear(map: L.Map, point: L.LatLngExpression, options?: L.PanOptions) {
   const middle = map.getSize().divideBy(2).add(offsetOf(insetsOf(map)));
-  map.panBy(map.latLngToContainerPoint(point).subtract(middle), options);
+  const offset = map.latLngToContainerPoint(point).subtract(middle);
+  // Already there, to a couple of points: no pan. Leaflet ends even a
+  // pan of nothing with a move, and every layer answers a move -- the
+  // lines drawn again, a thousand airport marks merged, the chart's tiles
+  // around asked for -- so own ship followed on the ground, or holding
+  // still in the air, did all that at every GPS fix.
+  if (Math.abs(offset.x) < 2 && Math.abs(offset.y) < 2) return;
+  map.panBy(offset, options);
 }
 
 /** Before an animated zoom of more than a level: the map's lines and

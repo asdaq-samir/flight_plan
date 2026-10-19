@@ -51,8 +51,12 @@ startSpeedReports();
 // until a minute after. The check is one small request for sw.js. That
 // reload keeps the route on screen; a person's starts clean
 // (lib/freshLoad).
+// Registered once the page has loaded, not during it: the worker's
+// install fetches every chunk it precaches (2.7 MB), which competed
+// with the map, its tiles and the planner on a cold start and after
+// each deploy.
 registerSW({
-  immediate: true,
+  immediate: false,
   onRegisteredSW(_url, registration) {
     if (!registration) return;
     window.setInterval(() => void registration.update(), 60_000);

@@ -52,7 +52,9 @@ export function useScreenView(): { width: number; zoom: number } {
   const map = useMap();
   const zoom = useLiveZoom();
   const [rest, setRest] = useState(() => ({ width: map.getSize().x }));
-  useMapEvents(useMemo(() => ({ moveend: () => setRest({ width: map.getSize().x }) }), [map]));
+  // The same width kept as it was: a pan alone (own ship followed, at
+  // every fix) worked every checkpoint's name out again.
+  useMapEvents(useMemo(() => ({ moveend: () => setRest(was => (was.width === map.getSize().x ? was : { width: map.getSize().x })) }), [map]));
   return useMemo(() => ({ width: rest.width, zoom }), [rest, zoom]);
 }
 

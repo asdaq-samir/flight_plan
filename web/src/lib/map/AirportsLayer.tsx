@@ -175,6 +175,9 @@ export function AirportsLayer({ selected, onSelect, others, route }: {
   // marks over the chart, at the owner's notice ("going from current
   // location to zoom out is not smooth").
   const flying = useRef(false);
+  // The zoom what is drawn was drawn at: a zoom in keeps the bounds inside
+  // the drawn ones, but the marks shown change with the level.
+  const seenZoom = useRef(map.getZoom());
   const handlers = useMemo(() => ({
     zoom: (e: L.LeafletEvent & { flyTo?: boolean }) => { if (e.flyTo) flying.current = true; },
     // Drawn again only as the view nears the edge of what is drawn, not
@@ -187,7 +190,18 @@ export function AirportsLayer({ selected, onSelect, others, route }: {
       const bounds = map.getBounds();
       setSeen(was => (was.pad(PAD).contains(bounds) ? was : bounds));
     },
-    moveend: () => { flying.current = false; setView(boxOf(map)); setSeen(map.getBounds()); },
+    // The same box and zoom kept as they were, and what is drawn kept
+    // while it still covers the view: own ship followed ends a small move
+    // at every GPS fix, and a new value each time merged and drew the
+    // thousand marks again for nothing.
+    moveend: () => {
+      flying.current = false;
+      const next = boxOf(map);
+      setView(was => (was.key === next.key && was.zoom === next.zoom ? was : next));
+      const bounds = map.getBounds();
+      setSeen(was => (was.contains(bounds) && map.getZoom() === seenZoom.current ? was : bounds));
+      seenZoom.current = map.getZoom();
+    },
     click: (e: L.LeafletMouseEvent) => {
       let best: { ident: string; px: number } | null = null;
       for (const a of [...drawn.current, ...elsewhere.current]) {
