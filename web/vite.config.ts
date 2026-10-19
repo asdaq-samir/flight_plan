@@ -131,14 +131,19 @@ export default defineConfig({
             },
           },
           {
-            // Current weather, never from the cache. A METAR, a TAF or a
-            // SIGMET shown from last week because the network was slow
-            // is worse than none: nothing on the page could say it was
-            // old. With no network these fail, and the page says the
-            // weather could not be checked. (The nav log below is still
-            // cached: it is the plan the pilot flies, made before they
-            // went.)
-            urlPattern: ({ url }) => /^\/api\/planner\/(briefing|class-b)\b/.test(url.pathname),
+            // What is true only now, never from the cache: the weather,
+            // the TFRs, the airspace and alternates ahead, and live
+            // traffic. A METAR, a TFR list or an airplane shown from last
+            // week because the network was slow is worse than none:
+            // nothing on the page could say it was old -- traffic is aged
+            // from when the page got it, and a TFR judged in force against
+            // now -- so old airplanes were drawn live and new TFRs were
+            // missing. With no network these fail, and the page says what
+            // could not be checked. A flight's past track stays cached, as
+            // does the nav log below: it is the plan the pilot flies, made
+            // before they went.
+            urlPattern: ({ url }) =>
+              /^\/api\/planner\/(briefing|class-b|tfrs|airspace\/ahead|alternate|traffic)\b/.test(url.pathname) && !/\/history\b/.test(url.pathname),
             handler: "NetworkOnly",
           },
           {

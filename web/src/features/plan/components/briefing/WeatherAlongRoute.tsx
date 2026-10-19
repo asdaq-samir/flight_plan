@@ -13,6 +13,7 @@ import { categoryOf } from "../../../../lib/map/flightCategory";
 import { passTime } from "../../../../lib/passTimes";
 import { altFt, ceilingAndVisibility, clockTime, windLine } from "../../format";
 import CategoryBadge from "./CategoryBadge";
+import Observed from "../../../../components/Observed";
 import { phasesOf, type Phase } from "./sections";
 import { FINDING_TONE } from "../../../../lib/status";
 
@@ -193,7 +194,16 @@ export default function WeatherAlongRoute({ briefing, course, legs, departIso, u
                   // (below).
                   <ListRow
                     title={metar?.raw ? `Now · wind ${windLine(metar).replace(/^(Calm|Variable)/, w => w.toLowerCase())}` : "Now"}
-                    description={metar?.raw ? metarFigures(metar) : "No current report"}
+                    // When it was observed under the figures, amber past 90
+                    // minutes, as the map's card says it: the planner holds
+                    // a report up to 3 hours when aviationweather.gov does
+                    // not answer, and the go/no-go is made here.
+                    description={metar?.raw ? (
+                      <>
+                        <span className="block">{metarFigures(metar)}</span>
+                        {metar.observed_at && <Observed at={metar.observed_at} className="block" />}
+                      </>
+                    ) : "No current report"}
                     data-testid="place-metar"
                   >
                     <CategoryBadge category={metar?.flight_category} />

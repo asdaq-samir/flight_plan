@@ -218,24 +218,29 @@ def aircraft_profile(
     return profile
 
 
+def now() -> datetime:
+    """The time a plan with no departure time leaves at: now. One place,
+    so a test can set the hour."""
+    return datetime.now(timezone.utc)
+
+
 def flight_totals(leg_list: list, profile: dict, r, depart: datetime | None, rules: str = "vfr",
                   alternate: dict | None = None) -> dict:
     """navlog.totals plus the fuel check. Night is judged at both ends
     -- the departure at the departure time, the arrival at the
-    destination that many minutes later -- and unknown without a
-    departure time, when the day reserve is assumed and said so. Under
-    IFR the reserve is 45 minutes whatever the hour (navlog.fuel_plan),
-    and `alternate`, the leg on to the alternate (alternate_leg), is flown
-    before it (14 CFR 91.167(a)(2))."""
+    destination that many minutes later -- with no departure time taken
+    as now, as the winds are: a plan made at 21:00 for "now" leaves at
+    night and carries 14 CFR 91.151(a)(2)'s 45 minutes, where it was the
+    day's 30 for want of a time. Under IFR the reserve is 45 minutes
+    whatever the hour (navlog.fuel_plan), and `alternate`, the leg on to
+    the alternate (alternate_leg), is flown before it (14 CFR
+    91.167(a)(2))."""
     t = navlog.totals(leg_list)
-    night = None
-    if depart is not None:
-        if depart.tzinfo is None:
-            depart = depart.replace(tzinfo=timezone.utc)
-        night = sun.is_night(r.start[0], r.start[1], depart)
-        if t["ete_min"] is not None:
-            arrival = depart + timedelta(minutes=t["ete_min"])
-            night = night or sun.is_night(r.end[0], r.end[1], arrival)
+    depart = now() if depart is None else depart if depart.tzinfo else depart.replace(tzinfo=timezone.utc)
+    night = sun.is_night(r.start[0], r.start[1], depart)
+    if t["ete_min"] is not None:
+        arrival = depart + timedelta(minutes=t["ete_min"])
+        night = night or sun.is_night(r.end[0], r.end[1], arrival)
     t.update(navlog.fuel_plan(t["fuel_gal"], profile, night, rules, (alternate or {}).get("fuel_gal") or 0.0))
     t["alternate"] = alternate
     return t

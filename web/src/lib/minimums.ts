@@ -27,11 +27,24 @@ export const MINIMUM_CHOICES: Record<keyof Minimums, number[]> = {
   windKt: [10, 15, 20, 25, 30, 35],
 };
 
-/** The crosswind on the field's best runway for the wind -- the least,
- *  the gusts' where they are more -- and that runway's favoured end. */
-export function bestCrosswind(runways: Briefing["airports"][string]["runways"]): { end: string; kt: number } | null {
-  const winds = runways.flatMap(r => (r.wind ? [r.wind] : []));
-  if (winds.length === 0) return null;
+/** The crosswind on the field's best open runway for the wind -- the
+ *  least, the gusts' where they are more -- and that runway's favoured
+ *  end. A closed runway is not landed on, so its wind is not counted
+ *  (the planner puts one on every runway): a closed runway into the wind
+ *  passed a field whose open one had it all across. A wind reported with
+ *  no direction -- variable, VRB, which gives no runway a component --
+ *  may blow across any of them, so all of it, gusts included, is taken as
+ *  crosswind, with no end (`reported`, the field's METAR wind). */
+export function bestCrosswind(
+  runways: Briefing["airports"][string]["runways"],
+  reported?: { speedKt?: number | null; gustKt?: number | null } | null,
+): { end: string | null; kt: number } | null {
+  const open = runways.filter(r => !r.closed);
+  const winds = open.flatMap(r => (r.wind ? [r.wind] : []));
+  if (winds.length === 0) {
+    const all = Math.max(reported?.speedKt ?? 0, reported?.gustKt ?? 0);
+    return all > 0 && open.length > 0 ? { end: null, kt: all } : null;
+  }
   const crosswind = (w: (typeof winds)[number]) => Math.max(Math.abs(w.crosswind_kt), Math.abs(w.gust_crosswind_kt ?? 0));
   const best = winds.reduce((a, b) => (crosswind(b) < crosswind(a) ? b : a));
   return { end: best.end, kt: crosswind(best) };
@@ -62,9 +75,11 @@ export function underMinimums(m: Minimums, briefing: Briefing, landings: string[
         reasons.push(`${ident} wind ${reported} kt, over your ${m.windKt} kt`);
       }
     }
-    const crosswind = bestCrosswind(briefing.airports[ident]?.runways ?? []);
+    const crosswind = bestCrosswind(briefing.airports[ident]?.runways ?? [], metar && { speedKt: metar.wind_speed_kt, gustKt: metar.wind_gust_kt });
     if (m.crosswindKt != null && crosswind && crosswind.kt > m.crosswindKt) {
-      reasons.push(`${ident} crosswind ${crosswind.kt} kt on its best runway (${crosswind.end}), over your ${m.crosswindKt} kt`);
+      reasons.push(crosswind.end == null
+        ? `${ident} variable wind ${crosswind.kt} kt, which may all be crosswind, over your ${m.crosswindKt} kt`
+        : `${ident} crosswind ${crosswind.kt} kt on its best runway (${crosswind.end}), over your ${m.crosswindKt} kt`);
     }
   }
   const destForecast = briefing.forecast.stations.find(s => s.icaoId === dest);

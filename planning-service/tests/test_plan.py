@@ -146,16 +146,19 @@ def test_a_departure_time_picks_the_winds_forecast_period(monkeypatch, messages)
     assert {"06", "24"} <= seen
 
 
-def test_totals_carry_the_fuel_check(messages):
+def test_totals_carry_the_fuel_check(messages, monkeypatch):
     from datetime import datetime, timezone
 
+    from app import planning
+
+    # No departure time is now: here noon in Chicago (17:00 UTC), by day.
+    monkeypatch.setattr(planning, "now", lambda: datetime(2026, 9, 22, 17, 0, tzinfo=timezone.utc))
     lines = messages(client.get("/api/navlog", params={"dep": "C81", "dest": "KDLH"}))
     t = lines[-1]["totals"]
     # The day reserve at the C172's 8.5 gph is 4.25 gal on top of the
     # legs' own fuel (the first leg's climb from the field included);
-    # the profile holds 40 usable. No departure time: the day reserve is
-    # assumed and `night` says so by being null.
-    assert t["reserve_min"] == 30 and t["reserve_gal"] == 4.25 and t["night"] is None
+    # the profile holds 40 usable.
+    assert t["reserve_min"] == 30 and t["reserve_gal"] == 4.25 and t["night"] is False
     assert t["taxi_gal"] == 1.4    # the C172S handbook's start, taxi and takeoff allowance
     assert t["fuel_required_gal"] == round(t["fuel_gal"] + 1.4 + 4.25, 1)
     assert t["usable_fuel_gal"] == 40 and t["fuel_margin_gal"] == round(40 - t["fuel_required_gal"], 1)
@@ -175,6 +178,12 @@ def test_totals_carry_the_fuel_check(messages):
     by_day = datetime(2026, 9, 22, 17, 0, tzinfo=timezone.utc).isoformat()
     day = messages(client.get("/api/navlog", params={"dep": "C81", "dest": "KDLH", "depart": by_day}))[-1]
     assert day["totals"]["night"] is False and day["totals"]["reserve_min"] == 30
+
+    # And "now" at 03:00 in Chicago, with no time picked, is night too: it
+    # was the day's 30 minutes for want of a time (14 CFR 91.151(a)(2)).
+    monkeypatch.setattr(planning, "now", lambda: datetime(2026, 9, 22, 8, 0, tzinfo=timezone.utc))
+    now_at_night = messages(client.get("/api/navlog", params={"dep": "C81", "dest": "KDLH"}))[-1]
+    assert now_at_night["totals"]["night"] is True and now_at_night["totals"]["reserve_min"] == 45
 
 
 def test_navlog_flies_the_chosen_plan_and_says_so(messages):
@@ -423,16 +432,21 @@ def test_no_altitude_names_the_class_b_and_what_it_takes():
     ]
 
 
-def test_a_local_flight_is_its_time_aloft_at_cruise_burn_with_the_fuel_check():
+def test_a_local_flight_is_its_time_aloft_at_cruise_burn_with_the_fuel_check(monkeypatch):
     """C81 to C81, the pattern for an hour and a half: no legs, the fuel
-    the burn gives, the day reserve with no departure time."""
+    the burn gives, the day reserve with no departure time at noon."""
+    from datetime import datetime, timezone
+
+    from app import planning
+
+    monkeypatch.setattr(planning, "now", lambda: datetime(2026, 9, 22, 17, 0, tzinfo=timezone.utc))
     resp = client.get("/api/local-flight", params={"dep": "C81", "dest": "C81", "duration_min": 90})
 
     assert resp.status_code == 200
     totals = resp.json()
     assert totals["distance_nm"] == 0 and totals["ete_min"] == 90
     assert totals["fuel_gal"] > 0
-    assert totals["reserve_min"] == 30 and totals["night"] is None
+    assert totals["reserve_min"] == 30 and totals["night"] is False
     assert totals["fuel_required_gal"] == round(totals["fuel_gal"] + totals["taxi_gal"] + totals["reserve_gal"], 1)
 
 

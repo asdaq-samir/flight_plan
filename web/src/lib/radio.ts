@@ -239,7 +239,7 @@ function arrival(input: RadioInput, i: number): RadioPhase {
       const approach = `${facilityName(radar, field)} Approach`;
       calls.push({
         to: approach, mhz: radar.frequency_mhz ?? null,
-        words: `${approach}, ${cs}, [distance] ${from} of ${field}, ${spokenAltitude(last?.altitude_ft ?? 0)}${atis}, landing ${field}.`,
+        words: `${approach}, ${cs}, [distance] ${from} of ${field}, ${last ? spokenAltitude(last.altitude_ft) : "[altitude]"}${atis}, landing ${field}.`,
         note: facilities.airspace_class === "B"
           ? "Well outside the Class B: stay out until you hear \"cleared into the Class Bravo\" (91.131)."
           : "Before the Class C: two-way communication is the controller answering with your call sign (91.130).",

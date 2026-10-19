@@ -1,9 +1,9 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { type ReactNode } from "react";
+import Observed from "../../components/Observed";
 import { chipColourOf } from "./flightCategory";
 import { feet, miles } from "../units";
 import { MapCard } from "./MapCard";
 import { TEXT } from "../text";
-import { zuluTime } from "../clock";
 
 /**
  * What is known about a field's weather, which is not always a report:
@@ -39,38 +39,10 @@ const STATUS_LABEL: Record<Exclude<WeatherStatus, "reported">, string> = {
   unavailable: "unavailable",
 };
 
-/** Past this a METAR is older than the hourly cycle should ever leave
- *  it, and the card says so. */
-const OLD_REPORT_MIN = 90;
-
 /** A report with no broken, overcast or obscured layer has no ceiling
  *  at all, which is not the same as not knowing one. */
 function ceiling(ft: number | null): string {
   return ft === null ? "none" : feet(ft);
-}
-
-function useMinuteClock(): number {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const timer = window.setInterval(() => setNow(Date.now()), 60_000);
-    return () => window.clearInterval(timer);
-  }, []);
-  return now;
-}
-
-function Observed({ at }: { at: string }) {
-  const now = useMinuteClock();
-  const observed = new Date(at);
-  if (Number.isNaN(observed.getTime())) return null;
-  const minutes = Math.max(0, Math.round((now - observed.getTime()) / 60_000));
-  const ago = minutes < 60 ? `${minutes} min ago` : `${Math.floor(minutes / 60)} h ${minutes % 60} min ago`;
-  const zulu = zuluTime(observed);
-  const old = minutes > OLD_REPORT_MIN;
-  return (
-    <p className={old ? "pt-1 font-semibold text-amber-700 dark:text-amber-300" : "pt-1 text-muted-foreground"}>
-      Observed {zulu}, {ago}{old ? " — an old report" : ""}
-    </p>
-  );
 }
 
 /**
@@ -137,7 +109,7 @@ export function AirportCard({
           {forecast && <span className="tabular-nums">{miles(forecast.visibilitySm)}</span>}
         </div>
       )}
-      {reported && weather?.observedAt && <Observed at={weather.observedAt} />}
+      {reported && weather?.observedAt && <p className="pt-1"><Observed at={weather.observedAt} /></p>}
       {reported && weather?.stale && <p className="text-amber-700 dark:text-amber-400">Could not refresh; this is the last report.</p>}
       {reported && weather?.raw && <p className="pt-1 font-mono break-words">{weather.raw}</p>}
       {forecast?.raw && <p className="font-mono break-words text-muted-foreground">{forecast.raw}</p>}
