@@ -1,5 +1,5 @@
-"""vfr.plates: an approach's plate placed on the map by its own waypoints."""
-import math
+"""vfr.plates: an approach's plate placed on the map by its own georeference."""
+import pytest
 
 from vfr import plates
 
@@ -24,83 +24,83 @@ def test_the_cifps_approach_is_the_plate_of_the_same_runway_means_and_letter():
     assert plates.plate_for("VOR RWY 03", DLH) is None
 
 
-def test_a_waypoint_is_two_of_its_squares_half_their_size_apart():
-    squares = [(100, 200), (105.5, 194.6), (300, 300)]
-    assert plates.stars_of(squares) == [(102.75, 197.3)]
+# KRFD ILS RWY 07's viewport (d-TPP 2610), as its page dictionary has it.
+KRFD_I07 = (
+    b"/Rotate 0/Type/Page/VP[<</BBox[9.18 2.628 378.18 591.372]/Measure<</Bounds[0 0 1 0 1 1 0 1 0 0]"
+    b'/GCS<</EPSG 0/Type/PROJCS/WKT(PROJCS["",GEOGCS["GCS_North_American_1983",DATUM["D_North_American_1983",'
+    b'SPHEROID["GRS_1980",6378137.000,298.25722210]],PRIMEM["Greenwich",0],UNIT["Degree",0.017453292519943295]],'
+    b'PROJECTION["Lambert_Conformal_Conic"],PARAMETER["False_Easting",0.000],PARAMETER["False_Northing",0.000],'
+    b'PARAMETER["Central_Meridian",-89.21819444444452],PARAMETER["Latitude_Of_Origin",42.15669444444440],'
+    b'PARAMETER["Standard_Parallel_1",46.66666666666671],PARAMETER["Standard_Parallel_2",41.33333333333331],'
+    b'UNIT["Inch",0.02540005080010]])>>/GPTS[41.68814609406 -89.54178783614 41.68820747524 -88.91618533392 '
+    b"42.4365259253 -88.91248437445 42.43646377287 -89.54575329403]/LPTS[0.1 0.1 0.9 0.1 0.9 0.9 0.1 0.9]"
+    b"/PDU[(MI)(SQMI)(DEG)]/Subtype/GEO/Type/Measure>>/Type/Viewport>>]>>"
+)
 
 
-FIXES = {"OMARY": (46.680928, -92.326369), "AMLIY": (46.76765, -92.249131), "CLIPH": (47.012236, -92.029669),
-         "DEHBU": (46.637406, -92.223211), "PEGHI": (46.724356, -92.429694)}
+def test_a_plate_is_placed_by_its_own_georeference():
+    geo = plates.georeference_of(b"%PDF-1.7 ... " + KRFD_I07 + b" ... %%EOF")
+    # Its four points are where the viewport says, 0.1 and 0.9 of its box.
+    x, y = geo.page_of(41.68814609406, -89.54178783614)
+    assert (x, y) == pytest.approx((9.18 + 0.1 * 369, 2.628 + 0.1 * 588.744), abs=0.01)
+    assert geo.ground_of(x, y) == pytest.approx((41.68814609406, -89.54178783614), abs=1e-7)
+    # Drawn at 1:500,000, as the d-TPP's plan views are: a nm north is
+    # 1852 m / 500,000 = 3.70 mm, 10.5 points.
+    _, south = geo.page_of(42.0, -89.2)
+    _, north = geo.page_of(42.0 + 1 / 60, -89.2)
+    assert north - south == pytest.approx(10.5, abs=0.1)
 
 
-def _drawn(scale=10.5, x0=200.0, y0=330.0):
-    """The fixes' stars as a north-up plan view at `scale` points a nm
-    would draw them, each named beside it."""
-    lat0 = sum(v[0] for v in FIXES.values()) / len(FIXES)
-    lon0 = sum(v[1] for v in FIXES.values()) / len(FIXES)
-    k = math.cos(math.radians(lat0))
-    stars = {f: (x0 + scale * (lon - lon0) * 60 * k, y0 + scale * (lat - lat0) * 60) for f, (lat, lon) in FIXES.items()}
-    words = [(f, (x + 8, y - 20, x + 30, y - 12)) for f, (x, y) in stars.items()]
-    return stars, words
+def test_a_plate_without_a_georeference_is_not_placed():
+    assert plates.georeference_of(b"%PDF-1.7 no viewport %%EOF") is None
+    assert plates.georeference_of(KRFD_I07.replace(b"Lambert_Conformal_Conic", b"Transverse_Mercator")) is None
+    assert plates.georeference_of(KRFD_I07.replace(b"/GPTS[41.68814609406 ", b"/GPTS[")) is None
 
 
-def test_the_plan_view_is_placed_where_its_waypoints_agree_with_the_cifp():
-    stars, words = _drawn()
-    placing = plates.fit(words, list(stars.values()), FIXES)
-    assert set(placing["fixes"]) == set(FIXES)
-    assert placing["scale"] == __import__("pytest").approx(10.5, rel=1e-6)
-    assert abs(placing["turn"]) < 1e-6
-    # And back: where a star is drawn is where the fix is.
-    lat, lon = plates.ground_of(placing, *stars["CLIPH"])
-    assert (lat, lon) == __import__("pytest").approx(FIXES["CLIPH"], abs=1e-6)
-
-
-def test_a_fix_drawn_out_of_scale_is_left_out_and_too_few_place_nothing():
-    stars, words = _drawn()
-    # PEGHI drawn in an inset, two miles from where it would be.
-    stars["PEGHI"] = (stars["PEGHI"][0] + 21, stars["PEGHI"][1])
-    words = [(f, (x + 8, y - 20, x + 30, y - 12)) for f, (x, y) in stars.items()]
-    placing = plates.fit(words, list(stars.values()), FIXES)
-    assert set(placing["fixes"]) == set(FIXES) - {"PEGHI"}
-    # Two fixes alone agree on any placing: none, unless at a plan
-    # view's own scale.
-    two = {f: FIXES[f] for f in ("OMARY", "AMLIY")}
-    assert plates.fit(words, list(stars.values()), two)["fixes"] == ["OMARY", "AMLIY"]
-    stars, words = _drawn(scale=12.0)
-    assert plates.fit(words, list(stars.values()), two) is None
-
-
-def test_three_fixes_place_a_plan_view_drawn_larger():
-    # KMDW's RNP plates are at 1:250,000, 21 points a nm.
-    stars, words = _drawn(scale=21.0)
-    placing = plates.fit(words, list(stars.values()), FIXES)
-    assert placing["scale"] == __import__("pytest").approx(21.0, rel=1e-6)
-
-
-def test_the_plan_view_is_the_box_of_long_lines_round_its_waypoints():
+def test_the_plan_view_is_the_box_of_long_lines_round_its_airport():
     across = [(486.0, 17, 370), (190.0, 17, 370), (540.0, 17, 370)]
     down = [(17.0, 190, 486), (370.0, 190, 486)]
-    box = plates.plan_view_box(across, down, [(160, 230), (290, 450)], (387, 594))
-    assert box == (17.0, 190.0, 370.0, 486.0)
+    assert plates.plan_view_box(across, down, (225, 340), (387, 594)) == (17.0, 190.0, 370.0, 486.0)
 
 
-def test_a_plate_kept_as_not_placed_is_none_until_fit_changes(tmp_path):
+def test_the_plan_views_bottom_line_may_run_along_part_of_it():
+    # KORD's RNAV (GPS) RWY 09C: the line under the plan view stops at the
+    # profile's box, short of the airport's side of the page; the profile's
+    # own divider does not reach up to the airport.
+    across = [(452.0, 17, 370), (221.0, 17, 258), (106.0, 18, 257)]
+    down = [(257.0, 38, 236)]
+    assert plates.plan_view_box(across, down, (329, 319), (387, 594)) == (17, 221.0, 370, 452.0)
+
+
+
+def test_a_divider_ending_at_the_airports_height_is_not_a_side():
+    # KLSE's RNAV (GPS) RWY 18: its airport is drawn at the plan view's
+    # foot, level with the top of the profile's divider.
+    across = [(450.0, 17, 370), (211.0, 17, 258)]
+    down = [(257.0, 38, 236)]
+    assert plates.plan_view_box(across, down, (196.4, 236.3), (387, 594)) == (17, 211.0, 370, 450.0)
+
+
+def test_the_airport_sketchs_box_in_a_corner_is_cut_out():
+    # KDLH's ILS OR LOC RWY 09: the profile's box under the plan view's
+    # left, the airport sketch's under its right, higher.
+    across = [(472.0, 17, 370), (192.0, 17, 258), (235.0, 256, 370), (159.5, 168, 257)]
+    down = [(17.0, 38, 529), (370.0, 38, 529), (257.0, 38, 236)]
+    box = plates.plan_view_box(across, down, (300, 300), (387, 594))
+    assert box == (17.0, 192.0, 370.0, 472.0)
+    assert plates.corner_boxes(across, down, box, (300, 300)) == [(256, 192.0, 370.0, 235.0)]
+
+
+def test_without_sides_the_line_over_the_plan_view_ends_at_them():
+    across = [(472.0, 17, 370), (192.0, 17, 258)]
+    assert plates.plan_view_box(across, [], (300, 300), (387, 594)) == (17, 192.0, 370, 472.0)
+
+
+def test_a_plate_kept_as_not_placed_is_none_until_the_placing_changes(tmp_path):
     meta = tmp_path / "R03.json"
-    meta.write_text('{"cycle": "2610", "name": "RNAV (GPS) RWY 3", "placed": false, "fit": 1}')
+    meta.write_text('{"cycle": "2610", "name": "RNAV (GPS) RWY 3", "placed": false, "fit": 2}')
     assert plates._kept(meta) is None
-    meta.write_text(f'{{"cycle": "2610", "name": "RNAV (GPS) RWY 3", "placed": false, "fit": {plates.FIT_VERSION}}}')
+    meta.write_text(f'{{"cycle": "2610", "name": "RNAV (GPS) RWY 3", "placed": false, "fit": {plates.PLACING_VERSION}}}')
     assert plates._kept(meta)["placed"] is False
     meta.write_text('{"cycle": "2610", "name": "RNAV (GPS) RWY 3", "placed": true, "south": 46.6}')
     assert plates._kept(meta)["south"] == 46.6
-
-
-def test_two_stars_place_a_plate_only_with_its_runway_inside_the_plan_view():
-    stars, words = _drawn()
-    two = {f: FIXES[f] for f in ("OMARY", "AMLIY")}
-    placing = plates.fit(words, list(stars.values()), two)
-    x, y = plates.page_of(placing, *FIXES["DEHBU"])
-    runway = {**two, "RW03": FIXES["DEHBU"]}
-    assert plates.runway_inside(placing, runway, (x - 50, y - 50, x + 50, y + 50))
-    assert not plates.runway_inside(placing, runway, (x + 10, y - 50, x + 50, y + 50))
-    # No runway in the CIFP: nothing to check two stars by.
-    assert not plates.runway_inside(placing, two, (x - 50, y - 50, x + 50, y + 50))
