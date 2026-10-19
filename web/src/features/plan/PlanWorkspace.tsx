@@ -145,6 +145,22 @@ function altitudeChoiceOf(value: string | null): AltitudeChoice {
  *  list is made again only as one comes in (useQueries' combine). */
 const drawnOnly = (results: { data?: ProcedureDrawing }[]) => results.flatMap(r => (r.data ? [r.data] : []));
 
+/** A procedure picked, drawn as the planner draws it (vfr.procedures):
+ *  one query for the map's drawing and the planner's descent alike. */
+const procedureQuery = (p: PickedProcedure) => ({
+  queryKey: ["procedure", p.ident, p.id, p.transition],
+  queryFn: () => api.procedure(p.ident, p.id, p.transition),
+  // A cycle's procedures hold for its 28 days.
+  staleTime: 6 * 60 * 60_000,
+});
+
+/** The approaches among those drawn, as the address writes them, for the
+ *  planner to plan the descent to (PlanQuery.approaches): one string, so
+ *  the plan's key changes only as an approach does. */
+const approachesOnly = (results: { data?: ProcedureDrawing }[]) => proceduresParam(results.flatMap(r => (
+  r.data?.kind === "approach" ? [{ ident: r.data.airport, id: r.data.id, transition: r.data.transition ?? null }] : []
+)));
+
 /** The planner's places, its tab bar's (TabBar): the flight being
  *  planned, airports and traffic. */
 
@@ -255,9 +271,22 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // in the pilot console (a climb burn added, say) re-plans. It used to
   // fly the copy remembered at the pick until it was picked again.
   const aircraft = aircraftOptions.find(o => aircraftKey(o) === aircraftKey(remembered)) ?? remembered;
+  // The approaches picked at the route's fields, drawn (below): a flight
+  // landing by one is planned down to its first fix, not the pattern. A
+  // departure or an arrival picked plans nothing anew.
+  // The fields as one string, the stops comma-joined by the template: a
+  // method called on the render's `planned` made the React Compiler skip
+  // every later memo.
+  const routeFields = `${planned.dep},${planned.stops},${planned.dest}`;
+  const picksParam = searchParams.get("procs");
+  const approachQueries = useMemo(
+    () => proceduresOf(picksParam).filter(p => routeFields.split(",").includes(p.ident)).map(procedureQuery),
+    [picksParam, routeFields],
+  );
+  const approaches = useQueries({ queries: approachQueries, combine: approachesOnly });
   const s = usePlan({
     dep: planned.dep, dest: planned.dest, stops: planned.stops, altitudeFt, altitudeChoice, depart, aircraft, load, classBClearance,
-    altitudes, localMin, rules: flightRules,
+    altitudes, approaches, localMin, rules: flightRules,
     // Under IFR, the alternate filed in the Weather tab (AlternateSection).
     alternate: searchParams.get("alternate") ?? "",
     // Checkpoints as the map shows them: the settings' Waypoints off, the
@@ -450,12 +479,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // Theirs as the planner draws them (vfr.procedures), for the route's
   // fields alone: a pick kept from a route since changed is not drawn.
   const procedureDrawings = useQueries({
-    queries: pickedProcedures.filter(p => procedureAirports.some(a => a.ident === p.ident)).map(p => ({
-      queryKey: ["procedure", p.ident, p.id, p.transition],
-      queryFn: () => api.procedure(p.ident, p.id, p.transition),
-      // A cycle's procedures hold for its 28 days.
-      staleTime: 6 * 60 * 60_000,
-    })),
+    queries: pickedProcedures.filter(p => procedureAirports.some(a => a.ident === p.ident)).map(procedureQuery),
     combine: drawnOnly,
   });
   // Those drawn, said in the route's box after their fields (RouteBox's

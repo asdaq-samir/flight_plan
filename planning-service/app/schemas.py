@@ -180,14 +180,18 @@ class TopOfClimb(LegPoint):
 
 class TopOfDescent(LegPoint):
     """Where a descent starts (TOD): down from `altitude_ft` to `to_ft` --
-    the pattern altitude of the field landed at, or the next leg's lower
-    level -- at `fpm`, three to one at the leg's ground speed, or steeper
-    where the climb before it left less room (vfr.navlog.with_descents)."""
+    the pattern altitude of the field landed at, the altitude an
+    approach's first fix is crossed at, or the next leg's lower level --
+    at `fpm`, three to one at the leg's ground speed, or steeper where
+    the climb before it left less room (vfr.navlog.with_descents)."""
 
     to_ft: float
     # Whether `to_ft` is the pattern altitude at the field the flight
     # lands at, rather than a lower level on the way.
     pattern: bool
+    # The approach's fix `to_ft` is crossed at, where the flight lands by
+    # one (plan.approach_end).
+    fix: str | None = None
     fpm: float
 
 

@@ -277,7 +277,8 @@ export function DescriptionCell({
  *  the rate down and what to. */
 function legPointNote(point: TopOfClimb | TopOfDescent, descent: TopOfDescent | null): string {
   if (!descent) return `Top of climb: level at ${feet(point.altitude_ft)}.`;
-  return `Top of descent: ${descent.fpm} fpm down to ${feet(descent.to_ft)}${descent.pattern ? ", the pattern" : ""}.`;
+  const to = descent.pattern ? ", the pattern" : descent.fix ? ` by ${descent.fix}, the approach's first fix` : "";
+  return `Top of descent: ${descent.fpm} fpm down to ${feet(descent.to_ft)}${to}.`;
 }
 
 function LegLine({ leg, at }: { leg: Leg; at: { name: string; lat: number; lon: number } }) {

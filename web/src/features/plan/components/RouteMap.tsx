@@ -394,7 +394,7 @@ function LegPoints({ legs, onSelectPoint }: { legs: Leg[]; onSelectPoint: Props[
             key={`tod-${i}`} position={[leg.tod.lat, leg.tod.lon]} icon={legPointIcon("TOD")} zIndexOffset={-100}
             eventHandlers={{ click: e => { L.DomEvent.stopPropagation(e); onSelectPoint(leg.tod!.lat, leg.tod!.lon); } }}
           >
-            <MapTooltip>Top of descent · {leg.tod.fpm} fpm to {feet(leg.tod.to_ft)}</MapTooltip>
+            <MapTooltip>Top of descent · {leg.tod.fpm} fpm to {feet(leg.tod.to_ft)}{leg.tod.fix ? ` by ${leg.tod.fix}` : ""}</MapTooltip>
           </Marker>
         ),
       ])}

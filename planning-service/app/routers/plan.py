@@ -20,7 +20,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import Response, StreamingResponse
-from vfr import airports, airspace, altitude, chartlabels, charts, elevation, faa_data, fixes, geo, navlog, places, sun
+from vfr import airports, airspace, altitude, chartlabels, charts, elevation, faa_data, fixes, geo, navlog, places, procedures, sun
 from vfr.profile import route_profile as side_view
 from vfr.terrain import M_TO_FT
 from vfr.config import DATA_DIR, VFR_SECTIONAL_MAX_ZOOM, VFR_SECTIONAL_MIN_ZOOM
@@ -101,6 +101,11 @@ class PlanQuery:
     #: a pilot crosses it); an airport's is its pattern, which a flight
     #: landing there comes down to. The rest of the route as planned.
     altitudes: str = ""
+    #: The instrument approaches picked at the route's fields, as the
+    #: address has them: "KDLH:I09:ANDOE", the field, the approach and
+    #: any transition. A flight landing by one comes down to the altitude
+    #: of its first fix rather than to the pattern (approach_end).
+    approaches: str = ""
     #: Checkpoints between the route's own points, as the planner picks
     #: them off the chart. False, the legs run from point to point alone
     #: -- the departure, the stops, the destination -- as a pilot whose
@@ -128,7 +133,21 @@ class PlanQuery:
         return out
 
 
+    def approach_picks(self) -> dict[str, tuple[str, str | None]]:
+        """`approaches` by field, each the approach and its transition (None
+        from vectors); a 422 for one that is not "FIELD:APPROACH[:TRANSITION]"."""
+        out = {}
+        for part in filter(None, (p.strip() for p in self.approaches.split(","))):
+            if not APPROACH_PICK.fullmatch(part):
+                raise HTTPException(422, f"{part!r} is not an approach: a field, an approach and a transition, as KDLH:I09:ANDOE.")
+            ident, procedure, *transition = part.upper().split(":")
+            out[ident] = (procedure, transition[0] if transition else None)
+        return out
+
+
 POINT_ALTITUDE = re.compile(r"[A-Za-z0-9]{2,5}:\d{1,5}")
+# As lib/procedures' proceduresOf reads them from the address.
+APPROACH_PICK = re.compile(r"[A-Za-z0-9]{2,5}:[A-Za-z0-9-]{1,6}(:[A-Za-z0-9]{1,5})?")
 
 # How often the nav log stream says it is still working while the
 # altitude plans are being made.
@@ -412,17 +431,61 @@ def pattern_altitude(flight: Route, own: dict[str, float] | None = None) -> floa
     return field_pattern_ft(flight.dest_ident, flight.dest_airport)
 
 
-def flown_legs(r: Route, runs: list[HopRun], outcome: Flown, own: dict[str, float] | None = None) -> list:
+def approach_end(flight: Route, picks: dict[str, tuple[str, str | None]]) -> tuple[float, float, str] | None:
+    """Where a flight landing by the instrument approach picked for its
+    field comes down to: the altitude its first fix with one is crossed
+    at, the fix, and the fix's distance from the field. The first fix is
+    the transition's initial approach fix, or from vectors the
+    intermediate fix; the altitude is the chart's lowest for it, coded in
+    the FAA's CIFP (vfr.procedures.altitude_limits, ARINC 424-18 5.29) as
+    the plate prints it (AIM 5-4-5), or its highest where it is crossed
+    at or below one. The route runs to the field, not to the fix: the
+    descent ends where the route is the fix's own distance out, and the
+    approach is flown from there as charted. None where no approach is
+    picked there, or the CIFP cannot be had: down to the pattern."""
+    if not flight.lands:
+        return None
+    pick = next((p for ident, p in picks.items() if _bare_field(ident) == _bare_field(flight.dest_ident.upper())), None)
+    if pick is None:
+        return None
+    try:
+        drawn = procedures.procedure_drawing(flight.dest_ident, *pick)
+    except RuntimeError:
+        return None
+    if not drawn or drawn["kind"] != "approach":
+        return None
+    fix = next((f for f in drawn["fixes"] if not f["missed"] and (f["min_ft"] or f["max_ft"])), None)
+    if fix is None:
+        return None
+    crossed = fix["min_ft"] if fix["min_ft"] is not None else fix["max_ft"]
+    field = flight.dest_airport
+    return float(crossed), geo.distance_nm(fix["lat"], fix["lon"], field["lat"], field["lon"]), fix["ident"]
+
+
+def _bare_field(ident: str) -> str:
+    """A field's FAA ident: the CIFP names it by its ICAO ident (KDLH)
+    where the route may have the FAA's (DLH), as lib/procedures' sameField."""
+    return ident[1:] if len(ident) == 4 and ident.startswith("K") else ident
+
+
+def flown_legs(r: Route, runs: list[HopRun], outcome: Flown, own: dict[str, float] | None = None,
+               approaches: dict[str, tuple[str, str | None]] | None = None) -> list:
     """The legs a pilot flies, with each flight's tops of climb and
     descent placed (navlog.with_descents): from one landing to the next,
     through any waypoints, down to the pattern at the end of each --
-    `own`, a pilot's own patterns by ident."""
+    `own`, a pilot's own patterns by ident -- or to an approach's first
+    fix, where `approaches` has one picked for the field (approach_end)."""
     out, at = [], 0
     for flight in r.flights:
         hops = len(flight.idents) - 1
         legs = [leg for legs in outcome.hop_legs[at:at + hops] for leg in legs]
         fix_list = [fix for k, run in enumerate(runs[at:at + hops]) for fix in (run.fixes if k == 0 else run.fixes[1:])]
-        out.extend(navlog.with_descents(legs, fix_list, pattern_altitude(flight, own)))
+        approach = approach_end(flight, approaches or {})
+        if approach:
+            to_ft, before_nm, fix = approach
+            out.extend(navlog.with_descents(legs, fix_list, to_ft, before_nm, fix))
+        else:
+            out.extend(navlog.with_descents(legs, fix_list, pattern_altitude(flight, own)))
         at += hops
     return out
 
@@ -659,6 +722,7 @@ def plan(q: Annotated[PlanQuery, Depends()]) -> Plan:
     """
     r = load_route(q.dep, q.dest, q.stops)
     own = q.own_altitudes()
+    approaches = q.approach_picks()
     profile = q.profile()
 
     # Everything slow inside the one bound, scoring included: the agents'
@@ -684,7 +748,7 @@ def plan(q: Annotated[PlanQuery, Depends()]) -> Plan:
     if isinstance(outcome, Unflyable):
         _, ways = unflyable_parts(outcome, runs)
         raise HTTPException(422, no_altitude_detail(outcome.selection, outcome.between, ways[0] if ways else None))
-    leg_list = flown_legs(r, runs, outcome, own)
+    leg_list = flown_legs(r, runs, outcome, own, approaches)
 
     return Plan(
         departure=r.departure,
@@ -760,6 +824,7 @@ def navlog_stream(q: Annotated[PlanQuery, Depends()]) -> StreamingResponse:
     """
     r = load_route(q.dep, q.dest, q.stops)
     own = q.own_altitudes()
+    approaches = q.approach_picks()
 
     def lines():
         if q.checkpoints:
@@ -844,7 +909,7 @@ def navlog_stream(q: Annotated[PlanQuery, Depends()]) -> StreamingResponse:
             aircraft=aircraft_line,
             cautions=list(outcome.cautions),
         ))
-        for leg in flown_legs(r, runs, outcome, own):
+        for leg in flown_legs(r, runs, outcome, own, approaches):
             yield line(NavLogLeg.model_validate(leg))
 
         yield line(NavLogDone(totals=totals_of(r, runs, outcome, profile, q.rules, q.alternate)))

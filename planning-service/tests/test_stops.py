@@ -292,6 +292,41 @@ def test_an_airports_own_pattern_is_the_one_a_flight_comes_down_to():
     assert tods == {"KMSN": 2400.0, "KDLH": 1900.0}
 
 
+def test_a_flight_landing_by_an_approach_comes_down_to_its_first_fix_by_it(monkeypatch):
+    from app.routers import plan as plan_router
+
+    field = airport("KDLH")
+    # An approach from ANDOE, crossed at or above 3,000 ft three miles
+    # out; its final approach fix lower and nearer, and a missed approach
+    # fix higher: neither is the one the descent ends at.
+    def fix(ident, north, min_ft, missed=False):
+        return {"ident": ident, "lat": field["lat"] + north, "lon": field["lon"], "roles": [], "min_ft": min_ft, "max_ft": None,
+                "missed": missed}
+
+    drawn = {"kind": "approach", "fixes": [fix("ANDOE", 0.05, 3000), fix("FAFIX", 0.02, 2300), fix("MISSD", -0.1, 4000, True)]}
+    asked = []
+    monkeypatch.setattr(plan_router.procedures, "procedure_drawing",
+                        lambda ident, procedure, transition=None: asked.append((ident, procedure, transition)) or drawn)
+    legs = client.get("/api/plan", params={**VIA_MADISON, "approaches": "DLH:I09:ANDOE"}).json()["legs"]
+    tods = {leg["to"]: leg["tod"] for leg in legs if leg["tod"]}
+    assert asked == [("KDLH", "I09", "ANDOE")]
+    assert (tods["KDLH"]["to_ft"], tods["KDLH"]["fix"], tods["KDLH"]["pattern"]) == (3000.0, "ANDOE", False)
+    # Madison, with no approach picked, still down to its pattern.
+    assert (tods["KMSN"]["to_ft"], tods["KMSN"]["fix"], tods["KMSN"]["pattern"]) == (1900.0, None, True)
+    # 1,500 ft at three to one is 4.5 nm, short of ANDOE's three miles
+    # out: 7.5 nm before the field, the last leg being 10.
+    last = [leg for leg in legs if leg["to"] == "KDLH"][-1]
+    assert last["tod"]["along_nm"] == pytest.approx(last["distance_nm"] - 4.5 - geo.distance_nm(
+        field["lat"] + 0.05, field["lon"], field["lat"], field["lon"]), abs=0.1)
+
+
+@pytest.mark.parametrize("approaches", ["KDLH", "KDLH:", "KDLH:I09:ANDOE:X", "KDLH:I09;KMSN:R18"])
+def test_an_approach_that_is_not_one_is_refused(approaches):
+    params = {**VIA_MADISON, "approaches": approaches}
+    assert client.get("/api/plan", params=params).status_code == 422
+    assert client.get("/api/navlog", params=params).status_code == 422
+
+
 def test_the_course_says_each_airports_pattern_and_no_waypoints(a_vfr_waypoint):
     course = client.get("/api/course", params={"dep": "C81", "dest": "KDLH", "stops": "VPBNG"}).json()
     assert course["departure"]["pattern_altitude_ft"] == course["destination"]["pattern_altitude_ft"] == 1900.0

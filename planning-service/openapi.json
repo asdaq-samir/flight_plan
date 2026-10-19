@@ -9310,7 +9310,7 @@
         "type": "object"
       },
       "TopOfDescent": {
-        "description": "Where a descent starts (TOD): down from `altitude_ft` to `to_ft` --\nthe pattern altitude of the field landed at, or the next leg's lower\nlevel -- at `fpm`, three to one at the leg's ground speed, or steeper\nwhere the climb before it left less room (vfr.navlog.with_descents).",
+        "description": "Where a descent starts (TOD): down from `altitude_ft` to `to_ft` --\nthe pattern altitude of the field landed at, the altitude an\napproach's first fix is crossed at, or the next leg's lower level --\nat `fpm`, three to one at the leg's ground speed, or steeper where\nthe climb before it left less room (vfr.navlog.with_descents).",
         "properties": {
           "along_nm": {
             "title": "Along Nm",
@@ -9323,6 +9323,18 @@
           "ete_min": {
             "title": "Ete Min",
             "type": "number"
+          },
+          "fix": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Fix"
           },
           "fpm": {
             "title": "Fpm",
@@ -12018,6 +12030,16 @@
           },
           {
             "in": "query",
+            "name": "approaches",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Approaches",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
             "name": "checkpoints",
             "required": false,
             "schema": {
@@ -12325,6 +12347,16 @@
             "schema": {
               "default": "",
               "title": "Altitudes",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "approaches",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Approaches",
               "type": "string"
             }
           },
@@ -12818,6 +12850,16 @@
             "schema": {
               "default": "",
               "title": "Altitudes",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "approaches",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Approaches",
               "type": "string"
             }
           },
