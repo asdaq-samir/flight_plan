@@ -19,6 +19,21 @@ export function glideRangeNm(fix: Fix | null, groundFt: number | null | undefine
   return (agl / 1000) * GLIDE_NM_PER_1000_FT;
 }
 
+/** The height to arrive at over a field glided to: its pattern, AC
+ *  90-66C's 1,000 ft above it for a propeller airplane, from where a
+ *  landing can still be flown. */
+const ARRIVE_AGL_FT = 1000;
+
+/** Whether own ship can glide, in still air, to `field` and arrive over it
+ *  at pattern height -- from its GPS altitude over that field's own
+ *  elevation, not the nearest one's: a field on higher ground is nearer
+ *  the airplane's height. False where either height is not known. */
+export function reachesField(fix: Fix | null, field: { distance_nm: number; elevation_ft?: number | null }): boolean {
+  if (!fix || fix.altitudeFt == null || field.elevation_ft == null || (fix.speedKt ?? 0) < AIRBORNE_KT) return false;
+  const spare = fix.altitudeFt - field.elevation_ft - ARRIVE_AGL_FT;
+  return spare > 0 && (spare / 1000) * GLIDE_NM_PER_1000_FT >= field.distance_nm;
+}
+
 /** Own ship moving at flying speed: in the air, or about to be. */
 export function underway(fix: Fix | null): boolean {
   return (fix?.speedKt ?? 0) >= AIRBORNE_KT;

@@ -71,5 +71,7 @@ export function shortField(table: ShortField, pressureAltFt: number, tempC: numb
     roll += added;
     total += added;
   }
-  return { groundRollFt: Math.round(roll / 5) * 5, totalFt: Math.round(total / 5) * 5, caveats };
+  // Up to the next 5 ft, never down: a distance a runway is checked
+  // against reads long rather than short.
+  return { groundRollFt: Math.ceil(roll / 5) * 5, totalFt: Math.ceil(total / 5) * 5, caveats };
 }

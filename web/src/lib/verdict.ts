@@ -11,6 +11,11 @@
 import { create } from "zustand";
 import { worstOf, type Finding } from "./status";
 
+/** The reserve as the planner set it: 30 minutes by day, 45 at night
+ *  (14 CFR 91.151) or under IFR (91.167). Unsaid where it did not send
+ *  one, rather than a guess at 30, which is short at night. */
+const reserveWords = (min: number | null) => (min == null ? "reserve" : `${min} min reserve`);
+
 /** Where a finding is shown in full: a tab of the planning panel, and a
  *  section of it by its title. */
 export interface Where {
@@ -143,10 +148,10 @@ export function verdictItems(input: VerdictInput): VerdictItem[] {
     key: "fuel", label: "Fuel", tab: "preflight", section: "Fuel",
     ...(fuel.pending ? { finding: "pending", detail: "Working out the fuel…" }
       : fuel.marginGal != null && fuel.marginGal < 0
-        ? { finding: "stop", detail: `${one(-fuel.marginGal)} gal short of the fuel and its ${fuel.reserveMin ?? 30} min reserve (14 CFR ${fuel.ifr ? "91.167" : "91.151"})` }
+        ? { finding: "stop", detail: `${one(-fuel.marginGal)} gal short of the fuel and its ${reserveWords(fuel.reserveMin)} (14 CFR ${fuel.ifr ? "91.167" : "91.151"})` }
         : fuel.marginGal == null
           ? { finding: "unknown", detail: fuel.requiredGal != null ? `${one(fuel.requiredGal)} gal needed; the tanks' usable fuel not known` : "Not worked out" }
-          : { finding: "ok", detail: `Needs ${one(fuel.requiredGal ?? 0)} gal with taxi and a ${fuel.reserveMin ?? 30} min reserve; ${one(fuel.marginGal)} gal spare` }),
+          : { finding: "ok", detail: `Needs ${one(fuel.requiredGal ?? 0)} gal with taxi and a ${reserveWords(fuel.reserveMin)}; ${one(fuel.marginGal)} gal spare` }),
   });
 
   items.push({

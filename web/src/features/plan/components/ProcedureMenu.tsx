@@ -7,7 +7,7 @@ import {
 import type { ProcedureList, ProcedureSummary } from "../../../lib/api/types";
 import { runwayNumber } from "../../../lib/pattern";
 import { usePreferences } from "../../../lib/preferences";
-import type { PickedProcedure } from "../../../lib/procedures";
+import { transitionWords, type PickedProcedure } from "../../../lib/procedures";
 import { TEXT } from "../../../lib/text";
 
 type Kind = ProcedureSummary["kind"];
@@ -19,14 +19,6 @@ const TITLE: Record<Kind, string> = { approach: "Approach", arrival: "Arrival", 
 const SHORT: Record<Kind, string> = { approach: "Approach", arrival: "Arrive", departure: "Depart" };
 const ALL: Record<Kind, string> = { approach: "All approaches…", arrival: "All arrivals…", departure: "All departures…" };
 const NONE: Record<Kind, string> = { approach: "No approach", arrival: "No arrival", departure: "No departure" };
-
-/** A transition as a pilot picks it: an approach's from its initial fix
- *  or from vectors to final; an arrival's from where it starts, or its
- *  common route alone; a departure's to where it ends. */
-function transitionName(kind: Kind, transition: string | null): string {
-  if (transition === null) return kind === "approach" ? "Vectors to final" : "Common route";
-  return kind === "departure" ? `To ${transition}` : `From ${transition}`;
-}
 
 /** An approach's name in its runway's group, the runway said by the group:
  *  "ILS RWY 09L" is "ILS", "RNAV (GPS) Y RWY 10R" is "RNAV (GPS) Y". */
@@ -137,7 +129,7 @@ export default function ProcedureMenu({ ident, kind, list, loading, picked, labe
             {head(page.name)}
             {[null, ...page.procedure.transitions].map(t => (
               <DropdownMenuItem key={t ?? "-"} onSelect={() => onPick({ id: page.procedure.id, transition: t })} data-testid="procedure-menu-transition">
-                <Mark on={picked?.id === page.procedure.id && (picked.transition ?? null) === t} />{transitionName(kind, t)}
+                <Mark on={picked?.id === page.procedure.id && (picked.transition ?? null) === t} />{transitionWords(kind, t)}
               </DropdownMenuItem>
             ))}
           </>

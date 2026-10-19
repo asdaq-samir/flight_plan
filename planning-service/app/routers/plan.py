@@ -34,6 +34,7 @@ from ..planning import (
     cruise_altitude, flight_totals, flight_window, forecast_hour_for, join_selections, no_altitude, no_altitude_detail,
     own_altitude_caution, route_line, route_totals,
 )
+from .. import planning as planning_module
 from ..schemas import (
     AltitudeChoice,
     FlightRules,
@@ -786,17 +787,16 @@ def local_flight(q: Annotated[PlanQuery, Depends()], duration_min: LocalMinutes 
     plan, so its totals are the time aloft at the aeroplane's cruise burn,
     with the fuel check a route's has (the start and taxi allowance, the
     VFR reserve by day or by night, the usable fuel). Night is judged at
-    the field at both ends of the time aloft. A 422 for a route that is
-    not one airport to itself."""
+    the field at both ends of the time aloft, from now where no
+    departure time is given (planning.flight_totals). A 422 for a route
+    that is not one airport to itself."""
     r = load_route(q.dep, q.dest, q.stops)
     if r.dep_ident != r.dest_ident or len(r.idents) != 2:
         raise HTTPException(422, "A local flight leaves and lands at the same airport, with no stops.")
     profile = q.profile()
     fuel = round(profile["fuel_burn_gph"] * duration_min / 60, 1)
-    night = None
-    if q.depart is not None:
-        depart = q.depart if q.depart.tzinfo else q.depart.replace(tzinfo=timezone.utc)
-        night = sun.is_night(*r.start, depart) or sun.is_night(*r.start, depart + timedelta(minutes=duration_min))
+    depart = planning_module.now() if q.depart is None else q.depart if q.depart.tzinfo else q.depart.replace(tzinfo=timezone.utc)
+    night = sun.is_night(*r.start, depart) or sun.is_night(*r.start, depart + timedelta(minutes=duration_min))
     return Totals(
         distance_nm=0.0, ete_min=duration_min, fuel_gal=fuel, unflyable_legs=0, legs_without_wind=0,
         **navlog.fuel_plan(fuel, profile, night, q.rules),

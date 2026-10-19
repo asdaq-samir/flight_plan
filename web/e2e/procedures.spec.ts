@@ -131,7 +131,7 @@ test("a field's approach is picked on its own page with its transition, drawn on
   // Before the destination's pill, as it is flown into the field.
   const dest = sideDrawer(page).getByTestId("route-dest");
   expect((await chip.boundingBox())!.x).toBeLessThan((await dest.boundingBox())!.x);
-  await expect(chip).toHaveAccessibleName(/ILS RWY 09 via DLH/);
+  await expect(chip).toHaveAccessibleName(/ILS RWY 09, from DLH/);
   await chip.click();
   await expect(page.getByRole("heading", { name: "KDLH approaches" })).toBeVisible();
   await page.keyboard.press("Escape");
@@ -147,7 +147,7 @@ test("a field's approach is picked on its own page with its transition, drawn on
   await kdlh.locator('[data-testid=procedure-kind][data-kind=approach]').click();
   await page.getByTestId("procedure-menu-all").click();
   const ils = page.getByTestId("procedure-option").filter({ hasText: "ILS RWY 09" });
-  await expect(ils).toContainText("In the route, via DLH");
+  await expect(ils).toContainText("In the route, from DLH");
   await ils.click();
   await page.getByTestId("procedure-remove").click();
   await expect(page).not.toHaveURL(/[?&]procs=/);

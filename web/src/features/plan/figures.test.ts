@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Totals } from "../../lib/api/types";
-import { fitFigures, tripFigures } from "./figures";
+import { fitFigures, shortFlights, tripFigures } from "./figures";
 
 const totals = { distance_nm: 323.6, ete_min: 165, fuel_gal: 23.4, fuel_required_gal: 30.1, hops: [] } as unknown as Totals;
 const input = { totals, local: false, destination: "KLAS" };
@@ -68,9 +68,9 @@ describe("tripFigures", () => {
     const [, dist, ete, fuel] = tripFigures(est, true);
     expect(dist!.value).toBe("101");
     expect(ete!.value.startsWith("≈")).toBe(true);
-    // The trip's 10.0 gal, the 1.4 to start and taxi, and a day reserve's
-    // 5.0: 16.4, up to 17.
-    expect(fuel!.value).toBe("≈17");
+    // The trip's 10.0 gal, the 1.4 to start and taxi, and the 45 minutes'
+    // reserve's 7.5, the most the rules ask: 18.9, up to 19.
+    expect(fuel!.value).toBe("≈19");
   });
 
   it("writes an estimate's time as the nav log's own, its minutes rounded first", () => {
@@ -78,5 +78,19 @@ describe("tripFigures", () => {
     // rounded on their own read "1h 60m".
     const est = { totals: null, local: false, destination: "KDLH", estimate: { distanceNm: 199.33, cruiseTasKt: 100, fuelBurnGph: 10 } };
     expect(tripFigures(est, false)[2]!.value).toBe("≈2h 00m");
+  });
+});
+
+describe("shortFlights", () => {
+  it("names every flight of the route the tanks do not hold the fuel for, a later stop's too", () => {
+    const hop = (margin: number) => ({ ...totals, fuel_margin_gal: margin, hops: [] });
+    const route = { ...totals, hops: [
+      { departure: "C81", destination: "KMSN", totals: hop(12) },
+      { departure: "KMSN", destination: "KDLH", totals: hop(-3.5) },
+    ] } as unknown as Totals;
+    expect(shortFlights(route)).toEqual([{ name: "KMSN → KDLH", shortGal: 3.5 }]);
+    // And the fuel figure red for it, though the next landing's flight is not short.
+    expect(tripFigures({ ...input, totals: route }, false)[3]!.alert).toBe(true);
+    expect(shortFlights({ ...totals, fuel_margin_gal: 4 } as Totals)).toEqual([]);
   });
 });

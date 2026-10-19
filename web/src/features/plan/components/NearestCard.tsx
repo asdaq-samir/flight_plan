@@ -12,7 +12,7 @@ import { compassPoint } from "../../../lib/compass";
 import { nmAway, nmFigure } from "../../../lib/useAway";
 import { mhzText } from "../../../lib/frequencies";
 import { colourOf } from "../../../lib/map/flightCategory";
-import { glideRangeNm } from "../../../lib/map/glide";
+import { glideRangeNm, reachesField } from "../../../lib/map/glide";
 import { airportMarkSvg } from "../../../lib/map/airportMark";
 import { positionNow, useOwnShip } from "../../../lib/map/ownShip";
 import { nearestQuery } from "../../../lib/queryClient";
@@ -122,7 +122,7 @@ function NearestRow({ field, ahead, reach, onOpen }: {
   field: NearestAirport;
   /** The airplane's track, true, when it is moving; else null. */
   ahead: number | null;
-  /** Within a still-air glide. */
+  /** Within a still-air glide, arriving at pattern height (reachesField). */
   reach: boolean;
   onOpen: () => void;
 }) {
@@ -279,12 +279,15 @@ export default function NearestCard({ onOpen, from, onFrom, onBack }: {
             // What the list is from, where the card's name and line said it.
             // No footnote under it, at the owner's ask: the glide is a
             // still-air one, 1.5 nm for every 1,000 ft over the nearest
-            // field (the dashed ring); each row its longest runway and its
+            // field (the dashed ring); a row is within it where the
+            // airplane reaches that field at pattern height over its own
+            // elevation (reachesField), so a field on higher ground inside
+            // the ring may not be; each row its longest runway and its
             // listed tower, CTAF or UNICOM frequency.
             title={from ? `Near ${from.label}` : glide != null ? `Within a glide: about ${Math.round(glide)} nm` : "Nearest to you"}
           >
             {(data ?? []).map(a => (
-              <NearestRow key={a.ident} field={a} ahead={ahead} reach={glide != null && a.distance_nm <= glide} onOpen={() => onOpen(a.ident)} />
+              <NearestRow key={a.ident} field={a} ahead={ahead} reach={!from && reachesField(fix, a)} onOpen={() => onOpen(a.ident)} />
             ))}
             {/* Where they could not be found, said with Try again, where the
                 list stayed on "Looking…" (QueryState). */}

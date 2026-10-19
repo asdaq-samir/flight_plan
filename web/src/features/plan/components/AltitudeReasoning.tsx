@@ -292,7 +292,7 @@ export default function AltitudeReasoning({ nav, legs, plansAbove = false }: Pro
           {runsText && ` Leg by leg: ${runsText}. A shelf or a cloud caps only the legs under it.`}
           {cloudsLeaveNone && (
             <span className="text-destructive">
-              {" "}No altitude keeps 500 ft below the clouds forecast at {altFt(s.cloud_base_ft!)} ft near {s.cloud_station} on
+              {" "}No altitude keeps {(s.cloud_ceiling_ft ?? 0) >= 10000 ? "1,000" : "500"} ft below the clouds forecast at {altFt(s.cloud_base_ft!)} ft near {s.cloud_station} on
               {" "}{s.segments.some(seg => seg.cloud_clearance_kept) ? "some legs" : "the route"}: VFR is not possible there as
               forecast, and the altitudes there leave the clouds out.
             </span>

@@ -23,6 +23,23 @@ describe("personal minimums", () => {
     expect(bestCrosswind((briefing.airports.C81!).runways)).toEqual({ end: "36", kt: 13 });
   });
 
+  it("leaves a closed runway out, whatever its wind", () => {
+    const runways = [
+      { ends: "9/27", closed: true, wind: { end: "27", headwind_kt: 15, crosswind_kt: 0, gust_crosswind_kt: null } },
+      { ends: "18/36", closed: false, wind: { end: "36", headwind_kt: 0, crosswind_kt: -15, gust_crosswind_kt: null } },
+    ] as unknown as Briefing["airports"][string]["runways"];
+    expect(bestCrosswind(runways)).toEqual({ end: "36", kt: 15 });
+  });
+
+  it("takes a variable wind, which favours no runway, as all crosswind, gusts included", () => {
+    const runways = [{ ends: "18/36", closed: false, wind: null }] as unknown as Briefing["airports"][string]["runways"];
+    expect(bestCrosswind(runways, { speedKt: 15, gustKt: 25 })).toEqual({ end: null, kt: 25 });
+    expect(bestCrosswind(runways, { speedKt: 0, gustKt: null })).toBeNull();
+    const vrb = { ...briefing, metars: { C81: { wind_speed_kt: 15, wind_gust_kt: 25 } }, airports: { C81: { runways } } } as unknown as Briefing;
+    expect(underMinimums({ ...NO_MINIMUMS, crosswindKt: 15 }, vrb, ["C81"], "KDLH"))
+      .toEqual(["C81 variable wind 25 kt, which may all be crosswind, over your 15 kt"]);
+  });
+
   it("each airport's report, the destination's forecast and the route's, against each minimum", () => {
     expect(underMinimums({ ceilingFt: 3000, visibilitySm: 5, crosswindKt: 10, windKt: 20 }, briefing, ["C81", "KDLH"], "KDLH")).toEqual([
       "C81 ceiling 2,500 ft, under your 3,000 ft",

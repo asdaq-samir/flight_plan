@@ -34,11 +34,14 @@ export function nextLanding(totals: Totals | null, destination: string): { to: s
   return hop ? { to: hop.destination, totals: hop.totals } : { to: destination, totals };
 }
 
-/** The reserve an estimate's fuel carries before the nav log's own: the
- *  day VFR one, 30 minutes at the cruise burn (14 CFR 91.151), and the
- *  start, taxi and takeoff allowance of the Cessna 172S handbook, 1.4 gal
- *  -- vfr.navlog's DAY_RESERVE_MIN and DEFAULT_TAXI_FUEL_GAL. */
-const ESTIMATE_RESERVE_H = 0.5;
+/** The reserve an estimate's fuel carries before the nav log's own: 45
+ *  minutes at the cruise burn, the most the rules ask -- night VFR (14 CFR
+ *  91.151(a)(2)) and IFR (91.167(a)(3)) -- as whether the flight is either is
+ *  not known yet, so the estimate is never short (the audit's finding: the
+ *  day's 30 minutes made it low at night and under IFR); and the start,
+ *  taxi and takeoff allowance of the Cessna 172S handbook, 1.4 gal --
+ *  vfr.navlog's NIGHT_RESERVE_MIN and DEFAULT_TAXI_FUEL_GAL. */
+const ESTIMATE_RESERVE_H = 0.75;
 const ESTIMATE_TAXI_GAL = 1.4;
 
 /** The strip's figures, at the owner's ask ("To, Dist, ETE, Fuel. To is
@@ -72,10 +75,11 @@ export function tripFigures({ totals, estimate, local, destination, depart = "",
   const time = minutes === null ? "—" : whole ? decimalHours(minutes) : enRoute(minutes);
   const required = landing.totals?.fuel_required_gal ?? null;
   const fuel = required == null ? null : whole ? `${Math.ceil(required)}` : one(required);
-  // Red where the tanks do not hold it, what FPL's fuel line under the
-  // route said before the owner took it out ("Remove fuel required at
-  // the bottom of arrival"): the figure says it now, its breakdown how short.
-  const short = (landing.totals?.fuel_margin_gal ?? 0) < 0;
+  // Red where the tanks do not hold it on any flight of the route -- a
+  // later stop's included, which the per-flight lines under the route
+  // caught before the owner took them out ("Remove fuel required at the
+  // bottom of arrival"): the figure says it now, its breakdown which.
+  const short = shortFlights(totals).length > 0;
   const fuelFigure = { name: "Fuel", value: fuel ?? "—", unit: fuel === null ? undefined : "gal", testId: fuel === null ? undefined : "navlog-fuel", alert: short };
   const to = { name: "To", value: next.to || "—", testId: "navlog-to" };
   if (local) return [to, { name: "Aloft", value: time, testId: "navlog-ete" }, fuelFigure];
@@ -85,6 +89,16 @@ export function tripFigures({ totals, estimate, local, destination, depart = "",
     arrival ? { name: "ETA", value: leg ? etaAt(from, minutes) : "—", testId: "navlog-eta" } : { name: "ETE", value: time, testId: "navlog-ete" },
     fuelFigure,
   ];
+}
+
+/** The flights of a route the tanks do not hold the fuel for: each hop
+ *  between two landings, or the whole route with no stops -- "C81 → KMSN". */
+export function shortFlights(totals: Totals | null): { name: string; shortGal: number }[] {
+  if (!totals) return [];
+  const flights = totals.hops.length > 0
+    ? totals.hops.map(h => ({ name: `${h.departure} → ${h.destination}`, margin: h.totals.fuel_margin_gal }))
+    : [{ name: "", margin: totals.fuel_margin_gal }];
+  return flights.flatMap(f => (f.margin != null && f.margin < 0 ? [{ name: f.name, shortGal: -f.margin }] : []));
 }
 
 /** A time en route as the strip writes it: "15m" under an hour, where

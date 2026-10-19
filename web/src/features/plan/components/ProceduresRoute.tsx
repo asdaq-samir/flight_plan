@@ -6,15 +6,14 @@ import { ListGroup, ListRow } from "../../../components/GroupedList";
 import BackButton from "../../../components/BackButton";
 import CloseButton from "../../../components/CloseButton";
 import { Button } from "../../../components/ui/button";
-import { Popover, PopoverContent, PopoverTrigger } from "../../../components/ui/popover";
 import { ToggleGroup, ToggleGroupItem } from "../../../components/ui/toggle-group";
-import { ResponsivePopover, ResponsivePopoverAnchor, ResponsivePopoverContent } from "../../../components/ResponsivePopover";
+import { ResponsivePopover, ResponsivePopoverAnchor, ResponsivePopoverContent, ResponsivePopoverTrigger } from "../../../components/ResponsivePopover";
 import { api } from "../../../lib/api/client";
 import type { AircraftProfile, ProcedureDrawing, ProcedureList, ProcedureSummary, Runway } from "../../../lib/api/types";
 import { distanceNm } from "../../../lib/geo";
 import { runwayNumber, windPick, type RunwayEnd, type WindPick } from "../../../lib/pattern";
 import { airportQuery, plateQuery } from "../../../lib/queryClient";
-import { approachRunway, sameField, type PickedProcedure } from "../../../lib/procedures";
+import { approachRunway, sameField, transitionWords, type PickedProcedure } from "../../../lib/procedures";
 import { NO_PATTERN, trafficPattern } from "../../../lib/trafficPattern";
 import { TEXT } from "../../../lib/text";
 import { altFt, bearing, grouped } from "../../../lib/units";
@@ -174,14 +173,19 @@ export default function ProceduresRoute({
     } : null);
   };
   // The wind a field reports, else the nearest report's, as the METAR
-  // gives it (true, FAA Order JO 7900.5), for its info's trigger.
+  // gives it: from true north (FAA Order JO 7900.5), marked "T" beside the
+  // runways' magnetic numbers, where a tower's and an ATIS's winds are
+  // magnetic (AIM 4-1-13) -- the audit's finding.
   const reportedOf = (ident: string): Reported | null => {
     const card = cards[airports.findIndex(a => a.ident === ident)]?.data;
     const m = card?.metar ?? card?.nearby_metar?.metar;
     if (!m || m.wind_speed_kt == null) return null;
     if (!m.wind_speed_kt) return "calm";
     const kt = Math.round(m.wind_speed_kt), gust = m.wind_gust_kt ? Math.round(m.wind_gust_kt) : null;
-    return { dir: m.wind_dir_true_deg == null ? "VRB" : bearing(m.wind_dir_true_deg), speed: gust ? `${kt}G${gust}` : `${kt}`, spoken: `${m.wind_dir_true_deg == null ? "variable" : Math.round(m.wind_dir_true_deg)} at ${kt} knots${gust ? `, gusts ${gust}` : ""}` };
+    return {
+      dir: m.wind_dir_true_deg == null ? "VRB" : `${bearing(m.wind_dir_true_deg)}T`, speed: gust ? `${kt}G${gust}` : `${kt}`,
+      spoken: `${m.wind_dir_true_deg == null ? "variable" : `${Math.round(m.wind_dir_true_deg)} true`} at ${kt} knots${gust ? `, gusts ${gust}` : ""}`,
+    };
   };
   const listOf = (ident: string): ProcedureList | undefined => lists[airports.findIndex(a => a.ident === ident)]?.data;
   // Whether a field has procedures of a kind: by its procedures once they
@@ -228,13 +232,16 @@ export default function ProceduresRoute({
   // Once a field, so a runway picked and taken back is not picked again
   // under the pilot's finger.
   const preselected = useRef(new Set<string>());
+  // A field listed twice (a round trip) picks its landing's runway once.
+  const preselectedLand = (a: ProcedureAirport) => airports.findIndex(b => sameField(b.ident, a.ident)) !== airports.indexOf(a);
   const intoWind = airports.flatMap(a => {
     const wind = windOf(a.ident);
     if (!wind || wind.calm) return [];
     return [
-      ...(picked.has(a.ident) || landingOf(a.ident) ? [] : [`land:${a.ident}:${wind.ident}`]),
+      ...(picked.has(a.ident) || landingOf(a.ident) || preselectedLand(a) ? [] : [`land:${a.ident}:${wind.ident}`]),
       // A stop's runway to leave from, into the wind as its landing's.
-      ...(a.role !== "Stop" || takeoffs.has(a.ident) ? [] : [`takeoff:${a.ident}:${wind.ident}`]),
+      ...((a.role !== "Stop" && !(a.role === "Departure" && airports.some(b => b !== a && b.role === "Destination" && sameField(b.ident, a.ident))))
+        || takeoffs.has(a.ident) ? [] : [`takeoff:${a.ident}:${wind.ident}`]),
     ];
   }).join(",");
   useEffect(() => {
@@ -303,7 +310,13 @@ export default function ProceduresRoute({
       />
     );
     const landingChips = chips("landing", chosenAt(a.ident), landingOf(a.ident), patternNote(a, chosenAt(a.ident), landingOf(a.ident)), end => onPick(a.ident, end ?? NO_PATTERN));
-    const departChips = chips("takeoff", chosenAt(a.ident), null, patternNote(a, chosenAt(a.ident), null), end => onPick(a.ident, end ?? NO_PATTERN));
+    // A round trip's departure is left from its own runway (`takeoff`), the
+    // field's pattern the landing's, as a stop's are.
+    const roundTrip = a.role === "Departure" && airports.some(b => b !== a && b.role === "Destination" && sameField(b.ident, a.ident));
+    const departChips = roundTrip
+      ? chips("takeoff", takeoffAt(a.ident), null, takeoffAt(a.ident) ? `Runway ${takeoffAt(a.ident)}` : null,
+        end => onTakeoff(a.ident, end ?? NO_PATTERN), `${a.ident} takeoff runway`)
+      : chips("takeoff", chosenAt(a.ident), null, patternNote(a, chosenAt(a.ident), null), end => onPick(a.ident, end ?? NO_PATTERN));
     const takeoffChips = chips("takeoff", takeoffAt(a.ident), null, takeoffAt(a.ident) ? `Runway ${takeoffAt(a.ident)}` : null,
       end => onTakeoff(a.ident, end ?? NO_PATTERN), `${a.ident} takeoff runway`);
     if (a.role === "Departure") return step("Depart", (["departure"] as Kind[]).filter(has), departChips, last, mark, time);
@@ -322,14 +335,16 @@ export default function ProceduresRoute({
   // the fixes flown through between them, the checkpoints and the tops of
   // climb and descent left to the nav log. Before then, the fields alone.
   const steps: ReactNode[] = [];
-  const shown = new Set<string>();
+  const shown = new Set<ProcedureAirport>();
   const points = rows.filter(r => r.kind !== "checkpoint" && r.kind !== "toc" && r.kind !== "tod");
   points.forEach((row, i) => {
     const last = i === points.length - 1;
+    // By the field, not its spelling: a stop typed UES comes back from the
+    // planner as KUES. A round trip's field twice, its departure first.
     const field = "airport" in row && row.airport.kind !== "fix"
-      ? airports.find(a => a.ident === row.airport.ident && !shown.has(a.ident)) : undefined;
+      ? airports.find(a => sameField(a.ident, row.airport.ident) && !shown.has(a)) : undefined;
     if (field) {
-      shown.add(field.ident);
+      shown.add(field);
       steps.push(fieldStep(field, row, last));
       return;
     }
@@ -617,8 +632,10 @@ function FieldInfo({ ident, note, wind, reported, fit, kind, demonstratedKt, all
     ? `${kind === "takeoff" ? "Takeoff" : "Landing"} over 50 ft: ${grouped(fit.neededFt)} ft of ${grouped(fit.lengthFt)}` : null;
   return (
     <>
-      <Popover>
-        <PopoverTrigger asChild>
+      {/* On a phone a sheet, as the app's other panels over the map are
+          (ResponsivePopover); beside the trigger from md up. */}
+      <ResponsivePopover>
+        <ResponsivePopoverTrigger asChild>
           {/* The field's wind itself, in the tint as what is tapped, its
               direction over its speed, at the owner's pick ("2 · The wind
               itself"); the bare (i) with none to say. Its 44 points a
@@ -640,8 +657,8 @@ function FieldInfo({ ident, note, wind, reported, fit, kind, demonstratedKt, all
               <Info className="size-5" aria-hidden />
             )}
           </button>
-        </PopoverTrigger>
-        <PopoverContent align="start" className="w-auto max-w-[min(20rem,calc(100vw-2rem))] space-y-2 p-3" data-testid="field-info-content">
+        </ResponsivePopoverTrigger>
+        <ResponsivePopoverContent title={`${ident} runway and wind`} align="start" className="w-auto max-w-[min(20rem,calc(100vw-2rem))] space-y-2 p-3" data-testid="field-info-content">
           {note && <p className={cn("font-semibold", TEXT.detail)} data-testid="procedure-landing">{note}</p>}
           {distance && (
             <p className={cn(TEXT.note, fit?.short ? "font-semibold text-destructive-ink" : fit?.close ? "font-semibold" : "text-muted-foreground")} data-testid="field-info-distance">
@@ -655,8 +672,8 @@ function FieldInfo({ ident, note, wind, reported, fit, kind, demonstratedKt, all
             <p className={cn("font-semibold text-destructive-ink", TEXT.note)}>Every runway&apos;s crosswind is past the demonstrated {demonstratedKt} kt</p>
           )}
           {wind && <WindComponents wind={wind} />}
-        </PopoverContent>
-      </Popover>
+        </ResponsivePopoverContent>
+      </ResponsivePopover>
       {/* A hairline between the wind and the runways. */}
       <span aria-hidden="true" className="h-[26px] w-px shrink-0 bg-[rgba(60,60,67,0.22)] dark:bg-border" />
     </>
@@ -746,7 +763,7 @@ function ProcedurePicker({ kind, list, failed, chosen, stale, wind, onOpen }: {
         const mine = chosen?.id === p.id ? chosen : null;
         const windward = kind === "approach" && !!p.runway && !!wind && !wind.calm && runwayNumber(p.runway) === wind.ident;
         const said = [
-          mine ? `In the route${mine.transition ? `, via ${mine.transition}` : kind === "approach" ? ", from vectors" : ""}` : null,
+          mine ? `In the route, ${transitionWords(kind, mine.transition, true)}` : null,
           windward ? "Into the wind" : null,
           kind === "approach" ? null : runways(p),
         ].filter(Boolean).join(" · ");
@@ -807,10 +824,10 @@ function ProcedurePage({ kind, ident, procedure, chosen, stale, onAdd, onRemove,
           <h4 className={cn("px-1 font-semibold", TEXT.detail)}>Transition</h4>
           <Chips label="Transition" value={transition ?? NONE} onChange={v => setTransition(v === NONE ? null : v)}>
             <ToggleGroupItem value={NONE} className={CHIP} data-testid="procedure-transition">
-              {kind === "approach" ? "Vectors" : "None"}
+              {transitionWords(kind, null)}
             </ToggleGroupItem>
             {procedure.transitions.map(t => (
-              <ToggleGroupItem key={t} value={t} className={CHIP} data-testid="procedure-transition">{t}</ToggleGroupItem>
+              <ToggleGroupItem key={t} value={t} className={CHIP} data-testid="procedure-transition">{transitionWords(kind, t)}</ToggleGroupItem>
             ))}
           </Chips>
         </div>

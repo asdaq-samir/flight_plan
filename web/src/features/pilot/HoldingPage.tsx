@@ -10,16 +10,19 @@ import { TEXT } from "../../lib/text";
 
 const ENTRY_NAME: Record<Entry, string> = { direct: "Direct", teardrop: "Teardrop", parallel: "Parallel" };
 
-/** AIM 5-3-8's words for each entry, for the turns given. */
-function entrySteps(entry: Entry, inbound: number, turns: Turns): string {
+/** AIM 5-3-8's words for each entry, for the turns given: the outbound
+ *  minute is a minute and a half above 14,000 ft MSL (AIM 5-3-8, as
+ *  lib/holding times the legs). */
+function entrySteps(entry: Entry, inbound: number, turns: Turns, altitudeFt: number): string {
+  const leg = altitudeFt > 14_000 ? "a minute and a half" : "one minute";
   const outbound = (inbound + 180) % 360;
   const away = turns === "right" ? "left" : "right";
   if (entry === "direct") return `Fly to the fix and turn ${turns} to follow the pattern: outbound on ${bearing(outbound)}.`;
   if (entry === "teardrop") {
     const tear = turns === "right" ? outbound - 30 : outbound + 30;
-    return `Fly to the fix, then turn to ${bearing(tear)}, 30° into the holding side, for one minute; turn ${turns} to intercept the inbound course, ${bearing(inbound)}.`;
+    return `Fly to the fix, then turn to ${bearing(tear)}, 30° into the holding side, for ${leg}; turn ${turns} to intercept the inbound course, ${bearing(inbound)}.`;
   }
-  return `At the fix, turn to ${bearing(outbound)}, parallel to the holding course on the non-holding side, for one minute; then turn ${away}, toward the holding side, through more than 180° to intercept the inbound course or return to the fix.`;
+  return `At the fix, turn to ${bearing(outbound)}, parallel to the holding course on the non-holding side, for ${leg}; then turn ${away}, toward the holding side, through more than 180° to intercept the inbound course or return to the fix.`;
 }
 
 /** A point `r` from the fix at a bearing `deg` measured on the page, up
@@ -144,7 +147,7 @@ export default function HoldingPage() {
               70° line on the holding side; within 5° of a line between two,
               either entry is allowed, said in a row of its own. */}
           <ListGroup>
-            <ListRow title={<span className="font-semibold">{ENTRY_NAME[found.entry]} entry</span>} description={entrySteps(found.entry, i, turns)} data-testid="hold-entry" />
+            <ListRow title={<span className="font-semibold">{ENTRY_NAME[found.entry]} entry</span>} description={entrySteps(found.entry, i, turns, num(altitude))} data-testid="hold-entry" />
             {found.either && (
               <ListRow
                 title={`Or ${ENTRY_NAME[found.either].toLowerCase()}`} description="Within 5° of the line between the two"

@@ -11780,7 +11780,7 @@
     },
     "/api/local-flight": {
       "get": {
-        "description": "A flight that leaves and lands at the same airport -- the pattern,\npractice approaches, an hour's sightseeing: no course and no legs to\nplan, so its totals are the time aloft at the aeroplane's cruise burn,\nwith the fuel check a route's has (the start and taxi allowance, the\nVFR reserve by day or by night, the usable fuel). Night is judged at\nthe field at both ends of the time aloft. A 422 for a route that is\nnot one airport to itself.",
+        "description": "A flight that leaves and lands at the same airport -- the pattern,\npractice approaches, an hour's sightseeing: no course and no legs to\nplan, so its totals are the time aloft at the aeroplane's cruise burn,\nwith the fuel check a route's has (the start and taxi allowance, the\nVFR reserve by day or by night, the usable fuel). Night is judged at\nthe field at both ends of the time aloft, from now where no\ndeparture time is given (planning.flight_totals). A 422 for a route\nthat is not one airport to itself.",
         "operationId": "local_flight_api_local_flight_get",
         "parameters": [
           {

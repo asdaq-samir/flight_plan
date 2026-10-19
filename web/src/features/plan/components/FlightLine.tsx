@@ -5,7 +5,8 @@ import { GROUP_HEADING, GROW_FIGURE, TEXT } from "../../../lib/text";
 import { usePanelDragging } from "../../../components/mapChrome";
 import { useRoom } from "../../../lib/useRoom";
 import { ResponsivePopover, ResponsivePopoverContent, ResponsivePopoverTrigger } from "../../../components/ResponsivePopover";
-import { fitFigures, nextLanding, tripFigures } from "../figures";
+import { TriangleAlert } from "lucide-react";
+import { fitFigures, nextLanding, shortFlights, tripFigures } from "../figures";
 import FuelBreakdown from "./FuelBreakdown";
 
 /**
@@ -158,15 +159,17 @@ export default function FlightLine({ totals, estimate, destination, depart, loca
                         not grown to make it (index.css's after). */}
                     <button
                       type="button" data-testid="fuel-breakdown-open" data-alert={f.alert || undefined}
-                      aria-label={`Fuel required, ${f.value} gallons${f.alert ? ", more than the tanks hold" : ""}: what it is made of`}
-                      className={cn("relative after:absolute after:-inset-x-2 after:-inset-y-3 after:content-['']", f.alert ? "text-destructive" : "text-tint")}
+                      aria-label={`Fuel required, ${f.value} gallons${f.alert ? ", more than the tanks hold on a flight of the route" : ""}: what it is made of`}
+                      className={cn("relative inline-flex items-baseline after:absolute after:-inset-x-2 after:-inset-y-3 after:content-['']", f.alert ? "text-destructive" : "text-tint")}
                     >
+                      {/* Short said by a mark too, not the red alone (WCAG 1.4.1). */}
+                      {f.alert && <TriangleAlert className="mr-0.5 size-[0.8em] self-center" aria-hidden data-testid="fuel-short-mark" />}
                       <span style={sized(fitting?.px.value)} data-fitted={fitted}>{f.value}</span>
                       {f.unit && <span className={cn(unitType, "font-normal")} style={sized(fitting?.px.unit)} data-fitted={fitted}> {f.unit}</span>}
                     </button>
                   </ResponsivePopoverTrigger>
                   <ResponsivePopoverContent title={`Fuel to ${breakdown.to}`} className="w-72 p-3" side="top" align="end">
-                    <FuelBreakdown totals={breakdown.totals!} />
+                    <FuelBreakdown totals={breakdown.totals!} short={shortFlights(totals)} />
                   </ResponsivePopoverContent>
                 </ResponsivePopover>
               ) : f.name === "To" && stops && !local ? (
