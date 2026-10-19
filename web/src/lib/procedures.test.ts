@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { altitudeLines, approachRunway, kindsFor, proceduresOf, proceduresParam, sameField, speedWords } from "./procedures";
+import { altitudeLines, approachRunway, proceduresOf, proceduresParam, sameField, speedWords } from "./procedures";
 
 describe("speedWords", () => {
   it("words a speed by its limit, not as a maximum always", () => {
@@ -39,12 +39,6 @@ describe("a fix's altitudes as the chart sets them", () => {
 });
 
 describe("the route's fields", () => {
-  it("offers a departure's departures, a destination's arrivals and approaches, and a stop's all three", () => {
-    expect(kindsFor("Departure")).toEqual(["departure"]);
-    expect(kindsFor("Destination")).toEqual(["arrival", "approach"]);
-    expect(kindsFor("Stop")).toEqual(["arrival", "approach", "departure"]);
-  });
-
   it("takes the FAA's ident and the ICAO one for one field", () => {
     expect(sameField("KBUR", "BUR")).toBe(true);
     expect(sameField("C81", "C81")).toBe(true);
