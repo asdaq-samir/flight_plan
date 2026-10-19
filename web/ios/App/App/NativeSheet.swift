@@ -218,6 +218,15 @@ final class SheetContainerViewController: UIViewController, UITabBarDelegate {
         tabBar.scrollEdgeAppearance = appearance
         tabBar.delegate = self
         tabBar.translatesAutoresizingMaskIntoConstraints = false
+        // Each tab's icon over its name, as a phone's tab bar is: the sheet
+        // gave the bar a regular width, and it laid each tab's icon and
+        // name side by side, the name under the icon of the next (the
+        // recordings' frames).
+        tabBar.itemPositioning = .fill
+        if #available(iOS 17.0, *) {
+            tabBar.traitOverrides.horizontalSizeClass = .compact
+            tabBar.traitOverrides.verticalSizeClass = .regular
+        }
         head.addSubview(tabBar)
 
         cardBar.translatesAutoresizingMaskIntoConstraints = false
