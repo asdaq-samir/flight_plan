@@ -37,7 +37,6 @@ import { AirportRecentsPage, RecentAirportTiles, SearchField, SearchResults } fr
 import { chipColourOf } from "../../lib/map/flightCategory";
 import { FavoriteStrip, FavoritesList } from "../../components/Favorites";
 import FlightLine from "./components/FlightLine";
-import AirspaceCard from "./components/AirspaceCard";
 import PlaceCard from "./components/PlaceCard";
 import ProceduresRoute, { type ProcedureAirport, type ProceduresAt } from "./components/ProceduresRoute";
 import { NO_PATTERN, patternsOf, patternsParam, trafficPattern, type TrafficPattern } from "../../lib/trafficPattern";
@@ -57,8 +56,6 @@ import FootPager from "./components/FootPager";
 import { dryRunOf, type DryRun } from "./components/navlog/dryRun";
 import { DryRunControls, DryRunFigures } from "./components/DryRunPanel";
 import { DRY_RUN, clearPastFlight, usePastFlight } from "../../lib/map/pastFlight";
-import FlightCard from "./components/FlightCard";
-import PastFlightCard from "./components/PastFlightCard";
 import type { RouteParts, RouteProcedure } from "./components/RouteBox";
 import type { PointAltitude } from "./components/PointAltitudeDialog";
 import { navlogQuery, usePlan } from "./hooks/usePlan";
@@ -122,6 +119,11 @@ const BriefNarrative = fromRoutePanel("BriefNarrative");
 const RouteProblem = fromRoutePanel("RouteProblem");
 const LocalDuration = fromRoutePanel("LocalDuration");
 const BriefCard = fromRoutePanel("BriefCard");
+// The cards for an airplane or a point held on the map are drawn only at a
+// tap, so they ride with the route panel rather than the first load.
+const AirspaceCard = fromRoutePanel("AirspaceCard");
+const FlightCard = fromRoutePanel("FlightCard");
+const PastFlightCard = fromRoutePanel("PastFlightCard");
 /** A round button's room while its code comes (routePanel). */
 
 function altitudeChoiceOf(value: string | null): AltitudeChoice {
@@ -435,12 +437,12 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     } else closeCard(() => selectPlace(null));
   }, [flight, selectPlace, setPanel, closeCard]);
   const flightCard = flight && past
-    ? <PastFlightCard key={`${flight}-${past}`} hex={flight} id={past} onClose={() => selectPast(null)} />
-    : flight ? <FlightCard
+    ? <Suspense fallback={null}><PastFlightCard key={`${flight}-${past}`} hex={flight} id={past} onClose={() => selectPast(null)} /></Suspense>
+    : flight ? <Suspense fallback={null}><FlightCard
       key={flight} hex={flight} onClose={() => closeCard(() => selectFlight(null))} onOpenPast={selectPast}
       onOpenAirport={openAirportOverFlight}
       onExpand={() => setPanel("full")} onLower={() => setPanel("half")}
-    /> : null;
+    /></Suspense> : null;
   // The ident as a string of its own (`${…}`): the route's object's field
   // handed straight to a function counted, to the React Compiler, as the
   // object handed over and maybe changed, and it gave up every memo after.
@@ -1664,7 +1666,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           // tabs' Back there has a card to close.
           placeCard(false)
         ) : heldPoint ? (
-          <AirspaceCard key={`${heldPoint.lat},${heldPoint.lon}`} point={heldPoint} onClose={() => closeCard(() => selectPlace(null))} />
+          <Suspense fallback={null}><AirspaceCard key={`${heldPoint.lat},${heldPoint.lon}`} point={heldPoint} onClose={() => closeCard(() => selectPlace(null))} /></Suspense>
         ) : tab === "aircraft" ? (
           flightCard ?? (aircraftOpen && (aircraftFavoritesOpen && !aircraftTyped ? (
             <TabPage testId="aircraft-favorites">
