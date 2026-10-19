@@ -10,14 +10,15 @@ import { Popover, PopoverContent, PopoverTrigger } from "../../../components/ui/
 import { ToggleGroup, ToggleGroupItem } from "../../../components/ui/toggle-group";
 import { ResponsivePopover, ResponsivePopoverAnchor, ResponsivePopoverContent } from "../../../components/ResponsivePopover";
 import { api } from "../../../lib/api/client";
-import type { ProcedureDrawing, ProcedureList, ProcedureSummary, Runway } from "../../../lib/api/types";
+import type { AircraftProfile, ProcedureDrawing, ProcedureList, ProcedureSummary, Runway } from "../../../lib/api/types";
 import { distanceNm } from "../../../lib/geo";
-import { runwayNumber, windPick, type WindPick } from "../../../lib/pattern";
+import { runwayNumber, windPick, type RunwayEnd, type WindPick } from "../../../lib/pattern";
 import { airportQuery, plateQuery } from "../../../lib/queryClient";
 import { approachRunway, sameField, type PickedProcedure } from "../../../lib/procedures";
 import { NO_PATTERN, trafficPattern } from "../../../lib/trafficPattern";
 import { TEXT } from "../../../lib/text";
-import { altFt, bearing } from "../../../lib/units";
+import { altFt, bearing, grouped } from "../../../lib/units";
+import { endFit, type EndFit } from "../../../lib/runwayFit";
 import { etaAt } from "../format";
 import { PointMark } from "./navlog/PointMark";
 import ProcedureMenu from "./ProcedureMenu";
@@ -46,6 +47,16 @@ export interface ProcedureAirport {
   role: "Departure" | "Stop" | "Destination";
   runways: Runway[] | null;
   patternAltitudeFt: number | null;
+  /** The field's elevation, for its runways' distances (runwayFit). */
+  elevationFt: number | null;
+}
+
+/** What a runway's fit is worked from (lib/runwayFit): the airplane's
+ *  POH figures and its takeoff and landing weights (useLoad). */
+export interface FitInputs {
+  aircraft: AircraftProfile;
+  takeoffLb: number | null;
+  landingLb: number | null;
 }
 
 /** Where the procedures' sheet is open: one kind of a field's. */
@@ -76,7 +87,7 @@ export type ProceduresAt = { ident: string; kind: Kind } | null;
  * head, the close's twin, at the owner's ask.
  */
 export default function ProceduresRoute({
-  airports, rows, depart, weather, picked, onPick, onPreselect, takeoffs, onTakeoff, onCharts, chartsDisabled, procedures, inRoute, onProcedures, onPreview, at, onAt,
+  airports, rows, depart, weather, picked, onPick, onPreselect, takeoffs, onTakeoff, fit = null, onCharts, chartsDisabled, procedures, inRoute, onProcedures, onPreview, at, onAt,
 }: {
   airports: ProcedureAirport[];
   /** The route's rows as the nav log has them (navLogRows), for its
@@ -97,6 +108,9 @@ export default function ProceduresRoute({
    *  on ("KMSN:36", the `takeoff` address), and its pick. */
   takeoffs: Map<string, string>;
   onTakeoff: (ident: string, end: string | null) => void;
+  /** The airplane's figures and weights its runways' fit is worked from;
+   *  none, no fit marked. */
+  fit?: FitInputs | null;
   /** The destination's approach charts, in its card. */
   onCharts: () => void;
   chartsDisabled: boolean;
@@ -264,20 +278,35 @@ export default function ProceduresRoute({
         {chips}
       </Step>
     );
-    const landingChips = (
+    // Each runway end's fit today (lib/runwayFit): its crosswind against the
+    // airplane's demonstrated, and its length against the distance needed,
+    // marked on its chip and said in the field's info, at the owner's ask.
+    const card = cards[i]?.data;
+    const reportedWind = card?.metar ?? card?.nearby_metar?.metar ?? null;
+    const fitOf = (kind: "takeoff" | "landing") => (runway: Runway, end: RunwayEnd) => (fit ? endFit({
+      aircraft: fit.aircraft, runway, end, kind,
+      wind: reportedWind && { dirTrueDeg: reportedWind.wind_dir_true_deg, speedKt: reportedWind.wind_speed_kt, gustKt: reportedWind.wind_gust_kt },
+      elevationFt: a.elevationFt ?? 0, altimeterInHg: card?.metar?.altimeter_in_hg, tempC: card?.metar?.temp_c,
+      weightLb: kind === "takeoff" ? fit.takeoffLb : fit.landingLb,
+    }) : null);
+    const ends = (a.runways ?? []).filter(r => !r.closed).flatMap(r => (r.runway_ends ?? []).filter(e => e.heading_true_deg != null).map(e => ({ runway: r, end: e })));
+    const chosenFit = (chosen: string | null, kind: "takeoff" | "landing") => {
+      const e = ends.find(x => runwayNumber(x.end.ident) === chosen);
+      return e ? fitOf(kind)(e.runway, e.end) : null;
+    };
+    // Every runway's crosswind past the demonstrated: the wind said in red.
+    const allOver = !!fit && ends.length > 0 && ends.every(e => fitOf("landing")(e.runway, e.end)?.crosswindOver);
+    const chips = (kind: "takeoff" | "landing", chosen: string | null, landing: Landing | null, note: string | null, pick: (end: string | null) => void, label?: string) => (
       <PatternChips
-        airport={a} wind={wind} chosen={chosenAt(a.ident)} landing={landingOf(a.ident)} onPick={end => onPick(a.ident, end ?? NO_PATTERN)}
-        info={<FieldInfo ident={a.ident} note={patternNote(a, chosenAt(a.ident), landingOf(a.ident))} wind={wind} reported={reportedOf(a.ident)} />}
+        airport={a} wind={wind} chosen={chosen} landing={landing} label={label} onPick={pick} fitOf={fitOf(kind)}
+        info={<FieldInfo ident={a.ident} note={note} wind={wind} reported={reportedOf(a.ident)} fit={chosenFit(chosen, kind)} kind={kind} demonstratedKt={fit?.aircraft.crosswind?.demonstrated_kt ?? null} allOver={allOver} />}
       />
     );
-    const takeoffChips = (
-      <PatternChips
-        airport={a} wind={wind} chosen={takeoffAt(a.ident)} landing={null} label={`${a.ident} takeoff runway`}
-        onPick={end => onTakeoff(a.ident, end ?? NO_PATTERN)}
-        info={<FieldInfo ident={a.ident} note={takeoffAt(a.ident) ? `Runway ${takeoffAt(a.ident)}` : null} wind={wind} reported={reportedOf(a.ident)} />}
-      />
-    );
-    if (a.role === "Departure") return step("Depart", (["departure"] as Kind[]).filter(has), landingChips, last, mark, time);
+    const landingChips = chips("landing", chosenAt(a.ident), landingOf(a.ident), patternNote(a, chosenAt(a.ident), landingOf(a.ident)), end => onPick(a.ident, end ?? NO_PATTERN));
+    const departChips = chips("takeoff", chosenAt(a.ident), null, patternNote(a, chosenAt(a.ident), null), end => onPick(a.ident, end ?? NO_PATTERN));
+    const takeoffChips = chips("takeoff", takeoffAt(a.ident), null, takeoffAt(a.ident) ? `Runway ${takeoffAt(a.ident)}` : null,
+      end => onTakeoff(a.ident, end ?? NO_PATTERN), `${a.ident} takeoff runway`);
+    if (a.role === "Departure") return step("Depart", (["departure"] as Kind[]).filter(has), departChips, last, mark, time);
     if (a.role === "Destination") return step("Arrive", (["arrival", "approach"] as Kind[]).filter(has), landingChips, last, mark, time);
     // A stop is landed at and left again, each with its own runway, at the
     // owner's ask ("If a stop is an airport then it should have arrival
@@ -486,8 +515,10 @@ interface Landing {
   name: string;
 }
 
-function PatternChips({ airport: a, wind, chosen, landing, info, label, onPick }: {
+function PatternChips({ airport: a, wind, chosen, landing, info, label, fitOf, onPick }: {
   airport: ProcedureAirport;
+  /** Each end's fit today, marked on its chip (lib/runwayFit). */
+  fitOf: (runway: Runway, end: RunwayEnd) => EndFit | null;
   /** The chips' name to a screen reader, where not the pattern's. */
   label?: string;
   /** At the chips' start: the field's info (FieldInfo). */
@@ -529,11 +560,16 @@ function PatternChips({ airport: a, wind, chosen, landing, info, label, onPick }
             const drawn = trafficPattern(a.ident, runway, end.ident, a.patternAltitudeFt) !== null;
             const windward = into === id;
             const circleNa = !allowed(id);
+            // Too short in red, a crosswind past the demonstrated or a
+            // length inside the margin in amber: a ring, the chip not grown.
+            const fitted = fitOf(runway, end);
+            const ring = fitted?.short ? "ring-2 ring-destructive" : fitted && (fitted.crosswindOver || fitted.close) ? "ring-2 ring-amber-500" : undefined;
+            const said = fitted?.short ? ", too short today" : fitted?.close ? ", little to spare in length" : "";
             return (
               <ToggleGroupItem
-                key={end.ident} value={id} disabled={circleNa || (!landing && !drawn)} className={CHIP}
-                aria-label={`Runway ${id}${windward ? ", into the wind" : ""}${circleNa ? `, no circling on the ${landing!.name}` : !landing && !drawn ? ", not surveyed" : ""}`}
-                data-testid="procedure-pattern"
+                key={end.ident} value={id} disabled={circleNa || (!landing && !drawn)} className={cn(CHIP, ring)}
+                aria-label={`Runway ${id}${windward ? ", into the wind" : ""}${fitted?.crosswindOver ? `, crosswind ${fitted.crosswindKt} knots, past the airplane's demonstrated` : ""}${said}${circleNa ? `, no circling on the ${landing!.name}` : !landing && !drawn ? ", not surveyed" : ""}`}
+                data-testid="procedure-pattern" data-fit={fitted?.short ? "short" : fitted?.crosswindOver ? "crosswind" : fitted?.close ? "close" : undefined}
               >
                 {windward && <Wind className="size-4" strokeWidth={2.2} aria-hidden />}
                 {id}
@@ -564,8 +600,21 @@ function patternNote(a: ProcedureAirport, chosen: string | null, landing: Landin
  * at the owner's ask ("Keep the pattern info and winds info in a info icon
  * next to the airport id"), so the list is compact.
  */
-function FieldInfo({ ident, note, wind, reported }: { ident: string; note: string | null; wind: WindPick | null; reported: Reported | null }) {
+function FieldInfo({ ident, note, wind, reported, fit, kind, demonstratedKt, allOver }: {
+  ident: string;
+  note: string | null;
+  wind: WindPick | null;
+  reported: Reported | null;
+  /** The runway picked's fit today, said under its note (lib/runwayFit). */
+  fit: EndFit | null;
+  kind: "takeoff" | "landing";
+  demonstratedKt: number | null;
+  /** Every runway's crosswind past the airplane's demonstrated. */
+  allOver: boolean;
+}) {
   if (!note && !wind && !reported) return null;
+  const distance = fit?.neededFt != null && fit.lengthFt != null
+    ? `${kind === "takeoff" ? "Takeoff" : "Landing"} over 50 ft: ${grouped(fit.neededFt)} ft of ${grouped(fit.lengthFt)}` : null;
   return (
     <>
       <Popover>
@@ -577,7 +626,8 @@ function FieldInfo({ ident, note, wind, reported }: { ident: string; note: strin
           <button
             type="button" data-testid="field-info"
             aria-label={`${ident} wind ${reported === "calm" ? "calm" : reported ? reported.spoken : "not reported"}, runway and wind`}
-            className="relative flex h-9 min-w-9 shrink-0 flex-col items-center justify-center text-tint after:absolute after:-inset-x-1 after:-inset-y-1 after:content-['']"
+            className={cn("relative flex h-9 min-w-9 shrink-0 flex-col items-center justify-center after:absolute after:-inset-x-1 after:-inset-y-1 after:content-['']", allOver ? "text-destructive-ink" : "text-tint")}
+            data-over={allOver || undefined}
           >
             {reported === "calm" ? (
               <span className={cn("font-semibold", TEXT.note)}>Calm</span>
@@ -593,6 +643,17 @@ function FieldInfo({ ident, note, wind, reported }: { ident: string; note: strin
         </PopoverTrigger>
         <PopoverContent align="start" className="w-auto max-w-[min(20rem,calc(100vw-2rem))] space-y-2 p-3" data-testid="field-info-content">
           {note && <p className={cn("font-semibold", TEXT.detail)} data-testid="procedure-landing">{note}</p>}
+          {distance && (
+            <p className={cn(TEXT.note, fit?.short ? "font-semibold text-destructive-ink" : fit?.close ? "font-semibold" : "text-muted-foreground")} data-testid="field-info-distance">
+              {distance}{fit?.short ? ", too short" : fit?.close ? ", under 15% to spare" : ""}
+            </p>
+          )}
+          {fit?.crosswindOver && demonstratedKt != null && (
+            <p className={cn("font-semibold", TEXT.note)} data-testid="field-info-crosswind">Crosswind {fit.crosswindKt} kt, past the airplane&apos;s demonstrated {demonstratedKt}</p>
+          )}
+          {allOver && demonstratedKt != null && (
+            <p className={cn("font-semibold text-destructive-ink", TEXT.note)}>Every runway&apos;s crosswind is past the demonstrated {demonstratedKt} kt</p>
+          )}
           {wind && <WindComponents wind={wind} />}
         </PopoverContent>
       </Popover>

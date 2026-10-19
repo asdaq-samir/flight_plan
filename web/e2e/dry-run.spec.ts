@@ -200,6 +200,29 @@ test("half way the side view is whole, its dry run plays under the route's chips
   await page.mouse.up();
 });
 
+test("half way on a phone the foot keeps the page it was left at as the sheet goes up and down, and a dry run's stop goes back to the route's list", async ({ page }) => {
+  test.skip((page.viewportSize()?.width ?? 0) >= 768, "a phone's half card");
+  await page.goto("/app/plan?dep=C81&dest=KDLH");
+  await settle(page);
+  await grabberTo(page, "half");
+  const panel = sideDrawer(page);
+  const pager = panel.getByTestId("foot-pager");
+  await expect(pager).toBeVisible({ timeout: slow(60_000) });
+  await expect(pager.locator("[data-page='0']")).toHaveAttribute("data-shown", "true");
+  // The side view, a dot's tap away; up and down again, still the side view.
+  await pager.getByTestId("foot-page-dot").nth(1).click();
+  await expect(pager.locator("[data-page='1']")).toHaveAttribute("data-shown", "true");
+  await grabberTo(page, "full");
+  await grabberTo(page, "half");
+  await expect(panel.getByTestId("foot-pager").locator("[data-page='1']")).toHaveAttribute("data-shown", "true");
+  // A dry run started and stopped: the route's list again.
+  const start = panel.getByTestId("dry-run-start");
+  await expect(start).toBeEnabled({ timeout: slow(60_000) });
+  await start.click();
+  await panel.getByTestId("dry-run-close").click();
+  await expect(panel.getByTestId("foot-pager").locator("[data-page='0']")).toHaveAttribute("data-shown", "true");
+});
+
 test("all the way up the dry run plays at the foot under the route, and the nav log's sheet follows it, the row it is flying to tinted and kept in sight", async ({ page }) => {
   // The owner's asks: "I wanna be able to do the dry run with navlog in
   // full fpl"; "keep the profile at the bottom as you pull up the

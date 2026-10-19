@@ -209,6 +209,15 @@ test("an approach puts its field's runway on its own, and another is let only wh
   await expect(page).toHaveURL(/[?&]procs=[^&]*KDLH(%3A|:)SKETC1/);
   await settled(sideDrawer(page));
   await openTab(page, "Nav Log");
+  // The plate switched off from the approach's pull-down, and on again.
+  await kdlh.locator("[data-testid=procedure-kind][data-kind=approach]").click();
+  const plate = page.getByTestId("procedure-menu-plate");
+  await expect(plate).toHaveAttribute("aria-checked", "true");
+  await plate.click();
+  await expect(plate).toHaveAttribute("aria-checked", "false");
+  await plate.click();
+  await expect(plate).toHaveAttribute("aria-checked", "true");
+  await page.keyboard.press("Escape");
   // Said in the field's info, by its name.
   await kdlh.getByTestId("field-info").click();
   await expect(page.getByTestId("procedure-landing")).toHaveText("Straight in");

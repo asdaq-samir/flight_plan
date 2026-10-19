@@ -39,7 +39,8 @@ import { FavoriteStrip, FavoritesList } from "../../components/Favorites";
 import FlightLine from "./components/FlightLine";
 import AirspaceCard from "./components/AirspaceCard";
 import PlaceCard from "./components/PlaceCard";
-import ProceduresRoute, { type ProcedureAirport, type ProceduresAt } from "./components/ProceduresRoute";
+import ProceduresRoute, { type FitInputs, type ProcedureAirport, type ProceduresAt } from "./components/ProceduresRoute";
+import { useLoad } from "./hooks/useLoad";
 import { NO_PATTERN, patternsOf, patternsParam, trafficPattern, type TrafficPattern } from "../../lib/trafficPattern";
 import { approachRunway, proceduresOf, proceduresParam, sameField, type PickedProcedure } from "../../lib/procedures";
 import { runwayNumber } from "../../lib/pattern";
@@ -475,12 +476,21 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     }));
     const once = fields.filter((f, i) => fields.findIndex(g => g.ident === f.ident) === i)
       .map(f => fields.some(g => g.ident === f.ident && g.role === "Destination") ? { ...f, role: "Destination" as const } : f);
+    const fieldsOfCourse = course ? [course.departure, ...(course.stops ?? []), course.destination] : [];
     return once.map(({ ident, role }) => ({
       ident, role,
       runways: briefed ? briefed[ident]?.runways ?? [] : null,
       patternAltitudeFt: briefed?.[ident]?.pattern?.altitude_ft ?? null,
+      elevationFt: fieldsOfCourse.find(f => sameField(f.ident, ident))?.elevation_ft ?? null,
     }));
-  }, [planned.dep, planned.dest, planned.stops, briefed]);
+  }, [planned.dep, planned.dest, planned.stops, briefed, course]);
+  // The airplane's figures and weights each runway's fit is worked from
+  // (lib/runwayFit), the Brief's own load (useLoad).
+  const fitAircraft = s.nav?.aircraft ?? null;
+  const { result: fitLoad } = useLoad(fitAircraft, s.totals?.fuel_gal ?? null);
+  const takeoffLb = fitLoad?.takeoff.weightLb ?? null, landingLb = fitLoad?.landing.weightLb ?? null;
+  const runwayFitInputs = useMemo<FitInputs | null>(() => (fitAircraft ? { aircraft: fitAircraft, takeoffLb, landingLb } : null),
+    [fitAircraft, takeoffLb, landingLb]);
   // Their patterns as the map draws them.
   const patterns = useMemo<TrafficPattern[]>(() => procedureAirports.flatMap(a => {
     const end = pickedPatterns.get(a.ident);
@@ -1291,8 +1301,13 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const [goMissed, setGoMissed] = useState(false);
   const dryRunHeld = usePastFlight(p => p.hex === DRY_RUN);
   const dryRunning = dryRun && dryRunHeld && routed ? dryRun : null;
+  // The half card's page at its foot (FootPager), kept as the sheet goes
+  // up and down: the side view while a dry run plays, the route's list
+  // again once it stops.
+  const [footPage, setFootPage] = useState(0);
   const startDryRun = () => {
     if (!course) return;
+    setFootPage(1);
     // The procedures picked flown: out by a departure, in by an arrival
     // and an approach.
     const run = dryRunOf(
@@ -1327,6 +1342,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const stopDryRun = () => {
     setDryRun(null);
     clearPastFlight();
+    setFootPage(0);
   };
   // The route in order in FPL, the nav log's place: its fields with their
   // runways and procedures, and the tops of climb and descent and the
@@ -1339,13 +1355,13 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const routeList = useMemo(() => (
     <ProceduresRoute
       airports={procedureAirports} rows={routeRows} depart={depart} weather={metarColour}
-      picked={pickedPatterns} onPick={pickPattern} onPreselect={setPattern} takeoffs={pickedTakeoffs} onTakeoff={setTakeoff}
+      picked={pickedPatterns} onPick={pickPattern} onPreselect={setPattern} takeoffs={pickedTakeoffs} onTakeoff={setTakeoff} fit={runwayFitInputs}
       procedures={pickedProcedures} inRoute={routeProcedures} onProcedures={pickProcedures} onPreview={previewProcedure}
       at={proceduresAt} onAt={setProceduresShown}
       onCharts={() => { if (planned.dest) { setApproachesOf(planned.dest); selectPlace(planned.dest); } }}
       chartsDisabled={!planned.dest || noApproaches}
     />
-  ), [procedureAirports, routeRows, depart, metarColour, pickedPatterns, pickPattern, setPattern, pickedTakeoffs, setTakeoff, pickedProcedures, routeProcedures, pickProcedures,
+  ), [procedureAirports, routeRows, depart, metarColour, pickedPatterns, pickPattern, setPattern, pickedTakeoffs, setTakeoff, runwayFitInputs, pickedProcedures, routeProcedures, pickProcedures,
     previewProcedure, proceduresAt, setProceduresShown, planned.dest, selectPlace, noApproaches]);
   const navLog = useMemo(() => (
     <Suspense fallback={<div className="min-h-0 flex-1" />}>
@@ -1813,7 +1829,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           >
             {listAtFoot ? (
               <FootPager
-                testId="foot-pager"
+                testId="foot-pager" page={footPage} onPage={setFootPage}
                 pages={[
                   { label: "Route", node: <div className="pt-1">{routeList}</div> },
                   { label: "Side view", node: sideView },
