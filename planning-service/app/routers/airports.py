@@ -16,13 +16,14 @@ import logging
 from fastapi import APIRouter, HTTPException, Query, Response
 from fastapi.responses import FileResponse
 from vfr import (
-    airports, airspace, altitude, faa_data, fixes, geocode, glmp, pattern, places, procedures, publications, remarks, runway_wind,
-    weather,
+    airports, airspace, altitude, faa_data, fixes, geocode, glmp, pattern, places, plates, procedures, publications, remarks,
+    runway_wind, weather,
 )
 
 from ..common import DIAGRAM_CACHE
 from ..schemas import (
-    AirportPlace, AirportsInView, ChartPages, NearestAirports, PlacesFound, ProcedureDrawing, ProcedureList, WaypointsInView,
+    AirportPlace, AirportsInView, ChartPages, NearestAirports, PlacesFound, PlateOverlay, ProcedureDrawing, ProcedureList,
+    WaypointsInView,
 )
 
 log = logging.getLogger(__name__)
@@ -323,6 +324,39 @@ def airport_procedure(ident: str, procedure: str, transition: str | None = None)
     if drawn is None:
         raise HTTPException(404, f"No procedure {procedure.strip().upper()!r} at {ident.strip().upper()!r}.")
     return drawn
+
+
+@router.get("/api/airport/{ident}/procedures/{procedure}/plate", response_model=PlateOverlay,
+            responses={404: {"description": "No plate for the approach, or its plate's fixes do not place it"},
+                       503: {"description": "The FAA's procedure file could not be had"}})
+def airport_procedure_plate(ident: str, procedure: str) -> PlateOverlay:
+    """An approach's plate's plan view placed on the map for the approach
+    picked (vfr.plates): where its picture goes, made once a cycle from the
+    FAA's d-TPP plate and the CIFP's fixes. 404 where the field has no
+    plate for it, its waypoints do not place it north up within a fifth of
+    a mile (most ILS, LOC and VOR plates, whose fixes are not drawn as
+    waypoint stars), or the FAA cannot be reached."""
+    try:
+        found = plates.plate_overlay(ident, procedure)
+    except RuntimeError as err:
+        raise HTTPException(503, f"The FAA's procedure file could not be had: {err}") from err
+    if found is None:
+        raise HTTPException(404, f"No plate placed for {procedure.strip().upper()!r} at {ident.strip().upper()!r}.")
+    return {k: found[k] for k in ("cycle", "name", "south", "west", "north", "east", "fixes")}
+
+
+@router.get("/api/approach-plate/{cycle}/{ident}/{procedure}.png", response_class=FileResponse,
+            responses={200: {"content": {"image/png": {}}}, 404: {"description": "No plate placed for it in that cycle"}})
+def approach_plate(cycle: str, ident: str, procedure: str) -> FileResponse:
+    """The plan view of an approach's plate placed on the map
+    (`airport_procedure_plate`), as a picture: black on clear, north up,
+    for the cycle in force."""
+    if cycle != publications.dtpp_cycle():
+        raise HTTPException(404, f"Not the d-TPP cycle in force: {cycle}.")
+    found = plates.plate_overlay(ident, procedure)
+    if found is None:
+        raise HTTPException(404, f"No plate placed for {procedure.strip().upper()!r} at {ident.strip().upper()!r}.")
+    return FileResponse(found["png"], media_type="image/png", headers={"Cache-Control": DIAGRAM_CACHE})
 
 
 @router.get("/api/airport-diagram/{cycle}/{ident}.png", response_class=FileResponse,

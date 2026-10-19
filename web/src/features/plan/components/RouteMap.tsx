@@ -13,6 +13,7 @@ import { useAfterPaint } from "../../../hooks/use-after-paint";
 import { WaypointsLayer } from "../../../lib/map/WaypointsLayer";
 import { TfrLayer } from "../../../lib/map/TfrLayer";
 import { PatternLayer } from "../../../lib/map/PatternLayer";
+import { PlateLayer } from "../../../lib/map/PlateLayer";
 import { ProcedureLayer } from "../../../lib/map/ProcedureLayer";
 import { proceduresOf, sameField } from "../../../lib/procedures";
 import type { TrafficPattern } from "../../../lib/trafficPattern";
@@ -494,6 +495,8 @@ export default memo(function RouteMap({
           {/* The planned flight's dry run: its airplane along the line. */}
           {dryRunning && <DryRunLayer />}
           <PatternLayer patterns={patterns} />
+          {/* Each approach's plate under its lines, where it could be placed. */}
+          <PlateLayer drawings={procedures} />
           <ProcedureLayer drawings={procedures} />
           {/* A procedure just picked, all of it in sight clear of the panel. */}
           <FitTo points={focusedProcedure} fitKey={focusedProcedure.length ? procedureFocus : null} maxZoom={12} cover={procedureCover} />
