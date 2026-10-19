@@ -175,27 +175,33 @@ class SheetBridgeViewController: CAPBridgeViewController {
 }
 
 /// The sheet: its tab bar in Swift at its head, at the owner's ask ("I
-/// also want the tabs icon and selector to be in swift") -- UITabBar's own
-/// icons, lens and selection -- and the panel's web view under it. With a
-/// card open over the tab, the bar is the card's instead, as the page's
-/// was: Back, the card's name (a tap shows the tabs), and the close. What
-/// is done on either goes to the page, whose TabBar acts on it as on its
-/// own taps (web/src/lib/nativeSheet's useNativeTabs).
-final class SheetContainerViewController: UIViewController, UITabBarDelegate {
+/// also want the tabs icon and selector to be in swift") -- each tab an
+/// SF Symbol over its name, the one up in the tint inside a capsule that
+/// slides to the tab picked, as iOS's tab bar draws it -- and the panel's
+/// web view under it. UIKit's own UITabBar, standing alone outside a tab
+/// bar controller, laid each tab's icon over its name in the sheet (three
+/// recordings' frames), so the bar is buttons of its own. With a card open
+/// over the tab, the bar is the card's instead, as the page's was: Back,
+/// the card's name (a tap shows the tabs), and the close. What is done on
+/// either goes to the page, whose TabBar acts on it as on its own taps
+/// (web/src/lib/nativeSheet's useNativeTabs).
+final class SheetContainerViewController: UIViewController {
     let bridgeController = SheetBridgeViewController()
-    private let tabBar = UITabBar()
+    private let tabsView = UIView()
+    private let capsule = UIView()
+    private let stack = UIStackView()
+    private var buttons: [UIButton] = []
     private let cardBar = UIView()
     private let backButton = UIButton(type: .system)
     private let titleButton = UIButton(type: .system)
     private let closeButton = UIButton(type: .system)
     private var tabs: [SheetTab] = []
+    private var up: String = ""
 
     /// Clear of iOS's grabber, five points in from the sheet's edge, as
     /// Maps' search bar is.
     private static let headTop: CGFloat = 14
-    /// The bar's own height on iOS 26, icon over label; at 52 the icons
-    /// sat on their labels (the fifth recording).
-    private static let headHeight: CGFloat = 64
+    private static let headHeight: CGFloat = 56
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -211,23 +217,16 @@ final class SheetContainerViewController: UIViewController, UITabBarDelegate {
         head.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(head)
 
-        // The bar clear on the sheet's glass, its tint the app's.
-        let appearance = UITabBarAppearance()
-        appearance.configureWithTransparentBackground()
-        tabBar.standardAppearance = appearance
-        tabBar.scrollEdgeAppearance = appearance
-        tabBar.delegate = self
-        tabBar.translatesAutoresizingMaskIntoConstraints = false
-        // Each tab's icon over its name, as a phone's tab bar is: the sheet
-        // gave the bar a regular width, and it laid each tab's icon and
-        // name side by side, the name under the icon of the next (the
-        // recordings' frames).
-        tabBar.itemPositioning = .fill
-        if #available(iOS 17.0, *) {
-            tabBar.traitOverrides.horizontalSizeClass = .compact
-            tabBar.traitOverrides.verticalSizeClass = .regular
-        }
-        head.addSubview(tabBar)
+        tabsView.translatesAutoresizingMaskIntoConstraints = false
+        head.addSubview(tabsView)
+        capsule.backgroundColor = UIColor.secondarySystemFill
+        capsule.layer.cornerCurve = .continuous
+        capsule.isUserInteractionEnabled = false
+        tabsView.addSubview(capsule)
+        stack.axis = .horizontal
+        stack.distribution = .fillEqually
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        tabsView.addSubview(stack)
 
         cardBar.translatesAutoresizingMaskIntoConstraints = false
         cardBar.isHidden = true
@@ -246,22 +245,26 @@ final class SheetContainerViewController: UIViewController, UITabBarDelegate {
 
         NSLayoutConstraint.activate([
             head.topAnchor.constraint(equalTo: view.topAnchor, constant: Self.headTop),
-            head.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 8),
-            head.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -8),
+            head.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 12),
+            head.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -12),
             head.heightAnchor.constraint(equalToConstant: Self.headHeight),
-            tabBar.topAnchor.constraint(equalTo: head.topAnchor),
-            tabBar.bottomAnchor.constraint(equalTo: head.bottomAnchor),
-            tabBar.leadingAnchor.constraint(equalTo: head.leadingAnchor),
-            tabBar.trailingAnchor.constraint(equalTo: head.trailingAnchor),
+            tabsView.topAnchor.constraint(equalTo: head.topAnchor),
+            tabsView.bottomAnchor.constraint(equalTo: head.bottomAnchor),
+            tabsView.leadingAnchor.constraint(equalTo: head.leadingAnchor),
+            tabsView.trailingAnchor.constraint(equalTo: head.trailingAnchor),
+            stack.topAnchor.constraint(equalTo: tabsView.topAnchor),
+            stack.bottomAnchor.constraint(equalTo: tabsView.bottomAnchor),
+            stack.leadingAnchor.constraint(equalTo: tabsView.leadingAnchor),
+            stack.trailingAnchor.constraint(equalTo: tabsView.trailingAnchor),
             cardBar.topAnchor.constraint(equalTo: head.topAnchor),
             cardBar.bottomAnchor.constraint(equalTo: head.bottomAnchor),
             cardBar.leadingAnchor.constraint(equalTo: head.leadingAnchor),
             cardBar.trailingAnchor.constraint(equalTo: head.trailingAnchor),
-            backButton.leadingAnchor.constraint(equalTo: cardBar.leadingAnchor, constant: 8),
+            backButton.leadingAnchor.constraint(equalTo: cardBar.leadingAnchor, constant: 4),
             backButton.centerYAnchor.constraint(equalTo: cardBar.centerYAnchor),
             backButton.widthAnchor.constraint(equalToConstant: 36),
             backButton.heightAnchor.constraint(equalToConstant: 36),
-            closeButton.trailingAnchor.constraint(equalTo: cardBar.trailingAnchor, constant: -8),
+            closeButton.trailingAnchor.constraint(equalTo: cardBar.trailingAnchor, constant: -4),
             closeButton.centerYAnchor.constraint(equalTo: cardBar.centerYAnchor),
             closeButton.widthAnchor.constraint(equalToConstant: 36),
             closeButton.heightAnchor.constraint(equalToConstant: 36),
@@ -274,6 +277,11 @@ final class SheetContainerViewController: UIViewController, UITabBarDelegate {
             web.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             web.bottomAnchor.constraint(equalTo: view.bottomAnchor)
         ])
+    }
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        placeCapsule(animated: false)
     }
 
     /// A round button of the sheet's, its glyph a symbol, as the page's
@@ -298,23 +306,50 @@ final class SheetContainerViewController: UIViewController, UITabBarDelegate {
         }
     }
 
-    func show(tabs next: [SheetTab], up: String, card: SheetCard?, marks: [String: String]) {
+    /// A tab: its symbol over its name, 11 points, as iOS's tab bar sets
+    /// them, the tint on the one up.
+    private func tabButton(_ tab: SheetTab) -> UIButton {
+        var configuration = UIButton.Configuration.plain()
+        configuration.image = UIImage(systemName: symbol(for: tab.value), withConfiguration: UIImage.SymbolConfiguration(pointSize: 18, weight: .medium))
+        configuration.imagePlacement = .top
+        configuration.imagePadding = 3
+        configuration.contentInsets = NSDirectionalEdgeInsets(top: 4, leading: 2, bottom: 4, trailing: 2)
+        var title = AttributedString(tab.label)
+        title.font = UIFont.systemFont(ofSize: 11, weight: .semibold)
+        configuration.attributedTitle = title
+        let button = UIButton(configuration: configuration)
+        button.accessibilityLabel = tab.label
+        button.addAction(UIAction { [weak self] _ in self?.tapped(tab.value) }, for: .touchUpInside)
+        return button
+    }
+
+    func show(tabs next: [SheetTab], up nextUp: String, card: SheetCard?, marks: [String: String]) {
         loadViewIfNeeded()
         if next != tabs {
             tabs = next
-            tabBar.items = next.enumerated().map { index, tab in
-                UITabBarItem(title: tab.label, image: UIImage(systemName: symbol(for: tab.value)), tag: index)
+            buttons.forEach { $0.removeFromSuperview() }
+            buttons = next.map(tabButton)
+            buttons.forEach { stack.addArrangedSubview($0) }
+            view.layoutIfNeeded()
+        }
+        for (index, button) in buttons.enumerated() where index < tabs.count {
+            let value = tabs[index].value
+            let selected = value == nextUp
+            button.tintColor = selected ? view.tintColor : .label
+            button.accessibilityTraits = selected ? [.button, .selected] : [.button]
+            // A tab's mark, as the page's red or amber dot.
+            let mark = marks[value]
+            button.configuration?.subtitle = nil
+            button.accessibilityValue = mark == "stop" ? "Warning" : mark == "caution" ? "Caution" : nil
+            if let mark {
+                button.configuration?.image = UIImage(systemName: symbol(for: value), withConfiguration: UIImage.SymbolConfiguration(pointSize: 18, weight: .medium))?
+                    .withTintColor(mark == "stop" ? .systemRed : .systemOrange, renderingMode: .alwaysOriginal)
             }
         }
-        for (index, item) in (tabBar.items ?? []).enumerated() where index < tabs.count {
-            let mark = marks[tabs[index].value]
-            item.badgeValue = mark == nil ? nil : ""
-            item.badgeColor = mark == "stop" ? .systemRed : .systemOrange
-        }
-        if let index = tabs.firstIndex(where: { $0.value == up }), let item = tabBar.items?[index] {
-            tabBar.selectedItem = item
-        }
-        tabBar.isHidden = card != nil
+        let moved = nextUp != up
+        up = nextUp
+        placeCapsule(animated: moved)
+        tabsView.isHidden = card != nil
         cardBar.isHidden = card == nil
         if let card {
             titleButton.setTitle(card.title, for: .normal)
@@ -323,16 +358,29 @@ final class SheetContainerViewController: UIViewController, UITabBarDelegate {
         }
     }
 
-    func tabBar(_ tabBar: UITabBar, didSelect item: UITabBarItem) {
-        guard item.tag < tabs.count else { return }
-        NativeSheetHub.shared.sheet?.notifyListeners("tabAction", data: ["action": "tap", "tab": tabs[item.tag].value])
+    /// The capsule behind the tab up, sliding to it.
+    private func placeCapsule(animated: Bool) {
+        guard let index = tabs.firstIndex(where: { $0.value == up }), index < buttons.count else {
+            capsule.isHidden = true
+            return
+        }
+        capsule.isHidden = false
+        let frame = buttons[index].convert(buttons[index].bounds, to: tabsView).insetBy(dx: 2, dy: 2)
+        capsule.layer.cornerRadius = frame.height / 2
+        if animated {
+            UIView.animate(withDuration: 0.3, delay: 0, usingSpringWithDamping: 0.85, initialSpringVelocity: 0) { self.capsule.frame = frame }
+        } else {
+            capsule.frame = frame
+        }
+    }
+
+    private func tapped(_ tab: String) {
+        NativeSheetHub.shared.sheet?.notifyListeners("tabAction", data: ["action": "tap", "tab": tab])
     }
 
     /// A tab tapped, as a finger would, for the build's own recording.
     func demoTap(_ tab: String) {
-        guard let index = tabs.firstIndex(where: { $0.value == tab }), let item = tabBar.items?[index] else { return }
-        tabBar.selectedItem = item
-        tabBar(tabBar, didSelect: item)
+        tapped(tab)
     }
 
     private func send(_ action: String) {
