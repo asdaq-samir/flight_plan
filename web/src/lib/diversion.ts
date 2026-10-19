@@ -12,7 +12,7 @@
  * head and off the chart while flying the airplane.
  */
 import type { Leg } from "./api/types";
-import { angleBetween } from "./geo";
+import { angleBetween, deg, rad } from "./geo";
 
 /** The figures a student estimates, and how far off is still reasonable. */
 export const ALLOWANCES = [
@@ -36,8 +36,6 @@ export interface Diversion {
   fuel: number;
 }
 
-const rad = (deg: number) => (deg * Math.PI) / 180;
-const deg = (r: number) => (r * 180) / Math.PI;
 const round360 = (d: number) => ((d % 360) + 360) % 360;
 
 /** The wind triangle for a true course: the correction (+ right), the

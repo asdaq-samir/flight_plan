@@ -1,5 +1,5 @@
 import type { Runway } from "./api/types";
-import { FT_PER_NM } from "./geo";
+import { FT_PER_NM, rad } from "./geo";
 
 /** Nautical miles in a degree of latitude. */
 const NM_PER_DEG = 60;
@@ -46,7 +46,7 @@ function turfOf(r: Runway, ends: [string, string]): [number, number][] {
  *  runway parallel to one already guessed, which would lie on top of it.
  *  None for a helipad. */
 export function stripsOf(runways: Runway[], lat: number, lon: number): Strip[] {
-  const east = (lonDeg: number) => (lonDeg - lon) * NM_PER_DEG * Math.cos((lat * Math.PI) / 180);
+  const east = (lonDeg: number) => (lonDeg - lon) * NM_PER_DEG * Math.cos(rad(lat));
   const north = (latDeg: number) => (latDeg - lat) * NM_PER_DEG;
   const strips: Strip[] = [];
   const guesses: Strip[] = [];
@@ -60,9 +60,9 @@ export function stripsOf(runways: Runway[], lat: number, lon: number): Strip[] {
       strips.push({ a: [east(first.lon), north(first.lat)], b: [east(second.lon), north(second.lat)], width_ft, ends, closed: r.closed, turf: turfOf(r, ends) });
     } else if (first.heading_true_deg != null && r.length_ft) {
       const half = r.length_ft / FT_PER_NM / 2;
-      const rad = (first.heading_true_deg * Math.PI) / 180;
+      const heading = rad(first.heading_true_deg);
       // The first end is where a landing on it starts: back along its heading.
-      const dx = Math.sin(rad) * half, dy = Math.cos(rad) * half;
+      const dx = Math.sin(heading) * half, dy = Math.cos(heading) * half;
       // Within a degree of a heading already guessed, either way round.
       const line = ((first.heading_true_deg % 180) + 180) % 180;
       if (guessed.some(h => Math.min(Math.abs(h - line), 180 - Math.abs(h - line)) < 1)) continue;

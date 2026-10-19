@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { angleBetween, bearingDeg, bestStopIndex, distanceNm, signedTurn } from "./geo";
+import { angleBetween, bearingDeg, bestStopIndex, deg, distanceNm, rad, signedTurn } from "./geo";
 
 describe("geo", () => {
+  it("turns degrees to radians and back", () => {
+    expect(rad(180)).toBe(Math.PI);
+    expect(rad(90)).toBeCloseTo(Math.PI / 2, 12);
+    expect(deg(Math.PI)).toBe(180);
+    expect(deg(rad(323.6))).toBeCloseTo(323.6, 10);
+  });
+
   const campbell = { lat: 42.3246, lon: -88.0741 };
   const duluth = { lat: 46.8421, lon: -92.1936 };
 
