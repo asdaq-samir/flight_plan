@@ -308,12 +308,15 @@ def with_climbs(leg_list: list, start_altitude_ft: float | None, aircraft_profil
 DESCENT_NM_PER_1000_FT = 3.0
 
 
-def with_descents(leg_list: list, fix_list: list, end_altitude_ft: float | None) -> list:
+def with_descents(leg_list: list, fix_list: list, end_altitude_ft: float | None,
+                  end_before_nm: float = 0.0, end_fix: str | None = None) -> list:
     """The legs with their tops of descent: where to leave each level to
     be down, at three to one, at `end_altitude_ft` where the legs end --
     the pattern altitude of the field they land at, None for legs that
     end in the air -- and at a lower leg's altitude by the fix it starts
-    at, where a plan steps down. A descent that would start before the
+    at, where a plan steps down. With an approach (`end_fix`), the
+    descent is to the altitude its fix is crossed at, `end_before_nm`
+    short of the legs' end, the rest flown down the approach as charted. A descent that would start before the
     climb ahead of it has topped out starts at the top instead, steeper.
     The leg a descent starts on says where (`tod`: the miles, minutes and
     gallons into the leg, the altitude left and the one descended to,
@@ -336,26 +339,33 @@ def with_descents(leg_list: list, fix_list: list, end_altitude_ft: float | None)
     # make every level-off after it, and the level-off that binds -- its
     # altitude, where along the legs it is, and whether it is the
     # pattern's.
-    limit_ft, binds = (math.inf, None) if end_altitude_ft is None else (end_altitude_ft, (end_altitude_ft, ends[-1], True))
+    # The stretch after the level-off at the end: none down to a pattern,
+    # an approach's from its fix in, flown at or below the fix's altitude.
+    level_off = ends[-1] - min(max(end_before_nm, 0.0), ends[-1])
+    flat_nm = ends[-1] - level_off
+    limit_ft, binds = ((math.inf, None) if end_altitude_ft is None
+                       else (end_altitude_ft, (end_altitude_ft, level_off, end_fix is None, end_fix)))
     tods = []
     for i in range(len(out) - 1, -1, -1):
         altitude, distance = out[i]["altitude_ft"], out[i]["distance_nm"]
+        flat = min(flat_nm, distance)
+        flat_nm -= flat
         if altitude > limit_ft:
             # On this leg, or at its start where it cannot have started
             # sooner: the first leg, or one climbed to.
             down_nm = (altitude - limit_ft) / ft_per_nm
-            if down_nm < distance or i == 0 or out[i - 1]["altitude_ft"] < altitude:
-                tods.append((max(starts[i], ends[i] - down_nm), i, binds))
-        limit_ft += distance * ft_per_nm
+            if down_nm < distance - flat or i == 0 or out[i - 1]["altitude_ft"] < altitude:
+                tods.append((max(starts[i], ends[i] - flat - down_nm), i, binds))
+        limit_ft += (distance - flat) * ft_per_nm
         if altitude <= limit_ft:
-            limit_ft, binds = altitude, (altitude, starts[i], False)
+            limit_ft, binds, flat_nm = altitude, (altitude, starts[i], False, None), 0.0
 
     # Each climb's ground, from the start of a leg it climbs on to its
     # top, and the tops in order.
     climbs = [(starts[i], starts[i] + (leg["toc"]["along_nm"] if leg["toc"] else leg["distance_nm"]))
               for i, leg in enumerate(out) if leg.get("climb_min")]
     tops = [(starts[i] + leg["toc"]["along_nm"], i) for i, leg in enumerate(out) if leg["toc"]]
-    for at, i, (to_ft, level_at, pattern) in reversed(tods):
+    for at, i, (to_ft, level_at, pattern, fix) in reversed(tods):
         if any(a <= at < b for a, b in climbs):
             at, i = next(((t, j) for t, j in tops if t >= at), (None, None))
             if at is None:
@@ -371,7 +381,7 @@ def with_descents(leg_list: list, fix_list: list, end_altitude_ft: float | None)
             "along_nm": round(at - starts[i], 1),
             "ete_min": round(max(0.0, leg["ete_min"] - rest_min), 1),
             "fuel_gal": None if leg["fuel_gal"] is None else round(max(0.0, leg["fuel_gal"] - rest_min / 60 * leg["fuel_burn_gph"]), 2),
-            "altitude_ft": from_ft, "to_ft": to_ft, "pattern": pattern,
+            "altitude_ft": from_ft, "to_ft": to_ft, "pattern": pattern, "fix": fix,
             # The ground speed's share of three to one, or what is left
             # where the descent starts late, to the nearest 50 fpm.
             "fpm": round((from_ft - to_ft) / ((level_at - at) / gs * 60) / 50) * 50,

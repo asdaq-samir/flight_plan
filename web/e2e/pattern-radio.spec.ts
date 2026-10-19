@@ -22,7 +22,7 @@ test("each field's pattern for the runway into the wind, and its calls in order"
 
   await page.goto("/app/plan?dep=C81&dest=KDLH&view=briefing");
   await settle(page);
-  await expect(page.getByTestId("navlog-eta")).toBeVisible({ timeout: slow(120000) });
+  await expect(page.getByTestId("navlog-fuel")).toBeVisible({ timeout: slow(120000) });
   // Each field's on its phase's tab: both drawn, the departure's then the
   // destination's.
   await openTab(page, "Depart");

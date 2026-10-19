@@ -39,7 +39,7 @@ test("a TFR in force when the flight gets there is flagged, one that starts late
 
   await page.goto("/app/plan?dep=C81&dest=KDLH&view=briefing");
   await settle(page);
-  await expect(page.getByTestId("navlog-eta")).toBeVisible({ timeout: slow(120000) });
+  await expect(page.getByTestId("navlog-fuel")).toBeVisible({ timeout: slow(120000) });
   // The Brief and its Preflight marked for it, and the flag on its
   // section inside.
   await expect(sideDrawer(page).getByTestId("route-brief-mark")).toBeVisible();

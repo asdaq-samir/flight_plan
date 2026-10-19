@@ -119,7 +119,7 @@ test("the nightly speed lab", async ({ page }, info) => {
     await page.goto("/app/plan?dep=C81&dest=KDLH");
     await openPanel(page);
     await controlsInSight(page);
-    await page.locator("[data-testid=navlog-eta]").first().waitFor({ state: "attached", timeout: 90_000 });
+    await page.locator("[data-testid=navlog-fuel]").first().waitFor({ state: "attached", timeout: 90_000 });
     await page.waitForTimeout(3000);
     for (const [name, open, shown] of [
       ["share_menu", () => page.getByTestId("share-route").first().click(), "[role=menu]"],

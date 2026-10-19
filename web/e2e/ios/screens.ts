@@ -33,7 +33,7 @@ export const SCREENS: Screen[] = [
     ready: async page => {
       await page.goto(`/app/plan?${ROUTE}&view=briefing`);
       await expect(sideDrawer(page).getByTestId("procedures")).toBeVisible({ timeout: slow(30000) });
-      await expect(sideDrawer(page).getByTestId("navlog-eta")).toBeVisible({ timeout: slow(120000) });
+      await expect(sideDrawer(page).getByTestId("navlog-fuel")).toBeVisible({ timeout: slow(120000) });
     },
   },
   {
@@ -45,7 +45,7 @@ export const SCREENS: Screen[] = [
       await expect(sideDrawer(page).getByTestId("route-brief")).toBeVisible({ timeout: slow(30000) });
       await controlsInSight(page);
       // The plan in, its figures whole: not judged fading in.
-      await expect(page.getByTestId("navlog-eta")).toBeVisible({ timeout: slow(30000) });
+      await expect(page.getByTestId("navlog-fuel")).toBeVisible({ timeout: slow(30000) });
       await expect(page.getByTestId("share-route")).toBeEnabled();
     },
   },
@@ -57,7 +57,7 @@ export const SCREENS: Screen[] = [
       // panel back to half, and the map's tooltips came up under the
       // pointer where the panel had been, fading in, read at 1:1 (P15).
       await openTab(page, "Nav Log");
-      await page.getByTestId("fuel-check").waitFor({ timeout: slow(120000) });
+      await page.getByTestId("navlog-fuel").waitFor({ timeout: slow(120000) });
       // The nav log in its own sheet, from the route's box.
       await openNavLog(page);
       // A tap's click, without Playwright's own scroll into view first:
@@ -76,7 +76,7 @@ export const SCREENS: Screen[] = [
     name: `panel, ${tab} tab`,
     ready: async page => {
       await page.goto(`/app/plan?${ROUTE}&view=briefing`);
-      await page.getByTestId("navlog-eta").waitFor({ timeout: slow(120000) });
+      await page.getByTestId("navlog-fuel").waitFor({ timeout: slow(120000) });
       await openTab(page, tab);
       if (tab === "En route") await openSection(page, "Along the Route");
       await expect(sideDrawer(page).locator('[role="tabpanel"][data-state="active"]').getByTestId(shown).first()).toBeVisible({ timeout: slow(30000) });
@@ -331,7 +331,7 @@ export const SCREENS: Screen[] = [
       await settle(page);
       await openTab(page, "Nav Log");
       await page.getByTestId("procedures").getByRole("region", { name: "KDLH · Arrive" })
-        .getByTestId("procedure-kind").filter({ hasText: /^Approach/ }).click({ timeout: slow(30000) });
+        .locator('[data-testid=procedure-kind][data-kind=approach]').click({ timeout: slow(30000) });
       // The pull-down's foot opens the field's whole list (ProcedureMenu).
       await page.getByTestId("procedure-menu-all").click();
       await page.getByTestId("procedure-option").first().click();
@@ -402,7 +402,7 @@ export const SCREENS: Screen[] = [
       await expect(page.getByTestId("depart-time")).toBeVisible();
       // The plan made again for that day, its arrival in behind the sheet:
       // not judged greyed out mid-plan.
-      await expect(page.getByTestId("navlog-eta")).toBeAttached({ timeout: slow(120000) });
+      await expect(page.getByTestId("navlog-fuel")).toBeAttached({ timeout: slow(120000) });
     },
   },
   {
@@ -421,9 +421,9 @@ export const SCREENS: Screen[] = [
     ready: async page => {
       await page.goto("/app/plan?dep=C81&dest=C81&view=briefing");
       await expect(page.locator('[data-slot="section-summary"]').first()).toContainText("Aloft", { timeout: slow(30000) });
-      // Its fuel check under the legs' place, FPL's own.
+      // Its fuel required among the figures.
       await openTab(page, "Local");
-      await expect(page.getByTestId("fuel-check")).toBeVisible();
+      await expect(page.getByTestId("navlog-fuel")).toBeVisible({ timeout: slow(30000) });
     },
   },
 ];

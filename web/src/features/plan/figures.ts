@@ -2,47 +2,87 @@ import type { Totals } from "../../lib/api/types";
 import { decimalHours, etaAt, hhmm, one } from "./format";
 
 /** One of the flight's figures: its name over it, its unit after it. */
-export interface Figure { name: string; value: string; unit?: string; testId?: string }
+export interface Figure {
+  name: string; value: string; unit?: string; testId?: string;
+  /** Red: the fuel required past what the tanks hold. */
+  alert?: boolean;
+}
 
 export interface TripInput {
   totals: Totals | null;
   /** Before the nav log's totals: the course's distance and the book
    *  cruise speed and burn over it (see FlightLine). */
   estimate?: { distanceNm: number; cruiseTasKt: number | null; fuelBurnGph: number | null } | null;
-  /** The departure time picked, ISO; empty for now. */
-  depart: string;
   local: boolean;
+  /** The route's destination, the To of a route with no stops. */
+  destination: string;
+  /** The departure time picked, ISO; empty for now. */
+  depart?: string;
+  /** The arrival's clock time in the time en route's place, the pilot's
+   *  tap on it (FlightLine). */
+  arrival?: boolean;
+  /** With stops, the destination in the next stop's place, the pilot's
+   *  tap on To (FlightLine): the distance and time the whole route's. */
+  toDestination?: boolean;
 }
 
-/** The strip's figures, exact or (`whole`) each rounded as far as it
- *  goes: distance and fuel up to whole ones, the time in decimal hours.
- *  Up, so none is ever said short of what it is. */
-export function tripFigures({ totals, estimate, depart, local }: TripInput, whole: boolean): Figure[] {
+/** The flight to the next landing: the route's first hop where it has
+ *  stops (the tanks filled at each, app.planning.route_totals), else the
+ *  whole route -- what the strip's figures are of. */
+export function nextLanding(totals: Totals | null, destination: string): { to: string; totals: Totals | null } {
+  const hop = totals?.hops[0];
+  return hop ? { to: hop.destination, totals: hop.totals } : { to: destination, totals };
+}
+
+/** The reserve an estimate's fuel carries before the nav log's own: the
+ *  day VFR one, 30 minutes at the cruise burn (14 CFR 91.151), and the
+ *  start, taxi and takeoff allowance of the Cessna 172S handbook, 1.4 gal
+ *  -- vfr.navlog's DAY_RESERVE_MIN and DEFAULT_TAXI_FUEL_GAL. */
+const ESTIMATE_RESERVE_H = 0.5;
+const ESTIMATE_TAXI_GAL = 1.4;
+
+/** The strip's figures, at the owner's ask ("To, Dist, ETE, Fuel. To is
+ *  the next stop, fuel is the fuel required"): the next landing, and the
+ *  distance, time and fuel required to it -- exact or (`whole`) each
+ *  rounded as far as it goes: distance and fuel up to whole ones, the
+ *  time in decimal hours. Up, so none is ever said short of what it is. */
+export function tripFigures({ totals, estimate, local, destination, depart = "", arrival = false, toDestination = false }: TripInput, whole: boolean): Figure[] {
   const guessed = !totals && !local && estimate ? guess(estimate) : null;
   const from = depart || new Date().toISOString();
   if (guessed) {
     const { distanceNm, minutes, fuelGal } = guessed;
+    const required = fuelGal == null || estimate?.fuelBurnGph == null ? null : fuelGal + ESTIMATE_TAXI_GAL + ESTIMATE_RESERVE_H * estimate.fuelBurnGph;
     return [
+      { name: "To", value: destination || "—", testId: "navlog-to" },
       { name: "Dist", value: whole ? `${Math.ceil(distanceNm)}` : one(distanceNm), unit: "nm" },
-      { name: "ETE", value: minutes == null ? "—" : `≈${whole ? decimalHours(minutes) : guessed.time}`, testId: "navlog-ete" },
-      // The arrival with no "≈" of its own, at the pilot's ask: the time
-      // en route beside it carries it, and one is enough for both.
-      { name: "ETA", value: etaAt(from, minutes), testId: "navlog-eta-estimate" },
-      { name: "Fuel", value: fuelGal == null ? "—" : `≈${whole ? Math.ceil(fuelGal) : one(fuelGal)}`, unit: fuelGal == null ? undefined : "gal" },
+      arrival
+        ? { name: "ETA", value: etaAt(from, minutes), testId: "navlog-eta" }
+        : { name: "ETE", value: minutes == null ? "—" : `≈${whole ? decimalHours(minutes) : guessed.time}`, testId: "navlog-ete" },
+      { name: "Fuel", value: required == null ? "—" : `≈${whole ? Math.ceil(required) : one(required)}`, unit: required == null ? undefined : "gal" },
     ];
   }
-  const minutes = totals?.ete_min ?? null;
+  const landing = nextLanding(totals, destination);
+  // To the destination, past the stops, where the pilot asked for it: the
+  // whole route's distance and time. The fuel stays the next landing's,
+  // what goes in the tanks before this flight: they are filled at each
+  // stop (app.planning.route_totals), and the route has no one figure.
+  const next = toDestination ? { to: destination, totals } : landing;
+  const leg = next.totals;
+  const minutes = leg?.ete_min ?? null;
   const time = minutes === null ? "—" : whole ? decimalHours(minutes) : enRoute(minutes);
-  const fuel = totals?.fuel_gal == null ? null : whole ? `${Math.ceil(totals.fuel_gal)}` : one(totals.fuel_gal);
-  const fuelFigure = { name: "Fuel", value: fuel ?? "—", unit: fuel === null ? undefined : "gal" };
-  const arrival = totals ? etaAt(from, minutes) : "—";
-  if (local) {
-    return [{ name: "Aloft", value: time, testId: "navlog-ete" }, { name: "Back", value: arrival, testId: totals ? "navlog-eta" : undefined }, fuelFigure];
-  }
+  const required = landing.totals?.fuel_required_gal ?? null;
+  const fuel = required == null ? null : whole ? `${Math.ceil(required)}` : one(required);
+  // Red where the tanks do not hold it, what FPL's fuel line under the
+  // route said before the owner took it out ("Remove fuel required at
+  // the bottom of arrival"): the figure says it now, its breakdown how short.
+  const short = (landing.totals?.fuel_margin_gal ?? 0) < 0;
+  const fuelFigure = { name: "Fuel", value: fuel ?? "—", unit: fuel === null ? undefined : "gal", testId: fuel === null ? undefined : "navlog-fuel", alert: short };
+  const to = { name: "To", value: next.to || "—", testId: "navlog-to" };
+  if (local) return [to, { name: "Aloft", value: time, testId: "navlog-ete" }, fuelFigure];
   return [
-    totals ? { name: "Dist", value: whole ? `${Math.ceil(totals.distance_nm)}` : one(totals.distance_nm), unit: "nm" } : { name: "Dist", value: "—" },
-    { name: "ETE", value: time, testId: "navlog-ete" },
-    { name: "ETA", value: arrival, testId: totals ? "navlog-eta" : undefined },
+    to,
+    leg ? { name: "Dist", value: whole ? `${Math.ceil(leg.distance_nm)}` : one(leg.distance_nm), unit: "nm" } : { name: "Dist", value: "—" },
+    arrival ? { name: "ETA", value: leg ? etaAt(from, minutes) : "—", testId: "navlog-eta" } : { name: "ETE", value: time, testId: "navlog-ete" },
     fuelFigure,
   ];
 }

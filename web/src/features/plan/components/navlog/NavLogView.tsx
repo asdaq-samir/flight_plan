@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
+import { Fragment, useCallback, useEffect, useId, useMemo, useState, type ReactNode } from "react";
 import { cn } from "cn";
 import { Loader2, WandSparkles } from "lucide-react";
 import {
@@ -138,9 +138,6 @@ interface Props {
   /** The planned flight's dry run while one is up: the log follows it, the
    *  row it is flying to tinted and kept in sight. */
   dryRun?: DryRun | null;
-  /** Bumped as the fuel check is asked for (the Brief's Go / No-Go fuel
-   *  row): brought into sight under the legs. */
-  fuelAsked?: number;
   /** FPL's own list in the nav log's place on screen: the route in order
    *  (ProceduresRoute), the nav log then in a sheet of its own, opened by
    *  the route's box's Nav log button, at the owner's ask ("I want to
@@ -277,7 +274,8 @@ export function DescriptionCell({
  *  the rate down and what to. */
 function legPointNote(point: TopOfClimb | TopOfDescent, descent: TopOfDescent | null): string {
   if (!descent) return `Top of climb: level at ${feet(point.altitude_ft)}.`;
-  return `Top of descent: ${descent.fpm} fpm down to ${feet(descent.to_ft)}${descent.pattern ? ", the pattern" : ""}.`;
+  const to = descent.pattern ? ", the pattern" : descent.fix ? ` by ${descent.fix}, the approach's first fix` : "";
+  return `Top of descent: ${descent.fpm} fpm down to ${feet(descent.to_ft)}${to}.`;
 }
 
 function LegLine({ leg, at }: { leg: Leg; at: { name: string; lat: number; lon: number } }) {
@@ -351,7 +349,7 @@ export default function NavLogView({
   selected, descriptions, onSaveDescription,
   onGenerateDescriptions, descriptionsLoading, descriptionsPaywall, descriptionsHidden = false, tabContent, children, marks, notice, footer, local = false, metarColourOf = noWeather,
   selectedPoint, onSelectPoint, onDeselectPoint, drawerOpen,
-  aircraftLabel, dryRun = null, fuelAsked = 0, route, navLogOpen = false, onNavLogOpenChange,
+  aircraftLabel, dryRun = null, route, navLogOpen = false, onNavLogOpenChange,
 }: Props) {
   // Where the log's rows are in sight: in its sheet where FPL shows the
   // route, else FPL all the way up.
@@ -642,16 +640,6 @@ export default function NavLogView({
   // closed, so a row revealed then was revealed off screen. (A pick brings
   // its tab up, PanelTabs.)
   useEffect(() => revealRow(selectedRow), [selectedRow, selectedPoint, logInSight]);
-  // The fuel check asked for from the Brief's Go / No-Go (`fuelAsked`):
-  // brought into sight under the legs as a picked row is, once for each
-  // ask, the sheet still coming up as it is.
-  const [fuelCheck, setFuelCheck] = useState<HTMLDivElement | null>(null);
-  const fuelSeen = useRef(fuelAsked);
-  useEffect(() => {
-    if (fuelAsked === fuelSeen.current || !fuelCheck) return;
-    fuelSeen.current = fuelAsked;
-    return revealRow(fuelCheck);
-  }, [fuelAsked, fuelCheck]);
   const isSelected = (lat: number, lon: number) =>
     !!selectedPoint && descriptionKey(lat, lon) === descriptionKey(selectedPoint.lat, selectedPoint.lon);
   // What opens under a row -- the selected one on screen, every one on
@@ -843,38 +831,6 @@ export default function NavLogView({
     </div>
   );
 
-  // The fuel the flight needs (14 CFR 91.151, IFR's 91.167), in a line
-  // under the route, red where the tanks do not hold it; with stops, a line
-  // for each flight between two landings, the tanks filled at each. What
-  // it is made of, and the tanks' usable fuel, is the Brief's, at the
-  // owner's ask ("Fuel required number can be just one line, no need for
-  // the usable. Fuel info can be in the brief in detail").
-  const fuelLine = (required: number | null | undefined, margin: number | null | undefined) => {
-    const short = margin != null && margin < 0 ? -margin : null;
-    return required == null ? "—" : short === null
-      ? `${one(required)} gal`
-      : <span className="font-semibold text-destructive">{one(required)} gal, {one(short)} short</span>;
-  };
-  const hopsNote = totals && totals.hops.length > 0 && (
-    <div className="mt-3" data-testid="fuel-check">
-      <ListGroup title="Fuel required">
-        {totals.hops.map(({ departure, destination, totals: hop }) => (
-          <ListRow
-            key={`${departure}-${destination}`} title={routeName(departure, destination)}
-            value={fuelLine(hop.fuel_required_gal, hop.fuel_margin_gal)}
-          />
-        ))}
-      </ListGroup>
-    </div>
-  );
-  const fuelNote = totals && totals.fuel_required_gal != null && totals.hops.length === 0 && (
-    <div className="mt-3" data-testid="fuel-check">
-      <ListGroup>
-        <ListRow title="Fuel required" value={fuelLine(totals.fuel_required_gal, totals.fuel_margin_gal)} />
-      </ListGroup>
-    </div>
-  );
-
   // The legs, FPL's own at the owner's ask ("FPL is simple with route,
   // navlog, profile and calculations"): no heading on screen, where they
   // are all FPL shows under the route; the briefing's pages are the Brief's
@@ -883,8 +839,6 @@ export default function NavLogView({
     <SectionPane title={LEGS} heading={printing && !local}>
       {!local && summary}
       {!local && (printing ? navLogTable : route ?? navLogList)}
-      <div ref={setFuelCheck}>{fuelNote}</div>
-      {!local && hopsNote}
     </SectionPane>
   );
   const title = routeName(dep, dest, ends?.stops?.map(s => s.ident));

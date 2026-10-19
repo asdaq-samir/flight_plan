@@ -4,7 +4,9 @@ import type { Totals } from "../../../lib/api/types";
 import { GROUP_HEADING, GROW_FIGURE, TEXT } from "../../../lib/text";
 import { usePanelDragging } from "../../../components/mapChrome";
 import { useRoom } from "../../../lib/useRoom";
-import { fitFigures, tripFigures } from "../figures";
+import { ResponsivePopover, ResponsivePopoverContent, ResponsivePopoverTrigger } from "../../../components/ResponsivePopover";
+import { fitFigures, nextLanding, tripFigures } from "../figures";
+import FuelBreakdown from "./FuelBreakdown";
 
 /**
  * The flight's figures, the last of the route's panel over the tabs, at
@@ -40,7 +42,7 @@ const SMALLEST = 0.75;
  *  13), with the sheet (`grow`); TEXT's sizes, a mouse's and a finger's. */
 const { value: GROW_VALUE, unit: GROW_UNIT, name: GROW_NAME } = GROW_FIGURE;
 
-export default function FlightLine({ totals, estimate, depart, local, grow = false }: {
+export default function FlightLine({ totals, estimate, destination, depart, local, grow = false }: {
   totals: Totals | null;
   /** Before the nav log's totals, at the pilot's ask for the figures as
    *  soon as can be: the course's distance at once, and the time and fuel
@@ -48,7 +50,9 @@ export default function FlightLine({ totals, estimate, depart, local, grow = fal
    *  climb or reserve, so the time and the fuel marked "≈" until the nav
    *  log's own come. */
   estimate?: { distanceNm: number; cruiseTasKt: number | null; fuelBurnGph: number | null } | null;
-  /** The departure time picked, ISO; empty for now. */
+  /** The route's destination: the To of a route with no stops. */
+  destination: string;
+  /** The departure time picked, ISO; empty for now: the ETA's. */
   depart: string;
   /** One airport to itself: the time aloft and the time back. */
   local: boolean;
@@ -69,8 +73,21 @@ export default function FlightLine({ totals, estimate, depart, local, grow = fal
   // a quarter of an hour's "0h 15m" was cut short to "0h 1…" where "0.3h"
   // fitted (2026-10-10).
   const [room, space] = useRoom<HTMLElement>();
-  const exact = tripFigures({ totals, estimate, depart, local }, false);
-  const rounded = tripFigures({ totals, estimate, depart, local }, true);
+  // The time en route tapped, the arrival's clock time in its place, and
+  // back, at the owner's ask ("Ete should change to eta when tapped").
+  const [arrival, setArrival] = useState(false);
+  // To tapped on a route with stops, the destination in the next stop's
+  // place, and back, at the owner's ask ("To should change to next stop
+  // or destination").
+  const [toDestination, setToDestination] = useState(false);
+  const stops = (totals?.hops.length ?? 0) > 0;
+  const exact = tripFigures({ totals, estimate, local, destination, depart, arrival, toDestination: stops && toDestination }, false);
+  const rounded = tripFigures({ totals, estimate, local, destination, depart, arrival, toDestination: stops && toDestination }, true);
+  // The fuel required tapped, what it is made of (FuelBreakdown), at the
+  // owner's ask ("fuel is the fuel required which gives a breakdown when
+  // tapped"): once the nav log's figures are in.
+  const next = nextLanding(totals, destination);
+  const breakdown = next.totals?.fuel_required_gal != null ? next : null;
   const probe = useRef<HTMLSpanElement>(null);
   const unitProbe = useRef<HTMLSpanElement>(null);
   const key = exact.map(f => `${f.value}${f.unit ?? ""}`).join("|");
@@ -133,8 +150,47 @@ export default function FlightLine({ totals, estimate, depart, local, grow = fal
                 over any chart (WCAG's 4.5:1), where the muted one did not. */}
             <dt className={cn(GROUP_HEADING, grow && GROW_NAME, "truncate text-foreground/65")}>{f.name}</dt>
             <dd ref={i === 0 ? room : undefined} className={cn(valueType, "truncate font-semibold tabular-nums")} data-testid={f.testId}>
-              <span style={sized(fitting?.px.value)} data-fitted={fitted}>{f.value}</span>
-              {f.unit && <span className={cn(unitType, "font-normal text-foreground/65")} style={sized(fitting?.px.unit)} data-fitted={fitted}> {f.unit}</span>}
+              {f.name === "Fuel" && breakdown ? (
+                <ResponsivePopover>
+                  <ResponsivePopoverTrigger asChild>
+                    {/* The figure itself the button, in the tint as what is
+                        tapped is; its 44-point area round it, the figure
+                        not grown to make it (index.css's after). */}
+                    <button
+                      type="button" data-testid="fuel-breakdown-open" data-alert={f.alert || undefined}
+                      aria-label={`Fuel required, ${f.value} gallons${f.alert ? ", more than the tanks hold" : ""}: what it is made of`}
+                      className={cn("relative after:absolute after:-inset-x-2 after:-inset-y-3 after:content-['']", f.alert ? "text-destructive" : "text-tint")}
+                    >
+                      <span style={sized(fitting?.px.value)} data-fitted={fitted}>{f.value}</span>
+                      {f.unit && <span className={cn(unitType, "font-normal")} style={sized(fitting?.px.unit)} data-fitted={fitted}> {f.unit}</span>}
+                    </button>
+                  </ResponsivePopoverTrigger>
+                  <ResponsivePopoverContent title={`Fuel to ${breakdown.to}`} className="w-72 p-3" side="top" align="end">
+                    <FuelBreakdown totals={breakdown.totals!} />
+                  </ResponsivePopoverContent>
+                </ResponsivePopover>
+              ) : f.name === "To" && stops && !local ? (
+                <button
+                  type="button" onClick={() => setToDestination(!toDestination)} data-testid="to-toggle"
+                  aria-label={`To ${f.value}: show the ${toDestination ? "next stop" : "destination"}`}
+                  className="relative text-tint after:absolute after:-inset-x-2 after:-inset-y-3 after:content-['']"
+                >
+                  <span style={sized(fitting?.px.value)} data-fitted={fitted}>{f.value}</span>
+                </button>
+              ) : (f.name === "ETE" || f.name === "ETA") && !local ? (
+                <button
+                  type="button" onClick={() => setArrival(!arrival)} data-testid="ete-eta-toggle"
+                  aria-label={`${f.name === "ETE" ? "Time en route" : "Arrival"}, ${f.value}: show the ${f.name === "ETE" ? "arrival" : "time en route"}`}
+                  className="relative text-tint after:absolute after:-inset-x-2 after:-inset-y-3 after:content-['']"
+                >
+                  <span style={sized(fitting?.px.value)} data-fitted={fitted}>{f.value}</span>
+                </button>
+              ) : (
+                <>
+                  <span style={sized(fitting?.px.value)} data-fitted={fitted}>{f.value}</span>
+                  {f.unit && <span className={cn(unitType, "font-normal text-foreground/65")} style={sized(fitting?.px.unit)} data-fitted={fitted}> {f.unit}</span>}
+                </>
+              )}
             </dd>
           </div>
         ))}

@@ -198,7 +198,7 @@ export const api = {
   async *navlog(
     dep: string, dest: string, altitudeFt?: string, aircraft?: AircraftChoice, altitudeChoice?: AltitudeChoice,
     depart?: string, signal?: AbortSignal, stops?: string[], classBClearance?: boolean, altitudes?: string,
-    checkpoints = true, rules: "vfr" | "ifr" = "vfr", alternate = "",
+    checkpoints = true, rules: "vfr" | "ifr" = "vfr", alternate = "", approaches = "",
   ): AsyncGenerator<NavLogMessage> {
     const result = await planner.GET("/api/navlog", {
       params: {
@@ -221,6 +221,8 @@ export const api = {
           rules: rules === "ifr" ? rules : undefined,
           // The IFR alternate filed, whose fuel is in the totals.
           alternate: rules === "ifr" && alternate ? alternate : undefined,
+          // The approaches picked, which the descents are planned to.
+          approaches: approaches || undefined,
         },
       },
       parseAs: "stream", signal,

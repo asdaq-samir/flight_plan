@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { beforeTheRoute, openPanel, openTab, settle, sideDrawer, slow, tapTheChart, grabberTo, controlsInSight, openNavLog, navLogSheet } from "./helpers";
+import { beforeTheRoute, openPanel, settle, sideDrawer, slow, tapTheChart, grabberTo, controlsInSight, openNavLog, navLogSheet } from "./helpers";
 
 /**
  * The map: its popups, its zoom toggle and the dev page's zoom button,
@@ -12,10 +12,9 @@ test("plan page: a route from an airport to itself is a local flight: the field'
   await page.goto("/app/plan?dep=C81&dest=C81");
   await grabberTo(page, "full");
   await expect(sideDrawer(page).getByTestId("navlog-ete")).toHaveText("1h 00m", { timeout: slow(30000) });
-  await expect(sideDrawer(page).locator('[data-slot="section-summary"] dt').first()).toHaveText("Aloft");
-  // Its fuel check under the legs, FPL's own.
-  await openTab(page, "Local");
-  await expect(page.getByTestId("fuel-check")).toContainText("Fuel required");
+  await expect(sideDrawer(page).locator('[data-slot="section-summary"] dt').nth(1)).toHaveText("Aloft");
+  // Its fuel required among the figures.
+  await expect(page.getByTestId("navlog-fuel")).toHaveText(/^\d+\.\d gal$/, { timeout: slow(30000) });
 
   // Longer aloft: its chip in the pill, in the address, and more fuel.
   await controlsInSight(page);
@@ -151,7 +150,7 @@ test("plan page: VFR Checkpoints draws the route's checkpoints and the landmarks
   await expect(numbered).toHaveCount(0);
   await expect(landmarks).toHaveCount(0);
   await openPanel(page);
-  await expect(page.getByTestId("navlog-eta")).toBeAttached({ timeout: slow(60000) });
+  await expect(page.getByTestId("navlog-fuel")).toBeAttached({ timeout: slow(60000) });
   await openNavLog(page);
   const rows = navLogSheet(page).locator('[role="row"][data-kind]');
   await expect(navLogSheet(page).locator('[role="row"][data-kind="checkpoint"]')).toHaveCount(0);

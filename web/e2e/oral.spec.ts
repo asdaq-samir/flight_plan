@@ -24,7 +24,7 @@ test("a developer is asked about this flight, answers, and is graded against quo
 
   await page.goto("/app/plan?dep=C81&dest=KDLH&view=briefing");
   await settle(page);
-  await expect(page.getByTestId("navlog-eta")).toBeVisible({ timeout: slow(120000) });
+  await expect(page.getByTestId("navlog-fuel")).toBeVisible({ timeout: slow(120000) });
   const drawer = sideDrawer(page);
   await openTab(page, "Brief");
   await openSection(page, "Mock Oral");
@@ -52,7 +52,7 @@ test("a pilot who is not the developer has no mock oral yet", async ({ page }) =
   }));
   await page.goto("/app/plan?dep=C81&dest=KDLH&view=briefing");
   await settle(page);
-  await expect(page.getByTestId("navlog-eta")).toBeVisible({ timeout: slow(120000) });
+  await expect(page.getByTestId("navlog-fuel")).toBeVisible({ timeout: slow(120000) });
   await openTab(page, "Brief");
   await expect(sideDrawer(page).locator('[data-title="Risk Assessment"]')).toBeAttached();
   await expect(sideDrawer(page).locator('[data-title="Mock Oral"]')).toHaveCount(0);

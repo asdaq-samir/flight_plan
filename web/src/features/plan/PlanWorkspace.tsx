@@ -53,6 +53,7 @@ import AirportPill from "./components/AirportPill";
 import FplStrip from "./components/FplStrip";
 import { RecentRoutesPage } from "./components/RecentRoutes";
 import MiniProfile from "./components/navlog/MiniProfile";
+import FootPager from "./components/FootPager";
 import { dryRunOf, type DryRun } from "./components/navlog/dryRun";
 import { DryRunControls, DryRunFigures } from "./components/DryRunPanel";
 import { DRY_RUN, clearPastFlight, usePastFlight } from "../../lib/map/pastFlight";
@@ -144,6 +145,22 @@ function altitudeChoiceOf(value: string | null): AltitudeChoice {
  *  list is made again only as one comes in (useQueries' combine). */
 const drawnOnly = (results: { data?: ProcedureDrawing }[]) => results.flatMap(r => (r.data ? [r.data] : []));
 
+/** A procedure picked, drawn as the planner draws it (vfr.procedures):
+ *  one query for the map's drawing and the planner's descent alike. */
+const procedureQuery = (p: PickedProcedure) => ({
+  queryKey: ["procedure", p.ident, p.id, p.transition],
+  queryFn: () => api.procedure(p.ident, p.id, p.transition),
+  // A cycle's procedures hold for its 28 days.
+  staleTime: 6 * 60 * 60_000,
+});
+
+/** The approaches among those drawn, as the address writes them, for the
+ *  planner to plan the descent to (PlanQuery.approaches): one string, so
+ *  the plan's key changes only as an approach does. */
+const approachesOnly = (results: { data?: ProcedureDrawing }[]) => proceduresParam(results.flatMap(r => (
+  r.data?.kind === "approach" ? [{ ident: r.data.airport, id: r.data.id, transition: r.data.transition ?? null }] : []
+)));
+
 /** The planner's places, its tab bar's (TabBar): the flight being
  *  planned, airports and traffic. */
 
@@ -167,12 +184,17 @@ const PLANNER_TABS: BarTab<PanelTab>[] = [
 /** The address with a field's ident changed everywhere it is named: the
  *  route's ends, its traffic patterns, its procedures and its points'
  *  altitudes, so a pick made under "ORD" stays with KORD. */
+/** FPL's route list's place in the nav log's view while it is at the
+ *  sheet's foot (PlanWorkspace's listAtFoot): nothing, the list there. */
+const ROUTE_AT_FOOT = <span hidden />;
+
 function renamed(params: URLSearchParams, from: string, to: string): URLSearchParams {
   const swap = (ident: string) => (ident === from ? to : ident);
   return patched(params, {
     dep: params.get("dep") === from ? to : undefined,
     dest: params.get("dest") === from ? to : undefined,
     pattern: params.has("pattern") ? patternsParam(new Map([...patternsOf(params.get("pattern"))].map(([ident, end]) => [swap(ident), end]))) : undefined,
+    takeoff: params.has("takeoff") ? patternsParam(new Map([...patternsOf(params.get("takeoff"))].map(([ident, end]) => [swap(ident), end]))) : undefined,
     procs: params.has("procs") ? proceduresParam(proceduresOf(params.get("procs")).map(p => ({ ...p, ident: swap(p.ident) }))) : undefined,
     altitudes: params.has("altitudes") ? altitudesParam(Object.fromEntries(Object.entries(altitudesOf(params.get("altitudes"))).map(([ident, at]) => [swap(ident), at]))) : undefined,
   });
@@ -250,9 +272,22 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // in the pilot console (a climb burn added, say) re-plans. It used to
   // fly the copy remembered at the pick until it was picked again.
   const aircraft = aircraftOptions.find(o => aircraftKey(o) === aircraftKey(remembered)) ?? remembered;
+  // The approaches picked at the route's fields, drawn (below): a flight
+  // landing by one is planned down to its first fix, not the pattern. A
+  // departure or an arrival picked plans nothing anew.
+  // The fields as one string, the stops comma-joined by the template: a
+  // method called on the render's `planned` made the React Compiler skip
+  // every later memo.
+  const routeFields = `${planned.dep},${planned.stops},${planned.dest}`;
+  const picksParam = searchParams.get("procs");
+  const approachQueries = useMemo(
+    () => proceduresOf(picksParam).filter(p => routeFields.split(",").includes(p.ident)).map(procedureQuery),
+    [picksParam, routeFields],
+  );
+  const approaches = useQueries({ queries: approachQueries, combine: approachesOnly });
   const s = usePlan({
     dep: planned.dep, dest: planned.dest, stops: planned.stops, altitudeFt, altitudeChoice, depart, aircraft, load, classBClearance,
-    altitudes, localMin, rules: flightRules,
+    altitudes, approaches, localMin, rules: flightRules,
     // Under IFR, the alternate filed in the Weather tab (AlternateSection).
     alternate: searchParams.get("alternate") ?? "",
     // Checkpoints as the map shows them: the settings' Waypoints off, the
@@ -279,6 +314,19 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     if (end && end !== NO_PATTERN) setPatternFocus(`${ident}:${end}:${Date.now()}`);
     setPattern(ident, end);
   }, [setPattern]);
+  // The runway a stop is left from, which may not be the one landed on,
+  // at the owner's ask ("arrival first with a runway and a separate
+  // departure with a runway"): "KMSN:36", as the patterns are written.
+  // The pattern drawn at a stop stays the landing's.
+  const takeoffParam = searchParams.get("takeoff");
+  const pickedTakeoffs = useMemo(() => patternsOf(takeoffParam), [takeoffParam]);
+  const setTakeoff = useCallback((ident: string, end: string | null) => {
+    setSearchParams(prev => {
+      const picked = patternsOf(prev.get("takeoff"));
+      if (end) picked.set(ident, end); else picked.delete(ident);
+      return patched(prev, { takeoff: picked.size ? patternsParam(picked) : null });
+    }, { replace: true });
+  }, [setSearchParams]);
   // The instrument procedures picked for the route's fields, kept in the
   // address too: "KBUR:I08-Y:LAX" (lib/procedures).
   const procedureParam = searchParams.get("procs");
@@ -445,12 +493,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // Theirs as the planner draws them (vfr.procedures), for the route's
   // fields alone: a pick kept from a route since changed is not drawn.
   const procedureDrawings = useQueries({
-    queries: pickedProcedures.filter(p => procedureAirports.some(a => a.ident === p.ident)).map(p => ({
-      queryKey: ["procedure", p.ident, p.id, p.transition],
-      queryFn: () => api.procedure(p.ident, p.id, p.transition),
-      // A cycle's procedures hold for its 28 days.
-      staleTime: 6 * 60 * 60_000,
-    })),
+    queries: pickedProcedures.filter(p => procedureAirports.some(a => a.ident === p.ident)).map(procedureQuery),
     combine: drawnOnly,
   });
   // Those drawn, said in the route's box after their fields (RouteBox's
@@ -876,16 +919,12 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       return patched(prev, { brief: null });
     }, { replace: true }));
   }, [closeCard, setSearchParams]);
-  // The legs asked for from the Brief -- its Go / No-Go's fuel, checked
-  // under them -- FPL's nav log all the way up in its place, the fuel's
-  // check brought into sight (NavLogView's fuelAsked).
-  const [fuelAsked, setFuelAsked] = useState(0);
+  // The legs asked for from the Brief: FPL all the way up in its place.
   const showLegs = useCallback(() => {
     setSearchParams(prev => {
       return patched(prev, { brief: null });
     }, { replace: true });
     setPanel("full");
-    setFuelAsked(n => n + 1);
   }, [setSearchParams, setPanel]);
   // The strip's title opens the list in full, over Airport.
   const openNearest = useCallback(() => {
@@ -1293,16 +1332,20 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // runways and procedures, and the tops of climb and descent and the
   // fixes flown through, by the nav log's rows.
   const routeRows = useMemo(() => navLogRows(course, s.logSelected, s.legs), [course, s.logSelected, s.legs]);
+  // Half way on a phone the route's list in the side view's place at the
+  // sheet's foot, the side view a swipe to the left (FootPager); all the
+  // way up, the list over the side view as before, at the owner's ask.
+  const listAtFoot = isMobile && panel !== "full";
   const routeList = useMemo(() => (
     <ProceduresRoute
       airports={procedureAirports} rows={routeRows} depart={depart} weather={metarColour}
-      picked={pickedPatterns} onPick={pickPattern} onPreselect={setPattern}
+      picked={pickedPatterns} onPick={pickPattern} onPreselect={setPattern} takeoffs={pickedTakeoffs} onTakeoff={setTakeoff}
       procedures={pickedProcedures} inRoute={routeProcedures} onProcedures={pickProcedures} onPreview={previewProcedure}
       at={proceduresAt} onAt={setProceduresShown}
       onCharts={() => { if (planned.dest) { setApproachesOf(planned.dest); selectPlace(planned.dest); } }}
       chartsDisabled={!planned.dest || noApproaches}
     />
-  ), [procedureAirports, routeRows, depart, metarColour, pickedPatterns, pickPattern, setPattern, pickedProcedures, routeProcedures, pickProcedures,
+  ), [procedureAirports, routeRows, depart, metarColour, pickedPatterns, pickPattern, setPattern, pickedTakeoffs, setTakeoff, pickedProcedures, routeProcedures, pickProcedures,
     previewProcedure, proceduresAt, setProceduresShown, planned.dest, selectPlace, noApproaches]);
   const navLog = useMemo(() => (
     <Suspense fallback={<div className="min-h-0 flex-1" />}>
@@ -1320,8 +1363,8 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       selectedPoint={selectedPoint} onSelectPoint={selectPointAt} onDeselectPoint={deselectPoint}
       // In sight all the way up, the Brief not over it: a row picked is
       // brought into sight as it comes back.
-      drawerOpen={drawerOpen && !briefShown} dryRun={dryRunning} fuelAsked={fuelAsked}
-      route={routeList} navLogOpen={navLogOpen} onNavLogOpenChange={setNavLogOpen}
+      drawerOpen={drawerOpen && !briefShown} dryRun={dryRunning}
+      route={listAtFoot ? ROUTE_AT_FOOT : routeList} navLogOpen={navLogOpen} onNavLogOpenChange={setNavLogOpen}
       aircraftLabel={aircraft.label}
       marks={marks}
       tabContent={tabContent}
@@ -1341,8 +1384,8 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     </Suspense>
   ), [s.totals, s.nav, s.legs, depart, planned.dep, planned.dest, course, s.logSelected, s.descriptions, s.saveDescription,
     s.generateDescriptions, descriptionsLoading, descriptionsPaywall, descriptionsHidden, selectedPoint, selectPointAt, deselectPoint, drawerOpen, aircraft.label,
-    marks, tabContent, s.briefing, s.local, landedStops, s.langgraphNarrative, s.crewaiNarrative, unflyableBrief, kneeboardLater, metarColour, dryRunning, fuelAsked, briefShown,
-    routeList, navLogOpen]);
+    marks, tabContent, s.briefing, s.local, landedStops, s.langgraphNarrative, s.crewaiNarrative, unflyableBrief, kneeboardLater, metarColour, dryRunning, briefShown,
+    routeList, listAtFoot, navLogOpen]);
   // The Brief's pages (BriefCard): En route's without the legs, which are
   // FPL's own; and its warnings over them.
   const briefContents = useMemo(() => ({
@@ -1484,6 +1527,16 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // there, a picture of the flight, nothing to tap.
   const miniProfile = routed && course && !local
     ? <MiniProfile ends={course} selected={selected} legs={s.legs} onOpen={panel === "full" ? undefined : () => setPanel("full")} /> : null;
+  // The side view with its dry run at its top right: the flight flown on
+  // paper.
+  const sideView = (
+    <div className="relative h-full pb-2">
+      {miniProfile}
+      <RoundButton label="Dry run" onClick={startDryRun} disabled={!dryRunReady} className="absolute top-1.5 right-1.5" data-testid="dry-run-start">
+        <Play className="size-5" />
+      </RoundButton>
+    </div>
+  );
   // The route's chips: the airplane, the altitude, the time, Saved,
   // Approaches and Share (`controls`), and with no route the pill's too.
   const routeControls = started && (
@@ -1758,18 +1811,20 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
             // owner's ask ("small space between profile calculations").
             className={cn("min-h-0 shrink overflow-hidden [&_[data-testid=mini-profile]]:h-full", panel === "full" ? "h-[min(10rem,20dvh)] [@media(max-height:560px)]:hidden" : "h-40")} data-pill-hides=""
           >
-            <div className="relative h-full pb-2">
-              {miniProfile}
-              {/* Its dry run, at its top right: the flight flown on paper. */}
-              <RoundButton label="Dry run" onClick={startDryRun} disabled={!dryRunReady} className="absolute top-1.5 right-1.5" data-testid="dry-run-start">
-                <Play className="size-5" />
-              </RoundButton>
-            </div>
+            {listAtFoot ? (
+              <FootPager
+                testId="foot-pager"
+                pages={[
+                  { label: "Route", node: <div className="pt-1">{routeList}</div> },
+                  { label: "Side view", node: sideView },
+                ]}
+              />
+            ) : sideView}
           </div>
         )}
         {dryRunning ? <DryRunFigures run={dryRunning} /> : (
           <div data-testid="flight-line">
-            <FlightLine totals={s.totals} estimate={estimate} depart={depart} local={s.local} grow />
+            <FlightLine totals={s.totals} estimate={estimate} destination={`${planned.dest}`} depart={depart} local={s.local} grow />
           </div>
         )}
       </div>

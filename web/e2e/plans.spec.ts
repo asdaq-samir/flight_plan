@@ -149,23 +149,34 @@ test("plan page: a departure time gives every checkpoint its time, and the nav l
   // itself.
   await openNavLog(page);
   await expect(times.first()).toHaveText("15:00");
-  // The route's figures say when it arrives, and the time en route.
-  await expect(page.getByTestId("navlog-eta")).toHaveText(/^\d\d:\d\d$/, { timeout: slow(60000) });
+  // The route's figures say where it lands, the time en route and the
+  // fuel required (the owner's "To, Dist, ETE, Fuel").
+  await expect(page.getByTestId("navlog-fuel")).toHaveText(/^\d+\.\d gal$/, { timeout: slow(60000) });
+  await expect(page.getByTestId("navlog-to")).toHaveText("KDLH");
   await expect(page.getByTestId("navlog-ete")).toHaveText(/^\d+h \d\dm$/);
   // Every later row has a time once its leg is in.
   await expect.poll(async () => (await times.last().textContent())?.trim(), { timeout: slow(60000) }).toMatch(/^\d\d:\d\d$/);
   await closeNavLog(page);
-  // And the fuel check, against the stock C172's 40 usable gallons,
-  // with the day reserve for a mid-afternoon flight -- under FPL's route.
-  // FPL says the fuel required in a line; what it is made of and the
-  // tanks' usable fuel are the Brief's (the owner's "Fuel required number
-  // can be just one line, no need for the usable").
-  const fuel = page.getByTestId("fuel-check");
-  await expect(fuel).toContainText(/Fuel required\s*[\d.]+ gal/, { timeout: slow(60000) });
-  await expect(fuel).not.toContainText("Usable fuel");
-  const tableBox = (await sideDrawer(page).getByTestId("procedures").boundingBox())!;
-  const noteBox = (await page.getByTestId("fuel-check").boundingBox())!;
-  expect(noteBox.y).toBeGreaterThanOrEqual(tableBox.y + tableBox.height);
+  // The time en route tapped, the arrival in its place, and back.
+  await page.getByTestId("ete-eta-toggle").click();
+  await expect(page.getByTestId("navlog-eta")).toHaveText(/^\d\d:\d\d$/);
+  await page.getByTestId("ete-eta-toggle").click();
+  await expect(page.getByTestId("navlog-ete")).toHaveText(/^\d+h \d\dm$/);
+  // The fuel tapped, what it is made of, summing to it.
+  await page.getByTestId("fuel-breakdown-open").click();
+  const breakdown = page.getByTestId("fuel-breakdown");
+  await expect(breakdown).toContainText("Flying the legs");
+  await expect(breakdown).toContainText("Start, taxi and takeoff");
+  await expect(breakdown).toContainText(/Reserve, (30|45) min/);
+  await expect(breakdown).toContainText(/Fuel required\s*\d+\.\d gal/);
+  await page.keyboard.press("Escape");
+  await expect(breakdown).toHaveCount(0);
+  // And the fuel check, against the stock C172's 40 usable gallons, with
+  // the day reserve for a mid-afternoon flight: the figure's alone now,
+  // no line under the route (the owner's "Remove fuel required at the
+  // bottom of arrival"), and in full in the Brief.
+  await expect(page.getByTestId("fuel-check")).toHaveCount(0);
+  await expect(page.getByTestId("fuel-breakdown-open")).not.toHaveAttribute("data-alert");
   await openSection(page, "Fuel");
   const detail = page.getByTestId("fuel-detail");
   await expect(detail.locator("[data-slot=item]", { hasText: "Usable fuel" })).toContainText("40 gal");
@@ -234,7 +245,6 @@ test("plan page: no legal altitude is the route's own problem: its chip says so 
   await grabberTo(page, "full");
   // The figures stay, the book's marked "≈", where why stood in their
   // place in red; why is the Brief's, its Go / No-Go's altitude red.
-  await expect(sideDrawer(page).getByTestId("navlog-eta-estimate")).toBeVisible();
   await expect(sideDrawer(page).getByTestId("navlog-ete")).toHaveText(/^≈/);
   await openTab(page, "Brief");
   const altitude = sideDrawer(page).getByTestId("verdict-altitude");

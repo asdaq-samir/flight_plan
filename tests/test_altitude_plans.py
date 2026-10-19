@@ -269,6 +269,27 @@ def test_a_step_down_is_a_descent_to_the_lower_level_by_its_fix():
     assert not legs[0]["tod"]["pattern"] and legs[1]["tod"] is None
 
 
+def test_a_descent_to_an_approach_levels_at_its_fix_short_of_the_field():
+    # 5,500 down to an initial approach fix crossed at 3,000, 15 nm out:
+    # 2,500 ft is 7.5 nm, so 22.5 nm before the field, on the last leg.
+    legs = navlog.with_descents([_course_leg(60.0, 5500.0), _course_leg(60.0, 5500.0)], FIXES, 3000.0, 15.0, "ANDOE")
+    tod = legs[1]["tod"]
+    assert tod["along_nm"] == 37.5 and tod["to_ft"] == 3000.0 and tod["fix"] == "ANDOE" and not tod["pattern"]
+    # The rate is the one to level there: 2,500 ft over 7.5 nm at 100 kt.
+    assert tod["fpm"] == round(2500 / (7.5 / 100 * 60) / 50) * 50
+
+
+def test_a_fix_further_out_than_the_last_leg_moves_the_descent_onto_the_leg_before():
+    # The fix 70 nm out, past the last leg's 60: down 7.5 nm before that.
+    legs = navlog.with_descents([_course_leg(60.0, 5500.0), _course_leg(60.0, 5500.0)], FIXES, 3000.0, 70.0, "ANDOE")
+    assert legs[1]["tod"] is None and legs[0]["tod"]["along_nm"] == 42.5 and legs[0]["tod"]["fix"] == "ANDOE"
+
+
+def test_a_cruise_under_the_fixs_altitude_has_no_descent_to_it():
+    legs = navlog.with_descents([_course_leg(60.0, 2500.0)], FIXES[:2], 3000.0, 10.0, "ANDOE")
+    assert legs[0]["tod"] is None
+
+
 def test_a_flight_too_short_for_three_to_one_starts_down_at_the_top_of_its_climb():
     # 10 nm: the climb to 4,500 takes 5 of them, and 3,000 ft down at
     # three to one would take 9.

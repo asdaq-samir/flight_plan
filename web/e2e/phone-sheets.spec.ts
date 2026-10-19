@@ -101,7 +101,7 @@ test("a swipe up on a sheet opened from the map's sheet moves neither it nor the
   const panel = sideDrawer(page);
   const top = async () => (await panel.boundingBox())!.y;
   await openTab(page, "Nav Log");
-  await sideDrawer(page).getByRole("region", { name: "KDLH · Arrive" }).getByTestId("procedure-kind").filter({ hasText: /^Approach/ }).click();
+  await sideDrawer(page).getByRole("region", { name: "KDLH · Arrive" }).locator('[data-testid=procedure-kind][data-kind=approach]').click();
   // The pull-down's foot opens the field's whole list (ProcedureMenu).
   await page.getByTestId("procedure-menu-all").click();
   const sheet = page.locator("[data-slot=sheet-content]");

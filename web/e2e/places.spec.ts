@@ -302,7 +302,7 @@ test("the route's Procedures open its destination's card on its approaches, and 
       : { airport: "KDLH", kind: "approach", id: "I09", name: "ILS OR LOC RWY 09", transition: null, cycle: "261001", stale: false, lines: [], holds: [], fixes: [] },
   }));
   await grabberTo(page, "full");
-  await sideDrawer(page).getByRole("region", { name: "KDLH · Arrive" }).getByTestId("procedure-kind").filter({ hasText: /^Approach/ }).click();
+  await sideDrawer(page).getByRole("region", { name: "KDLH · Arrive" }).locator('[data-testid=procedure-kind][data-kind=approach]').click();
   // The pull-down's foot opens the field's whole list (ProcedureMenu).
   await page.getByTestId("procedure-menu-all").click();
   await page.getByTestId("procedure-option").first().click();

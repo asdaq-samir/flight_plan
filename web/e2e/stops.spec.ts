@@ -62,10 +62,25 @@ test("a stop added in the panel lands the route there: the capsule, the nav log 
   await expect(landing).toBeVisible({ timeout: slow(30000) });
   await closeNavLog(page);
   // And FPL's route lists it as a step of its own, with its procedures.
-  await expect(sideDrawer(page).getByTestId("procedures").getByRole("region", { name: "KMSN · Stop" })).toBeVisible();
-  const fuel = sideDrawer(page).getByTestId("fuel-check");
-  await expect(fuel).toContainText("C81 → KMSN", { timeout: slow(30000) });
-  await expect(fuel).toContainText("KMSN → KDLH");
+  // Landed at and left again, each with its own runway (the owner's
+  // "arrival first with a runway and a separate departure with a runway").
+  const arrive = sideDrawer(page).getByTestId("procedures").getByRole("region", { name: "KMSN · Arrive" });
+  const leave = sideDrawer(page).getByTestId("procedures").getByRole("region", { name: "KMSN · Depart" });
+  await expect(arrive).toBeVisible();
+  await expect(leave).toBeVisible();
+  const takeoff = leave.getByRole("radiogroup", { name: "KMSN takeoff runway" });
+  await expect(takeoff).toBeVisible();
+  const runway = takeoff.getByTestId("procedure-pattern").and(page.locator(":not([disabled])")).last();
+  const name = (await runway.innerText()).trim();
+  await runway.click();
+  await expect(page).toHaveURL(new RegExp(`[?&]takeoff=[^&]*KMSN(%3A|:)${name}(%2C|,|&|$)`));
+  // The figures to the next landing, KMSN, its fuel the tanks' for that
+  // flight; a tap on To, the destination and the whole route's distance.
+  await expect(sideDrawer(page).getByTestId("navlog-to")).toHaveText("KMSN", { timeout: slow(30000) });
+  await expect(sideDrawer(page).getByTestId("navlog-fuel")).toHaveText(/^\d+\.\d gal$/);
+  await sideDrawer(page).getByTestId("to-toggle").click();
+  await expect(sideDrawer(page).getByTestId("navlog-to")).toHaveText("KDLH");
+  await sideDrawer(page).getByTestId("to-toggle").click();
 
   // Lowered, the pill's figures under its tabs: the distance among them.
   await grabberTo(page, "peek");
