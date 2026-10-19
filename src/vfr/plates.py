@@ -220,6 +220,26 @@ def fit(words: list, stars: list, fixes: dict) -> dict | None:
     return {"lat0": lat0, "lon0": lon0, "scale": scale, "turn": math.degrees(turn), "x0": x0, "y0": y0, "fixes": agreed}
 
 
+def page_of(placing: dict, lat: float, lon: float) -> tuple:
+    """Where on the page a point on the ground is: ground_of's inverse."""
+    turn = math.radians(placing["turn"])
+    e = (lon - placing["lon0"]) * 60 * math.cos(math.radians(placing["lat0"]))
+    n = (lat - placing["lat0"]) * 60
+    return (placing["x0"] + placing["scale"] * (math.cos(turn) * e - math.sin(turn) * n),
+            placing["y0"] + placing["scale"] * (math.sin(turn) * e + math.cos(turn) * n))
+
+
+def runway_inside(placing: dict, fixes: dict, box: tuple) -> bool:
+    """Whether the approach's runway threshold, its "RW" fix in the CIFP,
+    falls inside the plan view's box -- the third check a placing from two
+    stars needs: two points always fit some scale and turn exactly, so a
+    pair matched wrong would agree with itself. Every plan view draws its
+    own airport (FAA's Terminal Procedures Publication legend: plan view)."""
+    left, bottom, right, top = box
+    runways = [page_of(placing, *at) for f, at in fixes.items() if f.startswith("RW")]
+    return bool(runways) and all(left <= x <= right and bottom <= y <= top for x, y in runways)
+
+
 def ground_of(placing: dict, x: float, y: float) -> tuple:
     """Where a point of the page is on the ground, (lat, lon), by the
     plan view's placing (fit)."""
@@ -262,15 +282,10 @@ def _plan_view(pdf: bytes, fixes: dict) -> tuple | None:
             placing = fit(words_of(page), stars_of(squares), fixes)
             if placing is None or abs(placing["turn"]) > MAX_TURN_DEG:
                 return None
-            stars = []
-            turn = math.radians(placing["turn"])
-            for f in placing["fixes"]:
-                lat, lon = fixes[f]
-                e = (lon - placing["lon0"]) * 60 * math.cos(math.radians(placing["lat0"]))
-                n = (lat - placing["lat0"]) * 60
-                stars.append((placing["x0"] + placing["scale"] * (math.cos(turn) * e - math.sin(turn) * n),
-                              placing["y0"] + placing["scale"] * (math.sin(turn) * e + math.cos(turn) * n)))
+            stars = [page_of(placing, *fixes[f]) for f in placing["fixes"]]
             left, bottom, right, top = plan_view_box(across, down, stars, (width, height))
+            if len(placing["fixes"]) < FIT_FIXES and not runway_inside(placing, fixes, (left, bottom, right, top)):
+                return None
             image = page.render(scale=PLATE_SCALE, grayscale=True).to_pil().convert("L")
         finally:
             document.close()

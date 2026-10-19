@@ -92,3 +92,15 @@ def test_a_plate_kept_as_not_placed_is_none_until_fit_changes(tmp_path):
     assert plates._kept(meta)["placed"] is False
     meta.write_text('{"cycle": "2610", "name": "RNAV (GPS) RWY 3", "placed": true, "south": 46.6}')
     assert plates._kept(meta)["south"] == 46.6
+
+
+def test_two_stars_place_a_plate_only_with_its_runway_inside_the_plan_view():
+    stars, words = _drawn()
+    two = {f: FIXES[f] for f in ("OMARY", "AMLIY")}
+    placing = plates.fit(words, list(stars.values()), two)
+    x, y = plates.page_of(placing, *FIXES["DEHBU"])
+    runway = {**two, "RW03": FIXES["DEHBU"]}
+    assert plates.runway_inside(placing, runway, (x - 50, y - 50, x + 50, y + 50))
+    assert not plates.runway_inside(placing, runway, (x + 10, y - 50, x + 50, y + 50))
+    # No runway in the CIFP: nothing to check two stars by.
+    assert not plates.runway_inside(placing, two, (x - 50, y - 50, x + 50, y + 50))
