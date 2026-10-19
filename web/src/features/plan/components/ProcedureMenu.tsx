@@ -65,6 +65,17 @@ export default function ProcedureMenu({ ident, kind, list, loading, picked, labe
   // iOS menu opens a submenu in place: side by side they ran off a
   // phone's screen (the owner's screenshot, 2026-10-19).
   const [pages, setPages] = useState<Page[]>([]);
+  // Opened by a finger's tap, its lift, not its touch, at the owner's ask
+  // ("Just tapping a selection opens it, instead of tapping and
+  // releasing?"): Radix opens on the press, so a scroll of the list that
+  // began on a pull-down opened it. A mouse's press and the keyboard as
+  // Radix has them.
+  const [open, setOpen] = useState(false);
+  const pressedBy = useRef<string | null>(null);
+  const toggle = (next: boolean) => {
+    setOpen(next);
+    if (next) onOpen(); else setPages([]);
+  };
   const page = pages.at(-1) ?? null;
   const push = (next: Page) => (event: Event) => { event.preventDefault(); setPages([...pages, next]); };
   const back = (event: Event) => { event.preventDefault(); setPages(pages.slice(0, -1)); };
@@ -101,8 +112,15 @@ export default function ProcedureMenu({ ident, kind, list, loading, picked, labe
     </>
   );
   return (
-    <DropdownMenu onOpenChange={open => { if (open) onOpen(); else setPages([]); }}>
-      <DropdownMenuTrigger asChild>
+    <DropdownMenu open={open} onOpenChange={toggle}>
+      <DropdownMenuTrigger
+        asChild
+        onPointerDown={event => {
+          pressedBy.current = event.pointerType;
+          if (event.pointerType === "touch") event.preventDefault();
+        }}
+        onClick={() => { if (pressedBy.current === "touch" && !open) toggle(true); }}
+      >
         {/* One line, at the owner's ask: the kind's name ("Approach") until
             one is picked ("Just remove the word select"), then the one
             picked, in the tint as what is tapped. */}

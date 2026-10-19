@@ -4,6 +4,7 @@ import { ListGroup, ListRow } from "../../../../components/GroupedList";
 import type { Briefing, Leg } from "../../../../lib/api/types";
 import { compassWord, entryFor, exitFor, patternSideDeg, runwayNumber, type RunwayEnd } from "../../../../lib/pattern";
 import { fieldPhases, type RadioCall, type RadioPhase } from "../../../../lib/radio";
+import { useRunwayPicks } from "../../../../lib/useRunwayPicks";
 import { altFt } from "../../format";
 import { Mhz } from "../FrequencyRow";
 
@@ -173,7 +174,8 @@ export default function PatternRadio({ briefing, landings, legs, callSign, at }:
   /** The field whose calls these are. */
   at: string;
 }) {
-  const phases = fieldPhases(briefing, landings, legs, callSign, at);
+  const picks = useRunwayPicks();
+  const phases = fieldPhases(briefing, landings, legs, callSign, at, picks);
   if (!phases.length) return null;
   const courseInto = (ident: string) => {
     const into = legs.filter(l => l.to === ident);

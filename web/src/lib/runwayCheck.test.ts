@@ -53,6 +53,28 @@ describe("the runway check", () => {
     expect(to!.crosswindOver).toBe(false);
   });
 
+  it("checks the runway the pilot picked in FPL, whatever the wind, with the wind on the end picked", () => {
+    // KDLH: a long runway into the wind, and a short one the pilot picked.
+    const ends = (a: string, b: string) => [{ ident: a, heading_true_deg: 0 }, { ident: b, heading_true_deg: 180 }];
+    const picked = {
+      ...briefing,
+      airports: {
+        ...briefing.airports,
+        KDLH: { runways: [
+          runway(9000, 10, 3, { ends: "09/27", runway_ends: ends("09", "27") }),
+          runway(1200, 8, 0, { ends: "18/36", runway_ends: ends("18", "36"), wind: { end: "36", headwind_kt: 8, crosswind_kt: 0 } }),
+        ] },
+      },
+    } as unknown as Briefing;
+    const into = runwayChecks(c172, picked, course, 2550, 2400)[1]!;
+    expect([into.end, into.picked, into.distances[0]!.over]).toEqual(["27", false, false]);
+    const pick = { pattern: new Map([["KDLH", "18"]]), takeoff: new Map<string, string>() };
+    const flown = runwayChecks(c172, picked, course, 2550, 2400, pick)[1]!;
+    // 18 is the far end of the wind's 36: its headwind is a tailwind.
+    expect([flown.end, flown.picked, flown.headwindKt, flown.runway!.length_ft]).toEqual(["18", true, -8, 1200]);
+    expect(flown.distances[0]!.over).toBe(true);
+  });
+
   it("is not worked out without the POH's tables", () => {
     expect(runwayChecks({ ...c172, takeoff: null }, briefing, course, 2550, 2400)).toEqual([]);
   });

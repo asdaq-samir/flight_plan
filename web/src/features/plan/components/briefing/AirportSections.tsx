@@ -9,6 +9,7 @@ import { PublicationRows } from "../PublicationRows";
 import { RunwayRow } from "../RunwayRow";
 import PatternRadio from "./PatternRadio";
 import { fieldPhases } from "../../../../lib/radio";
+import { useRunwayPicks } from "../../../../lib/useRunwayPicks";
 
 /**
  * The Brief's airports: a section for each field the flight leaves or
@@ -33,6 +34,7 @@ export default function AirportSections({ briefing, landings, legs, callSign, ph
   legs: Leg[];
   callSign: string;
 }) {
+  const picks = useRunwayPicks();
   return (
     <>
       {landings.map((ident, i) => {
@@ -51,7 +53,7 @@ export default function AirportSections({ briefing, landings, legs, callSign, ph
         // pattern is not flown to -- each said once, at the owner's pick of
         // the redesign, where every frequency and runway was listed, and
         // the calls and the pattern said them again.
-        const phases = fieldPhases(briefing, landings, legs, callSign, ident);
+        const phases = fieldPhases(briefing, landings, legs, callSign, ident, picks);
         const called = new Set(phases.flatMap(p => p.calls.map(c => c.mhz)).filter((m): m is number => m != null).map(m => m.toFixed(3)));
         const flown = new Set(phases.flatMap(p => (p.end ? [p.end.ident] : [])));
         const otherFrequencies = (info?.frequencies ?? []).filter(f => !(f.frequency_mhz != null && called.has(f.frequency_mhz.toFixed(3))));
