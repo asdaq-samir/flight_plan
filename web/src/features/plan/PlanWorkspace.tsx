@@ -53,6 +53,8 @@ import AirportPill from "./components/AirportPill";
 import FplStrip from "./components/FplStrip";
 import { RecentRoutesPage } from "./components/RecentRoutes";
 import MiniProfile from "./components/navlog/MiniProfile";
+import RouteEnds from "./components/RouteEnds";
+import { routeEndsOf } from "./components/routeEndsOf";
 import { dryRunOf, type DryRun } from "./components/navlog/dryRun";
 import { DryRunControls, DryRunFigures } from "./components/DryRunPanel";
 import { DRY_RUN, clearPastFlight, usePastFlight } from "../../lib/map/pastFlight";
@@ -1253,6 +1255,17 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // runways and procedures, and the tops of climb and descent and the
   // fixes flown through, by the nav log's rows.
   const routeRows = useMemo(() => navLogRows(course, s.logSelected, s.legs), [course, s.logSelected, s.legs]);
+  // Its two ends as the half sheet says them under the side view.
+  const routeEnds = useMemo(
+    () => (local ? null : routeEndsOf(routeRows, procedureAirports, pickedPatterns, routeProcedures)),
+    [local, routeRows, procedureAirports, pickedPatterns, routeProcedures],
+  );
+  // The side view's and its dry run's height half way: ten rem where it is
+  // the foot's alone; six with the route's ends under it (RouteEnds), what
+  // the half sheet leaves it there, held so -- given all it could take, it
+  // grew under the finger as the sheet was dragged up, where it is to stay
+  // still (dry-run.spec).
+  const halfSide = routeEnds ? "h-24 shrink" : "h-40 shrink";
   const routeList = useMemo(() => (
     <ProceduresRoute
       airports={procedureAirports} rows={routeRows} depart={depart} weather={metarColour}
@@ -1707,7 +1720,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
             its side), where the card's head over the log leaves it no room:
             pinned there, it left the log none at all. It is there half way. */}
         {dryRunning ? (
-          <div className={cn("flex min-h-0 flex-col pb-2", panel === "full" ? "h-[min(10rem,20dvh)] min-h-24 flex-none" : "h-40 shrink")} data-pill-hides=""><DryRunControls run={dryRunning} ends={course} onClose={stopDryRun} missed={goMissed} onMissed={goMissedNow} /></div>
+          <div className={cn("flex min-h-0 flex-col pb-2", panel === "full" ? "h-[min(10rem,20dvh)] min-h-24 flex-none" : halfSide)} data-pill-hides=""><DryRunControls run={dryRunning} ends={course} onClose={stopDryRun} missed={goMissed} onMissed={goMissedNow} /></div>
         ) : miniProfile && (
           <div
             // All the half sheet leaves it, at the owner's ask ("make the
@@ -1716,7 +1729,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
             // under it kept whole. It was six rem at most. Eight points
             // between it and the figures, as a dry run's chart has, at the
             // owner's ask ("small space between profile calculations").
-            className={cn("min-h-0 shrink overflow-hidden [&_[data-testid=mini-profile]]:h-full", panel === "full" ? "h-[min(10rem,20dvh)] [@media(max-height:560px)]:hidden" : "h-40")} data-pill-hides=""
+            className={cn("min-h-0 shrink overflow-hidden [&_[data-testid=mini-profile]]:h-full", panel === "full" ? "h-[min(10rem,20dvh)] [@media(max-height:560px)]:hidden" : halfSide)} data-pill-hides=""
           >
             <div className="relative h-full pb-2">
               {miniProfile}
@@ -1725,6 +1738,15 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
                 <Play className="size-5" />
               </RoundButton>
             </div>
+          </div>
+        )}
+        {/* The route's two ends under the side view, half way up: each
+            field's time, runway and procedures (RouteEnds), at the owner's
+            pick of the half card (Fit 2). All the way up the route in order
+            says them, row by row. */}
+        {panel !== "full" && routeEnds && (
+          <div data-pill-hides="">
+            <RouteEnds from={routeEnds[0]} to={routeEnds[1]} depart={depart} weather={metarColour} onOpen={() => setPanel("full")} />
           </div>
         )}
         {dryRunning ? <DryRunFigures run={dryRunning} /> : (
