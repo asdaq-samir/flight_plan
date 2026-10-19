@@ -10,8 +10,12 @@ import { cn } from "cn";
  * scrolling in its own. A sideways scroller, so the tab bar's swipe
  * across the panel leaves it be (TabBar).
  */
-export default function FootPager({ pages, page: at, onPage, testId }: {
+export default function FootPager({ pages, page: at, onPage, introFrom, testId }: {
   pages: { label: string; node: ReactNode }[];
+  /** Drawn first at this page and slid to `page`, at the owner's ask: the
+   *  sheet brought down from all the way up, the side view seen sliding
+   *  off to the right, where a swipe brings it back. */
+  introFrom?: number;
   /** The page shown, kept by the page round it as the sheet changes
    *  height and the pager is drawn anew (PlanWorkspace's footPage). */
   page: number;
@@ -24,6 +28,25 @@ export default function FootPager({ pages, page: at, onPage, testId }: {
     const el = box.current;
     if (el && el.clientWidth && Math.round(el.scrollLeft / el.clientWidth) !== at) el.scrollLeft = at * el.clientWidth;
   }, [at]);
+  // Drawn first at `introFrom`, then slid to the page shown (the scroll's
+  // own smooth slide, the snap's), unless the pilot asks for less motion.
+  const introduced = useRef(false);
+  // While it slides in, its scroll is not the pilot's page turn.
+  const sliding = useRef(false);
+  useLayoutEffect(() => {
+    const el = box.current;
+    if (introduced.current || introFrom === undefined || introFrom === at || !el?.clientWidth) return;
+    introduced.current = true;
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    el.scrollLeft = introFrom * el.clientWidth;
+    sliding.current = true;
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      el.scrollTo({ left: at * el.clientWidth, behavior: "smooth" });
+      window.setTimeout(() => { sliding.current = false; }, 600);
+    }));
+    // Once, as it is first drawn.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const go = (i: number) => {
     const el = box.current;
     if (el) el.scrollTo({ left: i * el.clientWidth, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
@@ -35,7 +58,7 @@ export default function FootPager({ pages, page: at, onPage, testId }: {
         onScroll={() => {
           const el = box.current;
           const shown = el && el.clientWidth ? Math.round(el.scrollLeft / el.clientWidth) : at;
-          if (shown !== at) onPage(shown);
+          if (shown !== at && !sliding.current) onPage(shown);
         }}
         className="flex min-h-0 flex-1 snap-x snap-mandatory overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >

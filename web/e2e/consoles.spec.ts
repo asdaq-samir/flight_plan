@@ -18,7 +18,11 @@ test("signed in, each console fits the screen's width: nothing but a table's own
     void button;
     await openConsole(page);
     await openAccount(page);
-    await expect(consoleSheet(page).getByTestId("pilot-address")).toHaveText("developer@example.com");
+    // Who is signed in, the role menu's title.
+    await consoleSheet(page).getByTestId("role-menu").click();
+    await expect(page.getByTestId("pilot-address")).toHaveText("developer@example.com");
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("menu")).toHaveCount(0);
     const past = await consoleSheet(page).evaluate(sheet => {
       const edge = document.documentElement.clientWidth + 1;
       return [...sheet.querySelectorAll("*")]
@@ -56,7 +60,11 @@ test("plan page: the pilot console holds the account, airplanes and flights, and
   await expect(page.getByRole("dialog", { name: "Pilot" })).toHaveCount(0);
   await openAccount(page);
   await expect(pilot.getByTestId("role-menu")).toHaveText("Pilot");
-  await expect(pilot.getByTestId("pilot-address")).toHaveText("developer@example.com");
+  // Who is signed in, the role menu's title.
+  await pilot.getByTestId("role-menu").click();
+  await expect(page.getByTestId("pilot-address")).toHaveText("developer@example.com");
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("menu")).toHaveCount(0);
   await pilot.getByTestId("role-menu").click();
   await expect(page.getByRole("menuitemradio", { name: "Pilot" })).toHaveAttribute("aria-checked", "true");
   await expect(page.getByRole("menuitemradio", { name: "Developer" })).toHaveAttribute("aria-checked", "false");

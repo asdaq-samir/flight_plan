@@ -107,7 +107,11 @@ test("the emailed link opens the app's own sign-in dialog, over the planner, and
   await showTabs(page);
   await openConsole(page);
   await openAccount(page);
-  await expect(consoleSheet(page).getByTestId("pilot-address")).toHaveText(address);
+  // Who is signed in, the role menu's title.
+  await consoleSheet(page).getByTestId("role-menu").click();
+  await expect(page.getByTestId("pilot-address")).toHaveText(address);
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("menu")).toHaveCount(0);
 
   await page.goto(link);
   await page.getByRole("dialog").getByRole("button", { name: "Sign in" }).click();
@@ -131,7 +135,11 @@ test("a pilot's link lands on the planner, with no dev switch, and the pilot con
   await openConsole(page);
   // Who is signed in beside the role, whose menu ends in Sign out.
   await openAccount(page);
-  await expect(consoleSheet(page).getByTestId("pilot-address")).toHaveText(address);
+  // Who is signed in, the role menu's title.
+  await consoleSheet(page).getByTestId("role-menu").click();
+  await expect(page.getByTestId("pilot-address")).toHaveText(address);
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("menu")).toHaveCount(0);
   await consoleSheet(page).getByTestId("role-menu").click();
   await page.getByRole("menuitem", { name: "Sign out" }).click();
   await expect(consoleSheet(page).getByRole("button", { name: "Sign in" })).toBeVisible();
@@ -159,7 +167,11 @@ test("a developer's link lands in dev mode, and the dev console logs out to the 
   // is dismissed at once -- every time on CI's runners, never here.
   await expect(page.getByRole("menu")).toHaveCount(0);
   await openAccount(page);
-  await expect(consoleSheet(page).getByTestId("pilot-address")).toHaveText(DEVELOPER);
+  // Who is signed in, the role menu's title.
+  await consoleSheet(page).getByTestId("role-menu").click();
+  await expect(page.getByTestId("pilot-address")).toHaveText(DEVELOPER);
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("menu")).toHaveCount(0);
   await consoleSheet(page).getByTestId("role-menu").click();
   await page.getByRole("menuitem", { name: "Sign out" }).click();
 

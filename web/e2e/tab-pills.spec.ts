@@ -75,9 +75,9 @@ test("each tab's pill is the tabs, FPL's with a route its figures in their place
     await expect(panel).toHaveAttribute("data-panel", "half");
     expect(Math.abs(await height() - half)).toBeLessThan(1);
   }
-  // Setup's account whole within it (the owner's "so email in setup fits
-  // at the bottom").
-  const address = panel.getByTestId("pilot-address").or(panel.getByText("Not signed in")).first();
+  // Setup's account within it (the owner's "so email in setup fits at the
+  // bottom"): its title, the address now the role menu's (AccountMenu).
+  const address = panel.getByTestId("role-menu").or(panel.getByText("Not signed in")).first();
   const [row, sheet] = [(await address.boundingBox())!, (await panel.boundingBox())!];
   expect(row.y + row.height).toBeLessThanOrEqual(sheet.y + sheet.height);
 });
@@ -382,39 +382,33 @@ test("on a phone, all the way up, Setup's page starts where Airport's search bar
   expect(Math.abs(first - search)).toBeLessThan(1.5);
 });
 
-test("a finger's swipe across the panel goes to the tab beside it, and a short one does nothing", async ({ page }) => {
-  // The owner's ask: "Can swiping left/right switch tabs?"
+test("a finger's swipe across the panel switches no tab, and on a Setup page to the right goes back", async ({ page }) => {
+  // The owner's ask: "let's not support swipe to switch tabs. A glass
+  // bubble can be dragged on tabs though like iOS... Swipe should only
+  // support going back." (It was: "Can swiping left/right switch tabs?")
+  test.skip((page.viewportSize()?.width ?? 0) >= 768, "a phone's panel");
   await page.goto("/app/plan");
   await settle(page);
   await grabberTo(page, "half");
   const panel = sideDrawer(page);
-  const swipe = (by: number) => swipeAcross(page, by);
   const up = () => panel.locator('[data-testid="tab-bar"] button[aria-current="page"]');
   await showTabs(page);
   await expect(up()).toHaveAttribute("data-testid", "tab-fpl");
-  // FPL first (the owner's "Swap fpl and aircraft tab positions"): to the
-  // right, nothing before it; to the left, the next, Airport; back.
-  await swipe(130);
-  await showTabs(page);
-  await expect(up()).toHaveAttribute("data-testid", "tab-fpl");
-  await swipe(-130);
-  await showTabs(page);
-  await expect(up()).toHaveAttribute("data-testid", "tab-airport");
-  await swipe(130);
-  await showTabs(page);
-  await expect(up()).toHaveAttribute("data-testid", "tab-fpl");
-  // Short of 50 points: nothing.
-  await swipe(-30);
-  await showTabs(page);
-  await expect(up()).toHaveAttribute("data-testid", "tab-fpl");
-  // On through Airport and Aircraft to Setup, the last. (From md up its
-  // console is a sheet of its own, over the page, which the swipe back
-  // would land on.)
-  for (const next of ["tab-airport", "tab-aircraft", "setup-button"]) {
-    await swipe(-130);
+  for (const by of [-130, 130]) {
+    await swipeAcross(page, by);
     await showTabs(page);
-    await expect(up()).toHaveAttribute("data-testid", next);
+    await expect(up()).toHaveAttribute("data-testid", "tab-fpl");
   }
+  // A Setup page open (Minimums, a tile of the account's): to the right,
+  // back to the Account, as its Back takes it.
+  await page.getByTestId("setup-button").click();
+  await grabberTo(page, "full");
+  await panel.getByTestId("library-section").getByRole("button", { name: /^Minimums/ }).click();
+  const back = panel.getByRole("button", { name: "Account", exact: true });
+  await expect(back).toBeVisible();
+  await swipeAcross(page, 130);
+  await expect(back).toHaveCount(0);
+  await expect(panel.getByTestId("library-section")).toBeVisible();
 });
 
 test("with Back showing, a swipe across the panel goes back, not to the tab beside", async ({ page }) => {

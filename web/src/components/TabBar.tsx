@@ -210,28 +210,30 @@ export default function TabBar<T extends string>({ tabs, tab, over, title, onPic
   // the tabs are not shown (minimized), as iOS's navigation bar's Back.
   const cards = useOpenCards(s => s.count);
   const back = minimized && !consoleOpen && cards > 0;
-  // A swipe across the panel goes to the tab beside the one up, at the
-  // owner's ask ("Can swiping left/right switch tabs?"): to the left the
-  // next, as a page of iOS's swipes on; not past either end. Listened for
-  // on the whole panel, the bar a row of it, so the card's own rows swipe
-  // too -- but not a field, a slider or anything that scrolls sideways
-  // (the Favorites' strip, the nav log's table), which keep the finger,
-  // nor the tabs themselves, along which a finger slides the lens. With
-  // Back showing, the swipe is Back's, at the owner's ask ("When back
-  // button is visible then swiping should go back instead of switching
-  // tabs"): to the right, as iOS's swipe back goes, the card put away;
-  // to the left, nothing, as there is nothing forward.
+  // A swipe across the panel goes back only, at the owner's ask ("let's
+  // not support swipe to switch tabs... Swipe should only support going
+  // back"): to the right, as iOS's swipe back goes, a card over the tab
+  // put away, else the panel's own Back taken (a Setup page's, a
+  // procedure's page: BackButton's mark); to the left, nothing, as there
+  // is nothing forward. The tabs change by a tap, or the lens slid along
+  // them (the glass bubble, as iOS's tab bar's). Listened for on the
+  // whole panel -- but not a field, a slider or anything that scrolls
+  // sideways (the Favorites' strip, the nav log's table), which keep the
+  // finger, nor the tabs themselves, along which a finger slides the lens.
   const bar = useRef<HTMLElement | null>(null);
-  const step = useRef<(by: 1 | -1) => void>(() => {});
+  const step = useRef<(by: 1 | -1) => boolean>(() => false);
   useEffect(() => {
+    // Whether it went back: a swipe that did nothing leaves the next tap be.
     step.current = by => {
+      if (by > 0) return false;
       if (back) {
-        if (by < 0) closeTopCard();
-        return;
+        closeTopCard();
+        return true;
       }
-      const order = all.map(t => t.value);
-      const next = order[order.indexOf(up) + by];
-      if (next !== undefined) pick(next);
+      const panel = bar.current?.closest<HTMLElement>("[data-slot=map-panel]");
+      const backs = [...(panel?.querySelectorAll<HTMLElement>("[data-back-button]") ?? [])].filter(b => b.offsetParent !== null);
+      backs.at(-1)?.click();
+      return backs.length > 0;
     };
   });
   useEffect(() => {
@@ -262,8 +264,7 @@ export default function TabBar<T extends string>({ tabs, tab, over, title, onPic
       // Clearly sideways: 50 points, and twice as far across as up or down,
       // so a drag of the sheet that wanders is still a drag.
       if (Math.abs(dx) < 50 || Math.abs(dx) < 2 * Math.abs(dy)) return;
-      swiped = true;
-      step.current(dx < 0 ? 1 : -1);
+      swiped = step.current(dx < 0 ? 1 : -1);
     };
     // The tap a swipe ends in is not a tap on what it ended over.
     const click = (event: MouseEvent) => {

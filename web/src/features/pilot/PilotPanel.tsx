@@ -6,10 +6,10 @@ import { useContext, type ReactNode } from "react";
 import { Activity, CircleHelp, Info, Settings } from "lucide-react";
 import AboutPanel from "../../components/AboutPanel";
 import { ConsoleSettingsContext } from "../../components/mapChrome";
-import { ConsolePages, PageRow } from "../../components/ConsolePages";
+import { ConsolePages, PageRow, PageTile } from "../../components/ConsolePages";
 import EmptyState from "../../components/EmptyState";
 import { PillSection } from "../../components/Favorites";
-import { ListGroup, ListRow } from "../../components/GroupedList";
+import { ListGroup } from "../../components/GroupedList";
 import { RowBadge } from "../../components/RowBadge";
 import { SETTING_BADGE } from "../../lib/rowBadges";
 import type { Pilot } from "../../lib/api/types";
@@ -72,19 +72,15 @@ function Personal({ pilot, dev }: {
     : pilot === "error" ? <EmptyState icon={<UserRound />} title="Sign-in Unknown">Your sign-in status could not be checked.</EmptyState>
       : null;
   const sold = useSold();
-  // The pilot's things, a row each: the account's three greyed until there
-  // is one; the minimums are this device's.
-  const sectionRows = SECTIONS.map(s => {
-    const badge = <RowBadge colour={s.colour}>{s.icon}</RowBadge>;
-    return s.value === "minimums" || signedIn ? (
-      <PageRow
-        key={s.value} page={s.value} title={s.label} media={badge}
-        value={s.value === "aircraft" && aircraft.label ? shortName(aircraft.label) : undefined}
-      />
-    ) : (
-      <ListRow key={s.value} title={s.label} media={badge} chevron disabled onClick={() => undefined} />
-    );
-  });
+  // The pilot's things, a tile each as Favorites' places are, at the
+  // owner's ask: the account's three greyed until there is one; the
+  // minimums are this device's.
+  const sectionRows = SECTIONS.map(s => (
+    <PageTile
+      key={s.value} page={s.value} title={s.label} icon={s.icon} colour={s.colour} disabled={!(s.value === "minimums" || signedIn)}
+      detail={s.value === "aircraft" && aircraft.label ? shortName(aircraft.label) : undefined}
+    />
+  ));
   const settings = useContext(ConsoleSettingsContext);
   const pages = {
     ...(dev ? { status: { title: "Status", content: dev.status } } : {}),

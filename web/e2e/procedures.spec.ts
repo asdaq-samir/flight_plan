@@ -309,6 +309,20 @@ test("a field's departure is picked over its runways, as its arrival and approac
   expect((await menu.boundingBox())!.y).toBeLessThan((await chips.boundingBox())!.y);
 });
 
+/**
+ * A route from where the airplane is (Fly Here's "@lat,lon") lists its
+ * destination as where it arrives, not a departure (the owner's screenshot:
+ * KSTL with a "Depart" pull-down and its runways as a takeoff's).
+ */
+test("a route from the present position arrives at its destination", async ({ page }) => {
+  await page.goto("/app/plan?dep=@42.2333,-87.9883&dest=KSTL");
+  await settle(page);
+  await openTab(page, "Nav Log");
+  const route = page.getByTestId("procedures");
+  await expect(route.getByRole("region", { name: "KSTL · Arrive" })).toBeVisible({ timeout: slow(30000) });
+  await expect(route.getByRole("region", { name: "KSTL · Depart" })).toHaveCount(0);
+});
+
 test.describe("on the owner's phone's width, to a finger", () => {
   // A finger's 17-point words (pointer: coarse), on 393 points.
   test.use({ hasTouch: true, isMobile: true, viewport: { width: 393, height: 695 } });

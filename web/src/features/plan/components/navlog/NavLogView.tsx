@@ -111,6 +111,10 @@ interface Props {
   marks?: Partial<Record<PanelTab, "stop" | "caution">>;
   /** The briefing's warnings, over its pages on paper. */
   notice?: ReactNode;
+  /** The nav log as a card over FPL, its head (CardHead) over the log, at
+   *  the owner's ask ("make Navlog open like brief does instead of a
+   *  separate card"): the log in the route list's place. */
+  cardHead?: ReactNode;
   /** The drawer's last line, under every section (the planning-aid
    *  reminder). */
   footer?: ReactNode;
@@ -347,7 +351,7 @@ export default function NavLogView({
   totals, nav, depart,
   legs, dep, dest, ends,
   selected, descriptions, onSaveDescription,
-  onGenerateDescriptions, descriptionsLoading, descriptionsPaywall, descriptionsHidden = false, tabContent, children, marks, notice, footer, local = false, metarColourOf = noWeather,
+  onGenerateDescriptions, descriptionsLoading, descriptionsPaywall, descriptionsHidden = false, tabContent, children, marks, notice, cardHead, footer, local = false, metarColourOf = noWeather,
   selectedPoint, onSelectPoint, onDeselectPoint, drawerOpen,
   aircraftLabel, dryRun = null, route, navLogOpen = false, onNavLogOpenChange,
 }: Props) {
@@ -898,7 +902,8 @@ export default function NavLogView({
             className="@container min-h-0 flex-1 overflow-auto pr-4 pb-[env(safe-area-inset-bottom)] pl-[max(1rem,env(safe-area-inset-left))]"
             data-testid="navlog-scroller"
           >
-            <section aria-label={local ? "Local Flight" : route ? "Route" : "Nav Log"} className={TEXT.prose}>{legsSection}</section>
+            {cardHead && <div className="pt-[var(--corner-inset,0.75rem)] pb-2">{cardHead}</div>}
+            <section aria-label={local ? "Local Flight" : route ? "Route" : "Nav Log"} className={TEXT.prose} data-testid={cardHead ? "navlog-sheet" : undefined}>{legsSection}</section>
             {footer}
           </div>
           {route && !local && (

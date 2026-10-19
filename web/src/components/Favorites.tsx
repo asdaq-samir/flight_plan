@@ -65,7 +65,9 @@ function AirspaceTile({ airport, detail, onClick }: { airport: RecentAirport; de
 
 /** A round tile and its words under it, as Maps' Favorites: the
  *  airports' here, and the Aircraft card's own (AircraftCard). */
-function PlaceTile({ icon, className, style, title, label, detail, tinted, onClick, testId }: {
+/** A strip's tile: its round mark over its name, a detail under it --
+ *  Favorites' places, and the account's things in Setup (PageTile). */
+export function PlaceTile({ icon, className, style, title, label, detail, tinted, onClick, disabled, testId }: {
   icon: ReactNode;
   className?: string;
   style?: CSSProperties;
@@ -75,12 +77,13 @@ function PlaceTile({ icon, className, style, title, label, detail, tinted, onCli
   detail?: string;
   tinted?: boolean;
   onClick: () => void;
+  disabled?: boolean;
   testId?: string;
 }) {
   return (
     <button
-      type="button" onClick={onClick} data-testid={testId} aria-label={label}
-      className="flex w-[4.5rem] shrink-0 flex-col items-center gap-1.5 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      type="button" onClick={onClick} data-testid={testId} aria-label={label} disabled={disabled}
+      className="flex w-[4.5rem] shrink-0 flex-col items-center gap-1.5 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
     >
       <span className={cn("grid size-14 place-items-center rounded-full [&_svg]:size-6", className)} style={style} aria-hidden="true">{icon}</span>
       <span className={cn("w-full truncate text-center font-medium text-foreground", TEXT.detail)}>{title}</span>

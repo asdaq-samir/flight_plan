@@ -200,7 +200,7 @@ test("half way the side view is whole, its dry run plays under the route's chips
   await page.mouse.up();
 });
 
-test("half way on a phone the foot keeps the page it was left at as the sheet goes up and down, and a dry run's stop goes back to the route's list", async ({ page }) => {
+test("half way on a phone the foot keeps the page it was left at as the sheet goes up and down, and a dry run stopped leaves the side view", async ({ page }) => {
   test.skip((page.viewportSize()?.width ?? 0) >= 768, "a phone's half card");
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
@@ -215,11 +215,14 @@ test("half way on a phone the foot keeps the page it was left at as the sheet go
   await grabberTo(page, "full");
   await grabberTo(page, "half");
   await expect(panel.getByTestId("foot-pager").locator("[data-page='1']")).toHaveAttribute("data-shown", "true");
-  // A dry run started and stopped: the route's list again.
+  // A dry run started and stopped: the side view it was flown over, the
+  // route's list a dot's tap (or a swipe) back.
   const start = panel.getByTestId("dry-run-start");
   await expect(start).toBeEnabled({ timeout: slow(60_000) });
   await start.click();
   await panel.getByTestId("dry-run-close").click();
+  await expect(panel.getByTestId("foot-pager").locator("[data-page='1']")).toHaveAttribute("data-shown", "true");
+  await panel.getByTestId("foot-page-dot").first().click();
   await expect(panel.getByTestId("foot-pager").locator("[data-page='0']")).toHaveAttribute("data-shown", "true");
 });
 
