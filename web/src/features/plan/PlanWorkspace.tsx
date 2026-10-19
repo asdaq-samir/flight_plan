@@ -1745,7 +1745,10 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
             pick of the half card (Fit 2). All the way up the route in order
             says them, row by row. */}
         {panel !== "full" && routeEnds && (
-          <div data-pill-hides="">
+          // Giving way as the side view does while the pill turns into the
+          // sheet (min-h-0 shrink): at its own height it put the route's
+          // figures under the sheet's foot through the turn (sheet-turn.spec).
+          <div className="min-h-0 shrink overflow-hidden" data-pill-hides="">
             <RouteEnds from={routeEnds[0]} to={routeEnds[1]} depart={depart} weather={metarColour} onOpen={() => setPanel("full")} />
           </div>
         )}
