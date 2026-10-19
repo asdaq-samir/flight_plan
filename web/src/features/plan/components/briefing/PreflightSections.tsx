@@ -7,6 +7,7 @@ import { ListGroup, ListRow } from "../../../../components/GroupedList";
 import { Input } from "../../../../components/ui/input";
 import type { AircraftProfile, Briefing, Course } from "../../../../lib/api/types";
 import { runwayChecks, type RunwayDistance } from "../../../../lib/runwayCheck";
+import { useRunwayPicks } from "../../../../lib/useRunwayPicks";
 import { FINDING_TONE } from "../../../../lib/status";
 import FindingIcon from "../../../../components/FindingIcon";
 import { windOnRunway } from "../../format";
@@ -144,7 +145,9 @@ export function TakeoffLandingSection({ aircraft, briefing, course, landing: lan
 }) {
   const takeoffTable = aircraft?.takeoff ?? null;
   const landingTable = aircraft?.landing ?? null;
-  const all = runwayChecks(aircraft, briefing, course, takeoffWeight, landingWeight);
+  // The runways picked in FPL, checked whatever the wind (runwayFlown).
+  const picks = useRunwayPicks();
+  const all = runwayChecks(aircraft, briefing, course, takeoffWeight, landingWeight, picks);
   const checks = phase ? all.filter((_, i) => phasesOf(i, all.length).includes(phase)) : all;
   const short = [...new Set(checks.filter(c => c.distances.some(d => d.over)).map(c => c.field.ident))];
   const gusty = [...new Set(checks.filter(c => c.crosswindOver).map(c => c.field.ident))];
@@ -187,33 +190,42 @@ export function TakeoffLandingSection({ aircraft, briefing, course, landing: lan
                     owner's pick of the redesign, each fact once). */}
                 <ListRow
                   media={c.crosswindOver ? <FindingIcon finding="caution" /> : undefined}
-                  title={c.runway ? `Runway ${c.runway.wind?.end ?? c.runway.ends}` : <span className="text-muted-foreground">No runway data</span>}
+                  title={c.runway ? `Runway ${c.end ?? c.runway.ends}` : <span className="text-muted-foreground">No runway data</span>}
                   description={!c.runway ? undefined : c.runway.wind ? (
                     <span className={cn(c.crosswindOver && FINDING_TONE.caution)} data-testid="runway-wind-check">
-                      {`Most into the wind: ${windOnRunway(c.runway.wind)}`}
+                      {c.picked && c.end !== c.runway.wind.end
+                        ? `Picked in FPL: ${Math.abs(c.headwindKt)} kt ${c.headwindKt < 0 ? "tailwind" : "headwind"}, ${c.crosswindKt} kt across`
+                        : `${c.picked && c.end !== c.runway.wind.end ? "Picked in FPL" : "Most into the wind"}: ${windOnRunway(c.runway.wind)}`}
                       {c.crosswindOver && demonstrated && `, over the ${demonstrated.demonstrated_kt} kt the POH demonstrates`}
                     </span>
-                  ) : "The longest, no wind reported: the wind indicator decides, and the distances are for calm"}
+                  ) : c.picked ? "Picked in FPL, no wind reported: the distances are for calm"
+                    : "The longest, no wind reported: the wind indicator decides, and the distances are for calm"}
                   value={c.runway ? `${length != null ? `${altFt(length)} ft` : "length unknown"}${c.grass ? " · grass" : ""}` : undefined}
                   data-testid="performance-runway"
                 />
-                {c.distances.map(d => (
+                {c.distances.map(d => {
+                  // A stop's runway out may not be its runway in: each
+                  // distance against its own runway, named where it differs.
+                  const runwayFt = d.runway?.length_ft ?? null;
+                  const elsewhere = d.end != null && d.end !== c.end ? ` on ${d.end}` : "";
+                  return (
                   <ListRow
                     key={d.kind}
-                    media={<FindingIcon finding={length == null ? "unknown" : d.over ? "stop" : "ok"} />}
-                    title={d.kind === "takeoff" ? "Takeoff over 50 ft" : "Landing over 50 ft"}
+                    media={<FindingIcon finding={runwayFt == null ? "unknown" : d.over ? "stop" : "ok"} />}
+                    title={`${d.kind === "takeoff" ? "Takeoff" : "Landing"} over 50 ft${elsewhere}`}
                     description={(
                       <>
-                        {length != null && <RunwayBar distance={d} lengthFt={length} />}
+                        {runwayFt != null && <RunwayBar distance={d} lengthFt={runwayFt} />}
                         <span className={cn("block", d.over && FINDING_TONE.stop)}>
-                          {[`${altFt(d.groundRollFt)} ft roll`, length != null && (d.over ? `${altFt(d.totalFt - length)} ft past the end` : `${altFt(length)} ft runway`), ...d.caveats].filter(Boolean).join(" · ")}
+                          {[`${altFt(d.groundRollFt)} ft roll`, runwayFt != null && (d.over ? `${altFt(d.totalFt - runwayFt)} ft past the end` : `${altFt(runwayFt)} ft runway`), ...d.caveats].filter(Boolean).join(" · ")}
                         </span>
                       </>
                     )}
                     value={`${altFt(d.totalFt)} ft`}
                     data-testid={`runway-${d.kind}`}
                   />
-                ))}
+                  );
+                })}
                 <ListRow
                   title="Density altitude"
                   description={`Pressure altitude ${altFt(c.pressureAltFt)} ft · ${Math.round(c.tempC)} °C ${c.reported ? "reported" : "(standard day; no report)"}`}

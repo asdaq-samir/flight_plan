@@ -2,7 +2,8 @@ import { createPortal } from "react-dom";
 import { format } from "date-fns";
 import type { Briefing, Candidate, Course, Leg, NavLogAltitude, Totals } from "../../../lib/api/types";
 import { kneeboardRadio, mhzText } from "../../../lib/frequencies";
-import { runwayInUse, runwayNumber } from "../../../lib/pattern";
+import { pickedEnd, runwayFlown, runwayNumber } from "../../../lib/pattern";
+import { useRunwayPicks } from "../../../lib/useRunwayPicks";
 import { hm } from "../../../lib/clock";
 import { routeName } from "../../../lib/identSchema";
 import { altFt, gal, nm } from "../../../lib/units";
@@ -48,6 +49,7 @@ export default function Kneeboard({ course, selected, legs, totals, nav, briefin
   /** The airports the flight lands at, in order. */
   landings: string[];
 }) {
+  const picks = useRunwayPicks();
   if (!course) return null;
   const rows = navLogRows(course, selected, legs);
   const special = nav?.altitude_selection.special_use ?? [];
@@ -102,7 +104,9 @@ export default function Kneeboard({ course, selected, legs, totals, nav, briefin
       <div className="mb-2 grid grid-cols-2 gap-2">
         {landings.map((ident, i) => {
           const info = briefing?.airports[ident];
-          const inUse = info ? runwayInUse(info.runways) : null;
+          // The runway flown there, the pilot's pick in FPL first: out of
+          // the departure, into every other field.
+          const inUse = info ? runwayFlown(info.runways, pickedEnd(picks, ident, i === 0 ? "takeoff" : "landing", i === 0)) : null;
           return (
             <div key={`${ident}${i}`} className="border border-black p-1">
               <p className="font-bold">{ident}{info?.name ? ` · ${info.name}` : ""}</p>

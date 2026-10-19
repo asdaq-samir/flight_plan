@@ -30,7 +30,8 @@ import { underMinimums } from "../../../../lib/minimums";
 import { usePreferences } from "../../../../lib/preferences";
 import { faaWords, gairmetAltitudes, gairmetTitle, sigmetHazard, suaAltitudes, tfrAltitudes, tfrTimes } from "../../../../lib/advisories";
 import { passLine, passTime, suaWhen, tfrWhen, type SuaWhen, type TfrWhen } from "../../../../lib/passTimes";
-import { runwayInUse, runwayNumber } from "../../../../lib/pattern";
+import { pickedEnd, runwayFlown, runwayNumber } from "../../../../lib/pattern";
+import { useRunwayPicks } from "../../../../lib/useRunwayPicks";
 import { runwayChecks } from "../../../../lib/runwayCheck";
 import { FINDING_TONE, type Finding } from "../../../../lib/status";
 import { useVerdict, verdictItems, type VerdictItem } from "../../../../lib/verdict";
@@ -475,6 +476,9 @@ export default memo(function FlightBriefingView({
 }: Props) {
   // The load's weights, for the takeoff and landing distances.
   const { loading, load, result: loaded } = useLoad(nav?.aircraft, totals?.fuel_gal ?? null);
+  // The runways the pilot picked in FPL, flown in the oral's facts and
+  // checked for length (runwayFlown).
+  const picks = useRunwayPicks();
   // Every airport the flight lands at, each once: a round trip's
   // departure is its destination.
   const landings = [...new Set([dep, ...stops, dest])];
@@ -561,8 +565,9 @@ export default memo(function FlightBriefingView({
   const planText = briefing ? planFacts({
     route: landings.filter(i => briefing.airports[i]).map(i => {
       const a = briefing.airports[i]!;
-      const inUse = runwayInUse(a.runways);
-      return { ident: i, name: a.name, airspaceClass: a.airspace_class, patternFt: a.pattern?.altitude_ft, runway: inUse?.byWind ? runwayNumber(inUse.end.ident) : null };
+      const picked = pickedEnd(picks, i, i === dep ? "takeoff" : "landing", i === dep);
+      const inUse = runwayFlown(a.runways, picked);
+      return { ident: i, name: a.name, airspaceClass: a.airspace_class, patternFt: a.pattern?.altitude_ft, runway: inUse && (picked || inUse.byWind) ? runwayNumber(inUse.end.ident) : null };
     }),
     aircraft: nav?.aircraft.type ?? nav?.aircraft.name, cruiseFt: nav?.altitude_ft,
     distanceNm: totals?.distance_nm ?? course?.distance_nm, eteMin: totals?.ete_min, fuelGal: totals?.fuel_gal,
@@ -584,7 +589,7 @@ export default memo(function FlightBriefingView({
 
   // The runway check at each field (lib/runwayCheck), for the
   // Performance tab and the Go / No-Go.
-  const checks = runwayChecks(nav?.aircraft, briefing, course, loaded?.takeoff.weightLb ?? null, loaded?.landing.weightLb ?? null);
+  const checks = runwayChecks(nav?.aircraft, briefing, course, loaded?.takeoff.weightLb ?? null, loaded?.landing.weightLb ?? null, picks);
   const hops = totals?.hops ?? [];
   // Under IFR, the alternate (AlternateSection): its ETA the nav log's.
   const etaIso = totals?.ete_min != null ? new Date(new Date(depart || opened).getTime() + totals.ete_min * 60_000).toISOString() : null;
