@@ -87,12 +87,25 @@ export const dotIcon = made(function dotIcon(fill: string, label?: string | numb
  *  blue in a white casing so it holds over any chart colour, turned to the
  *  GPS heading -- the arrow a plain dot while stationary, when there is
  *  none; a plane nose up then, as it is drawn in the settings. */
-export function ownShipIcon(headingDeg: number | null, off = false, look: OwnShipLook = "arrow") {
+/** Own ship's mark, one icon for its look, nose up: the layer turns its
+ *  nose to the heading (OwnShipLayer), round through a turn as an airplane
+ *  comes round, where a new icon a degree snapped it to each heading and
+ *  had the marker build its element, its SVG and its shadow again four
+ *  times a second in a dry run. `headingDeg` says only whether there is
+ *  one: the arrow with none is a dot. */
+export function ownShipIcon(headingDeg: number | null, off = false, look: OwnShipLook = "arrow", moving = false) {
+  return ownShipIconMade(headingDeg == null ? null : 0, off, look, moving && !off);
+}
+
+const ownShipIconMade = made((headingDeg: number | null, off: boolean, look: OwnShipLook, moving: boolean) => makeOwnShipIcon(headingDeg, off, look, moving));
+
+function makeOwnShipIcon(headingDeg: number | null, off: boolean, look: OwnShipLook, moving: boolean) {
   // Grey where own ship is off: the last position, no longer watched, as
-  // Maps greys its dot when it stops knowing where you are.
-  const fill = off ? "#9ca3af" : "#2563eb";
+  // Maps greys its dot when it stops knowing where you are. iOS's blue.
+  const fill = off ? "#9ca3af" : "#0a7aff";
   const plane = look !== "arrow";
-  const size = plane ? 34 : 28;
+  const puck = plane && moving;
+  const size = puck ? 36 : plane ? 34 : 28;
   return L.divIcon({
     className: "",
     iconSize: [size, size],
@@ -100,7 +113,8 @@ export function ownShipIcon(headingDeg: number | null, off = false, look: OwnShi
     html: !plane && (headingDeg === null || off)
       ? `<div data-own-ship="${off ? "off" : "on"}" class="absolute left-1/2 top-1/2 size-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-[2.5px] border-white shadow-[0_1px_4px_rgba(0,0,0,.45)]" style="background:${fill}"></div>`
       : ownShipSvg(look, fill, size,
-        `data-own-ship="${off ? "off" : "on"}" data-look="${look}" class="absolute left-0 top-0 drop-shadow-[0_1px_3px_rgba(0,0,0,.5)]" style="transform:rotate(${Number(headingDeg ?? 0)}deg)"`),
+        `data-own-ship="${off ? "off" : "on"}" data-look="${look}" data-moving="${puck}" class="absolute left-0 top-0 drop-shadow-[0_1.5px_3px_rgba(0,0,0,.4)]" style="transform:rotate(${Number(headingDeg ?? 0)}deg)"`,
+        puck),
   });
 }
 
@@ -115,9 +129,16 @@ export const CHECKPOINT_LABEL_HEIGHT = 20;
  *  (RouteMap). A width per letter guessed short: FOREST VIEW, its bold
  *  capitals wider than the guess, ran off a phone's screen. */
 export function checkpointLabelWidth(name: string): number {
+  const known = labelWidths.get(name);
+  if (known != null) return known;
   const width = typeof document === "undefined" ? null : textWidth(name, `700 12px ${getComputedStyle(document.body).fontFamily}`);
-  return width == null ? name.length * 9 + 12 : Math.ceil(width + name.length * 0.3 + 12);
+  const out = width == null ? name.length * 9 + 12 : Math.ceil(width + name.length * 0.3 + 12);
+  // Measured once a name: the labels are placed again at every move that
+  // ends, and each measure read the page's styles.
+  if (width != null) labelWidths.set(name, out);
+  return out;
 }
+const labelWidths = new Map<string, number>();
 
 /** An airport chip's width (airportIcon). */
 const airportChipWidth = (ident: string) => Math.max(40, Math.ceil(ident.length * 7.5) + 22);

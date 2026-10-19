@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Circle, Marker, useMap, useMapEvents } from "react-leaflet";
 import { nearestQuery } from "../queryClient";
-import { glideRangeNm } from "./glide";
+import { glideRangeNm, underway } from "./glide";
 import { centreClear, hideLinesWhileZooming, panClear } from "./clear";
 import { glideLabelIcon, ownShipIcon } from "./icons";
 import { COUNTRY_ZOOM, DRY_RUN_ZOOM, OPEN_ZOOM, SIMULATED_FIX_MS, useOwnShip } from "./ownShip";
@@ -174,6 +174,31 @@ export function OwnShipLayer() {
     });
     return () => cancelAnimationFrame(frame);
   }, [fix, simulated, enabled, glide]);
+  // The nose turned to the heading, the short way round and over a
+  // moment -- a quarter of a second a 30° change, a 90° turn in three
+  // quarters, as an airplane banks round onto its new course -- rather
+  // than snapped there at the fix, at the owner's ask ("make sure that it
+  // turns its nose into the course on turns"). At once where Reduce Motion
+  // is on, on the first heading, and on a new mark (another look).
+  const turned = useRef<{ deg: number; el: Element } | null>(null);
+  const heading = enabled && fix ? fix.headingDeg : null;
+  // Moving -- a dry run, or the GPS at flying speed -- the plane in its
+  // puck; still, the plane alone (ownShipSvg).
+  const moving = simulated || underway(fix);
+  useEffect(() => {
+    const el = ship.current?.getElement()?.querySelector<SVGElement>("svg[data-look]") ?? null;
+    if (!el || heading == null) {
+      turned.current = null;
+      return;
+    }
+    const was = turned.current?.el === el ? turned.current.deg : null;
+    const delta = was == null ? 0 : ((((heading - was) % 360) + 540) % 360) - 180;
+    const deg = was == null ? heading : was + delta;
+    const still = was == null || window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    el.style.transition = still ? "none" : `transform ${Math.min(1.2, Math.max(0.25, Math.abs(delta) / 120)).toFixed(2)}s ease-in-out`;
+    el.style.transform = `rotate(${deg}deg)`;
+    turned.current = { deg, el };
+  }, [heading, look, moving]);
   if (!fix) return null;
   // Off: the last position alone, grey, with nothing round it.
   if (!enabled) return <Marker position={[fix.lat, fix.lon]} icon={ownShipIcon(null, true, look)} interactive={false} zIndexOffset={1000} keyboard={false} />;
@@ -193,7 +218,7 @@ export function OwnShipLayer() {
         ref={accuracy} center={[fix.lat, fix.lon]} radius={fix.accuracyM}
         pathOptions={ACCURACY}
       />
-      <Marker ref={ship} position={[fix.lat, fix.lon]} icon={ownShipIcon(fix.headingDeg, false, look)} interactive={false} zIndexOffset={1000} keyboard={false} />
+      <Marker ref={ship} position={[fix.lat, fix.lon]} icon={ownShipIcon(fix.headingDeg, false, look, moving)} interactive={false} zIndexOffset={1000} keyboard={false} />
     </>
   );
 }

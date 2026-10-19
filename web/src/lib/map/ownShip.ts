@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { createJSONStorage, persist } from "zustand/middleware";
 import { inNativeApp, watchNativePosition, type NativePosition } from "../native";
 
 /**
@@ -65,6 +65,9 @@ interface OwnShip {
    *  route: the map fits the route again (MapShell), and stops following. */
   routeAsked: number;
   showRoute: () => void;
+  /** A route is on the map and not all of it in sight, clear of the
+   *  panel (MapShell): the location arrow offers it back. */
+  routeOutOfView: boolean;
 }
 
 /** Where the planner opens on the pilot's position: the region a flight
@@ -166,6 +169,26 @@ function applyFix(set: (patch: Partial<OwnShip>) => void, position: GeolocationP
   });
 }
 
+/** The browser's storage, written only when what is kept changes: the
+ *  store is set at every GPS fix, and persist wrote the same few fields
+ *  to it each time. The last position kept is to a thousandth of a
+ *  degree, so a write a hundred metres or so. */
+let lastWritten: string | null = null;
+const unchangedWrites = {
+  getItem: (key: string) => {
+    try { return localStorage.getItem(key); } catch { return null; }
+  },
+  setItem: (key: string, value: string) => {
+    if (value === lastWritten) return;
+    lastWritten = value;
+    try { localStorage.setItem(key, value); } catch { /* not kept: private browsing, storage full */ }
+  },
+  removeItem: (key: string) => {
+    lastWritten = null;
+    try { localStorage.removeItem(key); } catch { /* nothing kept to remove */ }
+  },
+};
+
 /** No fix: said where own ship is, or, when the page asked by itself
  *  (locateOnOpen), own ship quietly off again. */
 function failed(set: (patch: Partial<OwnShip>) => void, message: string) {
@@ -205,9 +228,11 @@ export const useOwnShip = create<OwnShip>()(
       recentre: zoom => set(s => ({ follow: true, recentred: s.recentred + 1, recentreZoom: zoom ?? null })),
       routeAsked: 0,
       showRoute: () => set(s => ({ routeAsked: s.routeAsked + 1 })),
+      routeOutOfView: false,
     }),
     {
       name: "vfr.ownship",
+      storage: createJSONStorage(() => unchangedWrites),
       // A dry run's own ship is not kept: what the pilot had before it is.
       partialize: s => ({
         enabled: s.simulated ? (beforeSimulation?.enabled ?? false) : s.enabled,
