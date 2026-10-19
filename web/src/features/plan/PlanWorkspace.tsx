@@ -57,6 +57,7 @@ import MiniProfile from "./components/navlog/MiniProfile";
 import FootPager from "./components/FootPager";
 import { dryRunOf, type DryRun } from "./components/navlog/dryRun";
 import { DryRunControls, DryRunFigures } from "./components/DryRunPanel";
+import { loadFlightChart } from "./components/loadFlightChart";
 import { DRY_RUN, clearPastFlight, usePastFlight } from "../../lib/map/pastFlight";
 import type { RouteParts, RouteProcedure } from "./components/RouteBox";
 import type { PointAltitude } from "./components/PointAltitudeDialog";
@@ -1601,6 +1602,13 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
 
   // The route from the side (MiniProfile), a tap the nav log all the way up;
   // there, a picture of the flight, nothing to tap.
+  // The dry run's chart's code fetched ahead, a few seconds after a run can
+  // be had, so the run's first frame has its chart (loadFlightChart).
+  useEffect(() => {
+    if (!dryRunReady) return;
+    const id = setTimeout(() => void loadFlightChart(), 3000);
+    return () => clearTimeout(id);
+  }, [dryRunReady]);
   const miniProfile = routed && course && !local
     ? <MiniProfile ends={course} selected={selected} legs={s.legs} onOpen={panel === "full" ? undefined : () => setPanel("full")} /> : null;
   // The side view with its dry run at its top right: the flight flown on
@@ -1881,7 +1889,10 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
             its side), where the card's head over the log leaves it no room:
             pinned there, it left the log none at all. It is there half way. */}
         {dryRunning ? (
-          <div className={cn("flex min-h-0 flex-col pb-2", panel === "full" ? "h-[min(10rem,20dvh)] min-h-24 flex-none" : "h-40 shrink")} data-pill-hides=""><DryRunControls run={dryRunning} ends={course} onClose={stopDryRun} missed={goMissed} onMissed={goMissedNow} /></div>
+          // Clipped to its box, as the side view's is: shrinking with the
+          // sheet to the pill, the chart was drawn over the figures under it
+          // (the owner's recording).
+          <div className={cn("flex min-h-0 flex-col overflow-hidden pb-2", panel === "full" ? "h-[min(10rem,20dvh)] min-h-24 flex-none" : "h-40 shrink")} data-pill-hides=""><DryRunControls run={dryRunning} ends={course} onClose={stopDryRun} missed={goMissed} onMissed={goMissedNow} /></div>
         ) : miniProfile && (
           <div
             // All the half sheet leaves it, at the owner's ask ("make the

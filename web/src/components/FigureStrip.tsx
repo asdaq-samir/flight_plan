@@ -1,5 +1,6 @@
 import { cn } from "cn";
 import { GROUP_HEADING, GROW_FIGURE } from "../lib/text";
+import { useFigureFit } from "./useFigureFit";
 
 export interface StripFigure {
   name: string;
@@ -16,19 +17,29 @@ export interface StripFigure {
  * model's error) and its performance's, at the owner's pick of the dev
  * page's redesign ("redesign the dev similar way").
  */
-export default function FigureStrip({ figures, testId }: { figures: StripFigure[]; testId?: string }) {
+export default function FigureStrip({ figures, rounded = figures, testId }: {
+  figures: StripFigure[];
+  /** Each figure rounded, for the one too wide for its column, as the
+   *  flight's figures are (useFigureFit). */
+  rounded?: StripFigure[];
+  testId?: string;
+}) {
+  const { room, shown, sized, fitted, probes } = useFigureFit(figures, rounded, GROW_FIGURE.value, GROW_FIGURE.unit);
   return (
-    <dl className={cn("grid gap-3", figures.length === 3 ? "grid-cols-3" : "grid-cols-4")} data-testid={testId}>
-      {figures.map(f => (
-        <div key={f.name} className="min-w-0 text-center">
-          {/* Its names and units a grey that reads on the pill's glass. */}
-          <dt className={cn(GROUP_HEADING, GROW_FIGURE.name, "truncate text-foreground/65")}>{f.name}</dt>
-          <dd className={cn(GROW_FIGURE.value, "truncate font-semibold tabular-nums")} data-testid={f.testId}>
-            {f.value}
-            {f.unit && <span className={cn(GROW_FIGURE.unit, "font-normal text-foreground/65")}> {f.unit}</span>}
-          </dd>
-        </div>
-      ))}
-    </dl>
+    <div className="relative">
+      <dl className={cn("grid gap-3", shown.length === 3 ? "grid-cols-3" : "grid-cols-4")} data-testid={testId}>
+        {shown.map((f, i) => (
+          <div key={f.name} className="min-w-0 text-center">
+            {/* Its names and units a grey that reads on the pill's glass. */}
+            <dt className={cn(GROUP_HEADING, GROW_FIGURE.name, "truncate text-foreground/65")}>{f.name}</dt>
+            <dd ref={i === 0 ? room : undefined} className={cn(GROW_FIGURE.value, "truncate font-semibold tabular-nums")} data-testid={f.testId}>
+              <span style={sized("value")} data-fitted={fitted}>{f.value}</span>
+              {f.unit && <span className={cn(GROW_FIGURE.unit, "font-normal text-foreground/65")} style={sized("unit")} data-fitted={fitted}> {f.unit}</span>}
+            </dd>
+          </div>
+        ))}
+      </dl>
+      {probes}
+    </div>
   );
 }

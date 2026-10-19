@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Totals } from "../../lib/api/types";
-import { fitFigures, shortFlights, tripFigures } from "./figures";
+import { fitFigures } from "../../components/useFigureFit";
+import { shortFlights, tripFigures } from "./figures";
 
 const totals = { distance_nm: 323.6, ete_min: 165, fuel_gal: 23.4, fuel_required_gal: 30.1, hops: [] } as unknown as Totals;
 const input = { totals, local: false, destination: "KLAS" };
