@@ -1,7 +1,7 @@
 import createClient, { type Middleware } from "openapi-fetch";
 import type { paths } from "./schema";
 import type { paths as WebappPaths } from "./webapp-schema";
-import type { Aircraft, AircraftBases, AircraftChoice, AircraftProfiles, AircraftRequest, AirportPlace, AirportSearch, AirportsInView, AirspaceAt, AlertsAhead, Alternates, AltitudeChoice, AppleSignedIn, Briefing, ChartInfo, ChartPages, ChartRefreshStarted, ChecklistDto, CheckpointDescriptionMessage, CheckpointNoteSaved, Checkpoints, ClassBResponse, Classification, Course, Currency, CurrencyDatesRequest, Detour, DeviceCode, DevServices, DevServiceStarted, Flight, FlightDetail, FlightPlanFiled, FlightPlanFilingRequest, FlightRoute, FlightServiceStatus, FlightStatus, FlightSummary, GoogleMaps, InspectionsRequest, Instructor, InstructorRequest, LogbookEntry, LogbookEntryRequest, LogbookImportResult, ModelComparison, NarrativeMessage, NarrativeRequest, NavLogMessage, NearestAirports, OralGrade, OralGradeRequest, OralQuestion, OralQuestionRequest, PastFlight, PastFlights, PickDeleted, PickSaved, Pilot, PlacesFound, ProcedureDrawing, ProcedureList, Rating, Reminders, RetrainStarted, Role, RouteProfile, SavedTrack, SaveFlightRequest, SignRequest, SignInCapabilities, SpeedDay, Squawk, SquawkRequest, Status, StreamMessage, Subscription, Tfrs, Totals, Traffic, TrafficFound, Training, VorCheckRequest, WaypointsInView } from "./types";
+import type { Aircraft, AircraftBases, AircraftChoice, AircraftProfiles, AircraftRequest, AirportPlace, AirportSearch, AirportsInView, AirspaceAt, AlertsAhead, Alternates, AltitudeChoice, AppleSignedIn, Briefing, ChartInfo, ChartPages, ChartRefreshStarted, ChecklistDto, CheckpointDescriptionMessage, CheckpointNoteSaved, Checkpoints, ClassBResponse, Classification, Course, Currency, CurrencyDatesRequest, Detour, DeviceCode, DevServices, DevServiceStarted, Flight, FlightDetail, FlightPlanFiled, FlightPlanFilingRequest, FlightRoute, FlightServiceStatus, FlightStatus, FlightSummary, GoogleMaps, InspectionsRequest, Instructor, InstructorRequest, LogbookEntry, LogbookEntryRequest, LogbookImportResult, ModelComparison, NarrativeMessage, NarrativeRequest, NavLogMessage, NearestAirports, OralGrade, OralGradeRequest, OralQuestion, OralQuestionRequest, PastFlight, PastFlights, PickDeleted, PickSaved, Pilot, PlacesFound, PlateOverlay, ProcedureDrawing, ProcedureList, Rating, Reminders, RetrainStarted, Role, RouteProfile, SavedTrack, SaveFlightRequest, SignRequest, SignInCapabilities, SpeedDay, Squawk, SquawkRequest, Status, StreamMessage, Subscription, Tfrs, Totals, Traffic, TrafficFound, Training, VorCheckRequest, WaypointsInView } from "./types";
 
 /**
  * Every call the pages make. Both servers' calls go through
@@ -402,6 +402,10 @@ export const api = {
     planner.GET("/api/airport/{ident}/procedures/{procedure}", {
       params: { path: { ident, procedure }, query: transition ? { transition } : {} },
     }).then(data<ProcedureDrawing>),
+  /** An approach's plate's plan view placed on the map, where the planner
+   *  could place it (vfr.plates); 404 where it could not. */
+  plate: (ident: string, procedure: string) =>
+    planner.GET("/api/airport/{ident}/procedures/{procedure}/plate", { params: { path: { ident, procedure } } }).then(data<PlateOverlay>),
   /** The pages of one of the FAA's charts, by its address, drawn by the
    *  planner -- of a booklet, the ones naming `airport`. */
   faaChart: (url: string, airport: string) =>

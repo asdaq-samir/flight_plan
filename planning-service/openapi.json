@@ -7444,6 +7444,53 @@
         "title": "Plan",
         "type": "object"
       },
+      "PlateOverlay": {
+        "description": "An approach's plate's plan view placed on the map (vfr.plates): the\nFAA's plate of `name` in d-TPP cycle `cycle`, its picture at\n/api/approach-plate/{cycle}/{ident}/{procedure}.png, black on clear,\nnorth up between these latitudes and longitudes; `fixes` the\nwaypoints its placing was found from.",
+        "properties": {
+          "cycle": {
+            "title": "Cycle",
+            "type": "string"
+          },
+          "east": {
+            "title": "East",
+            "type": "number"
+          },
+          "fixes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Fixes",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "north": {
+            "title": "North",
+            "type": "number"
+          },
+          "south": {
+            "title": "South",
+            "type": "number"
+          },
+          "west": {
+            "title": "West",
+            "type": "number"
+          }
+        },
+        "required": [
+          "cycle",
+          "name",
+          "south",
+          "west",
+          "north",
+          "east",
+          "fixes"
+        ],
+        "title": "PlateOverlay",
+        "type": "object"
+      },
       "ProcedureDrawing": {
         "description": "One procedure drawn with the transition picked (vfr.procedures):\nits lines, holds and fixes, from the CIFP of `cycle`.",
         "properties": {
@@ -10296,6 +10343,61 @@
         "summary": "Airport Procedure"
       }
     },
+    "/api/airport/{ident}/procedures/{procedure}/plate": {
+      "get": {
+        "description": "An approach's plate's plan view placed on the map for the approach\npicked (vfr.plates): where its picture goes, made once a cycle from the\nFAA's d-TPP plate and the CIFP's fixes. 404 where the field has no\nplate for it, its waypoints do not place it north up within a fifth of\na mile (most ILS, LOC and VOR plates, whose fixes are not drawn as\nwaypoint stars), or the FAA cannot be reached.",
+        "operationId": "airport_procedure_plate_api_airport__ident__procedures__procedure__plate_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ident",
+            "required": true,
+            "schema": {
+              "title": "Ident",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "procedure",
+            "required": true,
+            "schema": {
+              "title": "Procedure",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlateOverlay"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "No plate for the approach, or its plate's fixes do not place it"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "503": {
+            "description": "The FAA's procedure file could not be had"
+          }
+        },
+        "summary": "Airport Procedure Plate"
+      }
+    },
     "/api/airports/in-view": {
       "get": {
         "description": "The landing fields inside the map's view, the ones that report\nfirst and then the biggest -- at most `limit` of them, since a whole\nstate holds thousands and the map only lays a tap target over each --\nwith each one's flight category from its METAR, for a weather chip on\nthe ones that report: the limit drops small fields with nothing to\nshow, never a chip a pilot saw a zoom further out -- and each one's\nclass of airspace at its surface, for its mark.\nThe METARs are the national cache already in memory; with the\nweather service out the fields come back without, as fields with no\nstation do. With `reporting`, only the fields that report, before\nthe limit: what the map asks once for a whole route's box, so its\nchips are there before the pilot zooms in on any of it.",
@@ -10770,6 +10872,63 @@
           }
         },
         "summary": "Alternate"
+      }
+    },
+    "/api/approach-plate/{cycle}/{ident}/{procedure}.png": {
+      "get": {
+        "description": "The plan view of an approach's plate placed on the map\n(`airport_procedure_plate`), as a picture: black on clear, north up,\nfor the cycle in force.",
+        "operationId": "approach_plate_api_approach_plate__cycle___ident___procedure__png_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "cycle",
+            "required": true,
+            "schema": {
+              "title": "Cycle",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "ident",
+            "required": true,
+            "schema": {
+              "title": "Ident",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "procedure",
+            "required": true,
+            "schema": {
+              "title": "Procedure",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "image/png": {}
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "No plate placed for it in that cycle"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Approach Plate"
       }
     },
     "/api/briefing": {

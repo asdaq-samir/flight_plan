@@ -145,6 +145,20 @@ export const checkpointLabelIcon = made(function checkpointLabelIcon(name: strin
 });
 
 /**
+ * The glide ring's reach, said on the ring at its top, at the owner's ask
+ * ("can the glide ring have a label?"): in the ring's orange over white,
+ * as the ring is drawn, centred on its line. Not a target.
+ */
+export const glideLabelIcon = made(function glideLabelIcon(words: string) {
+  return L.divIcon({
+    className: "",
+    iconSize: [0, 0],
+    iconAnchor: [0, 0],
+    html: `<span data-glide-label="" class="pointer-events-none absolute left-0 top-0 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded-full border-[1.5px] border-[#ea580c] bg-white px-1.5 text-[12px] font-bold leading-[18px] text-[#c2410c] shadow-[0_1px_3px_rgba(0,0,0,.3)]">${text(words)}</span>`,
+  });
+});
+
+/**
  * The ring round the airport whose card is open: the selected
  * checkpoint's halo (Halo) -- red-orange, cased in white and then a dark
  * line on both sides -- so one look marks what is picked on the map, and

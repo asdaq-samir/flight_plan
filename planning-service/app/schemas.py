@@ -1746,6 +1746,22 @@ class ProcedureDrawing(BaseModel):
     fixes: list[ProcedureFix]
 
 
+class PlateOverlay(BaseModel):
+    """An approach's plate's plan view placed on the map (vfr.plates): the
+    FAA's plate of `name` in d-TPP cycle `cycle`, its picture at
+    /api/approach-plate/{cycle}/{ident}/{procedure}.png, black on clear,
+    north up between these latitudes and longitudes; `fixes` the
+    waypoints its placing was found from."""
+
+    cycle: str
+    name: str
+    south: float
+    west: float
+    north: float
+    east: float
+    fixes: list[str]
+
+
 class ChartPage(BaseModel):
     """One page of one of the FAA's charts, to show in the app: its
     picture is /api/faa-chart/page/{source}/{edition}/{pdf}/{page}.png,

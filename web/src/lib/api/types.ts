@@ -84,6 +84,7 @@ export type TerminalChart = Schemas["TerminalChart"];
 export type ProcedureList = Schemas["ProcedureList"];
 export type ProcedureSummary = Schemas["ProcedureSummary"];
 export type ProcedureDrawing = Schemas["ProcedureDrawing"];
+export type PlateOverlay = Schemas["PlateOverlay"];
 export type ProcedureFix = Schemas["ProcedureFix"];
 export type ChartPages = Schemas["ChartPages"];
 /** The mock oral's question, its answer graded, and what each is asked with. */
