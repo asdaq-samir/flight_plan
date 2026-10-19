@@ -194,6 +194,7 @@ function renamed(params: URLSearchParams, from: string, to: string): URLSearchPa
     dep: params.get("dep") === from ? to : undefined,
     dest: params.get("dest") === from ? to : undefined,
     pattern: params.has("pattern") ? patternsParam(new Map([...patternsOf(params.get("pattern"))].map(([ident, end]) => [swap(ident), end]))) : undefined,
+    takeoff: params.has("takeoff") ? patternsParam(new Map([...patternsOf(params.get("takeoff"))].map(([ident, end]) => [swap(ident), end]))) : undefined,
     procs: params.has("procs") ? proceduresParam(proceduresOf(params.get("procs")).map(p => ({ ...p, ident: swap(p.ident) }))) : undefined,
     altitudes: params.has("altitudes") ? altitudesParam(Object.fromEntries(Object.entries(altitudesOf(params.get("altitudes"))).map(([ident, at]) => [swap(ident), at]))) : undefined,
   });
@@ -313,6 +314,19 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     if (end && end !== NO_PATTERN) setPatternFocus(`${ident}:${end}:${Date.now()}`);
     setPattern(ident, end);
   }, [setPattern]);
+  // The runway a stop is left from, which may not be the one landed on,
+  // at the owner's ask ("arrival first with a runway and a separate
+  // departure with a runway"): "KMSN:36", as the patterns are written.
+  // The pattern drawn at a stop stays the landing's.
+  const takeoffParam = searchParams.get("takeoff");
+  const pickedTakeoffs = useMemo(() => patternsOf(takeoffParam), [takeoffParam]);
+  const setTakeoff = useCallback((ident: string, end: string | null) => {
+    setSearchParams(prev => {
+      const picked = patternsOf(prev.get("takeoff"));
+      if (end) picked.set(ident, end); else picked.delete(ident);
+      return patched(prev, { takeoff: picked.size ? patternsParam(picked) : null });
+    }, { replace: true });
+  }, [setSearchParams]);
   // The instrument procedures picked for the route's fields, kept in the
   // address too: "KBUR:I08-Y:LAX" (lib/procedures).
   const procedureParam = searchParams.get("procs");
@@ -1325,13 +1339,13 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const routeList = useMemo(() => (
     <ProceduresRoute
       airports={procedureAirports} rows={routeRows} depart={depart} weather={metarColour}
-      picked={pickedPatterns} onPick={pickPattern} onPreselect={setPattern}
+      picked={pickedPatterns} onPick={pickPattern} onPreselect={setPattern} takeoffs={pickedTakeoffs} onTakeoff={setTakeoff}
       procedures={pickedProcedures} inRoute={routeProcedures} onProcedures={pickProcedures} onPreview={previewProcedure}
       at={proceduresAt} onAt={setProceduresShown}
       onCharts={() => { if (planned.dest) { setApproachesOf(planned.dest); selectPlace(planned.dest); } }}
       chartsDisabled={!planned.dest || noApproaches}
     />
-  ), [procedureAirports, routeRows, depart, metarColour, pickedPatterns, pickPattern, setPattern, pickedProcedures, routeProcedures, pickProcedures,
+  ), [procedureAirports, routeRows, depart, metarColour, pickedPatterns, pickPattern, setPattern, pickedTakeoffs, setTakeoff, pickedProcedures, routeProcedures, pickProcedures,
     previewProcedure, proceduresAt, setProceduresShown, planned.dest, selectPlace, noApproaches]);
   const navLog = useMemo(() => (
     <Suspense fallback={<div className="min-h-0 flex-1" />}>

@@ -14,7 +14,7 @@ import type { ProcedureDrawing, ProcedureList, ProcedureSummary, Runway } from "
 import { distanceNm } from "../../../lib/geo";
 import { runwayNumber, windPick, type WindPick } from "../../../lib/pattern";
 import { airportQuery, plateQuery } from "../../../lib/queryClient";
-import { approachRunway, kindsFor, sameField, type PickedProcedure } from "../../../lib/procedures";
+import { approachRunway, sameField, type PickedProcedure } from "../../../lib/procedures";
 import { NO_PATTERN, trafficPattern } from "../../../lib/trafficPattern";
 import { TEXT } from "../../../lib/text";
 import { altFt } from "../../../lib/units";
@@ -37,8 +37,6 @@ const KIND_TITLE: Record<Kind, string> = { approach: "Approaches", arrival: "Arr
  *  departure procedure (a SID or a graphic obstacle departure) or a
  *  textual one. */
 const CHART_CODES: Record<Kind, string[]> = { approach: ["IAP"], arrival: ["STR"], departure: ["DP", "ODP"] };
-/** A field's part in the flight, as its step in the list says it. */
-const ROLE_STEP: Record<ProcedureAirport["role"], string> = { Departure: "Depart", Stop: "Stop", Destination: "Arrive" };
 
 /** A procedure's data stays good for its cycle's 28 days. */
 const PROCEDURE_STALE_MS = 6 * 60 * 60_000;
@@ -78,7 +76,7 @@ export type ProceduresAt = { ident: string; kind: Kind } | null;
  * head, the close's twin, at the owner's ask.
  */
 export default function ProceduresRoute({
-  airports, rows, depart, weather, picked, onPick, onPreselect, onCharts, chartsDisabled, procedures, inRoute, onProcedures, onPreview, at, onAt,
+  airports, rows, depart, weather, picked, onPick, onPreselect, takeoffs, onTakeoff, onCharts, chartsDisabled, procedures, inRoute, onProcedures, onPreview, at, onAt,
 }: {
   airports: ProcedureAirport[];
   /** The route's rows as the nav log has them (navLogRows), for its
@@ -95,6 +93,10 @@ export default function ProceduresRoute({
   /** The runway into the wind picked for the pilot as the route comes in:
    *  into the address with no move of the map, which stays on the route. */
   onPreselect: (ident: string, end: string) => void;
+  /** The runway each stop is left from, which may not be the one landed
+   *  on ("KMSN:36", the `takeoff` address), and its pick. */
+  takeoffs: Map<string, string>;
+  onTakeoff: (ident: string, end: string | null) => void;
   /** The destination's approach charts, in its card. */
   onCharts: () => void;
   chartsDisabled: boolean;
@@ -185,9 +187,14 @@ export default function ProceduresRoute({
     if (runway) onPick(ident, runway);
   };
   const close = () => onAt(null);
-  // The runway picked at a field, none where the pilot picked none.
+  // The runway picked at a field, none where the pilot picked none; and a
+  // stop's to leave from.
   const chosenAt = (ident: string) => {
     const end = picked.get(ident) ?? null;
+    return end === NO_PATTERN ? null : end;
+  };
+  const takeoffAt = (ident: string) => {
+    const end = takeoffs.get(ident) ?? null;
     return end === NO_PATTERN ? null : end;
   };
   // Each field of the route, its runway picked into the wind until the
@@ -198,18 +205,22 @@ export default function ProceduresRoute({
   // under the pilot's finger.
   const preselected = useRef(new Set<string>());
   const intoWind = airports.flatMap(a => {
-    if (picked.has(a.ident) || landingOf(a.ident)) return [];
     const wind = windOf(a.ident);
-    return wind && !wind.calm ? [`${a.ident}:${wind.ident}`] : [];
+    if (!wind || wind.calm) return [];
+    return [
+      ...(picked.has(a.ident) || landingOf(a.ident) ? [] : [`land:${a.ident}:${wind.ident}`]),
+      // A stop's runway to leave from, into the wind as its landing's.
+      ...(a.role !== "Stop" || takeoffs.has(a.ident) ? [] : [`takeoff:${a.ident}:${wind.ident}`]),
+    ];
   }).join(",");
   useEffect(() => {
     for (const pick of intoWind ? intoWind.split(",") : []) {
-      const [ident, end] = pick.split(":") as [string, string];
-      if (preselected.current.has(ident)) continue;
-      preselected.current.add(ident);
-      onPreselect(ident, end);
+      const [which, ident, end] = pick.split(":") as [string, string, string];
+      if (preselected.current.has(`${which}:${ident}`)) continue;
+      preselected.current.add(`${which}:${ident}`);
+      if (which === "land") onPreselect(ident, end); else onTakeoff(ident, end);
     }
-  }, [intoWind, onPreselect]);
+  }, [intoWind, onPreselect, onTakeoff]);
   const destination = airports.find(a => a.role === "Destination");
 
   // A field's step: what is flown there, in the order it is flown.
@@ -225,26 +236,47 @@ export default function ProceduresRoute({
         onOpen={() => ask(a.ident)} onPick={next => pick(a.ident, kind, next)} onAll={() => onAt({ ident: a.ident, kind })}
       />
     );
-    const kinds = kindsFor(a.role).filter(kind => hasKind(a.ident, kind) || inRoute.some(p => sameField(p.ident, a.ident) && p.kind === kind));
-    // The procedures' pull-downs in the field's head, by its ident in the
-    // place of "Depart" or "Arrive", where it has any, at the owner's ask
-    // ("replace the Depart/Arrival label with the Departure/Arrival
-    // selection when available. Approach can be next to Arrival"): a
-    // stop's three wrapping. Its info at the runway chips' start ("Info
+    const has = (kind: Kind) => hasKind(a.ident, kind) || inRoute.some(p => sameField(p.ident, a.ident) && p.kind === kind);
+    const time = row ? etaAt(depart || new Date().toISOString(), row.minutesFlown) : null;
+    const mark = row ? <PointMark row={row} number={undefined} weather={weather} /> : <FieldDot last={last} />;
+    // A step of the field's: the procedures' pull-downs in its head, by its
+    // ident in the place of "Depart" or "Arrive", where it has any, at the
+    // owner's ask ("replace the Depart/Arrival label with the
+    // Departure/Arrival selection when available. Approach can be next to
+    // Arrival"); its runway chips under, its info at their start ("Info
     // can go on the left side of the runways").
-    return (
+    const step = (role: "Arrive" | "Depart", kinds: Kind[], chips: ReactNode, isLast: boolean, stepMark: ReactNode, stepTime: string | null) => (
       <Step
-        key={a.ident} last={last}
-        mark={row ? <PointMark row={row} number={undefined} weather={weather} /> : <FieldDot last={last} />}
-        title={`${a.ident} · ${ROLE_STEP[a.role]}`} time={row ? etaAt(depart || new Date().toISOString(), row.minutesFlown) : null} field
+        key={`${a.ident}-${role}`} last={isLast} mark={stepMark}
+        title={`${a.ident} · ${role}`} time={stepTime} field
         heading={kinds.length > 0 ? a.ident : undefined} beside={kinds.length > 0 ? kinds.map(kindMenu) : undefined}
       >
-        <PatternChips
-          airport={a} wind={wind} chosen={chosenAt(a.ident)} landing={landingOf(a.ident)} onPick={end => onPick(a.ident, end ?? NO_PATTERN)}
-          info={<FieldInfo ident={a.ident} note={patternNote(a, chosenAt(a.ident), landingOf(a.ident))} wind={wind} />}
-        />
+        {chips}
       </Step>
     );
+    const landingChips = (
+      <PatternChips
+        airport={a} wind={wind} chosen={chosenAt(a.ident)} landing={landingOf(a.ident)} onPick={end => onPick(a.ident, end ?? NO_PATTERN)}
+        info={<FieldInfo ident={a.ident} note={patternNote(a, chosenAt(a.ident), landingOf(a.ident))} wind={wind} />}
+      />
+    );
+    const takeoffChips = (
+      <PatternChips
+        airport={a} wind={wind} chosen={takeoffAt(a.ident)} landing={null} label={`${a.ident} takeoff runway`}
+        onPick={end => onTakeoff(a.ident, end ?? NO_PATTERN)}
+        info={<FieldInfo ident={a.ident} note={takeoffAt(a.ident) ? `Runway ${takeoffAt(a.ident)}` : null} wind={wind} />}
+      />
+    );
+    if (a.role === "Departure") return step("Depart", (["departure"] as Kind[]).filter(has), landingChips, last, mark, time);
+    if (a.role === "Destination") return step("Arrive", (["arrival", "approach"] as Kind[]).filter(has), landingChips, last, mark, time);
+    // A stop is landed at and left again, each with its own runway, at the
+    // owner's ask ("If a stop is an airport then it should have arrival
+    // first with a runway and a separate departure with a runway"): two
+    // steps, the pattern drawn the landing's.
+    return [
+      step("Arrive", (["arrival", "approach"] as Kind[]).filter(has), landingChips, false, mark, time),
+      step("Depart", (["departure"] as Kind[]).filter(has), takeoffChips, last, <FieldDot last={last} />, null),
+    ];
   };
 
   // The route's own rows where the course is in: its fields as steps and
@@ -444,8 +476,10 @@ interface Landing {
   name: string;
 }
 
-function PatternChips({ airport: a, wind, chosen, landing, info, onPick }: {
+function PatternChips({ airport: a, wind, chosen, landing, info, label, onPick }: {
   airport: ProcedureAirport;
+  /** The chips' name to a screen reader, where not the pattern's. */
+  label?: string;
   /** At the chips' start: the field's info (FieldInfo). */
   info: ReactNode;
   wind: WindPick | null;
@@ -474,7 +508,7 @@ function PatternChips({ airport: a, wind, chosen, landing, info, onPick }: {
       {a.runways === null ? (
         <p role="status" className={cn("px-1 text-muted-foreground", TEXT.detail)}>Looking the runways up…</p>
       ) : (
-        <Chips label={`${a.ident} ${landing ? "runway" : "traffic pattern"}`} value={chosen ?? NONE} onChange={v => onPick(v === NONE ? null : v)}>
+        <Chips label={label ?? `${a.ident} ${landing ? "runway" : "traffic pattern"}`} value={chosen ?? NONE} onChange={v => onPick(v === NONE ? null : v)}>
           {/* An approach to a runway lands on one: none is no choice then. */}
           <ToggleGroupItem value={NONE} disabled={straightIn !== null} className={CHIP}>None</ToggleGroupItem>
           {ends.map(({ runway, end }) => {
