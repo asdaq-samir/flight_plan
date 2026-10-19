@@ -54,8 +54,21 @@ LABEL_NEAR_PT = 45.0
 #: drawn in a part not to scale (a feeder broken by a zigzag, an inset)
 #: misses by far more and is left out of the placing.
 FIT_PT = 2.0
-#: The fixes a placing needs to agree on it.
+#: The scales the d-TPP draws most plan views at, in points a nm:
+#: 1:500,000 (a nm 3.70 mm, 10.50 points) and 1:750,000 for a larger area
+#: (7.00), within SCALE_PART. Measured on the plates placed by three or
+#: more fixes; a busy field's RNP plates are drawn larger (KMDW's at
+#: 1:250,000 and about 1:300,000), so other scales still place on three.
+PLAN_SCALES = (1852 / 500_000 / 0.0254 * 72, 1852 / 750_000 / 0.0254 * 72)
+SCALE_PART = 0.015
+#: The fixes a placing needs to agree on it: three at any scale, or two
+#: at a plan scale, where the scale itself is the third check -- most
+#: ILS plates show only two fixes as stars, the rest as navaid symbols.
 FIT_FIXES = 3
+PAIR_FIXES = 2
+#: Bumped when fit() places more: a plate kept as not placed by an older
+#: fit is tried again, the cycle's placed ones kept.
+FIT_VERSION = 2
 #: A plan view turned more than this is not placed: the map draws a
 #: picture north up.
 MAX_TURN_DEG = 1.0
@@ -156,7 +169,8 @@ def fit(words: list, stars: list, fixes: dict) -> dict | None:
     most of the fixes' stars where the CIFP has the fixes, `fixes` {ident:
     (lat, lon)}, each star looked for near the fix's name. Tried from each
     pair of fixes and kept where the most agree, within FIT_PT, the
-    nearest first; at least FIT_FIXES must, or None. Returns how to go
+    nearest first; at least FIT_FIXES must, or PAIR_FIXES at one of a plan
+    view's own scales (PLAN_SCALES), or None. Returns how to go
     from the page to the ground: {"lat0", "lon0", "scale", "turn",
     "x0", "y0", "fixes": the idents that agreed}."""
     if len(fixes) < 2:
@@ -195,9 +209,12 @@ def fit(words: list, stars: list, fixes: dict) -> dict | None:
                     if miss <= FIT_PT:
                         agreed.append(f)
                         off += miss
+                at_plan = any(abs(scale - plan) <= plan * SCALE_PART for plan in PLAN_SCALES)
+                if len(agreed) < (PAIR_FIXES if at_plan else FIT_FIXES):
+                    continue
                 if best is None or len(agreed) > len(best[0]) or (len(agreed) == len(best[0]) and off < best[1]):
                     best = (agreed, off, scale, turn, x0, y0)
-    if best is None or len(best[0]) < FIT_FIXES:
+    if best is None:
         return None
     agreed, _, scale, turn, x0, y0 = best
     return {"lat0": lat0, "lon0": lon0, "scale": scale, "turn": math.degrees(turn), "x0": x0, "y0": y0, "fixes": agreed}
@@ -286,6 +303,15 @@ def _fixes_of(ident: str, procedure: str) -> dict:
     return fixes
 
 
+def _kept(meta: Path) -> dict | None:
+    """What plate_overlay kept for a plate this cycle, or None to make it
+    (again): never made, or not placed by an older fit()."""
+    if not meta.exists():
+        return None
+    kept = json.loads(meta.read_text())
+    return kept if kept["placed"] or kept.get("fit") == FIT_VERSION else None
+
+
 def plate_overlay(ident: str, procedure: str, on: date | None = None) -> dict | None:
     """An approach's plate's plan view placed on the map, made once a
     cycle and kept: {"cycle", "name" (the plate's title), "south",
@@ -307,13 +333,15 @@ def plate_overlay(ident: str, procedure: str, on: date | None = None) -> dict | 
     stem = f"{Path(source[2]).stem}-{summary['id']}"
     folder = publications.CACHE_DIR / "plates" / cycle
     meta, png = folder / f"{stem}.json", folder / f"{stem}.png"
-    if meta.exists():
-        return {**json.loads(meta.read_text()), "png": png}
+    # A plate kept as not placed is None, as when it was made: its
+    # meta has no corners to answer with.
+    if (kept := _kept(meta)) is not None:
+        return {**kept, "png": png} if kept["placed"] else None
     with _LOCK:
         lock = _MAKING.setdefault(meta, threading.Lock())
     with lock:
-        if meta.exists():
-            return {**json.loads(meta.read_text()), "png": png}
+        if (kept := _kept(meta)) is not None:
+            return {**kept, "png": png} if kept["placed"] else None
         try:
             pdf = publications._pdf_of(*source)
         except publications.FaaUnreachable:
@@ -325,7 +353,7 @@ def plate_overlay(ident: str, procedure: str, on: date | None = None) -> dict | 
         except pypdfium2.PdfiumError as err:
             log.warning("No plate for %s %s: %s", ident, procedure, err)
             made = None
-        found = {"cycle": cycle, "name": chart["name"], "placed": made is not None}
+        found = {"cycle": cycle, "name": chart["name"], "placed": made is not None, "fit": FIT_VERSION}
         folder.mkdir(parents=True, exist_ok=True)
         if made is not None:
             picture, corners = made
@@ -333,7 +361,7 @@ def plate_overlay(ident: str, procedure: str, on: date | None = None) -> dict | 
             os.replace(png.with_name(png.name + ".part"), png)
             found.update(corners)
         # Kept either way: a plate that does not place is not tried again
-        # this cycle.
+        # this cycle, until fit() changes.
         meta.with_name(meta.name + ".part").write_text(json.dumps(found))
         os.replace(meta.with_name(meta.name + ".part"), meta)
     return {**found, "png": png} if found["placed"] else None
