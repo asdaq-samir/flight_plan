@@ -90,7 +90,7 @@ test("a field's approach is picked on its own page with its transition, drawn on
   // The destination's approaches, a page of their own.
   const kdlh = procedures.getByRole("region", { name: "KDLH · Arrive" });
   // Its pull-down's foot: the field's whole list.
-  await kdlh.getByTestId("procedure-kind").filter({ hasText: /^Approach/ }).click();
+  await kdlh.locator('[data-testid=procedure-kind][data-kind=approach]').click();
   await page.getByTestId("procedure-menu-all").click();
   await expect(page.getByRole("heading", { name: "KDLH approaches" })).toBeVisible();
   // Its own page: drawn on the map from vectors as it opens, before it is
@@ -143,8 +143,8 @@ test("a field's approach is picked on its own page with its transition, drawn on
   // Checked in the list, and on its page Remove from Route takes it off
   // the address, and off the map once the sheet is put away.
   await openTab(page, "Nav Log");
-  await expect(kdlh.getByTestId("procedure-kind").filter({ hasText: /^Approach/ })).toContainText("ILS 09 · DLH");
-  await kdlh.getByTestId("procedure-kind").filter({ hasText: /^Approach/ }).click();
+  await expect(kdlh.locator('[data-testid=procedure-kind][data-kind=approach]')).toContainText("ILS 09 · DLH");
+  await kdlh.locator('[data-testid=procedure-kind][data-kind=approach]').click();
   await page.getByTestId("procedure-menu-all").click();
   const ils = page.getByTestId("procedure-option").filter({ hasText: "ILS RWY 09" });
   await expect(ils).toContainText("In the route, via DLH");
@@ -187,19 +187,24 @@ test("an approach puts its field's runway on its own, and another is let only wh
   await expect(page.locator("path.traffic-pattern")).toHaveCount(1, { timeout: slow(10000) });
   // The ILS to 9 added from its pull-down, from DLH: the runway is 9,
   // landed straight in, and no pattern drawn.
-  await kdlh.getByTestId("procedure-kind").filter({ hasText: /^Approach/ }).click();
+  await kdlh.locator('[data-testid=procedure-kind][data-kind=approach]').click();
   const menu = page.getByTestId("procedure-menu");
   await expect(menu.getByText("Runway 9", { exact: false })).toBeVisible({ timeout: slow(10000) });
   await menu.getByTestId("procedure-menu-item").filter({ hasText: "ILS" }).click();
+  // Its transitions in the menu's own place, on the screen: side by side,
+  // a phone's ran off its edge (the owner's screenshot).
+  await expect(menu.getByTestId("procedure-menu-back")).toBeVisible();
+  const placed = (await menu.boundingBox())!;
+  expect(placed.x + placed.width).toBeLessThanOrEqual(page.viewportSize()!.width);
   await page.getByTestId("procedure-menu-transition").filter({ hasText: "From DLH" }).click();
   await expect(page).toHaveURL(/[?&]procs=KDLH(%3A|:)I09(%3A|:)DLH(&|$)/);
   await expect(page).toHaveURL(/[?&]pattern=[^&]*KDLH(%3A|:)9(%2C|,|&|$)/);
   await settled(sideDrawer(page));
   await openTab(page, "Nav Log");
   await expect(kdlh.getByRole("radio", { name: /^Runway 9\b/ })).toHaveAttribute("aria-checked", "true");
-  await expect(kdlh.getByTestId("procedure-kind").filter({ hasText: /^Approach/ })).toContainText("ILS 09 · DLH");
+  await expect(kdlh.locator('[data-testid=procedure-kind][data-kind=approach]')).toContainText("ILS 09 · DLH");
   // The field's arrival, a pull-down beside it once the list is in.
-  await kdlh.getByTestId("procedure-kind").filter({ hasText: /^Arrival/ }).click();
+  await kdlh.locator('[data-testid=procedure-kind][data-kind=arrival]').click();
   await page.getByTestId("procedure-menu").getByTestId("procedure-menu-item").filter({ hasText: "SKETC1" }).click();
   await expect(page).toHaveURL(/[?&]procs=[^&]*KDLH(%3A|:)SKETC1/);
   await settled(sideDrawer(page));
@@ -263,7 +268,7 @@ test("a field typed as ORD is KORD, its arrivals offered and its runways one lin
   await settle(page);
   await openTab(page, "Nav Log");
   const kord = page.getByTestId("procedures").getByRole("region", { name: "KORD · Arrive" });
-  await expect(kord.getByTestId("procedure-kind").filter({ hasText: /^Arrival/ })).toBeVisible({ timeout: slow(20000) });
+  await expect(kord.locator('[data-testid=procedure-kind][data-kind=arrival]')).toBeVisible({ timeout: slow(20000) });
   const chips = kord.getByTestId("procedure-pattern");
   await expect(chips.first()).toBeVisible({ timeout: slow(20000) });
   const tops = await chips.evaluateAll(all => all.map(c => Math.round(c.getBoundingClientRect().top)));

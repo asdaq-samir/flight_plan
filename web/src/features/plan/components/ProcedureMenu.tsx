@@ -1,9 +1,8 @@
-import { useRef } from "react";
-import { Check, ChevronDown } from "lucide-react";
+import { useRef, useState } from "react";
+import { Check, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "cn";
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator,
-  DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger,
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "../../../components/ui/dropdown-menu";
 import type { ProcedureList, ProcedureSummary } from "../../../lib/api/types";
 import { runwayNumber } from "../../../lib/pattern";
@@ -35,8 +34,8 @@ function shortName(p: ProcedureSummary): string {
  * owner's pick ("B", 2026-10-19): the trigger says the one in the route,
  * and the menu lists the field's -- an approach's by runway, the runway
  * landed on (the runway chips', preselected into the wind) first and the
- * others each a submenu -- each with its transitions a submenu of its
- * own. No approach, or none of the kind, at the foot, and the field's
+ * others each a page of the menu -- each with its transitions a page of
+ * its own. No approach, or none of the kind, at the foot, and the field's
  * whole list (the Procedures sheet, with each one's fixes and plate)
  * after it. The list is asked for as the menu opens.
  */
@@ -63,31 +62,30 @@ export default function ProcedureMenu({ ident, kind, list, loading, picked, labe
   // trigger as the menu closes, which the sheet took for a tap outside it
   // and closed (the desktop's popover).
   const toSheet = useRef(false);
+  // A runway's approaches and a procedure's transitions are pages of the
+  // menu itself, pushed in its place with a back row at their head, as an
+  // iOS menu opens a submenu in place: side by side they ran off a
+  // phone's screen (the owner's screenshot, 2026-10-19).
+  const [pages, setPages] = useState<Page[]>([]);
+  const page = pages.at(-1) ?? null;
+  const push = (next: Page) => (event: Event) => { event.preventDefault(); setPages([...pages, next]); };
+  const back = (event: Event) => { event.preventDefault(); setPages(pages.slice(0, -1)); };
+  const runwayName = (r: string) => (r === "Circling" ? "Circling" : `Runway ${r}${r === windward ? " · into the wind" : ""}`);
   const item = (p: ProcedureSummary, name: string) => {
     const on = picked?.id === p.id;
-    // Its transitions a submenu where it has any; else picked at a tap.
-    if (p.transitions.length === 0) {
-      return (
-        <DropdownMenuItem key={p.id} onSelect={() => onPick({ id: p.id, transition: null })} data-testid="procedure-menu-item">
-          <Mark on={on} />{name}
-        </DropdownMenuItem>
-      );
-    }
-    return (
-      <DropdownMenuSub key={p.id}>
-        <DropdownMenuSubTrigger data-testid="procedure-menu-item"><Mark on={on} />{name}</DropdownMenuSubTrigger>
-        <DropdownMenuSubContent className="w-56">
-          {[null, ...p.transitions].map(t => (
-            <DropdownMenuItem key={t ?? "-"} onSelect={() => onPick({ id: p.id, transition: t })} data-testid="procedure-menu-transition">
-              <Mark on={on && (picked?.transition ?? null) === t} />{transitionName(kind, t)}
-            </DropdownMenuItem>
-          ))}
-        </DropdownMenuSubContent>
-      </DropdownMenuSub>
+    // Its transitions a page where it has any; else picked at a tap.
+    return p.transitions.length === 0 ? (
+      <DropdownMenuItem key={p.id} onSelect={() => onPick({ id: p.id, transition: null })} data-testid="procedure-menu-item">
+        <Mark on={on} />{name}
+      </DropdownMenuItem>
+    ) : (
+      <DropdownMenuItem key={p.id} onSelect={push({ procedure: p, name })} data-testid="procedure-menu-item">
+        <Mark on={on} /><span className="flex-1">{name}</span><ChevronRight className="size-4 text-muted-foreground" aria-hidden />
+      </DropdownMenuItem>
     );
   };
   // An approach's by runway: the runway landed on first, open; the rest a
-  // submenu each, in the runways' order; one circling only under Circling.
+  // page each, in the runways' order; one circling only under Circling.
   const byRunway = new Map<string, ProcedureSummary[]>();
   for (const p of all) {
     const key = p.runway ? runwayNumber(p.runway) : "Circling";
@@ -96,53 +94,80 @@ export default function ProcedureMenu({ ident, kind, list, loading, picked, labe
   const first = kind === "approach"
     ? [runway, windward, ...byRunway.keys()].find(r => r !== null && byRunway.has(r)) ?? null : null;
   const others = [...byRunway.keys()].filter(r => r !== first).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  const head = (title: string) => (
+    <>
+      <DropdownMenuItem onSelect={back} className="text-tint" data-testid="procedure-menu-back">
+        <ChevronLeft className="size-4" aria-hidden />Back
+      </DropdownMenuItem>
+      <DropdownMenuLabel className={cn("text-muted-foreground", TEXT.note)}>{title}</DropdownMenuLabel>
+    </>
+  );
   return (
-    <DropdownMenu onOpenChange={open => { if (open) onOpen(); }}>
+    <DropdownMenu onOpenChange={open => { if (open) onOpen(); else setPages([]); }}>
       <DropdownMenuTrigger asChild>
+        {/* One line, at the owner's ask: "Select Approach" until one is
+            picked, then the one picked, in the tint as what is tapped. */}
         <button
-          type="button" data-testid="procedure-kind"
-          className="flex min-w-0 flex-col items-start gap-0.5 rounded-xl border bg-card px-3 py-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          aria-label={`${ident} ${TITLE[kind].toLowerCase()}: ${label ?? "none"}`}
+          type="button" data-testid="procedure-kind" data-kind={kind}
+          className={cn(
+            "flex min-h-11 min-w-0 items-center justify-between gap-1 rounded-xl border bg-card px-3 text-left font-semibold text-tint outline-none focus-visible:ring-2 focus-visible:ring-ring",
+            TEXT.detail,
+          )}
+          aria-label={`${ident} ${TITLE[kind].toLowerCase()}: ${label ?? "none picked"}`}
         >
-          <span className={cn("text-muted-foreground", TEXT.note)}>{TITLE[kind]}</span>
-          <span className={cn("flex max-w-full items-center gap-1 font-semibold", label ? "text-tint" : "text-muted-foreground", TEXT.detail)}>
-            <span className="truncate">{label ?? "None"}</span>
-            <ChevronDown className="size-4 shrink-0" aria-hidden />
-          </span>
+          <span className="truncate">{label ?? `Select ${TITLE[kind]}`}</span>
+          <ChevronDown className="size-4 shrink-0" aria-hidden />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
-        align="start" className="w-64" data-testid="procedure-menu"
+        align="start" collisionPadding={12} className="w-[min(16rem,calc(100vw-1.5rem))]" data-testid="procedure-menu"
         onCloseAutoFocus={event => { if (toSheet.current) event.preventDefault(); toSheet.current = false; }}
       >
-        {loading && all.length === 0 && <DropdownMenuItem disabled>Looking them up…</DropdownMenuItem>}
-        {!loading && all.length === 0 && <DropdownMenuItem disabled>None published</DropdownMenuItem>}
-        {kind === "approach" && first !== null && (
+        {page && "procedure" in page ? (
           <>
-            <DropdownMenuLabel className={cn("text-muted-foreground", TEXT.note)}>
-              {first === "Circling" ? "Circling" : `Runway ${first}${first === windward ? " · into the wind" : ""}`}
-            </DropdownMenuLabel>
-            {byRunway.get(first)!.map(p => item(p, shortName(p)))}
-            {others.length > 0 && <DropdownMenuSeparator />}
-            {others.map(r => (
-              <DropdownMenuSub key={r}>
-                <DropdownMenuSubTrigger data-testid="procedure-menu-runway">
-                  <Mark on={byRunway.get(r)!.some(p => p.id === picked?.id)} />
-                  {r === "Circling" ? "Circling" : `Runway ${r}${r === windward ? " · into the wind" : ""}`}
-                </DropdownMenuSubTrigger>
-                <DropdownMenuSubContent className="w-56">{byRunway.get(r)!.map(p => item(p, shortName(p)))}</DropdownMenuSubContent>
-              </DropdownMenuSub>
+            {head(page.name)}
+            {[null, ...page.procedure.transitions].map(t => (
+              <DropdownMenuItem key={t ?? "-"} onSelect={() => onPick({ id: page.procedure.id, transition: t })} data-testid="procedure-menu-transition">
+                <Mark on={picked?.id === page.procedure.id && (picked.transition ?? null) === t} />{transitionName(kind, t)}
+              </DropdownMenuItem>
             ))}
           </>
+        ) : page ? (
+          <>
+            {head(runwayName(page.runway))}
+            {(byRunway.get(page.runway) ?? []).map(p => item(p, shortName(p)))}
+          </>
+        ) : (
+          <>
+            {loading && all.length === 0 && <DropdownMenuItem disabled>Looking them up…</DropdownMenuItem>}
+            {!loading && all.length === 0 && <DropdownMenuItem disabled>None published</DropdownMenuItem>}
+            {kind === "approach" && first !== null && (
+              <>
+                <DropdownMenuLabel className={cn("text-muted-foreground", TEXT.note)}>{runwayName(first)}</DropdownMenuLabel>
+                {byRunway.get(first)!.map(p => item(p, shortName(p)))}
+                {others.length > 0 && <DropdownMenuSeparator />}
+                {others.map(r => (
+                  <DropdownMenuItem key={r} onSelect={push({ runway: r })} data-testid="procedure-menu-runway">
+                    <Mark on={byRunway.get(r)!.some(p => p.id === picked?.id)} />
+                    <span className="flex-1">{runwayName(r)}</span><ChevronRight className="size-4 text-muted-foreground" aria-hidden />
+                  </DropdownMenuItem>
+                ))}
+              </>
+            )}
+            {kind !== "approach" && all.map(p => item(p, p.name))}
+            <DropdownMenuSeparator />
+            {picked && <DropdownMenuItem onSelect={() => onPick(null)} data-testid="procedure-menu-none">{NONE[kind]}</DropdownMenuItem>}
+            <DropdownMenuItem onSelect={() => { toSheet.current = true; onAll(); }} data-testid="procedure-menu-all">{ALL[kind]}</DropdownMenuItem>
+          </>
         )}
-        {kind !== "approach" && all.map(p => item(p, p.name))}
-        <DropdownMenuSeparator />
-        {picked && <DropdownMenuItem onSelect={() => onPick(null)} data-testid="procedure-menu-none">{NONE[kind]}</DropdownMenuItem>}
-        <DropdownMenuItem onSelect={() => { toSheet.current = true; onAll(); }} data-testid="procedure-menu-all">{ALL[kind]}</DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );
 }
+
+/** A page of the menu pushed in its place: a runway's approaches, or a
+ *  procedure's transitions. */
+type Page = { runway: string } | { procedure: ProcedureSummary; name: string };
 
 /** The one picked, ticked; the others kept in line with it. */
 function Mark({ on }: { on: boolean }) {

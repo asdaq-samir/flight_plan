@@ -149,12 +149,23 @@ test("plan page: a departure time gives every checkpoint its time, and the nav l
   // itself.
   await openNavLog(page);
   await expect(times.first()).toHaveText("15:00");
-  // The route's figures say when it arrives, and the time en route.
-  await expect(page.getByTestId("navlog-eta")).toHaveText(/^\d\d:\d\d$/, { timeout: slow(60000) });
+  // The route's figures say where it lands, the time en route and the
+  // fuel required (the owner's "To, Dist, ETE, Fuel").
+  await expect(page.getByTestId("navlog-fuel")).toHaveText(/^\d+\.\d gal$/, { timeout: slow(60000) });
+  await expect(page.getByTestId("navlog-to")).toHaveText("KDLH");
   await expect(page.getByTestId("navlog-ete")).toHaveText(/^\d+h \d\dm$/);
   // Every later row has a time once its leg is in.
   await expect.poll(async () => (await times.last().textContent())?.trim(), { timeout: slow(60000) }).toMatch(/^\d\d:\d\d$/);
   await closeNavLog(page);
+  // The fuel tapped, what it is made of, summing to it.
+  await page.getByTestId("fuel-breakdown-open").click();
+  const breakdown = page.getByTestId("fuel-breakdown");
+  await expect(breakdown).toContainText("Flying the legs");
+  await expect(breakdown).toContainText("Start, taxi and takeoff");
+  await expect(breakdown).toContainText(/Reserve, (30|45) min/);
+  await expect(breakdown).toContainText(/Fuel required\s*\d+\.\d gal/);
+  await page.keyboard.press("Escape");
+  await expect(breakdown).toHaveCount(0);
   // And the fuel check, against the stock C172's 40 usable gallons,
   // with the day reserve for a mid-afternoon flight -- under FPL's route.
   // FPL says the fuel required in a line; what it is made of and the
@@ -234,7 +245,6 @@ test("plan page: no legal altitude is the route's own problem: its chip says so 
   await grabberTo(page, "full");
   // The figures stay, the book's marked "≈", where why stood in their
   // place in red; why is the Brief's, its Go / No-Go's altitude red.
-  await expect(sideDrawer(page).getByTestId("navlog-eta-estimate")).toBeVisible();
   await expect(sideDrawer(page).getByTestId("navlog-ete")).toHaveText(/^≈/);
   await openTab(page, "Brief");
   const altitude = sideDrawer(page).getByTestId("verdict-altitude");
