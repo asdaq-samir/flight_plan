@@ -38,6 +38,7 @@ export type Checkpoints = Schemas["Checkpoints"];
  *  near enough, which is not the same as calm; groundspeed/ETE/fuel are
  *  null when the wind exceeds true airspeed and the leg cannot be flown. */
 export type Leg = Schemas["Leg"];
+export type LegProcedure = Schemas["LegProcedure"];
 /** Where a leg's climb tops out (TOC), from the leg's start, and the
  *  climb's speeds on the way up. */
 export type TopOfClimb = Schemas["TopOfClimb"];

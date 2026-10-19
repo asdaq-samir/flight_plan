@@ -4851,6 +4851,16 @@
             "title": "Power Pct",
             "type": "number"
           },
+          "procedure": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LegProcedure"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "tas_kt": {
             "title": "Tas Kt",
             "type": "number"
@@ -4922,6 +4932,89 @@
           "density_altitude_ft"
         ],
         "title": "Leg",
+        "type": "object"
+      },
+      "LegProcedure": {
+        "description": "A leg flown by the procedures picked -- out by a departure, in by an\narrival and an approach (vfr.procedure_paths.flown) -- rather than as\nthe route goes: its path from the leg's start, [lat, lon] pairs; the\naltitude the chart sets at each point (None where it sets none); its\nlength; whether it comes down to a runway; where its final starts, the\nindex in `path` of its final approach fix; and the approach's missed\napproach. The miles it is more than the leg's own, and the time and\nfuel they take at the leg's ground speed and cruise burn, are in the\nleg's `ete_min` and `fuel_gal` (plan.with_procedures).",
+        "properties": {
+          "final_at": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Final At"
+          },
+          "ft": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Ft",
+            "type": "array"
+          },
+          "landing": {
+            "title": "Landing",
+            "type": "boolean"
+          },
+          "missed": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MissedApproachPath"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "more_gal": {
+            "title": "More Gal",
+            "type": "number"
+          },
+          "more_min": {
+            "title": "More Min",
+            "type": "number"
+          },
+          "more_nm": {
+            "title": "More Nm",
+            "type": "number"
+          },
+          "nm": {
+            "title": "Nm",
+            "type": "number"
+          },
+          "path": {
+            "items": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "title": "Path",
+            "type": "array"
+          }
+        },
+        "required": [
+          "path",
+          "ft",
+          "nm",
+          "landing",
+          "more_nm",
+          "more_min",
+          "more_gal"
+        ],
+        "title": "LegProcedure",
         "type": "object"
       },
       "Loading": {
@@ -5176,6 +5269,38 @@
           }
         },
         "title": "Metar",
+        "type": "object"
+      },
+      "MissedApproachPath": {
+        "description": "An approach's missed approach as it is flown, from its missed\napproach point and round its hold once (vfr.procedure_paths.missed_path),\nand the altitude it climbs to: the highest its fixes set.",
+        "properties": {
+          "ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ft"
+          },
+          "path": {
+            "items": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "title": "Path",
+            "type": "array"
+          }
+        },
+        "required": [
+          "path",
+          "ft"
+        ],
+        "title": "MissedApproachPath",
         "type": "object"
       },
       "ModeCVeil": {
@@ -5776,6 +5901,17 @@
           "power_pct": {
             "title": "Power Pct",
             "type": "number"
+          },
+          "procedure": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LegProcedure"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
           },
           "tas_kt": {
             "title": "Tas Kt",
@@ -9470,6 +9606,11 @@
             "default": null,
             "title": "Night"
           },
+          "procedure_nm": {
+            "default": 0.0,
+            "title": "Procedure Nm",
+            "type": "number"
+          },
           "reserve_gal": {
             "anyOf": [
               {
@@ -12030,11 +12171,11 @@
           },
           {
             "in": "query",
-            "name": "approaches",
+            "name": "procedures",
             "required": false,
             "schema": {
               "default": "",
-              "title": "Approaches",
+              "title": "Procedures",
               "type": "string"
             }
           },
@@ -12352,11 +12493,11 @@
           },
           {
             "in": "query",
-            "name": "approaches",
+            "name": "procedures",
             "required": false,
             "schema": {
               "default": "",
-              "title": "Approaches",
+              "title": "Procedures",
               "type": "string"
             }
           },
@@ -12855,11 +12996,11 @@
           },
           {
             "in": "query",
-            "name": "approaches",
+            "name": "procedures",
             "required": false,
             "schema": {
               "default": "",
-              "title": "Approaches",
+              "title": "Procedures",
               "type": "string"
             }
           },

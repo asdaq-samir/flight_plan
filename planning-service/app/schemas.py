@@ -195,6 +195,37 @@ class TopOfDescent(LegPoint):
     fpm: float
 
 
+class MissedApproachPath(BaseModel):
+    """An approach's missed approach as it is flown, from its missed
+    approach point and round its hold once (vfr.procedure_paths.missed_path),
+    and the altitude it climbs to: the highest its fixes set."""
+
+    path: list[list[float]]
+    ft: float | None
+
+
+class LegProcedure(BaseModel):
+    """A leg flown by the procedures picked -- out by a departure, in by an
+    arrival and an approach (vfr.procedure_paths.flown) -- rather than as
+    the route goes: its path from the leg's start, [lat, lon] pairs; the
+    altitude the chart sets at each point (None where it sets none); its
+    length; whether it comes down to a runway; where its final starts, the
+    index in `path` of its final approach fix; and the approach's missed
+    approach. The miles it is more than the leg's own, and the time and
+    fuel they take at the leg's ground speed and cruise burn, are in the
+    leg's `ete_min` and `fuel_gal` (plan.with_procedures)."""
+
+    path: list[list[float]]
+    ft: list[float | None]
+    nm: float
+    landing: bool
+    final_at: int | None = None
+    missed: MissedApproachPath | None = None
+    more_nm: float
+    more_min: float
+    more_gal: float
+
+
 class Leg(BaseModel):
     """One dead-reckoning leg. `wind` is None when no winds-aloft station
     is near enough, which is not the same as calm: groundspeed then falls
@@ -237,6 +268,9 @@ class Leg(BaseModel):
     # the descent, on the leg it starts on.
     toc: TopOfClimb | None = None
     tod: TopOfDescent | None = None
+    # Flown by the procedures picked, the time and fuel of their miles
+    # more already in `ete_min` and `fuel_gal` (plan.with_procedures).
+    procedure: LegProcedure | None = None
 
 
 class AlternateLeg(BaseModel):
@@ -260,6 +294,10 @@ class Totals(BaseModel):
     do not hold."""
 
     distance_nm: float
+    #: The miles the procedures picked add to the route's, flown in place
+    #: of its legs (plan.with_procedures): in `distance_nm`, and their time
+    #: and fuel in `ete_min` and `fuel_gal`.
+    procedure_nm: float = 0.0
     ete_min: float | None
     fuel_gal: float | None
     unflyable_legs: int

@@ -14,13 +14,15 @@ import re
 import time
 from concurrent.futures import Future, ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FuturesTimeoutError
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import Response, StreamingResponse
-from vfr import airports, airspace, altitude, chartlabels, charts, elevation, faa_data, fixes, geo, navlog, places, procedures, sun
+from vfr import (
+    airports, airspace, altitude, chartlabels, charts, elevation, faa_data, fixes, geo, navlog, places, procedure_paths, procedures, sun,
+)
 from vfr.profile import route_profile as side_view
 from vfr.terrain import M_TO_FT
 from vfr.config import DATA_DIR, VFR_SECTIONAL_MAX_ZOOM, VFR_SECTIONAL_MIN_ZOOM
@@ -102,11 +104,14 @@ class PlanQuery:
     #: a pilot crosses it); an airport's is its pattern, which a flight
     #: landing there comes down to. The rest of the route as planned.
     altitudes: str = ""
-    #: The instrument approaches picked at the route's fields, as the
-    #: address has them: "KDLH:I09:ANDOE", the field, the approach and
-    #: any transition. A flight landing by one comes down to the altitude
-    #: of its first fix rather than to the pattern (approach_end).
-    approaches: str = ""
+    #: The instrument procedures picked at the route's fields, as the
+    #: address has them: "KDLH:I09:ANDOE,KORD:BENKY6:BYLAW", the field, the
+    #: procedure and any transition -- approaches, arrivals and
+    #: departures alike. A leg flown by them is the longer by their path
+    #: (with_procedures), and a flight landing by an approach comes down
+    #: to the altitude of its first fix rather than to the pattern
+    #: (approach_end).
+    procedures: str = ""
     #: Checkpoints between the route's own points, as the planner picks
     #: them off the chart. False, the legs run from point to point alone
     #: -- the departure, the stops, the destination -- as a pilot whose
@@ -134,21 +139,37 @@ class PlanQuery:
         return out
 
 
-    def approach_picks(self) -> dict[str, tuple[str, str | None]]:
-        """`approaches` by field, each the approach and its transition (None
-        from vectors); a 422 for one that is not "FIELD:APPROACH[:TRANSITION]"."""
-        out = {}
-        for part in filter(None, (p.strip() for p in self.approaches.split(","))):
-            if not APPROACH_PICK.fullmatch(part):
-                raise HTTPException(422, f"{part!r} is not an approach: a field, an approach and a transition, as KDLH:I09:ANDOE.")
+    def procedure_picks(self) -> list[tuple[str, str, str | None]]:
+        """`procedures`, each the field, the procedure and its transition
+        (None, an approach from vectors); a 422 for one that is not
+        "FIELD:PROCEDURE[:TRANSITION]"."""
+        out = []
+        for part in filter(None, (p.strip() for p in self.procedures.split(","))):
+            if not PROCEDURE_PICK.fullmatch(part):
+                raise HTTPException(422, f"{part!r} is not a procedure: a field, a procedure and a transition, as KDLH:I09:ANDOE.")
             ident, procedure, *transition = part.upper().split(":")
-            out[ident] = (procedure, transition[0] if transition else None)
+            out.append((ident, procedure, transition[0] if transition else None))
+        return out
+
+    def drawn_procedures(self) -> list[tuple[str, dict]]:
+        """The procedures picked (procedure_picks), each its field and its
+        drawing (vfr.procedures.procedure_drawing), read once for the
+        request; one the CIFP does not have, or cannot be had, left out:
+        its leg is flown as the route goes."""
+        out = []
+        for ident, procedure, transition in self.procedure_picks():
+            try:
+                drawn = procedures.procedure_drawing(ident, procedure, transition)
+            except RuntimeError:
+                continue
+            if drawn:
+                out.append((ident, drawn))
         return out
 
 
 POINT_ALTITUDE = re.compile(r"[A-Za-z0-9]{2,5}:\d{1,5}")
 # As lib/procedures' proceduresOf reads them from the address.
-APPROACH_PICK = re.compile(r"[A-Za-z0-9]{2,5}:[A-Za-z0-9-]{1,6}(:[A-Za-z0-9]{1,5})?")
+PROCEDURE_PICK = re.compile(r"[A-Za-z0-9]{2,5}:[A-Za-z0-9-]{1,6}(:[A-Za-z0-9]{1,5})?")
 
 # How often the nav log stream says it is still working while the
 # altitude plans are being made.
@@ -432,7 +453,7 @@ def pattern_altitude(flight: Route, own: dict[str, float] | None = None) -> floa
     return field_pattern_ft(flight.dest_ident, flight.dest_airport)
 
 
-def approach_end(flight: Route, picks: dict[str, tuple[str, str | None]],
+def approach_end(flight: Route, drawn: list[tuple[str, dict]],
                  cruise_ft: float | None = None) -> tuple[float, float, str] | None:
     """Where a flight landing by the instrument approach picked for its
     field comes down to: the altitude its first fix with one under the
@@ -446,21 +467,15 @@ def approach_end(flight: Route, picks: dict[str, tuple[str, str | None]],
     prints it (AIM 5-4-5), or its highest where it is crossed at or below
     one. The route runs to the field, not to the fix: the descent ends
     where the route is the fix's own distance out, and the approach is
-    flown from there as charted. None where no approach is picked there,
-    no fix is under the cruise, or the CIFP cannot be had: down to the
-    pattern."""
+    flown from there as charted. None where no approach is picked there
+    (`drawn`, PlanQuery.drawn_procedures), no fix is under the cruise, or
+    the CIFP cannot be had: down to the pattern."""
     if not flight.lands:
         return None
-    pick = next((p for ident, p in picks.items() if _bare_field(ident) == _bare_field(flight.dest_ident.upper())), None)
-    if pick is None:
+    approach = _picked(drawn, "approach", flight.dest_ident)
+    if approach is None:
         return None
-    try:
-        drawn = procedures.procedure_drawing(flight.dest_ident, *pick)
-    except RuntimeError:
-        return None
-    if not drawn or drawn["kind"] != "approach":
-        return None
-    crossed = [(f, f["min_ft"] if f["min_ft"] is not None else f["max_ft"]) for f in drawn["fixes"] if not f["missed"]]
+    crossed = [(f, f["min_ft"] if f["min_ft"] is not None else f["max_ft"]) for f in approach["fixes"] if not f["missed"]]
     fix, at_ft = next(((f, ft) for f, ft in crossed if ft and (cruise_ft is None or ft < cruise_ft)), (None, None))
     if fix is None:
         return None
@@ -474,19 +489,75 @@ def _bare_field(ident: str) -> str:
     return ident[1:] if len(ident) == 4 and ident.startswith("K") else ident
 
 
+def _picked(drawn: list[tuple[str, dict]], kind: str, field: str) -> dict | None:
+    """The procedure of `kind` picked at `field`, drawn, if one is."""
+    return next((d for ident, d in drawn if d.get("kind") == kind and _bare_field(ident) == _bare_field(field.upper())), None)
+
+
+def with_procedures(r: Route, runs: list[HopRun], outcome: Flown, drawn: list[tuple[str, dict]]) -> Flown:
+    """The legs with the procedures picked flown (`drawn`,
+    PlanQuery.drawn_procedures): a flight's first leg out of its field by
+    the departure picked there, its last into the field it lands at by the
+    arrival and the approach picked there, each along their path from the
+    leg's start (vfr.procedure_paths.flown) -- an arrival flown out to its
+    first fix and round to the runway can be a hundred miles more than the
+    leg it is flown in place of (C81 to O'Hare by BENKY6, 2026-10-19). The
+    miles more are flown at the leg's ground speed and cruise burn, added
+    to its time and fuel, so the totals, the fuel required (14 CFR 91.151,
+    91.167) and the times at each point after are those of the flight
+    flown. The leg keeps the route's own distance, which the chart, the
+    side view and the tops of climb and descent are laid along, and says
+    its path and the miles more (`procedure`) for the dry run to fly. New
+    legs: the plan's own are the planner's cache's (Flown)."""
+    if not drawn:
+        return outcome
+    hops = [[dict(leg) for leg in legs] for legs in outcome.hop_legs]
+    at = 0
+    for flight in r.flights:
+        n = len(flight.idents) - 1
+        # Each leg flown by procedures, and by which: out by a departure,
+        # in by an arrival and an approach; one leg can be all three.
+        by: dict[tuple[int, int], list] = {}
+        departure = _picked(drawn, "departure", flight.dep_ident) if flight.takes_off else None
+        if departure and hops[at]:
+            by.setdefault((at, 0), [None, None, None])[0] = departure
+        arrival = _picked(drawn, "arrival", flight.dest_ident) if flight.lands else None
+        approach = _picked(drawn, "approach", flight.dest_ident) if flight.lands else None
+        if (arrival or approach) and hops[at + n - 1]:
+            by.setdefault((at + n - 1, len(hops[at + n - 1]) - 1), [None, None, None])[1:] = [arrival, approach]
+        for (hop, i), picks in by.items():
+            leg, fixes_ = hops[hop][i], runs[hop].fixes
+            start, end = fixes_[i], fixes_[i + 1]
+            path = procedure_paths.flown((start["lat"], start["lon"]), (end["lat"], end["lon"]), *picks)
+            if path is None or not leg["groundspeed_kt"] or leg["ete_min"] is None:
+                continue
+            # Never fewer miles than the leg: a path that cuts a corner of
+            # the route is planned as the route.
+            more_nm = max(0.0, path["nm"] - leg["distance_nm"])
+            more_min = more_nm / leg["groundspeed_kt"] * 60
+            more_gal = more_min / 60 * leg["fuel_burn_gph"]
+            leg["ete_min"] = round(leg["ete_min"] + more_min, 1)
+            if leg["fuel_gal"] is not None:
+                leg["fuel_gal"] = round(leg["fuel_gal"] + more_gal, 2)
+            leg["procedure"] = {**path, "nm": round(path["nm"], 1), "more_nm": round(more_nm, 1),
+                                "more_min": round(more_min, 1), "more_gal": round(more_gal, 2)}
+        at += n
+    return replace(outcome, legs=[leg for legs in hops for leg in legs], by_hop=tuple(hops) if outcome.by_hop else ())
+
+
 def flown_legs(r: Route, runs: list[HopRun], outcome: Flown, own: dict[str, float] | None = None,
-               approaches: dict[str, tuple[str, str | None]] | None = None) -> list:
+               drawn: list[tuple[str, dict]] | None = None) -> list:
     """The legs a pilot flies, with each flight's tops of climb and
     descent placed (navlog.with_descents): from one landing to the next,
     through any waypoints, down to the pattern at the end of each --
     `own`, a pilot's own patterns by ident -- or to an approach's first
-    fix, where `approaches` has one picked for the field (approach_end)."""
+    fix, where one is picked for the field (`drawn`, approach_end)."""
     out, at = [], 0
     for flight in r.flights:
         hops = len(flight.idents) - 1
         legs = [leg for legs in outcome.hop_legs[at:at + hops] for leg in legs]
         fix_list = [fix for k, run in enumerate(runs[at:at + hops]) for fix in (run.fixes if k == 0 else run.fixes[1:])]
-        approach = approach_end(flight, approaches or {}, legs[-1]["altitude_ft"] if legs else None)
+        approach = approach_end(flight, drawn or [], legs[-1]["altitude_ft"] if legs else None)
         if approach:
             to_ft, before_nm, fix = approach
             out.extend(navlog.with_descents(legs, fix_list, to_ft, before_nm, fix))
@@ -728,7 +799,7 @@ def plan(q: Annotated[PlanQuery, Depends()]) -> Plan:
     """
     r = load_route(q.dep, q.dest, q.stops)
     own = q.own_altitudes()
-    approaches = q.approach_picks()
+    drawn = q.drawn_procedures()
     profile = q.profile()
 
     # Everything slow inside the one bound, scoring included: the agents'
@@ -754,7 +825,8 @@ def plan(q: Annotated[PlanQuery, Depends()]) -> Plan:
     if isinstance(outcome, Unflyable):
         _, ways = unflyable_parts(outcome, runs)
         raise HTTPException(422, no_altitude_detail(outcome.selection, outcome.between, ways[0] if ways else None))
-    leg_list = flown_legs(r, runs, outcome, own, approaches)
+    outcome = with_procedures(r, runs, outcome, drawn)
+    leg_list = flown_legs(r, runs, outcome, own, drawn)
 
     return Plan(
         departure=r.departure,
@@ -829,7 +901,7 @@ def navlog_stream(q: Annotated[PlanQuery, Depends()]) -> StreamingResponse:
     """
     r = load_route(q.dep, q.dest, q.stops)
     own = q.own_altitudes()
-    approaches = q.approach_picks()
+    drawn = q.drawn_procedures()
 
     def lines():
         if q.checkpoints:
@@ -914,7 +986,8 @@ def navlog_stream(q: Annotated[PlanQuery, Depends()]) -> StreamingResponse:
             aircraft=aircraft_line,
             cautions=list(outcome.cautions),
         ))
-        for leg in flown_legs(r, runs, outcome, own, approaches):
+        outcome = with_procedures(r, runs, outcome, drawn)
+        for leg in flown_legs(r, runs, outcome, own, drawn):
             yield line(NavLogLeg.model_validate(leg))
 
         yield line(NavLogDone(totals=totals_of(r, runs, outcome, profile, q.rules, q.alternate)))

@@ -159,11 +159,12 @@ const procedureQuery = (p: PickedProcedure) => ({
   staleTime: 6 * 60 * 60_000,
 });
 
-/** The approaches among those drawn, as the address writes them, for the
- *  planner to plan the descent to (PlanQuery.approaches): one string, so
- *  the plan's key changes only as an approach does. */
-const approachesOnly = (results: { data?: ProcedureDrawing }[]) => proceduresParam(results.flatMap(r => (
-  r.data?.kind === "approach" ? [{ ident: r.data.airport, id: r.data.id, transition: r.data.transition ?? null }] : []
+/** The procedures drawn, as the address writes them, for the planner to
+ *  fly the legs by and plan the descents to (PlanQuery.procedures): one
+ *  string, so the plan's key changes only as a procedure does. Those the
+ *  CIFP has, once drawn. */
+const drawnPicks = (results: { data?: ProcedureDrawing }[]) => proceduresParam(results.flatMap(r => (
+  r.data ? [{ ident: r.data.airport, id: r.data.id, transition: r.data.transition ?? null }] : []
 )));
 
 /** The planner's places, its tab bar's (TabBar): the flight being
@@ -277,22 +278,24 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // in the pilot console (a climb burn added, say) re-plans. It used to
   // fly the copy remembered at the pick until it was picked again.
   const aircraft = aircraftOptions.find(o => aircraftKey(o) === aircraftKey(remembered)) ?? remembered;
-  // The approaches picked at the route's fields, drawn (below): a flight
-  // landing by one is planned down to its first fix, not the pattern. A
-  // departure or an arrival picked plans nothing anew.
+  // The procedures picked at the route's fields, drawn (below): a leg
+  // flown by them is planned the longer by their path, its time and fuel
+  // with it, at the owner's word (the plan said 909 nm where the dry run
+  // flew BENKY6's 1053), and a flight landing by an approach is planned
+  // down to its first fix, not the pattern.
   // The fields as one string, the stops comma-joined by the template: a
   // method called on the render's `planned` made the React Compiler skip
   // every later memo.
   const routeFields = `${planned.dep},${planned.stops},${planned.dest}`;
   const picksParam = searchParams.get("procs");
-  const approachQueries = useMemo(
+  const pickQueries = useMemo(
     () => proceduresOf(picksParam).filter(p => routeFields.split(",").includes(p.ident)).map(procedureQuery),
     [picksParam, routeFields],
   );
-  const approaches = useQueries({ queries: approachQueries, combine: approachesOnly });
+  const procedures = useQueries({ queries: pickQueries, combine: drawnPicks });
   const s = usePlan({
     dep: planned.dep, dest: planned.dest, stops: planned.stops, altitudeFt, altitudeChoice, depart, aircraft, load, classBClearance,
-    altitudes, approaches, localMin, rules: flightRules,
+    altitudes, procedures, localMin, rules: flightRules,
     // Under IFR, the alternate filed in the Weather tab (AlternateSection).
     alternate: searchParams.get("alternate") ?? "",
     // Checkpoints as the map shows them: the settings' Waypoints off, the
@@ -1329,8 +1332,8 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // Whether the approach picked has gone missed (the run's Go missed).
   const [goMissed, setGoMissed] = useState(false);
   const flownFrom = useMemo(() => (runFrom !== null && course ? dryRunOf(
-    navLogRows(course, selected, s.legs), runFrom, course.course_line, procedureDrawings, goMissed,
-  ) : null), [runFrom, course, selected, s.legs, procedureDrawings, goMissed]);
+    navLogRows(course, selected, s.legs), runFrom, course.course_line, goMissed,
+  ) : null), [runFrom, course, selected, s.legs, goMissed]);
   // The last run long enough to fly, held while new legs stream in.
   const [lastRun, setLastRun] = useState<DryRun | null>(null);
   if (flownFrom && flownFrom.points.length >= 2 && flownFrom !== lastRun) setLastRun(flownFrom);
@@ -1351,10 +1354,10 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const startDryRun = () => {
     if (!course) return;
     setFootPage(1);
-    // The procedures picked flown: out by a departure, in by an arrival
-    // and an approach.
+    // The procedures picked flown, as the legs are planned by them: out by
+    // a departure, in by an arrival and an approach.
     const from = Math.round((depart ? Date.parse(depart) : Date.now()) / 1000);
-    const run = dryRunOf(navLogRows(course, selected, s.legs), from, course.course_line, procedureDrawings);
+    const run = dryRunOf(navLogRows(course, selected, s.legs), from, course.course_line);
     if (run.points.length < 2) return;
     setGoMissed(false);
     setRunFrom(from);

@@ -34,7 +34,12 @@ export default function FuelBreakdown({ totals, short: shortOnes = [] }: {
         </p>
       )}
       <ListGroup>
-        <ListRow title="Flying the legs" description="Climb, cruise and descent, with the winds" value={gal(totals.fuel_gal)} />
+        <ListRow
+          title="Flying the legs" value={gal(totals.fuel_gal)}
+          // The procedures picked flown in place of the route's legs, their
+          // miles more in the legs' fuel (the planner's with_procedures).
+          description={totals.procedure_nm ? `Climb, cruise and descent, with the winds, and ${one(totals.procedure_nm)} nm more by the procedures picked` : "Climb, cruise and descent, with the winds"}
+        />
         <ListRow title="Start, taxi and takeoff" value={gal(totals.taxi_gal)} />
         {totals.alternate && (
           <ListRow
