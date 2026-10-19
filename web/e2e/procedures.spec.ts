@@ -209,8 +209,10 @@ test("an approach puts its field's runway on its own, and another is let only wh
   await expect(page).toHaveURL(/[?&]procs=[^&]*KDLH(%3A|:)SKETC1/);
   await settled(sideDrawer(page));
   await openTab(page, "Nav Log");
-  await expect(kdlh.getByTestId("procedure-landing")).toHaveText("Straight in");
-  await expect(kdlh.getByRole("heading", { name: "Runway", exact: true })).toBeVisible();
+  // Said in the field's info, by its name.
+  await kdlh.getByTestId("field-info").click();
+  await expect(page.getByTestId("procedure-landing")).toHaveText("Straight in");
+  await page.keyboard.press("Escape");
   await expect(page.locator("path.traffic-pattern")).toHaveCount(0);
   // Its plate has no circling line: no other runway, and none is no
   // choice either.
@@ -226,7 +228,9 @@ test("an approach puts its field's runway on its own, and another is let only wh
   await expect(circle).toBeEnabled({ timeout: slow(20000) });
   await circle.click();
   await expect(page).toHaveURL(/[?&]pattern=[^&]*KDLH(%3A|:)27(%2C|,|&|$)/);
-  await expect(kdlh.getByTestId("procedure-landing")).toHaveText("Circle to land");
+  await kdlh.getByTestId("field-info").click();
+  await expect(page.getByTestId("procedure-landing")).toHaveText("Circle to land");
+  await page.keyboard.press("Escape");
   await expect(page.locator("path.traffic-pattern")).toHaveCount(0);
 });
 

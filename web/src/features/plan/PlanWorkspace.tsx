@@ -1769,7 +1769,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
         )}
         {dryRunning ? <DryRunFigures run={dryRunning} /> : (
           <div data-testid="flight-line">
-            <FlightLine totals={s.totals} estimate={estimate} destination={`${planned.dest}`} local={s.local} grow />
+            <FlightLine totals={s.totals} estimate={estimate} destination={`${planned.dest}`} depart={depart} local={s.local} grow />
           </div>
         )}
       </div>

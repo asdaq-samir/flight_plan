@@ -45,6 +45,12 @@ describe("tripFigures", () => {
     expect(tripFigures(input, false).map(f => f.value)).toEqual(["KLAS", "323.6", "2h 45m", "30.1"]);
   });
 
+  it("says the arrival's clock time in the time en route's place when asked", () => {
+    const figures = tripFigures({ ...input, depart: "2026-01-01T14:22:00Z", arrival: true }, false);
+    expect(figures[2]!.name).toBe("ETA");
+    expect(figures[2]!.value).toMatch(/^\d\d:\d\d$/);
+  });
+
   it("keeps all four names, as dashes, with no totals yet, so the strip holds its place", () => {
     const figures = tripFigures({ totals: null, local: false, destination: "" }, false);
     expect(figures.map(f => f.name)).toEqual(["To", "Dist", "ETE", "Fuel"]);

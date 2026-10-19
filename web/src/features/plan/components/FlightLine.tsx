@@ -42,7 +42,7 @@ const SMALLEST = 0.75;
  *  13), with the sheet (`grow`); TEXT's sizes, a mouse's and a finger's. */
 const { value: GROW_VALUE, unit: GROW_UNIT, name: GROW_NAME } = GROW_FIGURE;
 
-export default function FlightLine({ totals, estimate, destination, local, grow = false }: {
+export default function FlightLine({ totals, estimate, destination, depart, local, grow = false }: {
   totals: Totals | null;
   /** Before the nav log's totals, at the pilot's ask for the figures as
    *  soon as can be: the course's distance at once, and the time and fuel
@@ -52,6 +52,8 @@ export default function FlightLine({ totals, estimate, destination, local, grow 
   estimate?: { distanceNm: number; cruiseTasKt: number | null; fuelBurnGph: number | null } | null;
   /** The route's destination: the To of a route with no stops. */
   destination: string;
+  /** The departure time picked, ISO; empty for now: the ETA's. */
+  depart: string;
   /** One airport to itself: the time aloft and the time back. */
   local: boolean;
   /** Pinned at the sheet's foot at every height: smaller at the pill's
@@ -71,8 +73,11 @@ export default function FlightLine({ totals, estimate, destination, local, grow 
   // a quarter of an hour's "0h 15m" was cut short to "0h 1…" where "0.3h"
   // fitted (2026-10-10).
   const [room, space] = useRoom<HTMLElement>();
-  const exact = tripFigures({ totals, estimate, local, destination }, false);
-  const rounded = tripFigures({ totals, estimate, local, destination }, true);
+  // The time en route tapped, the arrival's clock time in its place, and
+  // back, at the owner's ask ("Ete should change to eta when tapped").
+  const [arrival, setArrival] = useState(false);
+  const exact = tripFigures({ totals, estimate, local, destination, depart, arrival }, false);
+  const rounded = tripFigures({ totals, estimate, local, destination, depart, arrival }, true);
   // The fuel required tapped, what it is made of (FuelBreakdown), at the
   // owner's ask ("fuel is the fuel required which gives a breakdown when
   // tapped"): once the nav log's figures are in.
@@ -158,6 +163,14 @@ export default function FlightLine({ totals, estimate, destination, local, grow 
                     <FuelBreakdown totals={breakdown.totals!} />
                   </ResponsivePopoverContent>
                 </ResponsivePopover>
+              ) : (f.name === "ETE" || f.name === "ETA") && !local ? (
+                <button
+                  type="button" onClick={() => setArrival(!arrival)} data-testid="ete-eta-toggle"
+                  aria-label={`${f.name === "ETE" ? "Time en route" : "Arrival"}, ${f.value}: show the ${f.name === "ETE" ? "arrival" : "time en route"}`}
+                  className="relative text-tint after:absolute after:-inset-x-2 after:-inset-y-3 after:content-['']"
+                >
+                  <span style={sized(fitting?.px.value)} data-fitted={fitted}>{f.value}</span>
+                </button>
               ) : (
                 <>
                   <span style={sized(fitting?.px.value)} data-fitted={fitted}>{f.value}</span>

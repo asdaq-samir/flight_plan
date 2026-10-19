@@ -1,11 +1,12 @@
 import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
-import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Check, Wind } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Check, Info, Wind } from "lucide-react";
 import { cn } from "cn";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
 import BackButton from "../../../components/BackButton";
 import CloseButton from "../../../components/CloseButton";
 import { Button } from "../../../components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "../../../components/ui/popover";
 import { ToggleGroup, ToggleGroupItem } from "../../../components/ui/toggle-group";
 import { ResponsivePopover, ResponsivePopoverAnchor, ResponsivePopoverContent } from "../../../components/ResponsivePopover";
 import { api } from "../../../lib/api/client";
@@ -234,6 +235,7 @@ export default function ProceduresRoute({
         key={a.ident} last={last}
         mark={row ? <PointMark row={row} number={undefined} weather={weather} /> : <FieldDot last={last} />}
         title={`${a.ident} · ${ROLE_STEP[a.role]}`} time={row ? etaAt(depart || new Date().toISOString(), row.minutesFlown) : null} field
+        info={a.runways !== null ? <FieldInfo ident={a.ident} note={patternNote(a, chosenAt(a.ident), landingOf(a.ident))} wind={wind} /> : undefined}
       >
         {before.length > 0 && <div className={cn("grid gap-2", before.length > 1 ? "grid-cols-2" : "grid-cols-1")}>{before.map(kindMenu)}</div>}
         <PatternChips airport={a} wind={wind} chosen={chosenAt(a.ident)} landing={landingOf(a.ident)} onPick={end => onPick(a.ident, end ?? NO_PATTERN)} />
@@ -326,9 +328,11 @@ function FieldDot({ last }: { last: boolean }) {
  * nav log draws it, its name and the time it is reached, and under them
  * what is flown there (a field's). The line runs on to the next step.
  */
-function Step({ mark, title, time, last, field = false, testId, children }: {
+function Step({ mark, title, info, time, last, field = false, testId, children }: {
   mark: ReactNode;
   title: string;
+  /** By the name: the field's info (FieldInfo). */
+  info?: ReactNode;
   time: string | null;
   last: boolean;
   field?: boolean;
@@ -341,10 +345,13 @@ function Step({ mark, title, time, last, field = false, testId, children }: {
       {!last && <span aria-hidden="true" className="absolute top-3 bottom-0 left-[calc(0.875rem-1px)] w-0.5 bg-border" />}
       <div className="relative flex w-7 shrink-0 justify-center pt-0.5">{mark}</div>
       <section aria-label={title} className={cn("min-w-0 flex-1 space-y-3", field ? "pb-5" : "pb-4")}>
-        <div className="flex items-baseline justify-between gap-2">
-          <Name className={cn(field ? "font-semibold" : "font-normal", TEXT.row)}>
-            {title}
-          </Name>
+        <div className="flex items-center justify-between gap-2">
+          <span className="flex min-w-0 items-center gap-1.5">
+            <Name className={cn(field ? "font-semibold" : "font-normal", TEXT.row)}>
+              {title}
+            </Name>
+            {info}
+          </span>
           {time && <span className={cn("font-semibold tabular-nums", TEXT.detail)}>{time}</span>}
         </div>
         {children}
@@ -440,9 +447,6 @@ function PatternChips({ airport: a, wind, chosen, landing, onPick }: {
     .flatMap(r => (r.runway_ends ?? []).filter(e => e.heading_true_deg != null).map(e => ({ runway: r, end: e })))
     .sort((x, y) => x.end.ident.localeCompare(y.end.ident));
   const into = wind && !wind.calm ? wind.ident : null;
-  const picked = ends.find(e => runwayNumber(e.end.ident) === chosen);
-  // Left unless the FAA flags it right (14 CFR 91.126(b)(1)).
-  const side = picked ? `${picked.end.traffic === "right" ? "Right" : "Left"} traffic` : null;
   // With an approach, the chip is the runway landed on: the approach's
   // own, straight in, or another only where the plate publishes circling
   // minimums -- a circle to land (AIM 5-4-20); one circling only may
@@ -450,17 +454,11 @@ function PatternChips({ airport: a, wind, chosen, landing, onPick }: {
   const straightIn = landing?.runway ?? null;
   const mayCircle = !!landing && (straightIn === null || landing.circling === true);
   const allowed = (id: string) => !landing || id === straightIn || mayCircle;
-  const note = landing
-    ? chosen === null ? null : chosen === straightIn ? "Straight in" : "Circle to land"
-    : [side, a.patternAltitudeFt != null ? `${altFt(a.patternAltitudeFt)} ft` : null].filter(Boolean).join(" · ");
   return (
-    <div className="space-y-2" data-testid="procedure-patterns">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-3 px-1">
-        <h4 className={cn("font-semibold", TEXT.detail)}>{landing ? "Runway" : "Traffic pattern"}</h4>
-        {a.runways !== null && (
-          <span className={cn("text-muted-foreground", TEXT.note)} data-testid="procedure-landing">{note}</span>
-        )}
-      </div>
+    // The chips alone, the pattern's side and height and the wind behind
+    // the field's info (FieldInfo), at the owner's ask ("Keep the pattern
+    // info and winds info in a info icon next to the airport id").
+    <div data-testid="procedure-patterns">
       {a.runways === null ? (
         <p role="status" className={cn("px-1 text-muted-foreground", TEXT.detail)}>Looking the runways up…</p>
       ) : (
@@ -488,8 +486,45 @@ function PatternChips({ airport: a, wind, chosen, landing, onPick }: {
           })}
         </Chips>
       )}
-      {wind && <WindComponents wind={wind} />}
     </div>
+  );
+}
+
+/** The runway picked, as its field's info says it: the pattern's side and
+ *  height, or with an approach, straight in or a circle to land. */
+function patternNote(a: ProcedureAirport, chosen: string | null, landing: Landing | null): string | null {
+  if (chosen === null) return null;
+  if (landing) return chosen === landing.runway ? "Straight in" : "Circle to land";
+  const end = (a.runways ?? []).flatMap(r => r.runway_ends ?? []).find(e => runwayNumber(e.ident) === chosen);
+  // Left unless the FAA flags it right (14 CFR 91.126(b)(1)).
+  const side = end ? `Runway ${chosen}, ${end.traffic === "right" ? "right" : "left"} traffic` : `Runway ${chosen}`;
+  return [side, a.patternAltitudeFt != null ? `${altFt(a.patternAltitudeFt)} ft` : null].filter(Boolean).join(" · ");
+}
+
+/**
+ * A field's info, an (i) by its name in the route's list: the runway's
+ * pattern -- its side and height, or how the approach lands -- and the
+ * wind on the runway it favours (WindComponents), out of the list's way,
+ * at the owner's ask ("Keep the pattern info and winds info in a info icon
+ * next to the airport id"), so the list is compact.
+ */
+function FieldInfo({ ident, note, wind }: { ident: string; note: string | null; wind: WindPick | null }) {
+  if (!note && !wind) return null;
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button" aria-label={`${ident} runway and wind`} data-testid="field-info"
+          className="relative grid size-6 place-items-center text-tint after:absolute after:-inset-2.5 after:content-['']"
+        >
+          <Info className="size-5" aria-hidden />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-auto max-w-[min(20rem,calc(100vw-2rem))] space-y-2 p-3" data-testid="field-info-content">
+        {note && <p className={cn("font-semibold", TEXT.detail)} data-testid="procedure-landing">{note}</p>}
+        {wind && <WindComponents wind={wind} />}
+      </PopoverContent>
+    </Popover>
   );
 }
 

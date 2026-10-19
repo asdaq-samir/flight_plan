@@ -1,5 +1,5 @@
 import type { Totals } from "../../lib/api/types";
-import { decimalHours, hhmm, one } from "./format";
+import { decimalHours, etaAt, hhmm, one } from "./format";
 
 /** One of the flight's figures: its name over it, its unit after it. */
 export interface Figure { name: string; value: string; unit?: string; testId?: string }
@@ -12,6 +12,11 @@ export interface TripInput {
   local: boolean;
   /** The route's destination, the To of a route with no stops. */
   destination: string;
+  /** The departure time picked, ISO; empty for now. */
+  depart?: string;
+  /** The arrival's clock time in the time en route's place, the pilot's
+   *  tap on it (FlightLine). */
+  arrival?: boolean;
 }
 
 /** The flight to the next landing: the route's first hop where it has
@@ -34,15 +39,18 @@ const ESTIMATE_TAXI_GAL = 1.4;
  *  distance, time and fuel required to it -- exact or (`whole`) each
  *  rounded as far as it goes: distance and fuel up to whole ones, the
  *  time in decimal hours. Up, so none is ever said short of what it is. */
-export function tripFigures({ totals, estimate, local, destination }: TripInput, whole: boolean): Figure[] {
+export function tripFigures({ totals, estimate, local, destination, depart = "", arrival = false }: TripInput, whole: boolean): Figure[] {
   const guessed = !totals && !local && estimate ? guess(estimate) : null;
+  const from = depart || new Date().toISOString();
   if (guessed) {
     const { distanceNm, minutes, fuelGal } = guessed;
     const required = fuelGal == null || estimate?.fuelBurnGph == null ? null : fuelGal + ESTIMATE_TAXI_GAL + ESTIMATE_RESERVE_H * estimate.fuelBurnGph;
     return [
       { name: "To", value: destination || "—", testId: "navlog-to" },
       { name: "Dist", value: whole ? `${Math.ceil(distanceNm)}` : one(distanceNm), unit: "nm" },
-      { name: "ETE", value: minutes == null ? "—" : `≈${whole ? decimalHours(minutes) : guessed.time}`, testId: "navlog-ete" },
+      arrival
+        ? { name: "ETA", value: etaAt(from, minutes), testId: "navlog-eta" }
+        : { name: "ETE", value: minutes == null ? "—" : `≈${whole ? decimalHours(minutes) : guessed.time}`, testId: "navlog-ete" },
       { name: "Fuel", value: required == null ? "—" : `≈${whole ? Math.ceil(required) : one(required)}`, unit: required == null ? undefined : "gal" },
     ];
   }
@@ -58,7 +66,7 @@ export function tripFigures({ totals, estimate, local, destination }: TripInput,
   return [
     to,
     leg ? { name: "Dist", value: whole ? `${Math.ceil(leg.distance_nm)}` : one(leg.distance_nm), unit: "nm" } : { name: "Dist", value: "—" },
-    { name: "ETE", value: time, testId: "navlog-ete" },
+    arrival ? { name: "ETA", value: leg ? etaAt(from, minutes) : "—", testId: "navlog-eta" } : { name: "ETE", value: time, testId: "navlog-ete" },
     fuelFigure,
   ];
 }

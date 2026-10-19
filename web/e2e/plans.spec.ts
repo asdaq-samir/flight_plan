@@ -157,6 +157,11 @@ test("plan page: a departure time gives every checkpoint its time, and the nav l
   // Every later row has a time once its leg is in.
   await expect.poll(async () => (await times.last().textContent())?.trim(), { timeout: slow(60000) }).toMatch(/^\d\d:\d\d$/);
   await closeNavLog(page);
+  // The time en route tapped, the arrival in its place, and back.
+  await page.getByTestId("ete-eta-toggle").click();
+  await expect(page.getByTestId("navlog-eta")).toHaveText(/^\d\d:\d\d$/);
+  await page.getByTestId("ete-eta-toggle").click();
+  await expect(page.getByTestId("navlog-ete")).toHaveText(/^\d+h \d\dm$/);
   // The fuel tapped, what it is made of, summing to it.
   await page.getByTestId("fuel-breakdown-open").click();
   const breakdown = page.getByTestId("fuel-breakdown");
