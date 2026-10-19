@@ -272,6 +272,21 @@ def _plan_view(pdf: bytes, fixes: dict, airport: tuple) -> tuple | None:
     return out.getvalue(), {"south": south, "west": west, "north": north, "east": east, "fixes": inside}
 
 
+def circling_of(pdf: bytes) -> bool:
+    """Whether the plate publishes circling minimums, so a pilot flying
+    it may circle to land on another runway (AIM 5-4-20): a CIRCLING line
+    in its minimums, which the d-TPP sets in capitals. Many a busy
+    field's plates have none (most of KORD's). A note's "Circling NA for
+    Cat E southeast of Rwy 3-27", in sentence case, only narrows it, and
+    stays the pilot's to read on the plate."""
+    with publications._PDFIUM:
+        document = pypdfium2.PdfDocument(pdf)
+        try:
+            return "CIRCLING" in document[0].get_textpage().get_text_range()
+        finally:
+            document.close()
+
+
 def _fixes_of(ident: str, procedure: str) -> dict:
     """Every fix of an approach, every transition's, {ident: (lat, lon)}."""
     listed = procedures.procedures_at(ident) or {"procedures": []}
@@ -298,7 +313,8 @@ def _kept(meta: Path) -> dict | None:
 def plate_overlay(ident: str, procedure: str, on: date | None = None) -> dict | None:
     """An approach's plate's plan view placed on the map, made once a
     cycle and kept: {"cycle", "name" (the plate's title), "south",
-    "west", "north", "east", "png" (its picture's path on disk)}; None
+    "west", "north", "east", "circling" (circling_of), "png" (its
+    picture's path on disk)}; None
     where the field has no such plate, the plate cannot be placed, or the
     FAA cannot be reached (nothing kept then, so the next ask tries
     again)."""
@@ -316,15 +332,23 @@ def plate_overlay(ident: str, procedure: str, on: date | None = None) -> dict | 
     stem = f"{Path(source[2]).stem}-{summary['id']}"
     folder = publications.CACHE_DIR / "plates" / cycle
     meta, png = folder / f"{stem}.json", folder / f"{stem}.png"
-    # A plate kept as not placed is None, as when it was made: its
-    # meta has no corners to answer with.
-    if (kept := _kept(meta)) is not None:
-        return {**kept, "png": png} if kept["placed"] else None
     with _LOCK:
         lock = _MAKING.setdefault(meta, threading.Lock())
     with lock:
+        # A plate kept as not placed is None, as when it was made: its
+        # meta has no corners to answer with. One kept before circling
+        # was read has it read now, from the PDF kept on disk.
         if (kept := _kept(meta)) is not None:
-            return {**kept, "png": png} if kept["placed"] else None
+            if kept["placed"] and "circling" not in kept:
+                try:
+                    pdf = publications._pdf_of(*source)
+                except publications.FaaUnreachable:
+                    pdf = None
+                if pdf is not None:
+                    kept["circling"] = circling_of(pdf)
+                    meta.with_name(meta.name + ".part").write_text(json.dumps(kept))
+                    os.replace(meta.with_name(meta.name + ".part"), meta)
+            return {"circling": False, **kept, "png": png} if kept["placed"] else None
         try:
             pdf = publications._pdf_of(*source)
         except publications.FaaUnreachable:
@@ -337,7 +361,8 @@ def plate_overlay(ident: str, procedure: str, on: date | None = None) -> dict | 
         except pypdfium2.PdfiumError as err:
             log.warning("No plate for %s %s: %s", ident, procedure, err)
             made = None
-        found = {"cycle": cycle, "name": chart["name"], "placed": made is not None, "fit": PLACING_VERSION}
+        found = {"cycle": cycle, "name": chart["name"], "placed": made is not None, "fit": PLACING_VERSION,
+                 "circling": made is not None and circling_of(pdf)}
         folder.mkdir(parents=True, exist_ok=True)
         if made is not None:
             picture, corners = made

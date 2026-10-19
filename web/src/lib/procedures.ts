@@ -11,6 +11,14 @@ export interface PickedProcedure {
   transition: string | null;
 }
 
+/** The runway an approach lands on, as a pattern's chip names it: "ILS
+ *  RWY 09L" is "9L"; a circling-only approach ("VOR-A", "RNAV (GPS)-B")
+ *  has none. */
+export function approachRunway(name: string): string | null {
+  const m = /\bRWY\s*0*(\d{1,2}[LCR]?)\b/i.exec(name);
+  return m ? m[1]!.toUpperCase() : null;
+}
+
 /** The procedures picked, from the address: "KBUR:I08-Y:LAX,KBUR:JANNY5",
  *  each a field, a procedure and its transition, as the patterns are kept
  *  ("pattern=KDLH:27"). What is not one is left out. */

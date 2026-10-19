@@ -145,6 +145,87 @@ test("a field's approach is picked on its own page with its transition, drawn on
   await expect(page.locator("path.instrument-procedure")).toHaveCount(0);
 });
 
+/**
+ * An approach and the field's runway kept in step, at the owner's ask
+ * ("only certain scenarios can allow picking another runway such as ILS
+ * circling"): the approach added puts the runway chip on its own runway,
+ * landed straight in; another is let only where the plate publishes
+ * circling minimums, a circle to land; and no pattern is drawn then.
+ */
+test("an approach puts its field's runway on its own, and another is let only where its plate publishes circling minimums", async ({ page }) => {
+  let circling = false;
+  await page.route(url => /\/airport\/[^/]+\/procedures/.test(url.pathname), route => {
+    const url = new URL(route.request().url());
+    if (url.pathname.endsWith("/KDLH/procedures")) return route.fulfill({ json: LIST });
+    if (url.pathname.endsWith("/KDLH/procedures/I09/plate")) {
+      // Off the map's way: placed far from the route, as the test reads only its circling.
+      return route.fulfill({ json: { cycle: "2610", name: "ILS OR LOC RWY 09", south: 0, west: 0, north: 0.1, east: 0.1, fixes: [], circling } });
+    }
+    if (url.pathname.endsWith("/KDLH/procedures/I09")) return route.fulfill({ json: { ...DRAWN, transition: url.searchParams.get("transition") } });
+    return route.fulfill({ json: { airport: "C81", cycle: "261001", procedures: [] } });
+  });
+  await page.goto("/app/plan?dep=C81&dest=KDLH&pattern=KDLH:27");
+  await settle(page);
+  await openTab(page, "Nav Log");
+  const procedures = page.getByTestId("procedures");
+  const kdlh = procedures.getByRole("region", { name: "KDLH · Arrive" });
+  await expect(kdlh.getByRole("radio", { name: /^Runway 27/ })).toHaveAttribute("aria-checked", "true", { timeout: slow(20000) });
+  await expect(page.locator("path.traffic-pattern")).toHaveCount(1, { timeout: slow(10000) });
+  // The ILS to 9 added: the runway is 9, landed straight in, and no
+  // pattern drawn.
+  await kdlh.getByTestId("procedure-kind").filter({ hasText: /^Approach/ }).click();
+  await page.getByTestId("procedure-option").filter({ hasText: "ILS RWY 09" }).click();
+  await page.getByTestId("procedure-add").click();
+  await expect(page).toHaveURL(/[?&]pattern=KDLH(%3A|:)9(&|$)/);
+  await expect(page.getByRole("heading", { name: "KDLH ILS RWY 09" })).toBeHidden();
+  await settled(sideDrawer(page));
+  await openTab(page, "Nav Log");
+  await expect(kdlh.getByRole("radio", { name: /^Runway 9\b/ })).toHaveAttribute("aria-checked", "true");
+  await expect(kdlh.getByTestId("procedure-landing")).toHaveText("Straight in");
+  await expect(kdlh.getByRole("heading", { name: "Runway", exact: true })).toBeVisible();
+  await expect(page.locator("path.traffic-pattern")).toHaveCount(0);
+  // Its plate has no circling line: no other runway, and none is no
+  // choice either.
+  await expect(kdlh.getByRole("radio", { name: /^Runway 27, no circling on the ILS 09/ })).toBeDisabled();
+  await expect(kdlh.getByRole("radio", { name: /None/ })).toBeDisabled();
+
+  // One that publishes circling minimums: 27 is a circle to land.
+  circling = true;
+  await page.goto(page.url());
+  await settle(page);
+  await openTab(page, "Nav Log");
+  const circle = kdlh.getByRole("radio", { name: /^Runway 27/ });
+  await expect(circle).toBeEnabled({ timeout: slow(20000) });
+  await circle.click();
+  await expect(page).toHaveURL(/[?&]pattern=KDLH(%3A|:)27(&|$)/);
+  await expect(kdlh.getByTestId("procedure-landing")).toHaveText("Circle to land");
+  await expect(page.locator("path.traffic-pattern")).toHaveCount(0);
+});
+
+/**
+ * A field typed by its FAA identifier is named by its ICAO code once its
+ * card is in, at the owner's ask ("K is not showing in front of ORD"),
+ * the pick made under the old name kept; its arrivals are offered by the
+ * d-TPP's own code for a STAR ("STR"); and its many runways stay one line,
+ * scrolled sideways.
+ */
+test("a field typed as ORD is KORD, its arrivals offered and its runways one line", async ({ page }) => {
+  await page.goto("/app/plan?dep=C81&dest=ORD&pattern=ORD:9L");
+  await expect(page).toHaveURL(/[?&]dest=KORD(&|$)/, { timeout: slow(20000) });
+  await expect(page).toHaveURL(/[?&]pattern=KORD(%3A|:)9L(&|$)/);
+  await settle(page);
+  await openTab(page, "Nav Log");
+  const kord = page.getByTestId("procedures").getByRole("region", { name: "KORD · Arrive" });
+  await expect(kord.getByTestId("procedure-kind").filter({ hasText: /^Arrival/ })).toBeVisible({ timeout: slow(20000) });
+  const chips = kord.getByTestId("procedure-pattern");
+  await expect(chips.first()).toBeVisible({ timeout: slow(20000) });
+  const tops = await chips.evaluateAll(all => all.map(c => Math.round(c.getBoundingClientRect().top)));
+  expect(tops.length).toBeGreaterThan(5);
+  expect(new Set(tops).size).toBe(1);
+  // The runway picked scrolled into sight.
+  await expect(kord.getByRole("radio", { name: /^Runway 9L/ })).toBeInViewport();
+});
+
 test.describe("on the owner's phone's width, to a finger", () => {
   // A finger's 17-point words (pointer: coarse), on 393 points.
   test.use({ hasTouch: true, isMobile: true, viewport: { width: 393, height: 695 } });

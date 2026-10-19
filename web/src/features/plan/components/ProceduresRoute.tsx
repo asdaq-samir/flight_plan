@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Check, Wind } from "lucide-react";
 import { cn } from "cn";
@@ -12,8 +12,8 @@ import { api } from "../../../lib/api/client";
 import type { ProcedureDrawing, ProcedureList, ProcedureSummary, Runway } from "../../../lib/api/types";
 import { distanceNm } from "../../../lib/geo";
 import { runwayNumber, windPick, type WindPick } from "../../../lib/pattern";
-import { airportQuery } from "../../../lib/queryClient";
-import { kindsFor, sameField, type PickedProcedure } from "../../../lib/procedures";
+import { airportQuery, plateQuery } from "../../../lib/queryClient";
+import { approachRunway, kindsFor, sameField, type PickedProcedure } from "../../../lib/procedures";
 import { trafficPattern } from "../../../lib/trafficPattern";
 import { TEXT } from "../../../lib/text";
 import { altFt } from "../../../lib/units";
@@ -31,10 +31,11 @@ type Kind = ProcedureKind;
 const KIND_TITLE: Record<Kind, string> = { approach: "Approaches", arrival: "Arrivals", departure: "Departures" };
 const KIND_ONE: Record<Kind, string> = { approach: "Approach", arrival: "Arrival", departure: "Departure" };
 /** The FAA's chart codes in a field's d-TPP for each kind (its card's
- *  terminal charts, vfr.publications): an instrument approach procedure,
- *  a STAR, a departure procedure (a SID or a graphic obstacle departure)
- *  or a textual one. */
-const CHART_CODES: Record<Kind, string[]> = { approach: ["IAP"], arrival: ["STAR"], departure: ["DP", "ODP"] };
+ *  terminal charts, vfr.publications, as the d-TPP metafile's chart_code
+ *  has them): an instrument approach procedure, a STAR ("STR"), a
+ *  departure procedure (a SID or a graphic obstacle departure) or a
+ *  textual one. */
+const CHART_CODES: Record<Kind, string[]> = { approach: ["IAP"], arrival: ["STR"], departure: ["DP", "ODP"] };
 /** A field's part in the flight, as its step in the list says it. */
 const ROLE_STEP: Record<ProcedureAirport["role"], string> = { Departure: "Depart", Stop: "Stop", Destination: "Arrive" };
 
@@ -95,8 +96,9 @@ export default function ProceduresRoute({
   chartsDisabled: boolean;
   /** The instrument procedures picked (lib/procedures). */
   procedures: PickedProcedure[];
-  /** Those drawn, by field and kind, as the route's box names them. */
-  inRoute: { ident: string; kind: Kind; label: string }[];
+  /** Those drawn, by field and kind, as the route's box names them, an
+   *  approach's with the runway it lands on (approachRunway). */
+  inRoute: { ident: string; kind: Kind; id: string; runway: string | null; label: string }[];
   /** All of them as they are to be, and the one just picked, for the map
    *  to go to. */
   onProcedures: (next: PickedProcedure[], picked: PickedProcedure | null) => void;
@@ -129,6 +131,14 @@ export default function ProceduresRoute({
   // Each field's card (its weather), for the wind a field with no report
   // of its own goes by: the nearest report's (windPick).
   const cards = useQueries({ queries: airports.map(a => airportQuery(a.ident)) });
+  // Each field's approach in the route, and whether its plate publishes
+  // circling minimums -- the one plate the map draws (PlateLayer).
+  const approachesIn = inRoute.filter(p => p.kind === "approach");
+  const plates = useQueries({ queries: approachesIn.map(p => plateQuery(p.ident, p.id)) });
+  const landingOf = (ident: string): Landing | null => {
+    const i = approachesIn.findIndex(p => sameField(p.ident, ident));
+    return i < 0 ? null : { runway: approachesIn[i]!.runway, circling: plates[i]?.data?.circling, name: approachesIn[i]!.label };
+  };
   const windOf = (ident: string): WindPick | null => {
     const i = airports.findIndex(a => a.ident === ident);
     const runways = airports[i]?.runways;
@@ -159,6 +169,12 @@ export default function ProceduresRoute({
     const kept = procedures.filter(p => !(sameField(p.ident, ident) && kindOf(p) === kind));
     const made = next ? { ident, ...next } : null;
     onProcedures(made ? [...kept, made] : kept, made);
+    // An approach picked lands on its own runway: the field's runway chip
+    // goes to it, kept in step with the approach (at the owner's ask);
+    // another only by circling (PatternChips).
+    const name = next && kind === "approach" ? listOf(ident)?.procedures.find(q => q.id === next.id)?.name : undefined;
+    const runway = name ? approachRunway(name) : null;
+    if (runway) onPick(ident, runway);
   };
   const close = () => onAt(null);
   const destination = airports.find(a => a.role === "Destination");
@@ -187,7 +203,7 @@ export default function ProceduresRoute({
         title={`${a.ident} · ${ROLE_STEP[a.role]}`} time={row ? etaAt(depart || new Date().toISOString(), row.minutesFlown) : null} field
       >
         {before.length > 0 && <ListGroup>{before.map(kindRow)}</ListGroup>}
-        <PatternChips airport={a} wind={windOf(a.ident)} chosen={picked.get(a.ident) ?? null} onPick={end => onPick(a.ident, end)} />
+        <PatternChips airport={a} wind={windOf(a.ident)} chosen={picked.get(a.ident) ?? null} landing={landingOf(a.ident)} onPick={end => onPick(a.ident, end)} />
         {after.length > 0 && <ListGroup>{after.map(kindRow)}</ListGroup>}
       </Step>
     );
@@ -318,19 +334,37 @@ function Chips({ label, value, onChange, children }: {
   onChange: (value: string) => void;
   children: ReactNode;
 }) {
+  const row = useRef<HTMLDivElement>(null);
+  // The chip chosen in sight: one past the row's end (O'Hare's 9L of
+  // eight runways) scrolled in, sideways only.
+  useEffect(() => {
+    const box = row.current, on = box?.querySelector<HTMLElement>("[data-state=on]");
+    if (!box || !on) return;
+    const edge = box.getBoundingClientRect(), chip = on.getBoundingClientRect();
+    if (chip.right > edge.right) box.scrollLeft += chip.right - edge.right + CHIP_GAP_PX;
+    else if (chip.left < edge.left) box.scrollLeft -= edge.left - chip.left + CHIP_GAP_PX;
+  }, [value]);
   return (
-    <ToggleGroup
-      type="single" value={value} onValueChange={v => { if (v) onChange(v); }}
-      aria-label={label} spacing={3}
-      // The group's own 44 a pseudo-element behind it, as Segmented's
-      // track has, so a tap just over or under a row of chips is the
-      // group's and not the page's (isolate keeps it over what is round).
-      className="relative isolate w-full flex-wrap after:absolute after:inset-x-0 after:-inset-y-1.5 after:-z-10 after:content-['']"
-    >
-      {children}
-    </ToggleGroup>
+    // One line, scrolled sideways where the chips are more than fit, at
+    // the owner's ask; the padding keeps the chips' and the group's tap
+    // areas inside what the scroll clips.
+    <div ref={row} className="-mx-1.5 -my-1.5 overflow-x-auto px-1.5 py-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <ToggleGroup
+        type="single" value={value} onValueChange={v => { if (v) onChange(v); }}
+        aria-label={label} spacing={3}
+        // The group's own 44 a pseudo-element behind it, as Segmented's
+        // track has, so a tap just over or under a row of chips is the
+        // group's and not the page's (isolate keeps it over what is round).
+        className="relative isolate w-max min-w-full flex-nowrap after:absolute after:inset-x-0 after:-inset-y-1.5 after:-z-10 after:content-['']"
+      >
+        {children}
+      </ToggleGroup>
+    </div>
   );
 }
+
+/** The room left past a chip scrolled into sight, in pixels. */
+const CHIP_GAP_PX = 12;
 
 const CHIP = cn(
   "relative h-8 min-w-11 rounded-full bg-foreground/8 px-3 font-normal text-foreground hover:bg-foreground/12",
@@ -351,10 +385,21 @@ const CHIP = cn(
  * The side its traffic is flown on and the pattern's altitude are said
  * at the head's end for the runway picked.
  */
-function PatternChips({ airport: a, wind, chosen, onPick }: {
+/** How the route lands at a field it flies an approach to: the
+ *  approach's runway (none for one circling only), whether its plate
+ *  publishes circling minimums (undefined until the plate is in), and the
+ *  approach as the route's box names it. */
+interface Landing {
+  runway: string | null;
+  circling: boolean | undefined;
+  name: string;
+}
+
+function PatternChips({ airport: a, wind, chosen, landing, onPick }: {
   airport: ProcedureAirport;
   wind: WindPick | null;
   chosen: string | null;
+  landing: Landing | null;
   onPick: (end: string | null) => void;
 }) {
   const ends = (a.runways ?? [])
@@ -365,30 +410,42 @@ function PatternChips({ airport: a, wind, chosen, onPick }: {
   const picked = ends.find(e => runwayNumber(e.end.ident) === chosen);
   // Left unless the FAA flags it right (14 CFR 91.126(b)(1)).
   const side = picked ? `${picked.end.traffic === "right" ? "Right" : "Left"} traffic` : null;
+  // With an approach, the chip is the runway landed on: the approach's
+  // own, straight in, or another only where the plate publishes circling
+  // minimums -- a circle to land (AIM 5-4-20); one circling only may
+  // circle to any. No pattern is flown then (PlanWorkspace's patterns).
+  const straightIn = landing?.runway ?? null;
+  const mayCircle = !!landing && (straightIn === null || landing.circling === true);
+  const allowed = (id: string) => !landing || id === straightIn || mayCircle;
+  const note = landing
+    ? chosen === null ? null : chosen === straightIn ? "Straight in" : "Circle to land"
+    : [side, a.patternAltitudeFt != null ? `${altFt(a.patternAltitudeFt)} ft` : null].filter(Boolean).join(" · ");
   return (
     <div className="space-y-2" data-testid="procedure-patterns">
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 px-1">
-        <h4 className={cn("font-semibold", TEXT.detail)}>Traffic pattern</h4>
+        <h4 className={cn("font-semibold", TEXT.detail)}>{landing ? "Runway" : "Traffic pattern"}</h4>
         {a.runways !== null && (
-          <span className={cn("text-muted-foreground", TEXT.note)}>
-            {[side, a.patternAltitudeFt != null ? `${altFt(a.patternAltitudeFt)} ft` : null].filter(Boolean).join(" · ")}
-          </span>
+          <span className={cn("text-muted-foreground", TEXT.note)} data-testid="procedure-landing">{note}</span>
         )}
       </div>
       {a.runways === null ? (
         <p role="status" className={cn("px-1 text-muted-foreground", TEXT.detail)}>Looking the runways up…</p>
       ) : (
-        <Chips label={`${a.ident} traffic pattern`} value={chosen ?? NONE} onChange={v => onPick(v === NONE ? null : v)}>
-          <ToggleGroupItem value={NONE} className={CHIP}>None</ToggleGroupItem>
+        <Chips label={`${a.ident} ${landing ? "runway" : "traffic pattern"}`} value={chosen ?? NONE} onChange={v => onPick(v === NONE ? null : v)}>
+          {/* An approach to a runway lands on one: none is no choice then. */}
+          <ToggleGroupItem value={NONE} disabled={straightIn !== null} className={CHIP}>None</ToggleGroupItem>
           {ends.map(({ runway, end }) => {
             const id = runwayNumber(end.ident);
-            // An end with no surveyed threshold has no pattern to draw.
+            // An end with no surveyed threshold has no pattern to draw;
+            // with an approach, none is drawn, and the end is the approach's
+            // own or one it may circle to.
             const drawn = trafficPattern(a.ident, runway, end.ident, a.patternAltitudeFt) !== null;
             const windward = into === id;
+            const circleNa = !allowed(id);
             return (
               <ToggleGroupItem
-                key={end.ident} value={id} disabled={!drawn} className={CHIP}
-                aria-label={`Runway ${id}${windward ? ", into the wind" : ""}${drawn ? "" : ", not surveyed"}`}
+                key={end.ident} value={id} disabled={circleNa || (!landing && !drawn)} className={CHIP}
+                aria-label={`Runway ${id}${windward ? ", into the wind" : ""}${circleNa ? `, no circling on the ${landing!.name}` : !landing && !drawn ? ", not surveyed" : ""}`}
                 data-testid="procedure-pattern"
               >
                 {windward && <Wind className="size-4" strokeWidth={2.2} aria-hidden />}

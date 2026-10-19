@@ -35,6 +35,10 @@ export interface RouteParts { dep: string; stops: string[]; dest: string }
 export interface RouteProcedure {
   ident: string;
   kind: "approach" | "arrival" | "departure";
+  /** Its coded identifier ("I09L") and, an approach's, the runway it
+   *  lands on (approachRunway), none for one circling only. */
+  id: string;
+  runway: string | null;
   label: string;
   spoken: string;
 }
