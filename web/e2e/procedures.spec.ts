@@ -25,10 +25,11 @@ test("a field's traffic pattern is picked by its runway, kept in the address and
   await expect(page.locator("path.traffic-pattern")).toHaveCount(1, { timeout: slow(10000) });
   await expect(page.locator("path.traffic-pattern-entry")).toHaveCount(1);
 
-  // None: off the map and the address.
+  // None: off the map, and kept as none in the address, so the runway into
+  // the wind is not picked for it again.
   await destination.getByRole("radio", { name: /None/ }).click();
   await expect(page.locator("path.traffic-pattern")).toHaveCount(0);
-  await expect(page).not.toHaveURL(/[?&]pattern=/);
+  await expect(page).toHaveURL(/[?&]pattern=KDLH(%3A|:)NONE(&|$)/);
 });
 
 // KDLH's ILS as the planner would send it (vfr.procedures), stubbed: the
@@ -55,6 +56,14 @@ const DRAWN = {
   ],
 };
 
+// KDLH's arrival in the stubbed list, drawn: its common route alone.
+const ARRIVAL_DRAWN = {
+  airport: "KDLH", kind: "arrival", id: "SKETC1", name: "SKETC1", transition: null, cycle: "261001",
+  lines: [{ role: "common", name: null, points: [[46.95, -92.60], [46.84, -92.40]] }],
+  holds: [],
+  fixes: [{ ident: "OFOFO", lat: 46.84, lon: -92.40, roles: [], min_ft: null, max_ft: null, speed_kt: null, missed: false }],
+};
+
 test("a field's approach is picked on its own page with its transition, drawn on the map as it is chosen, and added to the route with Add to Route, as ForeFlight picks one", async ({ page }) => {
   const asked: string[] = [];
   await page.route(url => /\/airport\/[^/]+\/procedures/.test(url.pathname), route => {
@@ -79,7 +88,9 @@ test("a field's approach is picked on its own page with its transition, drawn on
   await expect(procedures.getByTestId("route-tod")).toHaveCount(0);
   // The destination's approaches, a page of their own.
   const kdlh = procedures.getByRole("region", { name: "KDLH · Arrive" });
+  // Its pull-down's foot: the field's whole list.
   await kdlh.getByTestId("procedure-kind").filter({ hasText: /^Approach/ }).click();
+  await page.getByTestId("procedure-menu-all").click();
   await expect(page.getByRole("heading", { name: "KDLH approaches" })).toBeVisible();
   // Its own page: drawn on the map from vectors as it opens, before it is
   // added -- the route's address untouched.
@@ -133,6 +144,7 @@ test("a field's approach is picked on its own page with its transition, drawn on
   await openTab(page, "Nav Log");
   await expect(kdlh.getByTestId("procedure-kind").filter({ hasText: /^Approach/ })).toContainText("ILS 09 · DLH");
   await kdlh.getByTestId("procedure-kind").filter({ hasText: /^Approach/ }).click();
+  await page.getByTestId("procedure-menu-all").click();
   const ils = page.getByTestId("procedure-option").filter({ hasText: "ILS RWY 09" });
   await expect(ils).toContainText("In the route, via DLH");
   await ils.click();
@@ -162,6 +174,7 @@ test("an approach puts its field's runway on its own, and another is let only wh
       return route.fulfill({ json: { cycle: "2610", name: "ILS OR LOC RWY 09", south: 0, west: 0, north: 0.1, east: 0.1, fixes: [], circling } });
     }
     if (url.pathname.endsWith("/KDLH/procedures/I09")) return route.fulfill({ json: { ...DRAWN, transition: url.searchParams.get("transition") } });
+    if (url.pathname.endsWith("/KDLH/procedures/SKETC1")) return route.fulfill({ json: ARRIVAL_DRAWN });
     return route.fulfill({ json: { airport: "C81", cycle: "261001", procedures: [] } });
   });
   await page.goto("/app/plan?dep=C81&dest=KDLH&pattern=KDLH:27");
@@ -171,16 +184,25 @@ test("an approach puts its field's runway on its own, and another is let only wh
   const kdlh = procedures.getByRole("region", { name: "KDLH · Arrive" });
   await expect(kdlh.getByRole("radio", { name: /^Runway 27/ })).toHaveAttribute("aria-checked", "true", { timeout: slow(20000) });
   await expect(page.locator("path.traffic-pattern")).toHaveCount(1, { timeout: slow(10000) });
-  // The ILS to 9 added: the runway is 9, landed straight in, and no
-  // pattern drawn.
+  // The ILS to 9 added from its pull-down, from DLH: the runway is 9,
+  // landed straight in, and no pattern drawn.
   await kdlh.getByTestId("procedure-kind").filter({ hasText: /^Approach/ }).click();
-  await page.getByTestId("procedure-option").filter({ hasText: "ILS RWY 09" }).click();
-  await page.getByTestId("procedure-add").click();
+  const menu = page.getByTestId("procedure-menu");
+  await expect(menu.getByText("Runway 9", { exact: false })).toBeVisible({ timeout: slow(10000) });
+  await menu.getByTestId("procedure-menu-item").filter({ hasText: "ILS" }).click();
+  await page.getByTestId("procedure-menu-transition").filter({ hasText: "From DLH" }).click();
+  await expect(page).toHaveURL(/[?&]procs=KDLH(%3A|:)I09(%3A|:)DLH(&|$)/);
   await expect(page).toHaveURL(/[?&]pattern=KDLH(%3A|:)9(&|$)/);
-  await expect(page.getByRole("heading", { name: "KDLH ILS RWY 09" })).toBeHidden();
   await settled(sideDrawer(page));
   await openTab(page, "Nav Log");
   await expect(kdlh.getByRole("radio", { name: /^Runway 9\b/ })).toHaveAttribute("aria-checked", "true");
+  await expect(kdlh.getByTestId("procedure-kind").filter({ hasText: /^Approach/ })).toContainText("ILS 09 · DLH");
+  // The field's arrival, a pull-down beside it once the list is in.
+  await kdlh.getByTestId("procedure-kind").filter({ hasText: /^Arrival/ }).click();
+  await page.getByTestId("procedure-menu").getByTestId("procedure-menu-item").filter({ hasText: "SKETC1" }).click();
+  await expect(page).toHaveURL(/[?&]procs=[^&]*KDLH(%3A|:)SKETC1/);
+  await settled(sideDrawer(page));
+  await openTab(page, "Nav Log");
   await expect(kdlh.getByTestId("procedure-landing")).toHaveText("Straight in");
   await expect(kdlh.getByRole("heading", { name: "Runway", exact: true })).toBeVisible();
   await expect(page.locator("path.traffic-pattern")).toHaveCount(0);
@@ -200,6 +222,30 @@ test("an approach puts its field's runway on its own, and another is let only wh
   await expect(page).toHaveURL(/[?&]pattern=KDLH(%3A|:)27(&|$)/);
   await expect(kdlh.getByTestId("procedure-landing")).toHaveText("Circle to land");
   await expect(page.locator("path.traffic-pattern")).toHaveCount(0);
+});
+
+/**
+ * The field the route lands at has its runway into the wind picked as the
+ * route comes in, at the owner's ask ("a preselected runway into the
+ * wind"), and no approach; a pilot's None is kept, not picked over again.
+ * By the field's own wind: with none, or calm, there is nothing to pick.
+ */
+test("the destination's runway into the wind is picked as the route comes in, and a pilot's none is kept", async ({ page }) => {
+  await page.goto("/app/plan?dep=C81&dest=KDLH");
+  await settle(page);
+  await openTab(page, "Nav Log");
+  const kdlh = page.getByTestId("procedures").getByRole("region", { name: "KDLH · Arrive" });
+  await expect(kdlh.getByTestId("procedure-pattern").first()).toBeVisible({ timeout: slow(20000) });
+  const windward = kdlh.getByRole("radio", { name: /into the wind/ });
+  test.skip(await windward.count() === 0, "Duluth's wind is calm or unreported now");
+  await expect(windward).toHaveAttribute("aria-checked", "true");
+  await expect(page).not.toHaveURL(/[?&]procs=/);
+  await kdlh.getByRole("radio", { name: /None/ }).click();
+  await expect(page).toHaveURL(/[?&]pattern=KDLH(%3A|:)NONE(&|$)/);
+  await page.goto(page.url());
+  await settle(page);
+  await openTab(page, "Nav Log");
+  await expect(kdlh.getByRole("radio", { name: /None/ })).toHaveAttribute("aria-checked", "true", { timeout: slow(20000) });
 });
 
 /**

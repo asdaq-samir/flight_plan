@@ -40,7 +40,7 @@ import FlightLine from "./components/FlightLine";
 import AirspaceCard from "./components/AirspaceCard";
 import PlaceCard from "./components/PlaceCard";
 import ProceduresRoute, { type ProcedureAirport, type ProceduresAt } from "./components/ProceduresRoute";
-import { patternsOf, patternsParam, trafficPattern, type TrafficPattern } from "../../lib/trafficPattern";
+import { NO_PATTERN, patternsOf, patternsParam, trafficPattern, type TrafficPattern } from "../../lib/trafficPattern";
 import { approachRunway, proceduresOf, proceduresParam, sameField, type PickedProcedure } from "../../lib/procedures";
 import { runwayNumber } from "../../lib/pattern";
 import NearestCard, { NearestStrip } from "./components/NearestCard";
@@ -267,7 +267,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // The pattern just picked, for the map to go to it.
   const [patternFocus, setPatternFocus] = useState<string | null>(null);
   const pickPattern = useCallback((ident: string, end: string | null) => {
-    if (end) setPatternFocus(`${ident}:${end}:${Date.now()}`);
+    if (end && end !== NO_PATTERN) setPatternFocus(`${ident}:${end}:${Date.now()}`);
     setSearchParams(prev => {
       const picked = patternsOf(prev.get("pattern"));
       if (end) picked.set(ident, end); else picked.delete(ident);

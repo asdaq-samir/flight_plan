@@ -96,12 +96,17 @@ export function trafficPattern(ident: string, runway: Runway, endIdent: string, 
   };
 }
 
+/** A field the pilot picked no runway at, kept in the address
+ *  ("KDLH:NONE") so the runway into the wind is not picked for it again
+ *  (ProceduresRoute's preselection). It draws no pattern. */
+export const NO_PATTERN = "NONE";
+
 /** The patterns picked, by field, from the address: "KDLH:27,C81:24". */
 export function patternsOf(param: string | null): Map<string, string> {
   const picked = new Map<string, string>();
   for (const part of (param ?? "").split(",")) {
     const [ident, end] = part.split(":").map(s => s.trim().toUpperCase());
-    if (ident && end && /^[A-Z0-9]{2,5}$/.test(ident) && /^\d{1,2}[LCR]?$|^[NSEW]{1,2}$/.test(end)) picked.set(ident, end);
+    if (ident && end && /^[A-Z0-9]{2,5}$/.test(ident) && (/^\d{1,2}[LCR]?$|^[NSEW]{1,2}$/.test(end) || end === NO_PATTERN)) picked.set(ident, end);
   }
   return picked;
 }
