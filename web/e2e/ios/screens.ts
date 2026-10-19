@@ -57,7 +57,7 @@ export const SCREENS: Screen[] = [
       // panel back to half, and the map's tooltips came up under the
       // pointer where the panel had been, fading in, read at 1:1 (P15).
       await openTab(page, "Nav Log");
-      await page.getByTestId("fuel-check").waitFor({ timeout: slow(120000) });
+      await page.getByTestId("navlog-fuel").waitFor({ timeout: slow(120000) });
       // The nav log in its own sheet, from the route's box.
       await openNavLog(page);
       // A tap's click, without Playwright's own scroll into view first:
@@ -421,9 +421,9 @@ export const SCREENS: Screen[] = [
     ready: async page => {
       await page.goto("/app/plan?dep=C81&dest=C81&view=briefing");
       await expect(page.locator('[data-slot="section-summary"]').first()).toContainText("Aloft", { timeout: slow(30000) });
-      // Its fuel check under the legs' place, FPL's own.
+      // Its fuel required among the figures.
       await openTab(page, "Local");
-      await expect(page.getByTestId("fuel-check")).toBeVisible();
+      await expect(page.getByTestId("navlog-fuel")).toBeVisible({ timeout: slow(30000) });
     },
   },
 ];

@@ -171,17 +171,12 @@ test("plan page: a departure time gives every checkpoint its time, and the nav l
   await expect(breakdown).toContainText(/Fuel required\s*\d+\.\d gal/);
   await page.keyboard.press("Escape");
   await expect(breakdown).toHaveCount(0);
-  // And the fuel check, against the stock C172's 40 usable gallons,
-  // with the day reserve for a mid-afternoon flight -- under FPL's route.
-  // FPL says the fuel required in a line; what it is made of and the
-  // tanks' usable fuel are the Brief's (the owner's "Fuel required number
-  // can be just one line, no need for the usable").
-  const fuel = page.getByTestId("fuel-check");
-  await expect(fuel).toContainText(/Fuel required\s*[\d.]+ gal/, { timeout: slow(60000) });
-  await expect(fuel).not.toContainText("Usable fuel");
-  const tableBox = (await sideDrawer(page).getByTestId("procedures").boundingBox())!;
-  const noteBox = (await page.getByTestId("fuel-check").boundingBox())!;
-  expect(noteBox.y).toBeGreaterThanOrEqual(tableBox.y + tableBox.height);
+  // And the fuel check, against the stock C172's 40 usable gallons, with
+  // the day reserve for a mid-afternoon flight: the figure's alone now,
+  // no line under the route (the owner's "Remove fuel required at the
+  // bottom of arrival"), and in full in the Brief.
+  await expect(page.getByTestId("fuel-check")).toHaveCount(0);
+  await expect(page.getByTestId("fuel-breakdown-open")).not.toHaveAttribute("data-alert");
   await openSection(page, "Fuel");
   const detail = page.getByTestId("fuel-detail");
   await expect(detail.locator("[data-slot=item]", { hasText: "Usable fuel" })).toContainText("40 gal");

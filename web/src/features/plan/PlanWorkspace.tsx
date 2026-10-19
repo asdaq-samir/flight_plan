@@ -905,16 +905,12 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       return patched(prev, { brief: null });
     }, { replace: true }));
   }, [closeCard, setSearchParams]);
-  // The legs asked for from the Brief -- its Go / No-Go's fuel, checked
-  // under them -- FPL's nav log all the way up in its place, the fuel's
-  // check brought into sight (NavLogView's fuelAsked).
-  const [fuelAsked, setFuelAsked] = useState(0);
+  // The legs asked for from the Brief: FPL all the way up in its place.
   const showLegs = useCallback(() => {
     setSearchParams(prev => {
       return patched(prev, { brief: null });
     }, { replace: true });
     setPanel("full");
-    setFuelAsked(n => n + 1);
   }, [setSearchParams, setPanel]);
   // The strip's title opens the list in full, over Airport.
   const openNearest = useCallback(() => {
@@ -1353,7 +1349,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       selectedPoint={selectedPoint} onSelectPoint={selectPointAt} onDeselectPoint={deselectPoint}
       // In sight all the way up, the Brief not over it: a row picked is
       // brought into sight as it comes back.
-      drawerOpen={drawerOpen && !briefShown} dryRun={dryRunning} fuelAsked={fuelAsked}
+      drawerOpen={drawerOpen && !briefShown} dryRun={dryRunning}
       route={listAtFoot ? ROUTE_AT_FOOT : routeList} navLogOpen={navLogOpen} onNavLogOpenChange={setNavLogOpen}
       aircraftLabel={aircraft.label}
       marks={marks}
@@ -1374,7 +1370,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     </Suspense>
   ), [s.totals, s.nav, s.legs, depart, planned.dep, planned.dest, course, s.logSelected, s.descriptions, s.saveDescription,
     s.generateDescriptions, descriptionsLoading, descriptionsPaywall, descriptionsHidden, selectedPoint, selectPointAt, deselectPoint, drawerOpen, aircraft.label,
-    marks, tabContent, s.briefing, s.local, landedStops, s.langgraphNarrative, s.crewaiNarrative, unflyableBrief, kneeboardLater, metarColour, dryRunning, fuelAsked, briefShown,
+    marks, tabContent, s.briefing, s.local, landedStops, s.langgraphNarrative, s.crewaiNarrative, unflyableBrief, kneeboardLater, metarColour, dryRunning, briefShown,
     routeList, listAtFoot, navLogOpen]);
   // The Brief's pages (BriefCard): En route's without the legs, which are
   // FPL's own; and its warnings over them.
@@ -1805,7 +1801,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
               <FootPager
                 testId="foot-pager"
                 pages={[
-                  { label: "Route", node: <div className="px-1 pt-1">{routeList}</div> },
+                  { label: "Route", node: <div className="pt-1">{routeList}</div> },
                   { label: "Side view", node: sideView },
                 ]}
               />

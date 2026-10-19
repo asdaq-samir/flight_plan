@@ -76,8 +76,13 @@ export default function FlightLine({ totals, estimate, destination, depart, loca
   // The time en route tapped, the arrival's clock time in its place, and
   // back, at the owner's ask ("Ete should change to eta when tapped").
   const [arrival, setArrival] = useState(false);
-  const exact = tripFigures({ totals, estimate, local, destination, depart, arrival }, false);
-  const rounded = tripFigures({ totals, estimate, local, destination, depart, arrival }, true);
+  // To tapped on a route with stops, the destination in the next stop's
+  // place, and back, at the owner's ask ("To should change to next stop
+  // or destination").
+  const [toDestination, setToDestination] = useState(false);
+  const stops = (totals?.hops.length ?? 0) > 0;
+  const exact = tripFigures({ totals, estimate, local, destination, depart, arrival, toDestination: stops && toDestination }, false);
+  const rounded = tripFigures({ totals, estimate, local, destination, depart, arrival, toDestination: stops && toDestination }, true);
   // The fuel required tapped, what it is made of (FuelBreakdown), at the
   // owner's ask ("fuel is the fuel required which gives a breakdown when
   // tapped"): once the nav log's figures are in.
@@ -152,8 +157,9 @@ export default function FlightLine({ totals, estimate, destination, depart, loca
                         tapped is; its 44-point area round it, the figure
                         not grown to make it (index.css's after). */}
                     <button
-                      type="button" data-testid="fuel-breakdown-open" aria-label={`Fuel required, ${f.value} gallons: what it is made of`}
-                      className="relative text-tint after:absolute after:-inset-x-2 after:-inset-y-3 after:content-['']"
+                      type="button" data-testid="fuel-breakdown-open" data-alert={f.alert || undefined}
+                      aria-label={`Fuel required, ${f.value} gallons${f.alert ? ", more than the tanks hold" : ""}: what it is made of`}
+                      className={cn("relative after:absolute after:-inset-x-2 after:-inset-y-3 after:content-['']", f.alert ? "text-destructive" : "text-tint")}
                     >
                       <span style={sized(fitting?.px.value)} data-fitted={fitted}>{f.value}</span>
                       {f.unit && <span className={cn(unitType, "font-normal")} style={sized(fitting?.px.unit)} data-fitted={fitted}> {f.unit}</span>}
@@ -163,6 +169,14 @@ export default function FlightLine({ totals, estimate, destination, depart, loca
                     <FuelBreakdown totals={breakdown.totals!} />
                   </ResponsivePopoverContent>
                 </ResponsivePopover>
+              ) : f.name === "To" && stops && !local ? (
+                <button
+                  type="button" onClick={() => setToDestination(!toDestination)} data-testid="to-toggle"
+                  aria-label={`To ${f.value}: show the ${toDestination ? "next stop" : "destination"}`}
+                  className="relative text-tint after:absolute after:-inset-x-2 after:-inset-y-3 after:content-['']"
+                >
+                  <span style={sized(fitting?.px.value)} data-fitted={fitted}>{f.value}</span>
+                </button>
               ) : (f.name === "ETE" || f.name === "ETA") && !local ? (
                 <button
                   type="button" onClick={() => setArrival(!arrival)} data-testid="ete-eta-toggle"

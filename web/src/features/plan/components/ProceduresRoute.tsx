@@ -226,19 +226,23 @@ export default function ProceduresRoute({
       />
     );
     const kinds = kindsFor(a.role).filter(kind => hasKind(a.ident, kind) || inRoute.some(p => sameField(p.ident, a.ident) && p.kind === kind));
-    // The procedures' pull-downs over the runway chips at every field, a
-    // departure's as an arrival's and approach's, at the owner's ask
-    // ("Departure selection should also be before runways just like
-    // arrival/approach"): a stop's three in two columns, wrapping.
+    // The procedures' pull-downs in the field's head, by its ident in the
+    // place of "Depart" or "Arrive", where it has any, at the owner's ask
+    // ("replace the Depart/Arrival label with the Departure/Arrival
+    // selection when available. Approach can be next to Arrival"): a
+    // stop's three wrapping. Its info at the runway chips' start ("Info
+    // can go on the left side of the runways").
     return (
       <Step
         key={a.ident} last={last}
         mark={row ? <PointMark row={row} number={undefined} weather={weather} /> : <FieldDot last={last} />}
         title={`${a.ident} · ${ROLE_STEP[a.role]}`} time={row ? etaAt(depart || new Date().toISOString(), row.minutesFlown) : null} field
-        info={a.runways !== null ? <FieldInfo ident={a.ident} note={patternNote(a, chosenAt(a.ident), landingOf(a.ident))} wind={wind} /> : undefined}
+        heading={kinds.length > 0 ? a.ident : undefined} beside={kinds.length > 0 ? kinds.map(kindMenu) : undefined}
       >
-        {kinds.length > 0 && <div className={cn("grid gap-2", kinds.length > 1 ? "grid-cols-2" : "grid-cols-1")}>{kinds.map(kindMenu)}</div>}
-        <PatternChips airport={a} wind={wind} chosen={chosenAt(a.ident)} landing={landingOf(a.ident)} onPick={end => onPick(a.ident, end ?? NO_PATTERN)} />
+        <PatternChips
+          airport={a} wind={wind} chosen={chosenAt(a.ident)} landing={landingOf(a.ident)} onPick={end => onPick(a.ident, end ?? NO_PATTERN)}
+          info={<FieldInfo ident={a.ident} note={patternNote(a, chosenAt(a.ident), landingOf(a.ident))} wind={wind} />}
+        />
       </Step>
     );
   };
@@ -327,11 +331,14 @@ function FieldDot({ last }: { last: boolean }) {
  * nav log draws it, its name and the time it is reached, and under them
  * what is flown there (a field's). The line runs on to the next step.
  */
-function Step({ mark, title, info, time, last, field = false, testId, children }: {
+function Step({ mark, title, heading, beside, time, last, field = false, testId, children }: {
   mark: ReactNode;
+  /** Its name, said to a screen reader and shown where `heading` is not. */
   title: string;
-  /** By the name: the field's info (FieldInfo). */
-  info?: ReactNode;
+  /** What its head shows in the title's place: a field's ident alone,
+   *  its procedures' pull-downs (`beside`) saying the rest. */
+  heading?: string;
+  beside?: ReactNode;
   time: string | null;
   last: boolean;
   field?: boolean;
@@ -345,13 +352,16 @@ function Step({ mark, title, info, time, last, field = false, testId, children }
       <div className="relative flex w-7 shrink-0 justify-center pt-0.5">{mark}</div>
       <section aria-label={title} className={cn("min-w-0 flex-1 space-y-3", field ? "pb-5" : "pb-4")}>
         <div className="flex items-center justify-between gap-2">
-          <span className="flex min-w-0 items-center gap-1.5">
+          {/* On one line, the pull-downs giving way, their words cut short,
+              before the line wraps: half way the list is in the foot, a
+              little narrower than the body all the way up. */}
+          <span className="flex min-w-0 items-center gap-2">
             <Name className={cn(field ? "font-semibold" : "font-normal", TEXT.row)}>
-              {title}
+              {heading ?? title}
             </Name>
-            {info}
+            {beside}
           </span>
-          {time && <span className={cn("font-semibold tabular-nums", TEXT.detail)}>{time}</span>}
+          {time && <span className={cn("shrink-0 font-semibold tabular-nums", TEXT.detail)}>{time}</span>}
         </div>
         {children}
       </section>
@@ -387,7 +397,7 @@ function Chips({ label, value, onChange, children }: {
     // One line, scrolled sideways where the chips are more than fit, at
     // the owner's ask; the padding keeps the chips' and the group's tap
     // areas inside what the scroll clips.
-    <div ref={row} className="-mx-1.5 -my-1.5 overflow-x-auto px-1.5 py-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+    <div ref={row} data-slides="" className="-mx-1.5 -my-1.5 min-w-0 flex-1 overflow-x-auto px-1.5 py-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       <ToggleGroup
         type="single" value={value} onValueChange={v => { if (v) onChange(v); }}
         aria-label={label} spacing={3}
@@ -434,8 +444,10 @@ interface Landing {
   name: string;
 }
 
-function PatternChips({ airport: a, wind, chosen, landing, onPick }: {
+function PatternChips({ airport: a, wind, chosen, landing, info, onPick }: {
   airport: ProcedureAirport;
+  /** At the chips' start: the field's info (FieldInfo). */
+  info: ReactNode;
   wind: WindPick | null;
   chosen: string | null;
   landing: Landing | null;
@@ -457,7 +469,8 @@ function PatternChips({ airport: a, wind, chosen, landing, onPick }: {
     // The chips alone, the pattern's side and height and the wind behind
     // the field's info (FieldInfo), at the owner's ask ("Keep the pattern
     // info and winds info in a info icon next to the airport id").
-    <div data-testid="procedure-patterns">
+    <div className="flex items-center gap-2" data-testid="procedure-patterns">
+      {a.runways !== null && info}
       {a.runways === null ? (
         <p role="status" className={cn("px-1 text-muted-foreground", TEXT.detail)}>Looking the runways up…</p>
       ) : (
@@ -514,7 +527,7 @@ function FieldInfo({ ident, note, wind }: { ident: string; note: string | null; 
       <PopoverTrigger asChild>
         <button
           type="button" aria-label={`${ident} runway and wind`} data-testid="field-info"
-          className="relative grid size-6 place-items-center text-tint after:absolute after:-inset-2.5 after:content-['']"
+          className="relative grid size-9 shrink-0 place-items-center rounded-full bg-foreground/8 text-tint after:absolute after:-inset-1 after:content-['']"
         >
           <Info className="size-5" aria-hidden />
         </button>

@@ -51,6 +51,12 @@ describe("tripFigures", () => {
     expect(figures[2]!.value).toMatch(/^\d\d:\d\d$/);
   });
 
+  it("says the destination and the whole route's distance and time when asked, the fuel still the next landing's", () => {
+    const hop = { ...totals, distance_nm: 41.2, ete_min: 25, fuel_required_gal: 9.4, hops: [] };
+    const stops = { ...input, toDestination: true, totals: { ...totals, hops: [{ departure: "C81", destination: "KJVL", totals: hop }] } as unknown as Totals };
+    expect(tripFigures(stops, false).map(f => f.value)).toEqual(["KLAS", "323.6", "2h 45m", "9.4"]);
+  });
+
   it("keeps all four names, as dashes, with no totals yet, so the strip holds its place", () => {
     const figures = tripFigures({ totals: null, local: false, destination: "" }, false);
     expect(figures.map(f => f.name)).toEqual(["To", "Dist", "ETE", "Fuel"]);

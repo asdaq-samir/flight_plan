@@ -20,7 +20,7 @@ export default function FootPager({ pages, testId }: { pages: { label: string; n
   return (
     <div className="flex h-full min-h-0 flex-col" data-testid={testId}>
       <div
-        ref={box}
+        ref={box} data-slides=""
         onScroll={() => { const el = box.current; if (el && el.clientWidth) setAt(Math.round(el.scrollLeft / el.clientWidth)); }}
         className="flex min-h-0 flex-1 snap-x snap-mandatory overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
@@ -29,7 +29,7 @@ export default function FootPager({ pages, testId }: { pages: { label: string; n
             key={page.label} aria-label={page.label} data-page={i} data-shown={i === at || undefined}
             // A page out of sight out of the keyboard's and a reader's way.
             inert={i !== at}
-            className="h-full w-full shrink-0 snap-start snap-always overflow-y-auto overscroll-y-contain"
+            className="h-full w-full shrink-0 snap-start snap-always overflow-x-hidden overflow-y-auto overscroll-y-contain"
           >
             {page.node}
           </section>

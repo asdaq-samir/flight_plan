@@ -294,7 +294,7 @@ test("a field's departure is picked over its runways, as its arrival and approac
   const kord = page.getByTestId("procedures").getByRole("region", { name: "KORD · Depart" });
   const menu = kord.locator("[data-testid=procedure-kind][data-kind=departure]");
   await expect(menu).toBeVisible({ timeout: slow(20000) });
-  await expect(menu).toHaveText(/^Departure/);
+  await expect(menu).toHaveText(/^Depart/);
   const chips = kord.getByTestId("procedure-pattern").first();
   await expect(chips).toBeVisible();
   expect((await menu.boundingBox())!.y).toBeLessThan((await chips.boundingBox())!.y);

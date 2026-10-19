@@ -46,7 +46,7 @@ test("under IFR the altitude is chosen from the minimum IFR altitude by directio
   await popover.getByRole("button", { name: /Minimum IFR altitude/ }).click();
   await expect(popover).toContainText("14 CFR 91.177");
   await page.keyboard.press("Escape");
-  await expect(page.getByTestId("fuel-check")).toContainText("Fuel required", { timeout: slow(60000) });
+  await expect(page.getByTestId("navlog-fuel")).toBeVisible({ timeout: slow(60000) });
   await openSection(page, "Fuel");
   await expect(page.getByTestId("fuel-detail")).toContainText("45 min IFR reserve (14 CFR 91.167)", { timeout: slow(60000) });
 
