@@ -394,6 +394,18 @@ export default function RouteBox({
                       {/* Before the first point an arrow only with no
                           departure yet: the departure is typed there. */}
                       {(i > 0 || !hasDep) && arrow(i)}
+                      {/* Its arrival and approach before it, as they are
+                          flown into it, at the owner's ask ("I want to show
+                          the approach pill before the corresponding airport
+                          pill"); its departure after it (below). A tap opens
+                          the Procedures they were picked in. Not points of
+                          the route: not dragged, not typed. */}
+                      {(i === points.findIndex(p => p === point)) && procedures
+                        .filter(p => sameField(p.ident, point) && p.kind !== "departure")
+                        .sort((a, b) => (a.kind === "arrival" ? 0 : 1) - (b.kind === "arrival" ? 0 : 1))
+                        .map(p => (
+                          <ProcedureChip key={`${p.kind}-${p.label}`} procedure={p} before onOpen={onProcedures ? () => onProcedures(p) : undefined} />
+                        ))}
                       <Pill
                         id={ids[i]!} ident={point} waypoint={waypoints.has(point)} index={i} airspaceOf={airspaceOf} metarColourOf={metarColourOf}
                         role={roleOf(i)} stopNumber={i + (hasDep ? 0 : 1)}
@@ -403,11 +415,7 @@ export default function RouteBox({
                         onRemove={() => remove(i)}
                         onOpen={onOpenAirport && !waypoints.has(point) && identOf(point) ? () => onOpenAirport(identOf(point)) : undefined}
                       />
-                      {/* Its procedures, after it, at the pilot's ask: the
-                          approach to fly into it, its arrival, its departure
-                          -- a tap opens the Procedures they were picked in.
-                          Not points of the route: not dragged, not typed. */}
-                      {(i === points.findIndex(p => p === point)) && procedures.filter(p => sameField(p.ident, point)).map(p => (
+                      {(i === points.findIndex(p => p === point)) && procedures.filter(p => sameField(p.ident, point) && p.kind === "departure").map(p => (
                         <ProcedureChip key={`${p.kind}-${p.label}`} procedure={p} onOpen={onProcedures ? () => onProcedures(p) : undefined} />
                       ))}
                     </Fragment>
@@ -481,14 +489,19 @@ const NO_PROCEDURES: RouteProcedure[] = [];
 /** A procedure picked at a point, after its pill: its kind's glyph and its
  *  short title in the approaches' indigo, as the map draws it
  *  (ProcedureLayer). */
-function ProcedureChip({ procedure, onOpen }: { procedure: RouteProcedure; onOpen?: () => void }) {
+function ProcedureChip({ procedure, before = false, onOpen }: {
+  procedure: RouteProcedure;
+  /** Before its field's pill (an arrival, an approach), not after it. */
+  before?: boolean;
+  onOpen?: () => void;
+}) {
   const Glyph = PROCEDURE_GLYPH[procedure.kind];
   return (
     <button
       type="button" onClick={onOpen} data-testid="route-procedure"
       aria-label={`${procedure.spoken}: the route's procedures`}
       className={cn(
-        "relative ml-1 inline-flex h-7 shrink-0 after:absolute after:-inset-y-2 after:inset-x-0 after:content-[''] items-center gap-1 rounded-full border-[1.5px] border-[#5b5bd6] bg-background/70 px-2 font-semibold whitespace-nowrap text-[#4343b8] outline-none focus-visible:ring-2 focus-visible:ring-ring dark:border-[#9d9df0] dark:text-[#c3c3fa]",
+        before ? "relative mr-1" : "relative ml-1", "inline-flex h-7 shrink-0 after:absolute after:-inset-y-2 after:inset-x-0 after:content-[''] items-center gap-1 rounded-full border-[1.5px] border-[#5b5bd6] bg-background/70 px-2 font-semibold whitespace-nowrap text-[#4343b8] outline-none focus-visible:ring-2 focus-visible:ring-ring dark:border-[#9d9df0] dark:text-[#c3c3fa]",
         TEXT.note,
       )}
     >

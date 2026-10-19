@@ -116,6 +116,9 @@ test("a field's approach is picked on its own page with its transition, drawn on
   // opens the Procedures.
   const chip = sideDrawer(page).getByTestId("route-procedure");
   await expect(chip).toHaveText("ILS 09 · DLH");
+  // Before the destination's pill, as it is flown into the field.
+  const dest = sideDrawer(page).getByTestId("route-dest");
+  expect((await chip.boundingBox())!.x).toBeLessThan((await dest.boundingBox())!.x);
   await expect(chip).toHaveAccessibleName(/ILS RWY 09 via DLH/);
   await chip.click();
   await expect(page.getByRole("heading", { name: "KDLH approaches" })).toBeVisible();
