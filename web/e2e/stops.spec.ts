@@ -592,3 +592,18 @@ test("the route's airports are coloured by their airspace, or by the weather fro
   await openPanel(page);
   await expect.poll(background, { timeout: slow(15000) }).toMatch(/^rgb\(/);
 });
+
+/**
+ * A round trip's field twice in FPL's list: left from as its Departure and
+ * landed at as its Destination (the audit's finding: it was one step,
+ * "Arrive", with no departure).
+ */
+test("a round trip's field is a Depart step and an Arrive step, each with its runway", async ({ page }) => {
+  await page.goto("/app/plan?dep=C81&stops=KJVL&dest=C81");
+  await settle(page);
+  await openPanel(page);
+  const route = sideDrawer(page).getByTestId("procedures");
+  await expect(route.getByRole("region", { name: "C81 · Depart" })).toBeVisible({ timeout: slow(60000) });
+  await expect(route.getByRole("region", { name: "C81 · Arrive" })).toBeVisible({ timeout: slow(60000) });
+  await expect(route.getByRole("region", { name: "C81 · Depart" }).getByRole("radiogroup", { name: "C81 takeoff runway" })).toBeVisible();
+});

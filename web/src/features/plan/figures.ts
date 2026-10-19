@@ -72,10 +72,11 @@ export function tripFigures({ totals, estimate, local, destination, depart = "",
   const time = minutes === null ? "—" : whole ? decimalHours(minutes) : enRoute(minutes);
   const required = landing.totals?.fuel_required_gal ?? null;
   const fuel = required == null ? null : whole ? `${Math.ceil(required)}` : one(required);
-  // Red where the tanks do not hold it, what FPL's fuel line under the
-  // route said before the owner took it out ("Remove fuel required at
-  // the bottom of arrival"): the figure says it now, its breakdown how short.
-  const short = (landing.totals?.fuel_margin_gal ?? 0) < 0;
+  // Red where the tanks do not hold it on any flight of the route -- a
+  // later stop's included, which the per-flight lines under the route
+  // caught before the owner took them out ("Remove fuel required at the
+  // bottom of arrival"): the figure says it now, its breakdown which.
+  const short = shortFlights(totals).length > 0;
   const fuelFigure = { name: "Fuel", value: fuel ?? "—", unit: fuel === null ? undefined : "gal", testId: fuel === null ? undefined : "navlog-fuel", alert: short };
   const to = { name: "To", value: next.to || "—", testId: "navlog-to" };
   if (local) return [to, { name: "Aloft", value: time, testId: "navlog-ete" }, fuelFigure];
@@ -85,6 +86,16 @@ export function tripFigures({ totals, estimate, local, destination, depart = "",
     arrival ? { name: "ETA", value: leg ? etaAt(from, minutes) : "—", testId: "navlog-eta" } : { name: "ETE", value: time, testId: "navlog-ete" },
     fuelFigure,
   ];
+}
+
+/** The flights of a route the tanks do not hold the fuel for: each hop
+ *  between two landings, or the whole route with no stops -- "C81 → KMSN". */
+export function shortFlights(totals: Totals | null): { name: string; shortGal: number }[] {
+  if (!totals) return [];
+  const flights = totals.hops.length > 0
+    ? totals.hops.map(h => ({ name: `${h.departure} → ${h.destination}`, margin: h.totals.fuel_margin_gal }))
+    : [{ name: "", margin: totals.fuel_margin_gal }];
+  return flights.flatMap(f => (f.margin != null && f.margin < 0 ? [{ name: f.name, shortGal: -f.margin }] : []));
 }
 
 /** A time en route as the strip writes it: "15m" under an hour, where

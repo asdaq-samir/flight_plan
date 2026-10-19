@@ -51,17 +51,17 @@ export default function FootPager({ pages, page: at, onPage, testId }: {
         ))}
       </div>
       {/* The page control: a dot a page, the one shown dark, each a tap to
-          its page, their 44-point areas meeting across the row. */}
-      <div className="flex justify-center gap-2 pt-1 pb-1.5" aria-label="Pages">
+          its page -- a 44-point button round a 6-point dot, the buttons side
+          by side (the audit's finding: the dots' own areas were 14). */}
+      <div className="flex justify-center pt-0.5 pb-1" aria-label="Pages">
         {pages.map((page, i) => (
           <button
             key={page.label} type="button" onClick={() => go(i)} aria-label={page.label} aria-current={i === at || undefined}
             data-testid="foot-page-dot"
-            className={cn(
-              "relative size-1.5 rounded-full after:absolute after:-inset-x-1 after:-inset-y-[19px] after:content-['']",
-              i === at ? "bg-foreground/70" : "bg-foreground/25",
-            )}
-          />
+            className="relative grid h-4 w-11 place-items-center after:absolute after:inset-x-0 after:-inset-y-3.5 after:content-['']"
+          >
+            <span aria-hidden className={cn("size-1.5 rounded-full", i === at ? "bg-foreground/70" : "bg-foreground/25")} />
+          </button>
         ))}
       </div>
     </div>

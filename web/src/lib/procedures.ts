@@ -11,6 +11,17 @@ export interface PickedProcedure {
   transition: string | null;
 }
 
+/** A transition as a pilot picks it, said one way everywhere (the
+ *  menus, the procedure's page, the route's box): an approach's from its
+ *  initial fix or from vectors to final; an arrival's from where it
+ *  starts, or its common route alone; a departure's to where it ends. */
+export function transitionWords(kind: "approach" | "arrival" | "departure", transition: string | null, inLine = false): string {
+  const words = transition === null ? (kind === "approach" ? "Vectors to final" : "Common route")
+    : kind === "departure" ? `To ${transition}` : `From ${transition}`;
+  // In the middle of a line, its first word's capital dropped, the fix's kept.
+  return inLine ? words.charAt(0).toLowerCase() + words.slice(1) : words;
+}
+
 /** The runway an approach lands on, as a pattern's chip names it: "ILS
  *  RWY 09L" is "9L"; a circling-only approach ("VOR-A", "RNAV (GPS)-B")
  *  has none. */

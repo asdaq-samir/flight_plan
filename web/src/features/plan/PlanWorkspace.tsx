@@ -42,7 +42,7 @@ import PlaceCard from "./components/PlaceCard";
 import ProceduresRoute, { type FitInputs, type ProcedureAirport, type ProceduresAt } from "./components/ProceduresRoute";
 import { useLoad } from "./hooks/useLoad";
 import { NO_PATTERN, patternsOf, patternsParam, trafficPattern, type TrafficPattern } from "../../lib/trafficPattern";
-import { approachRunway, proceduresOf, proceduresParam, sameField, type PickedProcedure } from "../../lib/procedures";
+import { approachRunway, proceduresOf, proceduresParam, sameField, transitionWords, type PickedProcedure } from "../../lib/procedures";
 import { runwayNumber } from "../../lib/pattern";
 import NearestCard, { NearestStrip } from "./components/NearestCard";
 import AircraftCard, { AircraftRecentsPage } from "./components/AircraftCard";
@@ -468,14 +468,15 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const briefed = s.briefing.state === "ready" ? s.briefing.data.airports : null;
   const procedureAirports = useMemo<ProcedureAirport[]>(() => {
     const idents = [planned.dep, ...planned.stops, planned.dest].filter((i): i is string => !!i && !i.includes(","));
-    // A round trip names a field twice; it is listed and drawn once, in its
-    // first place, and called the Destination if the flight ends there (its
-    // charts are that card's).
+    // A round trip names a field twice: left from as its Departure and
+    // landed at as its Destination, a step each in FPL's list (the audit's
+    // finding: it was listed once, as "Arrive", with no departure). A stop
+    // that is the departure or the destination again is listed once.
     const fields = idents.map((ident, i) => ({
       ident, role: (i === 0 ? "Departure" : i === idents.length - 1 ? "Destination" : "Stop") as ProcedureAirport["role"],
     }));
-    const once = fields.filter((f, i) => fields.findIndex(g => g.ident === f.ident) === i)
-      .map(f => fields.some(g => g.ident === f.ident && g.role === "Destination") ? { ...f, role: "Destination" as const } : f);
+    const once = fields.filter((f, i) => fields.findIndex(g => g.ident === f.ident
+      && (g.role === f.role || g.role === "Stop" || f.role === "Stop")) === i);
     const fieldsOfCourse = course ? [course.departure, ...(course.stops ?? []), course.destination] : [];
     return once.map(({ ident, role }) => ({
       ident, role,
@@ -492,7 +493,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const runwayFitInputs = useMemo<FitInputs | null>(() => (fitAircraft ? { aircraft: fitAircraft, takeoffLb, landingLb } : null),
     [fitAircraft, takeoffLb, landingLb]);
   // Their patterns as the map draws them.
-  const patterns = useMemo<TrafficPattern[]>(() => procedureAirports.flatMap(a => {
+  const patterns = useMemo<TrafficPattern[]>(() => procedureAirports.filter((a, i, all) => all.findIndex(b => b.ident === a.ident) === i).flatMap(a => {
     const end = pickedPatterns.get(a.ident);
     if (!end) return [];
     const runway = a.runways?.find(r => (r.runway_ends ?? []).some(e => runwayNumber(e.ident) === end));
@@ -511,7 +512,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const routeProcedures = useMemo<RouteProcedure[]>(() => procedureDrawings.map(d => ({
     ident: d.airport, kind: d.kind, id: d.id, runway: d.kind === "approach" ? approachRunway(d.name) : null,
     label: `${d.name.replace(/ RWY /, " ")}${d.transition ? ` · ${d.transition}` : ""}`,
-    spoken: `${d.name}${d.transition ? ` via ${d.transition}` : ""}`,
+    spoken: `${d.name}, ${transitionWords(d.kind, d.transition ?? null, true)}`,
   })), [procedureDrawings]);
   // The patterns flown: none at a field the route lands at by an
   // approach, whose runway chip then says the runway landed on, straight

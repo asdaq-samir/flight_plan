@@ -18,11 +18,21 @@ function reserveRule(totals: Totals): string {
  * not hold it. Opened from the flight's figures (FlightLine); the Brief's
  * Fuel section says the same for every hop.
  */
-export default function FuelBreakdown({ totals }: { totals: Totals }) {
+export default function FuelBreakdown({ totals, short: shortOnes = [] }: {
+  totals: Totals;
+  /** The route's flights the tanks do not hold the fuel for (shortFlights),
+   *  a later stop's as well as this one's. */
+  short?: { name: string; shortGal: number }[];
+}) {
   const short = totals.fuel_margin_gal != null && totals.fuel_margin_gal < 0 ? -totals.fuel_margin_gal : null;
   const gal = (n: number | null | undefined) => (n == null ? "—" : `${one(n)} gal`);
   return (
     <div className="flex flex-col gap-3" data-testid="fuel-breakdown">
+      {shortOnes.some(f => f.name) && (
+        <p className="font-semibold text-destructive-ink" data-testid="fuel-short-flights">
+          Short: {shortOnes.map(f => `${f.name}, ${one(f.shortGal)} gal`).join("; ")}
+        </p>
+      )}
       <ListGroup>
         <ListRow title="Flying the legs" description="Climb, cruise and descent, with the winds" value={gal(totals.fuel_gal)} />
         <ListRow title="Start, taxi and takeoff" value={gal(totals.taxi_gal)} />

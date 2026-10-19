@@ -365,6 +365,11 @@ export function dryRunOf(rows: NavLogRow[], startS: number, line?: [number, numb
   const picked = (kind: ProcedureDrawing["kind"], ident: string) => procedures.find(d => d.kind === kind && sameField(d.airport, ident));
   let missable = false;
   let final: DryRun["final"];
+  // Go missed is the last approach's, the one whose final the run's button
+  // is on (DryRunControls): a stop's approach before it is flown to its
+  // runway -- the audit's finding, every approach went missed.
+  const lastApproach = rows.reduce((last, row, i) =>
+    (row.kind === "stop" || row.kind === "destination") && row.airport.kind !== "fix" && picked("approach", row.airport.ident) ? i : last, -1);
   for (const [i, row] of rows.entries()) {
     if (i === 0) continue;
     const part = legOf(row);
@@ -415,7 +420,7 @@ export function dryRunOf(rows: NavLogRow[], startS: number, line?: [number, numb
       }
       const reversed = withReversals(raw, rawFt, pieces.flatMap(piece => piece.holds));
       const { ft } = reversed;
-      const goMissed = missed && miss ? miss : null;
+      const goMissed = missed && miss && i === lastApproach ? miss : null;
       const path = goMissed ? [...reversed.path, ...goMissed.points] : reversed.path;
       const at = cumulative(path);
       const atMap = at[reversed.path.length - 1]!;
