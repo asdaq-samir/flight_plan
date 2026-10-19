@@ -380,8 +380,9 @@ function Chips({ label, value, onChange, children }: {
   return (
     // One line, scrolled sideways where the chips are more than fit, at
     // the owner's ask; the padding keeps the chips' and the group's tap
-    // areas inside what the scroll clips.
-    <div ref={row} className="-mx-1.5 -my-1.5 overflow-x-auto px-1.5 py-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+    // areas inside what the scroll clips (data-slides: the audit's
+    // sideways-scroll rule passes over a row meant to scroll).
+    <div ref={row} data-slides="" className="-mx-1.5 -my-1.5 overflow-x-auto px-1.5 py-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       <ToggleGroup
         type="single" value={value} onValueChange={v => { if (v) onChange(v); }}
         aria-label={label} spacing={3}
