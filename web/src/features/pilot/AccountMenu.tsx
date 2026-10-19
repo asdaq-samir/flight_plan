@@ -3,7 +3,7 @@ import { ChevronDown } from "lucide-react";
 import { cn } from "cn";
 import { Button } from "../../components/ui/button";
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuRadioGroup, DropdownMenuRadioItem,
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem,
   DropdownMenuSeparator, DropdownMenuTrigger,
 } from "../../components/ui/dropdown-menu";
 import { useConfirm } from "../../components/useConfirm";
@@ -43,6 +43,15 @@ export function AccountMenu() {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-44">
+        {/* Who is signed in, the menu's title on top, at the owner's ask
+            ("Can the email of account go in the role selection as the
+            title on top?"), where it was a line under Account. */}
+        {pilot && (
+          <>
+            <DropdownMenuLabel className={cn("max-w-64 truncate font-normal text-muted-foreground", TEXT.note)} data-testid="pilot-address">{pilot.displayName}</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+          </>
+        )}
         <DropdownMenuRadioGroup
           value={devMode.on ? "developer" : "pilot"}
           onValueChange={v => { if ((v === "developer") !== devMode.on) devMode.flip(); }}

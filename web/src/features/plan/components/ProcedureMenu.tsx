@@ -1,9 +1,11 @@
 import { useRef, useState } from "react";
-import { Check, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
+import { Check, ChevronDown } from "lucide-react";
 import { cn } from "cn";
-import {
-  DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
-} from "../../../components/ui/dropdown-menu";
+import BackButton from "../../../components/BackButton";
+import CloseButton from "../../../components/CloseButton";
+import { ListGroup, ListRow } from "../../../components/GroupedList";
+import { ResponsivePopover, ResponsivePopoverContent, ResponsivePopoverTrigger } from "../../../components/ResponsivePopover";
+import { Switch } from "../../../components/ui/switch";
 import type { ProcedureList, ProcedureSummary } from "../../../lib/api/types";
 import { runwayNumber } from "../../../lib/pattern";
 import { usePreferences } from "../../../lib/preferences";
@@ -27,9 +29,9 @@ function shortName(p: ProcedureSummary): string {
 }
 
 /**
- * One kind of a field's procedures picked from a pull-down menu, at the
+ * One kind of a field's procedures picked from a pull-down, at the
  * owner's pick ("B", 2026-10-19): the trigger says the one in the route,
- * and the menu lists the field's -- an approach's by runway, the runway
+ * and its panel lists the field's -- an approach's by runway, the runway
  * landed on (the runway chips', preselected into the wind) first and the
  * others each a page of the menu -- each with its transitions a page of
  * its own. No approach, or none of the kind, at the foot, and the field's
@@ -56,41 +58,31 @@ export default function ProcedureMenu({ ident, kind, list, loading, picked, labe
 }) {
   const all = (list?.procedures ?? []).filter(p => p.kind === kind);
   const plates = usePreferences(s => s.plates);
-  // The whole list opens a sheet of its own: focus not handed back to the
-  // trigger as the menu closes, which the sheet took for a tap outside it
-  // and closed (the desktop's popover).
-  const toSheet = useRef(false);
-  // A runway's approaches and a procedure's transitions are pages of the
-  // menu itself, pushed in its place with a back row at their head, as an
-  // iOS menu opens a submenu in place: side by side they ran off a
-  // phone's screen (the owner's screenshot, 2026-10-19).
+  // A runway's approaches and a procedure's transitions are pages pushed
+  // in the panel's place, Back at the head's left to the one before.
   const [pages, setPages] = useState<Page[]>([]);
-  // Opened by a finger's tap, its lift, not its touch, at the owner's ask
-  // ("Just tapping a selection opens it, instead of tapping and
-  // releasing?"): Radix opens on the press, so a scroll of the list that
-  // began on a pull-down opened it. A mouse's press and the keyboard as
-  // Radix has them.
   const [open, setOpen] = useState(false);
-  const pressedBy = useRef<string | null>(null);
   const toggle = (next: boolean) => {
     setOpen(next);
     if (next) onOpen(); else setPages([]);
   };
+  // The whole list opens a sheet of its own: focus not handed back to the
+  // trigger as this closes, which the sheet took for a tap outside it
+  // and closed (the desktop's popover).
+  const toSheet = useRef(false);
   const page = pages.at(-1) ?? null;
-  const push = (next: Page) => (event: Event) => { event.preventDefault(); setPages([...pages, next]); };
-  const back = (event: Event) => { event.preventDefault(); setPages(pages.slice(0, -1)); };
+  const push = (next: Page) => setPages([...pages, next]);
+  const pick = (next: { id: string; transition: string | null } | null) => { onPick(next); toggle(false); };
   const runwayName = (r: string) => (r === "Circling" ? "Circling" : `Runway ${r}${r === windward ? " · into the wind" : ""}`);
   const item = (p: ProcedureSummary, name: string) => {
     const on = picked?.id === p.id;
     // Its transitions a page where it has any; else picked at a tap.
-    return p.transitions.length === 0 ? (
-      <DropdownMenuItem key={p.id} onSelect={() => onPick({ id: p.id, transition: null })} data-testid="procedure-menu-item">
-        <Mark on={on} />{name}
-      </DropdownMenuItem>
-    ) : (
-      <DropdownMenuItem key={p.id} onSelect={push({ procedure: p, name })} data-testid="procedure-menu-item">
-        <Mark on={on} /><span className="flex-1">{name}</span><ChevronRight className="size-4 text-muted-foreground" aria-hidden />
-      </DropdownMenuItem>
+    return (
+      <ListRow
+        key={p.id} title={name} value={<Mark on={on} />} aria-pressed={on} chevron={p.transitions.length > 0}
+        onClick={() => (p.transitions.length > 0 ? push({ procedure: p, name }) : pick({ id: p.id, transition: null }))}
+        data-testid="procedure-menu-item"
+      />
     );
   };
   // An approach's by runway: the runway landed on first, open; the rest a
@@ -103,29 +95,22 @@ export default function ProcedureMenu({ ident, kind, list, loading, picked, labe
   const first = kind === "approach"
     ? [runway, windward, ...byRunway.keys()].find(r => r !== null && byRunway.has(r)) ?? null : null;
   const others = [...byRunway.keys()].filter(r => r !== first).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-  const head = (title: string) => (
-    <>
-      <DropdownMenuItem onSelect={back} className="text-tint" data-testid="procedure-menu-back">
-        <ChevronLeft className="size-4" aria-hidden />Back
-      </DropdownMenuItem>
-      <DropdownMenuLabel className={cn("text-muted-foreground", TEXT.note)}>{title}</DropdownMenuLabel>
-    </>
-  );
+  const title = page && "procedure" in page ? page.procedure.name : page ? runwayName(page.runway) : `${ident} ${TITLE[kind].toLowerCase()}`;
   return (
-    <DropdownMenu open={open} onOpenChange={toggle}>
-      <DropdownMenuTrigger
-        asChild
-        onPointerDown={event => {
-          pressedBy.current = event.pointerType;
-          if (event.pointerType === "touch") event.preventDefault();
-        }}
-        onClick={() => { if (pressedBy.current === "touch" && !open) toggle(true); }}
-      >
+    // Expanded as everything in the app is, at the owner's ask ("whenever
+    // anything is expanded it should open with the title on top with a
+    // back button on the left and close button on the right"): its title
+    // on top, Back on the left once a page is pushed, the close on the
+    // right; a fixed height, its list scrolling in it. On a phone a sheet
+    // (ResponsivePopover), beside the trigger from md up.
+    <ResponsivePopover open={open} onOpenChange={toggle}>
+      <ResponsivePopoverTrigger asChild>
         {/* One line, at the owner's ask: the kind's name ("Approach") until
             one is picked ("Just remove the word select"), then the one
-            picked, in the tint as what is tapped. */}
-        {/* A chip's size beside the field's ident in its head, its 44-point
-            area a pseudo-element round it (the owner's compact head). */}
+            picked, in the tint as what is tapped. A chip's size beside the
+            field's ident in its head, its 44-point area a pseudo-element
+            round it (the owner's compact head). Opened by a tap -- its
+            lift, as a button's click is -- not a touch. */}
         <button
           type="button" data-testid="procedure-kind" data-kind={kind}
           className={cn(
@@ -137,68 +122,78 @@ export default function ProcedureMenu({ ident, kind, list, loading, picked, labe
           <span className="truncate">{label ?? SHORT[kind]}</span>
           <ChevronDown className="size-4 shrink-0" aria-hidden />
         </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent
-        align="start" collisionPadding={12} className="w-[min(16rem,calc(100vw-1.5rem))]" data-testid="procedure-menu"
+      </ResponsivePopoverTrigger>
+      <ResponsivePopoverContent
+        title={title} align="start" side="bottom"
+        className="flex h-[26rem] w-80 flex-col gap-3 overflow-y-auto p-3"
+        sheetClassName="data-[side=bottom]:h-[60dvh] data-[side=top]:h-[60dvh]"
+        // The map above it in sight and clear, no shade or blur over it, as
+        // the Procedures sheet keeps it (the owner's screenshot: blurred).
+        sheetOverlayClassName="bg-transparent dark:bg-transparent supports-backdrop-filter:backdrop-blur-none"
+        leading={page ? <BackButton onClick={() => setPages(pages.slice(0, -1))} data-testid="procedure-menu-back" /> : undefined}
+        action={<CloseButton onClick={() => toggle(false)} data-testid="procedure-menu-close" />}
+        data-testid="procedure-menu"
         onCloseAutoFocus={event => { if (toSheet.current) event.preventDefault(); toSheet.current = false; }}
       >
         {page && "procedure" in page ? (
-          <>
-            {head(page.name)}
-            {[null, ...page.procedure.transitions].map(t => (
-              <DropdownMenuItem key={t ?? "-"} onSelect={() => onPick({ id: page.procedure.id, transition: t })} data-testid="procedure-menu-transition">
-                <Mark on={picked?.id === page.procedure.id && (picked.transition ?? null) === t} />{transitionWords(kind, t)}
-              </DropdownMenuItem>
-            ))}
-          </>
+          <ListGroup>
+            {[null, ...page.procedure.transitions].map(t => {
+              const on = picked?.id === page.procedure.id && (picked.transition ?? null) === t;
+              return (
+                <ListRow
+                  key={t ?? "-"} title={transitionWords(kind, t)} value={<Mark on={on} />} aria-pressed={on}
+                  onClick={() => pick({ id: page.procedure.id, transition: t })} data-testid="procedure-menu-transition"
+                />
+              );
+            })}
+          </ListGroup>
         ) : page ? (
-          <>
-            {head(runwayName(page.runway))}
-            {(byRunway.get(page.runway) ?? []).map(p => item(p, shortName(p)))}
-          </>
+          <ListGroup>{(byRunway.get(page.runway) ?? []).map(p => item(p, shortName(p)))}</ListGroup>
         ) : (
           <>
-            {loading && all.length === 0 && <DropdownMenuItem disabled>Looking them up…</DropdownMenuItem>}
-            {!loading && all.length === 0 && <DropdownMenuItem disabled>None published</DropdownMenuItem>}
+            {all.length === 0 && (
+              <p role="status" className={cn("px-1 text-muted-foreground", TEXT.detail)}>{loading ? "Looking them up…" : "None published"}</p>
+            )}
             {kind === "approach" && first !== null && (
               <>
-                <DropdownMenuLabel className={cn("text-muted-foreground", TEXT.note)}>{runwayName(first)}</DropdownMenuLabel>
-                {byRunway.get(first)!.map(p => item(p, shortName(p)))}
-                {others.length > 0 && <DropdownMenuSeparator />}
-                {others.map(r => (
-                  <DropdownMenuItem key={r} onSelect={push({ runway: r })} data-testid="procedure-menu-runway">
-                    <Mark on={byRunway.get(r)!.some(p => p.id === picked?.id)} />
-                    <span className="flex-1">{runwayName(r)}</span><ChevronRight className="size-4 text-muted-foreground" aria-hidden />
-                  </DropdownMenuItem>
-                ))}
+                <ListGroup title={runwayName(first)}>{byRunway.get(first)!.map(p => item(p, shortName(p)))}</ListGroup>
+                {others.length > 0 && (
+                  <ListGroup title="Other runways">
+                    {others.map(r => (
+                      <ListRow
+                        key={r} title={runwayName(r)} chevron value={<Mark on={byRunway.get(r)!.some(p => p.id === picked?.id)} />}
+                        onClick={() => push({ runway: r })} data-testid="procedure-menu-runway"
+                      />
+                    ))}
+                  </ListGroup>
+                )}
               </>
             )}
-            {kind !== "approach" && all.map(p => item(p, p.name))}
-            <DropdownMenuSeparator />
-            {/* The plate on the chart or not, the menu kept open to see it
-                go, at the owner's ask. */}
-            {kind === "approach" && picked && (
-              <DropdownMenuCheckboxItem
-                checked={plates} onCheckedChange={on => usePreferences.getState().setPlates(on)} onSelect={event => event.preventDefault()}
-                data-testid="procedure-menu-plate"
-              >
-                Plate on the map
-              </DropdownMenuCheckboxItem>
-            )}
-            {picked && <DropdownMenuItem onSelect={() => onPick(null)} data-testid="procedure-menu-none">{NONE[kind]}</DropdownMenuItem>}
-            <DropdownMenuItem onSelect={() => { toSheet.current = true; onAll(); }} data-testid="procedure-menu-all">{ALL[kind]}</DropdownMenuItem>
+            {kind !== "approach" && all.length > 0 && <ListGroup>{all.map(p => item(p, p.name))}</ListGroup>}
+            <ListGroup>
+              {/* The plate on the chart or not, at the owner's ask. */}
+              {kind === "approach" && picked && (
+                <ListRow title="Plate on the map">
+                  <Switch checked={plates} onCheckedChange={on => usePreferences.getState().setPlates(on)} aria-label="Plate on the map" data-testid="procedure-menu-plate" />
+                </ListRow>
+              )}
+              {picked && <ListRow title={NONE[kind]} onClick={() => pick(null)} data-testid="procedure-menu-none" />}
+              <ListRow title={ALL[kind]} chevron onClick={() => { toSheet.current = true; toggle(false); onAll(); }} data-testid="procedure-menu-all" />
+            </ListGroup>
           </>
         )}
-      </DropdownMenuContent>
-    </DropdownMenu>
+      </ResponsivePopoverContent>
+    </ResponsivePopover>
   );
 }
 
-/** A page of the menu pushed in its place: a runway's approaches, or a
+/** A page of the panel pushed in its place: a runway's approaches, or a
  *  procedure's transitions. */
 type Page = { runway: string } | { procedure: ProcedureSummary; name: string };
 
-/** The one picked, ticked; the others kept in line with it. */
+/** The one picked, ticked at the row's end, as an iOS list's choice is;
+ *  nothing on the others, so no row is set in for it (the owner's
+ *  screenshot: every row stood in by an empty mark's room). */
 function Mark({ on }: { on: boolean }) {
-  return <Check className={cn("size-4 shrink-0 text-tint", !on && "invisible")} aria-hidden />;
+  return on ? <Check className="size-5 shrink-0 text-tint" aria-hidden /> : null;
 }

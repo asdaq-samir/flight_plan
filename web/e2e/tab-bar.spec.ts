@@ -175,9 +175,10 @@ test("the Brief is a card over FPL, from the chips' Brief: Preflight, Depart, En
   const panel = sideDrawer(page);
   await expect(panel.getByTestId("route-saved")).toHaveCount(0);
   await panel.getByTestId("route-brief").click();
-  // Half way, as an airport's card opens; the route's name at its head,
-  // its pages under it, the route's box and figures out of sight.
-  await expect(panel).toHaveAttribute("data-panel", "half");
+  // At the height FPL was, all the way up (the owner's "Brief opens in
+  // half card when clicked on full fpl tab"); the route's name at its
+  // head, its pages under it, the route's box and figures out of sight.
+  await expect(panel).toHaveAttribute("data-panel", "full");
   const card = panel.getByTestId("brief-card");
   await expect(card).toBeVisible();
   await expect(card.getByTestId("brief-name")).toHaveText("C81 → KDLH");
@@ -327,7 +328,7 @@ test("all the way up, another tab tapped is that tab all the way up; the tab up 
   await expect(panel).toHaveAttribute("data-panel", "half");
 });
 
-test("with a mouse's wheel, down over the panel brings it up a size, up takes it down, and sideways goes to the tab beside", async ({ page }) => {
+test("with a mouse's wheel, down over the panel brings it up a size, up takes it down, and sideways switches no tab", async ({ page }) => {
   // The owner's ask: "on a desktop, the scrolling should transition the
   // layout and tabs".
   test.skip((page.viewportSize()?.width ?? 0) < 768, "a desktop's wheel");
@@ -363,9 +364,8 @@ test("with a mouse's wheel, down over the panel brings it up a size, up takes it
   await expect(panel).toHaveAttribute("data-panel", "full");
   await flick(0, -40);
   await expect(panel).toHaveAttribute("data-panel", "half");
+  // Sideways: no tab (the owner's "let's not support swipe to switch tabs").
   await flick(40, 0);
-  await expect(page.getByTestId("tab-airport")).toHaveAttribute("aria-current", "page");
-  await flick(-40, 0);
   await expect(page.getByTestId("tab-fpl")).toHaveAttribute("aria-current", "page");
 });
 

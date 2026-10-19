@@ -2,7 +2,6 @@ import { Suspense, lazy, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "cn";
 import { PillSection } from "../../components/Favorites";
-import { ListGroup } from "../../components/GroupedList";
 import QuickControls from "../../components/QuickControls";
 import { pilotQuery } from "../../lib/queryClient";
 import { TEXT } from "../../lib/text";
@@ -41,10 +40,9 @@ export default function SetupPill({ testId = "setup-pill", rows }: {
         title="Account" testId={`${testId}-account`}
         right={<>{!pilot && <Suspense fallback={null}><SignInModal plain /></Suspense>}<AccountMenu /></>}
       >
-        <p className={cn("truncate text-muted-foreground", TEXT.row)} data-testid="pilot-address">
-          {pilot?.displayName ?? "Not signed in"}
-        </p>
-        {rows && <div data-testid="library-section"><ListGroup>{rows}</ListGroup></div>}
+        {/* Who is signed in is the role menu's title (AccountMenu). */}
+        {!pilot && <p className={cn("truncate text-muted-foreground", TEXT.row)}>Not signed in</p>}
+        {rows && <div className="flex justify-between gap-2 pt-1" data-testid="library-section">{rows}</div>}
       </PillSection>
     </div>
   );

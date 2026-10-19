@@ -12,7 +12,8 @@ export default function BackButton({ label = "Back", ...props }: Omit<ComponentP
   label?: string;
 }) {
   return (
-    <RoundButton label={label} {...props}>
+    // Marked so a swipe to the right takes it (TabBar), as iOS's swipe back.
+    <RoundButton label={label} data-back-button="" {...props}>
       <ChevronLeft className="back-glyph size-6!" strokeWidth={1.7} />
     </RoundButton>
   );

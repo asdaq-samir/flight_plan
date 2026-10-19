@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { PlaceTile } from "./Favorites";
 import { ChevronLeft } from "lucide-react";
 import { cn } from "cn";
 import { TEXT } from "../lib/text";
@@ -66,7 +67,8 @@ export function ConsolePages({ back, pages, children }: {
           className="space-y-4 duration-200 animate-in fade-in slide-in-from-right-4 [&:has([data-slot=console-page])>[data-slot=page-head]]:hidden"
         >
           <div className="space-y-4" data-slot="page-head">
-            <Button type="button" variant="ghost" size="sm" className="-ml-2 gap-0.5 px-1.5" onClick={() => { setPopped(true); setOpen(null); }}>
+            {/* Marked so a swipe to the right takes it (TabBar), as iOS's swipe back. */}
+            <Button type="button" variant="ghost" size="sm" className="-ml-2 gap-0.5 px-1.5" data-back-button="" onClick={() => { setPopped(true); setOpen(null); }}>
               <ChevronLeft className="size-5" />
               {back}
             </Button>
@@ -98,6 +100,27 @@ export function PageRow({ page, title, description, value, media, testId }: {
   const back = pages?.from === page;
   useEffect(() => { if (back) row.current?.focus(); }, [back]);
   return <ListRow ref={row} title={title} description={description} value={value} media={media} chevron onClick={() => pages?.open(page)} data-testid={testId} />;
+}
+
+/** A page's tile, as Favorites' places are, its page opened at a tap:
+ *  the account's things in Setup, at the owner's ask ("like favorites, an
+ *  account can have the 4 things as icons that open in their card"). */
+export function PageTile({ page, title, detail, icon, colour, disabled, testId }: {
+  page: string;
+  title: string;
+  detail?: string;
+  icon: ReactNode;
+  colour: string;
+  disabled?: boolean;
+  testId?: string;
+}) {
+  const pages = useContext(Pages);
+  return (
+    <PlaceTile
+      icon={icon} className="text-white" style={{ backgroundColor: colour }} title={title} detail={detail}
+      onClick={() => pages?.open(page)} disabled={disabled} testId={testId}
+    />
+  );
 }
 
 /** A numbered step, as a row: its number in the tint's disc, what to

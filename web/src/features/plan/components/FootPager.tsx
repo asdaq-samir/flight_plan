@@ -10,8 +10,12 @@ import { cn } from "cn";
  * scrolling in its own. A sideways scroller, so the tab bar's swipe
  * across the panel leaves it be (TabBar).
  */
-export default function FootPager({ pages, page: at, onPage, testId }: {
+export default function FootPager({ pages, page: at, onPage, introFrom, testId }: {
   pages: { label: string; node: ReactNode }[];
+  /** Drawn first at this page and slid to `page`, at the owner's ask: the
+   *  sheet brought down from all the way up, the side view seen sliding
+   *  off to the right, where a swipe brings it back. */
+  introFrom?: number;
   /** The page shown, kept by the page round it as the sheet changes
    *  height and the pager is drawn anew (PlanWorkspace's footPage). */
   page: number;
@@ -24,6 +28,24 @@ export default function FootPager({ pages, page: at, onPage, testId }: {
     const el = box.current;
     if (el && el.clientWidth && Math.round(el.scrollLeft / el.clientWidth) !== at) el.scrollLeft = at * el.clientWidth;
   }, [at]);
+  // Drawn as if at `introFrom`, the pages then slid along to the page
+  // shown -- a transform on each page, the scroll left where it is, so it
+  // ends where it should whatever the browser does with a smooth scroll
+  // under a snap (the owner's phone stayed on the side view) -- unless the
+  // pilot asks for less motion.
+  const introduced = useRef(false);
+  useLayoutEffect(() => {
+    const el = box.current;
+    if (introduced.current || introFrom === undefined || introFrom === at || !el) return;
+    introduced.current = true;
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const by = (introFrom - at) * 100;
+    for (const page of el.querySelectorAll<HTMLElement>(":scope > section")) {
+      page.animate([{ transform: `translateX(${-by}%)` }, { transform: "translateX(0)" }], { duration: 450, easing: "cubic-bezier(0.2, 0, 0, 1)" });
+    }
+    // Once, as it is first drawn.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const go = (i: number) => {
     const el = box.current;
     if (el) el.scrollTo({ left: i * el.clientWidth, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });

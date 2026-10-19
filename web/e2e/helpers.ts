@@ -437,13 +437,18 @@ export async function openNavLog(page: Page) {
   return sheet;
 }
 
-/** The nav log's sheet, and what scrolls in it. */
+/** The nav log's card over FPL (the owner's "make Navlog open like brief
+ *  does"), and what scrolls in it. */
 export const navLogSheet = (page: Page) => page.getByTestId("navlog-sheet");
-export const navLogScroller = (page: Page) => page.locator(".overflow-y-auto").filter({ has: navLogSheet(page) }).last();
+export const navLogScroller = (page: Page) => page.getByTestId("navlog-scroller").filter({ has: navLogSheet(page) }).last();
 
-/** The nav log's sheet put away, FPL under it again. */
+/** The nav log's card put away, FPL under it again: its close, kept for a
+ *  keyboard and a screen reader (CardClose), the tab bar's Back's twin. */
 export async function closeNavLog(page: Page) {
-  if (await navLogSheet(page).isVisible()) await page.getByTestId("navlog-close").click();
+  if (await navLogSheet(page).isVisible()) {
+    await page.getByTestId("navlog-close").focus();
+    await page.keyboard.press("Enter");
+  }
   await expect(navLogSheet(page)).toHaveCount(0);
 }
 
