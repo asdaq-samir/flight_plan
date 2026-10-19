@@ -168,12 +168,9 @@ test("half way the side view is whole, its dry run plays under the route's chips
   const panel = sideDrawer(page);
   const start = panel.getByTestId("dry-run-start");
   await expect(start).toBeVisible({ timeout: slow(60_000) });
-  // The side view whole, with the route's two ends under it (RouteEnds,
-  // the owner's pick of the half card, Fit 2): what the half sheet leaves
-  // it, at the least the six rem the owner's mockup gave it.
+  // The side view at its ten rem, nothing of it given way.
   const side = start.locator("xpath=ancestor::*[@data-pill-hides][1]");
-  expect((await side.boundingBox())!.height).toBeGreaterThanOrEqual(96);
-  await expect(panel.getByTestId("route-ends")).toBeVisible();
+  expect((await side.boundingBox())!.height).toBeGreaterThanOrEqual(159);
   // The finest sectional level drawn (the coarse one kept under the map,
   // ChartTiles, aside): the route's as it was fitted, then on play the
   // dry run's, in on its airplane, smoothly (the owner's "When play is
@@ -196,9 +193,7 @@ test("half way the side view is whole, its dry run plays under the route's chips
   await page.mouse.move(grabber.x + grabber.width / 2, grabber.y + grabber.height / 2);
   await page.mouse.down();
   await page.mouse.move(grabber.x + grabber.width / 2, grabber.y + grabber.height / 2 - 150, { steps: 12 });
-  // FPL's list coming out over it: less of it for the route's ends half
-  // way (RouteEnds), still at the foot as the sheet comes up.
-  await expect.poll(async () => (await panel.getByTestId("navlog-scroller").boundingBox())?.height ?? 0).toBeGreaterThan(60);
+  await expect.poll(async () => (await panel.getByTestId("navlog-scroller").boundingBox())?.height ?? 0).toBeGreaterThan(100);
   const held = (await run.boundingBox())!;
   expect(Math.abs(held.y - before.y)).toBeLessThan(2);
   expect(Math.abs(held.height - before.height)).toBeLessThan(2);
