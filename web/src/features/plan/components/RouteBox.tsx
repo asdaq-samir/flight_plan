@@ -311,11 +311,14 @@ export default function RouteBox({
         // it read "Departu".
         // After the last point, clear of it, as a field's words are of
         // its edge: its words ran into the destination's pill. With no
-        // words after a whole route, and not being typed in, narrow
-        // enough to stay on the route's line: at 48 it took a second line
-        // of its own, empty, under four points.
+        // words after a whole route, and not being typed in, as narrow as
+        // the room left on the route's line, none at all where the line is
+        // full: at 48 it took a second line of its own, empty, under four
+        // points, and at 24 still did under a procedure's chip and three
+        // fields (the owner's recording, 2026-10-18). A tap on the box's
+        // room past the last point is still its (below).
         at === null
-          ? cn("flex-1 pl-2", hasDest && points.length > 0 && !focused && !typed ? "min-w-6" : "min-w-12")
+          ? cn("flex-1 pl-2", hasDest && points.length > 0 && !focused && !typed ? "min-w-0 pl-0" : "min-w-12")
           : cn("shrink-0 rounded-full bg-background/60 px-2", at === 0 && !hasDep ? "w-28" : "w-20"),
       )}
       data-testid="route-type"

@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { openTab, settle, settled, sideDrawer, slow } from "./helpers";
+import { grabberTo, openTab, settle, settled, sideDrawer, slow } from "./helpers";
 
 /**
  * The route's Procedures (ProceduresRoute), FPL's list, at the pilot's ask: a field's
@@ -143,4 +143,23 @@ test("a field's approach is picked on its own page with its transition, drawn on
   await page.getByTestId("procedures-close").click();
   await expect(page.getByTestId("procedure-add")).toHaveCount(0);
   await expect(page.locator("path.instrument-procedure")).toHaveCount(0);
+});
+
+test.describe("on the owner's phone's width, to a finger", () => {
+  // A finger's 17-point words (pointer: coarse), on 393 points.
+  test.use({ hasTouch: true, isMobile: true, viewport: { width: 393, height: 695 } });
+
+  test("a route with a procedure's chip and three fields stays one line in the route's box, the field past its end taking no line of its own", async ({ page }) => {
+  test.skip(test.info().project.name !== "mobile", "a phone's box");
+  // The owner's recording: C81 → its ILS 09 via DLH → KDLH → KRFD, where
+  // the empty field after KRFD wrapped onto a second line.
+  await page.route(url => /\/airport\/KDLH\/procedures\/I09/.test(url.pathname), route => route.fulfill({ json: { ...DRAWN, transition: "DLH" } }));
+  await page.goto("/app/plan?dep=C81&stops=KDLH&dest=KRFD&procs=KDLH:I09:DLH");
+  await settle(page);
+  // Half way, the sheet in from the screen's sides, its box the narrower.
+  await grabberTo(page, "half");
+  const box = sideDrawer(page).getByTestId("route-box");
+  await expect(box.getByTestId("route-procedure")).toBeVisible({ timeout: slow(10000) });
+  expect((await box.boundingBox())!.height).toBeLessThanOrEqual(48);
+});
 });
