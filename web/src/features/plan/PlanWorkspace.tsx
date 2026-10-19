@@ -41,7 +41,7 @@ import AirspaceCard from "./components/AirspaceCard";
 import PlaceCard from "./components/PlaceCard";
 import ProceduresRoute, { type ProcedureAirport, type ProceduresAt } from "./components/ProceduresRoute";
 import { patternsOf, patternsParam, trafficPattern, type TrafficPattern } from "../../lib/trafficPattern";
-import { proceduresOf, proceduresParam, sameField, type PickedProcedure } from "../../lib/procedures";
+import { approachRunway, proceduresOf, proceduresParam, sameField, type PickedProcedure } from "../../lib/procedures";
 import { runwayNumber } from "../../lib/pattern";
 import NearestCard, { NearestStrip } from "./components/NearestCard";
 import AircraftCard, { AircraftRecentsPage } from "./components/AircraftCard";
@@ -163,6 +163,20 @@ const PLANNER_TABS: BarTab<PanelTab>[] = [
   // in full from the strip's title, at the owner's pick of the redesign
   // ("make it 4 tabs, combining the nearest into airport").
 ];
+
+/** The address with a field's ident changed everywhere it is named: the
+ *  route's ends, its traffic patterns, its procedures and its points'
+ *  altitudes, so a pick made under "ORD" stays with KORD. */
+function renamed(params: URLSearchParams, from: string, to: string): URLSearchParams {
+  const swap = (ident: string) => (ident === from ? to : ident);
+  return patched(params, {
+    dep: params.get("dep") === from ? to : undefined,
+    dest: params.get("dest") === from ? to : undefined,
+    pattern: params.has("pattern") ? patternsParam(new Map([...patternsOf(params.get("pattern"))].map(([ident, end]) => [swap(ident), end]))) : undefined,
+    procs: params.has("procs") ? proceduresParam(proceduresOf(params.get("procs")).map(p => ({ ...p, ident: swap(p.ident) }))) : undefined,
+    altitudes: params.has("altitudes") ? altitudesParam(Object.fromEntries(Object.entries(altitudesOf(params.get("altitudes"))).map(([ident, at]) => [swap(ident), at]))) : undefined,
+  });
+}
 
 export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: WorkspaceProps) {
   useEffect(() => {
@@ -378,6 +392,20 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // handed straight to a function counted, to the React Compiler, as the
   // object handed over and maybe changed, and it gave up every memo after.
   const { data: destCard } = useQuery({ ...airportQuery(`${planned.dest}`), enabled: !!planned.dest });
+  const typedDep = `${planned.dep}`, typedDest = `${planned.dest}`;
+  const { data: depCard } = useQuery({ ...airportQuery(typedDep), enabled: !!identOf(typedDep) });
+  // The route's ends by the airport's own ident once its card is in, the
+  // ICAO code where it has one: "ORD" typed is KORD in the box, the list
+  // and the nav log, at the owner's ask; C81, with none, stays C81. Its
+  // stops stay as typed: three letters there may name a VOR.
+  const depNamed = depCard?.ident, destNamed = destCard?.ident;
+  useEffect(() => {
+    const named = (card: string | undefined, typed: string) => (card && card !== typed && sameField(card, typed) ? card : null);
+    const swaps = [[typedDep, named(depNamed, typedDep)], [typedDest, named(destNamed, typedDest)]]
+      .flatMap(([typed, card]) => (typed && card ? [[typed, card] as const] : []));
+    if (!swaps.length) return;
+    setSearchParams(prev => swaps.reduce((params, [typed, card]) => renamed(params, typed, card), prev), { replace: true });
+  }, [depNamed, destNamed, typedDep, typedDest, setSearchParams]);
   // Greyed only once its card says it has none; a planner older than the
   // list says nothing, and the button stays.
   const noApproaches = !!destCard?.procedures && !destCard.procedures.some(c => c.kind === "IAP");
@@ -423,10 +451,17 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // Those drawn, said in the route's box after their fields (RouteBox's
   // chips), each a tap from the Procedures it was picked in.
   const routeProcedures = useMemo<RouteProcedure[]>(() => procedureDrawings.map(d => ({
-    ident: d.airport, kind: d.kind,
+    ident: d.airport, kind: d.kind, id: d.id, runway: d.kind === "approach" ? approachRunway(d.name) : null,
     label: `${d.name.replace(/ RWY /, " ")}${d.transition ? ` · ${d.transition}` : ""}`,
     spoken: `${d.name}${d.transition ? ` via ${d.transition}` : ""}`,
   })), [procedureDrawings]);
+  // The patterns flown: none at a field the route lands at by an
+  // approach, whose runway chip then says the runway landed on, straight
+  // in or circled to -- a circle to land is flown at the plate's circling
+  // minimums, not at pattern altitude (AIM 5-4-20), so no pattern is
+  // drawn for it.
+  const flownPatterns = useMemo(() => patterns.filter(p => !routeProcedures.some(r => r.kind === "approach" && sameField(r.ident, p.ident))),
+    [patterns, routeProcedures]);
   // The departure and the arrival picked at the route's ends, filed in
   // the flight plan's route (lib/flightPlanForm).
   const filedProcedures = useMemo(() => {
@@ -1539,7 +1574,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           onSelectCandidate={selectCandidate}
           onSelectPoint={pickPoint}
           airportWeather={s.briefing}
-          patterns={patterns}
+          patterns={flownPatterns}
           patternFocus={patternFocus}
           procedures={mapProcedures}
           procedureFocus={procedureFocus}

@@ -104,3 +104,31 @@ def test_a_plate_kept_as_not_placed_is_none_until_the_placing_changes(tmp_path):
     assert plates._kept(meta)["placed"] is False
     meta.write_text('{"cycle": "2610", "name": "RNAV (GPS) RWY 3", "placed": true, "south": 46.6}')
     assert plates._kept(meta)["south"] == 46.6
+
+
+def test_circling_minimums_are_the_plates_circling_line(monkeypatch):
+    class Page:
+        def __init__(self, text):
+            self.text = text
+
+        def get_textpage(self):
+            return self
+
+        def get_text_range(self):
+            return self.text
+
+    class Document:
+        def __init__(self, text):
+            self.pages = [Page(text)]
+
+        def __getitem__(self, i):
+            return self.pages[i]
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(plates.pypdfium2, "PdfDocument", Document)
+    # KDLH's ILS OR LOC RWY 09: a CIRCLING line, and a note narrowing it.
+    assert plates.circling_of("CATEGORY A B C D S-ILS 9 S-LOC 9 CIRCLING 1880-1 Circling NA for Cat E southeast of Rwy 3-27.")
+    # KORD's ILS RWY 09L: straight-in minimums alone.
+    assert not plates.circling_of("CATEGORY A B C D S-ILS 9L S-LOC 9L")

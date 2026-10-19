@@ -254,6 +254,14 @@ export const airportQuery = (ident: string) => queryOptions({
   queryKey: ["airport", ident], queryFn: () => api.airport(ident), staleTime: 5 * 60_000, meta: { silent: true },
 });
 
+/** An approach's plate placed on the map, and whether it publishes
+ *  circling minimums (vfr.plates): the map's (PlateLayer) and the route's
+ *  runway chips' (ProceduresRoute). A plate placed stays good for its
+ *  cycle's 28 days; none placed is said by none drawn, not a retry. */
+export const plateQuery = (airport: string, id: string) => queryOptions({
+  queryKey: ["plate", airport, id], queryFn: () => api.plate(airport, id), staleTime: 6 * 60 * 60_000, retry: false, meta: { silent: true },
+});
+
 /** The pilot's saved flights, for FPL's Saved and its list in full: quiet,
  *  each saying in place what it could not fetch (QueryState). */
 export const flightsQuery = queryOptions({

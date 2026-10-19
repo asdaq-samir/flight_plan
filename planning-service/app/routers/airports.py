@@ -332,17 +332,16 @@ def airport_procedure(ident: str, procedure: str, transition: str | None = None)
 def airport_procedure_plate(ident: str, procedure: str) -> PlateOverlay:
     """An approach's plate's plan view placed on the map for the approach
     picked (vfr.plates): where its picture goes, made once a cycle from the
-    FAA's d-TPP plate and the CIFP's fixes. 404 where the field has no
-    plate for it, its waypoints do not place it north up within a fifth of
-    a mile (most ILS, LOC and VOR plates, whose fixes are not drawn as
-    waypoint stars), or the FAA cannot be reached."""
+    FAA's d-TPP plate and its own georeference, and whether it publishes
+    circling minimums. 404 where the field has no plate for it, the plate
+    has no georeference, or the FAA cannot be reached."""
     try:
         found = plates.plate_overlay(ident, procedure)
     except RuntimeError as err:
         raise HTTPException(503, f"The FAA's procedure file could not be had: {err}") from err
     if found is None:
         raise HTTPException(404, f"No plate placed for {procedure.strip().upper()!r} at {ident.strip().upper()!r}.")
-    return {k: found[k] for k in ("cycle", "name", "south", "west", "north", "east", "fixes")}
+    return {k: found[k] for k in ("cycle", "name", "south", "west", "north", "east", "fixes", "circling")}
 
 
 @router.get("/api/approach-plate/{cycle}/{ident}/{procedure}.png", response_class=FileResponse,

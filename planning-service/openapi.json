@@ -7445,8 +7445,12 @@
         "type": "object"
       },
       "PlateOverlay": {
-        "description": "An approach's plate's plan view placed on the map (vfr.plates): the\nFAA's plate of `name` in d-TPP cycle `cycle`, its picture at\n/api/approach-plate/{cycle}/{ident}/{procedure}.png, black on clear,\nnorth up between these latitudes and longitudes, as the plate's own\ngeoreference places it; `fixes` the approach's fixes inside it.",
+        "description": "An approach's plate's plan view placed on the map (vfr.plates): the\nFAA's plate of `name` in d-TPP cycle `cycle`, its picture at\n/api/approach-plate/{cycle}/{ident}/{procedure}.png, black on clear,\nnorth up between these latitudes and longitudes, as the plate's own\ngeoreference places it; `fixes` the approach's fixes inside it;\n`circling` whether the plate publishes circling minimums, so a pilot\nflying the approach may circle to land on another runway.",
         "properties": {
+          "circling": {
+            "title": "Circling",
+            "type": "boolean"
+          },
           "cycle": {
             "title": "Cycle",
             "type": "string"
@@ -7486,7 +7490,8 @@
           "west",
           "north",
           "east",
-          "fixes"
+          "fixes",
+          "circling"
         ],
         "title": "PlateOverlay",
         "type": "object"
@@ -10345,7 +10350,7 @@
     },
     "/api/airport/{ident}/procedures/{procedure}/plate": {
       "get": {
-        "description": "An approach's plate's plan view placed on the map for the approach\npicked (vfr.plates): where its picture goes, made once a cycle from the\nFAA's d-TPP plate and the CIFP's fixes. 404 where the field has no\nplate for it, its waypoints do not place it north up within a fifth of\na mile (most ILS, LOC and VOR plates, whose fixes are not drawn as\nwaypoint stars), or the FAA cannot be reached.",
+        "description": "An approach's plate's plan view placed on the map for the approach\npicked (vfr.plates): where its picture goes, made once a cycle from the\nFAA's d-TPP plate and its own georeference, and whether it publishes\ncircling minimums. 404 where the field has no plate for it, the plate\nhas no georeference, or the FAA cannot be reached.",
         "operationId": "airport_procedure_plate_api_airport__ident__procedures__procedure__plate_get",
         "parameters": [
           {

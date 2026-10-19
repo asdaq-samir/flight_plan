@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { altitudeLines, speedWords, kindsFor, proceduresOf, proceduresParam, sameField } from "./procedures";
+import { altitudeLines, approachRunway, kindsFor, proceduresOf, proceduresParam, sameField, speedWords } from "./procedures";
 
 describe("speedWords", () => {
   it("words a speed by its limit, not as a maximum always", () => {
@@ -49,5 +49,15 @@ describe("the route's fields", () => {
     expect(sameField("KBUR", "BUR")).toBe(true);
     expect(sameField("C81", "C81")).toBe(true);
     expect(sameField("KBUR", "KVNY")).toBe(false);
+  });
+});
+
+describe("approachRunway", () => {
+  it("names an approach's runway as the pattern's chip does", () => {
+    expect(approachRunway("ILS RWY 09L")).toBe("9L");
+    expect(approachRunway("RNAV (GPS) Y RWY 27")).toBe("27");
+    expect(approachRunway("VOR/DME RWY 3")).toBe("3");
+    // Circling only: no runway of its own.
+    expect(approachRunway("VOR-A")).toBeNull();
   });
 });

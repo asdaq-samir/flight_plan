@@ -1751,7 +1751,9 @@ class PlateOverlay(BaseModel):
     FAA's plate of `name` in d-TPP cycle `cycle`, its picture at
     /api/approach-plate/{cycle}/{ident}/{procedure}.png, black on clear,
     north up between these latitudes and longitudes, as the plate's own
-    georeference places it; `fixes` the approach's fixes inside it."""
+    georeference places it; `fixes` the approach's fixes inside it;
+    `circling` whether the plate publishes circling minimums, so a pilot
+    flying the approach may circle to land on another runway."""
 
     cycle: str
     name: str
@@ -1760,6 +1762,7 @@ class PlateOverlay(BaseModel):
     north: float
     east: float
     fixes: list[str]
+    circling: bool
 
 
 class ChartPage(BaseModel):

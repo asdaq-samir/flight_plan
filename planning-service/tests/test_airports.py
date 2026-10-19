@@ -518,7 +518,7 @@ def test_an_approachs_plate_is_placed_on_the_map_and_its_picture_served(monkeypa
     picture = tmp_path / "plate.png"
     picture.write_bytes(b"\x89PNG\r\n\x1a\n")
     placed = {"cycle": publications.dtpp_cycle(), "name": "RNAV (GPS) RWY 3", "south": 46.6, "west": -92.5,
-              "north": 47.0, "east": -91.6, "fixes": ["OMARY", "AMLIY", "CLIPH"], "png": picture}
+              "north": 47.0, "east": -91.6, "fixes": ["OMARY", "AMLIY", "CLIPH"], "circling": True, "png": picture}
     monkeypatch.setattr(plates, "plate_overlay", lambda ident, procedure: placed if procedure == "R03" else None)
     got = client.get("/api/airport/KDLH/procedures/R03/plate")
     assert got.status_code == 200
