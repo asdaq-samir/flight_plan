@@ -335,7 +335,9 @@ final class SheetContainerViewController: UIViewController {
         for (index, button) in buttons.enumerated() where index < tabs.count {
             let value = tabs[index].value
             let selected = value == nextUp
-            button.tintColor = selected ? view.tintColor : .label
+            // The tab up in the app's blue, as everything tappable is
+            // (the page's --tint), the rest in the text's colour.
+            button.configuration?.baseForegroundColor = selected ? .systemBlue : .label
             button.accessibilityTraits = selected ? [.button, .selected] : [.button]
             // A tab's mark, as the page's red or amber dot.
             let mark = marks[value]
