@@ -13,7 +13,6 @@ import { altFt, one } from "../../../lib/units";
 import { enRoute } from "../figures";
 import { dryRunAt, runNmAt, type DryRun } from "./navlog/dryRun";
 import type { RouteEnds } from "./navlog/rows";
-import { TRACES } from "./flightTraces";
 import { when } from "./pastFlightFormat";
 
 const FlightChart = lazy(() => import("./PastFlightChart"));
@@ -89,25 +88,6 @@ export function DryRunControls({ run, ends, onClose, missed = false, onMissed }:
   };
   return (
     <div className="relative flex min-h-0 flex-1 flex-col rounded-xl bg-background/70 px-1 pt-1" data-testid="dry-run">
-      <p className={cn("flex min-h-9 items-center gap-2 pl-2 tabular-nums", onFinal ? "pr-[14rem]" : "pr-[8.25rem]", TEXT.detail)}>
-        {/* Each figure in its trace's colour (flightTraces), in place of the
-            chart's axes, at the owner's ask. */}
-        {here ? (
-          // One over the other while Go missed takes room beside them: in a
-          // line they were cut short there.
-          <span className={cn("font-semibold", onFinal ? "flex flex-col leading-tight" : "truncate")} data-testid="dry-run-now">
-            <span className={TRACES.alt.text}>{altFt(here.alt_ft)} ft</span>
-            {!onFinal && <span className="text-muted-foreground"> · </span>}
-            <span className={TRACES.kt.text}>{here.gs_kt != null ? `${Math.round(here.gs_kt)} kt` : "—"}</span>
-          </span>
-        ) : (
-          <span className="truncate">
-            <span className={TRACES.alt.text}>Altitude, ft</span>
-            <span className="text-muted-foreground"> · </span>
-            <span className={TRACES.kt.text}>ground speed, kt</span>
-          </span>
-        )}
-      </p>
       {/* Its controls on the chart, at its top right, where the side view's
           play is, at the owner's ask ("can the control buttons for the dry
           run be on the profile graph just like the play button"): from the
@@ -137,6 +117,11 @@ export function DryRunControls({ run, ends, onClose, missed = false, onMissed }:
         </RoundButton>
         <CloseButton onClick={onClose} data-testid="dry-run-close" />
       </div>
+      {/* The height and speed are said on the traces themselves (the
+          chart's NowMarks), where a line of words over the chart took a
+          row of its own: the controls over the chart's corner as the side
+          view's play is, at the owner's ask ("Dry run buttons can overlay
+          the chart like profile view does"). */}
       {/* Six rem, and what the side view's place leaves it, three at the
           least: a flex size the chart is drawn to -- a min-height alone left
           it none all the way up, and the chart blank (the owner's
@@ -148,7 +133,7 @@ export function DryRunControls({ run, ends, onClose, missed = false, onMissed }:
         <div className="absolute inset-0">
           <Suspense fallback={null}>
             <FlightChart
-              points={run.points} at={second} alongNm={run.alongNm} airspace={profile}
+              points={run.points} at={second ?? run.points[0]?.t ?? null} alongNm={run.alongNm} airspace={profile}
               laid={fraction => runNmAt(run, fraction * (run.bends.at(-1)?.route ?? 0))}
             />
           </Suspense>
@@ -158,7 +143,7 @@ export function DryRunControls({ run, ends, onClose, missed = false, onMissed }:
         <div
           ref={box} role="slider" tabIndex={0} aria-label="Where the dry run is along the course"
           aria-valuemin={Math.round(first)} aria-valuemax={Math.round(last)} aria-valuenow={nowNm === null ? undefined : Math.round(nowNm)}
-          aria-valuetext={nowNm === null ? undefined : `${Math.round(nowNm)} nm`}
+          aria-valuetext={nowNm === null ? undefined : `${Math.round(nowNm)} nm${here ? `, ${altFt(here.alt_ft)} feet, ${here.gs_kt != null ? `${Math.round(here.gs_kt)} knots` : "no ground speed"}` : ""}`}
           className="absolute inset-0 cursor-ew-resize touch-none rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring"
           onPointerDown={grab} onPointerMove={event => { if (held.current) seek(event.clientX); }}
           onPointerUp={letGo} onPointerCancel={letGo} onKeyDown={step}

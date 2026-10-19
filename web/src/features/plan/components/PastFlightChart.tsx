@@ -1,9 +1,9 @@
 import { memo, useMemo } from "react";
-import { Area, ComposedChart, Line, ReferenceArea, ReferenceLine, XAxis, YAxis } from "recharts";
+import { Area, ComposedChart, Line, ReferenceArea, ReferenceLine, XAxis, YAxis, usePlotArea, useXAxisScale, useYAxisScale } from "recharts";
 import { ChartContainer, type ChartConfig } from "../../../components/ui/chart";
 import type { PastFlightPoint, RouteProfile } from "../../../lib/api/types";
 import { clockTime } from "../../../lib/clock";
-import { grouped } from "../../../lib/units";
+import { altFt, grouped } from "../../../lib/units";
 import { when } from "./pastFlightFormat";
 import { TRACES } from "./flightTraces";
 import { AIRSPACE, ceilingOverFloor, ceilings, nameFits, namedPieces } from "./navlog/profile";
@@ -46,6 +46,16 @@ const FlightChart = memo(function FlightChart({ points, at, alongNm, airspace = 
     const f = b.t > a.t ? (at - a.t) / (b.t - a.t) : 0;
     return alongNm[i - 1]! + (alongNm[i]! - alongNm[i - 1]!) * f;
   }, [alongNm, at, points]);
+  // The height and speed there, between the points either side, for the
+  // figures riding the traces (NowMarks).
+  const now = useMemo(() => {
+    if (at === null || !points.length) return null;
+    const i = Math.max(1, Math.min(points.length - 1, points.findIndex(p => p.t >= at)));
+    const a = points[i - 1] ?? points[0]!, b = points[i] ?? a;
+    const f = b.t > a.t ? Math.min(1, Math.max(0, (at - a.t) / (b.t - a.t))) : 0;
+    const mix = (x: number | null | undefined, y: number | null | undefined) => (x == null || y == null ? x ?? y ?? null : x + (y - x) * f);
+    return { alt: mix(a.alt_ft, b.alt_ft) ?? 0, kt: mix(a.gs_kt, b.gs_kt) };
+  }, [at, points]);
   // The white space on top, a quarter again over the highest height; the
   // speed held to the chart's lower half, so the two traces read apart
   // where both run level (the owner's recording: a cruise at 3,000 ft and
@@ -108,9 +118,76 @@ const FlightChart = memo(function FlightChart({ points, at, alongNm, airspace = 
           strokeWidth={2} isAnimationActive={false} dot={false} />
         <Line yAxisId="kt" dataKey="kt" type="monotone" stroke="var(--color-kt)" strokeWidth={1.5} dot={false} isAnimationActive={false} connectNulls />
         {(plain ? atNm : at) !== null && <ReferenceLine yAxisId="alt" x={(plain ? atNm : at)!} stroke="var(--tint)" strokeWidth={2} />}
+        {plain && atNm !== null && now && <NowMarks nm={atNm} alt={now.alt} kt={now.kt} />}
       </ComposedChart>
     </ChartContainer>
   );
 });
+
+/** A figure's line of words, in pixels: its box's height, and how far
+ *  from its dot its middle sits, over or under it. */
+const MARK_LINE_PX = 18;
+const MARK_OFF_PX = 12;
+/** A figure's width, in pixels a character, for its box: 13-pixel
+ *  semibold figures, tabular. */
+const MARK_CHAR_PX = 7.6;
+/** The controls' corner over the chart, in pixels (DryRunControls): a
+ *  figure that would sit under them goes under its trace instead. */
+const CONTROLS_PX = { width: 150, height: 44 };
+
+/**
+ * The dry run's height and ground speed where it is, each a dot on its
+ * trace with its figure by it in the trace's colour, riding the line as
+ * the mark moves, at the owner's ask ("the altitude/speed number can
+ * trace their lines as the bar is moving"): the higher trace's figure
+ * over its line and the lower's under its own, so neither line runs
+ * through words; after the mark until the last two-fifths of the run and
+ * before it from there; one under the controls' corner or the chart's
+ * top set under its line. Each on a box of the background, over the
+ * airspace's names.
+ */
+function NowMarks({ nm, alt, kt }: { nm: number; alt: number; kt: number | null }) {
+  const x = useXAxisScale(), yAlt = useYAxisScale("alt"), yKt = useYAxisScale("kt"), area = usePlotArea();
+  const cx = x?.(nm);
+  if (cx === undefined || !yAlt || !area) return null;
+  const marks = [
+    { key: "alt", dot: yAlt(alt), words: `${altFt(alt)} ft`, colour: "var(--color-alt)" },
+    { key: "kt", dot: kt == null ? undefined : yKt?.(kt), words: `${Math.round(kt ?? 0)} kt`, colour: "var(--color-kt)" },
+  ].flatMap(m => (m.dot === undefined ? [] : [{ ...m, dot: m.dot }]));
+  const before = cx > area.x + area.width * 0.6;
+  const top = Math.min(...marks.map(m => m.dot));
+  const placed = marks.map(m => {
+    const width = m.words.length * MARK_CHAR_PX + 8;
+    const left = before ? cx - 6 - width : cx + 6;
+    const over = m.dot === top && marks.length > 1 ? true : marks.length === 1;
+    let middle = over ? m.dot - MARK_OFF_PX : m.dot + MARK_OFF_PX;
+    const hidden = left + width > area.x + area.width - CONTROLS_PX.width && middle - MARK_LINE_PX / 2 < area.y + CONTROLS_PX.height;
+    if (over && (hidden || middle - MARK_LINE_PX / 2 < area.y)) middle = m.dot + MARK_OFF_PX;
+    middle = Math.min(area.y + area.height - MARK_LINE_PX / 2, middle);
+    return { ...m, width, left, middle };
+  });
+  // Two set one on the other (both under their lines): the lower moved down.
+  if (placed.length === 2 && Math.abs(placed[0]!.middle - placed[1]!.middle) < MARK_LINE_PX) {
+    const lower = placed[0]!.dot > placed[1]!.dot ? placed[0]! : placed[1]!;
+    const upper = lower === placed[0] ? placed[1]! : placed[0]!;
+    lower.middle = upper.middle + MARK_LINE_PX;
+  }
+  return (
+    <g data-testid="dry-run-now" aria-hidden>
+      {placed.map(m => (
+        <g key={m.key} data-mark={m.key}>
+          <circle cx={cx} cy={m.dot} r={3.5} fill={m.colour} stroke="var(--background)" strokeWidth={1.5} />
+          <rect x={m.left} y={m.middle - MARK_LINE_PX / 2} width={m.width} height={MARK_LINE_PX} rx={5} fill="var(--background)" fillOpacity={0.85} />
+          <text
+            x={m.left + m.width / 2} y={m.middle} textAnchor="middle" dominantBaseline="central" fill={m.colour}
+            fontSize={13} fontWeight={600} style={{ fontVariantNumeric: "tabular-nums" }}
+          >
+            {m.words}
+          </text>
+        </g>
+      ))}
+    </g>
+  );
+}
 
 export default FlightChart;
