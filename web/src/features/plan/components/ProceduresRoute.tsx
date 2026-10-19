@@ -17,7 +17,7 @@ import { airportQuery, plateQuery } from "../../../lib/queryClient";
 import { approachRunway, sameField, type PickedProcedure } from "../../../lib/procedures";
 import { NO_PATTERN, trafficPattern } from "../../../lib/trafficPattern";
 import { TEXT } from "../../../lib/text";
-import { altFt } from "../../../lib/units";
+import { altFt, bearing } from "../../../lib/units";
 import { etaAt } from "../format";
 import { PointMark } from "./navlog/PointMark";
 import ProcedureMenu from "./ProcedureMenu";
@@ -159,6 +159,16 @@ export default function ProceduresRoute({
       dirTrueDeg: near.metar.wind_dir_true_deg, speedKt: near.metar.wind_speed_kt, gustKt: near.metar.wind_gust_kt,
     } : null);
   };
+  // The wind a field reports, else the nearest report's, as the METAR
+  // gives it (true, FAA Order JO 7900.5), for its info's trigger.
+  const reportedOf = (ident: string): Reported | null => {
+    const card = cards[airports.findIndex(a => a.ident === ident)]?.data;
+    const m = card?.metar ?? card?.nearby_metar?.metar;
+    if (!m || m.wind_speed_kt == null) return null;
+    if (!m.wind_speed_kt) return "calm";
+    const kt = Math.round(m.wind_speed_kt), gust = m.wind_gust_kt ? Math.round(m.wind_gust_kt) : null;
+    return { dir: m.wind_dir_true_deg == null ? "VRB" : bearing(m.wind_dir_true_deg), speed: gust ? `${kt}G${gust}` : `${kt}`, spoken: `${m.wind_dir_true_deg == null ? "variable" : Math.round(m.wind_dir_true_deg)} at ${kt} knots${gust ? `, gusts ${gust}` : ""}` };
+  };
   const listOf = (ident: string): ProcedureList | undefined => lists[airports.findIndex(a => a.ident === ident)]?.data;
   // Whether a field has procedures of a kind: by its procedures once they
   // are in (its kind's sheet opened), else by the FAA's charts its card
@@ -257,14 +267,14 @@ export default function ProceduresRoute({
     const landingChips = (
       <PatternChips
         airport={a} wind={wind} chosen={chosenAt(a.ident)} landing={landingOf(a.ident)} onPick={end => onPick(a.ident, end ?? NO_PATTERN)}
-        info={<FieldInfo ident={a.ident} note={patternNote(a, chosenAt(a.ident), landingOf(a.ident))} wind={wind} />}
+        info={<FieldInfo ident={a.ident} note={patternNote(a, chosenAt(a.ident), landingOf(a.ident))} wind={wind} reported={reportedOf(a.ident)} />}
       />
     );
     const takeoffChips = (
       <PatternChips
         airport={a} wind={wind} chosen={takeoffAt(a.ident)} landing={null} label={`${a.ident} takeoff runway`}
         onPick={end => onTakeoff(a.ident, end ?? NO_PATTERN)}
-        info={<FieldInfo ident={a.ident} note={takeoffAt(a.ident) ? `Runway ${takeoffAt(a.ident)}` : null} wind={wind} />}
+        info={<FieldInfo ident={a.ident} note={takeoffAt(a.ident) ? `Runway ${takeoffAt(a.ident)}` : null} wind={wind} reported={reportedOf(a.ident)} />}
       />
     );
     if (a.role === "Departure") return step("Depart", (["departure"] as Kind[]).filter(has), landingChips, last, mark, time);
@@ -554,25 +564,47 @@ function patternNote(a: ProcedureAirport, chosen: string | null, landing: Landin
  * at the owner's ask ("Keep the pattern info and winds info in a info icon
  * next to the airport id"), so the list is compact.
  */
-function FieldInfo({ ident, note, wind }: { ident: string; note: string | null; wind: WindPick | null }) {
-  if (!note && !wind) return null;
+function FieldInfo({ ident, note, wind, reported }: { ident: string; note: string | null; wind: WindPick | null; reported: Reported | null }) {
+  if (!note && !wind && !reported) return null;
   return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <button
-          type="button" aria-label={`${ident} runway and wind`} data-testid="field-info"
-          className="relative grid size-9 shrink-0 place-items-center rounded-full bg-foreground/8 text-tint after:absolute after:-inset-1 after:content-['']"
-        >
-          <Info className="size-5" aria-hidden />
-        </button>
-      </PopoverTrigger>
-      <PopoverContent align="start" className="w-auto max-w-[min(20rem,calc(100vw-2rem))] space-y-2 p-3" data-testid="field-info-content">
-        {note && <p className={cn("font-semibold", TEXT.detail)} data-testid="procedure-landing">{note}</p>}
-        {wind && <WindComponents wind={wind} />}
-      </PopoverContent>
-    </Popover>
+    <>
+      <Popover>
+        <PopoverTrigger asChild>
+          {/* The field's wind itself, in the tint as what is tapped, its
+              direction over its speed, at the owner's pick ("2 · The wind
+              itself"); the bare (i) with none to say. Its 44 points a
+              pseudo-element round it, nothing grown. */}
+          <button
+            type="button" data-testid="field-info"
+            aria-label={`${ident} wind ${reported === "calm" ? "calm" : reported ? reported.spoken : "not reported"}, runway and wind`}
+            className="relative flex h-9 min-w-9 shrink-0 flex-col items-center justify-center text-tint after:absolute after:-inset-x-1 after:-inset-y-1 after:content-['']"
+          >
+            {reported === "calm" ? (
+              <span className={cn("font-semibold", TEXT.note)}>Calm</span>
+            ) : reported ? (
+              <span className="flex flex-col items-center leading-[1.05] tabular-nums" aria-hidden>
+                <span className={cn("font-semibold leading-[1.05]", TEXT.detail)}>{reported.dir}</span>
+                <span className={cn("leading-[1.05]", TEXT.note)}>{reported.speed} kt</span>
+              </span>
+            ) : (
+              <Info className="size-5" aria-hidden />
+            )}
+          </button>
+        </PopoverTrigger>
+        <PopoverContent align="start" className="w-auto max-w-[min(20rem,calc(100vw-2rem))] space-y-2 p-3" data-testid="field-info-content">
+          {note && <p className={cn("font-semibold", TEXT.detail)} data-testid="procedure-landing">{note}</p>}
+          {wind && <WindComponents wind={wind} />}
+        </PopoverContent>
+      </Popover>
+      {/* A hairline between the wind and the runways. */}
+      <span aria-hidden="true" className="h-[26px] w-px shrink-0 bg-[rgba(60,60,67,0.22)] dark:bg-border" />
+    </>
   );
 }
+
+/** A field's reported wind as its info's trigger writes it: "240°" over
+ *  "12G20" (knots), calm, or none. */
+type Reported = "calm" | { dir: string; speed: string; spoken: string };
 
 /**
  * The wind on the runway it favours, as symbols, at the owner's ask ("the
