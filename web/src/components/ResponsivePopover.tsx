@@ -1,6 +1,7 @@
 import { createContext, useContext, type ComponentProps, type ReactNode } from "react";
 import { cn } from "cn";
 import { Sheet, SheetClose, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "./ui/sheet";
+import BackButton from "./BackButton";
 import CloseButton from "./CloseButton";
 import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from "./ui/popover";
 import { useIsMobile } from "../hooks/use-mobile";
@@ -69,8 +70,16 @@ type ContentProps = ComponentProps<typeof PopoverContent> & {
    *  title too. */
   action?: ReactNode;
   /** A control at the start of the title's row -- a form's Cancel, as an
-   *  iOS sheet puts it -- and then the title sits between the two. */
+   *  iOS sheet puts it, or a pushed page's Back -- and then the title sits
+   *  between the two. On a phone a Back that puts the sheet away is there
+   *  where none is given (`back`). */
   leading?: ReactNode;
+  /** On a phone, Back at the title row's start on the sheet's first page
+   *  too, putting it away, at the owner's ask ("let's have back button on
+   *  level 1"): everything expanded opens with Back on the left and the
+   *  close on the right. False where the sheet has no page before it to
+   *  go back to in the pilot's eyes. */
+  back?: boolean;
   /** The phone's sheet's own classes: a fixed height, say, where it is
    *  sized to its content otherwise. */
   sheetClassName?: string;
@@ -86,7 +95,7 @@ type ContentProps = ComponentProps<typeof PopoverContent> & {
 };
 
 export function ResponsivePopoverContent({
-  title, description, titleHidden, action, leading, className, sheetClassName, sheetOverlayClassName, closeButton, children, align, side, sideOffset,
+  title, description, titleHidden, action, leading: given, back = true, className, sheetClassName, sheetOverlayClassName, closeButton, children, align, side, sideOffset,
   alignOffset, collisionPadding, ...props
 }: ContentProps) {
   const edge = useContext(OnPhone);
@@ -100,11 +109,11 @@ export function ResponsivePopoverContent({
       >
         {action !== undefined && (
           <div className="flex min-h-8 items-center justify-between gap-2">
-            {leading}
+            {given}
             {/* A heading, as the phone's sheet's title is (Radix's), so a
                 page pushed in the popover (the Procedures') is named
                 alike on both. */}
-            <div role="heading" aria-level={2} className={cn("font-semibold", TEXT.row, leading && "flex-1 text-center")}>{title}</div>
+            <div role="heading" aria-level={2} className={cn("font-semibold", TEXT.row, given && "flex-1 text-center")}>{title}</div>
             {action}
           </div>
         )}
@@ -112,7 +121,8 @@ export function ResponsivePopoverContent({
       </PopoverContent>
     );
   }
-  const end = (closeButton ?? (action === undefined && !leading))
+  const leading = given ?? (back ? <SheetClose asChild><BackButton data-testid="sheet-back" /></SheetClose> : undefined);
+  const end = (closeButton ?? (action === undefined && !given))
     ? <SheetClose asChild><CloseButton data-testid="sheet-close" /></SheetClose>
     : action;
   return (
@@ -126,7 +136,7 @@ export function ResponsivePopoverContent({
         className={titleHidden ? "sr-only" : cn(
           "touch-none pb-2 text-left",
           edge === "bottom" && "pt-5",
-          end !== undefined && "flex-row flex-wrap items-center justify-between",
+          (end !== undefined || leading) && "flex-row flex-wrap items-center justify-between",
         )}
       >
         {leading}
@@ -134,7 +144,7 @@ export function ResponsivePopoverContent({
             control beside it or not: without one it was the stock 14. */}
         <SheetTitle className={cn("font-semibold", TEXT.title, leading && "flex-1 text-center")}>{title}</SheetTitle>
         {end}
-        {description ? <SheetDescription className={end !== undefined ? "basis-full" : undefined}>{description}</SheetDescription> : null}
+        {description ? <SheetDescription className={end !== undefined || leading ? "basis-full" : undefined}>{description}</SheetDescription> : null}
       </SheetHeader>
       {/* Clear of the grabber at its far edge, and of the home indicator
           the sheet floats eight points over. */}

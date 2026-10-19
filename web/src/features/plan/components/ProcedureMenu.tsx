@@ -79,7 +79,7 @@ export default function ProcedureMenu({ ident, kind, list, loading, picked, labe
     // Its transitions a page where it has any; else picked at a tap.
     return (
       <ListRow
-        key={p.id} title={name} media={<Mark on={on} />} aria-pressed={on} chevron={p.transitions.length > 0}
+        key={p.id} title={name} value={<Mark on={on} />} aria-pressed={on} chevron={p.transitions.length > 0}
         onClick={() => (p.transitions.length > 0 ? push({ procedure: p, name }) : pick({ id: p.id, transition: null }))}
         data-testid="procedure-menu-item"
       />
@@ -127,6 +127,9 @@ export default function ProcedureMenu({ ident, kind, list, loading, picked, labe
         title={title} align="start" side="bottom"
         className="flex h-[26rem] w-80 flex-col gap-3 overflow-y-auto p-3"
         sheetClassName="data-[side=bottom]:h-[60dvh] data-[side=top]:h-[60dvh]"
+        // The map above it in sight and clear, no shade or blur over it, as
+        // the Procedures sheet keeps it (the owner's screenshot: blurred).
+        sheetOverlayClassName="bg-transparent dark:bg-transparent supports-backdrop-filter:backdrop-blur-none"
         leading={page ? <BackButton onClick={() => setPages(pages.slice(0, -1))} data-testid="procedure-menu-back" /> : undefined}
         action={<CloseButton onClick={() => toggle(false)} data-testid="procedure-menu-close" />}
         data-testid="procedure-menu"
@@ -138,7 +141,7 @@ export default function ProcedureMenu({ ident, kind, list, loading, picked, labe
               const on = picked?.id === page.procedure.id && (picked.transition ?? null) === t;
               return (
                 <ListRow
-                  key={t ?? "-"} title={transitionWords(kind, t)} media={<Mark on={on} />} aria-pressed={on}
+                  key={t ?? "-"} title={transitionWords(kind, t)} value={<Mark on={on} />} aria-pressed={on}
                   onClick={() => pick({ id: page.procedure.id, transition: t })} data-testid="procedure-menu-transition"
                 />
               );
@@ -158,7 +161,7 @@ export default function ProcedureMenu({ ident, kind, list, loading, picked, labe
                   <ListGroup title="Other runways">
                     {others.map(r => (
                       <ListRow
-                        key={r} title={runwayName(r)} chevron media={<Mark on={byRunway.get(r)!.some(p => p.id === picked?.id)} />}
+                        key={r} title={runwayName(r)} chevron value={<Mark on={byRunway.get(r)!.some(p => p.id === picked?.id)} />}
                         onClick={() => push({ runway: r })} data-testid="procedure-menu-runway"
                       />
                     ))}
@@ -188,7 +191,9 @@ export default function ProcedureMenu({ ident, kind, list, loading, picked, labe
  *  procedure's transitions. */
 type Page = { runway: string } | { procedure: ProcedureSummary; name: string };
 
-/** The one picked, ticked; the others kept in line with it. */
+/** The one picked, ticked at the row's end, as an iOS list's choice is;
+ *  nothing on the others, so no row is set in for it (the owner's
+ *  screenshot: every row stood in by an empty mark's room). */
 function Mark({ on }: { on: boolean }) {
-  return <Check className={cn("size-4 shrink-0 text-tint", !on && "invisible")} aria-hidden />;
+  return on ? <Check className="size-5 shrink-0 text-tint" aria-hidden /> : null;
 }

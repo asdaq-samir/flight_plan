@@ -221,6 +221,13 @@ test("half way on a phone the foot comes down from all the way up on the route's
     const r = el.getBoundingClientRect(), box = el.parentElement!.getBoundingClientRect();
     return Math.round(r.left - box.left);
   }), { timeout: 3000 }).toBe(0);
+  // Down to the pill from the side view and up again: the list too
+  // (the owner's "Swiping up from pill lands at profile view?").
+  await panel.getByTestId("foot-page-dot").nth(1).click();
+  await expect(panel.getByTestId("foot-pager").locator("[data-page='1']")).toHaveAttribute("data-shown", "true");
+  await grabberTo(page, "peek");
+  await grabberTo(page, "half");
+  await expect(panel.getByTestId("foot-pager").locator("[data-page='0']")).toHaveAttribute("data-shown", "true");
   // A dry run started and stopped: the side view it was flown over, the
   // route's list a dot's tap (or a swipe) back.
   const start = panel.getByTestId("dry-run-start");

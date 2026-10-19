@@ -1343,8 +1343,9 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     usePastFlight.setState(p => (p.points === dryRun.points ? p
       : { points: dryRun.points, at: p.at === null ? dryRun.points[0]!.t : Math.min(p.at, dryRun.points.at(-1)!.t) }));
   }, [dryRun]);
-  // The half card's page at its foot (FootPager), kept as the sheet goes
-  // up and down: the side view while a dry run plays and once it stops.
+  // The half card's page at its foot (FootPager): the route's list as the
+  // sheet arrives half way, the side view while a dry run plays and once
+  // it stops.
   const [footPage, setFootPage] = useState(0);
   const startDryRun = () => {
     if (!course) return;
@@ -1400,9 +1401,10 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   if (panel !== lastPanel) {
     setLastPanel(panel);
     setCameFromFull(lastPanel === "full");
-    // Down from all the way up, the route's list it ends on (the owner's
-    // "Swiping down shows profile": it stayed on the side view).
-    if (lastPanel === "full") setFootPage(0);
+    // Arriving half way, from the pill or from all the way up, the route's
+    // list it shows (the owner's "Swiping down shows profile", "Swiping up
+    // from pill lands at profile view?"): the side view is a swipe away.
+    if (panel === "half") setFootPage(0);
   }
   const routeList = useMemo(() => (
     <ProceduresRoute
@@ -1863,7 +1865,10 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     // Under the nav log's card too, its side view and figures with it, as
     // FPL is "route, navlog, profile and calculations".
     foot: tab === "fpl" && !place && !heldPoint && !flight && !briefShown ? routed && (
-      <div className="flex min-h-0 w-full flex-col">
+      // Its own 16 at the sides under the nav log's card, whose foot
+      // MapPanel leaves bare for a card's summary to set (cardInPill): the
+      // side view's figures sat 8 from the edge there (the iOS audit's P18).
+      <div className={cn("flex min-h-0 w-full flex-col", navLogShown && "px-4")}>
         {/* The side view pinned over the figures at every height out of the
             pill, the nav log scrolling over it all the way up, the one side
             view on screen, at the owner's asks ("I think we should keep the
