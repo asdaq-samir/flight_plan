@@ -105,8 +105,9 @@ export default function ProcedureMenu({ ident, kind, list, loading, picked, labe
   return (
     <DropdownMenu onOpenChange={open => { if (open) onOpen(); else setPages([]); }}>
       <DropdownMenuTrigger asChild>
-        {/* One line, at the owner's ask: "Select Approach" until one is
-            picked, then the one picked, in the tint as what is tapped. */}
+        {/* One line, at the owner's ask: the kind's name ("Approach") until
+            one is picked ("Just remove the word select"), then the one
+            picked, in the tint as what is tapped. */}
         <button
           type="button" data-testid="procedure-kind" data-kind={kind}
           className={cn(
@@ -115,7 +116,7 @@ export default function ProcedureMenu({ ident, kind, list, loading, picked, labe
           )}
           aria-label={`${ident} ${TITLE[kind].toLowerCase()}: ${label ?? "none picked"}`}
         >
-          <span className="truncate">{label ?? `Select ${TITLE[kind]}`}</span>
+          <span className="truncate">{label ?? TITLE[kind]}</span>
           <ChevronDown className="size-4 shrink-0" aria-hidden />
         </button>
       </DropdownMenuTrigger>

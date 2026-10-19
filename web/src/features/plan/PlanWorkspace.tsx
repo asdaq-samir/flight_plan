@@ -53,6 +53,7 @@ import AirportPill from "./components/AirportPill";
 import FplStrip from "./components/FplStrip";
 import { RecentRoutesPage } from "./components/RecentRoutes";
 import MiniProfile from "./components/navlog/MiniProfile";
+import FootPager from "./components/FootPager";
 import { dryRunOf, type DryRun } from "./components/navlog/dryRun";
 import { DryRunControls, DryRunFigures } from "./components/DryRunPanel";
 import { DRY_RUN, clearPastFlight, usePastFlight } from "../../lib/map/pastFlight";
@@ -167,6 +168,10 @@ const PLANNER_TABS: BarTab<PanelTab>[] = [
 /** The address with a field's ident changed everywhere it is named: the
  *  route's ends, its traffic patterns, its procedures and its points'
  *  altitudes, so a pick made under "ORD" stays with KORD. */
+/** FPL's route list's place in the nav log's view while it is at the
+ *  sheet's foot (PlanWorkspace's listAtFoot): nothing, the list there. */
+const ROUTE_AT_FOOT = <span hidden />;
+
 function renamed(params: URLSearchParams, from: string, to: string): URLSearchParams {
   const swap = (ident: string) => (ident === from ? to : ident);
   return patched(params, {
@@ -1293,6 +1298,10 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // runways and procedures, and the tops of climb and descent and the
   // fixes flown through, by the nav log's rows.
   const routeRows = useMemo(() => navLogRows(course, s.logSelected, s.legs), [course, s.logSelected, s.legs]);
+  // Half way on a phone the route's list in the side view's place at the
+  // sheet's foot, the side view a swipe to the left (FootPager); all the
+  // way up, the list over the side view as before, at the owner's ask.
+  const listAtFoot = isMobile && panel !== "full";
   const routeList = useMemo(() => (
     <ProceduresRoute
       airports={procedureAirports} rows={routeRows} depart={depart} weather={metarColour}
@@ -1321,7 +1330,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       // In sight all the way up, the Brief not over it: a row picked is
       // brought into sight as it comes back.
       drawerOpen={drawerOpen && !briefShown} dryRun={dryRunning} fuelAsked={fuelAsked}
-      route={routeList} navLogOpen={navLogOpen} onNavLogOpenChange={setNavLogOpen}
+      route={listAtFoot ? ROUTE_AT_FOOT : routeList} navLogOpen={navLogOpen} onNavLogOpenChange={setNavLogOpen}
       aircraftLabel={aircraft.label}
       marks={marks}
       tabContent={tabContent}
@@ -1342,7 +1351,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   ), [s.totals, s.nav, s.legs, depart, planned.dep, planned.dest, course, s.logSelected, s.descriptions, s.saveDescription,
     s.generateDescriptions, descriptionsLoading, descriptionsPaywall, descriptionsHidden, selectedPoint, selectPointAt, deselectPoint, drawerOpen, aircraft.label,
     marks, tabContent, s.briefing, s.local, landedStops, s.langgraphNarrative, s.crewaiNarrative, unflyableBrief, kneeboardLater, metarColour, dryRunning, fuelAsked, briefShown,
-    routeList, navLogOpen]);
+    routeList, listAtFoot, navLogOpen]);
   // The Brief's pages (BriefCard): En route's without the legs, which are
   // FPL's own; and its warnings over them.
   const briefContents = useMemo(() => ({
@@ -1484,6 +1493,16 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // there, a picture of the flight, nothing to tap.
   const miniProfile = routed && course && !local
     ? <MiniProfile ends={course} selected={selected} legs={s.legs} onOpen={panel === "full" ? undefined : () => setPanel("full")} /> : null;
+  // The side view with its dry run at its top right: the flight flown on
+  // paper.
+  const sideView = (
+    <div className="relative h-full pb-2">
+      {miniProfile}
+      <RoundButton label="Dry run" onClick={startDryRun} disabled={!dryRunReady} className="absolute top-1.5 right-1.5" data-testid="dry-run-start">
+        <Play className="size-5" />
+      </RoundButton>
+    </div>
+  );
   // The route's chips: the airplane, the altitude, the time, Saved,
   // Approaches and Share (`controls`), and with no route the pill's too.
   const routeControls = started && (
@@ -1758,13 +1777,15 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
             // owner's ask ("small space between profile calculations").
             className={cn("min-h-0 shrink overflow-hidden [&_[data-testid=mini-profile]]:h-full", panel === "full" ? "h-[min(10rem,20dvh)] [@media(max-height:560px)]:hidden" : "h-40")} data-pill-hides=""
           >
-            <div className="relative h-full pb-2">
-              {miniProfile}
-              {/* Its dry run, at its top right: the flight flown on paper. */}
-              <RoundButton label="Dry run" onClick={startDryRun} disabled={!dryRunReady} className="absolute top-1.5 right-1.5" data-testid="dry-run-start">
-                <Play className="size-5" />
-              </RoundButton>
-            </div>
+            {listAtFoot ? (
+              <FootPager
+                testId="foot-pager"
+                pages={[
+                  { label: "Route", node: <div className="px-1 pt-1">{routeList}</div> },
+                  { label: "Side view", node: sideView },
+                ]}
+              />
+            ) : sideView}
           </div>
         )}
         {dryRunning ? <DryRunFigures run={dryRunning} /> : (

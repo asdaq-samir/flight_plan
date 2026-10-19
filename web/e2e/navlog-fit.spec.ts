@@ -78,7 +78,7 @@ test("a long trip's figures are set smaller to fit the strip, not cut short", as
   await expect(sideDrawer(page).getByTestId("altitude-why")).toHaveAccessibleName(/no legal altitude/, { timeout: slow(30000) });
   await expect(sideDrawer(page).getByTestId("navlog-ete")).toHaveText(/^≈/);
   const figures = sideDrawer(page).locator('[data-tip="flight-line"] dd');
-  await expect(figures.first()).toHaveText(/^1\d{3}(\.\d)? nm$/);
+  await expect(figures.filter({ hasText: / nm$/ }).first()).toHaveText(/^1\d{3}(\.\d)? nm$/);
   // At the default text size and the two above it, as an iPhone sets the
   // root from Settings' text size (lib/dynamicType, which a test browser
   // does not run): a 19-point Body, 17.88 px; a 21-point one, held to the
