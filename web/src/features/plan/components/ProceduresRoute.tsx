@@ -226,10 +226,10 @@ export default function ProceduresRoute({
       />
     );
     const kinds = kindsFor(a.role).filter(kind => hasKind(a.ident, kind) || inRoute.some(p => sameField(p.ident, a.ident) && p.kind === kind));
-    // What is flown before the pattern (an arrival, an approach) and
-    // after it (a departure).
-    const before = kinds.filter(k => k !== "departure");
-    const after = kinds.filter(k => k === "departure");
+    // The procedures' pull-downs over the runway chips at every field, a
+    // departure's as an arrival's and approach's, at the owner's ask
+    // ("Departure selection should also be before runways just like
+    // arrival/approach"): a stop's three in two columns, wrapping.
     return (
       <Step
         key={a.ident} last={last}
@@ -237,9 +237,8 @@ export default function ProceduresRoute({
         title={`${a.ident} · ${ROLE_STEP[a.role]}`} time={row ? etaAt(depart || new Date().toISOString(), row.minutesFlown) : null} field
         info={a.runways !== null ? <FieldInfo ident={a.ident} note={patternNote(a, chosenAt(a.ident), landingOf(a.ident))} wind={wind} /> : undefined}
       >
-        {before.length > 0 && <div className={cn("grid gap-2", before.length > 1 ? "grid-cols-2" : "grid-cols-1")}>{before.map(kindMenu)}</div>}
+        {kinds.length > 0 && <div className={cn("grid gap-2", kinds.length > 1 ? "grid-cols-2" : "grid-cols-1")}>{kinds.map(kindMenu)}</div>}
         <PatternChips airport={a} wind={wind} chosen={chosenAt(a.ident)} landing={landingOf(a.ident)} onPick={end => onPick(a.ident, end ?? NO_PATTERN)} />
-        {after.length > 0 && <div className="grid grid-cols-1 gap-2">{after.map(kindMenu)}</div>}
       </Step>
     );
   };

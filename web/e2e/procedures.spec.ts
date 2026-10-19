@@ -282,6 +282,24 @@ test("a field typed as ORD is KORD, its arrivals offered and its runways one lin
   await expect(kord.getByRole("radio", { name: /^Runway 9L/ })).toBeInViewport();
 });
 
+/**
+ * A departure's pull-down sits over its field's runway chips, as an
+ * arrival's and approach's do, at the owner's ask ("Departure selection
+ * should also be before runways just like arrival/approach").
+ */
+test("a field's departure is picked over its runways, as its arrival and approach are", async ({ page }) => {
+  await page.goto("/app/plan?dep=KORD&dest=C81");
+  await settle(page);
+  await openTab(page, "Nav Log");
+  const kord = page.getByTestId("procedures").getByRole("region", { name: "KORD · Depart" });
+  const menu = kord.locator("[data-testid=procedure-kind][data-kind=departure]");
+  await expect(menu).toBeVisible({ timeout: slow(20000) });
+  await expect(menu).toHaveText(/^Departure/);
+  const chips = kord.getByTestId("procedure-pattern").first();
+  await expect(chips).toBeVisible();
+  expect((await menu.boundingBox())!.y).toBeLessThan((await chips.boundingBox())!.y);
+});
+
 test.describe("on the owner's phone's width, to a finger", () => {
   // A finger's 17-point words (pointer: coarse), on 393 points.
   test.use({ hasTouch: true, isMobile: true, viewport: { width: 393, height: 695 } });
