@@ -14,13 +14,11 @@
  * close to what the examiner sees, not it -- the page says so.
  */
 import type { Flight } from "./api/types";
-import { angleBetween, bearingDeg, distanceNm } from "./geo";
+import { angleBetween, bearingDeg, distanceNm, rad } from "./geo";
 import { AIRBORNE_KT } from "./map/glide";
 import type { TrackPoint } from "./track";
 
 type Checkpoint = Flight["checkpoints"][number];
-
-const rad = (d: number) => (d * Math.PI) / 180;
 
 /** PA.VI.A's tolerances: S7's altitude, and its heading applied to the
  *  ground track; S5's distance from the planned route; S6's time at each

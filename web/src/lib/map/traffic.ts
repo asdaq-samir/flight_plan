@@ -1,5 +1,5 @@
 import type { TrafficAircraft } from "../api/types";
-import { angleBetween, destination, distanceNm, type LatLon } from "../geo";
+import { angleBetween, destination, distanceNm, rad, type LatLon } from "../geo";
 import { grouped } from "../units";
 import type { Fix } from "./ownShip";
 import type { Report } from "./tracking";
@@ -134,7 +134,6 @@ const CPA_MIN = 10;
  */
 export function closestApproach(own: Fix, plane: TrafficAircraft): { inMin: number; nm: number; aboveFt: number | null } | null {
   if (own.headingDeg == null || own.speedKt == null || plane.track_deg == null || plane.speed_kt == null) return null;
-  const rad = (deg: number) => (deg * Math.PI) / 180;
   const cosLat = Math.cos(rad(own.lat));
   // Nautical miles east and north of own ship, and knots each way.
   const rx = (plane.lon - own.lon) * 60 * cosLat, ry = (plane.lat - own.lat) * 60;
