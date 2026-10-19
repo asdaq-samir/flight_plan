@@ -8,7 +8,7 @@
  * field 500 ft above it and back to the 45 from the other.
  */
 import type { Runway } from "./api/types";
-import { angleBetween } from "./geo";
+import { angleBetween, rad } from "./geo";
 
 export type RunwayEnd = NonNullable<Runway["runway_ends"]>[number];
 
@@ -96,7 +96,7 @@ export function windPick(runways: Runway[], nearby?: ReportedWind | null): WindP
   const dir = nearby.dirTrueDeg, speed = nearby.speedKt;
   // (headwind, crosswind from the right), as vfr.runway_wind.components_kt.
   const along = (heading: number, kt: number) => {
-    const angle = ((dir - heading) * Math.PI) / 180;
+    const angle = rad(dir - heading);
     return { head: kt * Math.cos(angle), cross: kt * Math.sin(angle) };
   };
   const best = [...ends].sort((a, b) => along(b.heading, speed).head - along(a.heading, speed).head
