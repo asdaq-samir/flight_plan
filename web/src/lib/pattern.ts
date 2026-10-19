@@ -46,6 +46,42 @@ export function runwayInUse(runways: Runway[]): InUse | null {
   return longest && end ? { runway: longest, end, byWind: false } : null;
 }
 
+/** The runways the pilot picked in FPL, by field, as the address keeps
+ *  them (lib/fieldLists): `pattern` holds the departure's runway out and
+ *  every other field's runway in, `takeoff` a stop's runway out. A pick of
+ *  "NONE" (trafficPattern's NO_PATTERN) is the pilot's no runway. */
+export interface RunwayPicks {
+  pattern: Map<string, string>;
+  takeoff: Map<string, string>;
+}
+
+/** The end the pilot picked at `ident` for a takeoff or a landing, by the
+ *  field's ICAO or FAA ident alike (a stop typed UES is KUES to the
+ *  planner); null with no pick. */
+export function pickedEnd(picks: RunwayPicks | null | undefined, ident: string, kind: "takeoff" | "landing", departure: boolean): string | null {
+  if (!picks) return null;
+  const map = kind === "takeoff" && !departure ? picks.takeoff : picks.pattern;
+  const bare = (i: string) => (i.length === 4 && i.startsWith("K") ? i.slice(1) : i).toUpperCase();
+  for (const [field, end] of map) if (bare(field) === bare(ident)) return end === "NONE" ? null : end;
+  return null;
+}
+
+/** The runway end flown at a field: the pilot's pick in FPL where they
+ *  made one (`picked`, the end as painted, "24"), else the one most nearly
+ *  into the wind, else the longest (runwayInUse). One rule for the radio
+ *  calls, the kneeboard, the mock oral and the runway check, which each
+ *  chose their own and never saw the pilot's pick: the runway checked for
+ *  length could be a long one while a short one was picked. */
+export function runwayFlown(runways: Runway[], picked: string | null | undefined): InUse | null {
+  if (picked) {
+    for (const runway of runways.filter(r => !r.closed)) {
+      const end = runway.runway_ends?.find(e => runwayNumber(e.ident) === runwayNumber(picked) && e.heading_true_deg != null);
+      if (end) return { runway, end, byWind: runway.wind?.end === end.ident };
+    }
+  }
+  return runwayInUse(runways);
+}
+
 /** The wind a field's runways are chosen by: the end it favours as
  *  painted ("27"), its head- and crosswind and the gust's crosswind to the
  *  knot (vfr.runway_wind), whether it is calm, and where it was reported

@@ -16,7 +16,7 @@
  */
 import { titleCase } from "./advisories";
 import type { Briefing, Frequency, Leg } from "./api/types";
-import { compassWord, exitFor, runwayInUse, runwayNumber, type RunwayEnd } from "./pattern";
+import { compassWord, exitFor, pickedEnd, runwayFlown, runwayNumber, type RunwayEnd, type RunwayPicks } from "./pattern";
 import { ctafOf, frequencyOf, mhzText } from "./frequencies";
 import { DESCENT_FT_PER_NM } from "./geo";
 
@@ -115,6 +115,8 @@ export interface RadioInput {
   /** The airports landed at, in order, with the briefing's facilities. */
   airports: { ident: string; facilities: Facilities }[];
   legs: Leg[];
+  /** The runways the pilot picked in FPL; the wind's where none. */
+  picks?: RunwayPicks | null;
 }
 
 /** The legs from one airport to the next: the first leg out of `from`
@@ -148,7 +150,7 @@ function departure(input: RadioInput, i: number): RadioPhase {
   const field = placeName(facilities.name, ident);
   const to = placeName(next.facilities.name, next.ident);
   const cs = input.callSign;
-  const inUse = runwayInUse(facilities.runways);
+  const inUse = runwayFlown(facilities.runways, pickedEnd(input.picks, ident, "takeoff", i === 0));
   const runway = inUse ? `runway ${spokenRunway(inUse.end.ident)}` : "runway [in use]";
   const heading = first ? compassWord(first.true_course_deg) : "[direction]";
   const altitude = first ? spokenAltitude(first.altitude_ft) : "[altitude]";
@@ -221,7 +223,7 @@ function arrival(input: RadioInput, i: number): RadioPhase {
   const last = legs[legs.length - 1] ?? null;
   const field = placeName(facilities.name, ident);
   const cs = input.callSign;
-  const inUse = runwayInUse(facilities.runways);
+  const inUse = runwayFlown(facilities.runways, pickedEnd(input.picks, ident, "landing", false));
   const runway = inUse ? `runway ${spokenRunway(inUse.end.ident)}` : "runway [in use]";
   const from = last ? compassWord(last.true_course_deg + 180) : "[direction]";
   const tenMiles = last ? tenMilesOutFt(last.altitude_ft, facilities.pattern?.altitude_ft) : null;
@@ -296,8 +298,9 @@ export function radioScript(input: RadioInput): RadioPhase[] {
  *  (radioScript), none for a local flight, with no route to call along.
  *  The Brief's airport sections (AirportSections, PatternRadio) read it,
  *  and leave out the frequencies and runways its calls and pattern say. */
-export function fieldPhases(briefing: Briefing, landings: string[], legs: Leg[], callSign: string, at: string): RadioPhase[] {
+export function fieldPhases(briefing: Briefing, landings: string[], legs: Leg[], callSign: string, at: string,
+  picks?: RunwayPicks | null): RadioPhase[] {
   const airports = landings.filter(ident => briefing.airports[ident]).map(ident => ({ ident, facilities: briefing.airports[ident]! }));
   if (airports.length < 2) return [];
-  return radioScript({ callSign, airports, legs }).filter(phase => phase.ident === at);
+  return radioScript({ callSign, airports, legs, picks }).filter(phase => phase.ident === at);
 }
