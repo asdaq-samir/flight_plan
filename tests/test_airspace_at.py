@@ -60,6 +60,26 @@ def test_class_g_minimums_change_at_1200_ft_above_the_ground_and_at_10000_ft():
     assert bands[4]["floor_ft"] == 14500.0
 
 
+@pytest.mark.parametrize("klass, floor, agl, under_b, limit", [
+    # 14 CFR 91.117(b): 200 kt "at or below 2,500 feet above the surface
+    # within 4 nautical miles of the primary airport" of a Class C or D;
+    # (a): 250 kt below 10,000 ft MSL otherwise; (c): 200 kt under a Class B.
+    ("D", 640, 0, False, 200), ("C", 640, 2499, False, 200),
+    ("C", 3140, 2500, False, 250), ("D", 3140, 2500, False, 250),
+    ("E", 640, 0, False, 250), ("G", 640, 0, False, 250),
+    ("B", 3000, 2000, False, 250), ("E", 640, 0, True, 200),
+    ("E", 10000, 9000, False, None), ("A", 18000, 17000, False, None),
+])
+def test_91_117_speed_limit_by_class_and_height(klass, floor, agl, under_b, limit):
+    assert airspace_at.speed_kt(klass, floor, under_b, agl) == limit
+
+
+def test_a_class_d_surface_band_carries_the_200_kt_limit_and_the_band_above_it_250():
+    volumes = [_volume("D", 0, "SFC", 3300.0, "ADDISON CLASS D")]
+    bands = airspace_at.column(32.97, -96.84, 640.0, volumes)
+    assert [(b["class"], b["floor_ft"], b["speed_kt"]) for b in bands[:2]] == [("D", 640.0, 200), ("D", 3140.0, 250)]
+
+
 def test_the_most_restrictive_class_holds_where_they_overlap():
     volumes = [_volume("D", 0, "SFC", 3300, "DUPAGE CLASS D"), _volume("B", 3000, "MSL", 10000, "CHICAGO CLASS B")]
     bands = airspace_at.column(41.9, -88.25, 750.0, volumes)

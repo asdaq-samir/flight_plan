@@ -153,12 +153,20 @@ def equipment(klass: str, floor_msl: float, agl: float, in_veil: bool) -> str | 
     return None
 
 
-def speed_kt(klass: str, floor_msl: float, under_b: bool) -> int | None:
+def speed_kt(klass: str, floor_msl: float, under_b: bool, agl: float = TRANSPONDER_EXEMPT_AGL_FT) -> int | None:
     """The 91.117 speed limit, where one applies: 200 kt under a Class
-    B's shelf, 250 kt below 10,000 ft MSL."""
+    B's shelf (91.117(c)), 200 kt at or below 2,500 ft above the surface
+    in a Class C or D, and 250 kt below 10,000 ft MSL (91.117(a)).
+
+    91.117(b) holds the 200 kt "within 4 nautical miles of the primary
+    airport" of a Class C or D, and a point here does not know its
+    distance from the airport. The whole surface band is given 200 kt:
+    the lower speed is the safe error where the area reaches past 4 nm.
+    A band's bottom decides, as the bands are split at 2,500 ft above the
+    ground (TRANSPONDER_EXEMPT_AGL_FT)."""
     if klass == "A" or floor_msl >= TEN_THOUSAND_FT:
         return None
-    if under_b:
+    if under_b or (klass in ("C", "D") and agl < TRANSPONDER_EXEMPT_AGL_FT):
         return 200
     return 250
 
@@ -204,7 +212,7 @@ def column(lat: float, lon: float, ground_ft: float, volumes: list[dict], in_vei
         band = {
             "floor_ft": bottom, "ceiling_ft": top, "class": klass, "name": name,
             "minimums": minimums(klass, bottom, agl), "entry": ENTRY[klass],
-            "equipment": equipment(klass, bottom, agl, in_veil), "speed_kt": speed_kt(klass, bottom, under_b),
+            "equipment": equipment(klass, bottom, agl, in_veil), "speed_kt": speed_kt(klass, bottom, under_b, agl),
         }
         previous = bands[-1] if bands else None
         if previous and all(previous[k] == band[k] for k in ("class", "name", "minimums", "equipment", "speed_kt")):
