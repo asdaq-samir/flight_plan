@@ -177,6 +177,9 @@ test("an approach puts its field's runway on its own, and another is let only wh
   await page.getByTestId("procedure-option").filter({ hasText: "ILS RWY 09" }).click();
   await page.getByTestId("procedure-add").click();
   await expect(page).toHaveURL(/[?&]pattern=KDLH(%3A|:)9(&|$)/);
+  await expect(page.getByRole("heading", { name: "KDLH ILS RWY 09" })).toBeHidden();
+  await settled(sideDrawer(page));
+  await openTab(page, "Nav Log");
   await expect(kdlh.getByRole("radio", { name: /^Runway 9\b/ })).toHaveAttribute("aria-checked", "true");
   await expect(kdlh.getByTestId("procedure-landing")).toHaveText("Straight in");
   await expect(kdlh.getByRole("heading", { name: "Runway", exact: true })).toBeVisible();
@@ -188,7 +191,7 @@ test("an approach puts its field's runway on its own, and another is let only wh
 
   // One that publishes circling minimums: 27 is a circle to land.
   circling = true;
-  await page.reload();
+  await page.goto(page.url());
   await settle(page);
   await openTab(page, "Nav Log");
   const circle = kdlh.getByRole("radio", { name: /^Runway 27/ });
