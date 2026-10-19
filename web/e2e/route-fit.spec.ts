@@ -254,6 +254,28 @@ test("a route the pilot has moved is fitted again as the sheet goes up and down 
   expect(await mapAt(page)).toBe(before);
 });
 
+test("panned off the route, the location arrow turns to the route, and a tap fits the course again", async ({ page }) => {
+  // The owner's ask: "When the route is entered, and map is panned away
+  // from the route, have the locator icon change to fit the course".
+  await page.goto("/app/plan?dep=C81&dest=KDLH");
+  await settle(page);
+  await closeSidebarWithTheStockKey(page);
+  await expectDrawerClosed(page);
+  await fittedClearOf(page, sideDrawer(page));
+  const arrow = page.locator("[data-map-controls]").getByTestId("my-position-button");
+  // The whole route in sight: the arrow, for the position.
+  await expect(arrow).toHaveAttribute("data-face", "position");
+
+  const viewport = page.viewportSize()!;
+  for (let i = 0; i < 3; i++) await drag(page, Math.min(300, viewport.width * 0.7), 0);
+  await expect(arrow).toHaveAttribute("data-face", "route");
+  await expect(arrow).toHaveAccessibleName("Show the whole route");
+
+  await arrow.click();
+  await fittedClearOf(page, sideDrawer(page));
+  await expect(arrow).toHaveAttribute("data-face", "position");
+});
+
 /** The field's marker on the screen and not under the card: in the map's
  *  box is not enough, the card covers part of it. */
 async function fieldClearOfCard(page: Page, field: Locator) {

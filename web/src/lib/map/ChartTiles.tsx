@@ -8,6 +8,9 @@ import { LIVE_TILES, chartPair, tileTemplate } from "./tiles";
 /** The level of the chart kept under it (below): a region a tile, some
  *  eleven degrees of longitude, so a route's whole way is one or two. */
 const UNDERLAY_ZOOM = 5;
+/** The ring tiles remembered as asked for: about a flight's worth of
+ *  views, the browser's cache holding the tiles themselves. */
+const PREFETCH_KEPT = 2000;
 
 interface Props {
   /** The chart: a route's course, or the chart alone with no route. */
@@ -45,6 +48,7 @@ export function ChartTiles({ chart, previewing }: Props) {
   const { base: baseLayer, overlay } = useMemo(() => chartPair(chart.chart_layers, base), [chart.chart_layers, base]);
   const baseRef = useRef<L.TileLayer>(null);
 
+  const prefetched = useRef(new Set<string>());
   const prefetchRing = useCallback(() => {
     const layer = baseRef.current;
     if (!layer || !baseLayer) return;
@@ -63,6 +67,11 @@ export function ChartTiles({ chart, previewing }: Props) {
         const edge = x === range.minX || x === range.maxX || y === range.minY || y === range.maxY;
         if (!edge) continue;
         const url = layer.getTileUrl(Object.assign(L.point(((x % n) + n) % n, y), { z: zoom }) as L.Coords);
+        // Once a tile: own ship followed ends a move at every fix, and the
+        // ring was asked for again each time, twenty requests a second.
+        if (prefetched.current.has(url)) continue;
+        prefetched.current.add(url);
+        if (prefetched.current.size > PREFETCH_KEPT) prefetched.current.delete(prefetched.current.values().next().value!);
         void fetch(url, { priority: "low" }).catch(() => { /* a miss now is a miss later, nothing to do */ });
       }
     }

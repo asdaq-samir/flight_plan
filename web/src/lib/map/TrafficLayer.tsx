@@ -284,12 +284,20 @@ function Traffic() {
     const zoomEnd = () => { zooming = false; };
     map.on("zoomstart", zoomStart);
     map.on("zoomend", zoomEnd);
-    let frame = 0, last = 0;
-    const step = (time: number) => {
-      frame = requestAnimationFrame(step);
-      if (zooming || time - last < frameMs(map.getZoom())) return;
-      last = time;
+    // A timer at the step's own rate, not a frame loop: the work is a few
+    // times a second, and the loop ran at the screen's rate -- 120 times a
+    // second on a ProMotion iPhone -- for as long as traffic was on, under
+    // a full sheet too, the phone's battery in the cockpit.
+    let timer = 0;
+    const step = () => {
+      timer = window.setTimeout(step, frameMs(map.getZoom()));
+      if (zooming) return;
       const now = Date.now();
+      const { hex: tracked, follow } = useTracking.getState();
+      // Only what is in sight, and a margin, is moved: the planner sends
+      // the airplanes out to 165 nm, and each moved was placed on the page.
+      // The next step moves one coming into sight.
+      const seen = map.getBounds().pad(0.25);
       for (const [hex, target] of targets.current) {
         const age = (now - target.at) / 1000;
         if (age > CARRY_S) {
@@ -306,12 +314,12 @@ function Traffic() {
             lon += target.shift.lon * left;
           }
         }
+        if (hex !== tracked && layer.hasLayer(target.marker) && !seen.contains([lat, lon])) continue;
         target.marker.setLatLng([lat, lon]);
         if (!layer.hasLayer(target.marker) && target.icon) layer.addLayer(target.marker);
       }
       // The flight followed kept in the middle of what the panel leaves,
       // moved with it ten times a second.
-      const { hex: tracked, follow } = useTracking.getState();
       const target = tracked && follow ? targets.current.get(tracked) : undefined;
       if (target) {
         const centre = centreClear(map, target.marker.getLatLng(), map.getZoom());
@@ -320,9 +328,9 @@ function Traffic() {
         }
       }
     };
-    frame = requestAnimationFrame(step);
+    timer = window.setTimeout(step, 0);
     return () => {
-      cancelAnimationFrame(frame);
+      window.clearTimeout(timer);
       map.off("zoomstart", zoomStart);
       map.off("zoomend", zoomEnd);
     };

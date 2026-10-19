@@ -18,13 +18,24 @@ export function OwnTrailLayer() {
   const path = useOwnTrail(s => s.path);
   const fix = useOwnShip(s => (s.enabled ? s.fix : null));
   const line = useMemo(() => path.map(p => [p.lat, p.lon] as [number, number]), [path]);
+  // The path as kept, drawn again only as a point is added to it, and the
+  // stretch from its last point to the airplane apart: the whole path
+  // copied with the airplane on its end, up to five thousand points, was
+  // drawn again at every GPS fix.
+  const end = line.at(-1);
+  const [endLat, endLon, fixLat, fixLon] = [end?.[0], end?.[1], fix?.lat, fix?.lon];
+  const tail = useMemo<[number, number][] | null>(
+    () => (endLat != null && endLon != null && fixLat != null && fixLon != null ? [[endLat, endLon], [fixLat, fixLon]] : null),
+    [endLat, endLon, fixLat, fixLon],
+  );
   if (line.length < 2) return null;
-  const whole: [number, number][] = fix ? [...line, [fix.lat, fix.lon]] : line;
   return (
     <>
-      <Polyline positions={whole} pathOptions={CASING} />
+      <Polyline positions={line} pathOptions={CASING} />
+      {tail && <Polyline positions={tail} pathOptions={CASING} />}
       {/* Named by a class from when it is made, not its style. */}
-      <Polyline positions={whole} pathOptions={LINE} className="own-trail" />
+      <Polyline positions={line} pathOptions={LINE} className="own-trail" />
+      {tail && <Polyline positions={tail} pathOptions={LINE} />}
     </>
   );
 }

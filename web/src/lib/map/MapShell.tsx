@@ -130,6 +130,34 @@ export function MapShell({ course, onReady, children, onSelectPlace, held = fals
     fit(true);
   }, [routeAsked, fit]);
 
+  // Whether the whole route is in sight, clear of the panel, each time the
+  // map comes to rest: panned or zoomed off it, the location arrow turns
+  // to the route, a tap fitting the course again, at the owner's ask
+  // ("When the route is entered, and map is panned away from the route,
+  // have the locator icon change to fit the course"). A hair of slack
+  // round the view, so a route fitted to its padding counts as in sight.
+  useEffect(() => {
+    const setOut = (out: boolean) => {
+      if (useOwnShip.getState().routeOutOfView !== out) useOwnShip.setState({ routeOutOfView: out });
+    };
+    if (!map || !course) {
+      setOut(false);
+      return;
+    }
+    const line = L.latLngBounds(course.course_line as [number, number][]);
+    const check = () => {
+      const { top, bottom, left } = insetsRef.current;
+      const size = map.getSize();
+      const clear = L.latLngBounds(map.containerPointToLatLng([left, top]), map.containerPointToLatLng([size.x, Math.max(top + 1, size.y - bottom)]));
+      setOut(!clear.pad(0.02).contains(line));
+    };
+    check();
+    map.on("moveend", check);
+    return () => {
+      map.off("moveend", check);
+    };
+  }, [map, course]);
+
   // Fit to the route when it changes.
   //
   // Once per route, not once per `bounds`. The course is a query: it

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { Suspense, lazy, useEffect, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Button } from "../../components/ui/button";
 import {
@@ -8,7 +8,9 @@ import { Input } from "../../components/ui/input";
 import { ApiError, api } from "../../lib/api/client";
 import { pilotQuery } from "../../lib/queryClient";
 import { TEXT } from "../../lib/text";
-import SignInModal from "./SignInModal";
+
+// Loaded when it is drawn: the sign-in sheet out of the first load.
+const SignInModal = lazy(() => import("./SignInModal"));
 
 /** Whether the page was opened from a TV's address (/tv, WebMvcConfig). */
 function fromTvAddress(): boolean {
@@ -47,7 +49,7 @@ export default function TvLink() {
         {isLoading ? null : !pilot ? (
           <div className="flex flex-col items-start gap-3">
             <p className={TEXT.prose}>Sign in on this phone first, then open the address the TV shows again.</p>
-            <SignInModal />
+            <Suspense fallback={null}><SignInModal /></Suspense>
           </div>
         ) : approve.isSuccess ? (
           <p role="status" className={TEXT.prose} data-testid="tv-link-done">

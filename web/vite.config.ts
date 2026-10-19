@@ -88,6 +88,11 @@ export default defineConfig({
         // server, not fall back to the app shell.
         navigateFallbackDenylist: [/\/(privacy|terms|support)\.html$/],
         globPatterns: ["**/*.{js,css,html,svg,woff2}"],
+        // Not kept ahead for every pilot, at the first load and after each
+        // deploy: Inter's non-Latin subsets (170 KB), fetched by the browser
+        // only for a glyph they hold, and the developer's pages (77 KB).
+        // Asked for when needed, as any request.
+        globIgnores: ["**/inter-{cyrillic,cyrillic-ext,greek,greek-ext,vietnamese}-*.woff2", "**/{DevPanel,TrainWorkspace}-*.js"],
         // This build's own chunks only, where the old ones are kept
         // (thisBuildOnly).
         manifestTransforms: keepOutDir ? [async entries => ({
@@ -229,7 +234,9 @@ export default defineConfig({
       output: {
         manualChunks(id: string) {
           if (id.includes("node_modules/leaflet/")) return "leaflet";
-          if (/node_modules\/(react|react-dom|react-router|react-router-dom|@tanstack|scheduler)\//.test(id)) return "react";
+          // TanStack's query client alone: its table (the nav log's and the
+          // kneeboard's, both lazy) stays with them, out of the first load.
+          if (/node_modules\/(react|react-dom|react-router|react-router-dom|@tanstack\/(react-query|query-core)|scheduler)\//.test(id)) return "react";
           return undefined;
         },
       },

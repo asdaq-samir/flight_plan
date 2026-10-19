@@ -50,7 +50,13 @@ export default function MyPositionButton() {
   // to bring the map back in on the airplane (OwnShipLayer, DRY_RUN_ZOOM).
   const simulated = useOwnShip(s => s.simulated);
   const showRoute = useOwnShip(s => s.showRoute);
-  const routeFace = simulated && following;
+  // And with a route entered and the map panned or zoomed off it, own
+  // ship not followed, at the owner's ask ("When the route is entered,
+  // and map is panned away from the route, have the locator icon change
+  // to fit the course"): tapped, the course fitted again, and the arrow
+  // back to go to the position from there.
+  const routeAway = useOwnShip(s => s.routeOutOfView);
+  const routeFace = (simulated && following) || (routeAway && !following);
   const tap = () => {
     if (routeFace) {
       showRoute();

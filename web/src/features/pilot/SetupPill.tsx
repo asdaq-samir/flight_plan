@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { Suspense, lazy, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "cn";
 import { PillSection } from "../../components/Favorites";
@@ -7,8 +7,11 @@ import QuickControls from "../../components/QuickControls";
 import { pilotQuery } from "../../lib/queryClient";
 import { TEXT } from "../../lib/text";
 import { AccountMenu } from "./AccountMenu";
-import SignInModal from "./SignInModal";
 import { TAB_PAGE_GAP } from "../../components/TabPage";
+
+// Loaded when it is drawn, as PaidPrompt does: imported here it put the
+// sign-in sheet in the first load for every pilot already signed in.
+const SignInModal = lazy(() => import("./SignInModal"));
 
 /**
  * Setup's pill: the quick switches in two rows under their title,
@@ -36,7 +39,7 @@ export default function SetupPill({ testId = "setup-pill", rows }: {
       </PillSection>
       <PillSection
         title="Account" testId={`${testId}-account`}
-        right={<>{!pilot && <SignInModal plain />}<AccountMenu /></>}
+        right={<>{!pilot && <Suspense fallback={null}><SignInModal plain /></Suspense>}<AccountMenu /></>}
       >
         <p className={cn("truncate text-muted-foreground", TEXT.row)} data-testid="pilot-address">
           {pilot?.displayName ?? "Not signed in"}
