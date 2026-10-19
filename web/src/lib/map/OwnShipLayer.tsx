@@ -5,7 +5,7 @@ import { Circle, Marker, useMap, useMapEvents } from "react-leaflet";
 import { nearestQuery } from "../queryClient";
 import { glideRangeNm } from "./glide";
 import { centreClear, hideLinesWhileZooming, panClear } from "./clear";
-import { ownShipIcon } from "./icons";
+import { glideLabelIcon, ownShipIcon } from "./icons";
 import { COUNTRY_ZOOM, DRY_RUN_ZOOM, OPEN_ZOOM, SIMULATED_FIX_MS, useOwnShip } from "./ownShip";
 import { usePreferences } from "../preferences";
 
@@ -38,6 +38,17 @@ const GLIDE_RING: PathOptions = { color: "#ea580c", weight: 3, dashArray: "10 6"
 const GLIDE_HALO: PathOptions = { color: "#ffffff", weight: 7, opacity: 0.85, fillOpacity: 0, interactive: false };
 const ACCURACY: PathOptions = { color: "#1d4ed8", weight: 1, opacity: 0.5, fillColor: "#3b82f6", fillOpacity: 0.08, interactive: false };
 
+
+/** Where the glide ring's label goes: on the ring due north of own ship,
+ *  a nautical mile a minute of latitude. */
+function glideLabelAt(lat: number, lon: number, glideNm: number): [number, number] {
+  return [lat + glideNm / 60, lon];
+}
+
+/** "Glide 4.5 nm": the ring's reach, to a tenth under ten miles. */
+function glideWords(glideNm: number): string {
+  return `Glide ${glideNm < 10 ? glideNm.toFixed(1) : Math.round(glideNm)} nm`;
+}
 
 export function OwnShipLayer() {
   const map = useMap();
@@ -127,10 +138,20 @@ export function OwnShipLayer() {
   // in jumps four times a second. Put back where it was after the
   // marker's own move to the fix (an effect, a parent's running after its
   // children's), then moved on a frame at a time.
+  // The still-air glide from the GPS's altitude over the nearest field
+  // (lib/map/glide), a dashed ring in the air, as an EFB's glide advisor
+  // draws it; nothing on the ground. The last field's answer held while
+  // the next is asked: asked again every few miles (nearestQuery's 0.05°),
+  // the ring went out until each answer came -- flickering under a dry
+  // run's airplane, at the owner's notice ("During the dry run, the ring
+  // around the plane is flickering").
+  const { data: nearest } = useQuery({ ...nearestQuery(fix?.lat ?? 0, fix?.lon ?? 0), enabled: enabled && !!fix, placeholderData: keepPreviousData });
+  const glide = glideRangeNm(fix, nearest?.[0]?.elevation_ft);
   const ship = useRef<L.Marker>(null);
   const ring = useRef<L.Circle>(null);
   const halo = useRef<L.Circle>(null);
   const accuracy = useRef<L.Circle>(null);
+  const label = useRef<L.Marker>(null);
   const shown = useRef<{ lat: number; lon: number } | null>(null);
   useEffect(() => {
     const from = shown.current;
@@ -142,6 +163,7 @@ export function OwnShipLayer() {
       ring.current?.setLatLng(at);
       halo.current?.setLatLng(at);
       accuracy.current?.setLatLng(at);
+      if (glide != null) label.current?.setLatLng(glideLabelAt(at.lat, at.lng, glide));
     };
     put(0);
     const start = performance.now();
@@ -151,16 +173,7 @@ export function OwnShipLayer() {
       if (k < 1) frame = requestAnimationFrame(step);
     });
     return () => cancelAnimationFrame(frame);
-  }, [fix, simulated, enabled]);
-  // The still-air glide from the GPS's altitude over the nearest field
-  // (lib/map/glide), a dashed ring in the air, as an EFB's glide advisor
-  // draws it; nothing on the ground. The last field's answer held while
-  // the next is asked: asked again every few miles (nearestQuery's 0.05°),
-  // the ring went out until each answer came -- flickering under a dry
-  // run's airplane, at the owner's notice ("During the dry run, the ring
-  // around the plane is flickering").
-  const { data: nearest } = useQuery({ ...nearestQuery(fix?.lat ?? 0, fix?.lon ?? 0), enabled: enabled && !!fix, placeholderData: keepPreviousData });
-  const glide = glideRangeNm(fix, nearest?.[0]?.elevation_ft);
+  }, [fix, simulated, enabled, glide]);
   if (!fix) return null;
   // Off: the last position alone, grey, with nothing round it.
   if (!enabled) return <Marker position={[fix.lat, fix.lon]} icon={ownShipIcon(null, true, look)} interactive={false} zIndexOffset={1000} keyboard={false} />;
@@ -170,6 +183,10 @@ export function OwnShipLayer() {
         <>
           <Circle ref={halo} center={[fix.lat, fix.lon]} radius={glide * 1852} pathOptions={GLIDE_HALO} />
           <Circle ref={ring} center={[fix.lat, fix.lon]} radius={glide * 1852} pathOptions={GLIDE_RING} />
+          <Marker
+            ref={label} position={glideLabelAt(fix.lat, fix.lon, glide)} icon={glideLabelIcon(glideWords(glide))}
+            interactive={false} keyboard={false} zIndexOffset={900}
+          />
         </>
       )}
       <Circle
