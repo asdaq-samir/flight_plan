@@ -1400,6 +1400,9 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   if (panel !== lastPanel) {
     setLastPanel(panel);
     setCameFromFull(lastPanel === "full");
+    // Down from all the way up, the route's list it ends on (the owner's
+    // "Swiping down shows profile": it stayed on the side view).
+    if (lastPanel === "full") setFootPage(0);
   }
   const routeList = useMemo(() => (
     <ProceduresRoute

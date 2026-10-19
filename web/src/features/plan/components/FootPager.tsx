@@ -28,22 +28,21 @@ export default function FootPager({ pages, page: at, onPage, introFrom, testId }
     const el = box.current;
     if (el && el.clientWidth && Math.round(el.scrollLeft / el.clientWidth) !== at) el.scrollLeft = at * el.clientWidth;
   }, [at]);
-  // Drawn first at `introFrom`, then slid to the page shown (the scroll's
-  // own smooth slide, the snap's), unless the pilot asks for less motion.
+  // Drawn as if at `introFrom`, the pages then slid along to the page
+  // shown -- a transform on each page, the scroll left where it is, so it
+  // ends where it should whatever the browser does with a smooth scroll
+  // under a snap (the owner's phone stayed on the side view) -- unless the
+  // pilot asks for less motion.
   const introduced = useRef(false);
-  // While it slides in, its scroll is not the pilot's page turn.
-  const sliding = useRef(false);
   useLayoutEffect(() => {
     const el = box.current;
-    if (introduced.current || introFrom === undefined || introFrom === at || !el?.clientWidth) return;
+    if (introduced.current || introFrom === undefined || introFrom === at || !el) return;
     introduced.current = true;
     if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    el.scrollLeft = introFrom * el.clientWidth;
-    sliding.current = true;
-    requestAnimationFrame(() => requestAnimationFrame(() => {
-      el.scrollTo({ left: at * el.clientWidth, behavior: "smooth" });
-      window.setTimeout(() => { sliding.current = false; }, 600);
-    }));
+    const by = (introFrom - at) * 100;
+    for (const page of el.querySelectorAll<HTMLElement>(":scope > section")) {
+      page.animate([{ transform: `translateX(${-by}%)` }, { transform: "translateX(0)" }], { duration: 450, easing: "cubic-bezier(0.2, 0, 0, 1)" });
+    }
     // Once, as it is first drawn.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -58,7 +57,7 @@ export default function FootPager({ pages, page: at, onPage, introFrom, testId }
         onScroll={() => {
           const el = box.current;
           const shown = el && el.clientWidth ? Math.round(el.scrollLeft / el.clientWidth) : at;
-          if (shown !== at && !sliding.current) onPage(shown);
+          if (shown !== at) onPage(shown);
         }}
         className="flex min-h-0 flex-1 snap-x snap-mandatory overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >

@@ -200,7 +200,7 @@ test("half way the side view is whole, its dry run plays under the route's chips
   await page.mouse.up();
 });
 
-test("half way on a phone the foot keeps the page it was left at as the sheet goes up and down, and a dry run stopped leaves the side view", async ({ page }) => {
+test("half way on a phone the foot comes down from all the way up on the route's list, and a dry run stopped leaves the side view", async ({ page }) => {
   test.skip((page.viewportSize()?.width ?? 0) >= 768, "a phone's half card");
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
@@ -209,12 +209,18 @@ test("half way on a phone the foot keeps the page it was left at as the sheet go
   const pager = panel.getByTestId("foot-pager");
   await expect(pager).toBeVisible({ timeout: slow(60_000) });
   await expect(pager.locator("[data-page='0']")).toHaveAttribute("data-shown", "true");
-  // The side view, a dot's tap away; up and down again, still the side view.
+  // The side view, a dot's tap away; up all the way and down again, the
+  // route's list it ends on, the side view slid off to its right (the
+  // owner's "Swiping down shows profile").
   await pager.getByTestId("foot-page-dot").nth(1).click();
   await expect(pager.locator("[data-page='1']")).toHaveAttribute("data-shown", "true");
   await grabberTo(page, "full");
   await grabberTo(page, "half");
-  await expect(panel.getByTestId("foot-pager").locator("[data-page='1']")).toHaveAttribute("data-shown", "true");
+  await expect(panel.getByTestId("foot-pager").locator("[data-page='0']")).toHaveAttribute("data-shown", "true");
+  await expect.poll(() => panel.getByTestId("foot-pager").locator("[data-page='0']").evaluate(el => {
+    const r = el.getBoundingClientRect(), box = el.parentElement!.getBoundingClientRect();
+    return Math.round(r.left - box.left);
+  }), { timeout: 3000 }).toBe(0);
   // A dry run started and stopped: the side view it was flown over, the
   // route's list a dot's tap (or a swipe) back.
   const start = panel.getByTestId("dry-run-start");
