@@ -69,7 +69,7 @@ def test_the_plan_views_bottom_line_may_run_along_part_of_it():
     # own divider does not reach up to the airport.
     across = [(452.0, 17, 370), (221.0, 17, 258), (106.0, 18, 257)]
     down = [(257.0, 38, 236)]
-    assert plates.plan_view_box(across, down, (329, 319), (387, 594)) == (0.0, 221.0, 387, 452.0)
+    assert plates.plan_view_box(across, down, (329, 319), (387, 594)) == (17, 221.0, 370, 452.0)
 
 
 
@@ -78,7 +78,22 @@ def test_a_divider_ending_at_the_airports_height_is_not_a_side():
     # foot, level with the top of the profile's divider.
     across = [(450.0, 17, 370), (211.0, 17, 258)]
     down = [(257.0, 38, 236)]
-    assert plates.plan_view_box(across, down, (196.4, 236.3), (387, 594)) == (0.0, 211.0, 387, 450.0)
+    assert plates.plan_view_box(across, down, (196.4, 236.3), (387, 594)) == (17, 211.0, 370, 450.0)
+
+
+def test_the_airport_sketchs_box_in_a_corner_is_cut_out():
+    # KDLH's ILS OR LOC RWY 09: the profile's box under the plan view's
+    # left, the airport sketch's under its right, higher.
+    across = [(472.0, 17, 370), (192.0, 17, 258), (235.0, 256, 370), (159.5, 168, 257)]
+    down = [(17.0, 38, 529), (370.0, 38, 529), (257.0, 38, 236)]
+    box = plates.plan_view_box(across, down, (300, 300), (387, 594))
+    assert box == (17.0, 192.0, 370.0, 472.0)
+    assert plates.corner_boxes(across, down, box, (300, 300)) == [(256, 192.0, 370.0, 235.0)]
+
+
+def test_without_sides_the_line_over_the_plan_view_ends_at_them():
+    across = [(472.0, 17, 370), (192.0, 17, 258)]
+    assert plates.plan_view_box(across, [], (300, 300), (387, 594)) == (17, 192.0, 370, 472.0)
 
 
 def test_a_plate_kept_as_not_placed_is_none_until_the_placing_changes(tmp_path):
