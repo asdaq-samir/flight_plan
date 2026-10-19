@@ -37,9 +37,6 @@ export function PhoneSheetContent({ edge, className, style, children, onPointerD
   const [swiped, setSwiped] = useState<number | null>(null);
   const [held, setHeld] = useState(false);
   const toward = edge === "bottom" ? 1 : -1;
-  // Out on the map's own page in the iOS app's native sheet, iOS's sheet
-  // stands aside while it is, as it would cover it (lib/nativeSheet).
-  useEffect(() => holdNativeSheetAway(), []);
   // From its content too, as an iOS sheet's scrolling content hands a drag
   // to the sheet, at the owner's pick ("Ok 1-3"): a finger's first move
   // toward the sheet's edge, where everything that scrolls under it is
@@ -49,6 +46,12 @@ export function PhoneSheetContent({ edge, className, style, children, onPointerD
   // A field, a slider or something with gestures of its own keeps the
   // finger; the head goes by its pointer (above).
   const [sheet, setSheet] = useState<HTMLDivElement | null>(null);
+  // Out on the map's own page in the iOS app's native sheet, iOS's sheet
+  // stands aside while it is, as it would cover it (lib/nativeSheet): by
+  // the sheet's own element, which is in the page only while it is out --
+  // this component is kept while shut (the error alert's, once a request
+  // has failed), and held iOS's sheet away for good.
+  useEffect(() => (sheet ? holdNativeSheetAway() : undefined), [sheet]);
   useEffect(() => {
     if (!sheet) return;
     let g: { x: number; y: number; t: number; target: Element; taken: boolean | null; by: number; moving: boolean } | null = null;
