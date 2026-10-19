@@ -68,7 +68,7 @@ describe("decimalHours", () => {
 
 describe("legsWithoutWind", () => {
   const base: Totals = {
-    distance_nm: 210, ete_min: 125, fuel_gal: 17.5, unflyable_legs: 0, legs_without_wind: 0,
+    distance_nm: 210, procedure_nm: 0, ete_min: 125, fuel_gal: 17.5, unflyable_legs: 0, legs_without_wind: 0,
     reserve_min: null, reserve_gal: null, taxi_gal: null, fuel_required_gal: null, usable_fuel_gal: null, fuel_margin_gal: null, night: null, rules: "vfr", alternate: null, hops: [],
   };
 

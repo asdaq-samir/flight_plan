@@ -167,7 +167,10 @@ def totals(leg_list: list) -> dict:
         return round(sum(values), 1) if len(values) == len(leg_list) else None
 
     return {
-        "distance_nm": round(sum(leg["distance_nm"] for leg in leg_list), 1),
+        # A leg flown by procedures (planning-service with_procedures) the
+        # longer by their path's miles more, as its time and fuel are.
+        "distance_nm": round(sum(leg["distance_nm"] + (leg.get("procedure") or {}).get("more_nm", 0.0) for leg in leg_list), 1),
+        "procedure_nm": round(sum((leg.get("procedure") or {}).get("more_nm", 0.0) for leg in leg_list), 1),
         # None rather than a wrong number if any leg is unflyable:
         # silently summing the flyable ones would understate the trip.
         "ete_min": _total("ete_min"),

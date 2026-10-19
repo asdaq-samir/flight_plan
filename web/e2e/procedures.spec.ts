@@ -360,3 +360,29 @@ test.describe("on the owner's phone's width, to a finger", () => {
   expect((await box.boundingBox())!.height).toBeLessThanOrEqual(48);
 });
 });
+
+test("a procedure picked lengthens the plan by its path: the fuel and the time to the field are the flight flown", async ({ page }) => {
+  // The owner's word ("Yes"), after the plan said 909 nm to Jacksonville
+  // where the dry run flew 1053 by BENKY6 into O'Hare: the planner flies
+  // the leg in by the approach picked, its miles more in the figures.
+  const figures = async () => {
+    await expect(page.getByTestId("navlog-fuel")).toHaveText(/^\d+\.\d gal$/, { timeout: slow(120_000) });
+    return { fuel: parseFloat((await page.getByTestId("navlog-fuel").textContent())!), ete: (await page.getByTestId("navlog-ete").textContent())! };
+  };
+  const minutes = (ete: string) => {
+    const [, h, m] = /^(?:(\d+)h )?(\d+)m$/.exec(ete.trim())!;
+    return Number(h ?? 0) * 60 + Number(m);
+  };
+  await page.goto("/app/plan?dep=C81&dest=KDLH&pattern=C81:NONE");
+  await settle(page);
+  const straight = await figures();
+  // Out to PLANE, south-east of the field, and round onto the final.
+  await page.goto("/app/plan?dep=C81&dest=KDLH&pattern=C81:NONE&procs=KDLH:R27:PLANE");
+  await settle(page);
+  await expect.poll(async () => (await figures()).fuel, { timeout: slow(120_000) }).toBeGreaterThan(straight.fuel);
+  const flown = await figures();
+  expect(minutes(flown.ete)).toBeGreaterThan(minutes(straight.ete));
+  // The breakdown says where the gallons more come from.
+  await page.getByTestId("fuel-breakdown-open").click();
+  await expect(page.getByTestId("fuel-breakdown")).toContainText(/\d+\.\d nm more by the procedures picked/);
+});

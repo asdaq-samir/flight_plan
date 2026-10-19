@@ -307,9 +307,10 @@ def test_a_flight_landing_by_an_approach_comes_down_to_its_first_fix_by_it(monke
     asked = []
     monkeypatch.setattr(plan_router.procedures, "procedure_drawing",
                         lambda ident, procedure, transition=None: asked.append((ident, procedure, transition)) or drawn)
-    legs = client.get("/api/plan", params={**VIA_MADISON, "approaches": "DLH:I09:ANDOE"}).json()["legs"]
+    legs = client.get("/api/plan", params={**VIA_MADISON, "procedures": "DLH:I09:ANDOE"}).json()["legs"]
     tods = {leg["to"]: leg["tod"] for leg in legs if leg["tod"]}
-    assert asked == [("KDLH", "I09", "ANDOE")]
+    # Asked once, by the field as picked, for the descent and the leg alike.
+    assert asked == [("DLH", "I09", "ANDOE")]
     assert (tods["KDLH"]["to_ft"], tods["KDLH"]["fix"], tods["KDLH"]["pattern"]) == (3000.0, "ANDOE", False)
     # Madison, with no approach picked, still down to its pattern.
     assert (tods["KMSN"]["to_ft"], tods["KMSN"]["fix"], tods["KMSN"]["pattern"]) == (1900.0, None, True)
@@ -331,14 +332,48 @@ def test_a_flight_cruising_under_an_approachs_first_fix_comes_down_to_the_next_f
         for ident, north, min_ft in (("HIGHR", 0.2, 5000), ("FAFIX", 0.05, 2300))
     ]}
     monkeypatch.setattr(plan_router.procedures, "procedure_drawing", lambda ident, procedure, transition=None: drawn)
-    legs = client.get("/api/plan", params={"dep": "C81", "dest": "KDLH", "approaches": "KDLH:R27:HIGHR"}).json()["legs"]
+    legs = client.get("/api/plan", params={"dep": "C81", "dest": "KDLH", "procedures": "KDLH:R27:HIGHR"}).json()["legs"]
     tod = next(leg["tod"] for leg in legs if leg["tod"])
     assert (tod["to_ft"], tod["fix"]) == (2300.0, "FAFIX")
 
 
-@pytest.mark.parametrize("approaches", ["KDLH", "KDLH:", "KDLH:I09:ANDOE:X", "KDLH:I09;KMSN:R18"])
-def test_an_approach_that_is_not_one_is_refused(approaches):
-    params = {**VIA_MADISON, "approaches": approaches}
+def test_a_leg_flown_by_an_arrival_is_the_longer_by_its_path_and_so_are_its_time_fuel_and_the_totals(monkeypatch):
+    from app.routers import plan as plan_router
+
+    field = airport("KDLH")
+    # An arrival out 0.5° west of the field and back: its path from the
+    # last leg's start runs miles past the field and round, where the leg
+    # runs straight in. Its fix crossed at 12,000, over the plan's cruise.
+    west = [field["lat"], field["lon"] - 0.5]
+    drawn = {
+        "kind": "arrival", "holds": [], "fixes": [{"ident": "WESTX", "lat": west[0], "lon": west[1], "roles": [],
+                                                   "min_ft": 12000, "max_ft": None, "missed": False}],
+        "lines": [{"role": "common", "points": [west, [field["lat"] + 0.05, field["lon"]]]}],
+    }
+    monkeypatch.setattr(plan_router.procedures, "procedure_drawing", lambda ident, procedure, transition=None: drawn)
+    plain = client.get("/api/plan", params=VIA_MADISON).json()
+    flown = client.get("/api/plan", params={**VIA_MADISON, "procedures": "KDLH:WEST1"}).json()
+    before, after = plain["legs"][-1], flown["legs"][-1]
+    more = after["procedure"]["more_nm"]
+    assert more > 10
+    # The leg keeps the route's own distance, the miles more at its ground
+    # speed and burn in its time and fuel.
+    assert after["distance_nm"] == before["distance_nm"]
+    assert after["ete_min"] == pytest.approx(before["ete_min"] + more / before["groundspeed_kt"] * 60, abs=0.2)
+    assert after["fuel_gal"] == pytest.approx(before["fuel_gal"] + after["procedure"]["more_min"] / 60 * before["fuel_burn_gph"], abs=0.02)
+    assert after["procedure"]["landing"] is True
+    assert after["procedure"]["path"][0] != after["procedure"]["path"][-1]
+    # And the totals, the fuel the reserve and the fuel required are added to.
+    assert flown["totals"]["distance_nm"] == pytest.approx(plain["totals"]["distance_nm"] + more, abs=0.2)
+    assert flown["totals"]["fuel_gal"] == pytest.approx(plain["totals"]["fuel_gal"] + after["procedure"]["more_gal"], abs=0.1)
+    # Madison's leg in, with nothing picked there, as it was.
+    madison = [leg for leg in flown["legs"] if leg["to"] == "KMSN"][-1]
+    assert madison.get("procedure") is None
+
+
+@pytest.mark.parametrize("picks", ["KDLH", "KDLH:", "KDLH:I09:ANDOE:X", "KDLH:I09;KMSN:R18"])
+def test_a_procedure_that_is_not_one_is_refused(picks):
+    params = {**VIA_MADISON, "procedures": picks}
     assert client.get("/api/plan", params=params).status_code == 422
     assert client.get("/api/navlog", params=params).status_code == 422
 

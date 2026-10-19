@@ -758,6 +758,7 @@ def route_totals(per_hop: list[dict], hops: list) -> dict:
 
     return {
         "distance_nm": round(sum(t["distance_nm"] for t in per_hop), 1),
+        "procedure_nm": round(sum(t.get("procedure_nm", 0.0) for t in per_hop), 1),
         "ete_min": total("ete_min"),
         "fuel_gal": total("fuel_gal"),
         "unflyable_legs": sum(t["unflyable_legs"] for t in per_hop),
