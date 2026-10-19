@@ -158,6 +158,54 @@ describe("the planned flight flown into an approach picked at its field", () => 
     expect(missedRun.alongNm.at(-1)).toBeCloseTo(run.alongNm.at(-1)! + out);
   });
 
+  it("from vectors joins the final 30° off its course outside its first fix, not out along it and round", () => {
+    // A short final from the south-west, its first fix north of the top of
+    // descent: the run, outside it, goes straight to a point three miles
+    // back from it, 30° off its course on the run's side, and turns onto
+    // the final there by no more than that.
+    const short = {
+      ...drawing, transition: null, holds: [],
+      lines: [{ role: "final", name: null, points: [[42.95, -88.05], [42.975, -88.025], [43, -88]] }],
+      fixes: [
+        { ident: "FIRST", lat: 42.95, lon: -88.05, roles: ["IF"], min_ft: 1900, max_ft: null, missed: false },
+        { ident: "RW03", lat: 43, lon: -88, roles: ["MAP"], min_ft: null, max_ft: null, missed: false },
+      ],
+    } as ProcedureDrawing;
+    const flown = dryRunOf(rows, 1_000, undefined, [short]);
+    const first = { lat: 42.95, lon: -88.05 };
+    const at = flown.points.findIndex(p => distanceNm(p, first) < 0.05);
+    expect(at).toBeGreaterThan(0);
+    const before = flown.points[at - 1]!, after = flown.points.find((_, i) => flown.alongNm[i]! > flown.alongNm[at]! + 0.3)!;
+    const turn = Math.abs(((after.track_deg! - before.track_deg! + 540) % 360) - 180);
+    expect(turn).toBeLessThanOrEqual(31);
+  });
+
+  it("from vectors with the field between the airplane and the final's start, flies a downwind first", () => {
+    // The final the other way, eastbound from 43 N 88.2 W to the runway
+    // at 43 N 88 W: the top of descent, south of the runway, is inside
+    // its first fix, so a downwind four miles south, out abeam it, then
+    // the join, and never out along the final itself.
+    const east = {
+      ...drawing, transition: null, holds: [],
+      lines: [{ role: "final", name: null, points: [[43, -88.2], [43, -88.1], [43, -88]] }],
+      fixes: [
+        { ident: "WEST", lat: 43, lon: -88.2, roles: ["IF"], min_ft: 2500, max_ft: null, missed: false },
+        { ident: "FAF", lat: 43, lon: -88.1, roles: ["FAF"], min_ft: 1900, max_ft: null, missed: false },
+        { ident: "RW09", lat: 43, lon: -88, roles: ["MAP"], min_ft: null, max_ft: null, missed: false },
+      ],
+    } as ProcedureDrawing;
+    const flown = dryRunOf(rows, 1_000, undefined, [east]);
+    const first = { lat: 43, lon: -88.2 };
+    // The top of descent is 12 nm south of the final, more than four:
+    // the downwind there, abeam the first fix.
+    const abeam = flown.points.find(p => Math.abs(p.lon + 88.2) < 0.002 && p.lat < 42.9);
+    expect(abeam).toBeDefined();
+    // Nothing flown on the final west of its first fix, outbound.
+    const west = flown.points.findIndex(p => distanceNm(p, first) < 0.05);
+    expect(west).toBeGreaterThan(0);
+    expect(flown.points.slice(0, west).every(p => p.lat < 42.99 || distanceNm(p, first) < 1.5)).toBe(true);
+  });
+
   it("is the route as planned into a field with no approach picked", () => {
     const other = dryRunOf(rows, 1_000, undefined, [{ ...drawing, airport: "KMSP" }]);
     expect(other.alongNm.at(-1)).toBeCloseTo(60);

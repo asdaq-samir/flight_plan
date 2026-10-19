@@ -209,6 +209,48 @@ function missedHeights(start: number, end: number, field: number, to: number): P
   return [{ along_nm: top, plan_ft: to }, { along_nm: end, plan_ft: to }];
 }
 
+/** Where vectors bring an airplane onto an approach's final: this far out
+ *  from the final's first fix, nm, on a heading 30° off its course --
+ *  the most a controller turns one onto it, outside the approach gate
+ *  (FAA Order JO 7110.65, 5-9-2). */
+const INTERCEPT_NM = 3;
+/** How far to the side of the final a downwind to it is flown, nm. */
+const DOWNWIND_NM = 4;
+
+/**
+ * The way an approach flown from vectors (no transition picked) is joined,
+ * at the owner's notice of the dry run flying out along the final and
+ * turning round at its first fix ("I saved a video of flying approach"),
+ * as a controller vectors an airplane onto it: from outside the final's
+ * first fix, straight to a point three miles back from it on the side the
+ * airplane comes from, 30° off the final's course, and onto the final
+ * there; from inside it -- the field between the airplane and the final's
+ * start, as a route's top of descent near the field is -- first out to
+ * that side, then a downwind four miles off the final (or as far as the
+ * airplane already is, up to eight) to abeam its first fix and three miles on, and a
+ * base to that point. Empty where the final is too short to say which
+ * way it runs.
+ */
+function vectorsJoin(final: LatLon[], from: LatLon): LatLon[] {
+  if (final.length < 2) return [];
+  const first = final[0]!, course = bearingDeg(first, final[1]!);
+  const off = ((bearingDeg(first, from) - course + 540) % 360) - 180;
+  const distance = distanceNm(first, from);
+  // The side the airplane is on, right of the final's course or left.
+  const side = off >= 0 ? 1 : -1;
+  const join = destination(first, course + 180 - 30 * side, INTERCEPT_NM);
+  // How far ahead of the first fix the airplane is, toward the runway or
+  // past it, and how far to the side of the final.
+  const along = distance * Math.cos((off * Math.PI) / 180);
+  if (along <= 0) return [join];
+  // Four miles off, or as far as it already is up to twice that.
+  const aside = Math.min(2 * DOWNWIND_NM, Math.max(DOWNWIND_NM, Math.abs(distance * Math.sin((off * Math.PI) / 180))));
+  // Out to the side first where it is on or near the final, then down it,
+  // abeam the first fix, and a base onto the join.
+  const at = (alongNm: number) => destination(destination(first, course, alongNm), course + 90 * side, aside);
+  return [at(along), at(0), at(-INTERCEPT_NM), join];
+}
+
 /** How far a path turns at a point to be a course reversal there, degrees. */
 const REVERSAL_DEG = 120;
 
@@ -352,6 +394,13 @@ export function dryRunOf(rows: NavLogRow[], startS: number, line?: [number, numb
       const raw: LatLon[] = [{ lat: prev.lat, lon: prev.lon }];
       const rawFt: (number | null)[] = [null];
       for (const piece of pieces) {
+        // From vectors, onto the final at a 30° intercept (vectorsJoin).
+        if (piece === app && approach && !approach.transition) {
+          for (const p of vectorsJoin(piece.points, raw.at(-1)!)) {
+            raw.push(p);
+            rawFt.push(null);
+          }
+        }
         for (let k = 0; k < piece.points.length; k++) {
           // A point where the last piece ended is the one place.
           if (distanceNm(piece.points[k]!, raw.at(-1)!) < SAME_PLACE_NM) continue;
