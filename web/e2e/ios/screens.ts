@@ -332,6 +332,8 @@ export const SCREENS: Screen[] = [
       await openTab(page, "Nav Log");
       await page.getByTestId("procedures").getByRole("region", { name: "KDLH · Arrive" })
         .getByTestId("procedure-kind").filter({ hasText: /^Approach/ }).click({ timeout: slow(30000) });
+      // The pull-down's foot opens the field's whole list (ProcedureMenu).
+      await page.getByTestId("procedure-menu-all").click();
       await page.getByTestId("procedure-option").first().click();
       await expect(page.getByTestId("procedure-add")).toBeVisible();
     },

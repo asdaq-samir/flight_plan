@@ -14,11 +14,12 @@ import { distanceNm } from "../../../lib/geo";
 import { runwayNumber, windPick, type WindPick } from "../../../lib/pattern";
 import { airportQuery, plateQuery } from "../../../lib/queryClient";
 import { approachRunway, kindsFor, sameField, type PickedProcedure } from "../../../lib/procedures";
-import { trafficPattern } from "../../../lib/trafficPattern";
+import { NO_PATTERN, trafficPattern } from "../../../lib/trafficPattern";
 import { TEXT } from "../../../lib/text";
 import { altFt } from "../../../lib/units";
 import { etaAt } from "../format";
 import { PointMark } from "./navlog/PointMark";
+import ProcedureMenu from "./ProcedureMenu";
 import { rowPoint, type NavLogRow } from "./navlog/rows";
 
 /** The value of a choice's "None" (no pattern, no transition): a toggle's
@@ -29,7 +30,6 @@ export type ProcedureKind = ProcedureSummary["kind"];
 type Kind = ProcedureKind;
 
 const KIND_TITLE: Record<Kind, string> = { approach: "Approaches", arrival: "Arrivals", departure: "Departures" };
-const KIND_ONE: Record<Kind, string> = { approach: "Approach", arrival: "Arrival", departure: "Departure" };
 /** The FAA's chart codes in a field's d-TPP for each kind (its card's
  *  terminal charts, vfr.publications, as the d-TPP metafile's chart_code
  *  has them): an instrument approach procedure, a STAR ("STR"), a
@@ -77,7 +77,7 @@ export type ProceduresAt = { ident: string; kind: Kind } | null;
  * head, the close's twin, at the owner's ask.
  */
 export default function ProceduresRoute({
-  airports, rows, depart, weather, picked, onPick, onCharts, chartsDisabled, procedures, inRoute, onProcedures, onPreview, at, onAt,
+  airports, rows, depart, weather, picked, onPick, onPreselect, onCharts, chartsDisabled, procedures, inRoute, onProcedures, onPreview, at, onAt,
 }: {
   airports: ProcedureAirport[];
   /** The route's rows as the nav log has them (navLogRows), for its
@@ -91,6 +91,9 @@ export default function ProceduresRoute({
   /** The runway end picked for each field's pattern. */
   picked: Map<string, string>;
   onPick: (ident: string, end: string | null) => void;
+  /** The runway into the wind picked for the pilot as the route comes in:
+   *  into the address with no move of the map, which stays on the route. */
+  onPreselect: (ident: string, end: string) => void;
   /** The destination's approach charts, in its card. */
   onCharts: () => void;
   chartsDisabled: boolean;
@@ -120,12 +123,15 @@ export default function ProceduresRoute({
   // Each field's procedures, asked for as its kind's sheet opens -- not
   // with the route: the FAA's file is 53 MB, fetched on its first ask --
   // and said in the list from then on.
+  // Asked for as a field's menu opens too (ProcedureMenu).
+  const [asked, setAsked] = useState<ReadonlySet<string>>(() => new Set());
+  const ask = (ident: string) => { if (!asked.has(ident)) setAsked(new Set([...asked, ident])); };
   const lists = useQueries({
     queries: airports.map(a => ({
       queryKey: ["procedures", a.ident],
       queryFn: () => api.procedures(a.ident),
       staleTime: PROCEDURE_STALE_MS,
-      enabled: at?.ident === a.ident,
+      enabled: at?.ident === a.ident || asked.has(a.ident),
     })),
   });
   // Each field's card (its weather), for the wind a field with no report
@@ -158,9 +164,10 @@ export default function ProceduresRoute({
   // kind a field does not have (the owner's cleanup).
   const hasKind = (ident: string, kind: Kind): boolean => {
     const i = airports.findIndex(a => a.ident === ident);
-    const list = lists[i]?.data;
-    if (list) return list.procedures.some(p => p.kind === kind);
-    return cards[i]?.data?.procedures.some(c => CHART_CODES[kind].includes(c.kind)) ?? false;
+    // Either says so: the list coming in as a menu opens takes no menu
+    // away from under the finger where the CIFP has none the FAA charts.
+    return !!lists[i]?.data?.procedures.some(p => p.kind === kind)
+      || (cards[i]?.data?.procedures.some(c => CHART_CODES[kind].includes(c.kind)) ?? false);
   };
   const kindOf = (p: PickedProcedure) => listOf(p.ident)?.procedures.find(q => q.id === p.id)?.kind;
   const pickOf = (ident: string, kind: Kind) => procedures.find(p => sameField(p.ident, ident) && kindOf(p) === kind) ?? null;
@@ -177,20 +184,46 @@ export default function ProceduresRoute({
     if (runway) onPick(ident, runway);
   };
   const close = () => onAt(null);
+  // The runway picked at a field, none where the pilot picked none.
+  const chosenAt = (ident: string) => {
+    const end = picked.get(ident) ?? null;
+    return end === NO_PATTERN ? null : end;
+  };
+  // Each field of the route, its runway picked into the wind until the
+  // pilot picks one or none, at the owner's ask ("a preselected runway into
+  // the wind", "Departing runway should also be pre selected"): most fly
+  // the runway ATC gives them with no approach, so no approach is picked.
+  // Once a field, so a runway picked and taken back is not picked again
+  // under the pilot's finger.
+  const preselected = useRef(new Set<string>());
+  const intoWind = airports.flatMap(a => {
+    if (picked.has(a.ident) || landingOf(a.ident)) return [];
+    const wind = windOf(a.ident);
+    return wind && !wind.calm ? [`${a.ident}:${wind.ident}`] : [];
+  }).join(",");
+  useEffect(() => {
+    for (const pick of intoWind ? intoWind.split(",") : []) {
+      const [ident, end] = pick.split(":") as [string, string];
+      if (preselected.current.has(ident)) continue;
+      preselected.current.add(ident);
+      onPreselect(ident, end);
+    }
+  }, [intoWind, onPreselect]);
   const destination = airports.find(a => a.role === "Destination");
 
   // A field's step: what is flown there, in the order it is flown.
   const fieldStep = (a: ProcedureAirport, row: NavLogRow | undefined, last: boolean) => {
-    // A kind's row: the one in the route said at its end.
-    const kindRow = (kind: Kind) => {
-      const mine = inRoute.find(p => sameField(p.ident, a.ident) && p.kind === kind);
-      return (
-        <ListRow
-          key={kind} title={KIND_ONE[kind]} chevron value={mine?.label ?? "None"}
-          onClick={() => onAt({ ident: a.ident, kind })} data-testid="procedure-kind"
-        />
-      );
-    };
+    // A kind's pull-down: the one in the route said on it (ProcedureMenu).
+    const wind = windOf(a.ident);
+    const i = airports.findIndex(f => f.ident === a.ident);
+    const kindMenu = (kind: Kind) => (
+      <ProcedureMenu
+        key={kind} ident={a.ident} kind={kind} list={lists[i]?.data} loading={!!lists[i]?.isFetching}
+        picked={pickOf(a.ident, kind)} label={inRoute.find(p => sameField(p.ident, a.ident) && p.kind === kind)?.label ?? null}
+        runway={chosenAt(a.ident)} windward={wind && !wind.calm ? wind.ident : null}
+        onOpen={() => ask(a.ident)} onPick={next => pick(a.ident, kind, next)} onAll={() => onAt({ ident: a.ident, kind })}
+      />
+    );
     const kinds = kindsFor(a.role).filter(kind => hasKind(a.ident, kind) || inRoute.some(p => sameField(p.ident, a.ident) && p.kind === kind));
     // What is flown before the pattern (an arrival, an approach) and
     // after it (a departure).
@@ -202,9 +235,9 @@ export default function ProceduresRoute({
         mark={row ? <PointMark row={row} number={undefined} weather={weather} /> : <FieldDot last={last} />}
         title={`${a.ident} · ${ROLE_STEP[a.role]}`} time={row ? etaAt(depart || new Date().toISOString(), row.minutesFlown) : null} field
       >
-        {before.length > 0 && <ListGroup>{before.map(kindRow)}</ListGroup>}
-        <PatternChips airport={a} wind={windOf(a.ident)} chosen={picked.get(a.ident) ?? null} landing={landingOf(a.ident)} onPick={end => onPick(a.ident, end)} />
-        {after.length > 0 && <ListGroup>{after.map(kindRow)}</ListGroup>}
+        {before.length > 0 && <div className={cn("grid gap-2", before.length > 1 ? "grid-cols-2" : "grid-cols-1")}>{before.map(kindMenu)}</div>}
+        <PatternChips airport={a} wind={wind} chosen={chosenAt(a.ident)} landing={landingOf(a.ident)} onPick={end => onPick(a.ident, end ?? NO_PATTERN)} />
+        {after.length > 0 && <div className="grid grid-cols-1 gap-2">{after.map(kindMenu)}</div>}
       </Step>
     );
   };
