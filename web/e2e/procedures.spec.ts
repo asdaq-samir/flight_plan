@@ -313,6 +313,25 @@ test.describe("on the owner's phone's width, to a finger", () => {
   // A finger's 17-point words (pointer: coarse), on 393 points.
   test.use({ hasTouch: true, isMobile: true, viewport: { width: 393, height: 695 } });
 
+  test("a pull-down opens on a finger's lift, not its touch, so a scroll begun on it opens nothing", async ({ page }) => {
+    test.skip(test.info().project.name !== "mobile", "a phone's finger");
+    await page.goto("/app/plan?dep=C81&dest=ORD");
+    await settle(page);
+    await openTab(page, "Nav Log");
+    const trigger = page.locator("[data-testid=procedure-kind][data-kind=approach]");
+    await expect(trigger).toBeVisible({ timeout: slow(20000) });
+    const box = (await trigger.boundingBox())!;
+    const x = box.x + box.width / 2, y = box.y + box.height / 2;
+    // Touched and held, no lift: closed.
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y }] });
+    await page.waitForTimeout(400);
+    await expect(page.getByTestId("procedure-menu")).toHaveCount(0);
+    // Lifted where it was touched: a tap, open.
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    await expect(page.getByTestId("procedure-menu")).toBeVisible();
+  });
+
   test("a route with a procedure's chip and three fields stays one line in the route's box, the field past its end taking no line of its own", async ({ page }) => {
   test.skip(test.info().project.name !== "mobile", "a phone's box");
   // The owner's recording: C81 → its ILS 09 via DLH → KDLH → KRFD, where
