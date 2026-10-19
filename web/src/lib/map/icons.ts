@@ -104,8 +104,9 @@ function makeOwnShipIcon(headingDeg: number | null, off: boolean, look: OwnShipL
   // Maps greys its dot when it stops knowing where you are. iOS's blue.
   const fill = off ? "#9ca3af" : "#0a7aff";
   const plane = look !== "arrow";
-  const puck = plane && moving;
-  const size = puck ? 36 : plane ? 34 : 28;
+  const beam = plane && moving;
+  // The beam's box twice the plane's, the plane at its middle (ownShipSvg).
+  const size = beam ? 68 : plane ? 34 : 28;
   return L.divIcon({
     className: "",
     iconSize: [size, size],
@@ -113,8 +114,8 @@ function makeOwnShipIcon(headingDeg: number | null, off: boolean, look: OwnShipL
     html: !plane && (headingDeg === null || off)
       ? `<div data-own-ship="${off ? "off" : "on"}" class="absolute left-1/2 top-1/2 size-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-[2.5px] border-white shadow-[0_1px_4px_rgba(0,0,0,.45)]" style="background:${fill}"></div>`
       : ownShipSvg(look, fill, size,
-        `data-own-ship="${off ? "off" : "on"}" data-look="${look}" data-moving="${puck}" class="absolute left-0 top-0 drop-shadow-[0_1.5px_3px_rgba(0,0,0,.4)]" style="transform:rotate(${Number(headingDeg ?? 0)}deg)"`,
-        puck),
+        `data-own-ship="${off ? "off" : "on"}" data-look="${look}" data-moving="${beam}" class="absolute left-0 top-0 drop-shadow-[0_1.5px_3px_rgba(0,0,0,.4)]" style="transform:rotate(${Number(headingDeg ?? 0)}deg)"`,
+        beam),
   });
 }
 

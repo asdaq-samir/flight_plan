@@ -183,7 +183,7 @@ export function OwnShipLayer() {
   const turned = useRef<{ deg: number; el: Element } | null>(null);
   const heading = enabled && fix ? fix.headingDeg : null;
   // Moving -- a dry run, or the GPS at flying speed -- the plane in its
-  // puck; still, the plane alone (ownShipSvg).
+  // heading beam; still, the plane alone (ownShipSvg).
   const moving = simulated || underway(fix);
   useEffect(() => {
     const el = ship.current?.getElement()?.querySelector<SVGElement>("svg[data-look]") ?? null;
