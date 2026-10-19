@@ -1,4 +1,4 @@
-import { useRef, type ComponentProps, type ReactNode, type RefObject } from "react";
+import { useRef, type ReactNode, type RefObject } from "react";
 import { cn } from "cn";
 import { TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 
@@ -9,9 +9,6 @@ import { TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
  * (ConsoleTabs). They were each a copy of the same stock line tabs, the
  * behaviour and the sizes drifting apart one by one.
  *
- * - LineTabsList: the bar -- words over a hairline, the chosen one in the
- *   tint and underlined in it, 44 points to a finger, as iOS's tab bars
- *   are; its tabs share it edge to edge.
  * - CardTabBar: a card's bar, its tabs from a list; tapped, the panel comes
  *   all the way up, and the open one tapped again up there takes it back to
  *   the pill, as the route's tabs do (PanelTabs).
@@ -19,12 +16,6 @@ import { TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
  * - useCardTab (lib/cardTab): the tab picked, kept for each airport or
  *   airplane while the page is open: back from a card over it, the same tab.
  */
-
-const LIST = "w-full gap-0 border-b border-border p-0 group-data-[orientation=horizontal]/tabs:h-9 pointer-coarse:group-data-[orientation=horizontal]/tabs:h-11";
-
-export function LineTabsList({ className, ...props }: ComponentProps<typeof TabsList>) {
-  return <TabsList variant="line" className={cn(LIST, className)} {...props} />;
-}
 
 /** A card's pages as iOS's segmented control, the stock Tabs' own look:
  *  one control on every card -- an airport's Info, Weather, Runways and
