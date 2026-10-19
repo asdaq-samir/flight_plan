@@ -34,11 +34,14 @@ export function nextLanding(totals: Totals | null, destination: string): { to: s
   return hop ? { to: hop.destination, totals: hop.totals } : { to: destination, totals };
 }
 
-/** The reserve an estimate's fuel carries before the nav log's own: the
- *  day VFR one, 30 minutes at the cruise burn (14 CFR 91.151), and the
- *  start, taxi and takeoff allowance of the Cessna 172S handbook, 1.4 gal
- *  -- vfr.navlog's DAY_RESERVE_MIN and DEFAULT_TAXI_FUEL_GAL. */
-const ESTIMATE_RESERVE_H = 0.5;
+/** The reserve an estimate's fuel carries before the nav log's own: 45
+ *  minutes at the cruise burn, the most the rules ask -- night VFR (14 CFR
+ *  91.151(b)) and IFR (91.167(a)(3)) -- as whether the flight is either is
+ *  not known yet, so the estimate is never short (the audit's finding: the
+ *  day's 30 minutes made it low at night and under IFR); and the start,
+ *  taxi and takeoff allowance of the Cessna 172S handbook, 1.4 gal --
+ *  vfr.navlog's NIGHT_RESERVE_MIN and DEFAULT_TAXI_FUEL_GAL. */
+const ESTIMATE_RESERVE_H = 0.75;
 const ESTIMATE_TAXI_GAL = 1.4;
 
 /** The strip's figures, at the owner's ask ("To, Dist, ETE, Fuel. To is

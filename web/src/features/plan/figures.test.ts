@@ -68,9 +68,9 @@ describe("tripFigures", () => {
     const [, dist, ete, fuel] = tripFigures(est, true);
     expect(dist!.value).toBe("101");
     expect(ete!.value.startsWith("≈")).toBe(true);
-    // The trip's 10.0 gal, the 1.4 to start and taxi, and a day reserve's
-    // 5.0: 16.4, up to 17.
-    expect(fuel!.value).toBe("≈17");
+    // The trip's 10.0 gal, the 1.4 to start and taxi, and the 45 minutes'
+    // reserve's 7.5, the most the rules ask: 18.9, up to 19.
+    expect(fuel!.value).toBe("≈19");
   });
 
   it("writes an estimate's time as the nav log's own, its minutes rounded first", () => {
