@@ -431,18 +431,23 @@ def pattern_altitude(flight: Route, own: dict[str, float] | None = None) -> floa
     return field_pattern_ft(flight.dest_ident, flight.dest_airport)
 
 
-def approach_end(flight: Route, picks: dict[str, tuple[str, str | None]]) -> tuple[float, float, str] | None:
+def approach_end(flight: Route, picks: dict[str, tuple[str, str | None]],
+                 cruise_ft: float | None = None) -> tuple[float, float, str] | None:
     """Where a flight landing by the instrument approach picked for its
-    field comes down to: the altitude its first fix with one is crossed
-    at, the fix, and the fix's distance from the field. The first fix is
-    the transition's initial approach fix, or from vectors the
-    intermediate fix; the altitude is the chart's lowest for it, coded in
-    the FAA's CIFP (vfr.procedures.altitude_limits, ARINC 424-18 5.29) as
-    the plate prints it (AIM 5-4-5), or its highest where it is crossed
-    at or below one. The route runs to the field, not to the fix: the
-    descent ends where the route is the fix's own distance out, and the
-    approach is flown from there as charted. None where no approach is
-    picked there, or the CIFP cannot be had: down to the pattern."""
+    field comes down to: the altitude its first fix with one under the
+    cruise (`cruise_ft`) is crossed at, the fix, and the fix's distance
+    from the field. The first fix is the transition's initial approach
+    fix, or from vectors the intermediate fix; a plan cruising at or under
+    its altitude comes down to the next fix lower, the final approach
+    fix's, say, as the approach steps down. The altitude is the chart's
+    lowest for the fix, coded in the FAA's CIFP
+    (vfr.procedures.altitude_limits, ARINC 424-18 5.29) as the plate
+    prints it (AIM 5-4-5), or its highest where it is crossed at or below
+    one. The route runs to the field, not to the fix: the descent ends
+    where the route is the fix's own distance out, and the approach is
+    flown from there as charted. None where no approach is picked there,
+    no fix is under the cruise, or the CIFP cannot be had: down to the
+    pattern."""
     if not flight.lands:
         return None
     pick = next((p for ident, p in picks.items() if _bare_field(ident) == _bare_field(flight.dest_ident.upper())), None)
@@ -454,12 +459,12 @@ def approach_end(flight: Route, picks: dict[str, tuple[str, str | None]]) -> tup
         return None
     if not drawn or drawn["kind"] != "approach":
         return None
-    fix = next((f for f in drawn["fixes"] if not f["missed"] and (f["min_ft"] or f["max_ft"])), None)
+    crossed = [(f, f["min_ft"] if f["min_ft"] is not None else f["max_ft"]) for f in drawn["fixes"] if not f["missed"]]
+    fix, at_ft = next(((f, ft) for f, ft in crossed if ft and (cruise_ft is None or ft < cruise_ft)), (None, None))
     if fix is None:
         return None
-    crossed = fix["min_ft"] if fix["min_ft"] is not None else fix["max_ft"]
     field = flight.dest_airport
-    return float(crossed), geo.distance_nm(fix["lat"], fix["lon"], field["lat"], field["lon"]), fix["ident"]
+    return float(at_ft), geo.distance_nm(fix["lat"], fix["lon"], field["lat"], field["lon"]), fix["ident"]
 
 
 def _bare_field(ident: str) -> str:
@@ -480,7 +485,7 @@ def flown_legs(r: Route, runs: list[HopRun], outcome: Flown, own: dict[str, floa
         hops = len(flight.idents) - 1
         legs = [leg for legs in outcome.hop_legs[at:at + hops] for leg in legs]
         fix_list = [fix for k, run in enumerate(runs[at:at + hops]) for fix in (run.fixes if k == 0 else run.fixes[1:])]
-        approach = approach_end(flight, approaches or {})
+        approach = approach_end(flight, approaches or {}, legs[-1]["altitude_ft"] if legs else None)
         if approach:
             to_ft, before_nm, fix = approach
             out.extend(navlog.with_descents(legs, fix_list, to_ft, before_nm, fix))

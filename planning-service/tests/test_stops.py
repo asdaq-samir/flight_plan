@@ -320,6 +320,22 @@ def test_a_flight_landing_by_an_approach_comes_down_to_its_first_fix_by_it(monke
         field["lat"] + 0.05, field["lon"], field["lat"], field["lon"]), abs=0.1)
 
 
+def test_a_flight_cruising_under_an_approachs_first_fix_comes_down_to_the_next_fix_lower(monkeypatch):
+    from app.routers import plan as plan_router
+
+    field = airport("KDLH")
+    # The stub's plan cruises at 4,500: an initial fix at 5,000 is over
+    # it, so the descent is to the final approach fix's 2,300.
+    drawn = {"kind": "approach", "fixes": [
+        {"ident": ident, "lat": field["lat"] + north, "lon": field["lon"], "roles": [], "min_ft": min_ft, "max_ft": None, "missed": False}
+        for ident, north, min_ft in (("HIGHR", 0.2, 5000), ("FAFIX", 0.05, 2300))
+    ]}
+    monkeypatch.setattr(plan_router.procedures, "procedure_drawing", lambda ident, procedure, transition=None: drawn)
+    legs = client.get("/api/plan", params={"dep": "C81", "dest": "KDLH", "approaches": "KDLH:R27:HIGHR"}).json()["legs"]
+    tod = next(leg["tod"] for leg in legs if leg["tod"])
+    assert (tod["to_ft"], tod["fix"]) == (2300.0, "FAFIX")
+
+
 @pytest.mark.parametrize("approaches", ["KDLH", "KDLH:", "KDLH:I09:ANDOE:X", "KDLH:I09;KMSN:R18"])
 def test_an_approach_that_is_not_one_is_refused(approaches):
     params = {**VIA_MADISON, "approaches": approaches}
