@@ -91,6 +91,10 @@ interface Preferences {
    *  civil airplane lands there only with the service's permission (the
    *  planner's `military`). Joint-use fields are always drawn. */
   military: boolean;
+  /** Whether a picked approach's plate is laid on the chart (PlateLayer),
+   *  switched from the approach's pull-down, at the owner's ask. On by
+   *  default. */
+  plates: boolean;
   /** What is drawn over the chart (OverlayTiles), and how strongly. */
   overlay: MapOverlay;
   overlayStrength: OverlayStrength;
@@ -168,6 +172,7 @@ interface Preferences {
   setTfrs: (tfrs: boolean) => void;
   setAlerts: (alerts: boolean) => void;
   setSpeakAlerts: (speakAlerts: boolean) => void;
+  setPlates: (plates: boolean) => void;
   setTraffic: (traffic: boolean) => void;
   setMilitary: (military: boolean) => void;
   setOverlay: (overlay: MapOverlay) => void;
@@ -224,6 +229,7 @@ export const usePreferences = create<Preferences>()(
       tfrs: true,
       alerts: true,
       speakAlerts: false,
+      plates: true,
       traffic: false,
       military: false,
       overlay: "none",
@@ -285,6 +291,7 @@ export const usePreferences = create<Preferences>()(
       setTfrs: tfrs => set({ tfrs }),
       setAlerts: alerts => set({ alerts }),
       setSpeakAlerts: speakAlerts => set({ speakAlerts }),
+      setPlates: plates => set({ plates }),
       setTraffic: traffic => set({ traffic }),
       setMilitary: military => set({ military }),
       setOverlay: overlay => set({ overlay }),
@@ -329,7 +336,7 @@ export const usePreferences = create<Preferences>()(
       migrate: (kept, from) => (from < 1 ? { ...(kept as object), waypoints: false } : kept) as Preferences,
       // The functions are not state; only the values are written.
       partialize: s => ({
-        base: s.base, tac: s.tac, waypoints: s.waypoints, classB: s.classB, tfrs: s.tfrs, alerts: s.alerts, speakAlerts: s.speakAlerts, traffic: s.traffic, military: s.military, minimums: s.minimums, loads: s.loads, keepOffline: s.keepOffline, aircraft: s.aircraft, filters: s.filters, navBar: s.navBar, routeColours: s.routeColours, ownShipLook: s.ownShipLook, narrative: s.narrative,
+        base: s.base, tac: s.tac, waypoints: s.waypoints, classB: s.classB, tfrs: s.tfrs, alerts: s.alerts, speakAlerts: s.speakAlerts, plates: s.plates, traffic: s.traffic, military: s.military, minimums: s.minimums, loads: s.loads, keepOffline: s.keepOffline, aircraft: s.aircraft, filters: s.filters, navBar: s.navBar, routeColours: s.routeColours, ownShipLook: s.ownShipLook, narrative: s.narrative,
         flightRules: s.flightRules,
         recentAirports: s.recentAirports, homeAirport: s.homeAirport, favoriteAirports: s.favoriteAirports,
         recentAircraft: s.recentAircraft, favoriteAircraft: s.favoriteAircraft, myAircraft: s.myAircraft,

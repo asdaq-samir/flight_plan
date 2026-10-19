@@ -2,11 +2,13 @@ import { memo } from "react";
 import { useQueries } from "@tanstack/react-query";
 import { ImageOverlay, Pane } from "react-leaflet";
 import { plateQuery } from "../queryClient";
+import { usePreferences } from "../preferences";
 import type { ProcedureDrawing } from "../api/types";
 
 /** Seen through: the chart under it and the procedure's own lines over it,
  *  so a plate placed a little off shows against the coded path. */
 const PLATE_OPACITY = 0.8;
+const NO_DRAWINGS: ProcedureDrawing[] = [];
 
 /**
  * The approaches picked or being looked at, each its FAA plate's plan
@@ -18,7 +20,9 @@ const PLATE_OPACITY = 0.8;
  * the dry run against, not the chart to navigate by.
  */
 export const PlateLayer = memo(function PlateLayer({ drawings }: { drawings: ProcedureDrawing[] }) {
-  const approaches = drawings.filter(d => d.kind === "approach");
+  // Off from the approach's pull-down (ProcedureMenu): the coded lines alone.
+  const shown = usePreferences(s => s.plates);
+  const approaches = shown ? drawings.filter(d => d.kind === "approach") : NO_DRAWINGS;
   const plates = useQueries({ queries: approaches.map(d => plateQuery(d.airport, d.id)) });
   // Placed where its corners are figures: an answer of another shape (a
   // stand-in's) draws nothing.

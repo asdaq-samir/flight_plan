@@ -2,10 +2,11 @@ import { useRef, useState } from "react";
 import { Check, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "cn";
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
+  DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "../../../components/ui/dropdown-menu";
 import type { ProcedureList, ProcedureSummary } from "../../../lib/api/types";
 import { runwayNumber } from "../../../lib/pattern";
+import { usePreferences } from "../../../lib/preferences";
 import type { PickedProcedure } from "../../../lib/procedures";
 import { TEXT } from "../../../lib/text";
 
@@ -62,6 +63,7 @@ export default function ProcedureMenu({ ident, kind, list, loading, picked, labe
   onAll: () => void;
 }) {
   const all = (list?.procedures ?? []).filter(p => p.kind === kind);
+  const plates = usePreferences(s => s.plates);
   // The whole list opens a sheet of its own: focus not handed back to the
   // trigger as the menu closes, which the sheet took for a tap outside it
   // and closed (the desktop's popover).
@@ -163,6 +165,16 @@ export default function ProcedureMenu({ ident, kind, list, loading, picked, labe
             )}
             {kind !== "approach" && all.map(p => item(p, p.name))}
             <DropdownMenuSeparator />
+            {/* The plate on the chart or not, the menu kept open to see it
+                go, at the owner's ask. */}
+            {kind === "approach" && picked && (
+              <DropdownMenuCheckboxItem
+                checked={plates} onCheckedChange={on => usePreferences.getState().setPlates(on)} onSelect={event => event.preventDefault()}
+                data-testid="procedure-menu-plate"
+              >
+                Plate on the map
+              </DropdownMenuCheckboxItem>
+            )}
             {picked && <DropdownMenuItem onSelect={() => onPick(null)} data-testid="procedure-menu-none">{NONE[kind]}</DropdownMenuItem>}
             <DropdownMenuItem onSelect={() => { toSheet.current = true; onAll(); }} data-testid="procedure-menu-all">{ALL[kind]}</DropdownMenuItem>
           </>

@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactNode } from "react";
+import { useLayoutEffect, useRef, type ReactNode } from "react";
 import { cn } from "cn";
 
 /**
@@ -10,9 +10,20 @@ import { cn } from "cn";
  * scrolling in its own. A sideways scroller, so the tab bar's swipe
  * across the panel leaves it be (TabBar).
  */
-export default function FootPager({ pages, testId }: { pages: { label: string; node: ReactNode }[]; testId?: string }) {
+export default function FootPager({ pages, page: at, onPage, testId }: {
+  pages: { label: string; node: ReactNode }[];
+  /** The page shown, kept by the page round it as the sheet changes
+   *  height and the pager is drawn anew (PlanWorkspace's footPage). */
+  page: number;
+  onPage: (page: number) => void;
+  testId?: string;
+}) {
   const box = useRef<HTMLDivElement>(null);
-  const [at, setAt] = useState(0);
+  // Drawn at the page it was left at, not the first: no slide to it.
+  useLayoutEffect(() => {
+    const el = box.current;
+    if (el && el.clientWidth && Math.round(el.scrollLeft / el.clientWidth) !== at) el.scrollLeft = at * el.clientWidth;
+  }, [at]);
   const go = (i: number) => {
     const el = box.current;
     if (el) el.scrollTo({ left: i * el.clientWidth, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
@@ -21,7 +32,11 @@ export default function FootPager({ pages, testId }: { pages: { label: string; n
     <div className="flex h-full min-h-0 flex-col" data-testid={testId}>
       <div
         ref={box} data-slides=""
-        onScroll={() => { const el = box.current; if (el && el.clientWidth) setAt(Math.round(el.scrollLeft / el.clientWidth)); }}
+        onScroll={() => {
+          const el = box.current;
+          const shown = el && el.clientWidth ? Math.round(el.scrollLeft / el.clientWidth) : at;
+          if (shown !== at) onPage(shown);
+        }}
         className="flex min-h-0 flex-1 snap-x snap-mandatory overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
         {pages.map((page, i) => (

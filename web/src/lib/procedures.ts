@@ -80,10 +80,3 @@ export function speedWords(fix: Pick<ProcedureFix, "speed_kt" | "speed_limit">):
   if (fix.speed_limit === "max") return `${fix.speed_kt} kt max`;
   return `${fix.speed_kt} kt`;
 }
-
-/** Which kinds of procedure a field of the route offers, by its part in
- *  the flight: a departure is left by, a destination arrived at and
- *  landed on, and a stop both. */
-export function kindsFor(role: "Departure" | "Stop" | "Destination"): ("approach" | "arrival" | "departure")[] {
-  return role === "Departure" ? ["departure"] : role === "Destination" ? ["arrival", "approach"] : ["arrival", "approach", "departure"];
-}

@@ -7,28 +7,10 @@
  * runway lengths at the airports of intended use and the takeoff and
  * landing distances (91.103(b)). NOTAMs are among "all available
  * information": the time-critical news charts cannot carry (AIM 5-1-3).
- * In the order pilots learn them by (NWKRAFT); a list the pilot ticks
- * off on the Brief, each item with what the planner found for it.
+ * The pilot ticks them off on the Brief (BriefChecks), each with what the
+ * planner found for it; this keeps the ticks.
  */
 import { create } from "zustand";
-import type { Where } from "./verdict";
-
-export interface PreflightItem extends Where {
-  key: string;
-  title: string;
-  /** The rule that asks for it. */
-  rule: string;
-}
-
-export const PREFLIGHT_ITEMS: PreflightItem[] = [
-  { key: "notams", title: "NOTAMs", rule: "91.103: all available information", tab: "preflight", section: "TFRs & Special Use" },
-  { key: "weather", title: "Weather reports and forecasts", rule: "91.103(a)", tab: "enroute" },
-  { key: "delays", title: "Known ATC delays", rule: "91.103(a)", tab: "preflight" },
-  { key: "runways", title: "Runway lengths at each airport", rule: "91.103(b)", tab: "depart" },
-  { key: "alternatives", title: "Alternatives if the flight cannot be completed", rule: "91.103(a)", tab: "enroute" },
-  { key: "fuel", title: "Fuel requirements", rule: "91.103(a), 91.151", tab: "enroute", section: "Legs" },
-  { key: "distances", title: "Takeoff and landing distances", rule: "91.103(b)", tab: "depart", section: "Takeoff" },
-];
 
 const NONE: Record<string, boolean> = {};
 
