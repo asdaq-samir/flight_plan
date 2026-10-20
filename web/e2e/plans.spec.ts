@@ -24,7 +24,8 @@ test("plan page: the nav log's altitude opens the planner's own reasoning, and t
   const why = page.getByTestId("altitude-why");
   const input = page.getByTestId("altitude-input");
   await expect(why).toHaveAccessibleName(/\d,\d{3} feet|FL\d{3}/, { timeout: slow(60000) });
-  await expect(input).toHaveValue(/^\d{1,2},\d{3}$/);
+  // Hundreds of feet after "FL", at the owner's pick: FL045 for 4,500 ft.
+  await expect(input).toHaveValue(/^\d{3}$/);
   await why.click();
   // The Profile card: the route from the side with the wheel of legal
   // altitudes in its corner, the altitude's figures, the flight rules,
