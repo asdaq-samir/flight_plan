@@ -756,11 +756,41 @@ WATCH_FOR_S = 150.0
 #: own traffic rate, and at ADS-B Exchange's prices (its RapidAPI plan, a
 #: month's 10,000) some 180 an hour while a card stays open.
 WATCH_GAP_S = 20.0
-#: A recorded track is kept this long, s: a day's flying.
-RECORD_KEEP_S = 12 * 3600.0
+#: A recorded track is kept this long, s: the archive's own reach
+#: (ARCHIVE_DAYS), its flights listed with the archive's.
+RECORD_KEEP_S = 30 * 86400.0
+#: Where each airplane's recorded track is kept, a file each, so a restart
+#: of the planner does not lose the flights it watched.
+RECORDED_DIR = Path(os.environ.get("RECORDED_TRACKS_DIR", str(DATA_DIR / "raw" / "watched_tracks")))
 _WATCHED: dict[str, float] = {}
 _WATCH_ASKED: dict[str, float] = {}
 _RECORDED: dict[str, list[dict]] = {}
+
+
+def _load_recorded(hex_id: str) -> None:
+    """An airplane's recorded track read from its file the first time it is
+    wanted; nothing where there is none or it cannot be read. Called with
+    the lock held."""
+    if hex_id in _RECORDED:
+        return
+    try:
+        kept = json.loads((RECORDED_DIR / f"{hex_id.lstrip('~')}.json").read_text())
+        _RECORDED[hex_id] = [p for p in kept if isinstance(p, dict) and "t" in p] if isinstance(kept, list) else []
+    except (OSError, ValueError):
+        _RECORDED[hex_id] = []
+
+
+def _save_recorded(hex_id: str, track: list[dict]) -> None:
+    """The track written to its file whole, through a file beside it, so a
+    read never finds half of one; a failure to write leaves the old one."""
+    try:
+        RECORDED_DIR.mkdir(parents=True, exist_ok=True)
+        path = RECORDED_DIR / f"{hex_id.lstrip('~')}.json"
+        part = path.with_suffix(".part")
+        part.write_text(json.dumps(track))
+        part.replace(path)
+    except OSError:
+        pass
 
 
 def _record(hex_id: str, plane: dict) -> None:
@@ -773,12 +803,15 @@ def _record(hex_id: str, plane: dict) -> None:
         "new_leg": False, "plane": plane,
     }
     with _LOCK:
-        track = _RECORDED.setdefault(hex_id, [])
+        _load_recorded(hex_id)
+        track = _RECORDED[hex_id]
         if track and track[-1]["t"] >= at:
             return
         track.append(point)
         while track and at - track[0]["t"] > RECORD_KEEP_S:
             track.pop(0)
+        kept = list(track)
+    _save_recorded(hex_id, kept)
 
 
 def _watch(hex_id: str) -> None:
@@ -815,6 +848,7 @@ def _watching(hex_id: str) -> bool:
 
 def _recorded(hex_id: str) -> list[dict]:
     with _LOCK:
+        _load_recorded(hex_id)
         return list(_RECORDED.get(hex_id, []))
 
 
@@ -1171,6 +1205,20 @@ def _summaries(points: list[dict]) -> list[dict]:
     return flights
 
 
+def _recorded_flights(hex_id: str) -> list[dict]:
+    """The flights of an airplane's recorded track, as `_summaries` gives
+    them, each one's start named only where it starts just off a field
+    (`_left_from`): a track recorded from when a card was opened mostly
+    starts on the way somewhere."""
+    out = []
+    for leg in _legs(_recorded(hex_id)):
+        for flight in _summaries(leg):
+            left = _left_from(leg[0])
+            flight["origin"] = left and {"ident": left["ident"], "name": left.get("name"), "city": None, "region": None}
+            out.append(flight)
+    return out
+
+
 def history(hex_id: str, limit: int = HISTORY_FLIGHTS, until=None, before: float | None = None, today=None) -> dict:
     """An airplane's last `limit` flights found, newest first, as FlightAware
     lists them: {"hex", "registration", "type", "flights": [{"id" (its
@@ -1217,6 +1265,14 @@ def history(hex_id: str, limit: int = HISTORY_FLIGHTS, until=None, before: float
             traces += past
             day = batch[-1] - dt.timedelta(days=1)
     named = next((t for t in traces if isinstance(t, dict)), {})
+    # And the flights watched here (`_watch`), where the archive has none
+    # at that time: adsb.lol's history closed to the planner behind a
+    # browser check since 2026-10-19, and some airplanes (N3429J, a UAT
+    # airplane rebroadcast by ADS-R) no adsb.lol feeder hears.
+    recorded = [f for f in _recorded_flights(hex_id) if before is None or f["id"] < before]
+    taken = [(f["off"], f["on"]) for f in flights]
+    flights = sorted(flights + [f for f in recorded if not any(off <= f["on"] and f["off"] <= on for off, on in taken)],
+                     key=lambda f: f["id"])
     flights.reverse()
     shown = flights[:limit]
     # Where the next ask starts: the last shown's day where more were found
@@ -1256,6 +1312,13 @@ def past_flight(hex_id: str, flight_id: int, today=None) -> dict | None:
         kept = leg[::step] + ([leg[-1]] if (len(leg) - 1) % step else [])
         return {"id": flight_id, "points": [{k: p[k] for k in ("t", "lat", "lon", "alt_ft", "gs_kt", "track_deg", "vrate_fpm")}
                                            for p in kept]}
+    # One watched here (`history` lists those too).
+    for leg in _legs(_recorded(hex_id)):
+        if int(leg[0]["t"]) == flight_id:
+            step = max(1, math.ceil(len(leg) / PAST_POINTS))
+            kept = leg[::step] + ([leg[-1]] if (len(leg) - 1) % step else [])
+            return {"id": flight_id, "points": [{k: p.get(k) for k in ("t", "lat", "lon", "alt_ft", "gs_kt", "track_deg", "vrate_fpm")}
+                                               for p in kept]}
     return None
 
 
