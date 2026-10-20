@@ -950,7 +950,10 @@ function PatternChips({ airport: a, wind, chosen, landing, info, label, fitOf, o
               ask ("runways should have an arrow to the right"). */}
           <button
             type="button" role="radio" aria-checked="true" data-state="on" onClick={() => setOpen(true)}
-            className={cn(CHIP, "gap-0.5 pr-2 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-right-3 motion-safe:duration-300", c.ring)}
+            // One line, the wind's mark, the runway and the arrow side by side:
+            // a plain button, not the group's items, it stacked them, the
+            // arrow out under the chip (the owner's screenshot, 2026-10-20).
+            className={cn(CHIP, "inline-flex items-center gap-0.5 whitespace-nowrap pr-2 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-right-3 motion-safe:duration-300", c.ring)}
             aria-label={`${c.words}, picked: tap for the other runways`} data-testid="procedure-pattern" data-fit={c.fit} data-folded=""
           >
             {c.face}

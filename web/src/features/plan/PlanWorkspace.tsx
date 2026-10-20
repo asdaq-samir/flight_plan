@@ -1753,10 +1753,13 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           disabled={!routed} rules={flightRules}
         />
       )}
-      // The departure's time on its step in FPL's list once a route is in,
-      // at the owner's ask (ProceduresRoute); here before then, and for a
-      // local flight, which has no departure step.
-      depart={depart} onDepartChange={routed && !s.local ? undefined : changeDepart}
+      // The departure's time on its step in FPL's list (ProceduresRoute),
+      // not beside the altitude, at the owner's asks ("The departure time
+      // can move from the route box to the departure and arrival boxes";
+      // "Departure time doesn't need to be next to altitude selection
+      // anymore"): here only for a local flight, which has no departure
+      // step and no altitude, beside its time aloft.
+      depart={depart} onDepartChange={s.local ? changeDepart : undefined}
     />
   ), [aircraftValue, aircraftChoices, changeAircraft, s.local, s.nav, s.legs, flyAltitude, openProfileCard, unflyable, tightLeg,
     routed, depart, changeDepart, flightRules]);
