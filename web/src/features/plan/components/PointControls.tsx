@@ -26,7 +26,9 @@ export function AltitudeChip({ own, children, label, onClick, testId }: {
       type="button" onClick={onClick} data-testid={testId} aria-label={label}
       className={cn(
         "relative h-8 min-w-16 shrink-0 rounded-lg px-2 tabular-nums after:absolute after:-inset-y-1.5 after:content-['']", TEXT.detail,
-        own ? "bg-primary font-semibold text-primary-foreground" : "bg-foreground/6 text-muted-foreground",
+        // Without the pilot's own, plain on grey: the muted grey there read
+        // 4.2:1 on the sheet, under WCAG's 4.5 (the iOS audit's P15).
+        own ? "bg-primary font-semibold text-primary-foreground" : "bg-foreground/6 text-foreground",
       )}
     >
       {children}
