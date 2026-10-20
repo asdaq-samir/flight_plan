@@ -62,6 +62,15 @@ test("plan page: the nav log's altitude opens the planner's own reasoning, and t
   await closeNavLog(page);
   // No altitude box over FPL's list: the altitude is beside the airplane.
   await expect(sideDrawer(page).getByTestId("navlog-scroller")).not.toContainText("Cruise altitude");
+  // Back to the default plan from the wheel: its Fastest row, the address
+  // without the altitude or the choice.
+  await why.click();
+  await expect(popover).toBeVisible();
+  await popover.getByTestId("altitude-wheel-row").filter({ hasText: "Fastest" }).first().click();
+  await expect(page).not.toHaveURL(/[?&]altitude_ft=/, { timeout: slow(10000) });
+  await expect(page).not.toHaveURL(/[?&]altitude_choice=/);
+  await page.keyboard.press("Escape");
+  await expect(why).not.toHaveAccessibleName(/3,500 feet/, { timeout: slow(30000) });
 
   // The Brief's Cruise Altitude section carries the same steps, the plan
   // flown first with its time and fuel, and says the floor and the

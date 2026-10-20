@@ -393,6 +393,21 @@ export const SCREENS: Screen[] = [
     },
   },
   {
+    // The altitude set on the profile (the owner's pick, 2026-10-20): the
+    // wheel of legal altitudes beside the route from the side, its
+    // figures, Class B and how it was chosen.
+    name: "altitude on the profile",
+    ready: async page => {
+      await page.goto(`/app/plan?${ROUTE}`);
+      await settle(page);
+      await controlsInSight(page);
+      await expect(page.getByTestId("altitude-why")).toHaveAccessibleName(/feet|FL/, { timeout: slow(60000) });
+      await page.getByTestId("altitude-why").click();
+      await expect(page.getByTestId("altitude-wheel")).toBeVisible();
+      await expect(page.getByTestId("altitude-figures")).toBeVisible();
+    },
+  },
+  {
     name: "departure picker",
     ready: async page => {
       await page.goto(`/app/plan?${ROUTE}&view=briefing`);

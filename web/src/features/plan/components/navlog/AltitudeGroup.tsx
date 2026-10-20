@@ -113,22 +113,28 @@ export default function AltitudeGroup({ nav, legs, ends, problem, ownAltitude = 
   return (
     <div
       role="group" aria-label="Cruise altitude"
-      className={cn("flex h-8 items-center overflow-hidden rounded-full", GLASS_BUTTON, CHIP_TEXT, disabled && "opacity-50")}
+      className={cn("flex h-8 items-center rounded-full", GLASS_BUTTON, CHIP_TEXT, disabled && "opacity-50")}
       data-testid="altitude-group"
     >
-      <input
-        type="text" inputMode="numeric" enterKeyHint="done" disabled={disabled || !ownAltitude}
-        value={shown} placeholder="—" aria-label="Cruise altitude, feet"
-        onChange={e => setTyped(e.target.value.replace(/[^\d,]/g, "").slice(0, 6))}
-        onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); fly(); (e.target as HTMLInputElement).blur(); } if (e.key === "Escape") setTyped(null); }}
-        onBlur={fly}
-        className={cn(
-          "h-full w-[4.5ch] min-w-0 bg-transparent pl-2.5 text-right font-semibold tabular-nums outline-none",
-          problem ? "text-red-700 dark:text-red-300" : "text-foreground",
-        )}
-        data-testid="altitude-input"
-      />
-      <span className="pr-1.5 pl-1 text-muted-foreground">ft</span>
+      {/* The field and its unit one label, a tap on "ft" the field's too,
+          its 44-point area a pseudo-element round them (index.css's after),
+          nothing grown. */}
+      <label className="relative flex h-full items-center after:absolute after:-inset-y-1.5 after:-left-0.5 after:right-0 after:content-['']">
+        <input
+          type="text" inputMode="numeric" enterKeyHint="done" autoComplete="off" disabled={disabled || !ownAltitude}
+          value={shown} placeholder="—" aria-label="Cruise altitude, feet"
+          onChange={e => setTyped(e.target.value.replace(/[^\d,]/g, "").slice(0, 6))}
+          onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); fly(); (e.target as HTMLInputElement).blur(); } if (e.key === "Escape") setTyped(null); }}
+          onBlur={fly}
+          className={cn(
+            "relative z-10 h-full w-[4.5ch] min-w-0 bg-transparent pl-2.5 text-right font-semibold tabular-nums outline-none",
+            problem ? "text-red-700 dark:text-red-300" : "text-foreground",
+          )}
+          data-testid="altitude-input"
+        />
+        {/* In the text's colour: the muted grey was 4.3:1 on the dark glass. */}
+        <span className="pr-1.5 pl-1 text-foreground">ft</span>
+      </label>
       {rules === "ifr" && <span className="pr-1 text-[0.6875rem] font-semibold text-tint" data-testid="ifr-flag">IFR</span>}
       {!problem && tight && <span className="mr-1 size-1.5 rounded-full bg-amber-500" aria-hidden="true" data-testid="tight-altitude-flag" />}
       {!problem && cautions.length > 0 && (
@@ -140,7 +146,10 @@ export default function AltitudeGroup({ nav, legs, ends, problem, ownAltitude = 
           <button
             type="button" disabled={disabled}
             className={cn(
-              "relative flex h-full items-center px-2 text-tint outline-none after:absolute after:-inset-y-1.5 after:inset-x-0 after:content-[''] focus-visible:ring-2 focus-visible:ring-ring",
+              // The icon buttons' one size, 36 square with a 20-point glyph,
+              // standing past the 32-point group above and below, where it
+              // has no fill to show; its 44-point area round it.
+              "relative -my-0.5 flex size-9 shrink-0 items-center justify-center rounded-full text-tint outline-none after:absolute after:-inset-1 after:content-[''] focus-visible:ring-2 focus-visible:ring-ring",
               problem && "text-red-700 dark:text-red-300",
             )}
             aria-label={`Cruising altitude${rules === "ifr" ? " under IFR" : ""}, ${why}${!problem && tight ? ", tight" : ""}${!problem && cautions.length ? ", your altitude has a caution" : ""}: set it on the profile`}
@@ -283,7 +292,7 @@ function AltitudeSheet({ nav, legs, ends, cruise, problem, tight, classBAvoided,
       )}
       {nav && (
         <details>
-          <summary className={cn("cursor-pointer py-2", GROUP_HEADING)}>How the altitude was chosen</summary>
+          <summary className={cn("relative cursor-pointer py-2 after:absolute after:inset-x-0 after:-inset-y-1.5 after:content-['']", GROUP_HEADING)}>How the altitude was chosen</summary>
           <AltitudeReasoning nav={nav} legs={legs} plansAbove />
         </details>
       )}
