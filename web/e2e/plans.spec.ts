@@ -26,15 +26,15 @@ test("plan page: the nav log's altitude opens the planner's own reasoning, and t
   await expect(why).toHaveAccessibleName(/\d,\d{3} feet|FL\d{3}/, { timeout: slow(60000) });
   await expect(input).toHaveValue(/^\d{1,2},\d{3}$/);
   await why.click();
-  // A popover beside the altitude, or on a phone a sheet from the bottom:
-  // the flight rules, the wheel of legal altitudes beside the route from
-  // the side, the altitude's figures, and how it was chosen, folded.
-  const popover = page.locator("[data-slot=popover-content], [data-slot=sheet-content]");
+  // The Profile card: the route from the side with the wheel of legal
+  // altitudes in its corner, the altitude's figures, the flight rules,
+  // and how it was chosen, folded.
+  const popover = page.getByTestId("profile-card");
   await expect(popover).toBeVisible();
   const wheel = popover.getByTestId("altitude-wheel");
   await expect(wheel).toBeVisible();
   await expect(wheel).toHaveAttribute("aria-valuetext", /feet, .*Fastest/);
-  await expect(popover.getByTestId("altitude-side-view")).toBeVisible();
+  await expect(popover.getByTestId("mini-profile")).toBeVisible();
   await expect(popover.getByTestId("altitude-figures")).toContainText(/\d+h \d{2}m/);
   await expect(popover).toContainText("Floor");
   await expect(popover).toContainText("Ceiling");
@@ -47,7 +47,7 @@ test("plan page: the nav log's altitude opens the planner's own reasoning, and t
   await page.keyboard.press("ArrowDown");
   await expect.poll(async () => Number(await wheel.getAttribute("aria-valuenow"))).toBeLessThan(was);
   await expect(page).toHaveURL(/[?&](altitude_ft|altitude_choice)=/, { timeout: slow(10000) });
-  await page.keyboard.press("Escape");
+  await page.getByTestId("profile-close").click();
   await expect(popover).toHaveCount(0);
 
   // An altitude typed beside the airplane: the whole log at it.
@@ -69,7 +69,7 @@ test("plan page: the nav log's altitude opens the planner's own reasoning, and t
   await popover.getByTestId("altitude-wheel-row").filter({ hasText: "Fastest" }).first().click();
   await expect(page).not.toHaveURL(/[?&]altitude_ft=/, { timeout: slow(10000) });
   await expect(page).not.toHaveURL(/[?&]altitude_choice=/);
-  await page.keyboard.press("Escape");
+  await page.getByTestId("profile-close").click();
   await expect(why).not.toHaveAccessibleName(/3,500 feet/, { timeout: slow(30000) });
 
   // The Brief's Cruise Altitude section carries the same steps, the plan
@@ -254,7 +254,7 @@ test("plan page: no legal altitude is the route's own problem: its chip says so 
 
   // An altitude of the pilot's own, typed beside the airplane: planned
   // anyway, at it.
-  await page.keyboard.press("Escape");
+  await page.getByTestId("profile-close").click();
   await page.getByTestId("altitude-input").fill("12500");
   await page.getByTestId("altitude-input").press("Enter");
   await expect(page).toHaveURL(/[?&]altitude_ft=12500/);
@@ -303,9 +303,7 @@ test("plan page: Class B is planned through by default, said with its clearance,
   await page.getByTestId("avoid-class-b").click();
   await expect(page).toHaveURL(/[?&]class_b=0/);
   await expect(page).toHaveURL(/[?&]stops=BEPKE/);
-  // Avoided, and allowed again from the same sheet.
-  await expect(page.getByTestId("altitude-why")).toHaveAccessibleName(/feet|FL|no legal/, { timeout: slow(60000) });
-  await page.getByTestId("altitude-why").click();
+  // Avoided, and allowed again from the same card, which stays open.
   await page.getByTestId("class-b-avoided").getByRole("button", { name: "Allow Class B" }).click();
   await expect(page).not.toHaveURL(/class_b=/);
   await page.unrouteAll({ behavior: "ignoreErrors" });

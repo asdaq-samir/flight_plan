@@ -32,12 +32,12 @@ test("a winds outage never reads as an altitude the pilot typed", async ({ page 
   await expect(why).toHaveAccessibleName(/no altitude/, { timeout: 60000 });
   await expect(why).not.toHaveAccessibleName(/yours/);
   await why.click();
-  // A popover beside the altitude, or on a phone a sheet from the bottom.
-  const popover = page.locator("[data-slot=popover-content], [data-slot=sheet-content]");
+  // The Profile card, the altitude set on its side view.
+  const popover = page.getByTestId("profile-card");
   await expect(popover).toContainText("winds aloft could not be read");
   await expect(popover).not.toContainText("no legal altitude");
   // And no altitude typed beside the airplane for it.
-  await page.keyboard.press("Escape");
+  await page.getByTestId("profile-close").click();
   await expect(page.getByTestId("altitude-input")).toHaveValue("");
 });
 

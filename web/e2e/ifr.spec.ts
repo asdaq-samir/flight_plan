@@ -24,15 +24,15 @@ test("under IFR the altitude is chosen from the minimum IFR altitude by directio
   const why = page.getByTestId("altitude-why");
   await expect(why).toHaveAccessibleName(/\d,\d{3} feet|FL\d{3}/, { timeout: slow(60000) });
   await why.click();
-  const popover = page.locator("[data-slot=popover-content], [data-slot=sheet-content]");
+  const popover = page.getByTestId("profile-card");
   const rules = popover.getByTestId("flight-rules");
   await expect(rules.getByRole("radio", { name: "VFR" })).toHaveAttribute("aria-checked", "true");
   await expect(popover).toContainText("14 CFR 91.159");
 
   await rules.getByRole("radio", { name: "IFR" }).click();
   await expect.poll(() => asked.at(-1)).toBe("ifr");
-  // Put away to read the chip: on a phone the popover is a sheet over it.
-  await page.keyboard.press("Escape");
+  // Put away to read the chip beside the airplane, which the card covers.
+  await page.getByTestId("profile-close").click();
   await expect(popover).toBeHidden();
   await expect(page.getByTestId("ifr-flag")).toBeVisible();
   // The re-plan's altitude: whole thousands, west of north out of C81
@@ -47,7 +47,7 @@ test("under IFR the altitude is chosen from the minimum IFR altitude by directio
   await popover.getByText("How the altitude was chosen").click();
   await popover.getByRole("button", { name: /Minimum IFR altitude/ }).click();
   await expect(popover).toContainText("14 CFR 91.177");
-  await page.keyboard.press("Escape");
+  await page.getByTestId("profile-close").click();
   await expect(page.getByTestId("navlog-fuel")).toBeVisible({ timeout: slow(60000) });
   await openSection(page, "Fuel");
   await expect(page.getByTestId("fuel-detail")).toContainText("45 min IFR reserve (14 CFR 91.167)", { timeout: slow(60000) });
@@ -90,12 +90,12 @@ test("under IFR an airway in the route is flown fix by fix, its published MEA th
   const why = page.getByTestId("altitude-why");
   await expect(why).toHaveAccessibleName(/under IFR, (\d*[02468],000 feet|FL\d[02468]0)/, { timeout: slow(90000) });
   await why.click();
-  const popover = page.locator("[data-slot=popover-content], [data-slot=sheet-content]");
+  const popover = page.getByTestId("profile-card");
   // How it was chosen, folded under the altitude's figures.
   await popover.getByText("How the altitude was chosen").click();
   await popover.getByRole("button", { name: /Minimum IFR altitude/ }).click();
   await expect(popover).toContainText(/Along V191 from BAE the published MEA, [\d,]+ ft/);
-  await page.keyboard.press("Escape");
+  await page.getByTestId("profile-close").click();
 
   // The flight plan's form (FAA Form 7233-4): the airway between the
   // fixes it is joined and left at, the departure and the arrival picked
