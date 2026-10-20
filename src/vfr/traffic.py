@@ -415,6 +415,8 @@ def near(lat: float, lon: float, radius_nm: float) -> dict:
     "age_s"}. Raises TrafficUnavailable where adsb.lol has not answered
     for a minute."""
     radius = min(MAX_RADIUS_NM, radius_nm)
+    with _LOCK:
+        _LOOKED["at"] = _clock()
     region = _region(lat, lon, radius)
     credit: dict = {}
     try:
@@ -968,6 +970,27 @@ def heard_elsewhere(plane: dict, at: float) -> None:
         last = _recorded(hex_id)[-1:] or [None]
         if last[0] is None or at - last[0]["t"] >= ELSEWHERE_RECORD_S:
             _record(hex_id, {**plane, "seen_s": max(0.0, _wall() - at)})
+
+
+#: When the map last asked for the airplanes near a point (near), on the
+#: monotonic clock.
+_LOOKED = {"at": float("-inf")}
+#: How long after the map's last ask the FAA's radar is still read in
+#: full, s: the map asks every few seconds while traffic is shown, so past
+#: a minute nobody is looking.
+LOOKED_S = 60.0
+
+
+def radar_wanted() -> set[str] | None:
+    """What of the FAA's radar is worth reading now: None for every
+    airplane, while the map has asked for traffic within LOOKED_S; else
+    only the addresses of the airplanes followed, whose flights are
+    recorded card open or not. Reading the whole country's tracks with
+    nobody looking kept the planner at a core of its own on the owner's
+    Mac (2026-10-20)."""
+    _followed("")  # the followed read from their files, the first time
+    with _LOCK:
+        return None if _clock() - _LOOKED["at"] <= LOOKED_S else set(_FOLLOWED)
 
 
 def _heard_elsewhere_now(hex_id: str) -> dict | None:
