@@ -2,7 +2,8 @@ import { readdirSync, statSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath, URL } from "node:url";
 import { defineConfig, type Plugin } from "vite";
-import react from "@vitejs/plugin-react";
+import react, { reactCompilerPreset } from "@vitejs/plugin-react";
+import babel from "@rolldown/plugin-babel";
 import tailwindcss from "@tailwindcss/vite";
 import { VitePWA } from "vite-plugin-pwa";
 
@@ -40,6 +41,11 @@ export default defineConfig({
   plugins: [
     thisBuildOnly,
     react(),
+    // The React Compiler, memoising each component and hook as it builds
+    // them, at the owner's pick of the audit's recommendation: only its
+    // lint rule had been installed, and every nav-log stream message
+    // drew the whole panel again (MapPanel, TabBar, the route box).
+    babel({ presets: [reactCompilerPreset()] }),
     tailwindcss(),
     // The app in the air: a service worker (Workbox, generated at
     // build) that keeps the app shell, every chart tile the map has
