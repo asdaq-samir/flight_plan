@@ -18,10 +18,24 @@ export function identOf(value: string | null | undefined): string {
 }
 
 /** A stop's ident: an airport's, or a named fix's -- a VFR waypoint
- *  (VPBNG), a GPS waypoint -- two to five letters and digits; or "". */
+ *  (VPBNG), a GPS waypoint -- two to five letters and digits; or the
+ *  pilot's own point off a fix, its magnetic course or radial and its
+ *  distance, nm, "VPBNG/090/30" (the planner's vfr.fixes.parse_frd), or
+ *  packed as a flight plan writes it, "DLH090030"; or "". */
 export function stopOf(value: string | null | undefined): string {
-  return normalized(value, /^[A-Z0-9]{2,5}$/);
+  return normalized(value, /^[A-Z0-9]{2,5}(\/\d{3}\/\d{1,3}(\.\d)?)?$|^[A-Z]{2,5}\d{6}$/);
 }
+
+/** A stop that is the pilot's own point off a fix (stopOf): its fix,
+ *  course and distance; null for any other. */
+export function frdOf(ident: string): { base: string; course: number; distanceNm: number } | null {
+  const m = /^([A-Z0-9]{2,5})\/(\d{3})\/(\d{1,3}(?:\.\d)?)$/.exec(ident) ?? /^([A-Z]{2,5})(\d{3})(\d{3})$/.exec(ident);
+  return m ? { base: m[1]!, course: Number(m[2]), distanceNm: Number(m[3]) } : null;
+}
+
+/** The pilot's point as the route writes it: "VPBNG/090/30". */
+export const frdIdent = (base: string, course: number, distanceNm: number) =>
+  `${base.toUpperCase()}/${String(Math.round(course) % 360).padStart(3, "0")}/${Math.round(distanceNm * 10) / 10}`;
 
 /** A present position as a route's departure, "@42.3246,-88.0741" (the
  *  planner's app.common.position_of): Fly Here's Direct-To from where the

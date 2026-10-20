@@ -226,6 +226,29 @@ class LegProcedure(BaseModel):
     more_gal: float
 
 
+class LegHold(BaseModel):
+    """A hold the pilot put at a point of the route (vfr.holds), on the
+    leg that leaves it -- `at_end`, the leg into the destination it is
+    held at: its inbound course (magnetic), its turns, its legs by time or
+    distance, how long (turns, or minutes), the minutes and fuel it takes,
+    already in the leg's `ete_min` and `fuel_gal` (plan.with_holds), one
+    turn round its racetrack's minutes, the entry from the course flown to
+    it (AIM 5-3-8), and that one turn as [lat, lon] pairs from the point."""
+
+    fix: str
+    inbound_deg: int
+    right: bool
+    leg_min: float | None
+    leg_nm: float | None
+    turns: int | None
+    minutes: float
+    lap_min: float
+    gal: float
+    entry: Literal["direct", "teardrop", "parallel"]
+    path: list[list[float]]
+    at_end: bool = False
+
+
 class Leg(BaseModel):
     """One dead-reckoning leg. `wind` is None when no winds-aloft station
     is near enough, which is not the same as calm: groundspeed then falls
@@ -271,6 +294,9 @@ class Leg(BaseModel):
     # Flown by the procedures picked, the time and fuel of their miles
     # more already in `ete_min` and `fuel_gal` (plan.with_procedures).
     procedure: LegProcedure | None = None
+    # A hold the pilot put at its start (or, into the destination, its
+    # end), its time and fuel already in `ete_min` and `fuel_gal`.
+    hold: LegHold | None = None
 
 
 class AlternateLeg(BaseModel):

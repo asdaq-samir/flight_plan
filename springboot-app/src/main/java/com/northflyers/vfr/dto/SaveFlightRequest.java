@@ -39,14 +39,20 @@ public record SaveFlightRequest(
          *  for a flight flown straight. */
         @Nullable
         @Size(max = 8, message = "a flight makes at most 8 stops")
-        List<@Pattern(regexp = "[A-Za-z0-9]{2,5}", message = "a stop must be a 2-5 character airport or waypoint ident") String> stops,
+        List<@Pattern(regexp = POINT,
+            message = "a stop must be a 2-5 character airport or waypoint ident, or a point off one as VPBNG/090/30") String> stops,
         /** The pilot's risk assessment for it, where the planner made one. */
         @Nullable @Valid RiskAssessmentDto risk,
         /** The altitudes the pilot set at points of the route, as the
          *  planner's `altitudes` parameter writes them: "VPBNG:4500,KDLH:2400",
          *  ten at most. Null or blank for none. */
         @Nullable
-        @Pattern(regexp = "^$|[A-Za-z0-9]{2,5}:\\d{1,5}(,[A-Za-z0-9]{2,5}:\\d{1,5}){0,9}",
+        @Pattern(regexp = "^$|" + POINT + ":\\d{1,5}(," + POINT + ":\\d{1,5}){0,9}",
                 message = "altitudes must be IDENT:feet pairs joined by commas, ten at most")
         String altitudes) {
+
+    /** A point of the route: an airport's or a waypoint's ident, or the
+     *  pilot's own point off one, "VPBNG/090/30" (the planner's
+     *  vfr.fixes.parse_frd), or packed as a flight plan writes it. */
+    static final String POINT = "(?:[A-Za-z0-9]{2,5}(?:/[0-9]{3}/[0-9]{1,3}(?:\\.[0-9])?)?|[A-Za-z]{2,5}[0-9]{6})";
 }

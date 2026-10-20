@@ -39,6 +39,7 @@ export type Checkpoints = Schemas["Checkpoints"];
  *  null when the wind exceeds true airspeed and the leg cannot be flown. */
 export type Leg = Schemas["Leg"];
 export type LegProcedure = Schemas["LegProcedure"];
+export type LegHold = Schemas["LegHold"];
 /** Where a leg's climb tops out (TOC), from the leg's start, and the
  *  climb's speeds on the way up. */
 export type TopOfClimb = Schemas["TopOfClimb"];

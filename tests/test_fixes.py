@@ -3,7 +3,7 @@ pilot has on a chart, and what the rest are."""
 import os
 
 import pytest
-from vfr import fixes
+from vfr import fixes, geo, magnetic
 
 HEADER = '"FIX_ID","STATE_CODE","LAT_DECIMAL","LONG_DECIMAL","FIX_USE_CODE","CHARTS"\n'
 
@@ -111,3 +111,50 @@ def test_a_new_edition_on_disk_is_read_again_where_next_asked_for(monkeypatch, t
     (tmp_path / "NAV_BASE.csv").write_text(NAV_HEADER + '"RFD","DME","ROCKFORD","IL","OPERATIONAL IFR",42.2256,-89.1993,"110.8"\n')
     os.utime(tmp_path / "NAV_BASE.csv", (1, 1))
     assert fixes.find_navaid("RFD")["name"] == "Rockford"
+
+
+def test_a_point_off_a_fix_is_written_as_a_flight_plan_writes_one():
+    assert fixes.parse_frd("VPBNG/090/30") == ("VPBNG", 90, 30.0)
+    assert fixes.parse_frd("dlh090030") == ("DLH", 90, 30.0)
+    assert fixes.parse_frd("VPBNG/360/4.5") == ("VPBNG", 0, 4.5)
+    # No course past 360, no point at the fix itself, and a fix's own
+    # ident is no point off it.
+    assert fixes.parse_frd("VPBNG/400/30") is None
+    assert fixes.parse_frd("VPBNG/090/0") is None
+    assert fixes.parse_frd("VPBNG") is None
+    assert fixes.frd_ident("vpbng", 90, 30.0) == "VPBNG/090/30"
+
+
+def test_a_vors_radial_is_turned_to_true_by_its_own_variation_and_a_waypoints_course_by_the_model(monkeypatch):
+    # DLH's VORTAC as NASR files it, 5 E (MAG_VARN, set in 1965): its 090
+    # radial runs 095 true. VPBNG's 090 is turned by the World Magnetic
+    # Model's variation there now, about 3 W near Chicago in 2026.
+    dlh = {"ident": "DLH", "lat": 46.8021, "lon": -92.2039, "kind": "VORTAC", "vfr": False, "navaid": True, "mag_var": 5.0}
+    vpbng = {"ident": "VPBNG", "lat": 42.27, "lon": -88.13, "kind": "VFR waypoint", "vfr": True}
+    monkeypatch.setattr(fixes, "_TABLE", fixes._Table({"VPBNG": vpbng}, {"DLH": [dlh]}))
+    off_dlh = fixes.frd_point("DLH/090/30")
+    assert off_dlh["radial"] and off_dlh["ident"] == "DLH/090/30"
+    assert geo.distance_nm(dlh["lat"], dlh["lon"], off_dlh["lat"], off_dlh["lon"]) == pytest.approx(30, abs=0.01)
+    assert geo.bearing_deg(dlh["lat"], dlh["lon"], off_dlh["lat"], off_dlh["lon"]) == pytest.approx(95, abs=0.05)
+    assert fixes.frd_title(off_dlh) == "30 nm on the 090 radial of DLH"
+
+    off_vpbng = fixes.frd_point("VPBNG/090/30")
+    variation = magnetic.magnetic_variation_deg(vpbng["lat"], vpbng["lon"])
+    assert -6 < variation < 0
+    assert geo.bearing_deg(vpbng["lat"], vpbng["lon"], off_vpbng["lat"], off_vpbng["lon"]) == pytest.approx(90 + variation, abs=0.05)
+    assert fixes.frd_title(off_vpbng) == "30 nm on 090° from VPBNG"
+    # None off a fix NASR does not have.
+    assert fixes.frd_point("NOPE/090/30") is None
+
+
+def test_a_navaids_own_variation_is_read_east_positive(tmp_path):
+    assert fixes._station_variation({"MAG_VARN": "5", "MAG_VARN_HEMIS": "E"}) == 5
+    assert fixes._station_variation({"MAG_VARN": "3", "MAG_VARN_HEMIS": "W"}) == -3
+    assert fixes._station_variation({"MAG_VARN": "", "MAG_VARN_HEMIS": ""}) is None
+
+
+def test_a_point_off_an_airport_is_found_by_what_locates_the_airport(monkeypatch):
+    monkeypatch.setattr(fixes, "_TABLE", fixes._Table({}, {}))
+    point = fixes.frd_point("KMSN/360/10", locate=lambda base: (43.14, -89.34) if base == "KMSN" else None)
+    assert point["lat"] > 43.14 + 0.15 and not point["radial"]
+    assert fixes.frd_point("KMSN/360/10") is None

@@ -366,6 +366,17 @@ test.describe("on the owner's phone's width, to a finger", () => {
     await openTab(page, "Nav Log");
     const trigger = page.locator("[data-testid=procedure-kind][data-kind=approach]");
     await expect(trigger).toBeVisible({ timeout: slow(20000) });
+    // Once it has stopped moving: the route's rows coming in, the runway
+    // picked into the wind and its line folding move it down the list, and
+    // a touch's lift where it no longer is was no tap (a flake on
+    // 48a36f99 as well, one run in two).
+    let last = "";
+    await expect.poll(async () => {
+      const at = JSON.stringify(await trigger.boundingBox());
+      const still = at === last;
+      last = at;
+      return still;
+    }, { timeout: slow(30000), intervals: [700] }).toBe(true);
     const box = (await trigger.boundingBox())!;
     const x = box.x + box.width / 2, y = box.y + box.height / 2;
     // Touched and held, no lift: closed.
@@ -478,15 +489,20 @@ test("a procedure's fixes branch off the route, each sent direct to or given an 
   const rows = kdlh.getByTestId("fix-branch-row");
   await expect(rows).toHaveCount(3);
   // Direct to FAKER from its row: kept in the address, the fixes before it skipped.
-  await rows.filter({ hasText: "FAKER" }).getByTestId("fix-branch-direct").click();
+  await rows.filter({ hasText: "FAKER" }).getByTestId("fix-branch-menu").click();
+  await page.getByTestId("fix-branch-menu-direct").click();
   await expect(page).toHaveURL(/[?&]procs=KDLH(%3A|:)I09(%3A|:)DLH(%3A|:)FAKER(&|$)/);
   await settled(sideDrawer(page));
   await openTab(page, "Nav Log");
-  if (!(await rows.first().isVisible())) await toggle.click();
-  await expect(rows.filter({ hasText: "FAKER" }).getByTestId("fix-branch-direct")).toHaveAttribute("aria-pressed", "true");
+  // Opened again where the plan made again folded it.
+  await expect(async () => {
+    if (!(await rows.first().isVisible())) await toggle.click();
+    await expect(rows.filter({ hasText: "FAKER" })).toContainText("direct to", { timeout: 2000 });
+  }).toPass({ timeout: slow(15000) });
   await expect(rows.filter({ hasText: "OFOFO" })).toContainText("skipped");
   // OFOFO given 3,000 to cross at, from its card.
-  await rows.filter({ hasText: "OFOFO" }).getByTestId("fix-branch-altitude").click();
+  await rows.filter({ hasText: "OFOFO" }).getByTestId("fix-branch-menu").click();
+  await page.getByTestId("fix-branch-menu-altitude").click();
   const card = page.getByTestId("fix-card");
   await expect(card).toBeVisible();
   await card.getByTestId("fix-card-altitude").fill("3000");

@@ -137,6 +137,18 @@ class FlightControllerTest {
     }
 
     @Test
+    void save_takesTheStopsAndAltitudesOfThePilotsOwnPointOffAFix() throws Exception {
+        given(pilotService.current(any())).willReturn(Optional.of(samplePilot()));
+        given(flightService.save(any(), any())).willReturn(sampleFlight());
+
+        mockMvc.perform(post("/api/flights").with(oidcLogin()).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"departureIdent\":\"C81\",\"destinationIdent\":\"KDLH\",\"stops\":[\"VPBNG/090/30\",\"DLH090030\"],"
+                                + "\"altitudes\":\"VPBNG/090/30:4500,KDLH:2400\"}"))
+                .andExpect(status().is2xxSuccessful());
+    }
+
+    @Test
     void list_carriesTheAltitudesThePilotSet() throws Exception {
         given(pilotService.current(any())).willReturn(Optional.of(samplePilot()));
         given(flightService.list(any())).willReturn(List.of(sampleFlight().withOwnAltitudes("VPBNG:4500")));

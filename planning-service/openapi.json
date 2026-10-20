@@ -4940,6 +4940,16 @@
             ],
             "title": "Groundspeed Kt"
           },
+          "hold": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LegHold"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "magnetic_heading_deg": {
             "title": "Magnetic Heading Deg",
             "type": "number"
@@ -5044,6 +5054,107 @@
           "density_altitude_ft"
         ],
         "title": "Leg",
+        "type": "object"
+      },
+      "LegHold": {
+        "description": "A hold the pilot put at a point of the route (vfr.holds), on the\nleg that leaves it -- `at_end`, the leg into the destination it is\nheld at: its inbound course (magnetic), its turns, its legs by time or\ndistance, how long (turns, or minutes), the minutes and fuel it takes,\nalready in the leg's `ete_min` and `fuel_gal` (plan.with_holds), one\nturn round its racetrack's minutes, the entry from the course flown to\nit (AIM 5-3-8), and that one turn as [lat, lon] pairs from the point.",
+        "properties": {
+          "at_end": {
+            "default": false,
+            "title": "At End",
+            "type": "boolean"
+          },
+          "entry": {
+            "enum": [
+              "direct",
+              "teardrop",
+              "parallel"
+            ],
+            "title": "Entry",
+            "type": "string"
+          },
+          "fix": {
+            "title": "Fix",
+            "type": "string"
+          },
+          "gal": {
+            "title": "Gal",
+            "type": "number"
+          },
+          "inbound_deg": {
+            "title": "Inbound Deg",
+            "type": "integer"
+          },
+          "lap_min": {
+            "title": "Lap Min",
+            "type": "number"
+          },
+          "leg_min": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Leg Min"
+          },
+          "leg_nm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Leg Nm"
+          },
+          "minutes": {
+            "title": "Minutes",
+            "type": "number"
+          },
+          "path": {
+            "items": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "title": "Path",
+            "type": "array"
+          },
+          "right": {
+            "title": "Right",
+            "type": "boolean"
+          },
+          "turns": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Turns"
+          }
+        },
+        "required": [
+          "fix",
+          "inbound_deg",
+          "right",
+          "leg_min",
+          "leg_nm",
+          "turns",
+          "minutes",
+          "lap_min",
+          "gal",
+          "entry",
+          "path"
+        ],
+        "title": "LegHold",
         "type": "object"
       },
       "LegProcedure": {
@@ -6005,6 +6116,17 @@
               }
             ],
             "title": "Groundspeed Kt"
+          },
+          "hold": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LegHold"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
           },
           "magnetic_heading_deg": {
             "title": "Magnetic Heading Deg",
@@ -12456,6 +12578,16 @@
           },
           {
             "in": "query",
+            "name": "holds",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Holds",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
             "name": "ground",
             "required": false,
             "schema": {
@@ -12793,6 +12925,16 @@
             "schema": {
               "default": "",
               "title": "Crossings",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "holds",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Holds",
               "type": "string"
             }
           },
@@ -13316,6 +13458,16 @@
             "schema": {
               "default": "",
               "title": "Crossings",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "holds",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Holds",
               "type": "string"
             }
           },

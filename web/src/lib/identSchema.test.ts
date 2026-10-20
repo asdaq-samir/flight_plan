@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { altitudesOf, altitudesParam, departureOf, groundOf, identOf, positionIdent, routeOf, stopsOf, withoutAltitude } from "./identSchema";
+import { altitudesOf, altitudesParam, departureOf, frdIdent, frdOf, groundOf, identOf, positionIdent, routeOf, stopOf, stopsOf, withoutAltitude } from "./identSchema";
 
 describe("identOf and stopsOf", () => {
   test("an airport's ident trimmed and uppercased, else empty", () => {
@@ -64,4 +64,17 @@ test("a stop's time on the ground reads as whole minutes up to a day, none too, 
   expect(groundOf("KJVL:45,KMSN:0,KDSM:2000,KRYV:soon,KUES:")).toEqual({ KJVL: 45, KMSN: 0 });
   expect(altitudesParam(groundOf("KJVL:45"))).toBe("KJVL:45");
   expect(groundOf(null)).toEqual({});
+});
+
+describe("the pilot's own point off a fix", () => {
+  test("is a stop, written as ForeFlight takes it or packed as a flight plan writes it", () => {
+    expect(stopOf("vpbng/090/30")).toBe("VPBNG/090/30");
+    expect(stopOf("DLH090030")).toBe("DLH090030");
+    expect(stopOf("VPBNG/090/4.5")).toBe("VPBNG/090/4.5");
+    expect(stopOf("VPBNG/90/30")).toBe("");
+    expect(frdOf("VPBNG/090/30")).toEqual({ base: "VPBNG", course: 90, distanceNm: 30 });
+    expect(frdOf("DLH090030")).toEqual({ base: "DLH", course: 90, distanceNm: 30 });
+    expect(frdOf("VPBNG")).toBeNull();
+    expect(frdIdent("vpbng", 360, 12.25)).toBe("VPBNG/000/12.3");
+  });
 });

@@ -58,7 +58,7 @@ public class Flight {
 
     /** The airports landed at on the way, in order, joined by commas;
      *  null for a flight flown straight. See {@link #getStops()}. */
-    @Column(length = 80)
+    @Column(length = 160)
     private String stopIdents;
 
     /** The altitudes the pilot set at points of the route, as the

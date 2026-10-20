@@ -235,7 +235,7 @@ export const api = {
   async *navlog(
     dep: string, dest: string, altitudeFt?: string, aircraft?: AircraftChoice, altitudeChoice?: AltitudeChoice,
     depart?: string, signal?: AbortSignal, stops?: string[], classBClearance?: boolean, altitudes?: string,
-    checkpoints = true, rules: "vfr" | "ifr" = "vfr", alternate = "", procedures = "", crossings = "", ground = "",
+    checkpoints = true, rules: "vfr" | "ifr" = "vfr", alternate = "", procedures = "", crossings = "", ground = "", holds = "",
   ): AsyncGenerator<NavLogMessage> {
     const result = await planner.GET("/api/navlog", {
       params: {
@@ -264,6 +264,8 @@ export const api = {
           // The altitudes given to cross their fixes at.
           crossings: crossings || undefined,
           ground: ground || undefined,
+          // The pilot's holds, flown on the legs leaving their points.
+          holds: holds || undefined,
         },
       },
       parseAs: "stream", signal,
