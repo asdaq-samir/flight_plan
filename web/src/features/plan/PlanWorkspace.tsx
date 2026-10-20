@@ -57,7 +57,7 @@ import MiniProfile from "./components/navlog/MiniProfile";
 import ProfileCard from "./components/ProfileCard";
 import { dryRunOf, type DryRun } from "./components/navlog/dryRun";
 import FixCard, { type OpenFix } from "./components/FixCard";
-import { DirectStrip } from "./components/PointControls";
+import DirectStrip from "./components/DirectStrip";
 import { loadFlightChart } from "./components/loadFlightChart";
 import { DRY_RUN, clearPastFlight, usePastFlight } from "../../lib/map/pastFlight";
 import type { RouteParts, RouteProcedure } from "./components/RouteBox";
@@ -2184,6 +2184,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           // An airport's pill tapped: its card over the route, as a tap on
           // it on the chart opens it, at the pilot's ask; closed, the route.
           onOpenAirport={selectPlace}
+          directTo={directParam} onDirectTo={directToPoint}
           onClear={clearRoute}
         />
         </SearchNear.Provider>

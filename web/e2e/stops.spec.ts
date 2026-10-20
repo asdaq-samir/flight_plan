@@ -621,11 +621,12 @@ test("a point's menu has its altitude before Remove: an airport's pattern in fee
   await settle(page);
   await openPanel(page);
   const lines = sideDrawer(page).getByTestId("route-slide");
-  const item = page.getByTestId("point-altitude");
+  // The pill's menu is FPL's "⋯"'s, in its words (PointMenuItems).
+  const item = page.getByTestId("pill-menu-altitude");
 
   // Duluth's pattern, from the course: its field and the pattern over it.
   await lines.getByRole("group", { name: "Destination KDLH" }).click({ button: "right" });
-  await expect(item).toContainText("Pattern altitude");
+  await expect(item).toContainText("Set altitude…");
   await expect(item).toContainText(/\d,\d00 ft/, { timeout: slow(15000) });
   await item.click();
   await page.getByTestId("point-altitude-input").fill("2600");
@@ -634,7 +635,8 @@ test("a point's menu has its altitude before Remove: an airport's pattern in fee
 
   // The waypoint's, a flight level over its dashes.
   await lines.getByRole("group", { name: /VPBNG/ }).click({ button: "right" });
-  await expect(item).toContainText("Altitude");
+  await expect(item).toContainText("Set altitude…");
+  await expect(page.getByTestId("pill-menu-direct")).toContainText("Direct to");
   await item.click();
   await page.getByTestId("point-altitude-input").fill("055");
   await page.getByTestId("point-altitude-set").click();

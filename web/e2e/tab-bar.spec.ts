@@ -123,7 +123,7 @@ test("an airport tapped in the route opens its card, and is changed from its men
   await expect(page.getByTestId("tab-fpl")).toHaveAttribute("aria-current", "page");
   // Changed from the pill's menu: its search, as a tap was.
   await destination.click({ button: "right" });
-  await page.getByTestId("change-point").click();
+  await page.getByTestId("pill-menu-change").click();
   await expect(page.getByPlaceholder("Search for a destination")).toBeVisible();
 });
 
