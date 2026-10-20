@@ -519,8 +519,11 @@ test("an airplane's card is laid out as an airport's, a line taller for its colu
   await settle(page);
   await expect(page.getByTestId("flight-alert")).toBeVisible({ timeout: slow(15_000) });
   const airplane = await places("flight-card", "flight-alert");
-  expect(Math.abs(airplane.actions - airport.actions - 16), `actions ${airplane.actions} and ${airport.actions}`).toBeLessThan(1.5);
-  expect(Math.abs(airplane.tabs - airport.tabs - 16), `tabs ${airplane.tabs} and ${airport.tabs}`).toBeLessThan(1.5);
+  // Where the tab bar is minimized over the card, Share is the bar's
+  // (TabBar), the column two, and the two cards the one height.
+  const taller = await page.getByTestId("tab-share").isVisible() ? 0 : 16;
+  expect(Math.abs(airplane.actions - airport.actions - taller), `actions ${airplane.actions} and ${airport.actions}`).toBeLessThan(1.5);
+  expect(Math.abs(airplane.tabs - airport.tabs - taller), `tabs ${airplane.tabs} and ${airport.tabs}`).toBeLessThan(1.5);
   // The long model whole, set smaller to fit, not cut off.
   const name = page.getByTestId("flight-name");
   await expect(name).toContainText("Cherokee");
@@ -536,7 +539,11 @@ test("an airplane's card has its star, Follow and Share in a column, its state a
   await settle(page);
   const card = page.getByTestId("flight-card");
   await expect(card.getByTestId("flight-follow")).toBeVisible({ timeout: slow(15_000) });
-  const column = await Promise.all(["flight-favorite", "flight-follow", "flight-share"].map(async id => (await card.getByTestId(id).boundingBox())!));
+  // Share the minimized tab bar's, where Back was (TabBar), at the owner's
+  // ask; the column's third only where the bar is not minimized.
+  const barShares = await page.getByTestId("tab-share").isVisible();
+  if (barShares) await expect(card.getByTestId("flight-share")).toHaveCount(0);
+  const column = await Promise.all(["flight-favorite", "flight-follow", ...(barShares ? [] : ["flight-share"])].map(async id => (await card.getByTestId(id).boundingBox())!));
   for (let i = 1; i < column.length; i++) {
     expect(Math.abs(column[i]!.x - column[0]!.x), "one column").toBeLessThan(1);
     expect(column[i]!.y, "each under the one before").toBeGreaterThanOrEqual(column[i - 1]!.y + column[i - 1]!.height);

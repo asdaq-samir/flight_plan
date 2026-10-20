@@ -6,6 +6,7 @@ import { cn } from "cn";
 import { useKeptAirport, usePreferences } from "../../../lib/preferences";
 import { useOwnShip } from "../../../lib/map/ownShip";
 import RoundButton from "../../../components/RoundButton";
+import { shareOrCopy } from "../../../lib/share";
 import { GLASS_BUTTON } from "../../../components/mapChrome";
 import { CardClose, CardHead, CardTop, PanelCard } from "../../../components/PanelCard";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
@@ -451,7 +452,12 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
           // while its answer comes, at the pilot's ask.
           side={(
             <>
-              <CardClose onClose={onClose} testId="place-close" />
+              <CardClose
+                onClose={onClose} testId="place-close"
+                // The tab bar's Share on a phone, in Back's place, at the
+                // owner's ask: the field's card on the planner.
+                onShare={() => void shareOrCopy({ title: place?.name ?? ident, url: `${location.origin}/app/plan?place=${place?.ident ?? ident}` }).catch(() => {})}
+              />
               <FavoriteButton ident={kept?.ident ?? ident} place={place ?? null} />
               {chip}
             </>

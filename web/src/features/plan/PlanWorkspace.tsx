@@ -1,7 +1,7 @@
 import { Suspense, lazy, memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type ComponentType } from "react";
 import { flushSync } from "react-dom";
 import { useQueries, useQuery } from "@tanstack/react-query";
-import { Play, ClipboardList, ListOrdered, MapPin, Mountain, Plane, Route, TowerControl } from "lucide-react";
+import { Play, ClipboardList, ListOrdered, MapPin, Plane, Route, TowerControl } from "lucide-react";
 import { legOf, navLogRows, TURNAROUND_MIN } from "./components/navlog/rows";
 import { fromChunk } from "../../lib/fromChunk";
 import { cn } from "cn";
@@ -123,6 +123,7 @@ const RouteBox = fromRoutePanel("RouteBox");
 const Kneeboard = fromRoutePanel("Kneeboard");
 const FlightInputs = fromRoutePanel("FlightInputs");
 const AltitudeGroup = fromRoutePanel("AltitudeGroup");
+const AltitudeProfile = fromRoutePanel("AltitudeProfile");
 const BriefNarrative = fromRoutePanel("BriefNarrative");
 const RouteProblem = fromRoutePanel("RouteProblem");
 const LocalDuration = fromRoutePanel("LocalDuration");
@@ -1615,7 +1616,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       cardHead={navLogShown ? (
         <CardHead
           name="Nav log" line={routeName(planned.dep, planned.dest, planned.stops)} nameTestId="navlog-name"
-          onClose={closeNavLogCard} closeTestId="navlog-close"
+          onClose={closeNavLogCard} onShare="route" closeTestId="navlog-close"
         />
       ) : undefined}
       aircraftLabel={aircraft.label}
@@ -1679,21 +1680,12 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       onAircraftChange={changeAircraft}
       altitude={!s.local && (
         <AltitudeGroup
-          nav={s.nav} legs={s.legs} ends={course} onAltitudeChoiceChange={changeAltitudeChoice} onFlyAltitude={flyAltitude}
-          problem={unflyable ? close => (
-            <RouteProblem
-              problem={unflyable} onAddStop={() => { close(); setAddingStop("stop"); }}
-              onFlyVia={() => { close(); setAddingStop("via"); }} onAcceptClassB={() => { close(); acceptClassB(true); }}
-            />
-          ) : undefined}
-          ownAltitude={!unflyable?.classB}
-          // What the altitude was planned within, in its popover and
-          // marked on the chip, at the pilot's ask: they were marks beside
-          // the flight's line, where "Class B" took a line of its own.
+          nav={s.nav} legs={s.legs} onFlyAltitude={flyAltitude} onOpenProfile={openProfileCard}
+          problem={!!unflyable} ownAltitude={!unflyable?.classB}
+          // What the altitude was planned within, marked on the group, said
+          // in the Profile card (AltitudeProfile).
           tight={unflyable ? null : tightLeg}
-          classBAvoided={!classBClearance} onAvoidClassB={avoidClassB} onAllowClassB={() => acceptClassB(true)}
-          disabled={!routed}
-          rules={flightRules} onRulesChange={setFlightRules}
+          disabled={!routed} rules={flightRules}
         />
       )}
       // The departure's time on its step in FPL's list once a route is in,
@@ -1701,8 +1693,8 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       // local flight, which has no departure step.
       depart={depart} onDepartChange={routed && !s.local ? undefined : changeDepart}
     />
-  ), [aircraftValue, aircraftChoices, changeAircraft, s.local, s.nav, s.legs, course, changeAltitudeChoice, flyAltitude, unflyable, acceptClassB, avoidClassB, tightLeg,
-    classBClearance, routed, depart, changeDepart, flightRules, setFlightRules]);
+  ), [aircraftValue, aircraftChoices, changeAircraft, s.local, s.nav, s.legs, flyAltitude, openProfileCard, unflyable, tightLeg,
+    routed, depart, changeDepart, flightRules]);
 
   // Saving the flight, the narrative and Print.
   const addingChange = useCallback((open: boolean) => setAddingStop(open ? "stop" : false), []);
@@ -1729,9 +1721,9 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     aircraftId: aircraft.aircraftId ?? null, depart, altitudes,
   };
   // Share and everything else the route's row had (ShareMenu).
-  const shareMenu = (align: "start" | "end") => (
+  const shareMenu = (align: "start" | "end", testId?: string) => (
     <ShareMenu
-      align={align} planned={planned} course={course} selected={selected} altitudeFt={s.nav?.altitude_ft ?? undefined}
+      align={align} testId={testId} planned={planned} course={course} selected={selected} altitudeFt={s.nav?.altitude_ft ?? undefined}
       routed={routed} hasPoints={hasPoints} local={!!s.local} fileable={fileable} onFile={fileFlightPlan} onClear={clearRoute}
       saving={askReview => (
         <Suspense fallback={null}>
@@ -1773,17 +1765,36 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     const id = setTimeout(() => void loadFlightChart(), 3000);
     return () => clearTimeout(id);
   }, [dryRunReady]);
-  const miniProfile = routed && course && !local
-    ? <MiniProfile ends={course} selected={selected} legs={s.legs} /> : null;
   // The side view with its dry run at its top right: the flight flown on
   // paper.
-  const sideView = (
-    <div className="relative h-full min-h-0 flex-1 pb-2">
-      {miniProfile}
-      <RoundButton label="Dry run" onClick={startDryRun} disabled={!dryRunReady} className="absolute top-1.5 right-1.5" data-testid="dry-run-start">
-        <Play className="size-5" />
-      </RoundButton>
-    </div>
+  // The Profile card's body (AltitudeProfile), at the owner's pick: the
+  // side view with the altitude's wheel in its corner, its dry run at its
+  // top right, and under it the altitude's figures, Class B, the rules and
+  // why -- where the altitude's own sheet had them, the Profile button
+  // beside the nav log's gone with it.
+  const sideView = routed && course && !local && (
+    <Suspense fallback={<div className="h-56" />}>
+      <AltitudeProfile
+        nav={s.nav} legs={s.legs} ends={course}
+        chart={preview => <MiniProfile ends={course} selected={selected} legs={s.legs} preview={preview} />}
+        corner={(
+          <RoundButton label="Dry run" onClick={startDryRun} disabled={!dryRunReady} className="absolute top-1.5 right-1.5" data-testid="dry-run-start">
+            <Play className="size-5" />
+          </RoundButton>
+        )}
+        wheelHidden={!!dryRunning}
+        problem={unflyable ? (
+          <RouteProblem
+            problem={unflyable} onAddStop={() => { closeProfileCard(); setAddingStop("stop"); }}
+            onFlyVia={() => { closeProfileCard(); setAddingStop("via"); }} onAcceptClassB={() => acceptClassB(true)}
+          />
+        ) : undefined}
+        tight={unflyable ? null : tightLeg}
+        classBAvoided={!classBClearance} onAvoidClassB={avoidClassB} onAllowClassB={() => acceptClassB(true)}
+        onAltitudeChoiceChange={changeAltitudeChoice} onFlyAltitude={flyAltitude}
+        rules={flightRules} onRulesChange={setFlightRules}
+      />
+    </Suspense>
   );
   // The route's chips: the airplane, the altitude, the time, Saved,
   // Approaches and Share (`controls`), and with no route the pill's too.
@@ -1836,14 +1847,10 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
             <ListOrdered className="size-5" strokeWidth={2} />
           </RoundButton>
         )}
-        {/* The side view, a card as the nav log is (ProfileCard), beside
-            its button, at the owner's ask: it was a swipe from the route's
-            list at the sheet's foot. */}
-        {routed && !s.local && (
-          <RoundButton label="Profile" onClick={openProfileCard} disabled={!course} data-testid="route-profile">
-            <Mountain className="size-5" strokeWidth={2} />
-          </RoundButton>
-        )}
+        {/* The side view, a card as the nav log is (ProfileCard), is opened
+            from the altitude's own button beside the airplane, at the
+            owner's ask ("we won't need a separate profile button next to
+            navlog"). */}
         {shareMenu("end")}
       </div>
     </div>
@@ -2029,7 +2036,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     // The planner's tabs, the panel's first row, and at rest the pill
     // itself, at the pilot's ask: no search bar or route under them
     // (MapPanel).
-    bar: <TabBar tabs={PLANNER_TABS} tab={tab} over={(place || heldPoint) && tab !== "airport" ? "airport" : undefined} title={cardTitle} onPick={pickTab} onUp={tabUp} onClose={closeSheet} listOver={!!list || savedOpen || nearOpen} marks={s.unflyable ? { fpl: "stop" } : undefined} />,
+    bar: <TabBar tabs={PLANNER_TABS} tab={tab} over={(place || heldPoint) && tab !== "airport" ? "airport" : undefined} title={cardTitle} onPick={pickTab} onUp={tabUp} onClose={closeSheet} routeShare={shareMenu("start", "tab-share")} listOver={!!list || savedOpen || nearOpen} marks={s.unflyable ? { fpl: "stop" } : undefined} />,
     // The route's figures -- the distance, the time en route, the arrival
     // and the fuel -- pinned at FPL's foot while there is a route, at every
     // height, the pill too, at the pilot's ask: they were the last of the

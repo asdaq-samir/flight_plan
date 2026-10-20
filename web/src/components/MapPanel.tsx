@@ -815,6 +815,7 @@ export default function MapPanel({ label, top, controls, compact, children, stat
           (`foot`): over the home indicator's room where the body runs to
           the edge (toEdge), which then runs to the figures. */}
       {footShown && (
+        // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- a pointer convenience, not a control: the grabber is the keyboard's way to open the sheet, and the figures' own buttons stay focusable
         <div
           ref={setFoot}
           className={cn(
@@ -851,11 +852,13 @@ export default function MapPanel({ label, top, controls, compact, children, stat
           data-testid="panel-foot"
           // In the pill a finger anywhere on it drags the sheet, as the tabs
           // do; a tap on it opens it half way, the tabs over the route.
+          // Not a button itself: it holds the figures' own (Time en route,
+          // Fuel), and a button inside a button is what axe's
+          // nested-interactive fails (the nightly iOS audit, map and a
+          // service out). The grabber, "Flight Planning", opens the sheet
+          // from the keyboard and for a screen reader.
           onPointerDown={capsule ? startDrag : undefined}
-          role={capsule ? "button" : undefined} tabIndex={capsule ? 0 : undefined}
-          aria-label={capsule ? "Show the route" : undefined}
           onClick={capsule ? () => onStateChange("half") : undefined}
-          onKeyDown={capsule ? event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onStateChange("half"); } } : undefined}
         >{foot}</div>
       )}
       {/* The grabber last on a sheet from the top. */}

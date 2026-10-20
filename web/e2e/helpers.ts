@@ -437,13 +437,15 @@ export async function openNavLog(page: Page) {
   return sheet;
 }
 
-/** The side view, a card over FPL from its button beside the nav log's
- *  (the owner's "profile view can move next to the navlog button and open
- *  like brief and navlog opens instead of the swipe"). */
+/** The side view, a card over FPL, with the altitude's wheel in its
+ *  corner: opened from the altitude's button beside the airplane (the
+ *  owner, 2026-10-20: "we won't need a separate profile button"). */
 export async function openProfile(page: Page) {
   await openPanel(page);
   const card = page.getByTestId("profile-card");
-  if (!(await card.isVisible())) await sideDrawer(page).getByTestId("route-profile").click({ timeout: slow(60_000) });
+  // Opened from the altitude's button beside the airplane: the Profile
+  // card has no button of its own beside the nav log's.
+  if (!(await card.isVisible())) await sideDrawer(page).getByTestId("altitude-why").click({ timeout: slow(60_000) });
   await expect(card).toBeVisible();
   return card;
 }
@@ -570,11 +572,17 @@ export async function tapNear(page: Page, mark: Locator, opens: RegExp) {
 
 /** A card put away by its way back: on a phone with the sheet up, the
  *  minimized tab bar's Back at its top left (TabBar), at the owner's ask,
- *  in place of the card's close; elsewhere the card's own close. */
+ *  in place of the card's close -- or, where Share stands there (an
+ *  airport's, an airplane's, the Brief, the nav log), the bar's close,
+ *  which goes back as Back did; elsewhere the card's own close. */
 export async function closeCard(page: Page, closeTestId: string) {
   const back = page.getByTestId("tab-back");
   if (await back.isVisible()) {
     await back.click();
+    return;
+  }
+  if (await page.getByTestId("tab-share").isVisible()) {
+    await page.getByTestId("tab-close").click();
     return;
   }
   // Else the card's own close, out of sight but for a keyboard (CardClose).

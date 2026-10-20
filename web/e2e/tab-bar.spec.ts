@@ -139,7 +139,7 @@ test("the side view is a card of its own, Profile, from its button beside the na
     await grabberTo(page, height);
     await expect(panel.getByTestId("flight-line")).toBeVisible({ timeout: slow(30000) });
     await expect(panel.getByTestId("mini-profile")).toHaveCount(0);
-    await panel.getByTestId("route-profile").click();
+    await panel.getByTestId("altitude-why").click();
     // At the height FPL was, the route's name under the card's, the side
     // view over the figures.
     await expect(panel).toHaveAttribute("data-panel", height);
@@ -208,7 +208,8 @@ test("a card opens half way; on a phone, lowered to the pill it is its name and 
   const name = panel.getByTestId("place-card").getByTestId("place-name");
   await expect(name).toBeVisible({ timeout: slow(15000) });
   test.skip((page.viewportSize()?.width ?? 0) >= 768, "the tabs minimize to a card's name on a phone only");
-  // Down to the pill: the minimized tabs, the card's name, Back and the close.
+  // Down to the pill: the minimized tabs, the card's name, Share and the
+  // close, which goes back to the tab as Back did.
   await grabberTo(page, "peek");
   await expect(page.getByTestId("tab-title")).toContainText("KDLH");
   await expect(panel.getByTestId("place-frequencies")).toBeHidden();

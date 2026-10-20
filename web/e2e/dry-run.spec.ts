@@ -239,10 +239,9 @@ test("the profile is a card from its button beside the nav log's, no swipe at th
   await expect(panel.getByTestId("procedures")).toBeVisible({ timeout: slow(60_000) });
   await expect(panel.getByTestId("foot-pager")).toHaveCount(0);
   await expect(panel.getByTestId("mini-profile")).toHaveCount(0);
-  // Beside the nav log's button, the card's name and the route under it.
-  const [log, profile] = [(await panel.getByTestId("route-navlog").boundingBox())!, (await panel.getByTestId("route-profile").boundingBox())!];
-  expect(Math.abs(log.y - profile.y)).toBeLessThan(2);
-  expect(profile.x).toBeGreaterThan(log.x);
+  // No button of its own beside the nav log's (the owner, 2026-10-20):
+  // the altitude's opens it, the card's name and the route under it.
+  await expect(panel.getByTestId("route-profile")).toHaveCount(0);
   const card = await openProfile(page);
   await expect(card.getByTestId("profile-name")).toHaveText("Profile");
   await expect(card.getByTestId("mini-profile")).toBeVisible();

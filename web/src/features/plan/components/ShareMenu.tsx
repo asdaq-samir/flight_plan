@@ -34,9 +34,12 @@ interface Planned {
  * menu goes.
  */
 export default function ShareMenu({
-  align, planned, course, selected, altitudeFt, routed, hasPoints, local, fileable, onFile, onClear, saving, reviewSheet,
+  align, testId = "share-route", planned, course, selected, altitudeFt, routed, hasPoints, local, fileable, onFile, onClear, saving, reviewSheet,
 }: {
   align: "start" | "end";
+  /** Its button's: the route box's, or the tab bar's over the Brief and
+   *  the nav log (TabBar's `routeShare`). */
+  testId?: string;
   planned: Planned;
   course: Course | null;
   selected: Candidate[];
@@ -119,7 +122,7 @@ export default function ShareMenu({
       <DropdownMenu>
         <ResponsivePopoverAnchor asChild>
           <DropdownMenuTrigger asChild>
-            <RoundButton label="Share this route" data-testid="share-route">
+            <RoundButton label="Share this route" data-testid={testId}>
               <Share className="size-5" strokeWidth={2} />
             </RoundButton>
           </DropdownMenuTrigger>
