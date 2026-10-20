@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { grabberTo, navLogSheet, openNavLog, openPanel, openTab, settle, settled, sideDrawer, slow } from "./helpers";
+import { grabberTo, navLogSheet, openNavLog, openPanel, openProfile, closeProfile, openTab, settle, settled, sideDrawer, slow } from "./helpers";
 
 /**
  * The planned flight's dry run flies own ship, as if a pilot were flying
@@ -12,6 +12,7 @@ test("the dry run flies own ship along the route, and gives it back as it was", 
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   await openPanel(page);
+  await openProfile(page);
   const start = sideDrawer(page).getByTestId("dry-run-start");
   await expect(start).toBeVisible({ timeout: slow(60_000) });
   await expect(page.locator("[data-own-ship]")).toHaveCount(0);
@@ -64,7 +65,7 @@ test("the dry run's chart draws the airspace the course passes through, named as
   // of C81, under Chicago's Class B, to Madison's Class C.
   await page.goto("/app/plan?dep=C81&dest=KMSN");
   await settle(page);
-  await openPanel(page);
+  await openProfile(page);
   const side = sideDrawer(page).getByTestId("mini-profile-airspace");
   await expect(side.first()).toBeVisible({ timeout: slow(60_000) });
   const names = (await side.allTextContents()).map(t => t.trim()).sort();
@@ -100,6 +101,7 @@ test("the dry run waits for the legs: its button dimmed until they are all in, a
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   await openPanel(page);
+  await openProfile(page);
   const start = sideDrawer(page).getByTestId("dry-run-start");
   await expect(start).toBeVisible({ timeout: slow(60_000) });
   await expect(start).toBeDisabled();
@@ -116,6 +118,7 @@ test("the dry run keeps the flight's own figures at the foot, counting down from
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   await openPanel(page);
+  await openProfile(page);
   const start = sideDrawer(page).getByTestId("dry-run-start");
   await expect(start).toBeEnabled({ timeout: slow(60_000) });
   const line = sideDrawer(page).getByTestId("flight-line");
@@ -157,6 +160,7 @@ test("the dry run's airplane is brought back to the middle of what the panel lea
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   await openPanel(page);
+  await openProfile(page);
   const start = sideDrawer(page).getByTestId("dry-run-start");
   await expect(start).toBeVisible({ timeout: slow(60_000) });
   await start.click();
@@ -182,7 +186,7 @@ test("the dry run's airplane is brought back to the middle of what the panel lea
   await inTheMiddle();
 });
 
-test("half way the side view is whole, its dry run plays under the route's chips, and stays still as the sheet is dragged up", async ({ page }) => {
+test("half way a dry run started from the profile's card plays at the foot under the route, and stays still as the sheet is dragged up", async ({ page }) => {
   test.skip((page.viewportSize()?.width ?? 0) >= 768, "a phone's sheet");
   // The owner's asks: "Let's make the half card this tall. This way we
   // won't have to hide the buttons for dry run"; "the dry run drags up
@@ -191,11 +195,9 @@ test("half way the side view is whole, its dry run plays under the route's chips
   await settle(page);
   await grabberTo(page, "half");
   const panel = sideDrawer(page);
+  await openProfile(page);
   const start = panel.getByTestId("dry-run-start");
   await expect(start).toBeVisible({ timeout: slow(60_000) });
-  // The side view at its ten rem, nothing of it given way.
-  const side = start.locator("xpath=ancestor::*[@data-pill-hides][1]");
-  expect((await side.boundingBox())!.height).toBeGreaterThanOrEqual(159);
   // The finest sectional level drawn (the coarse one kept under the map,
   // ChartTiles, aside): the route's as it was fitted, then on play the
   // dry run's, in on its airplane, smoothly (the owner's "When play is
@@ -225,43 +227,36 @@ test("half way the side view is whole, its dry run plays under the route's chips
   await page.mouse.up();
 });
 
-test("half way on a phone the foot comes down from all the way up on the route's list, and a dry run stopped leaves the side view", async ({ page }) => {
-  test.skip((page.viewportSize()?.width ?? 0) >= 768, "a phone's half card");
+test("the profile is a card from its button beside the nav log's, no swipe at the foot; a dry run started there plays over the route, and stopped, the card is back", async ({ page }) => {
+  // The owner's ask (2026-10-20): "profile view can move next to the
+  // navlog button and open like brief and navlog opens instead of the
+  // swipe"; and before, "When stopping dry run it should become profile
+  // view".
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   await grabberTo(page, "half");
   const panel = sideDrawer(page);
-  const pager = panel.getByTestId("foot-pager");
-  await expect(pager).toBeVisible({ timeout: slow(60_000) });
-  await expect(pager.locator("[data-page='0']")).toHaveAttribute("data-shown", "true");
-  // The side view, a dot's tap away; up all the way and down again, the
-  // route's list it ends on, the side view slid off to its right (the
-  // owner's "Swiping down shows profile").
-  await pager.getByTestId("foot-page-dot").nth(1).click();
-  await expect(pager.locator("[data-page='1']")).toHaveAttribute("data-shown", "true");
-  await grabberTo(page, "full");
-  await grabberTo(page, "half");
-  await expect(panel.getByTestId("foot-pager").locator("[data-page='0']")).toHaveAttribute("data-shown", "true");
-  await expect.poll(() => panel.getByTestId("foot-pager").locator("[data-page='0']").evaluate(el => {
-    const r = el.getBoundingClientRect(), box = el.parentElement!.getBoundingClientRect();
-    return Math.round(r.left - box.left);
-  }), { timeout: 3000 }).toBe(0);
-  // Down to the pill from the side view and up again: the list too
-  // (the owner's "Swiping up from pill lands at profile view?").
-  await panel.getByTestId("foot-page-dot").nth(1).click();
-  await expect(panel.getByTestId("foot-pager").locator("[data-page='1']")).toHaveAttribute("data-shown", "true");
-  await grabberTo(page, "peek");
-  await grabberTo(page, "half");
-  await expect(panel.getByTestId("foot-pager").locator("[data-page='0']")).toHaveAttribute("data-shown", "true");
-  // A dry run started and stopped: the side view it was flown over, the
-  // route's list a dot's tap (or a swipe) back.
-  const start = panel.getByTestId("dry-run-start");
+  await expect(panel.getByTestId("procedures")).toBeVisible({ timeout: slow(60_000) });
+  await expect(panel.getByTestId("foot-pager")).toHaveCount(0);
+  await expect(panel.getByTestId("mini-profile")).toHaveCount(0);
+  // Beside the nav log's button, the card's name and the route under it.
+  const [log, profile] = [(await panel.getByTestId("route-navlog").boundingBox())!, (await panel.getByTestId("route-profile").boundingBox())!];
+  expect(Math.abs(log.y - profile.y)).toBeLessThan(2);
+  expect(profile.x).toBeGreaterThan(log.x);
+  const card = await openProfile(page);
+  await expect(card.getByTestId("profile-name")).toHaveText("Profile");
+  await expect(card.getByTestId("mini-profile")).toBeVisible();
+  // Flown: the card put away for the run at the foot, the route over it.
+  const start = card.getByTestId("dry-run-start");
   await expect(start).toBeEnabled({ timeout: slow(60_000) });
   await start.click();
+  await expect(panel.getByTestId("dry-run")).toBeVisible();
+  await expect(card).toHaveCount(0);
   await panel.getByTestId("dry-run-close").click();
-  await expect(panel.getByTestId("foot-pager").locator("[data-page='1']")).toHaveAttribute("data-shown", "true");
-  await panel.getByTestId("foot-page-dot").first().click();
-  await expect(panel.getByTestId("foot-pager").locator("[data-page='0']")).toHaveAttribute("data-shown", "true");
+  await expect(page.getByTestId("profile-card")).toBeVisible();
+  // Its close: FPL's route again.
+  await closeProfile(page);
+  await expect(panel.getByTestId("procedures")).toBeVisible();
 });
 
 test("all the way up the dry run plays at the foot under the route, and the nav log's sheet follows it, the row it is flying to tinted and kept in sight", async ({ page }) => {
@@ -274,6 +269,7 @@ test("all the way up the dry run plays at the foot under the route, and the nav 
   await grabberTo(page, "full");
   await openTab(page, "Nav Log");
   const panel = sideDrawer(page);
+  await openProfile(page);
   const start = panel.getByTestId("dry-run-start");
   await expect(start).toBeVisible({ timeout: slow(60_000) });
   await start.click();
@@ -319,6 +315,7 @@ test("with an approach picked, the dry run flies it into the field: out to its f
   await page.goto("/app/plan?dep=C81&dest=KDLH&procs=KDLH:R27:PLANE");
   await settle(page);
   await openPanel(page);
+  await openProfile(page);
   const start = sideDrawer(page).getByTestId("dry-run-start");
   await expect(start).toBeVisible({ timeout: slow(60_000) });
   // The approach drawn, so in hand as the run starts.

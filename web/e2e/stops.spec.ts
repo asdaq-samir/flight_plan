@@ -282,6 +282,45 @@ test("a stop is left again after its time on the ground, 30 minutes or the pilot
   await expect(page).not.toHaveURL(/ground=/);
 });
 
+test("every point flown to has its altitude and Direct to in FPL's list, an airport's its elevation until set; Direct to skips the route before it, and Cancel gives it back", async ({ page }) => {
+  // The owner's asks (2026-10-20): "All the other fixes and stops can have
+  // a direct to and altitude. Where airports default to field elevation
+  // but changeable", and "direct to skips all the route before".
+  await recordedStops(page);
+  await page.goto("/app/plan?dep=C81&dest=KDLH&stops=KMSN");
+  await openPanel(page);
+  const route = sideDrawer(page).getByTestId("procedures");
+  const madison = route.getByRole("region", { name: "KMSN · Arrive" });
+  const chip = madison.getByTestId("point-altitude-chip");
+  // Madison's field elevation (887 ft, NASR), not a figure the pilot set.
+  await expect(chip).toHaveAccessibleName(/field elevation/, { timeout: slow(30_000) });
+  await expect(chip).toHaveText(/^\d{3}$|^\d,\d{3}$/);
+  await expect(route.getByRole("region", { name: "KDLH · Arrive" }).getByTestId("point-direct")).toBeVisible();
+  // No Direct to where the flight starts, nor on the stop's leaving again.
+  await expect(route.getByRole("region", { name: "C81 · Depart" }).getByTestId("point-direct")).toHaveCount(0);
+  await expect(route.getByRole("region", { name: "KMSN · Depart" }).getByTestId("point-direct")).toHaveCount(0);
+
+  // Set, as the route box's menu sets it: the address's `altitudes`.
+  await chip.click();
+  await page.getByTestId("point-altitude-input").fill("2600");
+  await page.getByTestId("point-altitude-set").click();
+  await expect(page).toHaveURL(/[?&]altitudes=KMSN(%3A|:)2600(&|$)/);
+  await expect(chip).toHaveText("2,600");
+
+  // Direct to Duluth with no position: from the departure, Madison
+  // skipped; the route as it was kept for Cancel.
+  await route.getByRole("region", { name: "KDLH · Arrive" }).getByTestId("point-direct").click();
+  await expect(page).toHaveURL(/[?&]direct=KDLH(&|$)/);
+  await expect(page).not.toHaveURL(/[?&]stops=/);
+  await expect(sideDrawer(page).getByTestId("direct-strip")).toContainText("Direct to KDLH");
+  await expect(route.getByRole("region", { name: "KMSN · Arrive" })).toHaveCount(0);
+  await expect(route.getByRole("region", { name: "KDLH · Arrive" }).getByTestId("point-direct")).toHaveAttribute("aria-pressed", "true");
+  await sideDrawer(page).getByTestId("direct-cancel").click();
+  await expect(page).toHaveURL(/[?&]stops=KMSN(&|$)/);
+  await expect(page).not.toHaveURL(/[?&](direct|was)=/);
+  await expect(sideDrawer(page).getByTestId("direct-strip")).toHaveCount(0);
+});
+
 test("a flight saved with a stop is filed with it and the altitude set there, and its nav log lands there", async ({ page }) => {
   await recordedStops(page);
   const filed: { stops?: string[]; altitudes?: string | null; checkpoints: { category: string; name: string }[] }[] = [];

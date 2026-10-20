@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { closeCard, closeConsole, grabberTo, openTab, openPanel, panelTabs, settle, settled, showTabs, sideDrawer, slow } from "./helpers";
+import { closeCard, closeConsole, closeProfile, grabberTo, openTab, openPanel, panelTabs, settle, settled, showTabs, sideDrawer, slow } from "./helpers";
 
 /**
  * The planner's tab bar, at the pilot's ask in place of the map's buttons
@@ -127,40 +127,41 @@ test("an airport tapped in the route opens its card, and is changed from its men
   await expect(page.getByPlaceholder("Search for a destination")).toBeVisible();
 });
 
-test("the side view is over the figures at the foot half way and all the way up, the one on screen, the nav log scrolling over it", async ({ page }) => {
-  // The owner's asks: "pin the profile above calculations"; all the way
-  // up, "keep the profile at the bottom as you pull up the scrollable
-  // navlog", where it folded away into the nav log's Profile under its
-  // Legs; "let's cleanup the clutter with redesign", that Profile on paper
-  // only; and "FPL is simple with route, navlog, profile and
-  // calculations", the briefing's pages the Brief's.
+test("the side view is a card of its own, Profile, from its button beside the nav log's, half way and all the way up; FPL's foot is the figures alone", async ({ page }) => {
+  // The owner's asks: "FPL is simple with route, navlog, profile and
+  // calculations"; then (2026-10-20) "profile view can move next to the
+  // navlog button and open like brief and navlog opens instead of the
+  // swipe".
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
-  await grabberTo(page, "half");
   const panel = sideDrawer(page);
-  const profile = panel.getByTestId("mini-profile");
-  await expect(profile).toBeVisible({ timeout: slow(30000) });
-  const figures = panel.getByTestId("flight-line");
-  const [side, line] = [(await profile.boundingBox())!, (await figures.boundingBox())!];
-  expect(side.y + side.height).toBeLessThanOrEqual(line.y + 1);
-  await grabberTo(page, "full");
-  await expect(figures).toBeVisible();
-  // Still over the figures with the sheet up, the nav log's sections one
-  // under another over it.
-  await expect(profile).toBeVisible();
-  await settled(panel);
-  const [up, under] = [(await profile.boundingBox())!, (await figures.boundingBox())!];
-  expect(up.y + up.height).toBeLessThanOrEqual(under.y + 1);
-  // A picture there, with nothing to open: the sheet is up already.
-  await expect(profile).toHaveAttribute("role", "img");
-  // FPL all the way up is the route in order alone (the nav log a sheet
-  // of its own): no pages, no other section, no second side view.
+  for (const height of ["half", "full"] as const) {
+    await grabberTo(page, height);
+    await expect(panel.getByTestId("flight-line")).toBeVisible({ timeout: slow(30000) });
+    await expect(panel.getByTestId("mini-profile")).toHaveCount(0);
+    await panel.getByTestId("route-profile").click();
+    // At the height FPL was, the route's name under the card's, the side
+    // view over the figures.
+    await expect(panel).toHaveAttribute("data-panel", height);
+    const card = panel.getByTestId("profile-card");
+    await expect(card.getByTestId("profile-name")).toHaveText("Profile");
+    await expect(card).toContainText("C81 → KDLH");
+    const profile = card.getByTestId("mini-profile");
+    await expect(profile).toBeVisible();
+    await settled(panel);
+    const [side, line] = [(await profile.boundingBox())!, (await panel.getByTestId("flight-line").boundingBox())!];
+    expect(side.y + side.height).toBeLessThanOrEqual(line.y + 1);
+    // A picture, with nothing to open.
+    await expect(profile).toHaveAttribute("role", "img");
+    await closeProfile(page);
+    await expect(panel).toHaveAttribute("data-panel", height);
+  }
+  // FPL all the way up is the route in order alone: no pages, no other
+  // section, no side view.
   const log = panel.getByTestId("navlog-scroller");
   await expect(log.getByTestId("procedures")).toBeVisible();
   await expect(panel.locator('[role="tablist"][data-tip="tabs"]')).toHaveCount(0);
   await expect(log.locator("[data-title]")).toHaveCount(1);
-  await expect(log.locator('[data-title="Profile"]')).toHaveCount(0);
-  await expect(profile).toBeVisible();
 });
 
 test("the Brief is a card over FPL, from the chips' Brief: Preflight, Depart, En route and Arrive, with Back to the nav log", async ({ page }) => {

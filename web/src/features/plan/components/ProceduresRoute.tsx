@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import { create } from "zustand";
 import { useQueries, useQuery } from "@tanstack/react-query";
-import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Check, Info, Wind } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Check, ChevronRight, Info, Wind } from "lucide-react";
 import { cn } from "cn";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
 import BackButton from "../../../components/BackButton";
@@ -20,11 +20,15 @@ import { NO_PATTERN, trafficPattern } from "../../../lib/trafficPattern";
 import { TEXT } from "../../../lib/text";
 import { altFt, bearing, grouped } from "../../../lib/units";
 import { endFit, type EndFit } from "../../../lib/runwayFit";
+import { isPosition } from "../../../lib/identSchema";
 import { etaAt } from "../format";
 import { PointMark } from "./navlog/PointMark";
 import FixBranch from "./FixBranch";
+import DepartPicker from "./navlog/DepartPicker";
 import GroundMenu from "./GroundMenu";
 import ProcedureMenu from "./ProcedureMenu";
+import PointAltitudeDialog, { type EditedPoint, type PointAltitude } from "./PointAltitudeDialog";
+import { AltitudeChip, DirectButton } from "./PointControls";
 import { rowPoint, TURNAROUND_MIN, type NavLogRow } from "./navlog/rows";
 
 /** The value of a choice's "None" (no pattern, no transition): a toggle's
@@ -37,6 +41,8 @@ export type ProcedureKind = ProcedureSummary["kind"];
 type Kind = ProcedureKind;
 
 const KIND_TITLE: Record<Kind, string> = { approach: "Approaches", arrival: "Arrivals", departure: "Departures" };
+/** A kind as a branch's head says it, under the procedure's name. */
+const KIND_WORD: Record<Kind, string> = { approach: "Approach", arrival: "Arrival", departure: "Departure" };
 /** The FAA's chart codes in a field's d-TPP for each kind (its card's
  *  terminal charts, vfr.publications, as the d-TPP metafile's chart_code
  *  has them): an instrument approach procedure, a STAR ("STR"), a
@@ -97,7 +103,7 @@ export type ProceduresAt = { ident: string; kind: Kind } | null;
  */
 export default function ProceduresRoute({
   airports, rows, depart, weather, picked, onPick, onPreselect, takeoffs, onTakeoff, fit = null, onCharts, chartsDisabled, procedures, inRoute, onProcedures, onPreview, at, onAt,
-  crossings = NO_CROSSINGS, onFix, ground, onGround,
+  crossings = NO_CROSSINGS, onFix, onDepart, ground, onGround, pointAltitude, onPointAltitude, directTo = null, onDirectTo,
 }: {
   airports: ProcedureAirport[];
   /** The route's rows as the nav log has them (navLogRows), for its
@@ -146,6 +152,17 @@ export default function ProceduresRoute({
   crossings?: Record<string, number>;
   /** A fix of a procedure picked, tapped on its branch: its card (FixCard). */
   onFix?: (field: string, kind: Kind, fix: string) => void;
+  /** The departure's time picked on its step (DepartPicker). */
+  onDepart?: (iso: string) => void;
+  /** The altitude at a point of the route, as the route box's menu offers
+   *  it (PlanWorkspace's altitudeAt), and the pilot's own set there or
+   *  (null) given back to the plan. */
+  pointAltitude?: (ident: string, waypoint: boolean) => PointAltitude;
+  onPointAltitude?: (ident: string, feet: number | null) => void;
+  /** The point flown direct to (the address's `direct`), and Direct to
+   *  one, or (null) the route flown as it was. */
+  directTo?: string | null;
+  onDirectTo?: (ident: string | null) => void;
 }) {
   // The procedure on its own page in the sheet, over its kind's list.
   const [page, setPage] = useState<{ at: ProceduresAt; procedure: ProcedureSummary } | null>(null);
@@ -155,6 +172,8 @@ export default function ProceduresRoute({
   if (at && at !== kept) setKept(at);
   const on = at ?? kept;
   const procedure = page && page.at === on ? page.procedure : null;
+  // The point whose altitude is being set (PointAltitudeDialog).
+  const [editing, setEditing] = useState<EditedPoint | null>(null);
   // Each field's procedures, asked for as its kind's sheet opens -- not
   // with the route: the FAA's file is 53 MB, fetched on its first ask --
   // and said in the list from then on.
@@ -313,15 +332,44 @@ export default function ProceduresRoute({
     }
   }, [intoWind, onPreselect, onTakeoff]);
   const destination = airports.find(a => a.role === "Destination");
+  // The end of a point's head, at the owner's ask ("All the other fixes and
+  // stops can have a direct to and altitude. Where airports default to
+  // field elevation but changeable"): every point flown to -- a waypoint
+  // flown over, a stop's landing, the destination -- its altitude, as a
+  // procedure's fix has (FixBranch), and Direct to it. A waypoint's is
+  // the plan's cruise to it, an airport's its elevation, until the pilot
+  // sets one (the address's `altitudes`).
+  const pointSide = (ident: string, waypoint: boolean, elevationFt: number | null) => {
+    const altitude = pointAltitude?.(ident, waypoint);
+    const own = altitude?.own ? altitude.feet : null;
+    const shown = own ?? (waypoint ? altitude?.feet ?? null : elevationFt);
+    const direct = directTo !== null && sameField(directTo, ident);
+    return (
+      <>
+        {altitude && onPointAltitude && (
+          <AltitudeChip
+            own={own !== null} testId="point-altitude-chip"
+            onClick={() => setEditing({ ident, waypoint, altitude, elevationFt })}
+            label={`${ident}, ${shown === null ? "no altitude" : `${altFt(shown)} ft${own !== null ? "" : waypoint ? ", as planned" : ", field elevation"}`}: change`}
+          >
+            {shown === null ? "Alt" : altFt(shown)}
+          </AltitudeChip>
+        )}
+        {onDirectTo && (
+          <DirectButton ident={ident} direct={direct} undo="Fly the route as planned" onClick={() => onDirectTo(direct ? null : ident)} testId="point-direct" />
+        )}
+      </>
+    );
+  };
 
   // A field's step: what is flown there, in the order it is flown.
   const fieldStep = (a: ProcedureAirport, row: NavLogRow | undefined, last: boolean) => {
     // A kind's pull-down: the one in the route said on it (ProcedureMenu).
     const wind = windOf(a.ident);
     const i = airports.findIndex(f => f.ident === a.ident);
-    const kindMenu = (kind: Kind) => (
+    const kindMenu = (kind: Kind, look: "head" | "add") => (
       <ProcedureMenu
-        key={kind} ident={a.ident} kind={kind} list={lists[i]?.data} loading={!!lists[i]?.isFetching}
+        key={kind} ident={a.ident} kind={kind} list={lists[i]?.data} loading={!!lists[i]?.isFetching} look={look}
         picked={pickOf(a.ident, kind)} label={inRoute.find(p => sameField(p.ident, a.ident) && p.kind === kind)?.label ?? null}
         fixes={inRoute.find(p => sameField(p.ident, a.ident) && p.kind === kind)?.fixes?.map(f => f.ident)}
         runway={chosenAt(a.ident)} windward={wind && !wind.calm ? wind.ident : null}
@@ -331,38 +379,39 @@ export default function ProceduresRoute({
     const has = (kind: Kind) => hasKind(a.ident, kind) || inRoute.some(p => sameField(p.ident, a.ident) && p.kind === kind);
     const time = row ? etaAt(depart || new Date().toISOString(), row.minutesFlown) : null;
     const mark = row ? <PointMark row={row} number={undefined} weather={weather} /> : <FieldDot last={last} />;
-    // A step of the field's: the procedures' pull-downs in its head, by its
-    // ident in the place of "Depart" or "Arrive", where it has any, at the
-    // owner's ask ("replace the Depart/Arrival label with the
-    // Departure/Arrival selection when available. Approach can be next to
-    // Arrival"); its runway chips under, its info at their start ("Info
-    // can go on the left side of the runways").
-    // Each procedure picked here, its fixes a branch off the route's line
-    // in the order they are flown (FixBranch), at the owner's pick.
+    // A step of the field's, at the owner's pick (option C of the
+    // procedures canvas): its name and time in its head, its runway chips
+    // under with its info at their start ("Info can go on the left side of
+    // the runways"), and after them its procedures -- each picked one the
+    // head of a branch of its fixes, in the order they are flown
+    // (FixBranch), its pull-down its name; each kind not picked a dashed
+    // "+ Arrival" to pick one.
     const branch = (kind: Kind) => {
       const inPlace = inRoute.find(p => sameField(p.ident, a.ident) && p.kind === kind);
       // By its id, not its kind: the field's list, which says each pick's
       // kind, is asked for only as a pull-down opens.
       const chosen = inPlace && procedures.find(p => sameField(p.ident, a.ident) && p.id === inPlace.id);
-      if (!inPlace?.fixes?.length || !chosen) return null;
+      if (!inPlace || !chosen) return null;
       return (
         <FixBranch
-          key={`branch-${kind}`} name={inPlace.label} fixes={inPlace.fixes} direct={inPlace.direct ?? null} crossings={crossings}
+          key={`branch-${kind}`} name={inPlace.label} kind={KIND_WORD[kind]} head={kindMenu(kind, "head")}
+          fixes={inPlace.fixes ?? []} direct={inPlace.direct ?? null} crossings={crossings}
           onDirect={fix => onProcedures(procedures.map(p => (p === chosen ? { ...p, direct: fix } : p)), null)}
           onOpen={fix => onFix?.(a.ident, kind, fix)}
         />
       );
     };
-    const step = (role: "Arrive" | "Depart", kinds: Kind[], chips: ReactNode, isLast: boolean, stepMark: ReactNode, stepTime: string | null) => (
-      <Step
-        key={`${a.ident}-${role}`} last={isLast} mark={stepMark}
-        title={`${a.ident} · ${role}`} time={stepTime} field
-        heading={kinds.length > 0 ? a.ident : undefined} beside={kinds.length > 0 ? kinds.map(kindMenu) : undefined}
-      >
-        {chips}
-        {kinds.map(branch)}
-      </Step>
-    );
+    const step = (role: "Arrive" | "Depart", kinds: Kind[], chips: ReactNode, isLast: boolean, stepMark: ReactNode, stepTime: ReactNode, side?: ReactNode) => {
+      const picked = kinds.filter(k => inRoute.some(p => sameField(p.ident, a.ident) && p.kind === k));
+      const unpicked = kinds.filter(k => !picked.includes(k));
+      return (
+        <Step key={`${a.ident}-${role}`} last={isLast} mark={stepMark} title={`${a.ident} · ${role}`} time={stepTime} side={side} field>
+          {chips}
+          {picked.map(branch)}
+          {unpicked.length > 0 && <div className="flex flex-wrap gap-2">{unpicked.map(k => kindMenu(k, "add"))}</div>}
+        </Step>
+      );
+    };
     // Each runway end's fit today (lib/runwayFit): its crosswind against the
     // airplane's demonstrated, and its length against the distance needed,
     // marked on its chip and said in the field's info, at the owner's ask.
@@ -397,8 +446,13 @@ export default function ProceduresRoute({
       : chips("takeoff", chosenAt(a.ident), null, patternNote(a, chosenAt(a.ident), null), end => onPick(a.ident, end ?? NO_PATTERN));
     const takeoffChips = chips("takeoff", takeoffAt(a.ident), null, takeoffAt(a.ident) ? `Runway ${takeoffAt(a.ident)}` : null,
       end => onTakeoff(a.ident, end ?? NO_PATTERN), `${a.ident} takeoff runway`);
-    if (a.role === "Departure") return step("Depart", (["departure"] as Kind[]).filter(has), departChips, last, mark, time);
-    if (a.role === "Destination") return step("Arrive", (["arrival", "approach"] as Kind[]).filter(has), landingChips, last, mark, time);
+    // The departure's time on its own step, from the route's box at the
+    // owner's ask ("The departure time can move from the route box to the
+    // departure and arrival boxes"): picked there, Now for about now.
+    const leaving = onDepart ? <DepartPicker value={depart} onChange={onDepart} look="time" /> : time;
+    if (a.role === "Departure") return step("Depart", (["departure"] as Kind[]).filter(has), departChips, last, mark, leaving);
+    const arriving = pointSide(a.ident, false, a.elevationFt);
+    if (a.role === "Destination") return step("Arrive", (["arrival", "approach"] as Kind[]).filter(has), landingChips, last, mark, time, arriving);
     // A stop is landed at and left again, each with its own runway, at the
     // owner's ask ("If a stop is an airport then it should have arrival
     // first with a runway and a separate departure with a runway"): two
@@ -414,7 +468,7 @@ export default function ProceduresRoute({
       </>
     );
     return [
-      step("Arrive", (["arrival", "approach"] as Kind[]).filter(has), landingChips, false, mark, time),
+      step("Arrive", (["arrival", "approach"] as Kind[]).filter(has), landingChips, false, mark, time, arriving),
       step("Depart", (["departure"] as Kind[]).filter(has), departing, last, <FieldDot last={last} />, leaves),
     ];
   };
@@ -440,6 +494,9 @@ export default function ProceduresRoute({
       <Step
         key={row.key} last={last} mark={<PointMark row={row} number={undefined} weather={weather} />}
         title={rowPoint(row).name} time={etaAt(depart || new Date().toISOString(), row.minutesFlown)}
+        // A waypoint the route flies over (VPBNG), or ends at: its altitude
+        // and Direct to, as a field's landing has. Not where it starts.
+        side={row.kind !== "departure" && "airport" in row && !isPosition(row.airport.ident) ? pointSide(row.airport.ident, true, null) : undefined}
         testId={`route-${row.kind}`}
       />,
     );
@@ -455,6 +512,10 @@ export default function ProceduresRoute({
       <ResponsivePopoverAnchor asChild>
         <ol className="pt-2 pb-1" aria-label="The route" data-testid="procedures">{fieldsAlone ?? steps}</ol>
       </ResponsivePopoverAnchor>
+      <PointAltitudeDialog
+        point={editing} onClose={() => setEditing(null)}
+        onSet={(ident, feet) => { onPointAltitude?.(ident, feet); setEditing(null); }}
+      />
       {/* On a phone a sheet that keeps its height from page to page, as
           an iOS sheet does pushing one. Half the screen (PROCEDURES_SHEET),
           the map above it in sight and clear -- no shade over it -- as a
@@ -505,15 +566,14 @@ function FieldDot({ last }: { last: boolean }) {
  * nav log draws it, its name and the time it is reached, and under them
  * what is flown there (a field's). The line runs on to the next step.
  */
-function Step({ mark, title, heading, beside, time, last, field = false, testId, children }: {
+function Step({ mark, title, time, side, last, field = false, testId, children }: {
   mark: ReactNode;
-  /** Its name, said to a screen reader and shown where `heading` is not. */
+  /** Its name, said to a screen reader and shown in its head. */
   title: string;
-  /** What its head shows in the title's place: a field's ident alone,
-   *  its procedures' pull-downs (`beside`) saying the rest. */
-  heading?: string;
-  beside?: ReactNode;
-  time: string | null;
+  /** Its time, or the departure's picker for it; and what goes at the
+   *  head's end (a point's altitude and Direct to). */
+  time: ReactNode;
+  side?: ReactNode;
   last: boolean;
   field?: boolean;
   testId?: string;
@@ -525,17 +585,10 @@ function Step({ mark, title, heading, beside, time, last, field = false, testId,
       {!last && <span aria-hidden="true" className="absolute top-3 bottom-0 left-[calc(0.875rem-1px)] w-0.5 bg-border" />}
       <div className="relative flex w-7 shrink-0 justify-center pt-0.5">{mark}</div>
       <section aria-label={title} className={cn("min-w-0 flex-1 space-y-3", field ? "pb-5" : "pb-4")}>
-        <div className="flex items-center justify-between gap-2">
-          {/* On one line, the pull-downs giving way, their words cut short,
-              before the line wraps: half way the list is in the foot, a
-              little narrower than the body all the way up. */}
-          <span className="flex min-w-0 items-center gap-2">
-            <Name className={cn(field ? "font-semibold" : "font-normal", TEXT.row)}>
-              {heading ?? title}
-            </Name>
-            {beside}
-          </span>
-          {time && <span className={cn("shrink-0 font-semibold tabular-nums", TEXT.detail)}>{time}</span>}
+        <div className="flex items-center gap-2">
+          <Name className={cn("min-w-0 flex-1 truncate", field ? "font-semibold" : "font-normal", TEXT.row)}>{title}</Name>
+          {typeof time === "string" ? <span className={cn("shrink-0 font-semibold tabular-nums", TEXT.detail)}>{time}</span> : time}
+          {side}
         </div>
         {children}
       </section>
@@ -585,6 +638,10 @@ function Chips({ label, value, onChange, children }: {
     </div>
   );
 }
+
+/** How long an opened runway line waits, untouched, before it slides back
+ *  to the runway picked, ms: a few seconds, at the owner's ask. */
+const RUNWAY_LINE_FOLD_MS = 4000;
 
 /** The runway lines opened from their fold (PatternChips), by field. */
 const useOpenRunwayLines = create<{ open: string[] }>(() => ({ open: [] }));
@@ -668,6 +725,16 @@ function PatternChips({ airport: a, wind, chosen, landing, info, label, fitOf, o
     return { id, ring, words, fit, face: <>{windward && <Wind className="size-4" strokeWidth={2.2} aria-hidden />}{id}</> };
   };
   const picked = chosen !== null ? ends.find(e => runwayNumber(e.end.ident) === chosen) : undefined;
+  // Open with a runway picked and nothing touched for RUNWAY_LINE_FOLD_MS,
+  // it slides back to the runway picked, at the owner's ask ("back left
+  // after a few seconds"); a touch or a scroll on it starts the wait again.
+  const [touched, setTouched] = useState(0);
+  const folds = open && chosen !== null && a.runways !== null;
+  useEffect(() => {
+    if (!folds) return;
+    const id = setTimeout(() => useOpenRunwayLines.setState(s => ({ open: s.open.filter(k => k !== key) })), RUNWAY_LINE_FOLD_MS);
+    return () => clearTimeout(id);
+  }, [folds, key, touched]);
   if (picked && !open && a.runways !== null) {
     const c = chip(picked.runway, picked.end);
     return (
@@ -676,11 +743,15 @@ function PatternChips({ airport: a, wind, chosen, landing, info, label, fitOf, o
         {/* Still the group's choice to a screen reader, picked; a tap on it
             opens the line. */}
         <div role="radiogroup" aria-label={label ?? `${a.ident} ${landing ? "runway" : "traffic pattern"}`}>
+          {/* An arrow at its right, the way the line opens, at the owner's
+              ask ("runways should have an arrow to the right"). */}
           <button
-            type="button" role="radio" aria-checked="true" data-state="on" onClick={() => setOpen(true)} className={cn(CHIP, c.ring)}
+            type="button" role="radio" aria-checked="true" data-state="on" onClick={() => setOpen(true)}
+            className={cn(CHIP, "gap-0.5 pr-2 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-right-3 motion-safe:duration-300", c.ring)}
             aria-label={`${c.words}, picked: tap for the other runways`} data-testid="procedure-pattern" data-fit={c.fit} data-folded=""
           >
             {c.face}
+            <ChevronRight className="size-4 opacity-80" aria-hidden />
           </button>
         </div>
       </div>
@@ -695,27 +766,35 @@ function PatternChips({ airport: a, wind, chosen, landing, info, label, fitOf, o
       {a.runways === null ? (
         <p role="status" className={cn("px-1 text-muted-foreground", TEXT.detail)}>Looking the runways up…</p>
       ) : (
-        <Chips label={label ?? `${a.ident} ${landing ? "runway" : "traffic pattern"}`} value={chosen ?? NONE} onChange={v => { setOpen(false); onPick(v === NONE ? null : v); }}>
-          {/* An approach to a runway lands on one: none is no choice then. */}
-          <ToggleGroupItem value={NONE} disabled={straightIn !== null} className={CHIP}>None</ToggleGroupItem>
-          {ends.map(({ runway, end }) => {
-            const c = chip(runway, end);
-            // An end with no surveyed threshold has no pattern to draw;
-            // with an approach, none is drawn, and the end is the approach's
-            // own or one it may circle to.
-            const drawn = trafficPattern(a.ident, runway, end.ident, a.patternAltitudeFt) !== null;
-            const circleNa = !allowed(c.id);
-            return (
-              <ToggleGroupItem
-                key={end.ident} value={c.id} disabled={circleNa || (!landing && !drawn)} className={cn(CHIP, c.ring)}
-                aria-label={`${c.words}${circleNa ? `, no circling on the ${landing!.name}` : !landing && !drawn ? ", not surveyed" : ""}`}
-                data-testid="procedure-pattern" data-fit={c.fit}
-              >
-                {c.face}
-              </ToggleGroupItem>
-            );
-          })}
-        </Chips>
+        // Opened from its fold, the line slides out to the right of the
+        // runway picked, at the owner's ask ("smoothly expand to the
+        // right"); a touch or a scroll on it holds it open (touched).
+        <div
+          className={cn("flex min-w-0 flex-1", chosen !== null && "motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-left-6 motion-safe:duration-300")}
+          onPointerDown={() => setTouched(t => t + 1)} onScrollCapture={() => setTouched(t => t + 1)}
+        >
+          <Chips label={label ?? `${a.ident} ${landing ? "runway" : "traffic pattern"}`} value={chosen ?? NONE} onChange={v => { setOpen(false); onPick(v === NONE ? null : v); }}>
+            {/* An approach to a runway lands on one: none is no choice then. */}
+            <ToggleGroupItem value={NONE} disabled={straightIn !== null} className={CHIP}>None</ToggleGroupItem>
+            {ends.map(({ runway, end }) => {
+              const c = chip(runway, end);
+              // An end with no surveyed threshold has no pattern to draw;
+              // with an approach, none is drawn, and the end is the approach's
+              // own or one it may circle to.
+              const drawn = trafficPattern(a.ident, runway, end.ident, a.patternAltitudeFt) !== null;
+              const circleNa = !allowed(c.id);
+              return (
+                <ToggleGroupItem
+                  key={end.ident} value={c.id} disabled={circleNa || (!landing && !drawn)} className={cn(CHIP, c.ring)}
+                  aria-label={`${c.words}${circleNa ? `, no circling on the ${landing!.name}` : !landing && !drawn ? ", not surveyed" : ""}`}
+                  data-testid="procedure-pattern" data-fit={c.fit}
+                >
+                  {c.face}
+                </ToggleGroupItem>
+              );
+            })}
+          </Chips>
+        </div>
       )}
     </div>
   );
