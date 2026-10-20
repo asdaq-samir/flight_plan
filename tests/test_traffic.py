@@ -27,8 +27,10 @@ class Clock:
 
 
 @pytest.fixture
-def clock(monkeypatch):
+def clock(monkeypatch, tmp_path):
     clock = Clock()
+    # Recorded tracks written here, not to the planner's data.
+    monkeypatch.setattr(traffic, "RECORDED_DIR", tmp_path / "watched_tracks")
     monkeypatch.setattr(traffic, "_REGIONS", {})
     monkeypatch.setattr(traffic, "_STATE", {"next_ask": 0.0, "last_ask": -1e9, "search_at": -1e9, "blocked_until": -1e9})
     monkeypatch.setattr(traffic, "_FLIGHTS", {})
@@ -1011,4 +1013,25 @@ def test_a_recorded_track_begun_in_the_air_says_no_departure(clock, monkeypatch)
         {"ident": "KBUU", "name": "Burlington", "distance_nm": 1.2, "elevation_ft": 779}])
     assert traffic._left_from({"t": 0.0, "lat": 42.68, "lon": -88.30, "alt_ft": 2075.0}) is None
     assert traffic._left_from({"t": 0.0, "lat": 42.68, "lon": -88.30, "alt_ft": 1150.0})["ident"] == "KBUU"
+
+
+def test_a_watched_flight_is_kept_across_a_restart_and_listed_with_the_archives(clock, monkeypatch):
+    """N3429J's flight watched from its card: kept on disk, so a restart of
+    the planner still has it, and listed in its last flights where adsb.lol's
+    archive, closed behind a browser check, has none."""
+    wall = {"now": 1791800000.0}
+    monkeypatch.setattr(traffic, "_wall", lambda: wall["now"])
+    monkeypatch.setattr(traffic.airports, "nearest", lambda lat, lon, limit=1: [])
+    for k in range(12):
+        wall["now"] = 1791800000.0 + 20 * k
+        traffic._record("a128b9", traffic._aircraft({**CESSNA, "lat": 42.30 + 0.01 * k, "seen_pos": 0}))
+    # A restart: nothing in memory, the file read back.
+    monkeypatch.setattr(traffic, "_RECORDED", {})
+    assert len(traffic._recorded("a128b9")) == 12
+    monkeypatch.setattr(traffic, "_trace", lambda hex_id: None)
+    monkeypatch.setattr(traffic, "_day_trace", lambda hex_id, day: traffic.UNREAD)
+    found = traffic.history("a128b9", limit=5)
+    assert [f["id"] for f in found["flights"]] == [1791800000] and found["flights"][0]["origin"] is None
+    replay = traffic.past_flight("a128b9", 1791800000)
+    assert replay is not None and len(replay["points"]) == 12
 

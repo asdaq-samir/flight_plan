@@ -95,7 +95,13 @@ export default function PastFlights({ hex, onOpen, nowShown = false, type = null
         {!!unread && (
           <ListRow title={
             <span className={cn("text-muted-foreground", TEXT.detail)} data-testid="past-flights-unread">
-              {unread === 1 ? "One day" : `${unread} days`} could not be read from adsb.lol just now, so their flights are missing; asking again.
+              {/* A week or more unread is adsb.lol's history closed to the
+                  app (behind a browser check since 19 Oct 2026), not a
+                  moment's refusal: said so, and that the flights listed
+                  are those watched here (vfr.traffic's recorded tracks). */}
+              {unread >= 7
+                ? "adsb.lol's flight history can't be read now, so only flights followed in this app are listed."
+                : `${unread === 1 ? "One day" : `${unread} days`} could not be read from adsb.lol just now, so their flights are missing; asking again.`}
             </span>
           } />
         )}
