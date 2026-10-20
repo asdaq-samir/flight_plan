@@ -236,6 +236,9 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const stopsParam = searchParams.get("stops");
   const stops = useMemo(() => stopsOf(stopsParam), [stopsParam]);
   const planned = { dep: departureOf(searchParams.get("dep")), dest: identOf(searchParams.get("dest")), stops };
+  // The route's points as typed, the departure first: what FPL's menus act
+  // on (ProceduresRoute's routePoints).
+  const routePoints = useMemo(() => [planned.dep, ...stops, planned.dest].filter(Boolean), [planned.dep, stops, planned.dest]);
   const via = planned.stops.join(",");
   const altitudeFt = searchParams.get("altitude_ft") ?? "";
   const altitudeChoice = altitudeChoiceOf(searchParams.get("altitude_choice"));
@@ -1621,12 +1624,13 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       at={proceduresAt} onAt={setProceduresShown} crossings={crossings} onFix={showFix} onDepart={changeDepart} ground={ground} onGround={setGround}
       pointAltitude={altitudeAt} onPointAltitude={setPointAltitude} directTo={directParam} onDirectTo={directToPoint}
       onInfo={selectPlace} onRemove={removeStop} onCreateFix={insertStopAfter} holds={holds} onHoldSet={setHold} askHold={holdAsk}
+      routePoints={routePoints} stopsFull={planned.stops.length >= MAX_STOPS}
       onCharts={() => { if (planned.dest) { setApproachesOf(planned.dest); selectPlace(planned.dest); } }}
       chartsDisabled={!planned.dest || noApproaches}
     />
   ), [procedureAirports, routeRows, depart, metarColour, pickedPatterns, pickPattern, setPattern, pickedTakeoffs, setTakeoff, runwayFitInputs, pickedProcedures, routeProcedures, pickProcedures, crossings, showFix,
     ground, setGround, previewProcedure, proceduresAt, setProceduresShown, planned.dest, selectPlace, noApproaches, changeDepart,
-    altitudeAt, setPointAltitude, directParam, directToPoint, removeStop, insertStopAfter, holds, setHold, holdAsk]);
+    altitudeAt, setPointAltitude, directParam, directToPoint, removeStop, insertStopAfter, holds, setHold, holdAsk, routePoints, planned.stops.length]);
   const navLog = useMemo(() => (
     <Suspense fallback={<div className="min-h-0 flex-1" />}>
     <NavLogView

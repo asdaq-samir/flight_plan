@@ -27,6 +27,11 @@ interface Props {
   /** Leave Now, back to about now: the flight's own departure's; a stop
    *  has no "now" to go back to. */
   leavesNow?: boolean;
+  /** The earliest and latest it may be, ms since 1970: a stop's leaving,
+   *  from its landing to a day after, as the planner takes a stop's time
+   *  on the ground. A time picked outside is brought inside and said so. */
+  earliest?: number;
+  latest?: number;
 }
 
 /** The instant of a calendar day at a local "HH:mm". */
@@ -65,8 +70,19 @@ function shortWhen(date: Date): string {
  * caller, an ISO instant: a new day keeps the time (or takes the next
  * whole hour), a new time keeps the day.
  */
-export default function DepartPicker({ value, onChange, look = "chip", label = "Departure", testId = "depart-date", leavesNow = true }: Props) {
+export default function DepartPicker({
+  value, onChange: change, look = "chip", label = "Departure", testId = "depart-date", leavesNow = true, earliest, latest,
+}: Props) {
   const [open, setOpen] = useState(false);
+  // A pick outside its range, brought inside: said under the time, where
+  // it was picked, until the next pick.
+  const [held, setHeld] = useState(false);
+  const onChange = (iso: string) => {
+    const ms = iso ? Date.parse(iso) : NaN;
+    const kept = Number.isNaN(ms) ? ms : Math.min(latest ?? Infinity, Math.max(earliest ?? -Infinity, ms));
+    setHeld(kept !== ms);
+    change(Number.isNaN(ms) || kept === ms ? iso : new Date(kept).toISOString());
+  };
   const timeId = useId();
   const parsed = value ? new Date(value) : undefined;
   const date = parsed && !Number.isNaN(parsed.getTime()) ? parsed : undefined;
@@ -104,6 +120,10 @@ export default function DepartPicker({ value, onChange, look = "chip", label = "
           <Suspense fallback={<div className="h-[21rem] w-[17rem]" />}>
             <Calendar
               mode="single" required selected={date} defaultMonth={date} captionLayout="dropdown"
+              disabled={[
+                ...(earliest != null ? [{ before: new Date(new Date(earliest).setHours(0, 0, 0, 0)) }] : []),
+                ...(latest != null ? [{ after: new Date(latest) }] : []),
+              ]}
               onSelect={day => onChange(instantAt(day, time || nextHour()))}
             />
           </Suspense>
@@ -136,6 +156,11 @@ export default function DepartPicker({ value, onChange, look = "chip", label = "
             )}
             <Button type="button" size="sm" onClick={() => setOpen(false)} data-testid="depart-done">Done</Button>
           </div>
+          {held && earliest != null && latest != null && (
+            <p className={cn("px-3 text-amber-700 dark:text-amber-300", TEXT.note)} role="status" data-testid="depart-range">
+              From landing, {format(new Date(earliest), "HH:mm")}, to a day after.
+            </p>
+          )}
         </div>
       </ResponsivePopoverContent>
     </ResponsivePopover>

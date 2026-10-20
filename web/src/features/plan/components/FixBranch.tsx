@@ -83,6 +83,7 @@ export default function FixBranch({ name, kind, head, fixes, direct, crossings, 
                 </button>
                 <PointFigures
                   time={null} kind={own != null ? "set" : "pub"}
+                  spoken={own != null ? `cross at ${altFt(own)} ft, set by you` : altitudeLines(fix).words ? `published, ${altitudeLines(fix).words}` : undefined}
                   altitude={own != null ? altFt(own) : charted ? (
                     <span style={{ textDecoration: [charted.under && "underline", charted.over && "overline"].filter(Boolean).join(" ") || "none" }}>{charted.text}</span>
                   ) : null}

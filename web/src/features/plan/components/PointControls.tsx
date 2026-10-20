@@ -18,24 +18,36 @@ export type AltitudeKind = "elev" | "cruise" | "pub" | "set";
  * depart/arrive and waypoints"): its time over its altitude, the
  * altitude's kind after it, small; the pilot's own in the tint.
  */
-export function PointFigures({ time, altitude, kind }: {
+export function PointFigures({ time, altitude, kind, spoken }: {
   /** Its time, or the picker for it where the airplane leaves. */
   time: ReactNode;
   /** The altitude, or the chart's crossing as it is drawn; none known, none. */
   altitude: ReactNode;
   kind: AltitudeKind;
+  /** The altitude as a screen reader says it, where the drawing says more
+   *  than its figure ("at or above 2,000 ft", a line under it): else the
+   *  figure in feet and its kind in words. */
+  spoken?: string;
 }) {
   return (
     <span className={cn("flex shrink-0 flex-col items-end tabular-nums leading-tight", TEXT.detail)} data-testid="point-figures">
       {typeof time === "string" ? <span className="font-semibold">{time}</span> : time}
       {altitude != null && (
         <span className={kind === "set" ? "font-semibold text-tint" : "text-muted-foreground"} data-testid="point-altitude-figure" data-kind={kind}>
-          {altitude} <span className={TEXT.note}>{kind}</span>
+          {/* "pub", "elev" and a line over or under a figure are for the
+              eye; VoiceOver says them in words (the audit's finding). */}
+          <span aria-hidden="true">{altitude} <span className={TEXT.note}>{kind}</span></span>
+          <span className="sr-only">{spoken ?? (typeof altitude === "string" ? `${altitude} ft, ${KIND_WORDS[kind]}` : KIND_WORDS[kind])}</span>
         </span>
       )}
     </span>
   );
 }
+
+/** Each altitude's kind said in words. */
+const KIND_WORDS: Record<AltitudeKind, string> = {
+  elev: "field elevation", cruise: "planned cruise", pub: "published", set: "set by you",
+};
 
 /**
  * A point's menu, the "⋯" at its row's end, at the owner's ask ("Each stop
@@ -60,10 +72,11 @@ export function PointMenu({ ident, direct = false, onDirect, onAltitude, onFix, 
   testId?: string;
 }) {
   // A sheet or a dialog opened from an item once the menu has closed and
-  // let the focus go, and the focus not given back to the "⋯": opened
-  // while the menu still held the focus, a desktop's popover lost it to
-  // the menu and took that for a click outside it, and closed (the hold
-  // spec on the desktop project).
+  // given the focus back to the "⋯": opened while the menu still held the
+  // focus, a desktop's popover lost it to the menu and took that for a
+  // click outside it, and closed (the hold spec on the desktop project).
+  // With the focus on the "⋯" as it opens, the sheet gives it back there
+  // as it closes, where VoiceOver was left on the page (the audit's).
   const pending = useRef<(() => void) | null>(null);
   return (
     <DropdownMenu>
@@ -74,10 +87,9 @@ export function PointMenu({ ident, direct = false, onDirect, onAltitude, onFix, 
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end" className="min-w-56"
-        onCloseAutoFocus={e => {
+        onCloseAutoFocus={() => {
           const go = pending.current;
           if (!go) return;
-          e.preventDefault();
           pending.current = null;
           window.setTimeout(go);
         }}
