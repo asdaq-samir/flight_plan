@@ -144,7 +144,7 @@ test("the side view is a card of its own, Profile, from its button beside the na
     // view over the figures.
     await expect(panel).toHaveAttribute("data-panel", height);
     const card = panel.getByTestId("profile-card");
-    await expect(card.getByTestId("profile-name")).toHaveText("Profile");
+    await expect(card.getByTestId("profile-name")).toHaveText("C81 → KDLH");
     await expect(card).toContainText("C81 → KDLH");
     const profile = card.getByTestId("mini-profile");
     await expect(profile).toBeVisible();

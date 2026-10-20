@@ -834,8 +834,9 @@ function Chips({ label, value, onChange, children }: {
 }
 
 /** How long an opened runway line waits, untouched, before it slides back
- *  to the runway picked, ms: a few seconds, at the owner's ask. */
-const RUNWAY_LINE_FOLD_MS = 4000;
+ *  to the runway picked, ms: three seconds, at the owner's ask ("Collapse
+ *  runways after 3 seconds"; it was four). */
+const RUNWAY_LINE_FOLD_MS = 3000;
 
 /** The runway lines opened from their fold (PatternChips), by field. */
 const useOpenRunwayLines = create<{ open: string[] }>(() => ({ open: [] }));

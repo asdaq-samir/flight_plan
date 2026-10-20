@@ -1682,6 +1682,17 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   ), [procedureAirports, routeRows, depart, metarColour, pickedPatterns, pickPattern, setPattern, pickedTakeoffs, setTakeoff, runwayFitInputs, pickedProcedures, routeProcedures, pickProcedures, crossings, showFix,
     ground, setGround, previewProcedure, proceduresAt, setProceduresShown, planned.dest, selectPlace, noApproaches, changeDepart,
     altitudeAt, setPointAltitude, directParam, directToPoint, removeStop, insertStopAfter, holds, setHold, holdAsk, routePoints, planned.stops.length]);
+  // Its head: the route by name, and its plan under it -- where from and
+  // to, the airplane, the altitude, when -- as an airport's card has its
+  // name and where it is.
+  const cruiseFt = s.legs.length ? Math.max(...s.legs.map(leg => leg.altitude_ft)) : null;
+  const from = course ? placeName(course.departure.name, course.departure.ident) : "";
+  const briefLine = course ? [
+    s.local ? from : `${from} to ${placeName(course.destination.name, course.destination.ident)}`,
+    shortName(aircraft.label),
+    cruiseFt ? `${altFt(cruiseFt)} ft` : null,
+    depart ? `leaving ${clockTime(new Date(depart))}` : "leaving now",
+  ].filter(Boolean).join(" · ") : null;
   const navLog = useMemo(() => (
     <Suspense fallback={<div className="min-h-0 flex-1" />}>
     <NavLogView
@@ -1702,7 +1713,10 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       route={navLogShown ? undefined : routeList} navLogOpen={false}
       cardHead={navLogShown ? (
         <CardHead
-          name="Nav log" line={routeName(planned.dep, planned.dest, planned.stops)} nameTestId="navlog-name"
+          // As the Brief's head: the route's name, and the line under it --
+          // "Nav log" is the tab bar's title over it already (the owner's
+          // "Profile and Navlog titles appear twice").
+          name={routeName(planned.dep, planned.dest, planned.stops)} line={briefLine} nameTestId="navlog-name"
           onClose={closeNavLogCard} onShare="route" closeTestId="navlog-close"
         />
       ) : undefined}
@@ -1726,7 +1740,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   ), [s.totals, s.descriptionError, s.nav, s.legs, depart, planned.dep, planned.dest, course, s.logSelected, s.descriptions, s.saveDescription,
     s.generateDescriptions, descriptionsLoading, descriptionsPaywall, descriptionsHidden, selectedPoint, selectPointAt, deselectPoint, drawerOpen, aircraft.label,
     marks, tabContent, s.briefing, s.local, landedStops, s.langgraphNarrative, s.crewaiNarrative, unflyableBrief, kneeboardLater, metarColour, dryRunning, briefShown,
-    routeList, navLogShown, closeNavLogCard, planned.stops]);
+    routeList, navLogShown, closeNavLogCard, planned.stops, briefLine]);
   // The Brief's pages (BriefCard): En route's without the legs, which are
   // FPL's own; and its warnings over them.
   const briefContents = useMemo(() => ({
@@ -1736,17 +1750,6 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     arrive: tabContent("arrive"),
   }), [tabContent, s.local]);
   const briefNotice = useMemo(() => <BriefingNotices briefing={s.briefing} />, [s.briefing]);
-  // Its head: the route by name, and its plan under it -- where from and
-  // to, the airplane, the altitude, when -- as an airport's card has its
-  // name and where it is.
-  const cruiseFt = s.legs.length ? Math.max(...s.legs.map(leg => leg.altitude_ft)) : null;
-  const from = course ? placeName(course.departure.name, course.departure.ident) : "";
-  const briefLine = course ? [
-    s.local ? from : `${from} to ${placeName(course.destination.name, course.destination.ident)}`,
-    shortName(aircraft.label),
-    cruiseFt ? `${altFt(cruiseFt)} ft` : null,
-    depart ? `leaving ${clockTime(new Date(depart))}` : "leaving now",
-  ].filter(Boolean).join(" · ") : null;
   // A checkpoint picked on the chart with the Brief open: the Brief put
   // away for the nav log the pick is shown in.
   const pickPoint = useCallback((lat: number, lon: number) => {
@@ -2112,7 +2115,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
         {/* FPL's nav log once there is a route, at the pilot's ask: the
             empty box alone before. */}
         {profileShown && !savedOpen && !place && !heldPoint && (
-          <ProfileCard line={routeName(planned.dep, planned.dest, planned.stops)} onClose={closeProfileCard}>{sideView}</ProfileCard>
+          <ProfileCard name={routeName(planned.dep, planned.dest, planned.stops)} line={briefLine} onClose={closeProfileCard}>{sideView}</ProfileCard>
         )}
         <div className={cn("flex min-h-0 flex-1 flex-col print:flex", (tab !== "fpl" || place || heldPoint || savedOpen || briefShown || profileShown || !hasPoints) && "hidden")}>{navLog}</div>
       </>

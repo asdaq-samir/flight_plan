@@ -243,7 +243,7 @@ test("the profile is a card from its button beside the nav log's, no swipe at th
   // the altitude's opens it, the card's name and the route under it.
   await expect(panel.getByTestId("route-profile")).toHaveCount(0);
   const card = await openProfile(page);
-  await expect(card.getByTestId("profile-name")).toHaveText("Profile");
+  await expect(card.getByTestId("profile-name")).toHaveText("C81 → KDLH");
   await expect(card.getByTestId("mini-profile")).toBeVisible();
   // Flown: the card put away for the run at the foot, the route over it.
   const start = card.getByTestId("dry-run-start");
