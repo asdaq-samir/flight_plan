@@ -264,6 +264,24 @@ test("a link with a stop opens on the route through it", async ({ page }) => {
   await expect(page.locator(".leaflet-marker-icon", { hasText: "KMSN" }).first()).toBeVisible({ timeout: slow(15000) });
 });
 
+test("a stop is left again after its time on the ground, 30 minutes or the pilot's pick", async ({ page }) => {
+  // The owner's pick (2026-10-20): times after a stop had left out the
+  // time on the ground.
+  await recordedStops(page);
+  await page.goto("/app/plan?dep=C81&dest=KDLH&stops=KMSN");
+  await openPanel(page);
+  const menu = sideDrawer(page).getByTestId("ground-menu");
+  await expect(menu).toHaveText(/30 min on the ground/, { timeout: slow(30_000) });
+  await menu.click();
+  await page.getByTestId("ground-45").click();
+  await expect(menu).toHaveText(/45 min on the ground/);
+  await expect(page).toHaveURL(/ground=KMSN%3A45|ground=KMSN:45/);
+  // Back to 30, the default, and the address says nothing of it.
+  await menu.click();
+  await page.getByTestId("ground-30").click();
+  await expect(page).not.toHaveURL(/ground=/);
+});
+
 test("a flight saved with a stop is filed with it and the altitude set there, and its nav log lands there", async ({ page }) => {
   await recordedStops(page);
   const filed: { stops?: string[]; altitudes?: string | null; checkpoints: { category: string; name: string }[] }[] = [];

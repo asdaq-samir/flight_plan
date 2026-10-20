@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { altitudesOf, altitudesParam, departureOf, identOf, positionIdent, routeOf, stopsOf, withoutAltitude } from "./identSchema";
+import { altitudesOf, altitudesParam, departureOf, groundOf, identOf, positionIdent, routeOf, stopsOf, withoutAltitude } from "./identSchema";
 
 describe("identOf and stopsOf", () => {
   test("an airport's ident trimmed and uppercased, else empty", () => {
@@ -58,4 +58,10 @@ describe("a present position", () => {
     expect(withoutAltitude("@42.3246,-88.0741,3500")).toBe("@42.3246,-88.0741");
     expect(withoutAltitude("KDLH")).toBe("KDLH");
   });
+});
+
+test("a stop's time on the ground reads as whole minutes up to a day, none too, and writes back the same", () => {
+  expect(groundOf("KJVL:45,KMSN:0,KDSM:2000,KRYV:soon,KUES:")).toEqual({ KJVL: 45, KMSN: 0 });
+  expect(altitudesParam(groundOf("KJVL:45"))).toBe("KJVL:45");
+  expect(groundOf(null)).toEqual({});
 });

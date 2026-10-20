@@ -113,6 +113,20 @@ export function altitudesOf(value: string | null | undefined): Record<string, nu
   return out;
 }
 
+/** Minutes on the ground at the route's stops, from the address's
+ *  `ground` ("KJVL:45"): whole minutes, none to a day, by the stop's
+ *  ident (the planner's PlanQuery.ground). Written back by altitudesParam,
+ *  the same "IDENT:NUMBER" pairs. */
+export function groundOf(value: string | null | undefined): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const part of (value ?? "").split(",")) {
+    const [ident, minutes] = part.split(":");
+    const point = stopOf(ident), min = Number(minutes);
+    if (point && minutes !== "" && Number.isInteger(min) && min >= 0 && min <= 24 * 60) out[point] = min;
+  }
+  return out;
+}
+
 /** And back, for the address: "" with none. */
 export const altitudesParam = (altitudes: Record<string, number>) =>
   Object.entries(altitudes).map(([ident, ft]) => `${ident}:${ft}`).join(",");

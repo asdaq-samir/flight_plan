@@ -99,7 +99,9 @@ export function tripFigures({ totals, estimate, local, destination, depart = "",
   return [
     to,
     distance !== null ? { name: "Dist", value: whole ? `${Math.ceil(distance)}` : one(distance), unit: "nm" } : { name: "Dist", value: "—" },
-    arrival ? { name: "ETA", value: leg ? etaAt(start, minutes) : "—", testId: "navlog-eta" } : { name: "ETE", value: time, testId: "navlog-ete" },
+    // The destination's arrival after the stops' time on the ground too
+    // (Totals.ground_min); the time en route is the air's.
+    arrival ? { name: "ETA", value: leg ? etaAt(start, minutes === null ? null : minutes + (toDestination && !flown ? leg.ground_min ?? 0 : 0)) : "—", testId: "navlog-eta" } : { name: "ETE", value: time, testId: "navlog-ete" },
     fuelFigure,
   ];
 }

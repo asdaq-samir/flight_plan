@@ -320,6 +320,10 @@ class Totals(BaseModel):
     #: fuel check, the tanks filled at each stop -- the route's own fuel
     #: figures are None then (app.planning.route_totals). Empty without.
     hops: list["HopTotals"] = []
+    #: Minutes on the ground at the route's stops (PlanQuery.ground), not in
+    #: `ete_min`: the destination's arrival is `ete_min` and this after the
+    #: departure. 0 without stops.
+    ground_min: float = 0.0
     #: When the plan was made, ISO UTC.
     planned_at: str | None = None
     #: The period of the winds-aloft forecast the legs fly (a route with

@@ -2,7 +2,7 @@ import { Suspense, lazy, memo, useCallback, useDeferredValue, useEffect, useMemo
 import { flushSync } from "react-dom";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { Play, ClipboardList, ListOrdered, MapPin, Plane, Route, TowerControl } from "lucide-react";
-import { legOf, navLogRows } from "./components/navlog/rows";
+import { legOf, navLogRows, TURNAROUND_MIN } from "./components/navlog/rows";
 import { fromChunk } from "../../lib/fromChunk";
 import { cn } from "cn";
 import { api } from "../../lib/api/client";
@@ -19,7 +19,7 @@ import { pickKeptAircraft, useTabSearch } from "../../lib/tabSearch";
 import TabBar, { type BarTab } from "../../components/TabBar";
 import { useTabAsk } from "./components/navlog/panelTab";
 import { useAddressCards, usePanelTabs, type PanelTab, type TabList } from "./hooks/useTabCards";
-import { MAX_STOPS, altitudesOf, altitudesParam, departureOf, identOf, isAirwayToken, positionIdent, routeName, routeOf, stopsOf } from "../../lib/identSchema";
+import { MAX_STOPS, altitudesOf, altitudesParam, departureOf, groundOf, identOf, isAirwayToken, positionIdent, routeName, routeOf, stopsOf } from "../../lib/identSchema";
 import { useKeptAirport, usePreferences, type RecentAirport } from "../../lib/preferences";
 import { SearchNear, useAirportSearch } from "../../lib/useAirportSearch";
 import { RouteMap } from "./routeMapChunk";
@@ -204,6 +204,7 @@ function renamed(params: URLSearchParams, from: string, to: string): URLSearchPa
     takeoff: params.has("takeoff") ? patternsParam(new Map([...patternsOf(params.get("takeoff"))].map(([ident, end]) => [swap(ident), end]))) : undefined,
     procs: params.has("procs") ? proceduresParam(proceduresOf(params.get("procs")).map(p => ({ ...p, ident: swap(p.ident) }))) : undefined,
     altitudes: params.has("altitudes") ? altitudesParam(Object.fromEntries(Object.entries(altitudesOf(params.get("altitudes"))).map(([ident, at]) => [swap(ident), at]))) : undefined,
+    ground: params.has("ground") ? altitudesParam(Object.fromEntries(Object.entries(groundOf(params.get("ground"))).map(([ident, min]) => [swap(ident), min]))) : undefined,
   });
 }
 
@@ -308,9 +309,14 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const crossParam = searchParams.get("cross");
   const crossings = useMemo(() => altitudesOf(crossParam), [crossParam]);
   const crossingsText = altitudesParam(crossings);
+  // Minutes on the ground at the stops (`ground`, "KJVL:45"), set from a
+  // stop's Depart step (ProceduresRoute); one not named, 30.
+  const groundParamText = searchParams.get("ground");
+  const ground = useMemo(() => groundOf(groundParamText), [groundParamText]);
+  const groundText = altitudesParam(ground);
   const s = usePlan({
     dep: planned.dep, dest: planned.dest, stops: planned.stops, altitudeFt, altitudeChoice, depart, aircraft, load, classBClearance,
-    altitudes, procedures, crossings: crossingsText, localMin, rules: flightRules,
+    altitudes, procedures, crossings: crossingsText, ground: groundText, localMin, rules: flightRules,
     // Under IFR, the alternate filed in the Weather tab (AlternateSection).
     alternate: searchParams.get("alternate") ?? "",
     // Checkpoints as the map shows them: the settings' Waypoints off, the
@@ -372,7 +378,10 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       return patched(prev, { local_min: minutes === 60 ? null : String(minutes) });
     }, { replace: true });
   }, [setSearchParams]);
-  const { course, selected } = s;
+  const { selected } = s;
+  // The course with each stop's time on the ground, so every row built
+  // from it (navLogRows) is timed from when the airplane leaves again.
+  const course = useMemo(() => (s.course ? { ...s.course, ground } : null), [s.course, ground]);
   // Keep Charts Offline, the setting: each route loaded keeps its charts.
   useKeepOffline(course);
 
@@ -570,6 +579,16 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       if (feet == null) delete own[fix];
       else own[fix] = feet;
       return patched(prev, { cross: altitudesParam(own) || null });
+    }, { replace: true });
+  }, [setSearchParams]);
+  // A stop's time on the ground picked (GroundMenu): the address's
+  // `ground`, the default 30 not written.
+  const setGround = useCallback((ident: string, minutes: number) => {
+    setSearchParams(prev => {
+      const own = groundOf(prev.get("ground"));
+      if (minutes === TURNAROUND_MIN) delete own[ident];
+      else own[ident] = minutes;
+      return patched(prev, { ground: altitudesParam(own) || null });
     }, { replace: true });
   }, [setSearchParams]);
   const directTo = useCallback((open: OpenFix, direct: boolean) => {
@@ -846,9 +865,13 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     const whole = routeOf(dep, dest, via);
     if (whole) void queryClient.prefetchQuery(courseQuery(whole.dep, whole.dest, via));
     setSearchParams(prev => {
-      // A point's own altitude goes with it out of the route.
+      // A point's own altitude goes with it out of the route, and a stop's
+      // time on the ground with it no longer a stop.
       const kept = Object.entries(altitudesOf(prev.get("altitudes"))).filter(([ident]) => [dep, ...stops, dest].includes(ident));
-      return patched(prev, { dep, dest, stops: stops.join(","), altitudes: altitudesParam(Object.fromEntries(kept)) });
+      const grounded = Object.entries(groundOf(prev.get("ground"))).filter(([ident]) => stops.includes(ident));
+      return patched(prev, {
+        dep, dest, stops: stops.join(","), altitudes: altitudesParam(Object.fromEntries(kept)), ground: altitudesParam(Object.fromEntries(grounded)) || null,
+      });
     }, { replace: true });
   }, [setSearchParams]);
   // An airport's card's Add Stop, at the pilot's ask: the field the
@@ -1466,12 +1489,12 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       airports={procedureAirports} rows={routeRows} depart={depart} weather={metarColour}
       picked={pickedPatterns} onPick={pickPattern} onPreselect={setPattern} takeoffs={pickedTakeoffs} onTakeoff={setTakeoff} fit={runwayFitInputs}
       procedures={pickedProcedures} inRoute={routeProcedures} onProcedures={pickProcedures} onPreview={previewProcedure}
-      at={proceduresAt} onAt={setProceduresShown} crossings={crossings} onFix={showFix}
+      at={proceduresAt} onAt={setProceduresShown} crossings={crossings} onFix={showFix} ground={ground} onGround={setGround}
       onCharts={() => { if (planned.dest) { setApproachesOf(planned.dest); selectPlace(planned.dest); } }}
       chartsDisabled={!planned.dest || noApproaches}
     />
   ), [procedureAirports, routeRows, depart, metarColour, pickedPatterns, pickPattern, setPattern, pickedTakeoffs, setTakeoff, runwayFitInputs, pickedProcedures, routeProcedures, pickProcedures, crossings, showFix,
-    previewProcedure, proceduresAt, setProceduresShown, planned.dest, selectPlace, noApproaches]);
+    ground, setGround, previewProcedure, proceduresAt, setProceduresShown, planned.dest, selectPlace, noApproaches]);
   const navLog = useMemo(() => (
     <Suspense fallback={<div className="min-h-0 flex-1" />}>
     <NavLogView
