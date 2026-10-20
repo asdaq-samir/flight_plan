@@ -21,8 +21,11 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import Response, StreamingResponse
 from vfr import (
-    airports, airspace, altitude, chartlabels, charts, elevation, faa_data, fixes, geo, navlog, places, procedure_paths, procedures, sun,
+    airports, airspace, altitude, chartlabels, charts, elevation, faa_data, fixes, geo, magnetic, navlog, places, procedure_paths,
+    procedures, sun,
 )
+# As vfr_holds: PlanQuery's own `holds` is the address's.
+from vfr import holds as vfr_holds
 from vfr.profile import route_profile as side_view
 from vfr.terrain import M_TO_FT
 from vfr.config import DATA_DIR, VFR_SECTIONAL_MAX_ZOOM, VFR_SECTIONAL_MIN_ZOOM
@@ -118,6 +121,10 @@ class PlanQuery:
     #: that fix wherever a procedure picked passes it -- the descent planned
     #: to it and the path's heights (drawn_procedures).
     crossings: str = ""
+    #: Holds the pilot put on the route's points (vfr.holds): the point,
+    #: its inbound course, R or L, its legs and how long, as
+    #: "VPBNG/090/30:270:R:1M:2T"; several joined by commas.
+    holds: str = ""
     #: Minutes on the ground at the route's stops: "KJVL:45". A stop not
     #: named turns around in TURNAROUND_MIN, at the owner's pick (2026-10-20):
     #: the flights after it leave that much later, for their winds, their
@@ -175,6 +182,18 @@ class PlanQuery:
             if not POINT_ALTITUDE.fullmatch(part) or not 0 < float(feet) <= top:
                 raise HTTPException(422, f"{part!r} is not a fix's crossing altitude: a fix and feet, as BXCMB:3000.")
             out[ident.upper()] = float(feet)
+        return out
+
+    def own_holds(self) -> list[vfr_holds.Hold]:
+        """`holds`, each as vfr.holds.parse reads it; a 422 for one that is
+        not a hold."""
+        out = []
+        for part in filter(None, (p.strip() for p in self.holds.split(","))):
+            hold = vfr_holds.parse(part)
+            if hold is None:
+                raise HTTPException(422, f"{part!r} is not a hold: a point, its inbound course, R or L, its legs and how long, "
+                                         "as VPBNG:270:R:1M:2T.")
+            out.append(hold)
         return out
 
     def own_ground(self) -> dict[str, float]:
@@ -652,6 +671,53 @@ def with_procedures(r: Route, runs: list[HopRun], outcome: Flown, drawn: list[tu
     return replace(outcome, legs=[leg for legs in hops for leg in legs], by_hop=tuple(hops) if outcome.by_hop else ())
 
 
+def with_holds(r: Route, runs: list[HopRun], outcome: Flown, held: list[vfr_holds.Hold]) -> Flown:
+    """The legs with the pilot's holds flown (PlanQuery.own_holds): each at
+    its point, on the leg that leaves it -- at the destination, the leg into
+    it -- its minutes (vfr.holds.held_minutes) at the leg's true airspeed
+    and cruise burn added to the leg's time and fuel, so the totals and the
+    fuel required (14 CFR 91.151, 91.167) are the flight's with the hold.
+    The leg says its hold for the map and the dry run: the entry from the
+    course flown to the point (AIM 5-3-8), one turn round the racetrack in
+    true degrees, and the minutes and fuel. New legs, as with_procedures'."""
+    if not held:
+        return outcome
+    hops = [[dict(leg) for leg in legs] for legs in outcome.hop_legs]
+    idents = [ident.upper() for ident in r.idents]
+    for hold in held:
+        at = next((k for k, ident in enumerate(idents[:-1]) if ident == hold.fix and hops[k]), None)
+        if at is not None:
+            leg, fix = hops[at][0], runs[at].fixes[0]
+            before = hops[at - 1][-1] if at > 0 and hops[at - 1] else leg
+        elif idents[-1] == hold.fix and hops[-1]:
+            leg = before = hops[-1][-1]
+            fix = runs[-1].fixes[-1]
+        else:
+            continue
+        if leg["ete_min"] is None:
+            continue
+        tas = leg["tas_kt"]
+        # Magnetic = true - variation, east positive (vfr.magnetic): the
+        # course flown to the point, and the hold's inbound course in true.
+        arrival = (before["true_course_deg"] - before["magnetic_variation_deg"]) % 360
+        inbound_true = (hold.inbound_deg + magnetic.magnetic_variation_deg(fix["lat"], fix["lon"])) % 360
+        leg_nm = hold.leg_nm if hold.leg_nm is not None else (hold.leg_min or 1.0) * tas / 60
+        minutes = vfr_holds.held_minutes(hold, tas)
+        gal = minutes / 60 * leg["fuel_burn_gph"]
+        leg["ete_min"] = round(leg["ete_min"] + minutes, 1)
+        if leg["fuel_gal"] is not None:
+            leg["fuel_gal"] = round(leg["fuel_gal"] + gal, 2)
+        leg["hold"] = {
+            "fix": hold.fix, "inbound_deg": hold.inbound_deg, "right": hold.right,
+            "leg_min": hold.leg_min, "leg_nm": hold.leg_nm, "turns": hold.turns, "minutes": round(minutes, 1),
+            "lap_min": round(vfr_holds.lap_minutes(hold, tas), 2), "gal": round(gal, 2),
+            "entry": vfr_holds.entry(arrival, hold.inbound_deg, hold.right),
+            "path": vfr_holds.racetrack((fix["lat"], fix["lon"]), inbound_true, hold.right, tas, leg_nm),
+            "at_end": at is None,
+        }
+    return replace(outcome, legs=[leg for legs in hops for leg in legs], by_hop=tuple(hops) if outcome.by_hop else ())
+
+
 def flown_legs(r: Route, runs: list[HopRun], outcome: Flown, own: dict[str, float] | None = None,
                drawn: list[tuple[str, dict]] | None = None) -> list:
     """The legs a pilot flies, with each flight's tops of climb and
@@ -935,7 +1001,7 @@ def plan(q: Annotated[PlanQuery, Depends()]) -> Plan:
     if isinstance(outcome, Unflyable):
         _, ways = unflyable_parts(outcome, runs)
         raise HTTPException(422, no_altitude_detail(outcome.selection, outcome.between, ways[0] if ways else None))
-    outcome = with_procedures(r, runs, outcome, drawn)
+    outcome = with_holds(r, runs, with_procedures(r, runs, outcome, drawn), q.own_holds())
     leg_list = flown_legs(r, runs, outcome, own, drawn)
 
     return Plan(
@@ -1101,7 +1167,7 @@ def navlog_stream(q: Annotated[PlanQuery, Depends()]) -> StreamingResponse:
             class_b_detours=class_b_detours_of(runs, outcome, q),
             altitude_figures=list(outcome.figures),
         ))
-        outcome = with_procedures(r, runs, outcome, drawn)
+        outcome = with_holds(r, runs, with_procedures(r, runs, outcome, drawn), q.own_holds())
         for leg in flown_legs(r, runs, outcome, own, drawn):
             yield line(NavLogLeg.model_validate(leg))
 

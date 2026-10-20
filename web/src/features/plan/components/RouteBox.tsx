@@ -15,7 +15,7 @@ import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuShortcut, 
 import { InputGroup } from "../../../components/ui/input-group";
 import { Popover, PopoverAnchor, PopoverContent } from "../../../components/ui/popover";
 import type { Detour } from "../../../lib/api/types";
-import { MAX_STOPS, identOf, isPosition, pointName, stopOf } from "../../../lib/identSchema";
+import { MAX_STOPS, frdOf, identOf, isPosition, pointName, stopOf } from "../../../lib/identSchema";
 import { usePreferences, type AirspaceClass, type RecentAirport } from "../../../lib/preferences";
 import { useAirportSearch } from "../../../lib/useAirportSearch";
 import { AIRSPACE_PILL, pillLook, useAirspace } from "../../../lib/useAirspace";
@@ -241,8 +241,11 @@ export default function RouteBox({
   // before anything is typed, Fly via's ways round. Put away with Escape
   // or a tap elsewhere, until the next thing typed.
   const { rows, answered } = useAirportSearch(typed, !!typed.trim(), true);
+  // The pilot's own point off a fix, typed as a flight plan writes one
+  // ("VPBNG/090/30", at the owner's ask): offered first, as it reads.
+  const ownPoint = stopOf(typed) && frdOf(stopOf(typed)) ? stopOf(typed) : null;
   const [dismissed, setDismissed] = useState<string | null>(null);
-  const offering = typed.trim() ? rows.length > 0 : adding && !!via?.length;
+  const offering = typed.trim() ? rows.length > 0 || !!ownPoint : adding && !!via?.length;
   const open = offering && dismissed !== typed;
   // Asked for, the field takes the typing.
   useEffect(() => { if (adding) field.current?.focus(); }, [adding]);
@@ -478,6 +481,11 @@ export default function RouteBox({
                 ))}
               </PickerGroup>
             )}
+            {ownPoint && (
+              <PickerGroup heading="Your point">
+                <AirportRow waypoint airport={{ ident: ownPoint, name: frdWords(ownPoint) }} onSelect={() => pick(ownPoint)} testId="route-own-point" />
+              </PickerGroup>
+            )}
             {typed.trim() && <SearchRows rows={rows} onAirport={airport => pick(airport.ident, airport)} onWaypoint={ident => pick(ident)} />}
           </CommandList>
         </PopoverContent>
@@ -497,6 +505,12 @@ export default function RouteBox({
  *  pill was a row of targets crowded between them, at the pilot's ask. Any
  *  of them, the ends too (RouteBox's `remove`). */
 const NO_PROCEDURES: RouteProcedure[] = [];
+
+/** The pilot's own point as words: "30 nm on 090° from VPBNG". */
+function frdWords(ident: string): string {
+  const frd = frdOf(ident);
+  return frd ? `${frd.distanceNm} nm on ${String(frd.course).padStart(3, "0")}° from ${frd.base}` : ident;
+}
 
 /** A procedure picked at a point, after its pill: its kind's glyph and its
  *  short title in the approaches' indigo, as the map draws it

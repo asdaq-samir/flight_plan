@@ -6,7 +6,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../../../co
 import { altitudeLines, fixRoles, type BranchFix } from "../../../lib/procedures";
 import { altFt } from "../../../lib/units";
 import { TEXT } from "../../../lib/text";
-import { AltitudeChip, DirectButton } from "./PointControls";
+import { PointFigures, PointMenu } from "./PointControls";
 
 /**
  * A procedure picked at a field, its fixes a branch off the route's line in
@@ -81,18 +81,17 @@ export default function FixBranch({ name, kind, head, fixes, direct, crossings, 
                   <span className={cn("font-semibold", TEXT.row, isDirect && "text-tint")}>{fix.ident}</span>
                   {sub && <span className={cn(TEXT.note, isDirect ? "font-semibold text-tint" : "text-muted-foreground")}>{sub}</span>}
                 </button>
-                <AltitudeChip
-                  own={own != null} onClick={() => onOpen(fix.ident)} testId="fix-branch-altitude"
-                  label={own != null ? `${fix.ident}, cross at ${altFt(own)} ft: change` : `${fix.ident}, set an altitude to cross it at`}
-                >
-                  {own != null ? altFt(own) : charted ? (
+                <PointFigures
+                  time={null} kind={own != null ? "set" : "pub"}
+                  altitude={own != null ? altFt(own) : charted ? (
                     <span style={{ textDecoration: [charted.under && "underline", charted.over && "overline"].filter(Boolean).join(" ") || "none" }}>{charted.text}</span>
-                  ) : "Alt"}
-                </AltitudeChip>
-                <DirectButton
-                  ident={fix.ident} direct={isDirect} undo={`Fly ${name} as charted`} className="mr-1"
-                  onClick={() => onDirect(isDirect ? null : fix.ident)} testId="fix-branch-direct"
+                  ) : null}
                 />
+                <PointMenu
+                  ident={fix.ident} direct={isDirect} testId="fix-branch-menu"
+                  onDirect={() => onDirect(isDirect ? null : fix.ident)} onAltitude={() => onOpen(fix.ident)}
+                />
+                <span className="w-1 shrink-0" aria-hidden="true" />
               </li>
             );
           })}

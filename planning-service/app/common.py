@@ -111,6 +111,13 @@ def resolve_stop(ident: str, near: tuple = ()) -> dict:
     position = position_of(ident)
     if position is not None:
         return position
+    # The pilot's own point off a fix, "VPBNG/090/30" (fixes.frd_point),
+    # flown over as any fix is; a 404 where its fix is not one.
+    if fixes.parse_frd(ident) is not None:
+        point = fixes.frd_point(ident, near, locate=_airport_at)
+        if point is None:
+            raise HTTPException(404, f"No airport, waypoint or navaid {fixes.parse_frd(ident)[0]!r} to measure {ident!r} from.")
+        return _fix_stop(point, fixes.frd_title(point))
     # A navaid before an airport of the same ident, as a flight plan reads
     # one: "RFD" is the Rockford DME, flown over, and the airport is KRFD,
     # written with its K. It was the airport, a hop of no length before
@@ -128,6 +135,16 @@ def resolve_stop(ident: str, near: tuple = ()) -> dict:
         # stand-alone waypoint has no name of its own (vfr.places).
         where = places.describe(fix["lat"], fix["lon"])
         return _fix_stop(fix, f"{fix['kind']} {where}" if where else fix["kind"])
+
+
+def _airport_at(ident: str) -> tuple[float, float] | None:
+    """An airport's place, for the pilot's point off it ("KMSN/090/30"):
+    None where no airport goes by `ident`."""
+    try:
+        airport = airports.get_airport(ident)
+    except ValueError:
+        return None
+    return airport["lat"], airport["lon"]
 
 
 def _at(point: dict) -> tuple[float, float]:

@@ -1,6 +1,6 @@
 import { memo, useMemo } from "react";
 import L from "leaflet";
-import { CircleMarker, Marker, useMap, useMapEvents } from "react-leaflet";
+import { CircleMarker, Marker, Polyline, useMap, useMapEvents } from "react-leaflet";
 import { Badge } from "../../../components/ui/badge";
 import { useQuery } from "@tanstack/react-query";
 import { classBQuery } from "../../../lib/queryClient";
@@ -408,6 +408,23 @@ function LegPoints({ legs, onSelectPoint }: { legs: Leg[]; onSelectPoint: Props[
   );
 }
 
+/** A hold's racetrack in the course line's own magenta and weight
+ *  (lib/map/CourseLine), dashed: flown round, not along. */
+const HOLD_LINE: L.PathOptions = { color: "#e600e6", weight: 2.5, opacity: 1, dashArray: "6 5", interactive: false };
+
+/** Each hold the pilot put on the route (the legs' `hold`, plan.with_holds):
+ *  one turn round its racetrack from its point, as Garmin's and
+ *  ForeFlight's pilot-defined holds are drawn. */
+const HoldTracks = memo(function HoldTracks({ legs }: { legs: Leg[] }) {
+  return (
+    <>
+      {legs.map((leg, i) => leg.hold && (
+        <Polyline key={`hold-${i}-${leg.hold.fix}`} positions={leg.hold.path as [number, number][]} pathOptions={HOLD_LINE} />
+      ))}
+    </>
+  );
+});
+
 /**
  * The planned route on the chart: the course line, the chart's own
  * airports made tappable, the route's two, the checkpoints, the
@@ -510,6 +527,7 @@ export default memo(function RouteMap({
           <FitTo points={focusedPattern} fitKey={focusedPattern.length ? patternFocus : null} maxZoom={13} />
           <Endpoints course={course} weather={airportWeather} onSelectPoint={onSelectPoint} onSelectPlace={onSelectPlace} />
           <LegPoints legs={legs} onSelectPoint={onSelectPoint} />
+          <HoldTracks legs={legs} />
           <Checkpoints candidates={candidates} selected={selected} onSelectCandidate={onSelectCandidate} airports={airports} />
           {focus && <Halo at={focus} />}
           <FocusOn point={focus} zoom={focusZoom} />

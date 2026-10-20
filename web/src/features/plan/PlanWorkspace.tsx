@@ -42,6 +42,7 @@ import ProceduresRoute, { type FitInputs, type ProcedureAirport, type Procedures
 import { useLoad } from "./hooks/useLoad";
 import { NO_PATTERN, patternsOf, patternsParam, trafficPattern, type TrafficPattern } from "../../lib/trafficPattern";
 import { approachRunway, proceduresOf, proceduresParam, sameField, transitionWords, type PickedProcedure } from "../../lib/procedures";
+import { holdsOf, holdsParam, type Hold } from "../../lib/holds";
 import { runwayNumber } from "../../lib/pattern";
 import NearestCard, { NearestStrip } from "./components/NearestCard";
 import AircraftCard, { AircraftRecentsPage } from "./components/AircraftCard";
@@ -328,9 +329,14 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const groundParamText = searchParams.get("ground");
   const ground = useMemo(() => groundOf(groundParamText), [groundParamText]);
   const groundText = altitudesParam(ground);
+  // The pilot's holds (`holds`, lib/holds), each flown on the leg leaving
+  // its point (plan.with_holds), set from a point's menu in FPL's list.
+  const holdsParamText = searchParams.get("holds");
+  const holds = useMemo(() => holdsOf(holdsParamText), [holdsParamText]);
+  const holdsText = holdsParam(holds);
   const s = usePlan({
     dep: planned.dep, dest: planned.dest, stops: planned.stops, altitudeFt, altitudeChoice, depart, aircraft, load, classBClearance,
-    altitudes, procedures, crossings: crossingsText, ground: groundText, localMin, rules: flightRules,
+    altitudes, procedures, crossings: crossingsText, ground: groundText, holds: holdsText, localMin, rules: flightRules,
     // Under IFR, the alternate filed in the Weather tab (AlternateSection).
     alternate: searchParams.get("alternate") ?? "",
     // Checkpoints as the map shows them: the settings' Waypoints off, the
@@ -636,6 +642,13 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     }, { replace: true });
   }, [setSearchParams]);
   const directParam = searchParams.get("direct");
+  // A hold set at a point, changed, or (null) taken off: one a point.
+  const setHold = useCallback((fix: string, hold: Hold | null) => {
+    setSearchParams(prev => {
+      const kept = holdsOf(prev.get("holds")).filter(h => !sameField(h.fix, fix));
+      return patched(prev, { holds: holdsParam(hold ? [...kept, hold] : kept) || null });
+    }, { replace: true });
+  }, [setSearchParams]);
   const directTo = useCallback((open: OpenFix, direct: boolean) => {
     const at = routeProcedures.find(r => sameField(r.ident, open.field) && r.kind === open.kind);
     if (!at) return;
@@ -915,11 +928,13 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       // time on the ground with it no longer a stop.
       const kept = Object.entries(altitudesOf(prev.get("altitudes"))).filter(([ident]) => [dep, ...stops, dest].includes(ident));
       const grounded = Object.entries(groundOf(prev.get("ground"))).filter(([ident]) => stops.includes(ident));
+      // And a hold, with its point.
+      const held = holdsOf(prev.get("holds")).filter(h => [dep, ...stops, dest].includes(h.fix));
       // A route changed by hand is the route: a Direct to's own is kept,
       // and Cancel has nothing to go back to.
       return patched(prev, {
         dep, dest, stops: stops.join(","), altitudes: altitudesParam(Object.fromEntries(kept)), ground: altitudesParam(Object.fromEntries(grounded)) || null,
-        direct: null, was: null,
+        direct: null, was: null, holds: holdsParam(held) || null,
       });
     }, { replace: true });
   }, [setSearchParams]);
@@ -957,6 +972,17 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   }, [setSearchParams]);
   const setStops = useCallback(
     (stops: string[]) => setRoute({ dep: planned.dep, stops, dest: planned.dest }), [setRoute, planned.dep, planned.dest]);
+  // A stop taken out from its menu in FPL's list, as from its pill's.
+  const removeStop = useCallback(
+    (ident: string) => setStops(planned.stops.filter(stop => !sameField(stop, ident))), [setStops, planned.stops]);
+  // The pilot's own point (FixFromDialog), flown over straight after the
+  // point it was made off: the first stop after the departure, before the
+  // destination off the destination. Past the planner's most stops, none.
+  const insertStopAfter = useCallback((after: string, ident: string) => {
+    if (planned.stops.length >= MAX_STOPS) return;
+    const at = sameField(planned.dep, after) ? 0 : planned.stops.findIndex(stop => sameField(stop, after)) + 1 || planned.stops.length;
+    setStops([...planned.stops.slice(0, at), ident, ...planned.stops.slice(at)]);
+  }, [setStops, planned.dep, planned.stops]);
   // Add Stop open: from its own button, or from no legal altitude's --
   // "via", its Fly via round a Class B, the ways round suggested.
   const [addingStop, setAddingStop] = useState<false | "stop" | "via">(false);
@@ -1562,12 +1588,13 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       procedures={pickedProcedures} inRoute={routeProcedures} onProcedures={pickProcedures} onPreview={previewProcedure}
       at={proceduresAt} onAt={setProceduresShown} crossings={crossings} onFix={showFix} onDepart={changeDepart} ground={ground} onGround={setGround}
       pointAltitude={altitudeAt} onPointAltitude={setPointAltitude} directTo={directParam} onDirectTo={directToPoint}
+      onInfo={selectPlace} onRemove={removeStop} onCreateFix={insertStopAfter} holds={holds} onHoldSet={setHold}
       onCharts={() => { if (planned.dest) { setApproachesOf(planned.dest); selectPlace(planned.dest); } }}
       chartsDisabled={!planned.dest || noApproaches}
     />
   ), [procedureAirports, routeRows, depart, metarColour, pickedPatterns, pickPattern, setPattern, pickedTakeoffs, setTakeoff, runwayFitInputs, pickedProcedures, routeProcedures, pickProcedures, crossings, showFix,
     ground, setGround, previewProcedure, proceduresAt, setProceduresShown, planned.dest, selectPlace, noApproaches, changeDepart,
-    altitudeAt, setPointAltitude, directParam, directToPoint]);
+    altitudeAt, setPointAltitude, directParam, directToPoint, removeStop, insertStopAfter, holds, setHold]);
   const navLog = useMemo(() => (
     <Suspense fallback={<div className="min-h-0 flex-1" />}>
     <NavLogView

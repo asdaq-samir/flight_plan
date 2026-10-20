@@ -300,43 +300,125 @@ test("a stop is left again at the time picked on its Depart step, 30 minutes aft
   await expect(page).not.toHaveURL(/ground=/);
 });
 
-test("every point flown to has its altitude and Direct to in FPL's list, an airport's its elevation until set; Direct to skips the route before it, and Cancel gives it back", async ({ page }) => {
+test("every point's row ends in its time over its altitude and a menu: an airport's elevation until set, Direct to skipping the route before it, and Cancel giving it back", async ({ page }) => {
   // The owner's asks (2026-10-20): "All the other fixes and stops can have
   // a direct to and altitude. Where airports default to field elevation
-  // but changeable", and "direct to skips all the route before".
+  // but changeable"; "direct to skips all the route before"; then row A,
+  // "keep the format of altitude (elev/published/cruising) and eta to the
+  // right side", and "Each stop can have a menu ... the menu can include
+  // direct to".
   await recordedStops(page);
   await page.goto("/app/plan?dep=C81&dest=KDLH&stops=KMSN");
   await openPanel(page);
   const route = sideDrawer(page).getByTestId("procedures");
   const madison = route.getByRole("region", { name: "KMSN · Arrive" });
-  const chip = madison.getByTestId("point-altitude-chip");
-  // Madison's field elevation (887 ft, NASR), not a figure the pilot set.
-  await expect(chip).toHaveAccessibleName(/field elevation/, { timeout: slow(30_000) });
-  await expect(chip).toHaveText(/^\d{3}$|^\d,\d{3}$/);
-  await expect(route.getByRole("region", { name: "KDLH · Arrive" }).getByTestId("point-direct")).toBeVisible();
+  const altitude = madison.getByTestId("point-altitude-figure");
+  // Madison's field elevation (887 ft, NASR), not a figure the pilot set,
+  // under its time.
+  await expect(altitude).toHaveAttribute("data-kind", "elev", { timeout: slow(30_000) });
+  await expect(altitude).toHaveText(/^\d{3} elev$|^\d,\d{3} elev$/);
+  await expect(madison.getByTestId("point-figures")).toContainText(/^\d\d:\d\d/);
   // No Direct to where the flight starts, nor on the stop's leaving again.
-  await expect(route.getByRole("region", { name: "C81 · Depart" }).getByTestId("point-direct")).toHaveCount(0);
-  await expect(route.getByRole("region", { name: "KMSN · Depart" }).getByTestId("point-direct")).toHaveCount(0);
+  for (const name of ["C81 · Depart", "KMSN · Depart"]) {
+    await route.getByRole("region", { name }).getByTestId("point-menu").click();
+    await expect(page.getByTestId("point-menu-direct")).toHaveCount(0);
+    await page.keyboard.press("Escape");
+  }
 
-  // Set, as the route box's menu sets it: the address's `altitudes`.
-  await chip.click();
+  // Set from its menu, as the route box's menu sets it: the address's
+  // `altitudes`.
+  await madison.getByTestId("point-menu").click();
+  await page.getByTestId("point-menu-altitude").click();
   await page.getByTestId("point-altitude-input").fill("2600");
   await page.getByTestId("point-altitude-set").click();
   await expect(page).toHaveURL(/[?&]altitudes=KMSN(%3A|:)2600(&|$)/);
-  await expect(chip).toHaveText("2,600");
+  await expect(altitude).toHaveText("2,600 set");
 
   // Direct to Duluth with no position: from the departure, Madison
   // skipped; the route as it was kept for Cancel.
-  await route.getByRole("region", { name: "KDLH · Arrive" }).getByTestId("point-direct").click();
+  const duluth = route.getByRole("region", { name: "KDLH · Arrive" });
+  await duluth.getByTestId("point-menu").click();
+  await page.getByTestId("point-menu-direct").click();
   await expect(page).toHaveURL(/[?&]direct=KDLH(&|$)/);
   await expect(page).not.toHaveURL(/[?&]stops=/);
   await expect(sideDrawer(page).getByTestId("direct-strip")).toContainText("Direct to KDLH");
   await expect(route.getByRole("region", { name: "KMSN · Arrive" })).toHaveCount(0);
-  await expect(route.getByRole("region", { name: "KDLH · Arrive" }).getByTestId("point-direct")).toHaveAttribute("aria-pressed", "true");
+  await expect(duluth).toContainText("Direct to");
   await sideDrawer(page).getByTestId("direct-cancel").click();
   await expect(page).toHaveURL(/[?&]stops=KMSN(&|$)/);
   await expect(page).not.toHaveURL(/[?&](direct|was)=/);
   await expect(sideDrawer(page).getByTestId("direct-strip")).toHaveCount(0);
+
+  // Taken out from its menu: the route without it.
+  await madison.getByTestId("point-menu").click();
+  await page.getByTestId("point-menu-remove").click();
+  await expect(page).not.toHaveURL(/[?&]stops=/);
+});
+
+test("the pilot's own point off a fix is made from a point's menu or typed as a flight plan writes it, flown over after it", async ({ page }) => {
+  // The owner's asks (2026-10-20): "can a user also create their own point?
+  // for example 30 miles 090 radial of vpbng", and "a fix should get its
+  // own row". The routes after are the planner's to answer; this asks
+  // only what goes into the address.
+  await recordedStops(page);
+  await page.route(url => /\/(course|checkpoints|navlog|briefing)$/.test(url.pathname) && (url.searchParams.get("stops") ?? "").includes("/"),
+    route => route.abort());
+  await page.goto("/app/plan?dep=C81&dest=KDLH&stops=KMSN");
+  await openPanel(page);
+  const route = sideDrawer(page).getByTestId("procedures");
+  const madison = route.getByRole("region", { name: "KMSN · Arrive" });
+  await expect(madison.getByTestId("point-figures")).toContainText(/\d\d:\d\d/, { timeout: slow(30_000) });
+  await madison.getByTestId("point-menu").click();
+  await page.getByTestId("point-menu-fix").click();
+  await page.getByTestId("fix-from-course").fill("090");
+  await page.getByTestId("fix-from-distance").fill("30");
+  await page.getByTestId("fix-from-add").click();
+  // Flown over next, after Madison.
+  await expect(page).toHaveURL(/[?&]stops=KMSN(%2C|,)KMSN(%2F|\/)090(%2F|\/)30(&|$)/);
+
+  // Typed in the route's box as ForeFlight takes one, offered as the
+  // pilot's own point.
+  await page.goto("/app/plan?dep=C81&dest=KDLH");
+  await openPanel(page);
+  await sideDrawer(page).getByRole("button", { name: "Type a stop between C81 and KDLH" }).click();
+  await sideDrawer(page).getByTestId("route-type").fill("vpbng/090/30");
+  const own = page.getByTestId("route-own-point");
+  await expect(own).toContainText("30 nm on 090° from VPBNG");
+  await own.click();
+  await expect(page).toHaveURL(/[?&]stops=VPBNG(%2F|\/)090(%2F|\/)30(&|$)/);
+});
+
+test("a hold is set from a point's menu, course, turns, legs and how long, and is a row of its own after the point; a tap changes or removes it", async ({ page }) => {
+  // The owner's asks (2026-10-20): "create a left/right hold", as Garmin
+  // and ForeFlight do it, and "hold should get its own row". What the
+  // planner makes of it (its entry, its minutes) is the planner's test's.
+  await page.goto("/app/plan?dep=C81&dest=KDLH");
+  await openPanel(page);
+  const route = sideDrawer(page).getByTestId("procedures");
+  const duluth = route.getByRole("region", { name: "KDLH · Arrive" });
+  await expect(duluth.getByTestId("point-figures")).toContainText(/\d\d:\d\d/, { timeout: slow(60_000) });
+  await duluth.getByTestId("point-menu").click();
+  await page.getByTestId("point-menu-hold").click();
+  const sheet = page.getByTestId("hold-sheet");
+  await expect(sheet).toBeVisible();
+  // The course flown to Duluth offered as the inbound course, once its
+  // leg is in: straight ahead, a direct entry.
+  await sheet.getByTestId("hold-course").fill("270");
+  await sheet.getByTestId("hold-turns").getByRole("radio", { name: "Left" }).click();
+  await sheet.getByTestId("hold-length").click();
+  await page.getByTestId("hold-length-3T").click();
+  await sheet.getByTestId("hold-set").click();
+  await expect(page).toHaveURL(/[?&]holds=KDLH(%3A|:)270(%3A|:)L(%3A|:)1M(%3A|:)3T(&|$)/);
+  const row = route.getByTestId("route-hold");
+  await expect(row).toContainText("Left turns · 270° inbound · 1 min legs · 3 turns");
+  // Its own row, after Duluth's.
+  expect((await row.boundingBox())!.y).toBeGreaterThan((await duluth.boundingBox())!.y);
+  // Tapped: changed or taken off.
+  await row.getByRole("button").click();
+  await expect(sheet.getByTestId("hold-course")).toHaveValue("270");
+  await sheet.getByTestId("hold-remove").click();
+  await expect(page).not.toHaveURL(/[?&]holds=/);
+  await expect(route.getByTestId("route-hold")).toHaveCount(0);
 });
 
 test("a flight saved with a stop is filed with it and the altitude set there, and its nav log lands there", async ({ page }) => {

@@ -589,3 +589,44 @@ def test_a_route_with_stops_figures_at_each_altitude_join_its_hops():
     assert joined[5500.0].ete_min == 50.0
     assert joined[6500.0].tailwind_kt == pytest.approx((20.0 * 100 + -10.0 * 50) / 150, abs=0.05)
     assert join_figures([west], [100.0]) == west
+
+
+def test_a_stop_may_be_the_pilots_own_point_off_a_fix(monkeypatch):
+    # "VPBNG/090/30", at the owner's ask: flown over where it is, named for
+    # how it was made; a point off a fix NASR has none of is a 404.
+    vpbng = {"ident": "VPBNG", "lat": 42.27, "lon": -88.13, "kind": "VFR waypoint", "vfr": True}
+    monkeypatch.setattr(fixes, "_TABLE", fixes._Table({"VPBNG": vpbng}, {}))
+    monkeypatch.setattr(fixes, "find_navaid", REAL_FIND_NAVAID)
+    stop = client.get("/api/course", params={"dep": "C81", "dest": "KDLH", "stops": "VPBNG/090/30"}).json()["stops"][0]
+    assert (stop["ident"], stop["kind"], stop["name"]) == ("VPBNG/090/30", "fix", "30 nm on 090° from VPBNG")
+    assert stop["lon"] > vpbng["lon"] + 0.6
+    # NOPE no airport either, as the airports' own reader says one is not.
+    stubbed = airports.get_airport
+
+    def get_airport(ident, **kw):
+        if ident.upper() == "NOPE":
+            raise ValueError("No airport NOPE.")
+        return stubbed(ident, **kw)
+
+    monkeypatch.setattr(airports, "get_airport", get_airport)
+    missing = client.get("/api/course", params={"dep": "C81", "dest": "KDLH", "stops": "NOPE/090/30"})
+    assert missing.status_code == 404
+
+
+def test_a_hold_at_a_stop_is_flown_on_the_leg_leaving_it_and_its_minutes_are_in_the_times_and_fuel():
+    # Two turns of a one-minute hold at Madison, the owner's "create a
+    # left/right hold": two four-minute laps on the leg out of it.
+    plain = client.get("/api/plan", params=VIA_MADISON).json()
+    held = client.get("/api/plan", params={**VIA_MADISON, "holds": "KMSN:180:L:1M:2T"}).json()
+    i = next(k for k, leg in enumerate(held["legs"]) if leg["from"] == "KMSN")
+    before, after = plain["legs"][i], held["legs"][i]
+    hold = after["hold"]
+    assert (hold["fix"], hold["inbound_deg"], hold["right"], hold["turns"]) == ("KMSN", 180, False, 2)
+    assert hold["minutes"] == pytest.approx(8.0)
+    assert hold["entry"] in ("direct", "teardrop", "parallel")
+    assert hold["path"][0] == hold["path"][-1]
+    assert after["ete_min"] == pytest.approx(before["ete_min"] + 8.0, abs=0.1)
+    assert after["fuel_gal"] == pytest.approx(before["fuel_gal"] + 8.0 / 60 * before["fuel_burn_gph"], abs=0.02)
+    assert held["totals"]["fuel_gal"] == pytest.approx(plain["totals"]["fuel_gal"] + hold["gal"], abs=0.1)
+    # One that is not a hold is refused.
+    assert client.get("/api/plan", params={**VIA_MADISON, "holds": "KMSN:999:L:1M:2T"}).status_code == 422

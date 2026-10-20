@@ -11,10 +11,11 @@ from __future__ import annotations
 import bisect
 import csv
 import math
+import re
 import threading
 from pathlib import Path
 
-from . import faa_data, geo
+from . import faa_data, geo, magnetic
 from .config import DATA_DIR
 
 FAA_CACHE_DIR = DATA_DIR / "raw" / "faa_nasr"
@@ -73,6 +74,18 @@ def _read(path: Path) -> dict[str, dict]:
     return table
 
 
+def _station_variation(row: dict) -> float | None:
+    """A navaid's own magnetic variation as NASR files it (NAV_BASE's
+    MAG_VARN and MAG_VARN_HEMIS, "5" and "E" for Duluth's VORTAC): the
+    declination its radials are aligned to, set when it was last flight
+    checked, east positive as vfr.magnetic's; None where it has none."""
+    try:
+        degrees = float((row.get("MAG_VARN") or "").strip())
+    except ValueError:
+        return None
+    return -degrees if (row.get("MAG_VARN_HEMIS") or "").strip().upper() == "W" else degrees
+
+
 def _read_navaids(path: Path) -> dict[str, list[dict]]:
     """NAV_BASE's navaids in service, as fixes: "RFD", the Rockford DME,
     named and with its frequency. Every one by each ident, the likelier
@@ -95,6 +108,7 @@ def _read_navaids(path: Path) -> dict[str, list[dict]]:
                 "ident": ident, "lat": lat, "lon": lon, "kind": kind, "vfr": False, "navaid": True,
                 "name": (row.get("NAME") or "").strip().title() or None, "freq": (row.get("FREQ") or "").strip() or None,
                 "state": (row.get("STATE_CODE") or "").strip() or None,
+                "mag_var": _station_variation(row),
             }
             held = table.setdefault(ident, [])
             here = next(
@@ -228,3 +242,73 @@ def preload() -> None:
     """Read the table now, at a service's start, rather than on the
     first route through a fix."""
     _fixes()
+
+
+#: A point off a fix, as a flight plan writes one -- its fix, the
+#: magnetic course or radial from it and the distance, nm: "VPBNG/090/30"
+#: as ForeFlight's route takes it, or packed, "DLH090030", the FAA flight
+#: plan's fix/radial/distance (FAA Form 7233-4, item 10; AIM 5-1-8). The
+#: pilot's own point, at the owner's ask ("30 miles 090 radial of vpbng").
+_FRD = re.compile(r"^([A-Z0-9]{2,5})/(\d{3})/(\d{1,3}(?:\.\d)?)$")
+_FRD_PACKED = re.compile(r"^([A-Z]{2,5})(\d{3})(\d{3})$")
+
+#: The navaids whose bearings are radials, set to the station's own
+#: variation: the VORs and the military's TACANs.
+RADIAL_KINDS = ("VORTAC", "VOR/DME", "VOR", "TACAN")
+
+
+def parse_frd(ident: str) -> tuple[str, int, float] | None:
+    """A fix/radial/distance's parts -- the fix, the course, the nm -- or
+    None where `ident` is not one, or its course or distance cannot be."""
+    ident = ident.strip().upper()
+    match = _FRD.match(ident) or _FRD_PACKED.match(ident)
+    if match is None:
+        return None
+    course, distance = int(match[2]), float(match[3])
+    if not 0 <= course <= 360 or not 0 < distance <= 999:
+        return None
+    return match[1], course % 360, distance
+
+
+def frd_ident(base: str, course: int, distance_nm: float) -> str:
+    """The point's ident as the route writes it: "VPBNG/090/30"."""
+    return f"{base.upper()}/{round(course) % 360:03d}/{distance_nm:g}"
+
+
+def frd_point(ident: str, near: tuple = (), locate=None) -> dict | None:
+    """The pilot's own point (parse_frd), where it is: its fix's, moved
+    the distance along the course. A VOR's radial is turned to true by the
+    station's own variation (NAV_BASE's, _station_variation), as its
+    radials are set; any other fix's course by the variation there now
+    (the World Magnetic Model, vfr.magnetic), as a GPS turns a user
+    waypoint's. True = magnetic + variation, east positive. Off a point
+    that is no fix -- an airport, "KMSN/090/30" -- where `locate` finds
+    it, (lat, lon) or None. None where it is no fix/radial/distance, or
+    its fix is nowhere to be found."""
+    parts = parse_frd(ident)
+    if parts is None:
+        return None
+    base, course, distance = parts
+    navaid = find_navaid(base, near)
+    fix = navaid or find_fix(base)
+    if fix is None and locate is not None:
+        at = locate(base)
+        fix = {"lat": at[0], "lon": at[1]} if at else None
+    if fix is None:
+        return None
+    radial = bool(navaid) and navaid["kind"] in RADIAL_KINDS and navaid.get("mag_var") is not None
+    variation = navaid["mag_var"] if radial else magnetic.magnetic_variation_deg(fix["lat"], fix["lon"])
+    lat, lon = geo.destination_point(fix["lat"], fix["lon"], (course + variation) % 360, distance)
+    return {
+        "ident": frd_ident(base, course, distance), "lat": lat, "lon": lon, "kind": "Your point", "vfr": False,
+        "base": base, "course_deg": course, "distance_nm": distance, "radial": radial,
+    }
+
+
+def frd_title(point: dict) -> str:
+    """What the pilot's point is called: "30 nm on the 090 radial of DLH",
+    "30 nm on 090° from VPBNG"."""
+    nm = f"{point['distance_nm']:g} nm"
+    if point["radial"]:
+        return f"{nm} on the {point['course_deg']:03d} radial of {point['base']}"
+    return f"{nm} on {point['course_deg']:03d}° from {point['base']}"
