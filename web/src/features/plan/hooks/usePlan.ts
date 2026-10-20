@@ -270,7 +270,11 @@ export function usePlan(
     // closed: asked for two empty idents, it toasted "Airport identifier
     // '' not found".
     enabled: briefable && !!course.data, staleTime: 5 * 60_000, refetchInterval: 5 * 60_000,
-    placeholderData: keepPreviousData,
+    // The answer before kept up only while the route is the same -- a new
+    // departure time, ETE or Load again -- not under a new route, where the
+    // old route's hazards and TFRs showed for a moment (the audit's finding).
+    placeholderData: (previous, previousQuery) =>
+      previousQuery && sameRoute(previousQuery.queryKey, [dep, dest, via]) ? previous : undefined,
   });
 
   // The same object while the briefing is: a new one at every render drew
@@ -311,6 +315,12 @@ export function usePlan(
     ...notes,
     ...narratives,
   };
+}
+
+/** Whether a briefing's query key ("briefing", dep, dest, via, …) is for
+ *  this route. */
+function sameRoute(key: readonly unknown[], route: [string, string, string]): boolean {
+  return route.every((part, i) => key[i + 1] === part);
 }
 
 function stripType<T extends { type: string }>(message: T): Omit<T, "type"> {

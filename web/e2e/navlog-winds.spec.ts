@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { openTab, controlsInSight } from "./helpers";
+import { openPanel, openTab, controlsInSight, settle, slow } from "./helpers";
 
 /**
  * A nav log the winds could not be read for. The planner's own stream is
@@ -37,4 +37,38 @@ test("a winds outage never reads as an altitude the pilot typed", async ({ page 
   await expect(popover).toContainText("winds aloft could not be read");
   await expect(popover).not.toContainText("no legal altitude");
   await expect(popover.getByRole("form", { name: "Custom altitude" })).not.toHaveClass(/bg-primary/);
+});
+
+test("a plan whose winds are past their forecast's period says so, and plans again", async ({ page }) => {
+  // The audit's finding: a nav log planned for "now" at 08:00 flew
+  // 08:00's winds at 14:00 and did not say so. Its totals' winds made an
+  // hour past their period here; the rest of the plan is the real one.
+  let asked = 0;
+  await page.route(url => url.pathname.endsWith("/planner/navlog"), async route => {
+    asked++;
+    const response = await route.fetch();
+    const ago = (h: number) => new Date(Date.now() - h * 3_600_000).toISOString();
+    const body = (await response.text()).split("\n").map(line => {
+      if (!line.trim()) return line;
+      const message = JSON.parse(line);
+      if (message.type === "done") {
+        message.totals.planned_at = ago(8);
+        message.totals.winds = { valid_at: ago(4), use_from: ago(8), use_to: ago(1) };
+      }
+      return JSON.stringify(message);
+    }).join("\n");
+    await route.fulfill({ response, body });
+  });
+  await page.goto("/app/plan?dep=C81&dest=KDLH");
+  await settle(page);
+  await openPanel(page);
+  const old = page.getByTestId("navlog-winds-old");
+  await expect(old).toBeVisible({ timeout: slow(60_000) });
+  await expect(old).toContainText("Winds out of date");
+  await expect(old).toContainText(/Planned \d{4}Z · winds for use \d{4}–\d{4}Z/);
+  const before = asked;
+  await page.getByTestId("navlog-plan-again").click();
+  await expect.poll(() => asked).toBeGreaterThan(before);
+  // The plan asked again is still streaming as the test ends.
+  await page.unrouteAll({ behavior: "ignoreErrors" });
 });

@@ -650,3 +650,23 @@ def test_the_nearest_report_is_a_current_one(monkeypatch):
     monkeypatch.setattr(weather, "_dataset", lambda name: reports)
     assert weather.nearest_report(42.3, -88.0)["ident"] == "KNEW"
     assert weather.nearest_report(42.3, -88.0, exclude="KNEW") is None
+
+
+# --- the period a winds product is for ---
+
+def test_a_winds_product_says_the_period_it_is_for():
+    """Its header's "VALID 200600Z FOR USE 0200-0900Z", as dates: for a
+    nav log to say which winds it flies, and when they are out of date."""
+    stations = weather.parse_fd_text(FD.text, now=datetime(2026, 10, 20, 2, 30, tzinfo=timezone.utc))
+    assert stations["DLH"][3000]["wind_speed_kt"] == 14
+    assert stations.period == {"valid_at": "2026-10-20T06:00:00Z", "use_from": "2026-10-20T02:00:00Z", "use_to": "2026-10-20T09:00:00Z"}
+
+
+def test_a_24_hour_products_period_runs_through_midnight_and_a_month_turns_where_the_day_says():
+    text = "VALID 010000Z   FOR USE 1800-0600Z. TEMPS NEG ABV 24000\nFT  3000\nDLH 2714\n"
+    period = weather.parse_fd_text(text, now=datetime(2026, 10, 31, 20, 0, tzinfo=timezone.utc)).period
+    assert period == {"valid_at": "2026-11-01T00:00:00Z", "use_from": "2026-10-31T18:00:00Z", "use_to": "2026-11-01T06:00:00Z"}
+
+
+def test_a_product_whose_header_does_not_say_has_no_period():
+    assert weather.parse_fd_text("FT  3000\nDLH 2714\n").period is None

@@ -121,21 +121,58 @@ const data = <T>(result: { data?: Widened<T> }): T => result.data as T;
  * stream this shape. A chunk can split a line, so only whole lines are
  * parsed; the decoder is the browser's own.
  */
-async function* ndjson<T>(stream: ReadableStream | undefined): AsyncGenerator<T> {
+export async function* ndjson<T>(stream: ReadableStream | undefined): AsyncGenerator<T> {
   if (!stream) return;
   const reader = stream.pipeThrough(new TextDecoderStream()).getReader();
   let buffer = "";
   for (;;) {
-    const { value, done } = await reader.read();
+    const { value, done } = await quietFor(reader, STREAM_QUIET_MS);
     if (done) break;
     buffer += value;
     const lines = buffer.split("\n");
     buffer = lines.pop() ?? "";
     for (const line of lines) {
-      if (line.trim()) yield JSON.parse(line) as T;
+      if (line.trim()) yield parsed<T>(line);
     }
   }
-  if (buffer.trim()) yield JSON.parse(buffer) as T;
+  if (buffer.trim()) yield parsed<T>(buffer);
+}
+
+/** How long a stream may say nothing before it is given up, ms: the
+ *  planner's nav log sends a line every 8 s while it works (its
+ *  HEARTBEAT_S), and the narratives' first words come within a minute. A
+ *  stalled one kept "Asking the planner…" up for the gateway's ten
+ *  minutes (the audit's finding). */
+export const STREAM_QUIET_MS = 90_000;
+
+/** The reader's next piece, or a TimeoutError -- "No answer in time"
+ *  (describeError) -- once it has been quiet for `ms`, the stream given up. */
+async function quietFor<R>(reader: ReadableStreamDefaultReader<R>, ms: number): Promise<ReadableStreamReadResult<R>> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const quiet = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      // Refused before the reader is let go: its cancel settles the read
+      // waiting on it as a clean end, which would win the race.
+      reject(new DOMException("The planner went quiet", "TimeoutError"));
+      void reader.cancel().catch(() => undefined);
+    }, ms);
+  });
+  try {
+    return await Promise.race([reader.read(), quiet]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** One line of a stream, or one plain error where it is not JSON -- a
+ *  gateway's HTML error page in the middle of a stream read "Unexpected
+ *  token <" to the pilot. */
+function parsed<T>(line: string): T {
+  try {
+    return JSON.parse(line) as T;
+  } catch {
+    throw new Error("The planner's answer came back garbled");
+  }
 }
 
 /**

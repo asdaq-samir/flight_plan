@@ -221,13 +221,15 @@ export function AirportsLayer({ selected, onSelect, others, route }: {
   // drawn: zoomed in anywhere on it, their chips are already here, where
   // they used to wait for the zoom to settle and then behind its tiles.
   // The view's own answer, every field with the targets too, follows.
-  // Ten minutes, as a METAR's colour can change by the hour.
+  // Ten minutes, as a METAR's colour can change by the hour: asked again
+  // then too on a map left still, whose colours had stayed hours old.
   const routeKey = route ? `${route.south},${route.west},${route.north},${route.east}` : null;
   const { data: alongRoute } = useQuery({
     queryKey: ["airportsReporting", routeKey],
     queryFn: () => api.airportsInView({ ...route!, limit: 1000, reporting: true }),
     enabled: !!route,
     staleTime: 10 * 60_000,
+    refetchInterval: 10 * 60_000,
     meta: { silent: true },
   });
   // Up to a thousand, the box being some nine views: the planner's most,
@@ -237,6 +239,7 @@ export function AirportsLayer({ selected, onSelect, others, route }: {
     queryFn: () => api.airportsInView({ ...asked.box, reporting: reportingOnly, limit: AIRPORTS_LIMIT }),
     enabled: zoom >= FARTHEST_ZOOM,
     staleTime: 10 * 60_000,
+    refetchInterval: 10 * 60_000,
     placeholderData: keepPreviousData,
     meta: { silent: true },
   });
@@ -250,6 +253,7 @@ export function AirportsLayer({ selected, onSelect, others, route }: {
     queryFn: () => api.airportsInView({ ...view.box, reporting: reportingOnly, limit: AIRPORTS_LIMIT }),
     enabled: full && zoom >= REPORTING_FROM_ZOOM,
     staleTime: 10 * 60_000,
+    refetchInterval: 10 * 60_000,
     placeholderData: keepPreviousData,
     meta: { silent: true },
   });

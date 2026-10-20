@@ -7,7 +7,7 @@ import { useRunwayPicks } from "../../../lib/useRunwayPicks";
 import { hm } from "../../../lib/clock";
 import { routeName } from "../../../lib/identSchema";
 import { altFt, gal, nm } from "../../../lib/units";
-import { bearing, etaAt, one } from "../format";
+import { bearing, etaAt, one, plannedWords } from "../format";
 import { isLegPoint, legOf, navLogRows, rowPoint } from "./navlog/rows";
 
 /** The altitudes the legs fly: "4,500 ft", or "2,500-3,000 ft" where it steps. */
@@ -72,6 +72,9 @@ export default function Kneeboard({ course, selected, legs, totals, nav, briefin
         {totals?.ete_min != null && ` · ${hm(totals.ete_min)}`}
         {totals?.fuel_gal != null && ` · ${gal(totals.fuel_gal)}`}
         {totals?.fuel_required_gal != null && ` (${one(totals.fuel_required_gal)} with reserve${totals.usable_fuel_gal != null ? `, ${one(totals.usable_fuel_gal)} usable` : ""})`}
+        {/* Which winds the headings, times and fuel are from: a plan
+            printed in the morning flown in the afternoon is not. */}
+        {plannedWords(totals) && ` · ${plannedWords(totals)}`}
       </p>
 
       <table className="mb-2 w-full border-collapse tabular-nums [&_td]:border [&_td]:border-black/60 [&_td]:px-1 [&_td]:py-[1.5pt] [&_th]:border [&_th]:border-black [&_th]:px-1 [&_th]:py-[1pt] [&_th]:text-left [&_th]:text-[7.5pt]">

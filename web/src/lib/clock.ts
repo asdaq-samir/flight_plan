@@ -11,6 +11,7 @@
  * planner opened (2026-10-10), the browser reading its date data. It
  * also wrote midnight "24:05" where hour12 was off in some browsers.
  */
+import { useEffect, useState } from "react";
 const two = (n: number) => String(n).padStart(2, "0");
 
 /** This device's clock: "09:05". */
@@ -52,4 +53,16 @@ export function hoursMinutes(minutes: number): { hours: number; minutes: number 
 export function hm(minutes: number): string {
   const t = hoursMinutes(minutes);
   return `${t.hours}:${String(t.minutes).padStart(2, "0")}`;
+}
+
+/** The time now, a minute at a time, for what says an age or goes out of
+ *  date while it stays open: a report's "40 min ago" (Observed), a nav
+ *  log's winds (NavLogView). */
+export function useMinuteClock(): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
+  return now;
 }

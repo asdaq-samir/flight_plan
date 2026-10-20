@@ -236,6 +236,10 @@ def flight_totals(leg_list: list, profile: dict, r, depart: datetime | None, rul
     the alternate (alternate_leg), is flown before it (14 CFR
     91.167(a)(2))."""
     t = navlog.totals(leg_list)
+    # When the plan was made and the winds it flies, for the nav log to
+    # say: planned for "now", its winds go out of date as the day goes on.
+    t["planned_at"] = now().isoformat().replace("+00:00", "Z")
+    t["winds"] = weather.winds_period(forecast_hour_for(depart))
     depart = now() if depart is None else depart if depart.tzinfo else depart.replace(tzinfo=timezone.utc)
     night = sun.is_night(r.start[0], r.start[1], depart)
     if t["ete_min"] is not None:
@@ -766,5 +770,7 @@ def route_totals(per_hop: list[dict], hops: list) -> dict:
         "night": _either(t.get("night") for t in per_hop),
         "rules": per_hop[0].get("rules", "vfr"),
         "alternate": per_hop[-1].get("alternate"),
+        "planned_at": per_hop[0].get("planned_at"),
+        "winds": per_hop[0].get("winds"),
         "hops": [{"departure": hop.dep_ident, "destination": hop.dest_ident, "totals": t} for hop, t in zip(hops, per_hop)],
     }

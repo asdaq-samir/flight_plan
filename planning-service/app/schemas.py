@@ -320,6 +320,22 @@ class Totals(BaseModel):
     #: fuel check, the tanks filled at each stop -- the route's own fuel
     #: figures are None then (app.planning.route_totals). Empty without.
     hops: list["HopTotals"] = []
+    #: When the plan was made, ISO UTC.
+    planned_at: str | None = None
+    #: The period of the winds-aloft forecast the legs fly (a route with
+    #: stops, its first flight's; each hop has its own): None where it
+    #: could not be read.
+    winds: "WindsPeriod | None" = None
+
+
+class WindsPeriod(BaseModel):
+    """A winds and temperatures aloft forecast's period (AC 00-45H, the
+    Winds and Temperatures Aloft Forecast (FB)):
+    valid at `valid_at`, for use from `use_from` to `use_to`, ISO UTC."""
+
+    valid_at: str
+    use_from: str
+    use_to: str
 
 
 class HopTotals(BaseModel):

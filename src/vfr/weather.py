@@ -28,7 +28,7 @@ import re
 import threading
 import time
 import xml.etree.ElementTree as ET
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from itertools import pairwise
 from typing import NamedTuple
 
@@ -140,11 +140,55 @@ def _decode_wind(group: str) -> tuple[float | None, float | None] | None:
     return float(dir_code * 10), float(speed_code)
 
 
-def parse_fd_text(text: str) -> dict:
+class FdStations(dict):
+    """A winds/temps product's stations (parse_fd_text), and the period it
+    is for: `period` is {"valid_at", "use_from", "use_to"}, ISO UTC, from
+    its header ("VALID 200600Z FOR USE 0200-0900Z"), or None where the
+    header does not say."""
+
+    period: dict | None = None
+
+
+def _fd_period(lines: list[str], now: datetime | None = None) -> dict | None:
+    """The period a winds/temps product is for, from its header: valid at
+    "VALID ddhhmmZ", for use "FOR USE hhmm-hhmmZ" around it (AC 00-45H,
+    the Winds and Temperatures Aloft Forecast (FB): each product is for
+    use over a window round its valid time, the 24-hour one's through
+    midnight). The header gives the day alone: the month is the
+    one that puts that day nearest `now`."""
+    for line in lines:
+        m = re.search(r"VALID\s+(\d{2})(\d{2})(\d{2})Z\s+FOR USE\s+(\d{2})(\d{2})-(\d{2})(\d{2})Z", line)
+        if not m:
+            continue
+        day, hour, minute, from_h, from_m, to_h, to_m = (int(g) for g in m.groups())
+        now = now or datetime.now(timezone.utc)
+        valid = None
+        for months in (0, -1, 1):
+            year, month = now.year + (now.month - 1 + months) // 12, (now.month - 1 + months) % 12 + 1
+            try:
+                candidate = datetime(year, month, day, hour, minute, tzinfo=timezone.utc)
+            except ValueError:
+                continue
+            if valid is None or abs(candidate - now) < abs(valid - now):
+                valid = candidate
+        if valid is None:
+            return None
+        start = valid.replace(hour=from_h % 24, minute=from_m)
+        if start > valid:
+            start -= timedelta(days=1)
+        end = valid.replace(hour=to_h % 24, minute=to_m)
+        if end < valid:
+            end += timedelta(days=1)
+        iso = lambda t: t.isoformat().replace("+00:00", "Z")  # noqa: E731
+        return {"valid_at": iso(valid), "use_from": iso(start), "use_to": iso(end)}
+    return None
+
+
+def parse_fd_text(text: str, now: datetime | None = None) -> FdStations:
     """{station_id: {altitude_ft: {"wind_dir_true_deg", "wind_speed_kt", "temp_c"}}}
     for every station/altitude group in the FD text with a decodable wind
     (temp_c is None for wind-only groups, e.g. the 3000ft column near a
-    station's own elevation).
+    station's own elevation), and the period it is for (FdStations).
     """
     lines = text.splitlines()
     header_idx = next((i for i, line in enumerate(lines) if line.startswith("FT ")), None)
@@ -155,7 +199,8 @@ def parse_fd_text(text: str) -> dict:
         raise WeatherServiceError("the winds/temps product has no altitude header")
     alt_positions = [(m.start(), int(m.group())) for m in re.finditer(r"\d+", lines[header_idx])]
 
-    stations = {}
+    stations = FdStations()
+    stations.period = _fd_period(lines[:header_idx], now)
     for line in lines[header_idx + 1 :]:
         if not line.strip():
             continue
@@ -281,6 +326,15 @@ def _interp_circular_deg(d1: float, d2: float, frac: float) -> float:
     """
     diff = ((d2 - d1 + 180) % 360) - 180
     return (d1 + frac * diff) % 360
+
+
+def winds_period(fcst_hr: str = "06") -> dict | None:
+    """The period the winds a plan flies are for (FdStations.period): None
+    where the product cannot be had or does not say."""
+    try:
+        return getattr(_fd_stations(fcst_hr), "period", None)
+    except WeatherServiceError:
+        return None
 
 
 def wind_at_altitude(lat: float, lon: float, altitude_ft: float, fcst_hr: str = "06") -> dict | None:

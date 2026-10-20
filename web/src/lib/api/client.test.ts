@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { describeError, detailOf, GatewayRequest } from "./client";
+import { describeError, detailOf, GatewayRequest, ndjson, STREAM_QUIET_MS } from "./client";
 
 describe("GatewayRequest", () => {
   test("the planner's paths go through the gateway, the query and the body as they were", async () => {
@@ -75,5 +75,40 @@ describe("me", () => {
 
   test("any other failure still throws", async () => {
     await expect(meAnswering(new Response(null, { status: 500, statusText: "Server Error" }))).rejects.toMatchObject({ status: 500 });
+  });
+});
+
+describe("ndjson", () => {
+  const streamOf = (...chunks: string[]) => new ReadableStream<Uint8Array>({
+    start(controller) {
+      for (const chunk of chunks) controller.enqueue(new TextEncoder().encode(chunk));
+      controller.close();
+    },
+  });
+  const read = async (stream: ReadableStream) => {
+    const out: unknown[] = [];
+    for await (const line of ndjson(stream)) out.push(line);
+    return out;
+  };
+
+  test("gives each whole line, a line split across pieces too", async () => {
+    expect(await read(streamOf('{"type":"stage"}\n{"ty', 'pe":"done"}\n'))).toEqual([{ type: "stage" }, { type: "done" }]);
+  });
+
+  test("a line that is not JSON -- a gateway's error page -- is one plain error, not \"Unexpected token <\"", async () => {
+    await expect(read(streamOf('{"type":"stage"}\n<html>Bad gateway</html>\n'))).rejects.toThrow("The planner's answer came back garbled");
+  });
+
+  test("a stream quiet for the limit is given up, as no answer in time", async () => {
+    vi.useFakeTimers();
+    try {
+      const silent = new ReadableStream<Uint8Array>({ start() {} });
+      const reading = read(silent);
+      const failed = expect(reading).rejects.toSatisfy(err => describeError(err) === "No answer in time");
+      await vi.advanceTimersByTimeAsync(STREAM_QUIET_MS + 1);
+      await failed;
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
