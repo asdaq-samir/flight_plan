@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronRight, TriangleAlert } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import { cn } from "cn";
 import { Button } from "../../../../components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../../../../components/ui/collapsible";
@@ -153,9 +153,15 @@ export default function AltitudeGroup({ nav, legs, problem = false, ownAltitude 
           data-testid="altitude-input"
         />
       </label>
-      {!problem && tight && <span className="mr-1 size-1.5 rounded-full bg-amber-500" aria-hidden="true" data-testid="tight-altitude-flag" />}
-      {!problem && cautions.length > 0 && (
-        <TriangleAlert className="mr-1 size-3.5 text-amber-600 dark:text-amber-400" aria-hidden="true" data-testid="own-altitude-flag" />
+      {/* One amber dot, as the Brief's tabs mark theirs, at the owner's ask
+          ("a dot just like brief to save space instead of a triangle"):
+          a caution on the pilot's own altitude, else a tight one. Said in
+          the profile button's name. */}
+      {!problem && (cautions.length > 0 || tight) && (
+        <span
+          className="mr-1.5 size-2 shrink-0 rounded-full bg-amber-500" aria-hidden="true"
+          data-testid={cautions.length > 0 ? "own-altitude-flag" : "tight-altitude-flag"}
+        />
       )}
       {/* The profile's button once there is a plan to show -- its altitude,
           or why there is none -- as the route box's clear shows with points
