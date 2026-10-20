@@ -20,6 +20,13 @@ interface Props {
   /** A chip of glass, or the time in the tint as the departure's step in
    *  FPL's list says it ("09:00 ⌄"), where the owner moved it. */
   look?: "chip" | "time";
+  /** What it is the time of: the flight's departure, or a stop's leaving
+   *  again ("Departure from KMSN"). */
+  label?: string;
+  testId?: string;
+  /** Leave Now, back to about now: the flight's own departure's; a stop
+   *  has no "now" to go back to. */
+  leavesNow?: boolean;
 }
 
 /** The instant of a calendar day at a local "HH:mm". */
@@ -58,7 +65,7 @@ function shortWhen(date: Date): string {
  * caller, an ISO instant: a new day keeps the time (or takes the next
  * whole hour), a new time keeps the day.
  */
-export default function DepartPicker({ value, onChange, look = "chip" }: Props) {
+export default function DepartPicker({ value, onChange, look = "chip", label = "Departure", testId = "depart-date", leavesNow = true }: Props) {
   const [open, setOpen] = useState(false);
   const timeId = useId();
   const parsed = value ? new Date(value) : undefined;
@@ -69,7 +76,7 @@ export default function DepartPicker({ value, onChange, look = "chip" }: Props) 
       <ResponsivePopoverTrigger asChild>
         {look === "time" ? (
           <button
-            type="button" aria-label={`Departure, ${date ? shortWhen(date) : "now"}: change`} data-testid="depart-date"
+            type="button" aria-label={`${label}, ${date ? shortWhen(date) : "now"}: change`} data-testid={testId}
             className={cn("relative flex shrink-0 items-center gap-0.5 font-semibold text-tint tabular-nums after:absolute after:-inset-2.5 after:content-['']", TEXT.detail)}
           >
             {date ? shortWhen(date) : "Now"}
@@ -81,7 +88,7 @@ export default function DepartPicker({ value, onChange, look = "chip" }: Props) 
             // text's colour, not a button's tint, at a note's 13 (TEXT), as
             // the airplane beside it (FlightInputs).
             variant="outline" size="sm" className={cn("rounded-full px-2.5 font-normal pointer-coarse:px-1.5", GLASS_BUTTON, CHIP_TEXT)}
-            aria-label="Departure date" data-testid="depart-date"
+            aria-label={`${label} date`} data-testid={testId}
           >
             {!date && <CalendarIcon className="text-muted-foreground" />}
             {date ? shortWhen(date) : "Now"}
@@ -90,7 +97,7 @@ export default function DepartPicker({ value, onChange, look = "chip" }: Props) 
       </ResponsivePopoverTrigger>
       {/* A sheet from the bottom on a phone, the calendar centred in it. */}
       {/* Its Done at the foot its way out (no close). */}
-      <ResponsivePopoverContent title="Departure" className="w-auto p-0" align="start" closeButton={false}>
+      <ResponsivePopoverContent title={label} className="w-auto p-0" align="start" closeButton={false}>
         <div className="flex flex-col items-center gap-3 pb-3" data-testid="depart-picker">
           {/* Sized like the grid it stands in for, so the popover does
               not jump once it arrives. */}
@@ -113,18 +120,20 @@ export default function DepartPicker({ value, onChange, look = "chip" }: Props) 
                 type="time"
                 value={time}
                 onChange={e => { if (e.target.value) onChange(instantAt(date, e.target.value)); }}
-                aria-label="Departure time"
+                aria-label={`${label} time`}
                 className="h-8 w-28 appearance-none bg-background [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none"
                 data-testid="depart-time"
               />
               </label>
             )}
-            <Button
-              type="button" variant="ghost" size="sm" className="text-tint"
-              onClick={() => { onChange(""); setOpen(false); }} disabled={!date} data-testid="depart-clear"
-            >
-              Leave now
-            </Button>
+            {leavesNow && (
+              <Button
+                type="button" variant="ghost" size="sm" className="text-tint"
+                onClick={() => { onChange(""); setOpen(false); }} disabled={!date} data-testid="depart-clear"
+              >
+                Leave now
+              </Button>
+            )}
             <Button type="button" size="sm" onClick={() => setOpen(false)} data-testid="depart-done">Done</Button>
           </div>
         </div>

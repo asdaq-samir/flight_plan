@@ -597,8 +597,8 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       return patched(prev, { cross: altitudesParam(own) || null });
     }, { replace: true });
   }, [setSearchParams]);
-  // A stop's time on the ground picked (GroundMenu): the address's
-  // `ground`, the default 30 not written.
+  // A stop's time on the ground, from when it leaves (ProceduresRoute's
+  // Depart step): the address's `ground`, the default 30 not written.
   const setGround = useCallback((ident: string, minutes: number) => {
     setSearchParams(prev => {
       const own = groundOf(prev.get("ground"));

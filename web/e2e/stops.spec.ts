@@ -264,21 +264,39 @@ test("a link with a stop opens on the route through it", async ({ page }) => {
   await expect(page.locator(".leaflet-marker-icon", { hasText: "KMSN" }).first()).toBeVisible({ timeout: slow(15000) });
 });
 
-test("a stop is left again after its time on the ground, 30 minutes or the pilot's pick", async ({ page }) => {
-  // The owner's pick (2026-10-20): times after a stop had left out the
-  // time on the ground.
+test("a stop is left again at the time picked on its Depart step, 30 minutes after it lands until one is", async ({ page }) => {
+  // The owner's picks (2026-10-20): times after a stop had left out the
+  // time on the ground; and "we should not say 30 min on the ground
+  // instead just make the departure time selectable like now is for the
+  // first departure". Leaving at nine, two days out, so no time crosses
+  // midnight.
   await recordedStops(page);
-  await page.goto("/app/plan?dep=C81&dest=KDLH&stops=KMSN");
+  const when = new Date();
+  when.setDate(when.getDate() + 2);
+  when.setHours(9, 0, 0, 0);
+  await page.goto(`/app/plan?dep=C81&dest=KDLH&stops=KMSN&depart=${encodeURIComponent(when.toISOString())}`);
   await openPanel(page);
-  const menu = sideDrawer(page).getByTestId("ground-menu");
-  await expect(menu).toHaveText(/30 min on the ground/, { timeout: slow(30_000) });
-  await menu.click();
-  await page.getByTestId("ground-45").click();
-  await expect(menu).toHaveText(/45 min on the ground/);
+  const leaves = sideDrawer(page).getByTestId("depart-date-KMSN");
+  await expect(leaves).toBeVisible({ timeout: slow(30_000) });
+  await expect(sideDrawer(page).getByTestId("ground-menu")).toHaveCount(0);
+  const at = async () => {
+    const [h, m] = (await leaves.innerText()).match(/(\d\d):(\d\d)/)!.slice(1).map(Number);
+    return h! * 60 + m!;
+  };
+  const hhmm = (minutes: number) => `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+  const planned = await at();
+  // A quarter of an hour later: 45 minutes on the ground in the address.
+  await leaves.click();
+  await expect(page.getByTestId("depart-clear")).toHaveCount(0);
+  await page.getByTestId("depart-time").fill(hhmm(planned + 15));
+  await page.getByTestId("depart-done").click();
   await expect(page).toHaveURL(/ground=KMSN%3A45|ground=KMSN:45/);
-  // Back to 30, the default, and the address says nothing of it.
-  await menu.click();
-  await page.getByTestId("ground-30").click();
+  await expect.poll(at).toBe(planned + 15);
+  // Back to 30 minutes after it lands, the default: the address says
+  // nothing of it.
+  await leaves.click();
+  await page.getByTestId("depart-time").fill(hhmm(planned));
+  await page.getByTestId("depart-done").click();
   await expect(page).not.toHaveURL(/ground=/);
 });
 
