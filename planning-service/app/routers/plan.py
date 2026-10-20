@@ -406,8 +406,18 @@ class HopRun:
 
 #: The time on the ground at a stop where the pilot gave none, min: a
 #: turnaround -- taxi in, fuel, a break, taxi out -- at the owner's pick of
-#: the audit's choices (2026-10-20), where none was counted.
+#: the audit's choices (2026-10-20), where none was counted. The web app
+#: mirrors it (navlog/rows.ts TURNAROUND_MIN) only for the rows it draws
+#: before the nav log's legs arrive; once they do, it reads each stop's
+#: minutes off them (Leg.ground_min).
 TURNAROUND_MIN = 30.0
+
+
+def ground_min_at(ground: dict[str, float] | None, ident: str) -> float:
+    """The minutes on the ground at the stop `ident`: the pilot's own
+    (PlanQuery.ground), else TURNAROUND_MIN. The one rule the hops' start
+    times, the legs and the totals all go by."""
+    return (ground or {}).get(ident.upper(), TURNAROUND_MIN)
 
 
 def hop_runs(r: Route, by_hop: list, depart: datetime | None, profile: dict,
@@ -445,7 +455,7 @@ def hop_runs(r: Route, by_hop: list, depart: datetime | None, profile: dict,
         ))
         elapsed_h += hop.length_nm / tas + holding.get(hop.dep_ident.upper(), 0.0) / 60
         if hop.lands and i < len(r.hops) - 1:
-            elapsed_h += ground.get(hop.dest_ident.upper(), TURNAROUND_MIN) / 60
+            elapsed_h += ground_min_at(ground, hop.dest_ident) / 60
     return runs
 
 
@@ -757,14 +767,18 @@ def with_holds(r: Route, runs: list[HopRun], outcome: Flown, held: list[vfr_hold
 
 
 def flown_legs(r: Route, runs: list[HopRun], outcome: Flown, own: dict[str, float] | None = None,
-               drawn: list[tuple[str, dict]] | None = None) -> list:
+               drawn: list[tuple[str, dict]] | None = None, ground: dict[str, float] | None = None) -> list:
     """The legs a pilot flies, with each flight's tops of climb and
     descent placed (navlog.with_descents): from one landing to the next,
     through any waypoints, down to the pattern at the end of each --
     `own`, a pilot's own patterns by ident -- or to an approach's first
-    fix, where one is picked for the field (`drawn`, approach_end)."""
+    fix, where one is picked for the field (`drawn`, approach_end). The
+    last leg of each flight but the route's last carries the minutes on
+    the ground at the stop it lands at (`ground_min`, ground_min_at), the
+    figure the web times the rows after it by."""
     out, at = [], 0
-    for flight in r.flights:
+    flights = r.flights
+    for k, flight in enumerate(flights):
         hops = len(flight.idents) - 1
         legs = [leg for legs in outcome.hop_legs[at:at + hops] for leg in legs]
         fix_list = [fix for k, run in enumerate(runs[at:at + hops]) for fix in (run.fixes if k == 0 else run.fixes[1:])]
@@ -774,6 +788,8 @@ def flown_legs(r: Route, runs: list[HopRun], outcome: Flown, own: dict[str, floa
             out.extend(navlog.with_descents(legs, fix_list, to_ft, before_nm, fix))
         else:
             out.extend(navlog.with_descents(legs, fix_list, pattern_altitude(flight, own)))
+        if out and k < len(flights) - 1:
+            out[-1] = {**out[-1], "ground_min": ground_min_at(ground, flight.dest_ident)}
         at += hops
     return out
 
@@ -806,7 +822,7 @@ def totals_of(r: Route, runs: list[HopRun], outcome: "Flown", profile: dict, rul
         at += hops
     totals = route_totals(per_flight, r.flights)
     # The time on the ground at the stops (hop_runs), for the arrival.
-    totals["ground_min"] = sum((ground or {}).get(f.dest_ident.upper(), TURNAROUND_MIN) for f in r.flights[:-1])
+    totals["ground_min"] = sum(ground_min_at(ground, f.dest_ident) for f in r.flights[:-1])
     return totals
 
 
@@ -1040,7 +1056,7 @@ def plan(q: Annotated[PlanQuery, Depends()]) -> Plan:
         _, ways = unflyable_parts(outcome, runs)
         raise HTTPException(422, no_altitude_detail(outcome.selection, outcome.between, ways[0] if ways else None))
     outcome = with_holds(r, runs, with_procedures(r, runs, outcome, drawn), q.own_holds())
-    leg_list = flown_legs(r, runs, outcome, own, drawn)
+    leg_list = flown_legs(r, runs, outcome, own, drawn, q.own_ground())
 
     return Plan(
         departure=r.departure,
@@ -1206,7 +1222,7 @@ def navlog_stream(q: Annotated[PlanQuery, Depends()]) -> StreamingResponse:
             altitude_figures=list(outcome.figures),
         ))
         outcome = with_holds(r, runs, with_procedures(r, runs, outcome, drawn), q.own_holds())
-        for leg in flown_legs(r, runs, outcome, own, drawn):
+        for leg in flown_legs(r, runs, outcome, own, drawn, q.own_ground()):
             yield line(NavLogLeg.model_validate(leg))
 
         yield line(NavLogDone(totals=totals_of(r, runs, outcome, profile, q.rules, q.alternate, q.own_ground())))

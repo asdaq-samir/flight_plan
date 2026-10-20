@@ -193,7 +193,7 @@ export default function WeatherAlongRoute({ briefing, course, legs, departIso, u
                   // redesign: the wind, then the rest; as sent, a tap away
                   // (below).
                   <ListRow
-                    title={metar?.raw ? `Now · wind ${windLine(metar).replace(/^(Calm|Variable)/, w => w.toLowerCase())}` : "Now"}
+                    title={metar?.raw ? `Now · wind ${windLine(metar).replace(/^(Calm|Variable|Not)/, w => w.toLowerCase())}` : "Now"}
                     // When it was observed under the figures, amber past 90
                     // minutes, as the map's card says it: the planner holds
                     // a report up to 3 hours when aviationweather.gov does

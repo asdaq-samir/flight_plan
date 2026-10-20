@@ -18,12 +18,12 @@ import { airportQuery, plateQuery } from "../../../lib/queryClient";
 import { approachRunway, sameField, transitionWords, type BranchFix, type PickedProcedure } from "../../../lib/procedures";
 import { NO_PATTERN, trafficPattern } from "../../../lib/trafficPattern";
 import { TEXT } from "../../../lib/text";
-import { altFt, bearing, grouped } from "../../../lib/units";
+import { altFt, grouped } from "../../../lib/units";
 import { endFit, type EndFit } from "../../../lib/runwayFit";
 import { frdOf, isPosition } from "../../../lib/identSchema";
 import { COURSE_MAGENTA } from "../../../lib/map/chartColors";
 import { useOwnShip } from "../../../lib/map/ownShip";
-import { etaAt } from "../format";
+import { etaAt, reportedWind, windPickCrosswind, windPickWords, type ReportedWind } from "../format";
 import { PointMark } from "./navlog/PointMark";
 import FixBranch from "./FixBranch";
 import DepartPicker from "./navlog/DepartPicker";
@@ -33,7 +33,7 @@ import { PointFigures, PointMenu } from "./PointControls";
 import type { HoldAt } from "./HoldSheet";
 import { holdWords, type Hold } from "../../../lib/holds";
 import type { LegHold } from "../../../lib/api/types";
-import { legOf, rowPoint, TURNAROUND_MIN, type NavLogRow } from "./navlog/rows";
+import { groundMinAt, legOf, rowPoint, type NavLogRow } from "./navlog/rows";
 
 // Opened only from a point's menu, so fetched as one first is: in the
 // first load they took it over its 1.10 MB budget (CI, 2026-10-20).
@@ -157,7 +157,7 @@ export default function ProceduresRoute({
   onAt: (at: ProceduresAt) => void;
   /** Minutes on the ground at each stop, by ident (the address's
    *  `ground`), and the pick of one, from the time it leaves: a stop not
-   *  named, TURNAROUND_MIN. */
+   *  named, the planner's turnaround (groundMinAt). */
   ground?: Record<string, number>;
   onGround?: (ident: string, minutes: number) => void;
   /** The pilot's own altitudes to cross the procedures' fixes at, by fix. */
@@ -327,23 +327,12 @@ export default function ProceduresRoute({
     // The forecast's, where the runway is picked into it (windOf).
     const forecast = forecastFor[i] != null ? forecasts[i]?.data : null;
     if (forecast) {
-      if (!forecast.speed_kt) return "calm";
-      const kt = Math.round(forecast.speed_kt), gust = forecast.gust_kt ? Math.round(forecast.gust_kt) : null;
-      const when = zuluTime(new Date(forecastFor[i]!));
-      return {
-        dir: forecast.dir_true_deg == null ? "VRB" : `${bearing(forecast.dir_true_deg)}T`, speed: gust ? `${kt}G${gust}` : `${kt}`,
-        spoken: `forecast for ${when}, ${forecast.dir_true_deg == null ? "variable" : `${Math.round(forecast.dir_true_deg)} true`} at ${kt} knots${gust ? `, gusts ${gust}` : ""}`,
-      };
+      const said = reportedWind(forecast.dir_true_deg, forecast.speed_kt, forecast.gust_kt);
+      return said && said !== "calm" ? { ...said, spoken: `forecast for ${zuluTime(new Date(forecastFor[i]!))}, ${said.spoken}` } : said;
     }
     const card = cards[i]?.data;
     const m = card?.metar ?? card?.nearby_metar?.metar;
-    if (!m || m.wind_speed_kt == null) return null;
-    if (!m.wind_speed_kt) return "calm";
-    const kt = Math.round(m.wind_speed_kt), gust = m.wind_gust_kt ? Math.round(m.wind_gust_kt) : null;
-    return {
-      dir: m.wind_dir_true_deg == null ? "VRB" : `${bearing(m.wind_dir_true_deg)}T`, speed: gust ? `${kt}G${gust}` : `${kt}`,
-      spoken: `${m.wind_dir_true_deg == null ? "variable" : `${Math.round(m.wind_dir_true_deg)} true`} at ${kt} knots${gust ? `, gusts ${gust}` : ""}`,
-    };
+    return m ? reportedWind(m.wind_dir_true_deg, m.wind_speed_kt, m.wind_gust_kt) : null;
   };
   const listOf = (ident: string): ProcedureList | undefined => lists[airports.findIndex(a => a.ident === ident)]?.data;
   // Whether a field has procedures of a kind: by its procedures once they
@@ -580,8 +569,9 @@ export default function ProceduresRoute({
     // ground instead just make the departure time selectable like now is
     // for the first departure"): kept as its minutes on the ground (the
     // address's `ground`), the flights after it timed from it; none picked,
-    // TURNAROUND_MIN after it lands. Never before it lands.
-    const onGroundMin = ground?.[a.ident] ?? TURNAROUND_MIN;
+    // the planner's turnaround after it lands (the stop's row, groundMinAt).
+    // Never before it lands.
+    const onGroundMin = row?.kind === "stop" ? row.groundMin : groundMinAt(ground, a.ident);
     const flownTo = row?.minutesFlown ?? landedAt(a.ident);
     const landsMs = flownTo == null ? null : startMs + flownTo * 60_000;
     const leaves = landsMs === null ? null : onGround ? (
@@ -1092,9 +1082,9 @@ function FieldInfo({ ident, note, wind, reported, fit, kind, demonstratedKt, all
   );
 }
 
-/** A field's reported wind as its info's trigger writes it: "240°" over
- *  "12G20" (knots), calm, or none. */
-type Reported = "calm" | { dir: string; speed: string; spoken: string };
+/** A field's reported wind as its info's trigger writes it: "240°T" over
+ *  "12G20" (knots), calm, or none (format's reportedWind). */
+type Reported = ReportedWind;
 
 /**
  * The wind on the runway it favours, as symbols, at the owner's ask ("the
@@ -1106,11 +1096,11 @@ type Reported = "calm" | { dir: string; speed: string; spoken: string };
  * small: it is not the field's own. Said in words to a screen reader.
  */
 function WindComponents({ wind }: { wind: WindPick }) {
-  const words = windWords(wind);
+  const words = windPickWords(wind);
   if (wind.calm) {
     return <p className={cn("px-1 text-muted-foreground", TEXT.note)} data-testid="procedure-wind">{words}</p>;
   }
-  const cross = Math.abs(wind.crosswindKt), gust = wind.gustCrosswindKt == null ? null : Math.abs(wind.gustCrosswindKt);
+  const crosswind = windPickCrosswind(wind);
   // From the right (windPick's sign), it blows across to the left.
   const Across = wind.crosswindKt > 0 ? ArrowLeft : ArrowRight;
   const Along = wind.headwindKt >= 0 ? ArrowDown : ArrowUp;
@@ -1119,26 +1109,15 @@ function WindComponents({ wind }: { wind: WindPick }) {
       <span className={cn("inline-flex items-center gap-0.5 font-semibold", wind.headwindKt >= 0 ? "text-green-700 dark:text-green-400" : "text-red-700 dark:text-red-400")}>
         <Along className="size-4" strokeWidth={2.5} aria-hidden />{Math.abs(wind.headwindKt)}
       </span>
-      {(cross > 0 || (gust ?? 0) > 0) && (
+      {crosswind && (
         <span className="inline-flex items-center gap-0.5 font-semibold text-muted-foreground">
-          <Across className="size-4" strokeWidth={2.5} aria-hidden />{cross}{gust != null ? `G${gust}` : ""}
+          <Across className="size-4" strokeWidth={2.5} aria-hidden />{crosswind}
         </span>
       )}
       <span className="text-muted-foreground">kt</span>
       {wind.from && <span className={cn("ml-auto text-muted-foreground", TEXT.note)}>{`${wind.from.ident} wind, ${wind.from.nm} nm`}</span>}
     </p>
   );
-}
-
-/** "24 into the wind: headwind 8 kt, crosswind 2 kt (KUGN, 11 nm)", or
- *  "Wind calm": what a field's wind symbols say, in words. */
-function windWords(wind: WindPick): string {
-  const from = wind.from ? ` (${wind.from.ident}, ${wind.from.nm} nm)` : "";
-  if (wind.calm) return `Wind calm${from}`;
-  const cross = Math.abs(wind.crosswindKt), gust = wind.gustCrosswindKt == null ? null : Math.abs(wind.gustCrosswindKt);
-  const across = cross > 0 || (gust ?? 0) > 0 ? `, crosswind ${cross}${gust != null ? ` gusting ${gust}` : ""} kt` : "";
-  const along = wind.headwindKt >= 0 ? `headwind ${wind.headwindKt} kt` : `tailwind ${-wind.headwindKt} kt`;
-  return `${wind.ident} into the wind: ${along}${across}${from}`;
 }
 
 /**

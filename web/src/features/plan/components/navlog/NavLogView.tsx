@@ -23,7 +23,7 @@ import { routeName } from "../../../../lib/identSchema";
 import { revealRow } from "../../../../lib/revealRow";
 import { GROUP_HEADING, TEXT } from "../../../../lib/text";
 import { type Description, descriptionKey } from "../../hooks/useCheckpointNotes";
-import { altFt, bearing, clockTime, etaAt, legsWithoutWind, one, plannedWords, windsOutOfDate } from "../../format";
+import { altFt, bearing, clockTime, etaAt, legsWithoutWind, one, plannedWords, windAloft, windsOutOfDate } from "../../format";
 import { useMinuteClock } from "../../../../lib/clock";
 import type { BriefingPart } from "../briefing/sections";
 import { isLegPoint, legOf, navLogRows, rowPoint, type NavLogRow, type RouteEnds } from "./rows";
@@ -291,7 +291,7 @@ function legPointNote(point: TopOfClimb | TopOfDescent, descent: TopOfDescent | 
 function LegLine({ leg, at }: { leg: Leg; at: { name: string; lat: number; lon: number } }) {
   const figures: [string, string][] = [
     ["TC", bearing(leg.true_course_deg)],
-    ["Wind", leg.wind ? `${bearing(leg.wind.wind_dir_true_deg)}/${Math.round(leg.wind.wind_speed_kt)}` : "no data"],
+    ["Wind", leg.wind ? windAloft(leg.wind.wind_dir_true_deg, leg.wind.wind_speed_kt) : "no data"],
     ["WCA", windCorrection(leg.wca_deg, 1)],
     ["TH", bearing(leg.true_heading_deg)],
     ["Var", magneticVariation(leg.magnetic_variation_deg, 1)],
@@ -519,7 +519,7 @@ export default function NavLogView({
       meta: { className: "hidden print:table-cell" },
       cell: ({ row }) => {
         const leg = legOf(row.original);
-        return leg ? (leg.wind ? `${bearing(leg.wind.wind_dir_true_deg)}/${Math.round(leg.wind.wind_speed_kt)}` : "no data") : "—";
+        return leg ? (leg.wind ? windAloft(leg.wind.wind_dir_true_deg, leg.wind.wind_speed_kt) : "no data") : "—";
       },
     },
     {

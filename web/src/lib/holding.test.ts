@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { holdingEntry, holdingWind } from "./holding";
+import { holdingEntry, holdingWind, legMinutes } from "./holding";
 
 describe("holding entries, by AIM 5-3-8's sectors", () => {
   test("a standard hold on 360: direct from the south and west, teardrop and parallel from beyond the fix", () => {
@@ -45,5 +45,14 @@ describe("holding in a wind", () => {
     expect(w.outbound.wca).toBeCloseTo(-3 * w.inbound.wca, 6);
     expect(w.outbound.heading).toBeCloseTo(180 - 3 * w.inbound.wca, 6);
     expect(holdingWind(360, 50, 90, 60, 5000)).toBeNull();
+  });
+});
+
+describe("the inbound leg's time", () => {
+  test("a minute at or below 14,000 ft MSL, a minute and a half above (AIM 5-3-8)", () => {
+    expect(legMinutes(3000)).toBe(1);
+    expect(legMinutes(14_000)).toBe(1);
+    expect(legMinutes(14_001)).toBe(1.5);
+    expect(legMinutes(17_000)).toBe(1.5);
   });
 });

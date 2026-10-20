@@ -100,6 +100,19 @@ def test_the_flight_after_a_stop_leaves_after_its_time_on_the_ground(monkeypatch
     assert client.get("/api/plan", params={**VIA_MADISON, "ground": "KMSN:soon"}).status_code == 422
 
 
+def test_the_leg_into_a_stop_says_its_time_on_the_ground(messages):
+    """The planner owns the stops' minutes on the ground: the leg that
+    lands at each carries them (Leg.ground_min), the pilot's own or the
+    thirty-minute turnaround, for the web to time the rows after it by,
+    and no other leg does -- the destination is not left again."""
+    legs = client.get("/api/plan", params=VIA_MADISON).json()["legs"]
+    assert [(leg["to"], leg["ground_min"]) for leg in legs if leg["ground_min"] is not None] == [("KMSN", 30.0)]
+    assert legs[-1]["ground_min"] is None
+
+    streamed = [m for m in messages(client.get("/api/navlog", params={**VIA_MADISON, "ground": "KMSN:75"})) if m["type"] == "leg"]
+    assert [(leg["to"], leg["ground_min"]) for leg in streamed if leg.get("ground_min") is not None] == [("KMSN", 75.0)]
+
+
 def test_each_flight_climbs_from_its_field_and_comes_down_to_its_own_pattern():
     # The stub's 10 nm legs at 4,500 ft, the fields at 900: the climb
     # tops out on each flight's first leg, and each comes down to 1,900,

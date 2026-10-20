@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import c172Json from "../../../data/aircraft/c172.json?raw";
 import type { AircraftProfile, Airport, Briefing, Course } from "./api/types";
-import { densityAltitudeFt, runwayChecks } from "./runwayCheck";
+import { densityAltitudeFt, fieldAir, runwayChecks, softSurface } from "./runwayCheck";
 
 const c172 = { name: "c172", ...JSON.parse(c172Json) } as AircraftProfile;
 
@@ -21,6 +21,22 @@ const field = (ident: string, elevation: number): Airport => ({ ident, name: ide
 const runway = (length: number, headwind: number, crosswind: number, extra: object = {}) => ({
   ends: "09/27", length_ft: length, width_ft: 75, surface: "ASP", lighted: true, closed: false, runway_ends: [],
   wind: { end: "27", headwind_kt: headwind, crosswind_kt: crosswind }, ...extra,
+});
+
+describe("a field's air and surface", () => {
+  it("is the pressure altitude off the altimeter, and a standard day's temperature where none is reported", () => {
+    // A thousand feet an inch under 29.92; ISA at 900 ft is 13.2 °C.
+    expect(fieldAir(900, 29.42, 25)).toEqual({ pressureAltFt: 1400, tempC: 25 });
+    const standard = fieldAir(900, null, null);
+    expect(standard.pressureAltFt).toBe(900);
+    expect(standard.tempC).toBeCloseTo(13.2, 1);
+  });
+
+  it("takes turf, grass, dirt and gravel as soft, and asphalt not", () => {
+    expect(["TURF", "GRS", "grass", "DIRT", "GRAVEL-G"].map(surface => softSurface({ surface } as never))).toEqual([true, true, true, true, true]);
+    expect(softSurface({ surface: "ASPH-G" } as never)).toBe(false);
+    expect(softSurface(undefined)).toBe(false);
+  });
 });
 
 describe("the runway check", () => {

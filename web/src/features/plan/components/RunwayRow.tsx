@@ -8,6 +8,7 @@ import { RowBadge } from "../../../components/RowBadge";
 import { BADGE } from "../../../lib/rowBadges";
 import { TEXT } from "../../../lib/text";
 import { grouped } from "../../../lib/units";
+import { runwayCrosswindKt } from "../../../lib/wind";
 
 /** A runway drawn on its badge, laid along its true heading as the
  *  chart lays it (north up), its centre line dashed; upright where its
@@ -39,7 +40,7 @@ export function RunwayRow({ runway }: { runway: Runway }) {
   ].filter(Boolean).join(" · ");
   const most = usePreferences(s => s.minimums.crosswindKt);
   const wind = runway.wind;
-  const over = !!wind && most != null && Math.max(Math.abs(wind.crosswind_kt), Math.abs(wind.gust_crosswind_kt ?? 0)) > most;
+  const over = !!wind && most != null && runwayCrosswindKt(wind) > most;
   const heading = (runway.runway_ends ?? []).find(e => e.heading_true_deg != null)?.heading_true_deg ?? null;
   return (
     <ListRow
