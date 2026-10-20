@@ -1489,12 +1489,12 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       airports={procedureAirports} rows={routeRows} depart={depart} weather={metarColour}
       picked={pickedPatterns} onPick={pickPattern} onPreselect={setPattern} takeoffs={pickedTakeoffs} onTakeoff={setTakeoff} fit={runwayFitInputs}
       procedures={pickedProcedures} inRoute={routeProcedures} onProcedures={pickProcedures} onPreview={previewProcedure}
-      at={proceduresAt} onAt={setProceduresShown} crossings={crossings} onFix={showFix} ground={ground} onGround={setGround}
+      at={proceduresAt} onAt={setProceduresShown} crossings={crossings} onFix={showFix} onDepart={changeDepart} ground={ground} onGround={setGround}
       onCharts={() => { if (planned.dest) { setApproachesOf(planned.dest); selectPlace(planned.dest); } }}
       chartsDisabled={!planned.dest || noApproaches}
     />
   ), [procedureAirports, routeRows, depart, metarColour, pickedPatterns, pickPattern, setPattern, pickedTakeoffs, setTakeoff, runwayFitInputs, pickedProcedures, routeProcedures, pickProcedures, crossings, showFix,
-    ground, setGround, previewProcedure, proceduresAt, setProceduresShown, planned.dest, selectPlace, noApproaches]);
+    ground, setGround, previewProcedure, proceduresAt, setProceduresShown, planned.dest, selectPlace, noApproaches, changeDepart]);
   const navLog = useMemo(() => (
     <Suspense fallback={<div className="min-h-0 flex-1" />}>
     <NavLogView
@@ -1597,7 +1597,10 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           rules={flightRules} onRulesChange={setFlightRules}
         />
       )}
-      depart={depart} onDepartChange={changeDepart}
+      // The departure's time on its step in FPL's list once a route is in,
+      // at the owner's ask (ProceduresRoute); here before then, and for a
+      // local flight, which has no departure step.
+      depart={depart} onDepartChange={routed && !s.local ? undefined : changeDepart}
     />
   ), [aircraftValue, aircraftChoices, changeAircraft, s.local, s.nav, s.legs, changeAltitudeChoice, unflyable, acceptClassB, tightLeg,
     classBClearance, alt, setAlt, submit, routed, depart, changeDepart, flightRules, setFlightRules]);

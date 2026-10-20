@@ -22,9 +22,10 @@ export default function FlightInputs({ aircraftValue, aircraftOptions, onAircraf
   onAircraftChange: (value: string) => void;
   /** Beside the airplane: the altitude it flies (AltitudeButton). */
   altitude?: ReactNode;
-  /** An ISO instant, or "" for about now. */
+  /** An ISO instant, or "" for about now; with no handler, no picker here
+   *  (the departure's step in FPL's list has it). */
   depart: string;
-  onDepartChange: (iso: string) => void;
+  onDepartChange?: (iso: string) => void;
 }) {
   return (
     <>
@@ -48,7 +49,7 @@ export default function FlightInputs({ aircraftValue, aircraftOptions, onAircraf
         </SelectContent>
       </Select>
       {altitude}
-      <DepartPicker value={depart} onChange={onDepartChange} />
+      {onDepartChange && <DepartPicker value={depart} onChange={onDepartChange} />}
     </>
   );
 }

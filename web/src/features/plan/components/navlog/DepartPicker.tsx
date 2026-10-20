@@ -1,6 +1,6 @@
 import { Suspense, lazy, useId, useState } from "react";
 import { format } from "date-fns";
-import { CalendarIcon } from "lucide-react";
+import { CalendarIcon, ChevronDown } from "lucide-react";
 import { Button } from "../../../../components/ui/button";
 
 /** The month grid is react-day-picker, which is not small and is only
@@ -11,11 +11,15 @@ import { Input } from "../../../../components/ui/input";
 import { ResponsivePopover, ResponsivePopoverContent, ResponsivePopoverTrigger } from "../../../../components/ResponsivePopover";
 import { cn } from "cn";
 import { CHIP_TEXT, GLASS_BUTTON } from "../../../../components/mapChrome";
+import { TEXT } from "../../../../lib/text";
 
 interface Props {
   /** The departure as an ISO instant, or "" for about now. */
   value: string;
   onChange: (iso: string) => void;
+  /** A chip of glass, or the time in the tint as the departure's step in
+   *  FPL's list says it ("09:00 ⌄"), where the owner moved it. */
+  look?: "chip" | "time";
 }
 
 /** The instant of a calendar day at a local "HH:mm". */
@@ -54,7 +58,7 @@ function shortWhen(date: Date): string {
  * caller, an ISO instant: a new day keeps the time (or takes the next
  * whole hour), a new time keeps the day.
  */
-export default function DepartPicker({ value, onChange }: Props) {
+export default function DepartPicker({ value, onChange, look = "chip" }: Props) {
   const [open, setOpen] = useState(false);
   const timeId = useId();
   const parsed = value ? new Date(value) : undefined;
@@ -63,16 +67,26 @@ export default function DepartPicker({ value, onChange }: Props) {
   return (
     <ResponsivePopover open={open} onOpenChange={setOpen}>
       <ResponsivePopoverTrigger asChild>
-        <Button
-          // A chip of glass, as Maps' filter chips are: the time in the
-          // text's colour, not a button's tint, at a note's 13 (TEXT), as
-          // the airplane beside it (FlightInputs).
-          variant="outline" size="sm" className={cn("rounded-full px-2.5 font-normal pointer-coarse:px-1.5", GLASS_BUTTON, CHIP_TEXT)}
-          aria-label="Departure date" data-testid="depart-date"
-        >
-          {!date && <CalendarIcon className="text-muted-foreground" />}
-          {date ? shortWhen(date) : "Now"}
-        </Button>
+        {look === "time" ? (
+          <button
+            type="button" aria-label={`Departure, ${date ? shortWhen(date) : "now"}: change`} data-testid="depart-date"
+            className={cn("relative flex shrink-0 items-center gap-0.5 font-semibold text-tint tabular-nums after:absolute after:-inset-2.5 after:content-['']", TEXT.detail)}
+          >
+            {date ? shortWhen(date) : "Now"}
+            <ChevronDown className="size-4" aria-hidden />
+          </button>
+        ) : (
+          <Button
+            // A chip of glass, as Maps' filter chips are: the time in the
+            // text's colour, not a button's tint, at a note's 13 (TEXT), as
+            // the airplane beside it (FlightInputs).
+            variant="outline" size="sm" className={cn("rounded-full px-2.5 font-normal pointer-coarse:px-1.5", GLASS_BUTTON, CHIP_TEXT)}
+            aria-label="Departure date" data-testid="depart-date"
+          >
+            {!date && <CalendarIcon className="text-muted-foreground" />}
+            {date ? shortWhen(date) : "Now"}
+          </Button>
+        )}
       </ResponsivePopoverTrigger>
       {/* A sheet from the bottom on a phone, the calendar centred in it. */}
       {/* Its Done at the foot its way out (no close). */}
