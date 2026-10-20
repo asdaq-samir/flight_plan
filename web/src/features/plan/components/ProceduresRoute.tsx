@@ -32,7 +32,7 @@ import { PointFigures, PointMenu } from "./PointControls";
 import type { HoldAt } from "./HoldSheet";
 import { holdWords, type Hold } from "../../../lib/holds";
 import type { LegHold } from "../../../lib/api/types";
-import { legOf, rowPoint, TURNAROUND_MIN, type NavLogRow } from "./navlog/rows";
+import { groundMinAt, legOf, rowPoint, type NavLogRow } from "./navlog/rows";
 
 // Opened only from a point's menu, so fetched as one first is: in the
 // first load they took it over its 1.10 MB budget (CI, 2026-10-20).
@@ -156,7 +156,7 @@ export default function ProceduresRoute({
   onAt: (at: ProceduresAt) => void;
   /** Minutes on the ground at each stop, by ident (the address's
    *  `ground`), and the pick of one, from the time it leaves: a stop not
-   *  named, TURNAROUND_MIN. */
+   *  named, the planner's turnaround (groundMinAt). */
   ground?: Record<string, number>;
   onGround?: (ident: string, minutes: number) => void;
   /** The pilot's own altitudes to cross the procedures' fixes at, by fix. */
@@ -568,8 +568,9 @@ export default function ProceduresRoute({
     // ground instead just make the departure time selectable like now is
     // for the first departure"): kept as its minutes on the ground (the
     // address's `ground`), the flights after it timed from it; none picked,
-    // TURNAROUND_MIN after it lands. Never before it lands.
-    const onGroundMin = ground?.[a.ident] ?? TURNAROUND_MIN;
+    // the planner's turnaround after it lands (the stop's row, groundMinAt).
+    // Never before it lands.
+    const onGroundMin = row?.kind === "stop" ? row.groundMin : groundMinAt(ground, a.ident);
     const flownTo = row?.minutesFlown ?? landedAt(a.ident);
     const landsMs = flownTo == null ? null : startMs + flownTo * 60_000;
     const leaves = landsMs === null ? null : onGround ? (

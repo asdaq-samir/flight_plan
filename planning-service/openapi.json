@@ -4939,6 +4939,17 @@
             ],
             "title": "Fuel Gal"
           },
+          "ground_min": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ground Min"
+          },
           "groundspeed_kt": {
             "anyOf": [
               {
@@ -6115,6 +6126,18 @@
               }
             ],
             "title": "Fuel Gal"
+          },
+          "ground_min": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Ground Min"
           },
           "groundspeed_kt": {
             "anyOf": [
