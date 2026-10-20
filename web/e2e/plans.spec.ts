@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { slow, settle, sideDrawer, expectDrawerOpen, openTab, openSection, grabberTo, controlsInSight, showTabs, openNavLog, navLogSheet, closeNavLog } from "./helpers";
+import { slow, settle, sideDrawer, expectDrawerOpen, openTab, openSection, grabberTo, controlsInSight, showTabs, openNavLog, navLogSheet, closeNavLog, closeCard } from "./helpers";
 
 /**
  * What the nav log is computed from: the altitude plans and a pilot's
@@ -47,7 +47,7 @@ test("plan page: the nav log's altitude opens the planner's own reasoning, and t
   await page.keyboard.press("ArrowDown");
   await expect.poll(async () => Number(await wheel.getAttribute("aria-valuenow"))).toBeLessThan(was);
   await expect(page).toHaveURL(/[?&](altitude_ft|altitude_choice)=/, { timeout: slow(10000) });
-  await page.getByTestId("profile-close").click();
+  await closeCard(page, "profile-close");
   await expect(popover).toHaveCount(0);
 
   // An altitude typed beside the airplane: the whole log at it.
@@ -69,7 +69,7 @@ test("plan page: the nav log's altitude opens the planner's own reasoning, and t
   await popover.getByTestId("altitude-wheel-row").filter({ hasText: "Fastest" }).first().click();
   await expect(page).not.toHaveURL(/[?&]altitude_ft=/, { timeout: slow(10000) });
   await expect(page).not.toHaveURL(/[?&]altitude_choice=/);
-  await page.getByTestId("profile-close").click();
+  await closeCard(page, "profile-close");
   await expect(why).not.toHaveAccessibleName(/3,500 feet/, { timeout: slow(30000) });
 
   // The Brief's Cruise Altitude section carries the same steps, the plan
@@ -254,7 +254,7 @@ test("plan page: no legal altitude is the route's own problem: its chip says so 
 
   // An altitude of the pilot's own, typed beside the airplane: planned
   // anyway, at it.
-  await page.getByTestId("profile-close").click();
+  await closeCard(page, "profile-close");
   await page.getByTestId("altitude-input").fill("12500");
   await page.getByTestId("altitude-input").press("Enter");
   await expect(page).toHaveURL(/[?&]altitude_ft=12500/);
@@ -334,8 +334,11 @@ test("plan page: Class B avoided with no legal altitude offers the waypoint roun
   // The two ways past it, and no altitude of the pilot's own: under a
   // Class B to the ground there is none.
   await expect(problem.getByTestId("unflyable-fly-via")).toBeVisible();
+  // The card put away, the field beside the airplane greyed.
+  await closeCard(page, "profile-close");
   await expect(page.getByTestId("altitude-input")).toBeDisabled();
   // Allowed: planned through it, the address back to its default.
+  await mark.click();
   await problem.getByTestId("unflyable-accept-class-b").click();
   await expect(page).not.toHaveURL(/class_b=/);
 });

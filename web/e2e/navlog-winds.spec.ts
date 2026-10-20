@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { openPanel, openTab, controlsInSight, settle, slow } from "./helpers";
+import { openPanel, openTab, controlsInSight, settle, slow, closeCard } from "./helpers";
 
 /**
  * A nav log the winds could not be read for. The planner's own stream is
@@ -37,7 +37,7 @@ test("a winds outage never reads as an altitude the pilot typed", async ({ page 
   await expect(popover).toContainText("winds aloft could not be read");
   await expect(popover).not.toContainText("no legal altitude");
   // And no altitude typed beside the airplane for it.
-  await page.getByTestId("profile-close").click();
+  await closeCard(page, "profile-close");
   await expect(page.getByTestId("altitude-input")).toHaveValue("");
 });
 

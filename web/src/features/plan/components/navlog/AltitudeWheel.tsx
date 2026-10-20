@@ -17,13 +17,16 @@ const feet = (ft: number) => ft.toLocaleString("en-US");
  * tap on a row brings it to the middle. To VoiceOver and the keyboard a
  * slider: up and down step one altitude, as an adjustable control does.
  */
-export default function AltitudeWheel({ altitudes, value, onChange, names = {}, shown = SHOWN, glass = false }: {
+export default function AltitudeWheel({ altitudes, value, onChange, names = {}, spoken = names, shown = SHOWN, glass = false }: {
   /** Highest first. */
   altitudes: number[];
   value: number;
   onChange: (altitude: number) => void;
   /** A plan's name for an altitude it flies ("Fastest"). */
   names?: Record<number, string>;
+  /** Its names as VoiceOver says them, where the rows show them short (the
+   *  Profile card's corner: "Fastest", said "Fastest · Lowest"). */
+  spoken?: Record<number, string>;
   /** Rows in sight, odd: three in the Profile card's corner. */
   shown?: number;
   /** Over the side view, in its corner (AltitudeProfile): clear glass, the
@@ -75,7 +78,7 @@ export default function AltitudeWheel({ altitudes, value, onChange, names = {}, 
     <div
       role="slider" tabIndex={0} aria-label="Cruise altitude" aria-orientation="vertical"
       aria-valuemin={altitudes.at(-1)} aria-valuemax={altitudes[0]} aria-valuenow={value}
-      aria-valuetext={`${feet(value)} feet${names[value] ? `, ${names[value]}` : ""}`}
+      aria-valuetext={`${feet(value)} feet${spoken[value] ? `, ${spoken[value]}` : ""}`}
       onKeyDown={step}
       className={cn(
         "relative shrink-0 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring",

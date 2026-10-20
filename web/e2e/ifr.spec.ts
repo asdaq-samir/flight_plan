@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { slow, settle, openTab, openSection, controlsInSight, openNavLog, closeNavLog } from "./helpers";
+import { slow, settle, openTab, openSection, controlsInSight, openNavLog, closeNavLog, closeCard } from "./helpers";
 
 /**
  * Planning under IFR (the planner's vfr.ifr): the flight rules are the
@@ -32,7 +32,7 @@ test("under IFR the altitude is chosen from the minimum IFR altitude by directio
   await rules.getByRole("radio", { name: "IFR" }).click();
   await expect.poll(() => asked.at(-1)).toBe("ifr");
   // Put away to read the chip beside the airplane, which the card covers.
-  await page.getByTestId("profile-close").click();
+  await closeCard(page, "profile-close");
   await expect(popover).toBeHidden();
   await expect(page.getByTestId("ifr-flag")).toBeVisible();
   // The re-plan's altitude: whole thousands, west of north out of C81
@@ -47,7 +47,7 @@ test("under IFR the altitude is chosen from the minimum IFR altitude by directio
   await popover.getByText("How the altitude was chosen").click();
   await popover.getByRole("button", { name: /Minimum IFR altitude/ }).click();
   await expect(popover).toContainText("14 CFR 91.177");
-  await page.getByTestId("profile-close").click();
+  await closeCard(page, "profile-close");
   await expect(page.getByTestId("navlog-fuel")).toBeVisible({ timeout: slow(60000) });
   await openSection(page, "Fuel");
   await expect(page.getByTestId("fuel-detail")).toContainText("45 min IFR reserve (14 CFR 91.167)", { timeout: slow(60000) });
@@ -95,7 +95,7 @@ test("under IFR an airway in the route is flown fix by fix, its published MEA th
   await popover.getByText("How the altitude was chosen").click();
   await popover.getByRole("button", { name: /Minimum IFR altitude/ }).click();
   await expect(popover).toContainText(/Along V191 from BAE the published MEA, [\d,]+ ft/);
-  await page.getByTestId("profile-close").click();
+  await closeCard(page, "profile-close");
 
   // The flight plan's form (FAA Form 7233-4): the airway between the
   // fixes it is joined and left at, the departure and the arrival picked
