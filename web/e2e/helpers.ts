@@ -437,13 +437,15 @@ export async function openNavLog(page: Page) {
   return sheet;
 }
 
-/** The side view, a card over FPL from its button beside the nav log's
- *  (the owner's "profile view can move next to the navlog button and open
- *  like brief and navlog opens instead of the swipe"). */
+/** The side view, a card over FPL, with the altitude's wheel in its
+ *  corner: opened from the altitude's button beside the airplane (the
+ *  owner, 2026-10-20: "we won't need a separate profile button"). */
 export async function openProfile(page: Page) {
   await openPanel(page);
   const card = page.getByTestId("profile-card");
-  if (!(await card.isVisible())) await sideDrawer(page).getByTestId("route-profile").click({ timeout: slow(60_000) });
+  // Opened from the altitude's button beside the airplane: the Profile
+  // card has no button of its own beside the nav log's.
+  if (!(await card.isVisible())) await sideDrawer(page).getByTestId("altitude-why").click({ timeout: slow(60_000) });
   await expect(card).toBeVisible();
   return card;
 }

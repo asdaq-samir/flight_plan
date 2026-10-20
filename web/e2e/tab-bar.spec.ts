@@ -139,7 +139,7 @@ test("the side view is a card of its own, Profile, from its button beside the na
     await grabberTo(page, height);
     await expect(panel.getByTestId("flight-line")).toBeVisible({ timeout: slow(30000) });
     await expect(panel.getByTestId("mini-profile")).toHaveCount(0);
-    await panel.getByTestId("route-profile").click();
+    await panel.getByTestId("altitude-why").click();
     // At the height FPL was, the route's name under the card's, the side
     // view over the figures.
     await expect(panel).toHaveAttribute("data-panel", height);

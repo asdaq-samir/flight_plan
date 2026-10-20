@@ -17,14 +17,21 @@ const feet = (ft: number) => ft.toLocaleString("en-US");
  * tap on a row brings it to the middle. To VoiceOver and the keyboard a
  * slider: up and down step one altitude, as an adjustable control does.
  */
-export default function AltitudeWheel({ altitudes, value, onChange, names = {} }: {
+export default function AltitudeWheel({ altitudes, value, onChange, names = {}, shown = SHOWN, glass = false }: {
   /** Highest first. */
   altitudes: number[];
   value: number;
   onChange: (altitude: number) => void;
   /** A plan's name for an altitude it flies ("Fastest"). */
   names?: Record<number, string>;
+  /** Rows in sight, odd: three in the Profile card's corner. */
+  shown?: number;
+  /** Over the side view, in its corner (AltitudeProfile): clear glass, the
+   *  graph showing through it, at the owner's ask ("make it glass so that
+   *  the background is also visible"). */
+  glass?: boolean;
 }) {
+  const above = (shown - 1) / 2;
   const scroller = useRef<HTMLDivElement>(null);
   const index = Math.max(0, altitudes.indexOf(value));
   // Where it was last put by a scroll, so a value that came from the
@@ -70,16 +77,19 @@ export default function AltitudeWheel({ altitudes, value, onChange, names = {} }
       aria-valuemin={altitudes.at(-1)} aria-valuemax={altitudes[0]} aria-valuenow={value}
       aria-valuetext={`${feet(value)} feet${names[value] ? `, ${names[value]}` : ""}`}
       onKeyDown={step}
-      className="relative w-28 shrink-0 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      style={{ height: ROW * SHOWN }}
+      className={cn(
+        "relative shrink-0 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        glass ? "w-24 bg-background/35 shadow-sm ring-1 ring-foreground/10 backdrop-blur-[3px]" : "w-28",
+      )}
+      style={{ height: ROW * shown }}
       data-testid="altitude-wheel"
     >
       {/* The middle band, as iOS's picker marks the row picked. */}
-      <div aria-hidden="true" className="pointer-events-none absolute inset-x-1 rounded-lg bg-foreground/8" style={{ top: ROW * 2, height: ROW }} />
+      <div aria-hidden="true" className="pointer-events-none absolute inset-x-1 rounded-lg bg-foreground/8" style={{ top: ROW * above, height: ROW }} />
       <div
         ref={scroller} onScroll={onScroll} aria-hidden="true"
         className="h-full snap-y snap-mandatory overflow-y-auto overscroll-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-        style={{ paddingBlock: ROW * 2 }}
+        style={{ paddingBlock: ROW * above }}
       >
         {altitudes.map((altitude, i) => {
           const on = altitude === value;
@@ -93,11 +103,13 @@ export default function AltitudeWheel({ altitudes, value, onChange, names = {} }
               style={{ height: ROW }}
               data-testid="altitude-wheel-row" data-altitude={altitude}
             >
-              <span className={cn("tabular-nums", on ? cn("font-semibold text-foreground", TEXT.row) : cn("text-muted-foreground", TEXT.detail))}>
+              {/* On glass, the text's colour throughout: the muted grey over
+                  whatever the graph has under it would not read. */}
+              <span className={cn("tabular-nums", on ? cn("font-semibold text-foreground", TEXT.row) : cn(glass ? "text-foreground" : "text-muted-foreground", TEXT.detail))}>
                 {feet(altitude)}
               </span>
               {names[altitude] && (
-                <span className={cn("font-semibold", TEXT.note, on ? "text-tint" : "text-muted-foreground")}>{names[altitude]}</span>
+                <span className={cn("max-w-full truncate px-1 font-semibold", TEXT.note, on ? "text-tint" : glass ? "text-foreground" : "text-muted-foreground")}>{names[altitude]}</span>
               )}
             </button>
           );
