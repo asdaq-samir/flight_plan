@@ -1,7 +1,7 @@
 import { Suspense, lazy, memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type ComponentType } from "react";
 import { flushSync } from "react-dom";
 import { useQueries, useQuery } from "@tanstack/react-query";
-import { Play, ClipboardList, ListOrdered, MapPin, Plane, Route, TowerControl } from "lucide-react";
+import { Play, ClipboardList, ListOrdered, MapPin, Mountain, Plane, Route, TowerControl } from "lucide-react";
 import { legOf, navLogRows, TURNAROUND_MIN } from "./components/navlog/rows";
 import { fromChunk } from "../../lib/fromChunk";
 import { cn } from "cn";
@@ -53,7 +53,7 @@ import AirportPill from "./components/AirportPill";
 import FplStrip from "./components/FplStrip";
 import { RecentRoutesPage } from "./components/RecentRoutes";
 import MiniProfile from "./components/navlog/MiniProfile";
-import FootPager from "./components/FootPager";
+import ProfileCard from "./components/ProfileCard";
 import { dryRunOf, type DryRun } from "./components/navlog/dryRun";
 import FixCard, { type OpenFix } from "./components/FixCard";
 import { DirectStrip } from "./components/PointControls";
@@ -189,13 +189,6 @@ const PLANNER_TABS: BarTab<PanelTab>[] = [
   // ("make it 4 tabs, combining the nearest into airport").
 ];
 
-/** The address with a field's ident changed everywhere it is named: the
- *  route's ends, its traffic patterns, its procedures and its points'
- *  altitudes, so a pick made under "ORD" stays with KORD. */
-/** FPL's route list's place in the nav log's view while it is at the
- *  sheet's foot (PlanWorkspace's listAtFoot): nothing, the list there. */
-const ROUTE_AT_FOOT = <span hidden />;
-
 /** The route as the address has it, "dep|stops|dest", kept as a Direct to
  *  goes in (directToPoint) for its Cancel. */
 const routeWas = (params: URLSearchParams) => `${params.get("dep") ?? ""}|${params.get("stops") ?? ""}|${params.get("dest") ?? ""}`;
@@ -209,6 +202,9 @@ function routeBeforeDirect(params: URLSearchParams): Record<string, string | nul
   return { dep: dep || null, stops: stops || null, dest: dest || null, direct: null, was: null };
 }
 
+/** The address with a field's ident changed everywhere it is named: the
+ *  route's ends, its traffic patterns, its procedures and its points'
+ *  altitudes, so a pick made under "ORD" stays with KORD. */
 function renamed(params: URLSearchParams, from: string, to: string): URLSearchParams {
   const swap = (ident: string) => (ident === from ? to : ident);
   return patched(params, {
@@ -664,6 +660,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // The nav log's own sheet, from the route's box's Nav log button, where
   // FPL shows the route in order (NavLogView's `route`).
   const [navLogOpen, setNavLogOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
   // The procedure on its own page in the Procedures, drawn on the map and
   // brought in above the sheet before it is added to the route, as
   // ForeFlight's Procedure Advisor previews one (the owner's pick); the
@@ -1029,6 +1026,8 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const briefShown = briefOpen && tab === "fpl" && routed;
   // The nav log, a card over FPL as the Brief is (NavLogView's cardHead).
   const navLogShown = navLogOpen && tab === "fpl" && routed && !briefShown;
+  // The side view, a card over FPL as the nav log is (ProfileCard).
+  const profileShown = profileOpen && tab === "fpl" && routed && !briefShown && !navLogShown;
   // Airport's pill's NEAREST strip: the list's own question, shared, asked
   // while the strip is in sight.
   // Airport's strip in sight, at the pill or all the way up.
@@ -1073,9 +1072,19 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // height it had (closeCard).
   const openNavLogCard = useCallback(() => {
     setNavLogOpen(true);
+    setProfileOpen(false);
     if (panel !== "full") setPanel("half");
   }, [panel, setPanel]);
   const closeNavLogCard = useCallback(() => closeCard(() => setNavLogOpen(false)), [closeCard]);
+  // The side view the same way, from its button beside the nav log's, at
+  // the owner's ask ("profile view can move next to the navlog button and
+  // open like brief and navlog opens instead of the swipe").
+  const openProfileCard = useCallback(() => {
+    setProfileOpen(true);
+    setNavLogOpen(false);
+    if (panel !== "full") setPanel("half");
+  }, [panel, setPanel]);
+  const closeProfileCard = useCallback(() => closeCard(() => setProfileOpen(false)), [closeCard]);
   // The legs asked for from the Brief: FPL all the way up in its place.
   const showLegs = useCallback(() => {
     setSearchParams(prev => {
@@ -1469,13 +1478,11 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     usePastFlight.setState(p => (p.points === dryRun.points ? p
       : { points: dryRun.points, at: p.at === null ? dryRun.points[0]!.t : Math.min(p.at, dryRun.points.at(-1)!.t) }));
   }, [dryRun]);
-  // The half card's page at its foot (FootPager): the route's list as the
-  // sheet arrives half way, the side view while a dry run plays and once
-  // it stops.
-  const [footPage, setFootPage] = useState(0);
+  // Started from the side view's card, which is put away for the run at
+  // the sheet's foot, the route over it.
   const startDryRun = () => {
     if (!course) return;
-    setFootPage(1);
+    setProfileOpen(false);
     // The procedures picked flown, as the legs are planned by them: out by
     // a departure, in by an arrival and an approach.
     const from = Math.round((depart ? Date.parse(depart) : Date.now()) / 1000);
@@ -1503,35 +1510,12 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const stopDryRun = () => {
     setRunFrom(null);
     clearPastFlight();
-    setFootPage(1);
+    setProfileOpen(true);
   };
   // The route in order in FPL, the nav log's place: its fields with their
   // runways and procedures, and the tops of climb and descent and the
   // fixes flown through, by the nav log's rows.
   const routeRows = useMemo(() => navLogRows(course, s.logSelected, s.legs), [course, s.logSelected, s.legs]);
-  // Half way on a phone the route's list in the side view's place at the
-  // sheet's foot, the side view a swipe to the left (FootPager); all the
-  // way up, the list over the side view as before, at the owner's ask.
-  // While a finger drags the sheet, the list is in the body as all the
-  // way up, so it comes up with the drag as the other tabs' content does,
-  // at the owner's ask ("When dragging up the fpl, it goes up first and
-  // then the content goes up"): at the foot it stayed put until the sheet
-  // came to rest, then jumped.
-  const sheetDragging = usePanelDragging(d => d.dragging);
-  const listAtFoot = isMobile && panel !== "full" && !sheetDragging && !navLogShown;
-  // Brought down from all the way up, where the side view sat under the
-  // list: it slides off to the right as the list takes its place, at the
-  // owner's ask, so it is known to be a swipe away (FootPager's introFrom).
-  const [cameFromFull, setCameFromFull] = useState(false);
-  const [lastPanel, setLastPanel] = useState(panel);
-  if (panel !== lastPanel) {
-    setLastPanel(panel);
-    setCameFromFull(lastPanel === "full");
-    // Arriving half way, from the pill or from all the way up, the route's
-    // list it shows (the owner's "Swiping down shows profile", "Swiping up
-    // from pill lands at profile view?"): the side view is a swipe away.
-    if (panel === "half") setFootPage(0);
-  }
   // The route's airports' airspace classes, as the course came with them:
   // the pills coloured the moment it is in.
   // Each made again only when what it reads changes, as the box is drawn
@@ -1579,7 +1563,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       // In sight all the way up, the Brief not over it: a row picked is
       // brought into sight as it comes back.
       drawerOpen={drawerOpen && !briefShown} dryRun={dryRunning}
-      route={navLogShown ? undefined : listAtFoot ? ROUTE_AT_FOOT : routeList} navLogOpen={false}
+      route={navLogShown ? undefined : routeList} navLogOpen={false}
       cardHead={navLogShown ? (
         <CardHead
           name="Nav log" line={routeName(planned.dep, planned.dest, planned.stops)} nameTestId="navlog-name"
@@ -1606,7 +1590,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   ), [s.totals, s.descriptionError, s.nav, s.legs, depart, planned.dep, planned.dest, course, s.logSelected, s.descriptions, s.saveDescription,
     s.generateDescriptions, descriptionsLoading, descriptionsPaywall, descriptionsHidden, selectedPoint, selectPointAt, deselectPoint, drawerOpen, aircraft.label,
     marks, tabContent, s.briefing, s.local, landedStops, s.langgraphNarrative, s.crewaiNarrative, unflyableBrief, kneeboardLater, metarColour, dryRunning, briefShown,
-    routeList, listAtFoot, navLogShown, closeNavLogCard, planned.stops]);
+    routeList, navLogShown, closeNavLogCard, planned.stops]);
   // The Brief's pages (BriefCard): En route's without the legs, which are
   // FPL's own; and its warnings over them.
   const briefContents = useMemo(() => ({
@@ -1716,7 +1700,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // The open card's name for the bar over it: an airport's ident, the
   // airspace at a point, an airplane's callsign (its card's, useCardTitle).
   const flightTitle = useCardTitle(t => t.title);
-  const cardTitle = place ?? (heldPoint ? "Airspace" : flight ? flightTitle ?? undefined : briefShown ? "Brief" : navLogShown ? "Nav log" : undefined);
+  const cardTitle = place ?? (heldPoint ? "Airspace" : flight ? flightTitle ?? undefined : briefShown ? "Brief" : navLogShown ? "Nav log" : profileShown ? "Profile" : undefined);
   // The airport's card: all the way up in the panel's body; at the pill's
   // size its summary, the pill's own (`summary`), as a tap on the map opens
   // it, at the owner's pick of the redesign.
@@ -1742,11 +1726,11 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     return () => clearTimeout(id);
   }, [dryRunReady]);
   const miniProfile = routed && course && !local
-    ? <MiniProfile ends={course} selected={selected} legs={s.legs} onOpen={panel === "full" ? undefined : () => setPanel("full")} /> : null;
+    ? <MiniProfile ends={course} selected={selected} legs={s.legs} /> : null;
   // The side view with its dry run at its top right: the flight flown on
   // paper.
   const sideView = (
-    <div className="relative h-full pb-2">
+    <div className="relative h-full min-h-0 flex-1 pb-2">
       {miniProfile}
       <RoundButton label="Dry run" onClick={startDryRun} disabled={!dryRunReady} className="absolute top-1.5 right-1.5" data-testid="dry-run-start">
         <Play className="size-5" />
@@ -1802,6 +1786,14 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
         {routed && (
           <RoundButton label="Nav log" onClick={openNavLogCard} disabled={!course} data-testid="route-navlog">
             <ListOrdered className="size-5" strokeWidth={2} />
+          </RoundButton>
+        )}
+        {/* The side view, a card as the nav log is (ProfileCard), beside
+            its button, at the owner's ask: it was a swipe from the route's
+            list at the sheet's foot. */}
+        {routed && !s.local && (
+          <RoundButton label="Profile" onClick={openProfileCard} disabled={!course} data-testid="route-profile">
+            <Mountain className="size-5" strokeWidth={2} />
           </RoundButton>
         )}
         {shareMenu("end")}
@@ -1965,7 +1957,10 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
         )}
         {/* FPL's nav log once there is a route, at the pilot's ask: the
             empty box alone before. */}
-        <div className={cn("flex min-h-0 flex-1 flex-col print:flex", (tab !== "fpl" || place || heldPoint || savedOpen || briefShown || !hasPoints) && "hidden")}>{navLog}</div>
+        {profileShown && !savedOpen && !place && !heldPoint && (
+          <ProfileCard line={routeName(planned.dep, planned.dest, planned.stops)} onClose={closeProfileCard}>{sideView}</ProfileCard>
+        )}
+        <div className={cn("flex min-h-0 flex-1 flex-col print:flex", (tab !== "fpl" || place || heldPoint || savedOpen || briefShown || profileShown || !hasPoints) && "hidden")}>{navLog}</div>
       </>
     ),
     // The tab's head: FPL's the route's box (`route`, below); the others'
@@ -1973,7 +1968,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     head: tab === "fpl" ? undefined : tab === "aircraft" ? aircraftField : nearOpen ? nearField : searchField,
     // A card over the tab: its card alone, the tab's head gone while it is
     // open, at the pilot's ask.
-    alone: cardOpen || briefShown || navLogShown,
+    alone: cardOpen || briefShown || navLogShown || profileShown,
     // An airport's or a point's card over another tab -- a field tapped on
     // the route from FPL -- its bar the card's kind and Back to the tab, at
     // the owner's ask ("unless going from another tab ... the back button
@@ -1981,7 +1976,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     // Any card, an airplane's too, its bar its name with Back and the close,
     // at the owner's ask ("For the airport card it should replace tabs with
     // a back close button and title as the airport id").
-    cardOver: cardOpen || briefShown || navLogShown,
+    cardOver: cardOpen || briefShown || navLogShown || profileShown,
     toEdge: !!place,
     // The planner's tabs, the panel's first row, and at rest the pill
     // itself, at the pilot's ask: no search bar or route under them
@@ -2012,43 +2007,17 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       // Its own 16 at the sides under the nav log's card, whose foot
       // MapPanel leaves bare for a card's summary to set (cardInPill): the
       // side view's figures sat 8 from the edge there (the iOS audit's P18).
-      <div className={cn("flex min-h-0 w-full flex-col", navLogShown && "px-4")}>
-        {/* The side view pinned over the figures at every height out of the
-            pill, the nav log scrolling over it all the way up, the one side
-            view on screen, at the owner's asks ("I think we should keep the
-            profile at the bottom as you pull up the scrollable navlog";
-            "let's cleanup the clutter with redesign"): it folded away there
-            into the nav log's own Profile, which is now on paper only. Its
-            dry run plays in its place, all the way up too. There the two take
-            a fifth of the screen at most, so a short one keeps rows of the
-            log to read, and the side view none under 560 points (a phone on
-            its side), where the card's head over the log leaves it no room:
-            pinned there, it left the log none at all. It is there half way. */}
-        {dryRunning ? (
+      <div className={cn("flex min-h-0 w-full flex-col", (navLogShown || profileShown) && "px-4")}>
+        {/* A dry run's chart over the figures at every height out of the
+            pill, still as the sheet is dragged, the route's list coming out
+            over it; all the way up the two take a fifth of the screen at
+            most. The side view itself is a card of its own (ProfileCard),
+            at the owner's ask, where it was pinned here. */}
+        {dryRunning && (
           // Clipped to its box, as the side view's is: shrinking with the
           // sheet to the pill, the chart was drawn over the figures under it
           // (the owner's recording).
           <div className={cn("flex min-h-0 flex-col overflow-hidden pb-2", panel === "full" ? "h-[min(10rem,20dvh)] min-h-24 flex-none" : "h-40 shrink")} data-pill-hides=""><Suspense fallback={null}><DryRunControls run={dryRunning} ends={course} onClose={stopDryRun} missed={goMissed} onMissed={goMissedNow} /></Suspense></div>
-        ) : miniProfile && (
-          <div
-            // All the half sheet leaves it, at the owner's ask ("make the
-            // profile view taller within fpl"): asking for ten rem, it gives
-            // way to what the sheet has, the chart drawn to that, the figures
-            // under it kept whole. It was six rem at most. Eight points
-            // between it and the figures, as a dry run's chart has, at the
-            // owner's ask ("small space between profile calculations").
-            className={cn("min-h-0 shrink overflow-hidden [&_[data-testid=mini-profile]]:h-full", panel === "full" ? "h-[min(10rem,20dvh)] [@media(max-height:560px)]:hidden" : "h-40")} data-pill-hides=""
-          >
-            {listAtFoot ? (
-              <FootPager
-                testId="foot-pager" page={footPage} onPage={setFootPage} introFrom={cameFromFull ? 1 : undefined}
-                pages={[
-                  { label: "Route", node: <div className="pt-1">{routeList}</div> },
-                  { label: "Side view", node: sideView },
-                ]}
-              />
-            ) : sideView}
-          </div>
         )}
         {dryRunning ? (
           <Suspense fallback={null}>
