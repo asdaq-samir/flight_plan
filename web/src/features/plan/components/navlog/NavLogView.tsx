@@ -368,7 +368,7 @@ export default function NavLogView({
   // Its winds past their forecast's period, as a plan for "now" left open
   // all day is: planned at 08:00, it flew 08:00's winds at 14:00 and did
   // not say so (the audit's finding).
-  const windsOld = windsOutOfDate(totals, useMinuteClock());
+  const windsOld = windsOutOfDate(totals, useMinuteClock(), depart);
   // The other tabs' code fetched while nothing else is, once the log is
   // in, so the first opening of each draws rather than downloads: the
   // weight and balance envelope was 0.4 s of the Performance tab's first.
@@ -855,7 +855,9 @@ export default function NavLogView({
         {nav && cloudsUnplaced && (
           <ListRow
             title={<span className="text-destructive">Too low for VFR under the clouds near {nav.altitude_selection.cloud_station}</span>}
-            description="No altitude keeps 500 ft below the forecast clouds there"
+            // 91.155(a): 1,000 ft below at or above 10,000 ft MSL, as the
+            // planner keeps it (vfr.altitude) and the reasoning says it.
+            description={`No altitude keeps ${(nav.altitude_selection.cloud_ceiling_ft ?? 0) >= 10_000 ? "1,000" : "500"} ft below the forecast clouds there`}
           />
         )}
       </ListGroup>

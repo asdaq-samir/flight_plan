@@ -298,6 +298,13 @@ test("a stop is left again at the time picked on its Depart step, 30 minutes aft
   await page.getByTestId("depart-time").fill(hhmm(planned));
   await page.getByTestId("depart-done").click();
   await expect(page).not.toHaveURL(/ground=/);
+  // Before it lands: brought to the landing, and said so where it was
+  // picked (the audit's finding: it snapped back silently).
+  await leaves.click();
+  await page.getByTestId("depart-time").fill(hhmm(planned - 60));
+  await expect(page.getByTestId("depart-range")).toContainText("From landing");
+  await page.getByTestId("depart-done").click();
+  await expect(page).toHaveURL(/ground=KMSN%3A0|ground=KMSN:0/);
 });
 
 test("every point's row ends in its time over its altitude and a menu: an airport's elevation until set, Direct to skipping the route before it, and Cancel giving it back", async ({ page }) => {
@@ -316,7 +323,8 @@ test("every point's row ends in its time over its altitude and a menu: an airpor
   // Madison's field elevation (887 ft, NASR), not a figure the pilot set,
   // under its time.
   await expect(altitude).toHaveAttribute("data-kind", "elev", { timeout: slow(30_000) });
-  await expect(altitude).toHaveText(/^\d{3} elev$|^\d,\d{3} elev$/);
+  await expect(altitude).toHaveText(/^(\d{3}|\d,\d{3}) elev/);
+  await expect(altitude.locator(".sr-only")).toHaveText(/ft, field elevation$/);
   await expect(madison.getByTestId("point-figures")).toContainText(/^\d\d:\d\d/);
   // No Direct to where the flight starts, nor on the stop's leaving again.
   for (const name of ["C81 · Depart", "KMSN · Depart"]) {
@@ -332,7 +340,7 @@ test("every point's row ends in its time over its altitude and a menu: an airpor
   await page.getByTestId("point-altitude-input").fill("2600");
   await page.getByTestId("point-altitude-set").click();
   await expect(page).toHaveURL(/[?&]altitudes=KMSN(%3A|:)2600(&|$)/);
-  await expect(altitude).toHaveText("2,600 set");
+  await expect(altitude).toContainText("2,600 set");
 
   // Direct to Duluth with no position: from the departure, Madison
   // skipped; the route as it was kept for Cancel.

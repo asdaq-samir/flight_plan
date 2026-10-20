@@ -21,6 +21,7 @@ import { TEXT } from "../../../lib/text";
 import { altFt, bearing, grouped } from "../../../lib/units";
 import { endFit, type EndFit } from "../../../lib/runwayFit";
 import { frdOf, isPosition } from "../../../lib/identSchema";
+import { useOwnShip } from "../../../lib/map/ownShip";
 import { etaAt } from "../format";
 import { PointMark } from "./navlog/PointMark";
 import FixBranch from "./FixBranch";
@@ -112,7 +113,7 @@ export type ProceduresAt = { ident: string; kind: Kind } | null;
 export default function ProceduresRoute({
   airports, rows, depart, weather, picked, onPick, onPreselect, takeoffs, onTakeoff, fit = null, onCharts, chartsDisabled, procedures, inRoute, onProcedures, onPreview, at, onAt,
   crossings = NO_CROSSINGS, onFix, onDepart, ground, onGround, pointAltitude, onPointAltitude, directTo = null, onDirectTo, onInfo, onRemove,
-  onCreateFix, holds = NO_HOLDS, onHoldSet, askHold = null,
+  onCreateFix, holds = NO_HOLDS, onHoldSet, askHold = null, routePoints, stopsFull = false,
 }: {
   airports: ProcedureAirport[];
   /** The route's rows as the nav log has them (navLogRows), for its
@@ -188,6 +189,13 @@ export default function ProceduresRoute({
    *  and when, AirspaceCard's Hold here): its sheet opened once the plan
    *  has the leg to the point, for the course flown to it. */
   askHold?: string | null;
+  /** The route's points as the address has them, the departure first:
+   *  a row not among them -- a fix along an airway typed as V100 -- has no
+   *  Direct to, Remove or Create a fix, which work on the typed points
+   *  (the audit's finding: they did nothing there, or the wrong thing). */
+  routePoints?: string[];
+  /** As many stops as the planner takes (MAX_STOPS): no Create a fix. */
+  stopsFull?: boolean;
 }) {
   // The procedure on its own page in the sheet, over its kind's list.
   const [page, setPage] = useState<{ at: ProceduresAt; procedure: ProcedureSummary } | null>(null);
@@ -211,6 +219,9 @@ export default function ProceduresRoute({
   if (fixFrom !== null && !fixFromUsed) setFixFromUsed(true);
   if (holdAt !== null && !holdUsed) setHoldUsed(true);
   const holdOn = (ident: string) => holds.find(h => sameField(h.fix, ident)) ?? null;
+  // Where the airplane is known (own ship, or the dry run's): Direct to
+  // goes from there.
+  const positioned = useOwnShip(s => s.enabled && !!s.fix);
   const [answered, setAnswered] = useState<string | null>(null);
   if (askHold && askHold !== answered && onHoldSet) {
     const fix = askHold.slice(0, askHold.lastIndexOf("@"));
@@ -426,19 +437,23 @@ export default function ProceduresRoute({
     const own = altitude?.own ? altitude.feet : null;
     const shown = own ?? (at.waypoint ? altitude?.feet ?? null : at.elevationFt);
     const direct = directTo !== null && sameField(directTo, ident);
+    const typed = !routePoints || routePoints.some(p => sameField(p, ident));
+    // Direct to a round trip's end on the ground, with no position, is from
+    // the field to itself: a local flight, not a direct (the audit's).
+    const homeward = !!routePoints && routePoints.length > 1 && sameField(routePoints[0]!, ident) && !positioned;
     return {
       direct,
       figures: <PointFigures time={at.time} altitude={shown === null ? null : altFt(shown)} kind={own !== null ? "set" : at.waypoint ? "cruise" : "elev"} />,
       menu: (
         <PointMenu
           ident={ident} direct={direct}
-          onDirect={at.to && onDirectTo ? () => onDirectTo(direct ? null : ident) : undefined}
+          onDirect={at.to && typed && !homeward && onDirectTo ? () => onDirectTo(direct ? null : ident) : undefined}
           onAltitude={at.to && altitude && onPointAltitude ? () => setEditing({ ident, waypoint: at.waypoint, altitude, elevationFt: at.elevationFt }) : undefined}
           // An airport's card; a waypoint's is the chart's popup.
           onInfo={onInfo && !at.waypoint ? () => onInfo(ident) : undefined}
           // Off a fix, a navaid or an airport by its ident: not off the
           // pilot's own point, nor a present position.
-          onFix={onCreateFix && /^[A-Z0-9]{2,5}$/.test(ident) ? () => setFixFrom(ident) : undefined}
+          onFix={onCreateFix && typed && !stopsFull && /^[A-Z0-9]{2,5}$/.test(ident) ? () => setFixFrom(ident) : undefined}
           // Held over a point flown over, or before landing at the end:
           // not over a field landed at on the way, where it is left again.
           held={!!holdOn(ident)}
@@ -450,7 +465,7 @@ export default function ProceduresRoute({
               arrivalDeg: leg ? (((leg.true_course_deg - leg.magnetic_variation_deg) % 360) + 360) % 360 : null,
             });
           } : undefined}
-          onRemove={at.stop && onRemove ? () => onRemove(ident) : undefined}
+          onRemove={at.stop && typed && onRemove ? () => onRemove(ident) : undefined}
         />
       ),
     };
@@ -571,7 +586,10 @@ export default function ProceduresRoute({
     const leaves = landsMs === null ? null : onGround ? (
       <DepartPicker
         value={new Date(landsMs + onGroundMin * 60_000).toISOString()} look="time" label={`Departure from ${a.ident}`} testId={`depart-date-${a.ident}`} leavesNow={false}
-        onChange={iso => { if (iso) onGround(a.ident, Math.max(0, Math.round((Date.parse(iso) - landsMs) / 60_000))); }}
+        // From landing to a day after, as the planner takes a stop's time
+        // on the ground (PlanQuery.own_ground).
+        earliest={landsMs} latest={landsMs + DAY_MIN * 60_000}
+        onChange={iso => { if (iso) onGround(a.ident, Math.min(DAY_MIN, Math.max(0, Math.round((Date.parse(iso) - landsMs) / 60_000)))); }}
       />
     ) : etaAt(depart || new Date().toISOString(), flownTo! + onGroundMin);
     return [
@@ -706,6 +724,8 @@ function FieldDot({ last }: { last: boolean }) {
 }
 
 const NO_HOLDS: Hold[] = [];
+/** A day, min: the longest time on the ground at a stop the planner takes. */
+const DAY_MIN = 24 * 60;
 
 /**
  * A hold the pilot put at a point (HoldSheet), its own row after it: a
@@ -723,7 +743,8 @@ function HoldRow({ hold, flown, last, onOpen }: { hold: Hold; flown: LegHold | n
         </svg>
       </div>
       <button
-        type="button" onClick={onOpen} aria-label={`Hold at ${hold.fix}: ${holdWords(hold)}: change`}
+        type="button" onClick={onOpen}
+        aria-label={`Hold at ${hold.fix}: ${holdWords(hold)}${flown ? `, ${flown.entry} entry, ${Math.round(flown.minutes)} minutes more` : ""}: change`}
         className="mb-4 flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-xl bg-tint/8 px-2.5 py-1.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <span className="flex min-w-0 flex-1 flex-col">

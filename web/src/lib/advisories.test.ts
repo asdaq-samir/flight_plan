@@ -21,6 +21,14 @@ describe("advisories in words", () => {
     expect(tfrAltitudes({ floor_ft: 0, floor_ref: "MSL", ceiling_ft: 10000, ceiling_ref: "MSL" })).toBe("Surface to 10,000 ft MSL");
     expect(tfrAltitudes({ floor_ft: 0, floor_ref: "AGL", ceiling_ft: 400, ceiling_ref: "AGL" })).toBe("Surface to 400 ft AGL");
     expect(tfrTimes({ effective: null, expires: null })).toBeNull();
+    // In the test's own zone, as date-fns wrote them.
+    const at = (iso: string) => new Date(iso);
+    const local = (d: Date) => `${["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][d.getDay()]} ${d.getDate()} ${
+      ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][d.getMonth()]} ${
+      String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+    expect(tfrTimes({ effective: "2026-10-06T18:00:00", expires: "2026-10-06T20:00:00" })).toBe(`${local(at("2026-10-06T18:00:00"))} – 20:00`);
+    expect(tfrTimes({ effective: "2026-10-06T18:00:00", expires: "2026-10-07T00:30:00" }))
+      .toBe(`${local(at("2026-10-06T18:00:00"))} – ${local(at("2026-10-07T00:30:00"))}`);
     expect(tfrTimes({ effective: "2026-10-01T16:00:00Z", expires: null })).toMatch(/^From .* until further notice$/);
   });
 });

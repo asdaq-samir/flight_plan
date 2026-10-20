@@ -83,6 +83,12 @@ class PlanQuery:
     #: The stops landed at on the way, in order: "KDSM,KLNK".
     stops: str = ""
     altitude_ft: float | None = None
+    #: `altitude_ft` was picked on the altitude wheel: flown on each leg
+    #: where that leg may fly it, else at the leg's own legal altitude
+    #: nearest it (14 CFR 91.159, 91.119), as the wheel's figures were
+    #: worked out -- where a typed altitude is flown on every leg, legal or
+    #: not, with its cautions.
+    altitude_nearest: bool = False
     altitude_choice: AltitudeChoice = "fastest"
     aircraft: str = DEFAULT_AIRCRAFT
     cruise_tas_kt: CruiseTas = None
@@ -153,7 +159,7 @@ class PlanQuery:
             ident, _, feet = part.partition(":")
             if not POINT_ALTITUDE.fullmatch(part) or not 0 < float(feet) <= top:
                 raise HTTPException(422, f"{part!r} is not a point's altitude: an ident and feet, as VPBNG:4500.")
-            out[ident.upper()] = float(feet)
+            out[point_key(ident)] = float(feet)
         return out
 
 
@@ -204,7 +210,7 @@ class PlanQuery:
             ident, _, minutes = part.partition(":")
             if not POINT_ALTITUDE.fullmatch(part) or not 0 <= float(minutes) <= 24 * 60:
                 raise HTTPException(422, f"{part!r} is not a stop's time on the ground: an ident and minutes, as KJVL:45.")
-            out[ident.upper()] = float(minutes)
+            out[point_key(ident)] = float(minutes)
         return out
 
     def drawn_procedures(self) -> list[tuple[str, dict]]:
@@ -229,7 +235,19 @@ class PlanQuery:
         return out
 
 
-POINT_ALTITUDE = re.compile(r"[A-Za-z0-9]{2,5}:\d{1,5}")
+#: A point of the route as the address names it: an ident, or the pilot's
+#: own point off a fix, "VPBNG/090/30" or packed "DLH090030" (vfr.fixes
+#: parse_frd) -- as the saved flight's SaveFlightRequest.POINT takes it,
+#: where an altitude set on such a point was a 422 for the whole log.
+POINT = r"(?:[A-Za-z0-9]{2,5}(?:/\d{3}/\d{1,3}(?:\.\d)?)?|[A-Za-z]{2,5}\d{6})"
+POINT_ALTITUDE = re.compile(POINT + r":\d{1,5}")
+
+
+def point_key(ident: str) -> str:
+    """A point's ident as the route has it (Route.idents): a point off a
+    fix in its one written form (vfr.fixes.frd_ident), packed or not."""
+    parts = fixes.parse_frd(ident)
+    return fixes.frd_ident(*parts) if parts else ident.upper()
 # As lib/procedures' proceduresOf reads them from the address.
 PROCEDURE_PICK = re.compile(r"[A-Za-z0-9]{2,5}:[A-Za-z0-9-]{1,6}(:[A-Za-z0-9]{1,5}|:[A-Za-z0-9]{0,5}:[A-Za-z0-9]{2,5})?")
 
@@ -326,6 +344,7 @@ class NoWinds:
 def resolve_altitude(
     r, fix_list: list, profile: dict, aircraft: str, altitude_ft: float | None, choice: AltitudeChoice,
     fcst_hr: str = "06", window: tuple | None = None, class_b_cleared: bool = False, rules: str = "vfr",
+    nearest: bool = False,
 ) -> Flown | Unflyable | NoWinds:
     """What the log flies, decided once for /api/plan and /api/navlog
     alike. It used to be a 4-tuple (selection, options, plan, failure)
@@ -337,7 +356,10 @@ def resolve_altitude(
     forecast is read over (see flight_window).
 
     The four plans are made beside a pilot's own altitude as well, as
-    what the planner would have flown."""
+    what the planner would have flown. With `nearest` (the wheel's pick)
+    the altitude is flown where each leg may fly it, else at that leg's
+    nearest legal one: the figures the wheel showed for it, and no leg
+    under its floor or on the wrong thousands for its course."""
     selection = cruise_altitude(r.start, r.end, profile, aircraft, fixes=_fixes(fix_list), fcst_hr=fcst_hr, window=window,
                                 class_b_cleared=class_b_cleared, rules=rules, airway=r.dest_airport.get("airway"))
     try:
@@ -348,6 +370,8 @@ def resolve_altitude(
     options = [AltitudeOption(kind=kind, **{k: v for k, v in plans[kind].items() if k not in ("legs", "totals")})
                for kind in navlog.PLAN_KINDS] if plans else []
     figures = tuple(AltitudeFigure(**f) for f in getattr(plans, "by_altitude", []))
+    if altitude_ft is not None and nearest and plans:
+        return Flown(selection, options, None, altitude_ft, plans.legs_at(altitude_ft), figures=figures)
     if altitude_ft is not None:
         try:
             legs = navlog.with_climbs(navlog.legs(fix_list, altitude_ft, profile, fcst_hr), departure_elevation(r), profile)
@@ -387,16 +411,24 @@ TURNAROUND_MIN = 30.0
 
 
 def hop_runs(r: Route, by_hop: list, depart: datetime | None, profile: dict,
-             ground: dict[str, float] | None = None) -> list[HopRun]:
+             ground: dict[str, float] | None = None, held: list[vfr_holds.Hold] | None = None) -> list[HopRun]:
     """Each hop of `r` ready to plan, `by_hop` its selected checkpoints.
     A hop after the first is flown when the ones before it are done, at
     cruise speed, and after the time on the ground at each stop it lands
     at (`ground`, by ident, else TURNAROUND_MIN) -- an estimate, to the
     hour its winds and forecast are read for. The first is the route's
-    own: a route without stops is planned exactly as it always was."""
+    own: a route without stops is planned exactly as it always was. A
+    hold (`held`) is flown on the hop leaving its point, so the hops after
+    it leave the later by its minutes (as with_holds puts them there); a
+    round trip's field is held at on arrival, after the last hop."""
     ground = ground or {}
     runs, elapsed_h = [], 0.0
     tas = max(profile["cruise_tas_kt"], 1.0)
+    idents = [ident.upper() for ident in r.idents]
+    holding = {}
+    for hold in held or ():
+        if hold.fix in idents[:-1] and not (hold.fix == idents[0] == idents[-1] and hold.fix not in idents[1:-1]):
+            holding[hold.fix] = holding.get(hold.fix, 0.0) + vfr_holds.held_minutes(hold, tas)
     for i, (hop, selected) in enumerate(zip(r.hops, by_hop)):
         if i == 0:
             when = depart
@@ -411,7 +443,7 @@ def hop_runs(r: Route, by_hop: list, depart: datetime | None, profile: dict,
             # judged at now, as the first's is.
             when if depart is not None or i > 0 else None,
         ))
-        elapsed_h += hop.length_nm / tas
+        elapsed_h += hop.length_nm / tas + holding.get(hop.dep_ident.upper(), 0.0) / 60
         if hop.lands and i < len(r.hops) - 1:
             elapsed_h += ground.get(hop.dest_ident.upper(), TURNAROUND_MIN) / 60
     return runs
@@ -422,7 +454,7 @@ def resolve_run(run: HopRun, profile: dict, q: "PlanQuery") -> "Flown | Unflyabl
     own = None if run.hop.lands else q.own_altitudes().get(run.hop.dest_ident)
     return resolve_altitude(
         run.hop, run.fixes, profile, q.aircraft, q.altitude_ft if own is None else own, q.altitude_choice,
-        run.fcst_hr, run.window, q.class_b_clearance, q.rules,
+        run.fcst_hr, run.window, q.class_b_clearance, q.rules, nearest=q.altitude_nearest and own is None,
     )
 
 
@@ -685,7 +717,13 @@ def with_holds(r: Route, runs: list[HopRun], outcome: Flown, held: list[vfr_hold
     hops = [[dict(leg) for leg in legs] for legs in outcome.hop_legs]
     idents = [ident.upper() for ident in r.idents]
     for hold in held:
-        at = next((k for k, ident in enumerate(idents[:-1]) if ident == hold.fix and hops[k]), None)
+        # A stop's first, then the destination's, then the departure's: a
+        # round trip's field is both ends, and a hold set at it is the
+        # arrival's -- matched as the departure, its minutes and fuel went
+        # on the first flight out and the last flight's fuel came up short.
+        at = next((k for k, ident in enumerate(idents[:-1]) if k > 0 and ident == hold.fix and hops[k]), None)
+        if at is None and idents[0] == hold.fix and idents[-1] != hold.fix and hops[0]:
+            at = 0
         if at is not None:
             leg, fix = hops[at][0], runs[at].fixes[0]
             before = hops[at - 1][-1] if at > 0 and hops[at - 1] else leg
@@ -985,7 +1023,7 @@ def plan(q: Annotated[PlanQuery, Depends()]) -> Plan:
     def work():
         scored, selected, by_hop = route_checkpoints(r) if q.checkpoints else ([], [], [[] for _ in r.hops])
         _name_waypoints(r, selected)
-        runs.extend(hop_runs(r, by_hop, q.depart, profile, q.own_ground()))
+        runs.extend(hop_runs(r, by_hop, q.depart, profile, q.own_ground(), q.own_holds()))
         return scored, selected, join_outcomes(runs, [resolve_run(run, profile, q) for run in runs])
 
     pool = ThreadPoolExecutor(max_workers=1)
@@ -1089,7 +1127,7 @@ def navlog_stream(q: Annotated[PlanQuery, Depends()]) -> StreamingResponse:
             by_hop = [[] for _ in r.hops]
 
         profile = q.profile()
-        runs = hop_runs(r, by_hop, q.depart, profile, q.own_ground())
+        runs = hop_runs(r, by_hop, q.depart, profile, q.own_ground(), q.own_holds())
 
         # Each stage's words short enough for the one line the panel gives
         # them, at the pilot's ask: what is being worked on first.

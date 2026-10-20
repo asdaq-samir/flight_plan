@@ -10068,7 +10068,7 @@
         "type": "object"
       },
       "TrafficAircraft": {
-        "description": "One airplane in the air near the point (vfr.traffic): who, where,\nhow high -- the GNSS height where it sends one, else its pressure\naltitude (`pressure_altitude`) -- its track, speed and climb, and how\nmany seconds old its position is.",
+        "description": "One airplane in the air near the point (vfr.traffic): who, where,\nhow high -- the GNSS height where it sends one, else its pressure\naltitude set on the nearest METAR's altimeter (vfr.traffic.on_altimeter),\nor as sent where none is near (`pressure_altitude`) -- its track, speed\nand climb, and how many seconds old its position is.",
         "properties": {
           "altitude_ft": {
             "anyOf": [
@@ -12418,6 +12418,16 @@
           },
           {
             "in": "query",
+            "name": "altitude_nearest",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Altitude Nearest",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
             "name": "altitude_choice",
             "required": false,
             "schema": {
@@ -12766,6 +12776,16 @@
                 }
               ],
               "title": "Altitude Ft"
+            }
+          },
+          {
+            "in": "query",
+            "name": "altitude_nearest",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Altitude Nearest",
+              "type": "boolean"
             }
           },
           {
@@ -13299,6 +13319,16 @@
                 }
               ],
               "title": "Altitude Ft"
+            }
+          },
+          {
+            "in": "query",
+            "name": "altitude_nearest",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Altitude Nearest",
+              "type": "boolean"
             }
           },
           {

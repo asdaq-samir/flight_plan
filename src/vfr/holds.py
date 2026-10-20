@@ -24,7 +24,7 @@ from . import geo
 #: Handbook, ch. 7, "Standard Rate Turns").
 STANDARD_RATE_DEG_S = 3.0
 #: The inbound leg's time with none given, min: a minute at or below
-#: 14,000 ft MSL, a minute and a half above (AIM 5-3-8 j.6).
+#: 14,000 ft MSL, a minute and a half above (AIM 5-3-8 j.4(a)).
 LEG_MIN_LOW = 1.0
 LEG_MIN_HIGH = 1.5
 LEG_MIN_CEILING_FT = 14_000
@@ -69,10 +69,14 @@ def parse(text: str) -> Hold | None:
 def entry(arrival_deg: float, inbound_deg: float, right: bool) -> str:
     """The entry an airplane arriving on `arrival_deg` (its magnetic course
     to the fix) makes into a hold whose inbound course is `inbound_deg`:
-    direct, teardrop or parallel, by the sectors of AIM 5-3-8 j.2 and its
-    figure 5-3-3 -- for right turns, within 110 degrees right and 70 left
-    of the inbound course direct, the 70 beyond that on the holding side
-    teardrop, the 110 on the other side parallel; left turns their mirror."""
+    direct, teardrop or parallel. AIM 5-3-8 j.3 (and its figure) places
+    the sectors round the fix by where the airplane comes from, cut by a
+    line 70 degrees to the holding course; arriving on a course is coming
+    from its reciprocal, so the same sectors read by the course flown, the
+    way an FMS reads them: for right turns, a course within 110 degrees
+    right and 70 left of the inbound course direct, the next 70 round
+    (110 to 180) teardrop, the 110 beyond parallel; left turns the
+    mirror."""
     rel = (arrival_deg - inbound_deg) % 360
     if not right:
         rel = (360 - rel) % 360
@@ -82,7 +86,7 @@ def entry(arrival_deg: float, inbound_deg: float, right: bool) -> str:
 
 
 def default_leg_min(altitude_ft: float | None) -> float:
-    """The inbound leg's minutes where the pilot gave none (AIM 5-3-8 j.6)."""
+    """The inbound leg's minutes where the pilot gave none (AIM 5-3-8 j.4(a))."""
     return LEG_MIN_HIGH if altitude_ft is not None and altitude_ft > LEG_MIN_CEILING_FT else LEG_MIN_LOW
 
 

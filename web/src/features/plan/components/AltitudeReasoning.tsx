@@ -417,11 +417,20 @@ export default function AltitudeReasoning({ nav, legs, plansAbove = false }: Pro
     }] : []),
     ...(s.airspace_transits.length > 0 ? [{
       key: "transits",
-      title: `A radio call on the way: ${join(s.airspace_transits.map(t => t.name))}`,
+      // Class B takes a clearance, not a call (14 CFR 91.131(a)(1)): it was
+      // headed "A radio call on the way" with the rest.
+      title: `${s.airspace_transits.some(t => t.class === "B") ? "A clearance on the way" : "A radio call on the way"}: ${
+        join(s.airspace_transits.map(t => t.name))}`,
       body: (
         <>
           Not a ceiling: {join(s.airspace_transits.map(t =>
             `${t.name} (Class ${t.class}, ${t.floor_ft_msl ? `floor ${altFt(t.floor_ft_msl)} ft` : "from the surface"}, ${t.along_track_nm} nm out, ${t.requires})`))}.
+          {s.airspace_transits.some(t => t.class === "B") && (
+            <>
+              {" "}Class B also takes a transponder with altitude reporting and ADS-B Out (14 CFR 91.131(d)), and a private
+              pilot certificate, or a student, sport or recreational pilot's endorsement for it (91.131(b)).
+            </>
+          )}
         </>
       ),
     }] : []),

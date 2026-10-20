@@ -236,12 +236,15 @@ export const api = {
     dep: string, dest: string, altitudeFt?: string, aircraft?: AircraftChoice, altitudeChoice?: AltitudeChoice,
     depart?: string, signal?: AbortSignal, stops?: string[], classBClearance?: boolean, altitudes?: string,
     checkpoints = true, rules: "vfr" | "ifr" = "vfr", alternate = "", procedures = "", crossings = "", ground = "", holds = "",
+    altitudeNearest = false,
   ): AsyncGenerator<NavLogMessage> {
     const result = await planner.GET("/api/navlog", {
       params: {
         query: {
           dep, dest, stops: stopsParam(stops),
           altitude_ft: altitudeFt ? Number(altitudeFt) : undefined,
+          // Picked on the wheel: each leg at its nearest legal altitude.
+          altitude_nearest: altitudeFt && altitudeNearest ? true : undefined,
           altitude_choice: altitudeChoice && altitudeChoice !== "fastest" ? altitudeChoice : undefined,
           aircraft: aircraft?.profile,
           cruise_tas_kt: aircraft?.cruiseTasKt,

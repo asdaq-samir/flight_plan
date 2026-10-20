@@ -403,12 +403,28 @@ def altitude_plans(
 
 def forecast_hour_for(depart: datetime | None) -> str:
     """The winds forecast period for a departure time -- now, when none
-    is given. A naive time is taken as UTC, the way the API documents."""
+    is given. A naive time is taken as UTC, the way the API documents.
+
+    The product whose own "for use" window holds the departure: each of
+    the 6-, 12- and 24-hour forecasts is to be used between the FOR USE
+    times its header gives, set by the clock, not by hours ahead (AC
+    00-45H, table 5-21). Planned at 1400Z for 2230Z, eight and a
+    half hours out, the hours-ahead rule flew the 6-hour product (for use
+    1400-2100Z) where the 12-hour one (2100-0600Z) applies. The rule by
+    hours stays where no header can be read."""
     if depart is None:
         return weather.forecast_hour(None)
     if depart.tzinfo is None:
         depart = depart.replace(tzinfo=timezone.utc)
+    for fcst_hr in ("06", "12", "24"):
+        period = weather.winds_period(fcst_hr)
+        if period and _utc(period["use_from"]) <= depart < _utc(period["use_to"]):
+            return fcst_hr
     return weather.forecast_hour((depart - datetime.now(timezone.utc)).total_seconds() / 3600)
+
+
+def _utc(text: str) -> datetime:
+    return datetime.fromisoformat(text.replace("Z", "+00:00"))
 
 
 def own_altitude_caution(selection: dict, legs: list, between: tuple[str, str]) -> dict | None:
