@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
+import { Fragment, lazy, Suspense, useEffect, useRef, useState, type ReactNode } from "react";
 import { create } from "zustand";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Check, ChevronRight, Info, Wind } from "lucide-react";
@@ -26,13 +26,18 @@ import { PointMark } from "./navlog/PointMark";
 import FixBranch from "./FixBranch";
 import DepartPicker from "./navlog/DepartPicker";
 import ProcedureMenu from "./ProcedureMenu";
-import PointAltitudeDialog, { type EditedPoint, type PointAltitude } from "./PointAltitudeDialog";
+import type { EditedPoint, PointAltitude } from "./PointAltitudeDialog";
 import { PointFigures, PointMenu } from "./PointControls";
-import FixFromDialog from "./FixFromDialog";
-import HoldSheet, { type HoldAt } from "./HoldSheet";
+import type { HoldAt } from "./HoldSheet";
 import { holdWords, type Hold } from "../../../lib/holds";
 import type { LegHold } from "../../../lib/api/types";
 import { legOf, rowPoint, TURNAROUND_MIN, type NavLogRow } from "./navlog/rows";
+
+// Opened only from a point's menu, so fetched as one first is: in the
+// first load they took it over its 1.10 MB budget (CI, 2026-10-20).
+const FixFromDialog = lazy(() => import("./FixFromDialog"));
+const PointAltitudeDialog = lazy(() => import("./PointAltitudeDialog"));
+const HoldSheet = lazy(() => import("./HoldSheet"));
 
 /** The value of a choice's "None" (no pattern, no transition): a toggle's
  *  value is a string. */
@@ -194,6 +199,13 @@ export default function ProceduresRoute({
   const [fixFrom, setFixFrom] = useState<string | null>(null);
   // The point a hold is being set at (HoldSheet).
   const [holdAt, setHoldAt] = useState<HoldAt | null>(null);
+  // Each drawn from its first opening on, so it closes as a sheet does.
+  const [editingUsed, setEditingUsed] = useState(false);
+  const [fixFromUsed, setFixFromUsed] = useState(false);
+  const [holdUsed, setHoldUsed] = useState(false);
+  if (editing !== null && !editingUsed) setEditingUsed(true);
+  if (fixFrom !== null && !fixFromUsed) setFixFromUsed(true);
+  if (holdAt !== null && !holdUsed) setHoldUsed(true);
   const holdOn = (ident: string) => holds.find(h => sameField(h.fix, ident)) ?? null;
   // What the planner made of each hold (plan.with_holds), on the leg it is
   // flown on: its entry, minutes and fuel.
@@ -605,19 +617,31 @@ export default function ProceduresRoute({
     <>
     {/* Its own popover beside the procedures' sheet's, not inside its root:
         there, on a desktop, it closed as it opened. */}
-    <HoldSheet at={holdAt} onClose={() => setHoldAt(null)} onSet={(fix, hold) => { onHoldSet?.(fix, hold); setHoldAt(null); }} />
+    {holdUsed && (
+      <Suspense fallback={null}>
+        <HoldSheet at={holdAt} onClose={() => setHoldAt(null)} onSet={(fix, hold) => { onHoldSet?.(fix, hold); setHoldAt(null); }} />
+      </Suspense>
+    )}
     <ResponsivePopover open={!!at} onOpenChange={open => { if (!open) close(); }}>
       <ResponsivePopoverAnchor asChild>
         <ol className="pt-2 pb-1" aria-label="The route" data-testid="procedures">{fieldsAlone ?? steps}</ol>
       </ResponsivePopoverAnchor>
-      <PointAltitudeDialog
-        point={editing} onClose={() => setEditing(null)}
-        onSet={(ident, feet) => { onPointAltitude?.(ident, feet); setEditing(null); }}
-      />
-      <FixFromDialog
-        from={fixFrom} onClose={() => setFixFrom(null)}
-        onCreate={ident => { if (fixFrom) onCreateFix?.(fixFrom, ident); setFixFrom(null); }}
-      />
+      {editingUsed && (
+        <Suspense fallback={null}>
+          <PointAltitudeDialog
+            point={editing} onClose={() => setEditing(null)}
+            onSet={(ident, feet) => { onPointAltitude?.(ident, feet); setEditing(null); }}
+          />
+        </Suspense>
+      )}
+      {fixFromUsed && (
+        <Suspense fallback={null}>
+          <FixFromDialog
+            from={fixFrom} onClose={() => setFixFrom(null)}
+            onCreate={ident => { if (fixFrom) onCreateFix?.(fixFrom, ident); setFixFrom(null); }}
+          />
+        </Suspense>
+      )}
       {/* On a phone a sheet that keeps its height from page to page, as
           an iOS sheet does pushing one. Half the screen (PROCEDURES_SHEET),
           the map above it in sight and clear -- no shade over it -- as a
