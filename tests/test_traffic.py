@@ -46,6 +46,9 @@ def clock(monkeypatch, tmp_path):
     monkeypatch.setattr(traffic, "_WATCHED", {})
     monkeypatch.setattr(traffic, "_WATCH_ASKED", {})
     monkeypatch.setattr(traffic, "_RECORDED", {})
+    monkeypatch.setattr(traffic, "_ELSEWHERE", {})
+    monkeypatch.setattr(traffic, "_FOLLOWED", set())
+    monkeypatch.setattr(traffic, "_FOLLOWED_READ", {"done": False})
     return clock
 
 
@@ -1034,4 +1037,32 @@ def test_a_watched_flight_is_kept_across_a_restart_and_listed_with_the_archives(
     assert [f["id"] for f in found["flights"]] == [1791800000] and found["flights"][0]["origin"] is None
     replay = traffic.past_flight("a128b9", 1791800000)
     assert replay is not None and len(replay["points"]) == 12
+
+
+def test_the_faa_radars_airplanes_are_on_the_map_and_a_followed_ones_flight_recorded(clock, monkeypatch):
+    """SWIM's terminal radar (app.swim) hears what no ADS-B network may: an
+    airplane it tracks is on the map where adsb.lol's region left it out,
+    and one whose card has been opened has its flight recorded, a point a
+    quarter minute, card open or not."""
+    wall = {"now": 1791800000.0}
+    monkeypatch.setattr(traffic, "_wall", lambda: wall["now"])
+    plane = {**traffic._aircraft(CESSNA), "hex": "a3c858", "callsign": None, "pressure_altitude": True}
+    traffic.heard_elsewhere(plane, wall["now"] - 2)
+    monkeypatch.setattr(traffic, "_region_answer", lambda region: (clock.now, []))
+    assert [p["hex"] for p in traffic.near(42.35, -88.15, 30)["aircraft"]] == ["a3c858"]
+    # Not followed: nothing recorded.
+    assert traffic._recorded("a3c858") == []
+    traffic.follow("a3c858")
+    for k in range(1, 7):
+        wall["now"] += 5
+        traffic.heard_elsewhere({**plane, "lat": 42.30 + 0.01 * k}, wall["now"])
+    # A report every five seconds, recorded every fifteen.
+    assert len(traffic._recorded("a3c858")) == 2
+    # Heard by the radar now: nothing asked of adsb.lol or ADS-B Exchange.
+    monkeypatch.setattr(traffic, "_paced", lambda url: pytest.fail("asked adsb.lol"))
+    monkeypatch.setattr(traffic, "_adsbx", lambda path, search=False: pytest.fail("asked ADS-B Exchange"))
+    traffic._watch("a3c858")
+    # Gone quiet past STALE_S: off the map.
+    wall["now"] += traffic.STALE_S + 1
+    assert traffic.near(42.35, -88.15, 30)["aircraft"] == []
 
