@@ -4,7 +4,7 @@ import { ChevronRight, TriangleAlert } from "lucide-react";
 import { cn } from "cn";
 import { Button } from "../../../../components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../../../../components/ui/collapsible";
-import { CHIP_TEXT, GLASS_BUTTON } from "../../../../components/mapChrome";
+import { PANEL_FIELD_FILL } from "../../../../components/panelField";
 import Segmented from "../../../../components/Segmented";
 import { faaWords } from "../../../../lib/advisories";
 import type { AltitudeChoice, Detour, Leg, NavLogAltitude } from "../../../../lib/api/types";
@@ -21,6 +21,8 @@ const RULES = [{ value: "vfr", label: "VFR" }, { value: "ifr", label: "IFR" }];
 const feet = (ft: number) => ft.toLocaleString("en-US");
 /** An altitude as said: feet under 18,000 ft, a flight level from there
  *  up, where altimeters are set to 29.92 (14 CFR 91.121, AIM 7-2-2). */
+/** What the empty field says, as the route box's does with no route. */
+const PLACEHOLDER = "Altitude";
 const said = (ft: number) => (ft >= 18_000 ? `FL${Math.round(ft / 100)}` : `${feet(ft)} feet`);
 
 /** The cruising altitude the log flies: the highest of its legs once they
@@ -117,9 +119,11 @@ export default function AltitudeGroup({ nav, legs, problem = false, ownAltitude 
   return (
     <div
       role="group" aria-label="Cruise altitude"
-      // Whole with no route: its "—" and the button's own disabled look say
-      // so. Half faded, its "ft" was 3.7:1 on the glass (the audit's P15).
-      className={cn("flex h-8 items-center rounded-full", GLASS_BUTTON, CHIP_TEXT)}
+      // A field as the route box is, at the owner's ask ("make the altitude
+      // input similar to route box style where profile button only shows
+      // with an altitude there"): its fill and its type, not a chip of
+      // glass; with no route its placeholder alone, as the box's.
+      className={cn("flex h-8 items-center rounded-full", PANEL_FIELD_FILL, TEXT.row)}
       data-testid="altitude-group"
     >
       {/* The field and its unit one label, a tap on "ft" the field's too,
@@ -131,10 +135,10 @@ export default function AltitudeGroup({ nav, legs, problem = false, ownAltitude 
       <label className="relative flex h-full items-center pr-1.5 after:absolute after:-inset-y-1.5 after:-left-0.5 after:right-0 after:content-['']">
         {/* "FL" before the figure, a tap on it the field's too; in the
             text's colour, the muted grey was 4.3:1 on the dark glass. */}
-        <span className="pl-2.5 text-foreground">FL</span>
+        {shown ? <span className="pl-3 text-foreground">FL</span> : <span className="pl-2" />}
         <input
           type="text" inputMode="numeric" enterKeyHint="done" autoComplete="off" disabled={disabled || !ownAltitude}
-          value={shown} placeholder="—" aria-label="Cruise altitude, flight level"
+          value={shown} placeholder={PLACEHOLDER} aria-label="Cruise altitude, flight level"
           onChange={e => setTyped(e.target.value.replace(/[^\d,]/g, "").slice(0, 6))}
           onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); fly(); (e.target as HTMLInputElement).blur(); } if (e.key === "Escape") setTyped(null); }}
           onBlur={fly}
@@ -145,18 +149,22 @@ export default function AltitudeGroup({ nav, legs, problem = false, ownAltitude 
           // As wide as its figure and the padding beside it: a fixed 4.5ch,
           // the padding inside it, cut "2,000" to "2,00" at the owner's
           // larger text (2026-10-20). Safari has no field-sizing yet.
-          style={{ width: `calc(${Math.max(3, shown.length) + 0.5}ch + 0.5rem)` }}
+          style={{ width: `calc(${Math.max(3, (shown || PLACEHOLDER).length) + 0.5}ch + 0.5rem)` }}
           data-testid="altitude-input"
         />
       </label>
-      {rules === "ifr" && <span className={cn("pr-1 font-semibold text-tint", TEXT.caption)} data-testid="ifr-flag">IFR</span>}
       {!problem && tight && <span className="mr-1 size-1.5 rounded-full bg-amber-500" aria-hidden="true" data-testid="tight-altitude-flag" />}
       {!problem && cautions.length > 0 && (
         <TriangleAlert className="mr-1 size-3.5 text-amber-600 dark:text-amber-400" aria-hidden="true" data-testid="own-altitude-flag" />
       )}
-      <span aria-hidden="true" className="h-4 w-px bg-border" />
-      <button
-        type="button" disabled={disabled} onClick={onOpenProfile}
+      {/* The profile's button once there is a plan to show -- its altitude,
+          or why there is none -- as the route box's clear shows with points
+          in it. The flight rules are the Profile card's switch alone, at the
+          owner's ask ("no need to mention IFR or VFR"); VoiceOver hears them
+          in the button's name still. */}
+      {(nav || problem) && !disabled && <span aria-hidden="true" className="h-4 w-px bg-border" />}
+      {(nav || problem) && !disabled && <button
+        type="button" onClick={onOpenProfile}
         className={cn(
           // The icon buttons' one size, 36 square with a 20-point glyph,
           // standing past the 32-point group above and below, where it has
@@ -171,7 +179,7 @@ export default function AltitudeGroup({ nav, legs, problem = false, ownAltitude 
         <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
           <path d="M3 19h18" /><path d="M3 16l4-5 3 2 4-6 3 3 4-3" />
         </svg>
-      </button>
+      </button>}
     </div>
   );
 }
