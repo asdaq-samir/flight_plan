@@ -68,6 +68,26 @@ export function askFor(fix: Fix | null, vs: number): AheadAsk | null {
   };
 }
 
+/** The fewest milliseconds between two asks, however fast the airplane
+ *  moves: a dry run played at 200 times flies a third of a mile in a
+ *  twentieth of a second, and asked at every one the planner had 160
+ *  questions a minute while the banner kept its first answer -- "Chicago
+ *  Class C, in 5 min · 10.7 nm" as the run flew on past it, each answer
+ *  overtaken before it came (the owner's recording, 2026-10-19). In flight
+ *  a third of a mile takes some ten seconds, so this never holds one back. */
+export const ASK_GAP_MS = 2000;
+
+/** The ask held: a new one taken only ASK_GAP_MS after the last (`now`,
+ *  ms); none at once, on the ground or with own ship off. */
+export function heldAsk(held: { key: string | null; at: number }, next: string | null, now: number): string | null {
+  if (next === held.key) return held.key;
+  if (next !== null && held.key !== null && now - held.at < ASK_GAP_MS) return held.key;
+  held.key = next;
+  held.at = now;
+  return next;
+}
+const held = { key: null as string | null, at: -Infinity };
+
 /** The alerts the pilot has acknowledged, by id: not shown again until
  *  each has gone from what is ahead (and so comes back if it does). */
 const useAcknowledged = create<{ ids: string[] }>(() => ({ ids: [] }));
@@ -91,7 +111,7 @@ export function useAhead(): Ahead | null {
   const on = usePreferences(s => s.alerts);
   const key = useOwnShip(s => {
     const ask = s.enabled ? askFor(s.fix, verticalSpeed()) : null;
-    return ask ? JSON.stringify(ask) : null;
+    return heldAsk(held, ask ? JSON.stringify(ask) : null, Date.now());
   });
   const ask = on && key ? (JSON.parse(key) as AheadAsk) : null;
   const { data, isError } = useQuery({
