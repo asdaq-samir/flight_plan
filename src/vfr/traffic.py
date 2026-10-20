@@ -24,6 +24,7 @@ region is found at once, with no request at all.
 from __future__ import annotations
 
 import json
+import logging
 import math
 import os
 import re
@@ -39,6 +40,8 @@ from cachetools import TTLCache
 
 from . import airports, geo, registry
 from .config import DATA_DIR
+
+log = logging.getLogger(__name__)
 
 URL = "https://api.adsb.lol/v2/point/{lat:.2f}/{lon:.2f}/{radius}"
 HEADERS = {"User-Agent": "wingtip-maps/0.1 (VFR flight planner; traffic for pilots' situational awareness)"}
@@ -876,10 +879,74 @@ def _followed(hex_id: str) -> bool:
 
 
 def follow(hex_id: str) -> None:
-    """An airplane followed from now on: its card opened."""
+    """An airplane followed from now on: its card opened. Kept across a
+    restart of the planner by its track's file, written now, empty, where
+    it has none yet: the owner's N3429J, its card opened before a restart
+    and nothing heard of it since, was followed no more."""
+    hex_id = hex_id.lstrip("~")
     _followed(hex_id)
     with _LOCK:
-        _FOLLOWED.add(hex_id.lstrip("~"))
+        new = hex_id not in _FOLLOWED
+        _FOLLOWED.add(hex_id)
+        if new:
+            _load_recorded(hex_id)
+            kept = list(_RECORDED[hex_id])
+    if new and not kept:
+        _save_recorded(hex_id, kept)
+
+
+#: How often each followed airplane is asked for in the background, s:
+#: its flights recorded as FlightAware records them, card open or not
+#: (the owner's screenshots of N3429J's day, 2026-10-19, of which the
+#: planner had nothing). Of adsb.fi alone, which costs nothing, at its
+#: one request a second; adsb.lol's map and ADS-B Exchange's paid month
+#: are left to the map and an open card.
+FOLLOW_EVERY_S = 30.0
+
+
+def follow_round() -> int:
+    """Each followed airplane not heard elsewhere just now (the FAA's
+    radar records it, heard_elsewhere) asked of adsb.fi by its address,
+    a request a second at most, and what it hears recorded. How many
+    were heard."""
+    _followed("")  # the followed read from their files, the first time
+    with _LOCK:
+        followed = sorted(_FOLLOWED)
+    heard = 0
+    for hex_id in followed:
+        if _heard_elsewhere_now(hex_id) is not None:
+            continue
+        # adsb.fi's pace, a little over a second, between asks.
+        with _LOCK:
+            wait = _ADSBFI["last"] + ADSBFI_MIN_GAP_S - _clock()
+        if wait > 0:
+            _sleep(wait)
+        for plane in _adsbfi(hex_id):
+            if plane["hex"].lower().lstrip("~") == hex_id:
+                _record(hex_id, plane)
+                with _LOCK:
+                    _WATCH_SOURCE[hex_id] = ADSBFI_SOURCE["source"]
+                heard += 1
+    return heard
+
+
+def start_following() -> None:
+    """The followed airplanes asked for every FOLLOW_EVERY_S on a thread
+    of their own, for as long as the planner runs; nothing where adsb.fi
+    is off (ADSBFI_OPEN_DATA=0)."""
+    if os.environ.get("ADSBFI_OPEN_DATA", "1") == "0":
+        return
+
+    def run() -> None:
+        while True:
+            started = _clock()
+            try:
+                follow_round()
+            except Exception:  # noqa: BLE001 -- a bad round is not the end of following
+                log.exception("Following the airplanes failed this round")
+            _sleep(max(1.0, FOLLOW_EVERY_S - (_clock() - started)))
+
+    threading.Thread(target=run, name="traffic-follow", daemon=True).start()
 
 
 def heard_elsewhere(plane: dict, at: float) -> None:
@@ -1539,7 +1606,11 @@ def status(hex_id: str) -> dict:
     trace = _recent_trace(hex_id)
     if trace is UNREAD or (trace is None and _recorded(hex_id)):
         # No recent trace to read: the track recorded while its card was
-        # open, where there is one (`_watch`), else unavailable.
+        # open or it was followed, asked for now where nothing is (`_watch`:
+        # adsb.lol's API, adsb.fi, ADS-B Exchange), else unavailable -- the
+        # owner's N3429J said "adsb.lol did not answer" with adsb.fi hearing it.
+        if not _recorded(hex_id):
+            _watch(hex_id)
         recorded = _recorded(hex_id)
         if not recorded:
             raise TrafficUnavailable("adsb.lol's recent trace could not be read")

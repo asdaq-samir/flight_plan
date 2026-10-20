@@ -1044,6 +1044,38 @@ def test_a_watched_airplane_adsb_lol_does_not_hear_is_asked_of_adsb_fi_before_ad
         assert traffic._adsbfi("a128b9") == [] and len(urls) == 1
 
 
+def test_a_followed_airplane_is_asked_of_adsb_fi_in_the_background_and_stays_followed_across_a_restart(clock, monkeypatch, tmp_path):
+    """The owner's N3429J (2026-10-19): FlightAware listed its day's two
+    flights, the planner nothing -- recorded only while its card was open,
+    and its following lost to a restart. Followed, it is asked of adsb.fi
+    each round, card open or not, and stays followed by its file."""
+    monkeypatch.setenv("ADSBFI_OPEN_DATA", "1")
+    monkeypatch.setattr(traffic, "_wall", lambda: 1791800000.0)
+    traffic.follow("a128b9")
+    assert (tmp_path / "watched_tracks" / "a128b9.json").exists()
+    # A restart: nothing in memory, the file still there.
+    monkeypatch.setattr(traffic, "_FOLLOWED", set())
+    monkeypatch.setattr(traffic, "_FOLLOWED_READ", {"done": False})
+    monkeypatch.setattr(traffic, "_RECORDED", {})
+    urls = []
+
+    def get(url, **kwargs):
+        urls.append(url)
+        resp = _answer([CESSNA])
+        resp.status_code = 200
+        return resp
+    with patch("vfr.traffic.requests.get", side_effect=get):
+        assert traffic.follow_round() == 1
+    assert urls == ["https://opendata.adsb.fi/api/v2/hex/a128b9"]
+    assert traffic._recorded("a128b9")[-1]["lat"] == pytest.approx(42.30128, abs=1e-4)
+    # One the FAA's radar has just now is not asked for.
+    traffic.heard_elsewhere(traffic._aircraft(CESSNA), 1791800000.0)
+    clock.now += 30
+    with patch("vfr.traffic.requests.get", side_effect=get):
+        assert traffic.follow_round() == 0
+    assert len(urls) == 1
+
+
 def test_a_recorded_airplane_unheard_for_two_minutes_low_over_a_field_has_landed(clock, monkeypatch):
     monkeypatch.setattr(traffic, "_wall", lambda: 1791800000.0)
     monkeypatch.setattr(traffic, "_recent_trace", lambda hex_id: None)
