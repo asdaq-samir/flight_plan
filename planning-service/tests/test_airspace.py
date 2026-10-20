@@ -2,7 +2,7 @@
 shapefile and both feeds stubbed."""
 import requests
 from fastapi.testclient import TestClient
-from vfr import airspace, airspace_at, classb, elevation, sua, tfr
+from vfr import airspace, airspace_at, classb, elevation, fixes, sua, tfr
 
 from app.main import app
 
@@ -21,6 +21,10 @@ def _point(monkeypatch, sua_at=lambda lat, lon: [], tfr_at=lambda lat, lon: [], 
     monkeypatch.setattr(classb, "class_b_airports", lambda shp: [{"ident": "KORD", "name": "O'Hare", "lat": 41.9786, "lon": -87.9048}])
     monkeypatch.setattr(sua, "at_point", sua_at)
     monkeypatch.setattr(tfr, "at_point", tfr_at)
+    monkeypatch.setattr(fixes, "frd_near", lambda lat, lon: {
+        "ident": "VPBNG/095/14.2", "base": "VPBNG", "course_deg": 95, "distance_nm": 14.2, "radial": False,
+        "name": "14.2 nm on 095° from VPBNG",
+    })
 
 
 def test_the_column_over_a_point_from_the_ground_up(monkeypatch):
@@ -34,6 +38,8 @@ def test_the_column_over_a_point_from_the_ground_up(monkeypatch):
     assert body["bands"][0]["minimums"]["night"]["visibility_sm"] == 3.0
     assert body["mode_c_veil"]["ident"] == "KORD"
     assert body["special_use_unavailable"] is False and body["tfrs_unavailable"] is False
+    # And the point as the route can have it, off the nearest fix.
+    assert body["point"]["ident"] == "VPBNG/095/14.2"
 
 
 def test_a_feed_that_does_not_answer_is_said_so(monkeypatch):

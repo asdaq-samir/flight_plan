@@ -212,3 +212,33 @@ describe("the dry run against its landings, for the flight's own figures", () =>
     expect(end).toMatchObject({ hop: 1, next: { nm: 0, min: 0 }, last: { nm: 0, min: 0 } });
   });
 });
+
+describe("a hold the pilot put on the route", () => {
+  // Over the destination before it lands, two turns of a lap of four
+  // minutes, a racetrack a few miles east of the field: eight minutes and
+  // a gallon more in the leg's time and fuel, as the planner adds them.
+  const lap = [[43, -88], [43.02, -87.98], [43.02, -87.9], [43, -87.92], [43, -88]];
+  const held = {
+    ...leg, ete_min: 36 + 8, fuel_gal: 6,
+    hold: { fix: "KDLH", inbound_deg: 270, right: true, leg_min: 1, leg_nm: null, turns: 2, minutes: 8, lap_min: 4, gal: 1, entry: "direct", path: lap, at_end: true },
+  } as Leg;
+  const holding = navLogRows({ departure: airport("C81", 42, 800), destination: airport("KDLH", 43, 500) }, [], [held]);
+  const run = dryRunOf(holding, 1_000);
+
+  it("flies round the racetrack twice before it lands, in the planner's time and fuel", () => {
+    const last = run.points.at(-1)!;
+    expect(last.t).toBeCloseTo(1_000 + 44 * 60);
+    expect(run.fuelGal.at(-1)).toBeCloseTo(6);
+    // East of the field in the hold, and at the field when it is over.
+    expect(Math.max(...run.points.map(p => p.lon))).toBeGreaterThan(-87.95);
+    expect(last).toMatchObject({ lat: 43, lon: -88 });
+  });
+
+  it("reaches the field's row when the hold is flown, not before", () => {
+    expect(run.rowT.at(-1)).toBeCloseTo(1_000 + 44 * 60);
+    // Half way through the hold, still holding: past the field's latitude
+    // at the hold's height, not down on it.
+    const mid = run.points.find(p => p.t >= 1_000 + 40 * 60)!;
+    expect(mid.alt_ft).toBeGreaterThan(500);
+  });
+});

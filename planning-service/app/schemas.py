@@ -995,6 +995,20 @@ class TfrHere(TfrInfo):
     active_now: bool
 
 
+class PointOffFix(BaseModel):
+    """A point named as the pilot's own point off the nearest fix a pilot
+    knows (vfr.fixes.frd_near): "VPBNG/095/14.2", its fix, its magnetic
+    course from it (a VOR's radial where `radial`), its distance, and its
+    name, "14.2 nm on 095° from VPBNG"."""
+
+    ident: str
+    base: str
+    course_deg: int
+    distance_nm: float
+    radial: bool
+    name: str
+
+
 class AirspaceAt(BaseModel):
     """The airspace over a point on the chart, from the ground up: the
     classes in bands, the Mode C veil, the special-use areas and the
@@ -1012,6 +1026,9 @@ class AirspaceAt(BaseModel):
     special_use_unavailable: bool = False
     tfrs: list[TfrHere] = []
     tfrs_unavailable: bool = False
+    #: The point named off the nearest fix, for the route (the card's Add
+    #: to route, Direct to, Hold here); None with none within 40 nm.
+    point: PointOffFix | None = None
 
 
 class AheadAlert(BaseModel):

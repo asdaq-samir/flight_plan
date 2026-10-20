@@ -1355,6 +1355,16 @@
               }
             ]
           },
+          "point": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PointOffFix"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "special_use": {
             "default": [],
             "items": {
@@ -7898,6 +7908,45 @@
         "title": "PlateOverlay",
         "type": "object"
       },
+      "PointOffFix": {
+        "description": "A point named as the pilot's own point off the nearest fix a pilot\nknows (vfr.fixes.frd_near): \"VPBNG/095/14.2\", its fix, its magnetic\ncourse from it (a VOR's radial where `radial`), its distance, and its\nname, \"14.2 nm on 095\u00b0 from VPBNG\".",
+        "properties": {
+          "base": {
+            "title": "Base",
+            "type": "string"
+          },
+          "course_deg": {
+            "title": "Course Deg",
+            "type": "integer"
+          },
+          "distance_nm": {
+            "title": "Distance Nm",
+            "type": "number"
+          },
+          "ident": {
+            "title": "Ident",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "radial": {
+            "title": "Radial",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ident",
+          "base",
+          "course_deg",
+          "distance_nm",
+          "radial",
+          "name"
+        ],
+        "title": "PointOffFix",
+        "type": "object"
+      },
       "ProcedureDrawing": {
         "description": "One procedure drawn with the transition picked (vfr.procedures):\nits lines, holds and fixes, from the CIFP of `cycle`.",
         "properties": {
@@ -11298,7 +11347,7 @@
     },
     "/api/airspace/at": {
       "get": {
-        "description": "The airspace over a point, from the ground to FL600, in bands\n(vfr.airspace_at): each class's floor and ceiling in feet MSL, its\nVFR weather minimums by day and by night (91.155), what it takes to\nenter and what the aeroplane must carry -- with the Class B Mode C\nveil the point is in, and the special-use areas and TFRs over it.\nThe ground, the shapefile and the two feeds are read at once.",
+        "description": "The airspace over a point, from the ground to FL600, in bands\n(vfr.airspace_at): each class's floor and ceiling in feet MSL, its\nVFR weather minimums by day and by night (91.155), what it takes to\nenter and what the aeroplane must carry -- with the Class B Mode C\nveil the point is in, and the special-use areas and TFRs over it;\nand the point named off the nearest fix (vfr.fixes.frd_near), for the\nroute. The ground, the shapefile and the two feeds are read at once.",
         "operationId": "airspace_at_point_api_airspace_at_get",
         "parameters": [
           {

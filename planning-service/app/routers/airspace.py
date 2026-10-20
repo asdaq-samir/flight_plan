@@ -7,9 +7,9 @@ from concurrent.futures import ThreadPoolExecutor
 
 import requests
 from fastapi import APIRouter, Query
-from vfr import airports, airspace, airspace_at, alerts, altitude, classb, elevation, sua, tfr
+from vfr import airports, airspace, airspace_at, alerts, altitude, classb, elevation, fixes, sua, tfr
 
-from ..schemas import AirspaceAt, AlertsAhead
+from ..schemas import AirspaceAt, AlertsAhead, PointOffFix
 
 log = logging.getLogger(__name__)
 
@@ -41,8 +41,9 @@ def airspace_at_point(
     (vfr.airspace_at): each class's floor and ceiling in feet MSL, its
     VFR weather minimums by day and by night (91.155), what it takes to
     enter and what the aeroplane must carry -- with the Class B Mode C
-    veil the point is in, and the special-use areas and TFRs over it.
-    The ground, the shapefile and the two feeds are read at once."""
+    veil the point is in, and the special-use areas and TFRs over it;
+    and the point named off the nearest fix (vfr.fixes.frd_near), for the
+    route. The ground, the shapefile and the two feeds are read at once."""
     shp_path = airspace.ensure_class_airspace_shapefile(altitude.DEFAULT_FAA_CACHE_DIR)
     with ThreadPoolExecutor(max_workers=4) as pool:
         volumes = pool.submit(airspace_at.volumes_at, lat, lon, shp_path)
@@ -62,10 +63,16 @@ def airspace_at_point(
         except tfr.TfrUnavailable as err:
             log.warning("TFRs at (%s, %s): %s", lat, lon, err)
             tfrs, tfrs_unavailable = [], True
+    # The point as a route can have it: off the nearest fix a pilot knows.
+    try:
+        near = fixes.frd_near(lat, lon)
+    except (OSError, ValueError) as err:
+        log.warning("fixes near (%s, %s) not read: %s", lat, lon, err)
+        near = None
     return AirspaceAt(
         lat=lat, lon=lon, ground_ft=ground_ft, bands=bands, mode_c_veil=veil,
         special_use=special_use, special_use_unavailable=special_use_unavailable,
-        tfrs=tfrs, tfrs_unavailable=tfrs_unavailable,
+        tfrs=tfrs, tfrs_unavailable=tfrs_unavailable, point=PointOffFix(**near) if near else None,
     )
 
 
