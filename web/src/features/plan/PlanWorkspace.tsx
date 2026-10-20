@@ -238,6 +238,9 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const planned = { dep: departureOf(searchParams.get("dep")), dest: identOf(searchParams.get("dest")), stops };
   const via = planned.stops.join(",");
   const altitudeFt = searchParams.get("altitude_ft") ?? "";
+  // The altitude was picked on the wheel (flyAltitude): each leg at its
+  // nearest legal altitude, as the wheel's figures were.
+  const altitudeNearest = searchParams.get("altitude_nearest") === "1";
   const altitudeChoice = altitudeChoiceOf(searchParams.get("altitude_choice"));
   // The departure time as an ISO instant, or "" for about now. It picks
   // the winds forecast period the planner flies the legs on, gives
@@ -249,6 +252,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // pick (2026-10-20): planned through it with the clearance it takes
   // (14 CFR 91.131), said in the altitude's sheet with "Avoid Class B".
   const classBClearance = searchParams.get("class_b") !== "0";
+  const classBVia = searchParams.get("class_b_via") ?? "";
   // Points' own altitudes (`altitudes`, "VPBNG:4500,KMSN:1900"), set from
   // a point's menu in the route's box: a waypoint's flown to it, an
   // airport's its pattern. As the address has them, for the planner.
@@ -335,7 +339,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const holds = useMemo(() => holdsOf(holdsParamText), [holdsParamText]);
   const holdsText = holdsParam(holds);
   const s = usePlan({
-    dep: planned.dep, dest: planned.dest, stops: planned.stops, altitudeFt, altitudeChoice, depart, aircraft, load, classBClearance,
+    dep: planned.dep, dest: planned.dest, stops: planned.stops, altitudeFt, altitudeNearest, altitudeChoice, depart, aircraft, load, classBClearance,
     altitudes, procedures, crossings: crossingsText, ground: groundText, holds: holdsText, localMin, rules: flightRules,
     // Under IFR, the alternate filed in the Weather tab (AlternateSection).
     alternate: searchParams.get("alternate") ?? "",
@@ -894,15 +898,20 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     const next: Record<string, string> = { ...route };
     if (via) next.stops = via;
     if (alt.trim()) next.altitude_ft = alt.trim();
+    // Still the wheel's pick: still flown at each leg's nearest legal one.
+    if (alt.trim() && altitudeNearest && alt.trim() === altitudeFt) next.altitude_nearest = "1";
     if (altitudeChoice !== "fastest") next.altitude_choice = altitudeChoice;
     if (altitudes) next.altitudes = altitudes;
     if (depart) next.depart = depart;
     // Class B avoided for this route, not the next one.
-    if (!classBClearance && route.dep === planned.dep && route.dest === planned.dest) next.class_b = "0";
+    if (!classBClearance && route.dep === planned.dep && route.dest === planned.dest) {
+      next.class_b = "0";
+      if (classBVia && planned.stops.includes(classBVia)) next.class_b_via = classBVia;
+    }
     if (panel === "full") next.view = "briefing";
     setSearchParams(next, { replace: true });
     setLoad(n => n + 1);
-  }, [dep, dest, planned.dep, planned.dest, planned.stops, via, alt, altitudeChoice, altitudes, depart, classBClearance, panel, setSearchParams]);
+  }, [dep, dest, planned.dep, planned.dest, planned.stops, via, alt, altitudeFt, altitudeNearest, altitudeChoice, altitudes, depart, classBClearance, classBVia, panel, setSearchParams]);
 
   // The route, changed in its box (RouteBox): in the address at once,
   // which re-plans, as the airplane and the time do -- the departure,
@@ -1000,29 +1009,45 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     stops.splice(bestStopIndex(points, at), 0, at.ident);
     setStops(stops);
   }, [course, planned.stops, setStops]);
+  // Allowed again: the waypoint Avoid Class B put round it (class_b_via)
+  // taken out of the stops too, where it still is -- left in, the route
+  // still bent round the Class B it was now planned through.
   const acceptClassB = useCallback((accept: boolean) => {
     setSearchParams(prev => {
-      return patched(prev, { class_b: accept ? null : "0" });
+      const via = prev.get("class_b_via");
+      const stops = stopsOf(prev.get("stops")).filter(stop => !accept || stop !== via);
+      return patched(prev, {
+        class_b: accept ? null : "0", class_b_via: accept ? null : via, stops: stops.length ? stops.join(",") : null,
+      });
     }, { replace: true });
   }, [setSearchParams]);
   // "Avoid Class B": the planner's waypoint round it put in the stops where
   // it says (Detour.stop_index, before that stop), and the clearance taken
   // back, so the rest is planned under or round it; with no waypoint in
   // reach, the clearance alone. One change of the address.
+  // The waypoint only where the route has room for another stop
+  // (MAX_STOPS): a ninth was refused by the planner (422), the clearance
+  // alone taken back then. Its ident kept (class_b_via), for Allow.
   const avoidClassB = useCallback((detour: Detour | null) => {
     setSearchParams(prev => {
       const stops = stopsOf(prev.get("stops"));
-      if (detour && !stops.includes(detour.ident)) stops.splice(Math.min(detour.stop_index, stops.length), 0, detour.ident);
-      return patched(prev, { class_b: "0", stops: stops.length ? stops.join(",") : null });
+      const added = !!detour && !stops.includes(detour.ident) && stops.length < MAX_STOPS;
+      if (added) stops.splice(Math.min(detour.stop_index, stops.length), 0, detour.ident);
+      return patched(prev, { class_b: "0", class_b_via: added ? detour.ident : null, stops: stops.length ? stops.join(",") : null });
     }, { replace: true });
   }, [setSearchParams]);
-  // An altitude of the pilot's own, typed beside the airplane or picked on
-  // the wheel (AltitudeGroup): the whole route at it, the rest of the
-  // address as it was.
-  const flyAltitude = useCallback((ft: number) => {
+  // An altitude of the pilot's own, the rest of the address as it was.
+  // An altitude typed beside the airplane is flown on every leg, legal or
+  // not, with its cautions; one picked on the wheel (`nearest`) on each
+  // leg where that leg may fly it, else at the leg's nearest legal one, as
+  // the wheel's figures said -- flown on every leg, it could be under a
+  // leg's floor or on the wrong thousands for its course (14 CFR 91.119,
+  // 91.159).
+  const flyAltitude = useCallback((ft: number, nearest = false) => {
     setAlt(String(ft));
-    setSearchParams(prev => patched(prev, { altitude_ft: String(ft), altitude_choice: null }), { replace: true });
+    setSearchParams(prev => patched(prev, { altitude_ft: String(ft), altitude_nearest: nearest ? "1" : null, altitude_choice: null }), { replace: true });
   }, [setAlt, setSearchParams]);
+  const flyWheelAltitude = useCallback((ft: number) => flyAltitude(ft, true), [flyAltitude]);
 
   // With no route, the panel is Maps' search: the bar in the capsule and
   // at the top of the sheet, Favorites and what was picked before under it,
@@ -1364,7 +1389,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // draft belonged to the old address) empties with it.
   const changeAltitudeChoice = useCallback((choice: AltitudeChoice) => {
     setSearchParams(prev => {
-      return patched(prev, { altitude_ft: null, altitude_choice: choice === "fastest" ? null : choice });
+      return patched(prev, { altitude_ft: null, altitude_nearest: null, altitude_choice: choice === "fastest" ? null : choice });
     }, { replace: true });
   }, [setSearchParams]);
 
@@ -1823,7 +1848,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
         ) : undefined}
         tight={unflyable ? null : tightLeg}
         classBAvoided={!classBClearance} onAvoidClassB={avoidClassB} onAllowClassB={() => acceptClassB(true)}
-        onAltitudeChoiceChange={changeAltitudeChoice} onFlyAltitude={flyAltitude}
+        onAltitudeChoiceChange={changeAltitudeChoice} onFlyAltitude={flyWheelAltitude}
         rules={flightRules} onRulesChange={setFlightRules}
       />
     </Suspense>

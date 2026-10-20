@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { TriangleAlert } from "lucide-react";
 import { cn } from "cn";
@@ -200,20 +200,30 @@ export function AltitudeProfile({ nav, legs, ends, chart, corner, wheelHidden = 
   rules?: FlightRules;
   onRulesChange?: (rules: FlightRules) => void;
 }) {
-  const cruise = cruiseOf(nav, legs);
+  // The altitude flown: a pilot's own as asked (typed, or picked on the
+  // wheel and flown at each leg's nearest legal one, whose highest leg may
+  // be another), else the plan's cruise.
+  const cruise = nav?.flown === "custom" && nav.altitude_ft !== null ? nav.altitude_ft : cruiseOf(nav, legs);
   const figures = nav?.altitude_figures ?? [];
-  const altitudes = figures.map(f => f.altitude_ft).sort((a, b) => b - a);
-  // The altitude on the wheel, and the one flown when it was put there:
-  // once another is flown (it, re-planned; a figure typed), the wheel is
-  // at the one flown.
-  const [picked, setPicked] = useState<{ altitude: number; against: number | null } | null>(null);
+  // The legal altitudes, and one typed off their list as its own row
+  // ("Yours"): the wheel showed the lowest legal one in its place, and the
+  // heading and the graph's line with it, for an altitude not flown.
+  const listed = figures.map(f => f.altitude_ft);
+  const own = cruise !== null && listed.length > 0 && !listed.includes(cruise) ? cruise : null;
+  const altitudes = (own === null ? listed : [...listed, own]).sort((a, b) => b - a);
+  // The altitude on the wheel, the one flown when it was put there and the
+  // route it was on: once another is flown (it, re-planned; a figure
+  // typed) or the route changes, the wheel is at the one flown.
+  const route = ends ? [ends.departure.ident, ...(ends.stops ?? []).map(s => s.ident), ends.destination.ident].join(" ") : "";
+  const [picked, setPicked] = useState<{ altitude: number; against: number | null; route: string } | null>(null);
   // Flown once the wheel has come to rest on it a moment, not at every row
-  // passed: each is a new plan.
+  // passed: each is a new plan. Not once the card is put away.
   const timer = useRef<number | null>(null);
-  const shownAt = picked && picked.against === cruise ? picked.altitude
+  useEffect(() => () => { if (timer.current !== null) window.clearTimeout(timer.current); }, []);
+  const shownAt = picked && picked.against === cruise && picked.route === route ? picked.altitude
     : cruise !== null && altitudes.includes(cruise) ? cruise : altitudes.at(-1) ?? null;
   const pick = (altitude: number) => {
-    setPicked({ altitude, against: cruise });
+    setPicked({ altitude, against: cruise, route });
     if (timer.current !== null) window.clearTimeout(timer.current);
     timer.current = window.setTimeout(() => {
       timer.current = null;
@@ -227,7 +237,7 @@ export function AltitudeProfile({ nav, legs, ends, chart, corner, wheelHidden = 
     ...routeProfileQuery(ends?.departure.ident ?? "", ends?.destination.ident ?? "", (ends?.stops ?? []).map(s => s.ident)),
     enabled: !!ends,
   });
-  const names = planNames(nav);
+  const names = own === null ? planNames(nav) : { ...planNames(nav), [own]: "Yours" };
   // In the corner's narrow wheel, each altitude's first plan alone.
   const short = Object.fromEntries(Object.entries(names).map(([ft, name]) => [ft, name.split(" · ")[0]!]));
   const figure = figures.find(f => f.altitude_ft === shownAt) ?? null;

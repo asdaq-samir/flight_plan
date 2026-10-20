@@ -7,6 +7,7 @@ import { chartQuery, courseQuery, queryClient } from "./lib/queryClient";
 import { routeOf, stopsOf } from "./lib/identSchema";
 import AppToaster from "./components/AppToaster";
 import ErrorAlert from "./components/ErrorAlert";
+import PageError from "./components/PageError";
 import { TooltipProvider } from "./components/ui/tooltip";
 import { registerSW } from "virtual:pwa-register";
 import { followDynamicType } from "./lib/dynamicType";
@@ -106,8 +107,8 @@ const router = createBrowserRouter(
     // it is the page nearly every load is of, and its chunk was a second
     // round trip before anything showed (2 s to the panel on a phone's
     // CPU, cold). The training workspace inside it stays its own chunk.
-    { path: "plan", element: <MapPage mode="pilot" /> },
-    { path: "dev", element: <MapPage mode="dev" /> },
+    { path: "plan", element: <MapPage mode="pilot" />, errorElement: <PageError /> },
+    { path: "dev", element: <MapPage mode="dev" />, errorElement: <PageError /> },
     // The old labeling address, kept working with its route: a loader
     // redirect rather than a component, since the router's own
     // `redirect` is the one place a query string can be carried over
@@ -149,6 +150,18 @@ if (routeOf(openingDep, openingDest, openingStops)) {
   // once it mounts and asks again -- under the page's rule, not this one.
   void queryClient.prefetchQuery({ ...courseQuery(openingDep!, openingDest!, openingStops), meta: { silent: true } });
 }
+
+// A chunk that will not load -- the deploy after this page's own replaced
+// it, or no signal -- loads the page again, once a minute at most, as
+// Vite's own guide does: past that it falls to the route's PageError.
+window.addEventListener("vite:preloadError", event => {
+  let last = 0;
+  try { last = Number(sessionStorage.getItem("vfr.chunkReload")) || 0; } catch { /* storage refused: reload once */ }
+  if (Date.now() - last < 60_000) return;
+  try { sessionStorage.setItem("vfr.chunkReload", String(Date.now())); } catch { /* as above */ }
+  event.preventDefault();
+  window.location.reload();
+});
 
 // A render React could not finish takes the page down: reported too.
 ReactDOM.createRoot(document.getElementById("root")!, {

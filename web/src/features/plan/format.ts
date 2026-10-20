@@ -60,11 +60,17 @@ export function plannedWords(t: Totals | null): string {
   return t.winds ? `${planned} · winds for use ${zuluTime(new Date(t.winds.use_from)).slice(0, 4)}–${zuluTime(new Date(t.winds.use_to))}` : planned;
 }
 
-/** Whether the winds a plan flies are past their forecast's period at
- *  `now` (ms): its headings, times and fuel then out of date. */
-export function windsOutOfDate(t: Totals | null, now: number): boolean {
-  const to = t?.winds ? Date.parse(t.winds.use_to) : NaN;
-  return Number.isFinite(to) && now > to;
+/** Whether the winds a plan flies are not for its flight: the departure
+ *  (`depart`, an ISO instant, or now where "" or past) outside their
+ *  forecast's "for use" period (AC 00-45H, table 5-21) -- past its end as a
+ *  plan for "now" left open all day is, or a later flight's no product
+ *  covers. Its headings, times and fuel then out of date. */
+export function windsOutOfDate(t: Totals | null, now: number, depart = ""): boolean {
+  if (!t?.winds) return false;
+  const [from, to] = [Date.parse(t.winds.use_from), Date.parse(t.winds.use_to)];
+  const planned = Date.parse(depart);
+  const at = Number.isFinite(planned) && planned > now ? planned : now;
+  return (Number.isFinite(to) && at > to) || (Number.isFinite(from) && at < from);
 }
 
 /** An altitude plan's name, as the Brief and the Go / No-Go say it
