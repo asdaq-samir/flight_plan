@@ -4,7 +4,7 @@ import {
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "../../../components/ui/alert-dialog";
 import { Button } from "../../../components/ui/button";
-import { Input } from "../../../components/ui/input";
+import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText } from "../../../components/ui/input-group";
 import { TEXT } from "../../../lib/text";
 import { altFt, flightLevel } from "../../../lib/units";
 
@@ -76,17 +76,17 @@ function AltitudeForm({ point, onSet }: { point: EditedPoint; onSet: (ident: str
           {altitude.caution.map(reason => <li key={reason}>{reason}</li>)}
         </ul>
       )}
-      <div className="flex h-10 items-center gap-1 rounded-md border border-input bg-background px-3 font-mono">
-        {waypoint && "FL"}
-        <Input
+      {/* The figure with its unit inside the field, the stock input group. */}
+      <InputGroup className="h-10 font-mono">
+        {waypoint && <InputGroupAddon><InputGroupText>FL</InputGroupText></InputGroupAddon>}
+        <InputGroupInput
           value={typed} onChange={e => setTyped(e.target.value.replace(/\D/g, "").slice(0, waypoint ? 3 : 5))}
           placeholder={waypoint ? "---" : "-----"} inputMode="numeric" spellCheck={false}
           aria-label={waypoint ? `Altitude at ${ident}, flight level` : `Altitude at ${ident}, feet`}
-          className="h-full min-w-0 flex-1 border-0 bg-transparent px-0 font-mono shadow-none focus-visible:ring-0 dark:bg-transparent"
-          data-testid="point-altitude-input"
+          className="font-mono" data-testid="point-altitude-input"
         />
-        {!waypoint && "ft"}
-      </div>
+        {!waypoint && <InputGroupAddon align="inline-end"><InputGroupText>ft</InputGroupText></InputGroupAddon>}
+      </InputGroup>
       <AlertDialogFooter>
         {altitude.own && (
           <Button type="button" variant="ghost" onClick={() => onSet(ident, null)} data-testid="point-altitude-reset">

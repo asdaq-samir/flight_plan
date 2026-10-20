@@ -3,7 +3,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "../../../components/ui/alert-dialog";
-import { Input } from "../../../components/ui/input";
+import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText } from "../../../components/ui/input-group";
 import { frdIdent } from "../../../lib/identSchema";
 
 /**
@@ -51,24 +51,24 @@ function FixFromForm({ from, onCreate }: { from: string; onCreate: (ident: strin
         </AlertDialogDescription>
       </AlertDialogHeader>
       <div className="flex gap-2">
-        <div className="flex h-10 flex-1 items-center gap-1 rounded-md border border-input bg-background px-3 font-mono">
-          <Input
+        {/* Each figure with its unit inside the field, the stock input
+            group, as the airplane form's figures have theirs. */}
+        <InputGroup className="h-10 flex-1 font-mono">
+          <InputGroupInput
             value={course} onChange={e => setCourse(e.target.value.replace(/\D/g, "").slice(0, 3))}
             placeholder="090" inputMode="numeric" spellCheck={false} aria-label={`Magnetic course from ${from}, degrees`}
-            className="h-full min-w-0 flex-1 border-0 bg-transparent px-0 font-mono shadow-none focus-visible:ring-0 dark:bg-transparent"
-            data-testid="fix-from-course"
+            className="font-mono" data-testid="fix-from-course"
           />
-          °
-        </div>
-        <div className="flex h-10 flex-1 items-center gap-1 rounded-md border border-input bg-background px-3 font-mono">
-          <Input
+          <InputGroupAddon align="inline-end"><InputGroupText>°</InputGroupText></InputGroupAddon>
+        </InputGroup>
+        <InputGroup className="h-10 flex-1 font-mono">
+          <InputGroupInput
             value={distance} onChange={e => setDistance(e.target.value.replace(/[^\d.]/g, "").slice(0, 5))}
             placeholder="30" inputMode="decimal" spellCheck={false} aria-label={`Distance from ${from}, nautical miles`}
-            className="h-full min-w-0 flex-1 border-0 bg-transparent px-0 font-mono shadow-none focus-visible:ring-0 dark:bg-transparent"
-            data-testid="fix-from-distance"
+            className="font-mono" data-testid="fix-from-distance"
           />
-          nm
-        </div>
+          <InputGroupAddon align="inline-end"><InputGroupText>nm</InputGroupText></InputGroupAddon>
+        </InputGroup>
       </div>
       <AlertDialogFooter>
         <AlertDialogCancel>Cancel</AlertDialogCancel>

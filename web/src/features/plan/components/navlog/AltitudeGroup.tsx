@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { TriangleAlert } from "lucide-react";
+import { ChevronRight, TriangleAlert } from "lucide-react";
 import { cn } from "cn";
 import { Button } from "../../../../components/ui/button";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../../../../components/ui/collapsible";
 import { CHIP_TEXT, GLASS_BUTTON } from "../../../../components/mapChrome";
 import Segmented from "../../../../components/Segmented";
 import { faaWords } from "../../../../lib/advisories";
@@ -317,10 +318,17 @@ export function AltitudeProfile({ nav, legs, ends, chart, corner, wheelHidden = 
         </p>
       )}
       {nav && (
-        <details>
-          <summary className={cn("relative cursor-pointer py-2 after:absolute after:inset-x-0 after:-inset-y-1.5 after:content-['']", GROUP_HEADING)}>How the altitude was chosen</summary>
-          <AltitudeReasoning nav={nav} legs={legs} plansAbove />
-        </details>
+        // The stock Collapsible, as the weather's raw reports fold, where a
+        // native details element drew the browser's own triangle.
+        <Collapsible>
+          <CollapsibleTrigger className={cn("group relative flex w-full items-center gap-1.5 py-2 text-left outline-none after:absolute after:inset-x-0 after:-inset-y-1.5 after:content-[''] focus-visible:ring-2 focus-visible:ring-ring", GROUP_HEADING)}>
+            <ChevronRight className="size-4 text-tint transition-transform group-data-[state=open]:rotate-90" aria-hidden />
+            How the altitude was chosen
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <AltitudeReasoning nav={nav} legs={legs} plansAbove />
+          </CollapsibleContent>
+        </Collapsible>
       )}
     </div>
   );

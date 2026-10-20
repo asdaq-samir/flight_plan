@@ -12,6 +12,7 @@ import type { AirportPlace, ChartLayer, Course } from "../api/types";
 import { WORKER_WAIT_MS, keep, keepKey, keptAlready, stopKeeping, useKeepJob, useKeptCharts } from "./keepRoute";
 import { toast } from "sonner";
 import { useKeepRouteToast } from "./keepStatus";
+import { useSystemProblems } from "../problems";
 
 vi.mock("sonner", () => ({ toast: { loading: vi.fn(), success: vi.fn(), error: vi.fn(), dismiss: vi.fn() } }));
 
@@ -152,5 +153,24 @@ describe("the keep's toast", () => {
     expect(toast.loading).toHaveBeenCalled();
     await act(async () => { await done; });
     expect(toast.success).toHaveBeenCalledWith("Charts kept offline", expect.objectContaining({ id: "keep-route" }));
+  });
+
+  test("tiles that could not be fetched are a problem of their own, not part of the news that it kept", async () => {
+    vi.mocked(toast.success).mockClear();
+    useSystemProblems.setState({ problems: [] });
+    // Every other request fails: some kept, some not.
+    let asked = 0;
+    network(() => new Response("", { status: asked++ % 2 ? 503 : 200 }));
+    renderHook(() => useKeepRouteToast());
+    const done = keep(COURSE, SEC);
+    await flush();
+    await act(async () => { await done; });
+    const job = useKeepJob.getState();
+    expect(job.status === "kept" && job.progress.failed).toBeGreaterThan(0);
+    const [, options] = vi.mocked(toast.success).mock.calls.at(-1)!;
+    expect(String((options as { description?: string }).description)).not.toMatch(/not available|without a connection/);
+    expect(useSystemProblems.getState().problems).toEqual([
+      expect.objectContaining({ id: "keep-route", title: expect.stringMatching(/chart tiles not kept/) }),
+    ]);
   });
 });
