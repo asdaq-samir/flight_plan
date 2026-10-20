@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AheadAlert } from "../api/types";
-import { alertTitle, alertWhen, alertWhere, askFor } from "./ahead";
+import { ASK_GAP_MS, alertTitle, alertWhen, alertWhere, askFor, heldAsk } from "./ahead";
 import type { Fix } from "./ownShip";
 
 const fix = (over: Partial<Fix> = {}): Fix => ({
@@ -29,6 +29,23 @@ describe("askFor", () => {
 
   it("keeps a track near north in the circle", () => {
     expect(askFor(fix({ headingDeg: 358.6 }), 0)!.track).toBe(0);
+  });
+});
+
+describe("heldAsk", () => {
+  it("takes a new ask no sooner than ASK_GAP_MS after the last, however fast the fixes move", () => {
+    const held = { key: null as string | null, at: -Infinity };
+    expect(heldAsk(held, "a", 0)).toBe("a");
+    // A dry run at 200 times: a new place every tenth of a second, held.
+    expect(heldAsk(held, "b", 100)).toBe("a");
+    expect(heldAsk(held, "c", ASK_GAP_MS - 1)).toBe("a");
+    expect(heldAsk(held, "d", ASK_GAP_MS)).toBe("d");
+  });
+
+  it("lets go at once on the ground or with own ship off, and asks at once after", () => {
+    const held = { key: "a", at: 0 };
+    expect(heldAsk(held, null, 100)).toBeNull();
+    expect(heldAsk(held, "b", 200)).toBe("b");
   });
 });
 
