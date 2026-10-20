@@ -26,7 +26,7 @@ test("a new pilot is shown what to look for, a tip at a time, each once", async 
   await expect(tip).toContainText("Your route", { timeout: slow(15000) });
   await expect(tip).toHaveCount(1);
   await page.getByTestId("tip-close").click();
-  await expect(page.getByTestId("altitude-why")).toHaveAccessibleName(/FL\d{3}/, { timeout: slow(60000) });
+  await expect(page.getByTestId("altitude-why")).toHaveAccessibleName(/\d,\d{3} feet|FL\d{3}/, { timeout: slow(60000) });
   await expect(tip).toHaveAttribute("aria-label", /The quick numbers|Why this altitude/, { timeout: slow(15000) });
   const quickFirst = await tip.getAttribute("aria-label") === "The quick numbers";
   if (quickFirst) {

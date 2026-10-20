@@ -71,7 +71,7 @@ test("plan page: the flight planning drawer opens the way the Model Training dra
   // The altitude, its chip beside the airplane in the pill, once the log
   // has streamed in.
   await controlsInSight(page);
-  await expect(drawer.getByTestId("altitude-why")).toHaveAccessibleName(/FL\d{3}/, { timeout: slow(60000) });
+  await expect(drawer.getByTestId("altitude-why")).toHaveAccessibleName(/\d,\d{3} feet|FL\d{3}/, { timeout: slow(60000) });
   await grabberTo(page, "full");
   await expect(drawer.locator('[data-slot="section-summary"]').first()).toContainText(/\d nm/, { timeout: slow(60000) });
   // Leaving's weather on Depart, laid open, the nav log out of the page.

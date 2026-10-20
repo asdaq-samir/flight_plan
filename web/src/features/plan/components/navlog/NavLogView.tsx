@@ -485,7 +485,7 @@ export default function NavLogView({
     {
       id: "alt",
       // How its altitudes were chosen opens from the altitude's own chip
-      // beside the airplane (AltitudeButton), at the pilot's ask: it was
+      // beside the airplane (AltitudeGroup), at the pilot's ask: it was
       // this column's head, out of sight with the panel down.
       header: () => <Heading name="Alt" unit="ft" spoken="Altitude, feet" />,
       // The last row lands at the destination -- shows its field

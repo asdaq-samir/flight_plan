@@ -20,7 +20,7 @@ export default function FlightInputs({ aircraftValue, aircraftOptions, onAircraf
   aircraftValue: string;
   aircraftOptions: { value: string; label: string }[];
   onAircraftChange: (value: string) => void;
-  /** Beside the airplane: the altitude it flies (AltitudeButton). */
+  /** Beside the airplane: the altitude it flies (AltitudeGroup). */
   altitude?: ReactNode;
   /** An ISO instant, or "" for about now; with no handler, no picker here
    *  (the departure's step in FPL's list has it). */
