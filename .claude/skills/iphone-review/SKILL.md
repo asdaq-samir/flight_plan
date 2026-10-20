@@ -22,7 +22,7 @@ The planner is becoming an iOS app, and the user tests it on an iPhone. Judge ev
    - Icon buttons in a row sit at `gap-2`, so 36 px buttons' areas meet. 32 px buttons need `gap-3`.
    - Verify with `document.elementFromPoint` at ±((44 − size) / 2 − 1) px outside the box, never by size alone.
    - The one exception is switches, drawn at iOS's 51 × 31 on a touch pointer.
-2. **Everything tappable is the blue tint.** Filled buttons use `--primary`. The words and glyphs of every other tappable thing use `text-tint`: outline, ghost and link buttons, action rows, checkmarks, chevrons and select values. Destructive stays red. Plain text, field-like pickers and list choices stay in the text colour.
+2. **Everything tappable is the blue tint.** Filled buttons use `--primary`. The words and glyphs of every other tappable thing use `text-tint`: outline, ghost and link buttons, action rows, checkmarks, chevrons and select values. Destructive stays red. Plain text, field-like pickers and list choices stay in the text colour. The map's Map and Flown track buttons stay black, as Apple Maps draws its own map buttons: the owner's pick on 2026-10-20, so it isn't a finding.
 3. **Type sizes come from `web/src/lib/text.ts` (`TEXT`),** never raw `text-sm`/`text-xs`. On touch that's 17 for rows and titles, 15 for detail and prose, 13 for notes. Nothing goes below 11 pt, and text must survive Larger Text at 125%.
 4. **Panels are Liquid Glass sheets with detents, like Apple Maps:** a pill, half and full. The map follows the sheet. **Never move a panel or a control to another part of the screen** unless the owner said so in the issue.
 5. **Discrete settings are a menu or a segmented control,** never a slider.
