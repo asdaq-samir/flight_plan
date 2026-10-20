@@ -34,10 +34,12 @@ function cruiseOf(nav: NavLogAltitude | null, legs: Leg[]): number | null {
 }
 
 /** Each plan's name at the altitude it cruises at, its highest step:
- *  "Fastest · Economical" where two fly the same. */
+ *  "Fastest · Economical" where two fly the same, in PREFERRED's order, so
+ *  the first is the one the altitude is flown as. */
 function planNames(nav: NavLogAltitude | null): Record<number, string> {
   const names: Record<number, string[]> = {};
-  for (const o of nav?.options ?? []) {
+  const options = [...(nav?.options ?? [])].sort((a, b) => PREFERRED.indexOf(a.kind) - PREFERRED.indexOf(b.kind));
+  for (const o of options) {
     if (!o.steps.length) continue;
     const top = Math.max(...o.steps.map(s => s.altitude_ft));
     (names[top] ??= []).push(o.kind[0]!.toUpperCase() + o.kind.slice(1));
@@ -235,11 +237,14 @@ export function AltitudeProfile({ nav, legs, ends, chart, corner, wheelHidden = 
   const cautions = nav?.cautions ?? [];
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pb-3" data-testid="altitude-profile">
-      <div className="relative h-56 shrink-0">
+      {/* No taller than the card's room over FPL's figures, half way up on
+          a phone: the graph and its wheel in sight whole, what is under
+          them a scroll away. */}
+      <div className="relative h-56 max-h-full min-h-40 shrink-0">
         {chart(shownAt !== null && shownAt !== cruise ? shownAt : null)}
         {!wheelHidden && shownAt !== null && altitudes.length > 0 && (
           <div className="absolute top-1.5 left-1.5">
-            <AltitudeWheel altitudes={altitudes} value={shownAt} onChange={pick} names={short} shown={3} glass />
+            <AltitudeWheel altitudes={altitudes} value={shownAt} onChange={pick} names={short} spoken={names} shown={3} glass />
           </div>
         )}
         {corner}
