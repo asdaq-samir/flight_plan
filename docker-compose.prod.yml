@@ -113,6 +113,8 @@ services:
       SWIM_PASSWORD: ${SWIM_PASSWORD:-}
       SWIM_VPN_STDDS: ${SWIM_VPN_STDDS:-}
       SWIM_QUEUE_STDDS: ${SWIM_QUEUE_STDDS:-}
+      SWIM_VPN_FNS: ${SWIM_VPN_FNS:-}
+      SWIM_QUEUE_FNS: ${SWIM_QUEUE_FNS:-}
       CHARTS_AUTO_REFRESH: "0"
       CHART_TILES_URL: https://${PUBLIC_HOST}/tiles
       TZ: America/Chicago

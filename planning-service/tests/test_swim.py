@@ -35,10 +35,13 @@ def test_anything_but_a_track_message_gives_nothing():
     assert swim.tracks("not xml") == []
 
 
-def test_it_is_off_without_its_settings(monkeypatch):
-    for name in swim.SETTINGS:
-        monkeypatch.delenv(name, raising=False)
-    assert not swim.configured()
+def test_each_feed_is_off_without_its_settings(monkeypatch):
+    for name in (*swim.SETTINGS, "SWIM_VPN_STDDS", "SWIM_QUEUE_STDDS", "SWIM_VPN_FNS", "SWIM_QUEUE_FNS"):
+        monkeypatch.setenv(name, "set")
+    monkeypatch.delenv("SWIM_QUEUE_FNS")
+    assert swim.configured("STDDS") and not swim.configured("FNS")
+    monkeypatch.delenv("SWIM_PASSWORD")
+    assert not swim.configured("STDDS")
 
 
 class _Message:

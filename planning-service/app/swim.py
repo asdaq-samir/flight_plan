@@ -1,16 +1,18 @@
 """The FAA's SWIM feeds, read as they come (the owner's SCDS subscriptions,
-2026-10-19): STDDS's terminal radar tracks -- TAIS, every STARS facility's
+2026-10-19). STDDS's terminal radar tracks -- TAIS, every STARS facility's
 tracks with each airplane's Mode S address, its beacon code, its reported
 altitude and, where it has one, its flight plan -- given to vfr.traffic as
 reports heard elsewhere. That puts on the map the airplanes no ADS-B
 network hears (N3429J, a UAT airplane adsb.lol never had), and records
 the flights of the airplanes a pilot follows from takeoff, card open or
-not, since adsb.lol's history closed behind a browser check.
+not, since adsb.lol's history closed behind a browser check. FNS's
+NOTAMs -- each as the NOTAM System issues, replaces or cancels it --
+given to vfr.notams to keep.
 
-One connection, on a thread of its own, to the subscription's durable
-queue: each message read, its tracks handed on, then acknowledged. Off
-where the SWIM_* settings are not all set; a dropped connection is made
-again after a pause, growing to a few minutes.
+One connection a feed, on a thread of its own, to its subscription's
+durable queue: each message read, handed on, then acknowledged. A feed is
+off where its SWIM_* settings are not all set; a dropped connection is
+made again after a pause, growing to a few minutes.
 """
 import logging
 import math
@@ -20,24 +22,30 @@ import time
 import xml.etree.ElementTree as ET
 from datetime import datetime
 
-from vfr import traffic
+from vfr import notams, traffic
 
 log = logging.getLogger(__name__)
 
-#: What the STDDS connection needs, from the subscription's Details page.
-SETTINGS = ("SWIM_HOST", "SWIM_USERNAME", "SWIM_PASSWORD", "SWIM_VPN_STDDS", "SWIM_QUEUE_STDDS")
+#: What every connection needs, and each feed's own (its VPN and queue),
+#: from the subscription's Details page.
+SETTINGS = ("SWIM_HOST", "SWIM_USERNAME", "SWIM_PASSWORD")
+FEEDS = ("STDDS", "FNS")
 #: The CA certificates the FAA's broker's certificate is checked against:
 #: the image's own (python:3.13-slim's ca-certificates).
 TRUST_STORE = os.environ.get("SWIM_TRUST_STORE", "/etc/ssl/certs")
 #: How long to wait before connecting again, s, doubling to the most.
 RETRY_FIRST_S, RETRY_MOST_S = 10.0, 300.0
-#: How many messages read so far, and when the last came: the Dev console's
-#: and a test's view of the feed.
-STATE = {"connected": False, "messages": 0, "tracks": 0, "last_at": None, "error": None}
+#: Each feed's messages read so far, what they gave (tracks, NOTAMs) and
+#: when the last came: the Dev console's and a test's view of it.
+STATE = {feed: {"connected": False, "messages": 0, "items": 0, "last_at": None, "error": None} for feed in FEEDS}
 
 
-def configured() -> bool:
-    return all(os.environ.get(name) for name in SETTINGS)
+def _settings(feed: str) -> tuple[str, ...]:
+    return (*SETTINGS, f"SWIM_VPN_{feed}", f"SWIM_QUEUE_{feed}")
+
+
+def configured(feed: str) -> bool:
+    return all(os.environ.get(name) for name in _settings(feed))
 
 
 def _number(element, tag: str) -> float | None:
@@ -122,7 +130,18 @@ def tracks(xml: str) -> list[tuple[dict, float]]:
     return out
 
 
-def _run() -> None:
+def _radar(text: str) -> int:
+    found = tracks(text) if "TATrackAndFlightPlan" in text[:300] else []
+    for plane, at in found:
+        traffic.heard_elsewhere(plane, at)
+    return len(found)
+
+
+#: What each feed's messages are handed to; each gives how many items it read.
+HANDLERS = {"STDDS": _radar, "FNS": notams.heard}
+
+
+def _run(feed: str) -> None:
     """Connect, read and hand on until the process ends, connecting again
     after a pause where the connection drops or cannot be made."""
     from solace.messaging.config.retry_strategy import RetryStrategy
@@ -136,7 +155,7 @@ def _run() -> None:
         try:
             service = (MessagingService.builder().from_properties({
                 "solace.messaging.transport.host": os.environ["SWIM_HOST"],
-                "solace.messaging.service.vpn-name": os.environ["SWIM_VPN_STDDS"],
+                "solace.messaging.service.vpn-name": os.environ[f"SWIM_VPN_{feed}"],
                 "solace.messaging.authentication.scheme.basic.username": os.environ["SWIM_USERNAME"],
                 "solace.messaging.authentication.scheme.basic.password": os.environ["SWIM_PASSWORD"],
             }).with_transport_security_strategy(
@@ -145,26 +164,23 @@ def _run() -> None:
                 .with_reconnection_retry_strategy(RetryStrategy.parametrized_retry(5, 3000)).build())
             service.connect()
             receiver = service.create_persistent_message_receiver_builder().build(
-                Queue.durable_exclusive_queue(os.environ["SWIM_QUEUE_STDDS"]))
+                Queue.durable_exclusive_queue(os.environ[f"SWIM_QUEUE_{feed}"]))
             receiver.start()
-            STATE.update(connected=True, error=None)
+            state = STATE[feed]
+            state.update(connected=True, error=None)
             pause = RETRY_FIRST_S
-            log.info("SWIM STDDS connected")
+            log.info("SWIM %s connected", feed)
             while True:
                 message = receiver.receive_message(timeout=5000)
                 if message is None:
                     continue
-                text = body(message)
-                found = tracks(text) if "TATrackAndFlightPlan" in text[:300] else []
-                for plane, at in found:
-                    traffic.heard_elsewhere(plane, at)
-                STATE["messages"] += 1
-                STATE["tracks"] += len(found)
-                STATE["last_at"] = time.time()
+                state["items"] += HANDLERS[feed](body(message))
+                state["messages"] += 1
+                state["last_at"] = time.time()
                 receiver.ack(message)
         except Exception as err:  # noqa: BLE001 -- any failure: connect again after the pause
-            STATE.update(connected=False, error=f"{type(err).__name__}: {str(err)[:200]}")
-            log.warning("SWIM STDDS: %s; connecting again in %.0f s", STATE["error"], pause)
+            STATE[feed].update(connected=False, error=f"{type(err).__name__}: {str(err)[:200]}")
+            log.warning("SWIM %s: %s; connecting again in %.0f s", feed, STATE[feed]["error"], pause)
         finally:
             for closing in (receiver, service):
                 try:
@@ -179,6 +195,7 @@ def _run() -> None:
 
 
 def start() -> None:
-    """The feed's reader started on its own thread, where it is set up."""
-    if configured():
-        threading.Thread(target=_run, name="swim-stdds", daemon=True).start()
+    """Each feed's reader started on its own thread, where it is set up."""
+    for feed in FEEDS:
+        if configured(feed):
+            threading.Thread(target=_run, args=(feed,), name=f"swim-{feed.lower()}", daemon=True).start()
