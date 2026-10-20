@@ -41,6 +41,10 @@ export interface RouteProcedure {
   runway: string | null;
   label: string;
   spoken: string;
+  /** The fix ATC sent the airplane direct to, and the procedure's fixes it
+   *  could be sent to (ProcedureMenu). */
+  direct?: string | null;
+  fixes?: string[];
 }
 
 const PROCEDURE_GLYPH = { approach: PlaneLanding, arrival: Route, departure: PlaneTakeoff } as const;

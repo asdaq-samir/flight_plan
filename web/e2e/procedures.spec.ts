@@ -386,3 +386,37 @@ test("a procedure picked lengthens the plan by its path: the fuel and the time t
   await page.getByTestId("fuel-breakdown-open").click();
   await expect(page.getByTestId("fuel-breakdown")).toContainText(/\d+\.\d nm more by the procedures picked/);
 });
+
+test("an approach can be flown direct to one of its fixes, as ATC sends an airplane, and back as charted", async ({ page }) => {
+  // The owner's ask: "the procedures should give the ability to go direct
+  // to a fix as told by ATC".
+  await page.route(url => /\/airport\/[^/]+\/procedures/.test(url.pathname), route => {
+    const url = new URL(route.request().url());
+    if (url.pathname.endsWith("/KDLH/procedures")) return route.fulfill({ json: LIST });
+    if (url.pathname.endsWith("/plate")) return route.fulfill({ status: 404, json: { detail: "none" } });
+    if (url.pathname.endsWith("/KDLH/procedures/I09")) return route.fulfill({ json: { ...DRAWN, transition: url.searchParams.get("transition") } });
+    return route.fulfill({ json: { airport: "C81", cycle: "261001", procedures: [] } });
+  });
+  await page.goto("/app/plan?dep=C81&dest=KDLH&pattern=C81:NONE&procs=KDLH:I09:DLH");
+  await settle(page);
+  await openTab(page, "Nav Log");
+  const kdlh = page.getByTestId("procedures").getByRole("region", { name: "KDLH · Arrive" });
+  const approach = kdlh.locator("[data-testid=procedure-kind][data-kind=approach]");
+  await expect(approach).toContainText("ILS 09 · DLH", { timeout: slow(20000) });
+  await approach.click();
+  const menu = page.getByTestId("procedure-menu");
+  await expect(menu.getByTestId("procedure-menu-direct")).toContainText("As charted");
+  await menu.getByTestId("procedure-menu-direct").click();
+  // The procedure's own fixes, the missed approach's and the runway's not.
+  await expect(menu.getByTestId("procedure-menu-direct-fix")).toHaveText(["As charted", "DLH", "OFOFO", "FAKER"]);
+  await menu.getByTestId("procedure-menu-direct-fix").filter({ hasText: "FAKER" }).click();
+  await expect(page).toHaveURL(/[?&]procs=KDLH(%3A|:)I09(%3A|:)DLH(%3A|:)FAKER(&|$)/);
+  await settled(sideDrawer(page));
+  await openTab(page, "Nav Log");
+  await expect(approach).toContainText("ILS 09 · direct FAKER");
+  // Back as charted.
+  await approach.click();
+  await menu.getByTestId("procedure-menu-direct").click();
+  await menu.getByTestId("procedure-menu-direct-fix").filter({ hasText: "As charted" }).click();
+  await expect(page).toHaveURL(/[?&]procs=KDLH(%3A|:)I09(%3A|:)DLH(&|$)/);
+});

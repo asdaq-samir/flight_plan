@@ -109,6 +109,31 @@ test("the dry run waits for the legs: its button dimmed until they are all in, a
   await expect(page.locator('[data-own-ship="on"]')).toHaveCount(1);
 });
 
+test("the dry run keeps the flight's own figures at the foot, counting down from where the airplane is", async ({ page }) => {
+  // The owner's "Dry run should keep the calculations as in the profile":
+  // To, Dist, ETE and Fuel, their taps the same, where the run had its own
+  // (Dist left, Time left, ETA, To burn).
+  await page.goto("/app/plan?dep=C81&dest=KDLH");
+  await settle(page);
+  await openPanel(page);
+  const start = sideDrawer(page).getByTestId("dry-run-start");
+  await expect(start).toBeEnabled({ timeout: slow(60_000) });
+  const line = sideDrawer(page).getByTestId("flight-line");
+  const planned = await line.locator("dt").allTextContents();
+  expect(planned).toEqual(["To", "Dist", "ETE", "Fuel"]);
+  const plannedNm = parseFloat(await line.locator("dd").nth(1).innerText());
+
+  await start.click();
+  const figures = sideDrawer(page).getByTestId("dry-run-figures");
+  await expect(figures.locator("dt")).toHaveText(planned);
+  await expect(figures.getByTestId("navlog-to")).toHaveText("KDLH");
+  await expect(figures.getByTestId("ete-eta-toggle")).toBeVisible();
+  await expect(figures.getByTestId("fuel-breakdown-open")).toBeVisible();
+  const leftNm = async () => parseFloat(await figures.locator("dd").nth(1).innerText());
+  expect(await leftNm()).toBeLessThanOrEqual(Math.ceil(plannedNm));
+  await expect.poll(leftNm, { timeout: slow(15_000) }).toBeLessThan(plannedNm - 1);
+});
+
 /** Own ship's marker, on screen. */
 async function shipAt(page: Page) {
   const box = (await page.locator(".leaflet-marker-icon").filter({ has: page.locator('[data-own-ship="on"]') }).last().boundingBox())!;

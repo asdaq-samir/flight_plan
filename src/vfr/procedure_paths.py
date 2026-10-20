@@ -186,7 +186,11 @@ def with_reversals(path: list, ft: list, holds: list) -> tuple[list, list]:
     course reversal a pilot flies there (AIM 5-4-9): the hold the chart puts
     at the fix (a hold in lieu of a procedure turn), once round; or else a
     teardrop. Each point of it has no altitude of its own but the last,
-    back at the fix inbound, crossed at its altitude again."""
+    back at the fix inbound, crossed at its altitude again. Not at the
+    procedure's first fix, come to from the route: a pilot turns there,
+    however far, onto the procedure's first leg. A teardrop there flew El
+    Dorado's ILS 22 via ELD five miles on past the VOR, over the field, and
+    back (the owner's recording, 2026-10-19), and the plan with it."""
     out, out_ft = [path[0]], [ft[0]]
     for i in range(1, len(path)):
         fix = path[i]
@@ -194,6 +198,8 @@ def with_reversals(path: list, ft: list, holds: list) -> tuple[list, list]:
         out_ft.append(ft[i])
         if i == len(path) - 1:
             break
+        if i == 1:
+            continue
         cin, cout = _bearing(path[i - 1], fix), _bearing(fix, path[i + 1])
         if abs(((cout - cin + 540) % 360) - 180) <= REVERSAL_DEG:
             continue
@@ -202,6 +208,22 @@ def with_reversals(path: list, ft: list, holds: list) -> tuple[list, list]:
         out.extend(round_)
         out_ft.extend(ft[i] if k == len(round_) - 1 else None for k in range(len(round_)))
     return out, out_ft
+
+
+def _direct(piece: dict | None, drawing: dict | None) -> dict | None:
+    """A procedure's path from the fix ATC sent the airplane direct to
+    (its drawing's `direct`), the rest of it before that fix left out; as
+    it is where it has none, or the fix is not on this path."""
+    ident = (drawing or {}).get("direct")
+    if not piece or not ident:
+        return piece
+    fix = next((f for f in drawing.get("fixes", []) if f["ident"] == ident and not f["missed"]), None)
+    if fix is None:
+        return piece
+    at = next((i for i, p in enumerate(piece["points"]) if _nm(p, (fix["lat"], fix["lon"])) < SAME_PLACE_NM), None)
+    if at is None:
+        return piece
+    return {**piece, "points": piece["points"][at:], "ft": piece["ft"][at:]}
 
 
 def flown(start: tuple, end: tuple, departure: dict | None = None, arrival: dict | None = None,
@@ -214,18 +236,24 @@ def flown(start: tuple, end: tuple, departure: dict | None = None, arrival: dict
     (None where it sets none), its length, whether it comes down to a
     runway (`landing`), where the final starts (`final_at`, the index of
     the final approach fix the last time the path is there, after a course
-    reversal round it), and the approach's missed approach. None where
-    nothing of them is drawn."""
+    reversal round it), and the approach's missed approach. A procedure ATC
+    sent the airplane direct to a fix of (its drawing's `direct`) is flown
+    from that fix, straight to it from where the leg is. None where nothing
+    of them is drawn."""
     app = approach_path(approach) if approach else None
-    star = procedure_path(arrival, app["points"][0] if app else None) if arrival else None
-    sid = procedure_path(departure) if departure else None
+    # Sent direct to one of the approach's fixes, the arrival is left for it.
+    direct_in = bool(approach and approach.get("direct") and _direct(app, approach) is not app)
+    app = _direct(app, approach)
+    star = None if direct_in else _direct(procedure_path(arrival, app["points"][0] if app else None) if arrival else None, arrival)
+    sid = _direct(procedure_path(departure) if departure else None, departure)
     pieces = [p for p in (sid, star, app) if p]
     if not pieces:
         return None
     raw, raw_ft = [tuple(start)], [None]
     for piece in pieces:
-        # From vectors, onto the final at a 30° intercept (vectors_join).
-        if piece is app and not approach.get("transition"):
+        # From vectors, onto the final at a 30° intercept (vectors_join);
+        # sent direct to a fix, straight there.
+        if piece is app and not approach.get("transition") and not direct_in:
             for p in vectors_join(piece["points"], raw[-1]):
                 raw.append(p)
                 raw_ft.append(None)

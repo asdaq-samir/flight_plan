@@ -1,19 +1,16 @@
-import { Suspense, lazy, useRef, type KeyboardEvent, type PointerEvent } from "react";
+import { Suspense, lazy, memo, useMemo, useRef, type ComponentProps, type KeyboardEvent, type PointerEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Pause, Play } from "lucide-react";
 import { cn } from "cn";
 import CloseButton from "../../../components/CloseButton";
 import RoundButton from "../../../components/RoundButton";
-import { clockTime } from "../../../lib/clock";
 import { REPLAY_SPEEDS, pausePastFlight, playPastFlight, positionAt, usePastFlight } from "../../../lib/map/pastFlight";
 import { routeProfileQuery } from "../../../lib/queryClient";
-import FigureStrip from "../../../components/FigureStrip";
 import { TEXT } from "../../../lib/text";
-import { altFt, one } from "../../../lib/units";
-import { enRoute } from "../figures";
-import { dryRunAt, runNmAt, type DryRun } from "./navlog/dryRun";
+import { altFt } from "../../../lib/units";
+import FlightLine from "./FlightLine";
+import { dryRunFlown, runNmAt, type DryRun, type Flown } from "./navlog/dryRun";
 import type { RouteEnds } from "./navlog/rows";
-import { when } from "./pastFlightFormat";
 import { loadFlightChart } from "./loadFlightChart";
 
 const FlightChart = lazy(loadFlightChart);
@@ -25,8 +22,9 @@ const FlightChart = lazy(loadFlightChart);
  * marked and said over it, its controls on it -- from the start again,
  * play or pause, how fast, and the close (a past flight's replay's chart,
  * PastFlightChart), the airplane flown along the course on the map
- * (DryRunLayer). In FPL's foot in the side view's place, the figures
- * under it (DryRunFigures); the chart growing with the sheet.
+ * (DryRunLayer). In FPL's foot in the side view's place, the flight's
+ * figures under it as it goes (DryRunFigures); the chart growing with the
+ * sheet.
  */
 export function DryRunControls({ run, ends, onClose, missed = false, onMissed }: {
   run: DryRun;
@@ -179,29 +177,38 @@ function timeAt(run: DryRun, nm: number): number {
   return points[i - 1]!.t + (points[i]!.t - points[i - 1]!.t) * f;
 }
 
-/** The figures as the dry run goes, in the flight figures' place at the
- *  panel's foot: the distance and time still to fly, the arrival, and the
- *  fuel still to burn of the plan's. */
-export function DryRunFigures({ run }: { run: DryRun }) {
-  const at = usePastFlight(s => s.at);
-  const start = run.points[0]?.t ?? 0;
-  const left = dryRunAt(run, at ?? start);
-  const total = run.fuelGal.at(-1) ?? 0;
-  const figures = [
-    { name: "Dist left", value: left ? one(left.leftNm) : "—", unit: "nm" },
-    // As the flight's own figures write a time en route: "2h 5m" sat where
-    // the strip says "2h 05m".
-    { name: "Time left", value: left ? enRoute(left.leftS / 60) : "—" },
-    { name: "ETA", value: run.points.length ? clockTime(when(run.points.at(-1)!.t)) : "—" },
-    { name: "To burn", value: left ? one(total - left.burntGal) : "—", unit: "gal" },
-  ];
-  // Too wide for a column, the distance and the fuel up to whole ones, as
-  // the flight's figures are rounded (tripFigures): up, so none is said
-  // short of what it is.
-  const rounded = figures.map(f => (left && f.unit ? { ...f, value: `${Math.ceil(f.name === "Dist left" ? left.leftNm : total - left.burntGal)}` } : f));
-  // The figures every tab pins at the panel's foot, one look for all of
-  // them (FigureStrip), growing as the sheet comes up, at the owner's ask
-  // ("keep the calculations pinned down at the bottom for dry run as well.
-  // That should be common theme for all layouts").
-  return <FigureStrip figures={figures} rounded={rounded} testId="dry-run-figures" />;
+/** The flight's own figures as the dry run goes, in their place at the
+ *  panel's foot, at the owner's ask ("Dry run should keep the calculations
+ *  as in the profile"): To, Dist, ETE or ETA and Fuel, the same taps on
+ *  them, from where the airplane is -- the next landing ahead, the
+ *  distance and time left to it, and the fuel required less what the run
+ *  has burnt. They had been figures of their own (Dist left, Time left,
+ *  ETA, To burn). */
+export function DryRunFigures({ run, ...line }: { run: DryRun } & Omit<ComponentProps<typeof FlightLine>, "flown" | "grow">) {
+  // As far as the figures say it -- a tenth of a mile and of a gallon, a
+  // minute -- so the strip is drawn again only when one changes, not at
+  // each of the run's frames: it measures its figures to fit them
+  // (useFigureFit), and the map's own frames came second to it.
+  const key = usePastFlight(s => {
+    const flown = dryRunFlown(run, s.at ?? run.points[0]?.t ?? 0);
+    if (!flown) return "";
+    const { hop, now, next, last, burntGal } = flown;
+    return [hop, Math.floor(now / 60) * 60, next.nm.toFixed(1), Math.round(next.min), last.nm.toFixed(1), Math.round(last.min), burntGal.toFixed(1)].join(" ");
+  });
+  const flown = useMemo((): Flown | null => {
+    if (!key) return null;
+    const [hop, now, nextNm, nextMin, lastNm, lastMin, burnt] = key.split(" ").map(Number) as [number, number, number, number, number, number, number];
+    return {
+      hop, now, burntGal: burnt,
+      next: { nm: nextNm, min: nextMin, at: now + nextMin * 60 }, last: { nm: lastNm, min: lastMin, at: now + lastMin * 60 },
+    };
+  }, [key]);
+  return (
+    <div data-testid="dry-run-figures">
+      <SteadyLine {...line} flown={flown} grow />
+    </div>
+  );
 }
+
+/** The flight's figures drawn again only for new ones (DryRunFigures). */
+const SteadyLine = memo(FlightLine);

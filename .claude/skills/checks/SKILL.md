@@ -59,12 +59,13 @@ docker compose -f docker-compose.yml -f docker-compose.phone.yml -f docker-compo
 **One heavy run at a time.** On the owner's Mac, run every browser test, image build and speed measurement through `scripts/one-at-a-time.sh "<who and what>" <command…>`. Two Claude sessions often share the Mac, and two suites at once took its four cores to a load of 9 to 11: tests timed out and had to be rerun one by one to tell the load from a real failure (2026-10-15). The script waits its turn (it says whose it is), runs the command, and frees the turn however the command ends. A turn left by a killed run is taken back.
 
 ```sh
-scripts/one-at-a-time.sh "session: <spec>" docker run --rm --add-host=host.docker.internal:host-gateway -v "$PWD/web":/w -w /w \
-  -e BASE_URL=http://host.docker.internal:8080 -e MAILPIT_URL=http://host.docker.internal:8025 \
+scripts/one-at-a-time.sh "session: <spec>" docker run --rm --network host -v "$PWD/web":/w -w /w \
+  -e BASE_URL=http://localhost:8080 -e MAILPIT_URL=http://localhost:8025 \
   -e MAILPIT_UI_AUTH="$(grep '^MAILPIT_UI_AUTH=' .env | cut -d= -f2-)" \
   mcr.microsoft.com/playwright:v1.55.1-noble npx playwright test e2e/<spec>.spec.ts --reporter=list
 ```
 - The image tag must equal `@playwright/test` in `web/package.json`. Change both together.
+- Reach the stack at `localhost`, as CI does: the browser counts it as a secure origin and gives the page a position. Over `host.docker.internal` it is not one, and every test that taps the location arrow fails ("No position over this connection"). Four dry-run tests failed that way on 2026-10-19 and passed over `localhost`.
 - The `setup` project signs in developer@example.com through Mailpit, and every spec reuses that session.
 - **Locally, run only the specs the change touches, and its new test** (the owner's pick, 2026-10-15). The whole suite runs in CI on the push, in a few minutes on GitHub's runners, so don't run it here unless the owner asks. Run a broader local set only where CI can't stand in, such as a WebKit-only bug or a measurement. Keep the full log rather than piping it through `tail`, so the details of a real failure survive.
 - **iPhone audit:** `e2e/ios` runs on three devices in every run. `IOS_AUDIT=1` takes all eight, plus `--project=webkit-iphone --workers=2` for Safari's engine.

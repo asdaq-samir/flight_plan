@@ -117,7 +117,7 @@ export default function ProceduresRoute({
   procedures: PickedProcedure[];
   /** Those drawn, by field and kind, as the route's box names them, an
    *  approach's with the runway it lands on (approachRunway). */
-  inRoute: { ident: string; kind: Kind; id: string; runway: string | null; label: string }[];
+  inRoute: { ident: string; kind: Kind; id: string; runway: string | null; label: string; fixes?: string[] }[];
   /** All of them as they are to be, and the one just picked, for the map
    *  to go to. */
   onProcedures: (next: PickedProcedure[], picked: PickedProcedure | null) => void;
@@ -203,7 +203,7 @@ export default function ProceduresRoute({
   const kindOf = (p: PickedProcedure) => listOf(p.ident)?.procedures.find(q => q.id === p.id)?.kind;
   const pickOf = (ident: string, kind: Kind) => procedures.find(p => sameField(p.ident, ident) && kindOf(p) === kind) ?? null;
   // One of a kind at a field: a new pick there takes the old one's place.
-  const pick = (ident: string, kind: Kind, next: { id: string; transition: string | null } | null) => {
+  const pick = (ident: string, kind: Kind, next: { id: string; transition: string | null; direct?: string | null } | null) => {
     const kept = procedures.filter(p => !(sameField(p.ident, ident) && kindOf(p) === kind));
     const made = next ? { ident, ...next } : null;
     onProcedures(made ? [...kept, made] : kept, made);
@@ -263,6 +263,7 @@ export default function ProceduresRoute({
       <ProcedureMenu
         key={kind} ident={a.ident} kind={kind} list={lists[i]?.data} loading={!!lists[i]?.isFetching}
         picked={pickOf(a.ident, kind)} label={inRoute.find(p => sameField(p.ident, a.ident) && p.kind === kind)?.label ?? null}
+        fixes={inRoute.find(p => sameField(p.ident, a.ident) && p.kind === kind)?.fixes}
         runway={chosenAt(a.ident)} windward={wind && !wind.calm ? wind.ident : null}
         onOpen={() => ask(a.ident)} onPick={next => pick(a.ident, kind, next)} onAll={() => onAt({ ident: a.ident, kind })}
       />

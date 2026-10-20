@@ -38,7 +38,7 @@ function shortName(p: ProcedureSummary): string {
  * whole list (the Procedures sheet, with each one's fixes and plate)
  * after it. The list is asked for as the menu opens.
  */
-export default function ProcedureMenu({ ident, kind, list, loading, picked, label, runway, windward, onOpen, onPick, onAll }: {
+export default function ProcedureMenu({ ident, kind, list, loading, picked, label, runway, windward, fixes = [], onOpen, onPick, onAll }: {
   ident: string;
   kind: Kind;
   /** The field's procedures, once asked for (onOpen). */
@@ -52,8 +52,11 @@ export default function ProcedureMenu({ ident, kind, list, loading, picked, labe
    *  ("9L"): an approach's group first. */
   runway: string | null;
   windward: string | null;
+  /** The picked one's fixes ATC can send the airplane direct to, in its
+   *  order (its drawing's): with any, a page of them. */
+  fixes?: string[];
   onOpen: () => void;
-  onPick: (next: { id: string; transition: string | null } | null) => void;
+  onPick: (next: { id: string; transition: string | null; direct?: string | null } | null) => void;
   onAll: () => void;
 }) {
   const all = (list?.procedures ?? []).filter(p => p.kind === kind);
@@ -72,7 +75,7 @@ export default function ProcedureMenu({ ident, kind, list, loading, picked, labe
   const toSheet = useRef(false);
   const page = pages.at(-1) ?? null;
   const push = (next: Page) => setPages([...pages, next]);
-  const pick = (next: { id: string; transition: string | null } | null) => { onPick(next); toggle(false); };
+  const pick = (next: { id: string; transition: string | null; direct?: string | null } | null) => { onPick(next); toggle(false); };
   const runwayName = (r: string) => (r === "Circling" ? "Circling" : `Runway ${r}${r === windward ? " · into the wind" : ""}`);
   const item = (p: ProcedureSummary, name: string) => {
     const on = picked?.id === p.id;
@@ -95,7 +98,8 @@ export default function ProcedureMenu({ ident, kind, list, loading, picked, labe
   const first = kind === "approach"
     ? [runway, windward, ...byRunway.keys()].find(r => r !== null && byRunway.has(r)) ?? null : null;
   const others = [...byRunway.keys()].filter(r => r !== first).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-  const title = page && "procedure" in page ? page.procedure.name : page ? runwayName(page.runway) : `${ident} ${TITLE[kind].toLowerCase()}`;
+  const title = page && "procedure" in page ? page.procedure.name : page && "direct" in page ? "Direct to" : page ? runwayName(page.runway)
+    : `${ident} ${TITLE[kind].toLowerCase()}`;
   return (
     // Expanded as everything in the app is, at the owner's ask ("whenever
     // anything is expanded it should open with the title on top with a
@@ -147,7 +151,22 @@ export default function ProcedureMenu({ ident, kind, list, loading, picked, labe
               );
             })}
           </ListGroup>
-        ) : page ? (
+        ) : page && "direct" in page && picked ? (
+          // A fix ATC sent the airplane to, at the owner's ask ("the ability
+          // to go direct to a fix as told by ATC"): the procedure flown from
+          // there, straight to it (vfr.procedure_paths), or as charted.
+          <ListGroup>
+            {[null, ...fixes].map(f => {
+              const on = (picked.direct ?? null) === f;
+              return (
+                <ListRow
+                  key={f ?? "-"} title={f ?? "As charted"} value={<Mark on={on} />} aria-pressed={on}
+                  onClick={() => pick({ id: picked.id, transition: picked.transition, direct: f })} data-testid="procedure-menu-direct-fix"
+                />
+              );
+            })}
+          </ListGroup>
+        ) : page && "runway" in page ? (
           <ListGroup>{(byRunway.get(page.runway) ?? []).map(p => item(p, shortName(p)))}</ListGroup>
         ) : (
           <>
@@ -170,6 +189,14 @@ export default function ProcedureMenu({ ident, kind, list, loading, picked, labe
               </>
             )}
             {kind !== "approach" && all.length > 0 && <ListGroup>{all.map(p => item(p, p.name))}</ListGroup>}
+            {picked && fixes.length > 0 && (
+              <ListGroup>
+                <ListRow
+                  title="Direct to" value={picked.direct ?? "As charted"} chevron
+                  onClick={() => push({ direct: true })} data-testid="procedure-menu-direct"
+                />
+              </ListGroup>
+            )}
             <ListGroup>
               {/* The plate on the chart or not, at the owner's ask. */}
               {kind === "approach" && picked && (
@@ -189,7 +216,7 @@ export default function ProcedureMenu({ ident, kind, list, loading, picked, labe
 
 /** A page of the panel pushed in its place: a runway's approaches, or a
  *  procedure's transitions. */
-type Page = { runway: string } | { procedure: ProcedureSummary; name: string };
+type Page = { runway: string } | { procedure: ProcedureSummary; name: string } | { direct: true };
 
 /** The one picked, ticked at the row's end, as an iOS list's choice is;
  *  nothing on the others, so no row is set in for it (the owner's

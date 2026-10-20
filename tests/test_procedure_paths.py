@@ -55,6 +55,25 @@ def test_where_the_approach_doubles_back_it_turns_in_a_teardrop_out_past_the_fix
     assert all(not near(p, ANDOE) for p in path[leg["final_at"] + 1:])
 
 
+def test_no_reversal_is_flown_at_the_procedures_first_fix_come_to_from_the_route():
+    """El Dorado's ILS 22 via ELD (2026-10-19): from the north to the VOR,
+    then back out north-east to EL. A turn at ELD, not a teardrop past it
+    over the field; the reversal is at EL, where the final doubles back."""
+    eld, el, rw = (33.25, -92.75), (33.30, -92.70), (33.22, -92.81)
+    approach = {
+        "kind": "approach", "transition": "ELD", "holds": [],
+        "lines": [{"role": "transition", "points": [list(eld), list(el)]}, {"role": "final", "points": [list(el), list(rw)]}],
+        "fixes": [fix("ELD", *eld), fix("EL", *el, ["IAF", "FAF"], 2000), fix("RW22", *rw, ["MAP"])],
+    }
+    leg = flown((33.6, -92.75), rw, approach=approach)
+    path = [tuple(p) for p in leg["path"]]
+    # Straight from the route to ELD and on to EL: nothing south-west of the VOR first.
+    assert path[1] == eld
+    assert not any(p[0] < eld[0] - 0.01 for p in path[:path.index(el)])
+    # Turned round at EL, out past it to the north-east.
+    assert any(p[0] > el[0] + 0.02 for p in path)
+
+
 def test_the_charts_hold_is_flown_once_round_where_it_has_one_in_lieu_of_a_procedure_turn():
     far = (46.84, -91.95)
     hold = [list(ANDOE), [46.85, -92.0], list(far), [46.83, -92.0], list(ANDOE)]
@@ -132,3 +151,17 @@ def test_nothing_drawn_is_flown_as_the_route_goes():
     assert flown(SOUTH_WEST, RW27) is None
     assert flown(SOUTH_WEST, RW27, approach={"kind": "approach", "fixes": []}) is None
     assert length_nm([SOUTH_WEST]) == 0
+
+
+def test_sent_direct_to_a_fix_the_procedure_is_flown_from_it_straight_there():
+    """The owner's ask ("the ability to go direct to a fix as told by
+    ATC"): Duluth's ILS 27 via DLH, direct ANDOE -- straight from the leg's
+    start to ANDOE and down the final, no transition and no reversal; and an
+    arrival is left for the approach's fix."""
+    leg = flown(SOUTH_WEST, RW27, approach={**ILS27_DLH, "direct": "ANDOE"})
+    assert [tuple(p) for p in leg["path"]] == [SOUTH_WEST, ANDOE, RW27]
+    star = {"kind": "arrival", "holds": [], "fixes": [], "lines": [{"role": "common", "points": [[46.6, -92.4], [46.75, -92.3]]}]}
+    both = flown(SOUTH_WEST, RW27, arrival=star, approach={**ILS27_DLH, "direct": "ANDOE"})
+    assert [tuple(p) for p in both["path"]] == [SOUTH_WEST, ANDOE, RW27]
+    # A fix not on the path changes nothing.
+    assert flown(SOUTH_WEST, RW27, approach={**ILS27_DLH, "direct": "NOPE"})["path"] == flown(SOUTH_WEST, RW27, approach=ILS27_DLH)["path"]

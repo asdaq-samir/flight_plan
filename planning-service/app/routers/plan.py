@@ -107,7 +107,8 @@ class PlanQuery:
     #: The instrument procedures picked at the route's fields, as the
     #: address has them: "KDLH:I09:ANDOE,KORD:BENKY6:BYLAW", the field, the
     #: procedure and any transition -- approaches, arrivals and
-    #: departures alike. A leg flown by them is the longer by their path
+    #: departures alike -- and a fix ATC sent the airplane direct to, after
+    #: a fourth colon ("KELD:I22::BXCMB"), the procedure flown from there. A leg flown by them is the longer by their path
     #: (with_procedures), and a flight landing by an approach comes down
     #: to the altitude of its first fix rather than to the pattern
     #: (approach_end).
@@ -139,16 +140,19 @@ class PlanQuery:
         return out
 
 
-    def procedure_picks(self) -> list[tuple[str, str, str | None]]:
-        """`procedures`, each the field, the procedure and its transition
-        (None, an approach from vectors); a 422 for one that is not
-        "FIELD:PROCEDURE[:TRANSITION]"."""
+    def procedure_picks(self) -> list[tuple[str, str, str | None, str | None]]:
+        """`procedures`, each the field, the procedure, its transition
+        (None, an approach from vectors) and the fix flown direct to (None,
+        as charted); a 422 for one that is not
+        "FIELD:PROCEDURE[:TRANSITION[:DIRECT]]"."""
         out = []
         for part in filter(None, (p.strip() for p in self.procedures.split(","))):
             if not PROCEDURE_PICK.fullmatch(part):
                 raise HTTPException(422, f"{part!r} is not a procedure: a field, a procedure and a transition, as KDLH:I09:ANDOE.")
-            ident, procedure, *transition = part.upper().split(":")
-            out.append((ident, procedure, transition[0] if transition else None))
+            ident, procedure, *rest = part.upper().split(":")
+            transition = rest[0] if rest and rest[0] else None
+            direct = rest[1] if len(rest) > 1 else None
+            out.append((ident, procedure, transition, direct))
         return out
 
     def drawn_procedures(self) -> list[tuple[str, dict]]:
@@ -157,19 +161,19 @@ class PlanQuery:
         request; one the CIFP does not have, or cannot be had, left out:
         its leg is flown as the route goes."""
         out = []
-        for ident, procedure, transition in self.procedure_picks():
+        for ident, procedure, transition, direct in self.procedure_picks():
             try:
                 drawn = procedures.procedure_drawing(ident, procedure, transition)
             except RuntimeError:
                 continue
             if drawn:
-                out.append((ident, drawn))
+                out.append((ident, {**drawn, "direct": direct} if direct else drawn))
         return out
 
 
 POINT_ALTITUDE = re.compile(r"[A-Za-z0-9]{2,5}:\d{1,5}")
 # As lib/procedures' proceduresOf reads them from the address.
-PROCEDURE_PICK = re.compile(r"[A-Za-z0-9]{2,5}:[A-Za-z0-9-]{1,6}(:[A-Za-z0-9]{1,5})?")
+PROCEDURE_PICK = re.compile(r"[A-Za-z0-9]{2,5}:[A-Za-z0-9-]{1,6}(:[A-Za-z0-9]{1,5}|:[A-Za-z0-9]{0,5}:[A-Za-z0-9]{2,5})?")
 
 # How often the nav log stream says it is still working while the
 # altitude plans are being made.

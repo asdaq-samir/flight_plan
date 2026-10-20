@@ -24,6 +24,13 @@ describe("the procedures picked, in the address", () => {
     expect(proceduresParam(picks)).toBe("KBUR:I08-Y:LAX,C81:R24");
     expect(proceduresOf(proceduresParam(picks))).toEqual(picks);
   });
+
+  it("keeps a fix flown direct to after a fourth colon, with or without a transition", () => {
+    const picks = [{ ident: "KELD", id: "I22", transition: null, direct: "BXCMB" }, { ident: "KDLH", id: "R27", transition: "HIGHR", direct: "WIRSA" }];
+    expect(proceduresParam(picks)).toBe("KELD:I22::BXCMB,KDLH:R27:HIGHR:WIRSA");
+    expect(proceduresOf(proceduresParam(picks))).toEqual(picks);
+    expect(proceduresOf("KELD:I22::X")).toEqual([{ ident: "KELD", id: "I22", transition: null }]);
+  });
 });
 
 describe("a fix's altitudes as the chart sets them", () => {

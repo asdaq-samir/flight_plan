@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Airport, Leg, LegProcedure } from "../../../../lib/api/types";
 import { distanceNm } from "../../../../lib/geo";
-import { dryRunAt, dryRunOf, dryRunRow, runNmAt } from "./dryRun";
+import { dryRunAt, dryRunFlown, dryRunOf, dryRunRow, runNmAt } from "./dryRun";
 import { navLogRows } from "./rows";
 
 const airport = (ident: string, lat: number, elevation: number): Airport =>
@@ -31,6 +31,11 @@ describe("the planned flight, flown on paper", () => {
     const level = run.points.filter((_, i) => run.alongNm[i]! > 8 && run.alongNm[i]! < 48);
     expect(level.length).toBeGreaterThan(5);
     expect(level.every(p => p.alt_ft === 5500)).toBe(true);
+  });
+
+  it("is at a standstill on the field at the end, where the alerts ahead take it as landed", () => {
+    expect(run.points.at(-1)!.gs_kt).toBe(0);
+    expect(run.points.at(-2)!.gs_kt).toBeGreaterThan(0);
   });
 
   it("says what is left and what is burnt as it goes", () => {
@@ -152,6 +157,8 @@ describe("a leg the planner flies by the procedures picked", () => {
     expect(missedRun.points.at(-1)!.lon).toBeCloseTo(-88.3);
     expect(missedRun.points.at(-1)!.alt_ft).toBeCloseTo(500 + out * 200, 0);
     expect(missedRun.alongNm.at(-1)).toBeCloseTo(run.alongNm.at(-1)! + out);
+    // Gone missed, it ends in the air, still flying.
+    expect(missedRun.points.at(-1)!.gs_kt).toBeGreaterThan(0);
   });
 
   it("goes out by a departure alone with the plan's own heights laid along its path, then on to the route", () => {
@@ -164,5 +171,44 @@ describe("a leg the planner flies by the procedures picked", () => {
     expect(out.points.some(p => distanceNm(p, { lat: 42.1, lon: -88.1 }) < 0.05)).toBe(true);
     expect(out.points.at(-1)).toMatchObject({ lat: 43, lon: -88, alt_ft: 500 });
     expect(Math.max(...out.points.map(p => p.alt_ft ?? 0))).toBe(5500);
+  });
+});
+
+describe("the dry run against its landings, for the flight's own figures", () => {
+  // C81 to a stop 60 nm north and on 60 nm to the destination, each flight
+  // 36 minutes and 5 gallons, level.
+  const level = { ...leg, toc: undefined, tod: undefined, climb_min: 0 } as Leg;
+  const stopRows = navLogRows(
+    { departure: airport("C81", 42, 800), stops: [airport("KJVL", 43, 800)], destination: airport("KDLH", 44, 500) }, [], [level, level],
+  );
+  const run = dryRunOf(stopRows, 1_000);
+
+  it("knows each landing, when it is in there, the distance flown and the fuel burnt", () => {
+    expect(run.landings.map(l => l.ident)).toEqual(["KJVL", "KDLH"]);
+    expect(run.landings[0]).toMatchObject({ t: 1_000 + 36 * 60, nm: 60, fuel: 5 });
+  });
+
+  it("is on the first flight at the start, its whole distance, time and fuel to go", () => {
+    expect(dryRunFlown(run, 1_000)).toEqual({
+      hop: 0, now: 1_000, next: { nm: 60, min: 36, at: 1_000 + 36 * 60 }, last: { nm: 120, min: 72, at: 1_000 + 72 * 60 }, burntGal: 0,
+    });
+  });
+
+  it("counts down to the stop half way there, and once in, is on the next flight, its fuel burnt from none", () => {
+    const half = dryRunFlown(run, 1_000 + 18 * 60)!;
+    expect(half.hop).toBe(0);
+    expect(half.next.nm).toBeCloseTo(30);
+    expect(half.next.min).toBeCloseTo(18);
+    expect(half.last.nm).toBeCloseTo(90);
+    expect(half.burntGal).toBeCloseTo(2.5);
+    const on = dryRunFlown(run, 1_000 + 54 * 60)!;
+    expect(on.hop).toBe(1);
+    expect(on.next.nm).toBeCloseTo(30);
+    expect(on.burntGal).toBeCloseTo(2.5);
+  });
+
+  it("is in at the destination at the end, nothing left", () => {
+    const end = dryRunFlown(run, 9_999_999)!;
+    expect(end).toMatchObject({ hop: 1, next: { nm: 0, min: 0 }, last: { nm: 0, min: 0 } });
   });
 });

@@ -198,3 +198,21 @@ def test_a_fix_is_named_for_its_waypoint_description(code, roles):
 def test_a_leg_with_no_altitude_code_has_no_limit_read_into_it():
     leg = _leg(altitude_code="", altitude1=3000)
     assert procedures.altitude_limits(leg) == (3000, 3000)
+
+
+def test_a_procedure_turn_goes_out_on_the_finals_reciprocal_turns_on_the_barb_and_comes_back_to_the_fix():
+    """El Dorado's ILS 22 at LADOS (2026-10 cycle, a PI leg on 357.9°): out
+    north-east, the barb to the left, the 180° turn back toward the final,
+    in on the final to the fix, within the 10 NM a procedure turn keeps to
+    (AIM 5-4-9)."""
+    lados = (33.286861, -92.729061)
+    inbound = 223.0
+    pts = procedures._procedure_turn(lados, inbound, 0.0)
+    assert pts[0] == lados and pts[-1] == lados
+    assert geo.bearing_deg(*lados, *pts[1]) == pytest.approx((inbound + 180) % 360, abs=1)
+    assert max(geo.distance_nm(*lados, *p) for p in pts) < 10
+    # Back on the final's course: the last leg in is the final's own.
+    assert geo.bearing_deg(*pts[-2], *lados) == pytest.approx(inbound, abs=3)
+    # The barb is left of the outbound course, the side north of the final.
+    out = (inbound + 180) % 360
+    assert any(((geo.bearing_deg(*lados, *p) - out + 540) % 360) - 180 < -10 for p in pts[2:-2])

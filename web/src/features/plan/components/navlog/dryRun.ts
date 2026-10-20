@@ -30,6 +30,10 @@ export interface DryRun {
    *  final approach fix to its missed approach point, while the run's Go
    *  missed button is there (DryRunControls). The same in either run. */
   final?: { from: number; to: number };
+  /** Each landing in order, a stop's and the destination's: when the run
+   *  is in, the distance flown and the fuel burnt by then -- the flight's
+   *  figures' next landing as the run goes (dryRunFlown). */
+  landings: { ident: string; t: number; nm: number; fuel: number }[];
 }
 
 interface Anchor {
@@ -167,12 +171,13 @@ function landingHeights(at: number[], ft: (number | null)[], cruise: number, fie
  * climbing at the standard gradient (missedHeights).
  */
 export function dryRunOf(rows: NavLogRow[], startS: number, line?: [number, number][], missed = false): DryRun {
-  const empty: DryRun = { points: [], alongNm: [], fuelGal: [], rowT: [], bends: [] };
+  const empty: DryRun = { points: [], alongNm: [], fuelGal: [], rowT: [], bends: [], landings: [] };
   const first = rows[0];
   if (!first || first.kind !== "departure") return empty;
   const plan = planProfile(rows).points;
   const anchors: Anchor[] = [{ along: 0, route: 0, ...rowPoint(first), t: startS, fuel: 0, gs: null, track: null }];
   let missable = false;
+  let wentMissed = false;
   let final: DryRun["final"];
   // Go missed is the last approach's, the one whose final the run's button
   // is on (DryRunControls): a stop's approach before it is flown to its
@@ -206,6 +211,7 @@ export function dryRunOf(rows: NavLogRow[], startS: number, line?: [number, numb
       // (`missed`), where the approach ended at the runway.
       if (flownBy.missed) missable = true;
       const goMissed = missed && flownBy.missed && i === lastApproach ? flownBy.missed : null;
+      if (goMissed) wentMissed = true;
       const path = goMissed ? [...flownPath, ...pathOf(goMissed.path)] : flownPath;
       const at = cumulative(path);
       const atMap = at[flownPath.length - 1]!;
@@ -266,8 +272,15 @@ export function dryRunOf(rows: NavLogRow[], startS: number, line?: [number, numb
     }
   }
   for (let a = STEP_NM; a < end; a += STEP_NM) marks.add(a);
+  // A row's anchor is its own: one each, in order, from the departure's.
+  const landings = anchors.flatMap((a, i) => {
+    const row = rows[i]!;
+    return (row.kind === "stop" && row.airport.kind !== "fix") || row.kind === "destination"
+      ? [{ ident: row.airport.ident, t: a.t, nm: a.along, fuel: a.fuel }] : [];
+  });
   const out: DryRun = {
     points: [], alongNm: [], fuelGal: [], rowT: anchors.map(a => a.t), bends: anchors.map(a => ({ route: a.route, run: a.along })), missable, final,
+    landings,
   };
   const onLine = line && line.length >= 2 ? walker(line, anchors.at(-1)!.route) : null;
   let seg = 1;
@@ -294,6 +307,16 @@ export function dryRunOf(rows: NavLogRow[], startS: number, line?: [number, numb
     out.points.push({ t, lat: at.lat, lon: at.lon, alt_ft: alt, gs_kt: b.gs, track_deg: at.track });
     out.alongNm.push(along);
     out.fuelGal.push(a.fuel + (b.fuel - a.fuel) * f);
+  }
+  // Landed: at a standstill on the field at the run's end, not at the leg's
+  // ground speed. Held there at 120 kt, own ship was in the air to the
+  // alerts ahead, which said "Tower 307 ft, now, 120 ft above you" over El
+  // Dorado's runway (the owner's recording, 2026-10-19). Not where the run
+  // goes missed and ends in the air, or stops short of the legs not in.
+  const lastRow = rows.at(-1);
+  const lastPoint = out.points.at(-1);
+  if (lastPoint && !wentMissed && anchors.length === rows.length && lastRow?.kind === "destination" && lastRow.airport.kind !== "fix") {
+    out.points[out.points.length - 1] = { ...lastPoint, gs_kt: 0 };
   }
   return out;
 }
@@ -337,4 +360,30 @@ export function dryRunAt(run: DryRun, t: number): { leftNm: number; leftS: numbe
   const f = (t - points[i - 1]!.t) / (points[i]!.t - points[i - 1]!.t);
   const along = alongNm[i - 1]! + (alongNm[i]! - alongNm[i - 1]!) * f;
   return { leftNm: total - along, leftS: lastT - t, burntGal: fuelGal[i - 1]! + (fuelGal[i]! - fuelGal[i - 1]!) * f };
+}
+
+/** The distance and time still to fly to a landing, nm and min, and when
+ *  the run is in there, s since 1970. */
+export interface LeftTo { nm: number; min: number; at: number }
+
+/** Where the dry run is at `t` against its landings, for the flight's own
+ *  figures as it goes (FlightLine's `flown`): the hop it is on (0 the
+ *  first, the route's totals' hops in turn), what is left to that hop's
+ *  landing and to the last, and the fuel burnt since the hop began. Once
+ *  in at a stop, the next hop's. Null with nothing flown yet. */
+export interface Flown { hop: number; now: number; next: LeftTo; last: LeftTo; burntGal: number }
+
+export function dryRunFlown(run: DryRun, t: number): Flown | null {
+  const { points, landings } = run;
+  const at = dryRunAt(run, t);
+  if (!at || !landings.length) return null;
+  const now = Math.min(points.at(-1)!.t, Math.max(points[0]!.t, t));
+  const along = run.alongNm.at(-1)! - at.leftNm;
+  const ahead = landings.findIndex(l => l.t > now);
+  const hop = ahead < 0 ? landings.length - 1 : ahead;
+  const left = (l: (typeof landings)[number]): LeftTo => ({ nm: Math.max(0, l.nm - along), min: Math.max(0, l.t - now) / 60, at: l.t });
+  return {
+    hop, now, next: left(landings[hop]!), last: left(landings.at(-1)!),
+    burntGal: Math.max(0, at.burntGal - (hop > 0 ? landings[hop - 1]!.fuel : 0)),
+  };
 }
