@@ -971,6 +971,8 @@ def test_an_airplane_whose_card_is_open_and_adsb_lol_does_not_hear_is_recorded_f
         return [traffic._aircraft(CESSNA)]
     monkeypatch.setattr(traffic, "_adsbx", adsbx)
     monkeypatch.setattr(traffic, "_recent_trace", lambda hex_id: None)
+    # No field near: OurAirports' file is not read here (CI has none to hand).
+    monkeypatch.setattr(traffic.airports, "nearest", lambda lat, lon, limit=1: [])
     with patch("vfr.traffic.requests.get", return_value=Mock(status_code=403)):
         first = traffic.flight("a128b9")
         assert asked == ["icao/a128b9"] and [p["lat"] for p in first["trail"]] == [42.30128]
