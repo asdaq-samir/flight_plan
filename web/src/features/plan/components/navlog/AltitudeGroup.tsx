@@ -126,9 +126,13 @@ export default function AltitudeGroup({ nav, legs, problem = false, ownAltitude 
           onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); fly(); (e.target as HTMLInputElement).blur(); } if (e.key === "Escape") setTyped(null); }}
           onBlur={fly}
           className={cn(
-            "relative z-10 h-full w-[4.5ch] min-w-0 bg-transparent pl-2.5 text-right font-semibold tabular-nums outline-none",
+            "relative z-10 h-full min-w-0 bg-transparent pl-2.5 text-right font-semibold tabular-nums outline-none",
             problem ? "text-red-700 dark:text-red-300" : "text-foreground",
           )}
+          // As wide as its figure and the padding beside it: a fixed 4.5ch,
+          // the padding inside it, cut "2,000" to "2,00" at the owner's
+          // larger text (2026-10-20). Safari has no field-sizing yet.
+          style={{ width: `calc(${Math.max(4, shown.length) + 0.5}ch + 0.625rem)` }}
           data-testid="altitude-input"
         />
         {/* In the text's colour: the muted grey was 4.3:1 on the dark glass. */}
@@ -336,7 +340,10 @@ export function AltitudeProfile({ nav: navNow, legs: legsNow, ends, chart, corne
             <ChevronRight className="size-4 text-tint transition-transform group-data-[state=open]:rotate-90" aria-hidden />
             How the altitude was chosen
           </CollapsibleTrigger>
-          <CollapsibleContent>
+          {/* Kept in the page folded, as the <details> it replaced kept it:
+              the reasoning is found by the page's own search and read by
+              its text while closed, which the specs and a find-in-page do. */}
+          <CollapsibleContent forceMount className="data-[state=closed]:hidden">
             <AltitudeReasoning nav={nav} legs={legs} plansAbove />
           </CollapsibleContent>
         </Collapsible>
