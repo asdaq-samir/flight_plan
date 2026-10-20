@@ -516,10 +516,11 @@ export default memo(function FlightBriefingView({
     return !pass || tfrWhen(t, pass) === "in-force";
   }) ?? [];
   // The special-use areas the legs cross (vfr.sua, with the altitudes),
-  // and their times of use read for when the flight passes each.
+  // and their times of use read for when the flight passes each, in the
+  // area's own time zone.
   const specialUse = (nav?.altitude_selection.special_use ?? []).map(area => {
     const pass = passAt(area.along_track_nm);
-    return { area, pass, when: pass ? suaWhen(area.times_of_use, pass) : "unknown" as SuaWhen };
+    return { area, pass, when: pass ? suaWhen(area.times_of_use, pass, area.time_zone) : "unknown" as SuaWhen };
   });
   // The call sign the radio calls use: the pilot's own airplane's
   // registration where they fly one, and its make from its profile.

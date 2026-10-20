@@ -35,6 +35,31 @@ TYPES = {
     "D": "danger area",
 }
 
+#: The time zone an area's times of use are written in, by the FAA's own
+#: fields for it in this data set: GMTOFFSET, the hours from UTC of its
+#: standard time, and DST_CODE, "1" where its times move an hour with
+#: daylight saving time and "0" where they do not -- as AIXM 5.1's
+#: Timesheet has them (timeReference, daylightSavingAdjust), and as the
+#: data has them: "-7"/"0" for Arizona's areas, "-10"/"0" for Hawaii's,
+#: "-7"/"1" for a Nevada MOA used on "MOUNTAIN TIME". Each pair is named by
+#: an IANA zone with that offset and that rule, for the browser's own Intl
+#: to read a pass time in. Every US zone that keeps daylight saving time
+#: changes on the same days and hour (15 U.S.C. 260a), so any one zone of
+#: an offset stands for all of them. A pair not here is no zone: the web
+#: then leaves an area's local hours for the pilot to read.
+TIME_ZONES = {
+    ("-4", "0"): "America/Puerto_Rico",
+    ("-5", "1"): "America/New_York",
+    ("-6", "1"): "America/Chicago",
+    ("-7", "1"): "America/Denver",
+    ("-7", "0"): "America/Phoenix",
+    ("-8", "1"): "America/Los_Angeles",
+    ("-9", "1"): "America/Anchorage",
+    ("-10", "1"): "America/Adak",
+    ("-10", "0"): "Pacific/Honolulu",
+    ("10", "0"): "Pacific/Guam",
+}
+
 # A day per area, and at most 256 areas: the key is a route's bounding
 # box, so every new route adds one, and a plain dict kept them all for
 # as long as the process ran. TTLCache is not thread-safe and the
@@ -73,7 +98,8 @@ def _query(bbox: tuple) -> list:
         "geometry": f"{min_lon - 0.1},{min_lat - 0.1},{max_lon + 0.1},{max_lat + 0.1}",
         "geometryType": "esriGeometryEnvelope", "inSR": "4326", "outSR": "4326",
         "spatialRel": "esriSpatialRelIntersects",
-        "outFields": "NAME,TYPE_CODE,UPPER_VAL,UPPER_UOM,UPPER_CODE,LOWER_VAL,LOWER_UOM,LOWER_CODE,TIMESOFUSE,CONT_AGENT",
+        "outFields": ("NAME,TYPE_CODE,UPPER_VAL,UPPER_UOM,UPPER_CODE,LOWER_VAL,LOWER_UOM,LOWER_CODE,"
+                      "TIMESOFUSE,GMTOFFSET,DST_CODE,CONT_AGENT"),
         "returnGeometry": "true", "f": "geojson",
     }
     try:
@@ -90,7 +116,8 @@ def _query(bbox: tuple) -> list:
 def along_route(route_start: tuple, route_end: tuple, fixes: list | None = None) -> list:
     """Special-use airspace the route's legs pass laterally through, in
     along-route order: {"name", "type", "kind", "floor_ft", "ceiling_ft",
-    "times_of_use", "controlling_agency", "along_track_nm", "legs"}, where
+    "times_of_use", "time_zone", "controlling_agency", "along_track_nm",
+    "legs"}, where
     `legs` are the indices of the legs (between consecutive fixes) that
     cross it. One entry per named area, however many polygons it is drawn
     as."""
@@ -138,8 +165,18 @@ def _area(props: dict) -> dict:
         "ceiling_ft": _height_ft(props.get("UPPER_VAL"), props.get("UPPER_UOM"), props.get("UPPER_CODE")),
         "ceiling_ref": props.get("UPPER_CODE"),
         "times_of_use": props.get("TIMESOFUSE"),
+        "time_zone": time_zone(props.get("GMTOFFSET"), props.get("DST_CODE")),
         "controlling_agency": props.get("CONT_AGENT"),
     }
+
+
+def time_zone(gmt_offset, dst_code) -> str | None:
+    """The IANA zone an area's times of use are read in (TIME_ZONES), from
+    the data set's GMTOFFSET and DST_CODE; None where it gives none, or a
+    pair no zone here keeps."""
+    def text(value) -> str:
+        return str(value).strip().lstrip("+") if value is not None else ""
+    return TIME_ZONES.get((text(gmt_offset), text(dst_code)))
 
 
 def areas_in(bbox: tuple) -> list:

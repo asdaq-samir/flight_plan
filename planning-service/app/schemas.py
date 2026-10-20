@@ -420,6 +420,9 @@ class SpecialUse(BaseModel):
     ceiling_ft: float | None = None
     ceiling_ref: str | None = None
     times_of_use: str | None = None
+    #: The IANA zone its times of use are written in (vfr.sua.time_zone,
+    #: from the FAA's GMTOFFSET and DST_CODE); None where the FAA gives none.
+    time_zone: str | None = None
     controlling_agency: str | None = None
 
 
