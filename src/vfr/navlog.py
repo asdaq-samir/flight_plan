@@ -473,9 +473,13 @@ def _steps(fix_list: list, altitudes: list, leg_list: list) -> list:
 
 class AltitudePlans(dict):
     """The four plans by kind (altitude_profiles), and `by_altitude`: the
-    route flown at each altitude any leg may fly, for the altitude wheel."""
+    route flown at each altitude any leg may fly, for the altitude wheel;
+    `legs_at(target)`, the legs those figures are of."""
 
     by_altitude: list = []
+
+    def legs_at(self, target: float) -> list | None:
+        return None
 
 
 def altitude_profiles(
@@ -583,16 +587,24 @@ def altitude_profiles(
     # it is legal there, else at the leg's own legal altitude nearest it,
     # the lower on a tie -- the legs already worked out above, from the
     # cache. `everywhere` says whether every leg flies it.
+    def nearest(target: float) -> list:
+        return [target if target in options else min(options, key=lambda a: (abs(a - target), a)) for options in candidates]
+
+    def legs_at(target: float) -> list:
+        return with_climbs([leg_at(i, a) for i, a in enumerate(nearest(target))], departure_elevation_ft, aircraft_profile)
+
     def flown_at(target: float) -> dict:
-        altitudes = [target if target in options else min(options, key=lambda a: (abs(a - target), a)) for options in candidates]
-        leg_list = with_climbs([leg_at(i, a) for i, a in enumerate(altitudes)], departure_elevation_ft, aircraft_profile)
+        leg_list = legs_at(target)
         flown = totals(leg_list)
         return {
             "altitude_ft": target, "ete_min": flown["ete_min"], "fuel_gal": flown["fuel_gal"],
-            "tailwind_kt": _tailwind_kt(leg_list), "everywhere": all(a == target for a in altitudes),
+            "tailwind_kt": _tailwind_kt(leg_list), "everywhere": all(a == target for a in nearest(target)),
         }
 
     plans.by_altitude = [flown_at(a) for a in sorted({a for options in candidates for a in options})]
+    # And the legs themselves, for an altitude picked on the wheel: flown
+    # as its figures were worked out, every leg legal (app.routers.plan).
+    plans.legs_at = legs_at
     return plans
 
 
