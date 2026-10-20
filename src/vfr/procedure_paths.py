@@ -186,7 +186,11 @@ def with_reversals(path: list, ft: list, holds: list) -> tuple[list, list]:
     course reversal a pilot flies there (AIM 5-4-9): the hold the chart puts
     at the fix (a hold in lieu of a procedure turn), once round; or else a
     teardrop. Each point of it has no altitude of its own but the last,
-    back at the fix inbound, crossed at its altitude again."""
+    back at the fix inbound, crossed at its altitude again. Not at the
+    procedure's first fix, come to from the route: a pilot turns there,
+    however far, onto the procedure's first leg. A teardrop there flew El
+    Dorado's ILS 22 via ELD five miles on past the VOR, over the field, and
+    back (the owner's recording, 2026-10-19), and the plan with it."""
     out, out_ft = [path[0]], [ft[0]]
     for i in range(1, len(path)):
         fix = path[i]
@@ -194,6 +198,8 @@ def with_reversals(path: list, ft: list, holds: list) -> tuple[list, list]:
         out_ft.append(ft[i])
         if i == len(path) - 1:
             break
+        if i == 1:
+            continue
         cin, cout = _bearing(path[i - 1], fix), _bearing(fix, path[i + 1])
         if abs(((cout - cin + 540) % 360) - 180) <= REVERSAL_DEG:
             continue

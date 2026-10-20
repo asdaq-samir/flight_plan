@@ -498,6 +498,51 @@ def _hold(fix: tuple[float, float], inbound: float, turn: str, leg_nm: float) ->
     return [fix, *turn_out, out_start, out_end, *turn_in, entry, fix]
 
 
+#: A procedure turn as a light airplane flies it, nm: outbound from the fix
+#: on the final's reciprocal, about where a plate draws its barb (El
+#: Dorado's ILS 22, some four miles out from LADOS), then a minute on the
+#: turn's 45° course before the 180° turn back, inside the 10 NM a
+#: procedure turn is kept within unless the chart says otherwise (AIM 5-4-9).
+PT_OUTBOUND_NM = 4.0
+PT_LEG_NM = 2.0
+
+
+def _procedure_turn(fix: tuple[float, float], inbound: float, pt_course: float) -> list:
+    """A 45°/180° procedure turn at `fix` (AIM 5-4-9): out from the fix on
+    the reciprocal of the final's true course `inbound`, onto the turn's
+    true course `pt_course` (the chart's barb), a 180° turn toward the
+    final's side, and back on the reciprocal of `pt_course` to meet the
+    final's course, and in to the fix."""
+    out = (inbound + 180) % 360
+    barb = ((pt_course - out + 540) % 360) - 180
+    sign = -1 if barb > 0 else 1
+    r = HOLD_TURN_NM
+    a = geo.destination_point(*fix, out, PT_OUTBOUND_NM)
+    b = geo.destination_point(*a, pt_course, PT_LEG_NM)
+    center = geo.destination_point(*b, (pt_course + 90 * sign) % 360, r)
+    arc = [geo.destination_point(*center, (pt_course - 90 * sign + sign * 180 * i / 18) % 360, r) for i in range(19)]
+    back = (pt_course + 180) % 360
+    end = arc[-1]
+
+    def off(s: float) -> float:
+        to = geo.destination_point(*fix, out, s)
+        return abs(((geo.bearing_deg(*end, *to) - back + 540) % 360) - 180)
+    meet = min((s / 20 for s in range(10, 200)), key=off)
+    return [fix, a, b, *arc, geo.destination_point(*fix, out, meet), fix]
+
+
+def _inbound_at(lines: list, place: tuple[float, float]) -> float | None:
+    """The final's true course on from `place`, where a final passes it."""
+    for line in lines:
+        if line["role"] != "final":
+            continue
+        pts = line["points"]
+        for i, p in enumerate(pts[:-1]):
+            if geo.distance_nm(*p, *place) < 0.05:
+                return float(geo.bearing_deg(*p, *pts[i + 1]))
+    return None
+
+
 def _course(leg: Leg, variation: float) -> float | None:
     """A leg's course or heading, true."""
     if leg.course is None:
@@ -544,6 +589,7 @@ def procedure_drawing(ident: str, procedure: str, transition: str | None = None,
     chosen = [key for role in order for key, r in roles.items() if r == role and (r != "transition" or key[1] == wanted)]
 
     lines, holds, fixes = [], [], {}
+    turns: list[tuple[str, tuple[float, float], float, bool]] = []
     for key in chosen:
         role = roles[key]
         missed = False
@@ -589,6 +635,10 @@ def procedure_drawing(ident: str, procedure: str, transition: str | None = None,
                     points.append(place)
                 length = leg.distance_nm if leg.path == "FC" and leg.distance_nm else OPEN_LEG_NM
                 points.append(geo.destination_point(*place, course, length))
+            elif leg.path == "PI" and place and course is not None:
+                # A procedure turn at the fix, drawn once the final's course
+                # into it is known (below).
+                turns.append((leg.fix, place, course, missed))
             elif leg.path in OPEN and course is not None and (points or pos):
                 start = points[-1] if points else pos
                 if not points:
@@ -603,6 +653,18 @@ def procedure_drawing(ident: str, procedure: str, transition: str | None = None,
                 missed = True
                 points = points[-1:]
         flush()
+
+    # Each procedure turn, on the side the chart puts its barb, from the
+    # final's course in from the fix: drawn as a hold is, and flown as drawn
+    # (vfr.procedure_paths), where El Dorado's ILS 22 via ELD was a teardrop
+    # the map did not show (the owner's "not flying the approach as drawn",
+    # 2026-10-19).
+    for ident, place, pt_course, was_missed in turns:
+        inbound = _inbound_at(lines, place)
+        if inbound is not None:
+            barb = ((pt_course - (inbound + 180) + 540) % 360) - 180
+            holds.append({"fix": ident, "turn": "L" if barb > 0 else "R", "inbound_deg": round(inbound), "missed": was_missed,
+                          "kind": "procedure turn", "points": _procedure_turn(place, inbound, pt_course)})
 
     return {
         "airport": airport.ident, "kind": kind, "id": procedure.upper(), "name": procedure_name(kind, procedure.upper()),

@@ -33,6 +33,11 @@ describe("the planned flight, flown on paper", () => {
     expect(level.every(p => p.alt_ft === 5500)).toBe(true);
   });
 
+  it("is at a standstill on the field at the end, where the alerts ahead take it as landed", () => {
+    expect(run.points.at(-1)!.gs_kt).toBe(0);
+    expect(run.points.at(-2)!.gs_kt).toBeGreaterThan(0);
+  });
+
   it("says what is left and what is burnt as it goes", () => {
     expect(dryRunAt(run, 1_000)).toEqual({ leftNm: 60, leftS: 36 * 60, burntGal: 0 });
     const end = dryRunAt(run, 1_000 + 36 * 60)!;
@@ -152,6 +157,8 @@ describe("a leg the planner flies by the procedures picked", () => {
     expect(missedRun.points.at(-1)!.lon).toBeCloseTo(-88.3);
     expect(missedRun.points.at(-1)!.alt_ft).toBeCloseTo(500 + out * 200, 0);
     expect(missedRun.alongNm.at(-1)).toBeCloseTo(run.alongNm.at(-1)! + out);
+    // Gone missed, it ends in the air, still flying.
+    expect(missedRun.points.at(-1)!.gs_kt).toBeGreaterThan(0);
   });
 
   it("goes out by a departure alone with the plan's own heights laid along its path, then on to the route", () => {

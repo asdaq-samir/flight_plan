@@ -5,9 +5,13 @@ import { plateQuery } from "../queryClient";
 import { usePreferences } from "../preferences";
 import type { ProcedureDrawing } from "../api/types";
 
-/** Seen through: the chart under it and the procedure's own lines over it,
- *  so a plate placed a little off shows against the coded path. */
-const PLATE_OPACITY = 0.8;
+/** On a white sheet of its own (index.css's .approach-plate), the chart
+ *  faint under it, as an EFB lays a plate over its map: black on clear at
+ *  80%, the plate's ink sank into the sectional's own and the owner did
+ *  not see it there ("I don't see the plate on the map", 2026-10-19). The
+ *  procedure's own lines stay over it, so a plate placed a little off
+ *  shows against the coded path. */
+const PLATE_OPACITY = 1;
 const NO_DRAWINGS: ProcedureDrawing[] = [];
 
 /**
@@ -37,7 +41,7 @@ export const PlateLayer = memo(function PlateLayer({ drawings }: { drawings: Pro
           key={`${drawing.airport}-${drawing.id}`}
           url={`/api/planner/approach-plate/${encodeURIComponent(plate.cycle)}/${encodeURIComponent(drawing.airport)}/${encodeURIComponent(drawing.id)}.png`}
           bounds={[[plate.south, plate.west], [plate.north, plate.east]]}
-          opacity={PLATE_OPACITY} interactive={false}
+          opacity={PLATE_OPACITY} interactive={false} className="approach-plate"
         />
       ))}
     </Pane>

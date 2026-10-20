@@ -55,6 +55,25 @@ def test_where_the_approach_doubles_back_it_turns_in_a_teardrop_out_past_the_fix
     assert all(not near(p, ANDOE) for p in path[leg["final_at"] + 1:])
 
 
+def test_no_reversal_is_flown_at_the_procedures_first_fix_come_to_from_the_route():
+    """El Dorado's ILS 22 via ELD (2026-10-19): from the north to the VOR,
+    then back out north-east to EL. A turn at ELD, not a teardrop past it
+    over the field; the reversal is at EL, where the final doubles back."""
+    eld, el, rw = (33.25, -92.75), (33.30, -92.70), (33.22, -92.81)
+    approach = {
+        "kind": "approach", "transition": "ELD", "holds": [],
+        "lines": [{"role": "transition", "points": [list(eld), list(el)]}, {"role": "final", "points": [list(el), list(rw)]}],
+        "fixes": [fix("ELD", *eld), fix("EL", *el, ["IAF", "FAF"], 2000), fix("RW22", *rw, ["MAP"])],
+    }
+    leg = flown((33.6, -92.75), rw, approach=approach)
+    path = [tuple(p) for p in leg["path"]]
+    # Straight from the route to ELD and on to EL: nothing south-west of the VOR first.
+    assert path[1] == eld
+    assert not any(p[0] < eld[0] - 0.01 for p in path[:path.index(el)])
+    # Turned round at EL, out past it to the north-east.
+    assert any(p[0] > el[0] + 0.02 for p in path)
+
+
 def test_the_charts_hold_is_flown_once_round_where_it_has_one_in_lieu_of_a_procedure_turn():
     far = (46.84, -91.95)
     hold = [list(ANDOE), [46.85, -92.0], list(far), [46.83, -92.0], list(ANDOE)]

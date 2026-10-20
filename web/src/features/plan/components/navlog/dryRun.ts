@@ -173,6 +173,7 @@ export function dryRunOf(rows: NavLogRow[], startS: number, line?: [number, numb
   const plan = planProfile(rows).points;
   const anchors: Anchor[] = [{ along: 0, route: 0, ...rowPoint(first), t: startS, fuel: 0, gs: null, track: null }];
   let missable = false;
+  let wentMissed = false;
   let final: DryRun["final"];
   // Go missed is the last approach's, the one whose final the run's button
   // is on (DryRunControls): a stop's approach before it is flown to its
@@ -206,6 +207,7 @@ export function dryRunOf(rows: NavLogRow[], startS: number, line?: [number, numb
       // (`missed`), where the approach ended at the runway.
       if (flownBy.missed) missable = true;
       const goMissed = missed && flownBy.missed && i === lastApproach ? flownBy.missed : null;
+      if (goMissed) wentMissed = true;
       const path = goMissed ? [...flownPath, ...pathOf(goMissed.path)] : flownPath;
       const at = cumulative(path);
       const atMap = at[flownPath.length - 1]!;
@@ -294,6 +296,16 @@ export function dryRunOf(rows: NavLogRow[], startS: number, line?: [number, numb
     out.points.push({ t, lat: at.lat, lon: at.lon, alt_ft: alt, gs_kt: b.gs, track_deg: at.track });
     out.alongNm.push(along);
     out.fuelGal.push(a.fuel + (b.fuel - a.fuel) * f);
+  }
+  // Landed: at a standstill on the field at the run's end, not at the leg's
+  // ground speed. Held there at 120 kt, own ship was in the air to the
+  // alerts ahead, which said "Tower 307 ft, now, 120 ft above you" over El
+  // Dorado's runway (the owner's recording, 2026-10-19). Not where the run
+  // goes missed and ends in the air, or stops short of the legs not in.
+  const lastRow = rows.at(-1);
+  const lastPoint = out.points.at(-1);
+  if (lastPoint && !wentMissed && anchors.length === rows.length && lastRow?.kind === "destination" && lastRow.airport.kind !== "fix") {
+    out.points[out.points.length - 1] = { ...lastPoint, gs_kt: 0 };
   }
   return out;
 }

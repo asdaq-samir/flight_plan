@@ -7798,7 +7798,7 @@
         "type": "object"
       },
       "ProcedureHold": {
-        "description": "A holding pattern of a drawn procedure: at `fix`, its inbound\ncourse `inbound_deg` true, its turns right or left (`turn`), drawn to\na light airplane's size (vfr.procedures.HOLD_SPEED_KT).",
+        "description": "A holding pattern of a drawn procedure, or its procedure turn: at `fix`, its inbound\ncourse `inbound_deg` true, its turns right or left (`turn`), drawn to\na light airplane's size (vfr.procedures.HOLD_SPEED_KT).",
         "properties": {
           "fix": {
             "title": "Fix",
@@ -7807,6 +7807,15 @@
           "inbound_deg": {
             "title": "Inbound Deg",
             "type": "integer"
+          },
+          "kind": {
+            "default": "hold",
+            "enum": [
+              "hold",
+              "procedure turn"
+            ],
+            "title": "Kind",
+            "type": "string"
           },
           "missed": {
             "title": "Missed",

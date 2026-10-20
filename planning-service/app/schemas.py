@@ -1741,7 +1741,7 @@ class ProcedureLine(BaseModel):
 
 
 class ProcedureHold(BaseModel):
-    """A holding pattern of a drawn procedure: at `fix`, its inbound
+    """A holding pattern of a drawn procedure, or its procedure turn: at `fix`, its inbound
     course `inbound_deg` true, its turns right or left (`turn`), drawn to
     a light airplane's size (vfr.procedures.HOLD_SPEED_KT)."""
 
@@ -1750,6 +1750,9 @@ class ProcedureHold(BaseModel):
     inbound_deg: int
     missed: bool
     points: list[tuple[float, float]]
+    #: A hold, or a procedure turn (45°/180°, AIM 5-4-9) where the chart has
+    #: its barb, drawn and flown as a hold is.
+    kind: Literal["hold", "procedure turn"] = "hold"
 
 
 class ProcedureFix(BaseModel):
