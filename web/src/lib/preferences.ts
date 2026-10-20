@@ -359,6 +359,20 @@ export interface RecentRoute {
 
 /** One key a route, for its place in the Recents: the same ends and stops
  *  are the same route, planned again. */
+/** What was the pilot's own taken out of this device's preferences as
+ *  they sign out (useLogout): their Home, Favorites and recents, their
+ *  personal minimums and loads, the airplanes they follow and their
+ *  alerts, and the airplane they fly. The next person on the device had
+ *  them all, the tail number and its figures too (the audit's finding).
+ *  How the map is drawn stays, the device's. */
+export function forgetPilot() {
+  usePreferences.setState({
+    minimums: NO_MINIMUMS, loads: {}, aircraft: DEFAULT_AIRCRAFT,
+    recentAirports: [], homeAirport: null, favoriteAirports: [],
+    recentAircraft: [], favoriteAircraft: [], myAircraft: null, aircraftAlerts: [], recentRoutes: [],
+  });
+}
+
 export function recentRouteKey(route: Pick<RecentRoute, "dep" | "dest" | "stops">): string {
   return `${route.dep}|${route.stops.join(",")}|${route.dest}`;
 }
