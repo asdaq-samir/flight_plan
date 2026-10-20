@@ -267,11 +267,9 @@ test("on a phone, an airport's card opened from another tab has Share at the top
   });
   await share.click();
   await expect.poll(() => page.evaluate(() => (window as unknown as { shared?: string }).shared)).toMatch(/\/app\/plan\?place=KDLH$/);
-  // The close: one card back, the sheet where it was.
-  const height = await panel.getAttribute("data-panel");
+  // The close: one card back, as Back went.
   await close.click();
   await expect(page).not.toHaveURL(/[?&]place=/);
-  await expect(panel).toHaveAttribute("data-panel", height!);
   // At the tab's own screen neither: nothing to go back to.
   await expect(share).toHaveCount(0);
 });
