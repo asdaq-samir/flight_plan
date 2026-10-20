@@ -48,11 +48,18 @@ function planNames(nav: NavLogAltitude | null): Record<number, string> {
   return Object.fromEntries(Object.entries(names).map(([ft, kinds]) => [ft, kinds.join(" · ")]));
 }
 
-/** A plan that cruises at `altitude`, the one flown first: what picking
- *  that altitude on the wheel flies, its steps and all. */
+/** Which plan an altitude several plans share is taken as, after the one
+ *  flown: the planner's default, Fastest, first. */
+const PREFERRED: AltitudeChoice[] = ["fastest", "economical", "lowest", "highest"];
+
+/** A plan that cruises at `altitude`: the one flown where it does, else
+ *  by PREFERRED -- what picking that altitude on the wheel flies, its
+ *  steps and all. Lowest, listed first, was taken where it and Fastest
+ *  shared one, and the default plan could not be had back from the wheel. */
 function planAt(nav: NavLogAltitude | null, altitude: number): AltitudeChoice | null {
-  const at = (nav?.options ?? []).filter(o => o.steps.length && Math.max(...o.steps.map(s => s.altitude_ft)) === altitude);
-  return (at.find(o => o.kind === nav?.flown) ?? at[0])?.kind ?? null;
+  const at = (nav?.options ?? []).filter(o => o.steps.length && Math.max(...o.steps.map(s => s.altitude_ft)) === altitude).map(o => o.kind);
+  if (nav?.flown && at.includes(nav.flown as AltitudeChoice)) return nav.flown as AltitudeChoice;
+  return PREFERRED.find(kind => at.includes(kind)) ?? null;
 }
 
 /**
