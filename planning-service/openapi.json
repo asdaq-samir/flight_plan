@@ -12237,6 +12237,16 @@
           },
           {
             "in": "query",
+            "name": "crossings",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Crossings",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
             "name": "checkpoints",
             "required": false,
             "schema": {
@@ -12554,6 +12564,16 @@
             "schema": {
               "default": "",
               "title": "Procedures",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "crossings",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Crossings",
               "type": "string"
             }
           },
@@ -13057,6 +13077,16 @@
             "schema": {
               "default": "",
               "title": "Procedures",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "crossings",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Crossings",
               "type": "string"
             }
           },

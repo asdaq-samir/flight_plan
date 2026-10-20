@@ -15,6 +15,14 @@ export interface PickedProcedure {
   direct?: string | null;
 }
 
+/** A procedure's fix as its branch in FPL's list (FixBranch) and its card
+ *  (FixCard) show it: the drawing's, and whether the chart puts a
+ *  procedure turn at it. */
+export type BranchFix = Pick<ProcedureFix, "ident" | "roles" | "min_ft" | "max_ft"> & { turn?: boolean };
+
+/** The parts a fix plays, as a chart names them, its hold left to the line. */
+export const fixRoles = (fix: BranchFix) => [...fix.roles.filter(r => r !== "hold"), ...(fix.turn ? ["↺ procedure turn"] : [])];
+
 /** A transition as a pilot picks it, said one way everywhere (the
  *  menus, the procedure's page, the route's box): an approach's from its
  *  initial fix or from vectors to final; an arrival's from where it

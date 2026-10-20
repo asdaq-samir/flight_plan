@@ -24,6 +24,7 @@ import { altFt, flightLevel } from "../../../lib/units";
 import { sameField } from "../../../lib/procedures";
 import { TEXT } from "../../../lib/text";
 import PointAltitudeDialog, { type EditedPoint, type PointAltitude } from "./PointAltitudeDialog";
+import type { BranchFix } from "../../../lib/procedures";
 
 /** The route as the box changes it: either end may be missing (half a
  *  route, the other end still to be typed), and neither means none. */
@@ -44,7 +45,7 @@ export interface RouteProcedure {
   /** The fix ATC sent the airplane direct to, and the procedure's fixes it
    *  could be sent to (ProcedureMenu). */
   direct?: string | null;
-  fixes?: string[];
+  fixes?: BranchFix[];
 }
 
 const PROCEDURE_GLYPH = { approach: PlaneLanding, arrival: Route, departure: PlaneTakeoff } as const;

@@ -385,6 +385,23 @@ def test_a_procedure_flown_direct_to_a_fix_is_read_from_its_fourth_part(monkeypa
     assert asked == [("KDLH", "I09", None), ("KDLH", "R27", "HIGHR")]
 
 
+def test_a_fix_given_an_altitude_to_cross_is_crossed_at_it_for_the_descent(monkeypatch):
+    """The owner's ask ("set an altitude when crossing it"): ANDOE given
+    2,500 where the chart has 3,000 or above, the descent planned to it."""
+    from app.routers import plan as plan_router
+
+    field = airport("KDLH")
+    drawn = {"kind": "approach", "fixes": [
+        {"ident": "ANDOE", "lat": field["lat"] + 0.05, "lon": field["lon"], "roles": [], "min_ft": 3000, "max_ft": None, "missed": False},
+    ]}
+    monkeypatch.setattr(plan_router.procedures, "procedure_drawing", lambda ident, procedure, transition=None: drawn)
+    params = {"dep": "C81", "dest": "KDLH", "procedures": "KDLH:I09:ANDOE", "crossings": "ANDOE:2500"}
+    legs = client.get("/api/plan", params=params).json()["legs"]
+    tod = next(leg["tod"] for leg in legs if leg["tod"])
+    assert (tod["to_ft"], tod["fix"]) == (2500.0, "ANDOE")
+    assert client.get("/api/plan", params={"dep": "C81", "dest": "KDLH", "crossings": "ANDOE:99999"}).status_code == 422
+
+
 @pytest.mark.parametrize("picks", ["KDLH", "KDLH:", "KDLH:I09:ANDOE:X", "KDLH:I09;KMSN:R18"])
 def test_a_procedure_that_is_not_one_is_refused(picks):
     params = {**VIA_MADISON, "procedures": picks}

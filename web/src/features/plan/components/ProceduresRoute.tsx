@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
+import { create } from "zustand";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Check, Info, Wind } from "lucide-react";
 import { cn } from "cn";
@@ -13,19 +14,22 @@ import type { AircraftProfile, ProcedureDrawing, ProcedureList, ProcedureSummary
 import { distanceNm } from "../../../lib/geo";
 import { runwayNumber, windPick, type RunwayEnd, type WindPick } from "../../../lib/pattern";
 import { airportQuery, plateQuery } from "../../../lib/queryClient";
-import { approachRunway, sameField, transitionWords, type PickedProcedure } from "../../../lib/procedures";
+import { approachRunway, sameField, transitionWords, type BranchFix, type PickedProcedure } from "../../../lib/procedures";
 import { NO_PATTERN, trafficPattern } from "../../../lib/trafficPattern";
 import { TEXT } from "../../../lib/text";
 import { altFt, bearing, grouped } from "../../../lib/units";
 import { endFit, type EndFit } from "../../../lib/runwayFit";
 import { etaAt } from "../format";
 import { PointMark } from "./navlog/PointMark";
+import FixBranch from "./FixBranch";
 import ProcedureMenu from "./ProcedureMenu";
 import { rowPoint, type NavLogRow } from "./navlog/rows";
 
 /** The value of a choice's "None" (no pattern, no transition): a toggle's
  *  value is a string. */
 const NONE = "none";
+/** No altitudes of the pilot's own at any fix: one object, kept. */
+const NO_CROSSINGS: Record<string, number> = {};
 
 export type ProcedureKind = ProcedureSummary["kind"];
 type Kind = ProcedureKind;
@@ -87,6 +91,7 @@ export type ProceduresAt = { ident: string; kind: Kind } | null;
  */
 export default function ProceduresRoute({
   airports, rows, depart, weather, picked, onPick, onPreselect, takeoffs, onTakeoff, fit = null, onCharts, chartsDisabled, procedures, inRoute, onProcedures, onPreview, at, onAt,
+  crossings = NO_CROSSINGS, onFix,
 }: {
   airports: ProcedureAirport[];
   /** The route's rows as the nav log has them (navLogRows), for its
@@ -117,7 +122,7 @@ export default function ProceduresRoute({
   procedures: PickedProcedure[];
   /** Those drawn, by field and kind, as the route's box names them, an
    *  approach's with the runway it lands on (approachRunway). */
-  inRoute: { ident: string; kind: Kind; id: string; runway: string | null; label: string; fixes?: string[] }[];
+  inRoute: { ident: string; kind: Kind; id: string; runway: string | null; label: string; fixes?: BranchFix[]; direct?: string | null }[];
   /** All of them as they are to be, and the one just picked, for the map
    *  to go to. */
   onProcedures: (next: PickedProcedure[], picked: PickedProcedure | null) => void;
@@ -127,6 +132,10 @@ export default function ProceduresRoute({
   /** The sheet's kind and field, null while it is put away. */
   at: ProceduresAt;
   onAt: (at: ProceduresAt) => void;
+  /** The pilot's own altitudes to cross the procedures' fixes at, by fix. */
+  crossings?: Record<string, number>;
+  /** A fix of a procedure picked, tapped on its branch: its card (FixCard). */
+  onFix?: (field: string, kind: Kind, fix: string) => void;
 }) {
   // The procedure on its own page in the sheet, over its kind's list.
   const [page, setPage] = useState<{ at: ProceduresAt; procedure: ProcedureSummary } | null>(null);
@@ -263,7 +272,7 @@ export default function ProceduresRoute({
       <ProcedureMenu
         key={kind} ident={a.ident} kind={kind} list={lists[i]?.data} loading={!!lists[i]?.isFetching}
         picked={pickOf(a.ident, kind)} label={inRoute.find(p => sameField(p.ident, a.ident) && p.kind === kind)?.label ?? null}
-        fixes={inRoute.find(p => sameField(p.ident, a.ident) && p.kind === kind)?.fixes}
+        fixes={inRoute.find(p => sameField(p.ident, a.ident) && p.kind === kind)?.fixes?.map(f => f.ident)}
         runway={chosenAt(a.ident)} windward={wind && !wind.calm ? wind.ident : null}
         onOpen={() => ask(a.ident)} onPick={next => pick(a.ident, kind, next)} onAll={() => onAt({ ident: a.ident, kind })}
       />
@@ -277,6 +286,22 @@ export default function ProceduresRoute({
     // Departure/Arrival selection when available. Approach can be next to
     // Arrival"); its runway chips under, its info at their start ("Info
     // can go on the left side of the runways").
+    // Each procedure picked here, its fixes a branch off the route's line
+    // in the order they are flown (FixBranch), at the owner's pick.
+    const branch = (kind: Kind) => {
+      const inPlace = inRoute.find(p => sameField(p.ident, a.ident) && p.kind === kind);
+      // By its id, not its kind: the field's list, which says each pick's
+      // kind, is asked for only as a pull-down opens.
+      const chosen = inPlace && procedures.find(p => sameField(p.ident, a.ident) && p.id === inPlace.id);
+      if (!inPlace?.fixes?.length || !chosen) return null;
+      return (
+        <FixBranch
+          key={`branch-${kind}`} name={inPlace.label} fixes={inPlace.fixes} direct={inPlace.direct ?? null} crossings={crossings}
+          onDirect={fix => onProcedures(procedures.map(p => (p === chosen ? { ...p, direct: fix } : p)), null)}
+          onOpen={fix => onFix?.(a.ident, kind, fix)}
+        />
+      );
+    };
     const step = (role: "Arrive" | "Depart", kinds: Kind[], chips: ReactNode, isLast: boolean, stepMark: ReactNode, stepTime: string | null) => (
       <Step
         key={`${a.ident}-${role}`} last={isLast} mark={stepMark}
@@ -284,6 +309,7 @@ export default function ProceduresRoute({
         heading={kinds.length > 0 ? a.ident : undefined} beside={kinds.length > 0 ? kinds.map(kindMenu) : undefined}
       >
         {chips}
+        {kinds.map(branch)}
       </Step>
     );
     // Each runway end's fit today (lib/runwayFit): its crosswind against the
@@ -499,6 +525,9 @@ function Chips({ label, value, onChange, children }: {
   );
 }
 
+/** The runway lines opened from their fold (PatternChips), by field. */
+const useOpenRunwayLines = create<{ open: string[] }>(() => ({ open: [] }));
+
 /** The room left past a chip scrolled into sight, in pixels. */
 const CHIP_GAP_PX = 12;
 
@@ -556,6 +585,46 @@ function PatternChips({ airport: a, wind, chosen, landing, info, label, fitOf, o
   const straightIn = landing?.runway ?? null;
   const mayCircle = !!landing && (straightIn === null || landing.circling === true);
   const allowed = (id: string) => !landing || id === straightIn || mayCircle;
+  // Folded to the runway picked, at the owner's ask ("can the runway line
+  // collapse to the selected runway?"): its chip alone, a tap on it the
+  // whole line again, and a pick folding it back to the new one. None
+  // picked, the line whole. Kept by field while the page is, not the
+  // component: the list is drawn again as the sheet moves between its
+  // foot and its body.
+  const key = `${a.ident}:${label ?? ""}`;
+  const open = useOpenRunwayLines(s => s.open.includes(key));
+  const setOpen = (next: boolean) => useOpenRunwayLines.setState(s => ({ open: next ? [...s.open, key] : s.open.filter(k => k !== key) }));
+  const chip = (runway: Runway, end: RunwayEnd) => {
+    const id = runwayNumber(end.ident);
+    const windward = into === id;
+    // Too short in red, a crosswind past the demonstrated or a length
+    // inside the margin in amber: a ring, the chip not grown.
+    const fitted = fitOf(runway, end);
+    const ring = fitted?.short ? "ring-2 ring-destructive" : fitted && (fitted.crosswindOver || fitted.close) ? "ring-2 ring-amber-500" : undefined;
+    const said = fitted?.short ? ", too short today" : fitted?.close ? ", little to spare in length" : "";
+    const words = `Runway ${id}${windward ? ", into the wind" : ""}${fitted?.crosswindOver ? `, crosswind ${fitted.crosswindKt} knots, past the airplane's demonstrated` : ""}${said}`;
+    const fit = fitted?.short ? "short" : fitted?.crosswindOver ? "crosswind" : fitted?.close ? "close" : undefined;
+    return { id, ring, words, fit, face: <>{windward && <Wind className="size-4" strokeWidth={2.2} aria-hidden />}{id}</> };
+  };
+  const picked = chosen !== null ? ends.find(e => runwayNumber(e.end.ident) === chosen) : undefined;
+  if (picked && !open && a.runways !== null) {
+    const c = chip(picked.runway, picked.end);
+    return (
+      <div className="flex items-center gap-2" data-testid="procedure-patterns">
+        {info}
+        {/* Still the group's choice to a screen reader, picked; a tap on it
+            opens the line. */}
+        <div role="radiogroup" aria-label={label ?? `${a.ident} ${landing ? "runway" : "traffic pattern"}`}>
+          <button
+            type="button" role="radio" aria-checked="true" data-state="on" onClick={() => setOpen(true)} className={cn(CHIP, c.ring)}
+            aria-label={`${c.words}, picked: tap for the other runways`} data-testid="procedure-pattern" data-fit={c.fit} data-folded=""
+          >
+            {c.face}
+          </button>
+        </div>
+      </div>
+    );
+  }
   return (
     // The chips alone, the pattern's side and height and the wind behind
     // the field's info (FieldInfo), at the owner's ask ("Keep the pattern
@@ -565,30 +634,23 @@ function PatternChips({ airport: a, wind, chosen, landing, info, label, fitOf, o
       {a.runways === null ? (
         <p role="status" className={cn("px-1 text-muted-foreground", TEXT.detail)}>Looking the runways up…</p>
       ) : (
-        <Chips label={label ?? `${a.ident} ${landing ? "runway" : "traffic pattern"}`} value={chosen ?? NONE} onChange={v => onPick(v === NONE ? null : v)}>
+        <Chips label={label ?? `${a.ident} ${landing ? "runway" : "traffic pattern"}`} value={chosen ?? NONE} onChange={v => { setOpen(false); onPick(v === NONE ? null : v); }}>
           {/* An approach to a runway lands on one: none is no choice then. */}
           <ToggleGroupItem value={NONE} disabled={straightIn !== null} className={CHIP}>None</ToggleGroupItem>
           {ends.map(({ runway, end }) => {
-            const id = runwayNumber(end.ident);
+            const c = chip(runway, end);
             // An end with no surveyed threshold has no pattern to draw;
             // with an approach, none is drawn, and the end is the approach's
             // own or one it may circle to.
             const drawn = trafficPattern(a.ident, runway, end.ident, a.patternAltitudeFt) !== null;
-            const windward = into === id;
-            const circleNa = !allowed(id);
-            // Too short in red, a crosswind past the demonstrated or a
-            // length inside the margin in amber: a ring, the chip not grown.
-            const fitted = fitOf(runway, end);
-            const ring = fitted?.short ? "ring-2 ring-destructive" : fitted && (fitted.crosswindOver || fitted.close) ? "ring-2 ring-amber-500" : undefined;
-            const said = fitted?.short ? ", too short today" : fitted?.close ? ", little to spare in length" : "";
+            const circleNa = !allowed(c.id);
             return (
               <ToggleGroupItem
-                key={end.ident} value={id} disabled={circleNa || (!landing && !drawn)} className={cn(CHIP, ring)}
-                aria-label={`Runway ${id}${windward ? ", into the wind" : ""}${fitted?.crosswindOver ? `, crosswind ${fitted.crosswindKt} knots, past the airplane's demonstrated` : ""}${said}${circleNa ? `, no circling on the ${landing!.name}` : !landing && !drawn ? ", not surveyed" : ""}`}
-                data-testid="procedure-pattern" data-fit={fitted?.short ? "short" : fitted?.crosswindOver ? "crosswind" : fitted?.close ? "close" : undefined}
+                key={end.ident} value={c.id} disabled={circleNa || (!landing && !drawn)} className={cn(CHIP, c.ring)}
+                aria-label={`${c.words}${circleNa ? `, no circling on the ${landing!.name}` : !landing && !drawn ? ", not surveyed" : ""}`}
+                data-testid="procedure-pattern" data-fit={c.fit}
               >
-                {windward && <Wind className="size-4" strokeWidth={2.2} aria-hidden />}
-                {id}
+                {c.face}
               </ToggleGroupItem>
             );
           })}

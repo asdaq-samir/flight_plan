@@ -1,4 +1,4 @@
-import { Fragment, memo } from "react";
+import { Fragment, memo, useMemo } from "react";
 import L from "leaflet";
 import { Marker, Pane, Polyline } from "react-leaflet";
 import type { ProcedureDrawing, ProcedureFix } from "../api/types";
@@ -15,8 +15,11 @@ import { useLiveZoom } from "./useView";
  * racetrack, and each fix a mark with its name, its part (IAF, FAF, MAP)
  * and the altitudes it is crossed at as the chart sets them -- a minimum
  * underlined, a maximum overlined, a mandatory one both. From the FAA's
- * coded procedure (vfr.procedures), drawn as a sketch: not tappable, the
- * chart under it. One of an older cycle than the one in force (the
+ * coded procedure (vfr.procedures), drawn as a sketch, the chart under it.
+ * A fix of the procedure's own is tapped for its card (FixCard: Direct to
+ * it, an altitude to cross it at), at the owner's pick; the pilot's own
+ * altitude there said under the chart's in the tint, and the fix sent
+ * direct to ringed in it. One of an older cycle than the one in force (the
  * FAA's current file could not be had) is drawn in grey, its fixes
  * saying OUT OF DATE, so it is not read as current once the sheet is closed.
  */
@@ -36,7 +39,7 @@ const esc = (text: string) => text.replace(/[<>&"]/g, "");
 
 /** A fix: an indigo diamond, and from WORDS_FROM_ZOOM its name, its part
  *  and its altitudes beside it. */
-const fixIcon = made(function fixIcon(fix: ProcedureFix, words: boolean, stale: boolean) {
+const fixIcon = made(function fixIcon(fix: ProcedureFix, words: boolean, stale: boolean, own: number | null, direct: boolean) {
   const ink = stale ? STALE_INK : INK;
   const roles = fix.roles.filter(r => r !== "hold");
   const { lines } = altitudeLines(fix);
@@ -49,21 +52,51 @@ const fixIcon = made(function fixIcon(fix: ProcedureFix, words: boolean, stale: 
   // is under the field's own mark and its ident: its diamond alone, where
   // "RW08 MAP" covered the field's name (2026-10-10).
   const label = words && !/^RW\d/.test(fix.ident)
-    ? `<span class="absolute top-1/2 left-[14px] flex -translate-y-1/2 flex-col rounded-md bg-white/95 px-1.5 py-0.5 text-[0.8125rem] leading-4 font-bold whitespace-nowrap shadow-sm" style="color:${ink}">` +
+    ? `<span class="absolute top-1/2 left-[21px] flex -translate-y-1/2 flex-col rounded-md bg-white/95 px-1.5 py-0.5 text-[0.8125rem] leading-4 font-bold whitespace-nowrap shadow-sm" style="color:${ink}">` +
       `<span>${esc(fix.ident)}${roles.length ? ` <span class="font-semibold opacity-80">${esc(roles.join(" "))}</span>` : ""}</span>` +
       `${alt ? `<span class="flex flex-col text-[#1c1a17]">${alt}</span>` : ""}` +
       `${speed ? `<span class="text-[#1c1a17]">${esc(speed)}</span>` : ""}` +
+      `${own != null ? `<span style="color:#007aff">Cross ${own.toLocaleString("en-US")}</span>` : ""}` +
+      `${direct ? `<span style="color:#007aff">Direct to</span>` : ""}` +
       `${stale ? `<span class="text-[#1c1a17]">OUT OF DATE</span>` : ""}</span>`
     : "";
+  // A box twice the diamond's size, the diamond at its middle: a mark to
+  // tap for the fix's card (FixMark), where 14 points was a third of a
+  // finger's 44.
   return L.divIcon({
-    className: "", iconSize: [14, 14], iconAnchor: [7, 7],
-    html: `<span class="absolute inset-0" data-procedure-fix="${esc(fix.ident)}">` +
-      `<svg viewBox="-7 -7 14 14" width="14" height="14" aria-hidden="true"><path d="M0 -5.5 L5.5 0 L0 5.5 L-5.5 0 Z" fill="${fix.missed ? "#fff" : ink}" stroke="${fix.missed ? ink : "#fff"}" stroke-width="1.8"/></svg>` +
+    className: "", iconSize: [28, 28], iconAnchor: [14, 14],
+    html: `<span class="absolute inset-0 flex items-center justify-center" data-procedure-fix="${esc(fix.ident)}">` +
+      `<svg viewBox="-7 -7 14 14" width="14" height="14" aria-hidden="true" style="overflow:visible">${direct ? `<circle r="10" fill="none" stroke="#007aff" stroke-width="2.5"/>` : ""}<path d="M0 -5.5 L5.5 0 L0 5.5 L-5.5 0 Z" fill="${fix.missed ? "#fff" : ink}" stroke="${fix.missed ? ink : "#fff"}" stroke-width="1.8"/></svg>` +
       `${label}</span>`,
   });
 });
 
-export const ProcedureLayer = memo(function ProcedureLayer({ drawings }: { drawings: ProcedureDrawing[] }) {
+/** No altitudes of the pilot's own: one object, kept. */
+const NO_CROSSINGS: Record<string, number> = {};
+
+/** A fix's mark, tapped for its card where it is one of the procedure's
+ *  own (not its missed approach's or a threshold), its handler made once. */
+const FixMark = memo(function FixMark({ drawing, fix, words, own, direct, onFix }: {
+  drawing: ProcedureDrawing; fix: ProcedureFix; words: boolean; own: number | null; direct: boolean;
+  onFix?: (field: string, kind: ProcedureDrawing["kind"], fix: string) => void;
+}) {
+  const tappable = !!onFix && !fix.missed && !/^RW\d/.test(fix.ident);
+  const handlers = useMemo(() => (tappable ? { click: () => onFix!(drawing.airport, drawing.kind, fix.ident) } : {}),
+    [tappable, onFix, drawing.airport, drawing.kind, fix.ident]);
+  return (
+    <Marker
+      position={[fix.lat, fix.lon]} icon={fixIcon(fix, words, !!drawing.stale, own, direct)} interactive={tappable} keyboard={false} pane="procedures"
+      eventHandlers={handlers} bubblingMouseEvents={false}
+    />
+  );
+});
+
+export const ProcedureLayer = memo(function ProcedureLayer({ drawings, crossings = NO_CROSSINGS, directs = "", onFix }: {
+  drawings: ProcedureDrawing[];
+  crossings?: Record<string, number>;
+  directs?: string;
+  onFix?: (field: string, kind: ProcedureDrawing["kind"], fix: string) => void;
+}) {
   // The names from their zoom as a pinch passes it, not once it ends.
   const zoom = useLiveZoom();
   if (drawings.length === 0) return null;
@@ -86,7 +119,10 @@ export const ProcedureLayer = memo(function ProcedureLayer({ drawings }: { drawi
             <Polyline key={`h${i}`} positions={hold.points} pathOptions={hold.missed ? { ...holdOf(ink), dashArray: "6,6" } : holdOf(ink)} interactive={false} className="instrument-procedure-hold" />
           ))}
           {d.fixes.map(fix => (
-            <Marker key={fix.ident} position={[fix.lat, fix.lon]} icon={fixIcon(fix, words, !!d.stale)} interactive={false} keyboard={false} pane="procedures" />
+            <FixMark
+              key={fix.ident} drawing={d} fix={fix} words={words} own={fix.missed ? null : crossings[fix.ident] ?? null}
+              direct={directs.split(",").includes(`${d.airport}:${d.id}:${fix.ident}`)} onFix={onFix}
+            />
           ))}
         </Fragment>
         );
