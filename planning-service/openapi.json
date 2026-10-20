@@ -4464,6 +4464,63 @@
         "title": "ForecastStation",
         "type": "object"
       },
+      "ForecastWind": {
+        "description": "The wind a TAF forecasts at a field for a time (vfr.weather.\nforecast_wind): its own TAF's, else the nearest station's within 30\nnm (`ident`, `distance_nm`). From true north; `dir_true_deg` None for\na variable wind. `valid_from` and `valid_to`, the period's, s since\n1970.",
+        "properties": {
+          "dir_true_deg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dir True Deg"
+          },
+          "distance_nm": {
+            "title": "Distance Nm",
+            "type": "number"
+          },
+          "gust_kt": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gust Kt"
+          },
+          "ident": {
+            "title": "Ident",
+            "type": "string"
+          },
+          "speed_kt": {
+            "title": "Speed Kt",
+            "type": "number"
+          },
+          "valid_from": {
+            "title": "Valid From",
+            "type": "number"
+          },
+          "valid_to": {
+            "title": "Valid To",
+            "type": "number"
+          }
+        },
+        "required": [
+          "ident",
+          "distance_nm",
+          "dir_true_deg",
+          "speed_kt",
+          "valid_from",
+          "valid_to"
+        ],
+        "title": "ForecastWind",
+        "type": "object"
+      },
       "Frequency": {
         "properties": {
           "description": {
@@ -10446,6 +10503,66 @@
           }
         },
         "summary": "Airport Place"
+      }
+    },
+    "/api/airport/{ident}/forecast-wind": {
+      "get": {
+        "description": "The wind forecast at a field for a time -- a flight's arrival, for\nthe runway it will find in use then, at the owner's pick (2026-10-20):\nits own TAF's prevailing wind, else the nearest TAF's within 30 nm.\nNull where none covers that time; a 503 where the forecasts cannot be\nhad.",
+        "operationId": "airport_forecast_wind_api_airport__ident__forecast_wind_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ident",
+            "required": true,
+            "schema": {
+              "title": "Ident",
+              "type": "string"
+            }
+          },
+          {
+            "description": "When, ISO 8601; a naive time is UTC.",
+            "in": "query",
+            "name": "at",
+            "required": true,
+            "schema": {
+              "description": "When, ISO 8601; a naive time is UTC.",
+              "format": "date-time",
+              "title": "At",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ForecastWind"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Response Airport Forecast Wind Api Airport  Ident  Forecast Wind Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Airport Forecast Wind"
       }
     },
     "/api/airport/{ident}/procedures": {

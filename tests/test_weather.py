@@ -670,3 +670,46 @@ def test_a_24_hour_products_period_runs_through_midnight_and_a_month_turns_where
 
 def test_a_product_whose_header_does_not_say_has_no_period():
     assert weather.parse_fd_text("FT  3000\nDLH 2714\n").period is None
+
+
+# --- the wind forecast at a field for a time ---
+
+WINDY_TAFS = _cache_file(
+    '<TAF><raw_text>TAF KDLH ...</raw_text><station_id>KDLH</station_id><issue_time>2026-09-20T00:00:00.000Z</issue_time>'
+    '<latitude>46.8421</latitude><longitude>-92.1936</longitude><elevation_m>434.0</elevation_m>'
+    '<forecast><fcst_time_from>2026-09-20T00:00:00.000Z</fcst_time_from><fcst_time_to>2026-09-20T06:00:00.000Z</fcst_time_to>'
+    '<wind_dir_degrees>270</wind_dir_degrees><wind_speed_kt>10</wind_speed_kt></forecast>'
+    '<forecast><fcst_time_from>2026-09-20T02:00:00.000Z</fcst_time_from><fcst_time_to>2026-09-20T04:00:00.000Z</fcst_time_to>'
+    '<change_indicator>TEMPO</change_indicator><wind_dir_degrees>360</wind_dir_degrees><wind_speed_kt>25</wind_speed_kt></forecast>'
+    '<forecast><fcst_time_from>2026-09-20T06:00:00.000Z</fcst_time_from><fcst_time_to>2026-09-20T12:00:00.000Z</fcst_time_to>'
+    '<change_indicator>FM</change_indicator><wind_dir_degrees>090</wind_dir_degrees><wind_speed_kt>8</wind_speed_kt>'
+    '<wind_gust_kt>18</wind_gust_kt></forecast>'
+    '<forecast><fcst_time_from>2026-09-20T09:00:00.000Z</fcst_time_from><fcst_time_to>2026-09-20T10:00:00.000Z</fcst_time_to>'
+    '<change_indicator>BECMG</change_indicator><wind_dir_degrees>VRB</wind_dir_degrees><wind_speed_kt>4</wind_speed_kt></forecast></TAF>'
+)
+
+@patch("vfr.weather.time.time", return_value=T0200Z)
+@patch("vfr.weather.requests.get", return_value=WINDY_TAFS)
+def test_the_wind_forecast_at_a_field_is_the_prevailing_one_then_never_a_tempo(mock_get, mock_time):
+    """For the runway a flight will find in use when it gets there (the
+    owner's pick, 2026-10-20), the TAF's prevailing wind at that time."""
+    at = lambda h: datetime(2026, 9, 20, h, 0, tzinfo=timezone.utc).timestamp()  # noqa: E731
+    # Mid TEMPO: the base period's 270 at 10, not the TEMPO's 25 kt.
+    three = weather.forecast_wind(*KDLH, at(3), "KDLH")
+    assert (three["ident"], three["distance_nm"], three["dir_true_deg"], three["speed_kt"]) == ("KDLH", 0.0, 270.0, 10.0)
+    seven = weather.forecast_wind(*KDLH, at(7), "KDLH")
+    assert (seven["dir_true_deg"], seven["speed_kt"], seven["gust_kt"]) == (90.0, 8.0, 18.0)
+    # A BECMG lasts past its own hour, to the end of the forecast: variable.
+    eleven = weather.forecast_wind(*KDLH, at(11), "KDLH")
+    assert (eleven["dir_true_deg"], eleven["speed_kt"]) == (None, 4.0)
+    # Past the TAF's end, none.
+    assert weather.forecast_wind(*KDLH, at(13), "KDLH") is None
+
+
+@patch("vfr.weather.time.time", return_value=T0200Z)
+@patch("vfr.weather.requests.get", return_value=WINDY_TAFS)
+def test_a_field_without_a_taf_has_the_nearest_ones_within_thirty_miles(mock_get, mock_time):
+    at = datetime(2026, 9, 20, 7, 0, tzinfo=timezone.utc).timestamp()
+    near = weather.forecast_wind(46.70, -92.20, at, "KSUW")
+    assert near["ident"] == "KDLH" and 8 < near["distance_nm"] < 9
+    assert weather.forecast_wind(*C81, at, "C81") is None

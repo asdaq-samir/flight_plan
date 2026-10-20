@@ -528,3 +528,19 @@ def test_an_approachs_plate_is_placed_on_the_map_and_its_picture_served(monkeypa
     # None placed, or another cycle's: none to show.
     assert client.get("/api/airport/KDLH/procedures/I09/plate").status_code == 404
     assert client.get("/api/approach-plate/2001/KDLH/R03.png").status_code == 404
+
+
+def test_a_fields_forecast_wind_for_a_time_is_its_tafs_or_none(monkeypatch):
+    """For the runway an arrival will find in use (the owner's pick,
+    2026-10-20): the field asked by its own TAF, a naive time as UTC."""
+    monkeypatch.setattr(airports, "find_place", lambda ident: DULUTH if ident.upper() in ("KDLH", "DLH") else None)
+    asked = []
+    wind = {"ident": "KDLH", "distance_nm": 0.0, "dir_true_deg": 90.0, "speed_kt": 8.0, "gust_kt": 18.0,
+            "valid_from": 1790000000.0, "valid_to": 1790021600.0}
+    monkeypatch.setattr(weather, "forecast_wind", lambda lat, lon, at, ident: asked.append((at, ident)) or wind)
+    answer = client.get("/api/airport/DLH/forecast-wind", params={"at": "2026-09-20T07:00:00"})
+    assert answer.status_code == 200 and answer.json() == wind
+    assert asked == [(1789887600.0, "KDLH")]
+    monkeypatch.setattr(weather, "forecast_wind", lambda lat, lon, at, ident: None)
+    assert client.get("/api/airport/KDLH/forecast-wind", params={"at": "2026-09-20T07:00:00Z"}).json() is None
+    assert client.get("/api/airport/KXXX/forecast-wind", params={"at": "2026-09-20T07:00:00Z"}).status_code == 404

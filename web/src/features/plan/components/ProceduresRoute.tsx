@@ -10,6 +10,7 @@ import { Button } from "../../../components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "../../../components/ui/toggle-group";
 import { ResponsivePopover, ResponsivePopoverAnchor, ResponsivePopoverContent, ResponsivePopoverTrigger } from "../../../components/ResponsivePopover";
 import { api } from "../../../lib/api/client";
+import { useMinuteClock, zuluTime } from "../../../lib/clock";
 import type { AircraftProfile, ProcedureDrawing, ProcedureList, ProcedureSummary, Runway } from "../../../lib/api/types";
 import { distanceNm } from "../../../lib/geo";
 import { runwayNumber, windPick, type RunwayEnd, type WindPick } from "../../../lib/pattern";
@@ -45,6 +46,10 @@ const CHART_CODES: Record<Kind, string[]> = { approach: ["IAP"], arrival: ["STR"
 
 /** A procedure's data stays good for its cycle's 28 days. */
 const PROCEDURE_STALE_MS = 6 * 60 * 60_000;
+/** How far off a field's time must be for its runway to be picked into
+ *  the forecast wind rather than the wind now, ms: an hour. */
+const FORECAST_AFTER_MS = 60 * 60_000;
+const TEN_MIN_MS = 10 * 60_000;
 
 export interface ProcedureAirport {
   ident: string;
@@ -167,6 +172,26 @@ export default function ProceduresRoute({
   // Each field's card (its weather), for the wind a field with no report
   // of its own goes by: the nearest report's (windPick).
   const cards = useQueries({ queries: airports.map(a => airportQuery(a.ident)) });
+  // When the airplane is at each field: the departure's time, a field
+  // landed at its arrival (the rows' times). More than an hour off, its
+  // runway is picked into the wind its TAF forecasts for then, not the
+  // wind now, at the owner's pick (2026-10-20); to the ten minutes, so a
+  // plan streaming in asks again only as its times move that much.
+  const now = useMinuteClock();
+  const startMs = depart ? Date.parse(depart) : now;
+  const forecastFor = airports.map(a => {
+    const row = a.role === "Departure" ? null
+      : rows.find(r => (r.kind === "stop" || r.kind === "destination") && sameField(r.airport.ident, a.ident));
+    const ms = a.role === "Departure" ? startMs : row?.minutesFlown == null ? null : startMs + row.minutesFlown * 60_000;
+    return ms !== null && ms - now > FORECAST_AFTER_MS ? Math.round(ms / TEN_MIN_MS) * TEN_MIN_MS : null;
+  });
+  const forecasts = useQueries({
+    queries: airports.map((a, i) => ({
+      queryKey: ["forecastWind", a.ident, forecastFor[i]],
+      queryFn: () => api.forecastWind(a.ident, new Date(forecastFor[i]!).toISOString()),
+      enabled: forecastFor[i] != null, staleTime: TEN_MIN_MS, meta: { silent: true },
+    })),
+  });
   // Each field's approach in the route, and whether its plate publishes
   // circling minimums -- the one plate the map draws (PlateLayer).
   const approachesIn = inRoute.filter(p => p.kind === "approach");
@@ -179,6 +204,13 @@ export default function ProceduresRoute({
     const i = airports.findIndex(a => a.ident === ident);
     const runways = airports[i]?.runways;
     if (!runways) return null;
+    const forecast = forecastFor[i] != null ? forecasts[i]?.data : null;
+    if (forecast) {
+      return windPick(runways, {
+        station: forecast.ident, distanceNm: forecast.distance_nm,
+        dirTrueDeg: forecast.dir_true_deg, speedKt: forecast.speed_kt, gustKt: forecast.gust_kt,
+      }, forecastFor[i]! / 1000);
+    }
     const card = cards[i]?.data;
     const near = card && !card.metar ? card.nearby_metar : null;
     return windPick(runways, near ? {
@@ -191,7 +223,19 @@ export default function ProceduresRoute({
   // runways' magnetic numbers, where a tower's and an ATIS's winds are
   // magnetic (AIM 4-1-13) -- the audit's finding.
   const reportedOf = (ident: string): Reported | null => {
-    const card = cards[airports.findIndex(a => a.ident === ident)]?.data;
+    const i = airports.findIndex(a => a.ident === ident);
+    // The forecast's, where the runway is picked into it (windOf).
+    const forecast = forecastFor[i] != null ? forecasts[i]?.data : null;
+    if (forecast) {
+      if (!forecast.speed_kt) return "calm";
+      const kt = Math.round(forecast.speed_kt), gust = forecast.gust_kt ? Math.round(forecast.gust_kt) : null;
+      const when = zuluTime(new Date(forecastFor[i]!));
+      return {
+        dir: forecast.dir_true_deg == null ? "VRB" : `${bearing(forecast.dir_true_deg)}T`, speed: gust ? `${kt}G${gust}` : `${kt}`,
+        spoken: `forecast for ${when}, ${forecast.dir_true_deg == null ? "variable" : `${Math.round(forecast.dir_true_deg)} true`} at ${kt} knots${gust ? `, gusts ${gust}` : ""}`,
+      };
+    }
+    const card = cards[i]?.data;
     const m = card?.metar ?? card?.nearby_metar?.metar;
     if (!m || m.wind_speed_kt == null) return null;
     if (!m.wind_speed_kt) return "calm";
@@ -248,7 +292,9 @@ export default function ProceduresRoute({
   const preselected = useRef(new Set<string>());
   // A field listed twice (a round trip) picks its landing's runway once.
   const preselectedLand = (a: ProcedureAirport) => airports.findIndex(b => sameField(b.ident, a.ident)) !== airports.indexOf(a);
-  const intoWind = airports.flatMap(a => {
+  const intoWind = airports.flatMap((a, i) => {
+    // A forecast still coming is waited for, not picked past on the wind now.
+    if (forecastFor[i] != null && forecasts[i]?.isPending) return [];
     const wind = windOf(a.ident);
     if (!wind || wind.calm) return [];
     return [
@@ -748,6 +794,11 @@ function FieldInfo({ ident, note, wind, reported, fit, kind, demonstratedKt, all
           )}
           {allOver && demonstratedKt != null && (
             <p className={cn("font-semibold text-destructive-ink", TEXT.note)}>Every runway&apos;s crosswind is past the demonstrated {demonstratedKt} kt</p>
+          )}
+          {wind?.forecastAt != null && (
+            <p className={cn("text-muted-foreground", TEXT.note)} data-testid="field-info-forecast">
+              Forecast for {zuluTime(new Date(wind.forecastAt * 1000))}, {wind.from ? `${wind.from.ident}'s TAF, ${wind.from.nm} nm away` : "the field's TAF"}
+            </p>
           )}
           {wind && <WindComponents wind={wind} />}
         </ResponsivePopoverContent>

@@ -39,4 +39,18 @@ describe("windPick", () => {
     expect(windPick(C81, { station: "KUGN", distanceNm: 11, dirTrueDeg: null, speedKt: 6, gustKt: null })).toBeNull();
     expect(windPick(C81, null)).toBeNull();
   });
+
+  test("a forecast's wind is picked into on its own, the field's report now set aside, and said as the forecast", () => {
+    // KDLH reports 21 favoured now; its TAF says 090° at 12 for the arrival.
+    const kdlh = [
+      runway([["03", 31], ["21", 211]], 5719, { end: "21", headwind_kt: 7, crosswind_kt: -1, gust_crosswind_kt: null }),
+      runway([["09", 91], ["27", 271]], 10591, { end: "27", headwind_kt: 2, crosswind_kt: -7, gust_crosswind_kt: null }),
+    ];
+    const at = 1_790_000_000;
+    expect(windPick(kdlh, { station: "KDLH", distanceNm: 0, dirTrueDeg: 90, speedKt: 12, gustKt: null }, at))
+      .toMatchObject({ ident: "9", headwindKt: 12, calm: false, from: null, forecastAt: at });
+    // Another station's TAF is named, as a nearby report is.
+    expect(windPick(C81, { station: "KRFD", distanceNm: 21.4, dirTrueDeg: 270, speedKt: 10, gustKt: null }, at))
+      .toMatchObject({ ident: "27", from: { ident: "KRFD", nm: 21 }, forecastAt: at });
+  });
 });

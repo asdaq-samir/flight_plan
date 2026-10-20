@@ -12,6 +12,7 @@ the gridded LAMP vfr.glmp holds an hour at a time. A card costs a few
 table lookups and a point-in-polygon test.
 """
 import logging
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException, Query, Response
 from fastapi.responses import FileResponse
@@ -22,7 +23,7 @@ from vfr import (
 
 from ..common import DIAGRAM_CACHE
 from ..schemas import (
-    AirportPlace, AirportsInView, ChartPages, NearestAirports, PlacesFound, PlateOverlay, ProcedureDrawing, ProcedureList,
+    AirportPlace, ForecastWind, AirportsInView, ChartPages, NearestAirports, PlacesFound, PlateOverlay, ProcedureDrawing, ProcedureList,
     WaypointsInView,
 )
 
@@ -289,6 +290,23 @@ def airport_place(ident: str) -> AirportPlace:
         "chart_supplement_url": publications.chart_supplement_url(place["ident"]),
         "procedures": publications.terminal_charts(place["ident"]),
     }
+
+
+@router.get("/api/airport/{ident}/forecast-wind", response_model=ForecastWind | None)
+def airport_forecast_wind(ident: str, at: datetime = Query(..., description="When, ISO 8601; a naive time is UTC.")) -> dict | None:
+    """The wind forecast at a field for a time -- a flight's arrival, for
+    the runway it will find in use then, at the owner's pick (2026-10-20):
+    its own TAF's prevailing wind, else the nearest TAF's within 30 nm.
+    Null where none covers that time; a 503 where the forecasts cannot be
+    had."""
+    place = airports.find_place(ident)
+    if place is None:
+        raise HTTPException(404, f"No US airport goes by {ident.strip().upper()!r}.")
+    when = (at if at.tzinfo else at.replace(tzinfo=timezone.utc)).timestamp()
+    try:
+        return weather.forecast_wind(place["lat"], place["lon"], when, place["source_ident"])
+    except weather.WeatherServiceError as err:
+        raise HTTPException(503, f"The forecasts could not be had: {err}") from err
 
 
 @router.get("/api/airport/{ident}/procedures", response_model=ProcedureList,

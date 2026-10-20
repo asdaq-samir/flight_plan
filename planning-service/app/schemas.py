@@ -745,6 +745,22 @@ class Metar(BaseModel):
     dewpoint_c: float | None = None
 
 
+class ForecastWind(BaseModel):
+    """The wind a TAF forecasts at a field for a time (vfr.weather.
+    forecast_wind): its own TAF's, else the nearest station's within 30
+    nm (`ident`, `distance_nm`). From true north; `dir_true_deg` None for
+    a variable wind. `valid_from` and `valid_to`, the period's, s since
+    1970."""
+
+    ident: str
+    distance_nm: float
+    dir_true_deg: float | None
+    speed_kt: float
+    gust_kt: float | None = None
+    valid_from: float
+    valid_to: float
+
+
 class NearbyMetar(BaseModel):
     """A field's nearest report within 30 nm, for one with none of its
     own: the station, how far and which way from the field (true), its
