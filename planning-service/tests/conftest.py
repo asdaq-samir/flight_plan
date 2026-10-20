@@ -14,7 +14,7 @@ def _fresh_caches():
     corridor detections) across requests, so a test that monkeypatches
     one of those dependencies must not be handed the previous test's
     answer instead."""
-    for cache in (planning._ALTITUDE_CACHE, planning._PLANS_CACHE, scoring._SCORE_CACHE, detection._DETECT_JOBS):
+    for cache in (planning._ALTITUDE_CACHE, planning._PLANS_CACHE, planning._CLASS_B_WAYS, scoring._SCORE_CACHE, detection._DETECT_JOBS):
         cache.clear()
 
 

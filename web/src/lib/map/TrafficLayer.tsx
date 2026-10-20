@@ -7,6 +7,7 @@ import type { TrafficAircraft } from "../api/types";
 import { clearProblem, raiseProblem } from "../problems";
 import { usePreferences } from "../preferences";
 import { flightQuery } from "../queryClient";
+import { prefersReducedMotion } from "../motion";
 import { centreClear } from "./clear";
 import { TRAFFIC_COLOURS, trafficIcon } from "./icons";
 import { useOwnShip } from "./ownShip";
@@ -269,7 +270,7 @@ function Traffic() {
     const latest = useTracking.getState().latest;
     if (!heard || !latest) return;
     const zoom = Math.max(map.getZoom(), 9);
-    map.flyTo(centreClear(map, [latest.plane.lat, latest.plane.lon], zoom), zoom, { duration: 0.8 });
+    map.flyTo(centreClear(map, [latest.plane.lat, latest.plane.lon], zoom), zoom, { duration: 0.8, animate: !prefersReducedMotion() });
   }, [map, hex, follow, heard]);
 
   // Ten times a second, each airplane carried on to where it is now; none
@@ -380,7 +381,7 @@ function TrackedPath({ hex }: { hex: string }) {
       if (shown.current || useTracking.getState().latest?.plane.hex === hex) return;
       shown.current = true;
       const zoom = Math.max(map.getZoom(), 9);
-      map.setView(centreClear(map, [end.lat, end.lon], zoom), zoom, { animate: true });
+      map.setView(centreClear(map, [end.lat, end.lon], zoom), zoom, { animate: !prefersReducedMotion() });
     }, NOT_HEARD_WAIT_MS);
     return () => clearTimeout(timer);
   }, [data, live, map, hex]);

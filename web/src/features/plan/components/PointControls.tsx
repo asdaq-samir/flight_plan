@@ -1,10 +1,9 @@
-import { useRef, type ReactNode } from "react";
-import { Crosshair, Ellipsis, Info, MoveUpRight, MoveVertical, Repeat2, Trash2 } from "lucide-react";
+import type { ReactNode } from "react";
+import { Crosshair, Ellipsis, Info, MoveUpRight, MoveVertical, Pencil, Repeat2, Trash2 } from "lucide-react";
 import { cn } from "cn";
 import RoundButton from "../../../components/RoundButton";
-import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
-} from "../../../components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "../../../components/ui/dropdown-menu";
+import { DROPDOWN, useAfterMenu, type MenuKit } from "./pointMenu";
 import { TEXT } from "../../../lib/text";
 
 /** What a point's altitude is: a field's elevation, the plan's cruise to
@@ -49,19 +48,21 @@ const KIND_WORDS: Record<AltitudeKind, string> = {
   elev: "field elevation", cruise: "planned cruise", pub: "published", set: "set by you",
 };
 
-/**
- * A point's menu, the "⋯" at its row's end, at the owner's ask ("Each stop
- * can have a menu (set altitude, create a fix, hold here, More Info)",
- * "And the menu can include direct to"): shadcn's DropdownMenu, each item
- * there only where the point has it, behind the app's own round button
- * (RoundButton, 36 with a 20-point glyph, as every icon button is).
- */
-export function PointMenu({ ident, direct = false, onDirect, onAltitude, onFix, onHold, held = false, onInfo, onRemove, testId = "point-menu" }: {
+/** What can be done at a point of the route, each there only where the
+ *  point has it: the same items in FPL's "⋯" (PointMenu) and the route
+ *  box's pill (RouteBox), in the same words and order, at the audit's
+ *  finding (two menus for one point, in different words). */
+export interface PointActions {
   ident: string;
+  /** Another point in its place (the route box's search). */
+  onChange?: () => void;
   /** Flown direct to now: its item flies the route as planned again. */
   direct?: boolean;
   onDirect?: () => void;
   onAltitude?: () => void;
+  /** The altitude set there now, after Set altitude…, with a caution
+   *  where the planner has one for it. */
+  altitude?: ReactNode;
   /** The pilot's own point off this one (FixFromDialog). */
   onFix?: () => void;
   /** A hold there (HoldSheet); `held`, one is set already. */
@@ -69,84 +70,65 @@ export function PointMenu({ ident, direct = false, onDirect, onAltitude, onFix, 
   held?: boolean;
   onInfo?: () => void;
   onRemove?: () => void;
-  testId?: string;
+}
+
+/** The point's items, in one order and one set of words, for either menu. */
+export function PointMenuItems({ actions: a, kit, later, testId }: {
+  actions: PointActions; kit: MenuKit; later: ReturnType<typeof useAfterMenu>["later"]; testId: string;
 }) {
-  // A sheet or a dialog opened from an item once the menu has closed and
-  // given the focus back to the "⋯": opened while the menu still held the
-  // focus, a desktop's popover lost it to the menu and took that for a
-  // click outside it, and closed (the hold spec on the desktop project).
-  // With the focus on the "⋯" as it opens, the sheet gives it back there
-  // as it closes, where VoiceOver was left on the page (the audit's).
-  const pending = useRef<(() => void) | null>(null);
+  const { Item, Label, Separator, Shortcut } = kit;
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <RoundButton label={`${ident}: more`} className="shrink-0 text-tint" data-testid={testId}>
-          <Ellipsis className="size-5" aria-hidden="true" />
-        </RoundButton>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent
-        align="end" className="min-w-56"
-        onCloseAutoFocus={() => {
-          const go = pending.current;
-          if (!go) return;
-          pending.current = null;
-          window.setTimeout(go);
-        }}
-      >
-        <DropdownMenuLabel>{ident}</DropdownMenuLabel>
-        {onDirect && (
-          <DropdownMenuItem onSelect={onDirect} data-testid={`${testId}-direct`}>
-            <MoveUpRight aria-hidden="true" />{direct ? "Fly as planned" : "Direct to"}
-          </DropdownMenuItem>
-        )}
-        {onAltitude && (
-          <DropdownMenuItem onSelect={() => { pending.current = onAltitude; }} data-testid={`${testId}-altitude`}>
-            <MoveVertical aria-hidden="true" />Set altitude…
-          </DropdownMenuItem>
-        )}
-        {onFix && (
-          <DropdownMenuItem onSelect={() => { pending.current = onFix; }} data-testid={`${testId}-fix`}>
-            <Crosshair aria-hidden="true" />Create a fix from here…
-          </DropdownMenuItem>
-        )}
-        {onHold && (
-          <DropdownMenuItem onSelect={() => { pending.current = onHold; }} data-testid={`${testId}-hold`}>
-            <Repeat2 aria-hidden="true" />{held ? "Change hold…" : "Hold here…"}
-          </DropdownMenuItem>
-        )}
-        {onInfo && (
-          <DropdownMenuItem onSelect={() => { pending.current = onInfo; }} data-testid={`${testId}-info`}>
-            <Info aria-hidden="true" />More info
-          </DropdownMenuItem>
-        )}
-        {onRemove && (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem variant="destructive" onSelect={onRemove} data-testid={`${testId}-remove`}>
-              <Trash2 aria-hidden="true" />Remove from route
-            </DropdownMenuItem>
-          </>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <>
+      <Label>{a.ident}</Label>
+      {a.onChange && <Item onSelect={later(a.onChange, true)} data-testid={`${testId}-change`}><Pencil aria-hidden="true" />Change</Item>}
+      {a.onDirect && (
+        <Item onSelect={a.onDirect} data-testid={`${testId}-direct`}>
+          <MoveUpRight aria-hidden="true" />{a.direct ? "Fly as planned" : "Direct to"}
+        </Item>
+      )}
+      {a.onAltitude && (
+        <Item onSelect={later(a.onAltitude)} data-testid={`${testId}-altitude`}>
+          <MoveVertical aria-hidden="true" />Set altitude…
+          {a.altitude != null && <Shortcut className="flex items-center gap-1 tracking-normal tabular-nums">{a.altitude}</Shortcut>}
+        </Item>
+      )}
+      {a.onFix && <Item onSelect={later(a.onFix)} data-testid={`${testId}-fix`}><Crosshair aria-hidden="true" />Create a fix from here…</Item>}
+      {a.onHold && (
+        <Item onSelect={later(a.onHold)} data-testid={`${testId}-hold`}>
+          <Repeat2 aria-hidden="true" />{a.held ? "Change hold…" : "Hold here…"}
+        </Item>
+      )}
+      {a.onInfo && <Item onSelect={later(a.onInfo)} data-testid={`${testId}-info`}><Info aria-hidden="true" />More info</Item>}
+      {a.onRemove && (
+        <>
+          <Separator />
+          {/* The one word, at the pilot's ask of the pill's menu. */}
+          <Item variant="destructive" onSelect={a.onRemove} data-testid={`${testId}-remove`}><Trash2 aria-hidden="true" />Remove</Item>
+        </>
+      )}
+    </>
   );
 }
 
-/** The route flown direct to a point (PlanWorkspace's directToPoint), said
- *  over the route's figures, as mock 5 of the owner's canvas has it, and
- *  Cancel: the route as it was. */
-export function DirectStrip({ ident, onCancel }: { ident: string; onCancel: () => void }) {
+/**
+ * A point's menu, the "⋯" at its row's end, at the owner's ask ("Each stop
+ * can have a menu (set altitude, create a fix, hold here, More Info)",
+ * "And the menu can include direct to"): shadcn's DropdownMenu, its items
+ * the route box's pill's (PointMenuItems), behind the app's own round
+ * button (RoundButton, 36 with a 20-point glyph, as every icon button is).
+ */
+export function PointMenu({ testId = "point-menu", ...actions }: PointActions & { testId?: string }) {
+  const { later, onCloseAutoFocus } = useAfterMenu();
   return (
-    <div className="flex min-h-11 items-center gap-2" data-testid="direct-strip">
-      <MoveUpRight className="size-5 shrink-0 text-tint" aria-hidden="true" />
-      <span className={cn("min-w-0 flex-1 truncate font-semibold text-tint", TEXT.row)}>Direct to {ident}</span>
-      <button
-        type="button" onClick={onCancel} data-testid="direct-cancel"
-        className={cn("relative shrink-0 px-1 text-tint after:absolute after:-inset-x-1 after:-inset-y-2.5 after:content-['']", TEXT.row)}
-      >
-        Cancel
-      </button>
-    </div>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <RoundButton label={`${actions.ident}: more`} className="shrink-0 text-tint" data-testid={testId}>
+          <Ellipsis className="size-5" aria-hidden="true" />
+        </RoundButton>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="min-w-56" onCloseAutoFocus={onCloseAutoFocus}>
+        <PointMenuItems actions={actions} kit={DROPDOWN} later={later} testId={testId} />
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

@@ -4,17 +4,17 @@ import FieldHit from "../../components/FieldHit";
 import { ListGroup, ListRow } from "../../components/GroupedList";
 import Segmented from "../../components/Segmented";
 import { Input } from "../../components/ui/input";
-import { approachRelative, holdingEntry, holdingWind, type Entry, type Turns } from "../../lib/holding";
+import { approachRelative, holdingEntry, holdingWind, legMinutes, type Entry, type Turns } from "../../lib/holding";
 import { bearing, windCorrection } from "../../lib/units";
 import { TEXT } from "../../lib/text";
 
 const ENTRY_NAME: Record<Entry, string> = { direct: "Direct", teardrop: "Teardrop", parallel: "Parallel" };
 
 /** AIM 5-3-8's words for each entry, for the turns given: the outbound
- *  minute is a minute and a half above 14,000 ft MSL (AIM 5-3-8, as
- *  lib/holding times the legs). */
+ *  minute is a minute and a half above 14,000 ft MSL (lib/holding's
+ *  legMinutes). */
 function entrySteps(entry: Entry, inbound: number, turns: Turns, altitudeFt: number): string {
-  const leg = altitudeFt > 14_000 ? "a minute and a half" : "one minute";
+  const leg = legMinutes(altitudeFt) === 1 ? "one minute" : "a minute and a half";
   const outbound = (inbound + 180) % 360;
   const away = turns === "right" ? "left" : "right";
   if (entry === "direct") return `Fly to the fix and turn ${turns} to follow the pattern: outbound on ${bearing(outbound)}.`;

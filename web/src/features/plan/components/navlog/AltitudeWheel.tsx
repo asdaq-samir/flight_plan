@@ -1,6 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, type KeyboardEvent } from "react";
 import { cn } from "cn";
+import { prefersReducedMotion } from "../../../../lib/motion";
 import { TEXT } from "../../../../lib/text";
+import { flightLevel } from "../../../../lib/units";
 
 /** A row's height, px: iOS's 44-point touch target, a picker's row. */
 const ROW = 44;
@@ -40,7 +42,7 @@ export default function AltitudeWheel({ altitudes, value, onChange, names = {}, 
   // Where it was last put by a scroll, so a value that came from the
   // wheel itself is not scrolled to again under the finger.
   const fromScroll = useRef<number | null>(null);
-  const smooth = () => (window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth");
+  const smooth = () => (prefersReducedMotion() ? "auto" : "smooth");
 
   // At once on opening, the picked altitude in the middle.
   useLayoutEffect(() => {
@@ -98,7 +100,10 @@ export default function AltitudeWheel({ altitudes, value, onChange, names = {}, 
           const on = altitude === value;
           return (
             <button
-              key={altitude} type="button" tabIndex={-1} onClick={() => toRow(i)}
+              // A tap on the row already in the middle picks it again, as
+              // nothing scrolls to say so: a plan's row at the altitude the
+              // pilot typed did nothing (CI, plans.spec, Fastest at 3,500).
+              key={altitude} type="button" tabIndex={-1} onClick={() => (i === index ? onChange(altitude) : toRow(i))}
               // Each row its own 44 points: a number and a plan's name a
               // point taller than it, centred, ran into the row above's
               // area (the audit's P1 on the iPad).
@@ -109,7 +114,9 @@ export default function AltitudeWheel({ altitudes, value, onChange, names = {}, 
               {/* On glass, the text's colour throughout: the muted grey over
                   whatever the graph has under it would not read. */}
               <span className={cn("tabular-nums", on ? cn("font-semibold text-foreground", TEXT.row) : cn(glass ? "text-foreground" : "text-muted-foreground", TEXT.detail))}>
-                {feet(altitude)}
+                {/* As a flight level, at the owner's pick (AltitudeGroup);
+                    said in feet. */}
+                {flightLevel(altitude)}
               </span>
               {names[altitude] && (
                 <span className={cn("max-w-full truncate px-1 font-semibold", TEXT.note, on ? "text-tint" : glass ? "text-foreground" : "text-muted-foreground")}>{names[altitude]}</span>

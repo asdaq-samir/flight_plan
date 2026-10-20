@@ -8,8 +8,7 @@ import { descriptionKey } from "../../hooks/useCheckpointNotes";
  * Each row says which it is, rather than the kind being worked out from
  * which other fields happen to be empty, and carries the minutes flown
  * to reach it -- the departure's 0, then each leg's ETE added on, null
- * from the first leg that is not in yet or cannot be flown. (No time on
- * the ground at a stop is counted.)
+ * from the first leg that is not in yet or cannot be flown.
  *
  * The legs come in the same order: one arriving at every row after the
  * departure. A route with stops is a run of hops, and a checkpoint's
@@ -34,7 +33,10 @@ import { descriptionKey } from "../../hooks/useCheckpointNotes";
 export type NavLogRow =
   | { kind: "departure"; key: string; airport: Airport; minutesFlown: number }
   | { kind: "checkpoint"; key: string; cp: Candidate; leg: Leg | undefined; part?: Leg; minutesFlown: number | null }
-  | { kind: "stop"; key: string; airport: Airport; leg: Leg | undefined; part?: Leg; minutesFlown: number | null }
+  | { kind: "stop"; key: string; airport: Airport; leg: Leg | undefined; part?: Leg; minutesFlown: number | null;
+      /** Its minutes on the ground before it is left again (groundMinAt);
+       *  a waypoint's none. */
+      groundMin: number }
   | { kind: "destination"; key: string; airport: Airport; leg: Leg | undefined; part?: Leg; minutesFlown: number | null }
   | { kind: "toc"; key: string; point: TopOfClimb; leg: Leg; part: Leg; minutesFlown: number | null }
   | { kind: "tod"; key: string; point: TopOfDescent; leg: Leg; part: Leg; minutesFlown: number | null };
@@ -58,14 +60,23 @@ function piece(leg: Leg, from: { nm: number; min: number; gal: number }, to: { n
 
 export type RouteEnds = Pick<Course, "departure" | "destination"> & Partial<Pick<Course, "stops">> & {
   /** Minutes on the ground at the stops, by ident (the address's
-   *  `ground`): a landing stop not named, TURNAROUND_MIN. */
+   *  `ground`): a landing stop not named, the planner's (groundMinAt). */
   ground?: Record<string, number>;
 };
 
 /** The time on the ground at a stop the pilot gave none for, min: a
- *  turnaround, at the owner's pick (2026-10-20), as the planner counts it
- *  (its TURNAROUND_MIN). The rows after a stop are timed from its end. */
+ *  turnaround, at the owner's pick (2026-10-20). The planner owns it (its
+ *  TURNAROUND_MIN, plan.py) and says each stop's on the leg landing there
+ *  (Leg.ground_min); this mirrors it only for the rows drawn before that
+ *  leg is in -- the route list before the nav log, a plan streaming. */
 export const TURNAROUND_MIN = 30;
+
+/** A stop's minutes on the ground: the pilot's own (the address's
+ *  `ground`, newer than a plan still on its way), else the planner's on
+ *  the leg landing there, else TURNAROUND_MIN until that leg is in. */
+export function groundMinAt(ground: Record<string, number> | undefined, ident: string, landing?: Leg): number {
+  return ground?.[ident] ?? landing?.ground_min ?? TURNAROUND_MIN;
+}
 
 export function navLogRows(ends: RouteEnds | null, selected: Candidate[], legs: Leg[]): NavLogRow[] {
   if (!ends) return [];
@@ -108,10 +119,11 @@ export function navLogRows(ends: RouteEnds | null, selected: Candidate[], legs: 
     const stop = stops[hop];
     if (stop) {
       const { leg, part } = arriving();
-      rows.push({ kind: "stop", key: `stop-${hop}`, airport: stop, leg, part, minutesFlown: minutesTo(part ?? leg) });
+      const groundMin = stop.kind === "fix" ? 0 : groundMinAt(ends.ground, stop.ident, leg);
+      rows.push({ kind: "stop", key: `stop-${hop}`, airport: stop, leg, part, minutesFlown: minutesTo(part ?? leg), groundMin });
       // Landed: its arrival its own row's time, the rows after it from
       // when it leaves again.
-      if (stop.kind !== "fix" && flown !== null) flown += ends.ground?.[stop.ident] ?? TURNAROUND_MIN;
+      if (flown !== null) flown += groundMin;
     }
   }
   const { leg: last, part } = arriving();

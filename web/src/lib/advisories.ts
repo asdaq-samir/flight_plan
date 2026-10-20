@@ -40,14 +40,16 @@ export function titleCase(text: string): string {
  * G-AIRMET's cause, a TFR's purpose -- in sentence case, its codes kept:
  * "INTERMITTENT BY NOTAM 4 HOURS IN ADVANCE" reads "Intermittent by
  * NOTAM 4 hours in advance". A word with a figure in it (20KTS, FL180,
- * 0700) is a code too. Text with any lower case is someone's own writing
- * and is left as it is, and so are raw reports, which pilots read as
- * sent.
+ * 0700) is a code too, its letters before a hyphen and all (R-4401A),
+ * and an airspace's class is written as the AIM writes it, "Class B"
+ * (AIM 3-2-1). Text with any lower case is someone's own writing and is
+ * left as it is, and so are raw reports, which pilots read as sent.
  */
 export function faaWords(text: string | null | undefined): string {
   if (!text) return "";
   if (/[a-z]/.test(text)) return text;
-  const words = text.replace(/[A-Z0-9]+/g, word => {
+  const words = text.replace(/\bCLASS ([A-G])\b|[A-Z]+-\d[A-Z0-9]*|[A-Z0-9]+/g, (word, letter?: string) => {
+    if (letter) return `Class ${letter}`;
     if (/\d/.test(word) || CODES.has(word)) return word;
     if (word === "NOTAMS") return "NOTAMs";
     return DAYS[word] ?? word.toLowerCase();

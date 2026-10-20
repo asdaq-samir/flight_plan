@@ -56,8 +56,12 @@ export function useKeepRouteToast() {
       } else {
         toast.success("Charts kept offline", {
           id: TOAST_ID,
-          description: `${grouped(total - failed)} tiles${failed ? ` (${failed} not available)` : ""}: the route draws without a connection now.`,
+          description: failed ? `${grouped(total - failed)} tiles` : `${grouped(total)} tiles: the route draws without a connection now.`,
         });
+        // The tiles that could not be fetched are a problem, said where
+        // problems are (lib/problems) and kept until the next keep, not a
+        // bracket inside the news that it worked.
+        if (failed) raiseProblem({ id: TOAST_ID, title: `${grouped(failed)} chart tiles not kept: those parts of the route need a connection` });
       }
     } else if (before === "keeping" && job.status === "failed") {
       toast.dismiss(TOAST_ID);

@@ -51,7 +51,7 @@ test("signed out, Personal says once what signing in keeps, its minimums need no
   await expect(sheet.getByText("Not Signed In")).toBeVisible();
   // The minimums are kept on the device: no sign-in for them; the
   // account's three wait for one.
-  await expect(sheet.getByTestId("library-section").getByRole("button", { name: "Aircraft" })).toBeDisabled();
+  await expect(sheet.getByTestId("library-section").getByRole("button", { name: "Airplanes" })).toBeDisabled();
   await library(sheet, "Minimums");
   await expect(sheet.getByTestId("minimum-ceilingFt")).toBeVisible();
   await sheet.getByRole("button", { name: "Account", exact: true }).click();

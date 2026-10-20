@@ -20,7 +20,7 @@ import type {
 } from "../../../../lib/api/types";
 import type { FrameworkNarrative } from "../../hooks/useNarratives";
 import type { BriefingState } from "../../hooks/usePlan";
-import { altFt, bearing, ceilingAndVisibility, clockTime, PLAN_NAME } from "../../format";
+import { altFt, ceilingAndVisibility, clockTime, PLAN_NAME, windAloft } from "../../format";
 import { flightLevel, grouped } from "../../../../lib/units";
 import { identOf, isAirwayToken, withoutAltitude } from "../../../../lib/identSchema";
 import { navLogRows, savedCheckpoints } from "../navlog/rows";
@@ -242,13 +242,16 @@ export interface FlightToSave {
    *  `altitudes` writes them ("VPBNG:4500"), or "": filed with the
    *  flight, so opened again it is planned at them. */
   altitudes?: string;
+  /** The address's other picks for the flight (lib/flightLink picksOf):
+   *  filed too, so it opens again as it was planned. */
+  picks?: string;
 }
 
 /** What would be filed, and only once there is a whole plan to file: the
  *  course (the airports' own idents and places, not a route being
  *  switched to), the nav log and its totals. Save used to be offered
  *  mid-stream, or after a stream failed, and filed null totals. */
-function useSaveRequest({ course, totals, nav, legs, selected, aircraftId, depart, altitudes = "" }: FlightToSave): SaveFlightRequest | null {
+function useSaveRequest({ course, totals, nav, legs, selected, aircraftId, depart, altitudes = "", picks = "" }: FlightToSave): SaveFlightRequest | null {
   // The briefing's risk assessment (lib/frat), filed with the flight.
   const risk = useRisk(s => s.assessment);
   return useMemo((): SaveFlightRequest | null => {
@@ -268,8 +271,9 @@ function useSaveRequest({ course, totals, nav, legs, selected, aircraftId, depar
       checkpoints: savedCheckpoints(navLogRows(course, selected, legs), course.distance_nm),
       risk: risk ? { score: risk.score, level: risk.level, factors: risk.factors.map(f => f.label) } : null,
       altitudes: altitudes || null,
+      picks: picks || null,
     };
-  }, [course, nav, totals, aircraftId, depart, selected, legs, risk, altitudes]);
+  }, [course, nav, totals, aircraftId, depart, selected, legs, risk, altitudes, picks]);
 }
 
 export function SaveFlightButton(flight: FlightToSave) {
@@ -516,15 +520,16 @@ export default memo(function FlightBriefingView({
     return !pass || tfrWhen(t, pass) === "in-force";
   }) ?? [];
   // The special-use areas the legs cross (vfr.sua, with the altitudes),
-  // and their times of use read for when the flight passes each.
+  // and their times of use read for when the flight passes each, in the
+  // area's own time zone.
   const specialUse = (nav?.altitude_selection.special_use ?? []).map(area => {
     const pass = passAt(area.along_track_nm);
-    return { area, pass, when: pass ? suaWhen(area.times_of_use, pass) : "unknown" as SuaWhen };
+    return { area, pass, when: pass ? suaWhen(area.times_of_use, pass, area.time_zone) : "unknown" as SuaWhen };
   });
   // The call sign the radio calls use: the pilot's own airplane's
   // registration where they fly one, and its make from its profile.
   const flying = usePreferences(s => s.aircraft);
-  const make = nav?.aircraft.type?.split(" ")[0] || "Aircraft";
+  const make = nav?.aircraft.type?.split(" ")[0] || "Airplane";
   const ownCallSign = callSign(make, flying.aircraftId != null ? shortName(flying.label) : null);
   // The risk assessment (lib/frat): the briefing's, the nav log's and the
   // logbook's factors, and what the pilot ticks. Published for the Save
@@ -576,7 +581,7 @@ export default memo(function FlightBriefingView({
     metars: landings.flatMap(i => (briefing.metars[i]?.raw ? [{ ident: i, raw: briefing.metars[i]!.raw! }] : [])),
     destinationForecast: destStation ? ceilingAndVisibility(destStation.ceiling_ft, destStation.visibility_sm) : null,
     hazards: hazardNames,
-    specialUse: specialUse.map(({ area }) => `${area.name} (${area.kind}), ${suaAltitudes(area)}`),
+    specialUse: specialUse.map(({ area }) => `${faaWords(area.name)} (${area.kind}), ${suaAltitudes(area)}`),
     tfrs: briefing.tfrs.length,
   }) : "";
   const assessmentKey = assessment ? `${assessment.level}:${assessment.score}:${assessment.factors.map(f => f.key).join(",")}` : "";
@@ -766,7 +771,7 @@ export default memo(function FlightBriefingView({
                         <ListRow
                           key={area.name}
                           media={<FindingIcon finding={SUA_FINDING[when] === "stop" ? "caution" : SUA_FINDING[when]} />}
-                          title={`${area.name} · ${area.kind}`}
+                          title={`${faaWords(area.name)} · ${area.kind}`}
                           // How far along with the altitudes, not at the row's end:
                           // there it left the FAA's times of use three words a line.
                           description={
@@ -980,7 +985,7 @@ export default memo(function FlightBriefingView({
                     key={i}
                     title={<span className="line-clamp-1">{st.from} → {st.to}</span>}
                     description={`${altFt(st.altitudeFt)} ft`}
-                    value={`${st.wind ? `${bearing(st.wind.dir)} ${st.wind.speed} kt` : "no wind data"}${st.oatC === null ? "" : ` · ${st.oatC} °C`}`}
+                    value={`${st.wind ? `${windAloft(st.wind.dir, st.wind.speed)} kt` : "no wind data"}${st.oatC === null ? "" : ` · ${st.oatC} °C`}`}
                   />
                 ))}
               </ListGroup>

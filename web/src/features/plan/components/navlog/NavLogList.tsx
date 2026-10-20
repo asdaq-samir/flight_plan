@@ -2,7 +2,7 @@ import { Fragment, type CSSProperties, type KeyboardEvent, type ReactNode } from
 import { cn } from "cn";
 import { placeName } from "../../../../lib/radio";
 import { TEXT } from "../../../../lib/text";
-import { altFt, bearing, etaAt, one } from "../../format";
+import { altFt, bearing, etaAt, one, windAloft } from "../../format";
 import { PointMark } from "./PointMark";
 import { isLegPoint, legOf, rowPoint, type NavLogRow } from "./rows";
 
@@ -17,7 +17,7 @@ const MARK_MIDDLE = "1.25rem";
 function windOf(row: NavLogRow): string | null {
   const leg = legOf(row);
   if (!leg) return null;
-  return leg.wind ? `${bearing(leg.wind.wind_dir_true_deg)}/${Math.round(leg.wind.wind_speed_kt)} kt` : "no data";
+  return leg.wind ? `${windAloft(leg.wind.wind_dir_true_deg, leg.wind.wind_speed_kt)} kt` : "no data";
 }
 
 /** What each row says beside its leg's own figures, worked out in order:

@@ -14,7 +14,7 @@ import { CardHead, PanelCard } from "../../../components/PanelCard";
 import { RowBadge } from "../../../components/RowBadge";
 import { BADGE } from "../../../lib/rowBadges";
 import { FINDING_TONE } from "../../../lib/status";
-import { suaAltitudes } from "../../../lib/advisories";
+import { faaWords, suaAltitudes } from "../../../lib/advisories";
 
 /** One of a band's rules on a line of its own, its glyph before it: the
  *  weather minimums, what it takes to go in, what the airplane carries,
@@ -177,7 +177,7 @@ export default function AirspaceCard({ point, onClose, summary = false, onExpand
                   : data.special_use.map(area => (
                     <ListRow
                       key={area.name} media={<RowBadge colour={BADGE.hazard}><ShieldAlert /></RowBadge>}
-                      title={<><span className="font-semibold">{area.name}</span><span className="text-muted-foreground"> · {area.kind}</span></>}
+                      title={<><span className="font-semibold">{faaWords(area.name)}</span><span className="text-muted-foreground"> · {area.kind}</span></>}
                       description={[
                         suaAltitudes(area),
                         area.times_of_use, area.controlling_agency,

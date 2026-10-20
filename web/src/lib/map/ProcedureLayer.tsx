@@ -4,6 +4,7 @@ import { Marker, Pane, Polyline } from "react-leaflet";
 import type { ProcedureDrawing, ProcedureFix } from "../api/types";
 import { altitudeLines, speedWords } from "../procedures";
 import { BADGE } from "../rowBadges";
+import { MAP_BLUE } from "./chartColors";
 import { made } from "./icons";
 import { useLiveZoom } from "./useView";
 
@@ -56,8 +57,8 @@ const fixIcon = made(function fixIcon(fix: ProcedureFix, words: boolean, stale: 
       `<span>${esc(fix.ident)}${roles.length ? ` <span class="font-semibold opacity-80">${esc(roles.join(" "))}</span>` : ""}</span>` +
       `${alt ? `<span class="flex flex-col text-[#1c1a17]">${alt}</span>` : ""}` +
       `${speed ? `<span class="text-[#1c1a17]">${esc(speed)}</span>` : ""}` +
-      `${own != null ? `<span style="color:#007aff">Cross ${own.toLocaleString("en-US")}</span>` : ""}` +
-      `${direct ? `<span style="color:#007aff">Direct to</span>` : ""}` +
+      `${own != null ? `<span style="color:${MAP_BLUE}">Cross ${own.toLocaleString("en-US")}</span>` : ""}` +
+      `${direct ? `<span style="color:${MAP_BLUE}">Direct to</span>` : ""}` +
       `${stale ? `<span class="text-[#1c1a17]">OUT OF DATE</span>` : ""}</span>`
     : "";
   // A box twice the diamond's size, the diamond at its middle: a mark to
@@ -66,7 +67,7 @@ const fixIcon = made(function fixIcon(fix: ProcedureFix, words: boolean, stale: 
   return L.divIcon({
     className: "", iconSize: [28, 28], iconAnchor: [14, 14],
     html: `<span class="absolute inset-0 flex items-center justify-center" data-procedure-fix="${esc(fix.ident)}">` +
-      `<svg viewBox="-7 -7 14 14" width="14" height="14" aria-hidden="true" style="overflow:visible">${direct ? `<circle r="10" fill="none" stroke="#007aff" stroke-width="2.5"/>` : ""}<path d="M0 -5.5 L5.5 0 L0 5.5 L-5.5 0 Z" fill="${fix.missed ? "#fff" : ink}" stroke="${fix.missed ? ink : "#fff"}" stroke-width="1.8"/></svg>` +
+      `<svg viewBox="-7 -7 14 14" width="14" height="14" aria-hidden="true" style="overflow:visible">${direct ? `<circle r="10" fill="none" stroke="${MAP_BLUE}" stroke-width="2.5"/>` : ""}<path d="M0 -5.5 L5.5 0 L0 5.5 L-5.5 0 Z" fill="${fix.missed ? "#fff" : ink}" stroke="${fix.missed ? ink : "#fff"}" stroke-width="1.8"/></svg>` +
       `${label}</span>`,
   });
 });

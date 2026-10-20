@@ -2,6 +2,8 @@ import type { AltitudeOption, Leg, Runway, Totals } from "../../lib/api/types";
 import { SCORE_STEPS } from "../../lib/scoreScale";
 import { altFt, bearing, flightLevel, one } from "../../lib/units";
 import { clockTime, hoursMinutes, zuluTime } from "../../lib/clock";
+import type { WindPick } from "../../lib/pattern";
+import { calmOnRunway, isCalm } from "../../lib/wind";
 
 export { altFt, bearing, one };
 
@@ -150,11 +152,32 @@ export function surfaceName(surface: string | null | undefined): string | null {
   return SURFACE_NAMES[code] ?? surface.toLowerCase();
 }
 
+/** A runway's wind in its parts, signed as vfr.runway_wind's are (a
+ *  tailwind negative, a crosswind from the right positive): the planner's
+ *  Runway["wind"] and lib/pattern's WindPick alike. */
+export interface WindParts {
+  headwindKt: number;
+  crosswindKt: number;
+  gustCrosswindKt: number | null;
+}
+
+const partsOf = (wind: NonNullable<Runway["wind"]>): WindParts =>
+  ({ headwindKt: wind.headwind_kt, crosswindKt: wind.crosswind_kt, gustCrosswindKt: wind.gust_crosswind_kt ?? null });
+
+/** The crosswind unsigned and the gust's where it says more than the
+ *  steady one (a gust's crosswind rounded to the steady's adds nothing),
+ *  and which side it is from. */
+function across(wind: WindParts): { kt: number; gustKt: number | null; side: "right" | "left" | null } {
+  const kt = Math.abs(wind.crosswindKt);
+  const gust = wind.gustCrosswindKt == null ? null : Math.abs(wind.gustCrosswindKt);
+  return { kt, gustKt: gust != null && gust !== kt ? gust : null, side: wind.crosswindKt > 0 ? "right" : wind.crosswindKt < 0 ? "left" : null };
+}
+
 /** The reported wind on the end it favours, as a pilot says it:
  *  "Favors 27: 10 kt headwind, 6 kt crosswind from the right, 9 in the
  *  gusts" -- a tailwind where every end has one. */
 export function runwayWind(wind: NonNullable<Runway["wind"]>): string {
-  if (wind.headwind_kt === 0 && wind.crosswind_kt === 0 && wind.gust_crosswind_kt == null) return `Calm on ${wind.end}`;
+  if (calmOnRunway(wind)) return `Calm on ${wind.end}`;
   return `Favors ${wind.end}: ${windOnRunway(wind)}`;
 }
 
@@ -162,21 +185,66 @@ export function runwayWind(wind: NonNullable<Runway["wind"]>): string {
  *  headwind, 8 kt crosswind from the left, 13 in the gusts" -- for a row
  *  that names the runway itself (TakeoffLandingSection). */
 export function windOnRunway(wind: NonNullable<Runway["wind"]>): string {
-  if (wind.headwind_kt === 0 && wind.crosswind_kt === 0 && wind.gust_crosswind_kt == null) return "Calm";
-  const along = wind.headwind_kt >= 0 ? `${wind.headwind_kt} kt headwind` : `${-wind.headwind_kt} kt tailwind`;
-  const side = wind.crosswind_kt > 0 ? " from the right" : wind.crosswind_kt < 0 ? " from the left" : "";
-  const gusts = wind.gust_crosswind_kt != null && Math.abs(wind.gust_crosswind_kt) !== Math.abs(wind.crosswind_kt)
-    ? `, ${Math.abs(wind.gust_crosswind_kt)} in the gusts` : "";
-  return `${along}, ${Math.abs(wind.crosswind_kt)} kt crosswind${side}${gusts}`;
+  if (calmOnRunway(wind)) return "Calm";
+  const parts = partsOf(wind);
+  const along = parts.headwindKt >= 0 ? `${parts.headwindKt} kt headwind` : `${-parts.headwindKt} kt tailwind`;
+  const cross = across(parts);
+  return `${along}, ${cross.kt} kt crosswind${cross.side ? ` from the ${cross.side}` : ""}${cross.gustKt != null ? `, ${cross.gustKt} in the gusts` : ""}`;
+}
+
+/** The wind a runway is picked by (lib/pattern's windPick), in words, as
+ *  its symbols in FPL's list say it: "24 into the wind: headwind 8 kt,
+ *  crosswind 2 gusting 9 kt (KUGN, 11 nm)", or "Wind calm". The crosswind
+ *  left out where there is none, steady or in the gusts. */
+export function windPickWords(wind: WindPick): string {
+  const from = wind.from ? ` (${wind.from.ident}, ${wind.from.nm} nm)` : "";
+  if (wind.calm) return `Wind calm${from}`;
+  const cross = across(wind);
+  const crosswind = cross.kt > 0 || cross.gustKt != null ? `, crosswind ${cross.kt}${cross.gustKt != null ? ` gusting ${cross.gustKt}` : ""} kt` : "";
+  const along = wind.headwindKt >= 0 ? `headwind ${wind.headwindKt} kt` : `tailwind ${-wind.headwindKt} kt`;
+  return `${wind.ident} into the wind: ${along}${crosswind}${from}`;
+}
+
+/** The crosswind and its gust's of a picked wind, for its symbol: "2",
+ *  "2G9", null with none either way. */
+export function windPickCrosswind(wind: WindPick): string | null {
+  const cross = across(wind);
+  return cross.kt > 0 || cross.gustKt != null ? `${cross.kt}${cross.gustKt != null ? `G${cross.gustKt}` : ""}` : null;
 }
 
 /** The wind as a METAR reports it, true: "240° at 15 kt, gusts 25",
- *  "Calm" (00000KT), "Variable at 4 kt" (VRB) -- FAA Order JO 7900.5's
- *  codes as the planner reads them. The airport's card's and the Brief's. */
+ *  "Calm" (00000KT, lib/wind's isCalm), "Variable at 4 kt" (VRB) --
+ *  FAA Order JO 7900.5's codes as the planner reads them; "Not reported"
+ *  with no speed. The airport's card's and the Brief's. */
 export function windLine(metar: { wind_speed_kt?: number | null; wind_dir_true_deg?: number | null; wind_gust_kt?: number | null }): string {
-  if (!metar.wind_speed_kt) return "Calm";
+  if (metar.wind_speed_kt == null) return "Not reported";
+  if (isCalm(metar.wind_speed_kt)) return "Calm";
   const from = metar.wind_dir_true_deg == null ? "Variable" : bearing(metar.wind_dir_true_deg);
   return `${from} at ${Math.round(metar.wind_speed_kt)} kt${metar.wind_gust_kt ? `, gusts ${Math.round(metar.wind_gust_kt)}` : ""}`;
+}
+
+/** A wind reported or forecast at a field, as FPL's list writes it on the
+ *  field's button: its true direction marked "T" ("240°T", "VRB") over
+ *  its speed ("12G20", knots), and in words for a screen reader
+ *  ("240 true at 12 knots, gusts 20"); "calm" (isCalm), or null with no
+ *  speed to go by. */
+export type ReportedWind = "calm" | { dir: string; speed: string; spoken: string };
+
+export function reportedWind(dirTrueDeg: number | null | undefined, speedKt: number | null | undefined, gustKt: number | null | undefined): ReportedWind | null {
+  if (speedKt == null) return null;
+  if (isCalm(speedKt)) return "calm";
+  const kt = Math.round(speedKt), gust = gustKt ? Math.round(gustKt) : null;
+  return {
+    dir: dirTrueDeg == null ? "VRB" : `${bearing(dirTrueDeg)}T`, speed: gust ? `${kt}G${gust}` : `${kt}`,
+    spoken: `${dirTrueDeg == null ? "variable" : `${Math.round(dirTrueDeg)} true`} at ${kt} knots${gust ? `, gusts ${gust}` : ""}`,
+  };
+}
+
+/** A wind aloft as the nav log writes it, true: "270°/15", direction
+ *  over speed in knots -- the form of the nav log's own columns (headed
+ *  °/kt); running text adds " kt". */
+export function windAloft(dirTrueDeg: number, speedKt: number): string {
+  return `${bearing(dirTrueDeg)}/${Math.round(speedKt)}`;
 }
 
 /** Ceiling and visibility the way a briefer says them. */

@@ -76,7 +76,7 @@ test("an airplane's VOR check is recorded with its kind and error, and says how 
   await showTabs(page);
   await openConsole(page);
   const console = page.getByTestId("console-sheet");
-  await library(console, "Aircraft");
+  await library(console, "Airplanes");
   await console.getByRole("button", { name: "Edit N12345" }).click();
   await expect(page.getByTestId("vor-check-standing")).toHaveText("To 2099-10-31");
   await page.getByTestId("vor-check-error").fill("-3");

@@ -4,6 +4,7 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Circle, Marker, useMap, useMapEvents } from "react-leaflet";
 import { nearestQuery } from "../queryClient";
 import { glideRangeNm, underway } from "./glide";
+import { prefersReducedMotion } from "../motion";
 import { centreClear, hideLinesWhileZooming, panClear } from "./clear";
 import { glideLabelIcon, ownShipIcon } from "./icons";
 import { COUNTRY_ZOOM, DRY_RUN_ZOOM, OPEN_ZOOM, SIMULATED_FIX_MS, useOwnShip } from "./ownShip";
@@ -82,6 +83,9 @@ export function OwnShipLayer() {
   const flown = useRef(0);
   useEffect(() => {
     if (!enabled || !fix || !follow) return;
+    // Under Reduce Motion the map is put on the position, never flown or
+    // panned there: Leaflet moves it in script, past the CSS rule.
+    const still = prefersReducedMotion();
     if (flown.current !== recentred) {
       flown.current = recentred;
       // The zoom asked for -- the region round it on opening (locateOnOpen's
@@ -111,14 +115,14 @@ export function OwnShipLayer() {
         // why is there animation in the maps"), 35 points under the pill
         // over half a second. The arrow's recentre still pans.
         if (recentreZoom === OPEN_ZOOM) map.setView(target, zoom, { animate: false });
-        else panClear(map, [fix.lat, fix.lon], { animate: true, duration: 0.5 });
+        else panClear(map, [fix.lat, fix.lon], { animate: !still, duration: 0.5 });
         return;
       }
       // Leaflet's own zoom animation, which the browser runs apart from the
       // page's work, where flyTo drew a frame at a time and stalled while
       // the page was busy -- a dry run starting, a route arriving.
       hideLinesWhileZooming(map, zoom);
-      map.setView(target, zoom, { animate: true });
+      map.setView(target, zoom, { animate: !still });
       return;
     }
     // Not under a zoom still animating (the dry run's start, in on its
@@ -129,8 +133,8 @@ export function OwnShipLayer() {
     // second, where half a second eased out and cut short by the next fix
     // moved it in jerks.
     panClear(map, [fix.lat, fix.lon], simulated
-      ? { animate: true, duration: SIMULATED_FIX_MS / 1000, easeLinearity: 1 }
-      : { animate: true, duration: 0.5 });
+      ? { animate: !still, duration: SIMULATED_FIX_MS / 1000, easeLinearity: 1 }
+      : { animate: !still, duration: 0.5 });
   }, [map, enabled, fix, follow, recentred, recentreZoom, simulated]);
   // A dry run's airplane, its rings with it, glides from one fix to the
   // next over the time between them, at the owner's notice ("the dry run
@@ -194,7 +198,7 @@ export function OwnShipLayer() {
     const was = turned.current?.el === el ? turned.current.deg : null;
     const delta = was == null ? 0 : ((((heading - was) % 360) + 540) % 360) - 180;
     const deg = was == null ? heading : was + delta;
-    const still = was == null || window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const still = was == null || prefersReducedMotion();
     el.style.transition = still ? "none" : `transform ${Math.min(1.2, Math.max(0.25, Math.abs(delta) / 120)).toFixed(2)}s ease-in-out`;
     el.style.transform = `rotate(${deg}deg)`;
     turned.current = { deg, el };

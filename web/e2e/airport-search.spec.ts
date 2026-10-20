@@ -16,7 +16,7 @@ const airport = (ident: string, name: string) => ({ ident, name, municipality: n
  *  opening the airport's card (RouteBox). */
 async function changeDestination(page: Page) {
   await page.getByLabel("Destination", { exact: true }).click({ button: "right" });
-  await page.getByTestId("change-point").click();
+  await page.getByTestId("pill-menu-change").click();
 }
 
 async function slowSearch(page: Page, heldFor: string) {

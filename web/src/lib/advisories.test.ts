@@ -49,6 +49,12 @@ describe("the FAA's capitals in sentence case", () => {
     // A cause made of contractions alone stays as the FAA wrote it.
     expect(faaWords("CIG BLW 010 VIS BLW 3SM BR FG")).toBe("CIG BLW 010 VIS BLW 3SM BR FG");
     expect(faaWords("Security: VIP movement")).toBe("Security: VIP movement");
+    // A special-use area's or an airspace's name: its designator whole, its
+    // class as the AIM writes it, the days still read as days.
+    expect(faaWords("R-4401A")).toBe("R-4401A");
+    expect(faaWords("ACTIVE IN R-5311A")).toBe("Active in R-5311A");
+    expect(faaWords("CHICAGO CLASS B")).toBe("Chicago Class B");
+    expect(faaWords("0800 - 1600, TUE-SAT")).toBe("0800 - 1600, Tue-Sat");
     expect(faaWords(null)).toBe("");
     expect(sigmetHazard("CONVECTIVE")).toBe("Convective");
     expect(sigmetHazard("MTN OBSCN")).toBe("Mountain obscuration");

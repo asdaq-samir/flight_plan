@@ -26,5 +26,8 @@ public record FlightDto(
         List<FlightCheckpointDto> checkpoints,
         /** The altitudes the pilot set at its points ("VPBNG:4500"); null
          *  where the planner's own were flown. */
-        @Nullable String altitudes) {
+        @Nullable String altitudes,
+        /** The other picks it was planned with, as the planner's address
+         *  writes them; null for none. */
+        @Nullable String picks) {
 }

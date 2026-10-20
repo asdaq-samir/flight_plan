@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useId, useRef, useState, type KeyboardEvent, type MouseEvent, type PointerEvent } from "react";
 import { Command as CommandPrimitive } from "cmdk";
-import { ArrowRight, MoveVertical, Pencil, PlaneLanding, PlaneTakeoff, Route, Trash2, TriangleAlert } from "lucide-react";
+import { ArrowRight, PlaneLanding, PlaneTakeoff, Route, TriangleAlert } from "lucide-react";
 import {
   DndContext, KeyboardSensor, MouseSensor, TouchSensor, closestCenter, useDndMonitor, useSensor, useSensors, type DragEndEvent,
 } from "@dnd-kit/core";
@@ -11,7 +11,9 @@ import AirportPicker, { AirportRow, PickerGroup, SearchRows } from "../../../com
 import ClearButton from "../../../components/ClearButton";
 import { PANEL_FIELD } from "../../../components/panelField";
 import { CommandList } from "../../../components/ui/command";
-import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuShortcut, ContextMenuTrigger } from "../../../components/ui/context-menu";
+import { ContextMenu, ContextMenuContent, ContextMenuTrigger } from "../../../components/ui/context-menu";
+import { PointMenuItems } from "./PointControls";
+import { CONTEXT_MENU, useAfterMenu } from "./pointMenu";
 import { InputGroup } from "../../../components/ui/input-group";
 import { Popover, PopoverAnchor, PopoverContent } from "../../../components/ui/popover";
 import type { Detour } from "../../../lib/api/types";
@@ -20,7 +22,7 @@ import { usePreferences, type AirspaceClass, type RecentAirport } from "../../..
 import { useAirportSearch } from "../../../lib/useAirportSearch";
 import { AIRSPACE_PILL, pillLook, useAirspace } from "../../../lib/useAirspace";
 import { inkOn } from "../../../lib/scoreScale";
-import { altFt, flightLevel } from "../../../lib/units";
+import { altFt, bearing, flightLevel } from "../../../lib/units";
 import { sameField } from "../../../lib/procedures";
 import { TEXT } from "../../../lib/text";
 import PointAltitudeDialog, { type EditedPoint, type PointAltitude } from "./PointAltitudeDialog";
@@ -74,7 +76,7 @@ const PROCEDURE_GLYPH = { approach: PlaneLanding, arrival: Route, departure: Pla
  */
 export default function RouteBox({
   dep, stops, dest, waypoints, airspaceOf, metarColourOf, altitudeAt, onAltitudeChange, onChange, adding, onAddingChange, via,
-  procedures = NO_PROCEDURES, onProcedures, onOpenAirport, onClear,
+  procedures = NO_PROCEDURES, onProcedures, onOpenAirport, onClear, directTo = null, onDirectTo,
 }: RouteParts & {
   /** Which points are waypoints, flown through: in the sectional's magenta. */
   waypoints: Set<string>;
@@ -102,6 +104,10 @@ export default function RouteBox({
    *  the airport changed from the pill's menu instead. A waypoint's tap
    *  is still its search: it has no card. */
   onOpenAirport?: (ident: string) => void;
+  /** The point flown direct to, and Direct to one or (null) the route as
+   *  it was (PlanWorkspace's directToPoint): the pill's menu's, as FPL's. */
+  directTo?: string | null;
+  onDirectTo?: (ident: string | null) => void;
   /** The whole route cleared, from the box's own clear at its end while it
    *  holds one, as a field's clears what is typed in it, at the pilot's
    *  ask. */
@@ -429,6 +435,9 @@ export default function RouteBox({
                         onEditAltitude={() => setEditing({ ident: point, waypoint: waypoints.has(point), altitude: altitudeAt(point, waypoints.has(point)) })}
                         onRemove={() => remove(i)}
                         onOpen={onOpenAirport && !waypoints.has(point) && identOf(point) ? () => onOpenAirport(identOf(point)) : undefined}
+                        // Flown to: a stop or the destination, not where it starts.
+                        direct={directTo !== null && sameField(directTo, point)}
+                        onDirect={onDirectTo && i > 0 && hasDep ? () => onDirectTo(directTo !== null && sameField(directTo, point) ? null : point) : undefined}
                       />
                       {(i === points.findIndex(p => p === point)) && procedures.filter(p => sameField(p.ident, point) && p.kind === "departure").map(p => (
                         <ProcedureChip key={`${p.kind}-${p.label}`} procedure={p} onOpen={onProcedures ? () => onProcedures(p) : undefined} />
@@ -509,7 +518,7 @@ const NO_PROCEDURES: RouteProcedure[] = [];
 /** The pilot's own point as words: "30 nm on 090° from VPBNG". */
 function frdWords(ident: string): string {
   const frd = frdOf(ident);
-  return frd ? `${frd.distanceNm} nm on ${String(frd.course).padStart(3, "0")}° from ${frd.base}` : ident;
+  return frd ? `${frd.distanceNm} nm on ${bearing(frd.course)} from ${frd.base}` : ident;
 }
 
 /** A procedure picked at a point, after its pill: its kind's glyph and its
@@ -527,7 +536,7 @@ function ProcedureChip({ procedure, before = false, onOpen }: {
       type="button" onClick={onOpen} data-testid="route-procedure"
       aria-label={`${procedure.spoken}: the route's procedures`}
       className={cn(
-        before ? "relative mr-1" : "relative ml-1", "inline-flex h-7 shrink-0 after:absolute after:-inset-y-2 after:inset-x-0 after:content-[''] items-center gap-1 rounded-full border-[1.5px] border-[#5b5bd6] bg-background/70 px-2 font-semibold whitespace-nowrap text-[#4343b8] outline-none focus-visible:ring-2 focus-visible:ring-ring dark:border-[#9d9df0] dark:text-[#c3c3fa]",
+        before ? "relative mr-1" : "relative ml-1", "inline-flex h-7 shrink-0 after:absolute after:-inset-y-2 after:inset-x-0 after:content-[''] items-center gap-1 rounded-full border-[1.5px] border-procedure bg-background/70 px-2 font-semibold whitespace-nowrap text-[#4343b8] outline-none focus-visible:ring-2 focus-visible:ring-ring dark:text-[#c3c3fa]",
         TEXT.note,
       )}
     >
@@ -537,7 +546,7 @@ function ProcedureChip({ procedure, before = false, onOpen }: {
   );
 }
 
-function Pill({ id, ident, waypoint, index, role, stopNumber, airspaceOf, metarColourOf, altitude, onChange, onEditAltitude, onRemove, onOpen }: {
+function Pill({ id, ident, waypoint, index, role, stopNumber, airspaceOf, metarColourOf, altitude, onChange, onEditAltitude, onRemove, onOpen, direct, onDirect }: {
   id: string; ident: string; waypoint: boolean; index: number; role: "dep" | "stop" | "dest"; stopNumber: number;
   airspaceOf: (ident: string) => AirspaceClass | undefined;
   metarColourOf: (ident: string) => string | undefined;
@@ -545,12 +554,14 @@ function Pill({ id, ident, waypoint, index, role, stopNumber, airspaceOf, metarC
   onChange: (ident: string) => void; onEditAltitude: () => void; onRemove: () => void;
   /** A tap's, where it opens the airport's card (RouteBox's onOpenAirport). */
   onOpen?: () => void;
+  direct: boolean;
+  onDirect?: () => void;
 }) {
   // The search, out from the menu's Change where a tap opens the card --
-  // once the menu has closed and given the focus back, or it took the
-  // focus from the search as it opened, which closed it.
+  // once the menu has closed, the focus left to the search, or it took the
+  // focus from the search as it opened, which closed it (useAfterMenu).
   const [changing, setChanging] = useState(false);
-  const change = useRef(false);
+  const { later, onCloseAutoFocus } = useAfterMenu();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
   // A finger's hold, as iOS's: the pill lifts at a quarter second (the
   // drag's, RouteBox's sensors), its menu at half -- unless it has moved
@@ -635,35 +646,24 @@ function Pill({ id, ident, waypoint, index, role, stopNumber, airspaceOf, metarC
   return (
     <ContextMenu onOpenChange={open => { menuOut.current = open; }}>
       <ContextMenuTrigger asChild>{pill}</ContextMenuTrigger>
-      <ContextMenuContent onCloseAutoFocus={e => {
-        if (!change.current) return;
-        change.current = false;
-        e.preventDefault();
-        setChanging(true);
-      }}>
-        {/* Another airport in its place, where a tap opens this one's card;
-            its search out once the menu has gone (onCloseAutoFocus). */}
-        {onOpen && (
-          <ContextMenuItem onSelect={() => { change.current = true; }} data-testid="change-point">
-            <Pencil />Change
-          </ContextMenuItem>
-        )}
-        {/* The altitude there, before Remove, at the pilot's ask: a
-            waypoint's cruise, as a flight level, an airport's pattern, in
-            feet -- the plan's until the pilot sets their own. Asked once
-            the menu has gone, so the dialog takes the focus it hands back. */}
-        <ContextMenuItem onSelect={() => window.setTimeout(onEditAltitude)} data-testid="point-altitude">
-          <MoveVertical />
-          {waypoint ? "Altitude" : "Pattern altitude"}
-          <ContextMenuShortcut className={cn("flex items-center gap-1 tracking-normal tabular-nums", altitude.caution?.length && "text-amber-600 dark:text-amber-400")}>
-            {altitude.caution?.length ? <TriangleAlert className="size-3.5" aria-label="With a caution" /> : null}
-            {waypoint ? flightLevel(altitude.feet) : altitude.feet === null ? "—" : `${altFt(altitude.feet)} ft`}
-          </ContextMenuShortcut>
-        </ContextMenuItem>
-        <ContextMenuItem variant="destructive" onSelect={onRemove} data-testid="remove-point">
-          {/* The one word, at the pilot's ask: the menu is the pill's. */}
-          <Trash2 />Remove
-        </ContextMenuItem>
+      {/* FPL's "⋯"'s items, in its words and order (PointMenuItems), at
+          the audit's finding: the altitude there after Set altitude…, a
+          waypoint's cruise as a flight level, an airport's pattern in feet,
+          the plan's until the pilot sets their own. */}
+      <ContextMenuContent onCloseAutoFocus={onCloseAutoFocus}>
+        <PointMenuItems
+          kit={CONTEXT_MENU} later={later} testId="pill-menu"
+          actions={{
+            ident: pointName(ident), onChange: onOpen ? () => setChanging(true) : undefined,
+            direct, onDirect, onAltitude: onEditAltitude, onInfo: onOpen, onRemove,
+            altitude: (
+              <span className={cn("flex items-center gap-1", altitude.caution?.length && "text-amber-600 dark:text-amber-400")}>
+                {altitude.caution?.length ? <TriangleAlert className="size-3.5" aria-label="With a caution" /> : null}
+                {waypoint ? flightLevel(altitude.feet) : altitude.feet === null ? "—" : `${altFt(altitude.feet)} ft`}
+              </span>
+            ),
+          }}
+        />
       </ContextMenuContent>
     </ContextMenu>
   );
