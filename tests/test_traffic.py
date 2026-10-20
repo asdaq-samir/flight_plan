@@ -53,6 +53,7 @@ def clock(monkeypatch, tmp_path):
     monkeypatch.setattr(traffic, "_ELSEWHERE", {})
     monkeypatch.setattr(traffic, "_FOLLOWED", set())
     monkeypatch.setattr(traffic, "_FOLLOWED_READ", {"done": False})
+    monkeypatch.setattr(traffic, "_LOOKED", {"at": float("-inf")})
     return clock
 
 
@@ -1143,3 +1144,15 @@ def test_the_faa_radars_airplanes_are_on_the_map_and_a_followed_ones_flight_reco
     wall["now"] += traffic.STALE_S + 1
     assert traffic.near(42.35, -88.15, 30)["aircraft"] == []
 
+
+
+def test_the_faa_radar_is_read_in_full_only_while_the_map_shows_traffic(clock, monkeypatch):
+    """A minute after the map last asked for traffic, only the followed
+    airplanes' radar tracks are wanted (app.swim reads no others)."""
+    traffic.follow("a3c858")
+    assert traffic.radar_wanted() == {"a3c858"}
+    monkeypatch.setattr(traffic, "_region_answer", lambda region: (clock.now, []))
+    traffic.near(42.35, -88.15, 30)
+    assert traffic.radar_wanted() is None
+    clock.now += traffic.LOOKED_S + 1
+    assert traffic.radar_wanted() == {"a3c858"}

@@ -131,7 +131,18 @@ def tracks(xml: str) -> list[tuple[dict, float]]:
 
 
 def _radar(text: str) -> int:
-    found = tracks(text) if "TATrackAndFlightPlan" in text[:300] else []
+    """A radar message's tracks handed to vfr.traffic. With nobody looking
+    at traffic, only the followed airplanes': a message naming none of
+    them (its addresses in either case) is not parsed at all, which is
+    most of them."""
+    if "TATrackAndFlightPlan" not in text[:300]:
+        return 0
+    wanted = traffic.radar_wanted()
+    if wanted is not None and not any(a in text or a.upper() in text for a in wanted):
+        return 0
+    found = tracks(text)
+    if wanted is not None:
+        found = [(plane, at) for plane, at in found if plane["hex"] in wanted]
     for plane, at in found:
         traffic.heard_elsewhere(plane, at)
     return len(found)
