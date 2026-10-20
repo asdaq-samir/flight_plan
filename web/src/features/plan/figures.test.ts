@@ -94,4 +94,15 @@ describe("shortFlights", () => {
     expect(tripFigures({ ...input, totals: route }, false)[3]!.alert).toBe(true);
     expect(shortFlights({ ...totals, fuel_margin_gal: 4 } as Totals)).toEqual([]);
   });
+
+  it("says the same figures from where a dry run is: the hop it is on, what is left to it, and the fuel required less what is burnt", () => {
+    const hop = (to: string, required: number) => ({ departure: "C81", destination: to, totals: { ...totals, distance_nm: 60, ete_min: 36, fuel_required_gal: required, hops: [] } });
+    const stops = { ...input, totals: { ...totals, hops: [hop("KJVL", 9.4), hop("KLAS", 12)] } as unknown as Totals };
+    const flown = { hop: 1, now: 1_000, next: { nm: 30, min: 18, at: 2_080 }, last: { nm: 30, min: 18, at: 2_080 }, burntGal: 2.5 };
+    expect(tripFigures({ ...stops, flown }, false).map(f => f.value)).toEqual(["KLAS", "30.0", "18m", "9.5"]);
+    expect(tripFigures({ ...stops, flown, arrival: true }, false)[2]!.value).toMatch(/^\d\d:\d\d$/);
+    // At its start, the plan's own.
+    const start = { hop: 0, now: 1_000, next: { nm: 60, min: 36, at: 3_160 }, last: { nm: 120, min: 72, at: 5_320 }, burntGal: 0 };
+    expect(tripFigures({ ...stops, flown: start }, false).map(f => f.value)).toEqual(["KJVL", "60.0", "36m", "9.4"]);
+  });
 });

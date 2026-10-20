@@ -18,8 +18,11 @@ function reserveRule(totals: Totals): string {
  * not hold it. Opened from the flight's figures (FlightLine); the Brief's
  * Fuel section says the same for every hop.
  */
-export default function FuelBreakdown({ totals, short: shortOnes = [] }: {
+export default function FuelBreakdown({ totals, short: shortOnes = [], burnt }: {
   totals: Totals;
+  /** A dry run flying: the fuel it has burnt since the flight began, and
+   *  so what is still required, the strip's Fuel (tripFigures' `flown`). */
+  burnt?: number;
   /** The route's flights the tanks do not hold the fuel for (shortFlights),
    *  a later stop's as well as this one's. */
   short?: { name: string; shortGal: number }[];
@@ -53,6 +56,15 @@ export default function FuelBreakdown({ totals, short: shortOnes = [] }: {
         />
         <ListRow title={<span className="font-semibold">Fuel required</span>} value={<span className="font-semibold text-foreground">{gal(totals.fuel_required_gal)}</span>} />
       </ListGroup>
+      {burnt != null && totals.fuel_required_gal != null && (
+        <ListGroup>
+          <ListRow title="Burnt so far" value={gal(burnt)} />
+          <ListRow
+            title={<span className="font-semibold">Still required</span>}
+            value={<span className="font-semibold text-foreground">{gal(Math.max(0, totals.fuel_required_gal - burnt))}</span>}
+          />
+        </ListGroup>
+      )}
       {totals.usable_fuel_gal != null && (
         <ListGroup>
           <ListRow

@@ -1917,7 +1917,9 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
             ) : sideView}
           </div>
         )}
-        {dryRunning ? <DryRunFigures run={dryRunning} /> : (
+        {dryRunning ? (
+          <DryRunFigures run={dryRunning} totals={s.totals} estimate={estimate} destination={`${planned.dest}`} depart={depart} local={s.local} />
+        ) : (
           <div data-testid="flight-line">
             <FlightLine totals={s.totals} estimate={estimate} destination={`${planned.dest}`} depart={depart} local={s.local} grow />
           </div>

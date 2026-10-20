@@ -7,6 +7,7 @@ import { ResponsivePopover, ResponsivePopoverContent, ResponsivePopoverTrigger }
 import { TriangleAlert } from "lucide-react";
 import { nextLanding, shortFlights, tripFigures } from "../figures";
 import FuelBreakdown from "./FuelBreakdown";
+import type { Flown } from "./navlog/dryRun";
 
 /**
  * The flight's figures, the last of the route's panel over the tabs, at
@@ -41,7 +42,7 @@ import FuelBreakdown from "./FuelBreakdown";
  *  13), with the sheet (`grow`); TEXT's sizes, a mouse's and a finger's. */
 const { value: GROW_VALUE, unit: GROW_UNIT, name: GROW_NAME } = GROW_FIGURE;
 
-export default function FlightLine({ totals, estimate, destination, depart, local, grow = false }: {
+export default function FlightLine({ totals, estimate, destination, depart, local, grow = false, flown = null }: {
   totals: Totals | null;
   /** Before the nav log's totals, at the pilot's ask for the figures as
    *  soon as can be: the course's distance at once, and the time and fuel
@@ -61,6 +62,9 @@ export default function FlightLine({ totals, estimate, destination, depart, loca
    *  bigger smoothly as expanded") -- by MapPanel's --sheet-progress, 0 at
    *  the pill, 1 all the way up. */
   grow?: boolean;
+  /** A dry run flying: the same figures from where the airplane is
+   *  (tripFigures' `flown`), the same taps on them. */
+  flown?: Flown | null;
 }) {
   const valueType = grow ? GROW_VALUE : TEXT.heading;
   const unitType = grow ? GROW_UNIT : TEXT.note;
@@ -72,12 +76,13 @@ export default function FlightLine({ totals, estimate, destination, depart, loca
   // or destination").
   const [toDestination, setToDestination] = useState(false);
   const stops = (totals?.hops.length ?? 0) > 0;
-  const exact = tripFigures({ totals, estimate, local, destination, depart, arrival, toDestination: stops && toDestination }, false);
-  const rounded = tripFigures({ totals, estimate, local, destination, depart, arrival, toDestination: stops && toDestination }, true);
+  const input = { totals, estimate, local, destination, depart, arrival, toDestination: stops && toDestination, flown };
+  const exact = tripFigures(input, false);
+  const rounded = tripFigures(input, true);
   // The fuel required tapped, what it is made of (FuelBreakdown), at the
   // owner's ask ("fuel is the fuel required which gives a breakdown when
   // tapped"): once the nav log's figures are in.
-  const next = nextLanding(totals, destination);
+  const next = nextLanding(totals, destination, flown?.hop);
   const breakdown = next.totals?.fuel_required_gal != null ? next : null;
   // Each figure on its own: the one too wide for its column rounded, the
   // rest as they are, and set smaller together where that is not enough
@@ -116,7 +121,7 @@ export default function FlightLine({ totals, estimate, destination, depart, loca
                     </button>
                   </ResponsivePopoverTrigger>
                   <ResponsivePopoverContent title={`Fuel to ${breakdown.to}`} className="w-72 p-3" side="top" align="end">
-                    <FuelBreakdown totals={breakdown.totals!} short={shortFlights(totals)} />
+                    <FuelBreakdown totals={breakdown.totals!} short={shortFlights(totals)} burnt={flown?.burntGal} />
                   </ResponsivePopoverContent>
                 </ResponsivePopover>
               ) : f.name === "To" && stops && !local ? (
