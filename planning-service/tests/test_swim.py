@@ -39,3 +39,27 @@ def test_it_is_off_without_its_settings(monkeypatch):
     for name in swim.SETTINGS:
         monkeypatch.delenv(name, raising=False)
     assert not swim.configured()
+
+
+class _Message:
+    """A message as the Solace client gives it: one that raises when asked
+    for its payload as a string, as some of the feed's do, or for bytes."""
+
+    def __init__(self, raw=None, text=None):
+        self.raw, self.text = raw, text
+
+    def get_payload_as_bytes(self):
+        if self.raw is None:
+            raise RuntimeError("Unable to get payload for the message.")
+        return self.raw
+
+    def get_payload_as_string(self):
+        if self.text is None:
+            raise RuntimeError("Unable to get payload for the message.")
+        return self.text
+
+
+def test_a_message_is_read_from_its_bytes_or_its_string_and_one_neither_reads_is_empty():
+    assert swim.body(_Message(raw=MESSAGE.encode())) == MESSAGE
+    assert swim.body(_Message(text=MESSAGE)) == MESSAGE
+    assert swim.body(_Message()) == ""
