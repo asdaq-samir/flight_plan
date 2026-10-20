@@ -9,7 +9,8 @@
  * heading and time worked to make it so in the wind.
  */
 import { windTriangle } from "./diversion";
-import { angleBetween, rad } from "./geo";
+import { angleBetween } from "./geo";
+import { headwindKt } from "./wind";
 
 export type Entry = "direct" | "teardrop" | "parallel";
 export type Turns = "right" | "left";
@@ -64,7 +65,7 @@ export function holdingWind(inboundDeg: number, tasKt: number, windFromDeg: numb
   const outLeg = windTriangle(outboundDeg, tasKt, windFromDeg, windKt);
   if (!inbound || !outLeg) return null;
   const outWca = -3 * inbound.wca;
-  const headwindIn = windKt * Math.cos(rad(windFromDeg - inboundDeg));
+  const headwindIn = headwindKt(windFromDeg, windKt, inboundDeg);
   return {
     legMin,
     inbound: { heading: norm(inboundDeg + inbound.wca), wca: inbound.wca, gs: inbound.gs },

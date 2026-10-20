@@ -10,6 +10,7 @@
 import type { AircraftProfile, Runway } from "./api/types";
 import type { RunwayEnd } from "./pattern";
 import { isaTempC, pressureAltitudeFt, shortField } from "./takeoffLanding";
+import { crosswindKt as crosswindOf, headwindKt as headwindOf, steadyOrGustKt } from "./wind";
 
 /** "Close": less than the 15 per cent margin over the distance needed
  *  that the FAA asks for (SAFO 06012, landing distance assessments). */
@@ -50,10 +51,10 @@ export function endFit({ aircraft, runway, end, wind, elevationFt, altimeterInHg
   // Along and across the end (vfr.runway_wind.components_kt): none with no
   // wind, or a variable one, to go by.
   const heading = end.heading_true_deg;
-  const across = (kt: number | null | undefined) =>
-    wind?.dirTrueDeg == null || heading == null || !kt ? 0 : Math.abs(kt * Math.sin(((wind.dirTrueDeg - heading) * Math.PI) / 180));
-  const headwind = wind?.dirTrueDeg == null || heading == null || !wind.speedKt ? 0 : wind.speedKt * Math.cos(((wind.dirTrueDeg - heading) * Math.PI) / 180);
-  const crosswindKt = Math.round(Math.max(across(wind?.speedKt), across(wind?.gustKt)));
+  const dir = heading == null ? null : wind?.dirTrueDeg ?? null;
+  const across = (kt: number | null | undefined) => (dir == null || !kt ? 0 : crosswindOf(dir, kt, heading!));
+  const headwind = dir == null || !wind?.speedKt ? 0 : headwindOf(dir, wind.speedKt, heading!);
+  const crosswindKt = Math.round(steadyOrGustKt(across(wind?.speedKt), across(wind?.gustKt)));
   const demonstrated = aircraft?.crosswind?.demonstrated_kt ?? null;
   const table = kind === "takeoff" ? aircraft?.takeoff : aircraft?.landing;
   const lengthFt = runway.length_ft ?? null;

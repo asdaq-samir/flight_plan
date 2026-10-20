@@ -11,6 +11,7 @@
 import type { AircraftProfile, Airport, Briefing, Course, Runway } from "./api/types";
 import { pickedEnd, runwayFlown, type RunwayPicks } from "./pattern";
 import { isaTempC, pressureAltitudeFt, shortField, type Distances } from "./takeoffLanding";
+import { runwayCrosswindKt } from "./wind";
 
 /** The ICAO standard atmosphere's troposphere (ICAO Doc 7488): sea level
  *  288.15 K, the lapse rate 6.5 K a kilometre (0.0019812 K a foot), and
@@ -98,7 +99,7 @@ export function runwayChecks(aircraft: AircraftProfile | null | undefined, brief
       const w = runway?.wind;
       const end = picked ? flown!.end.ident : w?.end ?? null;
       const headwind = w ? (end != null && end !== w.end ? -w.headwind_kt : w.headwind_kt) : 0;
-      const crosswind = Math.max(Math.abs(w?.crosswind_kt ?? 0), Math.abs(w?.gust_crosswind_kt ?? 0));
+      const crosswind = w ? runwayCrosswindKt(w) : 0;
       return { runway, end, picked, headwind, crosswind };
     };
     const elevation = field.elevation_ft ?? 0;

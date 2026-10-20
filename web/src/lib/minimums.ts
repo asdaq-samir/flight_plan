@@ -1,5 +1,6 @@
 import type { Briefing } from "./api/types";
 import { altFt } from "./units";
+import { runwayCrosswindKt, steadyOrGustKt } from "./wind";
 
 /**
  * A pilot's personal minimums -- the weather they have decided they will
@@ -42,12 +43,11 @@ export function bestCrosswind(
   const open = runways.filter(r => !r.closed);
   const winds = open.flatMap(r => (r.wind ? [r.wind] : []));
   if (winds.length === 0) {
-    const all = Math.max(reported?.speedKt ?? 0, reported?.gustKt ?? 0);
+    const all = steadyOrGustKt(reported?.speedKt ?? 0, reported?.gustKt);
     return all > 0 && open.length > 0 ? { end: null, kt: all } : null;
   }
-  const crosswind = (w: (typeof winds)[number]) => Math.max(Math.abs(w.crosswind_kt), Math.abs(w.gust_crosswind_kt ?? 0));
-  const best = winds.reduce((a, b) => (crosswind(b) < crosswind(a) ? b : a));
-  return { end: best.end, kt: crosswind(best) };
+  const best = winds.reduce((a, b) => (runwayCrosswindKt(b) < runwayCrosswindKt(a) ? b : a));
+  return { end: best.end, kt: runwayCrosswindKt(best) };
 }
 
 /**
@@ -69,7 +69,7 @@ export function underMinimums(m: Minimums, briefing: Briefing, landings: string[
     if (metar) {
       ceiling(ident, metar.ceiling_ft);
       visibility(ident, metar.visibility_sm);
-      const wind = Math.max(metar.wind_speed_kt ?? 0, metar.wind_gust_kt ?? 0);
+      const wind = steadyOrGustKt(metar.wind_speed_kt ?? 0, metar.wind_gust_kt);
       if (m.windKt != null && wind > m.windKt) {
         const reported = metar.wind_gust_kt ? `${metar.wind_speed_kt}G${metar.wind_gust_kt}` : `${metar.wind_speed_kt}`;
         reasons.push(`${ident} wind ${reported} kt, over your ${m.windKt} kt`);

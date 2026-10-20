@@ -8,7 +8,8 @@
  * field 500 ft above it and back to the 45 from the other.
  */
 import type { Runway } from "./api/types";
-import { angleBetween, rad } from "./geo";
+import { angleBetween } from "./geo";
+import { calmOnRunway, crosswindKt, headwindKt, isCalm } from "./wind";
 
 export type RunwayEnd = NonNullable<Runway["runway_ends"]>[number];
 
@@ -125,7 +126,7 @@ export function windPick(runways: Runway[], nearby?: ReportedWind | null, foreca
   const own = forecastAt == null ? runwayInUse(runways) : null;
   if (own?.byWind && own.runway.wind) {
     const w = own.runway.wind;
-    const calm = w.headwind_kt === 0 && w.crosswind_kt === 0;
+    const calm = calmOnRunway(w);
     return { ident: runwayNumber(own.end.ident), headwindKt: w.headwind_kt, crosswindKt: w.crosswind_kt, gustCrosswindKt: w.gust_crosswind_kt ?? null, calm, from: null };
   }
   if (!nearby || nearby.speedKt == null) return null;
@@ -136,20 +137,15 @@ export function windPick(runways: Runway[], nearby?: ReportedWind | null, foreca
     .filter(r => !r.closed)
     .flatMap(r => (r.runway_ends ?? []).filter(e => e.heading_true_deg != null).map(e => ({ runway: r, end: e, heading: e.heading_true_deg! })));
   if (ends.length === 0) return null;
-  if (nearby.speedKt === 0) return { ident: "", headwindKt: 0, crosswindKt: 0, gustCrosswindKt: null, calm: true, from, ...forecast };
+  if (isCalm(nearby.speedKt)) return { ident: "", headwindKt: 0, crosswindKt: 0, gustCrosswindKt: null, calm: true, from, ...forecast };
   if (nearby.dirTrueDeg == null) return null;
   const dir = nearby.dirTrueDeg, speed = nearby.speedKt;
-  // (headwind, crosswind from the right), as vfr.runway_wind.components_kt.
-  const along = (heading: number, kt: number) => {
-    const angle = rad(dir - heading);
-    return { head: kt * Math.cos(angle), cross: kt * Math.sin(angle) };
-  };
-  const best = [...ends].sort((a, b) => along(b.heading, speed).head - along(a.heading, speed).head
+  const best = [...ends].sort((a, b) => headwindKt(dir, speed, b.heading) - headwindKt(dir, speed, a.heading)
     || (b.runway.length_ft ?? 0) - (a.runway.length_ft ?? 0))[0]!;
-  const { head, cross } = along(best.heading, speed);
   return {
-    ident: runwayNumber(best.end.ident), headwindKt: Math.round(head), crosswindKt: Math.round(cross),
-    gustCrosswindKt: nearby.gustKt ? Math.round(along(best.heading, nearby.gustKt).cross) : null, calm: false, from, ...forecast,
+    ident: runwayNumber(best.end.ident), headwindKt: Math.round(headwindKt(dir, speed, best.heading)),
+    crosswindKt: Math.round(crosswindKt(dir, speed, best.heading)),
+    gustCrosswindKt: nearby.gustKt ? Math.round(crosswindKt(dir, nearby.gustKt, best.heading)) : null, calm: false, from, ...forecast,
   };
 }
 

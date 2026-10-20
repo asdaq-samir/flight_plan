@@ -20,7 +20,7 @@ import type {
 } from "../../../../lib/api/types";
 import type { FrameworkNarrative } from "../../hooks/useNarratives";
 import type { BriefingState } from "../../hooks/usePlan";
-import { altFt, bearing, ceilingAndVisibility, clockTime, PLAN_NAME } from "../../format";
+import { altFt, ceilingAndVisibility, clockTime, PLAN_NAME, windAloft } from "../../format";
 import { flightLevel, grouped } from "../../../../lib/units";
 import { identOf, isAirwayToken, withoutAltitude } from "../../../../lib/identSchema";
 import { navLogRows, savedCheckpoints } from "../navlog/rows";
@@ -980,7 +980,7 @@ export default memo(function FlightBriefingView({
                     key={i}
                     title={<span className="line-clamp-1">{st.from} → {st.to}</span>}
                     description={`${altFt(st.altitudeFt)} ft`}
-                    value={`${st.wind ? `${bearing(st.wind.dir)} ${st.wind.speed} kt` : "no wind data"}${st.oatC === null ? "" : ` · ${st.oatC} °C`}`}
+                    value={`${st.wind ? `${windAloft(st.wind.dir, st.wind.speed)} kt` : "no wind data"}${st.oatC === null ? "" : ` · ${st.oatC} °C`}`}
                   />
                 ))}
               </ListGroup>
