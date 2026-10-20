@@ -34,7 +34,9 @@ test("under IFR the altitude is chosen from the minimum IFR altitude by directio
   // Put away to read the chip beside the airplane, which the card covers.
   await closeCard(page, "profile-close");
   await expect(popover).toBeHidden();
-  await expect(page.getByTestId("ifr-flag")).toBeVisible();
+  // No IFR word beside the altitude, at the owner's ask: the rules are the
+  // Profile card's switch, and the altitude's name says them.
+  await expect(page.getByTestId("ifr-flag")).toHaveCount(0);
   // The re-plan's altitude: whole thousands, west of north out of C81
   // (even thousands, 91.179(b)(1)(ii)).
   await expect(why).toHaveAccessibleName(/under IFR, (\d*[02468],000 feet|FL\d[02468]0)/, { timeout: slow(90000) });

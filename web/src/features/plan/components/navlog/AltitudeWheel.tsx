@@ -100,7 +100,10 @@ export default function AltitudeWheel({ altitudes, value, onChange, names = {}, 
           const on = altitude === value;
           return (
             <button
-              key={altitude} type="button" tabIndex={-1} onClick={() => toRow(i)}
+              // A tap on the row already in the middle picks it again, as
+              // nothing scrolls to say so: a plan's row at the altitude the
+              // pilot typed did nothing (CI, plans.spec, Fastest at 3,500).
+              key={altitude} type="button" tabIndex={-1} onClick={() => (i === index ? onChange(altitude) : toRow(i))}
               // Each row its own 44 points: a number and a plan's name a
               // point taller than it, centred, ran into the row above's
               // area (the audit's P1 on the iPad).
