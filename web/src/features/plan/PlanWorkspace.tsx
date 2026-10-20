@@ -57,6 +57,7 @@ import MiniProfile from "./components/navlog/MiniProfile";
 import FootPager from "./components/FootPager";
 import { dryRunOf, type DryRun } from "./components/navlog/dryRun";
 import { DryRunControls, DryRunFigures } from "./components/DryRunPanel";
+import FixCard, { type OpenFix } from "./components/FixCard";
 import { loadFlightChart } from "./components/loadFlightChart";
 import { DRY_RUN, clearPastFlight, usePastFlight } from "../../lib/map/pastFlight";
 import type { RouteParts, RouteProcedure } from "./components/RouteBox";
@@ -294,9 +295,15 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     ident: d.airport, id: d.id, transition: d.transition ?? null,
     direct: routePicks.find(p => sameField(p.ident, d.airport) && p.id === d.id)?.direct ?? null,
   }))), [drawnPickList, routePicks]);
+  // The altitudes ATC gave to cross the procedures' fixes at (`cross`,
+  // "BXCMB:3000"), set from a fix's card (FixCard): each in place of the
+  // chart's for the plan's descent and the dry run's heights.
+  const crossParam = searchParams.get("cross");
+  const crossings = useMemo(() => altitudesOf(crossParam), [crossParam]);
+  const crossingsText = altitudesParam(crossings);
   const s = usePlan({
     dep: planned.dep, dest: planned.dest, stops: planned.stops, altitudeFt, altitudeChoice, depart, aircraft, load, classBClearance,
-    altitudes, procedures, localMin, rules: flightRules,
+    altitudes, procedures, crossings: crossingsText, localMin, rules: flightRules,
     // Under IFR, the alternate filed in the Weather tab (AlternateSection).
     alternate: searchParams.get("alternate") ?? "",
     // Checkpoints as the map shows them: the settings' Waypoints off, the
@@ -530,9 +537,39 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       ident: d.airport, kind: d.kind, id: d.id, runway: d.kind === "approach" ? approachRunway(d.name) : null,
       label: `${d.name.replace(/ RWY /, " ")}${direct ? ` · direct ${direct}` : d.transition ? ` · ${d.transition}` : ""}`,
       spoken: `${d.name}, ${direct ? `direct ${direct}` : transitionWords(d.kind, d.transition ?? null, true)}`,
-      direct, fixes: d.fixes.filter(f => !f.missed && !/^RW\d/.test(f.ident)).map(f => f.ident),
+      direct, fixes: d.fixes.filter(f => !f.missed && !/^RW\d/.test(f.ident)).map(f => ({
+        ...f, turn: d.holds.some(h => h.fix === f.ident && h.kind === "procedure turn"),
+      })),
     };
   }), [procedureDrawings, pickedProcedures]);
+  // A procedure's fix opened -- from its branch in FPL's list or a tap on
+  // it on the map -- its card (FixCard): Direct to it, and the altitude to
+  // cross it at, at the owner's pick (the fix canvas's option 4).
+  const [openFixAt, setOpenFixAt] = useState<{ field: string; kind: RouteProcedure["kind"]; fix: string } | null>(null);
+  const openFix = useMemo<OpenFix | null>(() => {
+    if (!openFixAt) return null;
+    const at = routeProcedures.find(p => sameField(p.ident, openFixAt.field) && p.kind === openFixAt.kind);
+    const fix = at?.fixes?.find(f => f.ident === openFixAt.fix);
+    return at && fix ? {
+      field: at.ident, kind: at.kind, procedure: at.label.replace(/ · direct \S+$/, ""), fix,
+      direct: at.direct === fix.ident, own: crossings[fix.ident] ?? null,
+    } : null;
+  }, [openFixAt, routeProcedures, crossings]);
+  const mapDirects = routeProcedures.filter(r => r.direct).map(r => `${r.ident}:${r.id}:${r.direct}`).join(",");
+  const showFix = useCallback((field: string, kind: RouteProcedure["kind"], fix: string) => setOpenFixAt({ field, kind, fix }), []);
+  const setCrossing = useCallback((fix: string, feet: number | null) => {
+    setSearchParams(prev => {
+      const own = altitudesOf(prev.get("cross"));
+      if (feet == null) delete own[fix];
+      else own[fix] = feet;
+      return patched(prev, { cross: altitudesParam(own) || null });
+    }, { replace: true });
+  }, [setSearchParams]);
+  const directTo = useCallback((open: OpenFix, direct: boolean) => {
+    const at = routeProcedures.find(r => sameField(r.ident, open.field) && r.kind === open.kind);
+    if (!at) return;
+    pickProcedures(pickedProcedures.map(p => (sameField(p.ident, at.ident) && p.id === at.id ? { ...p, direct: direct ? open.fix.ident : null } : p)), null);
+  }, [routeProcedures, pickedProcedures, pickProcedures]);
   // The patterns flown: none at a field the route lands at by an
   // approach, whose runway chip then says the runway landed on, straight
   // in or circled to -- a circle to land is flown at the plate's circling
@@ -1422,11 +1459,11 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       airports={procedureAirports} rows={routeRows} depart={depart} weather={metarColour}
       picked={pickedPatterns} onPick={pickPattern} onPreselect={setPattern} takeoffs={pickedTakeoffs} onTakeoff={setTakeoff} fit={runwayFitInputs}
       procedures={pickedProcedures} inRoute={routeProcedures} onProcedures={pickProcedures} onPreview={previewProcedure}
-      at={proceduresAt} onAt={setProceduresShown}
+      at={proceduresAt} onAt={setProceduresShown} crossings={crossings} onFix={showFix}
       onCharts={() => { if (planned.dest) { setApproachesOf(planned.dest); selectPlace(planned.dest); } }}
       chartsDisabled={!planned.dest || noApproaches}
     />
-  ), [procedureAirports, routeRows, depart, metarColour, pickedPatterns, pickPattern, setPattern, pickedTakeoffs, setTakeoff, runwayFitInputs, pickedProcedures, routeProcedures, pickProcedures,
+  ), [procedureAirports, routeRows, depart, metarColour, pickedPatterns, pickPattern, setPattern, pickedTakeoffs, setTakeoff, runwayFitInputs, pickedProcedures, routeProcedures, pickProcedures, crossings, showFix,
     previewProcedure, proceduresAt, setProceduresShown, planned.dest, selectPlace, noApproaches]);
   const navLog = useMemo(() => (
     <Suspense fallback={<div className="min-h-0 flex-1" />}>
@@ -1740,8 +1777,12 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           legs={s.legs}
           heldPoint={heldPoint}
           onHoldPoint={holdPoint}
+          crossings={crossings}
+          directs={mapDirects}
+          onProcedureFix={showFix}
         />
         </Suspense>
+        <FixCard open={openFix} onClose={() => setOpenFixAt(null)} onDirect={directTo} onCross={setCrossing} />
         {/* What to look for, a tip at a time, the first times (lib/tips). */}
         <TipHost />
       </div>
