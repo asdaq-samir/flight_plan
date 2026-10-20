@@ -7,6 +7,7 @@
  * page is idle, so it is in hand before a route is.
  */
 export { default as NavLogView } from "./components/navlog/NavLogView";
+export { default as ProceduresRoute } from "./components/ProceduresRoute";
 export { default as FlightBriefingView, BriefingNotices, PlanningAidNote, ReviewAskItem, ReviewAskSheet, SaveFlightButton } from "./components/briefing/FlightBriefingView";
 export { default as RouteBox } from "./components/RouteBox";
 export { default as Kneeboard } from "./components/Kneeboard";

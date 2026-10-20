@@ -38,7 +38,7 @@ import { AirportRecentsPage, RecentAirportTiles, SearchField, SearchResults } fr
 import { chipColourOf } from "../../lib/map/flightCategory";
 import { FavoriteStrip, FavoritesList } from "../../components/Favorites";
 import FlightLine from "./components/FlightLine";
-import ProceduresRoute, { type FitInputs, type ProcedureAirport, type ProceduresAt } from "./components/ProceduresRoute";
+import type { FitInputs, ProcedureAirport, ProceduresAt } from "./components/ProceduresRoute";
 import { useLoad } from "./hooks/useLoad";
 import { NO_PATTERN, patternsOf, patternsParam, trafficPattern, type TrafficPattern } from "../../lib/trafficPattern";
 import { approachRunway, proceduresOf, proceduresParam, sameField, transitionWords, type PickedProcedure } from "../../lib/procedures";
@@ -114,6 +114,10 @@ function fromRoutePanel<K extends keyof RoutePanel>(name: K) {
   });
 }
 const NavLogView = fromRoutePanel("NavLogView");
+// FPL's route list, drawn only inside the nav log's view (its `route`),
+// which waits on this chunk already: 61 KB off the first load, which
+// stood 10 KB under its 1.10 MB budget (the 20 Oct audit).
+const ProceduresRoute = fromRoutePanel("ProceduresRoute");
 const FlightBriefingView = fromRoutePanel("FlightBriefingView");
 const BriefingNotices = fromRoutePanel("BriefingNotices");
 const SaveFlightButton = fromRoutePanel("SaveFlightButton");

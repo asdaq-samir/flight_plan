@@ -1,4 +1,3 @@
-import { format } from "date-fns";
 import type { Briefing } from "./api/types";
 import { altFt } from "./units";
 
@@ -102,11 +101,20 @@ export function tfrAltitudes(t: Pick<RouteTfr, "floor_ft" | "floor_ref" | "ceili
 export function tfrTimes(t: Pick<RouteTfr, "effective" | "expires">): string | null {
   const from = t.effective ? new Date(t.effective) : null;
   const to = t.expires ? new Date(t.expires) : null;
-  const day = "EEE d MMM HH:mm";
-  if (from && to) return `${format(from, day)} – ${format(to, from.toDateString() === to.toDateString() ? "HH:mm" : day)}`;
-  if (from) return `From ${format(from, day)} until further notice`;
-  if (to) return `Until ${format(to, day)}`;
+  if (from && to) return `${dayTime(from)} – ${from.toDateString() === to.toDateString() ? clock(to) : dayTime(to)}`;
+  if (from) return `From ${dayTime(from)} until further notice`;
+  if (to) return `Until ${dayTime(to)}`;
   return null;
+}
+
+// "Tue 6 Oct 18:00" by the browser's own Intl, not date-fns, which this
+// one use kept on the first load (19.5 KB, the 20 Oct audit).
+const DAY = new Intl.DateTimeFormat("en-US", { weekday: "short", day: "numeric", month: "short" });
+const CLOCK = new Intl.DateTimeFormat("en-US", { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+const clock = (d: Date) => CLOCK.format(d);
+function dayTime(d: Date): string {
+  const part = (type: Intl.DateTimeFormatPartTypes) => DAY.formatToParts(d).find(p => p.type === type)?.value ?? "";
+  return `${part("weekday")} ${part("day")} ${part("month")} ${clock(d)}`;
 }
 
 /** A special-use area's floor and ceiling as the chart's tables write

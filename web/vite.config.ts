@@ -45,7 +45,10 @@ export default defineConfig({
     // them, at the owner's pick of the audit's recommendation: only its
     // lint rule had been installed, and every nav-log stream message
     // drew the whole panel again (MapPanel, TabBar, the route box).
-    babel({ presets: [reactCompilerPreset()] }),
+    // Not the stock shadcn wrappers (components/ui), which hand their
+    // props to Radix and gain nothing from a memo: 25.6 KB of the first
+    // load, measured per file with and without it (the 20 Oct audit).
+    babel({ exclude: [/\/components\/ui\//], presets: [reactCompilerPreset()] }),
     tailwindcss(),
     // The app in the air: a service worker (Workbox, generated at
     // build) that keeps the app shell, every chart tile the map has
