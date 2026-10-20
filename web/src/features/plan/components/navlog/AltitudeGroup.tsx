@@ -252,8 +252,13 @@ export function AltitudeProfile({ nav: navNow, legs: legsNow, ends, chart, corne
     if (timer.current !== null) window.clearTimeout(timer.current);
     timer.current = window.setTimeout(() => {
       timer.current = null;
-      if (altitude === cruise) return;
+      // Nothing to plan only where the pick flies what is flown: the plan
+      // flown at its own altitude, or the pilot's own altitude where no
+      // plan cruises. A plan at the altitude the pilot typed is not the
+      // typed altitude -- it steps where the route asks -- and picking it
+      // did nothing when the two met (CI's winds: Fastest at 3,500 ft).
       const plan = planAt(nav, altitude);
+      if (plan ? plan === nav?.flown : altitude === cruise) return;
       if (plan) onAltitudeChoiceChange(plan);
       else onFlyAltitude(altitude);
     }, 450);
