@@ -106,7 +106,7 @@ public class FlightController {
         return new FlightDto(f.getId(), f.getDepartureIdent(), f.getDestinationIdent(), f.getStops(),
                 f.getAircraft() == null ? null : f.getAircraft().getTailNumber(),
                 f.getCruiseAltitudeFt(), f.getTotalDistanceNm(), f.getTotalEteMin(), f.getTotalFuelGal(),
-                f.getPlannedFor(), f.getCreatedAt(), riskOf(f), checkpoints, f.getOwnAltitudes());
+                f.getPlannedFor(), f.getCreatedAt(), riskOf(f), checkpoints, f.getOwnAltitudes(), f.getPicks());
     }
 
     private static FlightCheckpointDto toCheckpointDto(FlightCheckpoint c) {

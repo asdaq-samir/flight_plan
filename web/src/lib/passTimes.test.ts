@@ -35,4 +35,42 @@ describe("when the flight passes a point", () => {
     expect(suaWhen("2200 - 0600Z", new Date("2026-10-06T02:00:00Z"))).toBe("active");
     expect(suaWhen("SR - SS", tuesday1420z)).toBe("unknown");
   });
+
+  test("local hours are read in the area's own zone, daylight saving time and all", () => {
+    // 14:20Z on Tuesday 6 October 2026 is 08:20 MDT in Denver, 07:20 MST in
+    // Phoenix (Arizona keeps standard time), 10:20 EDT in New York.
+    const tuesday1420z = new Date("2026-10-06T14:20:00Z");
+    const hours = "0800 - 1700, MON - FRI; OTHER TIMES BY NOTAM";
+    expect(suaWhen(hours, tuesday1420z, "America/Denver")).toBe("active");
+    expect(suaWhen(hours, tuesday1420z, "America/Phoenix")).toBe("by-notam");
+    expect(suaWhen("0700 - 0800 MST, MON - FRI", tuesday1420z, "America/Phoenix")).toBe("active");
+    // In January Denver keeps standard time too: 14:20Z is 07:20 there.
+    expect(suaWhen(hours, new Date("2027-01-05T14:20:00Z"), "America/Denver")).toBe("by-notam");
+    // Hawaii's 17:00 on Monday is Tuesday 03:00Z.
+    expect(suaWhen("0800 - 1800, MON", new Date("2026-10-06T03:00:00Z"), "Pacific/Honolulu")).toBe("active");
+    // No zone for the area: its local hours are not guessed at.
+    expect(suaWhen(hours, tuesday1420z, null)).toBe("unknown");
+    expect(suaWhen(hours, tuesday1420z, "Not/AZone")).toBe("unknown");
+    // UTC ranges need none.
+    expect(suaWhen("1400 - 2200Z, MON - FRI", tuesday1420z, null)).toBe("active");
+  });
+
+  test("every range is read, each with its own clause's days", () => {
+    const zone = "America/Chicago";
+    // Saturday 3 October 2026, 11:00 CDT (16:00Z).
+    const saturday = new Date("2026-10-03T16:00:00Z");
+    expect(suaWhen("0800 - 1600, MON - FRI; 1000 - 1400, SAT; OTHER TIMES BY NOTAM", saturday, zone)).toBe("active");
+    expect(suaWhen("0800 - 1600, MON - FRI; OTHER TIMES BY NOTAM", saturday, zone)).toBe("by-notam");
+    // Two ranges in one clause, the second the one in use; the data's "%" breaks clauses too.
+    expect(suaWhen("0600 - 0900, 1030 - 1200, MON - SAT, BY NOTAM 2 HOURS IN ADVANCE; %1300 - 1500, FRI", saturday, zone)).toBe("active");
+    // An "other times by NOTAM between" clause's hours are the NOTAM's, not the schedule.
+    expect(suaWhen("0700 - 0900, MON - FRI; OTHER TIMES BY NOTAM BETWEEN 0600 - 2200", saturday, zone)).toBe("by-notam");
+    // A range past midnight belongs to the day it began: Friday 23:00 to Saturday 02:00.
+    const saturday0100 = new Date("2026-10-03T06:00:00Z");
+    expect(suaWhen("2300 - 0200, FRI", saturday0100, zone)).toBe("active");
+    expect(suaWhen("2300 - 0200, SAT", saturday0100, zone)).toBe("not-scheduled");
+    expect(suaWhen("0700 - 1600, DAILY", saturday, zone)).toBe("active");
+    expect(suaWhen("0700 - 1600, SUN - TUE", saturday, zone)).toBe("not-scheduled");
+    expect(suaWhen("0700 - 1600, FRI - SUN", saturday, zone)).toBe("active");
+  });
 });

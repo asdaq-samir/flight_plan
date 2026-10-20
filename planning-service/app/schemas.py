@@ -297,6 +297,11 @@ class Leg(BaseModel):
     # A hold the pilot put at its start (or, into the destination, its
     # end), its time and fuel already in `ete_min` and `fuel_gal`.
     hold: LegHold | None = None
+    # Into a stop the route lands at and leaves again: the minutes on the
+    # ground there before the next leg (the pilot's own, else the
+    # planner's TURNAROUND_MIN), not in `ete_min`. None on every other
+    # leg.
+    ground_min: float | None = None
 
 
 class AlternateLeg(BaseModel):
@@ -415,6 +420,9 @@ class SpecialUse(BaseModel):
     ceiling_ft: float | None = None
     ceiling_ref: str | None = None
     times_of_use: str | None = None
+    #: The IANA zone its times of use are written in (vfr.sua.time_zone,
+    #: from the FAA's GMTOFFSET and DST_CODE); None where the FAA gives none.
+    time_zone: str | None = None
     controlling_agency: str | None = None
 
 

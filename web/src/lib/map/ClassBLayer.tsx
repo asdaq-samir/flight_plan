@@ -7,6 +7,7 @@ import { colourOf } from "./flightCategory";
 import { airportMarkIcon } from "./icons";
 import { MapTooltip } from "./MapTooltip";
 import { chartPair, sheetAt } from "./tiles";
+import { prefersReducedMotion } from "../motion";
 import { centreClear } from "./clear";
 import { hovers } from "./view";
 import type L from "leaflet";
@@ -88,7 +89,8 @@ export function ClassBLayer({ chart, route, onPreview, onSelectPlace }: {
   );
 }
 
-/** The map flown to a field, clear of the panel over it. */
+/** The map flown to a field, clear of the panel over it; put there at
+ *  once under Reduce Motion. */
 function flyClear(map: L.Map, point: [number, number], zoom: number) {
-  map.flyTo(centreClear(map, point, zoom), zoom);
+  map.flyTo(centreClear(map, point, zoom), zoom, { animate: !prefersReducedMotion() });
 }

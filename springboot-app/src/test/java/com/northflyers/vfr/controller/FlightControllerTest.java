@@ -159,6 +159,32 @@ class FlightControllerTest {
     }
 
     @Test
+    void save_takesThePlannersOwnPicksAndRefusesAnyOtherKey() throws Exception {
+        given(pilotService.current(any())).willReturn(Optional.of(samplePilot()));
+        given(flightService.save(any(), any())).willReturn(sampleFlight());
+
+        mockMvc.perform(post("/api/flights").with(oidcLogin()).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"departureIdent\":\"C81\",\"destinationIdent\":\"KDLH\","
+                                + "\"picks\":\"pattern=KMSN%3A18&holds=KMSN%3A180%3AL%3A1M%3A2T&class_b=0&altitude_choice=economical\"}"))
+                .andExpect(status().is2xxSuccessful());
+        mockMvc.perform(post("/api/flights").with(oidcLogin()).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"departureIdent\":\"C81\",\"destinationIdent\":\"KDLH\",\"picks\":\"redirect=https%3A%2F%2Fexample.com\"}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void list_carriesThePicksItWasPlannedWith() throws Exception {
+        given(pilotService.current(any())).willReturn(Optional.of(samplePilot()));
+        given(flightService.list(any())).willReturn(List.of(sampleFlight().withPicks("class_b=0")));
+
+        mockMvc.perform(get("/api/flights").with(oidcLogin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].picks").value("class_b=0"));
+    }
+
+    @Test
     void save_returns400_whenTheRiskLevelIsNotOneOfTheThree() throws Exception {
         given(pilotService.current(any())).willReturn(Optional.of(samplePilot()));
 

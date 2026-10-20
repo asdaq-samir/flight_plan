@@ -355,6 +355,9 @@ export interface RecentRoute {
   dest: string;
   stops: string[];
   at: number;
+  /** What was picked for it besides, as the address writes it (lib/
+   *  flightLink picksOf): planned again as it was. None before 20 Oct. */
+  picks?: string;
 }
 
 /** One key a route, for its place in the Recents: the same ends and stops

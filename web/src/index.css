@@ -192,6 +192,10 @@ body[data-map-sheet][data-map-panel="full"] [data-map-controls] {
   --color-primary-foreground: var(--primary-foreground);
   --color-primary: var(--primary);
   --color-tint: var(--tint);
+  --color-procedure: var(--procedure);
+  --color-caution: var(--caution);
+  --color-caution-ink: var(--caution-ink);
+  --color-caution-wash: var(--caution-wash);
   --color-popover-foreground: var(--popover-foreground);
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
@@ -233,6 +237,16 @@ body[data-map-sheet][data-map-panel="full"] [data-map-controls] {
      sectional's blue and magenta a shade darker, 4.5:1 on their wash. */
   --airspace-blue-ink: #1d559c;
   --airspace-magenta-ink: #962568;
+  /* A procedure's indigo off the map, where a card draws its fixes and
+     its pill: the map's own (rowBadges BADGE.approach, ProcedureLayer),
+     a shade lighter in dark to stand off the card. */
+  --procedure: #5b5bd6;
+  /* Caution, the one amber: words that say it on the panel (FINDING_TONE,
+     4.5:1 and more), and a box of cautions, its words a shade deeper on
+     its wash. Tailwind's amber-700, -800 and -500 at 12%. */
+  --caution: oklch(0.555 0.163 48.998);
+  --caution-ink: oklch(0.473 0.137 46.201);
+  --caution-wash: oklch(0.769 0.188 70.08 / 12%);
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
   --muted: oklch(0.97 0 0);
@@ -281,6 +295,10 @@ body[data-map-sheet][data-map-panel="full"] [data-map-controls] {
   --tint: oklch(0.7 0.165 253);
   --airspace-blue-ink: #8cb8f2;
   --airspace-magenta-ink: #f0a0cf;
+  --procedure: #9d9df0;
+  /* Tailwind's amber-400 and -300 on the dark surfaces. */
+  --caution: oklch(0.828 0.189 84.429);
+  --caution-ink: oklch(0.879 0.169 91.605);
   --secondary: oklch(0.269 0 0);
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.269 0 0);

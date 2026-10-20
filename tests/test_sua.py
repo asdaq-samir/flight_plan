@@ -51,6 +51,42 @@ def test_areas_the_route_crosses_are_listed_in_order_with_their_limits():
     assert moa["legs"] == [0]
 
 
+def test_an_areas_times_are_read_in_the_zone_the_faa_gives_it():
+    """GMTOFFSET and DST_CODE, the FAA's fields for the zone an area's
+    times are written in, name an IANA zone the web reads them in."""
+    def zoned(offset, dst):
+        feature = _feature("MOA NORTH", "MOA", BOX_ON_ROUTE, times="0700-2200, MON-FRI")
+        feature["properties"].update(GMTOFFSET=offset, DST_CODE=dst)
+        return feature
+
+    for (offset, dst), zone in [(("-6", "1"), "America/Chicago"), (("-7", "0"), "America/Phoenix"),
+                                (("-10", "0"), "Pacific/Honolulu"), (("10", "0"), "Pacific/Guam"), ((None, None), None),
+                                (("-7", None), None)]:
+        sua._CACHE.clear()
+        with patch("vfr.sua.requests.get", return_value=_service([zoned(offset, dst)])) as get:
+            (area,) = sua.along_route((45.0, -90.0), (46.0, -90.0))
+        assert area["time_zone"] == zone, (offset, dst)
+    assert "GMTOFFSET" in get.call_args.kwargs["params"]["outFields"]
+
+
+def test_each_zone_keeps_the_offset_and_the_daylight_saving_its_fields_say():
+    """Each zone named is the FAA's offset in winter, and an hour on in
+    summer only where DST_CODE is 1 -- checked against the tz database."""
+    from datetime import datetime, timezone
+    from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+    january, july = datetime(2026, 1, 15, 12, tzinfo=timezone.utc), datetime(2026, 7, 15, 12, tzinfo=timezone.utc)
+    for (offset, dst), name in sua.TIME_ZONES.items():
+        try:
+            zone = ZoneInfo(name)
+        except ZoneInfoNotFoundError:
+            pytest.skip("no tz database here")
+        winter = january.astimezone(zone).utcoffset().total_seconds() / 3600
+        summer = july.astimezone(zone).utcoffset().total_seconds() / 3600
+        assert winter == float(offset), name
+        assert summer - winter == (1.0 if dst == "1" else 0.0), name
+
+
 def test_one_answer_serves_the_day():
     with patch("vfr.sua.requests.get", return_value=_service([])) as get:
         sua.along_route((45.0, -90.0), (46.0, -90.0))

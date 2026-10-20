@@ -149,8 +149,8 @@ export const SCREENS: Screen[] = [
       await showTabs(page);
       await openConsole(page);
       await consolePage(page, "Account");
-      await page.getByTestId("library-section").getByRole("button", { name: /^Aircraft/ }).click();
-      await expect(page.getByRole("heading", { name: "Aircraft", exact: true })).toBeVisible();
+      await page.getByTestId("library-section").getByRole("button", { name: /^Airplanes/ }).click();
+      await expect(page.getByRole("heading", { name: "Airplanes", exact: true })).toBeVisible();
     },
   },
   // The Logbook's training pages: the Checkride page (61.109, the ACS

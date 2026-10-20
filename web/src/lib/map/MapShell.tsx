@@ -14,6 +14,7 @@ import { ChartTiles } from "./ChartTiles";
 import { OverlayTiles } from "./OverlayTiles";
 import { ClassBLayer } from "./ClassBLayer";
 import { ResizeAware } from "./MapEffects";
+import { prefersReducedMotion } from "../motion";
 import { centreClearFor, hideLinesWhileZooming, panClear } from "./clear";
 // The marks held to the chart under a pinch: a patch to Leaflet's markers.
 import "./pinch";
@@ -279,7 +280,7 @@ export function MapShell({ course, onReady, children, onSelectPlace, held = fals
     if (what === "route") fit(true);
     else if (what === "ship") {
       const ship = useOwnShip.getState().fix;
-      if (ship) panClear(map, [ship.lat, ship.lon], { animate: true, duration: SHEET_SECONDS });
+      if (ship) panClear(map, [ship.lat, ship.lon], { animate: !prefersReducedMotion(), duration: SHEET_SECONDS });
     }
   }, [insets, map, course, bounds, routeKey, held, fit]);
 
@@ -353,7 +354,8 @@ function lineInSight(line: [number, number][], map: L.Map, sight: L.Bounds): boo
 function fitAtQuarterLevels(map: L.Map, bounds: L.LatLngBounds, padding: L.FitBoundsOptions, fly: boolean) {
   const snap = map.options.zoomSnap;
   map.options.zoomSnap = 0.25;
-  if (fly) {
+  // Under Reduce Motion put there at once, as on the page's opening.
+  if (fly && !prefersReducedMotion()) {
     hideLinesWhileZooming(map, map.getBoundsZoom(bounds, false, L.point(0, 0)));
     map.fitBounds(bounds, { ...padding, animate: true });
   }

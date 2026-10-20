@@ -2,6 +2,7 @@ import { useContext, useEffect } from "react";
 import L from "leaflet";
 import { useMap } from "react-leaflet";
 import { MapInsetsContext, SHEET_SECONDS } from "../../components/mapChrome";
+import { prefersReducedMotion } from "../motion";
 import { centreClear } from "./clear";
 import { useOwnShip } from "./ownShip";
 import { useClearOfPanel } from "./useClearOfPanel";
@@ -58,7 +59,7 @@ export function FitTo({ points, fitKey, maxZoom = 11, cover = NO_COVER }: {
     if (ownShip.enabled && ownShip.follow) ownShip.setFollow(false);
     map.flyToBounds(L.latLngBounds(points.map(p => [p.lat, p.lon] as [number, number])), {
       paddingTopLeft: L.point(40 + left, 40 + top), paddingBottomRight: L.point(40, 40 + bottom),
-      maxZoom, duration: SHEET_SECONDS,
+      maxZoom, duration: SHEET_SECONDS, animate: !prefersReducedMotion(),
     });
     // On the set of points and the panel's height, not on each new array.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -78,8 +79,9 @@ export function FocusOn({ point, zoom }: { point: { lat: number; lon: number } |
     if (ownShip.enabled && ownShip.follow) ownShip.setFollow(false);
     const to = Math.max(map.getZoom(), zoom);
     // Flown there in the sheet's time, as Maps moves to a place picked:
-    // set at once, the chart jumped under the pilot's finger.
-    map.flyTo(centreClear(map, [point.lat, point.lon], to), to, { duration: SHEET_SECONDS });
+    // set at once, the chart jumped under the pilot's finger. Set at once
+    // all the same under Reduce Motion, which asks for no flight.
+    map.flyTo(centreClear(map, [point.lat, point.lon], to), to, { duration: SHEET_SECONDS, animate: !prefersReducedMotion() });
   }, [map, point, zoom]);
   useClearOfPanel(point);
   return null;

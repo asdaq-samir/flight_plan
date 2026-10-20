@@ -1,15 +1,10 @@
 import { TrendingDown, TrendingUp } from "lucide-react";
+import { COURSE_MAGENTA, WAYPOINT_MAGENTA } from "../../../../lib/map/chartColors";
 import { colourOf } from "../../../../lib/map/flightCategory";
 import { AIRPORT_MARK, airportMarkSvg } from "../../../../lib/map/airportMark";
 import { inkOn } from "../../../../lib/scoreScale";
 import { scoreColor } from "../../format";
 import type { NavLogRow } from "./rows";
-
-/** The sectional's magenta, a waypoint's on the map (WaypointsLayer). */
-const WAYPOINT_MAGENTA = "#c0309f";
-/** The course line's magenta, a top of climb's and descent's tag edge on
- *  the map (legPointIcon). */
-const COURSE_MAGENTA = "#e600e6";
 
 /**
  * A nav log row's mark, before its name, as the map draws the point, at

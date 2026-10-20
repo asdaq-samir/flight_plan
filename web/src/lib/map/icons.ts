@@ -4,6 +4,7 @@ import type { AirspaceClass } from "../preferences";
 import { inkOn } from "../scoreScale";
 import { textWidth } from "../textWidth";
 import { AIRPORT_MARK, airportMarkSvg, text } from "./airportMark";
+import { COURSE_MAGENTA, MAP_BLUE, WAYPOINT_MAGENTA } from "./chartColors";
 
 /** An icon made once for the same arguments and handed out again after:
  *  react-leaflet sets a marker's icon again whenever the icon is a new
@@ -102,7 +103,7 @@ const ownShipIconMade = made((headingDeg: number | null, off: boolean, look: Own
 function makeOwnShipIcon(headingDeg: number | null, off: boolean, look: OwnShipLook, moving: boolean) {
   // Grey where own ship is off: the last position, no longer watched, as
   // Maps greys its dot when it stops knowing where you are. iOS's blue.
-  const fill = off ? "#9ca3af" : "#0a7aff";
+  const fill = off ? "#9ca3af" : MAP_BLUE;
   const plane = look !== "arrow";
   const beam = plane && moving;
   // The beam's box twice the plane's, the plane at its middle (ownShipSvg).
@@ -203,9 +204,6 @@ export const selectionIcon = made(function selectionIcon() {
   });
 });
 
-/** The sectional's magenta, a VFR waypoint's colour on the chart. */
-const WAYPOINT_MAGENTA = "#c0309f";
-
 /** A VFR waypoint on the chart (VPBNG): a magenta diamond and no words,
  *  as small as the chart's own flag, in a finger's 44 points of target. */
 export const diamondIcon = made(function diamondIcon() {
@@ -227,8 +225,8 @@ export const waypointIcon = made(function waypointIcon(ident: string) {
     className: "",
     iconSize: [width, 24], iconAnchor: [width / 2, 12],
     html:
-      `<span class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded-full border-2 border-[#c0309f] bg-white px-1.5 py-0.5 text-[11px] font-bold text-[#8a1f5f] shadow-sm"` +
-      `>&#9670;&#8202;${text(ident)}</span>`,
+      `<span class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded-full border-2 bg-white px-1.5 py-0.5 text-[11px] font-bold text-[#8a1f5f] shadow-sm"` +
+      ` style="border-color:${WAYPOINT_MAGENTA}">&#9670;&#8202;${text(ident)}</span>`,
   });
 });
 
@@ -240,8 +238,8 @@ export const legPointIcon = made(function legPointIcon(label: "TOC" | "TOD") {
     className: "",
     iconSize: [38, 20], iconAnchor: [19, 10],
     html:
-      `<span class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded-sm border-[1.5px] border-[#e600e6] bg-white px-1 text-[11px] leading-[13px] font-bold text-[#1c1a17] shadow-sm"` +
-      `>${text(label)}</span>`,
+      `<span class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded-sm border-[1.5px] bg-white px-1 text-[11px] leading-[13px] font-bold text-[#1c1a17] shadow-sm"` +
+      ` style="border-color:${COURSE_MAGENTA}">${text(label)}</span>`,
   });
 });
 

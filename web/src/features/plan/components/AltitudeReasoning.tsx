@@ -65,6 +65,10 @@ function ceilingReason(s: NavLogAltitude["altitude_selection"]): string | null {
 
 /** Words set in a sentence's middle: their first letter small, unless
  *  it starts a code ("NOTAM"). */
+/** The airplane as its profile names it, "Cessna 172", and its own
+ *  name where the profile gives no type: never put in capitals, which
+ *  turned a profile's "c172" into a shout in the middle of a sentence. */
+const airplaneName = (nav: NavLogAltitude) => nav.aircraft.type ?? nav.aircraft.name;
 const midSentence = (words: string) => (/^[A-Z][a-z]/.test(words) ? words.charAt(0).toLowerCase() + words.slice(1) : words);
 
 /** Consecutive segments under the same shelf, for "the ceiling leg by
@@ -143,9 +147,9 @@ export default function AltitudeReasoning({ nav, legs, plansAbove = false }: Pro
   const bookCeiling = nav.aircraft.service_ceiling_ft;
   const ceilingToday = s.service_ceiling_ft;
   ceilingParts.push(ceilingToday != null && Math.abs(ceilingToday - bookCeiling) >= 100
-    ? `the ${nav.aircraft.name.toUpperCase()}'s service ceiling, ${altFt(bookCeiling)} ft density altitude, which is ${
+    ? `the ${airplaneName(nav)}'s service ceiling, ${altFt(bookCeiling)} ft density altitude, which is ${
       altFt(ceilingToday)} ft in the forecast temperatures`
-    : `the ${nav.aircraft.name.toUpperCase()}'s service ceiling of ${altFt(bookCeiling)} ft`);
+    : `the ${airplaneName(nav)}'s service ceiling of ${altFt(bookCeiling)} ft`);
   const runs = ceilingRuns(s.segments);
   const runsText = runs.length > 1
     ? runs.map((r, i) => {
@@ -234,8 +238,8 @@ export default function AltitudeReasoning({ nav, legs, plansAbove = false }: Pro
       body: (
         <>
           {ceilingToday != null && Math.abs(ceilingToday - bookCeiling) >= 100
-            ? `The ${nav.aircraft.name.toUpperCase()}'s service ceiling, ${altFt(bookCeiling)} ft density altitude, which is ${altFt(ceilingToday)} ft in the forecast temperatures. `
-            : `The ${nav.aircraft.name.toUpperCase()}'s service ceiling of ${altFt(bookCeiling)} ft. `}
+            ? `The ${airplaneName(nav)}'s service ceiling, ${altFt(bookCeiling)} ft density altitude, which is ${altFt(ceilingToday)} ft in the forecast temperatures. `
+            : `The ${airplaneName(nav)}'s service ceiling of ${altFt(bookCeiling)} ft. `}
           Under IFR no Class B shelf, cloud or Class A caps it: the clearance takes the flight into each.
         </>
       ),

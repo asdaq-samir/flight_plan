@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { TriangleAlert } from "lucide-react";
+import { ChevronRight, TriangleAlert } from "lucide-react";
 import { cn } from "cn";
 import { Button } from "../../../../components/ui/button";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../../../../components/ui/collapsible";
 import { CHIP_TEXT, GLASS_BUTTON } from "../../../../components/mapChrome";
 import Segmented from "../../../../components/Segmented";
+import { faaWords } from "../../../../lib/advisories";
 import type { AltitudeChoice, Detour, Leg, NavLogAltitude } from "../../../../lib/api/types";
 import type { FlightRules } from "../../../../lib/preferences";
 import { routeProfileQuery } from "../../../../lib/queryClient";
@@ -124,15 +126,19 @@ export default function AltitudeGroup({ nav, legs, problem = false, ownAltitude 
           onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); fly(); (e.target as HTMLInputElement).blur(); } if (e.key === "Escape") setTyped(null); }}
           onBlur={fly}
           className={cn(
-            "relative z-10 h-full w-[4.5ch] min-w-0 bg-transparent pl-2.5 text-right font-semibold tabular-nums outline-none",
+            "relative z-10 h-full min-w-0 bg-transparent pl-2.5 text-right font-semibold tabular-nums outline-none",
             problem ? "text-red-700 dark:text-red-300" : "text-foreground",
           )}
+          // As wide as its figure and the padding beside it: a fixed 4.5ch,
+          // the padding inside it, cut "2,000" to "2,00" at the owner's
+          // larger text (2026-10-20). Safari has no field-sizing yet.
+          style={{ width: `calc(${Math.max(4, shown.length) + 0.5}ch + 0.625rem)` }}
           data-testid="altitude-input"
         />
         {/* In the text's colour: the muted grey was 4.3:1 on the dark glass. */}
         <span className="pr-1.5 pl-1 text-foreground">ft</span>
       </label>
-      {rules === "ifr" && <span className="pr-1 text-[0.6875rem] font-semibold text-tint" data-testid="ifr-flag">IFR</span>}
+      {rules === "ifr" && <span className={cn("pr-1 font-semibold text-tint", TEXT.caption)} data-testid="ifr-flag">IFR</span>}
       {!problem && tight && <span className="mr-1 size-1.5 rounded-full bg-amber-500" aria-hidden="true" data-testid="tight-altitude-flag" />}
       {!problem && cautions.length > 0 && (
         <TriangleAlert className="mr-1 size-3.5 text-amber-600 dark:text-amber-400" aria-hidden="true" data-testid="own-altitude-flag" />
@@ -173,7 +179,7 @@ export default function AltitudeGroup({ nav, legs, problem = false, ownAltitude 
  * and flown once it rests a moment: its plan where it is one's, else as
  * the pilot's own.
  */
-export function AltitudeProfile({ nav, legs, ends, chart, corner, wheelHidden = false, problem, tight = null, classBAvoided = false, onAvoidClassB, onAllowClassB, onAltitudeChoiceChange, onFlyAltitude, rules = "vfr", onRulesChange }: {
+export function AltitudeProfile({ nav: navNow, legs: legsNow, ends, chart, corner, wheelHidden = false, problem, tight = null, classBAvoided = false, onAvoidClassB, onAllowClassB, onAltitudeChoiceChange, onFlyAltitude, rules = "vfr", onRulesChange }: {
   nav: NavLogAltitude | null;
   legs: Leg[];
   /** The route, for its Class B on the side view (routeProfileQuery). */
@@ -200,6 +206,18 @@ export function AltitudeProfile({ nav, legs, ends, chart, corner, wheelHidden = 
   rules?: FlightRules;
   onRulesChange?: (rules: FlightRules) => void;
 }) {
+  const route = ends ? [ends.departure.ident, ...(ends.stops ?? []).map(s => s.ident), ends.destination.ident].join(" ") : "";
+  // The plan before a pick is planned anew, kept on the card till the new
+  // one's altitude comes: the stream starts over, and the wheel and its
+  // figures went blank for the second or two each pick took, as if they
+  // were being worked out again (the owner's "planning altitudes take a
+  // long time"). The wheel's own figures for the pick are the old plan's
+  // already. Not over a route's problem, nor another route.
+  const [held, setHeld] = useState<{ route: string; nav: NavLogAltitude; legs: Leg[] } | null>(null);
+  if (navNow && (!held || held.nav !== navNow || held.legs !== legsNow || held.route !== route)) setHeld({ route, nav: navNow, legs: legsNow });
+  const kept = !navNow && !problem && held?.route === route ? held : null;
+  const nav = kept ? kept.nav : navNow;
+  const legs = kept ? kept.legs : legsNow;
   // The altitude flown: a pilot's own as asked (typed, or picked on the
   // wheel and flown at each leg's nearest legal one, whose highest leg may
   // be another), else the plan's cruise.
@@ -214,7 +232,6 @@ export function AltitudeProfile({ nav, legs, ends, chart, corner, wheelHidden = 
   // The altitude on the wheel, the one flown when it was put there and the
   // route it was on: once another is flown (it, re-planned; a figure
   // typed) or the route changes, the wheel is at the one flown.
-  const route = ends ? [ends.departure.ident, ...(ends.stops ?? []).map(s => s.ident), ends.destination.ident].join(" ") : "";
   const [picked, setPicked] = useState<{ altitude: number; against: number | null; route: string } | null>(null);
   // Flown once the wheel has come to rest on it a moment, not at every row
   // passed: each is a new plan. Not once the card is put away.
@@ -231,7 +248,7 @@ export function AltitudeProfile({ nav, legs, ends, chart, corner, wheelHidden = 
       const plan = planAt(nav, altitude);
       if (plan) onAltitudeChoiceChange(plan);
       else onFlyAltitude(altitude);
-    }, 700);
+    }, 450);
   };
   const { data: profile } = useQuery({
     ...routeProfileQuery(ends?.departure.ident ?? "", ends?.destination.ident ?? "", (ends?.stops ?? []).map(s => s.ident)),
@@ -286,7 +303,7 @@ export function AltitudeProfile({ nav, legs, ends, chart, corner, wheelHidden = 
         </div>
       ) : bravo && (
         <div className="flex items-center justify-between gap-2 rounded-xl bg-card py-1.5 pr-1.5 pl-3" data-testid="class-b-accepted">
-          <span className={TEXT.detail}>Through {titleCaseName(bravo.name)}: clearance needed</span>
+          <span className={TEXT.detail}>Through {faaWords(bravo.name)}: clearance needed</span>
           {onAvoidClassB && (
             <Button type="button" size="sm" variant="secondary" className="shrink-0 text-tint" onClick={() => onAvoidClassB(detours[0] ?? null)} data-testid="avoid-class-b">
               Avoid Class B
@@ -301,7 +318,7 @@ export function AltitudeProfile({ nav, legs, ends, chart, corner, wheelHidden = 
         </div>
       )}
       {cautions.length > 0 && (
-        <div className={cn("space-y-1.5 rounded-lg bg-amber-500/12 p-2.5 text-amber-800 dark:text-amber-300", TEXT.detail)} data-testid="own-altitude-cautions">
+        <div className={cn("space-y-1.5 rounded-lg bg-caution-wash p-2.5 text-caution-ink", TEXT.detail)} data-testid="own-altitude-cautions">
           {cautions.map(c => (
             <div key={`${c.from_ident}-${c.to_ident}`}>
               <p className="font-semibold">{feet(c.altitude_ft)} ft {c.from_ident} → {c.to_ident}</p>
@@ -311,21 +328,26 @@ export function AltitudeProfile({ nav, legs, ends, chart, corner, wheelHidden = 
         </div>
       )}
       {tight && (
-        <p className={cn("rounded-lg bg-amber-500/12 p-2.5 text-amber-800 dark:text-amber-300", TEXT.detail)} data-testid="tight-altitude">
+        <p className={cn("rounded-lg bg-caution-wash p-2.5 text-caution-ink", TEXT.detail)} data-testid="tight-altitude">
           <span className="font-semibold">Tight altitude. </span>{tight}
         </p>
       )}
       {nav && (
-        <details>
-          <summary className={cn("relative cursor-pointer py-2 after:absolute after:inset-x-0 after:-inset-y-1.5 after:content-['']", GROUP_HEADING)}>How the altitude was chosen</summary>
-          <AltitudeReasoning nav={nav} legs={legs} plansAbove />
-        </details>
+        // The stock Collapsible, as the weather's raw reports fold, where a
+        // native details element drew the browser's own triangle.
+        <Collapsible>
+          <CollapsibleTrigger className={cn("group relative flex w-full items-center gap-1.5 py-2 text-left outline-none after:absolute after:inset-x-0 after:-inset-y-1.5 after:content-[''] focus-visible:ring-2 focus-visible:ring-ring", GROUP_HEADING)}>
+            <ChevronRight className="size-4 text-tint transition-transform group-data-[state=open]:rotate-90" aria-hidden />
+            How the altitude was chosen
+          </CollapsibleTrigger>
+          {/* Kept in the page folded, as the <details> it replaced kept it:
+              the reasoning is found by the page's own search and read by
+              its text while closed, which the specs and a find-in-page do. */}
+          <CollapsibleContent forceMount className="data-[state=closed]:hidden">
+            <AltitudeReasoning nav={nav} legs={legs} plansAbove />
+          </CollapsibleContent>
+        </Collapsible>
       )}
     </div>
   );
-}
-
-/** "CHICAGO CLASS B" as said: "Chicago Class B". */
-function titleCaseName(name: string): string {
-  return name.split(" ").map(w => (w.length > 1 ? w[0] + w.slice(1).toLowerCase() : w)).join(" ");
 }

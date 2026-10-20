@@ -636,16 +636,26 @@ def class_b_detours(selection: dict, start: tuple, end: tuple) -> list[dict]:
     return airspace.detour_waypoints(start, end, shp_path, lowest[0])
 
 
+#: class_b_ways by leg and altitude: each altitude picked on the wheel is
+#: a new plan, and the detours were worked out again for every one, a
+#: third of a second of each pick (py-spy, 2026-10-20). The airspace
+#: changes only with the FAA's chart cycle; six hours is well inside one.
+_CLASS_B_WAYS: TTLCache = TTLCache(maxsize=512, ttl=6 * 3600)
+
+
 def class_b_ways(start: tuple, end: tuple, cruise_ft: float) -> list[dict]:
     """Where a leg planned with the Class B clearance (the default, at the
     owner's pick, 2026-10-20) enters Class B at its cruise altitude, the
     waypoints that keep it out at that altitude (vfr.airspace.
     detour_waypoints), best first: the pilot's "Avoid Class B". None where
     it passes under, over or round it."""
+    key = (round(start[0], 4), round(start[1], 4), round(end[0], 4), round(end[1], 4), cruise_ft)
+    if key in _CLASS_B_WAYS:
+        return _CLASS_B_WAYS[key]
     shp_path = airspace.ensure_class_airspace_shapefile(altitude_module.DEFAULT_FAA_CACHE_DIR)
-    if not airspace.class_b_entered(start, end, shp_path, cruise_ft):
-        return []
-    return airspace.detour_waypoints(start, end, shp_path, cruise_ft)
+    ways = airspace.detour_waypoints(start, end, shp_path, cruise_ft) if airspace.class_b_entered(start, end, shp_path, cruise_ft) else []
+    _CLASS_B_WAYS[key] = ways
+    return ways
 
 
 def _class_b_over(selection: dict, segment: dict) -> str:

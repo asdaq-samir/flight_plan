@@ -30,7 +30,7 @@ import TabPage, { TAB_PAGE_GAP } from "../../components/TabPage";
 type PilotState = Pilot | null | "loading" | "error";
 
 const SECTIONS = [
-  { value: "aircraft", label: "Aircraft", icon: <Plane />, colour: SETTING_BADGE.aircraft },
+  { value: "aircraft", label: "Airplanes", icon: <Plane />, colour: SETTING_BADGE.aircraft },
   // Flights are FPL's too (its SAVED strip and card), at the owner's pick
   // of the redesign; here with the pilot's other things all the way up.
   { value: "flights", label: "Flights", icon: <Route />, colour: SETTING_BADGE.flights },
@@ -87,7 +87,7 @@ function Personal({ pilot, dev }: {
     settings: { title: "Settings", content: settings },
     guide: { title: "Guide", content: dev ? dev.guide : <PilotGuide /> },
     about: { title: "About", content: <AboutPanel /> },
-    aircraft: { title: "Aircraft", content: <AircraftPanel /> },
+    aircraft: { title: "Airplanes", content: <AircraftPanel /> },
     flights: { title: "Flights", content: <FlightsPanel /> },
     logbook: { title: "Logbook", content: <LogbookPanel aircraft={shortName(aircraft.label)} /> },
     minimums: { title: "Minimums", content: <MinimumsPanel /> },

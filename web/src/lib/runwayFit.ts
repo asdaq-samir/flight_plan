@@ -4,15 +4,22 @@
  * most the POH demonstrates, and the POH's short-field distance over a
  * 50 ft obstacle for the airplane's weight, the field's pressure and
  * density altitude and the headwind on it, against the runway's length
- * -- what 14 CFR 91.103(b) asks a pilot to know. The Brief's runway check
- * (lib/runwayCheck) says the same for the runway the wind favours.
+ * -- what 14 CFR 91.103(b) asks a pilot to know. Worked out by the
+ * Brief's runway check's own evaluator (lib/runwayCheck's endDistance),
+ * which says the same for the runway flown.
  */
 import type { AircraftProfile, Runway } from "./api/types";
 import type { RunwayEnd } from "./pattern";
-import { isaTempC, pressureAltitudeFt, shortField } from "./takeoffLanding";
+import { endDistance, fieldAir } from "./runwayCheck";
+import { crosswindKt as crosswindOf, headwindKt as headwindOf, steadyOrGustKt } from "./wind";
 
-/** "Close": less than the 15 per cent margin over the distance needed
- *  that the FAA asks for (SAFO 06012, landing distance assessments). */
+/** "Close": a runway with less than 15 per cent to spare over the
+ *  distance needed. For a landing it is the FAA's margin: "an additional
+ *  safety margin of at least 15 percent should be added to actual landing
+ *  distance" (SAFO 19001, Landing Performance Assessments at Time of
+ *  Arrival, 2019, for part 91 airplane operators among others; it
+ *  replaced SAFO 06012). For a takeoff the FAA gives no such figure, so
+ *  the same 15 per cent is a design margin there, held to the landing's. */
 export const DISTANCE_MARGIN = 1.15;
 
 /** A wind as a METAR reports it: true, in knots. */
@@ -50,19 +57,15 @@ export function endFit({ aircraft, runway, end, wind, elevationFt, altimeterInHg
   // Along and across the end (vfr.runway_wind.components_kt): none with no
   // wind, or a variable one, to go by.
   const heading = end.heading_true_deg;
-  const across = (kt: number | null | undefined) =>
-    wind?.dirTrueDeg == null || heading == null || !kt ? 0 : Math.abs(kt * Math.sin(((wind.dirTrueDeg - heading) * Math.PI) / 180));
-  const headwind = wind?.dirTrueDeg == null || heading == null || !wind.speedKt ? 0 : wind.speedKt * Math.cos(((wind.dirTrueDeg - heading) * Math.PI) / 180);
-  const crosswindKt = Math.round(Math.max(across(wind?.speedKt), across(wind?.gustKt)));
+  const dir = heading == null ? null : wind?.dirTrueDeg ?? null;
+  const across = (kt: number | null | undefined) => (dir == null || !kt ? 0 : crosswindOf(dir, kt, heading!));
+  const headwind = dir == null || !wind?.speedKt ? 0 : headwindOf(dir, wind.speedKt, heading!);
+  const crosswindKt = Math.round(steadyOrGustKt(across(wind?.speedKt), across(wind?.gustKt)));
   const demonstrated = aircraft?.crosswind?.demonstrated_kt ?? null;
   const table = kind === "takeoff" ? aircraft?.takeoff : aircraft?.landing;
   const lengthFt = runway.length_ft ?? null;
-  let neededFt: number | null = null;
-  if (table) {
-    const pa = pressureAltitudeFt(elevationFt, altimeterInHg);
-    const grass = /turf|grass|grs|dirt|gravel/i.test(runway.surface ?? "");
-    neededFt = Math.round(shortField(table, pa, tempC ?? isaTempC(elevationFt), weightLb ?? Math.max(...table.weights_lb), Math.round(headwind), grass).totalFt);
-  }
+  const needed = table ? endDistance(table, runway, fieldAir(elevationFt, altimeterInHg, tempC), weightLb, Math.round(headwind)) : null;
+  const neededFt = needed ? Math.round(needed.totalFt) : null;
   const short = neededFt != null && lengthFt != null && neededFt > lengthFt;
   return {
     crosswindKt, crosswindOver: demonstrated != null && crosswindKt > demonstrated, neededFt, lengthFt, short,

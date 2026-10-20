@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import type { Airport, Candidate, Leg } from "../../../../lib/api/types";
-import { legOf, navLogRows, rowPoint, savedCheckpoints } from "./rows";
+import { groundMinAt, legOf, navLogRows, rowPoint, savedCheckpoints, TURNAROUND_MIN } from "./rows";
 
 const airport = (ident: string, lat: number, lon: number): Airport =>
   ({ ident, name: `${ident} field`, lat, lon, elevation_ft: 900 }) as Airport;
@@ -57,6 +57,20 @@ describe("a route with stops", () => {
     expect(own.map(r => r.minutesFlown)).toEqual([0, 10, 30, 105, 145]);
     const fix = { ...airport("VPBNG", 43.1, -89.3), kind: "fix" } as Airport;
     expect(navLogRows({ ...ends, stops: [fix] }, selected, legs).at(-1)?.minutesFlown).toBe(100);
+  });
+
+  test("a stop's time on the ground is the planner's, said on the leg landing there, the pilot's own first", () => {
+    const selected = [onHop(cp(42.6, -88.6, 20), 0), onHop(cp(44, -90, 150), 1)];
+    // The planner's turnaround on the leg into KMSN: 40 here, to tell it from the web's 30.
+    const legs = [leg(10), { ...leg(20), ground_min: 40 }, leg(30), leg(40)];
+    const rows = navLogRows(withStop, selected, legs);
+    expect(rows[2]).toMatchObject({ kind: "stop", groundMin: 40 });
+    expect(rows.at(-1)?.minutesFlown).toBe(140);
+    // The pilot's own, newer than a plan still coming, wins.
+    expect(navLogRows({ ...withStop, ground: { KMSN: 45 } }, selected, legs).at(-1)?.minutesFlown).toBe(145);
+    // Before the leg is in, the mirror of the planner's 30.
+    expect(navLogRows(withStop, selected, [])[2]).toMatchObject({ kind: "stop", groundMin: TURNAROUND_MIN });
+    expect(groundMinAt(undefined, "KMSN")).toBe(30);
   });
 
   test("a hop with no checkpoints is the stop alone", () => {

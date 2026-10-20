@@ -3,7 +3,7 @@ import { experimental_streamedQuery as streamedQuery, keepPreviousData, useQuery
 import { ApiError, api, describeError } from "../../../lib/api/client";
 import { checkpointsQuery, courseQuery } from "../../../lib/queryClient";
 import { identOf, routeOf } from "../../../lib/identSchema";
-import { ended } from "../../../lib/api/streams";
+import { ended, inBatches } from "../../../lib/api/streams";
 import type {
   AircraftChoice, AltitudeChoice, Briefing, Candidate, Detour, Leg, NavLogAltitude, NavLogMessage, Totals,
 } from "../../../lib/api/types";
@@ -147,12 +147,15 @@ export function navlogQuery(plan: PlanParams, checkpointsToo: boolean) {
     // The same key as the checkpoints' with them off, so the route as
     // entered and a plan with Waypoints off are one answer.
     queryKey: ["navlog", ...planKey.slice(0, 9), checkpointsToo, ...planKey.slice(10)],
+    // In batches (inBatches): one render for the lines that come together.
     queryFn: streamedQuery({
-      streamFn: ({ signal }: { signal: AbortSignal }) => ended(
+      streamFn: ({ signal }: { signal: AbortSignal }) => inBatches(ended(
         api.navlog(dep, dest, altitudeFt || undefined, aircraft, altitudeChoice, depart || undefined, signal, stops, classBClearance, altitudes, checkpointsToo,
           rules, alternate, procedures, crossings, ground, holds, altitudeNearest),
         "nav log",
-      ),
+      )),
+      reducer: (lines: NavLogMessage[], batch: NavLogMessage[]) => [...lines, ...batch],
+      initialValue: [] as NavLogMessage[],
     }),
     staleTime: Infinity,
     // No legal altitude is the page's to say, with what can be done about
