@@ -12,7 +12,7 @@ import { aircraftKey, choiceOf, shortName } from "../../lib/aircraftChoice";
 import { clockTime } from "../../lib/clock";
 import { placeName } from "../../lib/radio";
 import { TEXT } from "../../lib/text";
-import { bestStopIndex } from "../../lib/geo";
+import { bestStopIndex, type LatLon } from "../../lib/geo";
 import { useKeepOffline } from "../../lib/map/keepStatus";
 import { locateOnOpen, positionNow, useOwnShip, useOwnShipNear } from "../../lib/map/ownShip";
 import { pickKeptAircraft, useTabSearch } from "../../lib/tabSearch";
@@ -1070,6 +1070,38 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     hasRoute: routed || !!planned.dep || !!planned.dest || planned.stops.length > 0,
     panel, setPanel, searchParams, setSearchParams,
   });
+  // A point dropped on the map (AirspaceCard) into the route as the
+  // pilot's own point off the nearest fix, at the owner's pick (mock 2 of
+  // the canvas's points): where it bends the route least (bestStopIndex),
+  // and flown to direct from where the airplane is (directToPoint's way,
+  // the route as it was kept for Cancel), or held at (its hold's sheet
+  // asked for once the plan has the leg to it). The card put away, all in
+  // one change of the address.
+  const [holdAsk, setHoldAsk] = useState<string | null>(null);
+  const dropIntoRoute = useCallback((ident: string, at: LatLon, then: "add" | "direct" | "hold") => {
+    if (!course) return;
+    const points = [course.departure, ...(course.stops ?? []), course.destination];
+    const index = bestStopIndex(points, at);
+    const ship = useOwnShip.getState();
+    const fix = ship.enabled ? ship.fix : null;
+    setSearchParams(prev => {
+      const stops = stopsOf(prev.get("stops"));
+      const withIt = [...stops.slice(0, index), ident, ...stops.slice(index)];
+      const away = { place: null, at: null };
+      if (then !== "direct") return patched(prev, { ...away, stops: withIt.join(",") });
+      return patched(prev, {
+        ...away, dep: fix ? positionIdent(fix) : undefined, stops: [ident, ...stops.slice(index)].join(","),
+        direct: ident, was: prev.get("was") ?? routeWas(prev),
+        // One direct at a time, as directToPoint's.
+        procs: proceduresOf(prev.get("procs")).some(p => p.direct)
+          ? proceduresParam(proceduresOf(prev.get("procs")).map(p => ({ ...p, direct: null }))) || null : undefined,
+      });
+    }, { replace: true });
+    // FPL's list in sight, its new row and the hold's sheet with it.
+    setTabPick("fpl");
+    setPanel("half");
+    if (then === "hold") setHoldAsk(`${ident}@${Date.now()}`);
+  }, [course, setSearchParams, setPanel, setTabPick]);
   // The Brief in sight: FPL's, over a route.
   const briefShown = briefOpen && tab === "fpl" && routed;
   // The nav log, a card over FPL as the Brief is (NavLogView's cardHead).
@@ -1588,13 +1620,13 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       procedures={pickedProcedures} inRoute={routeProcedures} onProcedures={pickProcedures} onPreview={previewProcedure}
       at={proceduresAt} onAt={setProceduresShown} crossings={crossings} onFix={showFix} onDepart={changeDepart} ground={ground} onGround={setGround}
       pointAltitude={altitudeAt} onPointAltitude={setPointAltitude} directTo={directParam} onDirectTo={directToPoint}
-      onInfo={selectPlace} onRemove={removeStop} onCreateFix={insertStopAfter} holds={holds} onHoldSet={setHold}
+      onInfo={selectPlace} onRemove={removeStop} onCreateFix={insertStopAfter} holds={holds} onHoldSet={setHold} askHold={holdAsk}
       onCharts={() => { if (planned.dest) { setApproachesOf(planned.dest); selectPlace(planned.dest); } }}
       chartsDisabled={!planned.dest || noApproaches}
     />
   ), [procedureAirports, routeRows, depart, metarColour, pickedPatterns, pickPattern, setPattern, pickedTakeoffs, setTakeoff, runwayFitInputs, pickedProcedures, routeProcedures, pickProcedures, crossings, showFix,
     ground, setGround, previewProcedure, proceduresAt, setProceduresShown, planned.dest, selectPlace, noApproaches, changeDepart,
-    altitudeAt, setPointAltitude, directParam, directToPoint, removeStop, insertStopAfter, holds, setHold]);
+    altitudeAt, setPointAltitude, directParam, directToPoint, removeStop, insertStopAfter, holds, setHold, holdAsk]);
   const navLog = useMemo(() => (
     <Suspense fallback={<div className="min-h-0 flex-1" />}>
     <NavLogView
@@ -1931,7 +1963,16 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           // tabs' Back there has a card to close.
           placeCard(false)
         ) : heldPoint ? (
-          <Suspense fallback={null}><AirspaceCard key={`${heldPoint.lat},${heldPoint.lon}`} point={heldPoint} onClose={() => closeCard(() => selectPlace(null))} /></Suspense>
+          <Suspense fallback={null}>
+            <AirspaceCard
+              key={`${heldPoint.lat},${heldPoint.lon}`} point={heldPoint} onClose={() => closeCard(() => selectPlace(null))}
+              {...(routed && course && planned.stops.length < MAX_STOPS ? {
+                onAdd: (ident: string, at: LatLon) => dropIntoRoute(ident, at, "add"),
+                onDirect: (ident: string, at: LatLon) => dropIntoRoute(ident, at, "direct"),
+                onHold: (ident: string, at: LatLon) => dropIntoRoute(ident, at, "hold"),
+              } : {})}
+            />
+          </Suspense>
         ) : tab === "aircraft" ? (
           flightCard ?? (aircraftOpen && (aircraftFavoritesOpen && !aircraftTyped ? (
             <TabPage testId="aircraft-favorites">

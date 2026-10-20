@@ -1,4 +1,4 @@
-import type { PastFlightPoint } from "../../../../lib/api/types";
+import type { LegHold, PastFlightPoint } from "../../../../lib/api/types";
 import { DESCENT_FT_PER_NM, bearingDeg, destination, distanceNm, type LatLon } from "../../../../lib/geo";
 import { planProfile, type ProfilePoint } from "./profile";
 import { isLegPoint, legOf, rowPoint, type NavLogRow } from "./rows";
@@ -141,6 +141,44 @@ function landingHeights(at: number[], ft: (number | null)[], cruise: number, fie
 }
 
 /**
+ * A piece of a leg with the pilot's hold on it (LegHold), as the dry run
+ * flies it: round the racetrack the planner drew from the hold's point --
+ * its turns, or as many as its minutes make (rounded, one at the least)
+ * -- then on to the piece's end; or, into the destination, to the field
+ * and round it there. Level round the racetrack at the plan's height
+ * where it starts (into the destination, the plan's height a mile out),
+ * the plan's own along the rest, laid over the piece's straight part.
+ */
+function heldPath(hold: LegHold, from: LatLon, to: LatLon, routeNm: number, routeAt: number, plan: ProfilePoint[]) {
+  const lap = hold.path.map(([lat, lon]) => ({ lat: lat!, lon: lon! }));
+  const laps = Math.max(1, Math.round(hold.minutes / Math.max(0.1, hold.lap_min)));
+  const track = Array.from({ length: laps }, (_, k) => (k ? lap.slice(1) : lap)).flat();
+  const lapsNm = cumulative(track).at(-1)!;
+  const straightNm = distanceNm(from, to);
+  // The plan's heights over the piece's straight part, starting `offset`
+  // nm along the path.
+  const planned = (offset: number): ProfilePoint[] => plan
+    .filter(p => p.along_nm > routeAt && p.along_nm < routeAt + routeNm)
+    .map(p => ({ along_nm: offset + ((p.along_nm - routeAt) * straightNm) / Math.max(1e-9, routeNm), plan_ft: p.plan_ft }));
+  const h = (route: number) => heightOn(plan, route) ?? 0;
+  if (hold.at_end) {
+    const held = h(Math.max(routeAt, routeAt + routeNm - 1));
+    const path = [from, ...track];
+    return {
+      path, at: cumulative(path),
+      heights: [{ along_nm: 0, plan_ft: h(routeAt) }, ...planned(0).filter(p => p.along_nm < straightNm), { along_nm: straightNm, plan_ft: held },
+        { along_nm: straightNm + lapsNm, plan_ft: held }],
+    };
+  }
+  const level = h(routeAt);
+  const path = [...track, to];
+  return {
+    path, at: cumulative(path),
+    heights: [{ along_nm: 0, plan_ft: level }, { along_nm: lapsNm, plan_ft: level }, ...planned(lapsNm), { along_nm: lapsNm + straightNm, plan_ft: h(routeAt + routeNm) }],
+  };
+}
+
+/**
  * The flight as planned, flown on paper, at the owner's ask ("a dry run of
  * the flight with altitude and speed profile"): from the nav log's rows, in
  * order, each leg's piece flown in its own time (its ETE, or its distance
@@ -244,8 +282,28 @@ export function dryRunOf(rows: NavLogRow[], startS: number, line?: [number, numb
       continue;
     }
     const gs = part.groundspeed_kt ?? part.tas_kt;
-    const seconds = part.ete_min != null ? part.ete_min * 60 : gs > 0 ? (part.distance_nm / gs) * 3600 : 0;
-    const fuel = part.fuel_gal ?? (part.fuel_burn_gph * seconds) / 3600;
+    let seconds = part.ete_min != null ? part.ete_min * 60 : gs > 0 ? (part.distance_nm / gs) * 3600 : 0;
+    let fuel = part.fuel_gal ?? (part.fuel_burn_gph * seconds) / 3600;
+    // A hold the pilot put on the leg (plan.with_holds), its minutes and
+    // fuel in the leg's and so in its last piece's: taken out of the
+    // piece, and flown round its racetrack -- as the leg leaves its point,
+    // or, into the destination, before it lands.
+    const hold = whole?.hold ?? null;
+    const endsLeg = !isLegPoint(row);
+    if (hold && endsLeg) {
+      seconds = Math.max(0, seconds - hold.minutes * 60);
+      fuel = Math.max(0, fuel - hold.gal);
+    }
+    const before = rows[i - 1]!;
+    const firstPiece = !(isLegPoint(before) && before.leg === whole);
+    if (hold && (hold.at_end ? endsLeg : firstPiece)) {
+      const flown = heldPath(hold, prev, rowPoint(row), part.distance_nm, prev.route, plan);
+      anchors.push({
+        along: prev.along + flown.at.at(-1)!, route: prev.route + part.distance_nm, ...rowPoint(row), t: prev.t + seconds + hold.minutes * 60,
+        fuel: prev.fuel + fuel + hold.gal, gs, track: part.true_course_deg, flown,
+      });
+      continue;
+    }
     anchors.push({
       along: prev.along + part.distance_nm, route: prev.route + part.distance_nm, ...rowPoint(row), t: prev.t + seconds,
       fuel: prev.fuel + fuel, gs, track: part.true_course_deg,

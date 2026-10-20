@@ -158,3 +158,17 @@ def test_a_point_off_an_airport_is_found_by_what_locates_the_airport(monkeypatch
     point = fixes.frd_point("KMSN/360/10", locate=lambda base: (43.14, -89.34) if base == "KMSN" else None)
     assert point["lat"] > 43.14 + 0.15 and not point["radial"]
     assert fixes.frd_point("KMSN/360/10") is None
+
+
+def test_a_dropped_point_is_named_off_the_nearest_fix_a_pilot_knows_and_comes_back_to_where_it_was(monkeypatch):
+    vpbng = {"ident": "VPBNG", "lat": 42.27, "lon": -88.13, "kind": "VFR waypoint", "vfr": True}
+    gps = {"ident": "BEPKE", "lat": 42.4, "lon": -87.9, "kind": "GPS waypoint", "vfr": False}
+    monkeypatch.setattr(fixes, "_TABLE", fixes._Table({"VPBNG": vpbng, "BEPKE": gps}, {}))
+    lat, lon = geo.destination_point(42.27, -88.13, 92.0, 14.2)
+    near = fixes.frd_near(lat, lon)
+    # VPBNG, a VFR waypoint, though the GPS fix is nearer.
+    assert near["base"] == "VPBNG" and near["distance_nm"] == 14.2
+    assert near["ident"] == f"VPBNG/{near['course_deg']:03d}/14.2"
+    back = fixes.frd_point(near["ident"])
+    assert geo.distance_nm(lat, lon, back["lat"], back["lon"]) < 0.3
+    assert fixes.frd_near(10.0, 10.0) is None

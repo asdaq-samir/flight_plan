@@ -112,7 +112,7 @@ export type ProceduresAt = { ident: string; kind: Kind } | null;
 export default function ProceduresRoute({
   airports, rows, depart, weather, picked, onPick, onPreselect, takeoffs, onTakeoff, fit = null, onCharts, chartsDisabled, procedures, inRoute, onProcedures, onPreview, at, onAt,
   crossings = NO_CROSSINGS, onFix, onDepart, ground, onGround, pointAltitude, onPointAltitude, directTo = null, onDirectTo, onInfo, onRemove,
-  onCreateFix, holds = NO_HOLDS, onHoldSet,
+  onCreateFix, holds = NO_HOLDS, onHoldSet, askHold = null,
 }: {
   airports: ProcedureAirport[];
   /** The route's rows as the nav log has them (navLogRows), for its
@@ -184,6 +184,10 @@ export default function ProceduresRoute({
    *  one set, changed or (null) taken off (HoldSheet). */
   holds?: Hold[];
   onHoldSet?: (fix: string, hold: Hold | null) => void;
+  /** A hold asked for at a point just put in the route ("VPBNG/095/14.2@"
+   *  and when, AirspaceCard's Hold here): its sheet opened once the plan
+   *  has the leg to the point, for the course flown to it. */
+  askHold?: string | null;
 }) {
   // The procedure on its own page in the sheet, over its kind's list.
   const [page, setPage] = useState<{ at: ProceduresAt; procedure: ProcedureSummary } | null>(null);
@@ -207,6 +211,19 @@ export default function ProceduresRoute({
   if (fixFrom !== null && !fixFromUsed) setFixFromUsed(true);
   if (holdAt !== null && !holdUsed) setHoldUsed(true);
   const holdOn = (ident: string) => holds.find(h => sameField(h.fix, ident)) ?? null;
+  const [answered, setAnswered] = useState<string | null>(null);
+  if (askHold && askHold !== answered && onHoldSet) {
+    const fix = askHold.slice(0, askHold.lastIndexOf("@"));
+    const to = rows.find(r => "airport" in r && sameField(r.airport.ident, fix));
+    const leg = to ? legOf(to) : undefined;
+    if (leg) {
+      setAnswered(askHold);
+      setHoldAt({
+        fix, hold: holdOn(fix), altitudeFt: leg.altitude_ft,
+        arrivalDeg: (((leg.true_course_deg - leg.magnetic_variation_deg) % 360) + 360) % 360,
+      });
+    }
+  }
   // What the planner made of each hold (plan.with_holds), on the leg it is
   // flown on: its entry, minutes and fuel.
   const heldAs = (ident: string) => rows.map(r => (r.kind === "departure" ? undefined : r.leg?.hold)).find(h => h && sameField(h.fix, ident)) ?? null;

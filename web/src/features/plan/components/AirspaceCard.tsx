@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Ban, Cloud, Gauge, KeyRound, Radio, ShieldAlert } from "lucide-react";
+import { Ban, Cloud, Gauge, KeyRound, MoveUpRight, Plus, Radio, Repeat2, ShieldAlert } from "lucide-react";
 import { cn } from "cn";
 import { PillSection } from "../../../components/Favorites";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
@@ -87,9 +87,17 @@ function BandRow({ band, ground }: { band: AirspaceBand; ground: number | null }
  * over it. Held in the address (`?at=42.3172,-88.0905`), as an airport's
  * card is (`?place=`).
  */
-export default function AirspaceCard({ point, onClose, summary = false, onExpand }: {
+export default function AirspaceCard({ point, onClose, summary = false, onExpand, onAdd, onDirect, onHold }: {
   point: LatLon;
   onClose: () => void;
+  /** The point into the route, as the pilot's own point off the nearest
+   *  fix ("VPBNG/095/14.2", the planner's vfr.fixes.frd_near), at the
+   *  owner's pick of the canvas's dropped point: where it bends the route
+   *  least, flown to direct, or held at. None where there is no route to
+   *  put it in, or no fix to name it off. */
+  onAdd?: (ident: string, at: LatLon) => void;
+  onDirect?: (ident: string, at: LatLon) => void;
+  onHold?: (ident: string, at: LatLon) => void;
   /** At the panel's minimal size, as a held point opens: its first
    *  layers, the rest a swipe up (the airport card's summary). */
   summary?: boolean;
@@ -100,12 +108,36 @@ export default function AirspaceCard({ point, onClose, summary = false, onExpand
     staleTime: 10 * 60_000,
   });
   const ground = data?.ground_ft ?? null;
+  const named = data?.point ?? null;
+  const actions = named ? [
+    { go: onAdd, label: "Add to route", icon: <Plus />, testId: "point-add" },
+    { go: onDirect, label: "Direct to", icon: <MoveUpRight />, testId: "point-direct" },
+    { go: onHold, label: "Hold here", icon: <Repeat2 />, testId: "point-hold" },
+  ].filter(a => a.go) : [];
   return (
     <PanelCard testId="airspace-card">
       <CardHead
-        name="Airspace" line={<>{degreesMinutes(point)}{ground !== null && ` · ground ${altFt(ground)} ft`}</>}
+        name="Airspace" line={<>{degreesMinutes(point)}{ground !== null && ` · ground ${altFt(ground)} ft`}{named && <><br />{named.ident} · {named.name}</>}</>}
         lineClassName="tabular-nums" lineTestId="airspace-where" onClose={onClose} closeTestId="airspace-close"
       />
+      {/* The point into the route, as Maps' dropped pin's card offers its
+          directions: the first the tint's, the others its wash. */}
+      {named && actions.length > 0 && (
+        <div className="grid grid-cols-3 gap-2 pt-3" data-testid="point-actions">
+          {actions.map((a, i) => (
+            <button
+              key={a.testId} type="button" onClick={() => a.go!(named.ident, point)} data-testid={a.testId}
+              className={cn(
+                "flex min-h-14 flex-col items-center justify-center gap-0.5 rounded-xl px-1 font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring [&_svg]:size-5",
+                TEXT.note, i === 0 ? "bg-primary text-primary-foreground" : "bg-foreground/6 text-tint",
+              )}
+            >
+              {a.icon}
+              {a.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* The layers under the head at every size, from the ground up: at
           the pill's size the lowest two, the title the way up; all the way

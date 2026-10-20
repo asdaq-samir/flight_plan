@@ -312,3 +312,37 @@ def frd_title(point: dict) -> str:
     if point["radial"]:
         return f"{nm} on the {point['course_deg']:03d} radial of {point['base']}"
     return f"{nm} on {point['course_deg']:03d}° from {point['base']}"
+
+
+#: How far a dropped point is named from a fix, nm: further, it is named
+#: from the nearest of any kind.
+NEAR_NM = 40.0
+
+
+def frd_near(lat: float, lon: float, max_nm: float = NEAR_NM) -> dict | None:
+    """A point the pilot dropped on the map named as their own point
+    (frd_point) off the nearest fix a pilot knows -- a navaid or a VFR
+    waypoint charted on the sectional -- within `max_nm`, else the nearest
+    fix of any kind there: "VPBNG/095/14.2". Its course magnetic as
+    frd_point turns it back (a VOR's own variation, the model's for any
+    other), to the degree, and its distance to a tenth of a mile; so it
+    comes back to within a few hundredths of a mile of where it was
+    dropped. None with no fix within `max_nm`."""
+    dlat = max_nm / 60
+    dlon = max_nm / (60 * max(0.1, math.cos(math.radians(lat))))
+    around = [
+        (geo.distance_nm(fix["lat"], fix["lon"], lat, lon), fix)
+        for fix in within(lat - dlat, lon - dlon, lat + dlat, lon + dlon)
+        if re.fullmatch(r"[A-Z0-9]{2,5}", fix["ident"])
+    ]
+    around = [(nm, fix) for nm, fix in around if 0.05 <= nm <= max_nm]
+    if not around:
+        return None
+    known = [(nm, fix) for nm, fix in around if fix.get("navaid") or fix.get("vfr")]
+    nm, fix = min(known or around, key=lambda pair: pair[0])
+    radial = bool(fix.get("navaid")) and fix["kind"] in RADIAL_KINDS and fix.get("mag_var") is not None
+    variation = fix["mag_var"] if radial else magnetic.magnetic_variation_deg(fix["lat"], fix["lon"])
+    course = round((geo.bearing_deg(fix["lat"], fix["lon"], lat, lon) - variation) % 360) % 360
+    distance = round(float(nm), 1)
+    point = {"base": fix["ident"], "course_deg": course, "distance_nm": distance, "radial": radial}
+    return {**point, "ident": frd_ident(fix["ident"], course, distance), "name": frd_title(point)}
