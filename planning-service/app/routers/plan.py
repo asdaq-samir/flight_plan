@@ -113,6 +113,11 @@ class PlanQuery:
     #: to the altitude of its first fix rather than to the pattern
     #: (approach_end).
     procedures: str = ""
+    #: Altitudes ATC gave the pilot to cross the procedures' fixes at,
+    #: feet above sea level: "BXCMB:3000". Each stands for the chart's at
+    #: that fix wherever a procedure picked passes it -- the descent planned
+    #: to it and the path's heights (drawn_procedures).
+    crossings: str = ""
     #: Checkpoints between the route's own points, as the planner picks
     #: them off the chart. False, the legs run from point to point alone
     #: -- the departure, the stops, the destination -- as a pilot whose
@@ -155,11 +160,26 @@ class PlanQuery:
             out.append((ident, procedure, transition, direct))
         return out
 
+    def own_crossings(self) -> dict[str, float]:
+        """`crossings` by fix; a 422 for one that is not "FIX:FEET", or
+        over the altitudes' top (own_altitudes)."""
+        top = 41_000 if self.rules == "ifr" else 17_999
+        out = {}
+        for part in filter(None, (p.strip() for p in self.crossings.split(","))):
+            ident, _, feet = part.partition(":")
+            if not POINT_ALTITUDE.fullmatch(part) or not 0 < float(feet) <= top:
+                raise HTTPException(422, f"{part!r} is not a fix's crossing altitude: a fix and feet, as BXCMB:3000.")
+            out[ident.upper()] = float(feet)
+        return out
+
     def drawn_procedures(self) -> list[tuple[str, dict]]:
         """The procedures picked (procedure_picks), each its field and its
         drawing (vfr.procedures.procedure_drawing), read once for the
         request; one the CIFP does not have, or cannot be had, left out:
-        its leg is flown as the route goes."""
+        its leg is flown as the route goes. A fix the pilot was given an
+        altitude to cross at (own_crossings) is crossed at it, in place of
+        the chart's window, for the descent and the path alike."""
+        own = self.own_crossings()
         out = []
         for ident, procedure, transition, direct in self.procedure_picks():
             try:
@@ -167,7 +187,10 @@ class PlanQuery:
             except RuntimeError:
                 continue
             if drawn:
-                out.append((ident, {**drawn, "direct": direct} if direct else drawn))
+                fixes_ = [{**f, "min_ft": own[f["ident"]], "max_ft": own[f["ident"]]}
+                          if f["ident"] in own and not f["missed"] else f for f in drawn.get("fixes", [])]
+                drawn = {**drawn, "fixes": fixes_, **({"direct": direct} if direct else {})}
+                out.append((ident, drawn))
         return out
 
 

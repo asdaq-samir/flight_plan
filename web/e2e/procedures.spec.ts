@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Locator } from "@playwright/test";
 import { grabberTo, openTab, settle, settled, sideDrawer, slow } from "./helpers";
 
 /**
@@ -7,9 +7,22 @@ import { grabberTo, openTab, settle, settled, sideDrawer, slow } from "./helpers
  * the map round the runway with its 45° entry (PatternLayer); None takes
  * it off.
  */
+/** A field's runway line opened where it is folded to the runway picked
+ *  (PatternChips), at the owner's ask ("can the runway line collapse to
+ *  the selected runway?"). */
+async function openRunways(field: Locator) {
+  // The field's runways in first: the list is drawn again as a sheet over
+  // it closes, the field gone from it for a moment.
+  await expect(field.getByTestId("procedure-pattern").first()).toBeVisible({ timeout: slow(20000) });
+  const folded = field.locator("[data-folded]");
+  if (await folded.count()) await folded.click();
+  await expect(field.locator("[data-folded]")).toHaveCount(0);
+}
+
 test("a field's traffic pattern is picked by its runway, kept in the address and drawn on the map", async ({ page }) => {
-  // C81's own runway set to none, so the one drawn is Duluth's.
-  await page.goto("/app/plan?dep=C81&dest=KDLH&pattern=C81:NONE");
+  // C81's own runway set to none, so the one drawn is Duluth's; Duluth's
+  // none too, so no runway is picked for the wind as the test picks one.
+  await page.goto("/app/plan?dep=C81&dest=KDLH&pattern=C81:NONE,KDLH:NONE");
   await settle(page);
   await openTab(page, "Nav Log");
   const procedures = page.getByTestId("procedures");
@@ -17,17 +30,22 @@ test("a field's traffic pattern is picked by its runway, kept in the address and
   // chips under its arrival and approach.
   await expect(procedures.getByRole("heading").first()).toHaveText("C81 · Depart");
   const destination = procedures.getByRole("region", { name: "KDLH · Arrive" });
-  const runway = destination.getByTestId("procedure-pattern").and(page.locator(":not([disabled])")).first();
-  await expect(runway).toBeVisible({ timeout: slow(20000) });
+  await expect(destination.getByTestId("procedure-pattern").first()).toBeVisible({ timeout: slow(20000) });
+  await openRunways(destination);
+  const runway = destination.getByRole("radio", { name: /^Runway / }).and(page.locator(':not([disabled]):not([aria-checked="true"])')).first();
   const name = (await runway.innerText()).trim();
   await runway.click();
-  await expect(runway).toHaveAttribute("aria-checked", "true");
+  // The line folded to the runway picked.
+  const folded = destination.locator("[data-folded]");
+  await expect(folded).toHaveText(name);
+  await expect(folded).toHaveAttribute("aria-checked", "true");
   await expect(page).toHaveURL(new RegExp(`[?&]pattern=[^&]*KDLH(%3A|:)${name}(%2C|,|&|$)`));
   await expect(page.locator("path.traffic-pattern")).toHaveCount(1, { timeout: slow(10000) });
   await expect(page.locator("path.traffic-pattern-entry")).toHaveCount(1);
 
   // None: off the map, and kept as none in the address, so the runway into
   // the wind is not picked for it again.
+  await openRunways(destination);
   await destination.getByRole("radio", { name: /None/ }).click();
   await expect(page.locator("path.traffic-pattern")).toHaveCount(0);
   await expect(page).toHaveURL(/[?&]pattern=[^&]*KDLH(%3A|:)NONE(%2C|,|&|$)/);
@@ -225,6 +243,7 @@ test("an approach puts its field's runway on its own, and another is let only wh
   await expect(page.locator("path.traffic-pattern")).toHaveCount(0);
   // Its plate has no circling line: no other runway, and none is no
   // choice either.
+  await openRunways(kdlh);
   await expect(kdlh.getByRole("radio", { name: /^Runway 27, no circling on the ILS 09/ })).toBeDisabled();
   await expect(kdlh.getByRole("radio", { name: /None/ })).toBeDisabled();
 
@@ -233,6 +252,8 @@ test("an approach puts its field's runway on its own, and another is let only wh
   await page.goto(page.url());
   await settle(page);
   await openTab(page, "Nav Log");
+  await expect(kdlh.getByTestId("procedure-pattern").first()).toBeVisible({ timeout: slow(20000) });
+  await openRunways(kdlh);
   const circle = kdlh.getByRole("radio", { name: /^Runway 27/ });
   await expect(circle).toBeEnabled({ timeout: slow(20000) });
   await circle.click();
@@ -259,6 +280,7 @@ test("the destination's runway into the wind is picked as the route comes in, an
   test.skip(await windward.count() === 0, "Duluth's wind is calm or unreported now");
   await expect(windward).toHaveAttribute("aria-checked", "true");
   await expect(page).not.toHaveURL(/[?&]procs=/);
+  await openRunways(kdlh);
   await kdlh.getByRole("radio", { name: /None/ }).click();
   await expect(page).toHaveURL(/[?&]pattern=[^&]*KDLH(%3A|:)NONE(%2C|,|&|$)/);
   await page.goto(page.url());
@@ -284,6 +306,10 @@ test("a field typed as ORD is KORD, its arrivals offered and its runways one lin
   await expect(kord.locator('[data-testid=procedure-kind][data-kind=arrival]')).toBeVisible({ timeout: slow(20000) });
   const chips = kord.getByTestId("procedure-pattern");
   await expect(chips.first()).toBeVisible({ timeout: slow(20000) });
+  // Folded to 9L, picked; opened, every runway on one line.
+  await expect(chips).toHaveCount(1);
+  await expect(chips.first()).toHaveText("9L");
+  await openRunways(kord);
   const tops = await chips.evaluateAll(all => all.map(c => Math.round(c.getBoundingClientRect().top)));
   expect(tops.length).toBeGreaterThan(5);
   expect(new Set(tops).size).toBe(1);
@@ -304,7 +330,7 @@ test("a field's departure is picked over its runways, as its arrival and approac
   const menu = kord.locator("[data-testid=procedure-kind][data-kind=departure]");
   await expect(menu).toBeVisible({ timeout: slow(20000) });
   await expect(menu).toHaveText(/^Depart/);
-  const chips = kord.getByTestId("procedure-pattern").first();
+  const chips = kord.getByTestId("procedure-pattern").locator("visible=true").first();
   await expect(chips).toBeVisible();
   expect((await menu.boundingBox())!.y).toBeLessThan((await chips.boundingBox())!.y);
 });
@@ -419,4 +445,51 @@ test("an approach can be flown direct to one of its fixes, as ATC sends an airpl
   await menu.getByTestId("procedure-menu-direct").click();
   await menu.getByTestId("procedure-menu-direct-fix").filter({ hasText: "As charted" }).click();
   await expect(page).toHaveURL(/[?&]procs=KDLH(%3A|:)I09(%3A|:)DLH(&|$)/);
+});
+
+test("a procedure's fixes branch off the route, each sent direct to or given an altitude to cross it at, from the list or the map", async ({ page }) => {
+  // The owner's pick, option 4 of the fix canvas: "expandable list of
+  // connected points like git graph", any fix direct to or an altitude
+  // to cross it at, its card opened from the list or the map.
+  await page.route(url => /\/airport\/[^/]+\/procedures/.test(url.pathname), route => {
+    const url = new URL(route.request().url());
+    if (url.pathname.endsWith("/KDLH/procedures")) return route.fulfill({ json: LIST });
+    if (url.pathname.endsWith("/plate")) return route.fulfill({ status: 404, json: { detail: "none" } });
+    if (url.pathname.endsWith("/KDLH/procedures/I09")) return route.fulfill({ json: { ...DRAWN, transition: url.searchParams.get("transition") } });
+    return route.fulfill({ json: { airport: "C81", cycle: "261001", procedures: [] } });
+  });
+  await page.goto("/app/plan?dep=C81&dest=KDLH&pattern=C81:NONE&procs=KDLH:I09:DLH");
+  await settle(page);
+  await openTab(page, "Nav Log");
+  const kdlh = page.getByTestId("procedures").getByRole("region", { name: "KDLH · Arrive" });
+  const toggle = kdlh.getByTestId("fix-branch-toggle");
+  await expect(toggle).toContainText("ILS 09 · DLH · 3 fixes", { timeout: slow(20000) });
+  await toggle.click();
+  const rows = kdlh.getByTestId("fix-branch-row");
+  await expect(rows).toHaveCount(3);
+  // Direct to FAKER from its row: kept in the address, the fixes before it skipped.
+  await rows.filter({ hasText: "FAKER" }).getByTestId("fix-branch-direct").click();
+  await expect(page).toHaveURL(/[?&]procs=KDLH(%3A|:)I09(%3A|:)DLH(%3A|:)FAKER(&|$)/);
+  await settled(sideDrawer(page));
+  await openTab(page, "Nav Log");
+  if (!(await rows.first().isVisible())) await toggle.click();
+  await expect(rows.filter({ hasText: "FAKER" }).getByTestId("fix-branch-direct")).toHaveAttribute("aria-pressed", "true");
+  await expect(rows.filter({ hasText: "OFOFO" })).toContainText("skipped");
+  // OFOFO given 3,000 to cross at, from its card.
+  await rows.filter({ hasText: "OFOFO" }).getByTestId("fix-branch-altitude").click();
+  const card = page.getByTestId("fix-card");
+  await expect(card).toBeVisible();
+  await card.getByTestId("fix-card-altitude").fill("3000");
+  await card.getByTestId("fix-card-set").click();
+  await expect(page).toHaveURL(/[?&]cross=OFOFO(%3A|:)3000(&|$)/);
+  await expect(card.getByTestId("fix-card-charted")).toBeVisible();
+  await card.getByTestId("fix-card-charted").click();
+  await expect(page).not.toHaveURL(/[?&]cross=/);
+  await card.getByTestId("fix-card-close").click();
+  await expect(card).toHaveCount(0);
+  // The same card from the fix on the map: a tap's click on its mark, under
+  // the sheet here, as the map's marks are tapped in the other specs.
+  await page.locator('[data-procedure-fix="FAKER"]').dispatchEvent("click");
+  await expect(page.getByTestId("fix-card")).toBeVisible();
+  await expect(page.getByTestId("fix-card-direct")).toContainText("as charted");
 });

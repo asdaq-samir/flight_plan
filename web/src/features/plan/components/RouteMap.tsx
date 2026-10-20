@@ -65,6 +65,12 @@ interface Props {
   patternFocus?: string | null;
   /** The instrument procedures picked there, as the planner draws them. */
   procedures?: ProcedureDrawing[];
+  /** The pilot's own altitudes to cross their fixes at, by fix; the fixes
+   *  sent direct to ("KELD:I22:BXCMB", comma-joined); and a fix tapped,
+   *  for its card (FixCard). */
+  crossings?: Record<string, number>;
+  directs?: string;
+  onProcedureFix?: (field: string, kind: ProcedureDrawing["kind"], fix: string) => void;
   /** The one just picked ("KBUR:I08-Y:LAX@<when>"), for the map to go to
    *  it once it is drawn. */
   procedureFocus?: string | null;
@@ -418,7 +424,7 @@ const PLACE_ZOOM = 9;
 export default memo(function RouteMap({
   course, candidates, selected, focus, onSelectCandidate, onSelectPoint,
   airportWeather, place, onSelectPlace, onAddStop, legs, heldPoint, onHoldPoint, nearest = null, patterns = NO_PATTERNS, patternFocus = null,
-  procedures = NO_PROCEDURES, procedureFocus = null, procedureCover,
+  procedures = NO_PROCEDURES, procedureFocus = null, procedureCover, crossings, directs = "", onProcedureFix,
 }: Props) {
   const focusZoom = course?.max_zoom ?? 12;
   const dryRunning = usePastFlight(p => p.hex === DRY_RUN);
@@ -497,7 +503,7 @@ export default memo(function RouteMap({
           <PatternLayer patterns={patterns} />
           {/* Each approach's plate under its lines, where it could be placed. */}
           <PlateLayer drawings={procedures} />
-          <ProcedureLayer drawings={procedures} />
+          <ProcedureLayer drawings={procedures} crossings={crossings} directs={directs} onFix={onProcedureFix} />
           {/* A procedure just picked, all of it in sight clear of the panel. */}
           <FitTo points={focusedProcedure} fitKey={focusedProcedure.length ? procedureFocus : null} maxZoom={12} cover={procedureCover} />
           {/* A pattern just picked, all of it in sight clear of the panel. */}
