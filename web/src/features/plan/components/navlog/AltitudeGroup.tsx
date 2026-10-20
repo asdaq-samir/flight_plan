@@ -11,7 +11,7 @@ import type { AltitudeChoice, Detour, Leg, NavLogAltitude } from "../../../../li
 import type { FlightRules } from "../../../../lib/preferences";
 import { routeProfileQuery } from "../../../../lib/queryClient";
 import { GROUP_HEADING, TEXT } from "../../../../lib/text";
-import { one } from "../../../../lib/units";
+import { flightLevel, one } from "../../../../lib/units";
 import { hhmm } from "../../format";
 import AltitudeReasoning from "../AltitudeReasoning";
 import type { RouteEnds } from "./rows";
@@ -95,11 +95,18 @@ export default function AltitudeGroup({ nav, legs, problem = false, ownAltitude 
   const cautions = nav?.cautions ?? [];
   // What is typed, while it is: the figure flown otherwise.
   const [typed, setTyped] = useState<string | null>(null);
-  const shown = typed ?? (problem || cruise === null ? "" : feet(cruise));
+  // Written as a flight level at every altitude -- FL045 for 4,500 ft --
+  // at the owner's pick (2026-10-20), told that the FAA's flight levels
+  // start at 18,000 ft MSL, where altimeters go to 29.92 (14 CFR 1.1,
+  // 91.121(a)): the figure is hundreds of feet MSL, and the planner's are
+  // feet MSL still, as VoiceOver says them (`said`). Typed, three figures
+  // or fewer are hundreds of feet, as written; more, feet.
+  const shown = typed ?? (problem || cruise === null ? "" : flightLevel(cruise).slice(2));
   const top = rules === "ifr" ? 41_000 : 17_999;
   const fly = () => {
     if (typed === null) return;
-    const ft = Number(typed.replace(/\D/g, ""));
+    const digits = typed.replace(/\D/g, "");
+    const ft = digits.length <= 3 ? Number(digits) * 100 : Number(digits);
     setTyped(null);
     // A VFR altitude is under Class A (14 CFR 71.33, 91.135); IFR's up to
     // FL410, the highest 91.179(b)(4) names.
@@ -119,24 +126,25 @@ export default function AltitudeGroup({ nav, legs, problem = false, ownAltitude 
           its 44-point area a pseudo-element round them (index.css's after),
           nothing grown. */}
       <label className="relative flex h-full items-center after:absolute after:-inset-y-1.5 after:-left-0.5 after:right-0 after:content-['']">
+        {/* "FL" before the figure, a tap on it the field's too; in the
+            text's colour, the muted grey was 4.3:1 on the dark glass. */}
+        <span className="pl-2.5 text-foreground">FL</span>
         <input
           type="text" inputMode="numeric" enterKeyHint="done" autoComplete="off" disabled={disabled || !ownAltitude}
-          value={shown} placeholder="—" aria-label="Cruise altitude, feet"
+          value={shown} placeholder="—" aria-label="Cruise altitude, flight level"
           onChange={e => setTyped(e.target.value.replace(/[^\d,]/g, "").slice(0, 6))}
           onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); fly(); (e.target as HTMLInputElement).blur(); } if (e.key === "Escape") setTyped(null); }}
           onBlur={fly}
           className={cn(
-            "relative z-10 h-full min-w-0 bg-transparent pl-2.5 text-right font-semibold tabular-nums outline-none",
+            "relative z-10 h-full min-w-0 bg-transparent pr-1.5 pl-0.5 font-semibold tabular-nums outline-none",
             problem ? "text-red-700 dark:text-red-300" : "text-foreground",
           )}
           // As wide as its figure and the padding beside it: a fixed 4.5ch,
           // the padding inside it, cut "2,000" to "2,00" at the owner's
           // larger text (2026-10-20). Safari has no field-sizing yet.
-          style={{ width: `calc(${Math.max(4, shown.length) + 0.5}ch + 0.625rem)` }}
+          style={{ width: `calc(${Math.max(3, shown.length) + 0.5}ch + 0.5rem)` }}
           data-testid="altitude-input"
         />
-        {/* In the text's colour: the muted grey was 4.3:1 on the dark glass. */}
-        <span className="pr-1.5 pl-1 text-foreground">ft</span>
       </label>
       {rules === "ifr" && <span className={cn("pr-1 font-semibold text-tint", TEXT.caption)} data-testid="ifr-flag">IFR</span>}
       {!problem && tight && <span className="mr-1 size-1.5 rounded-full bg-amber-500" aria-hidden="true" data-testid="tight-altitude-flag" />}
@@ -244,8 +252,13 @@ export function AltitudeProfile({ nav: navNow, legs: legsNow, ends, chart, corne
     if (timer.current !== null) window.clearTimeout(timer.current);
     timer.current = window.setTimeout(() => {
       timer.current = null;
-      if (altitude === cruise) return;
+      // Nothing to plan only where the pick flies what is flown: the plan
+      // flown at its own altitude, or the pilot's own altitude where no
+      // plan cruises. A plan at the altitude the pilot typed is not the
+      // typed altitude -- it steps where the route asks -- and picking it
+      // did nothing when the two met (CI's winds: Fastest at 3,500 ft).
       const plan = planAt(nav, altitude);
+      if (plan ? plan === nav?.flown : altitude === cruise) return;
       if (plan) onAltitudeChoiceChange(plan);
       else onFlyAltitude(altitude);
     }, 450);
@@ -280,7 +293,7 @@ export function AltitudeProfile({ nav: navNow, legs: legsNow, ends, chart, corne
         <div className="space-y-0.5">
           <div className="flex items-baseline justify-between gap-2">
             <div className="flex min-w-0 items-baseline gap-2">
-              <span className={cn("font-bold tabular-nums", TEXT.heading)} data-testid="altitude-picked">{feet(shownAt)} ft</span>
+              <span className={cn("font-bold tabular-nums", TEXT.heading)} data-testid="altitude-picked">{flightLevel(shownAt)}</span>
               {names[shownAt] && <span className={cn("truncate font-semibold text-tint", TEXT.detail)}>{names[shownAt]}</span>}
             </div>
             <span className={cn("shrink-0 tabular-nums", TEXT.detail)} data-testid="altitude-figures">

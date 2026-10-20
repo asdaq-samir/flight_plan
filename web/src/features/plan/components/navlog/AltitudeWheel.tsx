@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, type KeyboardEvent } from "react";
 import { cn } from "cn";
 import { prefersReducedMotion } from "../../../../lib/motion";
 import { TEXT } from "../../../../lib/text";
+import { flightLevel } from "../../../../lib/units";
 
 /** A row's height, px: iOS's 44-point touch target, a picker's row. */
 const ROW = 44;
@@ -110,7 +111,9 @@ export default function AltitudeWheel({ altitudes, value, onChange, names = {}, 
               {/* On glass, the text's colour throughout: the muted grey over
                   whatever the graph has under it would not read. */}
               <span className={cn("tabular-nums", on ? cn("font-semibold text-foreground", TEXT.row) : cn(glass ? "text-foreground" : "text-muted-foreground", TEXT.detail))}>
-                {feet(altitude)}
+                {/* As a flight level, at the owner's pick (AltitudeGroup);
+                    said in feet. */}
+                {flightLevel(altitude)}
               </span>
               {names[altitude] && (
                 <span className={cn("max-w-full truncate px-1 font-semibold", TEXT.note, on ? "text-tint" : glass ? "text-foreground" : "text-muted-foreground")}>{names[altitude]}</span>
