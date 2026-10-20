@@ -113,7 +113,9 @@ export default function AltitudeGroup({ nav, legs, ends, problem, ownAltitude = 
   return (
     <div
       role="group" aria-label="Cruise altitude"
-      className={cn("flex h-8 items-center rounded-full", GLASS_BUTTON, CHIP_TEXT, disabled && "opacity-50")}
+      // Whole with no route: its "—" and the button's own disabled look say
+      // so. Half faded, its "ft" was 3.7:1 on the glass (the audit's P15).
+      className={cn("flex h-8 items-center rounded-full", GLASS_BUTTON, CHIP_TEXT)}
       data-testid="altitude-group"
     >
       {/* The field and its unit one label, a tap on "ft" the field's too,

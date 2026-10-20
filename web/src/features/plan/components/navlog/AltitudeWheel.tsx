@@ -86,7 +86,10 @@ export default function AltitudeWheel({ altitudes, value, onChange, names = {} }
           return (
             <button
               key={altitude} type="button" tabIndex={-1} onClick={() => toRow(i)}
-              className="flex w-full snap-center flex-col items-center justify-center leading-tight"
+              // Each row its own 44 points: a number and a plan's name a
+              // point taller than it, centred, ran into the row above's
+              // area (the audit's P1 on the iPad).
+              className="flex w-full snap-center flex-col items-center justify-center overflow-hidden leading-tight"
               style={{ height: ROW }}
               data-testid="altitude-wheel-row" data-altitude={altitude}
             >
