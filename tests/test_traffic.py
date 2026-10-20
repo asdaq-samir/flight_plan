@@ -1002,3 +1002,11 @@ def test_a_recorded_airplane_unheard_for_two_minutes_low_over_a_field_has_landed
     state = traffic.status("a128b9")
     assert not state["airborne"] and state["arrived"]["ident"] == "C81"
 
+
+def test_a_recorded_track_begun_in_the_air_says_no_departure(clock, monkeypatch):
+    """N3429J's card opened over Burlington at 2,000 ft: not "left KBUU"."""
+    monkeypatch.setattr(traffic.airports, "nearest", lambda lat, lon, limit=1: [
+        {"ident": "KBUU", "name": "Burlington", "distance_nm": 1.2, "elevation_ft": 779}])
+    assert traffic._left_from({"t": 0.0, "lat": 42.68, "lon": -88.30, "alt_ft": 2075.0}) is None
+    assert traffic._left_from({"t": 0.0, "lat": 42.68, "lon": -88.30, "alt_ft": 1150.0})["ident"] == "KBUU"
+

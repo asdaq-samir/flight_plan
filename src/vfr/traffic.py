@@ -897,8 +897,7 @@ def flight(hex_id: str) -> dict:
         rstep = max(1, math.ceil(len(recorded) / TRAIL_POINTS))
         trail = [{"t": p["t"], "lat": p["lat"], "lon": p["lon"], "alt_ft": p["alt_ft"]} for p in recorded[::rstep]]
         if recorded and departed is None:
-            field = _field_at(recorded[0], landing=False)
-            departed = field and {"ident": field["ident"], "name": field.get("name"), "at": round(recorded[0]["t"])}
+            departed = _left_from(recorded[0])
     return {
         "hex": hex_id,
         # The FAA's record of a US airplane, by its address or its
@@ -1270,6 +1269,29 @@ def past_flight(hex_id: str, flight_id: int, today=None) -> dict | None:
 LANDED_UNHEARD_S = 120
 
 
+#: A recorded track that starts within this of a field, nm, and this far
+#: over it, ft, starts at its takeoff from it: about the pattern's crosswind
+#: turn, 500 ft up (AC 90-66C's departure leg).
+LEFT_NEAR_NM = 2.0
+LEFT_ABOVE_FT = 500.0
+
+
+def _left_from(first: dict) -> dict | None:
+    """The field a recorded track starts at, where it starts there: within
+    LEFT_NEAR_NM of it and LEFT_ABOVE_FT over it, just off the ground. A
+    track recorded from when a card was opened mostly starts in the air
+    on the way somewhere -- N3429J's, opened over Burlington at 2,000 ft,
+    was said to have left KBUU where it had left C81 -- and its departure
+    is then not known."""
+    if first.get("alt_ft") is None:
+        return None
+    for field in airports.nearest(first["lat"], first["lon"], limit=1):
+        above = first["alt_ft"] - (field.get("elevation_ft") or 0.0)
+        if field["distance_nm"] <= LEFT_NEAR_NM and above <= LEFT_ABOVE_FT:
+            return {"ident": field["ident"], "name": field.get("name"), "at": round(first["t"])}
+    return None
+
+
 def _recorded_status(hex_id: str, recorded: list[dict]) -> dict:
     """`status` from a watched airplane's recorded track: in the air while
     heard within STALE_S, the field its track starts at as where it left;
@@ -1278,7 +1300,9 @@ def _recorded_status(hex_id: str, recorded: list[dict]) -> dict:
     heard = round(max(0.0, _wall() - last["t"]), 1)
     state = {"hex": hex_id, "heard_s": heard, "airborne": False, "aircraft": None, "departed": None, "arrived": None}
     if heard <= STALE_S:
-        state.update(airborne=True, aircraft={**last["plane"], "seen_s": heard}, departed=_field_at(recorded[0], landing=False))
+        left = _left_from(recorded[0])
+        departed = left and {k: v for k, v in left.items() if k != "at"} | {"city": None, "region": None}
+        state.update(airborne=True, aircraft={**last["plane"], "seen_s": heard}, departed=departed)
     elif heard >= LANDED_UNHEARD_S:
         field = _field_at(last, landing=True)
         if field is not None:
