@@ -466,7 +466,7 @@ export default function ProceduresRoute({
     // A kind's pull-down: the one in the route said on it (ProcedureMenu).
     const wind = windOf(a.ident);
     const i = airports.findIndex(f => f.ident === a.ident);
-    const kindMenu = (kind: Kind, look: "head" | "add") => (
+    const kindMenu = (kind: Kind, look: "button" | "add") => (
       <ProcedureMenu
         key={kind} ident={a.ident} kind={kind} list={lists[i]?.data} loading={!!lists[i]?.isFetching} look={look}
         picked={pickOf(a.ident, kind)} label={inRoute.find(p => sameField(p.ident, a.ident) && p.kind === kind)?.label ?? null}
@@ -493,7 +493,7 @@ export default function ProceduresRoute({
       if (!inPlace || !chosen) return null;
       return (
         <FixBranch
-          key={`branch-${kind}`} name={inPlace.label} kind={KIND_WORD[kind]} head={kindMenu(kind, "head")}
+          key={`branch-${kind}`} name={inPlace.label} kind={KIND_WORD[kind]} menu={kindMenu(kind, "button")}
           fixes={inPlace.fixes ?? []} direct={inPlace.direct ?? null} crossings={crossings}
           onDirect={fix => onProcedures(procedures.map(p => (p === chosen ? { ...p, direct: fix } : p)), null)}
           onOpen={fix => onFix?.(a.ident, kind, fix)}

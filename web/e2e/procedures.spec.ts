@@ -487,12 +487,16 @@ test("a procedure's fixes branch off the route, each sent direct to or given an 
   await openTab(page, "Nav Log");
   const kdlh = page.getByTestId("procedures").getByRole("region", { name: "KDLH · Arrive" });
   const toggle = kdlh.getByTestId("fix-branch-toggle");
-  // The branch's head, after the runways: the approach's pull-down, its
-  // kind and its fixes under it, the fold at its right.
+  // The branch's head, after the runways: the approach's name with the
+  // fold's arrow beside it, its kind and its fixes under it, and the
+  // button to pick another at its right, at the owner's ask.
   const branchHead = kdlh.getByTestId("fix-branch");
   await expect(branchHead).toContainText("ILS 09 · DLH", { timeout: slow(20000) });
   await expect(branchHead).toContainText("Approach · 3 fixes");
+  await expect(kdlh.locator("[data-testid=procedure-kind][data-look=button]")).toBeVisible();
+  await expect(toggle).toHaveAttribute("aria-expanded", "false");
   await toggle.click();
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
   const rows = kdlh.getByTestId("fix-branch-row");
   await expect(rows).toHaveCount(3);
   // Direct to FAKER from its row: kept in the address, the fixes before it skipped.
