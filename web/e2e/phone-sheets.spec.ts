@@ -104,7 +104,9 @@ test("a swipe up on a sheet opened from the map's sheet moves neither it nor the
   await sideDrawer(page).getByRole("region", { name: "KDLH · Arrive" }).locator('[data-testid=procedure-kind][data-kind=approach]').click();
   // The pull-down's foot opens the field's whole list (ProcedureMenu).
   await page.getByTestId("procedure-menu-all").click();
-  const sheet = page.locator("[data-slot=sheet-content]");
+  // The open one: the pull-down's own sheet is still easing away beside
+  // it for a moment, closed (a strict-mode miss on CI's PR #311).
+  const sheet = page.locator("[data-slot=sheet-content][data-state=open]");
   await expect(sheet).toBeVisible();
   await sheet.evaluate(el => Promise.all(el.getAnimations().map(a => a.finished)));
   // Half way under it, as it opens with the Procedures (PlanWorkspace),
