@@ -1,6 +1,7 @@
 import { useRef, type ReactNode } from "react";
 import { Crosshair, Ellipsis, Info, MoveUpRight, MoveVertical, Repeat2, Trash2 } from "lucide-react";
 import { cn } from "cn";
+import RoundButton from "../../../components/RoundButton";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "../../../components/ui/dropdown-menu";
@@ -40,8 +41,8 @@ export function PointFigures({ time, altitude, kind }: {
  * A point's menu, the "⋯" at its row's end, at the owner's ask ("Each stop
  * can have a menu (set altitude, create a fix, hold here, More Info)",
  * "And the menu can include direct to"): shadcn's DropdownMenu, each item
- * there only where the point has it. Its 32-point button's 44-point area
- * a pseudo-element round it, the button not grown.
+ * there only where the point has it, behind the app's own round button
+ * (RoundButton, 36 with a 20-point glyph, as every icon button is).
  */
 export function PointMenu({ ident, direct = false, onDirect, onAltitude, onFix, onHold, held = false, onInfo, onRemove, testId = "point-menu" }: {
   ident: string;
@@ -67,12 +68,9 @@ export function PointMenu({ ident, direct = false, onDirect, onAltitude, onFix, 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button
-          type="button" aria-label={`${ident}: more`} data-testid={testId}
-          className="relative flex size-8 shrink-0 items-center justify-center rounded-full bg-foreground/6 text-tint outline-none after:absolute after:-inset-1.5 after:content-[''] focus-visible:ring-2 focus-visible:ring-ring"
-        >
+        <RoundButton label={`${ident}: more`} className="shrink-0 text-tint" data-testid={testId}>
           <Ellipsis className="size-5" aria-hidden="true" />
-        </button>
+        </RoundButton>
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end" className="min-w-56"
