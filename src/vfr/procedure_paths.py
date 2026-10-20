@@ -210,6 +210,22 @@ def with_reversals(path: list, ft: list, holds: list) -> tuple[list, list]:
     return out, out_ft
 
 
+def _direct(piece: dict | None, drawing: dict | None) -> dict | None:
+    """A procedure's path from the fix ATC sent the airplane direct to
+    (its drawing's `direct`), the rest of it before that fix left out; as
+    it is where it has none, or the fix is not on this path."""
+    ident = (drawing or {}).get("direct")
+    if not piece or not ident:
+        return piece
+    fix = next((f for f in drawing.get("fixes", []) if f["ident"] == ident and not f["missed"]), None)
+    if fix is None:
+        return piece
+    at = next((i for i, p in enumerate(piece["points"]) if _nm(p, (fix["lat"], fix["lon"])) < SAME_PLACE_NM), None)
+    if at is None:
+        return piece
+    return {**piece, "points": piece["points"][at:], "ft": piece["ft"][at:]}
+
+
 def flown(start: tuple, end: tuple, departure: dict | None = None, arrival: dict | None = None,
           approach: dict | None = None) -> dict | None:
     """A leg flown by the procedures picked, from its `start` to its `end`:
@@ -220,18 +236,24 @@ def flown(start: tuple, end: tuple, departure: dict | None = None, arrival: dict
     (None where it sets none), its length, whether it comes down to a
     runway (`landing`), where the final starts (`final_at`, the index of
     the final approach fix the last time the path is there, after a course
-    reversal round it), and the approach's missed approach. None where
-    nothing of them is drawn."""
+    reversal round it), and the approach's missed approach. A procedure ATC
+    sent the airplane direct to a fix of (its drawing's `direct`) is flown
+    from that fix, straight to it from where the leg is. None where nothing
+    of them is drawn."""
     app = approach_path(approach) if approach else None
-    star = procedure_path(arrival, app["points"][0] if app else None) if arrival else None
-    sid = procedure_path(departure) if departure else None
+    # Sent direct to one of the approach's fixes, the arrival is left for it.
+    direct_in = bool(approach and approach.get("direct") and _direct(app, approach) is not app)
+    app = _direct(app, approach)
+    star = None if direct_in else _direct(procedure_path(arrival, app["points"][0] if app else None) if arrival else None, arrival)
+    sid = _direct(procedure_path(departure) if departure else None, departure)
     pieces = [p for p in (sid, star, app) if p]
     if not pieces:
         return None
     raw, raw_ft = [tuple(start)], [None]
     for piece in pieces:
-        # From vectors, onto the final at a 30° intercept (vectors_join).
-        if piece is app and not approach.get("transition"):
+        # From vectors, onto the final at a 30° intercept (vectors_join);
+        # sent direct to a fix, straight there.
+        if piece is app and not approach.get("transition") and not direct_in:
             for p in vectors_join(piece["points"], raw[-1]):
                 raw.append(p)
                 raw_ft.append(None)

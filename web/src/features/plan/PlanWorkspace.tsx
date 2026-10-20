@@ -159,13 +159,6 @@ const procedureQuery = (p: PickedProcedure) => ({
   staleTime: 6 * 60 * 60_000,
 });
 
-/** The procedures drawn, as the address writes them, for the planner to
- *  fly the legs by and plan the descents to (PlanQuery.procedures): one
- *  string, so the plan's key changes only as a procedure does. Those the
- *  CIFP has, once drawn. */
-const drawnPicks = (results: { data?: ProcedureDrawing }[]) => proceduresParam(results.flatMap(r => (
-  r.data ? [{ ident: r.data.airport, id: r.data.id, transition: r.data.transition ?? null }] : []
-)));
 
 /** The planner's places, its tab bar's (TabBar): the flight being
  *  planned, airports and traffic. */
@@ -288,11 +281,19 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // every later memo.
   const routeFields = `${planned.dep},${planned.stops},${planned.dest}`;
   const picksParam = searchParams.get("procs");
-  const pickQueries = useMemo(
-    () => proceduresOf(picksParam).filter(p => routeFields.split(",").includes(p.ident)).map(procedureQuery),
+  const routePicks = useMemo(
+    () => proceduresOf(picksParam).filter(p => routeFields.split(",").includes(p.ident)),
     [picksParam, routeFields],
   );
-  const procedures = useQueries({ queries: pickQueries, combine: drawnPicks });
+  const pickQueries = useMemo(() => routePicks.map(procedureQuery), [routePicks]);
+  const drawnPickList = useQueries({ queries: pickQueries, combine: drawnOnly });
+  // Those the CIFP has, once drawn, each with the fix ATC sent the airplane
+  // direct to where there is one: one string, so the plan's key changes
+  // only as a procedure does.
+  const procedures = useMemo(() => proceduresParam(drawnPickList.map(d => ({
+    ident: d.airport, id: d.id, transition: d.transition ?? null,
+    direct: routePicks.find(p => sameField(p.ident, d.airport) && p.id === d.id)?.direct ?? null,
+  }))), [drawnPickList, routePicks]);
   const s = usePlan({
     dep: planned.dep, dest: planned.dest, stops: planned.stops, altitudeFt, altitudeChoice, depart, aircraft, load, classBClearance,
     altitudes, procedures, localMin, rules: flightRules,
@@ -521,11 +522,17 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   });
   // Those drawn, said in the route's box after their fields (RouteBox's
   // chips), each a tap from the Procedures it was picked in.
-  const routeProcedures = useMemo<RouteProcedure[]>(() => procedureDrawings.map(d => ({
-    ident: d.airport, kind: d.kind, id: d.id, runway: d.kind === "approach" ? approachRunway(d.name) : null,
-    label: `${d.name.replace(/ RWY /, " ")}${d.transition ? ` · ${d.transition}` : ""}`,
-    spoken: `${d.name}, ${transitionWords(d.kind, d.transition ?? null, true)}`,
-  })), [procedureDrawings]);
+  // Its fixes to be sent direct to: the procedure's own, not its missed
+  // approach's or a runway threshold.
+  const routeProcedures = useMemo<RouteProcedure[]>(() => procedureDrawings.map(d => {
+    const direct = pickedProcedures.find(p => sameField(p.ident, d.airport) && p.id === d.id)?.direct ?? null;
+    return {
+      ident: d.airport, kind: d.kind, id: d.id, runway: d.kind === "approach" ? approachRunway(d.name) : null,
+      label: `${d.name.replace(/ RWY /, " ")}${direct ? ` · direct ${direct}` : d.transition ? ` · ${d.transition}` : ""}`,
+      spoken: `${d.name}, ${direct ? `direct ${direct}` : transitionWords(d.kind, d.transition ?? null, true)}`,
+      direct, fixes: d.fixes.filter(f => !f.missed && !/^RW\d/.test(f.ident)).map(f => f.ident),
+    };
+  }), [procedureDrawings, pickedProcedures]);
   // The patterns flown: none at a field the route lands at by an
   // approach, whose runway chip then says the runway landed on, straight
   // in or circled to -- a circle to land is flown at the plate's circling

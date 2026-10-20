@@ -371,6 +371,20 @@ def test_a_leg_flown_by_an_arrival_is_the_longer_by_its_path_and_so_are_its_time
     assert madison.get("procedure") is None
 
 
+def test_a_procedure_flown_direct_to_a_fix_is_read_from_its_fourth_part(monkeypatch):
+    from app.routers import plan as plan_router
+
+    asked = []
+    def drawing(ident, procedure, transition=None):
+        asked.append((ident, procedure, transition))
+        return {"kind": "approach", "fixes": []}
+    monkeypatch.setattr(plan_router.procedures, "procedure_drawing", drawing)
+    q = plan_router.PlanQuery(dep="C81", dest="KDLH", procedures="KDLH:I09::ANDOE,KDLH:R27:HIGHR:WIRSA")
+    assert q.procedure_picks() == [("KDLH", "I09", None, "ANDOE"), ("KDLH", "R27", "HIGHR", "WIRSA")]
+    assert [d.get("direct") for _, d in q.drawn_procedures()] == ["ANDOE", "WIRSA"]
+    assert asked == [("KDLH", "I09", None), ("KDLH", "R27", "HIGHR")]
+
+
 @pytest.mark.parametrize("picks", ["KDLH", "KDLH:", "KDLH:I09:ANDOE:X", "KDLH:I09;KMSN:R18"])
 def test_a_procedure_that_is_not_one_is_refused(picks):
     params = {**VIA_MADISON, "procedures": picks}

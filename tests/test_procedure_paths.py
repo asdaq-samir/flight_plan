@@ -151,3 +151,17 @@ def test_nothing_drawn_is_flown_as_the_route_goes():
     assert flown(SOUTH_WEST, RW27) is None
     assert flown(SOUTH_WEST, RW27, approach={"kind": "approach", "fixes": []}) is None
     assert length_nm([SOUTH_WEST]) == 0
+
+
+def test_sent_direct_to_a_fix_the_procedure_is_flown_from_it_straight_there():
+    """The owner's ask ("the ability to go direct to a fix as told by
+    ATC"): Duluth's ILS 27 via DLH, direct ANDOE -- straight from the leg's
+    start to ANDOE and down the final, no transition and no reversal; and an
+    arrival is left for the approach's fix."""
+    leg = flown(SOUTH_WEST, RW27, approach={**ILS27_DLH, "direct": "ANDOE"})
+    assert [tuple(p) for p in leg["path"]] == [SOUTH_WEST, ANDOE, RW27]
+    star = {"kind": "arrival", "holds": [], "fixes": [], "lines": [{"role": "common", "points": [[46.6, -92.4], [46.75, -92.3]]}]}
+    both = flown(SOUTH_WEST, RW27, arrival=star, approach={**ILS27_DLH, "direct": "ANDOE"})
+    assert [tuple(p) for p in both["path"]] == [SOUTH_WEST, ANDOE, RW27]
+    # A fix not on the path changes nothing.
+    assert flown(SOUTH_WEST, RW27, approach={**ILS27_DLH, "direct": "NOPE"})["path"] == flown(SOUTH_WEST, RW27, approach=ILS27_DLH)["path"]

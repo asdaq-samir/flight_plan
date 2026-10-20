@@ -9,6 +9,10 @@ export interface PickedProcedure {
   ident: string;
   id: string;
   transition: string | null;
+  /** A fix of it ATC sent the airplane direct to, at the owner's ask ("the
+   *  ability to go direct to a fix as told by ATC"): the procedure flown
+   *  from there (vfr.procedure_paths). */
+  direct?: string | null;
 }
 
 /** A transition as a pilot picks it, said one way everywhere (the
@@ -31,15 +35,16 @@ export function approachRunway(name: string): string | null {
 }
 
 /** The procedures picked, from the address: "KBUR:I08-Y:LAX,KBUR:JANNY5",
- *  each a field, a procedure and its transition, as the patterns are kept
+ *  each a field, a procedure and its transition, and after a fourth colon
+ *  a fix flown direct to ("KELD:I22::BXCMB"), as the patterns are kept
  *  ("pattern=KDLH:27"). What is not one is left out. */
 export function proceduresOf(param: string | null): PickedProcedure[] {
   if (!param) return [];
   return param.split(",").flatMap(part => {
-    const [ident, id, transition] = part.split(":").map(s => s.trim().toUpperCase());
-    return ident && id && /^[A-Z0-9]{2,5}$/.test(ident) && /^[A-Z0-9-]{1,6}$/.test(id)
-      ? [{ ident, id, transition: transition && /^[A-Z0-9]{1,5}$/.test(transition) ? transition : null }]
-      : [];
+    const [ident, id, transition, direct] = part.split(":").map(s => s.trim().toUpperCase());
+    if (!(ident && id && /^[A-Z0-9]{2,5}$/.test(ident) && /^[A-Z0-9-]{1,6}$/.test(id))) return [];
+    const picked: PickedProcedure = { ident, id, transition: transition && /^[A-Z0-9]{1,5}$/.test(transition) ? transition : null };
+    return [direct && /^[A-Z0-9]{2,5}$/.test(direct) ? { ...picked, direct } : picked];
   });
 }
 
@@ -52,7 +57,7 @@ export function sameField(a: string, b: string): boolean {
 
 /** The procedures picked, for the address. */
 export function proceduresParam(picks: PickedProcedure[]): string {
-  return picks.map(p => [p.ident, p.id, ...(p.transition ? [p.transition] : [])].join(":")).join(",");
+  return picks.map(p => [p.ident, p.id, ...(p.direct ? [p.transition ?? "", p.direct] : p.transition ? [p.transition] : [])].join(":")).join(",");
 }
 
 /** One line of a fix's altitudes as an approach chart sets it (the FAA's
