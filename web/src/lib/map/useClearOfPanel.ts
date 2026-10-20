@@ -1,6 +1,7 @@
 import { useContext, useEffect, useRef } from "react";
 import { useMap } from "react-leaflet";
 import { MapInsetsContext, SHEET_SECONDS } from "../../components/mapChrome";
+import { prefersReducedMotion } from "../motion";
 import { centreClear } from "./clear";
 
 /** `point` kept in the middle of what the panel leaves of the map as the
@@ -19,6 +20,6 @@ export function useClearOfPanel(point: { lat: number; lon: number } | null) {
     // As MapShell's: on the panel going out or coming back to rest, not on
     // its size changing under a notice later.
     if (!at || insets.out === was.out) return;
-    map.panTo(centreClear(map, [at.lat, at.lon], map.getZoom()), { animate: true, duration: SHEET_SECONDS });
+    map.panTo(centreClear(map, [at.lat, at.lon], map.getZoom()), { animate: !prefersReducedMotion(), duration: SHEET_SECONDS });
   }, [map, insets]);
 }

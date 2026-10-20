@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, type KeyboardEvent } from "react";
 import { cn } from "cn";
+import { prefersReducedMotion } from "../../../../lib/motion";
 import { TEXT } from "../../../../lib/text";
 
 /** A row's height, px: iOS's 44-point touch target, a picker's row. */
@@ -40,7 +41,7 @@ export default function AltitudeWheel({ altitudes, value, onChange, names = {}, 
   // Where it was last put by a scroll, so a value that came from the
   // wheel itself is not scrolled to again under the finger.
   const fromScroll = useRef<number | null>(null);
-  const smooth = () => (window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth");
+  const smooth = () => (prefersReducedMotion() ? "auto" : "smooth");
 
   // At once on opening, the picked altitude in the middle.
   useLayoutEffect(() => {
