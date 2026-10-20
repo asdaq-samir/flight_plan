@@ -94,6 +94,9 @@ export interface WindPick {
   gustCrosswindKt: number | null;
   calm: boolean;
   from: { ident: string; nm: number } | null;
+  /** Picked into the wind a TAF forecasts for when the airplane is there,
+   *  s since 1970 (windPick's `forecastAt`); none, the wind reported now. */
+  forecastAt?: number | null;
 }
 
 /** A report's wind: true, as a METAR's is, in knots. */
@@ -112,22 +115,28 @@ export interface ReportedWind {
  * runwayInUse); else, for a field that reports none, the nearest report's
  * wind (`nearby`), said as that station's, the same sums done here -- the
  * most headwind, the longer runway on a tie. Calm is said as calm, on
- * no end. None with no wind to go by, or a variable one.
+ * no end. None with no wind to go by, or a variable one. With
+ * `forecastAt`, `nearby` is a TAF's wind for then (the owner's pick,
+ * 2026-10-20), the report now set aside.
  */
-export function windPick(runways: Runway[], nearby?: ReportedWind | null): WindPick | null {
-  const own = runwayInUse(runways);
+export function windPick(runways: Runway[], nearby?: ReportedWind | null, forecastAt?: number): WindPick | null {
+  // A forecast's wind is worked out here alone: the planner's runway winds
+  // are the field's report now.
+  const own = forecastAt == null ? runwayInUse(runways) : null;
   if (own?.byWind && own.runway.wind) {
     const w = own.runway.wind;
     const calm = w.headwind_kt === 0 && w.crosswind_kt === 0;
     return { ident: runwayNumber(own.end.ident), headwindKt: w.headwind_kt, crosswindKt: w.crosswind_kt, gustCrosswindKt: w.gust_crosswind_kt ?? null, calm, from: null };
   }
   if (!nearby || nearby.speedKt == null) return null;
-  const from = { ident: nearby.station, nm: Math.round(nearby.distanceNm) };
+  // Its own TAF, at the field, is said as the field's; another's by name.
+  const from = forecastAt != null && nearby.distanceNm === 0 ? null : { ident: nearby.station, nm: Math.round(nearby.distanceNm) };
+  const forecast = forecastAt != null ? { forecastAt } : {};
   const ends = runways
     .filter(r => !r.closed)
     .flatMap(r => (r.runway_ends ?? []).filter(e => e.heading_true_deg != null).map(e => ({ runway: r, end: e, heading: e.heading_true_deg! })));
   if (ends.length === 0) return null;
-  if (nearby.speedKt === 0) return { ident: "", headwindKt: 0, crosswindKt: 0, gustCrosswindKt: null, calm: true, from };
+  if (nearby.speedKt === 0) return { ident: "", headwindKt: 0, crosswindKt: 0, gustCrosswindKt: null, calm: true, from, ...forecast };
   if (nearby.dirTrueDeg == null) return null;
   const dir = nearby.dirTrueDeg, speed = nearby.speedKt;
   // (headwind, crosswind from the right), as vfr.runway_wind.components_kt.
@@ -140,7 +149,7 @@ export function windPick(runways: Runway[], nearby?: ReportedWind | null): WindP
   const { head, cross } = along(best.heading, speed);
   return {
     ident: runwayNumber(best.end.ident), headwindKt: Math.round(head), crosswindKt: Math.round(cross),
-    gustCrosswindKt: nearby.gustKt ? Math.round(along(best.heading, nearby.gustKt).cross) : null, calm: false, from,
+    gustCrosswindKt: nearby.gustKt ? Math.round(along(best.heading, nearby.gustKt).cross) : null, calm: false, from, ...forecast,
   };
 }
 

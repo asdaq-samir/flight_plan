@@ -767,6 +767,12 @@ def _parse_tafs(xml_bytes: bytes) -> list:
                 "timeFrom": start, "timeTo": end,
                 "change": forecast.findtext("change_indicator") or "",
                 **_period(forecast),
+                # Its wind, from true north as a TAF gives it (AC 00-45H,
+                # the TAF; a METAR's too), for the runway a flight will
+                # find in use when it gets there. VRB has no direction.
+                "wind_dir_true_deg": _float(forecast.findtext("wind_dir_degrees")),
+                "wind_speed_kt": _float(forecast.findtext("wind_speed_kt")),
+                "wind_gust_kt": _float(forecast.findtext("wind_gust_kt")),
             })
         fcsts.sort(key=lambda p: (p["timeFrom"], _CHANGE_ORDER.get(p["change"][:5], 3)))
         elevation_m = _float(el.findtext("elevation_m"))
@@ -810,6 +816,47 @@ def taf_for_idents(idents: list) -> dict:
             "valid_to": (period or {}).get("timeTo"),
         }
     return answer
+
+
+def forecast_wind(lat: float, lon: float, at_unix: float, ident: str | None = None,
+                  within_nm: float = NEAREST_REPORT_NM) -> dict | None:
+    """The wind forecast at a field for a time, from its own TAF (`ident`)
+    or else the nearest station's within `within_nm` -- the reach the card
+    takes a nearby METAR from (nearest_report) -- as {"ident",
+    "distance_nm", "dir_true_deg" (None for VRB), "speed_kt", "gust_kt",
+    "valid_from", "valid_to"}: the prevailing forecast then, the base or
+    FM period covering it, or a BECMG that has begun by then (it lasts to
+    the next change), never a TEMPO or PROB group. None where no TAF in
+    reach covers that time, or the forecast gives no wind then."""
+    stations = _dataset("tafs")
+    own = next((s for s in stations if ident and s["icaoId"] == ident.upper()), None)
+    if own is not None:
+        best = (0.0, own)
+    else:
+        best = None
+        coslat = np.cos(np.radians(lat))
+        for station in stations:
+            nm = float(np.hypot((station["lat"] - lat) * 60, (station["lon"] - lon) * 60 * coslat))
+            if nm <= within_nm and (best is None or nm < best[0]):
+                best = (nm, station)
+    if best is None:
+        return None
+    nm, station = best
+    prevailing = [
+        p for p in station["fcsts"]
+        if p["timeFrom"] <= at_unix and (
+            (p["change"][:5] in ("", "FM") and at_unix < p["timeTo"]) or p["change"][:5] == "BECMG")
+    ]
+    if not prevailing or not any(p["timeFrom"] <= at_unix < p["timeTo"] for p in station["fcsts"]):
+        return None
+    period = max(prevailing, key=lambda p: p["timeFrom"])
+    if period.get("wind_speed_kt") is None:
+        return None
+    return {
+        "ident": station["icaoId"], "distance_nm": round(nm, 1),
+        "dir_true_deg": period.get("wind_dir_true_deg"), "speed_kt": period["wind_speed_kt"],
+        "gust_kt": period.get("wind_gust_kt"), "valid_from": period["timeFrom"], "valid_to": period["timeTo"],
+    }
 
 
 def _current_forecast_period(fcsts: list, now_unix: float) -> dict | None:
