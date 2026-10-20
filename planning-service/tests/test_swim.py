@@ -66,3 +66,19 @@ def test_a_message_is_read_from_its_bytes_or_its_string_and_one_neither_reads_is
     assert swim.body(_Message(raw=MESSAGE.encode())) == MESSAGE
     assert swim.body(_Message(text=MESSAGE)) == MESSAGE
     assert swim.body(_Message()) == ""
+
+
+def test_with_nobody_looking_only_the_followed_airplanes_tracks_are_read(monkeypatch):
+    heard = []
+    monkeypatch.setattr(swim.traffic, "heard_elsewhere", lambda plane, at: heard.append(plane["hex"]))
+    # Traffic on the map: every airplane.
+    monkeypatch.setattr(swim.traffic, "radar_wanted", lambda: None)
+    assert swim._radar(MESSAGE) == 2 and heard == ["a3c858", "a6ed61"]
+    # Nobody looking: the followed one alone, its address upper case in
+    # the message; none followed in it, the message not parsed.
+    heard.clear()
+    monkeypatch.setattr(swim.traffic, "radar_wanted", lambda: {"a3c858"})
+    assert swim._radar(MESSAGE) == 1 and heard == ["a3c858"]
+    monkeypatch.setattr(swim, "tracks", lambda xml: (_ for _ in ()).throw(AssertionError("parsed")))
+    monkeypatch.setattr(swim.traffic, "radar_wanted", lambda: {"abcdef"})
+    assert swim._radar(MESSAGE) == 0

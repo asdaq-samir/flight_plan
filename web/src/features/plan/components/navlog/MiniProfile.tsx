@@ -24,11 +24,14 @@ const miles = (nm: number) => `${Math.round(nm)}`;
  * the nav log full on it (`onOpen`); with nothing to open, all the way up,
  * it is a picture, not a button.
  */
-export default memo(function MiniProfile({ ends, selected, legs, onOpen }: {
+export default memo(function MiniProfile({ ends, selected, legs, onOpen, preview = null }: {
   ends: RouteEnds;
   selected: Candidate[];
   legs: Leg[];
   onOpen?: () => void;
+  /** An altitude on the Profile card's wheel not yet flown (AltitudeProfile):
+   *  a dashed line across at it, named, until the plan comes to it. */
+  preview?: number | null;
 }) {
   const dep = ends.departure.ident, dest = ends.destination.ident;
   const stops = (ends.stops ?? []).map(s => s.ident);
@@ -40,7 +43,7 @@ export default memo(function MiniProfile({ ends, selected, legs, onOpen }: {
   // The airspace's ceilings over the plan's line, at the owner's ask
   // ("Profile view should show the airspace ceilings above the altitude
   // trace"): a Class B's shelf at 10,000 was cut at the chart's top.
-  const highest = Math.max(0, ...profile.terrain.map(t => t.ground_ft), cruise, ...ceilings(profile.airspace));
+  const highest = Math.max(0, ...profile.terrain.map(t => t.ground_ft), cruise, preview ?? 0, ...ceilings(profile.airspace));
   // Just over the highest of the ground, the plan and the ceilings, to the
   // next 500 ft: a thousand and a half over it left the top third of the
   // chart empty, at the owner's notice ("y axis has extra white space").
@@ -77,6 +80,12 @@ export default memo(function MiniProfile({ ends, selected, legs, onOpen }: {
         })}
         <path d={ground} fill="#8b6f47" fillOpacity={0.45} />
         <path d={line} fill="none" stroke="var(--primary)" strokeWidth={2.5} strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+        {preview !== null && (
+          <line
+            x1={0} x2={W} y1={y(preview)} y2={y(preview)} stroke="var(--primary)" strokeWidth={2} strokeDasharray="6 4"
+            vectorEffect="non-scaling-stroke" data-testid="mini-profile-preview"
+          />
+        )}
       </svg>
       {/* Each airspace named for its airport, at the owner's ask ("can the
           profile view airspaces have airport ids on them"): over its
@@ -96,14 +105,14 @@ export default memo(function MiniProfile({ ends, selected, legs, onOpen }: {
           middle, is enough, at the owner's asks ("label the cruise altitude
           within the graph"; "y axis is not needed, just the cruise label is
           enough"); words, not drawn in the stretched SVG. */}
-      {cruise > 0 && (
+      {(preview ?? cruise) > 0 && (
         <span
           // Under the line, over the ground: with the chart's top just
           // over the cruise there is no room above it.
           className="absolute left-1/2 -translate-x-1/2 rounded bg-background/80 px-1 font-semibold text-foreground"
-          style={{ top: `calc(${(y(cruise) / H) * 100}% + 3px)` }} aria-hidden="true" data-testid="mini-profile-cruise"
+          style={{ top: `calc(${(y(preview ?? cruise) / H) * 100}% + 3px)` }} aria-hidden="true" data-testid="mini-profile-cruise"
         >
-          {altFt(cruise)} ft
+          {altFt(preview ?? cruise)} ft
         </span>
       )}
       </span>
