@@ -41,6 +41,9 @@ def clock(monkeypatch):
     monkeypatch.setattr(traffic.airports, "nearest_abroad", lambda lat, lon, limit=3: [])
     monkeypatch.setattr(traffic, "_clock", clock)
     monkeypatch.setattr(traffic, "_sleep", clock.sleep)
+    monkeypatch.setattr(traffic, "_WATCHED", {})
+    monkeypatch.setattr(traffic, "_WATCH_ASKED", {})
+    monkeypatch.setattr(traffic, "_RECORDED", {})
     return clock
 
 
@@ -406,6 +409,9 @@ def test_a_flight_that_has_landed_is_its_flight_to_the_landing_not_the_parked_ta
 
 def test_a_trace_that_could_not_be_had_is_asked_again_not_kept(clock, monkeypatch):
     monkeypatch.setattr(traffic, "_TRACES", {})
+    # The trace's reads alone: a card with no trail also asks for the
+    # airplane itself (`_watch`, its own test below).
+    monkeypatch.setattr(traffic, "_watch", lambda hex_id: None)
     with patch("vfr.traffic.requests.get", side_effect=requests.Timeout("slow")) as get:
         assert traffic.flight("a0b7d8")["trail"] == []
         assert traffic.flight("a0b7d8")["trail"] == []
@@ -947,3 +953,62 @@ def test_with_no_recent_trace_today_s_trace_says_where_it_landed(clock, monkeypa
 def test_a_recent_trace_that_cannot_be_read_is_unavailable_not_landed(clock):
     with patch("vfr.traffic.requests.get", return_value=_status(503)), pytest.raises(traffic.TrafficUnavailable):
         traffic.status("a06d40")
+
+
+def test_an_airplane_whose_card_is_open_and_adsb_lol_does_not_hear_is_recorded_from_ads_b_exchange(clock, monkeypatch):
+    """N3429J on 2026-10-19: a UAT airplane, rebroadcast by ADS-R, that
+    ADS-B Exchange had and adsb.lol did not; and adsb.lol's globe turning
+    the planner's trace reads away. Its card open, it is asked for by its
+    address, its track kept, and it is on the map and in its alerts' state."""
+    wall = {"now": 1791800000.0}
+    monkeypatch.setattr(traffic, "_wall", lambda: wall["now"])
+    monkeypatch.setattr(traffic, "_TRACES", {})
+    monkeypatch.setattr(traffic, "_paced", lambda url: {"ac": []})
+    asked = []
+
+    def adsbx(path, search=False):
+        asked.append(path)
+        return [traffic._aircraft(CESSNA)]
+    monkeypatch.setattr(traffic, "_adsbx", adsbx)
+    monkeypatch.setattr(traffic, "_recent_trace", lambda hex_id: None)
+    # No field near: OurAirports' file is not read here (CI has none to hand).
+    monkeypatch.setattr(traffic.airports, "nearest", lambda lat, lon, limit=1: [])
+    with patch("vfr.traffic.requests.get", return_value=Mock(status_code=403)):
+        first = traffic.flight("a128b9")
+        assert asked == ["icao/a128b9"] and [p["lat"] for p in first["trail"]] == [42.30128]
+        # Asked again only after WATCH_GAP_S, its new place recorded.
+        clock.now += 5
+        traffic.flight("a128b9")
+        assert len(asked) == 1
+        clock.now += traffic.WATCH_GAP_S
+        wall["now"] += 25
+        moved = traffic._aircraft({**CESSNA, "lat": 42.4})
+        monkeypatch.setattr(traffic, "_adsbx", lambda path, search=False: asked.append(path) or [moved])
+        assert len(traffic.flight("a128b9")["trail"]) == 2
+    # The map round it has it, which adsb.lol's region answer left out.
+    monkeypatch.setattr(traffic, "_region_answer", lambda region: (clock.now, []))
+    seen = traffic.near(42.35, -88.15, 30)
+    assert [p["hex"] for p in seen["aircraft"]] == ["a128b9"] and "ADS-B Exchange" in seen["source"]
+    # Its alerts' state: in the air, from the recorded track.
+    state = traffic.status("a128b9")
+    assert state["airborne"] and state["aircraft"]["lat"] == 42.4
+
+
+def test_a_recorded_airplane_unheard_for_two_minutes_low_over_a_field_has_landed(clock, monkeypatch):
+    monkeypatch.setattr(traffic, "_wall", lambda: 1791800000.0)
+    monkeypatch.setattr(traffic, "_recent_trace", lambda hex_id: None)
+    traffic._record("a128b9", traffic._aircraft(CESSNA))
+    monkeypatch.setattr(traffic, "_wall", lambda: 1791800000.0 + traffic.LANDED_UNHEARD_S + 5)
+    c81 = {"ident": "C81", "name": "Campbell", "city": None, "region": None}
+    monkeypatch.setattr(traffic, "_field_at", lambda point, landing: c81 if landing else None)
+    state = traffic.status("a128b9")
+    assert not state["airborne"] and state["arrived"]["ident"] == "C81"
+
+
+def test_a_recorded_track_begun_in_the_air_says_no_departure(clock, monkeypatch):
+    """N3429J's card opened over Burlington at 2,000 ft: not "left KBUU"."""
+    monkeypatch.setattr(traffic.airports, "nearest", lambda lat, lon, limit=1: [
+        {"ident": "KBUU", "name": "Burlington", "distance_nm": 1.2, "elevation_ft": 779}])
+    assert traffic._left_from({"t": 0.0, "lat": 42.68, "lon": -88.30, "alt_ft": 2075.0}) is None
+    assert traffic._left_from({"t": 0.0, "lat": 42.68, "lon": -88.30, "alt_ft": 1150.0})["ident"] == "KBUU"
+

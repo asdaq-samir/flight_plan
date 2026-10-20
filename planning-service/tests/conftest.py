@@ -25,6 +25,18 @@ def airport(ident: str) -> dict:
 
 
 @pytest.fixture(autouse=True)
+def noon_in_chicago(monkeypatch):
+    """"Now", where a plan has no departure time, is a day's noon in
+    Chicago (17:00 UTC): the night reserve follows the hour (planning.now),
+    and a test about the day's 30 minutes failed when CI ran at 19:44 CDT.
+    A test about the night sets its own."""
+    from datetime import datetime, timezone
+
+    from app import planning
+    monkeypatch.setattr(planning, "now", lambda: datetime(2026, 9, 22, 17, 0, tzinfo=timezone.utc))
+
+
+@pytest.fixture(autouse=True)
 def chart_read_here(monkeypatch):
     """The corridor read on this process's own thread, as the tests stub
     it, not in the pool's processes (app.chart_model.READS_IN_PROCESS),

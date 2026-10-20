@@ -400,7 +400,13 @@ def near(lat: float, lon: float, radius_nm: float) -> dict:
         # edge of a view the size of a state.
         nm = np.hypot((lats - lat) * _NM_PER_DEG, (lons - lon) * _NM_PER_DEG * np.cos(np.radians(lat)))
         planes = [p for p, d in zip(planes, nm) if d <= radius]
-    return {"aircraft": planes, "age_s": round(_clock() - at, 1), **credit}
+    # An airplane whose card is open and that adsb.lol does not hear (a UAT
+    # airplane ADS-R rebroadcasts), from its own asks: on the map with the
+    # rest, ADS-B Exchange credited where it came from there.
+    watched = _watched_near(lat, lon, radius, {p["hex"].lower() for p in planes})
+    if watched and not credit:
+        credit = {**ADSB_LOL_SOURCE, "source": "adsb.lol and ADS-B Exchange"}
+    return {"aircraft": planes + watched, "age_s": round(_clock() - at, 1), **credit}
 
 
 # --- One airplane: found by what a pilot knows it by, and its flight ---
@@ -731,6 +737,107 @@ def _trace(hex_id: str) -> dict | None:
     return trace
 
 
+# --- An airplane watched: its track recorded as it is asked for ---
+
+#: adsb.lol's globe, where the traces are, answers the planner with a
+#: browser check since 2026-10-19 (a 403 and an HTML page), so a card's
+#: trail and an alert's state came back empty for every airplane; and
+#: some airplanes no adsb.lol feeder hears at all -- N3429J, a UAT
+#: airplane rebroadcast by the FAA's ADS-R, which ADS-B Exchange and
+#: FlightAware had while adsb.lol had nothing (the owner's screenshots,
+#: 2026-10-19). An airplane whose card is open is asked for by its address
+#: -- adsb.lol's API first, ADS-B Exchange where it has nothing -- and its
+#: positions are kept: its trail, the field it left, and its place on the
+#: map, where a region's answer does not have it.
+#: Its card is open while its flight was asked for this recently, s: the
+#: card asks each minute (queryClient's flightQuery).
+WATCH_FOR_S = 150.0
+#: A watched airplane is asked for at most this often, s: about the map's
+#: own traffic rate, and at ADS-B Exchange's prices (its RapidAPI plan, a
+#: month's 10,000) some 180 an hour while a card stays open.
+WATCH_GAP_S = 20.0
+#: A recorded track is kept this long, s: a day's flying.
+RECORD_KEEP_S = 12 * 3600.0
+_WATCHED: dict[str, float] = {}
+_WATCH_ASKED: dict[str, float] = {}
+_RECORDED: dict[str, list[dict]] = {}
+
+
+def _record(hex_id: str, plane: dict) -> None:
+    """A watched airplane's report kept as a trace point is (`_points`), its
+    time when it was heard, not when it was asked."""
+    at = round(_wall() - (plane.get("seen_s") or 0.0), 1)
+    point = {
+        "t": at, "lat": plane["lat"], "lon": plane["lon"], "alt_ft": plane.get("altitude_ft"),
+        "gs_kt": plane.get("speed_kt"), "track_deg": plane.get("track_deg"), "vrate_fpm": plane.get("vertical_fpm"),
+        "new_leg": False, "plane": plane,
+    }
+    with _LOCK:
+        track = _RECORDED.setdefault(hex_id, [])
+        if track and track[-1]["t"] >= at:
+            return
+        track.append(point)
+        while track and at - track[0]["t"] > RECORD_KEEP_S:
+            track.pop(0)
+
+
+def _watch(hex_id: str) -> None:
+    """The airplane asked for now, where it is due (WATCH_GAP_S): adsb.lol's
+    API by its address, ADS-B Exchange where adsb.lol has nothing or does
+    not answer; what is heard in the air recorded. Quiet where neither may
+    be asked or answers: the next ask tries again."""
+    now = _clock()
+    with _LOCK:
+        if now - _WATCH_ASKED.get(hex_id, -math.inf) < WATCH_GAP_S:
+            return
+        _WATCH_ASKED[hex_id] = now
+    planes: list[dict] = []
+    try:
+        answer = _paced(FIND_URL.format(by="hex", value=hex_id))
+        entries = answer.get("ac") if isinstance(answer, dict) else None
+        planes = [a for a in (_aircraft(e) for e in entries if isinstance(e, dict)) if a is not None] if isinstance(entries, list) else []
+    except TrafficUnavailable:
+        planes = []
+    if not planes:
+        try:
+            planes = _adsbx(f"icao/{hex_id}", search=True)
+        except TrafficUnavailable:
+            planes = []
+    for plane in planes:
+        if plane["hex"].lower().lstrip("~") == hex_id.lstrip("~"):
+            _record(hex_id, plane)
+
+
+def _watching(hex_id: str) -> bool:
+    with _LOCK:
+        return _clock() - _WATCHED.get(hex_id, -math.inf) < WATCH_FOR_S
+
+
+def _recorded(hex_id: str) -> list[dict]:
+    with _LOCK:
+        return list(_RECORDED.get(hex_id, []))
+
+
+def _watched_near(lat: float, lon: float, radius_nm: float, have: set[str]) -> list[dict]:
+    """The watched airplanes heard in the last STALE_S within `radius_nm`
+    that a region's answer left out, as `_aircraft` gives each, its age
+    brought up to now: where adsb.lol does not hear one, the map has it."""
+    with _LOCK:
+        watched = [h for h, at in _WATCHED.items() if _clock() - at < WATCH_FOR_S and h not in have]
+    out = []
+    for hex_id in watched:
+        _watch(hex_id)
+        track = _recorded(hex_id)
+        if not track:
+            continue
+        last = track[-1]
+        age = _wall() - last["t"]
+        nm = math.hypot((last["lat"] - lat) * _NM_PER_DEG, (last["lon"] - lon) * _NM_PER_DEG * math.cos(math.radians(lat)))
+        if age <= STALE_S and nm <= radius_nm:
+            out.append({**last["plane"], "seen_s": round(age, 1)})
+    return out
+
+
 def _altitude_ft(point: list) -> float | None:
     """A trace point's height: its GNSS height where it has one, as the
     map's live reports are, else its pressure altitude; None on the ground."""
@@ -774,6 +881,23 @@ def flight(hex_id: str) -> dict:
             departed = {"ident": nearest[0]["ident"], "name": nearest[0].get("name"), "at": round(base + off[0])}
     step = max(1, math.ceil(len(leg) / TRAIL_POINTS))
     kept = leg[::step] + ([leg[-1]] if leg and (len(leg) - 1) % step else [])
+    trail = [
+        {"t": round(base + p[0], 1), "lat": round(p[1], 5), "lon": round(p[2], 5), "alt_ft": _altitude_ft(p)}
+        for p in kept
+    ]
+    if not trail:
+        # No trace to be had (adsb.lol's globe turns the planner away, or no
+        # feeder heard it): its card open, it is watched -- asked for and its
+        # positions recorded -- and its trail the track recorded so far, the
+        # field it left where that track starts low over one.
+        with _LOCK:
+            _WATCHED[hex_id] = _clock()
+        _watch(hex_id)
+        recorded = _recorded(hex_id)
+        rstep = max(1, math.ceil(len(recorded) / TRAIL_POINTS))
+        trail = [{"t": p["t"], "lat": p["lat"], "lon": p["lon"], "alt_ft": p["alt_ft"]} for p in recorded[::rstep]]
+        if recorded and departed is None:
+            departed = _left_from(recorded[0])
     return {
         "hex": hex_id,
         # The FAA's record of a US airplane, by its address or its
@@ -785,10 +909,7 @@ def flight(hex_id: str) -> dict:
         "operator": trace.get("ownOp") or None,
         "year": trace.get("year") or None,
         "departed": departed,
-        "trail": [
-            {"t": round(base + p[0], 1), "lat": round(p[1], 5), "lon": round(p[2], 5), "alt_ft": _altitude_ft(p)}
-            for p in kept
-        ],
+        "trail": trail,
     }
 
 
@@ -1148,6 +1269,47 @@ def past_flight(hex_id: str, flight_id: int, today=None) -> dict | None:
 LANDED_UNHEARD_S = 120
 
 
+#: A recorded track that starts within this of a field, nm, and this far
+#: over it, ft, starts at its takeoff from it: about the pattern's crosswind
+#: turn, 500 ft up (AC 90-66C's departure leg).
+LEFT_NEAR_NM = 2.0
+LEFT_ABOVE_FT = 500.0
+
+
+def _left_from(first: dict) -> dict | None:
+    """The field a recorded track starts at, where it starts there: within
+    LEFT_NEAR_NM of it and LEFT_ABOVE_FT over it, just off the ground. A
+    track recorded from when a card was opened mostly starts in the air
+    on the way somewhere -- N3429J's, opened over Burlington at 2,000 ft,
+    was said to have left KBUU where it had left C81 -- and its departure
+    is then not known."""
+    if first.get("alt_ft") is None:
+        return None
+    for field in airports.nearest(first["lat"], first["lon"], limit=1):
+        above = first["alt_ft"] - (field.get("elevation_ft") or 0.0)
+        if field["distance_nm"] <= LEFT_NEAR_NM and above <= LEFT_ABOVE_FT:
+            return {"ident": field["ident"], "name": field.get("name"), "at": round(first["t"])}
+    return None
+
+
+def _recorded_status(hex_id: str, recorded: list[dict]) -> dict:
+    """`status` from a watched airplane's recorded track: in the air while
+    heard within STALE_S, the field its track starts at as where it left;
+    landed where unheard for LANDED_UNHEARD_S last low over a field."""
+    last = recorded[-1]
+    heard = round(max(0.0, _wall() - last["t"]), 1)
+    state = {"hex": hex_id, "heard_s": heard, "airborne": False, "aircraft": None, "departed": None, "arrived": None}
+    if heard <= STALE_S:
+        left = _left_from(recorded[0])
+        departed = left and {k: v for k, v in left.items() if k != "at"} | {"city": None, "region": None}
+        state.update(airborne=True, aircraft={**last["plane"], "seen_s": heard}, departed=departed)
+    elif heard >= LANDED_UNHEARD_S:
+        field = _field_at(last, landing=True)
+        if field is not None:
+            state["arrived"] = {**field, "at": last["t"]}
+    return state
+
+
 def status(hex_id: str) -> dict:
     """An airplane's state now, for the alerts a pilot sets on it (the
     card's Alert): {"hex", "heard_s" (s since its last report, None with
@@ -1163,8 +1325,13 @@ def status(hex_id: str) -> dict:
     trace cannot be read now."""
     hex_id = hex_id.lower()
     trace = _recent_trace(hex_id)
-    if trace is UNREAD:
-        raise TrafficUnavailable("adsb.lol's recent trace could not be read")
+    if trace is UNREAD or (trace is None and _recorded(hex_id)):
+        # No recent trace to read: the track recorded while its card was
+        # open, where there is one (`_watch`), else unavailable.
+        recorded = _recorded(hex_id)
+        if not recorded:
+            raise TrafficUnavailable("adsb.lol's recent trace could not be read")
+        return _recorded_status(hex_id, recorded)
     if trace is None:
         trace = _trace(hex_id)
     raw = [p for p in (trace or {}).get("trace") or []
