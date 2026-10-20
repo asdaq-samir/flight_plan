@@ -35,7 +35,7 @@ export default function BriefCard({ name, line, contents, notice, marks, onClose
         printing={false} marks={marks} route={route} notice={notice} contents={contents} onTap={onTap} onLegs={onLegs}
         before={(
           <div className="px-4 pt-[var(--corner-inset,0.75rem)]">
-            <CardHead name={name} line={line} nameTestId="brief-name" lineTestId="brief-line" onClose={onClose} closeTestId="brief-close" />
+            <CardHead name={name} line={line} nameTestId="brief-name" lineTestId="brief-line" onClose={onClose} onShare="route" closeTestId="brief-close" />
           </div>
         )}
       />

@@ -208,7 +208,8 @@ test("a card opens half way; on a phone, lowered to the pill it is its name and 
   const name = panel.getByTestId("place-card").getByTestId("place-name");
   await expect(name).toBeVisible({ timeout: slow(15000) });
   test.skip((page.viewportSize()?.width ?? 0) >= 768, "the tabs minimize to a card's name on a phone only");
-  // Down to the pill: the minimized tabs, the card's name, Back and the close.
+  // Down to the pill: the minimized tabs, the card's name, Share and the
+  // close, which goes back to the tab as Back did.
   await grabberTo(page, "peek");
   await expect(page.getByTestId("tab-title")).toContainText("KDLH");
   await expect(panel.getByTestId("place-frequencies")).toBeHidden();

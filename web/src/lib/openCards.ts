@@ -7,23 +7,38 @@
  */
 import { create } from "zustand";
 
-const open: { close: () => void; inBar?: boolean }[] = [];
+/** A card's share: its own, or "route", the route's Share menu (the Brief's
+ *  and the nav log's, which are the route's). */
+export type CardShare = (() => void) | "route";
+
+type OpenCard = { close: () => void; inBar?: boolean; share?: CardShare };
+
+const open: OpenCard[] = [];
 
 /** How many cards are open whose way back is the minimized tab bar's Back
- *  (TabBar): a list's is its own head's, so it is not counted. */
-export const useOpenCards = create<{ count: number }>(() => ({ count: 0 }));
+ *  (TabBar): a list's is its own head's, so it is not counted. The top
+ *  one's share, where it has one (an airport's, an airplane's, the Brief's
+ *  and the nav log's): the bar's Share in place of its Back, at the
+ *  owner's ask. And whether the bar is minimized now, so drawing it: a
+ *  card with a share of its own in its body (FlightCard's) leaves it to
+ *  the bar there. */
+export const useOpenCards = create<{ count: number; share: CardShare | null; barMinimized: boolean }>(() => ({ count: 0, share: null, barMinimized: false }));
 
-const counted = () => open.filter(entry => entry.inBar !== false).length;
+function counted() {
+  const inBar = open.filter(entry => entry.inBar !== false);
+  return { count: inBar.length, share: inBar.at(-1)?.share ?? null };
+}
 
 /** A card's close -- or a list's Back, `inBar` false, its way back drawn
- *  in its own head -- kept while it is open; answers its removal. */
-export function holdOpenCard(entry: { close: () => void; inBar?: boolean }): () => void {
+ *  in its own head -- and its share, kept while it is open; answers its
+ *  removal. */
+export function holdOpenCard(entry: OpenCard): () => void {
   open.push(entry);
-  useOpenCards.setState({ count: counted() });
+  useOpenCards.setState(counted());
   return () => {
     const at = open.indexOf(entry);
     if (at >= 0) open.splice(at, 1);
-    useOpenCards.setState({ count: counted() });
+    useOpenCards.setState(counted());
   };
 }
 

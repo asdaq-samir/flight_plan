@@ -1,7 +1,8 @@
-import { useContext, useEffect, useRef, useState, type CSSProperties } from "react";
-import { ChevronDown, Settings, type LucideIcon } from "lucide-react";
+import { useContext, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { ChevronDown, Settings, Share, type LucideIcon } from "lucide-react";
 import BackButton from "./BackButton";
 import CloseButton from "./CloseButton";
+import RoundButton from "./RoundButton";
 import { cn } from "cn";
 import { closeTopCard, useOpenCards } from "../lib/openCards";
 import { TEXT } from "../lib/text";
@@ -119,7 +120,7 @@ function along(bar: HTMLElement, count: number, clientX: number) {
   return { x, width, tab, over: Math.min(count - 1, Math.floor(x / tab)) };
 }
 
-export default function TabBar<T extends string>({ tabs, tab, over, title, onPick, onUp, marks, onClose, listOver = false, className }: {
+export default function TabBar<T extends string>({ tabs, tab, over, title, onPick, onUp, marks, onClose, routeShare, listOver = false, className }: {
   tabs: BarTab<T>[];
   tab: T;
   /** The tab whose card is open over `tab` -- Airport's, an airport's card
@@ -138,8 +139,12 @@ export default function TabBar<T extends string>({ tabs, tab, over, title, onPic
    *  altitude, said at rest as the route's pill said it. */
   marks?: Partial<Record<T, "stop" | "caution">>;
   /** The minimized bar's close, at its right: whatever is open over the
-   *  tab put away and the sheet down to its pill, at the owner's ask. */
+   *  tab put away and the sheet down to its pill, at the owner's ask; over
+   *  a card with a share, one card back, as Back went. */
   onClose?: () => void;
+  /** The route's Share menu, in Back's place over the Brief and the nav
+   *  log (a card's share "route"). */
+  routeShare?: ReactNode;
   /** A list in full open over the tab -- its Favorites, Saved, Nearest --
    *  which the tab up tapped again puts away (`onUp`), the sheet where it
    *  is, as it puts a card away: lists keep their place as cards do, at
@@ -210,6 +215,17 @@ export default function TabBar<T extends string>({ tabs, tab, over, title, onPic
   // the tabs are not shown (minimized), as iOS's navigation bar's Back.
   const cards = useOpenCards(s => s.count);
   const back = minimized && !consoleOpen && cards > 0;
+  // An airport's card and an airplane's have their Share there instead,
+  // and their close goes back one card as Back did, at the owner's ask
+  // ("replace the back button on airport/aircraft with the share button.
+  // The close button should behave like the back button", 2026-10-20).
+  const share = useOpenCards(s => s.share);
+  const shareInstead = back && (typeof share === "function" || (share === "route" && !!routeShare));
+  useEffect(() => {
+    const barMinimized = minimized && !consoleOpen;
+    useOpenCards.setState({ barMinimized });
+    return () => useOpenCards.setState({ barMinimized: false });
+  }, [minimized, consoleOpen]);
   // A swipe across the panel goes back only, at the owner's ask ("let's
   // not support swipe to switch tabs... Swipe should only support going
   // back"): to the right, as iOS's swipe back goes, a card over the tab
@@ -414,6 +430,9 @@ export default function TabBar<T extends string>({ tabs, tab, over, title, onPic
         aria-label="Tabs" className={cn("relative flex h-full w-full cursor-pointer items-center justify-center print:hidden", className)}
         data-testid="tab-bar"
         onClick={event => {
+          // Not a tap in what the bar opened (the route's Share menu, in a
+          // portal of its own), whose clicks come up through it here.
+          if (!event.currentTarget.contains(event.target as Node)) return;
           const pressed = (event.target as HTMLElement).closest("button");
           if (!pressed) setShown(true);
         }}
@@ -429,7 +448,17 @@ export default function TabBar<T extends string>({ tabs, tab, over, title, onPic
           // (the line's px-2 and this left-2, the card's 16), so the two
           // read as the card's, not the tabs', at the owner's ask.
           <span className="absolute inset-y-0 left-2 flex items-center">
-            <BackButton onClick={() => closeTopCard()} data-testid="tab-back" />
+            {shareInstead ? (
+              share === "route" ? routeShare : (
+                // Drawn as Back and the close are: the glyph in the text's
+                // colour on the round glass button, a thin line.
+                <RoundButton label={title ? `Share ${title}` : "Share"} onClick={() => { if (typeof share === "function") share(); }} data-testid="tab-share">
+                  <Share className="size-5!" strokeWidth={1.9} />
+                </RoundButton>
+              )
+            ) : (
+              <BackButton onClick={() => closeTopCard()} data-testid="tab-back" />
+            )}
           </span>
         )}
         <button
@@ -458,7 +487,14 @@ export default function TabBar<T extends string>({ tabs, tab, over, title, onPic
           // chip stand 4 points out of the card's 16 (its -mr-1), so the
           // close does too, one column with them, at the owner's ask.
           <span className="absolute inset-y-0 right-1 flex items-center">
-            <CloseButton onClick={() => { if (consoleOpen) setConsoleOpen(false); onClose(); }} data-testid="tab-close" />
+            <CloseButton
+              onClick={() => {
+                if (shareInstead) return void closeTopCard();
+                if (consoleOpen) setConsoleOpen(false);
+                onClose();
+              }}
+              data-testid="tab-close"
+            />
           </span>
         )}
       </nav>

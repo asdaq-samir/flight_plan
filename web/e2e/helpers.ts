@@ -572,11 +572,17 @@ export async function tapNear(page: Page, mark: Locator, opens: RegExp) {
 
 /** A card put away by its way back: on a phone with the sheet up, the
  *  minimized tab bar's Back at its top left (TabBar), at the owner's ask,
- *  in place of the card's close; elsewhere the card's own close. */
+ *  in place of the card's close -- or, where Share stands there (an
+ *  airport's, an airplane's, the Brief, the nav log), the bar's close,
+ *  which goes back as Back did; elsewhere the card's own close. */
 export async function closeCard(page: Page, closeTestId: string) {
   const back = page.getByTestId("tab-back");
   if (await back.isVisible()) {
     await back.click();
+    return;
+  }
+  if (await page.getByTestId("tab-share").isVisible()) {
+    await page.getByTestId("tab-close").click();
     return;
   }
   // Else the card's own close, out of sight but for a keyboard (CardClose).

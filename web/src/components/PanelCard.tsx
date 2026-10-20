@@ -2,7 +2,7 @@ import { useEffect, useRef, type ReactNode } from "react";
 import { cn } from "cn";
 import CloseButton from "./CloseButton";
 import { FitText } from "./FitText";
-import { holdOpenCard } from "../lib/openCards";
+import { holdOpenCard, type CardShare } from "../lib/openCards";
 import { TEXT } from "../lib/text";
 
 /**
@@ -53,7 +53,7 @@ export function PanelCard({ testId, children }: { testId: string; children: Reac
  * what goes beside them (an airport's weather and its star), and the
  * close, out to the head's row's inset (px-3) as the route's close is.
  */
-export function CardHead({ name, line, nameTestId, lineClassName, lineTestId, onClose, closeTestId, children }: {
+export function CardHead({ name, line, nameTestId, lineClassName, lineTestId, onClose, onShare, closeTestId, children }: {
   name: ReactNode;
   /** Under the name; none where the caller sets it out itself (an
    *  airport's card, beside its diagram's thumbnail). */
@@ -62,6 +62,8 @@ export function CardHead({ name, line, nameTestId, lineClassName, lineTestId, on
   lineClassName?: string;
   lineTestId?: string;
   onClose: () => void;
+  /** Its share, for the bar's (CardClose). */
+  onShare?: CardShare;
   closeTestId: string;
   /** Between the name and the close. */
   children?: ReactNode;
@@ -73,7 +75,7 @@ export function CardHead({ name, line, nameTestId, lineClassName, lineTestId, on
         {line != null && <p className={cn("text-muted-foreground", TEXT.note, lineClassName)} data-testid={lineTestId}>{line}</p>}
       </div>
       {children}
-      <CardClose onClose={onClose} testId={closeTestId} className="-mr-1" />
+      <CardClose onClose={onClose} onShare={onShare} testId={closeTestId} className="-mr-1" />
     </div>
   );
 }
@@ -145,10 +147,23 @@ export function CardTop({ name, nameTestId, nameFitTestId, lines, picture, side,
  * airspace's, with no other, a stop in its scrolling region). With the
  * tabs shown, the tab up tapped again puts the card away.
  */
-export function CardClose({ onClose, testId }: { onClose: () => void; testId: string; className?: string }) {
+export function CardClose({ onClose, onShare, testId }: {
+  onClose: () => void;
+  /** The card's share (an airport's, an airplane's, or the route's for
+   *  the Brief and the nav log): the minimized tab bar's Share where its
+   *  Back was (TabBar). */
+  onShare?: CardShare;
+  testId: string;
+  className?: string;
+}) {
   const close = useRef(onClose);
-  useEffect(() => { close.current = onClose; });
-  useEffect(() => holdOpenCard({ close: () => close.current() }), []);
+  const share = useRef(onShare);
+  useEffect(() => { close.current = onClose; share.current = onShare; });
+  const shares = onShare === "route" ? "route" : !!onShare;
+  useEffect(() => holdOpenCard({
+    close: () => close.current(),
+    share: shares === "route" ? "route" : shares ? () => { if (typeof share.current === "function") share.current(); } : undefined,
+  }), [shares]);
   return (
     <span className="sr-only focus-within:not-sr-only">
       <CloseButton onClick={onClose} data-testid={testId} />
