@@ -40,7 +40,7 @@ from .. import planning as planning_module
 from ..schemas import (
     AltitudeChoice,
     FlightRules,
-    AltitudeOption,
+    AltitudeFigure, AltitudeOption,
     ChartLayer,
     ChartSheet,
     Checkpoints,
@@ -277,6 +277,8 @@ class Flown:
     #: For each hop flown at a pilot's own altitude, what is wrong with it
     #: (own_altitude_caution).
     cautions: tuple = ()
+    #: The route flown at each altitude the wheel offers (AltitudeFigure).
+    figures: tuple = ()
 
     @property
     def hop_legs(self) -> list:
@@ -299,6 +301,7 @@ class NoWinds:
     selection: dict
     options: list[AltitudeOption]
     error: WeatherServiceError
+    figures: tuple = ()
 
 
 def resolve_altitude(
@@ -325,19 +328,20 @@ def resolve_altitude(
         plans, failure = {}, err
     options = [AltitudeOption(kind=kind, **{k: v for k, v in plans[kind].items() if k not in ("legs", "totals")})
                for kind in navlog.PLAN_KINDS] if plans else []
+    figures = tuple(AltitudeFigure(**f) for f in getattr(plans, "by_altitude", []))
     if altitude_ft is not None:
         try:
             legs = navlog.with_climbs(navlog.legs(fix_list, altitude_ft, profile, fcst_hr), departure_elevation(r), profile)
         except WeatherServiceError as err:
-            return NoWinds(selection, options, err)
+            return NoWinds(selection, options, err, figures)
         caution = own_altitude_caution(selection, legs, (r.dep_ident, r.dest_ident))
-        return Flown(selection, options, None, altitude_ft, legs, cautions=(caution,) if caution else ())
+        return Flown(selection, options, None, altitude_ft, legs, cautions=(caution,) if caution else (), figures=figures)
     if failure is not None:
-        return NoWinds(selection, options, failure)
+        return NoWinds(selection, options, failure, figures)
     if not plans:
         return Unflyable(selection)
     legs = plans[choice]["legs"]
-    return Flown(selection, options, choice, legs[0]["altitude_ft"], legs)
+    return Flown(selection, options, choice, legs[0]["altitude_ft"], legs, figures=figures)
 
 
 def _fixes(fix_list: list) -> list:
@@ -434,6 +438,34 @@ def join_options(options_by_hop: list[list[AltitudeOption]], lengths: list[float
     return joined
 
 
+def join_figures(figures_by_hop: list[tuple], lengths: list[float]) -> tuple:
+    """A route with stops' figures at each altitude (AltitudeFigure), from
+    each hop's: every altitude any hop offers, each hop at it or, where it
+    does not offer it, at its own nearest (the lower on a tie), as a pilot
+    who picks it flies that hop; times and fuel summed, the wind weighed
+    by each hop's length. One hop's as they are."""
+    if len(figures_by_hop) == 1:
+        return figures_by_hop[0]
+    if any(not figures for figures in figures_by_hop):
+        return ()
+    joined = []
+    for target in sorted({f.altitude_ft for figures in figures_by_hop for f in figures}):
+        mine = [min(figures, key=lambda f: (abs(f.altitude_ft - target), f.altitude_ft)) for figures in figures_by_hop]
+
+        def total(attr, mine=mine):
+            values = [getattr(f, attr) for f in mine]
+            return None if any(v is None for v in values) else round(sum(values), 1)
+
+        winds = [(f.tailwind_kt, n) for f, n in zip(mine, lengths) if f.tailwind_kt is not None]
+        weight = sum(n for _, n in winds)
+        joined.append(AltitudeFigure(
+            altitude_ft=target, ete_min=total("ete_min"), fuel_gal=total("fuel_gal"),
+            tailwind_kt=round(sum(t * n for t, n in winds) / weight, 1) if weight else None,
+            everywhere=all(f.everywhere and f.altitude_ft == target for f in mine),
+        ))
+    return tuple(joined)
+
+
 def join_outcomes(runs: list[HopRun], outcomes: list) -> "Flown | Unflyable | NoWinds":
     """What a route with stops flies, from each hop's own outcome: the
     first hop with no legal altitude makes the route unflyable, and says
@@ -448,16 +480,17 @@ def join_outcomes(runs: list[HopRun], outcomes: list) -> "Flown | Unflyable | No
     offsets = [sum(lengths[:i]) for i in range(len(lengths))]
     selection = join_selections([o.selection for o in outcomes], offsets)
     options = join_options([o.options for o in outcomes], lengths)
+    figures = join_figures([o.figures for o in outcomes], lengths)
     for outcome in outcomes:
         if isinstance(outcome, NoWinds):
-            return NoWinds(selection, options, outcome.error)
+            return NoWinds(selection, options, outcome.error, figures)
     # The plan the route flies is the one its hops are flown on, a hop
     # into a waypoint at its own altitude (resolve_run) or not.
     planned = next((o for o in outcomes if o.choice is not None), outcomes[0])
     return Flown(
         selection, options, planned.choice, planned.altitude_ft,
         [leg for o in outcomes for leg in o.legs], tuple(o.legs for o in outcomes),
-        tuple(c for o in outcomes for c in o.cautions),
+        tuple(c for o in outcomes for c in o.cautions), figures,
     )
 
 
@@ -921,6 +954,7 @@ def plan(q: Annotated[PlanQuery, Depends()]) -> Plan:
         altitude_choice=outcome.choice,
         altitude_cautions=list(outcome.cautions),
         class_b_detours=class_b_detours_of(runs, outcome, q),
+        altitude_figures=list(outcome.figures),
         aircraft={"name": q.aircraft, **profile},
         **_chart_info(),
     )
@@ -1049,6 +1083,7 @@ def navlog_stream(q: Annotated[PlanQuery, Depends()]) -> StreamingResponse:
                 altitude_selection=outcome.selection,
                 options=outcome.options,
                 aircraft=aircraft_line,
+                altitude_figures=list(outcome.figures),
             ))
             yield line(NavLogError(detail=str(outcome.error)))
             return
@@ -1064,6 +1099,7 @@ def navlog_stream(q: Annotated[PlanQuery, Depends()]) -> StreamingResponse:
             aircraft=aircraft_line,
             cautions=list(outcome.cautions),
             class_b_detours=class_b_detours_of(runs, outcome, q),
+            altitude_figures=list(outcome.figures),
         ))
         outcome = with_procedures(r, runs, outcome, drawn)
         for leg in flown_legs(r, runs, outcome, own, drawn):

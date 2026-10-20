@@ -569,3 +569,23 @@ def test_with_the_class_b_clearance_each_hop_through_it_is_offered_a_way_round(m
     assert plan_router.class_b_detours_of(runs, outcome, SimpleNamespace(class_b_clearance=False)) == []
     no_b = SimpleNamespace(selection={"airspace_transits": [{"class": "C"}]}, hop_legs=outcome.hop_legs)
     assert plan_router.class_b_detours_of(runs, no_b, cleared) == []
+
+
+def test_a_route_with_stops_figures_at_each_altitude_join_its_hops():
+    """A hop that does not offer an altitude flies its nearest, the lower
+    on a tie; times and fuel summed, the wind weighed by length."""
+    from app.routers.plan import join_figures
+    from app.schemas import AltitudeFigure
+
+    def f(alt, ete, fuel, wind, everywhere=True):
+        return AltitudeFigure(altitude_ft=alt, ete_min=ete, fuel_gal=fuel, tailwind_kt=wind, everywhere=everywhere)
+
+    west = (f(4500.0, 30.0, 4.0, 10.0), f(6500.0, 28.0, 4.1, 20.0))
+    east = (f(5500.0, 20.0, 3.0, -10.0),)
+    joined = {j.altitude_ft: j for j in join_figures([west, east], [100.0, 50.0])}
+    assert sorted(joined) == [4500.0, 5500.0, 6500.0]
+    assert (joined[4500.0].ete_min, joined[4500.0].fuel_gal, joined[4500.0].everywhere) == (50.0, 7.0, False)
+    # 5,500 is 1,000 ft from both of the west hop's: the lower, 4,500.
+    assert joined[5500.0].ete_min == 50.0
+    assert joined[6500.0].tailwind_kt == pytest.approx((20.0 * 100 + -10.0 * 50) / 150, abs=0.05)
+    assert join_figures([west], [100.0]) == west

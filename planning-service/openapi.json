@@ -2100,6 +2100,61 @@
         "title": "AltitudeCaution",
         "type": "object"
       },
+      "AltitudeFigure": {
+        "description": "The route flown at one altitude, for the altitude wheel (the owner's\npick, 2026-10-20): each leg at it where it is legal there, else at the\nleg's nearest legal altitude (`everywhere` false then); the times and\nfuel with the climbs, the wind along the legs, positive helping.",
+        "properties": {
+          "altitude_ft": {
+            "title": "Altitude Ft",
+            "type": "number"
+          },
+          "ete_min": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ete Min"
+          },
+          "everywhere": {
+            "title": "Everywhere",
+            "type": "boolean"
+          },
+          "fuel_gal": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fuel Gal"
+          },
+          "tailwind_kt": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tailwind Kt"
+          }
+        },
+        "required": [
+          "altitude_ft",
+          "ete_min",
+          "fuel_gal",
+          "tailwind_kt",
+          "everywhere"
+        ],
+        "title": "AltitudeFigure",
+        "type": "object"
+      },
       "AltitudeOption": {
         "description": "One of the four plans -- lowest, highest, fastest, economical --\nas its steps and what it costs. `ete_min` is the flying time with every climb\nflown (`climb_penalty_min` is how many of those minutes are climb),\nthe figure the plans are compared on; `tailwind_kt` the\ndistance-weighted wind component along the course, positive helping,\nover the legs that had wind data.",
         "properties": {
@@ -5720,6 +5775,14 @@
           "aircraft": {
             "$ref": "#/components/schemas/AircraftProfile"
           },
+          "altitude_figures": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/AltitudeFigure"
+            },
+            "title": "Altitude Figures",
+            "type": "array"
+          },
           "altitude_ft": {
             "anyOf": [
               {
@@ -7507,6 +7570,14 @@
               }
             ],
             "title": "Altitude Choice"
+          },
+          "altitude_figures": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/AltitudeFigure"
+            },
+            "title": "Altitude Figures",
+            "type": "array"
           },
           "altitude_ft": {
             "title": "Altitude Ft",

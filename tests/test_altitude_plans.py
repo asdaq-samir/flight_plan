@@ -306,3 +306,22 @@ def test_a_plan_whose_legs_with_a_wind_have_no_length_has_no_tailwind(monkeypatc
     same = [FIXES[0], FIXES[0]]
     plans = navlog.altitude_profiles(same, _segments([[3500.0]]), PROFILE)
     assert plans["lowest"]["tailwind_kt"] is None
+
+
+def test_the_route_flown_at_each_altitude_any_leg_may_fly_is_given_for_the_wheel(monkeypatch):
+    """The altitude wheel's figures (the owner's pick, 2026-10-20): every
+    altitude a leg may fly, the route flown at it, a leg where it is not
+    legal at its own nearest -- here the second leg, legal at 3,500 alone."""
+    monkeypatch.setattr(navlog, "wind_at_altitude", _winds({
+        3500.0: {"wind_dir_true_deg": 225.0, "wind_speed_kt": 0.0},
+        5500.0: {"wind_dir_true_deg": 225.0, "wind_speed_kt": 30.0},
+    }))
+    plans = navlog.altitude_profiles(FIXES, _segments([[3500.0, 5500.0], [3500.0]]), PROFILE)
+    figures = {f["altitude_ft"]: f for f in plans.by_altitude}
+    assert sorted(figures) == [3500.0, 5500.0]
+    assert figures[3500.0]["everywhere"] and not figures[5500.0]["everywhere"]
+    # All at 3,500 is the lowest plan; 5,500 has the tailwind on its first leg.
+    assert (figures[3500.0]["ete_min"], figures[3500.0]["fuel_gal"]) == (plans["lowest"]["ete_min"], plans["lowest"]["fuel_gal"])
+    assert figures[5500.0]["tailwind_kt"] > figures[3500.0]["tailwind_kt"]
+    # The four plans are still four.
+    assert set(plans) == set(navlog.PLAN_KINDS)

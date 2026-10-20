@@ -471,10 +471,17 @@ def _steps(fix_list: list, altitudes: list, leg_list: list) -> list:
     return steps
 
 
+class AltitudePlans(dict):
+    """The four plans by kind (altitude_profiles), and `by_altitude`: the
+    route flown at each altitude any leg may fly, for the altitude wheel."""
+
+    by_altitude: list = []
+
+
 def altitude_profiles(
     fix_list: list, segments: list, aircraft_profile: dict, fcst_hr: str = "06",
     departure_elevation_ft: float | None = None,
-) -> dict:
+) -> AltitudePlans:
     """The lowest, highest, fastest and most economical ways to fly the
     fixes, each as a per-leg altitude plan: {"lowest"|"highest"|
     "fastest"|"economical": {"legs", "totals", "steps",
@@ -502,7 +509,7 @@ def altitude_profiles(
     """
     leg_count = len(fix_list) - 1
     if len(segments) != leg_count or any(not s["candidates_ft"] for s in segments):
-        return {}
+        return AltitudePlans()
     candidates = [list(s["candidates_ft"]) for s in segments]
     if not (aircraft_profile.get("supplemental_oxygen") or aircraft_profile.get("pressurized")):
         # Held under the oxygen altitude where a leg has a choice; a
@@ -550,18 +557,12 @@ def altitude_profiles(
     # first altitude, and up again at every step -- so the times and
     # fuel compared, and then flown, are the climbs' included. The DP
     # above used the quicker penalty to choose; the legs are the truth.
-    plans = {}
+    plans = AltitudePlans()
     for kind, altitudes in paths.items():
         leg_list = with_climbs([leg_at(i, a) for i, a in enumerate(altitudes)], departure_elevation_ft, aircraft_profile)
         plan_totals = totals(leg_list)
         climb_min = round(sum(leg["climb_min"] for leg in leg_list), 1)
-        with_wind = [leg for leg in leg_list if leg.get("wind") is not None and leg["groundspeed_kt"] is not None]
-        # Weighed by distance, so none where the legs with a wind have
-        # none: a hop of no length had nothing to divide by.
-        wind_nm = sum(leg["distance_nm"] for leg in with_wind)
-        tailwind = (
-            sum((leg["groundspeed_kt"] - leg["tas_kt"]) * leg["distance_nm"] for leg in with_wind) / wind_nm
-        ) if wind_nm > 0 else None
+        tailwind = _tailwind_kt(leg_list)
         plans[kind] = {
             "legs": leg_list,
             "totals": plan_totals,
@@ -572,8 +573,35 @@ def altitude_profiles(
             "ete_min": plan_totals["ete_min"],
             "fuel_gal": plan_totals["fuel_gal"],
             "climb_penalty_min": climb_min,
-            "tailwind_kt": None if tailwind is None else round(tailwind, 1),
+            "tailwind_kt": tailwind,
             "unflyable_legs": plan_totals["unflyable_legs"],
             "legs_without_wind": plan_totals["legs_without_wind"],
         }
+
+    # The route flown at each altitude any leg may fly, for the altitude
+    # wheel's figures (the owner's pick, 2026-10-20): each leg at it where
+    # it is legal there, else at the leg's own legal altitude nearest it,
+    # the lower on a tie -- the legs already worked out above, from the
+    # cache. `everywhere` says whether every leg flies it.
+    def flown_at(target: float) -> dict:
+        altitudes = [target if target in options else min(options, key=lambda a: (abs(a - target), a)) for options in candidates]
+        leg_list = with_climbs([leg_at(i, a) for i, a in enumerate(altitudes)], departure_elevation_ft, aircraft_profile)
+        flown = totals(leg_list)
+        return {
+            "altitude_ft": target, "ete_min": flown["ete_min"], "fuel_gal": flown["fuel_gal"],
+            "tailwind_kt": _tailwind_kt(leg_list), "everywhere": all(a == target for a in altitudes),
+        }
+
+    plans.by_altitude = [flown_at(a) for a in sorted({a for options in candidates for a in options})]
     return plans
+
+
+def _tailwind_kt(leg_list: list) -> float | None:
+    """The wind along the legs, knots, positive helping: weighed by
+    distance over the legs that had one, so none where none had a wind --
+    a hop of no length had nothing to divide by."""
+    with_wind = [leg for leg in leg_list if leg.get("wind") is not None and leg["groundspeed_kt"] is not None]
+    wind_nm = sum(leg["distance_nm"] for leg in with_wind)
+    if wind_nm <= 0:
+        return None
+    return round(sum((leg["groundspeed_kt"] - leg["tas_kt"]) * leg["distance_nm"] for leg in with_wind) / wind_nm, 1)
