@@ -1,4 +1,4 @@
-import { Suspense, lazy, useRef, type ComponentProps, type KeyboardEvent, type PointerEvent } from "react";
+import { Suspense, lazy, memo, useMemo, useRef, type ComponentProps, type KeyboardEvent, type PointerEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Pause, Play } from "lucide-react";
 import { cn } from "cn";
@@ -9,7 +9,7 @@ import { routeProfileQuery } from "../../../lib/queryClient";
 import { TEXT } from "../../../lib/text";
 import { altFt } from "../../../lib/units";
 import FlightLine from "./FlightLine";
-import { dryRunFlown, runNmAt, type DryRun } from "./navlog/dryRun";
+import { dryRunFlown, runNmAt, type DryRun, type Flown } from "./navlog/dryRun";
 import type { RouteEnds } from "./navlog/rows";
 import { loadFlightChart } from "./loadFlightChart";
 
@@ -185,11 +185,30 @@ function timeAt(run: DryRun, nm: number): number {
  *  has burnt. They had been figures of their own (Dist left, Time left,
  *  ETA, To burn). */
 export function DryRunFigures({ run, ...line }: { run: DryRun } & Omit<ComponentProps<typeof FlightLine>, "flown" | "grow">) {
-  const at = usePastFlight(s => s.at);
-  const flown = dryRunFlown(run, at ?? run.points[0]?.t ?? 0);
+  // As far as the figures say it -- a tenth of a mile and of a gallon, a
+  // minute -- so the strip is drawn again only when one changes, not at
+  // each of the run's frames: it measures its figures to fit them
+  // (useFigureFit), and the map's own frames came second to it.
+  const key = usePastFlight(s => {
+    const flown = dryRunFlown(run, s.at ?? run.points[0]?.t ?? 0);
+    if (!flown) return "";
+    const { hop, now, next, last, burntGal } = flown;
+    return [hop, Math.floor(now / 60) * 60, next.nm.toFixed(1), Math.round(next.min), last.nm.toFixed(1), Math.round(last.min), burntGal.toFixed(1)].join(" ");
+  });
+  const flown = useMemo((): Flown | null => {
+    if (!key) return null;
+    const [hop, now, nextNm, nextMin, lastNm, lastMin, burnt] = key.split(" ").map(Number) as [number, number, number, number, number, number, number];
+    return {
+      hop, now, burntGal: burnt,
+      next: { nm: nextNm, min: nextMin, at: now + nextMin * 60 }, last: { nm: lastNm, min: lastMin, at: now + lastMin * 60 },
+    };
+  }, [key]);
   return (
     <div data-testid="dry-run-figures">
-      <FlightLine {...line} flown={flown} grow />
+      <SteadyLine {...line} flown={flown} grow />
     </div>
   );
 }
+
+/** The flight's figures drawn again only for new ones (DryRunFigures). */
+const SteadyLine = memo(FlightLine);
