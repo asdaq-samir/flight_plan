@@ -20,6 +20,9 @@ export function fromChunk<M, P extends object>(load: () => Promise<M>, pick: (mo
   const fetch = () => load().then(module => (loaded = module));
   const Waited = lazy(() => fetch().then(module => ({ default: pick(module) })));
   function Part(props: P) {
+    // Not compiled, as the route panel's parts are not (PlanWorkspace's
+    // fromRoutePanel): the compiler lost the factory's own `Waited`.
+    "use no memo";
     const [Drawn] = useState(() => (loaded ? pick(loaded) : Waited));
     return <Drawn {...props} />;
   }

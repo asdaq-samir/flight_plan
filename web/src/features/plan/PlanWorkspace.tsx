@@ -99,6 +99,10 @@ function fromRoutePanel<K extends keyof RoutePanel>(name: K) {
   type Props = PropsOf<RoutePanel[K]>;
   const Waited = lazy(() => loadRoutePanel().then(m => ({ default: m[name] as ComponentType<Props> })));
   return memo(function RoutePanelPart(props: Props) {
+    // Not compiled: the React Compiler (1.0.0) lost `Waited`, this
+    // factory's own, from the compiled part, and the page failed to draw
+    // ("Waited is not defined"). Memoised by hand already (memo).
+    "use no memo";
     // The one it was first drawn with, for good: a part drawn before the
     // chunk came, switched to the module's own once it had, was a new part
     // from nothing, its state lost -- and drawn again only when its props
