@@ -630,3 +630,60 @@ def test_a_hold_at_a_stop_is_flown_on_the_leg_leaving_it_and_its_minutes_are_in_
     assert held["totals"]["fuel_gal"] == pytest.approx(plain["totals"]["fuel_gal"] + hold["gal"], abs=0.1)
     # One that is not a hold is refused.
     assert client.get("/api/plan", params={**VIA_MADISON, "holds": "KMSN:999:L:1M:2T"}).status_code == 422
+
+
+def test_an_altitude_on_the_pilots_own_point_off_a_fix_is_flown_to_it(monkeypatch):
+    # Set altitude… on "VPBNG/090/30" was a 422 for the whole log: the
+    # planner took an ident of 2 to 5 letters and digits alone. Packed, or
+    # as the route writes it, the hop into the point is flown at it.
+    vpbng = {"ident": "VPBNG", "lat": 42.27, "lon": -88.13, "kind": "VFR waypoint", "vfr": True}
+    monkeypatch.setattr(fixes, "_TABLE", fixes._Table({"VPBNG": vpbng}, {}))
+    monkeypatch.setattr(fixes, "find_navaid", REAL_FIND_NAVAID)
+    for written in ("VPBNG/090/30", "VPBNG090030"):
+        got = client.get("/api/plan", params={"dep": "C81", "dest": "KDLH", "stops": "VPBNG/090/30", "altitudes": f"{written}:5500"})
+        assert got.status_code == 200, (written, got.text)
+        into = [leg for leg in got.json()["legs"] if leg["to"] == "VPBNG/090/30"]
+        assert into and into[-1]["altitude_ft"] == 5500.0, written
+
+
+def test_an_altitude_picked_on_the_wheel_flies_each_leg_at_its_nearest_legal_altitude():
+    # The wheel's figures are each leg at its nearest legal altitude; its
+    # pick is flown so (altitude_nearest), where a typed one is flown on
+    # every leg, legal or not. Here 4,500 is every leg's one legal altitude.
+    typed = client.get("/api/plan", params={**VIA_MADISON, "altitude_ft": 6500}).json()
+    wheel = client.get("/api/plan", params={**VIA_MADISON, "altitude_ft": 6500, "altitude_nearest": True}).json()
+    assert {leg["altitude_ft"] for leg in typed["legs"]} == {6500.0}
+    assert {leg["altitude_ft"] for leg in wheel["legs"]} == {4500.0}
+
+
+def test_a_round_trips_hold_at_its_field_is_the_arrivals():
+    # C81 to Madison and back: a hold set at C81 is flown before landing
+    # there, its fuel on the last flight; matched as the departure, it was
+    # on the first flight out, and the last flight's fuel came up short.
+    held = client.get("/api/plan", params={"dep": "C81", "dest": "C81", "stops": "KMSN", "holds": "C81:180:L:1M:2T"}).json()
+    legs = held["legs"]
+    assert [k for k, leg in enumerate(legs) if leg.get("hold")] == [len(legs) - 1]
+
+
+def test_a_hold_makes_the_flights_after_it_leave_later(monkeypatch):
+    # Two one-minute turns at the departure (eight minutes) are flown on the
+    # first flight, so the second leaves eight minutes later: its winds and
+    # night are read for then, as the time on the ground is.
+    from datetime import datetime, timedelta, timezone
+
+    from app.routers import plan as plan_router
+
+    starts = []
+    real = plan_router.flight_window
+
+    def window(when, length_nm, tas):
+        starts.append(when)
+        return real(when, length_nm, tas)
+
+    monkeypatch.setattr(plan_router, "flight_window", window)
+    depart = datetime(2026, 9, 22, 15, 0, tzinfo=timezone.utc).isoformat()
+    client.get("/api/plan", params={**VIA_MADISON, "depart": depart})
+    plain = starts[1]
+    starts.clear()
+    client.get("/api/plan", params={**VIA_MADISON, "depart": depart, "holds": "C81:180:L:1M:2T"})
+    assert starts[1] - plain == timedelta(minutes=8)

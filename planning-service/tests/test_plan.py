@@ -128,6 +128,9 @@ def test_a_departure_time_picks_the_winds_forecast_period(monkeypatch, messages)
         return _leg(start, end, altitude_ft, profile, fcst_hr)
 
     monkeypatch.setattr(navlog, "assemble_leg", leg)
+    # No product's header to hand: the period by hours ahead.
+    from vfr import weather
+    monkeypatch.setattr(weather, "winds_period", lambda fcst_hr="06": None)
     soon = (datetime.now(timezone.utc) + timedelta(hours=2)).isoformat()
     later = (datetime.now(timezone.utc) + timedelta(hours=14)).isoformat()
     tomorrow = (datetime.now(timezone.utc) + timedelta(hours=30)).isoformat()
@@ -144,6 +147,27 @@ def test_a_departure_time_picks_the_winds_forecast_period(monkeypatch, messages)
         assert set(asked) <= {expected}, depart
         seen |= set(asked)
     assert {"06", "24"} <= seen
+
+
+def test_the_winds_product_is_the_one_whose_for_use_window_holds_the_departure(monkeypatch):
+    """AC 00-45H table 5-21, the 1200Z run: the 6-hour product for use
+    1400-2100Z, the 12-hour 2100-0600Z, the 24-hour 0600-1800Z."""
+    from datetime import datetime, timezone
+
+    from app import planning
+    from vfr import weather
+
+    periods = {
+        "06": {"valid_at": "2026-10-20T18:00:00Z", "use_from": "2026-10-20T14:00:00Z", "use_to": "2026-10-20T21:00:00Z"},
+        "12": {"valid_at": "2026-10-21T00:00:00Z", "use_from": "2026-10-20T21:00:00Z", "use_to": "2026-10-21T06:00:00Z"},
+        "24": {"valid_at": "2026-10-21T12:00:00Z", "use_from": "2026-10-21T06:00:00Z", "use_to": "2026-10-21T18:00:00Z"},
+    }
+    monkeypatch.setattr(weather, "winds_period", lambda fcst_hr="06": periods[fcst_hr])
+    at = lambda h, m=0, day=20: datetime(2026, 10, day, h, m, tzinfo=timezone.utc)  # noqa: E731
+    assert planning.forecast_hour_for(at(15)) == "06"
+    # Eight and a half hours from 1400Z: the 12-hour product, not the 6-hour.
+    assert planning.forecast_hour_for(at(22, 30)) == "12"
+    assert planning.forecast_hour_for(at(6, 30, day=21)) == "24"
 
 
 def test_totals_say_when_the_plan_was_made_and_the_winds_it_flies(messages, monkeypatch):

@@ -1079,8 +1079,9 @@ class AlertsAhead(BaseModel):
 class TrafficAircraft(BaseModel):
     """One airplane in the air near the point (vfr.traffic): who, where,
     how high -- the GNSS height where it sends one, else its pressure
-    altitude (`pressure_altitude`) -- its track, speed and climb, and how
-    many seconds old its position is."""
+    altitude set on the nearest METAR's altimeter (vfr.traffic.on_altimeter),
+    or as sent where none is near (`pressure_altitude`) -- its track, speed
+    and climb, and how many seconds old its position is."""
 
     hex: str
     callsign: str | None = None

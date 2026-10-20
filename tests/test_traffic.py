@@ -54,6 +54,8 @@ def clock(monkeypatch, tmp_path):
     monkeypatch.setattr(traffic, "_FOLLOWED", set())
     monkeypatch.setattr(traffic, "_FOLLOWED_READ", {"done": False})
     monkeypatch.setattr(traffic, "_LOOKED", {"at": float("-inf")})
+    # No METAR near: pressure altitudes as sent (on_altimeter's own test).
+    monkeypatch.setattr(traffic.weather, "nearest_report", lambda lat, lon, **kw: None)
     return clock
 
 
@@ -1156,3 +1158,19 @@ def test_the_faa_radar_is_read_in_full_only_while_the_map_shows_traffic(clock, m
     assert traffic.radar_wanted() is None
     clock.now += traffic.LOOKED_S + 1
     assert traffic.radar_wanted() == {"a3c858"}
+
+
+def test_pressure_altitudes_are_set_on_the_nearest_altimeter(clock, monkeypatch):
+    """The FAA's radar sends pressure altitude (29.92): on a 30.42 day an
+    airplane at 4,500 ft on the altimeter is sent as 4,000, and read 500 ft
+    below own ship's GPS height level with it. Set on the nearest METAR's
+    altimeter, about 1,000 ft an inch; a GNSS height is left alone."""
+    monkeypatch.setattr(traffic.weather, "nearest_report", lambda lat, lon, **kw: {"metar": {"altimeter_in_hg": 30.42}})
+    baro = {"hex": "a3c858", "altitude_ft": 4000.0, "pressure_altitude": True}
+    gnss = {"hex": "a6ed61", "altitude_ft": 8000.0, "pressure_altitude": False}
+    out = traffic.on_altimeter([baro, gnss], 42.3, -88.1)
+    assert out[0]["altitude_ft"] == 4500 and out[0]["pressure_altitude"] is False
+    assert out[1] == gnss
+    # None near: as sent, still marked.
+    monkeypatch.setattr(traffic.weather, "nearest_report", lambda lat, lon, **kw: None)
+    assert traffic.on_altimeter([baro], 42.3, -88.1) == [baro]

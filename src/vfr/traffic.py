@@ -38,7 +38,7 @@ import numpy as np
 import requests
 from cachetools import TTLCache
 
-from . import airports, geo, registry
+from . import airports, geo, registry, weather
 from .config import DATA_DIR
 
 log = logging.getLogger(__name__)
@@ -464,7 +464,35 @@ def near(lat: float, lon: float, radius_nm: float) -> dict:
     # And the FAA's terminal radar's (app.swim): every airplane with a
     # transponder its STARS facilities track, which no ADS-B network may hear.
     radar = _elsewhere_near(lat, lon, radius, have | {p["hex"] for p in watched})
-    return {"aircraft": planes + watched + radar, "age_s": round(_clock() - at, 1), **credit}
+    return {"aircraft": on_altimeter(planes + watched + radar, lat, lon), "age_s": round(_clock() - at, 1), **credit}
+
+
+#: How far the METAR whose altimeter setting corrects the view's pressure
+#: altitudes may be, nm: a view a state wide is under one setting to within
+#: a few hundredths of an inch, a few tens of feet.
+ALTIMETER_NM = 100.0
+
+
+def on_altimeter(planes: list[dict], lat: float, lon: float) -> list[dict]:
+    """The airplanes that send only their pressure altitude (`alt_baro`,
+    the FAA's radar's Mode C: 29.92 inHg, 14 CFR 91.217(a)(2)) set on the
+    nearest METAR's altimeter setting, as an altimeter there reads them --
+    about 1,000 ft an inch of mercury (the Pilot's Handbook of Aeronautical
+    Knowledge, FAA-H-8083-25C, chapter 8) -- so they compare with own
+    ship's height above sea level: an airplane level with it on a 30.42 day
+    read 500 ft above. Left as sent, and marked so, with no setting near."""
+    if not any(p.get("pressure_altitude") and p.get("altitude_ft") is not None for p in planes):
+        return planes
+    try:
+        near = weather.nearest_report(lat, lon, within_nm=ALTIMETER_NM)
+    except weather.WeatherServiceError:
+        return planes
+    setting = ((near or {}).get("metar") or {}).get("altimeter_in_hg")
+    if not setting:
+        return planes
+    shift = (setting - 29.92) * 1000
+    return [{**p, "altitude_ft": round(p["altitude_ft"] + shift), "pressure_altitude": False}
+            if p.get("pressure_altitude") and p.get("altitude_ft") is not None else p for p in planes]
 
 
 # --- One airplane: found by what a pilot knows it by, and its flight ---

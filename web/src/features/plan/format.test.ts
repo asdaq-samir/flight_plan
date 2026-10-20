@@ -134,4 +134,12 @@ describe("plannedWords and windsOutOfDate", () => {
     expect(windsOutOfDate(totals, Date.parse("2026-10-20T18:01:00Z"))).toBe(true);
     expect(windsOutOfDate({ ...totals, winds: null }, Date.parse("2026-10-21T00:00:00Z"))).toBe(false);
   });
+
+  it("has them out of date for a departure outside their period, though now is in it", () => {
+    const now = Date.parse("2026-10-20T14:00:00Z");
+    expect(windsOutOfDate(totals, now, "2026-10-20T17:00:00Z")).toBe(false);
+    expect(windsOutOfDate(totals, now, "2026-10-20T22:30:00Z")).toBe(true);
+    // A departure already past is flown now.
+    expect(windsOutOfDate(totals, now, "2026-10-20T08:00:00Z")).toBe(false);
+  });
 });
