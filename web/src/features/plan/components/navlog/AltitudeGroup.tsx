@@ -175,7 +175,7 @@ export default function AltitudeGroup({ nav, legs, problem = false, ownAltitude 
  * and flown once it rests a moment: its plan where it is one's, else as
  * the pilot's own.
  */
-export function AltitudeProfile({ nav, legs, ends, chart, corner, wheelHidden = false, problem, tight = null, classBAvoided = false, onAvoidClassB, onAllowClassB, onAltitudeChoiceChange, onFlyAltitude, rules = "vfr", onRulesChange }: {
+export function AltitudeProfile({ nav: navNow, legs: legsNow, ends, chart, corner, wheelHidden = false, problem, tight = null, classBAvoided = false, onAvoidClassB, onAllowClassB, onAltitudeChoiceChange, onFlyAltitude, rules = "vfr", onRulesChange }: {
   nav: NavLogAltitude | null;
   legs: Leg[];
   /** The route, for its Class B on the side view (routeProfileQuery). */
@@ -202,6 +202,18 @@ export function AltitudeProfile({ nav, legs, ends, chart, corner, wheelHidden = 
   rules?: FlightRules;
   onRulesChange?: (rules: FlightRules) => void;
 }) {
+  const route = ends ? [ends.departure.ident, ...(ends.stops ?? []).map(s => s.ident), ends.destination.ident].join(" ") : "";
+  // The plan before a pick is planned anew, kept on the card till the new
+  // one's altitude comes: the stream starts over, and the wheel and its
+  // figures went blank for the second or two each pick took, as if they
+  // were being worked out again (the owner's "planning altitudes take a
+  // long time"). The wheel's own figures for the pick are the old plan's
+  // already. Not over a route's problem, nor another route.
+  const [held, setHeld] = useState<{ route: string; nav: NavLogAltitude; legs: Leg[] } | null>(null);
+  if (navNow && (!held || held.nav !== navNow || held.legs !== legsNow || held.route !== route)) setHeld({ route, nav: navNow, legs: legsNow });
+  const kept = !navNow && !problem && held?.route === route ? held : null;
+  const nav = kept ? kept.nav : navNow;
+  const legs = kept ? kept.legs : legsNow;
   // The altitude flown: a pilot's own as asked (typed, or picked on the
   // wheel and flown at each leg's nearest legal one, whose highest leg may
   // be another), else the plan's cruise.
@@ -216,7 +228,6 @@ export function AltitudeProfile({ nav, legs, ends, chart, corner, wheelHidden = 
   // The altitude on the wheel, the one flown when it was put there and the
   // route it was on: once another is flown (it, re-planned; a figure
   // typed) or the route changes, the wheel is at the one flown.
-  const route = ends ? [ends.departure.ident, ...(ends.stops ?? []).map(s => s.ident), ends.destination.ident].join(" ") : "";
   const [picked, setPicked] = useState<{ altitude: number; against: number | null; route: string } | null>(null);
   // Flown once the wheel has come to rest on it a moment, not at every row
   // passed: each is a new plan. Not once the card is put away.
@@ -233,7 +244,7 @@ export function AltitudeProfile({ nav, legs, ends, chart, corner, wheelHidden = 
       const plan = planAt(nav, altitude);
       if (plan) onAltitudeChoiceChange(plan);
       else onFlyAltitude(altitude);
-    }, 700);
+    }, 450);
   };
   const { data: profile } = useQuery({
     ...routeProfileQuery(ends?.departure.ident ?? "", ends?.destination.ident ?? "", (ends?.stops ?? []).map(s => s.ident)),
