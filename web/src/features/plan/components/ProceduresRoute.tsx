@@ -20,12 +20,15 @@ import { NO_PATTERN, trafficPattern } from "../../../lib/trafficPattern";
 import { TEXT } from "../../../lib/text";
 import { altFt, bearing, grouped } from "../../../lib/units";
 import { endFit, type EndFit } from "../../../lib/runwayFit";
+import { isPosition } from "../../../lib/identSchema";
 import { etaAt } from "../format";
 import { PointMark } from "./navlog/PointMark";
 import FixBranch from "./FixBranch";
 import DepartPicker from "./navlog/DepartPicker";
 import GroundMenu from "./GroundMenu";
 import ProcedureMenu from "./ProcedureMenu";
+import PointAltitudeDialog, { type EditedPoint, type PointAltitude } from "./PointAltitudeDialog";
+import { AltitudeChip, DirectButton } from "./PointControls";
 import { rowPoint, TURNAROUND_MIN, type NavLogRow } from "./navlog/rows";
 
 /** The value of a choice's "None" (no pattern, no transition): a toggle's
@@ -100,7 +103,7 @@ export type ProceduresAt = { ident: string; kind: Kind } | null;
  */
 export default function ProceduresRoute({
   airports, rows, depart, weather, picked, onPick, onPreselect, takeoffs, onTakeoff, fit = null, onCharts, chartsDisabled, procedures, inRoute, onProcedures, onPreview, at, onAt,
-  crossings = NO_CROSSINGS, onFix, onDepart, ground, onGround,
+  crossings = NO_CROSSINGS, onFix, onDepart, ground, onGround, pointAltitude, onPointAltitude, directTo = null, onDirectTo,
 }: {
   airports: ProcedureAirport[];
   /** The route's rows as the nav log has them (navLogRows), for its
@@ -151,6 +154,15 @@ export default function ProceduresRoute({
   onFix?: (field: string, kind: Kind, fix: string) => void;
   /** The departure's time picked on its step (DepartPicker). */
   onDepart?: (iso: string) => void;
+  /** The altitude at a point of the route, as the route box's menu offers
+   *  it (PlanWorkspace's altitudeAt), and the pilot's own set there or
+   *  (null) given back to the plan. */
+  pointAltitude?: (ident: string, waypoint: boolean) => PointAltitude;
+  onPointAltitude?: (ident: string, feet: number | null) => void;
+  /** The point flown direct to (the address's `direct`), and Direct to
+   *  one, or (null) the route flown as it was. */
+  directTo?: string | null;
+  onDirectTo?: (ident: string | null) => void;
 }) {
   // The procedure on its own page in the sheet, over its kind's list.
   const [page, setPage] = useState<{ at: ProceduresAt; procedure: ProcedureSummary } | null>(null);
@@ -160,6 +172,8 @@ export default function ProceduresRoute({
   if (at && at !== kept) setKept(at);
   const on = at ?? kept;
   const procedure = page && page.at === on ? page.procedure : null;
+  // The point whose altitude is being set (PointAltitudeDialog).
+  const [editing, setEditing] = useState<EditedPoint | null>(null);
   // Each field's procedures, asked for as its kind's sheet opens -- not
   // with the route: the FAA's file is 53 MB, fetched on its first ask --
   // and said in the list from then on.
@@ -318,6 +332,35 @@ export default function ProceduresRoute({
     }
   }, [intoWind, onPreselect, onTakeoff]);
   const destination = airports.find(a => a.role === "Destination");
+  // The end of a point's head, at the owner's ask ("All the other fixes and
+  // stops can have a direct to and altitude. Where airports default to
+  // field elevation but changeable"): every point flown to -- a waypoint
+  // flown over, a stop's landing, the destination -- its altitude, as a
+  // procedure's fix has (FixBranch), and Direct to it. A waypoint's is
+  // the plan's cruise to it, an airport's its elevation, until the pilot
+  // sets one (the address's `altitudes`).
+  const pointSide = (ident: string, waypoint: boolean, elevationFt: number | null) => {
+    const altitude = pointAltitude?.(ident, waypoint);
+    const own = altitude?.own ? altitude.feet : null;
+    const shown = own ?? (waypoint ? altitude?.feet ?? null : elevationFt);
+    const direct = directTo !== null && sameField(directTo, ident);
+    return (
+      <>
+        {altitude && onPointAltitude && (
+          <AltitudeChip
+            own={own !== null} testId="point-altitude-chip"
+            onClick={() => setEditing({ ident, waypoint, altitude, elevationFt })}
+            label={`${ident}, ${shown === null ? "no altitude" : `${altFt(shown)} ft${own !== null ? "" : waypoint ? ", as planned" : ", field elevation"}`}: change`}
+          >
+            {shown === null ? "Alt" : altFt(shown)}
+          </AltitudeChip>
+        )}
+        {onDirectTo && (
+          <DirectButton ident={ident} direct={direct} undo="Fly the route as planned" onClick={() => onDirectTo(direct ? null : ident)} testId="point-direct" />
+        )}
+      </>
+    );
+  };
 
   // A field's step: what is flown there, in the order it is flown.
   const fieldStep = (a: ProcedureAirport, row: NavLogRow | undefined, last: boolean) => {
@@ -358,11 +401,11 @@ export default function ProceduresRoute({
         />
       );
     };
-    const step = (role: "Arrive" | "Depart", kinds: Kind[], chips: ReactNode, isLast: boolean, stepMark: ReactNode, stepTime: ReactNode) => {
+    const step = (role: "Arrive" | "Depart", kinds: Kind[], chips: ReactNode, isLast: boolean, stepMark: ReactNode, stepTime: ReactNode, side?: ReactNode) => {
       const picked = kinds.filter(k => inRoute.some(p => sameField(p.ident, a.ident) && p.kind === k));
       const unpicked = kinds.filter(k => !picked.includes(k));
       return (
-        <Step key={`${a.ident}-${role}`} last={isLast} mark={stepMark} title={`${a.ident} · ${role}`} time={stepTime} field>
+        <Step key={`${a.ident}-${role}`} last={isLast} mark={stepMark} title={`${a.ident} · ${role}`} time={stepTime} side={side} field>
           {chips}
           {picked.map(branch)}
           {unpicked.length > 0 && <div className="flex flex-wrap gap-2">{unpicked.map(k => kindMenu(k, "add"))}</div>}
@@ -408,7 +451,8 @@ export default function ProceduresRoute({
     // departure and arrival boxes"): picked there, Now for about now.
     const leaving = onDepart ? <DepartPicker value={depart} onChange={onDepart} look="time" /> : time;
     if (a.role === "Departure") return step("Depart", (["departure"] as Kind[]).filter(has), departChips, last, mark, leaving);
-    if (a.role === "Destination") return step("Arrive", (["arrival", "approach"] as Kind[]).filter(has), landingChips, last, mark, time);
+    const arriving = pointSide(a.ident, false, a.elevationFt);
+    if (a.role === "Destination") return step("Arrive", (["arrival", "approach"] as Kind[]).filter(has), landingChips, last, mark, time, arriving);
     // A stop is landed at and left again, each with its own runway, at the
     // owner's ask ("If a stop is an airport then it should have arrival
     // first with a runway and a separate departure with a runway"): two
@@ -424,7 +468,7 @@ export default function ProceduresRoute({
       </>
     );
     return [
-      step("Arrive", (["arrival", "approach"] as Kind[]).filter(has), landingChips, false, mark, time),
+      step("Arrive", (["arrival", "approach"] as Kind[]).filter(has), landingChips, false, mark, time, arriving),
       step("Depart", (["departure"] as Kind[]).filter(has), departing, last, <FieldDot last={last} />, leaves),
     ];
   };
@@ -450,6 +494,9 @@ export default function ProceduresRoute({
       <Step
         key={row.key} last={last} mark={<PointMark row={row} number={undefined} weather={weather} />}
         title={rowPoint(row).name} time={etaAt(depart || new Date().toISOString(), row.minutesFlown)}
+        // A waypoint the route flies over (VPBNG), or ends at: its altitude
+        // and Direct to, as a field's landing has. Not where it starts.
+        side={row.kind !== "departure" && "airport" in row && !isPosition(row.airport.ident) ? pointSide(row.airport.ident, true, null) : undefined}
         testId={`route-${row.kind}`}
       />,
     );
@@ -465,6 +512,10 @@ export default function ProceduresRoute({
       <ResponsivePopoverAnchor asChild>
         <ol className="pt-2 pb-1" aria-label="The route" data-testid="procedures">{fieldsAlone ?? steps}</ol>
       </ResponsivePopoverAnchor>
+      <PointAltitudeDialog
+        point={editing} onClose={() => setEditing(null)}
+        onSet={(ident, feet) => { onPointAltitude?.(ident, feet); setEditing(null); }}
+      />
       {/* On a phone a sheet that keeps its height from page to page, as
           an iOS sheet does pushing one. Half the screen (PROCEDURES_SHEET),
           the map above it in sight and clear -- no shade over it -- as a

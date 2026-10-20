@@ -1,11 +1,12 @@
 import type { ReactNode } from "react";
-import { ChevronRight, MoveUpRight } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import { cn } from "cn";
 import RoundButton from "../../../components/RoundButton";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../../../components/ui/collapsible";
 import { altitudeLines, fixRoles, type BranchFix } from "../../../lib/procedures";
 import { altFt } from "../../../lib/units";
 import { TEXT } from "../../../lib/text";
+import { AltitudeChip, DirectButton } from "./PointControls";
 
 /**
  * A procedure picked at a field, its fixes a branch off the route's line in
@@ -80,26 +81,18 @@ export default function FixBranch({ name, kind, head, fixes, direct, crossings, 
                   <span className={cn("font-semibold", TEXT.row, isDirect && "text-tint")}>{fix.ident}</span>
                   {sub && <span className={cn(TEXT.note, isDirect ? "font-semibold text-tint" : "text-muted-foreground")}>{sub}</span>}
                 </button>
-                <button
-                  type="button" onClick={() => onOpen(fix.ident)} data-testid="fix-branch-altitude"
-                  aria-label={own != null ? `${fix.ident}, cross at ${altFt(own)} ft: change` : `${fix.ident}, set an altitude to cross it at`}
-                  className={cn(
-                    "relative h-8 min-w-16 shrink-0 rounded-lg px-2 tabular-nums after:absolute after:-inset-y-1.5 after:content-['']", TEXT.detail,
-                    own != null ? "bg-primary font-semibold text-primary-foreground" : "bg-foreground/6 text-muted-foreground",
-                  )}
+                <AltitudeChip
+                  own={own != null} onClick={() => onOpen(fix.ident)} testId="fix-branch-altitude"
+                  label={own != null ? `${fix.ident}, cross at ${altFt(own)} ft: change` : `${fix.ident}, set an altitude to cross it at`}
                 >
                   {own != null ? altFt(own) : charted ? (
                     <span style={{ textDecoration: [charted.under && "underline", charted.over && "overline"].filter(Boolean).join(" ") || "none" }}>{charted.text}</span>
                   ) : "Alt"}
-                </button>
-                <RoundButton
-                  label={isDirect ? `Fly ${name} as charted, not direct to ${fix.ident}` : `Direct to ${fix.ident}`}
-                  onClick={() => onDirect(isDirect ? null : fix.ident)} aria-pressed={isDirect}
-                  className={cn("mr-1", isDirect ? "bg-primary text-primary-foreground hover:bg-primary/90" : "text-tint")}
-                  data-testid="fix-branch-direct"
-                >
-                  <MoveUpRight className="size-5" />
-                </RoundButton>
+                </AltitudeChip>
+                <DirectButton
+                  ident={fix.ident} direct={isDirect} undo={`Fly ${name} as charted`} className="mr-1"
+                  onClick={() => onDirect(isDirect ? null : fix.ident)} testId="fix-branch-direct"
+                />
               </li>
             );
           })}

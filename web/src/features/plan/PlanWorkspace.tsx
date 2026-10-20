@@ -56,6 +56,7 @@ import MiniProfile from "./components/navlog/MiniProfile";
 import FootPager from "./components/FootPager";
 import { dryRunOf, type DryRun } from "./components/navlog/dryRun";
 import FixCard, { type OpenFix } from "./components/FixCard";
+import { DirectStrip } from "./components/PointControls";
 import { loadFlightChart } from "./components/loadFlightChart";
 import { DRY_RUN, clearPastFlight, usePastFlight } from "../../lib/map/pastFlight";
 import type { RouteParts, RouteProcedure } from "./components/RouteBox";
@@ -194,6 +195,19 @@ const PLANNER_TABS: BarTab<PanelTab>[] = [
 /** FPL's route list's place in the nav log's view while it is at the
  *  sheet's foot (PlanWorkspace's listAtFoot): nothing, the list there. */
 const ROUTE_AT_FOOT = <span hidden />;
+
+/** The route as the address has it, "dep|stops|dest", kept as a Direct to
+ *  goes in (directToPoint) for its Cancel. */
+const routeWas = (params: URLSearchParams) => `${params.get("dep") ?? ""}|${params.get("stops") ?? ""}|${params.get("dest") ?? ""}`;
+
+/** The address's changes that give a Direct to back: the route as it was
+ *  before it; none with no Direct to. */
+function routeBeforeDirect(params: URLSearchParams): Record<string, string | null> {
+  const was = params.get("was");
+  if (!params.has("direct") && !was) return {};
+  const [dep = "", stops = "", dest = ""] = (was ?? routeWas(params)).split("|");
+  return { dep: dep || null, stops: stops || null, dest: dest || null, direct: null, was: null };
+}
 
 function renamed(params: URLSearchParams, from: string, to: string): URLSearchParams {
   const swap = (ident: string) => (ident === from ? to : ident);
@@ -370,7 +384,10 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     // on the map above it.
     if (picked) panelBeforeProcedures.current = null;
     setSearchParams(prev => {
-      return patched(prev, { procs: next.length ? proceduresParam(next) : null });
+      // One direct at a time: sent direct to a procedure's fix, a Direct to
+      // a point of the route is given back (directToPoint).
+      const undo = next.some(p => p.direct) ? routeBeforeDirect(prev) : {};
+      return patched(prev, { ...undo, procs: next.length ? proceduresParam(next) : null });
     }, { replace: true });
   }, [setSearchParams]);
   const changeLocalMin = useCallback((minutes: number) => {
@@ -591,6 +608,34 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       return patched(prev, { ground: altitudesParam(own) || null });
     }, { replace: true });
   }, [setSearchParams]);
+  // Direct to a point of the route, as ATC sends an airplane, at the
+  // owner's ask ("direct to skips all the route before and redraws the
+  // magenta line and flies directly to it"): the route from where the
+  // airplane is -- own ship's fix, the dry run's airplane's while it flies
+  // (simulateFix), with its altitude -- else from the departure, on from
+  // the point as it was planned. The route as it was kept (`was`) for
+  // Cancel, and the point (`direct`) for its strip and pressed button; one
+  // at a time, a procedure's own direct given back.
+  const directToPoint = useCallback((ident: string | null) => {
+    const ship = useOwnShip.getState();
+    const fix = ship.enabled ? ship.fix : null;
+    setSearchParams(prev => {
+      if (ident === null) return patched(prev, routeBeforeDirect(prev));
+      const was = prev.get("was") ?? routeWas(prev);
+      const [dep = "", stopsWere = "", dest = ""] = was.split("|");
+      const stopsThen = stopsOf(stopsWere);
+      const at = stopsThen.findIndex(stop => sameField(stop, ident));
+      if (at < 0 && !sameField(dest, ident)) return prev;
+      const procs = proceduresOf(prev.get("procs"));
+      return patched(prev, {
+        dep: fix ? positionIdent(fix) : dep,
+        stops: at < 0 ? null : stopsThen.slice(at).join(","),
+        dest, direct: ident, was,
+        procs: procs.some(p => p.direct) ? proceduresParam(procs.map(p => ({ ...p, direct: null }))) || null : undefined,
+      });
+    }, { replace: true });
+  }, [setSearchParams]);
+  const directParam = searchParams.get("direct");
   const directTo = useCallback((open: OpenFix, direct: boolean) => {
     const at = routeProcedures.find(r => sameField(r.ident, open.field) && r.kind === open.kind);
     if (!at) return;
@@ -869,8 +914,11 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       // time on the ground with it no longer a stop.
       const kept = Object.entries(altitudesOf(prev.get("altitudes"))).filter(([ident]) => [dep, ...stops, dest].includes(ident));
       const grounded = Object.entries(groundOf(prev.get("ground"))).filter(([ident]) => stops.includes(ident));
+      // A route changed by hand is the route: a Direct to's own is kept,
+      // and Cancel has nothing to go back to.
       return patched(prev, {
         dep, dest, stops: stops.join(","), altitudes: altitudesParam(Object.fromEntries(kept)), ground: altitudesParam(Object.fromEntries(grounded)) || null,
+        direct: null, was: null,
       });
     }, { replace: true });
   }, [setSearchParams]);
@@ -893,7 +941,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
         dep: points[0]!,
         stops: points.length > 2 ? points.slice(1, -1).join(",") : null,
         dest: points.length > 1 ? points.at(-1)! : null,
-        place: null,
+        place: null, direct: null, was: null,
       });
     }, { replace: true });
   }, [planned.dep, planned.stops, planned.dest, setSearchParams]);
@@ -1484,17 +1532,36 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     // from pill lands at profile view?"): the side view is a swipe away.
     if (panel === "half") setFootPage(0);
   }
+  // The route's airports' airspace classes, as the course came with them:
+  // the pills coloured the moment it is in.
+  // Each made again only when what it reads changes, as the box is drawn
+  // again only then (fromRoutePanel's memo).
+  const routeAirport = useCallback((ident: string) =>
+    [course?.departure, ...(course?.stops ?? []), course?.destination].find(a => a?.ident === ident), [course]);
+  const airspaceOf = useCallback((ident: string) => routeAirport(ident)?.airspace_class ?? undefined, [routeAirport]);
+  // The altitude at a point, as its menu offers it: the pilot's own, else
+  // a waypoint's cruise -- the leg flown to it -- or an airport's pattern.
+  const altitudeAt = useCallback((ident: string, waypoint: boolean): PointAltitude => {
+    const ownAltitudes = altitudesOf(altitudes);
+    const planned = waypoint ? s.legs.find(leg => leg.to === ident)?.altitude_ft : routeAirport(ident)?.pattern_altitude_ft;
+    // A waypoint's own altitude, flown to it, as the planner found it.
+    const caution = waypoint ? s.nav?.cautions.find(c => c.to_ident === ident)?.reasons : undefined;
+    return { feet: ownAltitudes[ident] ?? planned ?? null, own: ident in ownAltitudes, caution };
+  }, [altitudes, s.legs, s.nav, routeAirport]);
+
   const routeList = useMemo(() => (
     <ProceduresRoute
       airports={procedureAirports} rows={routeRows} depart={depart} weather={metarColour}
       picked={pickedPatterns} onPick={pickPattern} onPreselect={setPattern} takeoffs={pickedTakeoffs} onTakeoff={setTakeoff} fit={runwayFitInputs}
       procedures={pickedProcedures} inRoute={routeProcedures} onProcedures={pickProcedures} onPreview={previewProcedure}
       at={proceduresAt} onAt={setProceduresShown} crossings={crossings} onFix={showFix} onDepart={changeDepart} ground={ground} onGround={setGround}
+      pointAltitude={altitudeAt} onPointAltitude={setPointAltitude} directTo={directParam} onDirectTo={directToPoint}
       onCharts={() => { if (planned.dest) { setApproachesOf(planned.dest); selectPlace(planned.dest); } }}
       chartsDisabled={!planned.dest || noApproaches}
     />
   ), [procedureAirports, routeRows, depart, metarColour, pickedPatterns, pickPattern, setPattern, pickedTakeoffs, setTakeoff, runwayFitInputs, pickedProcedures, routeProcedures, pickProcedures, crossings, showFix,
-    ground, setGround, previewProcedure, proceduresAt, setProceduresShown, planned.dest, selectPlace, noApproaches, changeDepart]);
+    ground, setGround, previewProcedure, proceduresAt, setProceduresShown, planned.dest, selectPlace, noApproaches, changeDepart,
+    altitudeAt, setPointAltitude, directParam, directToPoint]);
   const navLog = useMemo(() => (
     <Suspense fallback={<div className="min-h-0 flex-1" />}>
     <NavLogView
@@ -1606,23 +1673,6 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     classBClearance, alt, setAlt, submit, routed, depart, changeDepart, flightRules, setFlightRules]);
 
   // Saving the flight, the narrative and Print.
-  // The route's airports' airspace classes, as the course came with them:
-  // the pills coloured the moment it is in.
-  // Each made again only when what it reads changes, as the box is drawn
-  // again only then (fromRoutePanel's memo).
-  const routeAirport = useCallback((ident: string) =>
-    [course?.departure, ...(course?.stops ?? []), course?.destination].find(a => a?.ident === ident), [course]);
-  const airspaceOf = useCallback((ident: string) => routeAirport(ident)?.airspace_class ?? undefined, [routeAirport]);
-  // The altitude at a point, as its menu offers it: the pilot's own, else
-  // a waypoint's cruise -- the leg flown to it -- or an airport's pattern.
-  const altitudeAt = useCallback((ident: string, waypoint: boolean): PointAltitude => {
-    const ownAltitudes = altitudesOf(altitudes);
-    const planned = waypoint ? s.legs.find(leg => leg.to === ident)?.altitude_ft : routeAirport(ident)?.pattern_altitude_ft;
-    // A waypoint's own altitude, flown to it, as the planner found it.
-    const caution = waypoint ? s.nav?.cautions.find(c => c.to_ident === ident)?.reasons : undefined;
-    return { feet: ownAltitudes[ident] ?? planned ?? null, own: ident in ownAltitudes, caution };
-  }, [altitudes, s.legs, s.nav, routeAirport]);
-
   const addingChange = useCallback((open: boolean) => setAddingStop(open ? "stop" : false), []);
 
   // The flight plan filed: the Brief's Flight Plan, where the FAA's form
@@ -2005,9 +2055,14 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
             <DryRunFigures run={dryRunning} totals={s.totals} estimate={estimate} destination={`${planned.dest}`} depart={depart} local={s.local} />
           </Suspense>
         ) : (
+          <>
+          {/* Flown direct to a point: said over the figures, and Cancel.
+              Put away in the pill, whose one row is the figures. */}
+          {directParam && <div data-pill-hides=""><DirectStrip ident={directParam} onCancel={() => directToPoint(null)} /></div>}
           <div data-testid="flight-line">
             <FlightLine totals={s.totals} estimate={estimate} destination={`${planned.dest}`} depart={depart} local={s.local} grow />
           </div>
+          </>
         )}
       </div>
     ) : undefined,
