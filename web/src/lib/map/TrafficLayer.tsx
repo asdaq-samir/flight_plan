@@ -16,6 +16,7 @@ import { usePastFlight } from "./pastFlight";
 import PastFlightPath from "./PastFlightPath";
 import { listen, useReceiver } from "./receiver";
 import { inNativeApp } from "../native";
+import { trafficCredit } from "./trafficCredit";
 
 /** How often the traffic is asked for again, ms: the planner asks
  *  adsb.lol about a region at most every five seconds (vfr.traffic). */
@@ -39,12 +40,6 @@ const PROBLEM = "traffic";
 /** No answer for this long, ms, and the traffic is said to be unavailable:
  *  the airplanes are not carried on past half a minute (CARRY_S). */
 const STALE_MS = 30_000;
-/** What the Open Database License asks of a map that draws the data: its
- *  source and the licence, named. Not a link: on the map's edge over the
- *  panel a link has no room for a 44-point hit area, and the console's
- *  About links adsb.lol with its licence. */
-const ATTRIBUTION = "Traffic adsb.lol, ODbL";
-const ADSBX_ATTRIBUTION = "Traffic ADS-B Exchange";
 
 /** One airplane on the map: its report, when that position was (this
  *  phone's clock, ms), and what is left of the step to it from where it
@@ -127,9 +122,10 @@ function Traffic() {
     meta: { silent: true },
   });
   // Said where it is drawn, as the licence asks; gone with it. Whose the
-  // airplanes are: adsb.lol's, or ADS-B Exchange's where the planner asked
-  // it because adsb.lol turned it away (vfr.traffic).
-  const credit = data?.source === "ADS-B Exchange" ? ADSBX_ATTRIBUTION : ATTRIBUTION;
+  // airplanes are: adsb.lol's, ADS-B Exchange's where the planner asked it
+  // because adsb.lol turned it away, and adsb.fi's or ADS-B Exchange's for
+  // an airplane watched that adsb.lol does not hear (vfr.traffic).
+  const credit = trafficCredit(data?.source);
   useEffect(() => {
     const control = L.control.attribution({ prefix: false, position: "bottomleft" }).addAttribution(credit).addTo(map);
     return () => { control.remove(); };
