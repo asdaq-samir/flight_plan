@@ -30,7 +30,7 @@ test("an airplane's inspections say how long each is good for, and are saved tog
   await showTabs(page);
   await openConsole(page);
   const console = page.getByTestId("console-sheet");
-  await library(console, "Aircraft");
+  await library(console, "Airplanes");
   await console.getByRole("button", { name: "Edit N12345" }).click();
   await expect(page.getByTestId("inspection-annualOn")).toHaveText("Past due since 2021-01-31");
   await expect(page.getByTestId("inspection-eltInspectedOn")).toHaveText("To 2099-02-28");
@@ -67,7 +67,7 @@ test("an airplane's checklist is written from its flight manual, then run item b
   await showTabs(page);
   await openConsole(page);
   const console = page.getByTestId("console-sheet");
-  await library(console, "Aircraft");
+  await library(console, "Airplanes");
   await console.getByRole("button", { name: "Edit N12345" }).click();
   await page.getByRole("button", { name: /^Checklist/ }).click();
   await expect(console).toContainText("No checklist yet");
@@ -110,7 +110,7 @@ test("a squawk is written with its 91.213(d) deferral, and fixed", async ({ page
   await showTabs(page);
   await openConsole(page);
   const console = page.getByTestId("console-sheet");
-  await library(console, "Aircraft");
+  await library(console, "Airplanes");
   await console.getByRole("button", { name: "Edit N12345" }).click();
   await page.getByRole("button", { name: /^Squawks/ }).click();
   await expect(console).toContainText("None open");

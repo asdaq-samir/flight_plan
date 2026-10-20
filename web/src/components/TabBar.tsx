@@ -5,6 +5,7 @@ import CloseButton from "./CloseButton";
 import RoundButton from "./RoundButton";
 import { cn } from "cn";
 import { closeTopCard, useOpenCards } from "../lib/openCards";
+import { prefersReducedMotion } from "../lib/motion";
 import { TEXT } from "../lib/text";
 import { PanelSize, TabBarMinimized, useConsoleOpen, useTabsShown } from "./mapChrome";
 
@@ -396,7 +397,7 @@ export default function TabBar<T extends string>({ tabs, tab, over, title, onPic
   const shrinking = useRef<Animation | null>(null);
   useEffect(() => {
     const panel = bar.current?.closest<HTMLElement>("[data-slot=map-panel]");
-    if (!lifted || !panel?.hasAttribute("data-capsule") || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (!lifted || !panel?.hasAttribute("data-capsule") || prefersReducedMotion()) return;
     // Its own size and place, not as a shrinking still under way has it.
     const box = panel.getBoundingClientRect();
     const width = panel.offsetWidth;

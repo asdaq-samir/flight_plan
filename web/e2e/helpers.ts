@@ -289,7 +289,7 @@ export const consoleSheet = (page: Page) => page.getByTestId("console-sheet");
 /** The pilot console's Personal tab (it was Library), on one of its
  *  four pages: the tab, back to its list from a page open on it, then
  *  the page's row. */
-export async function library(scope: Page | Locator, section: "Aircraft" | "Flights" | "Logbook" | "Minimums") {
+export async function library(scope: Page | Locator, section: "Airplanes" | "Flights" | "Logbook" | "Minimums") {
   await consolePage(scope, "Account");
   const list = scope.getByTestId("library-section");
   const back = scope.getByRole("button", { name: "Account", exact: true });

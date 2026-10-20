@@ -312,7 +312,7 @@ export function AircraftPanel() {
     // (a route, a rating). This is the one place in the app a genuine
     // list-editing success has nothing else to announce it.
     onSuccess: (_data, { id }) => {
-      toast.success(id ? "Aircraft updated" : "Aircraft added");
+      toast.success(id ? "Airplane updated" : "Airplane added");
       // Cleared only while it still shows what was saved.
       if (editingId === id) cancelEdit();
       void queryClient.invalidateQueries({ queryKey: ["aircraft"] });
@@ -322,7 +322,7 @@ export function AircraftPanel() {
   const remove = useMutation({
     mutationFn: (id: number) => api.aircraft.remove(id),
     onSuccess: (_data, id) => {
-      toast.success("Aircraft deleted");
+      toast.success("Airplane deleted");
       if (editingId === id) cancelEdit();
       void queryClient.invalidateQueries({ queryKey: ["aircraft"] });
     },
@@ -352,9 +352,9 @@ export function AircraftPanel() {
   // word on every row, beside Edit.
   const editing = list?.find(a => a.id === editingId) ?? null;
   const [askDelete, deleteDialog] = useConfirm({
-    title: `Delete ${editing?.tailNumber ?? "this aircraft"}?`,
-    description: "It goes from your aircraft and from the nav log's picker. This can't be undone.",
-    confirmLabel: "Delete aircraft",
+    title: `Delete ${editing?.tailNumber ?? "this airplane"}?`,
+    description: "It goes from your airplanes and from the nav log's picker. This can't be undone.",
+    confirmLabel: "Delete airplane",
     destructive: true,
     onConfirm: () => { if (editingId !== null) remove.mutate(editingId); },
   });
@@ -372,10 +372,10 @@ export function AircraftPanel() {
   // The tab says what this is: no heading over the list, only the
   // group's own, as an iOS page under a segmented control has.
   return (
-    <ConsolePages back="Aircraft" pages={checklistPages}>
-    <section aria-label="Aircraft">
+    <ConsolePages back="Airplanes" pages={checklistPages}>
+    <section aria-label="Airplanes">
       {isLoading ? (
-        <p role="status" className={cn("px-1 text-muted-foreground", TEXT.note)}>Fetching your aircraft…</p>
+        <p role="status" className={cn("px-1 text-muted-foreground", TEXT.note)}>Fetching your airplanes…</p>
       ) : (
         // A grouped list at every width, as iOS lists things: a row per
         // airplane, and New aircraft as the last row. It was a card per
@@ -384,7 +384,7 @@ export function AircraftPanel() {
         // to add one; then a row that opened the form, and which one the
         // nav log flew was said only under the route.
         <ResponsivePopover open={formOpen} onOpenChange={open => (open ? setAdding(true) : cancelEdit())}>
-          <ListGroup title="Your aircraft">
+          <ListGroup title="Your airplanes">
             {/* Which the nav log flies where it is none of these, said in its
                 place as a row: the one ticked otherwise. */}
             {!!list?.length && flying.aircraftId == null && (
@@ -418,7 +418,7 @@ export function AircraftPanel() {
             })}
             <ResponsivePopoverTrigger asChild>
               <ListRow
-                title={<span className="flex items-center gap-2 font-medium"><Plus className="size-4" />New aircraft</span>}
+                title={<span className="flex items-center gap-2 font-medium"><Plus className="size-4" />New airplane</span>}
                 data-testid="new-aircraft-button"
               />
             </ResponsivePopoverTrigger>
@@ -429,7 +429,7 @@ export function AircraftPanel() {
               them; each field a row, its label at the start and the
               field at the end, units inside. */}
           <ResponsivePopoverContent
-            title={editingId ? "Edit aircraft" : "New aircraft"}
+            title={editingId ? "Edit airplane" : "New airplane"}
             align="start" className="w-80"
             leading={<Button type="button" variant="ghost" size="sm" className="-ml-2" onClick={cancelEdit}>Cancel</Button>}
             action={(
@@ -438,7 +438,7 @@ export function AircraftPanel() {
               <Button
                 type="submit" form={formElementId} size="sm" className="-mr-1"
                 disabled={save.isPending} aria-busy={save.isPending}
-                aria-label={editingId ? "Save changes" : "Add aircraft"}
+                aria-label={editingId ? "Save changes" : "Add airplane"}
               >
                 {save.isPending && <Spinner role="presentation" aria-label={undefined} aria-hidden />}
                 {editingId ? "Save" : "Add"}
@@ -529,7 +529,7 @@ export function AircraftPanel() {
               {editingId !== null && (
                 <ListGroup>
                   <ListRow
-                    title={<span className="font-medium text-destructive">Delete aircraft</span>}
+                    title={<span className="font-medium text-destructive">Delete airplane</span>}
                     onClick={askDelete} disabled={remove.isPending} data-testid="delete-aircraft-button"
                   />
                 </ListGroup>

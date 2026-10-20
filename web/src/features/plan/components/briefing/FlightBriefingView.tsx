@@ -528,7 +528,7 @@ export default memo(function FlightBriefingView({
   // The call sign the radio calls use: the pilot's own airplane's
   // registration where they fly one, and its make from its profile.
   const flying = usePreferences(s => s.aircraft);
-  const make = nav?.aircraft.type?.split(" ")[0] || "Aircraft";
+  const make = nav?.aircraft.type?.split(" ")[0] || "Airplane";
   const ownCallSign = callSign(make, flying.aircraftId != null ? shortName(flying.label) : null);
   // The risk assessment (lib/frat): the briefing's, the nav log's and the
   // logbook's factors, and what the pilot ticks. Published for the Save
@@ -580,7 +580,7 @@ export default memo(function FlightBriefingView({
     metars: landings.flatMap(i => (briefing.metars[i]?.raw ? [{ ident: i, raw: briefing.metars[i]!.raw! }] : [])),
     destinationForecast: destStation ? ceilingAndVisibility(destStation.ceiling_ft, destStation.visibility_sm) : null,
     hazards: hazardNames,
-    specialUse: specialUse.map(({ area }) => `${area.name} (${area.kind}), ${suaAltitudes(area)}`),
+    specialUse: specialUse.map(({ area }) => `${faaWords(area.name)} (${area.kind}), ${suaAltitudes(area)}`),
     tfrs: briefing.tfrs.length,
   }) : "";
   const assessmentKey = assessment ? `${assessment.level}:${assessment.score}:${assessment.factors.map(f => f.key).join(",")}` : "";
@@ -770,7 +770,7 @@ export default memo(function FlightBriefingView({
                         <ListRow
                           key={area.name}
                           media={<FindingIcon finding={SUA_FINDING[when] === "stop" ? "caution" : SUA_FINDING[when]} />}
-                          title={`${area.name} · ${area.kind}`}
+                          title={`${faaWords(area.name)} · ${area.kind}`}
                           // How far along with the altitudes, not at the row's end:
                           // there it left the FAA's times of use three words a line.
                           description={

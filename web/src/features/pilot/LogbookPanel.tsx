@@ -77,7 +77,7 @@ function EntryForm({ initial, onSave, saving }: { initial: LogbookEntryRequest; 
     <form className="space-y-2.5" onSubmit={e => { e.preventDefault(); onSave(entry); }}>
       {field("flownOn", "Date", "date")}
       {field("route", "Route")}
-      {field("aircraft", "Aircraft")}
+      {field("aircraft", "Airplane")}
       {field("aircraftType", "Type")}
       {field("totalHours", "Total hours", "number")}
       {field("nightHours", "Night hours", "number")}

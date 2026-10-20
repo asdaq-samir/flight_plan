@@ -21,6 +21,7 @@ import { TEXT } from "../../../lib/text";
 import { altFt, bearing, grouped } from "../../../lib/units";
 import { endFit, type EndFit } from "../../../lib/runwayFit";
 import { frdOf, isPosition } from "../../../lib/identSchema";
+import { COURSE_MAGENTA } from "../../../lib/map/chartColors";
 import { useOwnShip } from "../../../lib/map/ownShip";
 import { etaAt } from "../format";
 import { PointMark } from "./navlog/PointMark";
@@ -739,7 +740,7 @@ function HoldRow({ hold, flown, last, onOpen }: { hold: Hold; flown: LegHold | n
       {!last && <span aria-hidden="true" className="absolute top-0 bottom-0 left-[calc(0.875rem-1px)] w-0.5 bg-border" />}
       <div className="relative flex w-7 shrink-0 justify-center pt-1.5" aria-hidden="true">
         <svg viewBox="0 0 28 16" className="h-4 w-7 rounded-full bg-background">
-          <rect x="2" y="2" width="24" height="12" rx="6" fill="none" stroke="#e600e6" strokeWidth="2.5" strokeDasharray="4 3" />
+          <rect x="2" y="2" width="24" height="12" rx="6" fill="none" stroke={COURSE_MAGENTA} strokeWidth="2.5" strokeDasharray="4 3" />
         </svg>
       </div>
       <button
@@ -1304,7 +1305,7 @@ function FixLadder({ drawing }: { drawing: ProcedureDrawing }) {
             </li>
           )}
           <li className="grid min-h-10 grid-cols-[2.75rem_1fr_auto] items-center gap-x-2.5">
-            <span className="text-[0.6875rem] leading-[0.8125rem] font-bold tracking-wide text-tint">{f.roles.find(r => FIX_ROLES.includes(r)) ?? ""}</span>
+            <span className={cn("font-bold tracking-wide text-tint", TEXT.caption)}>{f.roles.find(r => FIX_ROLES.includes(r)) ?? ""}</span>
             <span className={cn("font-semibold", TEXT.row)}>{f.ident}</span>
             <span className={cn("tabular-nums", TEXT.detail)}>{crossing(f.min_ft, f.max_ft)}</span>
           </li>

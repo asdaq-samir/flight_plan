@@ -1,5 +1,6 @@
 import L from "leaflet";
 import { Polyline } from "react-leaflet";
+import { COURSE_MAGENTA } from "./chartColors";
 import { MapTooltip } from "./MapTooltip";
 
 interface Props {
@@ -25,7 +26,6 @@ interface Props {
 // Constants, not literals: react-leaflet restyles a path whenever its
 // pathOptions is a new object.
 const CASING: L.PathOptions = { color: "#ffffff", weight: 5.5, opacity: 0.85, interactive: false };
-const COURSE_MAGENTA = "#e600e6";
 const CORE: L.PathOptions = { color: COURSE_MAGENTA, weight: 2.5, opacity: 1, interactive: false };
 const HIT: L.PathOptions = { color: "#000", weight: 18, opacity: 0, lineCap: "butt", bubblingMouseEvents: false };
 const HIT_PASSING: L.PathOptions = { ...HIT, bubblingMouseEvents: true };
