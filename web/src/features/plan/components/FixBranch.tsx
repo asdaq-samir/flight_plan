@@ -1,10 +1,12 @@
-import { ChevronRight, MoveUpRight } from "lucide-react";
+import type { ReactNode } from "react";
+import { ChevronRight } from "lucide-react";
 import { cn } from "cn";
 import RoundButton from "../../../components/RoundButton";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../../../components/ui/collapsible";
 import { altitudeLines, fixRoles, type BranchFix } from "../../../lib/procedures";
 import { altFt } from "../../../lib/units";
 import { TEXT } from "../../../lib/text";
+import { AltitudeChip, DirectButton } from "./PointControls";
 
 /**
  * A procedure picked at a field, its fixes a branch off the route's line in
@@ -16,10 +18,16 @@ import { TEXT } from "../../../lib/text";
  * straight there, the fixes before it greyed on a dashed spur, skipped. A
  * fix's row, or its altitude, opens its card (FixCard): the altitude set
  * there, as from the map. Folded and unfolded by the stock Collapsible.
+ * Its head, after the field's runways, is the procedure's own pull-down
+ * (`head`, ProcedureMenu), its kind and its fixes said under it, the fold
+ * at its right (the owner's pick, option C of the procedures canvas).
  */
-export default function FixBranch({ name, fixes, direct, crossings, onDirect, onOpen }: {
+export default function FixBranch({ name, kind, head, fixes, direct, crossings, onDirect, onOpen }: {
   /** The procedure, as the route's box names it ("ILS 22 · ELD"). */
   name: string;
+  /** Its kind as the head says it ("Approach"), and its pull-down. */
+  kind: string;
+  head: ReactNode;
   fixes: BranchFix[];
   direct: string | null;
   /** The pilot's own altitudes to cross fixes at, by fix. */
@@ -27,17 +35,27 @@ export default function FixBranch({ name, fixes, direct, crossings, onDirect, on
   onDirect: (fix: string | null) => void;
   onOpen: (fix: string) => void;
 }) {
-  if (fixes.length === 0) return null;
   const directAt = direct ? fixes.findIndex(f => f.ident === direct) : -1;
+  const count = fixes.length ? ` · ${fixes.length} ${fixes.length === 1 ? "fix" : "fixes"}` : "";
   return (
-    <Collapsible data-testid="fix-branch">
-      <CollapsibleTrigger
-        className={cn("group relative flex items-center gap-1 font-semibold text-tint after:absolute after:-inset-y-2.5 after:-inset-x-1 after:content-['']", TEXT.detail)}
-        data-testid="fix-branch-toggle"
-      >
-        <ChevronRight className="size-4 transition-transform group-data-[state=open]:rotate-90" aria-hidden />
-        {name} · {fixes.length} {fixes.length === 1 ? "fix" : "fixes"}
-      </CollapsibleTrigger>
+    <Collapsible data-testid="fix-branch" data-kind={kind.toLowerCase()}>
+      <div className="flex min-h-11 items-center gap-2">
+        {/* The procedure's mark, a branch's head. */}
+        <span aria-hidden="true" className="flex w-6 shrink-0 justify-center">
+          <span className="size-2.5 rotate-45 border-2 border-white bg-[#4f46e5] outline outline-1 outline-[#4f46e5]" />
+        </span>
+        <div className="flex min-w-0 flex-1 flex-col items-start">
+          {head}
+          <span className={cn("text-muted-foreground", TEXT.note)}>{kind}{count}</span>
+        </div>
+        {fixes.length > 0 && (
+          <CollapsibleTrigger asChild>
+            <RoundButton label={`${name}, its fixes`} className="group text-tint" data-testid="fix-branch-toggle">
+              <ChevronRight className="size-5 transition-transform group-data-[state=open]:rotate-90" />
+            </RoundButton>
+          </CollapsibleTrigger>
+        )}
+      </div>
       <CollapsibleContent>
         <ol className="mt-1" aria-label={`${name}, its fixes`}>
           {fixes.map((fix, i) => {
@@ -63,26 +81,18 @@ export default function FixBranch({ name, fixes, direct, crossings, onDirect, on
                   <span className={cn("font-semibold", TEXT.row, isDirect && "text-tint")}>{fix.ident}</span>
                   {sub && <span className={cn(TEXT.note, isDirect ? "font-semibold text-tint" : "text-muted-foreground")}>{sub}</span>}
                 </button>
-                <button
-                  type="button" onClick={() => onOpen(fix.ident)} data-testid="fix-branch-altitude"
-                  aria-label={own != null ? `${fix.ident}, cross at ${altFt(own)} ft: change` : `${fix.ident}, set an altitude to cross it at`}
-                  className={cn(
-                    "relative h-8 min-w-16 shrink-0 rounded-lg px-2 tabular-nums after:absolute after:-inset-y-1.5 after:content-['']", TEXT.detail,
-                    own != null ? "bg-primary font-semibold text-primary-foreground" : "bg-foreground/6 text-muted-foreground",
-                  )}
+                <AltitudeChip
+                  own={own != null} onClick={() => onOpen(fix.ident)} testId="fix-branch-altitude"
+                  label={own != null ? `${fix.ident}, cross at ${altFt(own)} ft: change` : `${fix.ident}, set an altitude to cross it at`}
                 >
                   {own != null ? altFt(own) : charted ? (
                     <span style={{ textDecoration: [charted.under && "underline", charted.over && "overline"].filter(Boolean).join(" ") || "none" }}>{charted.text}</span>
                   ) : "Alt"}
-                </button>
-                <RoundButton
-                  label={isDirect ? `Fly ${name} as charted, not direct to ${fix.ident}` : `Direct to ${fix.ident}`}
-                  onClick={() => onDirect(isDirect ? null : fix.ident)} aria-pressed={isDirect}
-                  className={cn("mr-1", isDirect ? "bg-primary text-primary-foreground hover:bg-primary/90" : "text-tint")}
-                  data-testid="fix-branch-direct"
-                >
-                  <MoveUpRight className="size-5" />
-                </RoundButton>
+                </AltitudeChip>
+                <DirectButton
+                  ident={fix.ident} direct={isDirect} undo={`Fly ${name} as charted`} className="mr-1"
+                  onClick={() => onDirect(isDirect ? null : fix.ident)} testId="fix-branch-direct"
+                />
               </li>
             );
           })}

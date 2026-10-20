@@ -437,6 +437,25 @@ export async function openNavLog(page: Page) {
   return sheet;
 }
 
+/** The side view, a card over FPL from its button beside the nav log's
+ *  (the owner's "profile view can move next to the navlog button and open
+ *  like brief and navlog opens instead of the swipe"). */
+export async function openProfile(page: Page) {
+  await openPanel(page);
+  const card = page.getByTestId("profile-card");
+  if (!(await card.isVisible())) await sideDrawer(page).getByTestId("route-profile").click({ timeout: slow(60_000) });
+  await expect(card).toBeVisible();
+  return card;
+}
+
+/** The side view's card put away: its close, kept for a keyboard and a
+ *  screen reader (CardClose), as the nav log's is. */
+export async function closeProfile(page: Page) {
+  await page.getByTestId("profile-close").focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByTestId("profile-card")).toHaveCount(0);
+}
+
 /** The nav log's card over FPL (the owner's "make Navlog open like brief
  *  does"), and what scrolls in it. */
 export const navLogSheet = (page: Page) => page.getByTestId("navlog-sheet");

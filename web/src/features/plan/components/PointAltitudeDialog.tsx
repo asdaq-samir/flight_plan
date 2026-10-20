@@ -6,7 +6,7 @@ import {
 import { Button } from "../../../components/ui/button";
 import { Input } from "../../../components/ui/input";
 import { TEXT } from "../../../lib/text";
-import { flightLevel } from "../../../lib/units";
+import { altFt, flightLevel } from "../../../lib/units";
 
 /** The altitude at a point of the route: the pilot's own (`own`), else
  *  the plan's -- a waypoint's cruise there, an airport's pattern -- in
@@ -18,16 +18,20 @@ export interface PointAltitude {
   caution?: string[];
 }
 
-/** The point whose altitude is being set, from its menu (RouteBox). */
-export interface EditedPoint { ident: string; waypoint: boolean; altitude: PointAltitude }
+/** The point whose altitude is being set, from its menu (RouteBox) or its
+ *  row in FPL's list (ProceduresRoute); an airport's elevation where it is
+ *  known, the altitude it has without one there. */
+export interface EditedPoint { ident: string; waypoint: boolean; altitude: PointAltitude; elevationFt?: number | null }
 
 /**
  * A point's own altitude, asked as iOS asks for one figure: an alert with
  * a field in it. A waypoint's is a cruising altitude, typed as a flight
  * level over its dashes (FL045), as the altitude's chip writes it; it is
  * flown to the waypoint, the rest of the route as planned. An airport's
- * is its traffic pattern, in feet above sea level, which a flight landing
- * there comes down to. Set, or given back to the plan.
+ * is what a flight landing there comes down to, in feet above sea level --
+ * its traffic pattern's unless the pilot sets one -- its own elevation the
+ * altitude it has with none, at the owner's ask ("airports default to
+ * field elevation but changeable"). Set, or given back to the plan.
  */
 export default function PointAltitudeDialog({ point, onClose, onSet }: {
   point: EditedPoint | null;
@@ -51,7 +55,7 @@ export default function PointAltitudeDialog({ point, onClose, onSet }: {
 }
 
 function AltitudeForm({ point, onSet }: { point: EditedPoint; onSet: (ident: string, feet: number | null) => void }) {
-  const { ident, waypoint, altitude } = point;
+  const { ident, waypoint, altitude, elevationFt } = point;
   // A waypoint's in hundreds of feet, three figures; an airport's in feet.
   const shown = (feet: number | null) => (feet === null ? "" : waypoint ? flightLevel(feet).slice(2) : String(Math.round(feet)));
   const [typed, setTyped] = useState(shown(altitude.feet));
@@ -60,11 +64,11 @@ function AltitudeForm({ point, onSet }: { point: EditedPoint; onSet: (ident: str
   return (
     <form onSubmit={e => { e.preventDefault(); if (valid) onSet(ident, feet); }} className="contents">
       <AlertDialogHeader>
-        <AlertDialogTitle>{waypoint ? `Altitude at ${ident}` : `Pattern altitude at ${ident}`}</AlertDialogTitle>
+        <AlertDialogTitle>Altitude at {ident}</AlertDialogTitle>
         <AlertDialogDescription>
           {waypoint
             ? "Flown to it at this altitude; the rest of the route as planned."
-            : "Where a flight landing here comes down to, in feet above sea level."}
+            : `${elevationFt != null ? `Field elevation ${altFt(elevationFt)} ft. ` : ""}Where a flight landing here comes down to, in feet above sea level.`}
         </AlertDialogDescription>
       </AlertDialogHeader>
       {altitude.caution && altitude.caution.length > 0 && (
@@ -77,7 +81,7 @@ function AltitudeForm({ point, onSet }: { point: EditedPoint; onSet: (ident: str
         <Input
           value={typed} onChange={e => setTyped(e.target.value.replace(/\D/g, "").slice(0, waypoint ? 3 : 5))}
           placeholder={waypoint ? "---" : "-----"} inputMode="numeric" spellCheck={false}
-          aria-label={waypoint ? `Altitude at ${ident}, flight level` : `Pattern altitude at ${ident}, feet`}
+          aria-label={waypoint ? `Altitude at ${ident}, flight level` : `Altitude at ${ident}, feet`}
           className="h-full min-w-0 flex-1 border-0 bg-transparent px-0 font-mono shadow-none focus-visible:ring-0 dark:bg-transparent"
           data-testid="point-altitude-input"
         />

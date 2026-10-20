@@ -38,7 +38,7 @@ function shortName(p: ProcedureSummary): string {
  * whole list (the Procedures sheet, with each one's fixes and plate)
  * after it. The list is asked for as the menu opens.
  */
-export default function ProcedureMenu({ ident, kind, list, loading, picked, label, runway, windward, fixes = [], onOpen, onPick, onAll }: {
+export default function ProcedureMenu({ ident, kind, list, loading, picked, label, runway, windward, fixes = [], look = "chip", onOpen, onPick, onAll }: {
   ident: string;
   kind: Kind;
   /** The field's procedures, once asked for (onOpen). */
@@ -55,6 +55,10 @@ export default function ProcedureMenu({ ident, kind, list, loading, picked, labe
   /** The picked one's fixes ATC can send the airplane direct to, in its
    *  order (its drawing's): with any, a page of them. */
   fixes?: string[];
+  /** Its trigger: a chip; the head of the procedure's branch, its name in
+   *  the tint (FixBranch); or, none picked, "+ Arrival" in a dashed
+   *  outline, after the field's runways (the owner's pick, option C). */
+  look?: "chip" | "head" | "add";
   onOpen: () => void;
   onPick: (next: { id: string; transition: string | null; direct?: string | null } | null) => void;
   onAll: () => void;
@@ -116,15 +120,18 @@ export default function ProcedureMenu({ ident, kind, list, loading, picked, labe
             round it (the owner's compact head). Opened by a tap -- its
             lift, as a button's click is -- not a touch. */}
         <button
-          type="button" data-testid="procedure-kind" data-kind={kind}
+          type="button" data-testid="procedure-kind" data-kind={kind} data-look={look}
           className={cn(
-            "relative flex h-8 max-w-[10rem] min-w-0 shrink items-center gap-0.5 rounded-full bg-foreground/8 px-2.5 text-left font-semibold text-tint outline-none",
-            "after:absolute after:-inset-1.5 after:content-[''] focus-visible:ring-2 focus-visible:ring-ring", TEXT.detail,
+            "relative flex min-w-0 shrink items-center gap-0.5 text-left font-semibold text-tint outline-none",
+            "after:absolute after:-inset-1.5 after:content-[''] focus-visible:ring-2 focus-visible:ring-ring",
+            look === "head" ? cn("max-w-full", TEXT.row)
+              : look === "add" ? cn("h-8 rounded-full border border-dashed border-foreground/25 px-3", TEXT.detail)
+                : cn("h-8 max-w-[10rem] rounded-full bg-foreground/8 px-2.5", TEXT.detail),
           )}
           aria-label={`${ident} ${TITLE[kind].toLowerCase()}: ${label ?? "none picked"}`}
         >
-          <span className="truncate">{label ?? SHORT[kind]}</span>
-          <ChevronDown className="size-4 shrink-0" aria-hidden />
+          {look === "add" ? <span className="truncate">+ {TITLE[kind]}</span> : <span className="truncate">{label ?? SHORT[kind]}</span>}
+          {look !== "add" && <ChevronDown className="size-4 shrink-0" aria-hidden />}
         </button>
       </ResponsivePopoverTrigger>
       <ResponsivePopoverContent

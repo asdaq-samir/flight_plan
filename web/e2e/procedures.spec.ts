@@ -322,17 +322,23 @@ test("a field typed as ORD is KORD, its arrivals offered and its runways one lin
  * arrival's and approach's do, at the owner's ask ("Departure selection
  * should also be before runways just like arrival/approach").
  */
-test("a field's departure is picked over its runways, as its arrival and approach are", async ({ page }) => {
+test("a field's departure is picked after its runways, as its arrival and approach are", async ({ page }) => {
   await page.goto("/app/plan?dep=KORD&dest=C81");
   await settle(page);
   await openTab(page, "Nav Log");
   const kord = page.getByTestId("procedures").getByRole("region", { name: "KORD · Depart" });
   const menu = kord.locator("[data-testid=procedure-kind][data-kind=departure]");
   await expect(menu).toBeVisible({ timeout: slow(20000) });
-  await expect(menu).toHaveText(/^Depart/);
+  // None picked: a dashed "+ Departure" after the runways, at the owner's
+  // pick ("Can the selection for procedures be after runways so when
+  // selected can expand", option C).
+  await expect(menu).toHaveText(/^\+ Departure/);
+  await expect(menu).toHaveAttribute("data-look", "add");
   const chips = kord.getByTestId("procedure-pattern").locator("visible=true").first();
   await expect(chips).toBeVisible();
-  expect((await menu.boundingBox())!.y).toBeLessThan((await chips.boundingBox())!.y);
+  expect((await menu.boundingBox())!.y).toBeGreaterThan((await chips.boundingBox())!.y);
+  // And the departure's time on its own step, not in the route's box.
+  await expect(kord.getByTestId("depart-date")).toHaveText(/^Now/);
 });
 
 /**
@@ -463,7 +469,11 @@ test("a procedure's fixes branch off the route, each sent direct to or given an 
   await openTab(page, "Nav Log");
   const kdlh = page.getByTestId("procedures").getByRole("region", { name: "KDLH · Arrive" });
   const toggle = kdlh.getByTestId("fix-branch-toggle");
-  await expect(toggle).toContainText("ILS 09 · DLH · 3 fixes", { timeout: slow(20000) });
+  // The branch's head, after the runways: the approach's pull-down, its
+  // kind and its fixes under it, the fold at its right.
+  const branchHead = kdlh.getByTestId("fix-branch");
+  await expect(branchHead).toContainText("ILS 09 · DLH", { timeout: slow(20000) });
+  await expect(branchHead).toContainText("Approach · 3 fixes");
   await toggle.click();
   const rows = kdlh.getByTestId("fix-branch-row");
   await expect(rows).toHaveCount(3);

@@ -36,14 +36,14 @@ test("plan page: the flight planning drawer opens the way the Model Training dra
   else expect(Math.round(box!.width)).toBe(viewport.width);
 
   // The panel's controls are the two inputs the log is computed from
-  // -- the airplane and the departure time -- and nothing else of the
-  // log's: neither is inside a section.
+  // -- the airplane in the route's box, the departure time on the
+  // departure's step in the route's list (the owner's ask) -- and nothing
+  // else of the log's.
   await controlsInSight(page);
   await expect(drawer.getByTestId("aircraft-select")).toBeVisible();
-  await expect(drawer.getByTestId("depart-date")).toBeVisible();
+  await expect(drawer.getByTestId("procedures").getByTestId("depart-date")).toBeVisible();
   await expect(drawer.getByTestId("ai-narrative-button")).toHaveCount(0);
   expect(await drawer.locator('[role="tabpanel"] [data-testid="aircraft-select"]').count()).toBe(0);
-  expect(await drawer.locator('[role="tabpanel"] [data-testid="depart-date"]').count()).toBe(0);
   // The panel's tabs, in the pilot's order, the nav log's up: it holds
   // the totals and the descriptions button above the table.
   // "Perf" on its tab, its name whole (PanelTabs). No Airports tab: the
@@ -95,9 +95,12 @@ test("plan page: the flight planning drawer opens the way the Model Training dra
     .map(async id => (await drawer.getByTestId(id).boundingBox())!));
   expect(approachesBox.x).toBeLessThan(shareBox.x);
   expect(Math.abs(approachesBox.y - shareBox.y)).toBeLessThan(2);
-  const departure = (await drawer.getByTestId("depart-date").boundingBox())!;
-  expect(approachesBox.x).toBeGreaterThan(departure.x);
-  expect(Math.abs(shareBox.y + shareBox.height / 2 - (departure.y + departure.height / 2))).toBeLessThan(12);
+  // The departure's time on its step in the route's list, not in this
+  // line, at the owner's ask: the airplane's chip leads the line instead.
+  const airplane = (await drawer.getByTestId("aircraft-select").boundingBox())!;
+  expect(approachesBox.x).toBeGreaterThan(airplane.x);
+  expect(Math.abs(shareBox.y + shareBox.height / 2 - (airplane.y + airplane.height / 2))).toBeLessThan(12);
+  await expect(drawer.getByTestId("procedures").getByTestId("depart-date")).toBeVisible();
   await drawer.getByTestId("share-route").click();
   // And, signed in, Save this flight among them.
   for (const id of ["save-flight-button", "file-flight-plan", "print-briefing", "print-kneeboard", "route-clear"]) {
