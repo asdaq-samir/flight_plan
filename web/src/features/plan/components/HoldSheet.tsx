@@ -10,7 +10,9 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger,
 } from "../../../components/ui/dropdown-menu";
 import { Input } from "../../../components/ui/input";
-import type { Hold } from "../../../lib/holds";
+import { lengthCode, lengthOfCode, lengthWords, type Hold } from "../../../lib/holds";
+import { legMinutes } from "../../../lib/holding";
+import { bearing } from "../../../lib/units";
 import { TEXT } from "../../../lib/text";
 
 /** The point a hold is being set at: its ident, the hold there now, the
@@ -28,18 +30,13 @@ const LEG_NM = [2, 3, 4, 5, 10];
 /** How long it is held: turns round it, or minutes. */
 const LENGTHS = ["1T", "2T", "3T", "4T", "10M", "15M", "20M", "30M"];
 
-const lengthWords = (code: string) => {
-  const n = Number(code.slice(0, -1));
-  return code.endsWith("T") ? `${n} ${n === 1 ? "turn" : "turns"}` : `${n} min`;
-};
-
 /**
  * A hold at a point of the route, set as Garmin's and ForeFlight's
  * pilot-defined holds are, at the owner's ask ("create a left/right
  * hold", mock 4 of the canvas's holds): the course, inbound or outbound;
  * the turns, right (the standard pattern) or left; the legs by time --
- * a minute at or below 14,000 ft, a minute and a half above (AIM 5-3-8)
- * -- or distance; and how long, in turns or minutes. The planner works
+ * a minute at or below 14,000 ft, a minute and a half above (lib/holding's
+ * legMinutes) -- or distance; and how long, in turns or minutes. The planner works
  * out the entry from the course flown to it, and adds the hold's time
  * and fuel to the flight's (plan.with_holds). A sheet on a phone with
  * its title on top and Close, as the fix's card is.
@@ -68,24 +65,23 @@ function HoldForm({ at, onSet }: { at: HoldAt; onSet: (fix: string, hold: Hold |
   const was = at.hold;
   // The course flown to it, as the inbound course, where none is set:
   // the hold straight ahead, a direct entry (AIM 5-3-8).
-  const ahead = was ? was.inbound : at.arrivalDeg != null ? Math.round(at.arrivalDeg) % 360 : null;
-  const [course, setCourse] = useState(ahead === null ? "" : String(ahead).padStart(3, "0"));
+  const ahead = was ? was.inbound : at.arrivalDeg ?? null;
+  // In three figures, north as 360 (units.bearing), as the pilot reads it.
+  const [course, setCourse] = useState(ahead === null ? "" : bearing(ahead).replace("°", ""));
   const [way, setWay] = useState<"in" | "out">("in");
   const [right, setRight] = useState(was?.right ?? true);
   const [timed, setTimed] = useState(was ? "min" in was.leg : true);
-  const high = (at.altitudeFt ?? 0) > 14_000;
-  const [legMin, setLegMin] = useState(was && "min" in was.leg ? was.leg.min : high ? 1.5 : 1);
+  const [legMin, setLegMin] = useState(was && "min" in was.leg ? was.leg.min : legMinutes(at.altitudeFt ?? 0));
   const [legNm, setLegNm] = useState(was && "nm" in was.leg ? was.leg.nm : 4);
-  const [length, setLength] = useState(was ? ("turns" in was.length ? `${was.length.turns}T` : `${was.length.minutes}M`) : "2T");
+  const [length, setLength] = useState(was ? lengthCode(was.length) : "2T");
   const deg = course.length === 3 ? Number(course) : NaN;
   const valid = deg >= 0 && deg <= 360;
   const set = () => {
     if (!valid) return;
     const inbound = (way === "in" ? deg : deg + 180) % 360;
-    const n = Number(length.slice(0, -1));
     onSet(at.fix, {
       fix: at.fix, inbound, right, leg: timed ? { min: legMin } : { nm: legNm },
-      length: length.endsWith("T") ? { turns: n } : { minutes: n },
+      length: lengthOfCode(length) ?? { turns: 2 },
     });
   };
   return (
@@ -122,7 +118,7 @@ function HoldForm({ at, onSet }: { at: HoldAt; onSet: (fix: string, hold: Hold |
           </span>
         </ListRow>
         <ListRow title="Hold for">
-          <Choice label="Hold for" value={length} options={LENGTHS.map(l => [l, lengthWords(l)])} onChange={setLength} testId="hold-length" />
+          <Choice label="Hold for" value={length} options={LENGTHS.map(l => [l, lengthWords(lengthOfCode(l)!)])} onChange={setLength} testId="hold-length" />
         </ListRow>
       </ListGroup>
       <Button type="submit" size="lg" disabled={!valid} className={cn("w-full", TEXT.row)} data-testid="hold-set">

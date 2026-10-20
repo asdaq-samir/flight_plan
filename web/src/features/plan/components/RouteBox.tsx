@@ -20,7 +20,7 @@ import { usePreferences, type AirspaceClass, type RecentAirport } from "../../..
 import { useAirportSearch } from "../../../lib/useAirportSearch";
 import { AIRSPACE_PILL, pillLook, useAirspace } from "../../../lib/useAirspace";
 import { inkOn } from "../../../lib/scoreScale";
-import { altFt, flightLevel } from "../../../lib/units";
+import { altFt, bearing, flightLevel } from "../../../lib/units";
 import { sameField } from "../../../lib/procedures";
 import { TEXT } from "../../../lib/text";
 import PointAltitudeDialog, { type EditedPoint, type PointAltitude } from "./PointAltitudeDialog";
@@ -509,7 +509,7 @@ const NO_PROCEDURES: RouteProcedure[] = [];
 /** The pilot's own point as words: "30 nm on 090° from VPBNG". */
 function frdWords(ident: string): string {
   const frd = frdOf(ident);
-  return frd ? `${frd.distanceNm} nm on ${String(frd.course).padStart(3, "0")}° from ${frd.base}` : ident;
+  return frd ? `${frd.distanceNm} nm on ${bearing(frd.course)} from ${frd.base}` : ident;
 }
 
 /** A procedure picked at a point, after its pill: its kind's glyph and its
