@@ -38,7 +38,6 @@ import { AirportRecentsPage, RecentAirportTiles, SearchField, SearchResults } fr
 import { chipColourOf } from "../../lib/map/flightCategory";
 import { FavoriteStrip, FavoritesList } from "../../components/Favorites";
 import FlightLine from "./components/FlightLine";
-import PlaceCard from "./components/PlaceCard";
 import ProceduresRoute, { type FitInputs, type ProcedureAirport, type ProceduresAt } from "./components/ProceduresRoute";
 import { useLoad } from "./hooks/useLoad";
 import { NO_PATTERN, patternsOf, patternsParam, trafficPattern, type TrafficPattern } from "../../lib/trafficPattern";
@@ -56,7 +55,6 @@ import { RecentRoutesPage } from "./components/RecentRoutes";
 import MiniProfile from "./components/navlog/MiniProfile";
 import FootPager from "./components/FootPager";
 import { dryRunOf, type DryRun } from "./components/navlog/dryRun";
-import { DryRunControls, DryRunFigures } from "./components/DryRunPanel";
 import { loadFlightChart } from "./components/loadFlightChart";
 import { DRY_RUN, clearPastFlight, usePastFlight } from "../../lib/map/pastFlight";
 import type { RouteParts, RouteProcedure } from "./components/RouteBox";
@@ -127,6 +125,11 @@ const BriefCard = fromRoutePanel("BriefCard");
 const AirspaceCard = fromRoutePanel("AirspaceCard");
 const FlightCard = fromRoutePanel("FlightCard");
 const PastFlightCard = fromRoutePanel("PastFlightCard");
+// An airport's card and the dry run's panel too, each drawn at a tap: with
+// the React Compiler on, the first load was 11 KB past CI's 1.10 MB.
+const PlaceCard = fromRoutePanel("PlaceCard");
+const DryRunControls = fromRoutePanel("DryRunControls");
+const DryRunFigures = fromRoutePanel("DryRunFigures");
 /** A round button's room while its code comes (routePanel). */
 
 function altitudeChoiceOf(value: string | null): AltitudeChoice {
@@ -1601,13 +1604,15 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // size its summary, the pill's own (`summary`), as a tap on the map opens
   // it, at the owner's pick of the redesign.
   const placeCard = (summary: boolean) => place && (
-    <PlaceCard
-      key={place} ident={place} from={measuredFrom} summary={summary}
-      onClose={closePlace} onFlyHere={to => void flyHere(to)} onExpand={() => setPanel("full")} onLower={() => setPanel("half")}
-      // None for a point of the route, or past the planner's most stops.
-      onAddStop={[planned.dep, ...planned.stops, planned.dest].includes(place) || planned.stops.length >= MAX_STOPS ? undefined : addStop}
-      startOn={approachesOf === place ? "approaches" : undefined} onStarted={() => setApproachesOf(null)}
-    />
+    <Suspense fallback={null}>
+      <PlaceCard
+        key={place} ident={place} from={measuredFrom} summary={summary}
+        onClose={closePlace} onFlyHere={to => void flyHere(to)} onExpand={() => setPanel("full")} onLower={() => setPanel("half")}
+        // None for a point of the route, or past the planner's most stops.
+        onAddStop={[planned.dep, ...planned.stops, planned.dest].includes(place) || planned.stops.length >= MAX_STOPS ? undefined : addStop}
+        startOn={approachesOf === place ? "approaches" : undefined} onStarted={() => setApproachesOf(null)}
+      />
+    </Suspense>
   );
 
   // The route from the side (MiniProfile), a tap the nav log all the way up;
@@ -1902,7 +1907,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           // Clipped to its box, as the side view's is: shrinking with the
           // sheet to the pill, the chart was drawn over the figures under it
           // (the owner's recording).
-          <div className={cn("flex min-h-0 flex-col overflow-hidden pb-2", panel === "full" ? "h-[min(10rem,20dvh)] min-h-24 flex-none" : "h-40 shrink")} data-pill-hides=""><DryRunControls run={dryRunning} ends={course} onClose={stopDryRun} missed={goMissed} onMissed={goMissedNow} /></div>
+          <div className={cn("flex min-h-0 flex-col overflow-hidden pb-2", panel === "full" ? "h-[min(10rem,20dvh)] min-h-24 flex-none" : "h-40 shrink")} data-pill-hides=""><Suspense fallback={null}><DryRunControls run={dryRunning} ends={course} onClose={stopDryRun} missed={goMissed} onMissed={goMissedNow} /></Suspense></div>
         ) : miniProfile && (
           <div
             // All the half sheet leaves it, at the owner's ask ("make the
@@ -1925,7 +1930,9 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           </div>
         )}
         {dryRunning ? (
-          <DryRunFigures run={dryRunning} totals={s.totals} estimate={estimate} destination={`${planned.dest}`} depart={depart} local={s.local} />
+          <Suspense fallback={null}>
+            <DryRunFigures run={dryRunning} totals={s.totals} estimate={estimate} destination={`${planned.dest}`} depart={depart} local={s.local} />
+          </Suspense>
         ) : (
           <div data-testid="flight-line">
             <FlightLine totals={s.totals} estimate={estimate} destination={`${planned.dest}`} depart={depart} local={s.local} grow />
