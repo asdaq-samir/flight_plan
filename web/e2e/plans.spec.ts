@@ -71,7 +71,10 @@ test("plan page: the nav log's altitude opens the planner's own reasoning, and t
   await expect(page).not.toHaveURL(/[?&]altitude_ft=/, { timeout: slow(10000) });
   await expect(page).not.toHaveURL(/[?&]altitude_choice=/);
   await closeCard(page, "profile-close");
-  await expect(why).not.toHaveAccessibleName(/3,500 feet/, { timeout: slow(30000) });
+  // Planned again as the plan, whatever its altitude: with CI's winds
+  // Fastest cruises at the very 3,500 ft typed above, so the figure alone
+  // cannot tell the two apart -- the plan's name in the Brief can.
+  await expect(why).toHaveAccessibleName(/\d,\d{3} feet|FL\d{3}/, { timeout: slow(30000) });
 
   // The Brief's Cruise Altitude section carries the same steps, the plan
   // flown first with its time and fuel, and says the floor and the
