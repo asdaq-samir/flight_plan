@@ -239,37 +239,41 @@ test("a Favorite is taken off as a Recent is: a swipe to the left uncovers its D
   await expect(list).toContainText("A star on an airport's card adds it here");
 });
 
-test("on a phone, a card opened from another tab has Back at the top left of the tabs' line, and its close puts the sheet down", async ({ page }) => {
+test("on a phone, an airport's card opened from another tab has Share at the top left of the tabs' line, and its close goes back", async ({ page }) => {
   test.skip((page.viewportSize()?.width ?? 0) >= 768, "the tabs minimize on a phone only");
-  // An airport's card over FPL (a route's field): the bar its kind and
-  // Back to FPL, at the owner's ask ("don't make the tabs into a centered
-  // label unless going from another tab").
+  // An airport's card over FPL (a route's field): the bar its kind, Share
+  // where Back was and the close going back as Back did, at the owner's
+  // ask ("replace the back button on airport/aircraft with the share
+  // button. The close button should behave like the back button").
   await page.goto("/app/plan?dep=C81&dest=KDLH&place=KDLH");
   await settle(page);
   const panel = sideDrawer(page);
   await expect(panel.getByTestId("place-card")).toBeVisible();
-  const back = page.getByTestId("tab-back");
+  const share = page.getByTestId("tab-share");
+  await expect(share).toHaveAccessibleName("Share KDLH");
+  await expect(page.getByTestId("tab-back")).toHaveCount(0);
   const title = (await page.getByTestId("tab-title").boundingBox())!;
-  const backBox = (await back.boundingBox())!;
+  const shareBox = (await share.boundingBox())!;
   // At the left, on the tab label's line; the card's own close gone.
-  expect(backBox.x + backBox.width).toBeLessThan(title.x);
-  expect(Math.abs(backBox.y + backBox.height / 2 - (title.y + title.height / 2))).toBeLessThanOrEqual(2);
+  expect(shareBox.x + shareBox.width).toBeLessThan(title.x);
+  expect(Math.abs(shareBox.y + shareBox.height / 2 - (title.y + title.height / 2))).toBeLessThanOrEqual(2);
   // Out of sight, kept for a keyboard and a screen reader (CardClose).
   expect(await panel.getByTestId("place-close").evaluate(el => !!el.closest(".sr-only"))).toBe(true);
   const close = page.getByTestId("tab-close");
   expect((await close.boundingBox())!.x).toBeGreaterThan(title.x + title.width);
-  await back.click();
+  // Shared: the field's card on the planner, by its address.
+  await page.evaluate(() => {
+    Object.defineProperty(navigator, "share", { configurable: true, value: (item: { url: string }) => { (window as unknown as { shared: string }).shared = item.url; return Promise.resolve(); } });
+  });
+  await share.click();
+  await expect.poll(() => page.evaluate(() => (window as unknown as { shared?: string }).shared)).toMatch(/\/app\/plan\?place=KDLH$/);
+  // The close: one card back, the sheet where it was.
+  const height = await panel.getAttribute("data-panel");
+  await close.click();
   await expect(page).not.toHaveURL(/[?&]place=/);
-  // At the tab's own screen no Back: nothing to go back to.
-  await expect(back).toHaveCount(0);
-
-  // Opened again, the close: the card put away and the sheet down to its pill.
-  await page.goto("/app/plan?dep=C81&dest=KDLH&place=KDLH");
-  await settle(page);
-  await expect(panel.getByTestId("place-card")).toBeVisible();
-  await page.getByTestId("tab-close").click();
-  await expect(page).not.toHaveURL(/[?&]place=/);
-  await expect(panel).toHaveAttribute("data-panel", "peek");
+  await expect(panel).toHaveAttribute("data-panel", height!);
+  // At the tab's own screen neither: nothing to go back to.
+  await expect(share).toHaveCount(0);
 });
 
 test("on a phone, a tap anywhere on the tabs' minimized line shows the tabs, but Back goes back", async ({ page }) => {
@@ -281,19 +285,19 @@ test("on a phone, a tap anywhere on the tabs' minimized line shows the tabs, but
   const panel = sideDrawer(page);
   await expect(panel.getByTestId("place-card")).toBeVisible();
   const title = page.getByTestId("tab-title");
-  const back = (await page.getByTestId("tab-back").boundingBox())!;
+  const back = (await page.getByTestId("tab-share").boundingBox())!;
   const close = (await page.getByTestId("tab-close").boundingBox())!;
   const line = (await title.boundingBox())!;
-  // Between Back and the title, off both: the tabs.
+  // Between Share and the title, off both: the tabs.
   await page.mouse.click((back.x + back.width + line.x) / 2, line.y + line.height / 2);
   await expect(page.getByTestId("tab-fpl")).toBeVisible();
   await expect(page).toHaveURL(/[?&]place=KDLH/);
-  // Back on a fresh load does its own, not the tabs'.
+  // The close on a fresh load does its own, not the tabs'.
   await page.goto("/app/plan?dep=C81&dest=KDLH&place=KDLH");
   await settle(page);
   await expect(panel.getByTestId("place-card")).toBeVisible();
   expect(close.x).toBeGreaterThan(line.x);
-  await page.getByTestId("tab-back").click();
+  await page.getByTestId("tab-close").click();
   await expect(page).not.toHaveURL(/[?&]place=/);
 });
 
@@ -419,7 +423,7 @@ test("with Back showing, a swipe across the panel goes back, not to the tab besi
   await settle(page);
   const panel = sideDrawer(page);
   await expect(panel.getByTestId("place-card")).toBeVisible();
-  await expect(page.getByTestId("tab-back")).toBeVisible();
+  await expect(page.getByTestId("tab-share")).toBeVisible();
   // To the left, nothing: no tab beside, and nothing forward.
   await swipeAcross(page, -130);
   await page.waitForTimeout(300);
@@ -428,7 +432,7 @@ test("with Back showing, a swipe across the panel goes back, not to the tab besi
   // To the right, back: the card put away, FPL as it was.
   await swipeAcross(page, 130);
   await expect(page).not.toHaveURL(/[?&]place=/);
-  await expect(page.getByTestId("tab-back")).toHaveCount(0);
+  await expect(page.getByTestId("tab-share")).toHaveCount(0);
   await showTabs(page);
   await expect(panel.locator('[data-testid="tab-bar"] button[aria-current="page"]')).toHaveAttribute("data-testid", "tab-fpl");
 });

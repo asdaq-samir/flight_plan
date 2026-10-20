@@ -29,6 +29,8 @@ import { pastFlightQuery, pastFlightsQuery } from "./pastFlightsQuery";
 import { CardAction } from "./CardAction";
 import { CardTabBar, CardTabPanel } from "../../../components/CardTabs";
 import { useCardTab } from "../../../lib/cardTab";
+import { useOpenCards } from "../../../lib/openCards";
+import { shareOrCopy } from "../../../lib/share";
 import { Tabs } from "../../../components/ui/tabs";
 
 /** The card's tabs: its flights, the one it is on now at their head, and
@@ -44,10 +46,8 @@ type FlightTab = (typeof FLIGHT_TABS)[number]["value"];
 /** A link to the airplane on the planner, shared where the phone can,
  *  copied where it cannot. */
 async function shareFlight(name: string, hex: string) {
-  const url = `${location.origin}/app/plan?flight=${hex}`;
   try {
-    if (navigator.share) await navigator.share({ title: name, url });
-    else await navigator.clipboard.writeText(url);
+    await shareOrCopy({ title: name, url: `${location.origin}/app/plan?flight=${hex}` });
   } catch {
     // Put away, or not allowed: nothing to say.
   }
@@ -196,10 +196,13 @@ export default function FlightCard({ hex, onClose, onOpenPast, onOpenAirport, on
   const debriefed = current ?? last;
   const alerts = usePreferences(s => s.aircraftAlerts);
   const waiting = alertsLine(useMemo(() => alerts.filter(a => a.hex === hex), [alerts, hex]));
+  // On a phone the minimized tab bar's Share is its share, in Back's place
+  // (TabBar); wider, the column's third button, under Follow.
+  const barShares = useOpenCards(s => s.barMinimized);
   return (
     <PanelCard testId="flight-card">
       <CardTop
-        tall
+        tall={!barShares}
         name={model ?? name} nameTestId="flight-name" nameFitTestId="flight-name-fit"
         lines={(
           <>
@@ -218,7 +221,7 @@ export default function FlightCard({ hex, onClose, onOpenPast, onOpenAirport, on
         )}
         side={(
           <>
-            <CardClose onClose={onClose} testId="flight-close" />
+            <CardClose onClose={onClose} onShare={() => void shareFlight(name, hex)} testId="flight-close" />
             <FavoriteButton kept={kept} />
             {/* Nothing to follow where it is not heard now: greyed, not pressed. */}
             <RoundButton
@@ -228,9 +231,11 @@ export default function FlightCard({ hex, onClose, onOpenPast, onOpenAirport, on
             >
               <Crosshair className="size-5" strokeWidth={2.2} />
             </RoundButton>
-            <RoundButton label={`Share ${name}`} className="text-tint hover:text-tint" onClick={() => void shareFlight(name, hex)} data-testid="flight-share">
-              <Share className="size-5" strokeWidth={2.2} />
-            </RoundButton>
+            {!barShares && (
+              <RoundButton label={`Share ${name}`} className="text-tint hover:text-tint" onClick={() => void shareFlight(name, hex)} data-testid="flight-share">
+                <Share className="size-5" strokeWidth={2.2} />
+              </RoundButton>
+            )}
           </>
         )}
         columns={3}

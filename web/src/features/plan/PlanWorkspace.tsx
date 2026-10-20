@@ -1589,7 +1589,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       cardHead={navLogShown ? (
         <CardHead
           name="Nav log" line={routeName(planned.dep, planned.dest, planned.stops)} nameTestId="navlog-name"
-          onClose={closeNavLogCard} closeTestId="navlog-close"
+          onClose={closeNavLogCard} onShare="route" closeTestId="navlog-close"
         />
       ) : undefined}
       aircraftLabel={aircraft.label}
@@ -1694,9 +1694,9 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     aircraftId: aircraft.aircraftId ?? null, depart, altitudes,
   };
   // Share and everything else the route's row had (ShareMenu).
-  const shareMenu = (align: "start" | "end") => (
+  const shareMenu = (align: "start" | "end", testId?: string) => (
     <ShareMenu
-      align={align} planned={planned} course={course} selected={selected} altitudeFt={s.nav?.altitude_ft ?? undefined}
+      align={align} testId={testId} planned={planned} course={course} selected={selected} altitudeFt={s.nav?.altitude_ft ?? undefined}
       routed={routed} hasPoints={hasPoints} local={!!s.local} fileable={fileable} onFile={fileFlightPlan} onClear={clearRoute}
       saving={askReview => (
         <Suspense fallback={null}>
@@ -2009,7 +2009,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     // The planner's tabs, the panel's first row, and at rest the pill
     // itself, at the pilot's ask: no search bar or route under them
     // (MapPanel).
-    bar: <TabBar tabs={PLANNER_TABS} tab={tab} over={(place || heldPoint) && tab !== "airport" ? "airport" : undefined} title={cardTitle} onPick={pickTab} onUp={tabUp} onClose={closeSheet} listOver={!!list || savedOpen || nearOpen} marks={s.unflyable ? { fpl: "stop" } : undefined} />,
+    bar: <TabBar tabs={PLANNER_TABS} tab={tab} over={(place || heldPoint) && tab !== "airport" ? "airport" : undefined} title={cardTitle} onPick={pickTab} onUp={tabUp} onClose={closeSheet} routeShare={shareMenu("start", "tab-share")} listOver={!!list || savedOpen || nearOpen} marks={s.unflyable ? { fpl: "stop" } : undefined} />,
     // The route's figures -- the distance, the time en route, the arrival
     // and the fuel -- pinned at FPL's foot while there is a route, at every
     // height, the pill too, at the pilot's ask: they were the last of the
