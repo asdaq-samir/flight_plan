@@ -72,6 +72,34 @@ def test_the_legs_land_at_the_stop_and_each_hop_has_its_own_fuel_check():
     assert len(body["altitude_selection"]["segments"]) == len(legs)
 
 
+def test_the_flight_after_a_stop_leaves_after_its_time_on_the_ground(monkeypatch):
+    """Thirty minutes at a stop the pilot gave no time for, the owner's
+    pick (2026-10-20), or the pilot's own (`ground`): the next flight is
+    planned to leave that much later, its winds and night read for then,
+    and the totals carry the time for the arrival. None had been counted."""
+    from datetime import datetime, timedelta, timezone
+
+    from app.routers import plan as plan_router
+
+    starts = []
+    real = plan_router.flight_window
+
+    def window(when, length_nm, tas):
+        starts.append(when)
+        return real(when, length_nm, tas)
+
+    monkeypatch.setattr(plan_router, "flight_window", window)
+    depart = datetime(2026, 9, 22, 15, 0, tzinfo=timezone.utc)
+    by_default = client.get("/api/plan", params={**VIA_MADISON, "depart": depart.isoformat()}).json()["totals"]
+    first, after = starts[0], starts[1]
+    starts.clear()
+    own = client.get("/api/plan", params={**VIA_MADISON, "depart": depart.isoformat(), "ground": "KMSN:75"}).json()["totals"]
+    assert starts[1] - after == timedelta(minutes=45)
+    assert after - first > timedelta(minutes=30)
+    assert (by_default["ground_min"], own["ground_min"]) == (30.0, 75.0)
+    assert client.get("/api/plan", params={**VIA_MADISON, "ground": "KMSN:soon"}).status_code == 422
+
+
 def test_each_flight_climbs_from_its_field_and_comes_down_to_its_own_pattern():
     # The stub's 10 nm legs at 4,500 ft, the fields at 900: the climb
     # tops out on each flight's first leg, and each comes down to 1,900,

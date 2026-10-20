@@ -27,6 +27,9 @@ import { descriptionKey } from "../../hooks/useCheckpointNotes";
  * leg is cut there, and each row shows the piece of it that arrives
  * there (`part`) -- its miles, minutes and fuel, and up to a top of
  * climb the climb's speeds -- where `leg` is still the whole leg.
+ *
+ * `minutesFlown` is the time from the departure to the row, for its ETA:
+ * the legs' minutes, and after each stop landed at its time on the ground.
  */
 export type NavLogRow =
   | { kind: "departure"; key: string; airport: Airport; minutesFlown: number }
@@ -53,7 +56,16 @@ function piece(leg: Leg, from: { nm: number; min: number; gal: number }, to: { n
   return { ...leg, distance_nm: Math.max(0, to.nm - from.nm), ete_min: less(to.min, from.min), fuel_gal: less(to.gal, from.gal) };
 }
 
-export type RouteEnds = Pick<Course, "departure" | "destination"> & Partial<Pick<Course, "stops">>;
+export type RouteEnds = Pick<Course, "departure" | "destination"> & Partial<Pick<Course, "stops">> & {
+  /** Minutes on the ground at the stops, by ident (the address's
+   *  `ground`): a landing stop not named, TURNAROUND_MIN. */
+  ground?: Record<string, number>;
+};
+
+/** The time on the ground at a stop the pilot gave none for, min: a
+ *  turnaround, at the owner's pick (2026-10-20), as the planner counts it
+ *  (its TURNAROUND_MIN). The rows after a stop are timed from its end. */
+export const TURNAROUND_MIN = 30;
 
 export function navLogRows(ends: RouteEnds | null, selected: Candidate[], legs: Leg[]): NavLogRow[] {
   if (!ends) return [];
@@ -97,6 +109,9 @@ export function navLogRows(ends: RouteEnds | null, selected: Candidate[], legs: 
     if (stop) {
       const { leg, part } = arriving();
       rows.push({ kind: "stop", key: `stop-${hop}`, airport: stop, leg, part, minutesFlown: minutesTo(part ?? leg) });
+      // Landed: its arrival its own row's time, the rows after it from
+      // when it leaves again.
+      if (stop.kind !== "fix" && flown !== null) flown += ends.ground?.[stop.ident] ?? TURNAROUND_MIN;
     }
   }
   const { leg: last, part } = arriving();

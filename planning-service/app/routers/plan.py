@@ -118,6 +118,11 @@ class PlanQuery:
     #: that fix wherever a procedure picked passes it -- the descent planned
     #: to it and the path's heights (drawn_procedures).
     crossings: str = ""
+    #: Minutes on the ground at the route's stops: "KJVL:45". A stop not
+    #: named turns around in TURNAROUND_MIN, at the owner's pick (2026-10-20):
+    #: the flights after it leave that much later, for their winds, their
+    #: night and their times.
+    ground: str = ""
     #: Checkpoints between the route's own points, as the planner picks
     #: them off the chart. False, the legs run from point to point alone
     #: -- the departure, the stops, the destination -- as a pilot whose
@@ -170,6 +175,17 @@ class PlanQuery:
             if not POINT_ALTITUDE.fullmatch(part) or not 0 < float(feet) <= top:
                 raise HTTPException(422, f"{part!r} is not a fix's crossing altitude: a fix and feet, as BXCMB:3000.")
             out[ident.upper()] = float(feet)
+        return out
+
+    def own_ground(self) -> dict[str, float]:
+        """`ground` by ident; a 422 for one that is not "IDENT:MINUTES", or
+        a stop of more than a day."""
+        out = {}
+        for part in filter(None, (p.strip() for p in self.ground.split(","))):
+            ident, _, minutes = part.partition(":")
+            if not POINT_ALTITUDE.fullmatch(part) or not 0 <= float(minutes) <= 24 * 60:
+                raise HTTPException(422, f"{part!r} is not a stop's time on the ground: an ident and minutes, as KJVL:45.")
+            out[ident.upper()] = float(minutes)
         return out
 
     def drawn_procedures(self) -> list[tuple[str, dict]]:
@@ -341,12 +357,21 @@ class HopRun:
     depart: datetime | None
 
 
-def hop_runs(r: Route, by_hop: list, depart: datetime | None, profile: dict) -> list[HopRun]:
+#: The time on the ground at a stop where the pilot gave none, min: a
+#: turnaround -- taxi in, fuel, a break, taxi out -- at the owner's pick of
+#: the audit's choices (2026-10-20), where none was counted.
+TURNAROUND_MIN = 30.0
+
+
+def hop_runs(r: Route, by_hop: list, depart: datetime | None, profile: dict,
+             ground: dict[str, float] | None = None) -> list[HopRun]:
     """Each hop of `r` ready to plan, `by_hop` its selected checkpoints.
     A hop after the first is flown when the ones before it are done, at
-    cruise speed with no time on the ground -- an estimate, to the hour
-    its winds and forecast are read for. The first is the route's own:
-    a route without stops is planned exactly as it always was."""
+    cruise speed, and after the time on the ground at each stop it lands
+    at (`ground`, by ident, else TURNAROUND_MIN) -- an estimate, to the
+    hour its winds and forecast are read for. The first is the route's
+    own: a route without stops is planned exactly as it always was."""
+    ground = ground or {}
     runs, elapsed_h = [], 0.0
     tas = max(profile["cruise_tas_kt"], 1.0)
     for i, (hop, selected) in enumerate(zip(r.hops, by_hop)):
@@ -359,9 +384,13 @@ def hop_runs(r: Route, by_hop: list, depart: datetime | None, profile: dict) -> 
         runs.append(HopRun(
             hop, navlog.fixes(hop.dep_ident, hop.dest_ident, hop.start, hop.end, selected),
             forecast_hour_for(when), flight_window(when, hop.length_nm, tas),
-            when if depart is not None else None,
+            # A later flight's own time, now's flights' too: its night was
+            # judged at now, as the first's is.
+            when if depart is not None or i > 0 else None,
         ))
         elapsed_h += hop.length_nm / tas
+        if hop.lands and i < len(r.hops) - 1:
+            elapsed_h += ground.get(hop.dest_ident.upper(), TURNAROUND_MIN) / 60
     return runs
 
 
@@ -600,7 +629,7 @@ def _where(ident: str) -> str | None:
 
 
 def totals_of(r: Route, runs: list[HopRun], outcome: "Flown", profile: dict, rules: str = "vfr",
-              alternate: str = "") -> dict:
+              alternate: str = "", ground: dict[str, float] | None = None) -> dict:
     """The trip's totals: each flight's own, from one landing to the next
     through any waypoints (Route.flights), with its fuel check, joined
     (app.planning.route_totals). Under IFR with an `alternate` filed, the
@@ -620,7 +649,10 @@ def totals_of(r: Route, runs: list[HopRun], outcome: "Flown", profile: dict, rul
                                    runs[-1].fcst_hr)
         per_flight.append(flight_totals(legs, profile, flight, runs[at].depart, rules, leg_on))
         at += hops
-    return route_totals(per_flight, r.flights)
+    totals = route_totals(per_flight, r.flights)
+    # The time on the ground at the stops (hop_runs), for the arrival.
+    totals["ground_min"] = sum((ground or {}).get(f.dest_ident.upper(), TURNAROUND_MIN) for f in r.flights[:-1])
+    return totals
 
 
 def _waited(future: Future, tick_s: float, stages):
@@ -836,7 +868,7 @@ def plan(q: Annotated[PlanQuery, Depends()]) -> Plan:
     def work():
         scored, selected, by_hop = route_checkpoints(r) if q.checkpoints else ([], [], [[] for _ in r.hops])
         _name_waypoints(r, selected)
-        runs.extend(hop_runs(r, by_hop, q.depart, profile))
+        runs.extend(hop_runs(r, by_hop, q.depart, profile, q.own_ground()))
         return scored, selected, join_outcomes(runs, [resolve_run(run, profile, q) for run in runs])
 
     pool = ThreadPoolExecutor(max_workers=1)
@@ -864,7 +896,7 @@ def plan(q: Annotated[PlanQuery, Depends()]) -> Plan:
         candidates=scored,
         selected=selected,
         legs=leg_list,
-        totals=totals_of(r, runs, outcome, profile, q.rules, q.alternate),
+        totals=totals_of(r, runs, outcome, profile, q.rules, q.alternate, q.own_ground()),
         altitude_ft=outcome.altitude_ft,
         altitude_selection=outcome.selection,
         altitude_options=outcome.options,
@@ -938,7 +970,7 @@ def navlog_stream(q: Annotated[PlanQuery, Depends()]) -> StreamingResponse:
             by_hop = [[] for _ in r.hops]
 
         profile = q.profile()
-        runs = hop_runs(r, by_hop, q.depart, profile)
+        runs = hop_runs(r, by_hop, q.depart, profile, q.own_ground())
 
         # Each stage's words short enough for the one line the panel gives
         # them, at the pilot's ask: what is being worked on first.
@@ -1017,6 +1049,6 @@ def navlog_stream(q: Annotated[PlanQuery, Depends()]) -> StreamingResponse:
         for leg in flown_legs(r, runs, outcome, own, drawn):
             yield line(NavLogLeg.model_validate(leg))
 
-        yield line(NavLogDone(totals=totals_of(r, runs, outcome, profile, q.rules, q.alternate)))
+        yield line(NavLogDone(totals=totals_of(r, runs, outcome, profile, q.rules, q.alternate, q.own_ground())))
 
     return ndjson(lines(), NavLogError)

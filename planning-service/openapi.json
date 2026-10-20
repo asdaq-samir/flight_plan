@@ -9591,6 +9591,11 @@
             "default": null,
             "title": "Fuel Required Gal"
           },
+          "ground_min": {
+            "default": 0.0,
+            "title": "Ground Min",
+            "type": "number"
+          },
           "hops": {
             "default": [],
             "items": {
@@ -12247,6 +12252,16 @@
           },
           {
             "in": "query",
+            "name": "ground",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Ground",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
             "name": "checkpoints",
             "required": false,
             "schema": {
@@ -12574,6 +12589,16 @@
             "schema": {
               "default": "",
               "title": "Crossings",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "ground",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Ground",
               "type": "string"
             }
           },
@@ -13087,6 +13112,16 @@
             "schema": {
               "default": "",
               "title": "Crossings",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "ground",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Ground",
               "type": "string"
             }
           },

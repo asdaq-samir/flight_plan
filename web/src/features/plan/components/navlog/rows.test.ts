@@ -46,7 +46,17 @@ describe("a route with stops", () => {
     const rows = navLogRows(withStop, [onHop(cp(42.6, -88.6, 20), 0), onHop(cp(44, -90, 150), 1)], [leg(10), leg(20), leg(30), leg(40)]);
     expect(rows.map(r => r.kind)).toEqual(["departure", "checkpoint", "stop", "checkpoint", "destination"]);
     expect(rows[2]).toMatchObject({ kind: "stop", airport: { ident: "KMSN" }, minutesFlown: 30 });
-    expect(rows.at(-1)?.minutesFlown).toBe(100);
+    // 30 minutes on the ground at the stop, where the pilot gave none.
+    expect(rows.at(-1)?.minutesFlown).toBe(130);
+  });
+
+  test("the rows after a stop are timed from when it leaves, its own time on the ground, a waypoint's none", () => {
+    const legs = [leg(10), leg(20), leg(30), leg(40)];
+    const selected = [onHop(cp(42.6, -88.6, 20), 0), onHop(cp(44, -90, 150), 1)];
+    const own = navLogRows({ ...withStop, ground: { KMSN: 45 } }, selected, legs);
+    expect(own.map(r => r.minutesFlown)).toEqual([0, 10, 30, 105, 145]);
+    const fix = { ...airport("VPBNG", 43.1, -89.3), kind: "fix" } as Airport;
+    expect(navLogRows({ ...ends, stops: [fix] }, selected, legs).at(-1)?.minutesFlown).toBe(100);
   });
 
   test("a hop with no checkpoints is the stop alone", () => {

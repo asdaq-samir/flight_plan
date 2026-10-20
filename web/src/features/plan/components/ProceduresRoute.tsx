@@ -22,8 +22,9 @@ import { endFit, type EndFit } from "../../../lib/runwayFit";
 import { etaAt } from "../format";
 import { PointMark } from "./navlog/PointMark";
 import FixBranch from "./FixBranch";
+import GroundMenu from "./GroundMenu";
 import ProcedureMenu from "./ProcedureMenu";
-import { rowPoint, type NavLogRow } from "./navlog/rows";
+import { rowPoint, TURNAROUND_MIN, type NavLogRow } from "./navlog/rows";
 
 /** The value of a choice's "None" (no pattern, no transition): a toggle's
  *  value is a string. */
@@ -91,7 +92,7 @@ export type ProceduresAt = { ident: string; kind: Kind } | null;
  */
 export default function ProceduresRoute({
   airports, rows, depart, weather, picked, onPick, onPreselect, takeoffs, onTakeoff, fit = null, onCharts, chartsDisabled, procedures, inRoute, onProcedures, onPreview, at, onAt,
-  crossings = NO_CROSSINGS, onFix,
+  crossings = NO_CROSSINGS, onFix, ground, onGround,
 }: {
   airports: ProcedureAirport[];
   /** The route's rows as the nav log has them (navLogRows), for its
@@ -132,6 +133,10 @@ export default function ProceduresRoute({
   /** The sheet's kind and field, null while it is put away. */
   at: ProceduresAt;
   onAt: (at: ProceduresAt) => void;
+  /** Minutes on the ground at each stop, by ident (the address's
+   *  `ground`), and the pick of one: a stop not named, TURNAROUND_MIN. */
+  ground?: Record<string, number>;
+  onGround?: (ident: string, minutes: number) => void;
   /** The pilot's own altitudes to cross the procedures' fixes at, by fix. */
   crossings?: Record<string, number>;
   /** A fix of a procedure picked, tapped on its branch: its card (FixCard). */
@@ -352,9 +357,19 @@ export default function ProceduresRoute({
     // owner's ask ("If a stop is an airport then it should have arrival
     // first with a runway and a separate departure with a runway"): two
     // steps, the pattern drawn the landing's.
+    // Its time on the ground, picked under the takeoff runways (GroundMenu),
+    // and the Depart step timed from it: when the airplane leaves again.
+    const onGroundMin = ground?.[a.ident] ?? TURNAROUND_MIN;
+    const leaves = row?.minutesFlown == null ? null : etaAt(depart || new Date().toISOString(), row.minutesFlown + onGroundMin);
+    const departing = (
+      <>
+        {takeoffChips}
+        {onGround && <GroundMenu ident={a.ident} minutes={onGroundMin} onPick={minutes => onGround(a.ident, minutes)} />}
+      </>
+    );
     return [
       step("Arrive", (["arrival", "approach"] as Kind[]).filter(has), landingChips, false, mark, time),
-      step("Depart", (["departure"] as Kind[]).filter(has), takeoffChips, last, <FieldDot last={last} />, null),
+      step("Depart", (["departure"] as Kind[]).filter(has), departing, last, <FieldDot last={last} />, leaves),
     ];
   };
 
