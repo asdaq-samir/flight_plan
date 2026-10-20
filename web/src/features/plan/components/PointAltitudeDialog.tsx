@@ -72,7 +72,7 @@ function AltitudeForm({ point, onSet }: { point: EditedPoint; onSet: (ident: str
         </AlertDialogDescription>
       </AlertDialogHeader>
       {altitude.caution && altitude.caution.length > 0 && (
-        <ul className={`list-disc space-y-0.5 rounded-lg bg-amber-500/12 py-2 pr-2.5 pl-6 text-amber-800 dark:text-amber-300 ${TEXT.prose}`} data-testid="point-altitude-caution">
+        <ul className={`list-disc space-y-0.5 rounded-lg bg-caution-wash py-2 pr-2.5 pl-6 text-caution-ink ${TEXT.prose}`} data-testid="point-altitude-caution">
           {altitude.caution.map(reason => <li key={reason}>{reason}</li>)}
         </ul>
       )}

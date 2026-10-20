@@ -12,7 +12,7 @@ export type Finding = "ok" | "caution" | "stop" | "unknown" | "pending";
  *  panel in both themes (the iPhone audit's P15). */
 export const FINDING_TONE: Record<Finding, string> = {
   ok: "text-green-700 dark:text-green-400",
-  caution: "text-amber-700 dark:text-amber-400",
+  caution: "text-caution",
   stop: "text-red-700 dark:text-red-400",
   unknown: "text-muted-foreground",
   pending: "text-muted-foreground",

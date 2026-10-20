@@ -23,6 +23,7 @@ const NO_POINTS: { lat: number; lon: number }[] = [];
 const NO_PROCEDURES: ProcedureDrawing[] = [];
 import { chipColourOf } from "../../../lib/map/flightCategory";
 import { CourseLine } from "../../../lib/map/CourseLine";
+import { COURSE_MAGENTA, MAP_BLUE } from "../../../lib/map/chartColors";
 import { FlownTrackLayer } from "../../../lib/map/FlownTrackLayer";
 import { Halo } from "../../../lib/map/Halo";
 import {
@@ -101,7 +102,7 @@ interface Props {
  *  menu from. The point wears a pin while its card is open. */
 // Constants, not literals: react-leaflet restyles a path whenever its
 // pathOptions is a new object.
-const HELD_DOT: L.PathOptions = { color: "#ffffff", weight: 2, fillColor: "#0a84ff", fillOpacity: 1 };
+const HELD_DOT: L.PathOptions = { color: "#ffffff", weight: 2, fillColor: MAP_BLUE, fillOpacity: 1 };
 
 function HeldPoint({ point, onHold }: { point: Props["heldPoint"]; onHold: Props["onHoldPoint"] }) {
   // Memoized, not a literal: see AirportsLayer.
@@ -410,7 +411,7 @@ function LegPoints({ legs, onSelectPoint }: { legs: Leg[]; onSelectPoint: Props[
 
 /** A hold's racetrack in the course line's own magenta and weight
  *  (lib/map/CourseLine), dashed: flown round, not along. */
-const HOLD_LINE: L.PathOptions = { color: "#e600e6", weight: 2.5, opacity: 1, dashArray: "6 5", interactive: false };
+const HOLD_LINE: L.PathOptions = { color: COURSE_MAGENTA, weight: 2.5, opacity: 1, dashArray: "6 5", interactive: false };
 
 /** Each hold the pilot put on the route (the legs' `hold`, plan.with_holds):
  *  one turn round its racetrack from its point, as Garmin's and

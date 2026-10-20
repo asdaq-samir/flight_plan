@@ -133,7 +133,7 @@ export default function AltitudeGroup({ nav, legs, problem = false, ownAltitude 
         {/* In the text's colour: the muted grey was 4.3:1 on the dark glass. */}
         <span className="pr-1.5 pl-1 text-foreground">ft</span>
       </label>
-      {rules === "ifr" && <span className="pr-1 text-[0.6875rem] font-semibold text-tint" data-testid="ifr-flag">IFR</span>}
+      {rules === "ifr" && <span className={cn("pr-1 font-semibold text-tint", TEXT.caption)} data-testid="ifr-flag">IFR</span>}
       {!problem && tight && <span className="mr-1 size-1.5 rounded-full bg-amber-500" aria-hidden="true" data-testid="tight-altitude-flag" />}
       {!problem && cautions.length > 0 && (
         <TriangleAlert className="mr-1 size-3.5 text-amber-600 dark:text-amber-400" aria-hidden="true" data-testid="own-altitude-flag" />
@@ -302,7 +302,7 @@ export function AltitudeProfile({ nav, legs, ends, chart, corner, wheelHidden = 
         </div>
       )}
       {cautions.length > 0 && (
-        <div className={cn("space-y-1.5 rounded-lg bg-amber-500/12 p-2.5 text-amber-800 dark:text-amber-300", TEXT.detail)} data-testid="own-altitude-cautions">
+        <div className={cn("space-y-1.5 rounded-lg bg-caution-wash p-2.5 text-caution-ink", TEXT.detail)} data-testid="own-altitude-cautions">
           {cautions.map(c => (
             <div key={`${c.from_ident}-${c.to_ident}`}>
               <p className="font-semibold">{feet(c.altitude_ft)} ft {c.from_ident} → {c.to_ident}</p>
@@ -312,7 +312,7 @@ export function AltitudeProfile({ nav, legs, ends, chart, corner, wheelHidden = 
         </div>
       )}
       {tight && (
-        <p className={cn("rounded-lg bg-amber-500/12 p-2.5 text-amber-800 dark:text-amber-300", TEXT.detail)} data-testid="tight-altitude">
+        <p className={cn("rounded-lg bg-caution-wash p-2.5 text-caution-ink", TEXT.detail)} data-testid="tight-altitude">
           <span className="font-semibold">Tight altitude. </span>{tight}
         </p>
       )}
