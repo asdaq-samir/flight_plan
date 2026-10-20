@@ -37,7 +37,7 @@ export default function FlightInputs({ aircraftValue, aircraftOptions, onAircraf
             own. No chevron to a finger: a chip of glass says it is a menu,
             and the twenty points it took cost the line its room. */}
         <SelectTrigger
-          size="sm" aria-label="Aircraft" data-testid="aircraft-select"
+          size="sm" aria-label="Airplane" data-testid="aircraft-select"
           className={cn("rounded-full pointer-coarse:px-1.5 [&_svg]:text-foreground pointer-coarse:[&_svg]:hidden", GLASS_BUTTON, CHIP_TEXT)}
         >
           {/* Its short name -- C172, N12345 -- so a departure time picked

@@ -5,6 +5,7 @@ import { cn } from "cn";
 import { Button } from "../../../../components/ui/button";
 import { CHIP_TEXT, GLASS_BUTTON } from "../../../../components/mapChrome";
 import Segmented from "../../../../components/Segmented";
+import { faaWords } from "../../../../lib/advisories";
 import type { AltitudeChoice, Detour, Leg, NavLogAltitude } from "../../../../lib/api/types";
 import type { FlightRules } from "../../../../lib/preferences";
 import { routeProfileQuery } from "../../../../lib/queryClient";
@@ -286,7 +287,7 @@ export function AltitudeProfile({ nav, legs, ends, chart, corner, wheelHidden = 
         </div>
       ) : bravo && (
         <div className="flex items-center justify-between gap-2 rounded-xl bg-card py-1.5 pr-1.5 pl-3" data-testid="class-b-accepted">
-          <span className={TEXT.detail}>Through {titleCaseName(bravo.name)}: clearance needed</span>
+          <span className={TEXT.detail}>Through {faaWords(bravo.name)}: clearance needed</span>
           {onAvoidClassB && (
             <Button type="button" size="sm" variant="secondary" className="shrink-0 text-tint" onClick={() => onAvoidClassB(detours[0] ?? null)} data-testid="avoid-class-b">
               Avoid Class B
@@ -323,9 +324,4 @@ export function AltitudeProfile({ nav, legs, ends, chart, corner, wheelHidden = 
       )}
     </div>
   );
-}
-
-/** "CHICAGO CLASS B" as said: "Chicago Class B". */
-function titleCaseName(name: string): string {
-  return name.split(" ").map(w => (w.length > 1 ? w[0] + w.slice(1).toLowerCase() : w)).join(" ");
 }

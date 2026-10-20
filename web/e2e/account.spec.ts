@@ -43,8 +43,8 @@ test("an add still saving when Edit is clicked says added, and leaves the airpla
     }
   });
   const console = await openPlannerConsole(page);
-  await library(console, "Aircraft");
-  // The form opens from the list's New aircraft row -- a popover, or
+  await library(console, "Airplanes");
+  // The form opens from the list's New airplane row -- a popover, or
   // on a phone a sheet from the bottom -- on the page, not inside the
   // console's own element.
   await expect(page.getByLabel("Tail number")).toHaveCount(0);
@@ -53,7 +53,7 @@ test("an add still saving when Edit is clicked says added, and leaves the airpla
   await page.getByLabel("Type designator").fill("C172");
   await page.getByLabel("Cruise TAS in knots").fill("110");
   await page.getByLabel("Cruise fuel burn in gallons per hour").fill("8");
-  await page.getByRole("button", { name: "Add aircraft" }).click();
+  await page.getByRole("button", { name: "Add airplane" }).click();
 
   // The popover away first (the add is in flight regardless): on a
   // phone it covers the rows, and their Edit buttons, under it.
@@ -64,8 +64,8 @@ test("an add still saving when Edit is clicked says added, and leaves the airpla
   await expect(page.getByLabel("Tail number")).toHaveValue("N2");
   hold.release();
 
-  await expect(page.locator("[data-sonner-toast]", { hasText: "Aircraft added" })).toBeVisible();
-  await expect(page.locator("[data-sonner-toast]", { hasText: "Aircraft updated" })).toHaveCount(0);
+  await expect(page.locator("[data-sonner-toast]", { hasText: "Airplane added" })).toBeVisible();
+  await expect(page.locator("[data-sonner-toast]", { hasText: "Airplane updated" })).toHaveCount(0);
   await expect(page.getByLabel("Tail number")).toHaveValue("N2");
 });
 
@@ -146,7 +146,7 @@ test("the airplane the nav log flies is ticked, and a tap on another flies that 
     status: 200, contentType: "application/json", body: JSON.stringify([aircraft(1, "N1"), aircraft(2, "N2")]),
   }));
   const console = await openPlannerConsole(page);
-  await library(console, "Aircraft");
+  await library(console, "Airplanes");
   // The row's own button, which says whether it is the one flown.
   const pick = (tail: string) => console.locator("[data-aircraft-row]", { hasText: tail }).locator("button[aria-pressed]");
   // A stock profile to start with: neither of these is ticked.

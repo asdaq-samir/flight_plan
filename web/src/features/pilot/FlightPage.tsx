@@ -338,7 +338,7 @@ export default function FlightPage({ summary, planHref }: { summary: FlightSumma
     <div className="space-y-4">
       <ListGroup>
         <Row title="Filed" value={format(new Date(summary.createdAt), "d MMM yyyy")} />
-        {summary.aircraftTailNumber && <Row title="Aircraft" value={summary.aircraftTailNumber} />}
+        {summary.aircraftTailNumber && <Row title="Airplane" value={summary.aircraftTailNumber} />}
         <Row title="Altitude" value={feet(summary.cruiseAltitudeFt)} />
         {summary.totalDistanceNm != null && <Row title="Distance" value={nm(summary.totalDistanceNm)} />}
         {summary.totalEteMin != null && <Row title="Time" value={hm(summary.totalEteMin)} />}

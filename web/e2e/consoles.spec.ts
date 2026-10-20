@@ -77,8 +77,8 @@ test("plan page: the pilot console holds the account, airplanes and flights, and
   await expect(pilot.getByRole("tab")).toHaveCount(0);
   // The pilot's own things in one tab, Personal (it was Library), a
   // segment each.
-  await library(pilot, "Aircraft");
-  await expect(pilot.getByRole("region", { name: "Aircraft", exact: true })).toBeVisible();
+  await library(pilot, "Airplanes");
+  await expect(pilot.getByRole("region", { name: "Airplanes", exact: true })).toBeVisible();
   await library(pilot, "Flights");
   await expect(pilot.getByRole("region", { name: "Flights", exact: true })).toBeVisible();
   // Settings, Guide and About as rows of their own.
