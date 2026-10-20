@@ -146,6 +146,19 @@ def test_a_departure_time_picks_the_winds_forecast_period(monkeypatch, messages)
     assert {"06", "24"} <= seen
 
 
+def test_totals_say_when_the_plan_was_made_and_the_winds_it_flies(messages, monkeypatch):
+    from app import planning
+    from vfr import weather
+
+    period = {"valid_at": "2026-09-22T18:00:00Z", "use_from": "2026-09-22T14:00:00Z", "use_to": "2026-09-22T21:00:00Z"}
+    asked = []
+    monkeypatch.setattr(weather, "winds_period", lambda fcst_hr="06": asked.append(fcst_hr) or period)
+    t = messages(client.get("/api/navlog", params={"dep": "C81", "dest": "KDLH"}))[-1]["totals"]
+    # "Now" is noon in Chicago (conftest): the 6-hour product's period.
+    assert (t["planned_at"], t["winds"], asked) == ("2026-09-22T17:00:00Z", period, ["06"])
+    assert planning.now().isoformat().startswith("2026-09-22T17:00")
+
+
 def test_totals_carry_the_fuel_check(messages, monkeypatch):
     from datetime import datetime, timezone
 

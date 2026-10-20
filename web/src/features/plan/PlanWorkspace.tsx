@@ -1431,7 +1431,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const navLog = useMemo(() => (
     <Suspense fallback={<div className="min-h-0 flex-1" />}>
     <NavLogView
-      totals={s.totals} nav={s.nav} legs={s.legs}
+      totals={s.totals} nav={s.nav} legs={s.legs} onPlanAgain={() => setLoad(n => n + 1)} descriptionError={s.descriptionError}
       depart={depart}
       dep={planned.dep} dest={planned.dest}
       ends={course}
@@ -1469,7 +1469,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       {kneeboardLater}
     </NavLogView>
     </Suspense>
-  ), [s.totals, s.nav, s.legs, depart, planned.dep, planned.dest, course, s.logSelected, s.descriptions, s.saveDescription,
+  ), [s.totals, s.descriptionError, s.nav, s.legs, depart, planned.dep, planned.dest, course, s.logSelected, s.descriptions, s.saveDescription,
     s.generateDescriptions, descriptionsLoading, descriptionsPaywall, descriptionsHidden, selectedPoint, selectPointAt, deselectPoint, drawerOpen, aircraft.label,
     marks, tabContent, s.briefing, s.local, landedStops, s.langgraphNarrative, s.crewaiNarrative, unflyableBrief, kneeboardLater, metarColour, dryRunning, briefShown,
     routeList, listAtFoot, navLogShown, closeNavLogCard, planned.stops]);

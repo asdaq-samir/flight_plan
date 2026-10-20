@@ -198,7 +198,10 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
    *  Maps opens a place, at the owner's pick of the redesign. */
   summary?: boolean;
 }) {
-  const { data: place, isLoading, error, refetch, isFetching } = useQuery(airportQuery(ident));
+  // Asked again every five minutes while the card is open, its weather a
+  // report's freshness (airportQuery): an open card's METAR was the one
+  // it opened with for as long as it stayed (the audit's finding).
+  const { data: place, isLoading, error, refetch, isFetching } = useQuery({ ...airportQuery(ident), refetchInterval: 5 * 60_000 });
   // What the map knows of it already -- its name and its weather's
   // colour, from the chip that was tapped (AirportsLayer, ClassBLayer) --
   // at once: the card read "Looking the airport up…" until its own

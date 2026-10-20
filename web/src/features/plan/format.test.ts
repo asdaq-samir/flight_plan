@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Leg, Totals } from "../../lib/api/types";
 import { inkOn, SCORE_STEPS } from "../../lib/scoreScale";
-import { bearing, clockTime, cruiseByAltitude, decimalHours, hhmm, legsWithoutWind, one, runwayWind, scoreColor } from "./format";
+import { bearing, clockTime, cruiseByAltitude, decimalHours, hhmm, legsWithoutWind, one, plannedWords, runwayWind, scoreColor, windsOutOfDate } from "./format";
 
 describe("scoreColor", () => {
   it("bands on the boundary, not just inside it", () => {
@@ -70,6 +70,7 @@ describe("legsWithoutWind", () => {
   const base: Totals = {
     distance_nm: 210, procedure_nm: 0, ete_min: 125, fuel_gal: 17.5, unflyable_legs: 0, legs_without_wind: 0,
     reserve_min: null, reserve_gal: null, taxi_gal: null, fuel_required_gal: null, usable_fuel_gal: null, fuel_margin_gal: null, night: null, rules: "vfr", alternate: null, hops: [],
+    planned_at: null, winds: null,
   };
 
   it("has no warning when every leg has wind", () =>
@@ -113,5 +114,24 @@ describe("clockTime", () => {
     expect(clockTime(new Date(2026, 9, 10, 9, 5))).toBe("09:05");
     expect(clockTime(new Date(2026, 9, 10, 17, 42))).toBe("17:42");
     expect(clockTime(new Date(2026, 9, 10, 0, 7))).toBe("00:07");
+  });
+});
+
+describe("plannedWords and windsOutOfDate", () => {
+  const totals = {
+    planned_at: "2026-10-20T08:12:00Z",
+    winds: { valid_at: "2026-10-20T12:00:00Z", use_from: "2026-10-20T09:00:00Z", use_to: "2026-10-20T18:00:00Z" },
+  } as Totals;
+
+  it("says when the plan was made and the winds' period, in UTC", () => {
+    expect(plannedWords(totals)).toBe("Planned 0812Z · winds for use 0900–1800Z");
+    expect(plannedWords({ ...totals, winds: null })).toBe("Planned 0812Z");
+    expect(plannedWords(null)).toBe("");
+  });
+
+  it("has the winds out of date only past their period's end", () => {
+    expect(windsOutOfDate(totals, Date.parse("2026-10-20T17:59:00Z"))).toBe(false);
+    expect(windsOutOfDate(totals, Date.parse("2026-10-20T18:01:00Z"))).toBe(true);
+    expect(windsOutOfDate({ ...totals, winds: null }, Date.parse("2026-10-21T00:00:00Z"))).toBe(false);
   });
 });

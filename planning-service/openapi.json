@@ -9615,6 +9615,18 @@
             "default": null,
             "title": "Night"
           },
+          "planned_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Planned At"
+          },
           "procedure_nm": {
             "default": 0.0,
             "title": "Procedure Nm",
@@ -9680,6 +9692,17 @@
             ],
             "default": null,
             "title": "Usable Fuel Gal"
+          },
+          "winds": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WindsPeriod"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
           }
         },
         "required": [
@@ -10212,6 +10235,30 @@
           "wind_speed_kt"
         ],
         "title": "Wind",
+        "type": "object"
+      },
+      "WindsPeriod": {
+        "description": "A winds and temperatures aloft forecast's period (AC 00-45H, the\nWinds and Temperatures Aloft Forecast (FB)):\nvalid at `valid_at`, for use from `use_from` to `use_to`, ISO UTC.",
+        "properties": {
+          "use_from": {
+            "title": "Use From",
+            "type": "string"
+          },
+          "use_to": {
+            "title": "Use To",
+            "type": "string"
+          },
+          "valid_at": {
+            "title": "Valid At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "valid_at",
+          "use_from",
+          "use_to"
+        ],
+        "title": "WindsPeriod",
         "type": "object"
       }
     }

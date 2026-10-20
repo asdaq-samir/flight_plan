@@ -1,7 +1,7 @@
 import type { AltitudeOption, Leg, Runway, Totals } from "../../lib/api/types";
 import { SCORE_STEPS } from "../../lib/scoreScale";
 import { altFt, bearing, flightLevel, one } from "../../lib/units";
-import { clockTime, hoursMinutes } from "../../lib/clock";
+import { clockTime, hoursMinutes, zuluTime } from "../../lib/clock";
 
 export { altFt, bearing, one };
 
@@ -49,6 +49,22 @@ export function legsWithoutWind(t: Totals): string | null {
   return t.legs_without_wind
     ? `${t.legs_without_wind} leg${t.legs_without_wind === 1 ? "" : "s"} without wind data`
     : null;
+}
+
+/** When a plan was made and the winds-aloft forecast it flies, as paper
+ *  says them: "Planned 1712Z · winds for use 1400–2100Z"; "" where the
+ *  totals do not say. */
+export function plannedWords(t: Totals | null): string {
+  if (!t?.planned_at) return "";
+  const planned = `Planned ${zuluTime(new Date(t.planned_at))}`;
+  return t.winds ? `${planned} · winds for use ${zuluTime(new Date(t.winds.use_from)).slice(0, 4)}–${zuluTime(new Date(t.winds.use_to))}` : planned;
+}
+
+/** Whether the winds a plan flies are past their forecast's period at
+ *  `now` (ms): its headings, times and fuel then out of date. */
+export function windsOutOfDate(t: Totals | null, now: number): boolean {
+  const to = t?.winds ? Date.parse(t.winds.use_to) : NaN;
+  return Number.isFinite(to) && now > to;
 }
 
 /** An altitude plan's name, as the Brief and the Go / No-Go say it

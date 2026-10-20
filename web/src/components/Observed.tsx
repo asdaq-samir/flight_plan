@@ -1,22 +1,10 @@
-import { useEffect, useState } from "react";
 import { cn } from "cn";
-import { zuluTime } from "../lib/clock";
+import { useMinuteClock, zuluTime } from "../lib/clock";
 
 /** Past this a METAR is older than the hourly cycle should ever leave
  *  it (routine reports are made each hour, FAA Order JO 7900.5), and the
  *  line says so. */
 const OLD_REPORT_MIN = 90;
-
-/** The time now, a minute at a time: a report's age kept true while its
- *  card or the Brief stays open. */
-function useMinuteClock(): number {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const timer = window.setInterval(() => setNow(Date.now()), 60_000);
-    return () => window.clearInterval(timer);
-  }, []);
-  return now;
-}
 
 /** When a report was observed and how long ago, amber past an hour and a
  *  half: the map's airport card and the Brief's "Now" alike, so a held or

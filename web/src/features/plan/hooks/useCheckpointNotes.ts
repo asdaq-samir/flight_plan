@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { experimental_streamedQuery as streamedQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api } from "../../../lib/api/client";
+import { api, describeError } from "../../../lib/api/client";
+import { ended } from "../../../lib/api/streams";
 import { pilotQuery } from "../../../lib/queryClient";
 import { subscriptionQuery } from "../../../lib/subscription";
 
@@ -42,21 +43,25 @@ export function useCheckpointNotes(dep: string, dest: string, stops: string[] = 
   const descriptions = useQuery({
     queryKey: ["descriptions", dep, dest, via, pilotId],
     queryFn: streamedQuery({
-      streamFn: ({ signal }) => api.describeCheckpoints(dep, dest, signal, stops),
+      // Ended or failed, never cut off unsaid: a stream that stopped half
+      // way looked finished, and its error line was never shown (the
+      // audit's finding). The notes that came before it stay.
+      streamFn: ({ signal }) => ended(api.describeCheckpoints(dep, dest, signal, stops), "checkpoint descriptions"),
     }),
     enabled: false, staleTime: Infinity,
   });
   // The query's own refetch and flags, not its result, which is new at
   // every render: so was this, and with it the nav log drawn again at
   // every render of the page (as useNarratives).
-  const { isFetching, isFetched, refetch } = descriptions;
+  const { isFetching, isFetched, isError, refetch } = descriptions;
   // One of the month's runs (the subscription's cap): its count, asked
   // again once the run is done.
   const queryClient = useQueryClient();
+  // Once a run has written them, not again; a run that failed, again.
   const generateDescriptions = useCallback(() => {
-    if (isFetching || isFetched) return;
+    if (isFetching || (isFetched && !isError)) return;
     void refetch().then(() => queryClient.invalidateQueries({ queryKey: subscriptionQuery.queryKey }));
-  }, [isFetching, isFetched, refetch, queryClient]);
+  }, [isFetching, isFetched, isError, refetch, queryClient]);
 
   // The pilot's own edits, shown the moment they are made: an overlay
   // on the stream, scoped the same way. Written when the save starts;
@@ -75,7 +80,7 @@ export function useCheckpointNotes(dep: string, dest: string, stops: string[] = 
     }
     return map;
   }, [descriptions.data, edits, scope]);
-  const descriptionError = (descriptions.data ?? []).flatMap(m => (m.type === "error" ? [m.detail] : [])).at(-1) ?? null;
+  const descriptionError = descriptions.error ? describeError(descriptions.error, "The descriptions could not be written") : null;
   const descriptionProgress = useMemo(() => {
     if (!descriptions.isFetching) return null;
     const started = (descriptions.data ?? []).find(m => m.type === "start");
