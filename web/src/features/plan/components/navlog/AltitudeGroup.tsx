@@ -125,7 +125,10 @@ export default function AltitudeGroup({ nav, legs, problem = false, ownAltitude 
       {/* The field and its unit one label, a tap on "ft" the field's too,
           its 44-point area a pseudo-element round them (index.css's after),
           nothing grown. */}
-      <label className="relative flex h-full items-center after:absolute after:-inset-y-1.5 after:-left-0.5 after:right-0 after:content-['']">
+      {/* Six points after the figure, the label's, as "ft" stood there: the
+          profile button's area reaches four into the gap, and with less the
+          two areas met over each other (the iOS audit's P1). */}
+      <label className="relative flex h-full items-center pr-1.5 after:absolute after:-inset-y-1.5 after:-left-0.5 after:right-0 after:content-['']">
         {/* "FL" before the figure, a tap on it the field's too; in the
             text's colour, the muted grey was 4.3:1 on the dark glass. */}
         <span className="pl-2.5 text-foreground">FL</span>
