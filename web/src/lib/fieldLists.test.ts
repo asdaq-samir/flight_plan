@@ -11,8 +11,11 @@ describe("the flight's field lists", () => {
     expect(lists.procs.map(p => p.ident)).toEqual(["KMSN", "KDLH", "KORD"]);
     expect(fieldListParams(lists)).toEqual({
       pattern: "C81:24,KMSN:18,KORD:27", takeoff: "KMSN:36", procs: "KMSN:I18:MSN,KDLH:I09,KORD:R27", altitudes: "VPBNG:4500,KORD:2000",
+      cross: null, ground: null, holds: null,
     });
-    expect(fieldListParams(fieldListsOf(new URLSearchParams()))).toEqual({ pattern: null, takeoff: null, procs: null, altitudes: null });
+    expect(fieldListParams(fieldListsOf(new URLSearchParams()))).toEqual({
+      pattern: null, takeoff: null, procs: null, altitudes: null, cross: null, ground: null, holds: null,
+    });
   });
 
   it("drop what the route no longer has, matching ICAO and FAA idents", () => {
@@ -32,8 +35,20 @@ describe("the flight's field lists", () => {
     expect(kept.takeoff.size).toBe(0);
   });
 
-  it("rename a field in all four", () => {
-    const renamed = renamedFieldLists(fieldListsOf(new URLSearchParams("pattern=ORD:27&procs=ORD:R27&altitudes=ORD:2000")), "ORD", "KORD");
-    expect(fieldListParams(renamed)).toEqual({ pattern: "KORD:27", takeoff: null, procs: "KORD:R27", altitudes: "KORD:2000" });
+  it("rename a field in every list naming fields, the crossings' fixes left", () => {
+    const renamed = renamedFieldLists(fieldListsOf(new URLSearchParams("pattern=ORD:27&procs=ORD:R27&altitudes=ORD:2000&ground=ORD:45&holds=ORD:270:R:1M:1T&cross=BXCMB:3000")), "ORD", "KORD");
+    expect(fieldListParams(renamed)).toEqual({
+      pattern: "KORD:27", takeoff: null, procs: "KORD:R27", altitudes: "KORD:2000", cross: "BXCMB:3000", ground: "KORD:45", holds: "KORD:270:R:1M:1T",
+    });
+  });
+
+  it("drop a hold and a time on the ground with their point, and crossings with the last procedure", () => {
+    const lists = fieldListsOf(new URLSearchParams("procs=KMSN:I18&cross=BXCMB:3000&ground=KMSN:45,KORD:30&holds=KMSN:180:L:1M:2T,VPBNG:090:R:1M:1T"));
+    const kept = prunedFieldLists(lists, { dep: "C81", stops: ["KORD"], dest: "KDLH" });
+    expect(fieldListParams(kept)).toMatchObject({ procs: null, cross: null, ground: "KORD:30", holds: null });
+    // KMSN a stop still: all of it kept.
+    expect(fieldListParams(prunedFieldLists(lists, { dep: "C81", stops: ["KMSN", "VPBNG"], dest: "KDLH" }))).toMatchObject({
+      procs: "KMSN:I18", cross: "BXCMB:3000", ground: "KMSN:45", holds: "KMSN:180:L:1M:2T,VPBNG:090:R:1M:1T",
+    });
   });
 });

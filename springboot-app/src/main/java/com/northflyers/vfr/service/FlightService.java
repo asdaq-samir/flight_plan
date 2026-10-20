@@ -62,7 +62,8 @@ public class FlightService {
 
         Flight flight = new Flight(pilot, flownIn, request.departureIdent(), request.destinationIdent())
                 .withStops(request.stops() == null ? null : request.stops().stream().map(String::toUpperCase).toList())
-                .withOwnAltitudes(request.altitudes() == null ? null : request.altitudes().toUpperCase());
+                .withOwnAltitudes(request.altitudes() == null ? null : request.altitudes().toUpperCase())
+                .withPicks(request.picks());
         List<SaveFlightCheckpointRequest> requestedCheckpoints =
                 request.checkpoints() == null ? List.of() : request.checkpoints();
         List<FlightCheckpoint> navLog = requestedCheckpoints.stream()

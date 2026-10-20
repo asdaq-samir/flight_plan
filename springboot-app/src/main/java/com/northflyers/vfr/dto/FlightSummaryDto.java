@@ -25,12 +25,15 @@ public record FlightSummaryDto(
         @Nullable RiskAssessmentDto risk,
         /** The altitudes the pilot set at its points ("VPBNG:4500"); null
          *  where the planner's own were flown. */
-        @Nullable String altitudes) {
+        @Nullable String altitudes,
+        /** The other picks it was planned with, as the planner's address
+         *  writes them; null for none. */
+        @Nullable String picks) {
 
     public static FlightSummaryDto of(Flight f) {
         return new FlightSummaryDto(f.getId(), f.getDepartureIdent(), f.getDestinationIdent(), f.getStops(),
                 f.getAircraft() == null ? null : f.getAircraft().getTailNumber(),
                 f.getCruiseAltitudeFt(), f.getTotalDistanceNm(), f.getTotalEteMin(), f.getTotalFuelGal(),
-                f.getPlannedFor(), f.getCreatedAt(), f.getRiskScore() == null ? null : new RiskAssessmentDto(f.getRiskScore(), f.getRiskLevel(), f.getRiskFactors()), f.getOwnAltitudes());
+                f.getPlannedFor(), f.getCreatedAt(), f.getRiskScore() == null ? null : new RiskAssessmentDto(f.getRiskScore(), f.getRiskLevel(), f.getRiskFactors()), f.getOwnAltitudes(), f.getPicks());
     }
 }

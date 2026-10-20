@@ -8,9 +8,12 @@ import { pointName } from "../../../lib/identSchema";
 import { recentRouteKey, usePreferences, type RecentRoute } from "../../../lib/preferences";
 import { TEXT } from "../../../lib/text";
 
-/** The plan's address for a route planned again: its ends and its stops. */
+/** The plan's address for a route planned again: its ends, its stops and
+ *  what was picked for it (its runways, procedures, holds, altitudes…). */
 function hrefOf(route: RecentRoute): string {
-  return `/plan?${new URLSearchParams({ dep: route.dep, dest: route.dest, ...(route.stops.length ? { stops: route.stops.join(",") } : {}) })}`;
+  const params = new URLSearchParams({ dep: route.dep, dest: route.dest, ...(route.stops.length ? { stops: route.stops.join(",") } : {}) });
+  for (const [key, value] of new URLSearchParams(route.picks ?? "")) if (!params.has(key)) params.set(key, value);
+  return `/plan?${params}`;
 }
 
 /** The most the strip shows, as Saved's does. */

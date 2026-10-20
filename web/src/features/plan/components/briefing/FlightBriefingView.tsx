@@ -242,13 +242,16 @@ export interface FlightToSave {
    *  `altitudes` writes them ("VPBNG:4500"), or "": filed with the
    *  flight, so opened again it is planned at them. */
   altitudes?: string;
+  /** The address's other picks for the flight (lib/flightLink picksOf):
+   *  filed too, so it opens again as it was planned. */
+  picks?: string;
 }
 
 /** What would be filed, and only once there is a whole plan to file: the
  *  course (the airports' own idents and places, not a route being
  *  switched to), the nav log and its totals. Save used to be offered
  *  mid-stream, or after a stream failed, and filed null totals. */
-function useSaveRequest({ course, totals, nav, legs, selected, aircraftId, depart, altitudes = "" }: FlightToSave): SaveFlightRequest | null {
+function useSaveRequest({ course, totals, nav, legs, selected, aircraftId, depart, altitudes = "", picks = "" }: FlightToSave): SaveFlightRequest | null {
   // The briefing's risk assessment (lib/frat), filed with the flight.
   const risk = useRisk(s => s.assessment);
   return useMemo((): SaveFlightRequest | null => {
@@ -268,8 +271,9 @@ function useSaveRequest({ course, totals, nav, legs, selected, aircraftId, depar
       checkpoints: savedCheckpoints(navLogRows(course, selected, legs), course.distance_nm),
       risk: risk ? { score: risk.score, level: risk.level, factors: risk.factors.map(f => f.label) } : null,
       altitudes: altitudes || null,
+      picks: picks || null,
     };
-  }, [course, nav, totals, aircraftId, depart, selected, legs, risk, altitudes]);
+  }, [course, nav, totals, aircraftId, depart, selected, legs, risk, altitudes, picks]);
 }
 
 export function SaveFlightButton(flight: FlightToSave) {

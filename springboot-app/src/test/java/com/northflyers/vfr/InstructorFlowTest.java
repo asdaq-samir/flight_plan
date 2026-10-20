@@ -162,7 +162,7 @@ class InstructorFlowTest {
     void aSoloCrossCountryIsPutToTheInstructorAndAnsweredByItsEndorsement() {
         Pilot[] p = pair();
         Long flightId = flights.save(p[0], new SaveFlightRequest(null, "KUGN", "KUGN", 4500, 140.0, 75.0, 9.0, null,
-                List.of(), List.of("KRFD"), null, null)).getId();
+                List.of(), List.of("KRFD"), null, null, null)).getId();
         Long link = training.training(p[0], List.of(), TODAY).instructors().get(0).id();
         // A solo endorsement 91 days before the flight is not current for it.
         instructors.sign(p[1], p[0], soloEndorsement(p[0], "solo-first"), NOW);
@@ -218,7 +218,7 @@ class InstructorFlowTest {
     void endingIt_takesTheReviewsStillWaitingWithIt() {
         Pilot[] p = pair();
         Long flightId = flights.save(p[0], new SaveFlightRequest(null, "KUGN", "KRFD", null, null, null, null, null,
-                List.of(), null, null, null)).getId();
+                List.of(), null, null, null, null)).getId();
         Long link = training.training(p[0], List.of(), TODAY).instructors().get(0).id();
         instructors.askReview(p[0], new AskReviewRequest(flightId, link, "Cessna 172", TODAY, null), NOW);
         assertThat(instructors.leave(p[1], link)).isTrue();

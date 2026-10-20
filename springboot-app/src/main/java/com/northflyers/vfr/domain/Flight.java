@@ -67,6 +67,11 @@ public class Flight {
     @Column(length = 200)
     private String ownAltitudes;
 
+    /** The planner's address's other picks for it ("pattern=KMSN%3A18&
+     *  holds=..."; SaveFlightRequest.PICKS); null for none. */
+    @Column(length = 1000)
+    private String picks;
+
     private Integer cruiseAltitudeFt;
     private Double totalDistanceNm;
     private Double totalEteMin;
@@ -152,6 +157,17 @@ public class Flight {
 
     public String getOwnAltitudes() {
         return ownAltitudes;
+    }
+
+    /** The other picks it was planned with, as the address writes them;
+     *  null or blank for none. */
+    public Flight withPicks(String picks) {
+        this.picks = picks == null || picks.isBlank() ? null : picks;
+        return this;
+    }
+
+    public String getPicks() {
+        return picks;
     }
 
     /** The airports it lands at on the way, in order. */
