@@ -1,6 +1,13 @@
 import { test, expect, type Locator } from "@playwright/test";
 import { grabberTo, openTab, settle, settled, sideDrawer, slow } from "./helpers";
 
+// A runway line opened stays open while the spec picks from it: the app
+// folds it after two seconds untouched, which a loaded runner can spend
+// between opening it and the pick (ProceduresRoute's runwayLineFoldMs).
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => { try { localStorage.setItem("vfr.runwayFoldMs", "600000"); } catch { /* no storage */ } });
+});
+
 /**
  * The route's Procedures (ProceduresRoute), FPL's list, at the pilot's ask: a field's
  * traffic pattern picked by its runway, kept in the address, and drawn on

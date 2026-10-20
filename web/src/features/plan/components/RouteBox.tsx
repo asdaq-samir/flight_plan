@@ -401,8 +401,11 @@ export default function RouteBox({
                 scroll in a panel"). Lines eight apart, as rows are, so the
                 hit areas meet; room round them for the areas at the box's
                 edges. A swipe up or down in it scrolls it, not the sheet
-                (the root takes the presses). */}
-            <div ref={slide} className="flex max-h-[96px] min-w-0 flex-1 flex-wrap items-center gap-x-px gap-y-2 overflow-x-hidden overflow-y-auto overscroll-contain py-1 pr-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" data-testid="route-slide">
+                (the root takes the presses). In rem, as the pills are: at
+                96 px, a phone at a larger text size (pills 2rem tall, the
+                lines' gap and padding with them) needed 98 for two lines,
+                and two lines scrolled with no third (the owner's notice). */}
+            <div ref={slide} className="flex max-h-[6rem] min-w-0 flex-1 flex-wrap items-center gap-x-px gap-y-2 overflow-x-hidden overflow-y-auto overscroll-contain py-1 pr-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" data-testid="route-slide">
               {/* The box does not scroll itself under a drag: the pill dragged
                   is in the box it scrolls, so each step down carried it
                   further, and a pill held over the second line ran the box

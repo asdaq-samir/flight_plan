@@ -186,7 +186,7 @@ test("the dry run's airplane is brought back to the middle of what the panel lea
   await inTheMiddle();
 });
 
-test("half way a dry run started from the profile's card plays at the foot under the route, and stays still as the sheet is dragged up", async ({ page }) => {
+test("half way a dry run started from the profile's card plays in the card, in on its airplane", async ({ page }) => {
   test.skip((page.viewportSize()?.width ?? 0) >= 768, "a phone's sheet");
   // The owner's asks: "Let's make the half card this tall. This way we
   // won't have to hide the buttons for dry run"; "the dry run drags up
@@ -207,24 +207,12 @@ test("half way a dry run started from the profile's card plays at the foot under
   await settled(panel);
   const fitted = await level();
   await start.click();
-  const run = panel.getByTestId("dry-run");
+  // In the card, in the side view's place (the owner's "profile should play
+  // the dry run within profile card").
+  const run = page.getByTestId("profile-card").getByTestId("dry-run");
   await expect(run).toBeVisible();
-  await expect(panel.getByTestId("route-brief")).toBeVisible();
   expect(fitted).toBeLessThan(10);
   await expect.poll(level, { timeout: slow(10_000) }).toBe(10);
-  // Dragged up and held: the run where it was and its size, FPL's list
-  // (the route in order) coming out over it.
-  await settled(panel);
-  const before = (await run.boundingBox())!;
-  const grabber = (await page.getByTestId("sidebar-trigger-button").boundingBox())!;
-  await page.mouse.move(grabber.x + grabber.width / 2, grabber.y + grabber.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(grabber.x + grabber.width / 2, grabber.y + grabber.height / 2 - 150, { steps: 12 });
-  await expect.poll(async () => (await panel.getByTestId("navlog-scroller").boundingBox())?.height ?? 0).toBeGreaterThan(100);
-  const held = (await run.boundingBox())!;
-  expect(Math.abs(held.y - before.y)).toBeLessThan(2);
-  expect(Math.abs(held.height - before.height)).toBeLessThan(2);
-  await page.mouse.up();
 });
 
 test("the profile is a card from its button beside the nav log's, no swipe at the foot; a dry run started there plays over the route, and stopped, the card is back", async ({ page }) => {
@@ -245,14 +233,16 @@ test("the profile is a card from its button beside the nav log's, no swipe at th
   const card = await openProfile(page);
   await expect(card.getByTestId("profile-name")).toHaveText("C81 → KDLH");
   await expect(card.getByTestId("mini-profile")).toBeVisible();
-  // Flown: the card put away for the run at the foot, the route over it.
+  // Flown in the card, in the side view's place (the owner's "profile
+  // should play the dry run within profile card"); stopped, the side view
+  // again.
   const start = card.getByTestId("dry-run-start");
   await expect(start).toBeEnabled({ timeout: slow(60_000) });
   await start.click();
-  await expect(panel.getByTestId("dry-run")).toBeVisible();
-  await expect(card).toHaveCount(0);
-  await panel.getByTestId("dry-run-close").click();
-  await expect(page.getByTestId("profile-card")).toBeVisible();
+  await expect(card.getByTestId("dry-run")).toBeVisible();
+  await expect(card.getByTestId("mini-profile")).toHaveCount(0);
+  await card.getByTestId("dry-run-close").click();
+  await expect(card.getByTestId("mini-profile")).toBeVisible();
   // Its close: FPL's route again.
   await closeProfile(page);
   await expect(panel.getByTestId("procedures")).toBeVisible();
@@ -272,12 +262,14 @@ test("all the way up the dry run plays at the foot under the route, and the nav 
   const start = panel.getByTestId("dry-run-start");
   await expect(start).toBeVisible({ timeout: slow(60_000) });
   await start.click();
-  // Its chart in the side view's place, the route still over it.
+  await expect(panel.getByTestId("dry-run")).toBeVisible();
+  await expect(panel.getByTestId("dry-run-play")).toBeVisible();
+  // The card put away, the run at the sheet's foot under the route; the
+  // nav log opened from the route's box: the tinted row moves on with the
+  // run, in sight.
+  await closeProfile(page);
   await expect(panel.getByTestId("dry-run")).toBeVisible();
   await expect(panel.getByTestId("navlog-scroller").locator('[data-title="Legs"]')).toBeVisible();
-  // Flying, the nav log opened from the route's box: the tinted row moves
-  // on with the run, in sight.
-  await expect(panel.getByTestId("dry-run-play")).toBeVisible();
   await openNavLog(page);
   const flying = navLogSheet(page).locator('[role="row"][data-flying]');
   await expect(flying).toHaveCount(1, { timeout: slow(10_000) });

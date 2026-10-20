@@ -834,9 +834,19 @@ function Chips({ label, value, onChange, children }: {
 }
 
 /** How long an opened runway line waits, untouched, before it slides back
- *  to the runway picked, ms: three seconds, at the owner's ask ("Collapse
- *  runways after 3 seconds"; it was four). */
-const RUNWAY_LINE_FOLD_MS = 3000;
+ *  to the runway picked, ms: two seconds, at the owner's ask ("Runways can
+ *  collapse in 2 seconds"; it was four, then three). */
+const RUNWAY_LINE_FOLD_MS = 2000;
+/** The fold's wait, or a test's longer one (the browser specs keep a line
+ *  open while they pick from it: two seconds of a loaded test runner were
+ *  gone before the pick). */
+function runwayLineFoldMs(): number {
+  try {
+    return Number(globalThis.localStorage?.getItem("vfr.runwayFoldMs")) || RUNWAY_LINE_FOLD_MS;
+  } catch {
+    return RUNWAY_LINE_FOLD_MS;
+  }
+}
 
 /** The runway lines opened from their fold (PatternChips), by field. */
 const useOpenRunwayLines = create<{ open: string[] }>(() => ({ open: [] }));
@@ -927,7 +937,7 @@ function PatternChips({ airport: a, wind, chosen, landing, info, label, fitOf, o
   const folds = open && chosen !== null && a.runways !== null;
   useEffect(() => {
     if (!folds) return;
-    const id = setTimeout(() => useOpenRunwayLines.setState(s => ({ open: s.open.filter(k => k !== key) })), RUNWAY_LINE_FOLD_MS);
+    const id = setTimeout(() => useOpenRunwayLines.setState(s => ({ open: s.open.filter(k => k !== key) })), runwayLineFoldMs());
     return () => clearTimeout(id);
   }, [folds, key, touched]);
   if (picked && !open && a.runways !== null) {
