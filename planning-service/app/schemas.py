@@ -692,6 +692,9 @@ class Plan(BaseModel):
     altitude_choice: AltitudeChoice | None = None
     #: As the nav log stream's (NavLogAltitude.cautions).
     altitude_cautions: list[AltitudeCaution] = []
+    #: With the Class B clearance, the waypoints that keep the route out
+    #: of the Class B it enters (Detour, best first): "Avoid Class B".
+    class_b_detours: list["Detour"] = []
     aircraft: AircraftProfile
     max_zoom: int
     min_zoom: int
@@ -1545,6 +1548,9 @@ class NavLogAltitude(BaseModel):
     #: The altitudes the pilot set that the planner would not have flown,
     #: and why (AltitudeCaution); none for the planner's own plans.
     cautions: list[AltitudeCaution] = []
+    #: With the Class B clearance, the waypoints that keep the route out
+    #: of the Class B it enters (Detour, best first): "Avoid Class B".
+    class_b_detours: list["Detour"] = []
 
 
 class NavLogLeg(Leg):

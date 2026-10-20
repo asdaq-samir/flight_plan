@@ -276,3 +276,31 @@ def test_a_handful_to_choose_from_at_most():
     many = [_fix(f"VP{i:03d}", 0.5, -0.2 - i * 0.01) for i in range(DETOUR_CHOICES + 3)]
 
     assert len(_detour_through((0.0, 0.0), (1.0, 0.0), [_CORE], many)) == DETOUR_CHOICES
+
+
+# --- Whether a leg enters Class B at its altitude --------------------------
+
+def _piece(name, floor, ceiling, geometry=_CORE):
+    return {"name": name, "class": "B", "floor_ft_msl": floor, "ceiling_ft_msl": ceiling, "geometry": geometry,
+            "ident": "ORD", "bbox": geometry.bounds}
+
+
+def test_a_leg_enters_class_b_only_between_its_floor_and_ceiling(monkeypatch):
+    """With the clearance by default (the owner's pick, 2026-10-20), a
+    leg is offered a way round only where it would enter Class B: at or
+    over the shelf's floor and at or under its ceiling (14 CFR 91.131)."""
+    monkeypatch.setattr(airspace, "load_controlled_airspace", lambda shp_path, bbox: [_piece("CHICAGO CLASS B", 3600, 10000)])
+    monkeypatch.setattr(airspace, "own_class_b", lambda polygons, start, end: set())
+    through = ((0.0, 0.0), (1.0, 0.0))
+    assert airspace.class_b_entered(*through, "x.shp", 4500)
+    assert airspace.class_b_entered(*through, "x.shp", 3600)
+    assert not airspace.class_b_entered(*through, "x.shp", 3500)
+    assert not airspace.class_b_entered(*through, "x.shp", 10500)
+    # Beside it, not through it.
+    assert not airspace.class_b_entered((0.0, 0.5), (1.0, 0.5), "x.shp", 4500)
+
+
+def test_a_flights_own_class_b_is_not_entered_for_a_way_round(monkeypatch):
+    monkeypatch.setattr(airspace, "load_controlled_airspace", lambda shp_path, bbox: [_piece("CHICAGO CLASS B", 0, 10000)])
+    monkeypatch.setattr(airspace, "own_class_b", lambda polygons, start, end: {"CHICAGO CLASS B"})
+    assert not airspace.class_b_entered((0.0, 0.0), (1.0, 0.0), "x.shp", 4500)

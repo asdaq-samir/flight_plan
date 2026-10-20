@@ -5742,6 +5742,14 @@
             "title": "Cautions",
             "type": "array"
           },
+          "class_b_detours": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/Detour"
+            },
+            "title": "Class B Detours",
+            "type": "array"
+          },
           "flown": {
             "anyOf": [
               {
@@ -7555,6 +7563,14 @@
               }
             ],
             "title": "Chart Tiles Base"
+          },
+          "class_b_detours": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/Detour"
+            },
+            "title": "Class B Detours",
+            "type": "array"
           },
           "course_line": {
             "items": {

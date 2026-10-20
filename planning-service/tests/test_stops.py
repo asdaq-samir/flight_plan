@@ -537,3 +537,35 @@ def test_an_airway_that_cannot_be_flown_as_written_is_a_422_that_says_why(monkey
     # An airport whose identifier reads as an airway is a place.
     monkeypatch.setattr(common, "_is_place", lambda ident: True)
     assert common.with_airways(["C81", "V900", "KDLH"])[0] == ["C81", "V900", "KDLH"]
+
+
+def test_with_the_class_b_clearance_each_hop_through_it_is_offered_a_way_round(monkeypatch):
+    """The owner's pick (2026-10-20): Class B accepted by default, and
+    "Avoid Class B" a waypoint round it, asked for each hop at its
+    highest cruise altitude. None without the clearance or a Class B."""
+    from types import SimpleNamespace
+
+    from app.routers import plan as plan_router
+
+    asked = []
+
+    def ways(start, end, cruise_ft):
+        asked.append((start, cruise_ft))
+        return [{"ident": "VPBNG", "kind": "VFR waypoint", "added_nm": 6.2}] if start == (1.0, 1.0) else []
+
+    monkeypatch.setattr(plan_router, "class_b_ways", ways)
+    monkeypatch.setattr(plan_router, "_where", lambda ident: "by Campbell")
+    hop = lambda start: SimpleNamespace(hop=SimpleNamespace(start=start, end=(9.0, 9.0)))  # noqa: E731
+    runs = [hop((0.0, 0.0)), hop((1.0, 1.0))]
+    outcome = SimpleNamespace(
+        selection={"airspace_transits": [{"class": "B", "name": "CHICAGO CLASS B"}]},
+        hop_legs=([{"altitude_ft": 3500.0}], [{"altitude_ft": 3500.0}, {"altitude_ft": 4500.0}]),
+    )
+    cleared = SimpleNamespace(class_b_clearance=True)
+    assert plan_router.class_b_detours_of(runs, outcome, cleared) == [
+        {"ident": "VPBNG", "kind": "VFR waypoint", "added_nm": 6.2, "stop_index": 1, "description": "by Campbell"},
+    ]
+    assert asked == [((0.0, 0.0), 3500.0), ((1.0, 1.0), 4500.0)]
+    assert plan_router.class_b_detours_of(runs, outcome, SimpleNamespace(class_b_clearance=False)) == []
+    no_b = SimpleNamespace(selection={"airspace_transits": [{"class": "C"}]}, hop_legs=outcome.hop_legs)
+    assert plan_router.class_b_detours_of(runs, no_b, cleared) == []

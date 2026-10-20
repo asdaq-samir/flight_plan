@@ -32,7 +32,7 @@ from .. import chart_model, foreflight, prefetch
 from ..common import CHART_CACHE, DEFAULT_AIRCRAFT, Route, line, load_route, ndjson
 from ..planning import (
     alternate_leg,
-    COMPUTE_LIMIT_S, StillComputing, aircraft_profile, altitude_plans, altitude_waiting_on, class_b_detours,
+    COMPUTE_LIMIT_S, StillComputing, aircraft_profile, altitude_plans, altitude_waiting_on, class_b_detours, class_b_ways,
     cruise_altitude, flight_totals, flight_window, forecast_hour_for, join_selections, no_altitude, no_altitude_detail,
     own_altitude_caution, route_line, route_totals,
 )
@@ -473,6 +473,24 @@ def unflyable_parts(outcome: Unflyable, runs: list[HopRun]) -> tuple[dict, list[
     return why, [{**way, "stop_index": at, "description": _where(way["ident"])} for way in ways]
 
 
+def class_b_detours_of(runs: list[HopRun], outcome: Flown, q: "PlanQuery") -> list[dict]:
+    """With the Class B clearance, the waypoints that keep each hop out of
+    the Class B it enters at its highest cruise altitude (class_b_ways),
+    each with its place in the stops as unflyable_parts gives them: what
+    "Avoid Class B" adds. None without the clearance -- the route is then
+    planned under or round it already -- or with no Class B on the way."""
+    if not q.class_b_clearance or not any(t.get("class") == "B" for t in outcome.selection.get("airspace_transits", [])):
+        return []
+    out = []
+    for at, (run, legs) in enumerate(zip(runs, outcome.hop_legs)):
+        heights = [leg["altitude_ft"] for leg in legs if leg.get("altitude_ft") is not None]
+        if not heights:
+            continue
+        ways = class_b_ways(run.hop.start, run.hop.end, max(heights))
+        out.extend({**way, "stop_index": at, "description": _where(way["ident"])} for way in ways)
+    return out
+
+
 def _stuck_where(selection: dict, hop: Route) -> str | None:
     """Where on the hop the altitude runs out, by the route's own points
     as the pilot entered them, at the pilot's ask: the middle of the first
@@ -902,6 +920,7 @@ def plan(q: Annotated[PlanQuery, Depends()]) -> Plan:
         altitude_options=outcome.options,
         altitude_choice=outcome.choice,
         altitude_cautions=list(outcome.cautions),
+        class_b_detours=class_b_detours_of(runs, outcome, q),
         aircraft={"name": q.aircraft, **profile},
         **_chart_info(),
     )
@@ -1044,6 +1063,7 @@ def navlog_stream(q: Annotated[PlanQuery, Depends()]) -> StreamingResponse:
             options=outcome.options,
             aircraft=aircraft_line,
             cautions=list(outcome.cautions),
+            class_b_detours=class_b_detours_of(runs, outcome, q),
         ))
         outcome = with_procedures(r, runs, outcome, drawn)
         for leg in flown_legs(r, runs, outcome, own, drawn):

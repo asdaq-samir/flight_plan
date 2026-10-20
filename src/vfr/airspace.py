@@ -507,6 +507,26 @@ def detour_waypoints(route_start: tuple, route_end: tuple, shp_path, below_ft: f
     return _detour_through(route_start, route_end, blocking, fixes.within(south - pad, west - pad, north + pad, east + pad))
 
 
+def class_b_entered(route_start: tuple, route_end: tuple, shp_path, altitude_ft: float) -> bool:
+    """Whether a straight leg flown at `altitude_ft` enters Class B -- a
+    piece whose floor is at or under it and whose ceiling is at or over
+    it (14 CFR 91.131: an ATC clearance before entering) -- other than its
+    own fields' (own_class_b), which a flight in or out of them enters
+    anyway. Under a shelf or over the top, it does not."""
+    from .geo import corridor_bbox
+
+    start_point, end_point = Point(route_start[1], route_start[0]), Point(route_end[1], route_end[0])
+    polygons = load_controlled_airspace(shp_path, corridor_bbox(route_start, route_end, buffer_nm=2.0))
+    own = own_class_b(polygons, start_point, end_point)
+    leg = LineString([(route_start[1], route_start[0]), (route_end[1], route_end[0])])
+    return any(
+        p["class"] in CLEARANCE_CLASSES and p["name"] not in own
+        and p["floor_ft_msl"] <= altitude_ft and (p.get("ceiling_ft_msl") is None or altitude_ft <= p["ceiling_ft_msl"])
+        and p["geometry"].intersects(leg)
+        for p in polygons
+    )
+
+
 def _detour_through(route_start: tuple, route_end: tuple, blocking: list, candidates: list[dict]) -> list[dict]:
     """detour_waypoints' choice among `candidates` (fixes, as vfr.fixes
     has them) round the `blocking` geometries, lon/lat as the shapefile's."""
