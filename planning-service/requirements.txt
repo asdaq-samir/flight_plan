@@ -16,6 +16,7 @@ fastapi==0.142.2
 uvicorn[standard]==0.54.0
 boto3==1.43.108      # vfr.charts' S3 publish, used only on AWS
 anthropic==1.11.0   # /api/checkpoint-notes: one Claude call per checkpoint
+solace-pubsubplus==1.11.0   # app.swim: the FAA's SWIM feeds (Solace's broker), where SWIM_* are set
 # Traces to an OTLP collector, only where OTEL_EXPORTER_OTLP_ENDPOINT is
 # set (app.tracing; docker-compose's tracing profile).
 opentelemetry-sdk==1.45.0

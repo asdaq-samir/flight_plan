@@ -205,6 +205,13 @@ services:
       # ADS-B Exchange through RapidAPI, the traffic's fallback where
       # adsb.lol turns the planner away (vfr.traffic): off without it.
       ADSBX_RAPIDAPI_KEY: ${ADSBX_RAPIDAPI_KEY:-}
+      # The FAA's SWIM feeds (app.swim): STDDS's terminal radar tracks; off
+      # without them. The owner's SCDS subscription's login and queue.
+      SWIM_HOST: ${SWIM_HOST:-}
+      SWIM_USERNAME: ${SWIM_USERNAME:-}
+      SWIM_PASSWORD: ${SWIM_PASSWORD:-}
+      SWIM_VPN_STDDS: ${SWIM_VPN_STDDS:-}
+      SWIM_QUEUE_STDDS: ${SWIM_QUEUE_STDDS:-}
       # /api/status probes these; /api/retrain starts the training DAG.
       # All optional -- the AWS task sets none of them.
       NAV_LOG_AGENT_URL: http://nav-log-agent:8000

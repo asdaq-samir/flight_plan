@@ -403,10 +403,14 @@ def near(lat: float, lon: float, radius_nm: float) -> dict:
     # An airplane whose card is open and that adsb.lol does not hear (a UAT
     # airplane ADS-R rebroadcasts), from its own asks: on the map with the
     # rest, ADS-B Exchange credited where it came from there.
-    watched = _watched_near(lat, lon, radius, {p["hex"].lower() for p in planes})
+    have = {p["hex"].lower() for p in planes}
+    watched = _watched_near(lat, lon, radius, have)
     if watched and not credit:
         credit = {**ADSB_LOL_SOURCE, "source": "adsb.lol and ADS-B Exchange"}
-    return {"aircraft": planes + watched, "age_s": round(_clock() - at, 1), **credit}
+    # And the FAA's terminal radar's (app.swim): every airplane with a
+    # transponder its STARS facilities track, which no ADS-B network may hear.
+    radar = _elsewhere_near(lat, lon, radius, have | {p["hex"] for p in watched})
+    return {"aircraft": planes + watched + radar, "age_s": round(_clock() - at, 1), **credit}
 
 
 # --- One airplane: found by what a pilot knows it by, and its flight ---
@@ -793,6 +797,85 @@ def _save_recorded(hex_id: str, track: list[dict]) -> None:
         pass
 
 
+#: Airplanes heard by another source -- the FAA's terminal radar through
+#: SWIM (planning-service's app.swim) -- by address: the latest report of
+#: each, with "at" (s, wall clock), for the map where adsb.lol does not
+#: hear one, and recorded for those followed.
+_ELSEWHERE: dict[str, dict] = {}
+#: Airplanes followed: those whose card has been opened, kept as long as
+#: their recorded track (RECORDED_DIR's files), whose flights are recorded
+#: from any source, card open or not.
+_FOLLOWED: set[str] = set()
+_FOLLOWED_READ = {"done": False}
+#: A followed airplane's report from elsewhere is recorded at most this
+#: often, s: STARS sweeps every 4.8 s; a point a quarter minute is a
+#: track's shape on a phone and a day's file of a few hundred kB.
+ELSEWHERE_RECORD_S = 15.0
+
+
+def _followed(hex_id: str) -> bool:
+    with _LOCK:
+        if not _FOLLOWED_READ["done"]:
+            _FOLLOWED_READ["done"] = True
+            try:
+                _FOLLOWED.update(p.stem for p in RECORDED_DIR.glob("*.json"))
+            except OSError:
+                pass
+        return hex_id in _FOLLOWED
+
+
+def follow(hex_id: str) -> None:
+    """An airplane followed from now on: its card opened."""
+    _followed(hex_id)
+    with _LOCK:
+        _FOLLOWED.add(hex_id.lstrip("~"))
+
+
+def heard_elsewhere(plane: dict, at: float) -> None:
+    """A report from another source (the FAA's terminal radar, app.swim),
+    as `_aircraft` gives an airplane and when it was where it is (s): kept
+    as the airplane's latest for the map, and recorded where it is
+    followed, a point every ELSEWHERE_RECORD_S."""
+    hex_id = plane["hex"]
+    with _LOCK:
+        was = _ELSEWHERE.get(hex_id)
+        if was is not None and was["at"] >= at:
+            return
+        _ELSEWHERE[hex_id] = {**plane, "at": at}
+        if len(_ELSEWHERE) > 20000:
+            stale = [h for h, p in _ELSEWHERE.items() if at - p["at"] > STALE_S]
+            for h in stale:
+                del _ELSEWHERE[h]
+    if _followed(hex_id):
+        last = _recorded(hex_id)[-1:] or [None]
+        if last[0] is None or at - last[0]["t"] >= ELSEWHERE_RECORD_S:
+            _record(hex_id, {**plane, "seen_s": max(0.0, _wall() - at)})
+
+
+def _heard_elsewhere_now(hex_id: str) -> dict | None:
+    """Its report from elsewhere, where heard within STALE_S, its age now."""
+    with _LOCK:
+        plane = _ELSEWHERE.get(hex_id)
+    if plane is None:
+        return None
+    age = _wall() - plane["at"]
+    return {k: v for k, v in plane.items() if k != "at"} | {"seen_s": round(age, 1)} if age <= STALE_S else None
+
+
+def _elsewhere_near(lat: float, lon: float, radius_nm: float, have: set[str]) -> list[dict]:
+    """The airplanes heard elsewhere in the last STALE_S within `radius_nm`
+    that the region's answer left out."""
+    now = _wall()
+    with _LOCK:
+        planes = [p for h, p in _ELSEWHERE.items() if h not in have and now - p["at"] <= STALE_S]
+    cos = math.cos(math.radians(lat))
+    out = []
+    for p in planes:
+        if math.hypot((p["lat"] - lat) * _NM_PER_DEG, (p["lon"] - lon) * _NM_PER_DEG * cos) <= radius_nm:
+            out.append({k: v for k, v in p.items() if k != "at"} | {"seen_s": round(now - p["at"], 1)})
+    return out
+
+
 def _record(hex_id: str, plane: dict) -> None:
     """A watched airplane's report kept as a trace point is (`_points`), its
     time when it was heard, not when it was asked."""
@@ -819,6 +902,10 @@ def _watch(hex_id: str) -> None:
     API by its address, ADS-B Exchange where adsb.lol has nothing or does
     not answer; what is heard in the air recorded. Quiet where neither may
     be asked or answers: the next ask tries again."""
+    # The FAA's radar has it now (app.swim): recorded from there, nothing
+    # asked of adsb.lol or spent of ADS-B Exchange.
+    if _heard_elsewhere_now(hex_id) is not None:
+        return
     now = _clock()
     with _LOCK:
         if now - _WATCH_ASKED.get(hex_id, -math.inf) < WATCH_GAP_S:
@@ -860,6 +947,8 @@ def _watched_near(lat: float, lon: float, radius_nm: float, have: set[str]) -> l
         watched = [h for h, at in _WATCHED.items() if _clock() - at < WATCH_FOR_S and h not in have]
     out = []
     for hex_id in watched:
+        if _heard_elsewhere_now(hex_id) is not None:
+            continue
         _watch(hex_id)
         track = _recorded(hex_id)
         if not track:
@@ -891,6 +980,9 @@ def flight(hex_id: str) -> dict:
     "alt_ft"}], this flight's track from its takeoff or the start of its
     leg, at most TRAIL_POINTS)}."""
     hex_id = hex_id.lower()
+    # Its card open: followed from now on, its flights recorded from the
+    # FAA's radar card open or not (heard_elsewhere).
+    follow(hex_id)
     trace = _trace(hex_id) or {}
     # A point is [seconds, lat, lon, altitude, ground speed, track, flags,
     # ...]; one too short to hold them is not used.

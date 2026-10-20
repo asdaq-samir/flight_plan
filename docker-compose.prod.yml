@@ -102,6 +102,13 @@ services:
       # The map's Google overlay (routers/basemaps), where the owner has a key.
       GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY:-}
       ADSBX_RAPIDAPI_KEY: ${ADSBX_RAPIDAPI_KEY:-}
+      # The FAA's SWIM feeds (app.swim): STDDS's terminal radar tracks; off
+      # without them. The owner's SCDS subscription's login and queue.
+      SWIM_HOST: ${SWIM_HOST:-}
+      SWIM_USERNAME: ${SWIM_USERNAME:-}
+      SWIM_PASSWORD: ${SWIM_PASSWORD:-}
+      SWIM_VPN_STDDS: ${SWIM_VPN_STDDS:-}
+      SWIM_QUEUE_STDDS: ${SWIM_QUEUE_STDDS:-}
       CHARTS_AUTO_REFRESH: "0"
       CHART_TILES_URL: https://${PUBLIC_HOST}/tiles
       TZ: America/Chicago
