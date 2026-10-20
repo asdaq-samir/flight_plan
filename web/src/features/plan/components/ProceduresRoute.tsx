@@ -25,7 +25,6 @@ import { etaAt } from "../format";
 import { PointMark } from "./navlog/PointMark";
 import FixBranch from "./FixBranch";
 import DepartPicker from "./navlog/DepartPicker";
-import GroundMenu from "./GroundMenu";
 import ProcedureMenu from "./ProcedureMenu";
 import PointAltitudeDialog, { type EditedPoint, type PointAltitude } from "./PointAltitudeDialog";
 import { AltitudeChip, DirectButton } from "./PointControls";
@@ -145,7 +144,8 @@ export default function ProceduresRoute({
   at: ProceduresAt;
   onAt: (at: ProceduresAt) => void;
   /** Minutes on the ground at each stop, by ident (the address's
-   *  `ground`), and the pick of one: a stop not named, TURNAROUND_MIN. */
+   *  `ground`), and the pick of one, from the time it leaves: a stop not
+   *  named, TURNAROUND_MIN. */
   ground?: Record<string, number>;
   onGround?: (ident: string, minutes: number) => void;
   /** The pilot's own altitudes to cross the procedures' fixes at, by fix. */
@@ -198,6 +198,22 @@ export default function ProceduresRoute({
   // plan streaming in asks again only as its times move that much.
   const now = useMinuteClock();
   const startMs = depart ? Date.parse(depart) : now;
+  // Each stop's minutes flown to it, kept while the plan is made again:
+  // its time to leave picked (DepartPicker), the stop's time on the ground
+  // changes, the nav log is asked for again and its legs stream back in --
+  // the picker taken out meanwhile closed under the pilot's finger.
+  const landsFresh = rows.flatMap(r => (r.kind === "stop" && r.minutesFlown != null ? [`${r.airport.ident}:${r.minutesFlown}`] : [])).join(",");
+  const [landed, setLanded] = useState<{ fresh: string; at: Record<string, number> }>({ fresh: "", at: {} });
+  if (landsFresh && landsFresh !== landed.fresh) {
+    setLanded({
+      fresh: landsFresh,
+      at: { ...landed.at, ...Object.fromEntries(landsFresh.split(",").map(pair => [pair.slice(0, pair.lastIndexOf(":")), Number(pair.slice(pair.lastIndexOf(":") + 1))])) },
+    });
+  }
+  const landedAt = (ident: string): number | null => {
+    const key = Object.keys(landed.at).find(k => sameField(k, ident));
+    return key === undefined ? null : landed.at[key]!;
+  };
   const forecastFor = airports.map(a => {
     const row = a.role === "Departure" ? null
       : rows.find(r => (r.kind === "stop" || r.kind === "destination") && sameField(r.airport.ident, a.ident));
@@ -457,19 +473,24 @@ export default function ProceduresRoute({
     // owner's ask ("If a stop is an airport then it should have arrival
     // first with a runway and a separate departure with a runway"): two
     // steps, the pattern drawn the landing's.
-    // Its time on the ground, picked under the takeoff runways (GroundMenu),
-    // and the Depart step timed from it: when the airplane leaves again.
+    // When it leaves again, picked on its Depart step as the flight's own
+    // departure is, at the owner's ask ("we should not say 30 min on the
+    // ground instead just make the departure time selectable like now is
+    // for the first departure"): kept as its minutes on the ground (the
+    // address's `ground`), the flights after it timed from it; none picked,
+    // TURNAROUND_MIN after it lands. Never before it lands.
     const onGroundMin = ground?.[a.ident] ?? TURNAROUND_MIN;
-    const leaves = row?.minutesFlown == null ? null : etaAt(depart || new Date().toISOString(), row.minutesFlown + onGroundMin);
-    const departing = (
-      <>
-        {takeoffChips}
-        {onGround && <GroundMenu ident={a.ident} minutes={onGroundMin} onPick={minutes => onGround(a.ident, minutes)} />}
-      </>
-    );
+    const flownTo = row?.minutesFlown ?? landedAt(a.ident);
+    const landsMs = flownTo == null ? null : startMs + flownTo * 60_000;
+    const leaves = landsMs === null ? null : onGround ? (
+      <DepartPicker
+        value={new Date(landsMs + onGroundMin * 60_000).toISOString()} look="time" label={`Departure from ${a.ident}`} testId={`depart-date-${a.ident}`} leavesNow={false}
+        onChange={iso => { if (iso) onGround(a.ident, Math.max(0, Math.round((Date.parse(iso) - landsMs) / 60_000))); }}
+      />
+    ) : etaAt(depart || new Date().toISOString(), flownTo! + onGroundMin);
     return [
       step("Arrive", (["arrival", "approach"] as Kind[]).filter(has), landingChips, false, mark, time, arriving),
-      step("Depart", (["departure"] as Kind[]).filter(has), departing, last, <FieldDot last={last} />, leaves),
+      step("Depart", (["departure"] as Kind[]).filter(has), takeoffChips, last, <FieldDot last={last} />, leaves),
     ];
   };
 

@@ -17,7 +17,7 @@ interface Props {
    *  air, which the performance step says. */
   legs: Leg[];
   /** The four plans are said above the steps, as the FL chip's buttons
-   *  (AltitudeButton): their step comes after the rule, and says how
+   *  (AltitudeGroup): their step comes after the rule, and says how
    *  they were made. Without it (the Brief) the plan flown comes first,
    *  with its time and fuel, as the answer. */
   plansAbove?: boolean;

@@ -11,7 +11,7 @@ import { FINDING_TONE } from "../../../lib/status";
  * where Class B airspace is what stops it, Fly via (the stop picker, the
  * waypoints round it suggested at its top) and Accept Class B, planned
  * through it for a pilot who will have the clearance. In the cruising
- * altitude's chip, red, at the pilot's ask (AltitudeButton): it was a
+ * altitude's chip, red, at the pilot's ask (AltitudeGroup): it was a
  * mark beside the Nav Log's title, and before that a line under the
  * route. At rest the route's capsule says so in its chip (PlanWorkspace).
  */

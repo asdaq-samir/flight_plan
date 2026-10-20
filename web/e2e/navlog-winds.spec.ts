@@ -36,7 +36,9 @@ test("a winds outage never reads as an altitude the pilot typed", async ({ page 
   const popover = page.locator("[data-slot=popover-content], [data-slot=sheet-content]");
   await expect(popover).toContainText("winds aloft could not be read");
   await expect(popover).not.toContainText("no legal altitude");
-  await expect(popover.getByRole("form", { name: "Custom altitude" })).not.toHaveClass(/bg-primary/);
+  // And no altitude typed beside the airplane for it.
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("altitude-input")).toHaveValue("");
 });
 
 test("a plan whose winds are past their forecast's period says so, and plans again", async ({ page }) => {

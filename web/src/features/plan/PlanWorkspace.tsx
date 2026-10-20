@@ -7,7 +7,7 @@ import { fromChunk } from "../../lib/fromChunk";
 import { cn } from "cn";
 import { api } from "../../lib/api/client";
 import { aircraftListQuery, aircraftProfilesQuery, airportQuery, checkpointsQuery, courseQuery, nearestQuery, pilotQuery, queryClient } from "../../lib/queryClient";
-import type { AircraftChoice, AirportPlace, AltitudeChoice, Candidate, ProcedureDrawing } from "../../lib/api/types";
+import type { AircraftChoice, AirportPlace, AltitudeChoice, Candidate, Detour, ProcedureDrawing } from "../../lib/api/types";
 import { aircraftKey, choiceOf, shortName } from "../../lib/aircraftChoice";
 import { clockTime } from "../../lib/clock";
 import { placeName } from "../../lib/radio";
@@ -121,7 +121,7 @@ const ReviewAskSheet = fromRoutePanel("ReviewAskSheet");
 const RouteBox = fromRoutePanel("RouteBox");
 const Kneeboard = fromRoutePanel("Kneeboard");
 const FlightInputs = fromRoutePanel("FlightInputs");
-const AltitudeButton = fromRoutePanel("AltitudeButton");
+const AltitudeGroup = fromRoutePanel("AltitudeGroup");
 const BriefNarrative = fromRoutePanel("BriefNarrative");
 const RouteProblem = fromRoutePanel("RouteProblem");
 const LocalDuration = fromRoutePanel("LocalDuration");
@@ -243,7 +243,10 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const depart = searchParams.get("depart") ?? "";
   // Class B accepted: the pilot will have the clearance, and the route
   // is planned through it (RouteProblem's Accept Class B).
-  const classBClearance = searchParams.get("class_b") === "1";
+  // Class B accepted unless the pilot avoids it (class_b=0), at the owner's
+  // pick (2026-10-20): planned through it with the clearance it takes
+  // (14 CFR 91.131), said in the altitude's sheet with "Avoid Class B".
+  const classBClearance = searchParams.get("class_b") !== "0";
   // Points' own altitudes (`altitudes`, "VPBNG:4500,KMSN:1900"), set from
   // a point's menu in the route's box: a waypoint's flown to it, an
   // airport's its pattern. As the address has them, for the planner.
@@ -594,8 +597,8 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       return patched(prev, { cross: altitudesParam(own) || null });
     }, { replace: true });
   }, [setSearchParams]);
-  // A stop's time on the ground picked (GroundMenu): the address's
-  // `ground`, the default 30 not written.
+  // A stop's time on the ground, from when it leaves (ProceduresRoute's
+  // Depart step): the address's `ground`, the default 30 not written.
   const setGround = useCallback((ident: string, minutes: number) => {
     setSearchParams(prev => {
       const own = groundOf(prev.get("ground"));
@@ -880,8 +883,8 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     if (altitudeChoice !== "fastest") next.altitude_choice = altitudeChoice;
     if (altitudes) next.altitudes = altitudes;
     if (depart) next.depart = depart;
-    // Class B accepted for this route, not the next one.
-    if (classBClearance && route.dep === planned.dep && route.dest === planned.dest) next.class_b = "1";
+    // Class B avoided for this route, not the next one.
+    if (!classBClearance && route.dep === planned.dep && route.dest === planned.dest) next.class_b = "0";
     if (panel === "full") next.view = "briefing";
     setSearchParams(next, { replace: true });
     setLoad(n => n + 1);
@@ -972,9 +975,27 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   }, [course, planned.stops, setStops]);
   const acceptClassB = useCallback((accept: boolean) => {
     setSearchParams(prev => {
-      return patched(prev, { class_b: accept ? "1" : null });
+      return patched(prev, { class_b: accept ? null : "0" });
     }, { replace: true });
   }, [setSearchParams]);
+  // "Avoid Class B": the planner's waypoint round it put in the stops where
+  // it says (Detour.stop_index, before that stop), and the clearance taken
+  // back, so the rest is planned under or round it; with no waypoint in
+  // reach, the clearance alone. One change of the address.
+  const avoidClassB = useCallback((detour: Detour | null) => {
+    setSearchParams(prev => {
+      const stops = stopsOf(prev.get("stops"));
+      if (detour && !stops.includes(detour.ident)) stops.splice(Math.min(detour.stop_index, stops.length), 0, detour.ident);
+      return patched(prev, { class_b: "0", stops: stops.length ? stops.join(",") : null });
+    }, { replace: true });
+  }, [setSearchParams]);
+  // An altitude of the pilot's own, typed beside the airplane or picked on
+  // the wheel (AltitudeGroup): the whole route at it, the rest of the
+  // address as it was.
+  const flyAltitude = useCallback((ft: number) => {
+    setAlt(String(ft));
+    setSearchParams(prev => patched(prev, { altitude_ft: String(ft), altitude_choice: null }), { replace: true });
+  }, [setAlt, setSearchParams]);
 
   // With no route, the panel is Maps' search: the bar in the capsule and
   // at the top of the sheet, Favorites and what was picked before under it,
@@ -1630,8 +1651,8 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       aircraftOptions={aircraftChoices}
       onAircraftChange={changeAircraft}
       altitude={!s.local && (
-        <AltitudeButton
-          nav={s.nav} legs={s.legs} onAltitudeChoiceChange={changeAltitudeChoice}
+        <AltitudeGroup
+          nav={s.nav} legs={s.legs} ends={course} onAltitudeChoiceChange={changeAltitudeChoice} onFlyAltitude={flyAltitude}
           problem={unflyable ? close => (
             <RouteProblem
               problem={unflyable} onAddStop={() => { close(); setAddingStop("stop"); }}
@@ -1643,8 +1664,8 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           // marked on the chip, at the pilot's ask: they were marks beside
           // the flight's line, where "Class B" took a line of its own.
           tight={unflyable ? null : tightLeg}
-          classB={!unflyable && classBClearance ? () => acceptClassB(false) : null}
-          alt={alt} onAltChange={setAlt} onSubmit={submit} disabled={!routed}
+          classBAvoided={!classBClearance} onAvoidClassB={avoidClassB} onAllowClassB={() => acceptClassB(true)}
+          disabled={!routed}
           rules={flightRules} onRulesChange={setFlightRules}
         />
       )}
@@ -1653,8 +1674,8 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       // local flight, which has no departure step.
       depart={depart} onDepartChange={routed && !s.local ? undefined : changeDepart}
     />
-  ), [aircraftValue, aircraftChoices, changeAircraft, s.local, s.nav, s.legs, changeAltitudeChoice, unflyable, acceptClassB, tightLeg,
-    classBClearance, alt, setAlt, submit, routed, depart, changeDepart, flightRules, setFlightRules]);
+  ), [aircraftValue, aircraftChoices, changeAircraft, s.local, s.nav, s.legs, course, changeAltitudeChoice, flyAltitude, unflyable, acceptClassB, avoidClassB, tightLeg,
+    classBClearance, routed, depart, changeDepart, flightRules, setFlightRules]);
 
   // Saving the flight, the narrative and Print.
   const addingChange = useCallback((open: boolean) => setAddingStop(open ? "stop" : false), []);

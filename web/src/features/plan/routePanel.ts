@@ -11,7 +11,7 @@ export { default as FlightBriefingView, BriefingNotices, PlanningAidNote, Review
 export { default as RouteBox } from "./components/RouteBox";
 export { default as Kneeboard } from "./components/Kneeboard";
 export { default as FlightInputs } from "./components/navlog/FlightInputs";
-export { default as AltitudeButton } from "./components/navlog/AltitudeButton";
+export { default as AltitudeGroup } from "./components/navlog/AltitudeGroup";
 export { default as BriefNarrative } from "./components/briefing/BriefNarrative";
 export { default as RouteProblem } from "./components/RouteProblem";
 export { default as LocalDuration } from "./components/LocalDuration";

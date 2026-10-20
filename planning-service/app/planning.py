@@ -620,6 +620,18 @@ def class_b_detours(selection: dict, start: tuple, end: tuple) -> list[dict]:
     return airspace.detour_waypoints(start, end, shp_path, lowest[0])
 
 
+def class_b_ways(start: tuple, end: tuple, cruise_ft: float) -> list[dict]:
+    """Where a leg planned with the Class B clearance (the default, at the
+    owner's pick, 2026-10-20) enters Class B at its cruise altitude, the
+    waypoints that keep it out at that altitude (vfr.airspace.
+    detour_waypoints), best first: the pilot's "Avoid Class B". None where
+    it passes under, over or round it."""
+    shp_path = airspace.ensure_class_airspace_shapefile(altitude_module.DEFAULT_FAA_CACHE_DIR)
+    if not airspace.class_b_entered(start, end, shp_path, cruise_ft):
+        return []
+    return airspace.detour_waypoints(start, end, shp_path, cruise_ft)
+
+
 def _class_b_over(selection: dict, segment: dict) -> str:
     """The Class B a leg is stuck under, as a pilot says it ("Chicago
     Class B"): of the route's Class B transits, the one nearest the leg's

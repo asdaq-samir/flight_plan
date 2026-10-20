@@ -581,6 +581,19 @@ class AltitudeOption(BaseModel):
     needs_oxygen: bool
 
 
+class AltitudeFigure(BaseModel):
+    """The route flown at one altitude, for the altitude wheel (the owner's
+    pick, 2026-10-20): each leg at it where it is legal there, else at the
+    leg's nearest legal altitude (`everywhere` false then); the times and
+    fuel with the climbs, the wind along the legs, positive helping."""
+
+    altitude_ft: float
+    ete_min: float | None
+    fuel_gal: float | None
+    tailwind_kt: float | None
+    everywhere: bool
+
+
 class LoadingStation(BaseModel):
     name: str
     arm_in: float
@@ -692,6 +705,12 @@ class Plan(BaseModel):
     altitude_choice: AltitudeChoice | None = None
     #: As the nav log stream's (NavLogAltitude.cautions).
     altitude_cautions: list[AltitudeCaution] = []
+    #: With the Class B clearance, the waypoints that keep the route out
+    #: of the Class B it enters (Detour, best first): "Avoid Class B".
+    class_b_detours: list["Detour"] = []
+    #: The route flown at each altitude any leg may fly (AltitudeFigure),
+    #: lowest first: the altitude wheel's figures.
+    altitude_figures: list[AltitudeFigure] = []
     aircraft: AircraftProfile
     max_zoom: int
     min_zoom: int
@@ -1545,6 +1564,12 @@ class NavLogAltitude(BaseModel):
     #: The altitudes the pilot set that the planner would not have flown,
     #: and why (AltitudeCaution); none for the planner's own plans.
     cautions: list[AltitudeCaution] = []
+    #: With the Class B clearance, the waypoints that keep the route out
+    #: of the Class B it enters (Detour, best first): "Avoid Class B".
+    class_b_detours: list["Detour"] = []
+    #: The route flown at each altitude any leg may fly (AltitudeFigure),
+    #: lowest first: the altitude wheel's figures.
+    altitude_figures: list[AltitudeFigure] = []
 
 
 class NavLogLeg(Leg):
