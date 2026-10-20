@@ -24,6 +24,7 @@ region is found at once, with no request at all.
 from __future__ import annotations
 
 import json
+import logging
 import math
 import os
 import re
@@ -39,6 +40,8 @@ from cachetools import TTLCache
 
 from . import airports, geo, registry
 from .config import DATA_DIR
+
+log = logging.getLogger(__name__)
 
 URL = "https://api.adsb.lol/v2/point/{lat:.2f}/{lon:.2f}/{radius}"
 HEADERS = {"User-Agent": "wingtip-maps/0.1 (VFR flight planner; traffic for pilots' situational awareness)"}
@@ -166,6 +169,51 @@ def _adsbx(path: str, search: bool = False) -> list[dict]:
         entries = resp.json().get("ac") or []
     except (requests.RequestException, ValueError) as err:
         raise TrafficUnavailable(f"ADS-B Exchange did not answer: {err}") from err
+    return [a for a in (_aircraft(e) for e in entries if isinstance(e, dict)) if a is not None]
+
+
+# --- adsb.fi, the free one asked for a watched airplane ---
+
+#: adsb.fi's open data by an airplane's address (opendata.adsb.fi), in
+#: ADS-B Exchange's v2 shape. Its feeders hear airplanes adsb.lol's do not
+#: -- N3429J, a UAT airplane rebroadcast by ADS-R (2026-10-19) -- and it
+#: costs nothing, so a watched airplane is asked of it before ADS-B
+#: Exchange's paid month. Its terms (github.com/adsbfi/opendata): personal,
+#: non-commercial use, adsb.fi credited with a link to adsb.fi (the map's
+#: credit, the console's About); commercial use by its leave only. On by
+#: default, for the owner's own use before launch; ADSBFI_OPEN_DATA=0 turns
+#: it off, as the production stack has it until adsb.fi agrees.
+ADSBFI_URL = "https://opendata.adsb.fi/api/v2/hex/{hex}"
+#: One request a second at most (its public endpoints' limit), from the
+#: whole planner.
+ADSBFI_MIN_GAP_S = 1.1
+#: Where it turns us away, not asked again for this long, s: its refusals
+#: count toward a ban of the address.
+ADSBFI_BACKOFF_S = 600.0
+ADSBFI_SOURCE = {"source": "adsb.fi", "license": "adsb.fi terms"}
+_ADSBFI = {"last": -math.inf, "blocked_until": -math.inf}
+
+
+def _adsbfi(hex_id: str) -> list[dict]:
+    """adsb.fi's report of an airplane by its address, as `_aircraft` gives
+    it; none where it is off, may not be asked yet (ADSBFI_MIN_GAP_S),
+    turned us away lately, or does not answer."""
+    if os.environ.get("ADSBFI_OPEN_DATA", "1") == "0":
+        return []
+    with _LOCK:
+        now = _clock()
+        if now < _ADSBFI["blocked_until"] or now - _ADSBFI["last"] < ADSBFI_MIN_GAP_S:
+            return []
+        _ADSBFI["last"] = now
+    try:
+        resp = requests.get(ADSBFI_URL.format(hex=hex_id), headers=HEADERS, timeout=TIMEOUT_S)
+        if resp.status_code != 200:
+            with _LOCK:
+                _ADSBFI["blocked_until"] = _clock() + ADSBFI_BACKOFF_S
+            return []
+        entries = resp.json().get("ac") or []
+    except (requests.RequestException, ValueError, AttributeError):
+        return []
     return [a for a in (_aircraft(e) for e in entries if isinstance(e, dict)) if a is not None]
 
 
@@ -402,11 +450,15 @@ def near(lat: float, lon: float, radius_nm: float) -> dict:
         planes = [p for p, d in zip(planes, nm) if d <= radius]
     # An airplane whose card is open and that adsb.lol does not hear (a UAT
     # airplane ADS-R rebroadcasts), from its own asks: on the map with the
-    # rest, ADS-B Exchange credited where it came from there.
+    # rest, whose its report was credited with the region's.
     have = {p["hex"].lower() for p in planes}
     watched = _watched_near(lat, lon, radius, have)
-    if watched and not credit:
-        credit = {**ADSB_LOL_SOURCE, "source": "adsb.lol and ADS-B Exchange"}
+    if watched:
+        with _LOCK:
+            whose = {_WATCH_SOURCE.get(p["hex"].lower(), ADSBX_SOURCE["source"]) for p in watched}
+        base = (credit or ADSB_LOL_SOURCE)["source"]
+        named = [base, *sorted(whose - {base})]
+        credit = {**(credit or ADSB_LOL_SOURCE), "source": " and ".join(named)}
     # And the FAA's terminal radar's (app.swim): every airplane with a
     # transponder its STARS facilities track, which no ADS-B network may hear.
     radar = _elsewhere_near(lat, lon, radius, have | {p["hex"] for p in watched})
@@ -768,6 +820,8 @@ RECORD_KEEP_S = 30 * 86400.0
 RECORDED_DIR = Path(os.environ.get("RECORDED_TRACKS_DIR", str(DATA_DIR / "raw" / "watched_tracks")))
 _WATCHED: dict[str, float] = {}
 _WATCH_ASKED: dict[str, float] = {}
+#: Whose a watched airplane's last report was, for the map's credit.
+_WATCH_SOURCE: dict[str, str] = {}
 _RECORDED: dict[str, list[dict]] = {}
 
 
@@ -825,10 +879,74 @@ def _followed(hex_id: str) -> bool:
 
 
 def follow(hex_id: str) -> None:
-    """An airplane followed from now on: its card opened."""
+    """An airplane followed from now on: its card opened. Kept across a
+    restart of the planner by its track's file, written now, empty, where
+    it has none yet: the owner's N3429J, its card opened before a restart
+    and nothing heard of it since, was followed no more."""
+    hex_id = hex_id.lstrip("~")
     _followed(hex_id)
     with _LOCK:
-        _FOLLOWED.add(hex_id.lstrip("~"))
+        new = hex_id not in _FOLLOWED
+        _FOLLOWED.add(hex_id)
+        if new:
+            _load_recorded(hex_id)
+            kept = list(_RECORDED[hex_id])
+    if new and not kept:
+        _save_recorded(hex_id, kept)
+
+
+#: How often each followed airplane is asked for in the background, s:
+#: its flights recorded as FlightAware records them, card open or not
+#: (the owner's screenshots of N3429J's day, 2026-10-19, of which the
+#: planner had nothing). Of adsb.fi alone, which costs nothing, at its
+#: one request a second; adsb.lol's map and ADS-B Exchange's paid month
+#: are left to the map and an open card.
+FOLLOW_EVERY_S = 30.0
+
+
+def follow_round() -> int:
+    """Each followed airplane not heard elsewhere just now (the FAA's
+    radar records it, heard_elsewhere) asked of adsb.fi by its address,
+    a request a second at most, and what it hears recorded. How many
+    were heard."""
+    _followed("")  # the followed read from their files, the first time
+    with _LOCK:
+        followed = sorted(_FOLLOWED)
+    heard = 0
+    for hex_id in followed:
+        if _heard_elsewhere_now(hex_id) is not None:
+            continue
+        # adsb.fi's pace, a little over a second, between asks.
+        with _LOCK:
+            wait = _ADSBFI["last"] + ADSBFI_MIN_GAP_S - _clock()
+        if wait > 0:
+            _sleep(wait)
+        for plane in _adsbfi(hex_id):
+            if plane["hex"].lower().lstrip("~") == hex_id:
+                _record(hex_id, plane)
+                with _LOCK:
+                    _WATCH_SOURCE[hex_id] = ADSBFI_SOURCE["source"]
+                heard += 1
+    return heard
+
+
+def start_following() -> None:
+    """The followed airplanes asked for every FOLLOW_EVERY_S on a thread
+    of their own, for as long as the planner runs; nothing where adsb.fi
+    is off (ADSBFI_OPEN_DATA=0)."""
+    if os.environ.get("ADSBFI_OPEN_DATA", "1") == "0":
+        return
+
+    def run() -> None:
+        while True:
+            started = _clock()
+            try:
+                follow_round()
+            except Exception:  # noqa: BLE001 -- a bad round is not the end of following
+                log.exception("Following the airplanes failed this round")
+            _sleep(max(1.0, FOLLOW_EVERY_S - (_clock() - started)))
+
+    threading.Thread(target=run, name="traffic-follow", daemon=True).start()
 
 
 def heard_elsewhere(plane: dict, at: float) -> None:
@@ -899,9 +1017,10 @@ def _record(hex_id: str, plane: dict) -> None:
 
 def _watch(hex_id: str) -> None:
     """The airplane asked for now, where it is due (WATCH_GAP_S): adsb.lol's
-    API by its address, ADS-B Exchange where adsb.lol has nothing or does
-    not answer; what is heard in the air recorded. Quiet where neither may
-    be asked or answers: the next ask tries again."""
+    API by its address, then adsb.fi's, which costs nothing, then ADS-B
+    Exchange where neither has it or answers; what is heard in the air
+    recorded, and whose it was. Quiet where none may be asked or answers:
+    the next ask tries again."""
     # The FAA's radar has it now (app.swim): recorded from there, nothing
     # asked of adsb.lol or spent of ADS-B Exchange.
     if _heard_elsewhere_now(hex_id) is not None:
@@ -918,14 +1037,19 @@ def _watch(hex_id: str) -> None:
         planes = [a for a in (_aircraft(e) for e in entries if isinstance(e, dict)) if a is not None] if isinstance(entries, list) else []
     except TrafficUnavailable:
         planes = []
+    source = ADSB_LOL_SOURCE["source"]
+    if not planes:
+        planes, source = _adsbfi(hex_id), ADSBFI_SOURCE["source"]
     if not planes:
         try:
-            planes = _adsbx(f"icao/{hex_id}", search=True)
+            planes, source = _adsbx(f"icao/{hex_id}", search=True), ADSBX_SOURCE["source"]
         except TrafficUnavailable:
             planes = []
     for plane in planes:
         if plane["hex"].lower().lstrip("~") == hex_id.lstrip("~"):
             _record(hex_id, plane)
+            with _LOCK:
+                _WATCH_SOURCE[hex_id] = source
 
 
 def _watching(hex_id: str) -> bool:
@@ -1482,7 +1606,11 @@ def status(hex_id: str) -> dict:
     trace = _recent_trace(hex_id)
     if trace is UNREAD or (trace is None and _recorded(hex_id)):
         # No recent trace to read: the track recorded while its card was
-        # open, where there is one (`_watch`), else unavailable.
+        # open or it was followed, asked for now where nothing is (`_watch`:
+        # adsb.lol's API, adsb.fi, ADS-B Exchange), else unavailable -- the
+        # owner's N3429J said "adsb.lol did not answer" with adsb.fi hearing it.
+        if not _recorded(hex_id):
+            _watch(hex_id)
         recorded = _recorded(hex_id)
         if not recorded:
             raise TrafficUnavailable("adsb.lol's recent trace could not be read")

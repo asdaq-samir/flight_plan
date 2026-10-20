@@ -58,6 +58,20 @@ def _when(text: str | None) -> float | None:
         return None
 
 
+def body(message) -> str:
+    """A message's text, read from its bytes first: the client raises on
+    some of the feed's messages when asked for a string, and one message
+    it can't read must not drop the connection. Empty where neither reads."""
+    for read in (message.get_payload_as_bytes, message.get_payload_as_string):
+        try:
+            payload = read()
+        except Exception:  # noqa: BLE001 -- the client's error for a payload of the other kind
+            continue
+        if payload:
+            return payload.decode("utf-8", "replace") if isinstance(payload, (bytes, bytearray)) else payload
+    return ""
+
+
 def tracks(xml: str) -> list[tuple[dict, float]]:
     """A TATrackAndFlightPlan message's airborne tracks, each as vfr.traffic's
     `_aircraft` gives an airplane, and when it was where it is (s): the
@@ -140,11 +154,8 @@ def _run() -> None:
                 message = receiver.receive_message(timeout=5000)
                 if message is None:
                     continue
-                body = message.get_payload_as_string()
-                if body is None:
-                    raw = message.get_payload_as_bytes()
-                    body = raw.decode("utf-8", "replace") if raw else ""
-                found = tracks(body) if "TATrackAndFlightPlan" in body[:300] else []
+                text = body(message)
+                found = tracks(text) if "TATrackAndFlightPlan" in text[:300] else []
                 for plane, at in found:
                     traffic.heard_elsewhere(plane, at)
                 STATE["messages"] += 1

@@ -36,6 +36,7 @@ from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
 from pydantic import TypeAdapter
 from vfr import airspace, altitude, charts, faa_data, fixes, geocode, places, publications, registry, remarks, weather
+from vfr import traffic as traffic_data
 from vfr import airports as airport_table
 
 from . import chart_model, chart_refresh, errors, swim, tracing
@@ -239,6 +240,8 @@ async def _lifespan(app: FastAPI):
     threading.Thread(target=_warm_reference_data, name="reference-data-warm-up", daemon=True).start()
     # The FAA's terminal radar through SWIM, where it is set up (app.swim).
     swim.start()
+    # The airplanes followed, their flights recorded card open or not.
+    traffic_data.start_following()
     yield
 
 

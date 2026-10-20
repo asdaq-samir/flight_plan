@@ -102,6 +102,10 @@ services:
       # The map's Google overlay (routers/basemaps), where the owner has a key.
       GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY:-}
       ADSBX_RAPIDAPI_KEY: ${ADSBX_RAPIDAPI_KEY:-}
+      # adsb.fi's open data is for personal, non-commercial use only
+      # (github.com/adsbfi/opendata): off for the public app until adsb.fi
+      # agrees to it (vfr.traffic).
+      ADSBFI_OPEN_DATA: "0"
       # The FAA's SWIM feeds (app.swim): STDDS's terminal radar tracks; off
       # without them. The owner's SCDS subscription's login and queue.
       SWIM_HOST: ${SWIM_HOST:-}
