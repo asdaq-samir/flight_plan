@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useId, useRef, useState, type KeyboardEvent, type MouseEvent, type PointerEvent } from "react";
+import { Fragment, useEffect, useId, useRef, useState, type KeyboardEvent, type MouseEvent, type PointerEvent, type ReactNode } from "react";
 import { Command as CommandPrimitive } from "cmdk";
 import { ArrowRight, PlaneLanding, PlaneTakeoff, Route, TriangleAlert } from "lucide-react";
 import {
@@ -74,9 +74,13 @@ const PROCEDURE_GLYPH = { approach: PlaneLanding, arrival: Route, departure: Pla
  * The ends stay airports: a waypoint is flown through, never taken off
  * from or landed at, so a change that would put one at an end is undone.
  */
+/** How far past the box its pills must reach before it scrolls, px: past
+ *  a hit area's reach, short of a line (32 px or more). */
+const LINE_OVER_PX = 8;
+
 export default function RouteBox({
   dep, stops, dest, waypoints, airspaceOf, metarColourOf, altitudeAt, onAltitudeChange, onChange, adding, onAddingChange, via,
-  procedures = NO_PROCEDURES, onProcedures, onOpenAirport, onClear, directTo = null, onDirectTo,
+  procedures = NO_PROCEDURES, onProcedures, onOpenAirport, onClear, directTo = null, onDirectTo, footer,
 }: RouteParts & {
   /** Which points are waypoints, flown through: in the sectional's magenta. */
   waypoints: Set<string>;
@@ -112,6 +116,11 @@ export default function RouteBox({
    *  holds one, as a field's clears what is typed in it, at the pilot's
    *  ask. */
   onClear?: () => void;
+  /** The route's buttons -- the airplane, the altitude, the Brief, the nav
+   *  log and Share -- in the box under its lines, as a message box has its
+   *  own under what is typed, at the owner's ask ("I want the route box
+   *  with the buttons below it like this", 2026-10-21). */
+  footer?: ReactNode;
 }) {
   const hasDep = !!dep, hasDest = !!dest;
   const points = [...(hasDep ? [dep] : []), ...stops, ...(hasDest ? [dest] : [])];
@@ -231,6 +240,23 @@ export default function RouteBox({
   // at an arrow put in first, as a tap away from it would. Pressed, the
   // field keeps the focus, the keyboard staying up.
   const slide = useRef<HTMLDivElement>(null);
+  // A box to scroll only once its lines are past its height -- a third at
+  // the most text -- not by the few points its pills' 44-point hit areas
+  // (index.css) reach past one or two: the phone scrolled those under a
+  // finger, the route's one line moving in its box where the card was to
+  // be dragged ("it's still scrolling even when in one line", 2026-10-21).
+  // Read as the box or its pills change.
+  const [lineOver, setLineOver] = useState(false);
+  useEffect(() => {
+    const el = slide.current;
+    if (!el) return;
+    const read = () => setLineOver(el.scrollHeight - el.clientHeight > LINE_OVER_PX);
+    const sized = new ResizeObserver(read);
+    sized.observe(el);
+    const changed = new MutationObserver(read);
+    changed.observe(el, { childList: true, subtree: true });
+    return () => { sized.disconnect(); changed.disconnect(); };
+  }, []);
   const isRoom = (e: MouseEvent<HTMLDivElement>) => e.target === e.currentTarget || e.target === slide.current;
   const toEnd = (e: MouseEvent<HTMLDivElement>) => {
     if (!isRoom(e)) return;
@@ -336,7 +362,9 @@ export default function RouteBox({
         // fields (the owner's recording, 2026-10-18). A tap on the box's
         // room past the last point is still its (below).
         at === null
-          ? cn("flex-1 pl-2", hasDest && points.length > 0 && !focused && !typed ? "min-w-0 pl-0" : "min-w-12")
+          // The caret a space nearer the arrow before it, at the owner's ask
+          // ("the cursor can be one space less for next entry").
+          ? cn("flex-1 pl-1", hasDest && points.length > 0 && !focused && !typed ? "min-w-0 pl-0" : "min-w-12")
           : cn("shrink-0 rounded-full bg-background/60 px-2", at === 0 && !hasDep ? "w-28" : "w-20"),
       )}
       data-testid="route-type"
@@ -387,7 +415,7 @@ export default function RouteBox({
               the route and a short one left a line of grey empty under it. */}
           <InputGroup
             onMouseDown={e => { if (isRoom(e)) e.preventDefault(); }} onClick={toEnd}
-            className={cn("h-auto items-start rounded-[20.5px] border-0 py-0 pr-1.5 pl-1 shadow-none has-[[data-slot=input-group-control]:focus-visible]:ring-0", PANEL_FIELD)}
+            className={cn("h-auto flex-wrap items-start rounded-[20.5px] border-0 py-0 pr-1.5 pl-1 shadow-none has-[[data-slot=input-group-control]:focus-visible]:ring-0", PANEL_FIELD)}
             data-testid="route-box" data-tip="route"
           >
             {/* The pills wrap, two lines of them in sight and the top of a
@@ -405,7 +433,7 @@ export default function RouteBox({
                 96 px, a phone at a larger text size (pills 2rem tall, the
                 lines' gap and padding with them) needed 98 for two lines,
                 and two lines scrolled with no third (the owner's notice). */}
-            <div ref={slide} className="flex max-h-[6rem] min-w-0 flex-1 flex-wrap items-center gap-x-px gap-y-2 overflow-x-hidden overflow-y-auto overscroll-contain py-1 pr-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" data-testid="route-slide"
+            <div ref={slide} className={cn("flex max-h-[6rem] min-w-0 flex-1 flex-wrap items-center gap-x-px gap-y-2 overflow-x-hidden overscroll-contain py-1 pr-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden", lineOver ? "overflow-y-auto" : "overflow-y-hidden")} data-testid="route-slide"
               // Its own lines scrolled first under a finger, then the sheet
               // dragged (use-detent-drag's data-scroll-first).
               data-scroll-first="">
@@ -472,6 +500,10 @@ export default function RouteBox({
             {points.length > 0 && onClear && !typed && (
               <ClearButton label="Clear the route" testId="route-box-clear" onClear={onClear} className="mt-[0.6875rem]" />
             )}
+            {/* Its own taps, not the box's room (isRoom), which types at the
+                route's end; eight under the lines, the clear's 44-point area
+                and Share's apart (the iOS audit's P1). */}
+            {footer && <div className="flex w-full basis-full items-center pt-2 pr-0.5 pb-2 pl-1.5" data-testid="route-box-footer">{footer}</div>}
           </InputGroup>
         </PopoverAnchor>
         <PopoverContent

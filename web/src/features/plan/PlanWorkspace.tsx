@@ -1,7 +1,7 @@
 import { Suspense, lazy, memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type ComponentType } from "react";
 import { flushSync } from "react-dom";
 import { useQueries, useQuery } from "@tanstack/react-query";
-import { Play, ClipboardList, ListOrdered, MapPin, Plane, Route, TowerControl } from "lucide-react";
+import { Play, ClipboardList, ListOrdered, MapPin, Plane, RotateCw, Route, TowerControl } from "lucide-react";
 import { legOf, navLogRows, TURNAROUND_MIN } from "./components/navlog/rows";
 import { fromChunk } from "../../lib/fromChunk";
 import { cn } from "cn";
@@ -9,7 +9,8 @@ import { api } from "../../lib/api/client";
 import { aircraftListQuery, aircraftProfilesQuery, airportQuery, checkpointsQuery, courseQuery, nearestQuery, pilotQuery, queryClient } from "../../lib/queryClient";
 import type { AircraftChoice, AirportPlace, AltitudeChoice, Candidate, Detour, ProcedureDrawing } from "../../lib/api/types";
 import { aircraftKey, choiceOf, shortName } from "../../lib/aircraftChoice";
-import { clockTime } from "../../lib/clock";
+import { clockTime, useMinuteClock } from "../../lib/clock";
+import { legsWithoutWind, windsOutOfDate } from "./format";
 import { placeName } from "../../lib/radio";
 import { TEXT } from "../../lib/text";
 import { bestStopIndex, type LatLon } from "../../lib/geo";
@@ -1709,7 +1710,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const navLog = useMemo(() => (
     <Suspense fallback={<div className="min-h-0 flex-1" />}>
     <NavLogView
-      totals={s.totals} nav={s.nav} legs={s.legs} onPlanAgain={() => setLoad(n => n + 1)} descriptionError={s.descriptionError}
+      totals={s.totals} nav={s.nav} legs={s.legs} descriptionError={s.descriptionError}
       depart={depart}
       dep={planned.dep} dest={planned.dest}
       ends={course}
@@ -1907,6 +1908,15 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       />
     </Suspense>
   );
+  // What planning again would bring in fresh, said by the refresh's dot:
+  // winds past the forecast's period the legs were flown on, legs flown
+  // with none, and the briefing's weather that could not be fetched again.
+  const minute = useMinuteClock();
+  const stale = [
+    windsOutOfDate(s.totals, minute, depart) && "the winds are out of date",
+    s.totals && legsWithoutWind(s.totals) && "some legs have no winds",
+    (s.briefing.state === "failed" || (s.briefing.state === "ready" && s.briefing.refreshError)) && "the weather could not be fetched",
+  ].filter((why): why is string => !!why);
   // The route's chips: the airplane, the altitude, the time, Saved,
   // Approaches and Share (`controls`), and with no route the pill's too.
   const routeControls = started && (
@@ -1927,7 +1937,10 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           holds the rest. Round buttons at a fixed 36 with a 20-point
           glyph, as iOS's bar buttons stay their size at any text size,
           eight apart, so their 44-point hit areas (index.css) meet. */}
-      <div className="ml-auto flex shrink-0 items-center gap-2">
+      {/* Inside the route's box, a size down from the panel's 36: 32, at
+          the owner's ask ("make these buttons a bit smaller inside route
+          box"), twelve apart so their 44-point areas meet (index.css). */}
+      <div className="ml-auto flex shrink-0 items-center gap-3">
         {/* The Brief, a card over FPL (BriefCard), in the folder's place,
             at the owner's ask ("we don't need the folder button because we
             have a saved section with tiles instead. So then we can have a
@@ -1935,11 +1948,11 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
             worst of its pages is. */}
         {routed && (
           <RoundButton
-            label={briefMark ? `Brief, ${briefMark === "stop" ? "warning" : "caution"}` : "Brief"} onClick={openBrief}
+            label={briefMark ? `Brief, ${briefMark === "stop" ? "warning" : "caution"}` : "Brief"} onClick={openBrief} className="size-8"
             data-testid="route-brief" data-finding={briefMark ?? undefined}
           >
             <span className="relative">
-              <ClipboardList className="size-5" strokeWidth={2} />
+              <ClipboardList className="size-[1.125rem]" strokeWidth={2} />
               {briefMark && (
                 <span
                   aria-hidden="true" data-testid="route-brief-mark"
@@ -1954,8 +1967,8 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
             approaches button with the navlog button"): FPL lists the route
             in order instead, its procedures with it (ProceduresRoute). */}
         {routed && (
-          <RoundButton label="Nav log" onClick={openNavLogCard} disabled={!course} data-testid="route-navlog">
-            <ListOrdered className="size-5" strokeWidth={2} />
+          <RoundButton label="Nav log" onClick={openNavLogCard} disabled={!course} className="size-8" data-testid="route-navlog">
+            <ListOrdered className="size-[1.125rem]" strokeWidth={2} />
           </RoundButton>
         )}
         {/* The side view, a card as the nav log is (ProfileCard), is opened
@@ -1966,6 +1979,24 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
             button should not appear before a route is entered"): the box
             clears itself (its own clear). */}
         {routed && shareMenu("end")}
+        {/* Planned again -- fresh winds, weather and fuel -- at the row's
+            end after Share, a dot on it when something is out of date, at
+            the owner's asks ("show a refresh button ... that has a dot";
+            "move the refresh button on the right side of share"): the nav
+            log's "Winds out of date" and its Plan again row before. */}
+        {routed && !s.local && (
+          <RoundButton
+            label={stale.length ? `Plan again: ${stale.join(", ")}` : "Plan again"} onClick={() => setLoad(n => n + 1)}
+            className="size-8" data-testid="plan-again" data-stale={stale.length ? "" : undefined}
+          >
+            <span className="relative">
+              <RotateCw className="size-[1.125rem]" strokeWidth={2} />
+              {stale.length > 0 && (
+                <span aria-hidden="true" data-testid="plan-again-mark" className="absolute -top-0.5 -right-1 size-2 rounded-full bg-amber-500" />
+              )}
+            </span>
+          </RoundButton>
+        )}
       </div>
     </div>
   );
@@ -2242,6 +2273,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           onOpenAirport={selectPlace}
           directTo={directParam} onDirectTo={directToPoint}
           onClear={clearRoute}
+          footer={routeControls}
         />
         </SearchNear.Provider>
         </Suspense>
@@ -2262,7 +2294,9 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     // too, the half sheet now tall enough for both, at the owner's ask
     // ("This way we won't have to hide the buttons for dry run"): they made
     // way for it before.
-    controls: routeControls,
+    // In the route's box, under its lines (RouteBox's footer), at the
+    // owner's ask: no row of their own under it.
+    controls: undefined,
     console: <PilotPanel />,
     submit,
     loading: s.stage !== null,

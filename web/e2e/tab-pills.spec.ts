@@ -77,7 +77,7 @@ test("each tab's pill is the tabs, FPL's with a route its figures in their place
   }
   // Setup's account within it (the owner's "so email in setup fits at the
   // bottom"): its title, the address now the role menu's (AccountMenu).
-  const address = panel.getByTestId("role-menu").or(panel.getByText("Not signed in")).first();
+  const address = panel.getByTestId("role-menu").or(panel.getByTestId("setup-pill-account")).first();
   const [row, sheet] = [(await address.boundingBox())!, (await panel.boundingBox())!];
   expect(row.y + row.height).toBeLessThanOrEqual(sheet.y + sheet.height);
 });

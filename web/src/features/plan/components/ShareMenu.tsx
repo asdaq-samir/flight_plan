@@ -136,8 +136,9 @@ export default function ShareMenu({
       <DropdownMenu>
         <ResponsivePopoverAnchor asChild>
           <DropdownMenuTrigger asChild>
-            <RoundButton label={SHARE_LABEL[card]} data-testid={testId}>
-              <Share className="size-5" strokeWidth={2} />
+            {/* The route box's a size down, as the box's other buttons are. */}
+            <RoundButton label={SHARE_LABEL[card]} className={card === "route" ? "size-8" : undefined} data-testid={testId}>
+              <Share className={card === "route" ? "size-[1.125rem]" : "size-5"} strokeWidth={2} />
             </RoundButton>
           </DropdownMenuTrigger>
         </ResponsivePopoverAnchor>
