@@ -149,9 +149,9 @@ export function CardTop({ name, nameTestId, nameFitTestId, lines, picture, side,
  */
 export function CardClose({ onClose, onShare, testId }: {
   onClose: () => void;
-  /** The card's share (an airport's, an airplane's, or the route's for
-   *  the Brief and the nav log): the minimized tab bar's Share where its
-   *  Back was (TabBar). */
+  /** The card's share (an airport's, an airplane's, or the route's menu
+   *  for the Brief, the nav log and the profile, each its own): the
+   *  minimized tab bar's Share where its Back was (TabBar). */
   onShare?: CardShare;
   testId: string;
   className?: string;
@@ -159,10 +159,10 @@ export function CardClose({ onClose, onShare, testId }: {
   const close = useRef(onClose);
   const share = useRef(onShare);
   useEffect(() => { close.current = onClose; share.current = onShare; });
-  const shares = onShare === "route" ? "route" : !!onShare;
+  const shares = typeof onShare === "string" ? onShare : !!onShare;
   useEffect(() => holdOpenCard({
     close: () => close.current(),
-    share: shares === "route" ? "route" : shares ? () => { if (typeof share.current === "function") share.current(); } : undefined,
+    share: typeof shares === "string" ? shares : shares ? () => { if (typeof share.current === "function") share.current(); } : undefined,
   }), [shares]);
   return (
     <span className="sr-only focus-within:not-sr-only">

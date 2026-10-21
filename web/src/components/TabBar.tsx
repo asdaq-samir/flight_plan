@@ -4,7 +4,7 @@ import BackButton from "./BackButton";
 import CloseButton from "./CloseButton";
 import RoundButton from "./RoundButton";
 import { cn } from "cn";
-import { closeTopCard, useOpenCards } from "../lib/openCards";
+import { closeTopCard, useOpenCards, type RouteCard } from "../lib/openCards";
 import { prefersReducedMotion } from "../lib/motion";
 import { TEXT } from "../lib/text";
 import { PanelSize, TabBarMinimized, useConsoleOpen, useTabsShown } from "./mapChrome";
@@ -143,9 +143,9 @@ export default function TabBar<T extends string>({ tabs, tab, over, title, onPic
    *  tab put away and the sheet down to its pill, at the owner's ask; over
    *  a card with a share, one card back, as Back went. */
   onClose?: () => void;
-  /** The route's Share menu, in Back's place over the Brief and the nav
-   *  log (a card's share "route"). */
-  routeShare?: ReactNode;
+  /** The route's Share menu for one of its cards, in Back's place over
+   *  the Brief, the nav log and the profile: each card's own items. */
+  routeShare?: (card: RouteCard) => ReactNode;
   /** A list in full open over the tab -- its Favorites, Saved, Nearest --
    *  which the tab up tapped again puts away (`onUp`), the sheet where it
    *  is, as it puts a card away: lists keep their place as cards do, at
@@ -221,7 +221,7 @@ export default function TabBar<T extends string>({ tabs, tab, over, title, onPic
   // ("replace the back button on airport/aircraft with the share button.
   // The close button should behave like the back button", 2026-10-20).
   const share = useOpenCards(s => s.share);
-  const shareInstead = back && (typeof share === "function" || (share === "route" && !!routeShare));
+  const shareInstead = back && (typeof share === "function" || (typeof share === "string" && !!routeShare));
   useEffect(() => {
     const barMinimized = minimized && !consoleOpen;
     useOpenCards.setState({ barMinimized });
@@ -450,7 +450,7 @@ export default function TabBar<T extends string>({ tabs, tab, over, title, onPic
           // read as the card's, not the tabs', at the owner's ask.
           <span className="absolute inset-y-0 left-2 flex items-center">
             {shareInstead ? (
-              share === "route" ? routeShare : (
+              typeof share === "string" ? routeShare?.(share) : (
                 // Drawn as Back and the close are: the glyph in the text's
                 // colour on the round glass button, a thin line.
                 <RoundButton label={title ? `Share ${title}` : "Share"} onClick={() => { if (typeof share === "function") share(); }} data-testid="tab-share">

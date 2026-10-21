@@ -5,12 +5,17 @@ import RoundButton from "../../../components/RoundButton";
 import { ResponsivePopover, ResponsivePopoverAnchor } from "../../../components/ResponsivePopover";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "../../../components/ui/dropdown-menu";
 import type { Candidate, Course } from "../../../lib/api/types";
+import type { RouteCard } from "../../../lib/openCards";
 import { foreflightRoute, fplOf, gpxOf, shareFile, type PlanPoint } from "../../../lib/flightPlanFiles";
 import { markPackSent, openInForeFlight, packOrigin, packPath, packSent } from "../../../lib/foreflightPack";
 import { routeName } from "../../../lib/identSchema";
 import { showError } from "../../../lib/problems";
 import { cancelled, shareOrCopy } from "../../../lib/share";
 import { navLogRows } from "./navlog/rows";
+
+const SHARE_LABEL: Record<"route" | RouteCard, string> = {
+  route: "Share this route", brief: "Share the briefing", navlog: "Share the nav log", profile: "Share the profile",
+};
 
 /** The route as typed: its departure, stops and destination. */
 interface Planned {
@@ -24,9 +29,16 @@ interface Planned {
  * capsule's start at rest -- and with it, at the pilot's ask, everything
  * else the route's row had: the route shared (a link, a file for another
  * app or the panel's GPS, on an iPhone the share sheet's Open in
- * ForeFlight), Save, the solo cross-country review, Print, filing the
- * flight plan and the route's close. Greyed in its places with no route
- * (cleared, or half typed), the menu keeping its shape.
+ * ForeFlight), Save, the solo cross-country review, filing the flight
+ * plan and the route's close. Only once there is a route (PlanWorkspace).
+ *
+ * Each card's own, at the owner's asks ("every share button needs to be
+ * specific to that card. So printing briefing should only be in brief
+ * card"; "printing navlog should be in navlog"): the route box's has the
+ * route -- its link, files, ForeFlight, Save and the review, filing and its
+ * clear; the Brief's, its link and Print the briefing; the nav log's, its
+ * link and the nav log printed (the kneeboard card); the profile's, its
+ * link.
  *
  * Out of the workspace (PlanWorkspace), which only says what the route is
  * and hands in what the lazy route panel draws: Save and the review's item
@@ -34,12 +46,14 @@ interface Planned {
  * menu goes.
  */
 export default function ShareMenu({
-  align, testId = "share-route", planned, course, selected, altitudeFt, routed, hasPoints, local, fileable, onFile, onClear, saving, reviewSheet,
+  align, testId = "share-route", card = "route", planned, course, selected, altitudeFt, routed, hasPoints, local, fileable, onFile, onClear, saving, reviewSheet,
 }: {
   align: "start" | "end";
   /** Its button's: the route box's, or the tab bar's over the Brief and
    *  the nav log (TabBar's `routeShare`). */
   testId?: string;
+  /** Whose Share it is: the route box's, or one of the route's cards'. */
+  card?: "route" | RouteCard;
   planned: Planned;
   course: Course | null;
   selected: Candidate[];
@@ -122,65 +136,72 @@ export default function ShareMenu({
       <DropdownMenu>
         <ResponsivePopoverAnchor asChild>
           <DropdownMenuTrigger asChild>
-            <RoundButton label="Share this route" data-testid={testId}>
+            <RoundButton label={SHARE_LABEL[card]} data-testid={testId}>
               <Share className="size-5" strokeWidth={2} />
             </RoundButton>
           </DropdownMenuTrigger>
         </ResponsivePopoverAnchor>
         <DropdownMenuContent align={align} className="min-w-56 print:hidden">
-          {routed && (
+          {routed && <DropdownMenuItem onSelect={() => void share()} data-testid="share-link"><Link2 />Share link</DropdownMenuItem>}
+          {card === "route" && (
             <>
-              <DropdownMenuItem onSelect={() => void share()}><Link2 />Share link</DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => void exportPlan("fpl")} data-testid="export-fpl"><FileDown />Flight plan (.fpl)</DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => void exportPlan("gpx")} data-testid="export-gpx"><FileDown />GPX route (.gpx)</DropdownMenuItem>
-              {/* Links, not handlers: ForeFlight opens from a tap on its
-                  own link, and a download needs one too. */}
-              {points.length > 0 && (packHref && !sentPack ? (
-                <DropdownMenuItem asChild data-testid="open-foreflight">
-                  <a href={openInForeFlight(new URL(packHref, packOrigin(window.location)).href)} onClick={sendPack}>
-                    <Send />Open in ForeFlight
-                  </a>
-                </DropdownMenuItem>
-              ) : (
-                <DropdownMenuItem asChild data-testid="open-foreflight">
-                  <a href={foreflightRoute(points, altitudeFt, sentPack)}><Send />Open in ForeFlight</a>
-                </DropdownMenuItem>
-              ))}
-              {/* Sent once and since deleted in ForeFlight: again. */}
-              {packHref && sentPack && (
-                <DropdownMenuItem asChild data-testid="foreflight-pack">
-                  <a href={openInForeFlight(new URL(packHref, packOrigin(window.location)).href)}><MapPinned />Send the checkpoints again</a>
-                </DropdownMenuItem>
+              {routed && (
+                <>
+                  <DropdownMenuItem onSelect={() => void exportPlan("fpl")} data-testid="export-fpl"><FileDown />Flight plan (.fpl)</DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => void exportPlan("gpx")} data-testid="export-gpx"><FileDown />GPX route (.gpx)</DropdownMenuItem>
+                  {/* Links, not handlers: ForeFlight opens from a tap on its
+                      own link, and a download needs one too. */}
+                  {points.length > 0 && (packHref && !sentPack ? (
+                    <DropdownMenuItem asChild data-testid="open-foreflight">
+                      <a href={openInForeFlight(new URL(packHref, packOrigin(window.location)).href)} onClick={sendPack}>
+                        <Send />Open in ForeFlight
+                      </a>
+                    </DropdownMenuItem>
+                  ) : (
+                    <DropdownMenuItem asChild data-testid="open-foreflight">
+                      <a href={foreflightRoute(points, altitudeFt, sentPack)}><Send />Open in ForeFlight</a>
+                    </DropdownMenuItem>
+                  ))}
+                  {/* Sent once and since deleted in ForeFlight: again. */}
+                  {packHref && sentPack && (
+                    <DropdownMenuItem asChild data-testid="foreflight-pack">
+                      <a href={openInForeFlight(new URL(packHref, packOrigin(window.location)).href)}><MapPinned />Send the checkpoints again</a>
+                    </DropdownMenuItem>
+                  )}
+                  {packHref && (
+                    <DropdownMenuItem asChild data-testid="export-foreflight">
+                      <a href={packHref} download><FileArchive />Checkpoints for ForeFlight (.zip)</a>
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuSeparator />
+                </>
               )}
-              {packHref && (
-                <DropdownMenuItem asChild data-testid="export-foreflight">
-                  <a href={packHref} download><FileArchive />Checkpoints for ForeFlight (.zip)</a>
-                </DropdownMenuItem>
+              {saving(() => setTimeout(() => setAskingReview(true), 150))}
+              <DropdownMenuItem disabled={!fileable} onSelect={onFile} data-testid="file-flight-plan"><FileText />File flight plan</DropdownMenuItem>
+              {hasPoints && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem variant="destructive" onSelect={onClear} data-testid="route-clear"><Trash2 />Clear the route</DropdownMenuItem>
+                </>
               )}
-              <DropdownMenuSeparator />
             </>
           )}
-          {saving(() => setTimeout(() => setAskingReview(true), 150))}
-          <DropdownMenuItem disabled={!fileable} onSelect={onFile} data-testid="file-flight-plan"><FileText />File flight plan</DropdownMenuItem>
           {/* Printed once the menu has gone, so it is not on the paper: the
-              whole briefing, or the kneeboard card -- the nav log, radio and
-              patterns on one half-letter page to fly with. */}
-          <DropdownMenuItem disabled={!routed} onSelect={() => setTimeout(() => window.print(), 150)} data-testid="print-briefing">
-            <Printer />Print the briefing
-          </DropdownMenuItem>
-          {!local && (
+              whole briefing from the Brief, and from the nav log the
+              kneeboard card -- the nav log, radio and patterns on one
+              half-letter page to fly with. */}
+          {card === "brief" && (
+            <DropdownMenuItem disabled={!routed} onSelect={() => setTimeout(() => window.print(), 150)} data-testid="print-briefing">
+              <Printer />Print the briefing
+            </DropdownMenuItem>
+          )}
+          {card === "navlog" && !local && (
             <DropdownMenuItem
               disabled={!routed} data-testid="print-kneeboard"
               onSelect={() => setTimeout(() => void import("../../../lib/printKneeboard").then(m => m.printKneeboard()), 150)}
             >
-              <Printer />Print a kneeboard card
+              <Printer />Print the nav log
             </DropdownMenuItem>
-          )}
-          {hasPoints && (
-            <>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem variant="destructive" onSelect={onClear} data-testid="route-clear"><Trash2 />Clear the route</DropdownMenuItem>
-            </>
           )}
         </DropdownMenuContent>
       </DropdownMenu>

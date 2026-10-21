@@ -229,3 +229,39 @@ describe("the route as entered", () => {
     expect(asEntered()).toHaveLength(0);
   });
 });
+
+describe("an altitude asked for", () => {
+  // The planner's whole log at an altitude, and one that never answers.
+  async function* whole(feet: number): AsyncGenerator<NavLogMessage> {
+    yield { type: "altitude", flown: "custom", altitude_ft: feet, options: [], aircraft: { name: "Cessna 172" } } as unknown as NavLogMessage;
+    yield { type: "leg", to: "KDLH", altitude_ft: feet } as NavLogMessage;
+    yield { type: "done", totals: { distance_nm: 323.4 } } as NavLogMessage;
+  }
+  async function* waiting(): AsyncGenerator<never> {
+    yield* (await new Promise<never[]>(() => {}));
+  }
+
+  test("keeps the log before it on the page, with nothing said to wait on, till its own is in", async () => {
+    vi.mocked(api.course).mockResolvedValue({ ...courseFixture(), checkpoints_ready: true });
+    vi.mocked(api.navlog).mockImplementation((...args: Parameters<typeof api.navlog>) => (args[2] === "6500" ? waiting() : whole(4500)));
+    const { result, rerender } = renderHook((plan: PlanParams) => usePlan(plan), { wrapper, initialProps: { ...params, altitudeFt: "4500" } });
+    await waitFor(() => expect(result.current.totals).not.toBeNull());
+    rerender({ ...params, altitudeFt: "6500" });
+    await waitFor(() => expect(vi.mocked(api.navlog).mock.calls.some(call => call[2] === "6500")).toBe(true));
+    expect(result.current.replanning).toBe(true);
+    expect(result.current.legs.map(leg => leg.altitude_ft)).toEqual([4500]);
+    // No "Planning altitudes…" over it (the checkpoints never answer here).
+    expect(result.current.navStage).toBeNull();
+    expect(result.current.stage).not.toBe("navlog");
+  });
+
+  test("on another route, is not held over it", async () => {
+    vi.mocked(api.course).mockResolvedValue({ ...courseFixture(), checkpoints_ready: true });
+    vi.mocked(api.navlog).mockImplementation((...args: Parameters<typeof api.navlog>) => (args[1] === "KMSP" ? waiting() : whole(4500)));
+    const { result, rerender } = renderHook((plan: PlanParams) => usePlan(plan), { wrapper, initialProps: params });
+    await waitFor(() => expect(result.current.totals).not.toBeNull());
+    rerender({ ...params, dest: "KMSP", altitudeFt: "6500" });
+    await waitFor(() => expect(result.current.legs).toEqual([]));
+    expect(result.current.replanning).toBe(false);
+  });
+});

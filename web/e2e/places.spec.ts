@@ -738,9 +738,8 @@ test("with no route the panel is a search bar: Home is set from Favorites, an ai
   await expect(page).not.toHaveURL(/dep=/);
   await expect(sideDrawer(page).getByTestId("route-type")).toBeVisible();
   await expect(sideDrawer(page).getByTestId("aircraft-select")).toBeEnabled();
-  await sideDrawer(page).getByTestId("share-route").click();
-  await expect(page.getByTestId("print-briefing")).toHaveAttribute("aria-disabled", "true");
-  await page.keyboard.press("Escape");
+  // No Share with no route, at the owner's ask.
+  await expect(sideDrawer(page).getByTestId("share-route")).toHaveCount(0);
   await expect(sideDrawer(page).getByTestId("panel-tab-enroute")).toBeHidden();
   await expect(sideDrawer(page)).toHaveAttribute("data-panel", "full");
   await showTabs(page);
