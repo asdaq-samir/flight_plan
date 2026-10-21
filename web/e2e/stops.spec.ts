@@ -474,7 +474,7 @@ test("a flight saved with a stop is filed with it and the altitude set there, an
   expect(filed[0]!.checkpoints.filter(c => c.category === "stop").map(c => c.name)).toEqual(["KMSN"]);
 });
 
-test("the route's box is round, one line tall for a short route and the panel's width, Approaches and Share under it, no words after its destination, a tap on its empty room the field at its end, and Enter takes the first airport offered for what is typed", async ({ page }) => {
+test("the route's box is round, one line tall for a short route and the panel's width, the Nav log and Share inside it under its line, no words after its destination, a tap on its empty room the field at its end, and Enter takes the first airport offered for what is typed", async ({ page }) => {
   await recordedStops(page);
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
@@ -485,17 +485,20 @@ test("the route's box is round, one line tall for a short route and the panel's 
   expect(await sideDrawer(page).getByTestId("add-stop").count()).toBe(0);
   // Round as the search bar's field is, one line tall for a route that
   // fits one (a second as one needs it, below), the panel's width to
-  // itself, at the pilot's ask; the Nav log and Share under it at the
-  // chips' row's end.
-  const shape = await box.evaluate(el => ({ radius: parseFloat(getComputedStyle(el).borderTopLeftRadius), height: el.getBoundingClientRect().height }));
+  // itself, at the pilot's ask; the Nav log and Share in the box under
+  // its line, at the row's end, as a message box has its buttons (the
+  // owner, 2026-10-21).
+  const shape = await box.evaluate(el => ({ radius: parseFloat(getComputedStyle(el).borderTopLeftRadius) }));
   expect(shape.radius).toBeGreaterThanOrEqual(20);
-  expect(shape.height).toBeGreaterThanOrEqual(36);
-  expect(shape.height).toBeLessThanOrEqual(48);
+  const lines = (await sideDrawer(page).getByTestId("route-slide").boundingBox())!;
+  expect(lines.height).toBeGreaterThanOrEqual(36);
+  expect(lines.height).toBeLessThanOrEqual(48);
   const boxAt = (await box.boundingBox())!, panelAt = (await sideDrawer(page).boundingBox())!;
   expect(panelAt.x + panelAt.width - (boxAt.x + boxAt.width)).toBeLessThanOrEqual(16);
   const procedures = (await sideDrawer(page).getByTestId("route-navlog").boundingBox())!;
   const share = (await sideDrawer(page).getByTestId("share-route").boundingBox())!;
-  expect(procedures.y).toBeGreaterThan(boxAt.y + boxAt.height);
+  expect(procedures.y).toBeGreaterThan(lines.y + lines.height);
+  expect(procedures.y + procedures.height).toBeLessThanOrEqual(boxAt.y + boxAt.height);
   expect(share.x).toBeGreaterThan(procedures.x);
   // No "Add stop" after the destination, at the pilot's ask: a reader is
   // told what typing there does.
