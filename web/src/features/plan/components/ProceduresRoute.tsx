@@ -448,9 +448,14 @@ export default function ProceduresRoute({
     // Direct to a round trip's end on the ground, with no position, is from
     // the field to itself: a local flight, not a direct (the audit's).
     const homeward = !!routePoints && routePoints.length > 1 && sameField(routePoints[0]!, ident) && !positioned;
+    const kind = own !== null ? "set" : at.waypoint ? "cruise" : "elev";
     return {
       direct,
-      figures: <PointFigures time={at.time} altitude={shown === null ? null : altFt(shown)} kind={own !== null ? "set" : at.waypoint ? "cruise" : "elev"} />,
+      figures: <PointFigures time={at.time} altitude={shown === null ? null : altFt(shown)} kind={kind} />,
+      // The two apart, for an airport's block: the time on its ident's
+      // line, the elevation on its wind's.
+      time: <PointFigures time={at.time} altitude={null} kind={kind} />,
+      elevation: <PointFigures time={null} altitude={shown === null ? null : altFt(shown)} kind={kind} testId="point-elevation" />,
       menu: (
         <PointMenu
           ident={ident} direct={direct}
@@ -559,8 +564,12 @@ export default function ProceduresRoute({
           <div className="relative flex w-7 shrink-0 justify-center pt-1">{mark}</div>
           <div className="min-w-0 flex-1 pb-5">
             <section aria-label={`${a.ident} · ${first.role}`}>
-              <div className="flex items-center gap-2">
-                <div className="flex min-w-0 flex-1 items-center gap-1.5">
+              {/* Two lines, as a waypoint's row and the list before had them,
+                  at the owner's ask ("line up the time with airport id and
+                  elevation with wind like before"): the ident and the time,
+                  then the wind and the elevation; the menu beside both. */}
+              <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-x-2">
+                <div className="col-start-1 row-start-1 flex min-w-0 items-center gap-1.5">
                   {a.role === "Stop" && isFuelStop(a.ident) && <Fuel className="size-[1.125rem] shrink-0 text-caution" aria-label="fuel stop" role="img" />}
                   <h3 className={cn("truncate font-bold", TEXT.heading)}>{a.ident}</h3>
                   {/* The block opened and folded by its fuel and the arrow after
@@ -577,14 +586,13 @@ export default function ProceduresRoute({
                     <ChevronRight className={cn("size-4 transition-transform", opened && "rotate-90")} aria-hidden />
                   </button>
                 </div>
-                {end.figures}
-                {end.menu}
-              </div>
-              {(wind || end.direct) && (
-                <p className={cn("flex items-center gap-1 font-semibold text-tint tabular-nums", TEXT.note)} data-testid="field-wind">
-                  {end.direct ? "Direct to" : <><Wind className="size-3.5" aria-hidden />{wind}</>}
+                <div className="col-start-2 row-start-1 justify-self-end">{end.time}</div>
+                <div className="col-start-3 row-span-2 row-start-1 self-center">{end.menu}</div>
+                <p className={cn("col-start-1 row-start-2 flex min-w-0 items-center gap-1 font-semibold text-tint tabular-nums", TEXT.note)} data-testid="field-wind">
+                  {end.direct ? "Direct to" : wind && <><Wind className="size-3.5 shrink-0" aria-hidden />{wind}</>}
                 </p>
-              )}
+                <div className="col-start-2 row-start-2 justify-self-end">{end.elevation}</div>
+              </div>
               {opened && partBody(first)}
             </section>
             {opened && parts[1] && <section aria-label={`${a.ident} · ${parts[1].role}`}>{partBody(parts[1])}</section>}
@@ -1210,16 +1218,11 @@ function FieldInfo({ ident, note, wind, reported, fit, kind, demonstratedKt, all
             className={cn("relative flex h-9 min-w-9 shrink-0 flex-col items-center justify-center after:absolute after:-inset-x-1 after:-inset-y-1 after:content-['']", allOver ? "text-destructive-ink" : "text-tint")}
             data-over={allOver || undefined}
           >
-            {reported === "calm" ? (
-              <span className={cn("font-semibold", TEXT.note)}>Calm</span>
-            ) : reported ? (
-              <span className="flex flex-col items-center leading-[1.05] tabular-nums" aria-hidden>
-                <span className={cn("font-semibold leading-[1.05]", TEXT.detail)}>{reported.dir}</span>
-                <span className={cn("leading-[1.05]", TEXT.note)}>{reported.speed} kt</span>
-              </span>
-            ) : (
-              <Info className="size-5" aria-hidden />
-            )}
+            {/* The wind is the airport's, under its ident, at the owner's
+                ask ("each depart/arrive doesn't need wind anymore since it's
+                below airport ID"): here the info, its name still saying
+                the wind to VoiceOver. */}
+            <Info className="size-5" aria-hidden />
           </button>
         </ResponsivePopoverTrigger>
         <ResponsivePopoverContent title={`${ident} runway and wind`} align="start" className="w-auto max-w-[min(20rem,calc(100vw-2rem))] space-y-2 p-3" data-testid="field-info-content">
@@ -1272,17 +1275,6 @@ function FuelStopRunway({ ident }: { ident: string }) {
   const words = `${ident} wind ${reported === "calm" ? "calm" : reported ? reported.spoken : "not reported"}, runway ${wind.ident}${wind.calm ? "" : ", into the wind"}`;
   return (
     <div className="flex items-center gap-2" role="img" aria-label={words} data-testid="fuel-stop-runway">
-      <span aria-hidden="true" className="flex h-9 min-w-9 shrink-0 flex-col items-center justify-center text-tint">
-        {reported === "calm" || !reported ? (
-          <span className={cn("font-semibold", TEXT.note)}>Calm</span>
-        ) : (
-          <span className="flex flex-col items-center leading-[1.05] tabular-nums">
-            <span className={cn("font-semibold leading-[1.05]", TEXT.detail)}>{reported.dir}</span>
-            <span className={cn("leading-[1.05]", TEXT.note)}>{reported.speed} kt</span>
-          </span>
-        )}
-      </span>
-      <span aria-hidden="true" className="h-[26px] w-px shrink-0 bg-[rgba(60,60,67,0.22)] dark:bg-border" />
       <span aria-hidden="true" data-state="on" className={cn(CHIP, "inline-flex items-center gap-0.5 whitespace-nowrap after:hidden")}>
         {!wind.calm && <Wind className="size-4" strokeWidth={2.2} aria-hidden />}{wind.ident}
       </span>
