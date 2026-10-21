@@ -4,7 +4,6 @@ import { cn } from "cn";
 import { PillSection } from "../../components/Favorites";
 import QuickControls from "../../components/QuickControls";
 import { pilotQuery } from "../../lib/queryClient";
-import { TEXT } from "../../lib/text";
 import { AccountMenu } from "./AccountMenu";
 import { TAB_PAGE_GAP } from "../../components/TabPage";
 
@@ -40,8 +39,9 @@ export default function SetupPill({ testId = "setup-pill", rows }: {
         title="Account" testId={`${testId}-account`}
         right={<>{!pilot && <Suspense fallback={null}><SignInModal plain /></Suspense>}<AccountMenu /></>}
       >
-        {/* Who is signed in is the role menu's title (AccountMenu). */}
-        {!pilot && <p className={cn("truncate text-muted-foreground", TEXT.row)}>Not signed in</p>}
+        {/* Who is signed in is the role menu's title (AccountMenu); signed
+            out, Sign in at the heading's right says so, with no line of its
+            own, at the owner's ask ("no need to show Not Signed in"). */}
         {rows && <div className="flex justify-between gap-2 pt-1" data-testid="library-section">{rows}</div>}
       </PillSection>
     </div>

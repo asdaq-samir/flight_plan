@@ -41,7 +41,7 @@ test("a winds outage never reads as an altitude the pilot typed", async ({ page 
   await expect(page.getByTestId("altitude-input")).toHaveValue("");
 });
 
-test("a plan whose winds are past their forecast's period says so, and plans again", async ({ page }) => {
+test("a plan whose winds are past their forecast's period marks the route box's refresh, which plans again", async ({ page }) => {
   // The audit's finding: a nav log planned for "now" at 08:00 flew
   // 08:00's winds at 14:00 and did not say so. Its totals' winds made an
   // hour past their period here; the rest of the plan is the real one.
@@ -64,12 +64,14 @@ test("a plan whose winds are past their forecast's period says so, and plans aga
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   await openPanel(page);
-  const old = page.getByTestId("navlog-winds-old");
-  await expect(old).toBeVisible({ timeout: slow(60_000) });
-  await expect(old).toContainText("Winds out of date");
-  await expect(old).toContainText(/Planned \d{4}Z · winds for use \d{4}–\d{4}Z/);
+  // The refresh before the airplane, its dot on and its name saying why,
+  // at the owner's ask: the nav log's message and its Plan again before.
+  const again = page.getByTestId("plan-again");
+  await expect(page.getByTestId("plan-again-mark")).toBeVisible({ timeout: slow(60_000) });
+  await expect(again).toHaveAccessibleName(/winds are out of date/);
+  await expect(page.getByTestId("navlog-winds-old")).toHaveCount(0);
   const before = asked;
-  await page.getByTestId("navlog-plan-again").click();
+  await again.click();
   await expect.poll(() => asked).toBeGreaterThan(before);
   // The plan asked again is still streaming as the test ends.
   await page.unrouteAll({ behavior: "ignoreErrors" });

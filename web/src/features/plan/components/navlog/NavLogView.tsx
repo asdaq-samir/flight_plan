@@ -23,8 +23,7 @@ import { routeName } from "../../../../lib/identSchema";
 import { revealRow } from "../../../../lib/revealRow";
 import { GROUP_HEADING, TEXT } from "../../../../lib/text";
 import { type Description, descriptionKey } from "../../hooks/useCheckpointNotes";
-import { altFt, bearing, clockTime, etaAt, legsWithoutWind, one, plannedWords, windAloft, windsOutOfDate } from "../../format";
-import { useMinuteClock } from "../../../../lib/clock";
+import { altFt, bearing, clockTime, etaAt, legsWithoutWind, one, plannedWords, windAloft } from "../../format";
 import type { BriefingPart } from "../briefing/sections";
 import { isLegPoint, legOf, navLogRows, rowPoint, type NavLogRow, type RouteEnds } from "./rows";
 import LegWorkings from "./LegWorkings";
@@ -59,8 +58,6 @@ const navLogTableFeatures = tableFeatures({});
 
 interface Props {
   totals: Totals | null;
-  /** The plan asked for again, its weather fresh: the page's Load again. */
-  onPlanAgain?: () => void;
   /** Why the checkpoints' descriptions could not be written, for the log
    *  to say over its rows with a Try again (the wand's run). */
   descriptionError?: string | null;
@@ -354,7 +351,7 @@ function tas(leg: Leg): string {
 }
 
 export default function NavLogView({
-  totals, nav, depart, onPlanAgain, descriptionError = null,
+  totals, nav, depart, descriptionError = null,
   legs, dep, dest, ends,
   selected, descriptions, onSaveDescription,
   onGenerateDescriptions, descriptionsLoading, descriptionsPaywall, descriptionsHidden = false, tabContent, children, marks, notice, cardHead, footer, local = false, metarColourOf = noWeather,
@@ -365,10 +362,8 @@ export default function NavLogView({
   // route, else FPL all the way up.
   const logInSight = route ? navLogOpen : drawerOpen;
   const noWind = totals ? legsWithoutWind(totals) : null;
-  // Its winds past their forecast's period, as a plan for "now" left open
-  // all day is: planned at 08:00, it flew 08:00's winds at 14:00 and did
-  // not say so (the audit's finding).
-  const windsOld = windsOutOfDate(totals, useMinuteClock(), depart);
+  // Its winds past their forecast's period are the route box's refresh's
+  // dot now (PlanWorkspace's `stale`), at the owner's ask.
   // The other tabs' code fetched while nothing else is, once the log is
   // in, so the first opening of each draws rather than downloads: the
   // weight and balance envelope was 0.4 s of the Performance tab's first.
@@ -827,18 +822,10 @@ export default function NavLogView({
   // table is the rest, as the pilot asked. (The altitude, which opens how
   // it was chosen, is the Alt column's head.)
   const cloudsUnplaced = !!nav && !nav.altitude_selection.cloud_clearance_kept && !perLeg;
-  const summary = (!!noWind || cloudsUnplaced || windsOld || !!descriptionError) && (
+  const summary = (!!noWind || cloudsUnplaced || !!descriptionError) && (
     <div className="mb-3" data-testid="navlog-summary">
       <ListGroup>
         {noWind && <ListRow title={<span className="text-destructive">{noWind}</span>} />}
-        {windsOld && totals?.winds && (
-          <ListRow
-            title={<span className="font-semibold text-amber-700 dark:text-amber-300">Winds out of date</span>}
-            description={`${plannedWords(totals)}: the headings, times and fuel are from them`}
-            data-testid="navlog-winds-old"
-          />
-        )}
-        {windsOld && onPlanAgain && <ListRow title="Plan again" onClick={onPlanAgain} data-testid="navlog-plan-again" />}
         {descriptionError && (
           <ListRow
             title={<span className="text-destructive">The descriptions could not all be written</span>}

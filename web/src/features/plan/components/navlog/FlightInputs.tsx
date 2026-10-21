@@ -31,7 +31,7 @@ export default function FlightInputs({ aircraftValue, aircraftOptions, onAircraf
     <>
       <Select value={aircraftValue} onValueChange={onAircraftChange}>
         {/* A button as the Brief's is, a pill of the glass round buttons are
-            made of (GLASS_BUTTON), 36 tall, at the owner's pick ("pa28 should
+            made of (GLASS_BUTTON), 32 tall in the route box, at the owner's pick ("pa28 should
             be a selection button style like the brief button"), the fields
             beside it glass panes; in the row's type, at the owner's ask ("why
             is the font for PA28 so small"), where it was 13 to a finger to
@@ -40,7 +40,7 @@ export default function FlightInputs({ aircraftValue, aircraftOptions, onAircraf
         <SelectTrigger
           size="sm" aria-label="Airplane" data-testid="aircraft-select"
           className={cn(
-            "h-9 rounded-full font-semibold pointer-coarse:px-3 [&_svg]:text-foreground pointer-coarse:[&_svg]:hidden",
+            "h-8 rounded-full font-semibold pointer-coarse:px-3 [&_svg]:text-foreground pointer-coarse:[&_svg]:hidden",
             GLASS_BUTTON, TEXT.row,
           )}
         >

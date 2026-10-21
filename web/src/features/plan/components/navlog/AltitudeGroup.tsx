@@ -131,19 +131,19 @@ export default function AltitudeGroup({ nav, legs, commanded = null, problem = f
       // input similar to route box style where profile button only shows
       // with an altitude there"): its fill and its type, not a chip of
       // glass; with no route its placeholder alone, as the box's.
-      // 36 tall, as the airplane's button beside it (FlightInputs).
+      // 32 tall in the route box, as the airplane's button beside it (FlightInputs).
       // One width whatever is in it, at the owner's ask ("Don't reduce the
       // width when a new altitude is entered because a profile button will
       // take the place"): the wider of the example and three figures with
       // the profile button after them, each measured unseen in the one
       // cell, and the field taking what the button does not.
-      className={cn("grid h-9 items-center rounded-full", PANEL_FIELD_FILL, TEXT.row)}
+      className={cn("grid h-8 items-center rounded-full", PANEL_FIELD_FILL, TEXT.row)}
       data-testid="altitude-group"
     >
       <span aria-hidden="true" className="invisible col-start-1 row-start-1 flex h-0 overflow-hidden">
         <span className="whitespace-pre pr-3.5 pl-3 font-semibold tabular-nums">000</span>
         <span className="w-px" />
-        <span className="w-9 shrink-0" />
+        <span className="w-8 shrink-0" />
       </span>
       {/* Two points over the field's own padding, for the caret. */}
       <span aria-hidden="true" className="invisible col-start-1 row-start-1 h-0 overflow-hidden whitespace-pre pr-3.5 pl-3 font-normal">
@@ -177,9 +177,9 @@ export default function AltitudeGroup({ nav, legs, commanded = null, problem = f
         {(profiled || entered) && <button
           type="button" onClick={onOpenProfile} disabled={!profiled}
           className={cn(
-            // The icon buttons' one size, 36 square with a 20-point glyph, the
+            // The route box's icon buttons' size, 32 square with an 18-point glyph, the
             // group's height; its 44-point area round it.
-            "relative flex size-9 shrink-0 items-center justify-center rounded-full text-tint outline-none after:absolute after:-inset-1 after:content-[''] focus-visible:ring-2 focus-visible:ring-ring disabled:text-muted-foreground",
+            "relative flex size-8 shrink-0 items-center justify-center rounded-full text-tint outline-none after:absolute after:-inset-1.5 after:content-[''] focus-visible:ring-2 focus-visible:ring-ring disabled:text-muted-foreground",
             problem && "text-red-700 dark:text-red-300",
           )}
           aria-label={`Cruising altitude${rules === "ifr" ? " under IFR" : ""}, ${why}${!problem && tight ? ", tight" : ""}${!problem && cautions.length ? ", your altitude has a caution" : ""}: set it on the profile`}
@@ -193,7 +193,7 @@ export default function AltitudeGroup({ nav, legs, commanded = null, problem = f
               the button's name. The route from the side, the profile's own
               mark. */}
           <span className="relative">
-            <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <svg viewBox="0 0 24 24" className="size-[1.125rem]" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d="M3 19h18" /><path d="M3 16l4-5 3 2 4-6 3 3 4-3" />
             </svg>
             {profiled && !problem && (cautions.length > 0 || tight) && (
@@ -211,10 +211,10 @@ export default function AltitudeGroup({ nav, legs, commanded = null, problem = f
 
 /**
  * The Profile card's body, at the owner's pick (2026-10-20, option C of
- * the canvas): the route from the side (`chart`, MiniProfile) with a wheel
- * of the legal altitudes in its top-left corner, clear glass over the
- * graph's sky, and the dry run's button in its top-right (`corner`); the
- * wheel put away while a run plays (`wheelHidden`). Under the graph the
+ * the canvas): the route from the side (`chart`, MiniProfile) with a ruler
+ * of the legal altitudes down its left side, over it (AltitudeWheel, a
+ * glass wheel in the corner before), and the dry run's button in its top-right
+ * (`corner`); the ruler put away while a run plays (`wheelHidden`). Under the graph the
  * altitude on the wheel -- its plan's name, its time and fuel (the
  * planner's altitude_figures) -- whether it enters Class B, with the way
  * to avoid it, the flight rules, a route's problem, a pilot's own
@@ -304,8 +304,6 @@ export function AltitudeProfile({ nav: navNow, legs: legsNow, ends, chart, corne
     enabled: !!ends,
   });
   const names = own === null ? planNames(nav) : { ...planNames(nav), [own]: "Yours" };
-  // In the corner's narrow wheel, each altitude's first plan alone.
-  const short = Object.fromEntries(Object.entries(names).map(([ft, name]) => [ft, name.split(" · ")[0]!]));
   const figure = figures.find(f => f.altitude_ft === shownAt) ?? null;
   const bravo = profile && shownAt !== null
     ? profile.airspace.find(a => a.class === "B" && a.floor_ft <= shownAt && (a.ceiling_ft ?? 10_000) >= shownAt) ?? null : null;
@@ -316,11 +314,15 @@ export function AltitudeProfile({ nav: navNow, legs: legsNow, ends, chart, corne
       {/* No taller than the card's room over FPL's figures, half way up on
           a phone: the graph and its wheel in sight whole, what is under
           them a scroll away. */}
+      {/* The legal altitudes a narrow ruler down its left side, over the
+          graph, at the owner's asks ("make the wheel to be a ruler on the
+          left side? Narrow and elegant"; "put the ruler over the graph but
+          just make it narrow so it's not taking much space"). */}
       <div className="relative h-56 max-h-full min-h-40 shrink-0">
         {chart(shownAt !== null && shownAt !== cruise ? shownAt : null)}
         {!wheelHidden && shownAt !== null && altitudes.length > 0 && (
-          <div className="absolute top-1.5 left-1.5">
-            <AltitudeWheel altitudes={altitudes} value={shownAt} onChange={pick} names={short} spoken={names} shown={3} glass />
+          <div className="absolute inset-y-0 left-0">
+            <AltitudeWheel altitudes={altitudes} value={shownAt} onChange={pick} names={names} />
           </div>
         )}
         {corner}

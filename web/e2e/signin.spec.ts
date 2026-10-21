@@ -48,14 +48,18 @@ test("signed out, Personal says once what signing in keeps, its minimums need no
   await openConsole(page);
   const sheet = consoleSheet(page);
   await consolePage(sheet, "Account");
-  await expect(sheet.getByText("Not Signed In")).toBeVisible();
+  // Signed out: Sign in at the Account's heading, no line saying so (the
+  // owner's "no need to show Not Signed in").
+  await expect(sheet.getByTestId("setup-page").getByRole("button", { name: "Sign in" })).toBeVisible();
   // The minimums are kept on the device: no sign-in for them; the
   // account's three wait for one.
   await expect(sheet.getByTestId("library-section").getByRole("button", { name: "Airplanes" })).toBeDisabled();
   await library(sheet, "Minimums");
   await expect(sheet.getByTestId("minimum-ceilingFt")).toBeVisible();
   await sheet.getByRole("button", { name: "Account", exact: true }).click();
-  await expect(sheet.getByText("Not Signed In")).toBeVisible();
+  // Signed out: Sign in at the Account's heading, no line saying so (the
+  // owner's "no need to show Not Signed in").
+  await expect(sheet.getByTestId("setup-page").getByRole("button", { name: "Sign in" })).toBeVisible();
   // This stack registers neither Google nor Apple: their buttons opened a blank 401.
   await sheet.getByTestId("setup-page").getByRole("button", { name: "Sign in" }).click();
   const dialog = page.getByRole("dialog", { name: "Sign in to Wingtip Maps" });

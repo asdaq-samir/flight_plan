@@ -2,7 +2,7 @@ import AccordionSection from "../../../../components/AccordionSection";
 import { ListGroup, ListRow } from "../../../../components/GroupedList";
 import type { Briefing, Leg } from "../../../../lib/api/types";
 import { isPosition } from "../../../../lib/identSchema";
-import { altFt } from "../../format";
+import { altFt, roleWords } from "../../format";
 import { phasesOf, type Phase } from "./sections";
 import { FrequencyRow } from "../FrequencyRow";
 import { PublicationRows } from "../PublicationRows";
@@ -59,7 +59,7 @@ export default function AirportSections({ briefing, landings, legs, callSign, ph
         const otherFrequencies = (info?.frequencies ?? []).filter(f => !(f.frequency_mhz != null && called.has(f.frequency_mhz.toFixed(3))));
         const otherRunways = (info?.runways ?? []).filter(r => !(r.runway_ends ?? []).some(e => flown.has(e.ident)));
         return (
-          <AccordionSection key={ident} title={`${ident} · ${role}`} description={about || undefined}>
+          <AccordionSection key={ident} title={`${ident} · ${roleWords(role)}`} description={about || undefined}>
             <div className="space-y-4 pt-2" data-testid="airport-section">
               <PatternRadio briefing={briefing} landings={landings} legs={legs} callSign={callSign} at={ident} />
               {/* Each frequency as the field's card lists it (FrequencyRow):
