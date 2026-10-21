@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { Ellipsis, Fuel } from "lucide-react";
 import { cn } from "cn";
 import RoundButton from "../../../components/RoundButton";
@@ -38,8 +39,10 @@ function Gauge({ gal, usable }: { gal: number; usable: number | null }) {
  * stops are added (FuelStopsAdd, after the last); its menu the other
  * fields it could be.
  */
-export default function FuelStopRow({ stop, time, groundMin, usableGal, choices, onChoose, last }: {
+export default function FuelStopRow({ stop, time, groundMin, usableGal, runway, choices, onChoose, last }: {
   stop: FuelStop;
+  /** Its wind and the runway it favours, as the route's fields show them. */
+  runway?: ReactNode;
   /** When it is landed at, by the flight's own minutes to it. */
   time: string;
   /** The minutes on the ground a stop takes (groundMinAt). */
@@ -61,40 +64,43 @@ export default function FuelStopRow({ stop, time, groundMin, usableGal, choices,
           <Fuel className="size-3.5" strokeWidth={2.4} />
         </span>
       </div>
-      <section aria-label={`Suggested fuel stop, ${stop.ident}, ${place}`} className="flex min-w-0 flex-1 items-center gap-2 pb-4">
-        <div className="flex min-w-0 flex-1 flex-col">
-          <h3 className={cn("truncate font-semibold", TEXT.row)}>{stop.ident} · {place}</h3>
-          <span className={cn("flex items-center gap-1.5 text-muted-foreground tabular-nums", TEXT.note)}>
-            <Gauge gal={stop.lands_with_gal} usable={usableGal} />
-            <span data-testid="fuel-stop-lands">{gal} gal</span>
-            <span aria-hidden="true">·</span>
-            <Fuel className="size-3.5" aria-hidden="true" />
-            <span><span className="sr-only">Refuelled in </span>{groundMin} min</span>
-            <span aria-hidden="true">·</span>
-            <span className="font-semibold text-foreground"><span className="sr-only">Lands at </span>{time}</span>
-          </span>
+      <section aria-label={`Suggested fuel stop, ${stop.ident}, ${place}`} className="min-w-0 flex-1 space-y-3 pb-4">
+        <div className="flex items-center gap-2">
+          <div className="flex min-w-0 flex-1 flex-col">
+            <h3 className={cn("truncate font-semibold", TEXT.row)}>{stop.ident} · {place}</h3>
+            <span className={cn("flex items-center gap-1.5 text-muted-foreground tabular-nums", TEXT.note)}>
+              <Gauge gal={stop.lands_with_gal} usable={usableGal} />
+              <span data-testid="fuel-stop-lands">{gal} gal</span>
+              <span aria-hidden="true">·</span>
+              <Fuel className="size-3.5" aria-hidden="true" />
+              <span><span className="sr-only">Refuelled in </span>{groundMin} min</span>
+              <span aria-hidden="true">·</span>
+              <span className="font-semibold text-foreground"><span className="sr-only">Lands at </span>{time}</span>
+            </span>
+          </div>
+          {choices && choices.length > 0 && onChoose && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <RoundButton label={`${stop.ident}: other fields with fuel`} className="shrink-0 text-tint" data-testid="fuel-stop-other">
+                  <Ellipsis className="size-5" aria-hidden="true" />
+                </RoundButton>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-72" data-testid="fuel-stop-choices">
+                <DropdownMenuLabel className={cn("text-muted-foreground", TEXT.note)}>Another field with fuel</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {choices.map(c => (
+                  <DropdownMenuItem key={c.ident} onSelect={() => onChoose(c)} className="flex flex-col items-start gap-0" data-testid="fuel-stop-choice">
+                    <span className={cn("font-semibold", TEXT.detail)}>{c.ident} · {fuelStopPlace(c)}</span>
+                    <span className={cn("text-muted-foreground tabular-nums", TEXT.note)}>
+                      Lands with {Math.floor(c.lands_with_gal)} gal · +{Math.round(c.added_nm)} nm off the line
+                    </span>
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </div>
-        {choices && choices.length > 0 && onChoose && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <RoundButton label={`${stop.ident}: other fields with fuel`} className="shrink-0 text-tint" data-testid="fuel-stop-other">
-                <Ellipsis className="size-5" aria-hidden="true" />
-              </RoundButton>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-72" data-testid="fuel-stop-choices">
-              <DropdownMenuLabel className={cn("text-muted-foreground", TEXT.note)}>Another field with fuel</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              {choices.map(c => (
-                <DropdownMenuItem key={c.ident} onSelect={() => onChoose(c)} className="flex flex-col items-start gap-0" data-testid="fuel-stop-choice">
-                  <span className={cn("font-semibold", TEXT.detail)}>{c.ident} · {fuelStopPlace(c)}</span>
-                  <span className={cn("text-muted-foreground tabular-nums", TEXT.note)}>
-                    Lands with {Math.floor(c.lands_with_gal)} gal · +{Math.round(c.added_nm)} nm off the line
-                  </span>
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
+        {runway}
       </section>
     </li>
   );

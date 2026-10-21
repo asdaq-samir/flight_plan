@@ -385,6 +385,7 @@ export default function ProceduresRoute({
   // Once a field, so a runway picked and taken back is not picked again
   // under the pilot's finger.
   const preselected = useRef(new Set<string>());
+  const openStops = useOpenStops(st => st.open);
   // A field listed twice (a round trip) picks its landing's runway once.
   const preselectedLand = (a: ProcedureAirport) => airports.findIndex(b => sameField(b.ident, a.ident)) !== airports.indexOf(a);
   const intoWind = airports.flatMap((a, i) => {
@@ -507,7 +508,7 @@ export default function ProceduresRoute({
         />
       );
     };
-    const step = (role: "Arrive" | "Depart", kinds: Kind[], chips: ReactNode, isLast: boolean, stepMark: ReactNode, stepTime: ReactNode) => {
+    const step = (role: "Arrive" | "Depart", kinds: Kind[], chips: ReactNode, isLast: boolean, stepMark: ReactNode, stepTime: ReactNode, onToggle?: () => void) => {
       const picked = kinds.filter(k => inRoute.some(p => sameField(p.ident, a.ident) && p.kind === k));
       const unpicked = kinds.filter(k => !picked.includes(k));
       // Flown to on its Arrive step: Direct to it, its altitude set there.
@@ -520,6 +521,7 @@ export default function ProceduresRoute({
         <Step
           key={`${a.ident}-${role}`} last={isLast} mark={stepMark} title={`${a.ident} · ${role}`} field
           sub={end.direct && role === "Arrive" ? <span className="font-semibold text-tint">Direct to</span> : sub} figures={end.figures} menu={end.menu}
+          toggle={onToggle && { open: true, onToggle, ident: a.ident }}
         >
           {chips}
           {picked.map(branch)}
@@ -590,8 +592,24 @@ export default function ProceduresRoute({
         onChange={iso => { if (iso) onGround(a.ident, Math.min(DAY_MIN, Math.max(0, Math.round((Date.parse(iso) - landsMs) / 60_000)))); }}
       />
     ) : etaAt(depart || new Date().toISOString(), flownTo! + onGroundMin);
+    // One row as a waypoint's until tapped, at the owner's ask ("Can a stop
+    // look similar to a waypoint and then arrive and depart be expanded with
+    // a tap"): its name, where it is along and the runway it lands on, its
+    // time and elevation; tapped, its Arrive and Depart steps, the Arrive's
+    // head folding it back.
+    if (!openStops.includes(a.ident)) {
+      const end = pointEnd(a.ident, { time, waypoint: false, elevationFt: a.elevationFt, to: true, stop: true, holdable: false, row });
+      const runway = chosenAt(a.ident);
+      return (
+        <Step
+          key={`${a.ident}-Stop`} last={last} mark={mark} title={`${a.ident} · Stop`} field
+          sub={end.direct ? <span className="font-semibold text-tint">Direct to</span> : `Stop${along(row)}${runway ? ` · Runway ${runway}` : ""}`}
+          figures={end.figures} menu={end.menu} toggle={{ open: false, onToggle: () => toggleStop(a.ident), ident: a.ident }}
+        />
+      );
+    }
     return [
-      step("Arrive", (["arrival", "approach"] as Kind[]).filter(has), landingChips, false, mark, time),
+      step("Arrive", (["arrival", "approach"] as Kind[]).filter(has), landingChips, false, mark, time, () => toggleStop(a.ident)),
       step("Depart", (["departure"] as Kind[]).filter(has), takeoffChips, last, <FieldDot last={last} />, leaves),
     ];
   };
@@ -615,7 +633,7 @@ export default function ProceduresRoute({
     return [
       ...flight.stops.map((stop, k) => (
         <FuelStopRow
-          key={`fuel-${ident}-${stop.ident}`} stop={stop} last={false} usableGal={flight.usable_gal}
+          key={`fuel-${ident}-${stop.ident}`} stop={stop} last={false} usableGal={flight.usable_gal} runway={<FuelStopRunway ident={stop.ident} />}
           time={etaAt(depart || new Date().toISOString(), leavesMin + stop.minutes)} groundMin={groundMinAt(ground, stop.ident)}
           choices={k === 0 ? flight.choices : undefined}
           onChoose={onKeepFuelStops ? c => onKeepFuelStops(ident, [c.ident]) : undefined}
@@ -793,8 +811,11 @@ function HoldRow({ hold, flown, last, onOpen }: { hold: Hold; flown: LegHold | n
  * nav log draws it, its name and the time it is reached, and under them
  * what is flown there (a field's). The line runs on to the next step.
  */
-function Step({ mark, title, sub, figures, menu, last, field = false, testId, children }: {
+function Step({ mark, title, sub, figures, menu, last, field = false, testId, toggle, children }: {
   mark: ReactNode;
+  /** A stop's: its head a button that opens it into its Arrive and Depart
+   *  steps, or folds them back to one row. */
+  toggle?: { open: boolean; onToggle: () => void; ident: string };
   /** Its name, said to a screen reader and shown in its head, and the line
    *  under it: what it is, and how far along. */
   title: string;
@@ -812,12 +833,29 @@ function Step({ mark, title, sub, figures, menu, last, field = false, testId, ch
     <li className="relative flex gap-2.5" data-testid={testId}>
       {!last && <span aria-hidden="true" className="absolute top-3 bottom-0 left-[calc(0.875rem-1px)] w-0.5 bg-border" />}
       <div className="relative flex w-7 shrink-0 justify-center pt-0.5">{mark}</div>
-      <section aria-label={title} className={cn("min-w-0 flex-1 space-y-3", field ? "pb-5" : "pb-4")}>
+      <section aria-label={title} className={cn("min-w-0 flex-1 space-y-3", field && !(toggle && !toggle.open) ? "pb-5" : "pb-4")}>
         <div className="flex items-center gap-2">
-          <div className="flex min-w-0 flex-1 flex-col">
-            <Name className={cn("truncate", field ? "font-semibold" : "font-normal", TEXT.row)}>{title}</Name>
-            {sub && <span className={cn("truncate text-muted-foreground", TEXT.note)}>{sub}</span>}
-          </div>
+          {toggle ? (
+            // The head a tap away from the stop's steps, or from its one row,
+            // the arrow turning as it opens; its 44 points a pseudo-element
+            // round it.
+            <button
+              type="button" onClick={toggle.onToggle} aria-expanded={toggle.open} data-testid="stop-toggle" data-ident={toggle.ident}
+              className="relative flex min-w-0 flex-1 flex-col text-left outline-none after:absolute after:-inset-y-1.5 after:inset-x-0 after:content-[''] focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <span className="flex min-w-0 items-center gap-1">
+                {/* Not a heading inside a button: the step's region names it. */}
+                <span className={cn("truncate font-semibold", TEXT.row)}>{title}</span>
+                <ChevronRight className={cn("size-4 shrink-0 text-tint transition-transform", toggle.open && "rotate-90")} aria-hidden />
+              </span>
+              {sub && <span className={cn("truncate text-muted-foreground", TEXT.note)}>{sub}</span>}
+            </button>
+          ) : (
+            <div className="flex min-w-0 flex-1 flex-col">
+              <Name className={cn("truncate", field ? "font-semibold" : "font-normal", TEXT.row)}>{title}</Name>
+              {sub && <span className={cn("truncate text-muted-foreground", TEXT.note)}>{sub}</span>}
+            </div>
+          )}
           {figures}
           {menu}
         </div>
@@ -900,6 +938,11 @@ function runwayLineFoldMs(): number {
 
 /** The runway lines opened from their fold (PatternChips), by field. */
 const useOpenRunwayLines = create<{ open: string[] }>(() => ({ open: [] }));
+
+/** The stops opened from their one row into their Arrive and Depart steps,
+ *  by field: kept while the page is, as the list is drawn again. */
+const useOpenStops = create<{ open: string[] }>(() => ({ open: [] }));
+const toggleStop = (ident: string) => useOpenStops.setState(s => ({ open: s.open.includes(ident) ? s.open.filter(i => i !== ident) : [...s.open, ident] }));
 
 /** The room left past a chip scrolled into sight, in pixels. */
 const CHIP_GAP_PX = 12;
@@ -1143,6 +1186,47 @@ function FieldInfo({ ident, note, wind, reported, fit, kind, demonstratedKt, all
       {/* A hairline between the wind and the runways. */}
       <span aria-hidden="true" className="h-[26px] w-px shrink-0 bg-[rgba(60,60,67,0.22)] dark:bg-border" />
     </>
+  );
+}
+
+/**
+ * A suggested fuel stop's wind and the runway it favours (windPick: into the
+ * wind, else the one in use or the longest when calm), as a field of the
+ * route shows them, at the owner's notice ("Fuel stops are not picking the
+ * best runway"): its wind in the tint, direction over speed, a hairline,
+ * the runway's chip with the wind's mark. Not yet the pilot's to change --
+ * the stop is not in the route -- so a chip that is not a button; added,
+ * the stop's own runway is picked into the wind as every field's is.
+ */
+function FuelStopRunway({ ident }: { ident: string }) {
+  const { data: card } = useQuery(airportQuery(ident));
+  if (!card) return null;
+  const near = !card.metar ? card.nearby_metar : null;
+  const wind = windPick(card.runways, near ? {
+    station: near.ident, distanceNm: near.distance_nm,
+    dirTrueDeg: near.metar.wind_dir_true_deg, speedKt: near.metar.wind_speed_kt, gustKt: near.metar.wind_gust_kt,
+  } : null);
+  const m = card.metar ?? card.nearby_metar?.metar;
+  const reported = m ? reportedWind(m.wind_dir_true_deg, m.wind_speed_kt, m.wind_gust_kt) : null;
+  if (!wind?.ident) return null;
+  const words = `${ident} wind ${reported === "calm" ? "calm" : reported ? reported.spoken : "not reported"}, runway ${wind.ident}${wind.calm ? "" : ", into the wind"}`;
+  return (
+    <div className="flex items-center gap-2" role="img" aria-label={words} data-testid="fuel-stop-runway">
+      <span aria-hidden="true" className="flex h-9 min-w-9 shrink-0 flex-col items-center justify-center text-tint">
+        {reported === "calm" || !reported ? (
+          <span className={cn("font-semibold", TEXT.note)}>Calm</span>
+        ) : (
+          <span className="flex flex-col items-center leading-[1.05] tabular-nums">
+            <span className={cn("font-semibold leading-[1.05]", TEXT.detail)}>{reported.dir}</span>
+            <span className={cn("leading-[1.05]", TEXT.note)}>{reported.speed} kt</span>
+          </span>
+        )}
+      </span>
+      <span aria-hidden="true" className="h-[26px] w-px shrink-0 bg-[rgba(60,60,67,0.22)] dark:bg-border" />
+      <span aria-hidden="true" data-state="on" className={cn(CHIP, "inline-flex items-center gap-0.5 whitespace-nowrap after:hidden")}>
+        {!wind.calm && <Wind className="size-4" strokeWidth={2.2} aria-hidden />}{wind.ident}
+      </span>
+    </div>
   );
 }
 
