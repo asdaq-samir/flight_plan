@@ -220,6 +220,9 @@ export function isEndpoint(p: Point): p is Endpoint {
  *  granted with an UPDATE on the pilots table, never inherited -- see
  *  the V7 migration. */
 export type Pilot = Webapp["PilotDto"];
+/** `PUT /api/me/contact`: their telephone number and home base, for a
+ *  flight plan's item 19. */
+export type PilotContactRequest = Webapp["PilotContactRequest"];
 
 /** How this deployment is reached -- SIGN_IN, OPEN or CLOSED -- asked
  *  before anyone has signed in (`/api/auth/capabilities`). */

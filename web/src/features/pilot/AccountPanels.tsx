@@ -84,11 +84,18 @@ const aircraftSchema = z.object({
   // Optional: blank means the owner has not said, and the nav log then
   // makes no fuel check rather than a wrong one.
   usableFuelGal: optionalPositiveNumber("Usable fuel"),
+  // Its flight plan's items, each optional (AIM Appendix 4): 10a's
+  // equipment and 10b's surveillance are letters and figures (TBL 4-2's
+  // E1 and J1 among them), at most 40 and 20 (TBL 4-3); item 19's colour
+  // and markings plain words.
+  equipment: z.string().trim().regex(/^[A-Za-z0-9]{0,40}$/, "Letters and figures, as SDFGRY"),
+  surveillance: z.string().trim().regex(/^[A-Za-z0-9]{0,20}$/, "Letters and figures, as B1"),
+  colour: z.string().trim().max(40, "At most 40 characters"),
 });
 type AircraftFormValues = z.infer<typeof aircraftSchema>;
 const EMPTY_AIRCRAFT_FORM: AircraftFormValues = {
   tailNumber: "", typeDesignator: "", cruiseTasKt: "", fuelBurnGph: "", cruisePowerPct: "", climbTasKt: "",
-  climbFuelBurnGph: "", usableFuelGal: "",
+  climbFuelBurnGph: "", usableFuelGal: "", equipment: "", surveillance: "", colour: "",
 };
 
 /** A signed-in pilot's own airplanes -- the one the nav log flies
@@ -337,6 +344,7 @@ export function AircraftPanel() {
       climbTasKt: a.climbTasKt == null ? "" : String(a.climbTasKt),
       climbFuelBurnGph: a.climbFuelBurnGph == null ? "" : String(a.climbFuelBurnGph),
       usableFuelGal: a.usableFuelGal == null ? "" : String(a.usableFuelGal),
+      equipment: a.equipment ?? "", surveillance: a.surveillance ?? "", colour: a.colour ?? "",
     });
   };
 
@@ -346,6 +354,8 @@ export function AircraftPanel() {
     cruisePowerPct: orNull(values.cruisePowerPct),
     climbTasKt: orNull(values.climbTasKt), climbFuelBurnGph: orNull(values.climbFuelBurnGph),
     usableFuelGal: orNull(values.usableFuelGal),
+    equipment: values.equipment.trim() || null, surveillance: values.surveillance.trim() || null,
+    colour: values.colour.trim() || null,
   } });
 
   // Delete is in the airplane's own form, asked first: it was a red
@@ -498,10 +508,9 @@ export function AircraftPanel() {
               {/* What the cruise figures mean to the planner, said where
                   they are typed: they are the airplane's at this power at
                   the reference altitude, and each leg flies them in its own
-                  air (vfr.performance). */}
-              // The cruise speed and burn are the handbook cruise table's at
-              // this power at the reference altitude on a standard day, which
-              // the group's title says; each leg flies them in its own air.
+                  air (vfr.performance): the handbook cruise table's at this
+                  power at the reference altitude on a standard day, which
+                  the group's title says. */}
               <ListGroup title={`Cruise figures at ${altFt(CRUISE_REFERENCE_FT)} ft, standard day`}>
                 <NumberRow
                   id={`${formId}-power`} title="Cruise power" unit="%" placeholder="65" name="Cruise power in percent"
@@ -514,6 +523,37 @@ export function AircraftPanel() {
                   id={`${formId}-usable`} title="Usable fuel" unit="gal" placeholder="40" name="Usable fuel in gallons"
                   field={register("usableFuelGal")} error={errors.usableFuelGal?.message}
                 />
+              </ListGroup>
+              {/* What its flight plan says of it, which the Brief's form
+                  fills in (FAA Form 7233-4, AIM Appendix 4): item 10a, S for
+                  VHF radio, VOR and ILS and a letter for each of the rest (G
+                  for GNSS); 10b, C for a transponder with Mode C, B1 or U1
+                  for ADS-B Out; item 19's colour and markings. Codes are
+                  capitals, never autocorrected. */}
+              <ListGroup title="Flight plan">
+                <ListRow id={`${formId}-equipment`} title="Equipment" description={problem(errors.equipment?.message)}>
+                  <Input
+                    id={`${formId}-equipment`} {...register("equipment")} placeholder="SDFGRY" maxLength={40}
+                    className="h-8 w-32 text-right font-mono uppercase"
+                    aria-label="Equipment, flight plan item 10a" aria-invalid={!!errors.equipment}
+                    autoCapitalize="characters" autoCorrect="off" autoComplete="off" spellCheck={false}
+                  />
+                </ListRow>
+                <ListRow id={`${formId}-surveillance`} title="Surveillance" description={problem(errors.surveillance?.message)}>
+                  <Input
+                    id={`${formId}-surveillance`} {...register("surveillance")} placeholder="B1" maxLength={20}
+                    className="h-8 w-32 text-right font-mono uppercase"
+                    aria-label="Surveillance, flight plan item 10b" aria-invalid={!!errors.surveillance}
+                    autoCapitalize="characters" autoCorrect="off" autoComplete="off" spellCheck={false}
+                  />
+                </ListRow>
+                <ListRow id={`${formId}-colour`} title="Color" description={problem(errors.colour?.message)}>
+                  <Input
+                    id={`${formId}-colour`} {...register("colour")} placeholder="White, blue stripe" maxLength={40}
+                    className="h-8 w-40 text-right"
+                    aria-label="Color and markings, flight plan item 19" aria-invalid={!!errors.colour}
+                  />
+                </ListRow>
               </ListGroup>
               {editing && (
                 <ListGroup>

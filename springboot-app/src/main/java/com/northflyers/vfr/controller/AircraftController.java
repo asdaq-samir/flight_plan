@@ -65,7 +65,8 @@ public class AircraftController {
     public ResponseEntity<AircraftDto> add(Authentication authentication, @Valid @RequestBody AircraftRequest request) {
         return PilotResponses.withPilot(pilots, authentication, pilot -> ResponseEntity.ok(toDto(aircraftService.add(
                 pilot, request.tailNumber(), request.typeDesignator(), request.cruiseTasKt(), request.fuelBurnGph(),
-                request.cruisePowerPct(), request.climbTasKt(), request.climbFuelBurnGph(), request.usableFuelGal()))));
+                request.cruisePowerPct(), request.climbTasKt(), request.climbFuelBurnGph(), request.usableFuelGal(),
+                request.equipment(), request.surveillance(), request.colour()))));
     }
 
     @PutMapping("/{id}")
@@ -73,7 +74,8 @@ public class AircraftController {
             Authentication authentication, @PathVariable Long id, @Valid @RequestBody AircraftRequest request) {
         return PilotResponses.withPilot(pilots, authentication, pilot -> aircraftService
                 .update(pilot, id, request.tailNumber(), request.typeDesignator(), request.cruiseTasKt(), request.fuelBurnGph(),
-                        request.cruisePowerPct(), request.climbTasKt(), request.climbFuelBurnGph(), request.usableFuelGal())
+                        request.cruisePowerPct(), request.climbTasKt(), request.climbFuelBurnGph(), request.usableFuelGal(),
+                        request.equipment(), request.surveillance(), request.colour())
                 .map(a -> ResponseEntity.ok(toDto(a)))
                 .orElse(ResponseEntity.notFound().build()));
     }
@@ -155,7 +157,8 @@ public class AircraftController {
     private AircraftDto toDto(Aircraft a) {
         return new AircraftDto(a.getId(), a.getTailNumber(), a.getTypeDesignator(), a.getCruiseTasKt(),
                 a.getFuelBurnGph(), a.getCruisePowerPct(), a.getClimbTasKt(), a.getClimbFuelBurnGph(), a.getUsableFuelGal(),
-                a.getCreatedAt(), vorCheckOf(a), inspectionsOf(a), a.getId() == null ? List.of() : squawks.open(a.getId()));
+                a.getCreatedAt(), vorCheckOf(a), inspectionsOf(a), a.getId() == null ? List.of() : squawks.open(a.getId()),
+                a.getEquipment(), a.getSurveillance(), a.getColour());
     }
 
     /** 91.409(a): the annual, 12 calendar months; 91.409(b): the 100-hour,

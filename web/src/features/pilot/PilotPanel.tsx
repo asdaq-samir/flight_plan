@@ -22,6 +22,7 @@ import MinimumsPanel from "./MinimumsPanel";
 import SubscriptionPanel from "./SubscriptionPanel";
 import { standing, subscriptionQuery, useSold } from "../../lib/subscription";
 import PilotGuide from "./PilotGuide";
+import PilotPage from "./PilotPage";
 import SetupPill from "./SetupPill";
 import TabPage, { TAB_PAGE_GAP } from "../../components/TabPage";
 
@@ -66,6 +67,8 @@ function Personal({ pilot, dev }: {
   // its row.
   const aircraft = usePreferences(s => s.aircraft);
   const signedIn = pilot !== "loading" && pilot !== "error" && pilot !== null;
+  // Their name as their certificate gives it, on the Pilot row.
+  const fullName = signedIn ? pilot.fullName : null;
   // While the sign-in is checked, or where it could not be, said under
   // the account (signed out, its way in is the account's own, SetupPill).
   const account = pilot === "loading" ? <p role="status" className={cn("px-1 text-muted-foreground", TEXT.note)}>Checking your sign-in…</p>
@@ -92,6 +95,7 @@ function Personal({ pilot, dev }: {
     logbook: { title: "Logbook", content: <LogbookPanel aircraft={shortName(aircraft.label)} /> },
     minimums: { title: "Minimums", content: <MinimumsPanel /> },
     subscription: { title: "Subscription", content: <SubscriptionPanel /> },
+    pilot: { title: "Pilot details", content: <PilotPage /> },
   };
   return (
     <>
@@ -110,10 +114,20 @@ function Personal({ pilot, dev }: {
               section Account"). */}
           <SetupPill testId="setup-head" rows={sectionRows} />
           {account}
-          {/* What the pilot has of the paid features, a row of its own by
-              their things, as iOS's Settings puts the account's at the top. */}
-          {/* Not where this deployment sells none (the proof of concept). */}
-          {signedIn && sold && <SubscriptionRow />}
+          {/* The pilot's own details, for their flight plans (PilotPage),
+              and what they have of the paid features, rows by their things,
+              as iOS's Settings puts the account's at the top. The
+              subscription's not where this deployment sells none (the
+              proof of concept). */}
+          {signedIn && (
+            <ListGroup>
+              <PageRow
+                page="pilot" title="Pilot details" value={fullName ?? undefined} testId="pilot-row"
+                media={<RowBadge colour={SETTING_BADGE.pilot}><UserRound /></RowBadge>}
+              />
+              {sold && <SubscriptionRow />}
+            </ListGroup>
+          )}
           <>
               {/* The rest of the app as rows that open their pages, as
                   iPhone's Settings lists its own -- at the owner's pick of
@@ -138,12 +152,10 @@ function Personal({ pilot, dev }: {
 function SubscriptionRow() {
   const { data: subscription } = useQuery(subscriptionQuery);
   return (
-    <ListGroup>
-      <PageRow
-        page="subscription" title="Subscription" value={subscription ? standing(subscription) : undefined}
-        media={<RowBadge colour={SETTING_BADGE.subscription}><Sparkles /></RowBadge>}
-      />
-    </ListGroup>
+    <PageRow
+      page="subscription" title="Subscription" value={subscription ? standing(subscription) : undefined}
+      media={<RowBadge colour={SETTING_BADGE.subscription}><Sparkles /></RowBadge>}
+    />
   );
 }
 

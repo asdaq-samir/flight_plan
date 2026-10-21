@@ -105,6 +105,19 @@ public class Aircraft {
     private LocalDate eltInspectedOn;
     private LocalDate eltBatteryDueOn;
 
+    /** What its flight plan says of it (V29, FAA Form 7233-4 as AIM
+     *  Appendix 4 writes each item): item 10a, its navigation,
+     *  communication and approach equipment ("S", or TBL 4-2's letters and
+     *  figures: "SDFGRY"); item 10b, its surveillance (TBL 4-3, at most 20
+     *  characters: "C", "B1"); and item 19's A/, its colour and markings.
+     *  Each null until its owner says. */
+    @Column(length = 40)
+    private String equipment;
+    @Column(length = 20)
+    private String surveillance;
+    @Column(length = 40)
+    private String colour;
+
     protected Aircraft() {
         // JPA
     }
@@ -136,6 +149,15 @@ public class Aircraft {
         this.climbTasKt = climbTasKt;
         this.climbFuelBurnGph = climbFuelBurnGph;
         this.usableFuelGal = usableFuelGal;
+        return this;
+    }
+
+    /** Its flight plan's items 10a, 10b and 19 A/, all at once, as the
+     *  airplane's form saves them; null for one not said. */
+    public Aircraft describeForFlightPlan(String equipment, String surveillance, String colour) {
+        this.equipment = equipment;
+        this.surveillance = surveillance;
+        this.colour = colour;
         return this;
     }
 
