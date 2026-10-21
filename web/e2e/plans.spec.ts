@@ -51,8 +51,9 @@ test("plan page: the nav log's altitude opens the planner's own reasoning, and t
   await closeCard(page, "profile-close");
   await expect(popover).toHaveCount(0);
 
-  // An altitude typed beside the airplane: the whole log at it.
-  await input.fill("3500");
+  // An altitude typed beside the airplane, three figures of hundreds of
+  // feet: the whole log at it.
+  await input.fill("035");
   await input.press("Enter");
   await expect(page).toHaveURL(/[?&]altitude_ft=3500/);
   await expect(why).toHaveAccessibleName(/3,500 feet/, { timeout: slow(30000) });
@@ -259,7 +260,7 @@ test("plan page: no legal altitude is the route's own problem: its chip says so 
   // An altitude of the pilot's own, typed beside the airplane: planned
   // anyway, at it.
   await closeCard(page, "profile-close");
-  await page.getByTestId("altitude-input").fill("12500");
+  await page.getByTestId("altitude-input").fill("125");
   await page.getByTestId("altitude-input").press("Enter");
   await expect(page).toHaveURL(/[?&]altitude_ft=12500/);
 
