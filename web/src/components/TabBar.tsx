@@ -82,6 +82,9 @@ const PILL_CLEAR = 3;
 /** How long the click a tap or a slide of the lens ends in is waited for,
  *  in milliseconds, to be passed over (passOverClick). */
 const CLICK_AFTER_MS = 600;
+/** How long after a press that put a menu away its tap is taken as that
+ *  alone, ms: a tap's click follows its press within a few hundred. */
+const DISMISS_MS = 600;
 
 /** The click a finger's tap or slide on the tabs ends in, passed over
  *  wherever it lands: the tab was picked as the finger lifted, and the
@@ -238,6 +241,18 @@ export default function TabBar<T extends string>({ tabs, tab, over, title, onPic
   // sideways (the Favorites' strip, the nav log's table), which keep the
   // finger, nor the tabs themselves, along which a finger slides the lens.
   const bar = useRef<HTMLElement | null>(null);
+  // A tap that puts a menu away -- Share's, over the Brief or the nav log
+  // -- only puts it away: on the owner's iPhone the tap on the card's name
+  // that closed Share's menu went on to the name, and the tabs came up in
+  // the card's bar. When a menu was last open under a finger, on the
+  // document's own capture, before the menu's portal takes the press.
+  const dismissedAt = useRef(-Infinity);
+  useEffect(() => {
+    const down = () => { if (document.querySelector('[role="menu"]')) dismissedAt.current = performance.now(); };
+    document.addEventListener("pointerdown", down, true);
+    return () => document.removeEventListener("pointerdown", down, true);
+  }, []);
+  const showTabs = () => { if (performance.now() - dismissedAt.current > DISMISS_MS) setShown(true); };
   const step = useRef<(by: 1 | -1) => boolean>(() => false);
   useEffect(() => {
     // Whether it went back: a swipe that did nothing leaves the next tap be.
@@ -435,7 +450,7 @@ export default function TabBar<T extends string>({ tabs, tab, over, title, onPic
           // portal of its own), whose clicks come up through it here.
           if (!event.currentTarget.contains(event.target as Node)) return;
           const pressed = (event.target as HTMLElement).closest("button");
-          if (!pressed) setShown(true);
+          if (!pressed) showTabs();
         }}
       >
         {/* Round, as the close at the other end is, at the owner's ask. */}
@@ -463,7 +478,7 @@ export default function TabBar<T extends string>({ tabs, tab, over, title, onPic
           </span>
         )}
         <button
-          type="button" onClick={() => setShown(true)} aria-expanded={false} aria-label={`${title ?? named.label}, show the tabs`}
+          type="button" onClick={showTabs} aria-expanded={false} aria-label={`${title ?? named.label}, show the tabs`}
           data-testid="tab-title"
           className={cn(
             "relative flex h-8 min-w-0 max-w-[calc(100%-7rem)] items-center gap-1.5 rounded-full px-3 font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring",
