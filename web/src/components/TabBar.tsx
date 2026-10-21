@@ -505,8 +505,9 @@ export default function TabBar<T extends string>({ tabs, tab, over, title, onPic
   // the owner's ask ("Can we have a selection bubble like target tabs does
   // at the bottom"): a little in from its quarter's sides, sliding to the
   // tab picked, its leading edge first. Under the tabs, which take the
-  // taps. Lifted, the lens: under the finger, a little taller and wider,
-  // and clearer, a drop of glass over the bar.
+  // taps. Lifted, the lens: under the finger, bigger past the tab on every
+  // side, as iOS 26's grows when a tab is held and dragged (the owner's
+  // ask), and clearer, a drop of glass over the bar.
   const count = all.length;
   const dir = lens ? lens.dir : rest.dir;
   const [lead, trail] = lens?.sliding ? [EDGE.leadSliding, EDGE.trailSliding] : [EDGE.lead, EDGE.trail];
@@ -516,7 +517,7 @@ export default function TabBar<T extends string>({ tabs, tab, over, title, onPic
       `top 0.16s ${EASE}`, `bottom 0.16s ${EASE}`, "background-color 0.16s", "box-shadow 0.16s",
     ].join(", "),
     ...(lens
-      ? { top: -1, bottom: -1, left: lens.x - lens.tab / 2 + 1, right: lens.width - lens.x - lens.tab / 2 + 1 }
+      ? { top: -5, bottom: -5, left: lens.x - lens.tab / 2 - 6, right: lens.width - lens.x - lens.tab / 2 - 6 }
       : { top: 2, bottom: 2, left: `calc(${upAt} * 100% / ${count} + 4px)`, right: `calc(${count - 1 - upAt} * 100% / ${count} + 4px)` }),
   };
   // The tab in the tint: the one under the lens while it is up.
@@ -595,7 +596,10 @@ export default function TabBar<T extends string>({ tabs, tab, over, title, onPic
               // In the dark no lighter than at rest, but for its rim: the
               // tint's light blue on a lighter grey was hard to read.
               ? "bg-white/75 shadow-[0_2px_12px_rgb(0_0_0/0.16),0_0_0_0.5px_rgb(0_0_0/0.08)] dark:bg-white/[0.12] dark:shadow-[0_2px_12px_rgb(0_0_0/0.5),inset_0_0_0_1px_rgb(255_255_255/0.14),inset_0_1px_0_rgb(255_255_255/0.3)]"
-              : "bg-foreground/[0.07] dark:bg-foreground/[0.12]",
+              // At rest glass, as the fields under it are (PANEL_FIELD_FILL),
+              // at the owner's pick of the tab bar's looks (2026-10-20): a
+              // pane lighter than the bar, its rim lit, a shadow its size.
+              : "bg-white/85 shadow-[inset_0_0_0_1px_rgb(255_255_255/0.95),0_2px_8px_rgb(0_0_0/0.12)] dark:bg-white/[0.14] dark:shadow-[inset_0_0_0_1px_rgb(255_255_255/0.12),0_2px_8px_rgb(0_0_0/0.4)]",
           )}
           style={lensStyle}
         />
@@ -624,7 +628,10 @@ export default function TabBar<T extends string>({ tabs, tab, over, title, onPic
             )}
           >
             <span className="relative">
-              <Icon className="size-6" strokeWidth={at === lit ? 2.25 : 1.75} aria-hidden="true" />
+              {/* 26 and 12, a size up from iOS's tab bar's 24 and 11, at the
+                  owner's ask ("make the label font and icon size a bit
+                  bigger"), still inside the bar's 48 points. */}
+              <Icon className="size-[1.625rem]" strokeWidth={at === lit ? 2.25 : 1.75} aria-hidden="true" />
               {mark && (
                 <span
                   aria-hidden="true" data-testid={`tab-mark-${value}`} data-finding={mark}
@@ -632,7 +639,7 @@ export default function TabBar<T extends string>({ tabs, tab, over, title, onPic
                 />
               )}
             </span>
-            <span className={cn("font-medium", TEXT.caption)}>{label}</span>
+            <span className={cn("font-medium", TEXT.tab)}>{label}</span>
           </button>
         );
       })}
