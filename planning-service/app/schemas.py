@@ -850,6 +850,9 @@ class RunwayWind(BaseModel):
     headwind_kt: float
     crosswind_kt: float
     gust_crosswind_kt: float | None = None
+    #: Calm now: True where `end` is the one the field's last wind
+    #: favoured, the runway in use (vfr.runway_wind.favoured_end).
+    in_use: bool | None = None
 
 
 class RunwayEnd(BaseModel):

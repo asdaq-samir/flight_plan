@@ -275,8 +275,10 @@ def airport_place(ident: str) -> AirportPlace:
         "towered": any(f["type"] == "TWR" for f in frequencies),
         **_notes(place["ident"]),
         "pattern": pattern.pattern_at(place["ident"], place["elevation_ft"]),
+        # Calm now, the field's last wind for the runway in use.
         "runways": _with_turf(pattern.with_traffic(runway_wind.with_winds(
-            [r for r in airports.get_runways(source) if not r["closed"]], metar, place["lat"], place["lon"]),
+            [r for r in airports.get_runways(source) if not r["closed"]], metar, place["lat"], place["lon"],
+            weather.recent_wind(place["ident"]) if metar and metar.get("wind_speed_kt") == 0 else None),
             place["ident"], place["lat"], place["lon"]), place["ident"]),
         "frequencies": frequencies,
         "metar": metar,

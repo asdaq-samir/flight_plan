@@ -198,7 +198,7 @@ export function windOnRunway(wind: NonNullable<Runway["wind"]>): string {
  *  left out where there is none, steady or in the gusts. */
 export function windPickWords(wind: WindPick): string {
   const from = wind.from ? ` (${wind.from.ident}, ${wind.from.nm} nm)` : "";
-  if (wind.calm) return `Wind calm${from}`;
+  if (wind.calm) return `Wind calm${wind.ident ? `, ${wind.ident}${wind.inUse ? " in use" : ""}` : ""}${from}`;
   const cross = across(wind);
   const crosswind = cross.kt > 0 || cross.gustKt != null ? `, crosswind ${cross.kt}${cross.gustKt != null ? ` gusting ${cross.gustKt}` : ""} kt` : "";
   const along = wind.headwindKt >= 0 ? `headwind ${wind.headwindKt} kt` : `tailwind ${-wind.headwindKt} kt`;

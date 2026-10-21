@@ -385,7 +385,8 @@ export default function ProceduresRoute({
     // A forecast still coming is waited for, not picked past on the wind now.
     if (forecastFor[i] != null && forecasts[i]?.isPending) return [];
     const wind = windOf(a.ident);
-    if (!wind || wind.calm) return [];
+    // Calm, the runway in use or the longest (windPick), as the owner asked.
+    if (!wind || !wind.ident) return [];
     return [
       ...(picked.has(a.ident) || landingOf(a.ident) || preselectedLand(a) ? [] : [`land:${a.ident}:${wind.ident}`]),
       // A stop's runway to leave from, into the wind as its landing's.

@@ -121,7 +121,8 @@ describe("the wind a runway is picked by, in words", () => {
     expect(windPickCrosswind(pick)).toBe("2G9");
     expect(windPickWords({ ...pick, headwindKt: -3, crosswindKt: 0, gustCrosswindKt: null, from: null })).toBe("24 into the wind: tailwind 3 kt");
     expect(windPickCrosswind({ ...pick, crosswindKt: 0, gustCrosswindKt: null })).toBeNull();
-    expect(windPickWords({ ...pick, calm: true })).toBe("Wind calm (KUGN, 11 nm)");
+    expect(windPickWords({ ...pick, calm: true })).toBe("Wind calm, 24 (KUGN, 11 nm)");
+    expect(windPickWords({ ...pick, calm: true, inUse: true, from: null })).toBe("Wind calm, 24 in use");
   });
 });
 

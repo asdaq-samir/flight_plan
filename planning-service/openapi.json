@@ -8999,6 +8999,17 @@
           "headwind_kt": {
             "title": "Headwind Kt",
             "type": "number"
+          },
+          "in_use": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "In Use"
           }
         },
         "required": [

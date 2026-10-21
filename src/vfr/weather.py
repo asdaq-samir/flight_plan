@@ -682,6 +682,46 @@ def metar_for_idents(idents: list) -> dict:
     return {ident: metars.get(ident) for ident in idents}
 
 
+METAR_URL = "https://aviationweather.gov/api/data/metar"
+#: How far back a field's own METARs are read for the last wind it had, h.
+RECENT_WIND_HOURS = 3
+#: How long a field's last wind is kept, s: METARs come hourly.
+RECENT_WIND_TTL_S = 600.0
+_RECENT_WIND: dict[str, tuple[float, dict | None]] = {}
+
+
+def recent_wind(ident: str) -> dict | None:
+    """The wind of the newest of a field's own METARs of the last
+    RECENT_WIND_HOURS with a direction and some speed, {"wind_dir_true_deg",
+    "wind_speed_kt"}: the runway it favoured is the one in use when the wind
+    has since dropped calm (vfr.runway_wind.favoured_end), at the owner's
+    ask ("when winds are calm just pick the currently used ... runway"). A
+    design choice: a tower keeps its runway as the wind goes calm, and none
+    of the FAA's data sets says a field's calm-wind runway. None with no
+    such report, or the reports not to be had."""
+    now = time.time()
+    held = _RECENT_WIND.get(ident)
+    if held and now - held[0] < RECENT_WIND_TTL_S:
+        return held[1]
+    try:
+        resp = requests.get(METAR_URL, params={"ids": ident, "hours": RECENT_WIND_HOURS, "format": "json"},
+                            headers=HEADERS, timeout=10)
+        resp.raise_for_status()
+        reports = resp.json() or []
+    except (requests.RequestException, ValueError):
+        return None
+    found = None
+    for report in sorted(reports, key=lambda r: r.get("obsTime") or 0, reverse=True):
+        direction, speed = report.get("wdir"), report.get("wspd")
+        if isinstance(direction, (int, float)) and isinstance(speed, (int, float)) and speed > 0:
+            found = {"wind_dir_true_deg": float(direction), "wind_speed_kt": float(speed)}
+            break
+    if len(_RECENT_WIND) > 512:
+        _RECENT_WIND.clear()
+    _RECENT_WIND[ident] = (now, found)
+    return found
+
+
 #: How far a station's report is said of a field, approximately: a design
 #: choice, not a rule. AC 00-45H (Aviation Weather Services) takes a METAR's
 #: "VC" to be 5 to 10 statute miles from the station for the phenomena it
