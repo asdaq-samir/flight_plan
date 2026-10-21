@@ -11,6 +11,11 @@
             "format" : "double",
             "type" : [ "number", "null" ]
           },
+          "colour" : {
+            "description" : "Its flight plan's item 19 A/, its colour and markings",
+            "example" : "White Blue",
+            "type" : [ "string", "null" ]
+          },
           "createdAt" : {
             "format" : "date-time",
             "type" : "string"
@@ -22,6 +27,11 @@
           "cruiseTasKt" : {
             "format" : "double",
             "type" : "number"
+          },
+          "equipment" : {
+            "description" : "Its flight plan's item 10a, its navigation, communication and approach equipment (AIM Appendix 4, TBL 4-2)",
+            "example" : "SDFGRY",
+            "type" : [ "string", "null" ]
           },
           "fuelBurnGph" : {
             "format" : "double",
@@ -42,6 +52,11 @@
             },
             "type" : "array"
           },
+          "surveillance" : {
+            "description" : "Its flight plan's item 10b, its surveillance equipment (AIM Appendix 4, TBL 4-3)",
+            "example" : "B1",
+            "type" : [ "string", "null" ]
+          },
           "tailNumber" : {
             "type" : "string"
           },
@@ -61,7 +76,7 @@
             "description" : "Its last VOR check for IFR (14 CFR 91.171): when, how, where, the bearing error, and the last day it is good for -- 30 days on, if the error was within the check's limit"
           }
         },
-        "required" : [ "climbFuelBurnGph", "climbTasKt", "createdAt", "cruisePowerPct", "cruiseTasKt", "fuelBurnGph", "id", "inspections", "openSquawks", "tailNumber", "typeDesignator", "usableFuelGal", "vorCheck" ],
+        "required" : [ "climbFuelBurnGph", "climbTasKt", "colour", "createdAt", "cruisePowerPct", "cruiseTasKt", "equipment", "fuelBurnGph", "id", "inspections", "openSquawks", "surveillance", "tailNumber", "typeDesignator", "usableFuelGal", "vorCheck" ],
         "type" : "object"
       },
       "AircraftRequest" : {
@@ -74,6 +89,11 @@
             "format" : "double",
             "type" : [ "number", "null" ]
           },
+          "colour" : {
+            "maxLength" : 40,
+            "minLength" : 0,
+            "type" : [ "string", "null" ]
+          },
           "cruisePowerPct" : {
             "format" : "double",
             "maximum" : 100,
@@ -84,9 +104,17 @@
             "format" : "double",
             "type" : "number"
           },
+          "equipment" : {
+            "pattern" : "\\s*[A-Za-z0-9]{0,40}\\s*",
+            "type" : [ "string", "null" ]
+          },
           "fuelBurnGph" : {
             "format" : "double",
             "type" : "number"
+          },
+          "surveillance" : {
+            "pattern" : "\\s*[A-Za-z0-9]{0,20}\\s*",
+            "type" : [ "string", "null" ]
           },
           "tailNumber" : {
             "maxLength" : 16,
@@ -103,7 +131,7 @@
             "type" : [ "number", "null" ]
           }
         },
-        "required" : [ "climbFuelBurnGph", "climbTasKt", "cruisePowerPct", "cruiseTasKt", "fuelBurnGph", "tailNumber", "typeDesignator", "usableFuelGal" ],
+        "required" : [ "climbFuelBurnGph", "climbTasKt", "colour", "cruisePowerPct", "cruiseTasKt", "equipment", "fuelBurnGph", "surveillance", "tailNumber", "typeDesignator", "usableFuelGal" ],
         "type" : "object"
       },
       "AppleToken" : {
@@ -1345,6 +1373,22 @@
         "required" : [ "email" ],
         "type" : "object"
       },
+      "PilotContactRequest" : {
+        "properties" : {
+          "homeBase" : {
+            "pattern" : "\\s*([A-Za-z0-9]{2,11})?\\s*",
+            "type" : [ "string", "null" ]
+          },
+          "phone" : {
+            "maxLength" : 24,
+            "minLength" : 0,
+            "pattern" : "[0-9+()\\-. ]*",
+            "type" : [ "string", "null" ]
+          }
+        },
+        "required" : [ "homeBase", "phone" ],
+        "type" : "object"
+      },
       "PilotDto" : {
         "description" : "The signed-in pilot",
         "properties" : {
@@ -1363,14 +1407,29 @@
             "example" : "pilot@example.com",
             "type" : "string"
           },
+          "fullName" : {
+            "description" : "Their name as their certificate gives it: the pilot in command a flight plan names (item 19 C/) and an endorsement names them by",
+            "example" : "Avery B. Pilot",
+            "type" : [ "string", "null" ]
+          },
+          "homeBase" : {
+            "description" : "Their airplane's home base, an airport identifier",
+            "example" : "KMSN",
+            "type" : [ "string", "null" ]
+          },
           "id" : {
             "description" : "Internal id",
             "example" : 1,
             "format" : "int64",
             "type" : "integer"
+          },
+          "phone" : {
+            "description" : "Their telephone number, the contact a flight plan's item 19 C/ asks for",
+            "example" : "608-555-0100",
+            "type" : [ "string", "null" ]
           }
         },
-        "required" : [ "developer", "displayName", "email", "id" ],
+        "required" : [ "developer", "displayName", "email", "fullName", "homeBase", "id", "phone" ],
         "type" : "object"
       },
       "RemindersDto" : {
@@ -3503,6 +3562,56 @@
           }
         },
         "summary" : "The signed-in pilot",
+        "tags" : [ "pilot-controller" ]
+      }
+    },
+    "/api/me/contact" : {
+      "put" : {
+        "description" : "What a flight plan's item 19 C/ asks with the pilot in command's name (AIM Appendix 4), both at once; blank is none. Their name is set with PUT /api/training/name.",
+        "operationId" : "setContact",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/PilotContactRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PilotDto"
+                }
+              }
+            },
+            "description" : "The pilot, with them"
+          },
+          "400" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PilotDto"
+                }
+              }
+            },
+            "description" : "Not a telephone number, or not an airport identifier"
+          },
+          "401" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PilotDto"
+                }
+              }
+            },
+            "description" : "No session"
+          }
+        },
+        "summary" : "The signed-in pilot's telephone number and home base",
         "tags" : [ "pilot-controller" ]
       }
     },

@@ -165,6 +165,16 @@ public class PilotService {
         });
     }
 
+    /** Their telephone number, its spaces made single, and their home
+     *  base in capitals, for a flight plan's item 19 C/; blank is none. */
+    @Transactional
+    public Pilot setContact(Pilot pilot, String phone, String homeBase) {
+        pilot.setContact(
+                phone == null || phone.isBlank() ? null : phone.strip().replaceAll("\\s+", " "),
+                homeBase == null || homeBase.isBlank() ? null : homeBase.strip().toUpperCase(Locale.ROOT));
+        return pilots.save(pilot);
+    }
+
     /**
      * The pilot for the current request, or empty when nobody is signed
      * in or the principal is a kind this app never issues.

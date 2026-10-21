@@ -126,7 +126,7 @@ class AircraftControllerTest {
     @Test
     void add_returns200_forAValidRequest() throws Exception {
         given(pilotService.current(any())).willReturn(Optional.of(samplePilot()));
-        given(aircraftService.add(any(), anyString(), anyString(), anyDouble(), anyDouble(), any(), any(), any(), any()))
+        given(aircraftService.add(any(), anyString(), anyString(), anyDouble(), anyDouble(), any(), any(), any(), any(), any(), any(), any()))
                 .willReturn(sampleAircraft());
 
         mockMvc.perform(post("/api/aircraft").with(oidcLogin()).with(csrf())
@@ -143,7 +143,7 @@ class AircraftControllerTest {
     void add_passesTheCruisePowerAndTheClimbsOwnSpeedAndBurnThrough() throws Exception {
         given(pilotService.current(any())).willReturn(Optional.of(samplePilot()));
         given(aircraftService.add(any(), eq("N12345"), eq("C172"), eq(110.0), eq(8.5), eq(65.0), eq(74.0), eq(11.0),
-                eq(40.0)))
+                eq(40.0), any(), any(), any()))
                 .willReturn(new Aircraft(samplePilot(), "N12345", "C172", 110, 8.5, 65.0, 74.0, 11.0, 40.0));
 
         mockMvc.perform(post("/api/aircraft").with(oidcLogin()).with(csrf())
@@ -155,6 +155,49 @@ class AircraftControllerTest {
                 .andExpect(jsonPath("$.cruisePowerPct").value(65.0))
                 .andExpect(jsonPath("$.climbTasKt").value(74.0))
                 .andExpect(jsonPath("$.climbFuelBurnGph").value(11.0));
+    }
+
+    /** The flight plan's items 10a, 10b and 19 A/ go through to the
+     *  airplane and back, as the Brief's form fills them in. */
+    @Test
+    void add_passesTheFlightPlansEquipmentSurveillanceAndColourThrough() throws Exception {
+        given(pilotService.current(any())).willReturn(Optional.of(samplePilot()));
+        given(aircraftService.add(any(), eq("N12345"), eq("C172"), eq(110.0), eq(8.5), any(), any(), any(), any(),
+                eq("SDFGRY"), eq("B1"), eq("White blue stripes")))
+                .willReturn(sampleAircraft().describeForFlightPlan("SDFGRY", "B1", "White blue stripes"));
+
+        mockMvc.perform(post("/api/aircraft").with(oidcLogin()).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"tailNumber\":\"N12345\",\"typeDesignator\":\"C172\",\"cruiseTasKt\":110,"
+                                + "\"fuelBurnGph\":8.5,\"equipment\":\"SDFGRY\",\"surveillance\":\"B1\","
+                                + "\"colour\":\"White blue stripes\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.equipment").value("SDFGRY"))
+                .andExpect(jsonPath("$.surveillance").value("B1"))
+                .andExpect(jsonPath("$.colour").value("White blue stripes"));
+    }
+
+    /** Item 10a is letters and figures (TBL 4-2's E1, J1, P1 among them),
+     *  at most 40 here; item 10b at most 20 (TBL 4-3); the colour at most
+     *  its column's 40. Anything else is refused, naming the field. */
+    @Test
+    void add_returns400_forAFlightPlanItemTheFormDoesNotTake() throws Exception {
+        given(pilotService.current(any())).willReturn(Optional.of(samplePilot()));
+        String[][] cases = {
+            {"\"equipment\":\"S/D\"", "equipment"},
+            {"\"equipment\":\"" + "S".repeat(41) + "\"", "equipment"},
+            {"\"surveillance\":\"B1 C\"", "surveillance"},
+            {"\"surveillance\":\"" + "C".repeat(21) + "\"", "surveillance"},
+            {"\"colour\":\"" + "w".repeat(41) + "\"", "colour"},
+        };
+        for (String[] c : cases) {
+            mockMvc.perform(post("/api/aircraft").with(oidcLogin()).with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"tailNumber\":\"N1\",\"typeDesignator\":\"C172\",\"cruiseTasKt\":110,"
+                                    + "\"fuelBurnGph\":8.5," + c[0] + "}"))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.details[0]").value(org.hamcrest.Matchers.startsWith(c[1] + ":")));
+        }
     }
 
     /** A power no cruise table has is refused, as the planner refuses it. */

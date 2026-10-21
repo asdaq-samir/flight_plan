@@ -8,8 +8,8 @@ import java.util.List;
 import org.springframework.lang.Nullable;
 
 /** An aeroplane as the API returns it. The cruise power, the climb's
- *  speed and burn and `usableFuelGal` are null when the owner has not
- *  said. */
+ *  speed and burn, `usableFuelGal` and the flight plan's items are null
+ *  when the owner has not said. */
 public record AircraftDto(
         Long id,
         String tailNumber,
@@ -27,7 +27,15 @@ public record AircraftDto(
         @Schema(description = "Its inspections and tests, as recorded, each with the last day it is good for")
         InspectionsDto inspections,
         @Schema(description = "Its squawks not yet fixed, newest first")
-        List<SquawkDto> openSquawks) {
+        List<SquawkDto> openSquawks,
+        @Schema(description = "Its flight plan's item 10a, its navigation, communication and approach equipment "
+                + "(AIM Appendix 4, TBL 4-2)", example = "SDFGRY")
+        @Nullable String equipment,
+        @Schema(description = "Its flight plan's item 10b, its surveillance equipment (AIM Appendix 4, TBL 4-3)",
+                example = "B1")
+        @Nullable String surveillance,
+        @Schema(description = "Its flight plan's item 19 A/, its colour and markings", example = "White Blue")
+        @Nullable String colour) {
 
     @Schema(description = "A VOR check for IFR (14 CFR 91.171)")
     public record VorCheckDto(

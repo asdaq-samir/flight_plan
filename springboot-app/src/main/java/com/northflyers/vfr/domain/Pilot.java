@@ -86,6 +86,17 @@ public class Pilot {
     @Column(length = 120)
     private String fullName;
 
+    /** Their telephone number and their airplane's home base (V29): the
+     *  flight plan's item 19 C/ asks for the pilot in command's name and
+     *  contact information, "including telephone number", valid at the
+     *  ETA in case search and rescue is needed (AIM Appendix 4); the home
+     *  base is the domestic form's block 14 beside them (FAA Form 7233-1).
+     *  Null until they say. */
+    @Column(length = 24)
+    private String phone;
+    @Column(length = 11)
+    private String homeBase;
+
     /** A flight instructor's certificate number ("987654321CFI"), its
      *  recent experience end date or expiration date, and which of the
      *  two that is (V26): what every endorsement they sign carries (AC
@@ -156,6 +167,13 @@ public class Pilot {
 
     public void setFullName(String fullName) {
         this.fullName = fullName;
+    }
+
+    /** Their telephone number and home base, both at once; null for one
+     *  not said. */
+    public void setContact(String phone, String homeBase) {
+        this.phone = phone;
+        this.homeBase = homeBase;
     }
 
     /** Their flight instructor certificate, all three at once; nulls for

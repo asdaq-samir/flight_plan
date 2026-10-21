@@ -249,4 +249,21 @@ class PilotServiceTest {
 
         assertThat(signedIn.getId()).isEqualTo(preexisting.getId());
     }
+
+    /** A flight plan's item 19 C/: the number's spaces made single and the
+     *  home base in capitals, kept in V29's columns; blank takes either out. */
+    @Test
+    void theContactIsKeptAsTheFormWritesIt() {
+        Pilot pilot = pilotService.fromVerifiedEmail("contact-" + UUID.randomUUID() + "@example.com");
+
+        pilotService.setContact(pilot, "  608  555-0100 ", " kmsn ");
+        Pilot kept = pilots.findById(pilot.getId()).orElseThrow();
+        assertThat(kept.getPhone()).isEqualTo("608 555-0100");
+        assertThat(kept.getHomeBase()).isEqualTo("KMSN");
+
+        pilotService.setContact(kept, "", null);
+        Pilot cleared = pilots.findById(pilot.getId()).orElseThrow();
+        assertThat(cleared.getPhone()).isNull();
+        assertThat(cleared.getHomeBase()).isNull();
+    }
 }
