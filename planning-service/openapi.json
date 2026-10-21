@@ -4625,6 +4625,122 @@
         "title": "Frequency",
         "type": "object"
       },
+      "FuelStop": {
+        "description": "A field with the airplane's fuel a flight can land at for it, with\nits reserve left (vfr.fuelstops).",
+        "properties": {
+          "added_nm": {
+            "title": "Added Nm",
+            "type": "number"
+          },
+          "city": {
+            "title": "City",
+            "type": "string"
+          },
+          "elevation_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Elevation Ft"
+          },
+          "from_nm": {
+            "title": "From Nm",
+            "type": "number"
+          },
+          "fuel_types": {
+            "title": "Fuel Types",
+            "type": "string"
+          },
+          "ident": {
+            "title": "Ident",
+            "type": "string"
+          },
+          "lands_with_gal": {
+            "title": "Lands With Gal",
+            "type": "number"
+          },
+          "lat": {
+            "title": "Lat",
+            "type": "number"
+          },
+          "lon": {
+            "title": "Lon",
+            "type": "number"
+          },
+          "minutes": {
+            "title": "Minutes",
+            "type": "number"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "runway_ft": {
+            "title": "Runway Ft",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "ident",
+          "name",
+          "city",
+          "lat",
+          "lon",
+          "from_nm",
+          "added_nm",
+          "lands_with_gal",
+          "minutes",
+          "fuel_types",
+          "runway_ft"
+        ],
+        "title": "FuelStop",
+        "type": "object"
+      },
+      "FuelStopSuggestion": {
+        "description": "The stops that take one flight short of fuel to its destination with\nthe reserve left at every landing, the tanks filled at each, and other\nfields the first could be.",
+        "properties": {
+          "choices": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/FuelStop"
+            },
+            "title": "Choices",
+            "type": "array"
+          },
+          "departure": {
+            "title": "Departure",
+            "type": "string"
+          },
+          "destination": {
+            "title": "Destination",
+            "type": "string"
+          },
+          "stops": {
+            "items": {
+              "$ref": "#/components/schemas/FuelStop"
+            },
+            "title": "Stops",
+            "type": "array"
+          },
+          "usable_gal": {
+            "title": "Usable Gal",
+            "type": "number"
+          }
+        },
+        "required": [
+          "departure",
+          "destination",
+          "usable_gal",
+          "stops"
+        ],
+        "title": "FuelStopSuggestion",
+        "type": "object"
+      },
       "GAirmet": {
         "description": "A G-AIRMET the route crosses during the flight\n(vfr.weather.gairmets_along_route): the hazard in words, its severity\nand cause, the time its snapshot is valid at, and its altitudes --\n`from_freezing_level` where it starts there.",
         "properties": {
@@ -9962,6 +10078,14 @@
             ],
             "default": null,
             "title": "Fuel Required Gal"
+          },
+          "fuel_stops": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/FuelStopSuggestion"
+            },
+            "title": "Fuel Stops",
+            "type": "array"
           },
           "ground_min": {
             "default": 0.0,

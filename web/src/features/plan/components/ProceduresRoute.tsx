@@ -30,9 +30,10 @@ import DepartPicker from "./navlog/DepartPicker";
 import ProcedureMenu from "./ProcedureMenu";
 import type { EditedPoint, PointAltitude } from "./PointAltitudeDialog";
 import { PointFigures, PointMenu } from "./PointControls";
+import FuelStopRow, { FuelStopsAdd } from "./FuelStopRow";
 import type { HoldAt } from "./HoldSheet";
 import { holdWords, type Hold } from "../../../lib/holds";
-import type { LegHold } from "../../../lib/api/types";
+import type { FuelStopSuggestion, LegHold } from "../../../lib/api/types";
 import { groundMinAt, legOf, rowPoint, type NavLogRow } from "./navlog/rows";
 
 // Opened only from a point's menu, so fetched as one first is: in the
@@ -114,7 +115,7 @@ export type ProceduresAt = { ident: string; kind: Kind } | null;
 export default function ProceduresRoute({
   airports, rows, depart, weather, picked, onPick, onPreselect, takeoffs, onTakeoff, fit = null, onCharts, chartsDisabled, procedures, inRoute, onProcedures, onPreview, at, onAt,
   crossings = NO_CROSSINGS, onFix, onDepart, ground, onGround, pointAltitude, onPointAltitude, directTo = null, onDirectTo, onInfo, onRemove,
-  onCreateFix, holds = NO_HOLDS, onHoldSet, askHold = null, routePoints, stopsFull = false,
+  onCreateFix, holds = NO_HOLDS, onHoldSet, askHold = null, routePoints, stopsFull = false, fuelStops = NO_FUEL_STOPS, onKeepFuelStops,
 }: {
   airports: ProcedureAirport[];
   /** The route's rows as the nav log has them (navLogRows), for its
@@ -197,6 +198,11 @@ export default function ProceduresRoute({
   routePoints?: string[];
   /** As many stops as the planner takes (MAX_STOPS): no Create a fix. */
   stopsFull?: boolean;
+  /** Where each flight too long for its tanks could land for fuel (the
+   *  totals' fuel_stops), rows after its departure, and the stops kept:
+   *  put in the route after the flight's departure, in order. */
+  fuelStops?: FuelStopSuggestion[];
+  onKeepFuelStops?: (after: string, idents: string[]) => void;
 }) {
   // The procedure on its own page in the sheet, over its kind's list.
   const [page, setPage] = useState<{ at: ProceduresAt; procedure: ProcedureSummary } | null>(null);
@@ -595,6 +601,34 @@ export default function ProceduresRoute({
   // climb and descent left to the nav log. Before then, the fields alone.
   const steps: ReactNode[] = [];
   const shown = new Set<ProcedureAirport>();
+  // The fuel stops suggested for the flight that leaves a field, after
+  // its departure: each one where it lands, timed from when the flight
+  // leaves (the route's departure, or a stop's landing and its time on
+  // the ground), Keep it and Another field on the first. A round trip's
+  // field twice: the flight that leaves it, once.
+  const suggested = new Set<FuelStopSuggestion>();
+  const fuelStopRows = (ident: string, row: NavLogRow | undefined): ReactNode[] => {
+    const flight = fuelStops.find(f => sameField(f.departure, ident) && !suggested.has(f));
+    if (!flight || !flight.stops.length) return [];
+    suggested.add(flight);
+    const leavesMin = row?.kind === "stop" ? (row.minutesFlown ?? 0) + row.groundMin : 0;
+    return [
+      ...flight.stops.map((stop, k) => (
+        <FuelStopRow
+          key={`fuel-${ident}-${stop.ident}`} stop={stop} last={false} usableGal={flight.usable_gal}
+          time={etaAt(depart || new Date().toISOString(), leavesMin + stop.minutes)} groundMin={groundMinAt(ground, stop.ident)}
+          choices={k === 0 ? flight.choices : undefined}
+          onChoose={onKeepFuelStops ? c => onKeepFuelStops(ident, [c.ident]) : undefined}
+        />
+      )),
+      onKeepFuelStops && (
+        <FuelStopsAdd
+          key={`fuel-${ident}-add`} count={flight.stops.length} last={false}
+          onAdd={() => onKeepFuelStops(ident, flight.stops.map(s => s.ident))}
+        />
+      ),
+    ];
+  };
   const points = rows.filter(r => r.kind !== "checkpoint" && r.kind !== "toc" && r.kind !== "tod");
   points.forEach((row, i) => {
     const last = i === points.length - 1;
@@ -617,6 +651,7 @@ export default function ProceduresRoute({
       shown.add(field);
       steps.push(fieldStep(field, row, last));
       if (field.role === "Destination") steps.push(holdRow(field.ident));
+      else steps.push(...fuelStopRows(field.ident, row));
       return;
     }
     // A waypoint the route flies over (VPBNG), or ends at: its altitude
@@ -716,6 +751,7 @@ function FieldDot({ last }: { last: boolean }) {
 }
 
 const NO_HOLDS: Hold[] = [];
+const NO_FUEL_STOPS: FuelStopSuggestion[] = [];
 /** A day, min: the longest time on the ground at a stop the planner takes. */
 const DAY_MIN = 24 * 60;
 

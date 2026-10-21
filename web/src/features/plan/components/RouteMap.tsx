@@ -20,6 +20,7 @@ import type { TrafficPattern } from "../../../lib/trafficPattern";
 
 const NO_PATTERNS: TrafficPattern[] = [];
 const NO_POINTS: { lat: number; lon: number }[] = [];
+const NO_POINTS_AT: { ident: string; lat: number; lon: number }[] = [];
 const NO_PROCEDURES: ProcedureDrawing[] = [];
 import { chipColourOf } from "../../../lib/map/flightCategory";
 import { CourseLine } from "../../../lib/map/CourseLine";
@@ -94,7 +95,35 @@ interface Props {
    *  finger held on the chart, or a right-click. */
   heldPoint: { lat: number; lon: number } | null;
   onHoldPoint: (point: { lat: number; lon: number }) => void;
+  /** The fuel stops the planner suggests (the totals' fuel_stops), pinned
+   *  as Tesla pins its chargers on the way, a tap their field's card. */
+  fuelStops?: { ident: string; lat: number; lon: number }[];
 }
+
+/** A suggested fuel stop's pin: the caution's orange, the pump in white,
+ *  its point on the field, as Tesla's trip map pins its chargers (the
+ *  owner's screenshot, 2026-10-21). One icon for every pin. */
+const FUEL_PIN = L.divIcon({
+  className: "",
+  html: '<svg width="30" height="38" viewBox="0 0 30 38" aria-hidden="true"><path d="M15 37C15 37 2 23.5 2 14a13 13 0 0 1 26 0c0 9.5-13 23-13 23z" fill="#d9480f" stroke="#fff" stroke-width="2"/>'
+    + '<g transform="translate(7.5 6.5) scale(0.62)" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">'
+    + '<path d="M3 22h12"/><path d="M4 9h10"/><path d="M14 22V4a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v18"/><path d="M14 13h2a2 2 0 0 1 2 2v2a2 2 0 0 0 2 2a2 2 0 0 0 2-2V9.83a2 2 0 0 0-.59-1.42L18 5"/></g></svg>',
+  iconSize: [30, 38], iconAnchor: [15, 37],
+});
+
+function FuelStopPins({ stops, onSelect }: { stops: { ident: string; lat: number; lon: number }[]; onSelect: (ident: string) => void }) {
+  return stops.map(stop => <FuelStopPin key={stop.ident} stop={stop} onSelect={onSelect} />);
+}
+
+const FuelStopPin = memo(function FuelStopPin({ stop, onSelect }: { stop: { ident: string; lat: number; lon: number }; onSelect: (ident: string) => void }) {
+  // Memoized, not a literal: see AirportsLayer.
+  const handlers = useMemo(() => ({ click: () => onSelect(stop.ident) }), [onSelect, stop.ident]);
+  return (
+    <Marker position={[stop.lat, stop.lon]} icon={FUEL_PIN} title={`Suggested fuel stop ${stop.ident}`} eventHandlers={handlers} zIndexOffset={500}>
+      <MapTooltip>{`${pointName(stop.ident)} · Fuel stop`}</MapTooltip>
+    </Marker>
+  );
+});
 
 /** A finger held on the chart, or a right-click, asks what airspace is
  *  there (AirspaceCard): Leaflet's contextmenu, which it raises for a
@@ -442,7 +471,7 @@ const PLACE_ZOOM = 9;
 export default memo(function RouteMap({
   course, candidates, selected, focus, onSelectCandidate, onSelectPoint,
   airportWeather, place, onSelectPlace, onAddStop, legs, heldPoint, onHoldPoint, nearest = null, patterns = NO_PATTERNS, patternFocus = null,
-  procedures = NO_PROCEDURES, procedureFocus = null, procedureCover, crossings, directs = "", onProcedureFix,
+  procedures = NO_PROCEDURES, procedureFocus = null, procedureCover, crossings, directs = "", onProcedureFix, fuelStops = NO_POINTS_AT,
 }: Props) {
   const focusZoom = course?.max_zoom ?? 12;
   const dryRunning = usePastFlight(p => p.hex === DRY_RUN);
@@ -514,6 +543,7 @@ export default memo(function RouteMap({
             line={course.course_line as [number, number][]}
             tooltip={`${routeAirports(course, true).map(a => pointName(a.ident)).join(" → ")} · ${nm(course.distance_nm)}`}
           />
+          {fuelStops.length > 0 && <FuelStopPins stops={fuelStops} onSelect={onSelectPlace} />}
           {/* A saved flight's flown track over it, from its debrief. */}
           <FlownTrackLayer course={course} />
           {/* The planned flight's dry run: its airplane along the line. */}
