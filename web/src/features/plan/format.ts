@@ -30,6 +30,13 @@ export function scoreColor(s: number): string {
 /** Total time as hours and minutes. Minutes are padded so the width does
  *  not jump as the number crosses ten. Rounded to whole minutes first:
  *  rounding the remainder on its own turned 179.6 minutes into "2h 60m". */
+/** A field's part in the route as the pilot reads it: a stop between is a
+ *  fuel stop, at the owner's ask ("instead of stop, say fuel stop",
+ *  2026-10-21), the turnaround on the ground its time to refuel. */
+export function roleWords(role: string): string {
+  return role === "Stop" ? "Fuel stop" : role;
+}
+
 export function hhmm(minutes: number | null): string {
   if (minutes === null) return "ETE n/a";
   const t = hoursMinutes(minutes);

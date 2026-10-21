@@ -23,7 +23,7 @@ import { endFit, type EndFit } from "../../../lib/runwayFit";
 import { frdOf, isPosition } from "../../../lib/identSchema";
 import { COURSE_MAGENTA } from "../../../lib/map/chartColors";
 import { useOwnShip } from "../../../lib/map/ownShip";
-import { etaAt, reportedWind, windPickCrosswind, windPickWords, type ReportedWind } from "../format";
+import { etaAt, reportedWind, windPickCrosswind, windPickWords, type ReportedWind, roleWords } from "../format";
 import { PointMark } from "./navlog/PointMark";
 import FixBranch from "./FixBranch";
 import DepartPicker from "./navlog/DepartPicker";
@@ -516,7 +516,7 @@ export default function ProceduresRoute({
         time: stepTime, waypoint: false, elevationFt: a.elevationFt, to: role === "Arrive", stop: a.role === "Stop",
         holdable: role === "Arrive" && a.role === "Destination", row,
       });
-      const sub = `${a.role}${role === "Arrive" ? along(row) : ""}`;
+      const sub = `${roleWords(a.role)}${role === "Arrive" ? along(row) : ""}`;
       return (
         <Step
           key={`${a.ident}-${role}`} last={isLast} mark={stepMark} title={`${a.ident} · ${role}`} field
@@ -602,8 +602,8 @@ export default function ProceduresRoute({
       const runway = chosenAt(a.ident);
       return (
         <Step
-          key={`${a.ident}-Stop`} last={last} mark={mark} title={`${a.ident} · Stop`} field
-          sub={end.direct ? <span className="font-semibold text-tint">Direct to</span> : `Stop${along(row)}${runway ? ` · Runway ${runway}` : ""}`}
+          key={`${a.ident}-Stop`} last={last} mark={mark} title={`${a.ident} · ${roleWords("Stop")}`} field
+          sub={end.direct ? <span className="font-semibold text-tint">Direct to</span> : `${roleWords("Stop")}${along(row)}${runway ? ` · Runway ${runway}` : ""}`}
           figures={end.figures} menu={end.menu} toggle={{ open: false, onToggle: () => toggleStop(a.ident), ident: a.ident }}
         />
       );

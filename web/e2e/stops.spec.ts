@@ -74,7 +74,7 @@ test("a stop added in the panel lands the route there: the capsule, the nav log 
   // One row as a waypoint's until tapped, at the owner's ask ("Can a stop
   // look similar to a waypoint and then arrive and depart be expanded with
   // a tap"): tapped, its Arrive and Depart steps.
-  const folded = sideDrawer(page).getByTestId("procedures").getByRole("region", { name: "KMSN · Stop" });
+  const folded = sideDrawer(page).getByTestId("procedures").getByRole("region", { name: "KMSN · Fuel stop" });
   await expect(folded).toContainText("Runway");
   await folded.getByTestId("stop-toggle").click();
   const arrive = sideDrawer(page).getByTestId("procedures").getByRole("region", { name: "KMSN · Arrive" });
@@ -332,7 +332,7 @@ test("every point's row ends in its time over its altitude and a menu: an airpor
   await page.goto("/app/plan?dep=C81&dest=KDLH&stops=KMSN");
   await openPanel(page);
   const route = sideDrawer(page).getByTestId("procedures");
-  const madison = route.getByRole("region", { name: "KMSN · Stop" });
+  const madison = route.getByRole("region", { name: "KMSN · Fuel stop" });
   const altitude = madison.getByTestId("point-altitude-figure");
   // Madison's field elevation (887 ft, NASR), not a figure the pilot set,
   // under its time.
@@ -368,7 +368,7 @@ test("every point's row ends in its time over its altitude and a menu: an airpor
   await expect(page).toHaveURL(/[?&]direct=KDLH(&|$)/);
   await expect(page).not.toHaveURL(/[?&]stops=/);
   await expect(sideDrawer(page).getByTestId("direct-strip")).toContainText("Direct to KDLH");
-  await expect(route.getByRole("region", { name: "KMSN · Stop" })).toHaveCount(0);
+  await expect(route.getByRole("region", { name: "KMSN · Fuel stop" })).toHaveCount(0);
   await expect(duluth).toContainText("Direct to");
   await sideDrawer(page).getByTestId("direct-cancel").click();
   await expect(page).toHaveURL(/[?&]stops=KMSN(&|$)/);
@@ -392,7 +392,7 @@ test("the pilot's own point off a fix is made from a point's menu or typed as a 
   await page.goto("/app/plan?dep=C81&dest=KDLH&stops=KMSN");
   await openPanel(page);
   const route = sideDrawer(page).getByTestId("procedures");
-  const madison = route.getByRole("region", { name: "KMSN · Stop" });
+  const madison = route.getByRole("region", { name: "KMSN · Fuel stop" });
   await expect(madison.getByTestId("point-figures")).toContainText(/\d\d:\d\d/, { timeout: slow(30_000) });
   await madison.getByTestId("point-menu").click();
   await page.getByTestId("point-menu-fix").click();

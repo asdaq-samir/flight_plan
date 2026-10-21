@@ -11,7 +11,7 @@ import { pirepConditions } from "../../../../lib/advisories";
 import { distanceNm } from "../../../../lib/geo";
 import { categoryOf } from "../../../../lib/map/flightCategory";
 import { passTime } from "../../../../lib/passTimes";
-import { altFt, ceilingAndVisibility, clockTime, windLine } from "../../format";
+import { altFt, ceilingAndVisibility, clockTime, windLine, roleWords } from "../../format";
 import CategoryBadge from "./CategoryBadge";
 import Observed from "../../../../components/Observed";
 import { phasesOf, type Phase } from "./sections";
@@ -185,7 +185,7 @@ export default function WeatherAlongRoute({ briefing, course, legs, departIso, u
                   category is its report's, on the report's row: beside the
                   ident as well, it was said twice (each fact once, the
                   owner's pick of the redesign). */}
-              {placeShown && <ListGroup title={phase === "depart" || phase === "arrive" ? place.ident : `${place.ident} · ${place.role}`}>
+              {placeShown && <ListGroup title={phase === "depart" || phase === "arrive" ? place.ident : `${place.ident} · ${roleWords(place.role)}`}>
                 {unchecked("metars") ? (
                   <ListRow title="Now" description={<span className="text-amber-700 dark:text-amber-300">Not checked: aviationweather.gov did not answer</span>} />
                 ) : (
