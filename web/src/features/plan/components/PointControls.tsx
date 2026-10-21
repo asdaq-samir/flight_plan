@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Crosshair, Ellipsis, Info, MoveUpRight, MoveVertical, Pencil, Repeat2, Trash2 } from "lucide-react";
+import { ArrowUp, Crosshair, Ellipsis, Info, Mountain, MoveUpRight, MoveVertical, Pencil, Repeat2, Trash2 } from "lucide-react";
 import { cn } from "cn";
 import RoundButton from "../../../components/RoundButton";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "../../../components/ui/dropdown-menu";
@@ -35,7 +35,12 @@ export function PointFigures({ time, altitude, kind, spoken }: {
         <span className={kind === "set" ? "font-semibold text-tint" : "text-muted-foreground"} data-testid="point-altitude-figure" data-kind={kind}>
           {/* "pub", "elev" and a line over or under a figure are for the
               eye; VoiceOver says them in words (the audit's finding). */}
-          <span aria-hidden="true">{altitude} <span className={TEXT.note}>{kind}</span></span>
+          {/* The field's elevation with the mountain, an altitude flown or
+              set with the arrow up, at the owner's ask ("Elevation can have
+              an icon like wind does"). */}
+          <span aria-hidden="true" className="inline-flex items-center gap-0.5">
+            {kind === "elev" ? <Mountain className="size-3.5 shrink-0" /> : <ArrowUp className="size-3.5 shrink-0" />}{altitude} ft
+          </span>
           <span className="sr-only">{spoken ?? (typeof altitude === "string" ? `${altitude} ft, ${KIND_WORDS[kind]}` : KIND_WORDS[kind])}</span>
         </span>
       )}

@@ -957,7 +957,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // the other still to be typed -- and with neither, there is no route:
   // FPL's box empty to type another in, the panel left the height it was,
   // as the route's close leaves it (clearRoute).
-  const setRoute = useCallback(({ dep, stops, dest }: RouteParts) => {
+  const setRoute = useCallback(({ dep, stops, dest }: RouteParts, fuelAdded: string[] = []) => {
     if (!dep && !dest) {
       setSearchParams({}, { replace: true });
       return;
@@ -976,7 +976,11 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       const kept = prunedFieldLists(fieldListsOf(prev), { dep, stops, dest }, procedureKind);
       // A route changed by hand is the route: a Direct to's own is kept,
       // and Cancel has nothing to go back to.
-      return patched(prev, { dep, dest, stops: stops.join(","), ...fieldListParams(kept), direct: null, was: null });
+      // The fuel stops among the stops (useFuelStops): those added now, and
+      // those before that are stops still.
+      const fuel = [...(prev.get("fuel") ?? "").split(","), ...fuelAdded]
+        .filter((id, i, all) => id && all.indexOf(id) === i && stops.some(stop => sameField(stop, id)));
+      return patched(prev, { dep, dest, stops: stops.join(","), ...fieldListParams(kept), direct: null, was: null, fuel: fuel.length ? fuel.join(",") : null });
     }, { replace: true });
   }, [setSearchParams]);
   // An airport's card's Add Stop, at the pilot's ask: the field the
@@ -1012,7 +1016,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     }, { replace: true });
   }, [setSearchParams]);
   const setStops = useCallback(
-    (stops: string[]) => setRoute({ dep: planned.dep, stops, dest: planned.dest }), [setRoute, planned.dep, planned.dest]);
+    (stops: string[], fuelAdded?: string[]) => setRoute({ dep: planned.dep, stops, dest: planned.dest }, fuelAdded), [setRoute, planned.dep, planned.dest]);
   // A stop taken out from its menu in FPL's list, as from its pill's.
   const removeStop = useCallback(
     (ident: string) => setStops(planned.stops.filter(stop => !sameField(stop, ident))), [setStops, planned.stops]);
@@ -1028,13 +1032,26 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // tanks (the totals' fuel_stops), kept: put in after the flight's
   // departure, in order, as many as the planner takes.
   const fuelStops = s.local ? NO_FUEL_STOPS : s.totals?.fuel_stops ?? NO_FUEL_STOPS;
+  // The tanks for FPL's fuel at each point: the fuel check's usable fuel,
+  // allowance and reserve, the first flight's where the route has stops
+  // (each is filled again), the strictest reserve of them.
+  const tankFigures = useMemo(() => {
+    const t = s.local ? null : s.totals;
+    const flights = t?.hops?.length ? t.hops.map(h => h.totals) : t ? [t] : [];
+    const usable = flights[0]?.usable_fuel_gal;
+    if (!usable) return null;
+    return {
+      usableGal: usable, taxiGal: flights[0]?.taxi_gal ?? 0,
+      reserveGal: Math.max(0, ...flights.map(f => f.reserve_gal ?? 0)),
+    };
+  }, [s.local, s.totals]);
   // Their pins on the map, every flight's.
   const fuelStopPins = useMemo(() => fuelStops.flatMap(f => f.stops.map(({ ident, lat, lon }) => ({ ident, lat, lon }))), [fuelStops]);
   const keepFuelStops = useCallback((after: string, idents: string[]) => {
     const room = MAX_STOPS - planned.stops.length;
     if (room <= 0) return;
     const at = sameField(planned.dep, after) ? 0 : planned.stops.findIndex(stop => sameField(stop, after)) + 1 || planned.stops.length;
-    setStops([...planned.stops.slice(0, at), ...idents.slice(0, room), ...planned.stops.slice(at)]);
+    setStops([...planned.stops.slice(0, at), ...idents.slice(0, room), ...planned.stops.slice(at)], idents.slice(0, room));
   }, [setStops, planned.dep, planned.stops]);
   // Add Stop open: from its own button, or from no legal altitude's --
   // "via", its Fly via round a Class B, the ways round suggested.
@@ -1702,14 +1719,14 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       at={proceduresAt} onAt={setProceduresShown} crossings={crossings} onFix={showFix} onDepart={changeDepart} ground={ground} onGround={setGround}
       pointAltitude={altitudeAt} onPointAltitude={setPointAltitude} directTo={directParam} onDirectTo={directToPoint}
       onInfo={selectPlace} onRemove={removeStop} onCreateFix={insertStopAfter} holds={holds} onHoldSet={setHold} askHold={holdAsk}
-      routePoints={routePoints} stopsFull={planned.stops.length >= MAX_STOPS} fuelStops={fuelStops} onKeepFuelStops={keepFuelStops}
+      routePoints={routePoints} stopsFull={planned.stops.length >= MAX_STOPS} fuelStops={fuelStops} onKeepFuelStops={keepFuelStops} fuel={tankFigures}
       onCharts={() => { if (planned.dest) { setApproachesOf(planned.dest); selectPlace(planned.dest); } }}
       chartsDisabled={!planned.dest || noApproaches}
     />
   ), [procedureAirports, routeRows, depart, metarColour, pickedPatterns, pickPattern, setPattern, pickedTakeoffs, setTakeoff, runwayFitInputs, pickedProcedures, routeProcedures, pickProcedures, crossings, showFix,
     ground, setGround, previewProcedure, proceduresAt, setProceduresShown, planned.dest, selectPlace, noApproaches, changeDepart,
     altitudeAt, setPointAltitude, directParam, directToPoint, removeStop, insertStopAfter, holds, setHold, holdAsk, routePoints, planned.stops.length,
-    fuelStops, keepFuelStops]);
+    fuelStops, keepFuelStops, tankFigures]);
   // Its head: the route by name, and its plan under it -- where from and
   // to, the airplane, the altitude, when -- as an airport's card has its
   // name and where it is.

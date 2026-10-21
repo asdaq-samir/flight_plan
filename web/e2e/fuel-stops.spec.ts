@@ -48,7 +48,7 @@ test("a fuel stop the planner suggests is a row of the route, dashed in its box 
   await expect(row).toBeVisible({ timeout: slow(60_000) });
   await expect(row).toHaveAttribute("data-ident", "KRPD");
   await expect(row.getByRole("heading")).toHaveText(/KRPD · Rice lake/i);
-  await expect(row.getByTestId("fuel-stop-lands")).toHaveText("18 gal");
+  await expect(row.getByTestId("fuel-gauge")).toContainText("18 gal");
 
   // Dashed in the route's box, after the departure, and pinned.
   await expect(sideDrawer(page).getByTestId("route-fuel-stop")).toHaveText("KRPD");

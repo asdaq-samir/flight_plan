@@ -35,7 +35,7 @@ test("a field's traffic pattern is picked by its runway, kept in the address and
   const procedures = page.getByTestId("procedures");
   // The route's fields in the order they are flown, each its runways as
   // chips under its arrival and approach.
-  await expect(procedures.getByRole("heading").first()).toHaveText("C81 · Depart");
+  await expect(procedures.getByRole("heading").first()).toHaveText("C81");
   const destination = procedures.getByRole("region", { name: "KDLH · Arrive" });
   await expect(destination.getByTestId("procedure-pattern").first()).toBeVisible({ timeout: slow(20000) });
   await openRunways(destination);

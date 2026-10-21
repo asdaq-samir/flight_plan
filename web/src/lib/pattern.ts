@@ -105,6 +105,9 @@ export interface WindPick {
   crosswindKt: number;
   gustCrosswindKt: number | null;
   calm: boolean;
+  /** A variable wind's speed (VRB), picked as calm is: no direction to
+   *  take a runway into. */
+  variableKt?: number;
   /** Calm now, `ident` the runway the field's last wind favoured, the one
    *  in use (the planner's RunwayWind.in_use); calm and not, the longest. */
   inUse?: boolean;
@@ -161,7 +164,16 @@ export function windPick(runways: Runway[], nearby?: ReportedWind | null, foreca
     const longest = runwayInUse(runways);
     return { ident: longest ? runwayNumber(longest.end.ident) : "", headwindKt: 0, crosswindKt: 0, gustCrosswindKt: null, calm: true, from, ...forecast };
   }
-  if (nearby.dirTrueDeg == null) return null;
+  if (nearby.dirTrueDeg == null) {
+    // A variable wind (VRB, FAA Order JO 7900.5) has no direction to land
+    // into: the runway in use or the longest, as calm, at the owner's
+    // screenshot (C81 under KUGN's VRB06KT left with no runway at all).
+    const longest = runwayInUse(runways);
+    return {
+      ident: longest ? runwayNumber(longest.end.ident) : "", headwindKt: 0, crosswindKt: 0, gustCrosswindKt: null,
+      calm: true, variableKt: Math.round(nearby.speedKt), from, ...forecast,
+    };
+  }
   const dir = nearby.dirTrueDeg, speed = nearby.speedKt;
   const best = [...ends].sort((a, b) => headwindKt(dir, speed, b.heading) - headwindKt(dir, speed, a.heading)
     || (b.runway.length_ft ?? 0) - (a.runway.length_ft ?? 0))[0]!;
