@@ -123,7 +123,8 @@ export default function AltitudeGroup({ nav, legs, problem = false, ownAltitude 
       // input similar to route box style where profile button only shows
       // with an altitude there"): its fill and its type, not a chip of
       // glass; with no route its placeholder alone, as the box's.
-      className={cn("flex h-8 items-center rounded-full", PANEL_FIELD_FILL, TEXT.row)}
+      // 36 tall, as the airplane's button beside it (FlightInputs).
+      className={cn("flex h-9 items-center rounded-full", PANEL_FIELD_FILL, TEXT.row)}
       data-testid="altitude-group"
     >
       {/* The field and its unit one label, a tap on "ft" the field's too,
@@ -162,10 +163,9 @@ export default function AltitudeGroup({ nav, legs, problem = false, ownAltitude 
       {(nav || problem) && !disabled && <button
         type="button" onClick={onOpenProfile}
         className={cn(
-          // The icon buttons' one size, 36 square with a 20-point glyph,
-          // standing past the 32-point group above and below, where it has
-          // no fill to show; its 44-point area round it.
-          "relative -my-0.5 flex size-9 shrink-0 items-center justify-center rounded-full text-tint outline-none after:absolute after:-inset-1 after:content-[''] focus-visible:ring-2 focus-visible:ring-ring",
+          // The icon buttons' one size, 36 square with a 20-point glyph, the
+          // group's height; its 44-point area round it.
+          "relative flex size-9 shrink-0 items-center justify-center rounded-full text-tint outline-none after:absolute after:-inset-1 after:content-[''] focus-visible:ring-2 focus-visible:ring-ring",
           problem && "text-red-700 dark:text-red-300",
         )}
         aria-label={`Cruising altitude${rules === "ifr" ? " under IFR" : ""}, ${why}${!problem && tight ? ", tight" : ""}${!problem && cautions.length ? ", your altitude has a caution" : ""}: set it on the profile`}
