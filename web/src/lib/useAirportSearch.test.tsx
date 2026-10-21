@@ -18,8 +18,7 @@ vi.mock("./api/client", async importOriginal => ({
 const { api } = await import("./api/client");
 const { useAirportSearch } = await import("./useAirportSearch");
 
-function wrapper() {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+function wrapper(client = new QueryClient({ defaultOptions: { queries: { retry: false } } })) {
   return ({ children }: { children: ReactNode }) => createElement(QueryClientProvider, { client }, children);
 }
 
@@ -35,7 +34,10 @@ describe("the phone's own copy", () => {
   test("is downloaded once the page is idle, and read only once the pilot goes to type", async () => {
     vi.stubGlobal("requestIdleCallback", (go: () => void) => setTimeout(go, 0));
     try {
-      const { result } = renderHook(() => useAirportSearch("", true), { wrapper: wrapper() });
+      // The map's airports answered: the page's own requests are in.
+      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      client.setQueryData(["airportsInView", "view", false], []);
+      const { result } = renderHook(() => useAirportSearch("", true), { wrapper: wrapper(client) });
       await waitFor(() => expect(api.warmAirportIndex).toHaveBeenCalledTimes(1));
       expect(api.airportIndex).not.toHaveBeenCalled();
       // A field focused: the keyboard on its way up.

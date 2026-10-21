@@ -42,7 +42,18 @@ describe("the index's download", () => {
   });
 
   test("goes at once on a page with nothing in flight", async () => {
-    render(new QueryClient());
+    const client = new QueryClient();
+    client.setQueryData(["airportsInView", "view", false], []);
+    render(client);
+    await waitFor(() => expect(api.warmAirportIndex).toHaveBeenCalledTimes(1));
+  });
+
+  test("waits for the view's airports to be asked and answered, though nothing is in flight", async () => {
+    const client = new QueryClient();
+    render(client);
+    await new Promise(r => setTimeout(r, 50));
+    expect(api.warmAirportIndex).not.toHaveBeenCalled();
+    client.setQueryData(["airportsInView", "view", false], []);
     await waitFor(() => expect(api.warmAirportIndex).toHaveBeenCalledTimes(1));
   });
 
