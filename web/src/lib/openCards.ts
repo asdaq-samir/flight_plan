@@ -7,9 +7,13 @@
  */
 import { create } from "zustand";
 
-/** A card's share: its own, or "route", the route's Share menu (the Brief's
- *  and the nav log's, which are the route's). */
-export type CardShare = (() => void) | "route";
+/** The cards of the route whose Share is a menu of the route's things,
+ *  each its own (ShareMenu's `card`). */
+export type RouteCard = "brief" | "navlog" | "profile";
+
+/** A card's share: its own, or one of the route's cards, whose Share menu
+ *  is the route's things that card has (the Brief's Print the briefing). */
+export type CardShare = (() => void) | RouteCard;
 
 type OpenCard = { close: () => void; inBar?: boolean; share?: CardShare };
 

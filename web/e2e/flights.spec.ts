@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { consoleSheet, controlsInSight, grabberTo, library, openConsole, openMapSettings, openPanel, showTabs, sideDrawer } from "./helpers";
+import { consoleSheet, controlsInSight, grabberTo, library, openBrief, openConsole, openMapSettings, openPanel, showTabs, sideDrawer } from "./helpers";
 
 /**
  * "Save this flight", at the head of the briefing drawer's sections, for
@@ -91,7 +91,7 @@ test("signed out, there is nothing to save", async ({ page }) => {
   // one is up, the page under it is out of reach of the queries below.
   await expect(page.getByTestId("share-route")).toBeVisible({ timeout: 30_000 });
   await page.getByTestId("share-route").click();
-  await expect(page.getByTestId("print-briefing")).toBeVisible();
+  await expect(page.getByTestId("file-flight-plan")).toBeVisible();
   await expect(page.getByTestId("save-flight-button")).toHaveCount(0);
   await page.keyboard.press("Escape");
 });
@@ -179,12 +179,12 @@ test("Edit over the saved flights puts a minus before each, and the minus delete
   expect(removed).toEqual(["DELETE"]);
 });
 
-test("Print is in Share's menu; Keep Charts Offline is a setting under Map, which cannot be on over plain http", async ({ page }) => {
+test("Print is in the Brief's Share menu; Keep Charts Offline is a setting under Map, which cannot be on over plain http", async ({ page }) => {
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await controlsInSight(page);
-  await page.getByTestId("share-route").click();
+  await openBrief(page);
+  await page.getByTestId("tab-share").click();
   await expect(page.getByTestId("print-briefing")).toBeVisible();
-  await expect(page.getByTestId("print-kneeboard")).toBeVisible();
   await page.keyboard.press("Escape");
 
   // From the search bar, the route closed.

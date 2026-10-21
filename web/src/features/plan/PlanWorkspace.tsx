@@ -32,6 +32,7 @@ import { useIsMobile } from "../../hooks/use-mobile";
 import { useNavEdge } from "../../hooks/use-nav-edge";
 import RoundButton from "../../components/RoundButton";
 import ShareMenu from "./components/ShareMenu";
+import type { RouteCard } from "../../lib/openCards";
 import TipHost from "../../components/TipHost";
 import { useCardTitle, usePanelDragging } from "../../components/mapChrome";
 import { CardHead } from "../../components/PanelCard";
@@ -1723,7 +1724,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           // "Nav log" is the tab bar's title over it already (the owner's
           // "Profile and Navlog titles appear twice").
           name={routeName(planned.dep, planned.dest, planned.stops)} line={briefLine} nameTestId="navlog-name"
-          onClose={closeNavLogCard} onShare="route" closeTestId="navlog-close"
+          onClose={closeNavLogCard} onShare="navlog" closeTestId="navlog-close"
         />
       ) : undefined}
       aircraftLabel={aircraft.label}
@@ -1777,6 +1778,10 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       altitude={!s.local && (
         <AltitudeGroup
           nav={s.nav} legs={s.legs} onFlyAltitude={flyAltitude} onOpenProfile={openProfileCard}
+          // The altitude asked for, at once, while its log is planned, and
+          // with no log yet: with no route the figure typed went blank, as
+          // if it were not taken, where the route entered next flies it.
+          commanded={(s.replanning || !s.nav) && altitudeFt ? Number(altitudeFt) : null}
           problem={!!unflyable}
           // What the altitude was planned within, marked on the group, said
           // in the Profile card (AltitudeProfile).
@@ -1793,7 +1798,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       depart={depart} onDepartChange={s.local ? changeDepart : undefined}
     />
   ), [aircraftValue, aircraftChoices, changeAircraft, s.local, s.nav, s.legs, flyAltitude, openProfileCard, unflyable, tightLeg,
-    routed, depart, changeDepart, flightRules]);
+    routed, depart, changeDepart, flightRules, s.replanning, altitudeFt]);
 
   // Saving the flight, the narrative and Print.
   const addingChange = useCallback((open: boolean) => setAddingStop(open ? "stop" : false), []);
@@ -1820,9 +1825,9 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     aircraftId: aircraft.aircraftId ?? null, depart, altitudes, picks: picksOf(searchParams),
   };
   // Share and everything else the route's row had (ShareMenu).
-  const shareMenu = (align: "start" | "end", testId?: string) => (
+  const shareMenu = (align: "start" | "end", testId?: string, card?: RouteCard) => (
     <ShareMenu
-      align={align} testId={testId} planned={planned} course={course} selected={selected} altitudeFt={s.nav?.altitude_ft ?? undefined}
+      align={align} testId={testId} card={card} planned={planned} course={course} selected={selected} altitudeFt={s.nav?.altitude_ft ?? undefined}
       routed={routed} hasPoints={hasPoints} local={!!s.local} fileable={fileable} onFile={fileFlightPlan} onClear={clearRoute}
       saving={askReview => (
         <Suspense fallback={null}>
@@ -1951,7 +1956,10 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
             from the altitude's own button beside the airplane, at the
             owner's ask ("we won't need a separate profile button next to
             navlog"). */}
-        {shareMenu("end")}
+        {/* Not before there is a route, at the owner's ask ("the share
+            button should not appear before a route is entered"): the box
+            clears itself (its own clear). */}
+        {routed && shareMenu("end")}
       </div>
     </div>
   );
@@ -2163,7 +2171,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     // The planner's tabs, the panel's first row, and at rest the pill
     // itself, at the pilot's ask: no search bar or route under them
     // (MapPanel).
-    bar: <TabBar tabs={PLANNER_TABS} tab={tab} over={(place || heldPoint) && tab !== "airport" ? "airport" : undefined} title={cardTitle} onPick={pickTab} onUp={tabUp} onClose={closeSheet} routeShare={shareMenu("start", "tab-share")} listOver={!!list || savedOpen || nearOpen} marks={s.unflyable ? { fpl: "stop" } : undefined} />,
+    bar: <TabBar tabs={PLANNER_TABS} tab={tab} over={(place || heldPoint) && tab !== "airport" ? "airport" : undefined} title={cardTitle} onPick={pickTab} onUp={tabUp} onClose={closeSheet} routeShare={card => shareMenu("start", "tab-share", card)} listOver={!!list || savedOpen || nearOpen} marks={s.unflyable ? { fpl: "stop" } : undefined} />,
     // The route's figures -- the distance, the time en route, the arrival
     // and the fuel -- pinned at FPL's foot while there is a route, at every
     // height, the pill too, at the pilot's ask: they were the last of the

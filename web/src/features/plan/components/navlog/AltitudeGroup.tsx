@@ -75,9 +75,12 @@ function planAt(nav: NavLogAltitude | null, altitude: number): AltitudeChoice | 
  * chip was: red with no legal altitude, IFR's flag, a tight altitude and a
  * pilot's own altitude's caution.
  */
-export default function AltitudeGroup({ nav, legs, problem = false, tight = null, onFlyAltitude, onOpenProfile, disabled = false, rules = "vfr" }: {
+export default function AltitudeGroup({ nav, legs, commanded = null, problem = false, tight = null, onFlyAltitude, onOpenProfile, disabled = false, rules = "vfr" }: {
   nav: NavLogAltitude | null;
   legs: Leg[];
+  /** The altitude the pilot asked for, feet, while its log is planned: the
+   *  field shows it from the moment it is asked, not the one before it. */
+  commanded?: number | null;
   /** No legal altitude on the route: the group red, its card saying why. */
   problem?: boolean;
   /** A leg where no 500 ft step fits (vfr.altitude's tight altitude). */
@@ -100,7 +103,8 @@ export default function AltitudeGroup({ nav, legs, problem = false, tight = null
   // 91.121(a)): the figure is hundreds of feet MSL, and the planner's are
   // feet MSL still, as VoiceOver says them (`said`). Typed, three figures
   // or fewer are hundreds of feet, as written; more, feet.
-  const shown = typed ?? (problem || cruise === null ? "" : flightLevel(cruise).slice(2));
+  const flying = commanded ?? cruise;
+  const shown = typed ?? (problem || flying === null ? "" : flightLevel(flying).slice(2));
   const top = rules === "ifr" ? 41_000 : 17_999;
   const fly = () => {
     if (typed === null) return;
@@ -109,9 +113,9 @@ export default function AltitudeGroup({ nav, legs, problem = false, tight = null
     setTyped(null);
     // A VFR altitude is under Class A (14 CFR 71.33, 91.135); IFR's up to
     // FL410, the highest 91.179(b)(4) names.
-    if (ft >= 500 && ft <= top && ft !== cruise) onFlyAltitude(ft);
+    if (ft >= 500 && ft <= top && ft !== flying) onFlyAltitude(ft);
   };
-  const why = problem ? "no legal altitude" : cruise !== null ? said(cruise)
+  const why = problem ? "no legal altitude" : flying !== null ? said(flying)
     : nav?.flown === null ? "no altitude: no winds" : "not yet planned";
   return (
     <div
