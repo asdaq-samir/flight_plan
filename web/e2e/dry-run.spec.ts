@@ -89,9 +89,13 @@ test("the dry run's chart draws the airspace the course passes through, named as
   }
 });
 
-test("the dry run waits for the legs: its button dimmed until they are all in, and then it flies", async ({ page }) => {
+test("the dry run waits for the legs: no way to it until the plan is in, and then it flies", async ({ page }) => {
   // A tap before the legs had streamed in did nothing (the side view is
   // drawn before them): seen as the phone's run of this spec tapped it.
+  // The Profile card, where the dry run is, opens from the altitude's
+  // button, which shows only once there is a plan (the owner's ask: "profile
+  // button only shows with an altitude there"), so with the plan held back
+  // there is no way to the run at all.
   let release!: () => void;
   const held = new Promise<void>(done => { release = done; });
   await page.route(url => url.pathname.endsWith("/planner/navlog"), async route => {
@@ -101,11 +105,11 @@ test("the dry run waits for the legs: its button dimmed until they are all in, a
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   await openPanel(page);
+  await expect(sideDrawer(page).getByTestId("altitude-group")).toBeVisible({ timeout: slow(60_000) });
+  await expect(sideDrawer(page).getByTestId("altitude-why")).toHaveCount(0);
+  release();
   await openProfile(page);
   const start = sideDrawer(page).getByTestId("dry-run-start");
-  await expect(start).toBeVisible({ timeout: slow(60_000) });
-  await expect(start).toBeDisabled();
-  release();
   await expect(start).toBeEnabled({ timeout: slow(60_000) });
   await start.click();
   await expect(page.locator('[data-own-ship="on"]')).toHaveCount(1);
