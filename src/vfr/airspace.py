@@ -29,6 +29,7 @@ import threading
 from pathlib import Path
 
 import shapefile
+from cachetools import TTLCache
 from shapely import STRtree, from_wkb, points as shapely_points, to_wkb
 from shapely.geometry import LineString, Point, shape as shapely_shape
 from shapely.ops import unary_union
@@ -481,6 +482,17 @@ DETOUR_NON_VFR_NM = 10.0
 #: How many ways round a pilot is offered to choose from.
 DETOUR_CHOICES = 5
 
+#: How far the eased outline _detour_through sorts lines by first may
+#: stray from the Class B's own, in degrees (about 0.1 nm); the real
+#: outline still decides every line near its margin.
+WALL_EASED_DEG = 0.002
+
+#: detour_waypoints by leg and the Class B in its way, bounded. The
+#: airspace changes only with the FAA's chart cycle; six hours is well
+#: inside one.
+_DETOURS: TTLCache = TTLCache(maxsize=256, ttl=6 * 3600)
+_DETOURS_LOCK = threading.Lock()
+
 
 def detour_waypoints(route_start: tuple, route_end: tuple, shp_path, below_ft: float) -> list[dict]:
     """Named fixes to fly through so that neither leg enters the Class B
@@ -502,9 +514,25 @@ def detour_waypoints(route_start: tuple, route_end: tuple, shp_path, below_ft: f
     ]
     if not blocking:
         return []
-    west, south, east, north = unary_union(blocking).bounds
+    # The same ways round for every altitude with the same airspace under
+    # it: Atlanta's Class B blocks 8,000 ft and 12,000 ft alike, and each
+    # altitude picked worked them out again (2026-10-21).
+    key = (tuple(route_start), tuple(route_end), tuple(sorted((p["name"], p["floor_ft_msl"], p["geometry"].bounds) for p in polygons
+                                                if p["class"] in CLEARANCE_CLASSES and p["floor_ft_msl"] < below_ft
+                                                and p["name"] not in own)))
+    with _DETOURS_LOCK:
+        if key in _DETOURS:
+            return _DETOURS[key]
+    # Their bounds piece by piece: a union of them all here as well as in
+    # _detour_through was half a second round Atlanta.
+    bounds = [g.bounds for g in blocking]
+    west, south = min(b[0] for b in bounds), min(b[1] for b in bounds)
+    east, north = max(b[2] for b in bounds), max(b[3] for b in bounds)
     pad = DETOUR_MAX_ADDED_NM / 60.0
-    return _detour_through(route_start, route_end, blocking, fixes.within(south - pad, west - pad, north + pad, east + pad))
+    ways = _detour_through(route_start, route_end, blocking, fixes.within(south - pad, west - pad, north + pad, east + pad))
+    with _DETOURS_LOCK:
+        _DETOURS[key] = ways
+    return ways
 
 
 def class_b_entered(route_start: tuple, route_end: tuple, shp_path, altitude_ft: float) -> bool:
@@ -529,24 +557,56 @@ def class_b_entered(route_start: tuple, route_end: tuple, shp_path, altitude_ft:
 
 def _detour_through(route_start: tuple, route_end: tuple, blocking: list, candidates: list[dict]) -> list[dict]:
     """detour_waypoints' choice among `candidates` (fixes, as vfr.fixes
-    has them) round the `blocking` geometries, lon/lat as the shapefile's."""
-    from shapely.prepared import prep
+    has them) round the `blocking` geometries, lon/lat as the shapefile's.
+
+    Measured and tested whole, not a fix at a time: round Atlanta's Class
+    B some eight thousand fixes are near enough to weigh, and one shapely
+    call per leg to each was two seconds of every altitude a pilot picked
+    on a long route (2026-10-21, KSTL-KJAX)."""
+    import numpy as np
+    import shapely
 
     from .geo import distance_nm
 
-    wall = prep(unary_union(blocking).buffer(DETOUR_MARGIN_NM / 60.0))
+    # The Class B's arcs as the shapefile draws them are tens of thousands
+    # of points round Atlanta, slow to test thousands of lines against.
+    # Eased to within WALL_EASED_DEG (Douglas-Peucker: no point of either
+    # outline further than that from the other), a wall widened by twice
+    # that holds the real one and one narrowed by as much lies inside it:
+    # a line clear of the wider is clear, one into the narrower is not, and
+    # only the few between are tested against the real wall -- the same
+    # answer, quickly.
+    airspace = unary_union(blocking)
+    margin = DETOUR_MARGIN_NM / 60.0
+    exact = airspace.buffer(margin)
+    eased = airspace.simplify(WALL_EASED_DEG)
+    wider, narrower = eased.buffer(margin + 2 * WALL_EASED_DEG), eased.buffer(margin - 2 * WALL_EASED_DEG)
+    for wall in (exact, wider, narrower):
+        shapely.prepare(wall)
     direct = distance_nm(*route_start, *route_end)
+    if not candidates:
+        return []
+    lat = np.array([fix["lat"] for fix in candidates], dtype=float)
+    lon = np.array([fix["lon"] for fix in candidates], dtype=float)
+    added = distance_nm(route_start[0], route_start[1], lat, lon) + distance_nm(lat, lon, route_end[0], route_end[1]) - direct
+    near = np.flatnonzero(added <= DETOUR_MAX_ADDED_NM)
+    if not len(near):
+        return []
+    starts = np.repeat([[route_start[1], route_start[0]]], len(near), axis=0)
+    ends = np.repeat([[route_end[1], route_end[0]]], len(near), axis=0)
+    vias = np.column_stack([lon[near], lat[near]])
+    legs = (shapely.linestrings(np.stack([starts, vias], axis=1)), shapely.linestrings(np.stack([vias, ends], axis=1)))
+
+    inbound, outbound = legs
+    blocked = shapely.intersects(narrower, inbound) | shapely.intersects(narrower, outbound)
+    unsure = ~blocked & (shapely.intersects(wider, inbound) | shapely.intersects(wider, outbound))
+    blocked[unsure] = shapely.intersects(exact, inbound[unsure]) | shapely.intersects(exact, outbound[unsure])
+    clear = ~blocked
     ranked = []
-    for fix in candidates:
-        added = distance_nm(*route_start, fix["lat"], fix["lon"]) + distance_nm(fix["lat"], fix["lon"], *route_end) - direct
-        if added > DETOUR_MAX_ADDED_NM:
-            continue
-        via = (fix["lon"], fix["lat"])
-        if wall.intersects(LineString([(route_start[1], route_start[0]), via])) or wall.intersects(
-                LineString([via, (route_end[1], route_end[0])])):
-            continue
-        rank = added + (0.0 if fix.get("vfr") else DETOUR_NON_VFR_NM)
-        ranked.append((rank, {"ident": fix["ident"], "kind": fix.get("kind", "Fix"), "added_nm": round(added, 1)}))
+    for i in near[clear]:
+        fix = candidates[i]
+        rank = float(added[i]) + (0.0 if fix.get("vfr") else DETOUR_NON_VFR_NM)
+        ranked.append((rank, {"ident": fix["ident"], "kind": fix.get("kind", "Fix"), "added_nm": round(float(added[i]), 1)}))
     return [detour for _, detour in sorted(ranked, key=lambda r: (r[0], r[1]["ident"]))[:DETOUR_CHOICES]]
 
 
