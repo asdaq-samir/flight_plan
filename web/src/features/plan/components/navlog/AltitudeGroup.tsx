@@ -118,6 +118,10 @@ export default function AltitudeGroup({ nav, legs, commanded = null, problem = f
     if (ft >= 500 && ft <= top && ft !== flying) onFlyAltitude(ft);
   };
   const profiled = !disabled && (problem || (!!nav && (flying !== null || nav.flown === null)));
+  // The button there as soon as a figure is, greyed till the plan it shows
+  // is in, at the owner's ask ("make the profile button appear right after
+  // entry but just make it disabled").
+  const entered = shown !== "";
   const why = problem ? "no legal altitude" : flying !== null ? said(flying)
     : nav?.flown === null ? "no altitude: no winds" : "not yet planned";
   return (
@@ -169,33 +173,36 @@ export default function AltitudeGroup({ nav, legs, commanded = null, problem = f
             up"), or why there is none to show. The flight rules are the Profile card's switch alone, at the
             owner's ask ("no need to mention IFR or VFR"); VoiceOver hears them
             in the button's name still. */}
-        {profiled && <span aria-hidden="true" className="h-4 w-px bg-border" />}
-        {profiled && <button
-          type="button" onClick={onOpenProfile}
+        {(profiled || entered) && <span aria-hidden="true" className="h-4 w-px bg-border" />}
+        {(profiled || entered) && <button
+          type="button" onClick={onOpenProfile} disabled={!profiled}
           className={cn(
             // The icon buttons' one size, 36 square with a 20-point glyph, the
             // group's height; its 44-point area round it.
-            "relative flex size-9 shrink-0 items-center justify-center rounded-full text-tint outline-none after:absolute after:-inset-1 after:content-[''] focus-visible:ring-2 focus-visible:ring-ring",
+            "relative flex size-9 shrink-0 items-center justify-center rounded-full text-tint outline-none after:absolute after:-inset-1 after:content-[''] focus-visible:ring-2 focus-visible:ring-ring disabled:text-muted-foreground",
             problem && "text-red-700 dark:text-red-300",
           )}
           aria-label={`Cruising altitude${rules === "ifr" ? " under IFR" : ""}, ${why}${!problem && tight ? ", tight" : ""}${!problem && cautions.length ? ", your altitude has a caution" : ""}: set it on the profile`}
           data-testid="altitude-why" data-tip="altitude"
         >
-          {/* One amber dot at the button's top corner, as the Brief's tabs mark
-              theirs, at the owner's ask ("move the dot to the top corner of
-              the profile button because that's where it can be tapped"): a
-              caution on the pilot's own altitude, else a tight one, which the
-              Profile card says. Said in the button's name. */}
-          {!problem && (cautions.length > 0 || tight) && (
-            <span
-              className="absolute top-0.5 right-0.5 size-2 rounded-full bg-amber-500" aria-hidden="true"
-              data-testid={cautions.length > 0 ? "own-altitude-flag" : "tight-altitude-flag"}
-            />
-          )}
-          {/* The route from the side, the profile's own mark. */}
-          <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d="M3 19h18" /><path d="M3 16l4-5 3 2 4-6 3 3 4-3" />
-          </svg>
+          {/* One amber dot on the glyph's top corner, inside the button as
+              the Brief's is, at the owner's asks ("move the dot to the top
+              corner of the profile button", "The dot is within the button
+              for brief but not for profile"): a caution on the pilot's own
+              altitude, else a tight one, which the Profile card says. Said in
+              the button's name. The route from the side, the profile's own
+              mark. */}
+          <span className="relative">
+            <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M3 19h18" /><path d="M3 16l4-5 3 2 4-6 3 3 4-3" />
+            </svg>
+            {profiled && !problem && (cautions.length > 0 || tight) && (
+              <span
+                className="absolute -top-0.5 -right-1 size-2 rounded-full bg-amber-500" aria-hidden="true"
+                data-testid={cautions.length > 0 ? "own-altitude-flag" : "tight-altitude-flag"}
+              />
+            )}
+          </span>
         </button>}
       </div>
     </div>

@@ -6,6 +6,10 @@ import { useEffect, useRef, useState, type MouseEvent, type PointerEvent as Reac
  *  dragged the sheet instead, and its click was swallowed. */
 const DRAG_SLOP = 10;
 
+/** How much more than its own height a box must hold before it counts as
+ *  one to scroll, in px: past a hit area's reach, short of a line. */
+const SCROLL_SLOP_PX = 8;
+
 /** How far back a release looks for the finger's speed, in milliseconds,
  *  as UIKit's pan reads its velocity over the last moments of the drag:
  *  a finger that has held still that long lets the sheet go where it is.
@@ -167,6 +171,13 @@ export function useDetentDrag<S extends string>({ detents, shown, fromBottom, on
   const [body, setBody] = useState<HTMLElement | null>(null);
   useEffect(() => {
     if (!body) return;
+    // Whether a box has more to scroll than a few points: the route box of
+    // two lines ran 2 px past its own height at the owner's larger text
+    // (its pills' 44-point hit areas, index.css, reaching past the last
+    // line), which took it for a box with lines to scroll first, and the
+    // drag scrolled those 2 px in place of the card ("route box is still
+    // scrolling", 2026-10-21). A line is 32 px or more.
+    const scrolls = (el: Element) => el.scrollHeight - el.clientHeight > SCROLL_SLOP_PX;
     // Whether the sheet takes a drag on `target` that went `dy` down the
     // screen.
     const sheetTakes = (target: Element, dy: number) => {
@@ -178,12 +189,12 @@ export function useDetentDrag<S extends string>({ detents, shown, fromBottom, on
         // there are three lines which should scroll first and then drag")
         // -- scrolls while it can the way the finger goes, either way, and
         // only then hands the drag to the sheet.
-        if (el instanceof HTMLElement && el.dataset.scrollFirst !== undefined && el.scrollHeight > el.clientHeight + 1
+        if (el instanceof HTMLElement && el.dataset.scrollFirst !== undefined && scrolls(el)
           && (dy < 0 ? el.scrollTop + el.clientHeight < el.scrollHeight - 1 : el.scrollTop > 0)) return false;
       }
       if (bottom ? dy < 0 : dy > 0) return now < Math.max(...Object.values<number>(d)) - 1;
       for (let el: Element | null = target; el && el !== body.parentElement; el = el.parentElement) {
-        if (el.scrollHeight > el.clientHeight + 1 && /auto|scroll/.test(getComputedStyle(el).overflowY)
+        if (scrolls(el) && /auto|scroll/.test(getComputedStyle(el).overflowY)
           && (bottom ? el.scrollTop > 0 : el.scrollTop + el.clientHeight < el.scrollHeight - 1)) return false;
       }
       return true;

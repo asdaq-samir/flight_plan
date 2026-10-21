@@ -52,8 +52,8 @@ describe("useDetentDrag scroll-first box", () => {
     const { body } = useDetentDrag({ detents, shown: 300, fromBottom: true, onRelease, setDragged: vi.fn() });
     return <div ref={body}><div data-scroll-first="" data-testid="box"><p data-testid="line">KDLH</p></div></div>;
   }
-  const lines = (el: HTMLElement, scrollTop: number) => {
-    Object.defineProperty(el, "scrollHeight", { value: 96, configurable: true });
+  const lines = (el: HTMLElement, scrollTop: number, scrollHeight = 96) => {
+    Object.defineProperty(el, "scrollHeight", { value: scrollHeight, configurable: true });
     Object.defineProperty(el, "clientHeight", { value: 64, configurable: true });
     el.scrollTop = scrollTop;
   };
@@ -71,6 +71,20 @@ describe("useDetentDrag scroll-first box", () => {
     expect(onRelease).not.toHaveBeenCalled();
     // Scrolled to its end: the sheet takes the drag.
     lines(box, 32);
+    fire(line, "touchstart", [touch(line, 400)]);
+    fire(line, "touchmove", [touch(line, 380)]);
+    fire(line, "touchmove", [touch(line, 300)]);
+    fire(line, "touchend", []);
+    expect(onRelease).toHaveBeenCalledTimes(1);
+  });
+
+  it("drags the sheet for two lines a hit area's reach past the box's height", () => {
+    // The owner's "route box is still scrolling": two lines at a larger
+    // text size held 2 px more than the box.
+    const onRelease = vi.fn();
+    const { getByTestId } = render(<Boxed onRelease={onRelease} />);
+    const box = getByTestId("box"), line = getByTestId("line");
+    lines(box, 0, 66);
     fire(line, "touchstart", [touch(line, 400)]);
     fire(line, "touchmove", [touch(line, 380)]);
     fire(line, "touchmove", [touch(line, 300)]);
