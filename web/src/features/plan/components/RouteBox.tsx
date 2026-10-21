@@ -518,9 +518,10 @@ export default function RouteBox({
               <ClearButton label="Clear the route" testId="route-box-clear" onClear={onClear} className="mt-[0.6875rem]" />
             )}
             {/* Its own taps, not the box's room (isRoom), which types at the
-                route's end; eight under the lines, the clear's 44-point area
-                and Share's apart (the iOS audit's P1). */}
-            {footer && <div className="flex w-full basis-full items-center pt-2 pr-0.5 pb-2 pl-1.5" data-testid="route-box-footer">{footer}</div>}
+                route's end; ten under the lines, the clear's 44-point area
+                and the last button's apart (the iOS audit's P1: at eight,
+                the refresh's 32-point button took a point of the clear's). */}
+            {footer && <div className="flex w-full basis-full items-center pt-2.5 pr-0.5 pb-2 pl-1.5" data-testid="route-box-footer">{footer}</div>}
           </InputGroup>
         </PopoverAnchor>
         <PopoverContent

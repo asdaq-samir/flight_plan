@@ -249,9 +249,9 @@ test("an approach puts its field's runway on its own, and another is let only wh
   await page.keyboard.press("Escape");
   await expect(page.locator("path.traffic-pattern")).toHaveCount(0);
   // Its plate has no circling line: no other runway, and none is no
-  // choice either.
+  // choice either. By its number: the live wind may name 27 into it first.
   await openRunways(kdlh);
-  await expect(kdlh.getByRole("radio", { name: /^Runway 27, no circling on the ILS 09/ })).toBeDisabled();
+  await expect(kdlh.getByRole("radio", { name: /^Runway 27\b.*, no circling on the ILS 09/ })).toBeDisabled();
   await expect(kdlh.getByRole("radio", { name: /None/ })).toBeDisabled();
 
   // One that publishes circling minimums: 27 is a circle to land.
@@ -407,7 +407,8 @@ test.describe("on the owner's phone's width, to a finger", () => {
   await grabberTo(page, "half");
   const box = sideDrawer(page).getByTestId("route-box");
   await expect(box.getByTestId("route-procedure")).toBeVisible({ timeout: slow(10000) });
-  expect((await box.boundingBox())!.height).toBeLessThanOrEqual(48);
+  // Its lines', the buttons under them in the box since the owner's ask.
+  expect((await box.getByTestId("route-slide").boundingBox())!.height).toBeLessThanOrEqual(48);
 });
 });
 
