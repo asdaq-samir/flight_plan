@@ -7,6 +7,7 @@ import com.northflyers.vfr.dto.InspectionsRequest;
 import com.northflyers.vfr.repository.AircraftRepository;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import org.springframework.stereotype.Service;
 
@@ -31,9 +32,11 @@ public class AircraftService {
     }
 
     public Aircraft add(Pilot pilot, String tailNumber, String typeDesignator, double cruiseTasKt, double fuelBurnGph,
-                        Double cruisePowerPct, Double climbTasKt, Double climbFuelBurnGph, Double usableFuelGal) {
+                        Double cruisePowerPct, Double climbTasKt, Double climbFuelBurnGph, Double usableFuelGal,
+                        String equipment, String surveillance, String colour) {
         return aircraft.save(new Aircraft(pilot, tailNumber, typeDesignator, cruiseTasKt, fuelBurnGph, cruisePowerPct,
-                climbTasKt, climbFuelBurnGph, usableFuelGal));
+                climbTasKt, climbFuelBurnGph, usableFuelGal)
+                .describeForFlightPlan(code(equipment), code(surveillance), words(colour)));
     }
 
     /** Empty when no such aircraft exists for this pilot -- not
@@ -41,9 +44,22 @@ public class AircraftService {
      *  identically to a caller guessing ids on purpose. */
     public Optional<Aircraft> update(Pilot pilot, Long id, String tailNumber, String typeDesignator,
                                      double cruiseTasKt, double fuelBurnGph, Double cruisePowerPct, Double climbTasKt,
-                                     Double climbFuelBurnGph, Double usableFuelGal) {
+                                     Double climbFuelBurnGph, Double usableFuelGal,
+                                     String equipment, String surveillance, String colour) {
         return get(pilot, id).map(a -> aircraft.save(a.update(tailNumber, typeDesignator, cruiseTasKt, fuelBurnGph,
-                cruisePowerPct, climbTasKt, climbFuelBurnGph, usableFuelGal)));
+                cruisePowerPct, climbTasKt, climbFuelBurnGph, usableFuelGal)
+                .describeForFlightPlan(code(equipment), code(surveillance), words(colour))));
+    }
+
+    /** Item 10's codes as the form writes them, in capitals (AIM Appendix
+     *  4, TBL 4-2 and 4-3); blank is none. */
+    static String code(String typed) {
+        return typed == null || typed.isBlank() ? null : typed.strip().toUpperCase(Locale.ROOT);
+    }
+
+    /** Words as typed, their spaces made single; blank is none. */
+    static String words(String typed) {
+        return typed == null || typed.isBlank() ? null : typed.strip().replaceAll("\\s+", " ");
     }
 
     /** The airplane's VOR check for IFR, as the pilot records it (14 CFR 91.171(d)). */

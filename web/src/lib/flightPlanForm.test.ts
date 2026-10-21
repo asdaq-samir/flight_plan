@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { Leg, Totals } from "./api/types";
-import { cruisingLevel, cruisingSpeed, flightPlanForms, formText, hoursMinutes, routeItem, type FormInput } from "./flightPlanForm";
+import {
+  cruisingLevel, cruisingSpeed, flightPlanForms, formText, hoursMinutes, personsOnBoard, routeItem, withPersonsOnBoard, type FormInput,
+} from "./flightPlanForm";
 
 const airway = (stop: string) => /^[VTJQ]\d{1,4}$/.test(stop);
 
@@ -54,8 +56,8 @@ describe("the FAA flight plan form, filled in from a plan", () => {
   it("an IFR flight: the airplane, the time in UTC, the route, the EET, the alternate and the endurance", () => {
     const [form] = flightPlanForms(BASE);
     expect(form!.items.map(f => `${f.item} ${f.value}`)).toEqual([
-      "8 IFR", "7 N12345", "9 C172/L", "13 C81", "13 1505", "15 N0112", "15 A060", "15 BAE V191 OSH",
-      "16 KATW", "16 0105", "16 KMSN", "19 0428",
+      "8 IFR", "7 N12345", "9 C172/L", "10a null", "10b null", "13 C81", "13 1505", "15 N0112", "15 A060", "15 BAE V191 OSH",
+      "16 KATW", "16 0105", "16 KMSN", "19 0428", "19 null", "19 null", "19 null",
     ]);
     // C81 has no four-letter indicator: ZZZZ and DEP/ where one is asked for.
     expect(form!.items.find(f => f.key === "departure")!.note).toContain("DEP/C81");
@@ -134,6 +136,54 @@ describe("the FAA flight plan form, filled in from a plan", () => {
     expect(value(form!, "ident")).toBeNull();
     expect(value(form!, "type")).toBe("P28A");
     expect(value(form!, "time")).toBeNull();
-    expect(formText(form!).split("\n").slice(0, 4)).toEqual(["C81 to KATW", "8 Flight rules: IFR", "7 Aircraft identification: —", "9 Type of aircraft: P28A"]);
+    expect(formText(form!).split("\n").slice(0, 4)).toEqual([
+      "C81 to KATW", "Item 8  Flight rules: IFR", "Item 7  Aircraft identification: —", "Item 9  Type of aircraft: P28A",
+    ]);
+    // A stock profile's equipment and colour are not known, and not the
+    // pilot's to set anywhere: no word of where.
+    expect(value(form!, "equipment")).toBeNull();
+    expect(form!.items.find(f => f.key === "equipment")!.note).toBeUndefined();
+  });
+
+  it("item 10 from the pilot's own airplane: 10a's equipment and 10b's surveillance, as AIM Appendix 4 writes them", () => {
+    const [form] = flightPlanForms({ ...BASE, aircraft: { ...BASE.aircraft, equipment: "SDFGRY", surveillance: "B1" } });
+    expect(form!.items.filter(f => f.item.startsWith("10")).map(f => `${f.item} ${f.label}: ${f.value}`))
+      .toEqual(["10a Equipment: SDFGRY", "10b Surveillance: B1"]);
+    expect(form!.items.find(f => f.key === "equipment")!.note).toBeUndefined();
+    // Not said for the pilot's own airplane: where to say it.
+    expect(flightPlanForms(BASE)[0]!.items.find(f => f.key === "surveillance")!.note).toContain("Airplanes");
+  });
+
+  it("item 19's domestic minimum: endurance, persons on board, the pilot's name and number, the airplane's colour", () => {
+    const [form] = flightPlanForms({
+      ...BASE, aircraft: { ...BASE.aircraft, colour: "White blue stripes" },
+      pilot: { name: "Avery B. Pilot", phone: "608-555-0100", homeBase: "KMSN" },
+    });
+    expect(form!.items.filter(f => f.item === "19").map(f => `${f.label}: ${f.value}`)).toEqual([
+      "Endurance: 0428", "Persons on board: null", "Color and markings: White blue stripes",
+      "Pilot in command: Avery B. Pilot, 608-555-0100, home base KMSN",
+    ]);
+    expect(form!.items.find(f => f.key === "pilot")!.note).toBeUndefined();
+    // No number: the pilot is asked for one good at the ETA (AIM Appendix 4).
+    const unreachable = flightPlanForms({ ...BASE, pilot: { name: "Avery B. Pilot", phone: null, homeBase: null } })[0]!;
+    expect(value(unreachable, "pilot")).toBe("Avery B. Pilot");
+    expect(unreachable.items.find(f => f.key === "pilot")!.note).toContain("phone number");
+    expect(value(flightPlanForms(BASE)[0]!, "pilot")).toBeNull();
+  });
+
+  it("the persons on board, typed for the flight, go on the form and to Flight Service", () => {
+    expect(personsOnBoard("2")).toBe(2);
+    expect(personsOnBoard(" 12 ")).toBe(12);
+    for (const typed of ["", "0", "1000", "two", "2.5", "-1"]) expect(personsOnBoard(typed)).toBeNull();
+    const [form] = flightPlanForms(BASE);
+    const filled = withPersonsOnBoard(form!, 3);
+    expect(value(filled, "persons")).toBe("3");
+    expect(filled.filing!.personsOnBoard).toBe(3);
+    expect(formText(filled)).toContain("Item 19  Persons on board: 3");
+    // Left blank, blank on both.
+    const blank = withPersonsOnBoard(form!, null);
+    expect(value(blank, "persons")).toBeNull();
+    expect(blank.filing!.personsOnBoard).toBeNull();
+    expect(formText(blank)).toContain("Item 19  Persons on board: —");
   });
 });

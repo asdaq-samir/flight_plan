@@ -2,6 +2,7 @@ package com.northflyers.vfr.controller;
 
 import com.northflyers.vfr.domain.Pilot;
 import com.northflyers.vfr.dto.ErrorResponse;
+import com.northflyers.vfr.dto.PilotContactRequest;
 import com.northflyers.vfr.dto.PilotDto;
 import com.northflyers.vfr.service.AccountService;
 import com.northflyers.vfr.service.AccountService.AccountNotDeletedException;
@@ -11,6 +12,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.validation.Valid;
 import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -19,13 +21,15 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.web.authentication.logout.SecurityContextLogoutHandler;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
  * Who the caller is -- the endpoint a front end asks on load to decide
- * whether to show a sign-in button or a pilot's own flights -- and the
- * deletion of their account.
+ * whether to show a sign-in button or a pilot's own flights -- their
+ * contact for a flight plan, and the deletion of their account.
  */
 @RestController
 @RequestMapping("/api/me")
@@ -56,6 +60,20 @@ public class PilotController {
                 .orElseGet(() -> ResponseEntity.noContent().build());
     }
 
+    @Operation(summary = "The signed-in pilot's telephone number and home base",
+            description = "What a flight plan's item 19 C/ asks with the pilot in command's name (AIM Appendix 4), "
+                    + "both at once; blank is none. Their name is set with PUT /api/training/name.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "The pilot, with them"),
+        @ApiResponse(responseCode = "400", description = "Not a telephone number, or not an airport identifier"),
+        @ApiResponse(responseCode = "401", description = "No session")
+    })
+    @PutMapping("/contact")
+    public ResponseEntity<PilotDto> setContact(Authentication authentication, @Valid @RequestBody PilotContactRequest request) {
+        return PilotResponses.withPilot(pilots, authentication, pilot ->
+                ResponseEntity.ok(toDto(pilots.setContact(pilot, request.phone(), request.homeBase()))));
+    }
+
     @Operation(summary = "Delete the signed-in pilot's account",
             description = "The pilot and everything that was theirs -- aircraft, flights with their nav logs and "
                     + "tracks, logbook, endorsements, their own checkpoint notes, the sign-in links sent to them -- "
@@ -84,6 +102,7 @@ public class PilotController {
     }
 
     private static PilotDto toDto(Pilot pilot) {
-        return new PilotDto(pilot.getId(), pilot.getEmail(), pilot.getDisplayName(), pilot.getRole().isDeveloper());
+        return new PilotDto(pilot.getId(), pilot.getEmail(), pilot.getDisplayName(), pilot.getRole().isDeveloper(),
+                pilot.getFullName(), pilot.getPhone(), pilot.getHomeBase());
     }
 }

@@ -677,7 +677,11 @@ export default memo(function FlightBriefingView({
       ident: flying.aircraftId != null ? shortName(flying.label) : null,
       type: planType,
       maxTakeoffLb: planType && planType === profileType ? nav?.aircraft.loading?.max_takeoff_lb ?? null : null,
+      // Items 10 and 19's colour, from the pilot's own airplane's page.
+      equipment: flownOwn?.equipment ?? null, surveillance: flownOwn?.surveillance ?? null, colour: flownOwn?.colour ?? null,
     },
+    // Item 19's pilot in command, from their own page (Pilot details, in Setup).
+    pilot: pilot ? { name: pilot.fullName ?? null, phone: pilot.phone ?? null, homeBase: pilot.homeBase ?? null } : null,
     fuelGal: load?.fuelGal ?? null,
     alternate: totals?.alternate?.ident ?? null,
     departureProcedure: procedures?.departure, arrivalProcedure: procedures?.arrival,

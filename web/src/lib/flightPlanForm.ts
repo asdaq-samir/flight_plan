@@ -10,9 +10,13 @@ import { grouped } from "./units";
  * flight, as AIM 5-1-5 recommends for a stopover and an IFR flight plan
  * is filed, airport to airport.
  *
- * Only what the plan knows: the airplane's equipment (item 10), and the
- * persons on board, its colour and the pilot's name and number (item 19)
- * are the filing service's aircraft and pilot profiles'.
+ * The plan's figures, with what the app keeps of the airplane (its
+ * equipment, item 10, and its colour, item 19) and of the pilot (their
+ * name, number and home base, item 19) and the persons on board the
+ * pilot types in the Brief (`withPersonsOnBoard`): item 19's minimum for
+ * a domestic flight is the endurance, the persons on board, the pilot's
+ * name and contact information and the airplane's colour (AIM Appendix
+ * 4). A null is an item the pilot has not said.
  */
 
 export interface FormItem {
@@ -57,7 +61,15 @@ export interface FormInput {
   /** The departure picked; null where none was. */
   depart: Date | null;
   now: Date;
-  aircraft: { ident: string | null; type: string | null; maxTakeoffLb: number | null };
+  aircraft: {
+    ident: string | null; type: string | null; maxTakeoffLb: number | null;
+    /** Item 10a's equipment and 10b's surveillance, and item 19's colour
+     *  and markings, where the pilot's own airplane says them. */
+    equipment?: string | null; surveillance?: string | null; colour?: string | null;
+  };
+  /** The pilot in command, item 19 C/: their name as their certificate
+   *  gives it, their telephone number and home base, where they said. */
+  pilot?: { name: string | null; phone: string | null; homeBase: string | null } | null;
   /** The fuel aboard at the first departure, where Weight & Balance says
    *  it; the tanks' usable fuel otherwise, and at every stop. */
   fuelGal: number | null;
@@ -167,6 +179,13 @@ export function flightPlanForms(input: FormInput): FlightPlanForm[] {
     // 7360.1); said only where the airplane's is known.
     const wake = input.aircraft.maxTakeoffLb != null && input.aircraft.maxTakeoffLb <= 15_500 ? "/L" : "";
     add("9", "type", "Type of aircraft", input.aircraft.type ? `${input.aircraft.type}${wake}` : null);
+    // Item 10a: S for VHF radio, VOR and ILS, N for none, and TBL 4-2's
+    // letters for the rest (G for GNSS); 10b: TBL 4-3's, C for a
+    // transponder with Mode C, B1 or U1 for ADS-B Out, N for none (AIM
+    // Appendix 4). The airplane's own, from its page.
+    const where = input.aircraft.ident ? "Your airplane's, from Airplanes in Setup." : undefined;
+    add("10a", "equipment", "Equipment", input.aircraft.equipment || null, input.aircraft.equipment ? undefined : where);
+    add("10b", "surveillance", "Surveillance", input.aircraft.surveillance || null, input.aircraft.surveillance ? undefined : where);
 
     add("13", "departure", "Departure", hop.departure, zzzz(hop.departure, "DEP"));
     // Item 13's time is UTC, four figures; a later flight's is when the
@@ -212,6 +231,20 @@ export function flightPlanForms(input: FormInput): FlightPlanForm[] {
     add("19", "endurance", "Endurance", fuel != null && burn ? hoursMinutes(Math.floor((fuel / burn) * 60)) : null,
       fuel != null && burn ? `${Math.round(fuel * 10) / 10} gal at ${Math.round(burn * 10) / 10} gph.` : undefined);
 
+    // Item 19's persons on board (P/), the pilot's to type in the Brief
+    // (withPersonsOnBoard); the airplane's colour and markings (A/); and
+    // the pilot in command (C/), with contact information "including
+    // telephone number" valid at the ETA, for search and rescue (AIM
+    // Appendix 4), and the home base the domestic form asks beside them
+    // (FAA Form 7233-1, block 14).
+    add("19", "persons", "Persons on board", null);
+    add("19", "colour", "Color and markings", input.aircraft.colour || null,
+      input.aircraft.colour ? undefined : where);
+    const pic = input.pilot;
+    const contact = [pic?.name, pic?.phone, pic?.homeBase ? `home base ${pic.homeBase}` : null].filter(Boolean).join(", ");
+    add("19", "pilot", "Pilot in command", contact || null,
+      pic?.name && pic.phone ? undefined : "Your name and a phone number good at your ETA, from Pilot details in Setup.");
+
     const value = (key: string) => items.find(f => f.key === key)?.value ?? null;
     const needed = ["ident", "type", "speed", "level", "route"].map(value);
     const eetMinutes = totals?.ete_min != null ? Math.ceil(totals.ete_min) : null;
@@ -227,10 +260,29 @@ export function flightPlanForms(input: FormInput): FlightPlanForm[] {
   });
 }
 
-/** A form as text, an item to a line, to paste or read out. */
+/** Item 19's persons on board, as the pilot types them for the flight:
+ *  a count from 1 to 999, the filing request's own limits; anything else
+ *  is not said, and the item stays blank. */
+export function personsOnBoard(typed: string): number | null {
+  const n = /^\s*\d{1,3}\s*$/.test(typed) ? Number(typed) : NaN;
+  return n >= 1 && n <= 999 ? n : null;
+}
+
+/** A form with its persons on board filled in, on the form and in what
+ *  Flight Service is sent. */
+export function withPersonsOnBoard(form: FlightPlanForm, persons: number | null): FlightPlanForm {
+  return {
+    ...form,
+    items: form.items.map(f => (f.key === "persons" ? { ...f, value: persons != null ? String(persons) : null } : f)),
+    filing: form.filing ? { ...form.filing, personsOnBoard: persons } : null,
+  };
+}
+
+/** A form as text, an item to a line ("Item 15  Route: BAE V191 OSH"),
+ *  to paste into a filing service or read out. */
 export function formText(form: FlightPlanForm): string {
   return [
     `${form.departure} to ${form.destination}`,
-    ...form.items.map(f => `${f.item} ${f.label}: ${f.value ?? "—"}`),
+    ...form.items.map(f => `Item ${f.item}  ${f.label}: ${f.value ?? "—"}`),
   ].join("\n");
 }

@@ -139,7 +139,9 @@ describe("checkpoint notes", () => {
   });
 
   test("after Log out the last pilot's notes are gone, and Generate asks again", async () => {
-    vi.mocked(api.me).mockResolvedValue({ id: 7, displayName: "A. Pilot", email: "a@example.com", developer: false });
+    vi.mocked(api.me).mockResolvedValue({
+      id: 7, displayName: "A. Pilot", email: "a@example.com", developer: false, fullName: null, phone: null, homeBase: null,
+    });
     vi.mocked(api.saveCheckpointNote).mockResolvedValue(undefined as never);
     vi.mocked(api.describeCheckpoints).mockImplementation(() => notesStream([]));
     const { result } = renderHook(() => usePlan(params), { wrapper });

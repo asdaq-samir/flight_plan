@@ -47,7 +47,8 @@ class AircraftServiceTest {
     void updateIsEmptyWhenTheAircraftBelongsToAnotherPilot() {
         given(aircraftRepository.findByIdAndPilotId(1L, stranger.getId())).willReturn(Optional.empty());
 
-        Optional<Aircraft> result = aircraftService.update(stranger, 1L, "N12345", "C172", 110.0, 8.5, null, null, null, null);
+        Optional<Aircraft> result = aircraftService.update(stranger, 1L, "N12345", "C172", 110.0, 8.5, null, null, null, null,
+                null, null, null);
 
         assertThat(result).isEmpty();
         verify(aircraftRepository, never()).save(any());
@@ -59,13 +60,36 @@ class AircraftServiceTest {
         given(aircraftRepository.findByIdAndPilotId(1L, owner.getId())).willReturn(Optional.of(existing));
         given(aircraftRepository.save(existing)).willReturn(existing);
 
-        Optional<Aircraft> result = aircraftService.update(owner, 1L, "N54321", "PA28", 115.0, 9.0, 75.0, 80.0, 12.0, 48.0);
+        Optional<Aircraft> result = aircraftService.update(owner, 1L, "N54321", "PA28", 115.0, 9.0, 75.0, 80.0, 12.0, 48.0,
+                " sdfgry ", "b1", "  White   blue stripes ");
 
         assertThat(result).isPresent();
         assertThat(result.get().getTailNumber()).isEqualTo("N54321");
         assertThat(result.get().getCruisePowerPct()).isEqualTo(75.0);
         assertThat(result.get().getClimbTasKt()).isEqualTo(80.0);
         assertThat(result.get().getClimbFuelBurnGph()).isEqualTo(12.0);
+        // Item 10's codes in capitals, as AIM Appendix 4 writes them; the
+        // colour's words with their spaces made single.
+        assertThat(result.get().getEquipment()).isEqualTo("SDFGRY");
+        assertThat(result.get().getSurveillance()).isEqualTo("B1");
+        assertThat(result.get().getColour()).isEqualTo("White blue stripes");
+    }
+
+    /** A flight plan item left blank is none, not an empty string the
+     *  form would show as said. */
+    @Test
+    void aBlankFlightPlanItemIsNone() {
+        Aircraft existing = new Aircraft(owner, "N12345", "C172", 110.0, 8.5, null, null, null, null)
+                .describeForFlightPlan("S", "C", "Red");
+        given(aircraftRepository.findByIdAndPilotId(1L, owner.getId())).willReturn(Optional.of(existing));
+        given(aircraftRepository.save(existing)).willReturn(existing);
+
+        Aircraft saved = aircraftService.update(owner, 1L, "N12345", "C172", 110.0, 8.5, null, null, null, null,
+                " ", "", null).orElseThrow();
+
+        assertThat(saved.getEquipment()).isNull();
+        assertThat(saved.getSurveillance()).isNull();
+        assertThat(saved.getColour()).isNull();
     }
 
     @Test

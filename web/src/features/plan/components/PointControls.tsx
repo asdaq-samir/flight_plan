@@ -17,7 +17,7 @@ export type AltitudeKind = "elev" | "cruise" | "pub" | "set";
  * depart/arrive and waypoints"): its time over its altitude, the
  * altitude's kind after it, small; the pilot's own in the tint.
  */
-export function PointFigures({ time, altitude, kind, spoken }: {
+export function PointFigures({ time, altitude, kind, spoken, testId = "point-figures" }: {
   /** Its time, or the picker for it where the airplane leaves. */
   time: ReactNode;
   /** The altitude, or the chart's crossing as it is drawn; none known, none. */
@@ -27,9 +27,12 @@ export function PointFigures({ time, altitude, kind, spoken }: {
    *  than its figure ("at or above 2,000 ft", a line under it): else the
    *  figure in feet and its kind in words. */
   spoken?: string;
+  /** Its own name where an airport's block sets its time and its
+   *  elevation on lines of their own (ProceduresRoute's block). */
+  testId?: string;
 }) {
   return (
-    <span className={cn("flex shrink-0 flex-col items-end tabular-nums leading-tight", TEXT.detail)} data-testid="point-figures">
+    <span className={cn("flex shrink-0 flex-col items-end tabular-nums leading-tight", TEXT.detail)} data-testid={testId}>
       {typeof time === "string" ? <span className="font-semibold">{time}</span> : time}
       {altitude != null && (
         <span className={kind === "set" ? "font-semibold text-tint" : "text-muted-foreground"} data-testid="point-altitude-figure" data-kind={kind}>

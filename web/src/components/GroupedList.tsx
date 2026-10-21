@@ -161,7 +161,14 @@ export function ListRow({ id, media, title, description, value, href, to, chevro
       // no-underline!: a section's own links are underlined (the
       // accordion's content styles every <a>), and a row is not prose.
       <Item asChild size="sm" className="min-h-11 rounded-none border-0 py-2 no-underline!">
-        <a href={href} target="_blank" rel="noreferrer" data-testid={(buttonProps as { "data-testid"?: string })["data-testid"]}>{body}</a>
+        {/* A click handler goes on the link too, run before it opens: a
+            row that copies what the site it opens is to be given (the
+            Brief's Open in 1800wxbrief), in the tap's own gesture. */}
+        <a
+          href={href} target="_blank" rel="noreferrer"
+          onClick={buttonProps.onClick as ComponentProps<"a">["onClick"]}
+          data-testid={(buttonProps as { "data-testid"?: string })["data-testid"]}
+        >{body}</a>
       </Item>
     );
   }
