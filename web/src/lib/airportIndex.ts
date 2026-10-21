@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useState, useSyncExternalStore } from "react";
+import { useIsFetching, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "./api/client";
 import type { AirportSearchRow } from "./useAirportSearch";
 
@@ -60,16 +60,46 @@ export function searchIndex(index: AirportIndex, typed: string, limit = 8): Airp
 }
 
 /** Once the page has nothing else to do: what is put off until then.
- *  Safari has no requestIdleCallback; two seconds stand in for it there. */
+ *  Safari has no requestIdleCallback; two seconds stand in for it there.
+ *  The page's own requests -- the chart, the course, the airports and TFRs
+ *  the map draws -- must have come in as well: the main thread is idle
+ *  between two answers, and the half megabyte of the index asked for in
+ *  that gap shared a phone's slow link with the airports' 32 KB, whose
+ *  labels were the last thing the map drew (Lighthouse's Largest
+ *  Contentful Paint, issue #214: the index was requested at 0.6 s, as
+ *  the airports were). Four seconds after the idle callback it goes
+ *  anyway, so a page that keeps asking (a refetch, a slow planner) still
+ *  warms it.
+ *
+ *  Nothing in flight does not yet mean the requests have come in: the
+ *  map asks for its airports only once its bounds are known, so at the
+ *  first idle the count may be zero before the question is asked. The
+ *  airports of the view must have been answered once (the map's tiles
+ *  are not react-query fetches and cannot be counted). Where the map
+ *  never asks (zoomed out, no map), the wait ends with the four seconds,
+ *  so the index goes at most eight seconds after the idle callback's own
+ *  limit of four. */
 function useIdle(): boolean {
-  const [idle, setIdle] = useState(false);
+  const [quiet, setQuiet] = useState(false);
+  const [late, setLate] = useState(false);
+  const asking = useIsFetching({ predicate: query => query.queryKey[0] !== "airportIndexWarm" });
+  const cache = useQueryClient().getQueryCache();
+  const answered = useSyncExternalStore(
+    notify => cache.subscribe(notify),
+    () => cache.findAll({ queryKey: ["airportsInView"] }).some(query => query.state.status === "success"),
+  );
   useEffect(() => {
     const wait = window.requestIdleCallback ?? ((go: () => void) => window.setTimeout(go, 2000));
     const stop = window.cancelIdleCallback ?? window.clearTimeout;
-    const id = wait(() => setIdle(true), { timeout: 4000 });
+    const id = wait(() => setQuiet(true), { timeout: 4000 });
     return () => stop(id);
   }, []);
-  return idle;
+  useEffect(() => {
+    if (!quiet) return;
+    const id = window.setTimeout(() => setLate(true), 4000);
+    return () => window.clearTimeout(id);
+  }, [quiet]);
+  return quiet && ((answered && asking === 0) || late);
 }
 
 /** Once the pilot goes to type: a field of the page focused, the

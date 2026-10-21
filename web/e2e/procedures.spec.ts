@@ -251,7 +251,8 @@ test("an approach puts its field's runway on its own, and another is let only wh
   // Its plate has no circling line: no other runway, and none is no
   // choice either.
   await openRunways(kdlh);
-  await expect(kdlh.getByRole("radio", { name: /^Runway 27, no circling on the ILS 09/ })).toBeDisabled();
+  // The wind, once it is in, puts "into the wind" before the plate's words.
+  await expect(kdlh.getByRole("radio", { name: /^Runway 27(, into the wind)?, no circling on the ILS 09/ })).toBeDisabled();
   await expect(kdlh.getByRole("radio", { name: /None/ })).toBeDisabled();
 
   // One that publishes circling minimums: 27 is a circle to land.
