@@ -274,8 +274,16 @@ def elevation_prominence_m(
 TERRAIN_TILE_URL = "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png"
 TERRAIN_TILE_ZOOM = 12
 TERRAIN_TILE_DIR = Path(__file__).resolve().parents[2] / "data" / "raw" / "terrain-tiles"
-_TERRAIN_TILES: LRUCache = LRUCache(maxsize=64)
+# Decoded tiles held, as float32 (a quarter of a megabyte each): a long
+# IFR route's floor reads some four hundred, and with sixty-four held a
+# second plan of it decoded every one from disk again (2026-10-21).
+_TERRAIN_TILES: LRUCache = LRUCache(maxsize=512)
 _TERRAIN_LOCK = threading.Lock()
+# One pool of connections to the tiles' bucket, kept open: a new route's
+# hundreds of tiles each opened their own TLS connection, most of the
+# time a first plan took (2026-10-21, C81-KTPA under IFR).
+_TERRAIN_SESSION = requests.Session()
+_TERRAIN_SESSION.mount("https://", requests.adapters.HTTPAdapter(pool_connections=1, pool_maxsize=16))
 
 
 def _terrain_tile(z: int, x: int, y: int) -> np.ndarray:
@@ -288,7 +296,7 @@ def _terrain_tile(z: int, x: int, y: int) -> np.ndarray:
     if path.exists():
         data = path.read_bytes()
     else:
-        resp = requests.get(TERRAIN_TILE_URL.format(z=z, x=x, y=y), headers=REQUEST_HEADERS, timeout=20)
+        resp = _TERRAIN_SESSION.get(TERRAIN_TILE_URL.format(z=z, x=x, y=y), headers=REQUEST_HEADERS, timeout=20)
         resp.raise_for_status()
         data = resp.content
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -301,7 +309,9 @@ def _terrain_tile(z: int, x: int, y: int) -> np.ndarray:
     from PIL import Image
 
     rgb = np.asarray(Image.open(io.BytesIO(data)).convert("RGB")).astype(np.float64)
-    heights = rgb[:, :, 0] * 256 + rgb[:, :, 1] + rgb[:, :, 2] / 256 - 32768
+    # Worked in float64, kept in float32: a metre's 1/256 survives either
+    # at any height on earth, and the cache holds twice as many.
+    heights = (rgb[:, :, 0] * 256 + rgb[:, :, 1] + rgb[:, :, 2] / 256 - 32768).astype(np.float32)
     with _TERRAIN_LOCK:
         _TERRAIN_TILES[(z, x, y)] = heights
     return heights
