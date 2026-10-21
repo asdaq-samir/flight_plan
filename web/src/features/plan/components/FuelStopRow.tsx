@@ -77,6 +77,9 @@ export default function FuelStopRow({ stop, time, groundMin, usableGal, choices,
           need to show runway when asking to add fuel stop"). */}
       <section aria-label={`Suggested fuel stop, ${stop.ident}, ${place}`} className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-x-2 pb-4">
         <div className="col-start-1 row-start-1 flex min-w-0 items-center gap-1.5">
+          {/* The room an airport's arrow takes before its ident, so the
+              idents of the list line up (the owner's screenshot). */}
+          <span aria-hidden="true" className="-ml-1 w-4 shrink-0" />
           <h3 className={cn("truncate font-semibold", TEXT.row)}>{stop.ident}</h3>
           <FuelGauge gal={stop.lands_with_gal} usable={usableGal} tone="fuel" />
         </div>
@@ -92,6 +95,9 @@ export default function FuelStopRow({ stop, time, groundMin, usableGal, choices,
             <Mountain className="size-3.5 shrink-0" aria-hidden="true" />{grouped(Math.round(stop.elevation_ft))} ft
           </span>
         )}
+        {/* The menu's room kept where a stop has no other fields, so the
+            times and elevations line up down the list. */}
+        {!(choices && choices.length > 0 && onChoose) && <span aria-hidden="true" className="col-start-3 row-span-2 row-start-1 size-9" />}
         {choices && choices.length > 0 && onChoose && (
           <div className="col-start-3 row-span-2 row-start-1 self-center">
             <DropdownMenu>
