@@ -153,16 +153,6 @@ export default function AltitudeGroup({ nav, legs, problem = false, ownAltitude 
           data-testid="altitude-input"
         />
       </label>
-      {/* One amber dot, as the Brief's tabs mark theirs, at the owner's ask
-          ("a dot just like brief to save space instead of a triangle"):
-          a caution on the pilot's own altitude, else a tight one. Said in
-          the profile button's name. */}
-      {!problem && (cautions.length > 0 || tight) && (
-        <span
-          className="mr-1.5 size-2 shrink-0 rounded-full bg-amber-500" aria-hidden="true"
-          data-testid={cautions.length > 0 ? "own-altitude-flag" : "tight-altitude-flag"}
-        />
-      )}
       {/* The profile's button once there is a plan to show -- its altitude,
           or why there is none -- as the route box's clear shows with points
           in it. The flight rules are the Profile card's switch alone, at the
@@ -181,6 +171,17 @@ export default function AltitudeGroup({ nav, legs, problem = false, ownAltitude 
         aria-label={`Cruising altitude${rules === "ifr" ? " under IFR" : ""}, ${why}${!problem && tight ? ", tight" : ""}${!problem && cautions.length ? ", your altitude has a caution" : ""}: set it on the profile`}
         data-testid="altitude-why" data-tip="altitude"
       >
+        {/* One amber dot at the button's top corner, as the Brief's tabs mark
+            theirs, at the owner's ask ("move the dot to the top corner of
+            the profile button because that's where it can be tapped"): a
+            caution on the pilot's own altitude, else a tight one, which the
+            Profile card says. Said in the button's name. */}
+        {!problem && (cautions.length > 0 || tight) && (
+          <span
+            className="absolute top-0.5 right-0.5 size-2 rounded-full bg-amber-500" aria-hidden="true"
+            data-testid={cautions.length > 0 ? "own-altitude-flag" : "tight-altitude-flag"}
+          />
+        )}
         {/* The route from the side, the profile's own mark. */}
         <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
           <path d="M3 19h18" /><path d="M3 16l4-5 3 2 4-6 3 3 4-3" />
