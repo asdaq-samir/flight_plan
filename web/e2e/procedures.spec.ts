@@ -340,15 +340,14 @@ test("a field's departure is picked after its runways, as its arrival and approa
   await expect(menu).toHaveAttribute("data-look", "add");
   const chips = kord.getByTestId("procedure-pattern").locator("visible=true").first();
   await expect(chips).toBeVisible();
-  // Beside the runway while its line is folded to the one picked, at the
-  // owner's ask ("Can arrival and approach pills be next to the runway when
-  // runway is collapsed?", "Same with departure"); under the runways while
-  // the line is open.
+  // On the runways' own line after them, at the owner's asks ("Can arrival
+  // and approach pills be next to the runway when runway is collapsed?",
+  // "Same with departure", "Approach doesn't need to go next line just let
+  // it slide with runways"): beside the runway picked, or sliding with them.
   await expect.poll(async () => {
-    const folded = (await kord.locator("[data-folded]").count()) > 0;
     const [m, c] = [await menu.boundingBox(), await chips.boundingBox()];
     if (!m || !c) return false;
-    return folded ? m.x > c.x + c.width - 1 : m.y > c.y;
+    return m.x > c.x + c.width - 1 && Math.abs((m.y + m.height / 2) - (c.y + c.height / 2)) < 8;
   }).toBe(true);
   // And the departure's time on its own step, not in the route's box.
   await expect(kord.getByTestId("depart-date")).toHaveText(/^Now/);

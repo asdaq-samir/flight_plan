@@ -543,7 +543,7 @@ export default function ProceduresRoute({
     const opened = isOpen(key);
     // `line`, the runway line's key and the runway picked on it
     // (PatternChips folds a line with a runway picked to that runway's chip).
-    type Part = { role: "Arrive" | "Depart"; kinds: Kind[]; chips: ReactNode; leaves: ReactNode; line: { key: string; chosen: string | null } };
+    type Part = { role: "Arrive" | "Depart"; kinds: Kind[]; chips: (trailing: ReactNode) => ReactNode; leaves: ReactNode; line: { key: string; chosen: string | null } };
     const partBody = (part: Part) => {
       const picked = part.kinds.filter(k => inRoute.some(p => sameField(p.ident, a.ident) && p.kind === k));
       const unpicked = part.kinds.filter(k => !picked.includes(k));
@@ -555,7 +555,6 @@ export default function ProceduresRoute({
       // open, its runways across the row.
       const foldable = part.line.chosen !== null && a.runways !== null;
       const lineOpen = openLines.includes(part.line.key);
-      const inline = foldable && !lineOpen;
       const adds = unpicked.map(k => kindMenu(k, "add"));
       return (
         <div className="space-y-3 pt-3">
@@ -566,25 +565,27 @@ export default function ProceduresRoute({
                 the depart/arrive symbol"): to the right while it is folded
                 to the runway picked, to open it; to the left while it is
                 open, to fold it. A disclosure, a small arrow in its own 44
-                points, the line's chips clear of them. */}
+                points -- over the glyph, the arrow at their right -- the
+                line's chips right after them ("too much space between arrow
+                and runways"). */}
             {foldable && (
               <button
                 type="button" data-disclosure="" data-testid="runway-line-toggle" aria-expanded={lineOpen}
                 aria-label={lineOpen ? `${a.ident}: fold the runways` : `${a.ident}: all the runways`}
                 onClick={() => useOpenRunwayLines.setState(st => ({ open: lineOpen ? st.open.filter(k => k !== part.line.key) : [...st.open, part.line.key] }))}
-                className="relative -my-1.5 -ml-4 grid size-11 shrink-0 place-items-center rounded-full text-tint outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="relative -my-1.5 -mr-2 -ml-6 flex size-11 shrink-0 items-center justify-end rounded-full pr-1.5 text-tint outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 {lineOpen ? <ChevronLeft className="size-4" aria-hidden /> : <ChevronRight className="size-4" aria-hidden />}
               </button>
             )}
-            <div className={cn("min-w-0 flex-1", inline && "flex flex-wrap items-center gap-2")}>
-              {part.chips}
-              {inline && adds}
-            </div>
+            {/* The pull-downs on the runways' own line, beside the runway
+                picked while it is folded and sliding with the runways while
+                it is open (the owner's "Approach doesn't need to go next
+                line just let it slide with runways"). */}
+            <div className="min-w-0 flex-1">{part.chips(adds.length > 0 ? adds : null)}</div>
             {part.leaves && <span className="shrink-0">{part.leaves}</span>}
           </div>
           {picked.map(branch)}
-          {!inline && unpicked.length > 0 && <div className="flex flex-wrap gap-2">{adds}</div>}
         </div>
       );
     };
@@ -676,12 +677,13 @@ export default function ProceduresRoute({
       elevationFt: a.elevationFt ?? 0, altimeterInHg: card?.metar?.altimeter_in_hg, tempC: card?.metar?.temp_c,
       weightLb: kind === "takeoff" ? fit.takeoffLb : fit.landingLb,
     }) : null);
-    const chips = (kind: "takeoff" | "landing", chosen: string | null, landing: Landing | null, note: string | null, pick: (end: string | null) => void, label?: string) => (
-      <PatternChips
-        airport={a} wind={wind} chosen={chosen} landing={landing} label={label} onPick={pick} fitOf={fitOf(kind)}
-        note={note}
-      />
-    );
+    const chips = (kind: "takeoff" | "landing", chosen: string | null, landing: Landing | null, note: string | null, pick: (end: string | null) => void, label?: string) =>
+      (trailing: ReactNode) => (
+        <PatternChips
+          airport={a} wind={wind} chosen={chosen} landing={landing} label={label} onPick={pick} fitOf={fitOf(kind)}
+          note={note} trailing={trailing}
+        />
+      );
     const landingChips = chips("landing", chosenAt(a.ident), landingOf(a.ident), patternNote(a, chosenAt(a.ident), landingOf(a.ident)), end => onPick(a.ident, end ?? NO_PATTERN));
     // A round trip's departure is left from its own runway (`takeoff`), the
     // field's pattern the landing's, as a stop's are.
@@ -996,10 +998,17 @@ function Step({ mark, title, sub, figures, menu, last, field = false, testId, ic
  * neighbours' across the twelve between them, along a row and between
  * the rows they wrap to, the chip not grown.
  */
-function Chips({ label, value, onChange, children }: {
+function Chips({ label, value, onChange, trailing, flushStart = false, children }: {
+  /** Its first chip at its start, no room kept before it for the chip's
+   *  own tap area: where a control's 44 points end just before it (the
+   *  runway line's arrow). */
+  flushStart?: boolean;
   label: string;
   value: string;
   onChange: (value: string) => void;
+  /** After the chips, sliding with them: a field's procedures' pull-downs
+   *  (the owner's "just let it slide with runways"). */
+  trailing?: ReactNode;
   children: ReactNode;
 }) {
   const row = useRef<HTMLDivElement>(null);
@@ -1029,17 +1038,18 @@ function Chips({ label, value, onChange, children }: {
     // One line, scrolled sideways where the chips are more than fit, at
     // the owner's ask; the padding keeps the chips' and the group's tap
     // areas inside what the scroll clips.
-    <div ref={row} data-slides="" className="-mx-1.5 -my-1.5 min-w-0 flex-1 overflow-x-auto px-1.5 py-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+    <div ref={row} data-slides="" className={cn("-my-1.5 min-w-0 flex-1 overflow-x-auto py-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden", flushStart ? "-mr-1.5 pr-1.5" : "-mx-1.5 px-1.5", trailing && "flex items-center gap-3")}>
       <ToggleGroup
         type="single" value={value} onValueChange={v => { if (v) onChange(v); }}
         aria-label={label} spacing={3}
         // The group's own 44 a pseudo-element behind it, as Segmented's
         // track has, so a tap just over or under a row of chips is the
         // group's and not the page's (isolate keeps it over what is round).
-        className="relative isolate w-max min-w-full flex-nowrap after:absolute after:inset-x-0 after:-inset-y-1.5 after:-z-10 after:content-['']"
+        className={cn("relative isolate w-max flex-nowrap after:absolute after:inset-x-0 after:-inset-y-1.5 after:-z-10 after:content-['']", !trailing && "min-w-full")}
       >
         {children}
       </ToggleGroup>
+      {trailing && <div className="flex shrink-0 items-center gap-2">{trailing}</div>}
     </div>
   );
 }
@@ -1108,7 +1118,7 @@ interface Landing {
   name: string;
 }
 
-function PatternChips({ airport: a, wind, chosen, landing, note, label, fitOf, onPick }: {
+function PatternChips({ airport: a, wind, chosen, landing, note, label, fitOf, onPick, trailing }: {
   airport: ProcedureAirport;
   /** Each end's fit today, marked on its chip (lib/runwayFit). */
   fitOf: (runway: Runway, end: RunwayEnd) => EndFit | null;
@@ -1119,6 +1129,9 @@ function PatternChips({ airport: a, wind, chosen, landing, note, label, fitOf, o
    *  its chip's name: the info button that showed it is gone, at the
    *  owner's ask ("No need for info button"). */
   note: string | null;
+  /** The field's procedures' pull-downs, after the runway picked while the
+   *  line is folded, sliding with its runways while it is open. */
+  trailing?: ReactNode;
   wind: WindPick | null;
   chosen: string | null;
   landing: Landing | null;
@@ -1183,12 +1196,13 @@ function PatternChips({ airport: a, wind, chosen, landing, note, label, fitOf, o
             // One line, the wind's mark, the runway and the arrow side by side:
             // a plain button, not the group's items, it stacked them, the
             // arrow out under the chip (the owner's screenshot, 2026-10-20).
-            className={cn(CHIP, "inline-flex items-center gap-0.5 whitespace-nowrap motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-right-3 motion-safe:duration-300", c.ring)}
+            className={cn(CHIP, "inline-flex items-center gap-0.5 whitespace-nowrap after:left-0 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-right-3 motion-safe:duration-300", c.ring)}
             aria-label={`${c.words}${note ? `, ${note}` : ""}, picked: tap for the other runways`} data-testid="procedure-pattern" data-fit={c.fit} data-folded=""
           >
             {c.face}
           </button>
         </div>
+        {trailing}
       </div>
     );
   }
@@ -1198,7 +1212,10 @@ function PatternChips({ airport: a, wind, chosen, landing, note, label, fitOf, o
     // info button").
     <div className="flex items-center gap-2" data-testid="procedure-patterns">
       {a.runways === null ? (
-        <p role="status" className={cn("px-1 text-muted-foreground", TEXT.detail)}>Looking the runways up…</p>
+        <>
+          <p role="status" className={cn("px-1 text-muted-foreground", TEXT.detail)}>Looking the runways up…</p>
+          {trailing}
+        </>
       ) : (
         // Opened from its fold, the line slides out to the right of the
         // runway picked, at the owner's ask ("smoothly expand to the
@@ -1207,7 +1224,7 @@ function PatternChips({ airport: a, wind, chosen, landing, note, label, fitOf, o
           className={cn("flex min-w-0 flex-1", chosen !== null && "motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-left-6 motion-safe:duration-300")}
           onPointerDown={() => setTouched(t => t + 1)} onScrollCapture={() => setTouched(t => t + 1)}
         >
-          <Chips label={label ?? `${a.ident} ${landing ? "runway" : "traffic pattern"}`} value={chosen ?? NONE} onChange={v => { setOpen(false); onPick(v === NONE ? null : v); }}>
+          <Chips label={label ?? `${a.ident} ${landing ? "runway" : "traffic pattern"}`} value={chosen ?? NONE} onChange={v => { setOpen(false); onPick(v === NONE ? null : v); }} trailing={trailing} flushStart>
             {/* An approach to a runway lands on one: none is no choice then. */}
             <ToggleGroupItem value={NONE} disabled={straightIn !== null} className={CHIP}>None</ToggleGroupItem>
             {ends.map(({ runway, end }) => {
