@@ -21,8 +21,9 @@ const RULES = [{ value: "vfr", label: "VFR" }, { value: "ifr", label: "IFR" }];
 const feet = (ft: number) => ft.toLocaleString("en-US");
 /** An altitude as said: feet under 18,000 ft, a flight level from there
  *  up, where altimeters are set to 29.92 (14 CFR 91.121, AIM 7-2-2). */
-/** What the empty field says, as the route box's does with no route. */
-const PLACEHOLDER = "---";
+/** What the empty field says: an example of what it takes, at the owner's
+ *  ask ("I want it to say Alt: 080 as a text filler example"). */
+const PLACEHOLDER = "Alt: 080";
 const said = (ft: number) => (ft >= 18_000 ? `FL${Math.round(ft / 100)}` : `${feet(ft)} feet`);
 
 /** The cruising altitude the log flies: the highest of its legs once they
@@ -102,19 +103,21 @@ export default function AltitudeGroup({ nav, legs, commanded = null, problem = f
   // start at 18,000 ft MSL, where altimeters go to 29.92 (14 CFR 1.1,
   // 91.121(a)): the figure is hundreds of feet MSL, and the planner's are
   // feet MSL still, as VoiceOver says them (`said`). Typed, three figures
-  // or fewer are hundreds of feet, as written; more, feet.
+  // at most, hundreds of feet as written, at the owner's ask ("when altitude
+  // is entered it should only hold 3 digits").
   const flying = commanded ?? cruise;
   const shown = typed ?? (problem || flying === null ? "" : flightLevel(flying).slice(2));
   const top = rules === "ifr" ? 41_000 : 17_999;
   const fly = () => {
     if (typed === null) return;
     const digits = typed.replace(/\D/g, "");
-    const ft = digits.length <= 3 ? Number(digits) * 100 : Number(digits);
+    const ft = Number(digits) * 100;
     setTyped(null);
     // A VFR altitude is under Class A (14 CFR 71.33, 91.135); IFR's up to
     // FL410, the highest 91.179(b)(4) names.
     if (ft >= 500 && ft <= top && ft !== flying) onFlyAltitude(ft);
   };
+  const profiled = !disabled && (problem || (!!nav && (flying !== null || nav.flown === null)));
   const why = problem ? "no legal altitude" : flying !== null ? said(flying)
     : nav?.flown === null ? "no altitude: no winds" : "not yet planned";
   return (
@@ -135,36 +138,32 @@ export default function AltitudeGroup({ nav, legs, commanded = null, problem = f
           profile button's area reaches four into the gap, and with less the
           two areas met over each other (the iOS audit's P1). */}
       <label className="relative flex h-full items-center pr-1.5 after:absolute after:-inset-y-1.5 after:-left-0.5 after:right-0 after:content-['']">
-        {/* "FL" before the figure, a tap on it the field's too; in the
-            text's colour, the muted grey was 4.3:1 on the dark glass. */}
-        {/* "Alt:" before the figure, with an altitude or none, at the owner's
-            ask ("instead of Altitude, just say Alt: 080"): the figure is
-            the hundreds of feet a flight level writes. */}
-        <span className="pr-1 pl-3 text-foreground">Alt:</span>
         <input
           type="text" inputMode="numeric" enterKeyHint="done" autoComplete="off"
           value={shown} placeholder={PLACEHOLDER} aria-label="Cruise altitude, hundreds of feet"
-          onChange={e => setTyped(e.target.value.replace(/[^\d,]/g, "").slice(0, 6))}
+          onChange={e => setTyped(e.target.value.replace(/\D/g, "").slice(0, 3))}
           onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); fly(); (e.target as HTMLInputElement).blur(); } if (e.key === "Escape") setTyped(null); }}
           onBlur={fly}
           className={cn(
-            "relative z-10 h-full min-w-0 bg-transparent pr-1.5 pl-0.5 font-semibold tabular-nums outline-none",
+            "relative z-10 h-full min-w-0 bg-transparent pr-1.5 pl-3 font-semibold tabular-nums outline-none placeholder:font-normal",
             problem ? "text-red-700 dark:text-red-300" : "text-foreground",
           )}
-          // As wide as its figure and the padding beside it: a fixed 4.5ch,
-          // the padding inside it, cut "2,000" to "2,00" at the owner's
-          // larger text (2026-10-20). Safari has no field-sizing yet.
-          style={{ width: `calc(${Math.max(3, shown.length) + 0.5}ch + 0.5rem)` }}
+          // Three figures wide with one in it, the example's width empty, at
+          // the owner's ask ("the altitude box is too long"); the padding
+          // outside the figures, which cut "2,000" to "2,00" inside a fixed
+          // width at the owner's larger text (2026-10-20). Safari has no
+          // field-sizing yet.
+          style={{ width: `calc(${shown || typed !== null ? 3.5 : PLACEHOLDER.length + 0.5}ch + 1.125rem)` }}
           data-testid="altitude-input"
         />
       </label>
-      {/* The profile's button once there is a plan to show -- its altitude,
-          or why there is none -- as the route box's clear shows with points
-          in it. The flight rules are the Profile card's switch alone, at the
+      {/* The profile's button once there is an altitude in the field, at the
+          owner's ask ("when altitude is entered ... a profile button shows
+          up"), or why there is none to show. The flight rules are the Profile card's switch alone, at the
           owner's ask ("no need to mention IFR or VFR"); VoiceOver hears them
           in the button's name still. */}
-      {(nav || problem) && !disabled && <span aria-hidden="true" className="h-4 w-px bg-border" />}
-      {(nav || problem) && !disabled && <button
+      {profiled && <span aria-hidden="true" className="h-4 w-px bg-border" />}
+      {profiled && <button
         type="button" onClick={onOpenProfile}
         className={cn(
           // The icon buttons' one size, 36 square with a 20-point glyph, the
