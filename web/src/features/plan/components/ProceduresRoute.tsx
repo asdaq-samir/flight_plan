@@ -1,14 +1,14 @@
 import { Fragment, lazy, Suspense, useEffect, useRef, useState, type ReactNode } from "react";
 import { create } from "zustand";
 import { useQueries, useQuery } from "@tanstack/react-query";
-import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Check, ChevronRight, Fuel, Info, PlaneLanding, PlaneTakeoff, Wind } from "lucide-react";
+import { Check, ChevronRight, Fuel, PlaneLanding, PlaneTakeoff, Wind } from "lucide-react";
 import { cn } from "cn";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
 import BackButton from "../../../components/BackButton";
 import CloseButton from "../../../components/CloseButton";
 import { Button } from "../../../components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "../../../components/ui/toggle-group";
-import { ResponsivePopover, ResponsivePopoverAnchor, ResponsivePopoverContent, ResponsivePopoverTrigger } from "../../../components/ResponsivePopover";
+import { ResponsivePopover, ResponsivePopoverAnchor, ResponsivePopoverContent } from "../../../components/ResponsivePopover";
 import { api } from "../../../lib/api/client";
 import { useMinuteClock, zuluTime } from "../../../lib/clock";
 import type { AircraftProfile, ProcedureDrawing, ProcedureList, ProcedureSummary, Runway } from "../../../lib/api/types";
@@ -18,12 +18,12 @@ import { airportQuery, plateQuery } from "../../../lib/queryClient";
 import { approachRunway, sameField, transitionWords, type BranchFix, type PickedProcedure } from "../../../lib/procedures";
 import { NO_PATTERN, trafficPattern } from "../../../lib/trafficPattern";
 import { TEXT } from "../../../lib/text";
-import { altFt, grouped } from "../../../lib/units";
+import { altFt } from "../../../lib/units";
 import { endFit, type EndFit } from "../../../lib/runwayFit";
 import { frdOf, isPosition } from "../../../lib/identSchema";
 import { COURSE_MAGENTA } from "../../../lib/map/chartColors";
 import { useOwnShip } from "../../../lib/map/ownShip";
-import { etaAt, reportedWind, windPickCrosswind, windPickWords, type ReportedWind } from "../format";
+import { etaAt, reportedWind, type ReportedWind } from "../format";
 import { PointMark } from "./navlog/PointMark";
 import FixBranch from "./FixBranch";
 import DepartPicker from "./navlog/DepartPicker";
@@ -556,47 +556,73 @@ export default function ProceduresRoute({
         holdable: a.role === "Destination", row,
       });
       const reported = reportedOf(a.ident);
-      const wind = reported === "calm" ? "Calm" : reported ? `${reported.dir} ${reported.speed} kt` : null;
+      // Without the "T" after its direction, at the owner's ask ("No need
+      // to put T next to wind"): a METAR's and a TAF's winds are true (FAA
+      // Order JO 7900.5), as VoiceOver still says them (`spoken`).
+      const wind = reported === "calm" ? "Calm" : reported ? `${reported.dir.replace(/T$/, "")} ${reported.speed} kt` : null;
       const tank = row ? tanks.get(row.key) : a.role === "Departure" ? tanks.get("departure") : undefined;
       return (
-        <li key={key} className="relative flex gap-2.5" data-testid="route-field" data-ident={a.ident}>
+        <li key={key} className="relative" data-testid="route-field" data-ident={a.ident}>
           {!last && <span aria-hidden="true" className="absolute top-3 bottom-0 left-[calc(0.875rem-1px)] w-0.5 bg-border" />}
-          <div className="relative flex w-7 shrink-0 justify-center pt-1">{mark}</div>
-          <div className="min-w-0 flex-1 pb-5">
-            <section aria-label={`${a.ident} · ${first.role}`}>
+          <section aria-label={`${a.ident} · ${first.role}`} className={cn(!(opened && parts[1]) && "pb-5")}>
+            {/* The airport's lines: a tap anywhere on them -- its symbol, its
+                ident, its fuel, its wind, its time -- opens it, at the
+                owner's ask ("it should expand when tapped anywhere on the
+                airport information next to the symbol or the symbol
+                itself"): the arrow by the symbol is the button, its area
+                stretched over the lines (after:inset-0); the menu and a
+                time to pick lie over it, their own. */}
+            <div className="relative flex gap-2.5">
+              {/* A fuel stop's pump on top of its symbol, at the owner's ask
+                  ("instead of fuel symbol next to airport id, can we put it
+                  on top of the airport symbol?"). */}
+              <div className="flex w-7 shrink-0 justify-center pt-1">
+                <span className="relative">
+                  {mark}
+                  {a.role === "Stop" && isFuelStop(a.ident) && (
+                    <span className="absolute -top-1.5 -right-1.5 grid size-4 place-items-center rounded-full bg-caution text-white ring-2 ring-background">
+                      <Fuel className="size-2.5" strokeWidth={2.6} aria-label="fuel stop" role="img" />
+                    </span>
+                  )}
+                </span>
+              </div>
               {/* Two lines, as a waypoint's row and the list before had them,
                   at the owner's ask ("line up the time with airport id and
                   elevation with wind like before"): the ident and the time,
                   then the wind and the elevation; the menu beside both. */}
-              <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-x-2">
+              <div className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-x-2">
                 <div className="col-start-1 row-start-1 flex min-w-0 items-center gap-1.5">
-                  {a.role === "Stop" && isFuelStop(a.ident) && <Fuel className="size-[1.125rem] shrink-0 text-caution" aria-label="fuel stop" role="img" />}
-                  <h3 className={cn("truncate font-bold", TEXT.heading)}>{a.ident}</h3>
-                  {/* The block opened and folded by its fuel and the arrow after
-                      it, a disclosure as iOS's lists have, not an icon button
-                      (data-disclosure): small at the owner's ask ("expansion
-                      arrow can be next to fuel"), its 44 points a
-                      pseudo-element round it. */}
+                  {/* The disclosure, iOS's small chevron by the symbol, not
+                      an icon button (data-disclosure). */}
                   <button
                     type="button" onClick={() => toggleField(key)} aria-expanded={opened} data-testid="field-toggle" data-ident={a.ident} data-disclosure=""
                     aria-label={`${a.ident}: runways and procedures`}
-                    className="relative flex h-6 shrink-0 items-center gap-1 rounded-full text-tint outline-none after:absolute after:-inset-y-2.5 after:-inset-x-1.5 after:content-[''] focus-visible:ring-2 focus-visible:ring-ring"
+                    className="-ml-1 grid size-4 shrink-0 place-items-center text-tint outline-none after:absolute after:inset-0 after:content-[''] focus-visible:ring-2 focus-visible:ring-ring"
                   >
-                    {tank && <FuelGauge gal={tank.gal} usable={tank.usable} tone={tank.low ? "low" : a.role === "Stop" && isFuelStop(a.ident) ? "fuel" : undefined} />}
                     <ChevronRight className={cn("size-4 transition-transform", opened && "rotate-90")} aria-hidden />
                   </button>
+                  {/* The size the list's names were ("the font size is bigger
+                      than it used to be for airport id"). */}
+                  <h3 className={cn("truncate font-semibold", TEXT.row)}>{a.ident}</h3>
+                  {tank && <FuelGauge gal={tank.gal} usable={tank.usable} tone={tank.low ? "low" : a.role === "Stop" && isFuelStop(a.ident) ? "fuel" : undefined} />}
                 </div>
-                <div className="col-start-2 row-start-1 justify-self-end">{end.time}</div>
-                <div className="col-start-3 row-span-2 row-start-1 self-center">{end.menu}</div>
+                <div className="relative z-10 col-start-2 row-start-1 justify-self-end">{end.time}</div>
+                <div className="relative z-10 col-start-3 row-span-2 row-start-1 self-center">{end.menu}</div>
                 <p className={cn("col-start-1 row-start-2 flex min-w-0 items-center gap-1 font-semibold text-tint tabular-nums", TEXT.note)} data-testid="field-wind">
-                  {end.direct ? "Direct to" : wind && <><Wind className="size-3.5 shrink-0" aria-hidden />{wind}</>}
+                  {end.direct ? "Direct to" : wind && (
+                    <>
+                      <Wind className="size-3.5 shrink-0" aria-hidden />
+                      <span aria-hidden="true">{wind}</span>
+                      <span className="sr-only">{`Wind ${reported === "calm" ? "calm" : reported ? reported.spoken : ""}`}</span>
+                    </>
+                  )}
                 </p>
                 <div className="col-start-2 row-start-2 justify-self-end">{end.elevation}</div>
               </div>
-              {opened && partBody(first)}
-            </section>
-            {opened && parts[1] && <section aria-label={`${a.ident} · ${parts[1].role}`}>{partBody(parts[1])}</section>}
-          </div>
+            </div>
+            {opened && <div className="pl-[2.375rem]">{partBody(first)}</div>}
+          </section>
+          {opened && parts[1] && <section aria-label={`${a.ident} · ${parts[1].role}`} className="pb-5 pl-[2.375rem]">{partBody(parts[1])}</section>}
         </li>
       );
     };
@@ -611,17 +637,10 @@ export default function ProceduresRoute({
       elevationFt: a.elevationFt ?? 0, altimeterInHg: card?.metar?.altimeter_in_hg, tempC: card?.metar?.temp_c,
       weightLb: kind === "takeoff" ? fit.takeoffLb : fit.landingLb,
     }) : null);
-    const ends = (a.runways ?? []).filter(r => !r.closed).flatMap(r => (r.runway_ends ?? []).filter(e => e.heading_true_deg != null).map(e => ({ runway: r, end: e })));
-    const chosenFit = (chosen: string | null, kind: "takeoff" | "landing") => {
-      const e = ends.find(x => runwayNumber(x.end.ident) === chosen);
-      return e ? fitOf(kind)(e.runway, e.end) : null;
-    };
-    // Every runway's crosswind past the demonstrated: the wind said in red.
-    const allOver = !!fit && ends.length > 0 && ends.every(e => fitOf("landing")(e.runway, e.end)?.crosswindOver);
     const chips = (kind: "takeoff" | "landing", chosen: string | null, landing: Landing | null, note: string | null, pick: (end: string | null) => void, label?: string) => (
       <PatternChips
         airport={a} wind={wind} chosen={chosen} landing={landing} label={label} onPick={pick} fitOf={fitOf(kind)}
-        info={<FieldInfo ident={a.ident} note={note} wind={wind} reported={reportedOf(a.ident)} fit={chosenFit(chosen, kind)} kind={kind} demonstratedKt={fit?.aircraft.crosswind?.demonstrated_kt ?? null} allOver={allOver} />}
+        note={note}
       />
     );
     const landingChips = chips("landing", chosenAt(a.ident), landingOf(a.ident), patternNote(a, chosenAt(a.ident), landingOf(a.ident)), end => onPick(a.ident, end ?? NO_PATTERN));
@@ -706,7 +725,7 @@ export default function ProceduresRoute({
     return [
       ...flight.stops.map((stop, k) => (
         <FuelStopRow
-          key={`fuel-${ident}-${stop.ident}`} stop={stop} last={false} usableGal={flight.usable_gal} runway={<FuelStopRunway ident={stop.ident} />}
+          key={`fuel-${ident}-${stop.ident}`} stop={stop} last={false} usableGal={flight.usable_gal}
           time={etaAt(depart || new Date().toISOString(), leavesMin + stop.minutes)} groundMin={groundMinAt(ground, stop.ident)}
           choices={k === 0 ? flight.choices : undefined}
           onChoose={onKeepFuelStops ? c => onKeepFuelStops(ident, [c.ident]) : undefined}
@@ -1044,14 +1063,17 @@ interface Landing {
   name: string;
 }
 
-function PatternChips({ airport: a, wind, chosen, landing, info, label, fitOf, onPick }: {
+function PatternChips({ airport: a, wind, chosen, landing, note, label, fitOf, onPick }: {
   airport: ProcedureAirport;
   /** Each end's fit today, marked on its chip (lib/runwayFit). */
   fitOf: (runway: Runway, end: RunwayEnd) => EndFit | null;
   /** The chips' name to a screen reader, where not the pattern's. */
   label?: string;
-  /** At the chips' start: the field's info (FieldInfo). */
-  info: ReactNode;
+  /** How the runway picked is flown -- its pattern's side and height, or
+   *  how the approach lands ("Straight in", "Circle to land") -- said in
+   *  its chip's name: the info button that showed it is gone, at the
+   *  owner's ask ("No need for info button"). */
+  note: string | null;
   wind: WindPick | null;
   chosen: string | null;
   landing: Landing | null;
@@ -1105,7 +1127,6 @@ function PatternChips({ airport: a, wind, chosen, landing, info, label, fitOf, o
     const c = chip(picked.runway, picked.end);
     return (
       <div className="flex items-center gap-2" data-testid="procedure-patterns">
-        {info}
         {/* Still the group's choice to a screen reader, picked; a tap on it
             opens the line. */}
         <div role="radiogroup" aria-label={label ?? `${a.ident} ${landing ? "runway" : "traffic pattern"}`}>
@@ -1117,7 +1138,7 @@ function PatternChips({ airport: a, wind, chosen, landing, info, label, fitOf, o
             // a plain button, not the group's items, it stacked them, the
             // arrow out under the chip (the owner's screenshot, 2026-10-20).
             className={cn(CHIP, "inline-flex items-center gap-0.5 whitespace-nowrap pr-2 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-right-3 motion-safe:duration-300", c.ring)}
-            aria-label={`${c.words}, picked: tap for the other runways`} data-testid="procedure-pattern" data-fit={c.fit} data-folded=""
+            aria-label={`${c.words}${note ? `, ${note}` : ""}, picked: tap for the other runways`} data-testid="procedure-pattern" data-fit={c.fit} data-folded=""
           >
             {c.face}
             <ChevronRight className="size-4 opacity-80" aria-hidden />
@@ -1127,11 +1148,10 @@ function PatternChips({ airport: a, wind, chosen, landing, info, label, fitOf, o
     );
   }
   return (
-    // The chips alone, the pattern's side and height and the wind behind
-    // the field's info (FieldInfo), at the owner's ask ("Keep the pattern
-    // info and winds info in a info icon next to the airport id").
+    // The chips alone, the wind the airport's under its ident and how the
+    // runway picked is flown in its chip's name (the owner's "No need for
+    // info button").
     <div className="flex items-center gap-2" data-testid="procedure-patterns">
-      {a.runways !== null && info}
       {a.runways === null ? (
         <p role="status" className={cn("px-1 text-muted-foreground", TEXT.detail)}>Looking the runways up…</p>
       ) : (
@@ -1180,145 +1200,9 @@ function patternNote(a: ProcedureAirport, chosen: string | null, landing: Landin
   return [side, a.patternAltitudeFt != null ? `${altFt(a.patternAltitudeFt)} ft` : null].filter(Boolean).join(" · ");
 }
 
-/**
- * A field's info, an (i) by its name in the route's list: the runway's
- * pattern -- its side and height, or how the approach lands -- and the
- * wind on the runway it favours (WindComponents), out of the list's way,
- * at the owner's ask ("Keep the pattern info and winds info in a info icon
- * next to the airport id"), so the list is compact.
- */
-function FieldInfo({ ident, note, wind, reported, fit, kind, demonstratedKt, allOver }: {
-  ident: string;
-  note: string | null;
-  wind: WindPick | null;
-  reported: Reported | null;
-  /** The runway picked's fit today, said under its note (lib/runwayFit). */
-  fit: EndFit | null;
-  kind: "takeoff" | "landing";
-  demonstratedKt: number | null;
-  /** Every runway's crosswind past the airplane's demonstrated. */
-  allOver: boolean;
-}) {
-  if (!note && !wind && !reported) return null;
-  const distance = fit?.neededFt != null && fit.lengthFt != null
-    ? `${kind === "takeoff" ? "Takeoff" : "Landing"} over 50 ft: ${grouped(fit.neededFt)} ft of ${grouped(fit.lengthFt)}` : null;
-  return (
-    <>
-      {/* On a phone a sheet, as the app's other panels over the map are
-          (ResponsivePopover); beside the trigger from md up. */}
-      <ResponsivePopover>
-        <ResponsivePopoverTrigger asChild>
-          {/* The field's wind itself, in the tint as what is tapped, its
-              direction over its speed, at the owner's pick ("2 · The wind
-              itself"); the bare (i) with none to say. Its 44 points a
-              pseudo-element round it, nothing grown. */}
-          <button
-            type="button" data-testid="field-info"
-            aria-label={`${ident} wind ${reported === "calm" ? "calm" : reported ? reported.spoken : "not reported"}, runway and wind`}
-            className={cn("relative flex h-9 min-w-9 shrink-0 flex-col items-center justify-center after:absolute after:-inset-x-1 after:-inset-y-1 after:content-['']", allOver ? "text-destructive-ink" : "text-tint")}
-            data-over={allOver || undefined}
-          >
-            {/* The wind is the airport's, under its ident, at the owner's
-                ask ("each depart/arrive doesn't need wind anymore since it's
-                below airport ID"): here the info, its name still saying
-                the wind to VoiceOver. */}
-            <Info className="size-5" aria-hidden />
-          </button>
-        </ResponsivePopoverTrigger>
-        <ResponsivePopoverContent title={`${ident} runway and wind`} align="start" className="w-auto max-w-[min(20rem,calc(100vw-2rem))] space-y-2 p-3" data-testid="field-info-content">
-          {note && <p className={cn("font-semibold", TEXT.detail)} data-testid="procedure-landing">{note}</p>}
-          {distance && (
-            <p className={cn(TEXT.note, fit?.short ? "font-semibold text-destructive-ink" : fit?.close ? "font-semibold" : "text-muted-foreground")} data-testid="field-info-distance">
-              {distance}{fit?.short ? ", too short" : fit?.close ? ", under 15% to spare" : ""}
-            </p>
-          )}
-          {fit?.crosswindOver && demonstratedKt != null && (
-            <p className={cn("font-semibold", TEXT.note)} data-testid="field-info-crosswind">Crosswind {fit.crosswindKt} kt, past the airplane&apos;s demonstrated {demonstratedKt}</p>
-          )}
-          {allOver && demonstratedKt != null && (
-            <p className={cn("font-semibold text-destructive-ink", TEXT.note)}>Every runway&apos;s crosswind is past the demonstrated {demonstratedKt} kt</p>
-          )}
-          {wind?.forecastAt != null && (
-            <p className={cn("text-muted-foreground", TEXT.note)} data-testid="field-info-forecast">
-              Forecast for {zuluTime(new Date(wind.forecastAt * 1000))}, {wind.from ? `${wind.from.ident}'s TAF, ${wind.from.nm} nm away` : "the field's TAF"}
-            </p>
-          )}
-          {wind && <WindComponents wind={wind} />}
-        </ResponsivePopoverContent>
-      </ResponsivePopover>
-      {/* A hairline between the wind and the runways. */}
-      <span aria-hidden="true" className="h-[26px] w-px shrink-0 bg-[rgba(60,60,67,0.22)] dark:bg-border" />
-    </>
-  );
-}
-
-/**
- * A suggested fuel stop's wind and the runway it favours (windPick: into the
- * wind, else the one in use or the longest when calm), as a field of the
- * route shows them, at the owner's notice ("Fuel stops are not picking the
- * best runway"): its wind in the tint, direction over speed, a hairline,
- * the runway's chip with the wind's mark. Not yet the pilot's to change --
- * the stop is not in the route -- so a chip that is not a button; added,
- * the stop's own runway is picked into the wind as every field's is.
- */
-function FuelStopRunway({ ident }: { ident: string }) {
-  const { data: card } = useQuery(airportQuery(ident));
-  if (!card) return null;
-  const near = !card.metar ? card.nearby_metar : null;
-  const wind = windPick(card.runways, near ? {
-    station: near.ident, distanceNm: near.distance_nm,
-    dirTrueDeg: near.metar.wind_dir_true_deg, speedKt: near.metar.wind_speed_kt, gustKt: near.metar.wind_gust_kt,
-  } : null);
-  const m = card.metar ?? card.nearby_metar?.metar;
-  const reported = m ? reportedWind(m.wind_dir_true_deg, m.wind_speed_kt, m.wind_gust_kt) : null;
-  if (!wind?.ident) return null;
-  const words = `${ident} wind ${reported === "calm" ? "calm" : reported ? reported.spoken : "not reported"}, runway ${wind.ident}${wind.calm ? "" : ", into the wind"}`;
-  return (
-    <div className="flex items-center gap-2" role="img" aria-label={words} data-testid="fuel-stop-runway">
-      <span aria-hidden="true" data-state="on" className={cn(CHIP, "inline-flex items-center gap-0.5 whitespace-nowrap after:hidden")}>
-        {!wind.calm && <Wind className="size-4" strokeWidth={2.2} aria-hidden />}{wind.ident}
-      </span>
-    </div>
-  );
-}
-
 /** A field's reported wind as its info's trigger writes it: "240°T" over
  *  "12G20" (knots), calm, or none (format's reportedWind). */
 type Reported = ReportedWind;
-
-/**
- * The wind on the runway it favours, as symbols, at the owner's ask ("the
- * notes about wind can be a symbol for head/cross components"): an arrow
- * down the runway at the pilot, green, for a headwind (up, red, for a
- * tailwind), and one across it, the way the wind blows, for the
- * crosswind and its gusts -- the colours ForeFlight's runway list gives
- * them. Where the field reports none, the station it is from beside them,
- * small: it is not the field's own. Said in words to a screen reader.
- */
-function WindComponents({ wind }: { wind: WindPick }) {
-  const words = windPickWords(wind);
-  if (wind.calm) {
-    return <p className={cn("px-1 text-muted-foreground", TEXT.note)} data-testid="procedure-wind">{words}</p>;
-  }
-  const crosswind = windPickCrosswind(wind);
-  // From the right (windPick's sign), it blows across to the left.
-  const Across = wind.crosswindKt > 0 ? ArrowLeft : ArrowRight;
-  const Along = wind.headwindKt >= 0 ? ArrowDown : ArrowUp;
-  return (
-    <p className={cn("flex items-center gap-3 px-1 tabular-nums", TEXT.detail)} aria-label={words} role="img" data-testid="procedure-wind">
-      <span className={cn("inline-flex items-center gap-0.5 font-semibold", wind.headwindKt >= 0 ? "text-green-700 dark:text-green-400" : "text-red-700 dark:text-red-400")}>
-        <Along className="size-4" strokeWidth={2.5} aria-hidden />{Math.abs(wind.headwindKt)}
-      </span>
-      {crosswind && (
-        <span className="inline-flex items-center gap-0.5 font-semibold text-muted-foreground">
-          <Across className="size-4" strokeWidth={2.5} aria-hidden />{crosswind}
-        </span>
-      )}
-      <span className="text-muted-foreground">kt</span>
-      {wind.from && <span className={cn("ml-auto text-muted-foreground", TEXT.note)}>{`${wind.from.ident} wind, ${wind.from.nm} nm`}</span>}
-    </p>
-  );
-}
 
 /**
  * One kind of a field's procedures, each by its chart's title, a page of

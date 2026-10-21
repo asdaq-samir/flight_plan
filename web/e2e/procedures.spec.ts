@@ -243,10 +243,9 @@ test("an approach puts its field's runway on its own, and another is let only wh
   await plate.click();
   await expect(plate).toHaveAttribute("aria-checked", "true");
   await page.keyboard.press("Escape");
-  // Said in the field's info, by its name.
-  await kdlh.getByTestId("field-info").click();
-  await expect(page.getByTestId("procedure-landing")).toHaveText("Straight in");
-  await page.keyboard.press("Escape");
+  // Said in the runway's chip's name, the info button gone (the owner's
+  // "No need for info button").
+  await expect(kdlh.getByRole("radio", { name: /Straight in/ })).toBeVisible();
   await expect(page.locator("path.traffic-pattern")).toHaveCount(0);
   // Its plate has no circling line: no other runway, and none is no
   // choice either. By its number: the live wind may name 27 into it first.
@@ -265,9 +264,7 @@ test("an approach puts its field's runway on its own, and another is let only wh
   await expect(circle).toBeEnabled({ timeout: slow(20000) });
   await circle.click();
   await expect(page).toHaveURL(/[?&]pattern=[^&]*KDLH(%3A|:)27(%2C|,|&|$)/);
-  await kdlh.getByTestId("field-info").click();
-  await expect(page.getByTestId("procedure-landing")).toHaveText("Circle to land");
-  await page.keyboard.press("Escape");
+  await expect(kdlh.getByRole("radio", { name: /Circle to land/ })).toBeVisible();
   await expect(page.locator("path.traffic-pattern")).toHaveCount(0);
 });
 
