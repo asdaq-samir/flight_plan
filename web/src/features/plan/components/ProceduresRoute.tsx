@@ -1,7 +1,7 @@
 import { Fragment, lazy, Suspense, useEffect, useRef, useState, type ReactNode } from "react";
 import { create } from "zustand";
 import { useQueries, useQuery } from "@tanstack/react-query";
-import { Check, ChevronRight, Fuel, PlaneLanding, PlaneTakeoff, Wind } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Fuel, PlaneLanding, PlaneTakeoff, Wind } from "lucide-react";
 import { cn } from "cn";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
 import BackButton from "../../../components/BackButton";
@@ -325,9 +325,15 @@ export default function ProceduresRoute({
     }
     const card = cards[i]?.data;
     const near = card && !card.metar ? card.nearby_metar : null;
+    // The field's own report as well, for what the planner's runway winds
+    // cannot say: a variable wind (VRB) has no runway into it there, and
+    // was left with none picked (KDLH's VRB04KT, the owner's screenshot).
+    const own = card?.metar;
     return windPick(runways, near ? {
       station: near.ident, distanceNm: near.distance_nm,
       dirTrueDeg: near.metar.wind_dir_true_deg, speedKt: near.metar.wind_speed_kt, gustKt: near.metar.wind_gust_kt,
+    } : own ? {
+      station: ident, distanceNm: 0, dirTrueDeg: own.wind_dir_true_deg, speedKt: own.wind_speed_kt, gustKt: own.wind_gust_kt,
     } : null);
   };
   // The wind a field reports, else the nearest report's, as the METAR
@@ -395,6 +401,9 @@ export default function ProceduresRoute({
   const [openAtFirst] = useState(fieldsOpenAtFirst);
   const isOpen = (key: string) => openAtFirst !== toggled.includes(key);
   const isFuelStop = useFuelStops();
+  // The runway lines opened from their fold (PatternChips), for what sits
+  // beside a folded one.
+  const openLines = useOpenRunwayLines(st => st.open);
   // A field listed twice (a round trip) picks its landing's runway once.
   const preselectedLand = (a: ProcedureAirport) => airports.findIndex(b => sameField(b.ident, a.ident)) !== airports.indexOf(a);
   const intoWind = airports.flatMap((a, i) => {
@@ -532,20 +541,50 @@ export default function ProceduresRoute({
     // time to leave again -- named for a screen reader as its parts are.
     const key = `${a.role}:${a.ident}`;
     const opened = isOpen(key);
-    type Part = { role: "Arrive" | "Depart"; kinds: Kind[]; chips: ReactNode; leaves: ReactNode };
+    // `line`, the runway line's key and the runway picked on it
+    // (PatternChips folds a line with a runway picked to that runway's chip).
+    type Part = { role: "Arrive" | "Depart"; kinds: Kind[]; chips: ReactNode; leaves: ReactNode; line: { key: string; chosen: string | null } };
     const partBody = (part: Part) => {
       const picked = part.kinds.filter(k => inRoute.some(p => sameField(p.ident, a.ident) && p.kind === k));
       const unpicked = part.kinds.filter(k => !picked.includes(k));
       const Glyph = part.role === "Arrive" ? PlaneLanding : PlaneTakeoff;
+      // The pull-downs for the procedures not yet picked beside the runway's
+      // chip while its line is folded to it, at the owner's ask ("Can
+      // arrival and approach pills be next to the runway when runway is
+      // collapsed?", "Same with departure"); under it while the line is
+      // open, its runways across the row.
+      const foldable = part.line.chosen !== null && a.runways !== null;
+      const lineOpen = openLines.includes(part.line.key);
+      const inline = foldable && !lineOpen;
+      const adds = unpicked.map(k => kindMenu(k, "add"));
       return (
         <div className="space-y-3 pt-3">
           <div className="flex items-center gap-2">
             <Glyph className="size-5 shrink-0 text-muted-foreground" aria-label={part.role === "Arrive" ? "landing" : "takeoff"} role="img" />
-            <div className="min-w-0 flex-1">{part.chips}</div>
+            {/* The runway line's arrow by the landing's or the takeoff's glyph,
+                at the owner's ask ("the arrow next to runway can be next to
+                the depart/arrive symbol"): to the right while it is folded
+                to the runway picked, to open it; to the left while it is
+                open, to fold it. A disclosure, a small arrow in its own 44
+                points, the line's chips clear of them. */}
+            {foldable && (
+              <button
+                type="button" data-disclosure="" data-testid="runway-line-toggle" aria-expanded={lineOpen}
+                aria-label={lineOpen ? `${a.ident}: fold the runways` : `${a.ident}: all the runways`}
+                onClick={() => useOpenRunwayLines.setState(st => ({ open: lineOpen ? st.open.filter(k => k !== part.line.key) : [...st.open, part.line.key] }))}
+                className="relative -my-1.5 -ml-4 grid size-11 shrink-0 place-items-center rounded-full text-tint outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                {lineOpen ? <ChevronLeft className="size-4" aria-hidden /> : <ChevronRight className="size-4" aria-hidden />}
+              </button>
+            )}
+            <div className={cn("min-w-0 flex-1", inline && "flex flex-wrap items-center gap-2")}>
+              {part.chips}
+              {inline && adds}
+            </div>
             {part.leaves && <span className="shrink-0">{part.leaves}</span>}
           </div>
           {picked.map(branch)}
-          {unpicked.length > 0 && <div className="flex flex-wrap gap-2">{unpicked.map(k => kindMenu(k, "add"))}</div>}
+          {!inline && unpicked.length > 0 && <div className="flex flex-wrap gap-2">{adds}</div>}
         </div>
       );
     };
@@ -657,8 +696,14 @@ export default function ProceduresRoute({
     // owner's ask ("The departure time can move from the route box to the
     // departure and arrival boxes"): picked there, Now for about now.
     const leaving = onDepart ? <DepartPicker value={depart} onChange={onDepart} look="time" /> : time;
-    if (a.role === "Departure") return block([{ role: "Depart", kinds: (["departure"] as Kind[]).filter(has), chips: departChips, leaves: null }], leaving);
-    if (a.role === "Destination") return block([{ role: "Arrive", kinds: (["arrival", "approach"] as Kind[]).filter(has), chips: landingChips, leaves: null }], time);
+    // Each runway line's key as PatternChips keeps it open: the field and
+    // the chips' own name, none for a landing's or a departure's own.
+    const landingLine = { key: `${a.ident}:`, chosen: chosenAt(a.ident) };
+    const takeoffLine = { key: `${a.ident}:${a.ident} takeoff runway`, chosen: takeoffAt(a.ident) };
+    if (a.role === "Departure") {
+      return block([{ role: "Depart", kinds: (["departure"] as Kind[]).filter(has), chips: departChips, leaves: null, line: roundTrip ? takeoffLine : landingLine }], leaving);
+    }
+    if (a.role === "Destination") return block([{ role: "Arrive", kinds: (["arrival", "approach"] as Kind[]).filter(has), chips: landingChips, leaves: null, line: landingLine }], time);
     // A stop is landed at and left again, each with its own runway, at the
     // owner's ask ("If a stop is an airport then it should have arrival
     // first with a runway and a separate departure with a runway"): two
@@ -683,8 +728,8 @@ export default function ProceduresRoute({
       />
     ) : etaAt(depart || new Date().toISOString(), flownTo! + onGroundMin);
     return block([
-      { role: "Arrive", kinds: (["arrival", "approach"] as Kind[]).filter(has), chips: landingChips, leaves: null },
-      { role: "Depart", kinds: (["departure"] as Kind[]).filter(has), chips: takeoffChips, leaves },
+      { role: "Arrive", kinds: (["arrival", "approach"] as Kind[]).filter(has), chips: landingChips, leaves: null, line: landingLine },
+      { role: "Depart", kinds: (["departure"] as Kind[]).filter(has), chips: takeoffChips, leaves, line: takeoffLine },
     ], time);
   };
 
@@ -1130,18 +1175,18 @@ function PatternChips({ airport: a, wind, chosen, landing, note, label, fitOf, o
         {/* Still the group's choice to a screen reader, picked; a tap on it
             opens the line. */}
         <div role="radiogroup" aria-label={label ?? `${a.ident} ${landing ? "runway" : "traffic pattern"}`}>
-          {/* An arrow at its right, the way the line opens, at the owner's
-              ask ("runways should have an arrow to the right"). */}
+          {/* The arrow that opens the line is by the landing's or the
+              takeoff's glyph now (the block's runway-line-toggle); a tap on
+              the chip still opens it. */}
           <button
             type="button" role="radio" aria-checked="true" data-state="on" onClick={() => setOpen(true)}
             // One line, the wind's mark, the runway and the arrow side by side:
             // a plain button, not the group's items, it stacked them, the
             // arrow out under the chip (the owner's screenshot, 2026-10-20).
-            className={cn(CHIP, "inline-flex items-center gap-0.5 whitespace-nowrap pr-2 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-right-3 motion-safe:duration-300", c.ring)}
+            className={cn(CHIP, "inline-flex items-center gap-0.5 whitespace-nowrap motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-right-3 motion-safe:duration-300", c.ring)}
             aria-label={`${c.words}${note ? `, ${note}` : ""}, picked: tap for the other runways`} data-testid="procedure-pattern" data-fit={c.fit} data-folded=""
           >
             {c.face}
-            <ChevronRight className="size-4 opacity-80" aria-hidden />
           </button>
         </div>
       </div>

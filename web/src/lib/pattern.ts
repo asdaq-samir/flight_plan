@@ -154,7 +154,7 @@ export function windPick(runways: Runway[], nearby?: ReportedWind | null, foreca
   }
   if (!nearby || nearby.speedKt == null) return null;
   // Its own TAF, at the field, is said as the field's; another's by name.
-  const from = forecastAt != null && nearby.distanceNm === 0 ? null : { ident: nearby.station, nm: Math.round(nearby.distanceNm) };
+  const from = nearby.distanceNm === 0 ? null : { ident: nearby.station, nm: Math.round(nearby.distanceNm) };
   const forecast = forecastAt != null ? { forecastAt } : {};
   const ends = runways
     .filter(r => !r.closed)
