@@ -41,10 +41,13 @@
          the manifest for it: a 180px PNG of the app icon, full bleed, for
          iOS rounds it itself. The tab's icon is the mark alone, which
          turns white on a dark browser.
-         The status bar over the installed app in the system's default
-         style; the theme colour is the page's own background. -->
+         The status bar over the installed app translucent, the chart
+         drawn under it, at the owner's pick (2026-10-21: the page stopped
+         under a white status bar, not top to bottom as the iOS app is);
+         its words white, read over a shade (index.css). The theme colour
+         is the page's own background. -->
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="theme-color" content="#ffffff" />
     <!-- Structural, not decorative: without this the page can grow a
          scrollbar of its own (even by a stray pixel), and a wheel over

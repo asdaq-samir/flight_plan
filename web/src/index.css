@@ -19,6 +19,26 @@
   }
 }
 
+/* Installed to the Home Screen the chart runs under the status bar
+   (index.html's black-translucent), whose words iOS draws white there
+   whatever is under them: a shade the status bar's height, darkest at
+   the top, so they read over a pale chart. Not in Safari, whose own bar
+   is there, nor the iOS app, whose status bar is the system's. */
+@media (display-mode: standalone) {
+  body::before {
+    content: "";
+    position: fixed;
+    inset-inline: 0;
+    top: 0;
+    height: env(safe-area-inset-top);
+    background: linear-gradient(rgb(0 0 0 / 0.45), rgb(0 0 0 / 0.15));
+    pointer-events: none;
+    /* Over the map's own layers (Leaflet's controls at 1000) and every
+       sheet and menu. */
+    z-index: 9999;
+  }
+}
+
 /* This is a controls app, not a page of text -- a long, still touch
    on a button, a marker, or a drag handle should start whatever that
    element does, not iOS/Android's own text-selection loupe or
