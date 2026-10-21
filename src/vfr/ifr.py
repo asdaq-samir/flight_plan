@@ -269,8 +269,15 @@ def _highest_ground_ft(pieces: list, heights: dict) -> float:
         for tile in _tiles_beside(piece):
             beside.setdefault(tile, []).append(piece)
     highest = -math.inf
-    for (x, y), near_pieces in beside.items():
+    # The highest tiles first, and none whose highest pixel is no higher
+    # than the ground already found: the same answer, from a handful of
+    # tiles rather than every pixel of hundreds (a 600 nm route's floor
+    # was three seconds of pixel distances, 2026-10-21).
+    by_top = sorted(beside.items(), key=lambda item: -float(heights[item[0]].max()))
+    for (x, y), near_pieces in by_top:
         tile = heights[(x, y)]
+        if float(tile.max()) * M_TO_FT <= highest:
+            break
         lats, lons = _pixel_lat_lon(TILE_ZOOM, x, y, tile.shape[0])
         near = np.zeros(tile.shape, dtype=bool)
         for a, b in near_pieces:
