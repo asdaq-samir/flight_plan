@@ -22,7 +22,7 @@ const feet = (ft: number) => ft.toLocaleString("en-US");
 /** An altitude as said: feet under 18,000 ft, a flight level from there
  *  up, where altimeters are set to 29.92 (14 CFR 91.121, AIM 7-2-2). */
 /** What the empty field says, as the route box's does with no route. */
-const PLACEHOLDER = "Altitude";
+const PLACEHOLDER = "---";
 const said = (ft: number) => (ft >= 18_000 ? `FL${Math.round(ft / 100)}` : `${feet(ft)} feet`);
 
 /** The cruising altitude the log flies: the highest of its legs once they
@@ -136,10 +136,13 @@ export default function AltitudeGroup({ nav, legs, problem = false, ownAltitude 
       <label className="relative flex h-full items-center pr-1.5 after:absolute after:-inset-y-1.5 after:-left-0.5 after:right-0 after:content-['']">
         {/* "FL" before the figure, a tap on it the field's too; in the
             text's colour, the muted grey was 4.3:1 on the dark glass. */}
-        {shown ? <span className="pl-3 text-foreground">FL</span> : <span className="pl-2" />}
+        {/* "Alt:" before the figure, with an altitude or none, at the owner's
+            ask ("instead of Altitude, just say Alt: 080"): the figure is
+            the hundreds of feet a flight level writes. */}
+        <span className="pr-1 pl-3 text-foreground">Alt:</span>
         <input
           type="text" inputMode="numeric" enterKeyHint="done" autoComplete="off" disabled={disabled || !ownAltitude}
-          value={shown} placeholder={PLACEHOLDER} aria-label="Cruise altitude, flight level"
+          value={shown} placeholder={PLACEHOLDER} aria-label="Cruise altitude, hundreds of feet"
           onChange={e => setTyped(e.target.value.replace(/[^\d,]/g, "").slice(0, 6))}
           onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); fly(); (e.target as HTMLInputElement).blur(); } if (e.key === "Escape") setTyped(null); }}
           onBlur={fly}
@@ -150,7 +153,7 @@ export default function AltitudeGroup({ nav, legs, problem = false, ownAltitude 
           // As wide as its figure and the padding beside it: a fixed 4.5ch,
           // the padding inside it, cut "2,000" to "2,00" at the owner's
           // larger text (2026-10-20). Safari has no field-sizing yet.
-          style={{ width: `calc(${Math.max(3, (shown || PLACEHOLDER).length) + 0.5}ch + 0.5rem)` }}
+          style={{ width: `calc(${Math.max(3, shown.length) + 0.5}ch + 0.5rem)` }}
           data-testid="altitude-input"
         />
       </label>
