@@ -46,6 +46,10 @@ export type TopOfClimb = Schemas["TopOfClimb"];
 /** Where a leg's descent starts (TOD), to what and at what rate. */
 export type TopOfDescent = Schemas["TopOfDescent"];
 export type Totals = Schemas["Totals"];
+/** A field with the airplane's fuel a flight short of it can land at, and
+ *  the stops one such flight is offered (vfr.fuelstops). */
+export type FuelStop = Schemas["FuelStop"];
+export type FuelStopSuggestion = Schemas["FuelStopSuggestion"];
 export type AltitudeBreakdown = Schemas["AltitudeBreakdown"];
 export type AltitudeSegment = Schemas["AltitudeSegment"];
 /** One of the four plans: lowest, highest, fastest for the winds, and

@@ -10,6 +10,7 @@ A route may land at stops on the way (`stops`, "KDSM,KLNK"): each flight
 between two landings -- a hop -- is planned as a route of its own, with
 its own chart read, altitude plan, climb from the field and fuel check,
 the hops planned at once, and the nav log runs on through each stop."""
+import logging
 import re
 import time
 from concurrent.futures import Future, ThreadPoolExecutor
@@ -21,8 +22,8 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import Response, StreamingResponse
 from vfr import (
-    airports, airspace, altitude, chartlabels, charts, elevation, faa_data, fixes, geo, magnetic, navlog, places, procedure_paths,
-    procedures, sun,
+    airports, airspace, altitude, chartlabels, charts, elevation, faa_data, fixes, fuelstops, geo, magnetic, navlog, places,
+    procedure_paths, procedures, sun,
 )
 # As vfr_holds: PlanQuery's own `holds` is the address's.
 from vfr import holds as vfr_holds
@@ -61,6 +62,7 @@ from ..schemas import (
 from ..scoring import route_checkpoints
 
 router = APIRouter()
+log = logging.getLogger(__name__)
 
 # A pilot's own cruise speed: above zero, since every leg's time divides
 # by it -- zero was a ZeroDivisionError and a 500 rather than a 422.
@@ -821,9 +823,39 @@ def totals_of(r: Route, runs: list[HopRun], outcome: "Flown", profile: dict, rul
         per_flight.append(flight_totals(legs, profile, flight, runs[at].depart, rules, leg_on))
         at += hops
     totals = route_totals(per_flight, r.flights)
+    totals["fuel_stops"] = fuel_stops_of(r, per_flight)
     # The time on the ground at the stops (hop_runs), for the arrival.
     totals["ground_min"] = sum(ground_min_at(ground, f.dest_ident) for f in r.flights[:-1])
     return totals
+
+
+def fuel_stops_of(r: Route, per_flight: list[dict]) -> list[dict]:
+    """Where each flight the tanks do not hold could land for fuel
+    (vfr.fuelstops.suggest), at the owner's ask ("suggest fuel stops just
+    like Tesla suggests"): the stops that make it, and other fields for the
+    first, by the flight's own burn and minutes per mile and the reserve it
+    is held to. None where every flight's fuel check passes, or where the
+    usable fuel or the flight's figures are not known."""
+    out = []
+    for flight, t in zip(r.flights, per_flight):
+        margin, usable, distance = t.get("fuel_margin_gal"), t.get("usable_fuel_gal"), t.get("distance_nm")
+        if margin is None or margin >= 0 or not usable or not distance or t.get("fuel_gal") is None or t.get("ete_min") is None:
+            continue
+        try:
+            stops, choices = fuelstops.suggest(
+                flight.start, flight.end, fuel_per_nm=t["fuel_gal"] / distance, min_per_nm=t["ete_min"] / distance,
+                usable_gal=usable, taxi_gal=t.get("taxi_gal") or 0.0, reserve_gal=t.get("reserve_gal") or 0.0,
+                skip=set(r.idents),
+            )
+        except (OSError, ValueError, KeyError):
+            # The airport tables missing or unreadable: the fuel check
+            # still says the flight is short, with no stop offered.
+            log.warning("No fuel stops for %s-%s", flight.dep_ident, flight.dest_ident, exc_info=True)
+            continue
+        if stops:
+            out.append({"departure": flight.dep_ident, "destination": flight.dest_ident, "usable_gal": usable,
+                        "stops": [s.as_dict() for s in stops], "choices": [c.as_dict() for c in choices]})
+    return out
 
 
 def _waited(future: Future, tick_s: float, stages):

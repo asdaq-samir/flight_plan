@@ -351,6 +351,10 @@ class Totals(BaseModel):
     #: fuel check, the tanks filled at each stop -- the route's own fuel
     #: figures are None then (app.planning.route_totals). Empty without.
     hops: list["HopTotals"] = []
+    #: Where a flight the tanks do not hold could land for fuel
+    #: (vfr.fuelstops), one entry a flight short of fuel; empty where every
+    #: flight's fuel check passes.
+    fuel_stops: list["FuelStopSuggestion"] = []
     #: Minutes on the ground at the route's stops (PlanQuery.ground), not in
     #: `ete_min`: the destination's arrival is `ete_min` and this after the
     #: departure. 0 without stops.
@@ -371,6 +375,43 @@ class WindsPeriod(BaseModel):
     valid_at: str
     use_from: str
     use_to: str
+
+
+class FuelStop(BaseModel):
+    """A field with the airplane's fuel a flight can land at for it, with
+    its reserve left (vfr.fuelstops)."""
+
+    ident: str
+    name: str
+    city: str
+    lat: float
+    lon: float
+    #: Miles from the flight's departure to it, and the miles it adds to
+    #: the flight's straight line.
+    from_nm: float
+    added_nm: float
+    #: The fuel left on landing there, gallons.
+    lands_with_gal: float
+    #: Minutes flown to it from the flight's departure.
+    minutes: float
+    #: What fuel it sells, as the FAA lists it ("100LL,A").
+    fuel_types: str
+    #: Its longest paved runway, feet.
+    runway_ft: int
+    elevation_ft: float | None = None
+
+
+class FuelStopSuggestion(BaseModel):
+    """The stops that take one flight short of fuel to its destination with
+    the reserve left at every landing, the tanks filled at each, and other
+    fields the first could be."""
+
+    departure: str
+    destination: str
+    #: The tanks' usable fuel, gallons, each stop's landing measured against.
+    usable_gal: float
+    stops: list[FuelStop]
+    choices: list[FuelStop] = []
 
 
 class HopTotals(BaseModel):

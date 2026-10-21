@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useId, useRef, useState, type KeyboardEvent, type MouseEvent, type PointerEvent } from "react";
 import { Command as CommandPrimitive } from "cmdk";
-import { ArrowRight, PlaneLanding, PlaneTakeoff, Route, TriangleAlert } from "lucide-react";
+import { ArrowRight, Fuel, PlaneLanding, PlaneTakeoff, Route, TriangleAlert } from "lucide-react";
 import {
   DndContext, KeyboardSensor, MouseSensor, TouchSensor, closestCenter, useDndMonitor, useSensor, useSensors, type DragEndEvent,
 } from "@dnd-kit/core";
@@ -16,7 +16,7 @@ import { PointMenuItems } from "./PointControls";
 import { CONTEXT_MENU, useAfterMenu } from "./pointMenu";
 import { InputGroup } from "../../../components/ui/input-group";
 import { Popover, PopoverAnchor, PopoverContent } from "../../../components/ui/popover";
-import type { Detour } from "../../../lib/api/types";
+import type { Detour, FuelStopSuggestion } from "../../../lib/api/types";
 import { MAX_STOPS, frdOf, identOf, isPosition, pointName, stopOf } from "../../../lib/identSchema";
 import { usePreferences, type AirspaceClass, type RecentAirport } from "../../../lib/preferences";
 import { useAirportSearch } from "../../../lib/useAirportSearch";
@@ -76,7 +76,7 @@ const PROCEDURE_GLYPH = { approach: PlaneLanding, arrival: Route, departure: Pla
  */
 export default function RouteBox({
   dep, stops, dest, waypoints, airspaceOf, metarColourOf, altitudeAt, onAltitudeChange, onChange, adding, onAddingChange, via,
-  procedures = NO_PROCEDURES, onProcedures, onOpenAirport, onClear, directTo = null, onDirectTo,
+  procedures = NO_PROCEDURES, onProcedures, onOpenAirport, onClear, directTo = null, onDirectTo, fuelStops = NO_FUEL_STOPS, onKeepFuelStops,
 }: RouteParts & {
   /** Which points are waypoints, flown through: in the sectional's magenta. */
   waypoints: Set<string>;
@@ -112,6 +112,11 @@ export default function RouteBox({
    *  holds one, as a field's clears what is typed in it, at the pilot's
    *  ask. */
   onClear?: () => void;
+  /** The fuel stops the planner suggests for a flight too long for its
+   *  tanks (the totals' fuel_stops), dashed after the flight's departure
+   *  until added; a tap adds them, as FPL's Add fuel stop does. */
+  fuelStops?: FuelStopSuggestion[];
+  onKeepFuelStops?: (after: string, idents: string[]) => void;
 }) {
   const hasDep = !!dep, hasDest = !!dest;
   const points = [...(hasDep ? [dep] : []), ...stops, ...(hasDest ? [dest] : [])];
@@ -448,6 +453,17 @@ export default function RouteBox({
                       {(i === points.findIndex(p => p === point)) && procedures.filter(p => sameField(p.ident, point) && p.kind === "departure").map(p => (
                         <ProcedureChip key={`${p.kind}-${p.label}`} procedure={p} onOpen={onProcedures ? () => onProcedures(p) : undefined} />
                       ))}
+                      {/* The fuel stops suggested for the flight that leaves
+                          this point, dashed after it as the route goes on
+                          to them (FuelStopChip). */}
+                      {i < points.length - 1 && (i === points.findIndex(p => p === point)) && fuelStops
+                        .filter(f => sameField(f.departure, point)).slice(0, 1)
+                        .flatMap(f => f.stops.map(stop => (
+                          <Fragment key={`fuel-${stop.ident}`}>
+                            <ArrowRight className="size-3 shrink-0 text-muted-foreground" aria-hidden="true" />
+                            <FuelStopChip ident={stop.ident} onAdd={onKeepFuelStops ? () => onKeepFuelStops(point, f.stops.map(s => s.ident)) : undefined} />
+                          </Fragment>
+                        )))}
                     </Fragment>
                   ))}
                 </SortableContext>
@@ -520,6 +536,7 @@ export default function RouteBox({
  *  pill was a row of targets crowded between them, at the pilot's ask. Any
  *  of them, the ends too (RouteBox's `remove`). */
 const NO_PROCEDURES: RouteProcedure[] = [];
+const NO_FUEL_STOPS: FuelStopSuggestion[] = [];
 
 /** The pilot's own point as words: "30 nm on 090° from VPBNG". */
 function frdWords(ident: string): string {
@@ -530,6 +547,24 @@ function frdWords(ident: string): string {
 /** A procedure picked at a point, after its pill: its kind's glyph and its
  *  short title in the approaches' indigo, as the map draws it
  *  (ProcedureLayer). */
+/** A fuel stop suggested and not yet in the route (FuelStopRow's), in the
+ *  box: dashed in the caution's colour with the pump, a tap adding it. */
+function FuelStopChip({ ident, onAdd }: { ident: string; onAdd?: () => void }) {
+  return (
+    <button
+      type="button" onClick={onAdd} disabled={!onAdd} data-testid="route-fuel-stop"
+      aria-label={`Suggested fuel stop ${ident}: add it to the route`}
+      className={cn(
+        "relative inline-flex h-7 shrink-0 items-center gap-1 rounded-full border-[1.5px] border-dashed border-caution bg-background/70 px-2 font-semibold whitespace-nowrap text-caution-ink outline-none after:absolute after:-inset-y-2 after:inset-x-0 after:content-[''] focus-visible:ring-2 focus-visible:ring-ring",
+        TEXT.detail,
+      )}
+    >
+      <Fuel className="size-3.5 shrink-0" aria-hidden="true" />
+      {ident}
+    </button>
+  );
+}
+
 function ProcedureChip({ procedure, before = false, onOpen }: {
   procedure: RouteProcedure;
   /** Before its field's pill (an arrival, an approach), not after it. */
