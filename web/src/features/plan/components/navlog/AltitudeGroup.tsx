@@ -128,68 +128,76 @@ export default function AltitudeGroup({ nav, legs, commanded = null, problem = f
       // with an altitude there"): its fill and its type, not a chip of
       // glass; with no route its placeholder alone, as the box's.
       // 36 tall, as the airplane's button beside it (FlightInputs).
-      className={cn("flex h-9 items-center rounded-full", PANEL_FIELD_FILL, TEXT.row)}
+      // One width whatever is in it, at the owner's ask ("Don't reduce the
+      // width when a new altitude is entered because a profile button will
+      // take the place"): the wider of the example and three figures with
+      // the profile button after them, each measured unseen in the one
+      // cell, and the field taking what the button does not.
+      className={cn("grid h-9 items-center rounded-full", PANEL_FIELD_FILL, TEXT.row)}
       data-testid="altitude-group"
     >
-      {/* The field and its unit one label, a tap on "ft" the field's too,
-          its 44-point area a pseudo-element round them (index.css's after),
-          nothing grown. */}
-      {/* Six points after the figure, the label's, as "ft" stood there: the
-          profile button's area reaches four into the gap, and with less the
-          two areas met over each other (the iOS audit's P1). */}
-      <label className="relative flex h-full items-center pr-1.5 after:absolute after:-inset-y-1.5 after:-left-0.5 after:right-0 after:content-['']">
-        <input
-          type="text" inputMode="numeric" enterKeyHint="done" autoComplete="off"
-          value={shown} placeholder={PLACEHOLDER} aria-label="Cruise altitude, hundreds of feet"
-          onChange={e => setTyped(e.target.value.replace(/\D/g, "").slice(0, 3))}
-          onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); fly(); (e.target as HTMLInputElement).blur(); } if (e.key === "Escape") setTyped(null); }}
-          onBlur={fly}
-          className={cn(
-            "relative z-10 h-full min-w-0 bg-transparent pr-1.5 pl-3 font-semibold tabular-nums outline-none placeholder:font-normal",
-            problem ? "text-red-700 dark:text-red-300" : "text-foreground",
-          )}
-          // Three figures wide with one in it, the example's width empty, at
-          // the owner's ask ("the altitude box is too long"); the padding
-          // outside the figures, which cut "2,000" to "2,00" inside a fixed
-          // width at the owner's larger text (2026-10-20). Safari has no
-          // field-sizing yet.
-          style={{ width: `calc(${shown || typed !== null ? 3.5 : PLACEHOLDER.length + 0.5}ch + 1.125rem)` }}
-          data-testid="altitude-input"
-        />
-      </label>
-      {/* The profile's button once there is an altitude in the field, at the
-          owner's ask ("when altitude is entered ... a profile button shows
-          up"), or why there is none to show. The flight rules are the Profile card's switch alone, at the
-          owner's ask ("no need to mention IFR or VFR"); VoiceOver hears them
-          in the button's name still. */}
-      {profiled && <span aria-hidden="true" className="h-4 w-px bg-border" />}
-      {profiled && <button
-        type="button" onClick={onOpenProfile}
-        className={cn(
-          // The icon buttons' one size, 36 square with a 20-point glyph, the
-          // group's height; its 44-point area round it.
-          "relative flex size-9 shrink-0 items-center justify-center rounded-full text-tint outline-none after:absolute after:-inset-1 after:content-[''] focus-visible:ring-2 focus-visible:ring-ring",
-          problem && "text-red-700 dark:text-red-300",
-        )}
-        aria-label={`Cruising altitude${rules === "ifr" ? " under IFR" : ""}, ${why}${!problem && tight ? ", tight" : ""}${!problem && cautions.length ? ", your altitude has a caution" : ""}: set it on the profile`}
-        data-testid="altitude-why" data-tip="altitude"
-      >
-        {/* One amber dot at the button's top corner, as the Brief's tabs mark
-            theirs, at the owner's ask ("move the dot to the top corner of
-            the profile button because that's where it can be tapped"): a
-            caution on the pilot's own altitude, else a tight one, which the
-            Profile card says. Said in the button's name. */}
-        {!problem && (cautions.length > 0 || tight) && (
-          <span
-            className="absolute top-0.5 right-0.5 size-2 rounded-full bg-amber-500" aria-hidden="true"
-            data-testid={cautions.length > 0 ? "own-altitude-flag" : "tight-altitude-flag"}
+      <span aria-hidden="true" className="invisible col-start-1 row-start-1 flex h-0 overflow-hidden">
+        <span className="whitespace-pre pr-3.5 pl-3 font-semibold tabular-nums">000</span>
+        <span className="w-px" />
+        <span className="w-9 shrink-0" />
+      </span>
+      {/* Two points over the field's own padding, for the caret. */}
+      <span aria-hidden="true" className="invisible col-start-1 row-start-1 h-0 overflow-hidden whitespace-pre pr-3.5 pl-3 font-normal">
+        {PLACEHOLDER}
+      </span>
+      <div className="col-start-1 row-start-1 flex h-full min-w-0 items-center">
+        {/* Six points after the figure, the label's, as "ft" stood there:
+            the profile button's area reaches four into the gap, and with
+            less the two areas met over each other (the iOS audit's P1). Its
+            44-point area a pseudo-element round it, nothing grown. */}
+        <label className="relative flex h-full min-w-0 flex-1 items-center pr-1.5 after:absolute after:-inset-y-1.5 after:-left-0.5 after:right-0 after:content-['']">
+          <input
+            type="text" inputMode="numeric" enterKeyHint="done" autoComplete="off" size={1}
+            value={shown} placeholder={PLACEHOLDER} aria-label="Cruise altitude, hundreds of feet"
+            onChange={e => setTyped(e.target.value.replace(/\D/g, "").slice(0, 3))}
+            onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); fly(); (e.target as HTMLInputElement).blur(); } if (e.key === "Escape") setTyped(null); }}
+            onBlur={fly}
+            className={cn(
+              "relative z-10 h-full w-0 min-w-0 flex-1 bg-transparent pr-1.5 pl-3 font-semibold tabular-nums outline-none placeholder:font-normal",
+              problem ? "text-red-700 dark:text-red-300" : "text-foreground",
+            )}
+            data-testid="altitude-input"
           />
-        )}
-        {/* The route from the side, the profile's own mark. */}
-        <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-          <path d="M3 19h18" /><path d="M3 16l4-5 3 2 4-6 3 3 4-3" />
-        </svg>
-      </button>}
+        </label>
+        {/* The profile's button once there is an altitude in the field, at the
+            owner's ask ("when altitude is entered ... a profile button shows
+            up"), or why there is none to show. The flight rules are the Profile card's switch alone, at the
+            owner's ask ("no need to mention IFR or VFR"); VoiceOver hears them
+            in the button's name still. */}
+        {profiled && <span aria-hidden="true" className="h-4 w-px bg-border" />}
+        {profiled && <button
+          type="button" onClick={onOpenProfile}
+          className={cn(
+            // The icon buttons' one size, 36 square with a 20-point glyph, the
+            // group's height; its 44-point area round it.
+            "relative flex size-9 shrink-0 items-center justify-center rounded-full text-tint outline-none after:absolute after:-inset-1 after:content-[''] focus-visible:ring-2 focus-visible:ring-ring",
+            problem && "text-red-700 dark:text-red-300",
+          )}
+          aria-label={`Cruising altitude${rules === "ifr" ? " under IFR" : ""}, ${why}${!problem && tight ? ", tight" : ""}${!problem && cautions.length ? ", your altitude has a caution" : ""}: set it on the profile`}
+          data-testid="altitude-why" data-tip="altitude"
+        >
+          {/* One amber dot at the button's top corner, as the Brief's tabs mark
+              theirs, at the owner's ask ("move the dot to the top corner of
+              the profile button because that's where it can be tapped"): a
+              caution on the pilot's own altitude, else a tight one, which the
+              Profile card says. Said in the button's name. */}
+          {!problem && (cautions.length > 0 || tight) && (
+            <span
+              className="absolute top-0.5 right-0.5 size-2 rounded-full bg-amber-500" aria-hidden="true"
+              data-testid={cautions.length > 0 ? "own-altitude-flag" : "tight-altitude-flag"}
+            />
+          )}
+          {/* The route from the side, the profile's own mark. */}
+          <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M3 19h18" /><path d="M3 16l4-5 3 2 4-6 3 3 4-3" />
+          </svg>
+        </button>}
+      </div>
     </div>
   );
 }
