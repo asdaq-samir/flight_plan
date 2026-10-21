@@ -75,14 +75,11 @@ function planAt(nav: NavLogAltitude | null, altitude: number): AltitudeChoice | 
  * chip was: red with no legal altitude, IFR's flag, a tight altitude and a
  * pilot's own altitude's caution.
  */
-export default function AltitudeGroup({ nav, legs, problem = false, ownAltitude = true, tight = null, onFlyAltitude, onOpenProfile, disabled = false, rules = "vfr" }: {
+export default function AltitudeGroup({ nav, legs, problem = false, tight = null, onFlyAltitude, onOpenProfile, disabled = false, rules = "vfr" }: {
   nav: NavLogAltitude | null;
   legs: Leg[];
   /** No legal altitude on the route: the group red, its card saying why. */
   problem?: boolean;
-  /** An altitude of the pilot's own is offered: not under a Class B to
-   *  the ground, where there is none. */
-  ownAltitude?: boolean;
   /** A leg where no 500 ft step fits (vfr.altitude's tight altitude). */
   tight?: string | null;
   /** Flies the whole route at an altitude of the pilot's own, feet. */
@@ -141,7 +138,7 @@ export default function AltitudeGroup({ nav, legs, problem = false, ownAltitude 
             the hundreds of feet a flight level writes. */}
         <span className="pr-1 pl-3 text-foreground">Alt:</span>
         <input
-          type="text" inputMode="numeric" enterKeyHint="done" autoComplete="off" disabled={disabled || !ownAltitude}
+          type="text" inputMode="numeric" enterKeyHint="done" autoComplete="off"
           value={shown} placeholder={PLACEHOLDER} aria-label="Cruise altitude, hundreds of feet"
           onChange={e => setTyped(e.target.value.replace(/[^\d,]/g, "").slice(0, 6))}
           onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); fly(); (e.target as HTMLInputElement).blur(); } if (e.key === "Escape") setTyped(null); }}

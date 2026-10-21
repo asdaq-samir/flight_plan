@@ -1777,7 +1777,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       altitude={!s.local && (
         <AltitudeGroup
           nav={s.nav} legs={s.legs} onFlyAltitude={flyAltitude} onOpenProfile={openProfileCard}
-          problem={!!unflyable} ownAltitude={!unflyable?.classB}
+          problem={!!unflyable}
           // What the altitude was planned within, marked on the group, said
           // in the Profile card (AltitudeProfile).
           tight={unflyable ? null : tightLeg}

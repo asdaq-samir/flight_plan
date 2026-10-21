@@ -338,9 +338,10 @@ test("plan page: Class B avoided with no legal altitude offers the waypoint roun
   // The two ways past it, and no altitude of the pilot's own: under a
   // Class B to the ground there is none.
   await expect(problem.getByTestId("unflyable-fly-via")).toBeVisible();
-  // The card put away, the field beside the airplane greyed.
+  // The card put away, the field beside the airplane still takes a figure,
+  // at the owner's ask ("altitude should not be disabled").
   await closeCard(page, "profile-close");
-  await expect(page.getByTestId("altitude-input")).toBeDisabled();
+  await expect(page.getByTestId("altitude-input")).toBeEnabled();
   // Allowed: planned through it, the address back to its default.
   await mark.click();
   await problem.getByTestId("unflyable-accept-class-b").click();

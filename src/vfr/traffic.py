@@ -416,7 +416,9 @@ def near(lat: float, lon: float, radius_nm: float) -> dict:
     for a minute."""
     radius = min(MAX_RADIUS_NM, radius_nm)
     with _LOCK:
-        _LOOKED["at"] = _clock()
+        # One view a place, to the tenth of a degree: the map asks again
+        # every few seconds for much the same circle.
+        _LOOKED[(round(lat, 1), round(lon, 1))] = (lat, lon, radius, _clock())
     region = _region(lat, lon, radius)
     credit: dict = {}
     try:
@@ -1000,25 +1002,31 @@ def heard_elsewhere(plane: dict, at: float) -> None:
             _record(hex_id, {**plane, "seen_s": max(0.0, _wall() - at)})
 
 
-#: When the map last asked for the airplanes near a point (near), on the
-#: monotonic clock.
-_LOOKED = {"at": float("-inf")}
-#: How long after the map's last ask the FAA's radar is still read in
-#: full, s: the map asks every few seconds while traffic is shown, so past
-#: a minute nobody is looking.
+#: The places the map has asked for the airplanes near (near): each a
+#: view's centre, its radius (nm) and when it last asked, on the monotonic
+#: clock.
+_LOOKED: dict[tuple[float, float], tuple[float, float, float, float]] = {}
+#: How long after the map's last ask the FAA's radar is still read around
+#: a place, s: the map asks every few seconds while traffic is shown, so
+#: past a minute nobody is looking there.
 LOOKED_S = 60.0
 
 
-def radar_wanted() -> set[str] | None:
-    """What of the FAA's radar is worth reading now: None for every
-    airplane, while the map has asked for traffic within LOOKED_S; else
-    only the addresses of the airplanes followed, whose flights are
-    recorded card open or not. Reading the whole country's tracks with
-    nobody looking kept the planner at a core of its own on the owner's
-    Mac (2026-10-20)."""
+def radar_wanted() -> tuple[list[tuple[float, float, float]], set[str]]:
+    """What of the FAA's radar is worth reading now: the places the map has
+    asked for traffic around within LOOKED_S, each (lat, lon, radius nm),
+    and the addresses of the airplanes followed, whose flights are recorded
+    wherever they are, card open or not. Reading the whole country's tracks
+    with nobody looking kept the planner at a core of its own on the
+    owner's Mac (2026-10-20); reading it all while one map looked at one
+    place took 40% of the planner's time from the planning a pilot waits
+    on (py-spy, 2026-10-20)."""
     _followed("")  # the followed read from their files, the first time
     with _LOCK:
-        return None if _clock() - _LOOKED["at"] <= LOOKED_S else set(_FOLLOWED)
+        now = _clock()
+        for key in [key for key, view in _LOOKED.items() if now - view[3] > LOOKED_S]:
+            del _LOOKED[key]
+        return [view[:3] for view in _LOOKED.values()], set(_FOLLOWED)
 
 
 def _heard_elsewhere_now(hex_id: str) -> dict | None:

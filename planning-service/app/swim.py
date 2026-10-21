@@ -17,6 +17,7 @@ made again after a pause, growing to a few minutes.
 import logging
 import math
 import os
+import re
 import threading
 import time
 import xml.etree.ElementTree as ET
@@ -130,19 +131,48 @@ def tracks(xml: str) -> list[tuple[dict, float]]:
     return out
 
 
+#: How far a facility's tracks can lie from one another, nm: one STARS
+#: facility's message holds the tracks of its own radars, 60 nm round each
+#: terminal radar (the ASR-9's and ASR-11's instrumented range, FAA
+#: surveillance radar fact sheets) and the long-range ARSR some facilities
+#: fuse in, so its first track is taken to say where all of them are to
+#: within this much.
+FACILITY_SPAN_NM = 200.0
+#: How far past a view's edge its airplanes are still kept, nm: about a
+#: minute of a fast airplane's flying, so one about to come in is there.
+VIEW_MARGIN_NM = 10.0
+_FIRST_PLACE = re.compile(r"<lat>(-?[\d.]+)</lat><lon>(-?[\d.]+)</lon>")
+
+
+def _nm(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """About how far apart two places are, nm, on a flat chart a minute of
+    latitude to the mile: near enough to say a facility is out of sight
+    with hundreds of miles to spare, and cheap enough for every message."""
+    return 60.0 * math.hypot(lat2 - lat1, (lon2 - lon1) * math.cos(math.radians((lat1 + lat2) / 2)))
+
+
+def _in_view(lat: float, lon: float, views, margin: float) -> bool:
+    return any(_nm(lat, lon, v_lat, v_lon) <= radius + margin for v_lat, v_lon, radius in views)
+
+
 def _radar(text: str) -> int:
-    """A radar message's tracks handed to vfr.traffic. With nobody looking
-    at traffic, only the followed airplanes': a message naming none of
-    them (its addresses in either case) is not parsed at all, which is
-    most of them."""
+    """A radar message's tracks handed to vfr.traffic: the airplanes round
+    the places the map shows traffic, and the followed ones wherever they
+    are. A message from a facility far from every view and naming no
+    followed airplane (its addresses in either case) is not parsed at all,
+    which is most of them: the country's tracks, parsed as they come, took
+    the planner's time from the planning a pilot waits on."""
     if "TATrackAndFlightPlan" not in text[:300]:
         return 0
-    wanted = traffic.radar_wanted()
-    if wanted is not None and not any(a in text or a.upper() in text for a in wanted):
+    views, followed = traffic.radar_wanted()
+    first = _FIRST_PLACE.search(text)
+    near = first is not None and _in_view(float(first[1]), float(first[2]), views, FACILITY_SPAN_NM)
+    if not near and not any(a in text or a.upper() in text for a in followed):
         return 0
-    found = tracks(text)
-    if wanted is not None:
-        found = [(plane, at) for plane, at in found if plane["hex"] in wanted]
+    found = [
+        (plane, at) for plane, at in tracks(text)
+        if plane["hex"] in followed or _in_view(plane["lat"], plane["lon"], views, VIEW_MARGIN_NM)
+    ]
     for plane, at in found:
         traffic.heard_elsewhere(plane, at)
     return len(found)

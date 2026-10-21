@@ -173,6 +173,13 @@ export function useDetentDrag<S extends string>({ detents, shown, fromBottom, on
       const { detents: d, shown: now, fromBottom: bottom } = latest.current;
       for (let el: Element | null = target; el && el !== body; el = el.parentElement) {
         if (el.matches("textarea, input[type=range], [contenteditable=true]") || getComputedStyle(el).touchAction === "none") return false;
+        // A box marked to scroll first -- FPL's route box, at the owner's
+        // ask ("when dragging the route it should drag up the card unless
+        // there are three lines which should scroll first and then drag")
+        // -- scrolls while it can the way the finger goes, either way, and
+        // only then hands the drag to the sheet.
+        if (el instanceof HTMLElement && el.dataset.scrollFirst !== undefined && el.scrollHeight > el.clientHeight + 1
+          && (dy < 0 ? el.scrollTop + el.clientHeight < el.scrollHeight - 1 : el.scrollTop > 0)) return false;
       }
       if (bottom ? dy < 0 : dy > 0) return now < Math.max(...Object.values<number>(d)) - 1;
       for (let el: Element | null = target; el && el !== body.parentElement; el = el.parentElement) {

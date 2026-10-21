@@ -23,28 +23,37 @@ export function compassWord(bearingDeg: number): string {
 export interface InUse {
   runway: Runway;
   end: RunwayEnd;
-  /** Whether the reported wind chose it; if not, it is the longest
-   *  runway's first end, for want of a wind. */
+  /** Whether the reported wind chose it; if not, it is the most used
+   *  runway's (paved, then the longest) first end, for want of a wind. */
   byWind: boolean;
 }
+
+/** A runway paved, asphalt or concrete (OurAirports' surface codes),
+ *  where an unpaved strip may be listed longer: C81's 06/24 is listed at
+ *  3,573 ft of "COP" beside 09/27's 3,270 of asphalt, the one flown (the
+ *  owner's "runway 6 is not the longest or the most used"). */
+const paved = (r: Runway) => /asp|con|bit|pem|paved/i.test(r.surface ?? "");
+
+/** Paved first, then the longer: the runway a field's traffic uses most,
+ *  as far as its data says. */
+const mostUsed = (a: Runway, b: Runway) => Number(paved(b)) - Number(paved(a)) || (b.length_ft ?? 0) - (a.length_ft ?? 0);
 
 /** The runway end a pilot would take off from and land on: of the ends the reported wind
  *  favours on each runway (vfr.runway_wind), the one with the most
  *  headwind -- AC 90-66C 11.5's runway most nearly into the wind -- or,
- *  with no wind reported, the longest runway's first end. Only ends with
+ *  with no wind reported, the runway most used's (paved, then the longest) first end. Only ends with
  *  a heading: a helipad has no pattern to draw. */
 export function runwayInUse(runways: Runway[]): InUse | null {
   const open = runways.filter(r => !r.closed && (r.runway_ends ?? []).some(e => e.heading_true_deg != null));
   const winded = open
     .filter(r => r.wind)
     // Calm, the one the field's last wind favoured first (in_use).
-    .sort((a, b) => Number(!!b.wind!.in_use) - Number(!!a.wind!.in_use) || b.wind!.headwind_kt - a.wind!.headwind_kt
-      || (b.length_ft ?? 0) - (a.length_ft ?? 0));
+    .sort((a, b) => Number(!!b.wind!.in_use) - Number(!!a.wind!.in_use) || b.wind!.headwind_kt - a.wind!.headwind_kt || mostUsed(a, b));
   for (const runway of winded) {
     const end = runway.runway_ends?.find(e => e.ident === runway.wind!.end && e.heading_true_deg != null);
     if (end) return { runway, end, byWind: true };
   }
-  const longest = [...open].sort((a, b) => (b.length_ft ?? 0) - (a.length_ft ?? 0))[0];
+  const longest = [...open].sort(mostUsed)[0];
   const end = longest?.runway_ends?.find(e => e.heading_true_deg != null);
   return longest && end ? { runway: longest, end, byWind: false } : null;
 }

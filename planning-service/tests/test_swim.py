@@ -68,17 +68,28 @@ def test_a_message_is_read_from_its_bytes_or_its_string_and_one_neither_reads_is
     assert swim.body(_Message()) == ""
 
 
-def test_with_nobody_looking_only_the_followed_airplanes_tracks_are_read(monkeypatch):
+def test_the_tracks_read_are_those_round_a_view_and_the_followed_ones(monkeypatch):
     heard = []
     monkeypatch.setattr(swim.traffic, "heard_elsewhere", lambda plane, at: heard.append(plane["hex"]))
-    # Traffic on the map: every airplane.
-    monkeypatch.setattr(swim.traffic, "radar_wanted", lambda: None)
+    # The map on Chicago, 20 nm round O'Hare: the airliner over it, not
+    # N3429J 39 nm north-west.
+    monkeypatch.setattr(swim.traffic, "radar_wanted", lambda: ([(41.98, -87.9, 20)], set()))
+    assert swim._radar(MESSAGE) == 1 and heard == ["a6ed61"]
+    # Both views: both airplanes.
+    heard.clear()
+    monkeypatch.setattr(swim.traffic, "radar_wanted", lambda: ([(41.98, -87.9, 30), (42.6, -88.2, 20)], set()))
     assert swim._radar(MESSAGE) == 2 and heard == ["a3c858", "a6ed61"]
     # Nobody looking: the followed one alone, its address upper case in
-    # the message; none followed in it, the message not parsed.
+    # the message.
     heard.clear()
-    monkeypatch.setattr(swim.traffic, "radar_wanted", lambda: {"a3c858"})
+    monkeypatch.setattr(swim.traffic, "radar_wanted", lambda: ([], {"a3c858"}))
     assert swim._radar(MESSAGE) == 1 and heard == ["a3c858"]
+    # The map on Los Angeles, none followed in it: the message not parsed.
     monkeypatch.setattr(swim, "tracks", lambda xml: (_ for _ in ()).throw(AssertionError("parsed")))
-    monkeypatch.setattr(swim.traffic, "radar_wanted", lambda: {"abcdef"})
+    monkeypatch.setattr(swim.traffic, "radar_wanted", lambda: ([(33.94, -118.41, 165)], {"abcdef"}))
     assert swim._radar(MESSAGE) == 0
+
+
+def test_a_flat_chart_distance_is_near_enough():
+    # O'Hare to N3429J's track, 39.2 nm on the ellipsoid (pyproj's WGS84).
+    assert abs(swim._nm(41.98, -87.9, 42.58095, -88.24562) - 39.2) < 0.5
