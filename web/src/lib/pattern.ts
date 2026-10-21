@@ -37,7 +37,9 @@ export function runwayInUse(runways: Runway[]): InUse | null {
   const open = runways.filter(r => !r.closed && (r.runway_ends ?? []).some(e => e.heading_true_deg != null));
   const winded = open
     .filter(r => r.wind)
-    .sort((a, b) => b.wind!.headwind_kt - a.wind!.headwind_kt || (b.length_ft ?? 0) - (a.length_ft ?? 0));
+    // Calm, the one the field's last wind favoured first (in_use).
+    .sort((a, b) => Number(!!b.wind!.in_use) - Number(!!a.wind!.in_use) || b.wind!.headwind_kt - a.wind!.headwind_kt
+      || (b.length_ft ?? 0) - (a.length_ft ?? 0));
   for (const runway of winded) {
     const end = runway.runway_ends?.find(e => e.ident === runway.wind!.end && e.heading_true_deg != null);
     if (end) return { runway, end, byWind: true };
@@ -94,6 +96,9 @@ export interface WindPick {
   crosswindKt: number;
   gustCrosswindKt: number | null;
   calm: boolean;
+  /** Calm now, `ident` the runway the field's last wind favoured, the one
+   *  in use (the planner's RunwayWind.in_use); calm and not, the longest. */
+  inUse?: boolean;
   from: { ident: string; nm: number } | null;
   /** Picked into the wind a TAF forecasts for when the airplane is there,
    *  s since 1970 (windPick's `forecastAt`); none, the wind reported now. */
@@ -115,8 +120,11 @@ export interface ReportedWind {
  * own report's, worked out by the planner on each runway (vfr.runway_wind,
  * runwayInUse); else, for a field that reports none, the nearest report's
  * wind (`nearby`), said as that station's, the same sums done here -- the
- * most headwind, the longer runway on a tie. Calm is said as calm, on
- * no end. None with no wind to go by, or a variable one. With
+ * most headwind, the longer runway on a tie. Calm is said as calm, and
+ * picks, at the owner's ask ("when winds are calm just pick the currently
+ * used or most used runway"), the runway the field's last wind favoured
+ * where the planner knows it, else the longest. None with no wind to go
+ * by, or a variable one. With
  * `forecastAt`, `nearby` is a TAF's wind for then (the owner's pick,
  * 2026-10-20), the report now set aside.
  */
@@ -127,7 +135,10 @@ export function windPick(runways: Runway[], nearby?: ReportedWind | null, foreca
   if (own?.byWind && own.runway.wind) {
     const w = own.runway.wind;
     const calm = calmOnRunway(w);
-    return { ident: runwayNumber(own.end.ident), headwindKt: w.headwind_kt, crosswindKt: w.crosswind_kt, gustCrosswindKt: w.gust_crosswind_kt ?? null, calm, from: null };
+    return {
+      ident: runwayNumber(own.end.ident), headwindKt: w.headwind_kt, crosswindKt: w.crosswind_kt, gustCrosswindKt: w.gust_crosswind_kt ?? null,
+      calm, ...(calm && w.in_use ? { inUse: true } : {}), from: null,
+    };
   }
   if (!nearby || nearby.speedKt == null) return null;
   // Its own TAF, at the field, is said as the field's; another's by name.
@@ -137,7 +148,10 @@ export function windPick(runways: Runway[], nearby?: ReportedWind | null, foreca
     .filter(r => !r.closed)
     .flatMap(r => (r.runway_ends ?? []).filter(e => e.heading_true_deg != null).map(e => ({ runway: r, end: e, heading: e.heading_true_deg! })));
   if (ends.length === 0) return null;
-  if (isCalm(nearby.speedKt)) return { ident: "", headwindKt: 0, crosswindKt: 0, gustCrosswindKt: null, calm: true, from, ...forecast };
+  if (isCalm(nearby.speedKt)) {
+    const longest = runwayInUse(runways);
+    return { ident: longest ? runwayNumber(longest.end.ident) : "", headwindKt: 0, crosswindKt: 0, gustCrosswindKt: null, calm: true, from, ...forecast };
+  }
   if (nearby.dirTrueDeg == null) return null;
   const dir = nearby.dirTrueDeg, speed = nearby.speedKt;
   const best = [...ends].sort((a, b) => headwindKt(dir, speed, b.heading) - headwindKt(dir, speed, a.heading)

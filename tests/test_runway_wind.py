@@ -37,3 +37,36 @@ def test_no_wind_without_a_report_a_direction_or_a_runway_heading(metar, ends):
 def test_calm_is_nothing_on_the_first_end():
     wind = runway_wind.favoured_end(NINE_27, {"wind_dir_true_deg": 0.0, "wind_speed_kt": 0.0}, 0.0)
     assert wind == {"end": "9", "headwind_kt": 0.0, "crosswind_kt": 0.0, "gust_crosswind_kt": None}
+
+
+def test_calm_keeps_the_runway_the_last_wind_favoured():
+    # Calm now, 270 at 8 an hour ago: 27 is the runway in use, said so.
+    calm = {"wind_dir_true_deg": 0.0, "wind_speed_kt": 0.0}
+    wind = runway_wind.favoured_end(NINE_27, calm, 0.0, recent={"wind_dir_true_deg": 270.0, "wind_speed_kt": 8.0})
+    assert wind == {"end": "27", "headwind_kt": 0.0, "crosswind_kt": 0.0, "gust_crosswind_kt": None, "in_use": True}
+
+
+def test_a_fields_last_wind_is_its_newest_report_with_a_direction(monkeypatch):
+    from vfr import weather
+
+    reports = [{"obsTime": 300, "wdir": 0, "wspd": 0}, {"obsTime": 200, "wdir": "VRB", "wspd": 3},
+               {"obsTime": 100, "wdir": 270, "wspd": 8}, {"obsTime": 50, "wdir": 90, "wspd": 6}]
+
+    class Answer:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return reports
+
+    monkeypatch.setattr(weather, "_RECENT_WIND", {})
+    monkeypatch.setattr(weather.requests, "get", lambda *a, **kw: Answer())
+    assert weather.recent_wind("KDLH") == {"wind_dir_true_deg": 270.0, "wind_speed_kt": 8.0}
+
+
+def test_calm_with_a_last_wind_puts_the_one_runway_it_favoured_in_use():
+    runways = [{"end_headings": [("6", 58.0), ("24", 238.0)]}, {"end_headings": [("9", 88.0), ("27", 268.0)]}]
+    calm = {"wind_dir_true_deg": 0.0, "wind_speed_kt": 0.0}
+    out = runway_wind.with_winds(runways, calm, 42.3, -88.1, recent={"wind_dir_true_deg": 270.0, "wind_speed_kt": 8.0})
+    assert [w["wind"].get("in_use", False) for w in out] == [False, True]
+    assert out[1]["wind"]["end"] == "27"

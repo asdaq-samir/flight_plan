@@ -1,7 +1,6 @@
 import type { ReactNode } from "react";
 import { ChevronRight } from "lucide-react";
 import { cn } from "cn";
-import RoundButton from "../../../components/RoundButton";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../../../components/ui/collapsible";
 import { altitudeLines, fixRoles, type BranchFix } from "../../../lib/procedures";
 import { altFt } from "../../../lib/units";
@@ -18,16 +17,20 @@ import { PointFigures, PointMenu } from "./PointControls";
  * straight there, the fixes before it greyed on a dashed spur, skipped. A
  * fix's row, or its altitude, opens its card (FixCard): the altitude set
  * there, as from the map. Folded and unfolded by the stock Collapsible.
- * Its head, after the field's runways, is the procedure's own pull-down
- * (`head`, ProcedureMenu), its kind and its fixes said under it, the fold
- * at its right (the owner's pick, option C of the procedures canvas).
+ * Its head, after the field's runways, is the procedure's name with the
+ * fold's arrow beside it, turning as it opens, its kind and its fixes said
+ * under it, and at its right the button to pick another (`menu`,
+ * ProcedureMenu), at the owner's ask ("Arrow next to the procedure should
+ * rotate and expand it. The button on the right should be to reselect
+ * another approach").
  */
-export default function FixBranch({ name, kind, head, fixes, direct, crossings, onDirect, onOpen }: {
+export default function FixBranch({ name, kind, menu, fixes, direct, crossings, onDirect, onOpen }: {
   /** The procedure, as the route's box names it ("ILS 22 · ELD"). */
   name: string;
-  /** Its kind as the head says it ("Approach"), and its pull-down. */
+  /** Its kind as the head says it ("Approach"), and the button to pick
+   *  another of it. */
   kind: string;
-  head: ReactNode;
+  menu: ReactNode;
   fixes: BranchFix[];
   direct: string | null;
   /** The pilot's own altitudes to cross fixes at, by fix. */
@@ -44,17 +47,29 @@ export default function FixBranch({ name, kind, head, fixes, direct, crossings, 
         <span aria-hidden="true" className="flex w-6 shrink-0 justify-center">
           <span className="size-2.5 rotate-45 border-2 border-white bg-procedure outline outline-1 outline-procedure" />
         </span>
-        <div className="flex min-w-0 flex-1 flex-col items-start">
-          {head}
-          <span className={cn("text-muted-foreground", TEXT.note)}>{kind}{count}</span>
-        </div>
-        {fixes.length > 0 && (
+        {fixes.length > 0 ? (
           <CollapsibleTrigger asChild>
-            <RoundButton label={`${name}, its fixes`} className="group text-tint" data-testid="fix-branch-toggle">
-              <ChevronRight className="size-5 transition-transform group-data-[state=open]:rotate-90" />
-            </RoundButton>
+            <button
+              type="button" aria-label={`${name}, its fixes`} data-testid="fix-branch-toggle"
+              className={cn(
+                "group relative flex min-w-0 flex-1 flex-col items-start text-left outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                "after:absolute after:inset-x-0 after:-inset-y-1.5 after:content-['']",
+              )}
+            >
+              <span className={cn("flex max-w-full items-center gap-1 font-semibold text-tint", TEXT.row)}>
+                <span className="truncate">{name}</span>
+                <ChevronRight className="size-4 shrink-0 transition-transform group-data-[state=open]:rotate-90" aria-hidden="true" />
+              </span>
+              <span className={cn("text-muted-foreground", TEXT.note)}>{kind}{count}</span>
+            </button>
           </CollapsibleTrigger>
+        ) : (
+          <div className="flex min-w-0 flex-1 flex-col items-start">
+            <span className={cn("max-w-full truncate font-semibold", TEXT.row)}>{name}</span>
+            <span className={cn("text-muted-foreground", TEXT.note)}>{kind}{count}</span>
+          </div>
         )}
+        {menu}
       </div>
       <CollapsibleContent>
         <ol className="mt-1" aria-label={`${name}, its fixes`}>

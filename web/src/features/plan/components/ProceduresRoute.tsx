@@ -385,7 +385,8 @@ export default function ProceduresRoute({
     // A forecast still coming is waited for, not picked past on the wind now.
     if (forecastFor[i] != null && forecasts[i]?.isPending) return [];
     const wind = windOf(a.ident);
-    if (!wind || wind.calm) return [];
+    // Calm, the runway in use or the longest (windPick), as the owner asked.
+    if (!wind || !wind.ident) return [];
     return [
       ...(picked.has(a.ident) || landingOf(a.ident) || preselectedLand(a) ? [] : [`land:${a.ident}:${wind.ident}`]),
       // A stop's runway to leave from, into the wind as its landing's.
@@ -466,7 +467,7 @@ export default function ProceduresRoute({
     // A kind's pull-down: the one in the route said on it (ProcedureMenu).
     const wind = windOf(a.ident);
     const i = airports.findIndex(f => f.ident === a.ident);
-    const kindMenu = (kind: Kind, look: "head" | "add") => (
+    const kindMenu = (kind: Kind, look: "button" | "add") => (
       <ProcedureMenu
         key={kind} ident={a.ident} kind={kind} list={lists[i]?.data} loading={!!lists[i]?.isFetching} look={look}
         picked={pickOf(a.ident, kind)} label={inRoute.find(p => sameField(p.ident, a.ident) && p.kind === kind)?.label ?? null}
@@ -493,7 +494,7 @@ export default function ProceduresRoute({
       if (!inPlace || !chosen) return null;
       return (
         <FixBranch
-          key={`branch-${kind}`} name={inPlace.label} kind={KIND_WORD[kind]} head={kindMenu(kind, "head")}
+          key={`branch-${kind}`} name={inPlace.label} kind={KIND_WORD[kind]} menu={kindMenu(kind, "button")}
           fixes={inPlace.fixes ?? []} direct={inPlace.direct ?? null} crossings={crossings}
           onDirect={fix => onProcedures(procedures.map(p => (p === chosen ? { ...p, direct: fix } : p)), null)}
           onOpen={fix => onFix?.(a.ident, kind, fix)}
@@ -806,13 +807,26 @@ function Chips({ label, value, onChange, children }: {
 }) {
   const row = useRef<HTMLDivElement>(null);
   // The chip chosen in sight: one past the row's end (O'Hare's 9L of
-  // eight runways) scrolled in, sideways only.
+  // eight runways) scrolled in, sideways only -- as it is picked, and again
+  // whenever the line or its chips change size after it opens: brought in
+  // once at its first layout, 9L was out of sight again by the time it was
+  // looked for, one run in two (procedures:306). A pilot's own scroll
+  // resizes nothing, so it is never undone.
   useEffect(() => {
-    const box = row.current, on = box?.querySelector<HTMLElement>("[data-state=on]");
-    if (!box || !on) return;
-    const edge = box.getBoundingClientRect(), chip = on.getBoundingClientRect();
-    if (chip.right > edge.right) box.scrollLeft += chip.right - edge.right + CHIP_GAP_PX;
-    else if (chip.left < edge.left) box.scrollLeft -= edge.left - chip.left + CHIP_GAP_PX;
+    const box = row.current;
+    if (!box) return;
+    const show = () => {
+      const on = box.querySelector<HTMLElement>("[data-state=on]");
+      if (!on) return;
+      const edge = box.getBoundingClientRect(), chip = on.getBoundingClientRect();
+      if (chip.right > edge.right) box.scrollLeft += chip.right - edge.right + CHIP_GAP_PX;
+      else if (chip.left < edge.left) box.scrollLeft -= edge.left - chip.left + CHIP_GAP_PX;
+    };
+    show();
+    const watch = new ResizeObserver(show);
+    watch.observe(box);
+    if (box.firstElementChild) watch.observe(box.firstElementChild);
+    return () => watch.disconnect();
   }, [value]);
   return (
     // One line, scrolled sideways where the chips are more than fit, at
@@ -834,9 +848,19 @@ function Chips({ label, value, onChange, children }: {
 }
 
 /** How long an opened runway line waits, untouched, before it slides back
- *  to the runway picked, ms: three seconds, at the owner's ask ("Collapse
- *  runways after 3 seconds"; it was four). */
-const RUNWAY_LINE_FOLD_MS = 3000;
+ *  to the runway picked, ms: two seconds, at the owner's ask ("Runways can
+ *  collapse in 2 seconds"; it was four, then three). */
+const RUNWAY_LINE_FOLD_MS = 2000;
+/** The fold's wait, or a test's longer one (the browser specs keep a line
+ *  open while they pick from it: two seconds of a loaded test runner were
+ *  gone before the pick). */
+function runwayLineFoldMs(): number {
+  try {
+    return Number(globalThis.localStorage?.getItem("vfr.runwayFoldMs")) || RUNWAY_LINE_FOLD_MS;
+  } catch {
+    return RUNWAY_LINE_FOLD_MS;
+  }
+}
 
 /** The runway lines opened from their fold (PatternChips), by field. */
 const useOpenRunwayLines = create<{ open: string[] }>(() => ({ open: [] }));
@@ -927,7 +951,7 @@ function PatternChips({ airport: a, wind, chosen, landing, info, label, fitOf, o
   const folds = open && chosen !== null && a.runways !== null;
   useEffect(() => {
     if (!folds) return;
-    const id = setTimeout(() => useOpenRunwayLines.setState(s => ({ open: s.open.filter(k => k !== key) })), RUNWAY_LINE_FOLD_MS);
+    const id = setTimeout(() => useOpenRunwayLines.setState(s => ({ open: s.open.filter(k => k !== key) })), runwayLineFoldMs());
     return () => clearTimeout(id);
   }, [folds, key, touched]);
   if (picked && !open && a.runways !== null) {

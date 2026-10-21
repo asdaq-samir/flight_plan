@@ -20,7 +20,8 @@ import TabBar, { type BarTab } from "../../components/TabBar";
 import { useTabAsk } from "./components/navlog/panelTab";
 import { useAddressCards, usePanelTabs, type PanelTab, type TabList } from "./hooks/useTabCards";
 import { MAX_STOPS, altitudesOf, altitudesParam, departureOf, groundOf, identOf, isAirwayToken, positionIdent, routeName, routeOf, stopsOf } from "../../lib/identSchema";
-import { useKeptAirport, usePreferences, type RecentAirport } from "../../lib/preferences";
+import { useKeptAirport, usePreferences, type FlightRules, type RecentAirport } from "../../lib/preferences";
+import Segmented from "../../components/Segmented";
 import { SearchNear, useAirportSearch } from "../../lib/useAirportSearch";
 import { RouteMap } from "./routeMapChunk";
 import { useProgressToast } from "../../lib/useProgressToast";
@@ -196,6 +197,10 @@ const PLANNER_TABS: BarTab<PanelTab>[] = [
   // in full from the strip's title, at the owner's pick of the redesign
   // ("make it 4 tabs, combining the nearest into airport").
 ];
+
+/** The flight rules a route is planned under, as the Profile card's switch
+ *  offers them. */
+const FLIGHT_RULES = [{ value: "vfr", label: "VFR" }, { value: "ifr", label: "IFR" }];
 
 /** The route as the address has it, "dep|stops|dest", kept as a Direct to
  *  goes in (directToPoint) for its Cancel. */
@@ -1614,9 +1619,11 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   }, [dryRun]);
   // Started from the side view's card, which is put away for the run at
   // the sheet's foot, the route over it.
+  // Played in the Profile card it was started from, in the side view's
+  // place, at the owner's ask ("profile should play the dry run within
+  // profile card"); the card put away, at the sheet's foot over the route.
   const startDryRun = () => {
     if (!course) return;
-    setProfileOpen(false);
     // The procedures picked flown, as the legs are planned by them: out by
     // a departure, in by an arrival and an approach.
     const from = Math.round((depart ? Date.parse(depart) : Date.now()) / 1000);
@@ -1644,7 +1651,6 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const stopDryRun = () => {
     setRunFrom(null);
     clearPastFlight();
-    setProfileOpen(true);
   };
   // The route in order in FPL, the nav log's place: its fields with their
   // runways and procedures, and the tops of climb and descent and the
@@ -1885,7 +1891,8 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
         tight={unflyable ? null : tightLeg}
         classBAvoided={!classBClearance} onAvoidClassB={avoidClassB} onAllowClassB={() => acceptClassB(true)}
         onAltitudeChoiceChange={changeAltitudeChoice} onFlyAltitude={flyWheelAltitude}
-        rules={flightRules} onRulesChange={setFlightRules}
+        // The rules' switch at the card's top right (ProfileCard's corner).
+        rules={flightRules}
       />
     </Suspense>
   );
@@ -2115,7 +2122,25 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
         {/* FPL's nav log once there is a route, at the pilot's ask: the
             empty box alone before. */}
         {profileShown && !savedOpen && !place && !heldPoint && (
-          <ProfileCard name={routeName(planned.dep, planned.dest, planned.stops)} line={briefLine} onClose={closeProfileCard}>{sideView}</ProfileCard>
+          <ProfileCard
+            name={routeName(planned.dep, planned.dest, planned.stops)} line={briefLine} onClose={closeProfileCard}
+            corner={!s.local && (
+              <Segmented
+                label="Flight rules" value={flightRules} onChange={v => setFlightRules(v as FlightRules)} testId="flight-rules"
+                options={FLIGHT_RULES}
+              />
+            )}
+          >
+            {/* The dry run in the side view's place while it plays, the card's
+                height; its figures counting down at the sheet's foot. */}
+            {dryRunning ? (
+              <Suspense fallback={null}>
+                <div className="flex min-h-40 flex-1 flex-col" data-testid="profile-dry-run">
+                  <DryRunControls run={dryRunning} ends={course} onClose={stopDryRun} missed={goMissed} onMissed={goMissedNow} />
+                </div>
+              </Suspense>
+            ) : sideView}
+          </ProfileCard>
         )}
         <div className={cn("flex min-h-0 flex-1 flex-col print:flex", (tab !== "fpl" || place || heldPoint || savedOpen || briefShown || profileShown || !hasPoints) && "hidden")}>{navLog}</div>
       </>
@@ -2170,7 +2195,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
             over it; all the way up the two take a fifth of the screen at
             most. The side view itself is a card of its own (ProfileCard),
             at the owner's ask, where it was pinned here. */}
-        {dryRunning && (
+        {dryRunning && !profileShown && (
           // Clipped to its box, as the side view's is: shrinking with the
           // sheet to the pill, the chart was drawn over the figures under it
           // (the owner's recording).

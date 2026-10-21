@@ -101,9 +101,12 @@ export function PhoneSheetContent({ edge, className, style, children, onPointerD
     };
   }, [sheet, toward]);
   return (
+    // Its content clipped to its round corners, as an iOS sheet's is: a
+    // list scrolled under its foot stood square past them (the owner's
+    // screenshot of an approach's runways).
     <SheetContent
       ref={setSheet} side={edge} glass showCloseButton={false} data-floating=""
-      className={cn("max-h-[calc(85dvh-1rem)] gap-0 rounded-[36px]", className)}
+      className={cn("max-h-[calc(85dvh-1rem)] gap-0 overflow-hidden rounded-[36px]", className)}
       style={swiped === null ? style : { ...style, transform: `translateY(${toward * swiped}px)`, transition: held ? "none" : BACK }}
       onPointerDown={event => {
         onPointerDown?.(event);

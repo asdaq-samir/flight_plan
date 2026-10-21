@@ -1,7 +1,8 @@
 import { useRef, useState } from "react";
-import { Check, ChevronDown } from "lucide-react";
+import { ArrowLeftRight, Check, ChevronDown } from "lucide-react";
 import { cn } from "cn";
 import BackButton from "../../../components/BackButton";
+import RoundButton from "../../../components/RoundButton";
 import CloseButton from "../../../components/CloseButton";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
 import { ResponsivePopover, ResponsivePopoverContent, ResponsivePopoverTrigger } from "../../../components/ResponsivePopover";
@@ -55,10 +56,12 @@ export default function ProcedureMenu({ ident, kind, list, loading, picked, labe
   /** The picked one's fixes ATC can send the airplane direct to, in its
    *  order (its drawing's): with any, a page of them. */
   fixes?: string[];
-  /** Its trigger: a chip; the head of the procedure's branch, its name in
-   *  the tint (FixBranch); or, none picked, "+ Arrival" in a dashed
-   *  outline, after the field's runways (the owner's pick, option C). */
-  look?: "chip" | "head" | "add";
+  /** Its trigger: a chip; a round button at the right of the procedure's
+   *  branch, to pick another (FixBranch, at the owner's ask: "the button on
+   *  the right should be to reselect another approach"); or, none picked,
+   *  "+ Arrival" in a dashed outline, after the field's runways (the
+   *  owner's pick, option C). */
+  look?: "chip" | "button" | "add";
   onOpen: () => void;
   onPick: (next: { id: string; transition: string | null; direct?: string | null } | null) => void;
   onAll: () => void;
@@ -119,20 +122,31 @@ export default function ProcedureMenu({ ident, kind, list, loading, picked, labe
             field's ident in its head, its 44-point area a pseudo-element
             round it (the owner's compact head). Opened by a tap -- its
             lift, as a button's click is -- not a touch. */}
-        <button
-          type="button" data-testid="procedure-kind" data-kind={kind} data-look={look}
-          className={cn(
-            "relative flex min-w-0 shrink items-center gap-0.5 text-left font-semibold text-tint outline-none",
-            "after:absolute after:-inset-1.5 after:content-[''] focus-visible:ring-2 focus-visible:ring-ring",
-            look === "head" ? cn("max-w-full", TEXT.row)
-              : look === "add" ? cn("h-8 rounded-full border border-dashed border-foreground/25 px-3", TEXT.detail)
+        {look === "button" ? (
+          // The one picked's name kept in it for a reader, unseen: the
+          // branch's head shows it.
+          <RoundButton
+            label={`${ident} ${TITLE[kind].toLowerCase()}: ${label ?? "none picked"}, pick another`} className="text-tint"
+            data-testid="procedure-kind" data-kind={kind} data-look={look}
+          >
+            <ArrowLeftRight className="size-5" strokeWidth={2} />
+            <span className="sr-only">{label ?? SHORT[kind]}</span>
+          </RoundButton>
+        ) : (
+          <button
+            type="button" data-testid="procedure-kind" data-kind={kind} data-look={look}
+            className={cn(
+              "relative flex min-w-0 shrink items-center gap-0.5 text-left font-semibold text-tint outline-none",
+              "after:absolute after:-inset-1.5 after:content-[''] focus-visible:ring-2 focus-visible:ring-ring",
+              look === "add" ? cn("h-8 rounded-full border border-dashed border-foreground/25 px-3", TEXT.detail)
                 : cn("h-8 max-w-[10rem] rounded-full bg-foreground/8 px-2.5", TEXT.detail),
-          )}
-          aria-label={`${ident} ${TITLE[kind].toLowerCase()}: ${label ?? "none picked"}`}
-        >
-          {look === "add" ? <span className="truncate">+ {TITLE[kind]}</span> : <span className="truncate">{label ?? SHORT[kind]}</span>}
-          {look !== "add" && <ChevronDown className="size-4 shrink-0" aria-hidden />}
-        </button>
+            )}
+            aria-label={`${ident} ${TITLE[kind].toLowerCase()}: ${label ?? "none picked"}`}
+          >
+            {look === "add" ? <span className="truncate">+ {TITLE[kind]}</span> : <span className="truncate">{label ?? SHORT[kind]}</span>}
+            {look !== "add" && <ChevronDown className="size-4 shrink-0" aria-hidden />}
+          </button>
+        )}
       </ResponsivePopoverTrigger>
       <ResponsivePopoverContent
         title={title} align="start" side="bottom"

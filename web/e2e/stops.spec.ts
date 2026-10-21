@@ -2,6 +2,13 @@ import { readFileSync } from "node:fs";
 import { test, expect, type Locator, type Page } from "@playwright/test";
 import { clearTheRoute, openPanel, settle, sideDrawer, slow, openSettings, closeConsole, grabberTo, controlsInSight, showTabs, openNavLog, navLogSheet, closeNavLog } from "./helpers";
 
+// A runway line opened stays open while the spec picks from it: the app
+// folds it after two seconds untouched, which a loaded runner can spend
+// between opening it and the pick (ProceduresRoute's runwayLineFoldMs).
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => { try { localStorage.setItem("vfr.runwayFoldMs", "600000"); } catch { /* no storage */ } });
+});
+
 /**
  * A route that lands on the way, as Maps' Add Stop: a stop added in the
  * panel's second row goes into the address, the capsule names the route

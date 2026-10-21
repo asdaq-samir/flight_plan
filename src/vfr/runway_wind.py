@@ -37,13 +37,15 @@ def components_kt(wind_dir_true_deg: float, wind_speed_kt: float, heading_true_d
     return wind_speed_kt * math.cos(angle), wind_speed_kt * math.sin(angle)
 
 
-def favoured_end(ends: list, metar: dict | None, variation_deg: float) -> dict | None:
+def favoured_end(ends: list, metar: dict | None, variation_deg: float, recent: dict | None = None) -> dict | None:
     """The end of a runway the reported wind favours -- the most headwind --
     and its components: {"end", "headwind_kt", "crosswind_kt",
     "gust_crosswind_kt"}, rounded to the knot, the gust's crosswind where
     the report has a gust. `ends` is the runway's [(ident, true heading
-    or None)]. Calm is every end at nothing, the first one named. None
-    with no report, a variable wind or no end with a heading."""
+    or None)]. Calm is every end at nothing: the end the field's last wind
+    favoured (`recent`, vfr.weather.recent_wind), the runway in use, said
+    so ("in_use"), else the first one named. None with no report, a
+    variable wind or no end with a heading."""
     if not metar or metar.get("wind_speed_kt") is None:
         return None
     speed = metar["wind_speed_kt"]
@@ -53,6 +55,9 @@ def favoured_end(ends: list, metar: dict | None, variation_deg: float) -> dict |
     if not headed:
         return None
     if speed == 0:
+        if recent:
+            kept = max(headed, key=lambda end: components_kt(recent["wind_dir_true_deg"], recent["wind_speed_kt"], end[1])[0])[0]
+            return {"end": kept, "headwind_kt": 0.0, "crosswind_kt": 0.0, "gust_crosswind_kt": None, "in_use": True}
         return {"end": headed[0][0], "headwind_kt": 0.0, "crosswind_kt": 0.0, "gust_crosswind_kt": None}
     direction = metar.get("wind_dir_true_deg")
     if direction is None:
@@ -66,8 +71,21 @@ def favoured_end(ends: list, metar: dict | None, variation_deg: float) -> dict |
     }
 
 
-def with_winds(runways: list, metar: dict | None, lat: float, lon: float) -> list:
+def with_winds(runways: list, metar: dict | None, lat: float, lon: float, recent: dict | None = None) -> list:
     """vfr.airports.get_runways' runways, each with the reported wind on
-    the end it favours (`wind`, favoured_end), at a field at (lat, lon)."""
+    the end it favours (`wind`, favoured_end), at a field at (lat, lon);
+    `recent`, the field's last wind, for a calm one."""
     variation = magnetic_variation_deg(lat, lon)
-    return [{**r, "wind": favoured_end(r.get("end_headings", []), metar, variation)} for r in runways]
+    out = [{**r, "wind": favoured_end(r.get("end_headings", []), metar, variation)} for r in runways]
+    if not recent or not metar or metar.get("wind_speed_kt") != 0:
+        return out
+    # Calm: the one runway the last wind favoured most is the one in use,
+    # on its end into that wind; the rest stay calm on their first end.
+    def into_last(r: dict) -> float:
+        headings = [end_heading_true_deg(i, h, variation) for i, h in r.get("end_headings", [])]
+        return max((components_kt(recent["wind_dir_true_deg"], recent["wind_speed_kt"], h)[0] for h in headings if h is not None),
+                   default=float("-inf"))
+    best = max(range(len(out)), key=lambda k: into_last(out[k]), default=None)
+    if best is not None and out[best]["wind"]:
+        out[best] = {**out[best], "wind": favoured_end(out[best].get("end_headings", []), metar, variation, recent)}
+    return out
