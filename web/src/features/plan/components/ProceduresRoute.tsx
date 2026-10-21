@@ -807,13 +807,26 @@ function Chips({ label, value, onChange, children }: {
 }) {
   const row = useRef<HTMLDivElement>(null);
   // The chip chosen in sight: one past the row's end (O'Hare's 9L of
-  // eight runways) scrolled in, sideways only.
+  // eight runways) scrolled in, sideways only -- as it is picked, and again
+  // whenever the line or its chips change size after it opens: brought in
+  // once at its first layout, 9L was out of sight again by the time it was
+  // looked for, one run in two (procedures:306). A pilot's own scroll
+  // resizes nothing, so it is never undone.
   useEffect(() => {
-    const box = row.current, on = box?.querySelector<HTMLElement>("[data-state=on]");
-    if (!box || !on) return;
-    const edge = box.getBoundingClientRect(), chip = on.getBoundingClientRect();
-    if (chip.right > edge.right) box.scrollLeft += chip.right - edge.right + CHIP_GAP_PX;
-    else if (chip.left < edge.left) box.scrollLeft -= edge.left - chip.left + CHIP_GAP_PX;
+    const box = row.current;
+    if (!box) return;
+    const show = () => {
+      const on = box.querySelector<HTMLElement>("[data-state=on]");
+      if (!on) return;
+      const edge = box.getBoundingClientRect(), chip = on.getBoundingClientRect();
+      if (chip.right > edge.right) box.scrollLeft += chip.right - edge.right + CHIP_GAP_PX;
+      else if (chip.left < edge.left) box.scrollLeft -= edge.left - chip.left + CHIP_GAP_PX;
+    };
+    show();
+    const watch = new ResizeObserver(show);
+    watch.observe(box);
+    if (box.firstElementChild) watch.observe(box.firstElementChild);
+    return () => watch.disconnect();
   }, [value]);
   return (
     // One line, scrolled sideways where the chips are more than fit, at
