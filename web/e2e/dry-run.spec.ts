@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { grabberTo, navLogSheet, openNavLog, openPanel, openProfile, closeProfile, openTab, settle, settled, sideDrawer, slow } from "./helpers";
+import { grabberTo, openPanel, openProfile, closeProfile, settle, settled, sideDrawer, slow } from "./helpers";
 
 /**
  * The planned flight's dry run flies own ship, as if a pilot were flying
@@ -252,35 +252,23 @@ test("the profile is a card from its button beside the nav log's, no swipe at th
   await expect(panel.getByTestId("procedures")).toBeVisible();
 });
 
-test("all the way up the dry run plays at the foot under the route, and the nav log's sheet follows it, the row it is flying to tinted and kept in sight", async ({ page }) => {
-  // The owner's asks: "I wanna be able to do the dry run with navlog in
-  // full fpl"; "keep the profile at the bottom as you pull up the
-  // scrollable navlog"; then the nav log a sheet of its own ("Only stops
-  // in the route box and separate navlog").
+test("the dry run is the Profile card's: closed, the run is put away and FPL's foot is the flight's figures again", async ({ page }) => {
+  // The owner's notice: "I still see dry run in fpl after I play it in
+  // profile card once" -- it went on at FPL's foot, over the route.
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   await grabberTo(page, "full");
-  await openTab(page, "Nav Log");
   const panel = sideDrawer(page);
   await openProfile(page);
   const start = panel.getByTestId("dry-run-start");
   await expect(start).toBeVisible({ timeout: slow(60_000) });
   await start.click();
   await expect(panel.getByTestId("dry-run")).toBeVisible();
-  await expect(panel.getByTestId("dry-run-play")).toBeVisible();
-  // The card put away, the run at the sheet's foot under the route; the
-  // nav log opened from the route's box: the tinted row moves on with the
-  // run, in sight.
+  await expect(page.locator('[data-own-ship="on"]')).toHaveCount(1);
   await closeProfile(page);
-  await expect(panel.getByTestId("dry-run")).toBeVisible();
-  await expect(panel.getByTestId("navlog-scroller").locator('[data-title="Legs"]')).toBeVisible();
-  await openNavLog(page);
-  const flying = navLogSheet(page).locator('[role="row"][data-flying]');
-  await expect(flying).toHaveCount(1, { timeout: slow(10_000) });
-  const place = () => flying.evaluate(row => [...row.closest('[role="table"]')!.querySelectorAll('[role="row"][data-kind]')].indexOf(row));
-  const first = await place();
-  await expect.poll(place, { timeout: slow(20_000) }).toBeGreaterThan(first);
-  await expect(flying).toBeInViewport();
+  await expect(panel.getByTestId("dry-run")).toHaveCount(0);
+  await expect(page.locator("[data-own-ship]")).toHaveCount(0);
+  await expect(panel.getByTestId("flight-line")).toBeVisible();
 });
 
 // Duluth's RNAV (GPS) RWY 27 via PLANE as the planner draws it

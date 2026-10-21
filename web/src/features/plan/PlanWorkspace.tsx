@@ -1618,11 +1618,9 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     usePastFlight.setState(p => (p.points === dryRun.points ? p
       : { points: dryRun.points, at: p.at === null ? dryRun.points[0]!.t : Math.min(p.at, dryRun.points.at(-1)!.t) }));
   }, [dryRun]);
-  // Started from the side view's card, which is put away for the run at
-  // the sheet's foot, the route over it.
   // Played in the Profile card it was started from, in the side view's
   // place, at the owner's ask ("profile should play the dry run within
-  // profile card"); the card put away, at the sheet's foot over the route.
+  // profile card"), and put away with it.
   const startDryRun = () => {
     if (!course) return;
     // The procedures picked flown, as the legs are planned by them: out by
@@ -1653,6 +1651,14 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     setRunFrom(null);
     clearPastFlight();
   };
+  // The run is the Profile card's: put away with it, at the owner's ask
+  // ("I still see dry run in fpl after I play it in profile card once") --
+  // it stayed at FPL's foot, over the route, once the card was closed. The
+  // replay let go; the run's own start with it, as with another replay's.
+  useEffect(() => {
+    if (dryRunning && !profileShown) clearPastFlight();
+  }, [dryRunning, profileShown]);
+  if (runFrom !== null && !dryRunHeld) setRunFrom(null);
   // The route in order in FPL, the nav log's place: its fields with their
   // runways and procedures, and the tops of climb and descent and the
   // fixes flown through, by the nav log's rows.
@@ -2198,17 +2204,6 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       // MapPanel leaves bare for a card's summary to set (cardInPill): the
       // side view's figures sat 8 from the edge there (the iOS audit's P18).
       <div className={cn("flex min-h-0 w-full flex-col", (navLogShown || profileShown) && "px-4")}>
-        {/* A dry run's chart over the figures at every height out of the
-            pill, still as the sheet is dragged, the route's list coming out
-            over it; all the way up the two take a fifth of the screen at
-            most. The side view itself is a card of its own (ProfileCard),
-            at the owner's ask, where it was pinned here. */}
-        {dryRunning && !profileShown && (
-          // Clipped to its box, as the side view's is: shrinking with the
-          // sheet to the pill, the chart was drawn over the figures under it
-          // (the owner's recording).
-          <div className={cn("flex min-h-0 flex-col overflow-hidden pb-2", panel === "full" ? "h-[min(10rem,20dvh)] min-h-24 flex-none" : "h-40 shrink")} data-pill-hides=""><Suspense fallback={null}><DryRunControls run={dryRunning} ends={course} onClose={stopDryRun} missed={goMissed} onMissed={goMissedNow} /></Suspense></div>
-        )}
         {dryRunning ? (
           <Suspense fallback={null}>
             <DryRunFigures run={dryRunning} totals={s.totals} estimate={estimate} destination={`${planned.dest}`} depart={depart} local={s.local} />
