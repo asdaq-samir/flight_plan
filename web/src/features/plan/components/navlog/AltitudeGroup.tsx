@@ -22,7 +22,7 @@ const feet = (ft: number) => ft.toLocaleString("en-US");
 /** An altitude as said: feet under 18,000 ft, a flight level from there
  *  up, where altimeters are set to 29.92 (14 CFR 91.121, AIM 7-2-2). */
 /** What the empty field says, as the route box's does with no route. */
-const PLACEHOLDER = "Altitude";
+const PLACEHOLDER = "---";
 const said = (ft: number) => (ft >= 18_000 ? `FL${Math.round(ft / 100)}` : `${feet(ft)} feet`);
 
 /** The cruising altitude the log flies: the highest of its legs once they
@@ -75,14 +75,14 @@ function planAt(nav: NavLogAltitude | null, altitude: number): AltitudeChoice | 
  * chip was: red with no legal altitude, IFR's flag, a tight altitude and a
  * pilot's own altitude's caution.
  */
-export default function AltitudeGroup({ nav, legs, problem = false, ownAltitude = true, tight = null, onFlyAltitude, onOpenProfile, disabled = false, rules = "vfr" }: {
+export default function AltitudeGroup({ nav, legs, commanded = null, problem = false, tight = null, onFlyAltitude, onOpenProfile, disabled = false, rules = "vfr" }: {
   nav: NavLogAltitude | null;
   legs: Leg[];
+  /** The altitude the pilot asked for, feet, while its log is planned: the
+   *  field shows it from the moment it is asked, not the one before it. */
+  commanded?: number | null;
   /** No legal altitude on the route: the group red, its card saying why. */
   problem?: boolean;
-  /** An altitude of the pilot's own is offered: not under a Class B to
-   *  the ground, where there is none. */
-  ownAltitude?: boolean;
   /** A leg where no 500 ft step fits (vfr.altitude's tight altitude). */
   tight?: string | null;
   /** Flies the whole route at an altitude of the pilot's own, feet. */
@@ -103,7 +103,8 @@ export default function AltitudeGroup({ nav, legs, problem = false, ownAltitude 
   // 91.121(a)): the figure is hundreds of feet MSL, and the planner's are
   // feet MSL still, as VoiceOver says them (`said`). Typed, three figures
   // or fewer are hundreds of feet, as written; more, feet.
-  const shown = typed ?? (problem || cruise === null ? "" : flightLevel(cruise).slice(2));
+  const flying = commanded ?? cruise;
+  const shown = typed ?? (problem || flying === null ? "" : flightLevel(flying).slice(2));
   const top = rules === "ifr" ? 41_000 : 17_999;
   const fly = () => {
     if (typed === null) return;
@@ -112,9 +113,9 @@ export default function AltitudeGroup({ nav, legs, problem = false, ownAltitude 
     setTyped(null);
     // A VFR altitude is under Class A (14 CFR 71.33, 91.135); IFR's up to
     // FL410, the highest 91.179(b)(4) names.
-    if (ft >= 500 && ft <= top && ft !== cruise) onFlyAltitude(ft);
+    if (ft >= 500 && ft <= top && ft !== flying) onFlyAltitude(ft);
   };
-  const why = problem ? "no legal altitude" : cruise !== null ? said(cruise)
+  const why = problem ? "no legal altitude" : flying !== null ? said(flying)
     : nav?.flown === null ? "no altitude: no winds" : "not yet planned";
   return (
     <div
@@ -123,7 +124,8 @@ export default function AltitudeGroup({ nav, legs, problem = false, ownAltitude 
       // input similar to route box style where profile button only shows
       // with an altitude there"): its fill and its type, not a chip of
       // glass; with no route its placeholder alone, as the box's.
-      className={cn("flex h-8 items-center rounded-full", PANEL_FIELD_FILL, TEXT.row)}
+      // 36 tall, as the airplane's button beside it (FlightInputs).
+      className={cn("flex h-9 items-center rounded-full", PANEL_FIELD_FILL, TEXT.row)}
       data-testid="altitude-group"
     >
       {/* The field and its unit one label, a tap on "ft" the field's too,
@@ -135,10 +137,13 @@ export default function AltitudeGroup({ nav, legs, problem = false, ownAltitude 
       <label className="relative flex h-full items-center pr-1.5 after:absolute after:-inset-y-1.5 after:-left-0.5 after:right-0 after:content-['']">
         {/* "FL" before the figure, a tap on it the field's too; in the
             text's colour, the muted grey was 4.3:1 on the dark glass. */}
-        {shown ? <span className="pl-3 text-foreground">FL</span> : <span className="pl-2" />}
+        {/* "Alt:" before the figure, with an altitude or none, at the owner's
+            ask ("instead of Altitude, just say Alt: 080"): the figure is
+            the hundreds of feet a flight level writes. */}
+        <span className="pr-1 pl-3 text-foreground">Alt:</span>
         <input
-          type="text" inputMode="numeric" enterKeyHint="done" autoComplete="off" disabled={disabled || !ownAltitude}
-          value={shown} placeholder={PLACEHOLDER} aria-label="Cruise altitude, flight level"
+          type="text" inputMode="numeric" enterKeyHint="done" autoComplete="off"
+          value={shown} placeholder={PLACEHOLDER} aria-label="Cruise altitude, hundreds of feet"
           onChange={e => setTyped(e.target.value.replace(/[^\d,]/g, "").slice(0, 6))}
           onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); fly(); (e.target as HTMLInputElement).blur(); } if (e.key === "Escape") setTyped(null); }}
           onBlur={fly}
@@ -149,7 +154,7 @@ export default function AltitudeGroup({ nav, legs, problem = false, ownAltitude 
           // As wide as its figure and the padding beside it: a fixed 4.5ch,
           // the padding inside it, cut "2,000" to "2,00" at the owner's
           // larger text (2026-10-20). Safari has no field-sizing yet.
-          style={{ width: `calc(${Math.max(3, (shown || PLACEHOLDER).length) + 0.5}ch + 0.5rem)` }}
+          style={{ width: `calc(${Math.max(3, shown.length) + 0.5}ch + 0.5rem)` }}
           data-testid="altitude-input"
         />
       </label>
@@ -162,10 +167,9 @@ export default function AltitudeGroup({ nav, legs, problem = false, ownAltitude 
       {(nav || problem) && !disabled && <button
         type="button" onClick={onOpenProfile}
         className={cn(
-          // The icon buttons' one size, 36 square with a 20-point glyph,
-          // standing past the 32-point group above and below, where it has
-          // no fill to show; its 44-point area round it.
-          "relative -my-0.5 flex size-9 shrink-0 items-center justify-center rounded-full text-tint outline-none after:absolute after:-inset-1 after:content-[''] focus-visible:ring-2 focus-visible:ring-ring",
+          // The icon buttons' one size, 36 square with a 20-point glyph, the
+          // group's height; its 44-point area round it.
+          "relative flex size-9 shrink-0 items-center justify-center rounded-full text-tint outline-none after:absolute after:-inset-1 after:content-[''] focus-visible:ring-2 focus-visible:ring-ring",
           problem && "text-red-700 dark:text-red-300",
         )}
         aria-label={`Cruising altitude${rules === "ifr" ? " under IFR" : ""}, ${why}${!problem && tight ? ", tight" : ""}${!problem && cautions.length ? ", your altitude has a caution" : ""}: set it on the profile`}

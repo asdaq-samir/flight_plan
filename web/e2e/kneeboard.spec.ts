@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { settle, slow, controlsInSight } from "./helpers";
+import { settle, slow, controlsInSight, openNavLog } from "./helpers";
 
 /**
  * Print's Kneeboard card (Kneeboard, printKneeboard): offered beside the
@@ -25,9 +25,11 @@ test("Print offers the kneeboard card, and prints it alone on half-letter paper"
   await expect.poll(() => card.locator("tbody tr").count()).toBeGreaterThan(5);
   await expect(card).toContainText("KDLH · Duluth");
 
+  // From the nav log's own Share, at the owner's ask ("printing navlog
+  // should be in navlog").
   await controlsInSight(page);
-  await page.getByTestId("share-route").click();
-  await expect(page.getByTestId("print-briefing")).toBeVisible();
+  await openNavLog(page);
+  await page.getByTestId("tab-share").click();
   await page.getByTestId("print-kneeboard").click();
   await expect.poll(() => page.evaluate(() => (window as unknown as { printed?: string }).printed ?? "")).toContain("print-kneeboard");
   const printed = await page.evaluate(() => (window as unknown as { printed: string }).printed);

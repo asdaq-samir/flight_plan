@@ -2,7 +2,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { shortName } from "../../../../lib/aircraftChoice";
 import type { ReactNode } from "react";
 import { cn } from "cn";
-import { PANEL_FIELD_FILL } from "../../../../components/panelField";
+import { GLASS_BUTTON } from "../../../../components/mapChrome";
 import { TEXT } from "../../../../lib/text";
 import DepartPicker from "./DepartPicker";
 
@@ -30,17 +30,18 @@ export default function FlightInputs({ aircraftValue, aircraftOptions, onAircraf
   return (
     <>
       <Select value={aircraftValue} onValueChange={onAircraftChange}>
-        {/* A field as the altitude beside it is, the route box's fill and its
-            row type, at the owner's ask ("why is the font for PA28 so
-            small"): it was 13 to a finger, a chip of glass, to keep the
-            departure time and Save, Share and Print on its line, which have
-            gone (the time to a local flight's alone, the rest into Share).
-            No chevron to a finger: the field says it is a menu. */}
+        {/* A button as the Brief's is, a pill of the glass round buttons are
+            made of (GLASS_BUTTON), 36 tall, at the owner's pick ("pa28 should
+            be a selection button style like the brief button"), the fields
+            beside it glass panes; in the row's type, at the owner's ask ("why
+            is the font for PA28 so small"), where it was 13 to a finger to
+            keep the departure time and Save, Share and Print on its line,
+            which have gone. No chevron to a finger: a button says it is one. */}
         <SelectTrigger
           size="sm" aria-label="Airplane" data-testid="aircraft-select"
           className={cn(
-            "rounded-full border-0 font-semibold shadow-none pointer-coarse:px-3 [&_svg]:text-foreground pointer-coarse:[&_svg]:hidden",
-            PANEL_FIELD_FILL, TEXT.row,
+            "h-9 rounded-full font-semibold pointer-coarse:px-3 [&_svg]:text-foreground pointer-coarse:[&_svg]:hidden",
+            GLASS_BUTTON, TEXT.row,
           )}
         >
           {/* Its short name -- C172, N12345 -- so a departure time picked

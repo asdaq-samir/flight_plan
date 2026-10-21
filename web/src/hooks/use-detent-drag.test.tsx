@@ -47,6 +47,38 @@ describe("useDetentDrag body drag", () => {
   });
 });
 
+describe("useDetentDrag scroll-first box", () => {
+  function Boxed({ onRelease }: { onRelease: (d: string) => void }) {
+    const { body } = useDetentDrag({ detents, shown: 300, fromBottom: true, onRelease, setDragged: vi.fn() });
+    return <div ref={body}><div data-scroll-first="" data-testid="box"><p data-testid="line">KDLH</p></div></div>;
+  }
+  const lines = (el: HTMLElement, scrollTop: number) => {
+    Object.defineProperty(el, "scrollHeight", { value: 96, configurable: true });
+    Object.defineProperty(el, "clientHeight", { value: 64, configurable: true });
+    el.scrollTop = scrollTop;
+  };
+
+  it("scrolls its three lines first, then drags the sheet up", () => {
+    // The owner's ask: the route box scrolls while it can, then the card.
+    const onRelease = vi.fn();
+    const { getByTestId } = render(<Boxed onRelease={onRelease} />);
+    const box = getByTestId("box"), line = getByTestId("line");
+    lines(box, 0);
+    fire(line, "touchstart", [touch(line, 400)]);
+    fire(line, "touchmove", [touch(line, 380)]);
+    fire(line, "touchmove", [touch(line, 300)]);
+    fire(line, "touchend", []);
+    expect(onRelease).not.toHaveBeenCalled();
+    // Scrolled to its end: the sheet takes the drag.
+    lines(box, 32);
+    fire(line, "touchstart", [touch(line, 400)]);
+    fire(line, "touchmove", [touch(line, 380)]);
+    fire(line, "touchmove", [touch(line, 300)]);
+    fire(line, "touchend", []);
+    expect(onRelease).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("useDetentDrag release speed", () => {
   // Half (300) dragged down to 210 in quick moves: nearer half than the low
   // detent (100), so it goes on to low only if thrown.

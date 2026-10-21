@@ -228,8 +228,24 @@ export function usePlan(
     ...navlogQuery(plan, false), enabled: routeKnown && withCheckpoints && !fullIn && (ready === undefined ? slowFor === routeId : !ready),
   });
   const pointToPoint = withCheckpoints && !fullIn && !!asEntered.data?.some(m => m.type === "leg");
-  const messages = useMemo(
+  const streamed = useMemo(
     () => (pointToPoint ? asEntered.data : navlog.data) ?? [], [pointToPoint, asEntered.data, navlog.data]);
+  // The log before an altitude is asked for, kept on the page till the new
+  // one is in whole: the pilot commanded the altitude, and is not to wait
+  // on it (the owner, 2026-10-20) -- the stream starts over, and the log,
+  // its figures and the altitude beside the airplane went blank, "Planning
+  // altitudes…" over them, for the half second to seconds a re-plan takes.
+  // Only over the same flight with another altitude (typed, picked on the
+  // wheel, or one of the four plans): a new route, airplane or time is a
+  // log of its own; nor once the planner says no altitude is legal.
+  const holdKey = [...planKey.slice(0, 3), ...planKey.slice(5, -1)].join("|");
+  const whole = streamed.some(m => m.type === "done");
+  const [held, setHeld] = useState<{ key: string; planKey: ReturnType<typeof planKeyOf>; messages: NavLogMessage[] } | null>(null);
+  if (whole && !pointToPoint && (held?.messages !== streamed || held.key !== holdKey)) {
+    setHeld({ key: holdKey, planKey, messages: streamed });
+  }
+  const holding = !whole && !navlog.error && navlog.isFetching && held?.key === holdKey;
+  const messages = holding ? held.messages : streamed;
   // Each message narrowed by its own `type`, not cast: the "altitude"
   // line was cast to a hand-written copy of its shape, whose comments had
   // gone stale while the cast kept compiling.
@@ -253,11 +269,11 @@ export function usePlan(
   // What the checkpoints' nav log is working on, while it is, over the
   // route as entered too.
   const stages = (navlog.data ?? []).filter(m => m.type === "stage");
-  const navStage = navlog.isFetching ? (stages.at(-1) as { detail?: string } | undefined)?.detail ?? null : null;
+  const navStage = navlog.isFetching && !holding ? (stages.at(-1) as { detail?: string } | undefined)?.detail ?? null : null;
 
   // Which stage is outstanding, for the progress toast.
   const stage: "course" | "checkpoints" | "navlog" | null =
-    course.isLoading ? "course" : checkpoints.isLoading ? "checkpoints" : navlog.isFetching ? "navlog" : null;
+    course.isLoading ? "course" : checkpoints.isLoading ? "checkpoints" : navlog.isFetching && !holding ? "navlog" : null;
 
   // The briefing's own data -- hazards, METAR, forecast, runways and
   // frequencies. Fetched as soon as the course is, not only once a
@@ -309,7 +325,8 @@ export function usePlan(
 
   const notes = useCheckpointNotes(dep, dest, stops);
   // Written from the checkpoints' nav log, not the route as entered.
-  const narratives = useNarratives({ dep, dest, planKey, nav, legs, whole: !!totals && !pointToPoint });
+  // The held log's narratives while it is held: they are about it.
+  const narratives = useNarratives({ dep, dest, planKey: holding ? held.planKey : planKey, nav, legs, whole: !!totals && !pointToPoint });
 
   return {
     // Not the previous route's, kept as a placeholder, once the route is
@@ -321,6 +338,9 @@ export function usePlan(
     // entered, whose legs run point to point.
     logSelected: withCheckpoints && !pointToPoint ? checkpoints.data?.selected ?? NONE : NONE,
     legs, nav, navStage, stage, unflyable,
+    // The log on screen is the one before the altitude asked for, whose
+    // own is still coming.
+    replanning: holding,
     // The nav log on screen is the route as entered, its checkpoints' own
     // still to come in its place.
     pointToPoint,

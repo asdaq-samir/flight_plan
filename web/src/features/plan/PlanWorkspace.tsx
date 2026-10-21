@@ -32,6 +32,7 @@ import { useIsMobile } from "../../hooks/use-mobile";
 import { useNavEdge } from "../../hooks/use-nav-edge";
 import RoundButton from "../../components/RoundButton";
 import ShareMenu from "./components/ShareMenu";
+import type { RouteCard } from "../../lib/openCards";
 import TipHost from "../../components/TipHost";
 import { useCardTitle, usePanelDragging } from "../../components/mapChrome";
 import { CardHead } from "../../components/PanelCard";
@@ -1617,11 +1618,9 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     usePastFlight.setState(p => (p.points === dryRun.points ? p
       : { points: dryRun.points, at: p.at === null ? dryRun.points[0]!.t : Math.min(p.at, dryRun.points.at(-1)!.t) }));
   }, [dryRun]);
-  // Started from the side view's card, which is put away for the run at
-  // the sheet's foot, the route over it.
   // Played in the Profile card it was started from, in the side view's
   // place, at the owner's ask ("profile should play the dry run within
-  // profile card"); the card put away, at the sheet's foot over the route.
+  // profile card"), and put away with it.
   const startDryRun = () => {
     if (!course) return;
     // The procedures picked flown, as the legs are planned by them: out by
@@ -1652,6 +1651,14 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     setRunFrom(null);
     clearPastFlight();
   };
+  // The run is the Profile card's: put away with it, at the owner's ask
+  // ("I still see dry run in fpl after I play it in profile card once") --
+  // it stayed at FPL's foot, over the route, once the card was closed. The
+  // replay let go; the run's own start with it, as with another replay's.
+  useEffect(() => {
+    if (dryRunning && !profileShown) clearPastFlight();
+  }, [dryRunning, profileShown]);
+  if (runFrom !== null && !dryRunHeld) setRunFrom(null);
   // The route in order in FPL, the nav log's place: its fields with their
   // runways and procedures, and the tops of climb and descent and the
   // fixes flown through, by the nav log's rows.
@@ -1723,7 +1730,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           // "Nav log" is the tab bar's title over it already (the owner's
           // "Profile and Navlog titles appear twice").
           name={routeName(planned.dep, planned.dest, planned.stops)} line={briefLine} nameTestId="navlog-name"
-          onClose={closeNavLogCard} onShare="route" closeTestId="navlog-close"
+          onClose={closeNavLogCard} onShare="navlog" closeTestId="navlog-close"
         />
       ) : undefined}
       aircraftLabel={aircraft.label}
@@ -1777,7 +1784,11 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       altitude={!s.local && (
         <AltitudeGroup
           nav={s.nav} legs={s.legs} onFlyAltitude={flyAltitude} onOpenProfile={openProfileCard}
-          problem={!!unflyable} ownAltitude={!unflyable?.classB}
+          // The altitude asked for, at once, while its log is planned, and
+          // with no log yet: with no route the figure typed went blank, as
+          // if it were not taken, where the route entered next flies it.
+          commanded={(s.replanning || !s.nav) && altitudeFt ? Number(altitudeFt) : null}
+          problem={!!unflyable}
           // What the altitude was planned within, marked on the group, said
           // in the Profile card (AltitudeProfile).
           tight={unflyable ? null : tightLeg}
@@ -1793,7 +1804,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       depart={depart} onDepartChange={s.local ? changeDepart : undefined}
     />
   ), [aircraftValue, aircraftChoices, changeAircraft, s.local, s.nav, s.legs, flyAltitude, openProfileCard, unflyable, tightLeg,
-    routed, depart, changeDepart, flightRules]);
+    routed, depart, changeDepart, flightRules, s.replanning, altitudeFt]);
 
   // Saving the flight, the narrative and Print.
   const addingChange = useCallback((open: boolean) => setAddingStop(open ? "stop" : false), []);
@@ -1820,9 +1831,9 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     aircraftId: aircraft.aircraftId ?? null, depart, altitudes, picks: picksOf(searchParams),
   };
   // Share and everything else the route's row had (ShareMenu).
-  const shareMenu = (align: "start" | "end", testId?: string) => (
+  const shareMenu = (align: "start" | "end", testId?: string, card?: RouteCard) => (
     <ShareMenu
-      align={align} testId={testId} planned={planned} course={course} selected={selected} altitudeFt={s.nav?.altitude_ft ?? undefined}
+      align={align} testId={testId} card={card} planned={planned} course={course} selected={selected} altitudeFt={s.nav?.altitude_ft ?? undefined}
       routed={routed} hasPoints={hasPoints} local={!!s.local} fileable={fileable} onFile={fileFlightPlan} onClear={clearRoute}
       saving={askReview => (
         <Suspense fallback={null}>
@@ -1951,7 +1962,10 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
             from the altitude's own button beside the airplane, at the
             owner's ask ("we won't need a separate profile button next to
             navlog"). */}
-        {shareMenu("end")}
+        {/* Not before there is a route, at the owner's ask ("the share
+            button should not appear before a route is entered"): the box
+            clears itself (its own clear). */}
+        {routed && shareMenu("end")}
       </div>
     </div>
   );
@@ -2163,7 +2177,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     // The planner's tabs, the panel's first row, and at rest the pill
     // itself, at the pilot's ask: no search bar or route under them
     // (MapPanel).
-    bar: <TabBar tabs={PLANNER_TABS} tab={tab} over={(place || heldPoint) && tab !== "airport" ? "airport" : undefined} title={cardTitle} onPick={pickTab} onUp={tabUp} onClose={closeSheet} routeShare={shareMenu("start", "tab-share")} listOver={!!list || savedOpen || nearOpen} marks={s.unflyable ? { fpl: "stop" } : undefined} />,
+    bar: <TabBar tabs={PLANNER_TABS} tab={tab} over={(place || heldPoint) && tab !== "airport" ? "airport" : undefined} title={cardTitle} onPick={pickTab} onUp={tabUp} onClose={closeSheet} routeShare={card => shareMenu("start", "tab-share", card)} listOver={!!list || savedOpen || nearOpen} marks={s.unflyable ? { fpl: "stop" } : undefined} />,
     // The route's figures -- the distance, the time en route, the arrival
     // and the fuel -- pinned at FPL's foot while there is a route, at every
     // height, the pill too, at the pilot's ask: they were the last of the
@@ -2190,17 +2204,6 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       // MapPanel leaves bare for a card's summary to set (cardInPill): the
       // side view's figures sat 8 from the edge there (the iOS audit's P18).
       <div className={cn("flex min-h-0 w-full flex-col", (navLogShown || profileShown) && "px-4")}>
-        {/* A dry run's chart over the figures at every height out of the
-            pill, still as the sheet is dragged, the route's list coming out
-            over it; all the way up the two take a fifth of the screen at
-            most. The side view itself is a card of its own (ProfileCard),
-            at the owner's ask, where it was pinned here. */}
-        {dryRunning && !profileShown && (
-          // Clipped to its box, as the side view's is: shrinking with the
-          // sheet to the pill, the chart was drawn over the figures under it
-          // (the owner's recording).
-          <div className={cn("flex min-h-0 flex-col overflow-hidden pb-2", panel === "full" ? "h-[min(10rem,20dvh)] min-h-24 flex-none" : "h-40 shrink")} data-pill-hides=""><Suspense fallback={null}><DryRunControls run={dryRunning} ends={course} onClose={stopDryRun} missed={goMissed} onMissed={goMissedNow} /></Suspense></div>
-        )}
         {dryRunning ? (
           <Suspense fallback={null}>
             <DryRunFigures run={dryRunning} totals={s.totals} estimate={estimate} destination={`${planned.dest}`} depart={depart} local={s.local} />

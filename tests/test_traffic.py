@@ -53,7 +53,7 @@ def clock(monkeypatch, tmp_path):
     monkeypatch.setattr(traffic, "_ELSEWHERE", {})
     monkeypatch.setattr(traffic, "_FOLLOWED", set())
     monkeypatch.setattr(traffic, "_FOLLOWED_READ", {"done": False})
-    monkeypatch.setattr(traffic, "_LOOKED", {"at": float("-inf")})
+    monkeypatch.setattr(traffic, "_LOOKED", {})
     # No METAR near: pressure altitudes as sent (on_altimeter's own test).
     monkeypatch.setattr(traffic.weather, "nearest_report", lambda lat, lon, **kw: None)
     return clock
@@ -1148,16 +1148,22 @@ def test_the_faa_radars_airplanes_are_on_the_map_and_a_followed_ones_flight_reco
 
 
 
-def test_the_faa_radar_is_read_in_full_only_while_the_map_shows_traffic(clock, monkeypatch):
-    """A minute after the map last asked for traffic, only the followed
-    airplanes' radar tracks are wanted (app.swim reads no others)."""
+def test_the_faa_radar_is_read_around_the_places_the_map_shows_traffic(clock, monkeypatch):
+    """The radar is wanted around each place the map asked about within a
+    minute, once a place however often it asks, and for the followed
+    airplanes wherever they are (app.swim reads no others)."""
     traffic.follow("a3c858")
-    assert traffic.radar_wanted() == {"a3c858"}
+    assert traffic.radar_wanted() == ([], {"a3c858"})
     monkeypatch.setattr(traffic, "_region_answer", lambda region: (clock.now, []))
-    traffic.near(42.35, -88.15, 30)
-    assert traffic.radar_wanted() is None
-    clock.now += traffic.LOOKED_S + 1
-    assert traffic.radar_wanted() == {"a3c858"}
+    traffic.near(42.36, -88.14, 30)
+    traffic.near(42.37, -88.13, 30)
+    clock.now += traffic.LOOKED_S / 2
+    traffic.near(33.94, -118.41, 200)
+    assert traffic.radar_wanted() == ([(42.37, -88.13, 30), (33.94, -118.41, traffic.MAX_RADIUS_NM)], {"a3c858"})
+    clock.now += traffic.LOOKED_S / 2 + 1
+    assert traffic.radar_wanted() == ([(33.94, -118.41, traffic.MAX_RADIUS_NM)], {"a3c858"})
+    clock.now += traffic.LOOKED_S
+    assert traffic.radar_wanted() == ([], {"a3c858"})
 
 
 def test_pressure_altitudes_are_set_on_the_nearest_altimeter(clock, monkeypatch):

@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { slow, settle, sideDrawer, expectDrawerClosed, expectDrawerOpen, closeSidebarWithTheStockKey, openedDrawerBox, openBrief, openBriefing, openTab, openSection, panelTabs, openSettings, closeConsole, grabberTo, controlsInSight, openNavLog, closeNavLog, navLogSheet } from "./helpers";
+import { slow, settle, settled, closeCard, sideDrawer, expectDrawerClosed, expectDrawerOpen, closeSidebarWithTheStockKey, openedDrawerBox, openBrief, openBriefing, openTab, openSection, panelTabs, openSettings, closeConsole, grabberTo, controlsInSight, openNavLog, closeNavLog, navLogSheet } from "./helpers";
 
 /**
  * The flight planning panel: how it opens -- from its grabber, a pasted
@@ -89,8 +89,8 @@ test("plan page: the flight planning drawer opens the way the Model Training dra
 
   // The route's buttons, the Nav log (where Approaches was) and Share, at
   // the end of the airplane's, the altitude's and the time's line, at the
-  // pilot's ask; Save, filing the flight plan, Print and the route's close
-  // in Share.
+  // pilot's ask; Save, filing the flight plan and the route's close in
+  // Share -- printing in the Brief's and the nav log's own (below).
   const [approachesBox, shareBox] = await Promise.all(["route-navlog", "share-route"]
     .map(async id => (await drawer.getByTestId(id).boundingBox())!));
   expect(approachesBox.x).toBeLessThan(shareBox.x);
@@ -103,9 +103,37 @@ test("plan page: the flight planning drawer opens the way the Model Training dra
   await expect(drawer.getByTestId("procedures").getByTestId("depart-date")).toBeVisible();
   await drawer.getByTestId("share-route").click();
   // And, signed in, Save this flight among them.
-  for (const id of ["save-flight-button", "file-flight-plan", "print-briefing", "print-kneeboard", "route-clear"]) {
+  for (const id of ["save-flight-button", "file-flight-plan", "route-clear"]) {
     await expect(page.getByRole("menu").getByTestId(id)).toBeVisible();
   }
+  await expect(page.getByRole("menu").getByTestId("print-briefing")).toHaveCount(0);
+  await page.keyboard.press("Escape");
+});
+
+test("each card's Share is its own: the Brief's prints the briefing, the nav log's the nav log, and neither has the route's", async ({ page }) => {
+  // The owner's asks ("every share button needs to be specific to that
+  // card. So printing briefing should only be in brief card"; "printing
+  // navlog should be in navlog").
+  await page.goto("/app/plan?dep=C81&dest=KDLH");
+  await settle(page);
+  await grabberTo(page, "full");
+  const drawer = sideDrawer(page);
+  const menu = page.getByRole("menu");
+  await openBrief(page);
+  await page.getByTestId("tab-share").click();
+  await expect(menu.getByTestId("print-briefing")).toBeVisible();
+  await expect(menu.getByTestId("print-kneeboard")).toHaveCount(0);
+  await expect(menu.getByTestId("route-clear")).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await expect(menu).toHaveCount(0);
+  await settled(drawer);
+  await closeCard(page, "brief-close");
+  await expect(drawer.getByTestId("brief-card")).toHaveCount(0);
+  await openNavLog(page);
+  await page.getByTestId("tab-share").click();
+  await expect(menu.getByTestId("print-kneeboard")).toHaveText("Print the nav log");
+  await expect(menu.getByTestId("print-briefing")).toHaveCount(0);
+  await expect(menu.getByTestId("route-clear")).toHaveCount(0);
   await page.keyboard.press("Escape");
 });
 

@@ -27,7 +27,7 @@ export default function ProfileCard({ name, line, corner, onClose, children }: {
 }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col px-4 pt-[var(--corner-inset,0.75rem)] print:hidden" data-testid="profile-card">
-      <CardHead name={name} line={line} nameTestId="profile-name" onClose={onClose} onShare="route" closeTestId="profile-close">{corner}</CardHead>
+      <CardHead name={name} line={line} nameTestId="profile-name" onClose={onClose} onShare="profile" closeTestId="profile-close">{corner}</CardHead>
       <div className="mt-3 flex min-h-40 flex-1 flex-col [&_[data-testid=mini-profile]]:h-full">{children}</div>
     </div>
   );

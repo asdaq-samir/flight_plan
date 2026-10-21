@@ -41,6 +41,10 @@ describe("windPick", () => {
     const kept = [runway([["06", 58], ["24", 238]], 3573, { end: "06", headwind_kt: 0, crosswind_kt: 0, gust_crosswind_kt: null }),
       runway([["09", 88], ["27", 268]], 3270, { end: "27", headwind_kt: 0, crosswind_kt: 0, gust_crosswind_kt: null, in_use: true })];
     expect(windPick(kept)).toMatchObject({ ident: "27", calm: true, inUse: true });
+    // Calm with no wind before it: the paved runway, though a strip of
+    // another surface is listed longer (C81's 06/24, "COP", 3,573 ft).
+    const c81 = [{ ...runway([["06", 58], ["24", 238]], 3573), surface: "COP" }, runway([["09", 88], ["27", 268]], 3270)];
+    expect(windPick(c81, { station: "KUGN", distanceNm: 11, dirTrueDeg: null, speedKt: 0, gustKt: null })).toMatchObject({ ident: "9", calm: true });
     expect(windPick(C81, { station: "KUGN", distanceNm: 11, dirTrueDeg: null, speedKt: 6, gustKt: null })).toBeNull();
     expect(windPick(C81, null)).toBeNull();
   });

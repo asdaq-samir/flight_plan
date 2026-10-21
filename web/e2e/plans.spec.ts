@@ -338,9 +338,10 @@ test("plan page: Class B avoided with no legal altitude offers the waypoint roun
   // The two ways past it, and no altitude of the pilot's own: under a
   // Class B to the ground there is none.
   await expect(problem.getByTestId("unflyable-fly-via")).toBeVisible();
-  // The card put away, the field beside the airplane greyed.
+  // The card put away, the field beside the airplane still takes a figure,
+  // at the owner's ask ("altitude should not be disabled").
   await closeCard(page, "profile-close");
-  await expect(page.getByTestId("altitude-input")).toBeDisabled();
+  await expect(page.getByTestId("altitude-input")).toBeEnabled();
   // Allowed: planned through it, the address back to its default.
   await mark.click();
   await problem.getByTestId("unflyable-accept-class-b").click();
@@ -383,4 +384,36 @@ test("plan page: an altitude of the pilot's own that breaks a rule is flown as s
   await expect(cautions).toContainText("5,500 ft C81 → KDLH");
   await expect(cautions).toContainText("Westbound above");
   await expect(cautions).toContainText("(14 CFR 91.159)");
+});
+
+test("an altitude typed is the field's at once: with no route, kept for the route to come; with one, before its log is planned again", async ({ page }) => {
+  // The owner's asks ("it's not letting me enter altitude if no route is
+  // there"; "as soon as I enter a new altitude, it should not let me
+  // wait"): the figure went blank with no route, and back to the one
+  // before, "Planning altitudes…" over it, while the log was planned anew.
+  test.slow();
+  await page.goto("/app/plan");
+  await settle(page);
+  await controlsInSight(page);
+  const field = page.getByTestId("altitude-input");
+  await field.fill("55");
+  await field.press("Enter");
+  await expect(page).toHaveURL(/[?&]altitude_ft=5500/);
+  await expect(field).toHaveValue("055");
+
+  // A route planned, then another altitude: the planner held three seconds
+  // over it, the field at it all the while, and nothing said to wait on.
+  await page.goto("/app/plan?dep=C81&dest=KDLH&altitude_ft=5500");
+  await settle(page);
+  await controlsInSight(page);
+  await expect(page.getByTestId("altitude-why")).toHaveAccessibleName(/5,500 feet/, { timeout: slow(60000) });
+  await page.route(url => url.pathname.endsWith("/navlog") && url.searchParams.get("altitude_ft") === "7500", async route => {
+    await new Promise(done => setTimeout(done, 3000));
+    await route.continue().catch(() => {});
+  });
+  await field.fill("75");
+  await field.press("Enter");
+  await expect(field).toHaveValue("075", { timeout: 1000 });
+  await expect(page.locator("[data-sonner-toast][data-type=loading]")).toHaveCount(0);
+  await expect(page.getByTestId("altitude-why")).toHaveAccessibleName(/7,500 feet/);
 });
