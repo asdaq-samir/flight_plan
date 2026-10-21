@@ -30,13 +30,6 @@ export function scoreColor(s: number): string {
 /** Total time as hours and minutes. Minutes are padded so the width does
  *  not jump as the number crosses ten. Rounded to whole minutes first:
  *  rounding the remainder on its own turned 179.6 minutes into "2h 60m". */
-/** A field's part in the route as the pilot reads it: a stop between is a
- *  fuel stop, at the owner's ask ("instead of stop, say fuel stop",
- *  2026-10-21), the turnaround on the ground its time to refuel. */
-export function roleWords(role: string): string {
-  return role === "Stop" ? "Fuel stop" : role;
-}
-
 export function hhmm(minutes: number | null): string {
   if (minutes === null) return "ETE n/a";
   const t = hoursMinutes(minutes);
@@ -205,7 +198,10 @@ export function windOnRunway(wind: NonNullable<Runway["wind"]>): string {
  *  left out where there is none, steady or in the gusts. */
 export function windPickWords(wind: WindPick): string {
   const from = wind.from ? ` (${wind.from.ident}, ${wind.from.nm} nm)` : "";
-  if (wind.calm) return `Wind calm${wind.ident ? `, ${wind.ident}${wind.inUse ? " in use" : ""}` : ""}${from}`;
+  if (wind.calm) {
+    const said = wind.variableKt != null ? `Wind variable at ${wind.variableKt} kt` : "Wind calm";
+    return `${said}${wind.ident ? `, ${wind.ident}${wind.inUse ? " in use" : ""}` : ""}${from}`;
+  }
   const cross = across(wind);
   const crosswind = cross.kt > 0 || cross.gustKt != null ? `, crosswind ${cross.kt}${cross.gustKt != null ? ` gusting ${cross.gustKt}` : ""} kt` : "";
   const along = wind.headwindKt >= 0 ? `headwind ${wind.headwindKt} kt` : `tailwind ${-wind.headwindKt} kt`;

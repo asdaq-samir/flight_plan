@@ -26,5 +26,9 @@ setup("the developer signs in from the pilot console, and lands in dev mode", as
   // The first-run tips (lib/tips) seen, every one: a tip over a control
   // takes the click a spec meant for it. tips.spec offers them afresh.
   await page.evaluate(noTips);
+  // FPL's fields opened at first (ProceduresRoute's fieldsOpenAtFirst): the
+  // specs work on their runways and procedures; route-fields.spec folds
+  // them as a pilot sees them.
+  await page.evaluate(() => localStorage.setItem("vfr.fieldsOpen", "1"));
   await page.context().storageState({ path: DEVELOPER_STATE });
 });

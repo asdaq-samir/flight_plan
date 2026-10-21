@@ -16,15 +16,25 @@ function fuelStopPlace(stop: FuelStop): string {
 }
 
 /**
- * The fuel left on landing as a gauge, as Tesla's trip planner draws a
- * charger's battery on arrival (the owner's screenshot, 2026-10-21): the
- * share of the tanks left, filled.
+ * The fuel in the tanks as a gauge and its gallons, as Tesla's trip planner
+ * draws a charger's battery on arrival (the owner's screenshot, 2026-10-21):
+ * the share of the tanks left, filled. A fuel stop's in the caution's
+ * orange, one under the reserve the flight is held to in red.
  */
-function Gauge({ gal, usable }: { gal: number; usable: number | null }) {
+export function FuelGauge({ gal, usable, tone }: { gal: number; usable: number | null; tone?: "fuel" | "low" }) {
   const share = usable ? Math.max(0, Math.min(1, gal / usable)) : null;
-  return share === null ? null : (
-    <span aria-hidden="true" className="inline-flex h-2.5 w-7 shrink-0 overflow-hidden rounded-[3px] bg-foreground/15">
-      <span className="h-full bg-foreground/60" style={{ width: `${Math.max(8, share * 100)}%` }} />
+  return (
+    <span
+      className={cn("inline-flex shrink-0 items-center gap-1 font-semibold tabular-nums", TEXT.note,
+        tone === "low" ? "text-destructive-ink" : tone === "fuel" ? "text-caution-ink" : "text-muted-foreground")}
+      data-testid="fuel-gauge"
+    >
+      {share !== null && (
+        <span aria-hidden="true" className="inline-flex h-2.5 w-6 overflow-hidden rounded-[3px] bg-foreground/15">
+          <span className={cn("h-full", tone === "low" ? "bg-destructive" : tone === "fuel" ? "bg-caution" : "bg-foreground/60")} style={{ width: `${Math.max(8, share * 100)}%` }} />
+        </span>
+      )}
+      <span><span className="sr-only">Fuel in the tanks </span>{Math.floor(gal)} gal</span>
     </span>
   );
 }
@@ -55,7 +65,6 @@ export default function FuelStopRow({ stop, time, groundMin, usableGal, runway, 
   last: boolean;
 }) {
   const place = fuelStopPlace(stop);
-  const gal = Math.floor(stop.lands_with_gal);
   return (
     <li className="relative flex gap-2.5" data-testid="fuel-stop" data-ident={stop.ident}>
       {!last && <span aria-hidden="true" className="absolute top-3 bottom-0 left-[calc(0.875rem-1px)] w-0.5 bg-border" />}
@@ -69,8 +78,7 @@ export default function FuelStopRow({ stop, time, groundMin, usableGal, runway, 
           <div className="flex min-w-0 flex-1 flex-col">
             <h3 className={cn("truncate font-semibold", TEXT.row)}>{stop.ident} · {place}</h3>
             <span className={cn("flex items-center gap-1.5 text-muted-foreground tabular-nums", TEXT.note)}>
-              <Gauge gal={stop.lands_with_gal} usable={usableGal} />
-              <span data-testid="fuel-stop-lands">{gal} gal</span>
+              <FuelGauge gal={stop.lands_with_gal} usable={usableGal} />
               <span aria-hidden="true">·</span>
               <Fuel className="size-3.5" aria-hidden="true" />
               <span><span className="sr-only">Refuelled in </span>{groundMin} min</span>

@@ -33,7 +33,7 @@ describe("windPick", () => {
     });
   });
 
-  test("calm is said as calm, on the longest runway, or the one in use; a variable wind or none picks none", () => {
+  test("calm is said as calm, on the longest runway, or the one in use, as a variable wind is; no wind picks none", () => {
     // Calm near a field: the longest runway, at the owner's ask.
     expect(windPick(C81, { station: "KUGN", distanceNm: 11, dirTrueDeg: null, speedKt: 0, gustKt: null }))
       .toMatchObject({ ident: "6", calm: true, from: { ident: "KUGN", nm: 11 } });
@@ -45,7 +45,9 @@ describe("windPick", () => {
     // another surface is listed longer (C81's 06/24, "COP", 3,573 ft).
     const c81 = [{ ...runway([["06", 58], ["24", 238]], 3573), surface: "COP" }, runway([["09", 88], ["27", 268]], 3270)];
     expect(windPick(c81, { station: "KUGN", distanceNm: 11, dirTrueDeg: null, speedKt: 0, gustKt: null })).toMatchObject({ ident: "9", calm: true });
-    expect(windPick(C81, { station: "KUGN", distanceNm: 11, dirTrueDeg: null, speedKt: 6, gustKt: null })).toBeNull();
+    // A variable wind has no direction to land into: as calm, said as variable.
+    expect(windPick(C81, { station: "KUGN", distanceNm: 11, dirTrueDeg: null, speedKt: 6, gustKt: null }))
+      .toMatchObject({ ident: "6", calm: true, variableKt: 6, from: { ident: "KUGN", nm: 11 } });
     expect(windPick(C81, null)).toBeNull();
   });
 

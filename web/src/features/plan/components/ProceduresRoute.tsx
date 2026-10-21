@@ -1,7 +1,7 @@
 import { Fragment, lazy, Suspense, useEffect, useRef, useState, type ReactNode } from "react";
 import { create } from "zustand";
 import { useQueries, useQuery } from "@tanstack/react-query";
-import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Check, ChevronRight, Info, Wind } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Check, ChevronRight, Fuel, Info, PlaneLanding, PlaneTakeoff, Wind } from "lucide-react";
 import { cn } from "cn";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
 import BackButton from "../../../components/BackButton";
@@ -23,14 +23,15 @@ import { endFit, type EndFit } from "../../../lib/runwayFit";
 import { frdOf, isPosition } from "../../../lib/identSchema";
 import { COURSE_MAGENTA } from "../../../lib/map/chartColors";
 import { useOwnShip } from "../../../lib/map/ownShip";
-import { etaAt, reportedWind, windPickCrosswind, windPickWords, type ReportedWind, roleWords } from "../format";
+import { etaAt, reportedWind, windPickCrosswind, windPickWords, type ReportedWind } from "../format";
 import { PointMark } from "./navlog/PointMark";
 import FixBranch from "./FixBranch";
 import DepartPicker from "./navlog/DepartPicker";
 import ProcedureMenu from "./ProcedureMenu";
 import type { EditedPoint, PointAltitude } from "./PointAltitudeDialog";
 import { PointFigures, PointMenu } from "./PointControls";
-import FuelStopRow, { FuelStopsAdd } from "./FuelStopRow";
+import FuelStopRow, { FuelGauge, FuelStopsAdd } from "./FuelStopRow";
+import { useFuelStops } from "../hooks/useFuelStops";
 import type { HoldAt } from "./HoldSheet";
 import { holdWords, type Hold } from "../../../lib/holds";
 import type { FuelStopSuggestion, LegHold } from "../../../lib/api/types";
@@ -116,6 +117,7 @@ export default function ProceduresRoute({
   airports, rows, depart, weather, picked, onPick, onPreselect, takeoffs, onTakeoff, fit = null, onCharts, chartsDisabled, procedures, inRoute, onProcedures, onPreview, at, onAt,
   crossings = NO_CROSSINGS, onFix, onDepart, ground, onGround, pointAltitude, onPointAltitude, directTo = null, onDirectTo, onInfo, onRemove,
   onCreateFix, holds = NO_HOLDS, onHoldSet, askHold = null, routePoints, stopsFull = false, fuelStops = NO_FUEL_STOPS, onKeepFuelStops,
+  fuel = null,
 }: {
   airports: ProcedureAirport[];
   /** The route's rows as the nav log has them (navLogRows), for its
@@ -203,6 +205,10 @@ export default function ProceduresRoute({
    *  put in the route after the flight's departure, in order. */
   fuelStops?: FuelStopSuggestion[];
   onKeepFuelStops?: (after: string, idents: string[]) => void;
+  /** The tanks, for the fuel in them at each point: their usable fuel, the
+   *  start, taxi and takeoff allowance and the reserve the flight is held
+   *  to (the totals' fuel check); none known, no fuel shown. */
+  fuel?: { usableGal: number; taxiGal: number; reserveGal: number } | null;
 }) {
   // The procedure on its own page in the sheet, over its kind's list.
   const [page, setPage] = useState<{ at: ProceduresAt; procedure: ProcedureSummary } | null>(null);
@@ -385,7 +391,10 @@ export default function ProceduresRoute({
   // Once a field, so a runway picked and taken back is not picked again
   // under the pilot's finger.
   const preselected = useRef(new Set<string>());
-  const openStops = useOpenStops(st => st.open);
+  const toggled = useToggledFields(st => st.toggled);
+  const [openAtFirst] = useState(fieldsOpenAtFirst);
+  const isOpen = (key: string) => openAtFirst !== toggled.includes(key);
+  const isFuelStop = useFuelStops();
   // A field listed twice (a round trip) picks its landing's runway once.
   const preselectedLand = (a: ProcedureAirport) => airports.findIndex(b => sameField(b.ident, a.ident)) !== airports.indexOf(a);
   const intoWind = airports.flatMap((a, i) => {
@@ -508,25 +517,79 @@ export default function ProceduresRoute({
         />
       );
     };
-    const step = (role: "Arrive" | "Depart", kinds: Kind[], chips: ReactNode, isLast: boolean, stepMark: ReactNode, stepTime: ReactNode, onToggle?: () => void) => {
-      const picked = kinds.filter(k => inRoute.some(p => sameField(p.ident, a.ident) && p.kind === k));
-      const unpicked = kinds.filter(k => !picked.includes(k));
-      // Flown to on its Arrive step: Direct to it, its altitude set there.
-      const end = pointEnd(a.ident, {
-        time: stepTime, waypoint: false, elevationFt: a.elevationFt, to: role === "Arrive", stop: a.role === "Stop",
-        holdable: role === "Arrive" && a.role === "Destination", row,
-      });
-      const sub = `${roleWords(a.role)}${role === "Arrive" ? along(row) : ""}`;
+    // One block an airport, at the owner's pick (2026-10-21, boards 4 and 5
+    // of the canvas: "the airport id on top and then departure and arrival
+    // that can collapse", "no need to use the word depart, fuel stop,
+    // arrive"): its ident, a fuel stop's pump before it and the fuel in the
+    // tanks after it, the arrow that opens it, its time over its elevation
+    // and its menu; its wind under. Opened, a line each for its landing
+    // and its takeoff -- the glyph, the runways, the procedures, a stop's
+    // time to leave again -- named for a screen reader as its parts are.
+    const key = `${a.role}:${a.ident}`;
+    const opened = isOpen(key);
+    type Part = { role: "Arrive" | "Depart"; kinds: Kind[]; chips: ReactNode; leaves: ReactNode };
+    const partBody = (part: Part) => {
+      const picked = part.kinds.filter(k => inRoute.some(p => sameField(p.ident, a.ident) && p.kind === k));
+      const unpicked = part.kinds.filter(k => !picked.includes(k));
+      const Glyph = part.role === "Arrive" ? PlaneLanding : PlaneTakeoff;
       return (
-        <Step
-          key={`${a.ident}-${role}`} last={isLast} mark={stepMark} title={`${a.ident} · ${role}`} field
-          sub={end.direct && role === "Arrive" ? <span className="font-semibold text-tint">Direct to</span> : sub} figures={end.figures} menu={end.menu}
-          toggle={onToggle && { open: true, onToggle, ident: a.ident }}
-        >
-          {chips}
+        <div className="space-y-3 pt-3">
+          <div className="flex items-center gap-2">
+            <Glyph className="size-5 shrink-0 text-muted-foreground" aria-label={part.role === "Arrive" ? "landing" : "takeoff"} role="img" />
+            <div className="min-w-0 flex-1">{part.chips}</div>
+            {part.leaves && <span className="shrink-0">{part.leaves}</span>}
+          </div>
           {picked.map(branch)}
           {unpicked.length > 0 && <div className="flex flex-wrap gap-2">{unpicked.map(k => kindMenu(k, "add"))}</div>}
-        </Step>
+        </div>
+      );
+    };
+    const block = (parts: Part[], headTime: ReactNode) => {
+      const first = parts[0]!;
+      const end = pointEnd(a.ident, {
+        time: headTime, waypoint: false, elevationFt: a.elevationFt, to: a.role !== "Departure", stop: a.role === "Stop",
+        holdable: a.role === "Destination", row,
+      });
+      const reported = reportedOf(a.ident);
+      const wind = reported === "calm" ? "Calm" : reported ? `${reported.dir} ${reported.speed} kt` : null;
+      const tank = row ? tanks.get(row.key) : a.role === "Departure" ? tanks.get("departure") : undefined;
+      return (
+        <li key={key} className="relative flex gap-2.5" data-testid="route-field" data-ident={a.ident}>
+          {!last && <span aria-hidden="true" className="absolute top-3 bottom-0 left-[calc(0.875rem-1px)] w-0.5 bg-border" />}
+          <div className="relative flex w-7 shrink-0 justify-center pt-1">{mark}</div>
+          <div className="min-w-0 flex-1 pb-5">
+            <section aria-label={`${a.ident} · ${first.role}`}>
+              <div className="flex items-center gap-2">
+                <div className="flex min-w-0 flex-1 items-center gap-1.5">
+                  {a.role === "Stop" && isFuelStop(a.ident) && <Fuel className="size-[1.125rem] shrink-0 text-caution" aria-label="fuel stop" role="img" />}
+                  <h3 className={cn("truncate font-bold", TEXT.heading)}>{a.ident}</h3>
+                  {/* The block opened and folded by its fuel and the arrow after
+                      it, a disclosure as iOS's lists have, not an icon button
+                      (data-disclosure): small at the owner's ask ("expansion
+                      arrow can be next to fuel"), its 44 points a
+                      pseudo-element round it. */}
+                  <button
+                    type="button" onClick={() => toggleField(key)} aria-expanded={opened} data-testid="field-toggle" data-ident={a.ident} data-disclosure=""
+                    aria-label={`${a.ident}: runways and procedures`}
+                    className="relative flex h-6 shrink-0 items-center gap-1 rounded-full text-tint outline-none after:absolute after:-inset-y-2.5 after:-inset-x-1.5 after:content-[''] focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    {tank && <FuelGauge gal={tank.gal} usable={tank.usable} tone={tank.low ? "low" : a.role === "Stop" && isFuelStop(a.ident) ? "fuel" : undefined} />}
+                    <ChevronRight className={cn("size-4 transition-transform", opened && "rotate-90")} aria-hidden />
+                  </button>
+                </div>
+                {end.figures}
+                {end.menu}
+              </div>
+              {(wind || end.direct) && (
+                <p className={cn("flex items-center gap-1 font-semibold text-tint tabular-nums", TEXT.note)} data-testid="field-wind">
+                  {end.direct ? "Direct to" : <><Wind className="size-3.5" aria-hidden />{wind}</>}
+                </p>
+              )}
+              {opened && partBody(first)}
+            </section>
+            {opened && parts[1] && <section aria-label={`${a.ident} · ${parts[1].role}`}>{partBody(parts[1])}</section>}
+          </div>
+        </li>
       );
     };
     // Each runway end's fit today (lib/runwayFit): its crosswind against the
@@ -567,8 +630,8 @@ export default function ProceduresRoute({
     // owner's ask ("The departure time can move from the route box to the
     // departure and arrival boxes"): picked there, Now for about now.
     const leaving = onDepart ? <DepartPicker value={depart} onChange={onDepart} look="time" /> : time;
-    if (a.role === "Departure") return step("Depart", (["departure"] as Kind[]).filter(has), departChips, last, mark, leaving);
-    if (a.role === "Destination") return step("Arrive", (["arrival", "approach"] as Kind[]).filter(has), landingChips, last, mark, time);
+    if (a.role === "Departure") return block([{ role: "Depart", kinds: (["departure"] as Kind[]).filter(has), chips: departChips, leaves: null }], leaving);
+    if (a.role === "Destination") return block([{ role: "Arrive", kinds: (["arrival", "approach"] as Kind[]).filter(has), chips: landingChips, leaves: null }], time);
     // A stop is landed at and left again, each with its own runway, at the
     // owner's ask ("If a stop is an airport then it should have arrival
     // first with a runway and a separate departure with a runway"): two
@@ -592,31 +655,33 @@ export default function ProceduresRoute({
         onChange={iso => { if (iso) onGround(a.ident, Math.min(DAY_MIN, Math.max(0, Math.round((Date.parse(iso) - landsMs) / 60_000)))); }}
       />
     ) : etaAt(depart || new Date().toISOString(), flownTo! + onGroundMin);
-    // One row as a waypoint's until tapped, at the owner's ask ("Can a stop
-    // look similar to a waypoint and then arrive and depart be expanded with
-    // a tap"): its name, where it is along and the runway it lands on, its
-    // time and elevation; tapped, its Arrive and Depart steps, the Arrive's
-    // head folding it back.
-    if (!openStops.includes(a.ident)) {
-      const end = pointEnd(a.ident, { time, waypoint: false, elevationFt: a.elevationFt, to: true, stop: true, holdable: false, row });
-      const runway = chosenAt(a.ident);
-      return (
-        <Step
-          key={`${a.ident}-Stop`} last={last} mark={mark} title={`${a.ident} · ${roleWords("Stop")}`} field
-          sub={end.direct ? <span className="font-semibold text-tint">Direct to</span> : `${roleWords("Stop")}${along(row)}${runway ? ` · Runway ${runway}` : ""}`}
-          figures={end.figures} menu={end.menu} toggle={{ open: false, onToggle: () => toggleStop(a.ident), ident: a.ident }}
-        />
-      );
-    }
-    return [
-      step("Arrive", (["arrival", "approach"] as Kind[]).filter(has), landingChips, false, mark, time, () => toggleStop(a.ident)),
-      step("Depart", (["departure"] as Kind[]).filter(has), takeoffChips, last, <FieldDot last={last} />, leaves),
-    ];
+    return block([
+      { role: "Arrive", kinds: (["arrival", "approach"] as Kind[]).filter(has), chips: landingChips, leaves: null },
+      { role: "Depart", kinds: (["departure"] as Kind[]).filter(has), chips: takeoffChips, leaves },
+    ], time);
   };
 
   // The route's own rows where the course is in: its fields as steps and
   // the fixes flown through between them, the checkpoints and the tops of
   // climb and descent left to the nav log. Before then, the fields alone.
+  // The fuel in the tanks at each point, by its row, at the owner's ask
+  // ("next to airport say ... fuel", "I mean fuel in tanks"): full at the
+  // departure, the start, taxi and takeoff allowance and the legs' own
+  // burn taken from them after, filled again at each field landed at, as
+  // the planner checks each flight (app.planning.route_totals). Under the
+  // reserve, low.
+  const tanks = new Map<string, { gal: number; usable: number; low: boolean }>();
+  if (fuel) {
+    tanks.set("departure", { gal: fuel.usableGal, usable: fuel.usableGal, low: false });
+    let burned = 0;
+    for (const r of rows) {
+      if (r.kind === "departure") continue;
+      burned += legOf(r)?.fuel_gal ?? Number.NaN;
+      const gal = fuel.usableGal - fuel.taxiGal - burned;
+      if (Number.isFinite(gal)) tanks.set(r.key, { gal: Math.max(0, gal), usable: fuel.usableGal, low: gal < fuel.reserveGal });
+      if (r.kind === "stop" && r.airport.kind !== "fix") burned = 0;
+    }
+  }
   const steps: ReactNode[] = [];
   const shown = new Set<ProcedureAirport>();
   // The fuel stops suggested for the flight that leaves a field, after
@@ -681,6 +746,7 @@ export default function ProceduresRoute({
       <Step
         key={row.key} last={last} mark={<PointMark row={row} number={undefined} weather={weather} />}
         title={rowPoint(row).name} testId={`route-${row.kind}`}
+        icon={tanks.has(row.key) ? <FuelGauge gal={tanks.get(row.key)!.gal} usable={tanks.get(row.key)!.usable} tone={tanks.get(row.key)!.low ? "low" : undefined} /> : undefined}
         sub={end?.direct ? <span className="font-semibold text-tint">Direct to</span> : `${row.kind === "stop" ? (to && frdOf(row.airport.ident) ? row.airport.name : "Fly over") : row.kind === "destination" ? "Destination" : "Departure"}${along(row)}`}
         figures={end?.figures ?? <PointFigures time={time} altitude={null} kind="cruise" />} menu={end?.menu}
       />,
@@ -811,11 +877,10 @@ function HoldRow({ hold, flown, last, onOpen }: { hold: Hold; flown: LegHold | n
  * nav log draws it, its name and the time it is reached, and under them
  * what is flown there (a field's). The line runs on to the next step.
  */
-function Step({ mark, title, sub, figures, menu, last, field = false, testId, toggle, children }: {
+function Step({ mark, title, sub, figures, menu, last, field = false, testId, icon, children }: {
   mark: ReactNode;
-  /** A stop's: its head a button that opens it into its Arrive and Depart
-   *  steps, or folds them back to one row. */
-  toggle?: { open: boolean; onToggle: () => void; ident: string };
+  /** After its name: the fuel in the tanks there (FuelGauge). */
+  icon?: ReactNode;
   /** Its name, said to a screen reader and shown in its head, and the line
    *  under it: what it is, and how far along. */
   title: string;
@@ -833,29 +898,15 @@ function Step({ mark, title, sub, figures, menu, last, field = false, testId, to
     <li className="relative flex gap-2.5" data-testid={testId}>
       {!last && <span aria-hidden="true" className="absolute top-3 bottom-0 left-[calc(0.875rem-1px)] w-0.5 bg-border" />}
       <div className="relative flex w-7 shrink-0 justify-center pt-0.5">{mark}</div>
-      <section aria-label={title} className={cn("min-w-0 flex-1 space-y-3", field && !(toggle && !toggle.open) ? "pb-5" : "pb-4")}>
+      <section aria-label={title} className={cn("min-w-0 flex-1 space-y-3", field ? "pb-5" : "pb-4")}>
         <div className="flex items-center gap-2">
-          {toggle ? (
-            // The head a tap away from the stop's steps, or from its one row,
-            // the arrow turning as it opens; its 44 points a pseudo-element
-            // round it.
-            <button
-              type="button" onClick={toggle.onToggle} aria-expanded={toggle.open} data-testid="stop-toggle" data-ident={toggle.ident}
-              className="relative flex min-w-0 flex-1 flex-col text-left outline-none after:absolute after:-inset-y-1.5 after:inset-x-0 after:content-[''] focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              <span className="flex min-w-0 items-center gap-1">
-                {/* Not a heading inside a button: the step's region names it. */}
-                <span className={cn("truncate font-semibold", TEXT.row)}>{title}</span>
-                <ChevronRight className={cn("size-4 shrink-0 text-tint transition-transform", toggle.open && "rotate-90")} aria-hidden />
-              </span>
-              {sub && <span className={cn("truncate text-muted-foreground", TEXT.note)}>{sub}</span>}
-            </button>
-          ) : (
-            <div className="flex min-w-0 flex-1 flex-col">
+          <div className="flex min-w-0 flex-1 flex-col">
+            <span className="flex min-w-0 items-center gap-1">
               <Name className={cn("truncate", field ? "font-semibold" : "font-normal", TEXT.row)}>{title}</Name>
-              {sub && <span className={cn("truncate text-muted-foreground", TEXT.note)}>{sub}</span>}
-            </div>
-          )}
+              {icon}
+            </span>
+            {sub && <span className={cn("truncate text-muted-foreground", TEXT.note)}>{sub}</span>}
+          </div>
           {figures}
           {menu}
         </div>
@@ -939,10 +990,19 @@ function runwayLineFoldMs(): number {
 /** The runway lines opened from their fold (PatternChips), by field. */
 const useOpenRunwayLines = create<{ open: string[] }>(() => ({ open: [] }));
 
-/** The stops opened from their one row into their Arrive and Depart steps,
- *  by field: kept while the page is, as the list is drawn again. */
-const useOpenStops = create<{ open: string[] }>(() => ({ open: [] }));
-const toggleStop = (ident: string) => useOpenStops.setState(s => ({ open: s.open.includes(ident) ? s.open.filter(i => i !== ident) : [...s.open, ident] }));
+/** The route's fields toggled from how they start -- folded to one row --
+ *  by their part and field ("Stop:KMSN"): kept while the page is, as the
+ *  list is drawn again. */
+const useToggledFields = create<{ toggled: string[] }>(() => ({ toggled: [] }));
+const toggleField = (key: string) =>
+  useToggledFields.setState(s => ({ toggled: s.toggled.includes(key) ? s.toggled.filter(k => k !== key) : [...s.toggled, key] }));
+
+/** Whether the fields start opened: the browser specs' (localStorage
+ *  "vfr.fieldsOpen", as the signed-in session they share keeps it), which
+ *  work on the steps' runways and procedures. Folded otherwise. */
+function fieldsOpenAtFirst(): boolean {
+  try { return globalThis.localStorage?.getItem("vfr.fieldsOpen") === "1"; } catch { return false; }
+}
 
 /** The room left past a chip scrolled into sight, in pixels. */
 const CHIP_GAP_PX = 12;

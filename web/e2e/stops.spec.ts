@@ -71,12 +71,6 @@ test("a stop added in the panel lands the route there: the capsule, the nav log 
   // And FPL's route lists it as a step of its own, with its procedures.
   // Landed at and left again, each with its own runway (the owner's
   // "arrival first with a runway and a separate departure with a runway").
-  // One row as a waypoint's until tapped, at the owner's ask ("Can a stop
-  // look similar to a waypoint and then arrive and depart be expanded with
-  // a tap"): tapped, its Arrive and Depart steps.
-  const folded = sideDrawer(page).getByTestId("procedures").getByRole("region", { name: "KMSN · Fuel stop" });
-  await expect(folded).toContainText("Runway");
-  await folded.getByTestId("stop-toggle").click();
   const arrive = sideDrawer(page).getByTestId("procedures").getByRole("region", { name: "KMSN · Arrive" });
   const leave = sideDrawer(page).getByTestId("procedures").getByRole("region", { name: "KMSN · Depart" });
   await expect(arrive).toBeVisible();
@@ -289,7 +283,6 @@ test("a stop is left again at the time picked on its Depart step, 30 minutes aft
   when.setHours(9, 0, 0, 0);
   await page.goto(`/app/plan?dep=C81&dest=KDLH&stops=KMSN&depart=${encodeURIComponent(when.toISOString())}`);
   await openPanel(page);
-  await sideDrawer(page).getByTestId("stop-toggle").and(page.locator('[data-ident="KMSN"]')).click({ timeout: slow(30_000) });
   const leaves = sideDrawer(page).getByTestId("depart-date-KMSN");
   await expect(leaves).toBeVisible({ timeout: slow(30_000) });
   await expect(sideDrawer(page).getByTestId("ground-menu")).toHaveCount(0);
@@ -332,24 +325,23 @@ test("every point's row ends in its time over its altitude and a menu: an airpor
   await page.goto("/app/plan?dep=C81&dest=KDLH&stops=KMSN");
   await openPanel(page);
   const route = sideDrawer(page).getByTestId("procedures");
-  const madison = route.getByRole("region", { name: "KMSN · Fuel stop" });
+  const madison = route.getByRole("region", { name: "KMSN · Arrive" });
   const altitude = madison.getByTestId("point-altitude-figure");
   // Madison's field elevation (887 ft, NASR), not a figure the pilot set,
   // under its time.
   await expect(altitude).toHaveAttribute("data-kind", "elev", { timeout: slow(30_000) });
-  await expect(altitude).toHaveText(/^(\d{3}|\d,\d{3}) elev/);
+  // The mountain before it for the eye (PointFigures), "ft" after.
+  await expect(altitude).toHaveText(/^(\d{3}|\d,\d{3}) ft/);
   await expect(altitude.locator(".sr-only")).toHaveText(/ft, field elevation$/);
   await expect(madison.getByTestId("point-figures")).toContainText(/^\d\d:\d\d/);
   // No Direct to where the flight starts, nor on the stop's leaving again.
-  // The stop opened for its Depart step, and folded again.
-  await madison.getByTestId("stop-toggle").click();
-  for (const name of ["C81 · Depart", "KMSN · Depart"]) {
+  // One menu an airport now, at its ident (boards 4 and 5): Madison's is
+  // its landing's, flown to.
+  for (const name of ["C81 · Depart"]) {
     await route.getByRole("region", { name }).getByTestId("point-menu").click();
     await expect(page.getByTestId("point-menu-direct")).toHaveCount(0);
     await page.keyboard.press("Escape");
   }
-  await route.getByRole("region", { name: "KMSN · Arrive" }).getByTestId("stop-toggle").click();
-  await expect(madison).toBeVisible();
 
   // Set from its menu, as the route box's menu sets it: the address's
   // `altitudes`.
@@ -358,7 +350,8 @@ test("every point's row ends in its time over its altitude and a menu: an airpor
   await page.getByTestId("point-altitude-input").fill("2600");
   await page.getByTestId("point-altitude-set").click();
   await expect(page).toHaveURL(/[?&]altitudes=KMSN(%3A|:)2600(&|$)/);
-  await expect(altitude).toContainText("2,600 set");
+  await expect(altitude).toHaveAttribute("data-kind", "set");
+  await expect(altitude).toContainText("2,600 ft");
 
   // Direct to Duluth with no position: from the departure, Madison
   // skipped; the route as it was kept for Cancel.
@@ -368,7 +361,7 @@ test("every point's row ends in its time over its altitude and a menu: an airpor
   await expect(page).toHaveURL(/[?&]direct=KDLH(&|$)/);
   await expect(page).not.toHaveURL(/[?&]stops=/);
   await expect(sideDrawer(page).getByTestId("direct-strip")).toContainText("Direct to KDLH");
-  await expect(route.getByRole("region", { name: "KMSN · Fuel stop" })).toHaveCount(0);
+  await expect(route.getByRole("region", { name: "KMSN · Arrive" })).toHaveCount(0);
   await expect(duluth).toContainText("Direct to");
   await sideDrawer(page).getByTestId("direct-cancel").click();
   await expect(page).toHaveURL(/[?&]stops=KMSN(&|$)/);
@@ -392,7 +385,7 @@ test("the pilot's own point off a fix is made from a point's menu or typed as a 
   await page.goto("/app/plan?dep=C81&dest=KDLH&stops=KMSN");
   await openPanel(page);
   const route = sideDrawer(page).getByTestId("procedures");
-  const madison = route.getByRole("region", { name: "KMSN · Fuel stop" });
+  const madison = route.getByRole("region", { name: "KMSN · Arrive" });
   await expect(madison.getByTestId("point-figures")).toContainText(/\d\d:\d\d/, { timeout: slow(30_000) });
   await madison.getByTestId("point-menu").click();
   await page.getByTestId("point-menu-fix").click();
