@@ -517,8 +517,11 @@ export default function TabBar<T extends string>({ tabs, tab, over, title, onPic
       `top 0.16s ${EASE}`, `bottom 0.16s ${EASE}`, "background-color 0.16s", "box-shadow 0.16s",
     ].join(", "),
     ...(lens
-      ? { top: -5, bottom: -5, left: lens.x - lens.tab / 2 - 6, right: lens.width - lens.x - lens.tab / 2 - 6 }
-      : { top: 2, bottom: 2, left: `calc(${upAt} * 100% / ${count} + 4px)`, right: `calc(${count - 1 - upAt} * 100% / ${count} + 4px)` }),
+      // Bigger, above most, at the owner's ask ("make the bubble bigger,
+      // specially bigger on the top part"): at rest a point past the bar's
+      // top, lifted ten past it and five below.
+      ? { top: -10, bottom: -5, left: lens.x - lens.tab / 2 - 7, right: lens.width - lens.x - lens.tab / 2 - 7 }
+      : { top: -1, bottom: 1, left: `calc(${upAt} * 100% / ${count} + 2px)`, right: `calc(${count - 1 - upAt} * 100% / ${count} + 2px)` }),
   };
   // The tab in the tint: the one under the lens while it is up.
   const lit = lens ? lens.over : upAt;
@@ -620,7 +623,9 @@ export default function TabBar<T extends string>({ tabs, tab, over, title, onPic
             aria-label={mark ? `${label}, ${mark === "stop" ? "warning" : "caution"}` : undefined}
             className={cn(
               // Over the bubble (positioned, so drawn after it).
-              "relative flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              // A little up in the bar, the owner's "move up the tabs a bit",
+              // in the middle of the bubble that now reaches higher.
+              "relative -translate-y-0.5 flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring",
               // The others a grey that reads on the glass over any chart
               // (WCAG's 4.5:1 at the words' 11 points), where the muted
               // one fell to 4.35 there.
