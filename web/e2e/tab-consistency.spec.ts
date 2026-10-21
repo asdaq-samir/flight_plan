@@ -42,8 +42,9 @@ async function layout(page: Page) {
     }).map((s): Section => {
       const b = s.getBoundingClientRect();
       // A labelled section's heading: its title, or the menu that is its
-      // title (PillSection). A list's own small heading counts too.
-      const heading = s.querySelector(":scope > div:first-child :is(h3, button)");
+      // title (PillSection). A list's own small heading counts too; an
+      // untitled list's first row is no heading (Setup's Pilot details).
+      const heading = s.querySelector(":scope > div:first-child:not([role=group]) :is(h3, button)");
       const css = heading && getComputedStyle(heading);
       return {
         heading: heading?.textContent?.trim() || null,
