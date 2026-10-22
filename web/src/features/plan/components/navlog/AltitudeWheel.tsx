@@ -26,11 +26,14 @@ const feet = (ft: number) => ft.toLocaleString("en-US");
  * to the pointer. To VoiceOver and the keyboard a slider: up and down step
  * one altitude, as an adjustable control does.
  */
-export default function AltitudeWheel({ altitudes, value, onChange, names = {}, spoken = names }: {
+export default function AltitudeWheel({ altitudes, value, onChange, onRoll, names = {}, spoken = names }: {
   /** Highest first. */
   altitudes: number[];
   value: number;
   onChange: (altitude: number) => void;
+  /** The tick under the pointer as the ruler rolls, before it rests: the
+   *  graph's line drawn at it as the finger goes (AltitudeProfile). */
+  onRoll?: (altitude: number) => void;
   /** A plan's name for an altitude it flies ("Fastest"). */
   names?: Record<number, string>;
   /** Its names as VoiceOver says them ("Fastest · Lowest"). */
@@ -72,7 +75,10 @@ export default function AltitudeWheel({ altitudes, value, onChange, names = {}, 
     const el = scroller.current;
     if (!el) return;
     const i = Math.max(0, Math.min(altitudes.length - 1, Math.round(el.scrollTop / TICK)));
-    if (i !== shown) setRolling({ i, against: value });
+    if (i !== shown) {
+      setRolling({ i, against: value });
+      onRoll?.(altitudes[i]!);
+    }
     if (rest.current !== null) window.clearTimeout(rest.current);
     rest.current = window.setTimeout(() => {
       rest.current = null;
