@@ -5,6 +5,7 @@ data -- all backed by OurAirports' free, no-API-key-required dataset
 import bisect
 import gzip
 import json
+import math
 import os
 from functools import lru_cache
 from pathlib import Path
@@ -195,7 +196,17 @@ def _us_airports_of(path: str, _mtime: float) -> pd.DataFrame:
     return us
 
 
-def search_airports(query: str, limit: int = 8, cache_path: Path = DEFAULT_CACHE_PATH) -> list[dict]:
+def _nearness(lat: float, lon: float, near: list[tuple[float, float]]) -> float:
+    """How far a field is from the nearest of `near`, as a sort key: the
+    squared degrees, the longitude's shrunk by the latitude's cosine --
+    an order, not a distance; 0 with nothing to be near."""
+    if not near or lat != lat or lon != lon:
+        return 0.0
+    return min((lat - a) ** 2 + ((lon - b) * math.cos(math.radians(a))) ** 2 for a, b in near)
+
+
+def search_airports(query: str, limit: int = 8, cache_path: Path = DEFAULT_CACHE_PATH,
+                    near: list[tuple[float, float]] | None = None) -> list[dict]:
     """Airports whose ident or local code starts with `query`, or a word of
     whose name or town does -- the route form's pickers and the panel's
     search bar, so a pilot who doesn't have an ident memorized can find
@@ -207,6 +218,11 @@ def search_airports(query: str, limit: int = 8, cache_path: Path = DEFAULT_CACHE
     each, the bigger fields first, then by ident: "oshkosh" is Wittman
     Regional (KOSH) before a private strip named for the town, which
     was the only answer while names had to start with what was typed.
+    Among fields of a size, one whose name starts with it first, then the
+    nearest to `near` (the pilot, or the route): "campbell" is Campbell
+    Airport (C81) at Grayslake for a pilot there, where eight strips
+    named or towned Campbell from Texas to Nebraska came first, by their
+    idents, and C81 not at all (the owner's ask, 2026-10-22).
     """
     query = query.strip().upper()
     if not query:
@@ -216,24 +232,28 @@ def search_airports(query: str, limit: int = 8, cache_path: Path = DEFAULT_CACHE
         # One word -- every keystroke of an ident or a town -- from the index
         # (_search_index_of), not a scan of 20,000 rows' strings per letter.
         path = _ensure_cached(OURAIRPORTS_URL, cache_path)
-        return _rows(df, _indexed_matches(_search_index_of(str(path), path.stat().st_mtime), query, limit))
+        return _rows(df, _indexed_matches(_search_index_of(str(path), path.stat().st_mtime), query, limit, near or []))
     exact = (df["_ident_upper"] == query) | (df["_local_upper"] == query) | (df["_display_ident"] == query)
     ident_hit = ~exact & (df["_ident_upper"].str.startswith(query) | df["_local_upper"].str.startswith(query))
     word_hit = ~exact & ~ident_hit & df["_words_upper"].str.contains(" " + query, regex=False)
     matches = pd.concat([df[exact].assign(_rank=0), df[ident_hit].assign(_rank=1), df[word_hit].assign(_rank=2)])
-    matches = matches.sort_values(["_rank", "_size_rank", "_display_ident"]).head(limit)
+    matches = matches.assign(
+        _named=~matches["_name_upper"].str.startswith(query),
+        _near=[_nearness(a, b, near or []) for a, b in zip(matches["latitude_deg"], matches["longitude_deg"])],
+    )
+    matches = matches.sort_values(["_rank", "_size_rank", "_named", "_near", "_display_ident"]).head(limit)
     return _rows(df, [df.index.get_loc(i) for i in matches.index])
 
 
 def search_index(cache_path: Path = DEFAULT_CACHE_PATH) -> bytes:
     """Every US airport `search_airports` can answer with, as the phone's
     own copy for searching as a pilot types (web lib/airportIndex), gzipped
-    JSON: `{"airports": [[ident, name, town, state, size, *other idents]]}`
-    -- the ident pilots use, the name and town every word of which is
-    searched, the state without "US-", the size rank the answers are
-    ordered by (0 large to 3 other), and OurAirports' ident and the local
-    code where either is not the ident shown (KC81 for C81). 32,600 rows,
-    about 530 KB. Made once per file."""
+    JSON: `{"airports": [[ident, name, town, state, size, lat, lon, *other
+    idents]]}` -- the ident pilots use, the name and town every word of
+    which is searched, the state without "US-", the size rank the answers
+    are ordered by (0 large to 3 other), where it is (to a hundredth of a
+    degree), and OurAirports' ident and the local code where either is not
+    the ident shown (KC81 for C81). 32,600 rows. Made once per file."""
     path = _ensure_cached(OURAIRPORTS_URL, cache_path)
     return _search_index_bytes(str(path), path.stat().st_mtime)
 
@@ -243,13 +263,16 @@ def _search_index_bytes(path: str, _mtime: float) -> bytes:
     us = _us_airports_of(path, _mtime)
     rows = []
     columns = zip(us["_display_ident"].astype(str), us["_ident_upper"], us["_local_upper"], us["name"],
-                  us["municipality"], us["iso_region"], us["_size_rank"])
-    for display, ident, local, name, town, region, size in columns:
+                  us["municipality"], us["iso_region"], us["_size_rank"], us["latitude_deg"], us["longitude_deg"])
+    for display, ident, local, name, town, region, size, lat, lon in columns:
         # A missing local code is "NAN" once upper-cased (_us_airports_of).
         others = sorted({key for key in (ident, local) if isinstance(key, str) and key not in ("NAN", display.upper())})
         rows.append([
             display, name if isinstance(name, str) else "", town if isinstance(town, str) else "",
-            region.removeprefix("US-") if isinstance(region, str) else "", int(size), *others,
+            region.removeprefix("US-") if isinstance(region, str) else "", int(size),
+            # Where it is, to a hundredth of a degree, for the nearest of a
+            # name first (searchIndex's `near`).
+            round(float(lat), 2) if lat == lat else 0.0, round(float(lon), 2) if lon == lon else 0.0, *others,
         ])
     return gzip.compress(json.dumps({"airports": rows}, separators=(",", ":")).encode(), mtime=0)
 
@@ -294,14 +317,16 @@ def _search_index_of(path: str, _mtime: float) -> dict:
     return {
         "exact": exact, "idents": idents, "words": words,
         "size": us["_size_rank"].tolist(), "display": us["_display_ident"].astype(str).tolist(),
+        "names": us["_name_upper"].tolist(),
+        "lat": us["latitude_deg"].astype(float).tolist(), "lon": us["longitude_deg"].astype(float).tolist(),
     }
 
 
-def _indexed_matches(index: dict, query: str, limit: int) -> list[int]:
+def _indexed_matches(index: dict, query: str, limit: int, near: list[tuple[float, float]] | None = None) -> list[int]:
     """The rows `search_airports` answers a one-word query with, in its
     order: the ident whole, then idents that start with it, then names and
-    towns with a word that does; the bigger fields first in each, then by
-    ident."""
+    towns with a word that does; the bigger fields first in each, then a
+    name that starts with it, then the nearest to `near`, then by ident."""
     def prefixed(keys: list[tuple[str, int]]) -> set[int]:
         found, at = set(), bisect.bisect_left(keys, (query,))
         while at < len(keys) and keys[at][0].startswith(query):
@@ -312,7 +337,8 @@ def _indexed_matches(index: dict, query: str, limit: int) -> list[int]:
     exact = index["exact"].get(query, set())
     ident = prefixed(index["idents"]) - exact
     word = prefixed(index["words"]) - exact - ident
-    ranked = [(rank, index["size"][row], index["display"][row], row)
+    ranked = [(rank, index["size"][row], not index["names"][row].startswith(query),
+               _nearness(index["lat"][row], index["lon"][row], near or []), index["display"][row], row)
               for rank, rows in enumerate((exact, ident, word)) for row in rows]
     return [row for *_, row in sorted(ranked)[:limit]]
 

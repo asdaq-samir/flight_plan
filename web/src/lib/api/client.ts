@@ -210,6 +210,11 @@ export const errorMessage = (err: unknown, fallback: string) => (err ? describeE
 /** A route's stops as the planner takes them, "KDSM,KLNK"; none, none. */
 const stopsParam = (stops?: string[]) => (stops?.length ? stops.join(",") : undefined);
 
+/** The airport index's shape (vfr.airports.search_index), in its address
+ *  so a day's copy in the browser of an older shape is not read as this
+ *  one: 2, each field's place after its size (2026-10-22). */
+const INDEX_VERSION = 2;
+
 export const api = {
   /** The leg itself, through any stops: sub-second, and enough to draw
    *  before any tile is read. */
@@ -417,13 +422,13 @@ export const api = {
   airportIndex: () =>
     // Behind what the page needs first: half a megabyte, wanted only when
     // a pilot types.
-    planner.GET("/api/airports/index", { priority: "low" }).then(r => r.data as unknown as { airports: unknown[][] }),
+    planner.GET("/api/airports/index", { params: { query: { v: INDEX_VERSION } }, priority: "low" }).then(r => r.data as unknown as { airports: unknown[][] }),
 
   /** The same answer's bytes, unread, into the browser's cache and the
    *  service worker's, where airportIndex finds them when a pilot types:
    *  the download ahead of time, the reading (a long task) only then. */
   warmAirportIndex: () =>
-    planner.GET("/api/airports/index", { priority: "low", parseAs: "blob" }).then(() => true),
+    planner.GET("/api/airports/index", { params: { query: { v: INDEX_VERSION } }, priority: "low", parseAs: "blob" }).then(() => true),
 
   /** DEP/DEST's own autocomplete -- airports whose ident or name
    *  starts with `q`. Empty `q` short-circuits server-side to `[]`, so

@@ -51,14 +51,16 @@ def _near(near: str) -> tuple:
 
 
 @router.get("/api/airports/index", responses={200: {"content": {"application/json": {}}}})
-def airport_index() -> Response:
+def airport_index(v: int = 0) -> Response:
     """Every US airport the search answers with, for the app to search on
     the phone itself as a pilot types (vfr.airports.search_index): its
     answers there at once, where each letter's question waited on this
     planner, a second and more while it planned a route. Gzipped as it is
     kept -- about 530 KB, from 1.8 MB -- and the same for every pilot until
     OurAirports' table changes, so kept a day by the browser and the CDN
-    (PlannerProxyController passes both headers on)."""
+    (PlannerProxyController passes both headers on). `v`, the shape the app
+    reads, unused here: in the address, so a day's copy of an older shape
+    is not taken for this one."""
     return Response(
         content=airports.search_index(), media_type="application/json",
         headers={"Content-Encoding": "gzip", "Cache-Control": "public, max-age=86400", "Vary": "Accept-Encoding"},
@@ -80,10 +82,12 @@ def airport_search(response: Response, q: str = "", fixes: bool = False, near: s
     the stop picked is looked up afresh when the route is planned.
     """
     response.headers["Cache-Control"] = SHARED_CACHE
-    found = airports.search_airports(q)
+    # Of fields alike, the nearest to `near` first: the pilot's position,
+    # or the route's ends (vfr.airports.search_airports).
+    by_route = _near(near)
+    found = airports.search_airports(q, near=[(p[0], p[1]) for p in by_route] if by_route else None)
     if fixes:
         known = {a["ident"] for a in found}
-        by_route = _near(near)
         found_fixes = [
             (fixes_module.find_navaid(f["ident"], by_route) or f) if f.get("navaid") else f
             for f in fixes_module.search_fixes(q) if f["ident"] not in known
