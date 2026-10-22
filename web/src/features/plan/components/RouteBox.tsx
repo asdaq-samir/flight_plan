@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useId, useRef, useState, type KeyboardEvent, type MouseEvent, type PointerEvent, type ReactNode } from "react";
 import { Command as CommandPrimitive } from "cmdk";
-import { ArrowRight, Fuel, PlaneLanding, PlaneTakeoff, Route, TriangleAlert } from "lucide-react";
+import { ArrowRight, Coffee, Fuel, PlaneLanding, PlaneTakeoff, Route, TriangleAlert } from "lucide-react";
 import {
   DndContext, KeyboardSensor, MouseSensor, TouchSensor, closestCenter, useDndMonitor, useSensor, useSensors, type DragEndEvent,
 } from "@dnd-kit/core";
@@ -507,7 +507,7 @@ export default function RouteBox({
                         .flatMap(f => f.stops.map(stop => (
                           <Fragment key={`fuel-${stop.ident}`}>
                             <ArrowRight className="size-3 shrink-0 text-muted-foreground" aria-hidden="true" />
-                            <FuelStopChip ident={stop.ident} onAdd={onKeepFuelStops ? () => onKeepFuelStops(point, f.stops.map(s => s.ident)) : undefined} />
+                            <FuelStopChip ident={stop.ident} reason={f.reason} onAdd={onKeepFuelStops ? () => onKeepFuelStops(point, f.stops.map(s => s.ident)) : undefined} />
                           </Fragment>
                         )))}
                     </Fragment>
@@ -600,17 +600,19 @@ function frdWords(ident: string): string {
  *  (ProcedureLayer). */
 /** A fuel stop suggested and not yet in the route (FuelStopRow's), in the
  *  box: dashed in the caution's colour with the pump, a tap adding it. */
-function FuelStopChip({ ident, onAdd }: { ident: string; onAdd?: () => void }) {
+function FuelStopChip({ ident, reason = "fuel", onAdd }: { ident: string; reason?: "fuel" | "break"; onAdd?: () => void }) {
+  // A break on a long flight the tanks hold wears a cup, not the pump.
+  const Glyph = reason === "break" ? Coffee : Fuel;
   return (
     <button
       type="button" onClick={onAdd} disabled={!onAdd} data-testid="route-fuel-stop"
-      aria-label={`Suggested fuel stop ${ident}: add it to the route`}
+      aria-label={`Suggested ${reason === "break" ? "stop" : "fuel stop"} ${ident}: add it to the route`}
       className={cn(
         "relative inline-flex h-7 shrink-0 items-center gap-1 rounded-full border-[1.5px] border-dashed border-caution bg-background/70 px-2 font-semibold whitespace-nowrap text-caution-ink outline-none after:absolute after:-inset-y-2 after:inset-x-0 after:content-[''] focus-visible:ring-2 focus-visible:ring-ring",
         TEXT.detail,
       )}
     >
-      <Fuel className="size-3.5 shrink-0" aria-hidden="true" />
+      <Glyph className="size-3.5 shrink-0" aria-hidden="true" />
       {ident}
     </button>
   );

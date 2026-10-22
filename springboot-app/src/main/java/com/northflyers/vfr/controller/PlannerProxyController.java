@@ -134,6 +134,8 @@ public class PlannerProxyController {
             route("GET", "/api/places/search"),
             route("GET", "/api/airport/{ident}"),
             route("GET", "/api/airport/{ident}/forecast-wind"),
+            // What a field offers a pilot who lands there: a stop's card.
+            route("GET", "/api/airport/{ident}/services"),
             route("GET", "/api/airport/{ident}/procedures"),
             route("GET", "/api/airport/{ident}/procedures/{procedure}"),
             route("GET", "/api/airport/{ident}/procedures/{procedure}/plate"),

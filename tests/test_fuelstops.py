@@ -63,3 +63,24 @@ def test_a_short_runway_and_the_routes_own_fields_are_never_offered():
     stops, choices = fuelstops.suggest(
         START, END, fields=fields(("SHORT", 0.0, 5.0), ("MINE", 0.0, 4.5), ("OK", 0.0, 5.5)), skip={"MINE"}, **FIGURES)
     assert [s.ident for s in stops] + [c.ident for c in choices] == ["OK"]
+
+
+def test_a_break_about_half_way_on_a_long_flight_the_tanks_hold():
+    # 400 nm at 0.6 min a mile is four hours; 40 gal at 0.1 a mile hold it.
+    end = (0.0, 6.6667)
+    stops, choices = fuelstops.suggest_break(
+        START, end, fields=fields(("EARLY", 0.0, 1.0), ("NEARMID", 0.0, 3.0), ("MIDOFF", 1.0, 3.3), ("LATE", 0.0, 4.2)),
+        fuel_per_nm=0.1, min_per_nm=0.6, usable_gal=40.0, taxi_gal=1.0)
+    # On the line and nearest the middle first; one 18 nm off the line
+    # after a field on it; one a sixth of the way not at all.
+    assert [s.ident for s in stops] == ["NEARMID"]
+    assert [c.ident for c in choices] == ["LATE", "MIDOFF"]
+    # 180 nm flown from 40 gal less the taxi allowance.
+    assert stops[0].lands_with_gal == pytest.approx(40 - 1 - 18, abs=0.3)
+    assert stops[0].minutes == pytest.approx(108, abs=1)
+
+
+def test_no_break_on_a_flight_of_three_hours_or_less():
+    # 294 nm at 0.6 min a mile: under three hours.
+    assert fuelstops.suggest_break(START, (0.0, 4.9), fields=fields(("MID", 0.0, 2.45)),
+                                   fuel_per_nm=0.1, min_per_nm=0.6, usable_gal=40.0, taxi_gal=1.0) == ([], [])

@@ -63,6 +63,7 @@ import MiniProfile from "./components/navlog/MiniProfile";
 import ProfileCard from "./components/ProfileCard";
 import { dryRunOf, type DryRun } from "./components/navlog/dryRun";
 import FixCard, { type OpenFix } from "./components/FixCard";
+import type { SuggestedStop } from "./components/StopServices";
 import DirectStrip from "./components/DirectStrip";
 import { loadFlightChart } from "./components/loadFlightChart";
 import { DRY_RUN, clearPastFlight, usePastFlight } from "../../lib/map/pastFlight";
@@ -179,6 +180,23 @@ function withStopsAfter(dep: string, stops: string[], after: string, idents: str
   const at = sameField(dep, after) ? 0 : stops.findIndex(stop => sameField(stop, after)) + 1 || stops.length;
   const added = idents.slice(0, room);
   return { stops: [...stops.slice(0, at), ...added, ...stops.slice(at)], added };
+}
+
+/** The suggested stop at a field, where it is one of the planner's
+ *  (the totals' fuel_stops): the field its flight leaves, and its figures
+ *  for the field's card (PlaceCard's `stop`). */
+function suggestedStopAt(ident: string | null, suggestions: FuelStopSuggestion[]): { after: string; stop: SuggestedStop } | null {
+  if (!ident) return null;
+  for (const f of suggestions) {
+    const found = [...f.stops, ...(f.choices ?? [])].find(c => sameField(c.ident, ident));
+    if (found) {
+      return {
+        after: f.departure,
+        stop: { reason: f.reason ?? "fuel", from: f.departure, minutes: found.minutes, landsWithGal: found.lands_with_gal, addedNm: found.added_nm },
+      };
+    }
+  }
+  return null;
 }
 
 const drawnOnly = (results: { data?: ProcedureDrawing }[]) => results.flatMap(r => (r.data ? [r.data] : []));
@@ -1127,11 +1145,18 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     };
   }, [s.local, s.totals]);
   // Their pins on the map, every flight's.
-  const fuelStopPins = useMemo(() => fuelStops.flatMap(f => f.stops.map(({ ident, lat, lon }) => ({ ident, lat, lon }))), [fuelStops]);
+  const fuelStopPins = useMemo(() => fuelStops.flatMap(f => f.stops.map(({ ident, lat, lon }) => ({ ident, lat, lon, reason: f.reason }))), [fuelStops]);
+  // A break the planner suggests on a long flight its tanks hold is the
+  // pilot's own stop once kept, not a fuel stop (useFuelStops).
   const keepFuelStops = useCallback((after: string, idents: string[]) => {
     const next = withStopsAfter(planned.dep, planned.stops, after, idents);
-    if (next) setStops(next.stops, next.added);
-  }, [setStops, planned.dep, planned.stops]);
+    const isBreak = fuelStops.some(f => f.reason === "break" && [...f.stops, ...(f.choices ?? [])].some(c => idents.includes(c.ident)));
+    if (next) setStops(next.stops, isBreak ? [] : next.added);
+  }, [setStops, planned.dep, planned.stops, fuelStops]);
+  // The suggested stop the airport's card is open on, where it is one: its
+  // figures at the card's top, and Add Stop keeps it at its place
+  // (PlaceCard's `stop`).
+  const suggestedAt = suggestedStopAt(place, fuelStops);
   // The route through the first flight's suggested stops planned as they
   // are suggested, as Fly Here's is at its tap: Add fuel stop then draws it
   // at once from what is in, where the owner watched four and a half
@@ -1990,7 +2015,9 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
         key={place} ident={place} from={measuredFrom} summary={summary}
         onClose={closePlace} onFlyHere={to => void flyHere(to)} onExpand={() => setPanel("full")} onLower={() => setPanel("half")}
         // None for a point of the route, or past the planner's most stops.
-        onAddStop={[planned.dep, ...planned.stops, planned.dest].includes(place) || planned.stops.length >= MAX_STOPS ? undefined : addStop}
+        onAddStop={[planned.dep, ...planned.stops, planned.dest].includes(place) || planned.stops.length >= MAX_STOPS ? undefined
+          : suggestedAt ? () => keepFuelStops(suggestedAt.after, [place]) : addStop}
+        stop={suggestedAt?.stop}
         startOn={approachesOf === place ? "approaches" : undefined} onStarted={() => setApproachesOf(null)}
       />
     </Suspense>

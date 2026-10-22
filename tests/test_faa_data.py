@@ -277,3 +277,18 @@ def test_a_k_ident_with_its_own_icao_field_does_not_read_another_airports_list(t
     (tmp_path / "APT_BASE.csv").write_text("ARPT_ID,ICAO_ID,TPA\nXYZ,PXYZ,\nQQQ,KXYZ,\n")
     assert faa_data.airport_frequencies("KXYZ", tmp_path) is None
     assert "KXYZ" not in faa_data.airport_frequencies_for(["KXYZ"], tmp_path)
+
+
+def test_a_fields_services_are_the_faas_as_the_chart_supplement_lists_them(tmp_path, monkeypatch):
+    (tmp_path / "APT_BASE.csv").write_text(
+        "ARPT_ID,ICAO_ID,FUEL_TYPES,LNDG_FEE_FLAG,TRNS_STRG_TIE_FLAG,TRNS_STRG_HGR_FLAG,AIRFRAME_REPAIR_SER_CODE,"
+        "PWR_PLANT_REPAIR_SER,BOTTLED_OXY_TYPE,BULK_OXY_TYPE\n"
+        "HYS,KHYS,\"100LL,A\",N,Y,Y,MAJOR,MINOR,NONE,LOW\n"
+        "0J1,,,,,,NONE,,,\n")
+    monkeypatch.setattr(faa_data, "ensure_nasr_file", lambda name, cache_dir: tmp_path / name)
+    assert faa_data.airport_services("KHYS", tmp_path) == faa_data.airport_services("hys", tmp_path) == {
+        "fuel_types": ["100LL", "A"], "landing_fee": False, "tie_down": True, "hangar": True,
+        "airframe_repair": "major", "powerplant_repair": "minor", "oxygen": True}
+    # A landing fee the FAA does not say of is not known, not none.
+    assert faa_data.airport_services("0J1", tmp_path) == faa_data.NO_SERVICES
+    assert faa_data.airport_services("ZZZ", tmp_path) == faa_data.NO_SERVICES

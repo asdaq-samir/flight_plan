@@ -1250,6 +1250,134 @@
         "title": "AirportSearch",
         "type": "object"
       },
+      "AirportServices": {
+        "description": "What a field offers a pilot who lands there: from its Chart\nSupplement entry (NASR's APT_BASE and its remarks) the fuel, fees,\nparking, repair and oxygen, and from Overture Maps (vfr.nearby) the\nplaces to eat, sleep and hire a car within five miles.\n`nearby_unavailable` where Overture could not be read: not the same\nas nothing near.",
+        "properties": {
+          "airframe_repair": {
+            "anyOf": [
+              {
+                "enum": [
+                  "major",
+                  "minor"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Airframe Repair"
+          },
+          "cars": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/NearbyPlace"
+            },
+            "title": "Cars",
+            "type": "array"
+          },
+          "courtesy_car": {
+            "default": false,
+            "title": "Courtesy Car",
+            "type": "boolean"
+          },
+          "food": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/NearbyPlace"
+            },
+            "title": "Food",
+            "type": "array"
+          },
+          "fuel_notes": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Fuel Notes",
+            "type": "array"
+          },
+          "fuel_types": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Fuel Types",
+            "type": "array"
+          },
+          "ground_notes": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Ground Notes",
+            "type": "array"
+          },
+          "hangar": {
+            "default": false,
+            "title": "Hangar",
+            "type": "boolean"
+          },
+          "ident": {
+            "title": "Ident",
+            "type": "string"
+          },
+          "landing_fee": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Landing Fee"
+          },
+          "lodging": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/NearbyPlace"
+            },
+            "title": "Lodging",
+            "type": "array"
+          },
+          "nearby_unavailable": {
+            "default": false,
+            "title": "Nearby Unavailable",
+            "type": "boolean"
+          },
+          "oxygen": {
+            "default": false,
+            "title": "Oxygen",
+            "type": "boolean"
+          },
+          "powerplant_repair": {
+            "anyOf": [
+              {
+                "enum": [
+                  "major",
+                  "minor"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Powerplant Repair"
+          },
+          "tie_down": {
+            "default": false,
+            "title": "Tie Down",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ident"
+        ],
+        "title": "AirportServices",
+        "type": "object"
+      },
       "AirportSuggestion": {
         "description": "An airport the search answers -- or, asked with `fixes`, a named\nfix (`kind` \"fix\": a VFR waypoint, a GPS waypoint), its `name` the\nkind of fix and its `region` the state it is in.",
         "properties": {
@@ -4702,7 +4830,7 @@
         "type": "object"
       },
       "FuelStopSuggestion": {
-        "description": "The stops that take one flight short of fuel to its destination with\nthe reserve left at every landing, the tanks filled at each, and other\nfields the first could be.",
+        "description": "The stops that take one flight short of fuel to its destination with\nthe reserve left at every landing, the tanks filled at each, and other\nfields the first could be -- or, `reason` \"break\", a field about half\nway on a flight its tanks hold that is long enough to want a meal or\na rest (vfr.fuelstops.suggest_break).",
         "properties": {
           "choices": {
             "default": [],
@@ -4718,6 +4846,15 @@
           },
           "destination": {
             "title": "Destination",
+            "type": "string"
+          },
+          "reason": {
+            "default": "fuel",
+            "enum": [
+              "fuel",
+              "break"
+            ],
+            "title": "Reason",
             "type": "string"
           },
           "stops": {
@@ -6505,6 +6642,62 @@
           "metar"
         ],
         "title": "NearbyMetar",
+        "type": "object"
+      },
+      "NearbyPlace": {
+        "description": "A place near a field from Overture Maps' places (vfr.nearby).",
+        "properties": {
+          "distance_m": {
+            "title": "Distance M",
+            "type": "integer"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "lat": {
+            "title": "Lat",
+            "type": "number"
+          },
+          "lon": {
+            "title": "Lon",
+            "type": "number"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          },
+          "walk_min": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Walk Min"
+          }
+        },
+        "required": [
+          "name",
+          "kind",
+          "distance_m",
+          "lat",
+          "lon"
+        ],
+        "title": "NearbyPlace",
         "type": "object"
       },
       "NearestAirport": {
@@ -11204,6 +11397,46 @@
           }
         },
         "summary": "Airport Procedure Plate"
+      }
+    },
+    "/api/airport/{ident}/services": {
+      "get": {
+        "description": "What a field offers a pilot who lands there, for a stop's card: its\nfuel, fees, parking, repair and oxygen and its courtesy car from the\nFAA's airport file and remarks (vfr.faa_data.airport_services,\nvfr.remarks.service_notes), and the places to eat, sleep and hire a\ncar near it (vfr.nearby). Its own request, not the card's: Overture's\nfirst read of a field is a second or two, which the card's weather\nand runways do not wait on.",
+        "operationId": "airport_services_api_airport__ident__services_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ident",
+            "required": true,
+            "schema": {
+              "title": "Ident",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AirportServices"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Airport Services"
       }
     },
     "/api/airports/in-view": {

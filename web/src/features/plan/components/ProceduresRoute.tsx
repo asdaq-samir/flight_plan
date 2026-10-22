@@ -801,7 +801,8 @@ export default function ProceduresRoute({
     return [
       ...flight.stops.map((stop, k) => (
         <FuelStopRow
-          key={`fuel-${ident}-${stop.ident}`} stop={stop} last={false} usableGal={flight.usable_gal}
+          key={`fuel-${ident}-${stop.ident}`} stop={stop} reason={flight.reason} last={false} usableGal={flight.usable_gal}
+          onOpen={onInfo ? () => onInfo(stop.ident) : undefined}
           time={etaAt(depart || new Date().toISOString(), leavesMin + stop.minutes)} groundMin={groundMinAt(ground, stop.ident)}
           choices={k === 0 ? flight.choices : undefined}
           onChoose={onKeepFuelStops ? c => onKeepFuelStops(ident, [c.ident]) : undefined}
@@ -809,7 +810,7 @@ export default function ProceduresRoute({
       )),
       onKeepFuelStops && (
         <FuelStopsAdd
-          key={`fuel-${ident}-add`} count={flight.stops.length} last={false}
+          key={`fuel-${ident}-add`} count={flight.stops.length} last={false} reason={flight.reason}
           onAdd={() => onKeepFuelStops(ident, flight.stops.map(s => s.ident))}
         />
       ),

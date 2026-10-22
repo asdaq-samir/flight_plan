@@ -228,3 +228,57 @@ def suggest(start: tuple, end: tuple, *, fuel_per_nm: float, min_per_nm: float, 
         flown, prev = stops[-1].from_nm, i
     choices = [stop(i, None, 0.0) for i in ranked[1:1 + CHOICES]]
     return stops, choices
+
+
+#: A flight longer than this, minutes in the air, is offered a stop on the
+#: way even where its tanks hold it, at the owner's ask for food and rest
+#: stops on a long cross-country: three hours, a long sit in a light
+#: airplane. Not a rule -- no regulation limits a private flight's
+#: length -- and only offered; the pilot adds it or flies on.
+BREAK_AFTER_MIN = 180.0
+
+#: Where on the way a break is offered: a field this share or more of the
+#: way, by distance, and no more than its complement, so the two legs
+#: are near even.
+BREAK_FROM_SHARE = 0.35
+
+#: Fields this few miles off the line count as on it when choosing the
+#: one nearest the middle; a field further off is offered only where
+#: none is that near.
+BREAK_NEAR_NM = 10.0
+
+
+def suggest_break(start: tuple, end: tuple, *, fuel_per_nm: float, min_per_nm: float, usable_gal: float,
+                  taxi_gal: float, skip: set | None = None,
+                  fields: pd.DataFrame | None = None) -> tuple[list[FuelStop], list[FuelStop]]:
+    """A field to stop at about half way on a flight longer than
+    BREAK_AFTER_MIN, and others it could be, where the tanks hold the
+    flight (suggest offers the stops where they do not): ([], []) for a
+    shorter flight, or where no field is on the way.
+
+    Among the fields with fuel (a break is a chance to top off) on a
+    long enough paved runway between BREAK_FROM_SHARE and its
+    complement of the way, those within BREAK_NEAR_NM of the line
+    first, each nearest the middle first."""
+    direct = float(distance_nm(start[0], start[1], end[0], end[1]))
+    if direct * min_per_nm <= BREAK_AFTER_MIN:
+        return [], []
+    fields = fields_with_fuel() if fields is None else fields
+    ranked = []
+    for n in _corridor(start, end, fields, set(skip or ())):
+        to_it = float(distance_nm(start[0], start[1], n["lat"], n["lon"]))
+        then = float(distance_nm(n["lat"], n["lon"], end[0], end[1]))
+        share = to_it / (to_it + then)
+        if BREAK_FROM_SHARE <= share <= 1 - BREAK_FROM_SHARE:
+            added = to_it + then - direct
+            ranked.append(((added > BREAK_NEAR_NM, abs(share - 0.5), added), n, to_it, added))
+    ranked.sort(key=lambda r: r[0])
+    stops = [FuelStop(
+        ident=n["ident"], name=n["name"], city=n["city"], lat=float(n["lat"]), lon=float(n["lon"]),
+        from_nm=round(to_it, 1), added_nm=round(added, 1),
+        lands_with_gal=round(usable_gal - taxi_gal - to_it * fuel_per_nm, 1),
+        minutes=round(to_it * min_per_nm, 1),
+        fuel_types=n["fuel_types"], runway_ft=int(n["runway_ft"]),
+        elevation_ft=None if pd.isna(n["elevation_ft"]) else float(n["elevation_ft"]),
+    ) for _, n, to_it, added in ranked[:1 + CHOICES]]
+    return stops[:1], stops[1:]

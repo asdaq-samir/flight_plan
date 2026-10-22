@@ -37,6 +37,7 @@ import { diagramRunwaysPicture } from "../../../lib/diagram";
 import { useHeardMetar } from "../../../lib/map/receiver";
 import { zuluTime } from "../../../lib/clock";
 import { airportQuery } from "../../../lib/queryClient";
+import { StopServices, StopStrip, type SuggestedStop } from "./StopServices";
 
 const SketchViewer = lazy(() => import("./SketchViewer"));
 
@@ -174,7 +175,7 @@ function mapsLink(place: AirportPlace): string {
  * How far it is is from the pilot's own position when it is known, and
  * from the route's departure otherwise.
  */
-export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, onExpand, onLower, startOn, onStarted, summary = false }: {
+export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, onExpand, onLower, startOn, onStarted, summary = false, stop }: {
   ident: string;
   /** What the distance is measured from where own ship has no fix: the
    *  route's departure. */
@@ -198,6 +199,10 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
    *  actions and its first frequencies, the rest a swipe up -- as Apple
    *  Maps opens a place, at the owner's pick of the redesign. */
   summary?: boolean;
+  /** A stop the planner suggests here, opened from its row in FPL's route
+   *  (FuelStopRow): its figures at the top (StopStrip), and Add Stop puts
+   *  it in at its place. */
+  stop?: SuggestedStop;
 }) {
   // Asked again every five minutes while the card is open, its weather a
   // report's freshness (airportQuery): an open card's METAR was the one
@@ -521,6 +526,7 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
         </div>
       )}
 
+      {place && stop && <StopStrip ident={place.ident} stop={stop} />}
       {/* At the pill's size its first frequencies under the actions, the
           airspace the field is in beside their title (the owner's "class C
           in parenthesis next to Frequency heading"), the title the way up
@@ -587,6 +593,10 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
                 </PillSection>
               </div>
             )}
+            {/* What the field offers on the ground (StopServices), after
+                the radio and the lights, at the owner's ask for food, fuel
+                and rest stops: its own request, so the tab is not held. */}
+            <StopServices ident={place.ident} />
           </CardTabPanel>
 
           <CardTabPanel value="diagrams">

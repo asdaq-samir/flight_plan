@@ -412,12 +412,15 @@ class FuelStop(BaseModel):
 class FuelStopSuggestion(BaseModel):
     """The stops that take one flight short of fuel to its destination with
     the reserve left at every landing, the tanks filled at each, and other
-    fields the first could be."""
+    fields the first could be -- or, `reason` "break", a field about half
+    way on a flight its tanks hold that is long enough to want a meal or
+    a rest (vfr.fuelstops.suggest_break)."""
 
     departure: str
     destination: str
     #: The tanks' usable fuel, gallons, each stop's landing measured against.
     usable_gal: float
+    reason: Literal["fuel", "break"] = "fuel"
     stops: list[FuelStop]
     choices: list[FuelStop] = []
 
@@ -2054,6 +2057,47 @@ class AirportPlace(BaseModel):
     # And all of the field's charts in this cycle's d-TPP, the diagram among
     # them: what the card's Diagrams tab lists.
     procedures: list[TerminalChart] = []
+
+
+class NearbyPlace(BaseModel):
+    """A place near a field from Overture Maps' places (vfr.nearby)."""
+
+    name: str
+    #: What it is, in words: "American restaurant", "Motel", "Car rental".
+    kind: str
+    distance_m: int
+    #: The minutes' walk where it is near enough to walk to, else None.
+    walk_min: int | None = None
+    phone: str | None = None
+    lat: float
+    lon: float
+
+
+class AirportServices(BaseModel):
+    """What a field offers a pilot who lands there: from its Chart
+    Supplement entry (NASR's APT_BASE and its remarks) the fuel, fees,
+    parking, repair and oxygen, and from Overture Maps (vfr.nearby) the
+    places to eat, sleep and hire a car within five miles.
+    `nearby_unavailable` where Overture could not be read: not the same
+    as nothing near."""
+
+    ident: str
+    fuel_types: list[str] = []
+    #: The remarks on its fuel and FBO's hours, in plain English.
+    fuel_notes: list[str] = []
+    landing_fee: bool | None = None
+    tie_down: bool = False
+    hangar: bool = False
+    airframe_repair: Literal["major", "minor"] | None = None
+    powerplant_repair: Literal["major", "minor"] | None = None
+    oxygen: bool = False
+    courtesy_car: bool = False
+    #: The remarks offering the courtesy car, in plain English.
+    ground_notes: list[str] = []
+    food: list[NearbyPlace] = []
+    lodging: list[NearbyPlace] = []
+    cars: list[NearbyPlace] = []
+    nearby_unavailable: bool = False
 
 
 class ModelComparisonEntry(BaseModel):

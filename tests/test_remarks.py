@@ -23,6 +23,12 @@ def remarks_csv(tmp_path, monkeypatch):
         '"SW 1000 FT TURF-GRVL."\n'
         '"2026/09/03","4","A","IL","C81","GRAYSLAKE","US","A51-24","RUNWAY_END","DISPLACED_THR_LEN","24",1,'
         '"RWY 24 NSTD DSPLCD THLD WHITE STRIPE MKGS ONLY."\n'
+        '"2026/09/03","5","A","KS","K78","ABILENE","US","A110-2","AIRPORT","GENERAL_REMARK","",2,"COURTESY CAR AVBL."\n'
+        '"2026/09/03","5","A","KS","K78","ABILENE","US","A110-3","AIRPORT","GENERAL_REMARK","",3,"24 HOUR SELF SERVE FUEL."\n'
+        '"2026/09/03","6","A","KS","GCK","GARDEN CITY","US","A70-100LL","FUEL_TYPE","FUEL_TYPE","100LL",1,'
+        '"FOR MILITARY FUEL CALL 620-275-5055."\n'
+        '"2026/09/03","7","A","WI","RPD","RICE LAKE","US","A17-M1","AIRPORT_ATTEND_SCHED","MONTH","1",1,'
+        '"AIRPORT ATNDD OTHER HOURS O/R THRU FBO."\n'
     )
     monkeypatch.setattr(faa_data, "ensure_nasr_file", lambda name, cache_dir: path)
     return path
@@ -70,3 +76,13 @@ def test_the_turf_on_a_runway_of_two_surfaces_is_read_from_its_remarks(remarks_c
 ])
 def test_the_wordings_of_a_runways_turf(remark, ends, turf):
     assert remarks._turf_of(remark, ends.split("/")) == turf
+
+
+def test_an_airports_fuel_and_courtesy_car_remarks_in_plain_english(remarks_csv):
+    assert remarks.service_notes("K78") == {
+        "fuel": ["24 hour self serve fuel."], "ground": ["Courtesy car available."], "courtesy_car": True}
+    # The FAA's own remark on a fuel type, whatever its words.
+    assert remarks.service_notes("GCK")["fuel"] == ["For military fuel call 620-275-5055."]
+    assert remarks.service_notes("RFD") == {"fuel": [], "ground": [], "courtesy_car": False}
+    # The attendance remarks' own contractions, in words.
+    assert remarks.service_notes("RPD")["fuel"] == ["Airport attended other hours on request through FBO."]

@@ -17,14 +17,14 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Query, Response
 from fastapi.responses import FileResponse
 from vfr import (
-    airports, airspace, altitude, faa_data, fixes, geocode, glmp, pattern, places, plates, procedures, publications, remarks,
+    airports, airspace, altitude, faa_data, fixes, geocode, glmp, nearby, pattern, places, plates, procedures, publications, remarks,
     runway_wind, weather,
 )
 
 from ..common import DIAGRAM_CACHE
 from ..schemas import (
-    AirportPlace, ForecastWind, AirportsInView, ChartPages, NearestAirports, PlacesFound, PlateOverlay, ProcedureDrawing, ProcedureList,
-    WaypointsInView,
+    AirportPlace, AirportServices, ForecastWind, AirportsInView, ChartPages, NearestAirports, PlacesFound, PlateOverlay,
+    ProcedureDrawing, ProcedureList, WaypointsInView,
 )
 
 log = logging.getLogger(__name__)
@@ -291,6 +291,38 @@ def airport_place(ident: str) -> AirportPlace:
         "airport_diagram_cycle": publications.airport_diagram_cycle(place["ident"]),
         "chart_supplement_url": publications.chart_supplement_url(place["ident"]),
         "procedures": publications.terminal_charts(place["ident"]),
+    }
+
+
+@router.get("/api/airport/{ident}/services", response_model=AirportServices)
+def airport_services(ident: str) -> dict:
+    """What a field offers a pilot who lands there, for a stop's card: its
+    fuel, fees, parking, repair and oxygen and its courtesy car from the
+    FAA's airport file and remarks (vfr.faa_data.airport_services,
+    vfr.remarks.service_notes), and the places to eat, sleep and hire a
+    car near it (vfr.nearby). Its own request, not the card's: Overture's
+    first read of a field is a second or two, which the card's weather
+    and runways do not wait on."""
+    place = airports.find_place(ident)
+    if place is None:
+        raise HTTPException(404, f"No US airport goes by {ident.strip().upper()!r}.")
+    faa_ids = pattern.faa_ids(place["ident"])
+    try:
+        notes = next((found for faa_id in faa_ids if (found := remarks.service_notes(faa_id))["fuel"] or found["ground"]),
+                     {"fuel": [], "ground": [], "courtesy_car": False})
+    except (OSError, RuntimeError):
+        notes = {"fuel": [], "ground": [], "courtesy_car": False}
+    try:
+        near = nearby.around(place["ident"], place["lat"], place["lon"])
+        unavailable = False
+    except nearby.NearbyUnavailable as err:
+        log.warning("nearby places at %s: %s", place["ident"], err)
+        near, unavailable = {}, True
+    return {
+        "ident": place["ident"],
+        **faa_data.airport_services(place["ident"], altitude.DEFAULT_FAA_CACHE_DIR),
+        "fuel_notes": notes["fuel"], "courtesy_car": notes["courtesy_car"], "ground_notes": notes["ground"],
+        **near, "nearby_unavailable": unavailable,
     }
 
 

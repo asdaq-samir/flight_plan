@@ -20,7 +20,8 @@ def test_a_flight_the_tanks_do_not_hold_gets_its_stops(monkeypatch):
 
     monkeypatch.setattr(plan.fuelstops, "suggest", suggest)
     out = plan.fuel_stops_of(ROUTE, [SHORT])
-    assert out == [{"departure": "C81", "destination": "KJAX", "usable_gal": 48.0, "stops": [STOP.as_dict()], "choices": []}]
+    assert out == [{"departure": "C81", "destination": "KJAX", "usable_gal": 48.0, "reason": "fuel",
+                    "stops": [STOP.as_dict()], "choices": []}]
     # The flight's own burn and minutes a mile, its reserve, and none of
     # the route's own fields offered.
     assert asked["fuel_per_nm"] == SHORT["fuel_gal"] / SHORT["distance_nm"]
@@ -28,8 +29,23 @@ def test_a_flight_the_tanks_do_not_hold_gets_its_stops(monkeypatch):
     assert asked["reserve_gal"] == 4.75 and asked["skip"] == {"C81", "KJAX"}
 
 
+def test_a_long_flight_the_tanks_hold_gets_a_break_about_half_way(monkeypatch):
+    asked = {}
+
+    def suggest_break(start, end, **figures):
+        asked.update(figures)
+        return [STOP], []
+
+    monkeypatch.setattr(plan.fuelstops, "suggest", lambda *a, **k: (_ for _ in ()).throw(AssertionError("asked")))
+    monkeypatch.setattr(plan.fuelstops, "suggest_break", suggest_break)
+    out = plan.fuel_stops_of(ROUTE, [{**SHORT, "fuel_margin_gal": 2.0}])
+    assert [(o["reason"], [s["ident"] for s in o["stops"]]) for o in out] == [("break", ["KSCX"])]
+    assert "reserve_gal" not in asked and asked["skip"] == {"C81", "KJAX"}
+
+
 def test_none_where_the_fuel_check_passes_or_cannot_be_made(monkeypatch):
     monkeypatch.setattr(plan.fuelstops, "suggest", lambda *a, **k: (_ for _ in ()).throw(AssertionError("asked")))
+    monkeypatch.setattr(plan.fuelstops, "suggest_break", lambda *a, **k: ([], []))
     assert plan.fuel_stops_of(ROUTE, [{**SHORT, "fuel_margin_gal": 2.0}]) == []
     assert plan.fuel_stops_of(ROUTE, [{**SHORT, "usable_fuel_gal": None}]) == []
     assert plan.fuel_stops_of(ROUTE, [{**SHORT, "fuel_gal": None}]) == []

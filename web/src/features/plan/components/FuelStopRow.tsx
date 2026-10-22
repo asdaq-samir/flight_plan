@@ -1,4 +1,4 @@
-import { Fuel, Mountain } from "lucide-react";
+import { Coffee, Fuel, Mountain } from "lucide-react";
 import { cn } from "cn";
 import { GLASS_BUTTON } from "../../../components/mapChrome";
 import {
@@ -8,6 +8,7 @@ import { faaWords } from "../../../lib/advisories";
 import type { FuelStop } from "../../../lib/api/types";
 import { TEXT } from "../../../lib/text";
 import { grouped } from "../../../lib/units";
+import { StopGlance } from "./StopServices";
 
 /** A field's place in words: its city, as the FAA spells it, in sentence
  *  case ("Knoxville"), else its name. */
@@ -49,8 +50,11 @@ export function FuelGauge({ gal, usable, tone }: { gal: number; usable: number |
  * stops are added (FuelStopsAdd, after the last); its menu the other
  * fields it could be.
  */
-export default function FuelStopRow({ stop, time, groundMin, usableGal, choices, onChoose, last }: {
+export default function FuelStopRow({ stop, reason = "fuel", time, groundMin, usableGal, choices, onChoose, onOpen, last }: {
   stop: FuelStop;
+  /** A stop for fuel the tanks need, or a break about half way on a long
+   *  flight they hold (the suggestion's `reason`): a cup, not the pump. */
+  reason?: "fuel" | "break";
   /** When it is landed at, by the flight's own minutes to it. */
   time: string;
   /** The minutes on the ground a stop takes (groundMinAt). */
@@ -60,12 +64,17 @@ export default function FuelStopRow({ stop, time, groundMin, usableGal, choices,
   /** The other fields this stop could be, and one picked in its place. */
   choices?: FuelStop[];
   onChoose?: (stop: FuelStop) => void;
+  /** The field's card opened on it, with its figures and what is there on
+   *  the ground (PlaceCard's `stop`): the row's words a tap. */
+  onOpen?: () => void;
   last: boolean;
 }) {
   const place = fuelStopPlace(stop);
+  const Glyph = reason === "break" ? Coffee : Fuel;
+  const what = reason === "break" ? "stop for a break" : "fuel stop";
   const pump = (
     <span aria-hidden="true" className="flex size-6 items-center justify-center rounded-full border-2 border-dashed border-caution bg-background text-caution">
-      <Fuel className="size-3.5" strokeWidth={2.4} />
+      <Glyph className="size-3.5" strokeWidth={2.4} />
     </span>
   );
   return (
@@ -79,7 +88,7 @@ export default function FuelStopRow({ stop, time, groundMin, usableGal, choices,
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
-                type="button" aria-label={`${stop.ident}: other fields with fuel`} data-testid="fuel-stop-other" data-point-mark=""
+                type="button" aria-label={`${stop.ident}: other fields ${reason === "break" ? "on the way" : "with fuel"}`} data-testid="fuel-stop-other" data-point-mark=""
                 // The glass button an airport's symbol is (PointMenu).
                 className={cn("relative -mx-0.5 -mt-0.5 grid size-8 place-items-center rounded-full outline-none after:absolute after:-inset-1.5 after:content-[''] focus-visible:ring-2 focus-visible:ring-ring", GLASS_BUTTON)}
               >
@@ -87,7 +96,7 @@ export default function FuelStopRow({ stop, time, groundMin, usableGal, choices,
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-72" data-testid="fuel-stop-choices">
-              <DropdownMenuLabel className={cn("text-muted-foreground", TEXT.note)}>Another field with fuel</DropdownMenuLabel>
+              <DropdownMenuLabel className={cn("text-muted-foreground", TEXT.note)}>{reason === "break" ? "Another field on the way" : "Another field with fuel"}</DropdownMenuLabel>
               <DropdownMenuSeparator />
               {choices.map(c => (
                 <DropdownMenuItem key={c.ident} onSelect={() => onChoose(c)} className="flex flex-col items-start gap-0" data-testid="fuel-stop-choice">
@@ -105,7 +114,17 @@ export default function FuelStopRow({ stop, time, groundMin, usableGal, choices,
           its ident and the fuel it lands with, its time; its town and the
           time to refuel, its elevation; no runway, at the owner's ask ("No
           need to show runway when asking to add fuel stop"). */}
-      <section aria-label={`Suggested fuel stop, ${stop.ident}, ${place}`} className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 pb-4">
+      <section aria-label={`Suggested ${what}, ${stop.ident}, ${place}`} className="relative grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 pb-4">
+        {/* The whole of its words the way to the field's card, as an
+            airport's line unfolds its runways (ProceduresRoute's
+            field-toggle): stretched over them, under its pump's menu. */}
+        {onOpen && (
+          <button
+            type="button" onClick={onOpen} data-testid="fuel-stop-open"
+            aria-label={`${stop.ident}, ${place}: what is there`}
+            className="absolute inset-x-0 -top-1 bottom-2 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          />
+        )}
         <div className="col-start-1 row-start-1 flex min-w-0 items-center gap-1.5">
           {/* The room an airport's arrow takes before its ident, so the
               idents of the list line up (the owner's screenshot). */}
@@ -117,14 +136,17 @@ export default function FuelStopRow({ stop, time, groundMin, usableGal, choices,
         <span className={cn("col-start-1 row-start-2 flex min-w-0 items-center gap-1 text-muted-foreground", TEXT.note)}>
           <span className="truncate">{place}</span>
           <span aria-hidden="true">·</span>
-          <Fuel className="size-3.5 shrink-0" aria-hidden="true" />
-          <span className="shrink-0 tabular-nums"><span className="sr-only">Refuelled in </span>{groundMin} min</span>
+          <Glyph className="size-3.5 shrink-0" aria-hidden="true" />
+          <span className="shrink-0 tabular-nums"><span className="sr-only">{reason === "break" ? "On the ground " : "Refuelled in "}</span>{groundMin} min</span>
         </span>
         {stop.elevation_ft != null && (
           <span className={cn("col-start-2 row-start-2 inline-flex items-center gap-0.5 justify-self-end text-muted-foreground tabular-nums", TEXT.detail)}>
             <Mountain className="size-3.5 shrink-0" aria-hidden="true" />{grouped(Math.round(stop.elevation_ft))} ft
           </span>
         )}
+        {/* What is there on the ground, once the planner has it: the
+            nearest food, a car, a bed (StopServices). */}
+        <StopGlance ident={stop.ident} className="col-span-2 row-start-3 pt-0.5" />
       </section>
     </li>
   );
@@ -135,7 +157,7 @@ export default function FuelStopRow({ stop, time, groundMin, usableGal, choices,
  * as Tesla's trip is sent to the car: "Add fuel stop", or "Add 2 fuel
  * stops", in the tint.
  */
-export function FuelStopsAdd({ count, onAdd, last }: { count: number; onAdd: () => void; last: boolean }) {
+export function FuelStopsAdd({ count, onAdd, last, reason = "fuel" }: { count: number; onAdd: () => void; last: boolean; reason?: "fuel" | "break" }) {
   return (
     <li className="relative flex gap-2.5">
       {!last && <span aria-hidden="true" className="absolute top-0 bottom-0 left-[calc(0.875rem-1px)] w-0.5 bg-border" />}
@@ -148,7 +170,7 @@ export function FuelStopsAdd({ count, onAdd, last }: { count: number; onAdd: () 
             TEXT.detail,
           )}
         >
-          {count === 1 ? "Add fuel stop" : `Add ${count} fuel stops`}
+          {reason === "break" ? "Add stop" : count === 1 ? "Add fuel stop" : `Add ${count} fuel stops`}
         </button>
       </div>
     </li>
