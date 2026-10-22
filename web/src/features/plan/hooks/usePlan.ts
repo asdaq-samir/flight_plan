@@ -72,6 +72,9 @@ export interface PlanParams {
    *  and a flight landing by an approach comes down to its first fix's
    *  altitude. */
   procedures?: string;
+  /** The runway each departure picked is left from ("KSTL:30R"), its
+   *  runway transition the one flown. */
+  runways?: string;
   /** Altitudes given to cross the procedures' fixes at ("BXCMB:3000"),
    *  each in place of the chart's there. */
   crossings?: string;
@@ -124,13 +127,13 @@ const NONE: Candidate[] = [];
  *  on the same, so a narrative is always about the log on screen. */
 function planKeyOf(
   { dep, dest, stops, altitudeFt, altitudeChoice, depart, aircraft, load, classBClearance = false, altitudes = "", checkpoints = true,
-    rules = "vfr", alternate = "", procedures = "", crossings = "", ground = "", holds = "", altitudeNearest = false }: PlanParams,
+    rules = "vfr", alternate = "", procedures = "", runways = "", crossings = "", ground = "", holds = "", altitudeNearest = false }: PlanParams,
 ) {
   return [
     dep, dest, stops.join(","), altitudeFt, altitudeChoice, depart, load, classBClearance, altitudes, checkpoints,
     aircraft.profile, aircraft.cruiseTasKt ?? null, aircraft.fuelBurnGph ?? null, aircraft.usableFuelGal ?? null,
     aircraft.climbTasKt ?? null, aircraft.climbFuelBurnGph ?? null, aircraft.cruisePowerPct ?? null, rules,
-    rules === "ifr" ? alternate : "", procedures, crossings, ground, holds, altitudeNearest,
+    rules === "ifr" ? alternate : "", procedures, runways, crossings, ground, holds, altitudeNearest,
   ];
 }
 
@@ -140,7 +143,7 @@ function planKeyOf(
 export function navlogQuery(plan: PlanParams, checkpointsToo: boolean) {
   const {
     dep, dest, stops, altitudeFt, altitudeChoice, depart, aircraft, classBClearance = false, altitudes = "", rules = "vfr", alternate = "",
-    procedures = "", crossings = "", ground = "", holds = "", altitudeNearest = false,
+    procedures = "", runways = "", crossings = "", ground = "", holds = "", altitudeNearest = false,
   } = plan;
   const planKey = planKeyOf(plan);
   return {
@@ -151,7 +154,7 @@ export function navlogQuery(plan: PlanParams, checkpointsToo: boolean) {
     queryFn: streamedQuery({
       streamFn: ({ signal }: { signal: AbortSignal }) => inBatches(ended(
         api.navlog(dep, dest, altitudeFt || undefined, aircraft, altitudeChoice, depart || undefined, signal, stops, classBClearance, altitudes, checkpointsToo,
-          rules, alternate, procedures, crossings, ground, holds, altitudeNearest),
+          rules, alternate, procedures, crossings, ground, holds, altitudeNearest, runways),
         "nav log",
       )),
       reducer: (lines: NavLogMessage[], batch: NavLogMessage[]) => [...lines, ...batch],
@@ -167,7 +170,7 @@ export function navlogQuery(plan: PlanParams, checkpointsToo: boolean) {
 export function usePlan(
   {
     dep, dest, stops, altitudeFt, altitudeChoice, depart, aircraft, load, classBClearance = false, altitudes = "",
-    checkpoints: withCheckpoints = true, localMin = 60, rules = "vfr", alternate = "", procedures = "", crossings = "", ground = "", holds = "",
+    checkpoints: withCheckpoints = true, localMin = 60, rules = "vfr", alternate = "", procedures = "", runways = "", crossings = "", ground = "", holds = "",
     altitudeNearest = false,
   }: PlanParams,
 ) {
@@ -199,7 +202,7 @@ export function usePlan(
 
   const plan = {
     dep, dest, stops, altitudeFt, altitudeChoice, depart, aircraft, load, classBClearance, altitudes, checkpoints: withCheckpoints, rules,
-    alternate, procedures, crossings, ground, holds, altitudeNearest,
+    alternate, procedures, runways, crossings, ground, holds, altitudeNearest,
   };
   const planKey = planKeyOf(plan);
   const navlog = useQuery({ ...navlogQuery(plan, withCheckpoints), enabled: routeKnown });

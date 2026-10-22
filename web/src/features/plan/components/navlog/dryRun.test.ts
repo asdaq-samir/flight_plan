@@ -82,7 +82,7 @@ describe("a leg the planner flies by the procedures picked", () => {
   const pathNm = distanceNm(c81, plane) + distanceNm(plane, homuv) + distanceNm(homuv, cirus) + distanceNm(cirus, runway);
   const moreNm = pathNm - 60, moreMin = (moreNm / 100) * 60, moreGal = (moreMin / 60) * 8;
   const procedure = (ft: (number | null)[] = [null, null, 2500, 1900, null]): LegProcedure => ({
-    path: [c81, plane, homuv, cirus, runway].map(p => [p.lat, p.lon]), ft, nm: pathNm, landing: true, final_at: 3,
+    path: [c81, plane, homuv, cirus, runway].map(p => [p.lat, p.lon]), ft, nm: pathNm, landing: true, final_at: 3, map_at: 4,
     missed: { path: [[udteg.lat, udteg.lon]], ft: 3300 }, more_nm: moreNm, more_min: moreMin, more_gal: moreGal,
   });
   const flownLeg = (p: LegProcedure) => ({ ...leg, ete_min: 36 + moreMin, fuel_gal: 5 + moreGal, procedure: p }) as Leg;
@@ -161,10 +161,34 @@ describe("a leg the planner flies by the procedures picked", () => {
     expect(missedRun.points.at(-1)!.gs_kt).toBeGreaterThan(0);
   });
 
+  it("goes missed from a missed approach point short of the runway, at the height the descent reaches there", () => {
+    // A LOC's MAP a mile and a half short of the threshold (the audit of
+    // 2026-10-21): the path lands on at the runway, the missed approach is
+    // flown from the MAP, climbing from where the descent had come down to.
+    const map = { lat: 43, lon: -87.965 };
+    const short: LegProcedure = {
+      ...procedure([null, null, 2500, 1900, null, null]),
+      path: [c81, plane, homuv, cirus, map, runway].map(p => [p.lat, p.lon]), map_at: 4,
+    };
+    const rows = navLogRows({ departure: airport("C81", 42, 800), destination: airport("KDLH", 43, 500) }, [], [flownLeg(short)]);
+    const landed = dryRunOf(rows, 1_000);
+    expect(landed.points.at(-1)).toMatchObject({ lat: 43, lon: -88, alt_ft: 500 });
+    expect(landed.final!.to).toBeLessThan(landed.points.at(-1)!.t);
+    const gone = dryRunOf(rows, 1_000, undefined, true);
+    const atMap = gone.points.findIndex(p => distanceNm(p, map) < 0.01);
+    expect(atMap).toBeGreaterThan(0);
+    expect(gone.points[atMap]!.alt_ft).toBeGreaterThan(600);
+    expect(gone.points[atMap]!.t).toBeCloseTo(landed.final!.to, -1);
+    // Never at the runway, and never lower than at the MAP after it.
+    expect(gone.points.some(p => distanceNm(p, runway) < 0.05)).toBe(false);
+    expect(Math.min(...gone.points.slice(atMap).map(p => p.alt_ft!))).toBeGreaterThan(gone.points[atMap]!.alt_ft! - 10);
+    expect(gone.points.at(-1)).toMatchObject({ lat: 43, lon: -88.3 });
+  });
+
   it("goes out by a departure alone with the plan's own heights laid along its path, then on to the route", () => {
     const sid: LegProcedure = {
       path: [[42, -88], [42.1, -88.1], [42.3, -88.1], [43, -88]], ft: [null, null, null, null], nm: 0, landing: false,
-      final_at: null, missed: null, more_nm: 0, more_min: 0, more_gal: 0,
+      final_at: null, map_at: null, missed: null, more_nm: 0, more_min: 0, more_gal: 0,
     };
     const out = dryRunOf(navLogRows({ departure: airport("C81", 42, 800), destination: airport("KDLH", 43, 500) }, [],
       [{ ...leg, procedure: sid } as Leg]), 1_000);

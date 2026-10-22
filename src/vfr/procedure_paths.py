@@ -17,6 +17,7 @@ from __future__ import annotations
 import math
 
 from . import geo
+from . import holds as vfr_holds
 
 #: How near two points of a drawing are to be one place, nm: a fix where
 #: a transition ends and the same fix on the final, both rounded to six
@@ -32,6 +33,16 @@ INTERCEPT_NM = 3.0
 DOWNWIND_NM = 4.0
 #: How far a path turns at a point to be a course reversal there, degrees.
 REVERSAL_DEG = 120.0
+#: How far a path turns at a fix the chart puts a course reversal at -- a
+#: hold in lieu of a procedure turn, or a procedure turn -- for it to be
+#: flown, degrees: come to from the far side, more than 90° off the course
+#: it leaves the fix on. From the near side a pilot is lined up already, as
+#: a TAA's straight-in area and a feeder marked NoPT are, and makes none
+#: (AIM 5-4-5, 5-4-9; 14 CFR 91.175(j)).
+CODED_REVERSAL_DEG = 90.0
+#: A standard-rate turn's radius in a hold's entry, nm: at the 120 knots
+#: the chart's holds are drawn at (vfr.procedures.HOLD_TURN_NM).
+ENTRY_TURN_NM = 120 * (120 / 3600) / (2 * math.pi)
 
 
 def _nm(a: tuple, b: tuple) -> float:
@@ -79,7 +90,7 @@ def _crossings(drawing: dict, points: list) -> dict | None:
         fix = next((f for f in crossed if _nm((f["lat"], f["lon"]), p) < SAME_PLACE_NM), None)
         return None if fix is None else fix["min_ft"] if fix["min_ft"] is not None else fix["max_ft"]
 
-    holds = [[tuple(p) for p in h["points"]] for h in drawing.get("holds", []) if not h["missed"]]
+    holds = [h for h in drawing.get("holds", []) if not h["missed"]]
     return {"points": points, "ft": [ft(p) for p in points], "holds": holds}
 
 
@@ -93,20 +104,54 @@ def approach_path(drawing: dict) -> dict | None:
     where the transition ends on it (Duluth's ILS RWY 27 via DLH ends at
     ANDOE, the final's second fix, and would have gone back out to WIRSA,
     the final's first, before turning in). None where nothing is drawn."""
-    return _crossings(drawing, joined_lines([ln["points"] for ln in drawing.get("lines", []) if ln["role"] in ("transition", "final")]))
+    path = _crossings(drawing, joined_lines([ln["points"] for ln in drawing.get("lines", []) if ln["role"] in ("transition", "final")]))
+    # A transition that is its fix alone -- a procedure turn at a VOR on
+    # the final, Duluth's VOR RWY 3 via DLH -- is flown from that fix, its
+    # reversal round it: not from the final's first fix, out past the VOR
+    # and back in a hairpin (the audit of 2026-10-21).
+    if path and not _of(drawing, "transition") and drawing.get("transition"):
+        path = _direct(path, {**drawing, "direct": drawing["transition"]})
+    # On from a missed approach point short of the runway to its threshold,
+    # where the airplane lands -- a VOR's or a LOC's MAP a mile out, where
+    # the dry run touched down (the audit of 2026-10-21). `map_at` keeps
+    # where the missed approach is flown from.
+    if path:
+        path["map_at"] = len(path["points"]) - 1
+        end = drawing.get("threshold")
+        if end and _nm(tuple(end), path["points"][-1]) >= SAME_PLACE_NM:
+            path["points"].append(tuple(end))
+            path["ft"].append(None)
+    return path
 
 
-def procedure_path(drawing: dict, toward: tuple | None = None) -> dict | None:
+def _runway_line(lines: list, runway: str | None) -> list:
+    """Of a departure's runway transitions (their names "RW30R", "RW12B" for
+    both 12L and 12R, "ALL"), the one for `runway` ("30R", "12L"); the
+    first coded where none is picked or none fits."""
+    if runway:
+        want = runway.upper().removeprefix("RW")
+        number = want.rstrip("LRC")
+        for line in lines:
+            name = (line.get("name") or "").upper().removeprefix("RW")
+            if name == want or (name.endswith("B") and name[:-1] == number):
+                return [line["points"]]
+    return [lines[0]["points"]] if lines else []
+
+
+def procedure_path(drawing: dict, toward: tuple | None = None, runway: str | None = None) -> dict | None:
     """An arrival or a departure as it is flown: a departure's runway
     transition, its common route and its enroute transition; an arrival's
     enroute transition and common route, then of its runway transitions
     the one that ends nearest `toward`, the approach's first fix, where
     one is picked. vfr.procedures draws every runway transition of either:
-    the runway in use is not known to the plan, so a departure leaves by
-    the first coded. None where nothing is drawn."""
+    a departure leaves by the one for the `runway` the pilot leaves from
+    (St. Louis's BERYY6 flew its runway 11 transition off runway 30R, out
+    the wrong way -- the audit of 2026-10-21), the first coded where none
+    is known. None where nothing is drawn."""
     runways = _of(drawing, "runway")
     if drawing["kind"] == "departure":
-        return _crossings(drawing, joined_lines(runways[:1] + _of(drawing, "common", "transition")))
+        lines = [ln for ln in drawing.get("lines", []) if ln["role"] == "runway"]
+        return _crossings(drawing, joined_lines(_runway_line(lines, runway) + _of(drawing, "common", "transition")))
     nearest = (min(runways, key=lambda ln: _nm(tuple(ln[-1]), toward))
                if toward is not None and runways else None)
     return _crossings(drawing, joined_lines(_of(drawing, "transition", "common") + ([nearest] if nearest else [])))
@@ -180,6 +225,44 @@ def _teardrop(fix: tuple, cin: float, cout: float) -> list:
     return [out, *curve, inbound, fix]
 
 
+def _arc_from(p: tuple, heading: float, sweep: float, r: float = ENTRY_TURN_NM) -> list:
+    """A turn from `p` on `heading` through `sweep` degrees -- to the right
+    where positive -- at radius `r`: its points after `p`."""
+    side = 1 if sweep > 0 else -1
+    center = _toward(p, heading + 90 * side, r)
+    start = heading - 90 * side
+    steps = max(2, int(abs(sweep) / 15))
+    return [_toward(center, start + sweep * k / steps, r) for k in range(1, steps + 1)]
+
+
+def _entered(hold: dict, fix: tuple, arrival: float) -> list:
+    """A course reversal the chart puts at `fix`, as it is flown from a
+    course of `arrival` (true): a procedure turn as it is drawn; a hold in
+    lieu of one by its entry (AIM 5-3-8 j.3, vfr.holds.entry) -- teardrop:
+    out 30° to the holding side of the outbound course for a leg, and round
+    in the hold's direction onto the inbound course; parallel: out on the
+    outbound course, and round toward the holding side, more than 180°, to
+    come back to the fix 30° off it; direct: once round the racetrack. Each
+    ends at the fix inbound. Points after the fix."""
+    points = [tuple(q) for q in hold["points"]]
+    if hold.get("kind") == "procedure turn" or "inbound_deg" not in hold or not hold.get("leg_nm"):
+        return points[1:]
+    inbound, leg_nm = float(hold["inbound_deg"]), float(hold["leg_nm"])
+    right = hold.get("turn", "R") != "L"
+    side = 1 if right else -1
+    out = (inbound + 180) % 360
+    way = vfr_holds.entry(arrival, inbound, right)
+    if way == "teardrop":
+        heading = out - 30 * side
+        start = _toward(fix, heading, leg_nm)
+        sweep = side * (((inbound - heading) * side) % 360)
+        return [start, *_arc_from(start, heading, sweep), fix]
+    if way == "parallel":
+        start = _toward(fix, out, leg_nm)
+        return [start, *_arc_from(start, out, -side * 210), fix]
+    return points[1:]
+
+
 def with_reversals(path: list, ft: list, holds: list) -> tuple[list, list]:
     """Where the path doubles back at a point -- Duluth's ILS RWY 27 via DLH
     comes to ANDOE northeastbound and its final leaves it westbound -- the
@@ -198,13 +281,21 @@ def with_reversals(path: list, ft: list, holds: list) -> tuple[list, list]:
         out_ft.append(ft[i])
         if i == len(path) - 1:
             break
-        if i == 1:
-            continue
         cin, cout = _bearing(path[i - 1], fix), _bearing(fix, path[i + 1])
-        if abs(((cout - cin + 540) % 360) - 180) <= REVERSAL_DEG:
+        turn = abs(((cout - cin + 540) % 360) - 180)
+        # The chart's own reversal at the fix, flown from its far side --
+        # at the procedure's first fix as well, where a hold in lieu of a
+        # procedure turn at an RNAV approach's IAF was never flown (the
+        # audit of 2026-10-21: Rockford's ILS 01 via KENNY, and nine in ten
+        # of the RNAV approaches checked); else, past its first fix, a
+        # teardrop where the path doubles back.
+        hold = next((h for h in holds if len(h["points"]) > 2 and _nm(tuple(h["points"][0]), fix) < SAME_PLACE_NM), None)
+        if hold and turn > CODED_REVERSAL_DEG:
+            round_ = _entered(hold, fix, cin)
+        elif not hold and i > 1 and turn > REVERSAL_DEG:
+            round_ = _teardrop(fix, cin, cout)
+        else:
             continue
-        hold = next((h for h in holds if len(h) > 2 and _nm(h[0], fix) < SAME_PLACE_NM), None)
-        round_ = hold[1:] if hold else _teardrop(fix, cin, cout)
         out.extend(round_)
         out_ft.extend(ft[i] if k == len(round_) - 1 else None for k in range(len(round_)))
     return out, out_ft
@@ -223,11 +314,14 @@ def _direct(piece: dict | None, drawing: dict | None) -> dict | None:
     at = next((i for i, p in enumerate(piece["points"]) if _nm(p, (fix["lat"], fix["lon"])) < SAME_PLACE_NM), None)
     if at is None:
         return piece
-    return {**piece, "points": piece["points"][at:], "ft": piece["ft"][at:]}
+    sent = {**piece, "points": piece["points"][at:], "ft": piece["ft"][at:]}
+    if "map_at" in piece:
+        sent["map_at"] = max(0, piece["map_at"] - at)
+    return sent
 
 
 def flown(start: tuple, end: tuple, departure: dict | None = None, arrival: dict | None = None,
-          approach: dict | None = None) -> dict | None:
+          approach: dict | None = None, runway: str | None = None) -> dict | None:
     """A leg flown by the procedures picked, from its `start` to its `end`:
     out of the field it leaves by its departure, into the one it lands at
     by its arrival and its approach, each to its runway, a course reversal
@@ -236,7 +330,9 @@ def flown(start: tuple, end: tuple, departure: dict | None = None, arrival: dict
     (None where it sets none), its length, whether it comes down to a
     runway (`landing`), where the final starts (`final_at`, the index of
     the final approach fix the last time the path is there, after a course
-    reversal round it), and the approach's missed approach. A procedure ATC
+    reversal round it), where its missed approach point is (`map_at`, the
+    missed approach flown from there), and the approach's missed approach;
+    a departure by the runway transition for the `runway` left from. A procedure ATC
     sent the airplane direct to a fix of (its drawing's `direct`) is flown
     from that fix, straight to it from where the leg is. None where nothing
     of them is drawn."""
@@ -245,7 +341,7 @@ def flown(start: tuple, end: tuple, departure: dict | None = None, arrival: dict
     direct_in = bool(approach and approach.get("direct") and _direct(app, approach) is not app)
     app = _direct(app, approach)
     star = None if direct_in else _direct(procedure_path(arrival, app["points"][0] if app else None) if arrival else None, arrival)
-    sid = _direct(procedure_path(departure) if departure else None, departure)
+    sid = _direct(procedure_path(departure, runway=runway) if departure else None, departure)
     pieces = [p for p in (sid, star, app) if p]
     if not pieces:
         return None
@@ -263,21 +359,29 @@ def flown(start: tuple, end: tuple, departure: dict | None = None, arrival: dict
                 continue
             raw.append(p)
             raw_ft.append(ft)
-    if not star and not app:
+    # On to the leg's end where no approach brings it down: a departure out
+    # onto the route, and an arrival on to its field from where it ends --
+    # most end in vectors (FM, VM), Rockford's ALEXS1 29 miles out, where the
+    # dry run came down to the field's elevation (the audit of 2026-10-21).
+    if not app and _nm(raw[-1], tuple(end)) >= SAME_PLACE_NM:
         raw.append(tuple(end))
         raw_ft.append(None)
     path, ft = with_reversals(raw, raw_ft, [h for piece in pieces for h in piece["holds"]])
     final_at = None
+    map_at = None
     missed = None
     if app:
         faf = next((f for f in approach.get("fixes", []) if not f["missed"] and "FAF" in f["roles"]), None)
         if faf:
             hits = [i for i, p in enumerate(path) if _nm(p, (faf["lat"], faf["lon"])) < SAME_PLACE_NM]
             final_at = hits[-1] if hits else None
-        missed = missed_path(approach, app["points"][-1])
+        map_point = app["points"][app.get("map_at", len(app["points"]) - 1)]
+        hits = [i for i, p in enumerate(path) if _nm(p, map_point) < SAME_PLACE_NM]
+        map_at = hits[-1] if hits else None
+        missed = missed_path(approach, map_point)
     return {
         "path": [[round(p[0], 6), round(p[1], 6)] for p in path], "ft": ft, "nm": length_nm(path),
-        "landing": bool(star or app), "final_at": final_at,
+        "landing": bool(star or app), "final_at": final_at, "map_at": map_at,
         "missed": None if missed is None else {
             "path": [[round(p[0], 6), round(p[1], 6)] for p in missed["points"]], "ft": missed["ft"],
         },
