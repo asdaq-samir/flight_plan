@@ -600,13 +600,16 @@ export default function TabBar<T extends string>({ tabs, tab, over, title, onPic
         if (gesture.current) event.preventDefault();
       }}
     >
-      {/* At rest in the sheet, the tab up out of a line of glass (TabGlass,
-          the owner's 2e); lifted under a finger, and in the pill, the drop
-          of glass as before. */}
-      {upAt >= 0 && !lens && size?.size !== "peek" && (
-        <TabGlass at={upAt} count={count} transition={`left ${rest.dir > 0 ? EDGE.trail : EDGE.lead}s ${EASE}, width ${rest.dir < 0 ? EDGE.trail : EDGE.lead}s ${EASE}`} />
+      {/* In the sheet, the tab up out of a line of glass (TabGlass, the
+          owner's 2e), lifted under a finger as the same tab; in the pill,
+          the drop of glass as before. */}
+      {upAt >= 0 && size?.size !== "peek" && (
+        <TabGlass
+          at={upAt} count={count} lifted={lens ? { x: lens.x, tab: lens.tab } : null}
+          transition={`left ${dir > 0 ? trail : lead}s ${EASE}, width ${dir < 0 ? trail : lead}s ${EASE}`}
+        />
       )}
-      {upAt >= 0 && (lens || size?.size === "peek") && (
+      {upAt >= 0 && size?.size === "peek" && (
         <span
           aria-hidden="true" data-testid="tab-bubble" data-lifted={lens ? "" : undefined}
           className={cn(

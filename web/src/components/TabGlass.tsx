@@ -1,4 +1,5 @@
 import { useId, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
+import { cn } from "cn";
 
 /**
  * The tab up drawn out of one line of glass, at the owner's pick of the
@@ -19,12 +20,17 @@ import { useId, useLayoutEffect, useRef, useState, type CSSProperties } from "re
  * meet the line at the tab's own edges, so the line runs from the panel's
  * side to the tab and on from it to the other.
  */
-export default function TabGlass({ at, count, transition }: {
+export default function TabGlass({ at, count, transition, lifted = null }: {
   /** The tab up, from the left. */
   at: number;
   count: number;
   /** The bar's own easing, so the tab and the line move as the bubble did. */
   transition: string;
+  /** Held under a finger: the same tab of glass, not another shape, at the
+   *  finger -- its middle and its width in the bar's own pixels -- a little
+   *  wider and taller, as iOS's lens grows when lifted, where a big oval
+   *  of the old bubble took the tab's place (the owner's video, 2026-10-22). */
+  lifted?: { x: number; tab: number } | null;
 }) {
   const cell = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
@@ -48,18 +54,25 @@ export default function TabGlass({ at, count, transition }: {
     `L${w - foot} ${base - foot}`, `C${w - foot} ${base - 3} ${w - foot + 3} ${base} ${w} ${base}`,
   ].join(" ") : "";
   const moves: CSSProperties = { transition };
+  // Where the tab stands: its cell, or under the finger, grown 4 a side.
+  const left = lifted ? `${lifted.x - lifted.tab / 2 - 4}px` : `calc(${at} * 100% / ${count})`;
+  const width = lifted ? `${lifted.tab + 8}px` : `calc(100% / ${count})`;
+  const right = lifted ? `calc(${lifted.x + lifted.tab / 2 + 4}px)` : `calc(${at + 1} * 100% / ${count})`;
   return (
-    <div aria-hidden="true" data-testid="tab-bubble" className="pointer-events-none absolute inset-x-0 -top-[3px] bottom-0">
+    <div
+      aria-hidden="true" data-testid="tab-bubble" data-lifted={lifted ? "" : undefined}
+      className={cn("pointer-events-none absolute inset-x-0 bottom-0 transition-[top] duration-150", lifted ? "-top-[6px]" : "-top-[3px]")}
+    >
       {/* The line either side of the tab up, out to the panel's sides. */}
       <span
         className="absolute bottom-0 -left-2 h-[1.5px] bg-white/90 shadow-[0_1px_3px_rgb(0_0_0/0.10)] dark:bg-white/30 dark:shadow-[0_1px_3px_rgb(0_0_0/0.5)]"
-        style={{ ...moves, width: `calc(${at} * 100% / ${count} + 0.5rem)` }}
+        style={{ ...moves, width: `calc(${left} + 0.5rem)` }}
       />
       <span
         className="absolute bottom-0 -right-2 h-[1.5px] bg-white/90 shadow-[0_1px_3px_rgb(0_0_0/0.10)] dark:bg-white/30 dark:shadow-[0_1px_3px_rgb(0_0_0/0.5)]"
-        style={{ ...moves, left: `calc(${at + 1} * 100% / ${count})` }}
+        style={{ ...moves, left: right }}
       />
-      <div ref={cell} className="absolute inset-y-0" style={{ ...moves, left: `calc(${at} * 100% / ${count})`, width: `calc(100% / ${count})` }}>
+      <div ref={cell} className="absolute inset-y-0" style={{ ...moves, left, width }}>
         {w > 0 && (
           <svg
             width={w} height={h} viewBox={`0 0 ${w} ${h}`}
