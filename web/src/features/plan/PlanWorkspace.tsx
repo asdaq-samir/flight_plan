@@ -6,6 +6,7 @@ import { legOf, navLogRows, TURNAROUND_MIN } from "./components/navlog/rows";
 import { fromChunk } from "../../lib/fromChunk";
 import { cn } from "cn";
 import { api } from "../../lib/api/client";
+import { showError } from "../../lib/problems";
 import { aircraftListQuery, aircraftProfilesQuery, airportQuery, checkpointsQuery, courseQuery, nearestQuery, pilotQuery, queryClient } from "../../lib/queryClient";
 import type { AircraftChoice, AirportPlace, AltitudeChoice, Candidate, Detour, FuelStopSuggestion, ProcedureDrawing } from "../../lib/api/types";
 import { aircraftKey, choiceOf, shortName } from "../../lib/aircraftChoice";
@@ -44,7 +45,7 @@ import FlightLine from "./components/FlightLine";
 import type { FitInputs, ProcedureAirport, ProceduresAt } from "./components/ProceduresRoute";
 import { useLoad } from "./hooks/useLoad";
 import { patternsOf, patternsParam, trafficPattern, type TrafficPattern } from "../../lib/trafficPattern";
-import { approachRunway, proceduresOf, proceduresParam, sameField, transitionWords, type PickedProcedure } from "../../lib/procedures";
+import { approachRunway, proceduresOf, proceduresParam, sameField, transitionWords, typedProcedure, type PickedProcedure, type TypedProcedure } from "../../lib/procedures";
 import { holdsOf, holdsParam, type Hold } from "../../lib/holds";
 import { FIELD_LIST_KEYS, fieldListParams, fieldListsOf, prunedFieldLists, renamedFieldLists } from "../../lib/fieldLists";
 import { picksOf } from "../../lib/flightLink";
@@ -472,6 +473,33 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       return patched(prev, { ...undo, procs: next.length ? proceduresParam(next) : null });
     }, { replace: true });
   }, [setSearchParams]);
+  // A SID or a STAR typed in the route box among its points ("KMSP BAEE1
+  // BAE ... OSHH2 KATW", as a clearance or a filed route is written):
+  // picked as its field's departure or arrival, by its transition where the
+  // point beside it is one, in place of that field's pick of the kind; one
+  // neither field publishes said in an alert, as a failed tap is.
+  const typeProcedures = useCallback(async (typed: TypedProcedure[], route: { dep: string; dest: string }) => {
+    const list = (ident: string) => queryClient.fetchQuery({
+      queryKey: ["procedures", ident], queryFn: () => api.procedures(ident), staleTime: 6 * 60 * 60_000,
+    });
+    const found = await Promise.all(typed.map(t => typedProcedure(t, route, list)));
+    let next = proceduresOf(new URLSearchParams(window.location.search).get("procs"));
+    let last: PickedProcedure | null = null;
+    for (const hit of found) {
+      if (!hit) continue;
+      const kindOf = (id: string) => hit.list.procedures.find(p => p.id === id)?.kind;
+      next = [...next.filter(p => !(sameField(p.ident, hit.picked.ident) && kindOf(p.id) === hit.kind)), hit.picked];
+      last = hit.picked;
+    }
+    if (last) pickProcedures(next, last);
+    const missed = typed.filter((_, i) => !found[i]).map(t => t.name);
+    if (missed.length) {
+      showError(
+        `${missed.join(" and ")} ${missed.length > 1 ? "are" : "is"} not a departure from ${route.dep || "the departure"} or an arrival into ${route.dest || "the destination"}`,
+        "A SID is typed after the departure and a STAR before the destination, as in a filed route.",
+      );
+    }
+  }, [pickProcedures]);
   const changeLocalMin = useCallback((minutes: number) => {
     setSearchParams(prev => {
       return patched(prev, { local_min: minutes === 60 ? null : String(minutes) });
@@ -2366,7 +2394,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
         <RouteBox
           dep={planned.dep} stops={planned.stops} dest={planned.dest} waypoints={waypointStops} airspaceOf={airspaceOf} metarColourOf={metarColour}
           altitudeAt={altitudeAt} onAltitudeChange={setPointAltitude}
-          onChange={setRoute}
+          onChange={setRoute} onTypedProcedures={typeProcedures}
           adding={!!addingStop} onAddingChange={addingChange}
           via={addingStop === "via" ? s.unflyable?.detours : undefined}
           procedures={routeProcedures} onProcedures={openProcedures} fuelStops={fuelStops} onKeepFuelStops={keepFuelStops}

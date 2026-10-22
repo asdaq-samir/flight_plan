@@ -1,4 +1,4 @@
-import type { ProcedureFix } from "./api/types";
+import type { ProcedureFix, ProcedureList } from "./api/types";
 import { altFt } from "./units";
 
 /** An instrument procedure picked at a field of the route (the route's
@@ -54,6 +54,42 @@ export function proceduresOf(param: string | null): PickedProcedure[] {
     const picked: PickedProcedure = { ident, id, transition: transition && /^[A-Z0-9]{1,5}$/.test(transition) ? transition : null };
     return [direct && /^[A-Z0-9]{2,5}$/.test(direct) ? { ...picked, direct } : picked];
   });
+}
+
+/** A SID's or a STAR's name as a route is written with one -- a
+ *  clearance's, a filed flight plan's, ForeFlight's: "KMSP BAEE1 BAE V191
+ *  OSH OSHH2 KATW" -- four or five letters and its number. No airport's
+ *  identifier is that long and no fix's has a number, so it is neither. */
+export const TYPED_PROCEDURE = /^[A-Z]{4,5}\d$/;
+
+/** A procedure typed among a route's points, with the points either side
+ *  of it as typed: a departure's transition is the fix after it, an
+ *  arrival's the fix before it. */
+export interface TypedProcedure {
+  name: string;
+  before: string | null;
+  after: string | null;
+}
+
+/** A typed procedure as picked, found where it can be flown: a departure
+ *  out of the route's departure, by the fix after it where that is one of
+ *  its transitions; else an arrival into the destination, joined at the
+ *  fix before it. With the kind, so the field's pick of that kind it
+ *  replaces can be found; null where neither field publishes it. */
+export async function typedProcedure(
+  typed: TypedProcedure, route: { dep: string; dest: string }, list: (ident: string) => Promise<ProcedureList>,
+): Promise<{ picked: PickedProcedure; kind: "departure" | "arrival"; list: ProcedureList } | null> {
+  const ends = [[route.dep, "departure", typed.after], [route.dest, "arrival", typed.before]] as const;
+  for (const [field, kind, join] of ends) {
+    if (!field) continue;
+    const found = await list(field).catch(() => null);
+    const procedure = found?.procedures.find(p => p.kind === kind && p.id === typed.name);
+    if (found && procedure) {
+      const transition = join && procedure.transitions.includes(join) ? join : null;
+      return { picked: { ident: field, id: procedure.id, transition }, kind, list: found };
+    }
+  }
+  return null;
 }
 
 /** Whether two idents name one field: the CIFP names it by its ICAO ident

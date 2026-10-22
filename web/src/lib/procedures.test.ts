@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { altitudeLines, approachRunway, proceduresOf, proceduresParam, sameField, speedWords } from "./procedures";
+import type { ProcedureList } from "./api/types";
+import { altitudeLines, approachRunway, proceduresOf, proceduresParam, sameField, speedWords, TYPED_PROCEDURE, typedProcedure } from "./procedures";
 
 describe("speedWords", () => {
   it("words a speed by its limit, not as a maximum always", () => {
@@ -60,5 +61,38 @@ describe("approachRunway", () => {
     expect(approachRunway("VOR/DME RWY 3")).toBe("3");
     // Circling only: no runway of its own.
     expect(approachRunway("VOR-A")).toBeNull();
+  });
+});
+
+describe("a SID or a STAR typed in the route", () => {
+  const lists: Record<string, ProcedureList> = {
+    C81: { airport: "C81", cycle: "261001", stale: false, procedures: [
+      { id: "BAEE1", kind: "departure", name: "BAEE ONE", transitions: ["BAE", "GRB"], runway_transitions: [] },
+    ] },
+    KATW: { airport: "KATW", cycle: "261001", stale: false, procedures: [
+      { id: "OSHH2", kind: "arrival", name: "OSHH TWO", transitions: ["OSH"], runway_transitions: [] },
+      { id: "I03", kind: "approach", name: "ILS RWY 03", transitions: [], runway_transitions: [] },
+    ] },
+  };
+  const list = async (ident: string) => lists[ident] ?? Promise.reject(new Error("none"));
+  const route = { dep: "C81", dest: "KATW" };
+
+  it("is told from an airport and a fix by its shape", () => {
+    expect(["BAEE1", "OSHH2", "KAYYS3"].every(w => TYPED_PROCEDURE.test(w))).toBe(true);
+    expect(["C81", "KATW", "CORIR", "V191", "1C5"].some(w => TYPED_PROCEDURE.test(w))).toBe(false);
+  });
+
+  it("is the departure's, by the fix after it, or the destination's, by the fix before it", async () => {
+    expect(await typedProcedure({ name: "BAEE1", before: "C81", after: "BAE" }, route, list))
+      .toMatchObject({ picked: { ident: "C81", id: "BAEE1", transition: "BAE" }, kind: "departure" });
+    expect(await typedProcedure({ name: "OSHH2", before: "OSH", after: "KATW" }, route, list))
+      .toMatchObject({ picked: { ident: "KATW", id: "OSHH2", transition: "OSH" }, kind: "arrival" });
+    // Beside a point that is none of its transitions: picked without one.
+    expect((await typedProcedure({ name: "BAEE1", before: "C81", after: "KATW" }, route, list))?.picked.transition).toBeNull();
+  });
+
+  it("is nothing where neither end publishes it", async () => {
+    expect(await typedProcedure({ name: "NOPE1", before: null, after: null }, route, list)).toBeNull();
+    expect(await typedProcedure({ name: "OSHH2", before: null, after: null }, { dep: "KATW", dest: "C81" }, list)).toBeNull();
   });
 });

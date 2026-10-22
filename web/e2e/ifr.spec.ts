@@ -120,6 +120,30 @@ test("under IFR an airway in the route is flown fix by fix, its published MEA th
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe("BAEE1 BAE V191 OSH OSHH2");
 });
 
+test("a SID and a STAR typed among the route's points are picked as its departure and arrival, by their transitions", async ({ page }) => {
+  // The two fields' procedures as the planner would list them, made up:
+  // neither field publishes these.
+  await page.route(url => /\/api\/planner\/airport\/(C81|KATW)\/procedures$/.test(url.pathname), route => {
+    const airport = new URL(route.request().url()).pathname.split("/")[4];
+    const procedures = airport === "C81"
+      ? [{ id: "BAEE1", kind: "departure", name: "BAEE ONE", transitions: ["BAE"], runway_transitions: [] }]
+      : [{ id: "OSHH2", kind: "arrival", name: "OSHH TWO", transitions: ["OSH"], runway_transitions: [] }];
+    return route.fulfill({ json: { airport, cycle: "261001", stale: false, procedures } });
+  });
+  await page.goto("/app/plan");
+  await settle(page);
+  await page.getByTestId("sidebar-trigger-button").click();
+  const field = page.getByTestId("route-type");
+  await field.fill("C81 BAEE1 BAE OSH OSHH2 KATW");
+  await field.press("Enter");
+  // The points without the two, the two the fields' procedures.
+  await expect(page).toHaveURL(/[?&]dep=C81(&|$)/);
+  await expect(page).toHaveURL(/[?&]dest=KATW(&|$)/);
+  await expect(page).toHaveURL(/[?&]stops=BAE(%2C|,)OSH(&|$)/);
+  await expect.poll(() => new URL(page.url()).searchParams.get("procs")?.split(",").sort().join(","))
+    .toBe("C81:BAEE1:BAE,KATW:OSHH2:OSH");
+});
+
 test("under IFR the Weather tab says whether an alternate is needed, files one with a tap, and the fuel flies on to it", async ({ page }) => {
   test.slow();
   await page.addInitScript(() => {
