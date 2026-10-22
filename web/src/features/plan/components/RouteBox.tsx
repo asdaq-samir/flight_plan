@@ -421,7 +421,11 @@ export default function RouteBox({
               the route and a short one left a line of grey empty under it. */}
           <InputGroup
             onMouseDown={e => { if (isRoom(e)) e.preventDefault(); }} onClick={toEnd}
-            className={cn("h-auto flex-wrap items-start rounded-[20.5px] border-0 py-0 pr-1.5 pl-1 shadow-none has-[[data-slot=input-group-control]:focus-visible]:ring-0", PANEL_FIELD)}
+            // Four over its lines, and four under a line with no buttons
+            // under it: the clear's 44-point area, round its 20 in a line
+            // now 28 tall, reached past the box's top and foot (the iOS
+            // audit's P1 on an approach's page).
+            className={cn("h-auto flex-wrap items-start rounded-[20.5px] border-0 pt-1 pb-0 pr-1.5 pl-1 shadow-none has-[[data-slot=input-group-control]:focus-visible]:ring-0", !footer && "pb-1", PANEL_FIELD)}
             data-testid="route-box" data-tip="route"
           >
             {/* The pills wrap, two lines of them in sight and the top of a
