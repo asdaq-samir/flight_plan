@@ -76,3 +76,17 @@ test("another field from the stop's menu goes in in its place", async ({ page })
   await page.getByTestId("fuel-stop-choice").click();
   await expect(page).toHaveURL(/[?&]stops=KEAU(&|$)/);
 });
+
+test("a stop suggested on a flight from a present position is a row of the route too", async ({ page }) => {
+  // The owner's screenshot (2026-10-22): from a present position, the stop
+  // dashed in the route's box was missing from FPL's list, the departure
+  // there no field to follow.
+  await suggested(page);
+  await page.goto("/app/plan?dep=@42.2333,-87.9883&dest=KDLH");
+  await settle(page);
+  await openPanel(page);
+  await expect(sideDrawer(page).getByTestId("route-fuel-stop")).toHaveText("KRPD", { timeout: slow(60_000) });
+  const row = sideDrawer(page).getByTestId("fuel-stop");
+  await expect(row).toHaveAttribute("data-ident", "KRPD");
+  await expect(sideDrawer(page).getByTestId("fuel-stop-keep")).toBeVisible();
+});
