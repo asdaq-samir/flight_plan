@@ -277,12 +277,22 @@ export function AltitudeProfile({ nav: navNow, legs: legsNow, ends, chart, corne
   // route it was on: once another is flown (it, re-planned; a figure
   // typed) or the route changes, the wheel is at the one flown.
   const [picked, setPicked] = useState<{ altitude: number; against: number | null; route: string } | null>(null);
-  // Flown once the wheel has come to rest on it a moment, not at every row
-  // passed: each is a new plan. Not once the card is put away.
+  // Flown once the ruler has come to rest on it a moment (it hands on its
+  // tick only at rest, AltitudeWheel), not at every tick passed: each is
+  // a new plan. A quarter second more, for taps one after another. Not
+  // once the card is put away.
   const timer = useRef<number | null>(null);
   useEffect(() => () => { if (timer.current !== null) window.clearTimeout(timer.current); }, []);
   const shownAt = picked && picked.against === cruise && picked.route === route ? picked.altitude
     : cruise !== null && altitudes.includes(cruise) ? cruise : altitudes.at(-1) ?? null;
+  // The graph's line drawn at the tick under the ruler's pointer as it
+  // rolls, at the owner's ask ("the redraw is not smooth with the ruler, it
+  // only redraws when I let my finger go"): only the line, the figures and
+  // the plan waiting for it to rest (`pick`). Taken as `shownAt` is: once
+  // that moves, it is that.
+  const [rolled, setRolledState] = useState<{ altitude: number; against: number | null } | null>(null);
+  const setRolled = (altitude: number) => setRolledState({ altitude, against: shownAt });
+  const drawnAt = rolled && rolled.against === shownAt ? rolled.altitude : shownAt;
   const pick = (altitude: number) => {
     setPicked({ altitude, against: cruise, route });
     if (timer.current !== null) window.clearTimeout(timer.current);
@@ -297,7 +307,7 @@ export function AltitudeProfile({ nav: navNow, legs: legsNow, ends, chart, corne
       if (plan ? plan === nav?.flown : altitude === cruise) return;
       if (plan) onAltitudeChoiceChange(plan);
       else onFlyAltitude(altitude);
-    }, 450);
+    }, 250);
   };
   const { data: profile } = useQuery({
     ...routeProfileQuery(ends?.departure.ident ?? "", ends?.destination.ident ?? "", (ends?.stops ?? []).map(s => s.ident)),
@@ -320,10 +330,10 @@ export function AltitudeProfile({ nav: navNow, legs: legsNow, ends, chart, corne
           left side? Narrow and elegant"; "put the ruler over the graph but
           just make it narrow so it's not taking much space"). */}
       <div className="relative h-56 max-h-full min-h-16 shrink-0">
-        {chart(shownAt !== null && shownAt !== cruise ? shownAt : null)}
+        {chart(drawnAt !== null && drawnAt !== cruise ? drawnAt : null)}
         {!wheelHidden && shownAt !== null && altitudes.length > 0 && (
           <div className="absolute inset-y-0 left-0">
-            <AltitudeWheel altitudes={altitudes} value={shownAt} onChange={pick} names={names} />
+            <AltitudeWheel altitudes={altitudes} value={shownAt} onChange={pick} onRoll={setRolled} names={names} />
           </div>
         )}
         {corner}

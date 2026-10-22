@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, type KeyboardEvent, type MouseEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
 import { cn } from "cn";
 import { prefersReducedMotion } from "../../../../lib/motion";
 import { TEXT } from "../../../../lib/text";
@@ -8,6 +8,10 @@ import { flightLevel } from "../../../../lib/units";
  *  finger scrolling it rather than tapping a row (each tick's 44-point
  *  target would be a picker's row, the wheel this was). */
 const TICK = 28;
+
+/** How long the ruler holds still before its tick is taken, ms: a scroll
+ *  sends no end of its own on every browser (Safari's scrollend is new). */
+const REST_MS = 120;
 
 const feet = (ft: number) => ft.toLocaleString("en-US");
 
@@ -22,11 +26,14 @@ const feet = (ft: number) => ft.toLocaleString("en-US");
  * to the pointer. To VoiceOver and the keyboard a slider: up and down step
  * one altitude, as an adjustable control does.
  */
-export default function AltitudeWheel({ altitudes, value, onChange, names = {}, spoken = names }: {
+export default function AltitudeWheel({ altitudes, value, onChange, onRoll, names = {}, spoken = names }: {
   /** Highest first. */
   altitudes: number[];
   value: number;
   onChange: (altitude: number) => void;
+  /** The tick under the pointer as the ruler rolls, before it rests: the
+   *  graph's line drawn at it as the finger goes (AltitudeProfile). */
+  onRoll?: (altitude: number) => void;
   /** A plan's name for an altitude it flies ("Fastest"). */
   names?: Record<number, string>;
   /** Its names as VoiceOver says them ("Fastest · Lowest"). */
@@ -55,15 +62,32 @@ export default function AltitudeWheel({ altitudes, value, onChange, names = {}, 
     const at = Math.max(0, Math.min(altitudes.length - 1, i));
     scroller.current?.scrollTo({ top: at * TICK, behavior: smooth() });
   };
+  // The tick under the pointer while the ruler rolls, shown at once and
+  // handed on only once it comes to rest, at the owner's notice ("profile
+  // altitude selections is not smooth"): each tick passed drew the whole
+  // profile again, its graph's line at that altitude, under the finger.
+  // Taken as the value is (`against`): once the value moves, it is that.
+  const [rolling, setRolling] = useState<{ i: number; against: number } | null>(null);
+  const shown = rolling && rolling.against === value ? rolling.i : index;
+  const rest = useRef<number | null>(null);
+  useEffect(() => () => { if (rest.current !== null) window.clearTimeout(rest.current); }, []);
   const onScroll = () => {
     const el = scroller.current;
     if (!el) return;
     const i = Math.max(0, Math.min(altitudes.length - 1, Math.round(el.scrollTop / TICK)));
-    const altitude = altitudes[i]!;
-    if (altitude !== value) {
-      fromScroll.current = altitude;
-      onChange(altitude);
+    if (i !== shown) {
+      setRolling({ i, against: value });
+      onRoll?.(altitudes[i]!);
     }
+    if (rest.current !== null) window.clearTimeout(rest.current);
+    rest.current = window.setTimeout(() => {
+      rest.current = null;
+      const altitude = altitudes[i]!;
+      if (altitude !== value) {
+        fromScroll.current = altitude;
+        onChange(altitude);
+      }
+    }, REST_MS);
   };
   // A tap on a tick brings it to the pointer; on the tick at the pointer it
   // picks it again, as nothing scrolls to say so: a plan's tick at the
@@ -73,7 +97,7 @@ export default function AltitudeWheel({ altitudes, value, onChange, names = {}, 
     if (!tick) return;
     const i = altitudes.indexOf(Number(tick.dataset.altitude));
     if (i < 0) return;
-    if (i === index) onChange(altitudes[i]!);
+    if (i === shown) onChange(altitudes[i]!);
     else toTick(i);
   };
   const step = (event: KeyboardEvent<HTMLDivElement>) => {
@@ -109,8 +133,8 @@ export default function AltitudeWheel({ altitudes, value, onChange, names = {}, 
         className="h-full snap-y snap-mandatory overflow-y-auto overscroll-contain [mask-image:linear-gradient(transparent,black_22%,black_78%,transparent)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
         <div style={{ height: room }} />
-        {altitudes.map(altitude => {
-          const on = altitude === value;
+        {altitudes.map((altitude, i) => {
+          const on = i === shown;
           const thousand = altitude % 1000 === 0;
           return (
             <div
