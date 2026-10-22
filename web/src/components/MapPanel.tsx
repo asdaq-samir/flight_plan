@@ -741,8 +741,9 @@ export default function MapPanel({ label, top, controls, compact, children, stat
         ref={setHeadBand}
         className={cn(
           // Over the body, which runs on up under it (`under`): frosted
-          // with the sheet's own colour while anything is there.
-          "z-20 flex shrink-0 flex-col transition-[background-color,box-shadow] duration-150",
+          // with the sheet's own colour while anything is there. Not raised
+          // in the pill, whose grabber lies over its edge.
+          "flex shrink-0 flex-col transition-[background-color,box-shadow] duration-150", under && "z-20",
           "data-[under]:bg-[color-mix(in_oklab,var(--background)_85%,transparent)] data-[under]:shadow-[0_1px_0_var(--color-border)]",
           "dark:data-[under]:bg-[color-mix(in_oklab,var(--popover)_85%,transparent)]",
         )}
