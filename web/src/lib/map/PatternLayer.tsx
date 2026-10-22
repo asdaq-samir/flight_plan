@@ -65,7 +65,7 @@ export const PatternLayer = memo(function PatternLayer({ patterns }: { patterns:
           <Fragment key={`${p.ident}-${p.runway}`}>
             <Polyline positions={circuit} pathOptions={CASING} interactive={false} />
             <Polyline positions={[pair(p.entry.from), pair(p.entry.to)]} pathOptions={CASING} interactive={false} />
-            <Polyline positions={circuit} pathOptions={LEG} interactive={false} className="traffic-pattern" />
+            <Polyline positions={circuit} pathOptions={LEG} interactive={false} className={`traffic-pattern pattern-at-${p.ident}`} />
             <Polyline positions={[pair(p.entry.from), pair(p.entry.to)]} pathOptions={ENTRY} interactive={false} className="traffic-pattern-entry" />
             {words && p.legs.map(l => (
               <Marker

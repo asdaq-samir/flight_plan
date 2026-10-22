@@ -16,7 +16,7 @@ import { distanceNm } from "../../../lib/geo";
 import { runwayNumber, windPick, type RunwayEnd, type WindPick } from "../../../lib/pattern";
 import { airportQuery, plateQuery } from "../../../lib/queryClient";
 import { approachRunway, sameField, transitionWords, type BranchFix, type PickedProcedure } from "../../../lib/procedures";
-import { NO_PATTERN, trafficPattern } from "../../../lib/trafficPattern";
+import { trafficPattern } from "../../../lib/trafficPattern";
 import { TEXT } from "../../../lib/text";
 import { altFt } from "../../../lib/units";
 import { endFit, type EndFit } from "../../../lib/runwayFit";
@@ -43,8 +43,8 @@ const FixFromDialog = lazy(() => import("./FixFromDialog"));
 const PointAltitudeDialog = lazy(() => import("./PointAltitudeDialog"));
 const HoldSheet = lazy(() => import("./HoldSheet"));
 
-/** The value of a choice's "None" (no pattern, no transition): a toggle's
- *  value is a string. */
+/** The value of a choice's "None" (no transition), and a runway line's
+ *  with none picked yet: a toggle's value is a string. */
 const NONE = "none";
 /** No altitudes of the pilot's own at any fix: one object, kept. */
 const NO_CROSSINGS: Record<string, number> = {};
@@ -389,16 +389,9 @@ export default function ProceduresRoute({
     if (runway) onPick(ident, runway);
   };
   const close = () => onAt(null);
-  // The runway picked at a field, none where the pilot picked none; and a
-  // stop's to leave from.
-  const chosenAt = (ident: string) => {
-    const end = picked.get(ident) ?? null;
-    return end === NO_PATTERN ? null : end;
-  };
-  const takeoffAt = (ident: string) => {
-    const end = takeoffs.get(ident) ?? null;
-    return end === NO_PATTERN ? null : end;
-  };
+  // The runway picked at a field, and a stop's to leave from.
+  const chosenAt = (ident: string) => picked.get(ident) ?? null;
+  const takeoffAt = (ident: string) => takeoffs.get(ident) ?? null;
   // Each field of the route, its runway picked into the wind until the
   // pilot picks one or none, at the owner's ask ("a preselected runway into
   // the wind", "Departing runway should also be pre selected"): most fly
@@ -692,23 +685,23 @@ export default function ProceduresRoute({
       elevationFt: a.elevationFt ?? 0, altimeterInHg: card?.metar?.altimeter_in_hg, tempC: card?.metar?.temp_c,
       weightLb: kind === "takeoff" ? fit.takeoffLb : fit.landingLb,
     }) : null);
-    const chips = (kind: "takeoff" | "landing", chosen: string | null, landing: Landing | null, note: string | null, pick: (end: string | null) => void, label?: string) =>
+    const chips = (kind: "takeoff" | "landing", chosen: string | null, landing: Landing | null, note: string | null, pick: (end: string) => void, label?: string) =>
       (trailing: ReactNode) => (
         <PatternChips
           airport={a} wind={wind} chosen={chosen} landing={landing} label={label} onPick={pick} fitOf={fitOf(kind)}
           note={note} trailing={trailing}
         />
       );
-    const landingChips = chips("landing", chosenAt(a.ident), landingOf(a.ident), patternNote(a, chosenAt(a.ident), landingOf(a.ident)), end => onPick(a.ident, end ?? NO_PATTERN));
+    const landingChips = chips("landing", chosenAt(a.ident), landingOf(a.ident), patternNote(a, chosenAt(a.ident), landingOf(a.ident)), end => onPick(a.ident, end));
     // A round trip's departure is left from its own runway (`takeoff`), the
     // field's pattern the landing's, as a stop's are.
     const roundTrip = a.role === "Departure" && airports.some(b => b !== a && b.role === "Destination" && sameField(b.ident, a.ident));
     const departChips = roundTrip
       ? chips("takeoff", takeoffAt(a.ident), null, takeoffAt(a.ident) ? `Runway ${takeoffAt(a.ident)}` : null,
-        end => onTakeoff(a.ident, end ?? NO_PATTERN), `${a.ident} takeoff runway`)
-      : chips("takeoff", chosenAt(a.ident), null, patternNote(a, chosenAt(a.ident), null), end => onPick(a.ident, end ?? NO_PATTERN));
+        end => onTakeoff(a.ident, end), `${a.ident} takeoff runway`)
+      : chips("takeoff", chosenAt(a.ident), null, patternNote(a, chosenAt(a.ident), null), end => onPick(a.ident, end));
     const takeoffChips = chips("takeoff", takeoffAt(a.ident), null, takeoffAt(a.ident) ? `Runway ${takeoffAt(a.ident)}` : null,
-      end => onTakeoff(a.ident, end ?? NO_PATTERN), `${a.ident} takeoff runway`);
+      end => onTakeoff(a.ident, end), `${a.ident} takeoff runway`);
     // The departure's time on its own step, from the route's box at the
     // owner's ask ("The departure time can move from the route box to the
     // departure and arrival boxes"): picked there, Now for about now.
@@ -1112,7 +1105,7 @@ const CHIP = cn(
 );
 
 /**
- * A field's traffic pattern, picked by its runway as a chip, or None: the
+ * A field's traffic pattern, picked by its runway as a chip: the
  * end the wind favours marked with the wind, as the redesign's A had it
  * at the owner's pick, and its head- and crosswind said under the chips
  * (windPick) -- at a departure too, the runway to take off on, at the
@@ -1150,7 +1143,7 @@ function PatternChips({ airport: a, wind, chosen, landing, note, label, fitOf, o
   wind: WindPick | null;
   chosen: string | null;
   landing: Landing | null;
-  onPick: (end: string | null) => void;
+  onPick: (end: string) => void;
 }) {
   const ends = (a.runways ?? [])
     .filter(r => !r.closed)
@@ -1167,7 +1160,7 @@ function PatternChips({ airport: a, wind, chosen, landing, note, label, fitOf, o
   // Folded to the runway picked, at the owner's ask ("can the runway line
   // collapse to the selected runway?"): its chip alone, a tap on it the
   // whole line again, and a pick folding it back to the new one. None
-  // picked, the line whole. Kept by field while the page is, not the
+  // picked yet, the line whole. Kept by field while the page is, not the
   // component: the list is drawn again as the sheet moves between its
   // foot and its body.
   const key = `${a.ident}:${label ?? ""}`;
@@ -1239,9 +1232,13 @@ function PatternChips({ airport: a, wind, chosen, landing, note, label, fitOf, o
           className={cn("flex min-w-0 flex-1", chosen !== null && "motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-left-6 motion-safe:duration-300")}
           onPointerDown={() => setTouched(t => t + 1)} onScrollCapture={() => setTouched(t => t + 1)}
         >
-          <Chips label={label ?? `${a.ident} ${landing ? "runway" : "traffic pattern"}`} value={chosen ?? NONE} onChange={v => { setOpen(false); onPick(v === NONE ? null : v); }} trailing={trailing} flushStart>
-            {/* An approach to a runway lands on one: none is no choice then. */}
-            <ToggleGroupItem value={NONE} disabled={straightIn !== null} className={CHIP}>None</ToggleGroupItem>
+          {/* A runway each: no None, at the owner's ask ("Why is none even
+              an option?"), as every takeoff and landing is on one -- and
+              the chip picked tapped again is no way to unpick it either. */}
+          <Chips
+            label={label ?? `${a.ident} ${landing ? "runway" : "traffic pattern"}`} value={chosen ?? NONE}
+            onChange={v => { if (!v || v === NONE) return; setOpen(false); onPick(v); }} trailing={trailing} flushStart
+          >
             {ends.map(({ runway, end }) => {
               const c = chip(runway, end);
               // An end with no surveyed threshold has no pattern to draw;

@@ -43,7 +43,7 @@ import { FavoriteStrip, FavoritesList } from "../../components/Favorites";
 import FlightLine from "./components/FlightLine";
 import type { FitInputs, ProcedureAirport, ProceduresAt } from "./components/ProceduresRoute";
 import { useLoad } from "./hooks/useLoad";
-import { NO_PATTERN, patternsOf, patternsParam, trafficPattern, type TrafficPattern } from "../../lib/trafficPattern";
+import { patternsOf, patternsParam, trafficPattern, type TrafficPattern } from "../../lib/trafficPattern";
 import { approachRunway, proceduresOf, proceduresParam, sameField, transitionWords, type PickedProcedure } from "../../lib/procedures";
 import { holdsOf, holdsParam, type Hold } from "../../lib/holds";
 import { FIELD_LIST_KEYS, fieldListParams, fieldListsOf, prunedFieldLists, renamedFieldLists } from "../../lib/fieldLists";
@@ -411,7 +411,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // Picked by the pilot, the map goes to it; picked for them into the wind
   // as the route comes in (ProceduresRoute), the map stays on the route.
   const pickPattern = useCallback((ident: string, end: string | null) => {
-    if (end && end !== NO_PATTERN) setPatternFocus(`${ident}:${end}:${Date.now()}`);
+    if (end) setPatternFocus(`${ident}:${end}:${Date.now()}`);
     setPattern(ident, end);
   }, [setPattern]);
   // The runway a stop is left from, which may not be the one landed on,
