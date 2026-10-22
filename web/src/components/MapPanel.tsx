@@ -82,6 +82,12 @@ const HALF_REM = 23;
  *  iOS audit's iphone-landscape, #253). There it is the 328 points the old
  *  19.75rem made, near enough; on a phone held upright it is not reached. */
 const HALF_MOST = 0.85;
+/** The least body worth showing at half, rem: one row of a list (44
+ *  points). Less is no body -- the half ends at the head and the foot --
+ *  where a phone on its side with a larger text left a sliver of FPL's
+ *  first row cut through over the route's figures (the owner's screenshot,
+ *  2026-10-22). */
+const HALF_BODY_LEAST_REM = 2.75;
 /** The root's font size, which the text size the reader has set moves:
  *  read once, as the page has it. Read at each of the panel's renders as
  *  the page opened, it made the browser work out the page's styles there
@@ -346,9 +352,11 @@ export default function MapPanel({ label, top, controls, compact, children, stat
       : settling ? capsuleHeight : hasPill && !capsule ? Math.min(capsuleHeight, peek) : peek;
     // Never taller than its rem, whatever a tab holds (the owner's "this
     // tall only"): what does not fit gives way in it.
-    const half = Math.max(lowest, Math.min(Math.round(HALF_REM * rootPx()) + halfChrome, Math.round(full * HALF_MOST)));
+    const asked = Math.max(lowest, Math.min(Math.round(HALF_REM * rootPx()) + halfChrome, Math.round(full * HALF_MOST)));
+    const body = asked - headHeight - halfChrome - footHeight;
+    const half = body > 0 && body < HALF_BODY_LEAST_REM * rootPx() ? Math.max(lowest, asked - body) : asked;
     return { peek: lowest, half: Math.min(half, full), full };
-  }, [peek, room, halfChrome, hasPill, capsule, capsuleHeight, settling, bar, fromBottom, capsuleGap]);
+  }, [peek, room, halfChrome, hasPill, capsule, capsuleHeight, settling, bar, fromBottom, capsuleGap, headHeight, footHeight]);
   // The body's height at half, for what it shows first to fill and no
   // more (--half-body): the search's Favorites, an airport's name and
   // actions.
