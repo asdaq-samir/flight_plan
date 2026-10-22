@@ -40,4 +40,18 @@ describe("the phone's own airport search", () => {
   test("names each row as the planner's search does", () => {
     expect(searchIndex(INDEX, "C81")[0]).toEqual({ ident: "C81", name: "Campbell Airport", municipality: "Grayslake", region: "US-IL", kind: "airport" });
   });
+
+  test("puts a name that starts with it, then the nearest, first among fields of a size", () => {
+    // The owner's ask (2026-10-22): "Campbell" at Grayslake was eight
+    // strips named or towned Campbell elsewhere, and not C81.
+    const placed = indexOf([
+      ["06XS", "Campbell Field", "Aubrey", "TX", 2, 33.3, -96.9],
+      ["1A3", "Martin Campbell Field", "Copperhill", "TN", 2, 35.0, -84.3],
+      ["C81", "Campbell Airport", "Grayslake", "IL", 2, 42.32, -88.07, "KC81"],
+    ]);
+    expect(searchIndex(placed, "campbell").map(r => r.ident)).toEqual(["06XS", "C81", "1A3"]);
+    expect(searchIndex(placed, "campbell", 8, [{ lat: 42.3, lon: -88.0 }]).map(r => r.ident)).toEqual(["C81", "06XS", "1A3"]);
+    // Still found by its other ident, after the place.
+    expect(searchIndex(placed, "KC81")[0]!.ident).toBe("C81");
+  });
 });

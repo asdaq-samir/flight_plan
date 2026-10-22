@@ -248,6 +248,17 @@ function renamed(params: URLSearchParams, from: string, to: string): URLSearchPa
 const procedureKind = (p: PickedProcedure) =>
   queryClient.getQueryData<ProcedureDrawing>(["procedure", p.ident, p.id, p.transition])?.kind;
 
+/** `auto` where no runway is picked for the wind: the pilot's own all. */
+const NO_AUTO = "-";
+
+/** The runways picked into the wind ("land:KABQ", "takeoff:KEVU"), from
+ *  the address's `auto`; with none (an address from before it), every
+ *  runway its `pattern` and `takeoff` pick. */
+function autoOf(auto: string | null, pattern: string | null, takeoff: string | null): Set<string> {
+  if (auto !== null) return new Set(auto.split(",").filter(key => key && key !== NO_AUTO));
+  return new Set([...[...patternsOf(pattern).keys()].map(ident => `land:${ident}`), ...[...patternsOf(takeoff).keys()].map(ident => `takeoff:${ident}`)]);
+}
+
 export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: WorkspaceProps) {
   useEffect(() => {
     const later = window.setTimeout(prefetchPilotPanel, 2000);
@@ -407,16 +418,22 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // and follows the wind as it changes, until the pilot picks there: KABQ's
   // runway 3, picked on an earlier northerly, stood against the 180° 7 kt
   // the field then reported (the owner's screenshot, 2026-10-21).
+  // An address from before `auto` (2026-10-21) has every runway in it
+  // taken as picked into the wind, and picked again for the wind now, at
+  // the owner's word ("repick runways for best winds"): it could not say
+  // which were the pilot's. One with none picked for the wind says so
+  // (NO_AUTO), so the pilot's own are kept.
   const autoParam = searchParams.get("auto");
-  const autoPicked = useMemo(() => new Set((autoParam ?? "").split(",").filter(Boolean)), [autoParam]);
+  const takeoffNow = searchParams.get("takeoff");
+  const autoPicked = useMemo(() => autoOf(autoParam, patternParam, takeoffNow), [autoParam, patternParam, takeoffNow]);
   const pickRunway = useCallback((which: "pattern" | "takeoff", ident: string, end: string | null, byWind: boolean) => {
     setSearchParams(prev => {
       const picked = patternsOf(prev.get(which));
       if (end) picked.set(ident, end); else picked.delete(ident);
-      const auto = new Set((prev.get("auto") ?? "").split(",").filter(Boolean));
+      const auto = autoOf(prev.get("auto"), prev.get("pattern"), prev.get("takeoff"));
       const key = `${which === "pattern" ? "land" : "takeoff"}:${ident}`;
       if (byWind && end) auto.add(key); else auto.delete(key);
-      return patched(prev, { [which]: picked.size ? patternsParam(picked) : null, auto: auto.size ? [...auto].join(",") : null });
+      return patched(prev, { [which]: picked.size ? patternsParam(picked) : null, auto: auto.size ? [...auto].join(",") : NO_AUTO });
     }, { replace: true });
   }, [setSearchParams]);
   const setPattern = useCallback((ident: string, end: string | null) => pickRunway("pattern", ident, end, false), [pickRunway]);

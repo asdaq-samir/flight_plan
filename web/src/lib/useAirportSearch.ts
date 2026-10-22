@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { api } from "./api/client";
 import { searchIndex, useAirportIndex } from "./airportIndex";
+import { useOwnShipNear } from "./map/ownShip";
 
 /** 100ms, not on every keystroke -- a lookup this app already treats
  *  as cheap server-side (an index of idents and words) still isn't worth
@@ -43,12 +44,20 @@ export const SearchNear = createContext("");
 export function useAirportSearch(text: string, enabled = true, fixes = false) {
   const typed = text.trim();
   const q = useDebounced(typed, 100);
-  const near = useContext(SearchNear);
-  const by = fixes ? near : "";
+  // Of fields alike, the nearest first: to the route where a stop is
+  // typed, else to the pilot where own ship has a fix.
+  const route = useContext(SearchNear);
+  const own = useOwnShipNear();
+  const by = route || (own ? `${own.lat.toFixed(2)},${own.lon.toFixed(2)}` : "");
   const index = useAirportIndex(enabled, typed.length > 0);
   // Once per typed value: the scan covers every row, and the panel
   // re-renders for much besides typing (map moves, weather, sheet drags).
-  const local = useMemo(() => (index && typed ? searchIndex(index, typed) : null), [index, typed]);
+  const local = useMemo(() => {
+    if (!index || !typed) return null;
+    const near = by.split(";").map(pair => pair.split(",").map(Number)).filter(p => p.length === 2 && p.every(Number.isFinite))
+      .map(([lat, lon]) => ({ lat: lat!, lon: lon! }));
+    return searchIndex(index, typed, 8, near);
+  }, [index, typed, by]);
   const { data, isPlaceholderData, isFetching } = useQuery({
     queryKey: ["airportSearch", q, fixes, by],
     queryFn: () => api.airportSearch(q, fixes, by),

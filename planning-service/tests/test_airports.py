@@ -182,7 +182,7 @@ def test_the_search_may_be_kept_and_the_fields_in_view_with_their_weather_may_no
     in_view = client.get("/api/airports/in-view", params={"south": 46, "west": -93, "north": 47, "east": -92})
     assert "cache-control" not in in_view.headers
 
-    monkeypatch.setattr(airports, "search_airports", lambda q: [])
+    monkeypatch.setattr(airports, "search_airports", lambda q, near=None: [])
     search = client.get("/api/airports/search", params={"q": "KD"})
     assert search.headers["cache-control"] == "public, max-age=300, s-maxage=3600"
 

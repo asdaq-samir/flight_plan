@@ -257,10 +257,14 @@ def test_the_search_index_holds_every_us_field_the_search_answers_with(us_airpor
     also found by where they differ from the one shown."""
     rows = json.loads(gzip.decompress(airports.search_index(cache_path=us_airports_csv)))["airports"]
     assert "CYQT" not in {r[0] for r in rows}
-    assert ["KDLH", "Duluth Intl", "", "MN", 1, "DLH"] in rows
+    # Where each is, to a hundredth of a degree, after the size; then the
+    # idents it is also found by.
+    shapes = [(r[:5], r[7:]) for r in rows]
+    assert all(isinstance(v, float) for r in rows for v in r[5:7])
+    assert (["KDLH", "Duluth Intl", "", "MN", 1], ["DLH"]) in shapes
     # C81 is found by OurAirports' made-up KC81 too.
-    assert ["C81", "Campbell Airport", "", "MN", 2, "KC81"] in rows
-    assert ["MN01", "A Helipad", "", "MN", 3] in rows
+    assert (["C81", "Campbell Airport", "", "MN", 2], ["KC81"]) in shapes
+    assert (["MN01", "A Helipad", "", "MN", 3], []) in shapes
 
 
 def test_a_search_puts_the_bigger_field_first(tmp_path):
@@ -313,3 +317,25 @@ def test_a_table_on_disk_is_read_without_the_lock_or_a_download(airports_csv, mo
     monkeypatch.setattr(airports.requests, "get", refuse)
     assert airports._ensure_cached("http://unused", airports_csv) == airports_csv
     assert get_airport("KDLH", cache_path=airports_csv)["name"] == "Duluth Intl"
+
+
+def test_a_search_puts_a_name_that_starts_with_it_and_then_the_nearest_first_among_fields_of_a_size(tmp_path):
+    """The owner's ask (2026-10-22): "Campbell" typed at Grayslake found
+    eight strips named or towned Campbell elsewhere, by their idents, and
+    not Campbell Airport (C81)."""
+    path = tmp_path / "airports.csv"
+    row = {"iso_country": "US", "elevation_ft": 800, "icao_code": None, "type": "small_airport"}
+    pd.DataFrame([
+        {**row, "ident": "06XS", "local_code": "06XS", "name": "Campbell Field", "municipality": "Aubrey", "iso_region": "US-TX",
+         "latitude_deg": 33.3, "longitude_deg": -96.9},
+        {**row, "ident": "1A3", "local_code": "1A3", "name": "Martin Campbell Field", "municipality": "Copperhill", "iso_region": "US-TN",
+         "latitude_deg": 35.0, "longitude_deg": -84.3},
+        {**row, "ident": "KC81", "local_code": "C81", "name": "Campbell Airport", "municipality": "Grayslake", "iso_region": "US-IL",
+         "latitude_deg": 42.32, "longitude_deg": -88.07},
+    ]).to_csv(path, index=False)
+    grayslake = [(42.32, -88.07)]
+    # Its name starts with it: before Martin Campbell Field, near or far.
+    assert [a["ident"] for a in search_airports("campbell", cache_path=path)] == ["06XS", "C81", "1A3"]
+    # And of those, the nearest first.
+    assert [a["ident"] for a in search_airports("campbell", cache_path=path, near=grayslake)] == ["C81", "06XS", "1A3"]
+    assert [a["ident"] for a in search_airports("campbell air", cache_path=path, near=grayslake)] == ["C81"]
