@@ -11,7 +11,7 @@ import type { AltitudeChoice, Detour, Leg, NavLogAltitude } from "../../../../li
 import type { FlightRules } from "../../../../lib/preferences";
 import { routeProfileQuery } from "../../../../lib/queryClient";
 import { GROUP_HEADING, TEXT } from "../../../../lib/text";
-import { flightLevel, one } from "../../../../lib/units";
+import { altFt, flightLevel, one } from "../../../../lib/units";
 import { hhmm } from "../../format";
 import AltitudeReasoning from "../AltitudeReasoning";
 import type { RouteEnds } from "./rows";
@@ -285,15 +285,23 @@ export function AltitudeProfile({ nav: navNow, legs: legsNow, ends, chart, corne
   useEffect(() => () => { if (timer.current !== null) window.clearTimeout(timer.current); }, []);
   const shownAt = picked && picked.against === cruise && picked.route === route ? picked.altitude
     : cruise !== null && altitudes.includes(cruise) ? cruise : altitudes.at(-1) ?? null;
-  // The graph's line drawn at the tick under the ruler's pointer as it
-  // rolls, at the owner's ask ("the redraw is not smooth with the ruler, it
-  // only redraws when I let my finger go"): only the line, the figures and
-  // the plan waiting for it to rest (`pick`). Taken as `shownAt` is: once
-  // that moves, it is that.
-  const [rolled, setRolledState] = useState<{ altitude: number; against: number | null } | null>(null);
-  const setRolled = (altitude: number) => setRolledState({ altitude, against: shownAt });
-  const drawnAt = rolled && rolled.against === shownAt ? rolled.altitude : shownAt;
+  // The graph's line at the tick under the ruler's pointer as it rolls, at
+  // the owner's asks ("it only redraws when I let my finger go"; "do we need
+  // to redraw the whole thing or just move it up or down?"): moved by its
+  // CSS, not drawn again -- each tick drew the whole card, which fought the
+  // sheet's drag under the finger (the owner's recording). The figures and
+  // the plan wait for the ruler to rest (`pick`), the line then the chart's.
+  const graph = useRef<HTMLDivElement>(null);
+  const roll = (altitude: number | null) => {
+    const el = graph.current;
+    if (!el) return;
+    el.style.setProperty("--roll-on", altitude === null ? "0" : "1");
+    if (altitude === null) return;
+    el.style.setProperty("--roll-ft", String(altitude));
+    el.querySelector("[data-roll-label]")?.setAttribute("data-label", `${altFt(altitude)} ft`);
+  };
   const pick = (altitude: number) => {
+    roll(null);
     setPicked({ altitude, against: cruise, route });
     if (timer.current !== null) window.clearTimeout(timer.current);
     timer.current = window.setTimeout(() => {
@@ -329,11 +337,11 @@ export function AltitudeProfile({ nav: navNow, legs: legsNow, ends, chart, corne
           graph, at the owner's asks ("make the wheel to be a ruler on the
           left side? Narrow and elegant"; "put the ruler over the graph but
           just make it narrow so it's not taking much space"). */}
-      <div className="relative h-56 max-h-full min-h-16 shrink-0">
-        {chart(drawnAt !== null && drawnAt !== cruise ? drawnAt : null)}
+      <div ref={graph} className="relative h-56 max-h-full min-h-16 shrink-0">
+        {chart(shownAt !== null && shownAt !== cruise ? shownAt : null)}
         {!wheelHidden && shownAt !== null && altitudes.length > 0 && (
           <div className="absolute inset-y-0 left-0">
-            <AltitudeWheel altitudes={altitudes} value={shownAt} onChange={pick} onRoll={setRolled} names={names} />
+            <AltitudeWheel altitudes={altitudes} value={shownAt} onChange={pick} onRoll={roll} names={names} />
           </div>
         )}
         {corner}

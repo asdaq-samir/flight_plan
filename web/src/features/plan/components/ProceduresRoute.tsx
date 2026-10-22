@@ -619,7 +619,7 @@ export default function ProceduresRoute({
                 owner's ask ("it should expand when tapped anywhere on the
                 airport information next to the symbol or the symbol
                 itself"): the arrow by the symbol is the button, its area
-                stretched over the lines (after:inset-0); the menu and a
+                stretched over the lines (before:inset-0); the menu and a
                 time to pick lie over it, their own. */}
             <div className="relative flex gap-2.5">
               {/* A fuel stop's pump on top of its symbol, at the owner's ask
@@ -651,7 +651,14 @@ export default function ProceduresRoute({
                   <button
                     type="button" onClick={() => toggleField(key)} aria-expanded={opened} data-testid="field-toggle" data-ident={a.ident} data-disclosure=""
                     aria-label={`${a.ident}: runways and procedures`}
-                    className="-ml-0.5 grid size-4 shrink-0 place-items-center text-tint outline-none after:absolute after:inset-0 after:content-[''] focus-visible:ring-2 focus-visible:ring-ring"
+                    // Its area over the lines a ::before: on a touch screen
+                    // index.css gives every button's ::after its 44 points,
+                    // which overrode an ::after stretched here, and on the
+                    // owner's phone only the arrow opened the field ("make
+                    // the whole line tapable for unfolding"). Static, where
+                    // index.css positions every button on a touch screen:
+                    // its areas reach out to the lines' box, not its own.
+                    className="static -ml-0.5 grid size-4 shrink-0 place-items-center text-tint outline-none before:absolute before:inset-0 before:content-[''] focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     <ChevronRight className={cn("size-4 transition-transform", opened && "rotate-90")} aria-hidden />
                   </button>

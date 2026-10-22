@@ -87,6 +87,19 @@ export default memo(function MiniProfile({ ends, selected, legs, onOpen, preview
           />
         )}
       </svg>
+      {/* The Profile ruler's tick as it rolls, a dashed line moved by the
+          ruler itself (AltitudeProfile's --roll-ft and --roll-on, its words
+          its data-label), not the chart drawn again at each tick, at the
+          owner's ask ("do we need to redraw the whole thing or just move it
+          up or down?"). Held at the chart's top above it, till the ruler
+          rests and the chart is drawn for it. */}
+      <span
+        aria-hidden="true" data-roll=""
+        className="pointer-events-none absolute inset-x-0 border-t-2 border-dashed border-primary opacity-[var(--roll-on,0)]"
+        style={{ top: `calc((1 - min(var(--roll-ft, 0), ${top}) / ${top}) * 100%)` }}
+      >
+        <span data-roll-label="" className="absolute top-[3px] left-1/2 -translate-x-1/2 rounded bg-background/80 px-1 font-semibold text-foreground after:content-[attr(data-label)]" />
+      </span>
       {/* Each airspace named for its airport, at the owner's ask ("can the
           profile view airspaces have airport ids on them"): over its
           widest piece, in its own colour, under its top edge -- words,
@@ -109,7 +122,8 @@ export default memo(function MiniProfile({ ends, selected, legs, onOpen, preview
         <span
           // Under the line, over the ground: with the chart's top just
           // over the cruise there is no room above it.
-          className="absolute left-1/2 -translate-x-1/2 rounded bg-background/80 px-1 font-semibold text-foreground"
+          // Out of sight while the ruler's own line is (data-roll).
+          className="absolute left-1/2 -translate-x-1/2 rounded bg-background/80 px-1 font-semibold text-foreground opacity-[calc(1-var(--roll-on,0))]"
           style={{ top: `calc(${(y(preview ?? cruise) / H) * 100}% + 3px)` }} aria-hidden="true" data-testid="mini-profile-cruise"
         >
           {altFt(preview ?? cruise)} ft
