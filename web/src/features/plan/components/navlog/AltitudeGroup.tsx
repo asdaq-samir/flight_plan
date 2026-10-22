@@ -277,8 +277,10 @@ export function AltitudeProfile({ nav: navNow, legs: legsNow, ends, chart, corne
   // route it was on: once another is flown (it, re-planned; a figure
   // typed) or the route changes, the wheel is at the one flown.
   const [picked, setPicked] = useState<{ altitude: number; against: number | null; route: string } | null>(null);
-  // Flown once the wheel has come to rest on it a moment, not at every row
-  // passed: each is a new plan. Not once the card is put away.
+  // Flown once the ruler has come to rest on it a moment (it hands on its
+  // tick only at rest, AltitudeWheel), not at every tick passed: each is
+  // a new plan. A quarter second more, for taps one after another. Not
+  // once the card is put away.
   const timer = useRef<number | null>(null);
   useEffect(() => () => { if (timer.current !== null) window.clearTimeout(timer.current); }, []);
   const shownAt = picked && picked.against === cruise && picked.route === route ? picked.altitude
@@ -297,7 +299,7 @@ export function AltitudeProfile({ nav: navNow, legs: legsNow, ends, chart, corne
       if (plan ? plan === nav?.flown : altitude === cruise) return;
       if (plan) onAltitudeChoiceChange(plan);
       else onFlyAltitude(altitude);
-    }, 450);
+    }, 250);
   };
   const { data: profile } = useQuery({
     ...routeProfileQuery(ends?.departure.ident ?? "", ends?.destination.ident ?? "", (ends?.stops ?? []).map(s => s.ident)),
