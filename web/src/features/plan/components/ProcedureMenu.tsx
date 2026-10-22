@@ -3,6 +3,7 @@ import { ArrowLeftRight, Check, ChevronDown } from "lucide-react";
 import { cn } from "cn";
 import RoundButton from "../../../components/RoundButton";
 import CloseButton from "../../../components/CloseButton";
+import { GLASS_BUTTON } from "../../../components/mapChrome";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
 import { ResponsivePopover, ResponsivePopoverContent, ResponsivePopoverTrigger } from "../../../components/ResponsivePopover";
 import { Switch } from "../../../components/ui/switch";
@@ -137,8 +138,11 @@ export default function ProcedureMenu({ ident, kind, list, loading, picked, labe
             className={cn(
               "relative flex min-w-0 shrink items-center gap-0.5 text-left font-semibold text-tint outline-none",
               "after:absolute after:-inset-1.5 after:content-[''] focus-visible:ring-2 focus-visible:ring-ring",
-              look === "add" ? cn("h-8 rounded-full border border-dashed border-foreground/25 px-3", TEXT.detail)
-                : cn("h-8 max-w-[10rem] rounded-full bg-foreground/8 px-2.5", TEXT.detail),
+              // The buttons' glass, a kind to add as one picked, at the
+              // owner's pick of the sketches ("B"): it was a dashed outline.
+              GLASS_BUTTON, "text-tint hover:text-tint",
+              look === "add" ? cn("h-8 rounded-full px-3", TEXT.detail)
+                : cn("h-8 max-w-[10rem] rounded-full px-2.5", TEXT.detail),
             )}
             aria-label={`${ident} ${TITLE[kind].toLowerCase()}: ${label ?? "none picked"}`}
           >

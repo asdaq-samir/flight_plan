@@ -49,8 +49,13 @@ const AIRSPACE: Record<Space, { name: string; style: CSSProperties }> = {
 
 /** A field's pill, as the route's box draws one (RouteBox) and the
  *  airport's card before its name: the sheet's own pill, under its
- *  airspace's look (pillLook). */
-export const AIRSPACE_PILL = "inline-flex shrink-0 items-center rounded-full bg-background/80 shadow-xs dark:bg-background/50";
+ *  airspace's look (pillLook) -- its fill that look's or its weather's
+ *  colour, so of the buttons' glass (GLASS_BUTTON) only the white rim and
+ *  the soft shadow, at the owner's pick of the sketches ("B"). */
+export const AIRSPACE_PILL =
+  "inline-flex shrink-0 items-center rounded-full bg-background/80 dark:bg-background/50 " +
+  "shadow-[inset_0_0_0_1.5px_rgb(255_255_255/0.95),0_0_0_0.5px_rgb(0_0_0/0.06),0_2px_6px_rgb(0_0_0/0.14)] " +
+  "dark:shadow-[inset_0_0_0_1.5px_rgb(255_255_255/0.3),0_0_0_0.5px_rgb(0_0_0/0.5),0_2px_8px_rgb(0_0_0/0.55)]";
 
 /** The pill's look for a field's airspace: Class B and C solid, D and E
  *  dashed; Class G's, and one not known yet, the plain pill. */
