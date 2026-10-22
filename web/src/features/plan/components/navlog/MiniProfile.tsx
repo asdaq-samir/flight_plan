@@ -10,6 +10,13 @@ import { planProfile } from "./profile";
 import { navLogRows, type RouteEnds } from "./rows";
 const W = 340, H = 64;
 const miles = (nm: number) => `${Math.round(nm)}`;
+/** The ruler's heights for a chart `top` feet tall, up to three times it
+ *  for the drag's zoom out: every 1,000 ft to 6,000, 2,000 to 12,000, then
+ *  every 4,000 -- five or six in sight. */
+const rulerMarks = (top: number) => {
+  const step = top <= 6000 ? 1000 : top <= 12_000 ? 2000 : 4000;
+  return Array.from({ length: Math.floor((top * 3) / step) }, (_, i) => (i + 1) * step);
+};
 
 /**
  * FPL's pill's side view of the flight, at the owner's pick of the
@@ -24,7 +31,7 @@ const miles = (nm: number) => `${Math.round(nm)}`;
  * the nav log full on it (`onOpen`); with nothing to open, all the way up,
  * it is a picture, not a button.
  */
-export default memo(function MiniProfile({ ends, selected, legs, onOpen, preview = null, scaleTop }: {
+export default memo(function MiniProfile({ ends, selected, legs, onOpen, preview = null, scaleTop, ruler = false }: {
   ends: RouteEnds;
   selected: Candidate[];
   legs: Leg[];
@@ -35,6 +42,11 @@ export default memo(function MiniProfile({ ends, selected, legs, onOpen, preview
   /** The chart's top, feet, where the Profile card's drag has zoomed it
    *  (AltitudeProfile); else just over the highest of what it shows. */
   scaleTop?: number;
+  /** A ruler of heights down its left side, the altitude on it boxed, where
+   *  the graph is dragged (the Profile card), at the owner's ask ("can't see
+   *  the ruler"); none in FPL's own, at the owner's earlier ask ("y axis is
+   *  not needed"). */
+  ruler?: boolean;
 }) {
   // An id a url(#…) takes as it is: React's has colons in it.
   const tintId = `tint${useId().replace(/[^A-Za-z0-9_-]/g, "")}`;
@@ -78,7 +90,7 @@ export default memo(function MiniProfile({ ends, selected, legs, onOpen, preview
   const chart = (
     <>
       <span
-        className="relative block min-h-0" data-plot=""
+        className={cn("relative block min-h-0", ruler && "overflow-hidden")} data-plot=""
         // The drag's zoom: the chart drawn at `top`, scaled about its foot
         // to the drag's --scale-top as it goes, smoothly, nothing drawn
         // again till the finger lifts (AltitudeProfile).
@@ -133,8 +145,26 @@ export default memo(function MiniProfile({ ends, selected, legs, onOpen, preview
         className="pointer-events-none absolute inset-x-0 border-t-2 border-dashed border-primary opacity-[var(--roll-on,0)]"
         style={{ top: "calc((1 - min(var(--roll-ft, 0), var(--scale-top, var(--base-top))) / var(--scale-top, var(--base-top))) * 100%)" }}
       >
-        <span data-roll-label="" className="absolute top-[3px] left-1/2 -translate-x-1/2 rounded bg-background/80 px-1 font-semibold text-foreground after:content-[attr(data-label)]" />
+        <span
+          data-roll-label=""
+          className={cn(
+            "absolute rounded bg-background px-1 font-semibold text-foreground after:content-[attr(data-label)]",
+            ruler ? "left-0 -translate-y-1/2 ring-[1.5px] ring-primary" : "top-[3px] left-1/2 -translate-x-1/2 bg-background/80",
+          )}
+        />
       </span>
+      {/* The ruler: its heights where the chart's scale puts them, moved with
+          the drag's zoom as the line is (--scale-top), those over the top cut
+          off by the plot; a step to keep them four or more apart. */}
+      {ruler && rulerMarks(top).map(ft => (
+        <span
+          key={ft} aria-hidden="true"
+          className="pointer-events-none absolute left-0 -translate-y-1/2 pl-0.5 text-muted-foreground opacity-[calc(1-var(--roll-on,0)*0.4)]"
+          style={{ top: `calc((1 - ${ft} / var(--scale-top, var(--base-top))) * 100%)` }} data-testid="profile-ruler-mark"
+        >
+          {altFt(ft)}
+        </span>
+      ))}
       {/* Each airspace named for its airport, at the owner's ask ("can the
           profile view airspaces have airport ids on them"): over its
           widest piece, in its own colour, under its top edge -- words,
@@ -160,8 +190,12 @@ export default memo(function MiniProfile({ ends, selected, legs, onOpen, preview
           // Under the line, over the ground: with the chart's top just
           // over the cruise there is no room above it.
           // Out of sight while the ruler's own line is (data-roll).
-          className="absolute left-1/2 -translate-x-1/2 rounded bg-background/80 px-1 font-semibold text-foreground opacity-[calc(1-var(--roll-on,0))]"
-          style={{ top: `calc(${(y(preview ?? cruise) / H) * 100}% + 3px)` }} aria-hidden="true" data-testid="mini-profile-cruise"
+          className={cn(
+            "absolute rounded px-1 font-semibold text-foreground opacity-[calc(1-var(--roll-on,0))]",
+            // Boxed on the ruler where there is one, as the drag's is.
+            ruler ? "left-0 -translate-y-1/2 bg-background ring-[1.5px] ring-primary" : "left-1/2 -translate-x-1/2 bg-background/80",
+          )}
+          style={{ top: ruler ? `${(y(preview ?? cruise) / H) * 100}%` : `calc(${(y(preview ?? cruise) / H) * 100}% + 3px)` }} aria-hidden="true" data-testid="mini-profile-cruise"
         >
           {altFt(preview ?? cruise)} ft
         </span>
