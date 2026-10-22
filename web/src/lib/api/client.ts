@@ -189,8 +189,14 @@ function parsed<T>(line: string): T {
  *  phone, word for word, in a toast. */
 const NO_ANSWER = /load failed|failed to fetch|networkerror|respondwith/i;
 
+/** Whether a request got no answer at all: the connection dropped, not
+ *  the server saying no. */
+export function isDropped(err: unknown): boolean {
+  return err instanceof TypeError && NO_ANSWER.test(err.message);
+}
+
 export function describeError(err: unknown, fallback = "request failed"): string {
-  if (err instanceof TypeError && NO_ANSWER.test(err.message)) {
+  if (isDropped(err)) {
     return "The connection dropped before the answer arrived";
   }
   // A fetch that gave up on its own `AbortSignal.timeout` -- the
