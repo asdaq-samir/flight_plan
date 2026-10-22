@@ -60,8 +60,8 @@ export function runwayInUse(runways: Runway[]): InUse | null {
 
 /** The runways the pilot picked in FPL, by field, as the address keeps
  *  them (lib/fieldLists): `pattern` holds the departure's runway out and
- *  every other field's runway in, `takeoff` a stop's runway out. A pick of
- *  "NONE" (trafficPattern's NO_PATTERN) is the pilot's no runway. */
+ *  every other field's runway in, `takeoff` a stop's runway out. An older
+ *  address's "NONE" (the None chip's, gone) is no pick. */
 export interface RunwayPicks {
   pattern: Map<string, string>;
   takeoff: Map<string, string>;
