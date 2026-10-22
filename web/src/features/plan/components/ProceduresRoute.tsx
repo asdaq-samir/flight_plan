@@ -1,4 +1,4 @@
-import { Fragment, lazy, Suspense, useEffect, useRef, useState, type ReactNode } from "react";
+import { Fragment, lazy, Suspense, useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { create } from "zustand";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { Check, ChevronLeft, ChevronRight, Fuel, PlaneLanding, PlaneTakeoff, Wind } from "lucide-react";
@@ -1006,7 +1006,11 @@ function Step({ mark, title, sub, figures, menu, last, field = false, testId, ic
  * neighbours' across the twelve between them, along a row and between
  * the rows they wrap to, the chip not grown.
  */
-function Chips({ label, value, onChange, trailing, flushStart = false, children }: {
+function Chips({ label, value, onChange, trailing, trailingRef, enter, flushStart = false, children }: {
+  /** The pull-downs' box, for the line to glide them as it opens. */
+  trailingRef?: RefObject<HTMLDivElement | null>;
+  /** How the chips come in, the pull-downs after them left out of it. */
+  enter?: string;
   /** Its first chip at its start, no room kept before it for the chip's
    *  own tap area: where a control's 44 points end just before it (the
    *  runway line's arrow). */
@@ -1053,14 +1057,19 @@ function Chips({ label, value, onChange, trailing, flushStart = false, children 
         // The group's own 44 a pseudo-element behind it, as Segmented's
         // track has, so a tap just over or under a row of chips is the
         // group's and not the page's (isolate keeps it over what is round).
-        className={cn("relative isolate w-max flex-nowrap after:absolute after:inset-x-0 after:-inset-y-1.5 after:-z-10 after:content-['']", !trailing && "min-w-full")}
+        className={cn("relative isolate w-max flex-nowrap after:absolute after:inset-x-0 after:-inset-y-1.5 after:-z-10 after:content-['']", !trailing && "min-w-full", enter)}
       >
         {children}
       </ToggleGroup>
-      {trailing && <div className="flex shrink-0 items-center gap-2">{trailing}</div>}
+      {trailing && <div ref={trailingRef} className="flex shrink-0 items-center gap-2">{trailing}</div>}
     </div>
   );
 }
+
+/** Where each runway line's pull-downs stood at its last drawing, by the
+ *  line's key, and whether it was open: for them to glide from there as it
+ *  opens or folds (PatternChips). */
+const trailingStood = new Map<string, { open: boolean; x: number }>();
 
 /** How long an opened runway line waits, untouched, before it slides back
  *  to the runway picked, ms: two seconds, at the owner's ask ("Runways can
@@ -1189,10 +1198,41 @@ function PatternChips({ airport: a, wind, chosen, landing, note, label, fitOf, o
     const id = setTimeout(() => useOpenRunwayLines.setState(s => ({ open: s.open.filter(k => k !== key) })), runwayLineFoldMs());
     return () => clearTimeout(id);
   }, [folds, key, touched]);
-  if (picked && !open && a.runways !== null) {
+  // The pull-downs after the runways ("+ Arrival", "+ Approach") glide to
+  // where the line puts them as it opens and folds, as the runways slide
+  // in, where they jumped there -- and faded and slid in with the runways
+  // -- once they came up beside them (the owner's "not as smooth as it
+  // used to be before the procedures got moved up"). Where they stood is
+  // taken at every render (a scroll of the line is one, `touched`), by
+  // the line's key, as the line is drawn anew as it opens (its block's
+  // runway-line-toggle), and they start from it, by a CSS transition:
+  // WebKit's headless WAAPI can stall at its first frame.
+  const line = useRef<HTMLDivElement>(null);
+  const after = useRef<HTMLDivElement>(null);
+  const shown = !!picked && !open && a.runways !== null ? "folded" : "open";
+  useLayoutEffect(() => {
+    const box = after.current, base = line.current;
+    if (!box || !base) {
+      trailingStood.delete(key);
+      return;
+    }
+    const x = box.getBoundingClientRect().left - base.getBoundingClientRect().left;
+    const was = trailingStood.get(key);
+    trailingStood.set(key, { open: shown === "open", x });
+    if (!was || was.open === (shown === "open") || Math.abs(was.x - x) < 1) return;
+    if (globalThis.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    box.style.transition = "none";
+    box.style.transform = `translateX(${was.x - x}px)`;
+    // Laid out from there before the transition back: a call, as the
+    // minifier drops a bare read of offsetWidth.
+    box.getBoundingClientRect();
+    box.style.transition = "transform 300ms ease-out";
+    box.style.transform = "";
+  });
+  if (shown === "folded" && picked) {
     const c = chip(picked.runway, picked.end);
     return (
-      <div className="flex items-center gap-2" data-testid="procedure-patterns">
+      <div ref={line} className="flex items-center gap-3" data-testid="procedure-patterns">
         {/* Still the group's choice to a screen reader, picked; a tap on it
             opens the line. */}
         <div role="radiogroup" aria-label={label ?? `${a.ident} ${landing ? "runway" : "traffic pattern"}`}>
@@ -1210,7 +1250,7 @@ function PatternChips({ airport: a, wind, chosen, landing, note, label, fitOf, o
             {c.face}
           </button>
         </div>
-        {trailing}
+        {trailing && <div ref={after} className="flex shrink-0 items-center gap-2">{trailing}</div>}
       </div>
     );
   }
@@ -1218,7 +1258,7 @@ function PatternChips({ airport: a, wind, chosen, landing, note, label, fitOf, o
     // The chips alone, the wind the airport's under its ident and how the
     // runway picked is flown in its chip's name (the owner's "No need for
     // info button").
-    <div className="flex items-center gap-2" data-testid="procedure-patterns">
+    <div ref={line} className="flex items-center gap-2" data-testid="procedure-patterns">
       {a.runways === null ? (
         <>
           <p role="status" className={cn("px-1 text-muted-foreground", TEXT.detail)}>Looking the runways up…</p>
@@ -1229,7 +1269,7 @@ function PatternChips({ airport: a, wind, chosen, landing, note, label, fitOf, o
         // runway picked, at the owner's ask ("smoothly expand to the
         // right"); a touch or a scroll on it holds it open (touched).
         <div
-          className={cn("flex min-w-0 flex-1", chosen !== null && "motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-left-6 motion-safe:duration-300")}
+          className="flex min-w-0 flex-1"
           onPointerDown={() => setTouched(t => t + 1)} onScrollCapture={() => setTouched(t => t + 1)}
         >
           {/* A runway each: no None, at the owner's ask ("Why is none even
@@ -1238,6 +1278,7 @@ function PatternChips({ airport: a, wind, chosen, landing, note, label, fitOf, o
           <Chips
             label={label ?? `${a.ident} ${landing ? "runway" : "traffic pattern"}`} value={chosen ?? NONE}
             onChange={v => { if (!v || v === NONE) return; setOpen(false); onPick(v); }} trailing={trailing} flushStart
+            trailingRef={after} enter={chosen !== null ? "motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-left-6 motion-safe:duration-300" : undefined}
           >
             {ends.map(({ runway, end }) => {
               const c = chip(runway, end);
