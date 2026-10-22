@@ -23,7 +23,7 @@ import { useAirportSearch } from "../../../lib/useAirportSearch";
 import { AIRSPACE_PILL, pillLook, useAirspace } from "../../../lib/useAirspace";
 import { inkOn } from "../../../lib/scoreScale";
 import { altFt, bearing, flightLevel } from "../../../lib/units";
-import { sameField } from "../../../lib/procedures";
+import { sameField, TYPED_PROCEDURE, type TypedProcedure } from "../../../lib/procedures";
 import { TEXT } from "../../../lib/text";
 import PointAltitudeDialog, { type EditedPoint, type PointAltitude } from "./PointAltitudeDialog";
 import type { BranchFix } from "../../../lib/procedures";
@@ -79,7 +79,7 @@ const PROCEDURE_GLYPH = { approach: PlaneLanding, arrival: Route, departure: Pla
 const LINE_OVER_PX = 8;
 
 export default function RouteBox({
-  dep, stops, dest, waypoints, airspaceOf, metarColourOf, altitudeAt, onAltitudeChange, onChange, adding, onAddingChange, via,
+  dep, stops, dest, waypoints, airspaceOf, metarColourOf, altitudeAt, onAltitudeChange, onChange, onTypedProcedures, adding, onAddingChange, via,
   procedures = NO_PROCEDURES, onProcedures, onOpenAirport, onClear, directTo = null, onDirectTo, fuelStops = NO_FUEL_STOPS, onKeepFuelStops,
   footer,
 }: RouteParts & {
@@ -95,6 +95,10 @@ export default function RouteBox({
   /** A point's own altitude set, or (null) given back to the plan. */
   onAltitudeChange: (ident: string, feet: number | null) => void;
   onChange: (route: RouteParts) => void;
+  /** SIDs and STARs typed among the points ("BAEE1", lib/procedures'
+   *  TYPED_PROCEDURE), taken out of them, for the route's procedures to
+   *  pick, with the route they were typed into. */
+  onTypedProcedures?: (typed: TypedProcedure[], route: { dep: string; dest: string }) => void;
   /** A stop asked for from elsewhere -- a problem's Add a stop or Fly
    *  via: the box takes the typing where it goes in, with `via` offered. */
   adding: boolean;
@@ -178,6 +182,7 @@ export default function RouteBox({
     const repeats = list.some((p, i) => i > 0 && p === list[i - 1]) && list.length !== 2;
     if ((d && !isEnd(d)) || (a && !isEnd(a)) || route.stops.length > MAX_STOPS || repeats) return;
     onChange(route);
+    return route;
   };
   // Taken out: the next airport along becomes the end taken out; of two,
   // the other end stays, half a route; the last, no route.
@@ -199,25 +204,33 @@ export default function RouteBox({
   // Into an empty box -- the route cleared -- the first airport typed is
   // the departure, and the field asks for the destination next, at the
   // pilot's ask; more than one typed at once, on to the last.
-  const put = (idents: string[]) => {
-    const fresh = idents.map(stopOf).filter(Boolean);
+  // A SID or a STAR typed among them ("KMSP BAEE1 BAE ... OSH OSHH2
+  // KATW") is the route's procedure, not a point: taken out, with the
+  // points typed either side of it, and picked once the route is in.
+  const put = (typedIdents: string[]) => {
+    const words = typedIdents.map(t => t.trim().toUpperCase()).filter(Boolean);
+    const isProcedure = (word: string) => TYPED_PROCEDURE.test(word) && !!onTypedProcedures;
+    const typedProcedures = words.flatMap((word, i) => (isProcedure(word) ? [{
+      name: word,
+      before: words.slice(0, i).reverse().find(w => !isProcedure(w)) ?? null,
+      after: words.slice(i + 1).find(w => !isProcedure(w)) ?? null,
+    }] : []));
+    const fresh = words.filter(w => !isProcedure(w)).map(stopOf).filter(Boolean);
+    const route = placed(fresh) ?? { dep, dest };
+    if (typedProcedures.length) onTypedProcedures?.(typedProcedures, { dep: route.dep, dest: route.dest });
+  };
+  const placed = (fresh: string[]) => {
     if (!fresh.length) return;
-    if (!points.length) {
-      change(fresh, isEnd(fresh[0]!), fresh.length > 1 && isEnd(fresh.at(-1)!));
-      return;
-    }
+    if (!points.length) return change(fresh, isEnd(fresh[0]!), fresh.length > 1 && isEnd(fresh.at(-1)!));
     const where = atNow.current;
     if (where !== null) {
       const departure = where === 0 && !hasDep && isEnd(fresh[0]!);
-      change([...points.slice(0, where), ...fresh, ...points.slice(where)], hasDep || departure, hasDest);
+      const route = change([...points.slice(0, where), ...fresh, ...points.slice(where)], hasDep || departure, hasDest);
       setAt(where + fresh.length);
-      return;
+      return route;
     }
-    if (!isEnd(fresh.at(-1)!)) {
-      change([...points.slice(0, hasDest ? -1 : undefined), ...fresh, ...(hasDest ? [dest] : [])]);
-      return;
-    }
-    change([...points, ...fresh], hasDep, true);
+    if (!isEnd(fresh.at(-1)!)) return change([...points.slice(0, hasDest ? -1 : undefined), ...fresh, ...(hasDest ? [dest] : [])]);
+    return change([...points, ...fresh], hasDep, true);
   };
   const commitTyped = () => {
     put(typedNow.current.split(/[\s,]+/));

@@ -20,23 +20,40 @@ function windOf(row: NavLogRow): string | null {
   return leg.wind ? `${windAloft(leg.wind.wind_dir_true_deg, leg.wind.wind_speed_kt)} kt` : "no data";
 }
 
+/** The airway a leg flies and its published altitudes, as a paper IFR
+ *  nav log's route column has them: "V191 · MEA 4,000 · MOCA 2,600", the
+ *  GNSS MEA where the segment publishes no other (a T route's). The MEA
+ *  is the floor under IFR (14 CFR 91.177(a)(1)); the MOCA is legal below
+ *  it within 22 nm of the VOR, said, not flown (vfr.airways). */
+function airwayOf(row: NavLogRow): string | null {
+  const airway = legOf(row)?.airway;
+  if (!airway) return null;
+  const mea = airway.mea_ft != null ? `MEA ${altFt(airway.mea_ft)}` : airway.gnss_mea_ft != null ? `GNSS MEA ${altFt(airway.gnss_mea_ft)}` : null;
+  return [airway.id, mea, airway.moca_ft != null ? `MOCA ${altFt(airway.moca_ft)}` : null].filter(Boolean).join(" · ");
+}
+
 /** What each row says beside its leg's own figures, worked out in order:
- *  the wind where it is not the leg's before (and over the first), and the
- *  altitude where it is not -- a field's elevation, a top of climb's or
- *  descent's level, a step. */
-function railOf(rows: NavLogRow[]): { wind: string | null; altitude: string }[] {
+ *  the wind where it is not the leg's before (and over the first), the
+ *  airway and its altitudes where they are not, and the altitude where it
+ *  is not -- a field's elevation, a top of climb's or descent's level, a
+ *  step. */
+function railOf(rows: NavLogRow[]): { wind: string | null; airway: string | null; altitude: string }[] {
   let windBefore: string | null = null;
+  let airwayBefore: string | null = null;
   let altitudeBefore: number | null = null;
   return rows.map(row => {
     const wind = windOf(row);
     const changed = wind !== null && wind !== windBefore ? wind : null;
     if (wind !== null) windBefore = wind;
+    const route = airwayOf(row);
+    const joined = route !== null && route !== airwayBefore ? route : null;
+    airwayBefore = route;
     const field = row.kind === "departure" || row.kind === "destination" || (row.kind === "stop" && row.airport.kind !== "fix");
     const legAltitude = isLegPoint(row) ? row.point.altitude_ft : legOf(row)?.altitude_ft ?? null;
     const altitude = field ? `field ${altFt("airport" in row ? row.airport.elevation_ft : null)} ft`
       : legAltitude !== null && (isLegPoint(row) || legAltitude !== altitudeBefore) ? `${altFt(legAltitude)} ft` : "";
     if (legAltitude !== null) altitudeBefore = legAltitude;
-    return { wind: changed, altitude };
+    return { wind: changed, airway: joined, altitude };
   });
 }
 
@@ -98,7 +115,7 @@ export function NavLogList({ rows, label, numberOf, weather, isSelected, onSelec
           const leg = legOf(row);
           const selected = isSelected(row);
           const first = at === 0, last = at === rows.length - 1;
-          const { wind, altitude } = rail[at]!;
+          const { wind, airway, altitude } = rail[at]!;
           const name = row.kind === "toc" ? "Top of climb" : row.kind === "tod" ? "Top of descent"
             : "airport" in row && row.airport.kind !== "fix" ? `${row.airport.ident} · ${placeName(row.airport.name, row.airport.ident)}`
               : rowPoint(row).name;
@@ -119,6 +136,16 @@ export function NavLogList({ rows, label, numberOf, weather, isSelected, onSelec
                   <span className={cn("absolute inset-y-0 w-0.5 -translate-x-1/2 bg-border", RAIL)} />
                   <span className={cn("rounded-full border border-cyan-200 bg-cyan-50 px-2 py-0.5 font-semibold text-cyan-800 dark:border-cyan-900 dark:bg-cyan-950 dark:text-cyan-200", TEXT.note)} data-testid="navlog-wind-change">
                     Wind {wind}
+                  </span>
+                </div>
+              )}
+              {airway && (
+                // Under IFR along an airway, where it is joined or its
+                // altitudes change: the route column of a paper IFR log.
+                <div aria-hidden="true" className="relative flex h-7 items-center pl-[3.125rem]">
+                  <span className={cn("absolute inset-y-0 w-0.5 -translate-x-1/2 bg-border", RAIL)} />
+                  <span className={cn("rounded-full border border-border bg-background px-2 py-0.5 font-semibold text-foreground tabular-nums", TEXT.note)} data-testid="navlog-airway">
+                    {airway}
                   </span>
                 </div>
               )}

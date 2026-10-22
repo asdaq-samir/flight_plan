@@ -550,6 +550,18 @@ def test_an_airway_among_the_stops_is_flown_fix_by_fix_with_its_altitudes(monkey
     assert flown == {2: segments[0], 3: segments[1]}
 
 
+def test_each_leg_along_an_airway_carries_its_segment_for_the_nav_log():
+    """A hop flown along an airway ends at a point holding the segment
+    flown into it (common.with_airways): each of its legs carries it, for
+    the nav log's route column; a hop off an airway's legs carry none."""
+    from app.routers.plan import on_airway
+
+    segment = {"id": "V191", "from": "BAE", "mea_ft": 4000.0, "gnss_mea_ft": None, "moca_ft": 2600.0, "maa_ft": 17500.0}
+    legs = [{"from": "BAE", "to": "X"}, {"from": "X", "to": "CORIR"}]
+    assert on_airway(legs, {"ident": "CORIR", "airway": segment}) == [{**leg, "airway": segment} for leg in legs]
+    assert on_airway(legs, {"ident": "KDLH"}) == legs
+
+
 def test_an_airway_that_cannot_be_flown_as_written_is_a_422_that_says_why(monkeypatch):
     from fastapi import HTTPException
     from vfr import airways

@@ -120,7 +120,9 @@ export function hitAreaMisses(page: Page, scope = "body", size = 44): Promise<Hi
         // A scroller run on up under the panel's head (under-head) is in
         // view from the head's foot down: what is over that is scrolled
         // under the head, as under a sticky heading, not covered by it.
-        const under = a.classList.contains("under-head") ? parseFloat(o.getPropertyValue("--head-room")) || 0 : 0;
+        // Its scroll padding, the head's height resolved: --head-room
+        // itself can be a sum the property does not resolve (PanelTabs').
+        const under = a.classList.contains("under-head") ? parseFloat(o.scrollPaddingTop) || 0 : 0;
         port = { l: Math.max(port.l, b.left), t: Math.max(port.t, b.top + under), r: Math.min(port.r, b.right), b: Math.min(port.b, b.bottom) };
       }
       // A port's right and bottom edges are past it: a probe on one

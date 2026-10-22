@@ -7,7 +7,7 @@ import { closeTopCard, useOpenCards, type RouteCard } from "../lib/openCards";
 import { prefersReducedMotion } from "../lib/motion";
 import { TEXT } from "../lib/text";
 import TabGlass from "./TabGlass";
-import { PanelSize, TabBarMinimized, useConsoleOpen, useTabsShown } from "./mapChrome";
+import { GLASS_BUTTON, PanelSize, TabBarMinimized, useConsoleOpen, useTabsShown } from "./mapChrome";
 
 /** One of a page's places, a tab of its bar: its word and its glyph. */
 export interface BarTab<T extends string> {
@@ -602,7 +602,7 @@ export default function TabBar<T extends string>({ tabs, tab, over, title, onPic
     >
       {/* In the sheet, the tab up out of a line of glass (TabGlass, the
           owner's 2e), lifted under a finger as the same tab; in the pill,
-          the drop of glass as before. */}
+          a capsule of the same glass. */}
       {upAt >= 0 && size?.size !== "peek" && (
         <TabGlass
           at={upAt} count={count} lifted={lens ? { x: lens.x, tab: lens.tab } : null}
@@ -617,15 +617,13 @@ export default function TabBar<T extends string>({ tabs, tab, over, title, onPic
         <span
           aria-hidden="true" data-testid="tab-bubble" data-lifted={lens ? "" : undefined}
           className={cn(
-            "pointer-events-none absolute rounded-full",
-            lens
-              // In the dark no lighter than at rest, but for its rim: the
-              // tint's light blue on a lighter grey was hard to read.
-              ? "bg-white/75 shadow-[0_2px_12px_rgb(0_0_0/0.16),0_0_0_0.5px_rgb(0_0_0/0.08)] dark:bg-white/[0.12] dark:shadow-[0_2px_12px_rgb(0_0_0/0.5),inset_0_0_0_1px_rgb(255_255_255/0.14),inset_0_1px_0_rgb(255_255_255/0.3)]"
-              // At rest glass, as the fields under it are (PANEL_FIELD_FILL),
-              // at the owner's pick of the tab bar's looks (2026-10-20): a
-              // pane lighter than the bar, its rim lit, a shadow its size.
-              : "bg-white/85 shadow-[inset_0_0_0_1px_rgb(255_255_255/0.95),0_2px_8px_rgb(0_0_0/0.12)] dark:bg-white/[0.14] dark:shadow-[inset_0_0_0_1px_rgb(255_255_255/0.12),0_2px_8px_rgb(0_0_0/0.4)]",
+            // The buttons' glass (GLASS_BUTTON), as the tab up's in the
+            // sheet is (TabGlass) and every button on it, at the owner's
+            // pick of the sketches ("B"): bright at its top, its rim lit,
+            // on a soft shadow. Lifted, on a deeper shadow, as a lens
+            // raised over the bar.
+            "pointer-events-none absolute rounded-full", GLASS_BUTTON,
+            lens && "shadow-[inset_0_0_0_1.5px_rgb(255_255_255/0.95),0_0_0_0.5px_rgb(0_0_0/0.06),0_4px_14px_rgb(0_0_0/0.18)] dark:shadow-[inset_0_0_0_1.5px_rgb(255_255_255/0.3),0_0_0_0.5px_rgb(0_0_0/0.5),0_4px_14px_rgb(0_0_0/0.6)]",
           )}
           style={lensStyle}
         />

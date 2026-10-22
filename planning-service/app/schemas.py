@@ -305,6 +305,11 @@ class Leg(BaseModel):
     # planner's TURNAROUND_MIN), not in `ete_min`. None on every other
     # leg.
     ground_min: float | None = None
+    # Along an airway (vfr.airways, the route's "BAE V191 OSH"): the
+    # segment flown and its published altitudes, the MEA the floor under
+    # IFR (14 CFR 91.177(a)(1)), for the nav log's route column as a paper
+    # IFR log has one. None off an airway.
+    airway: "AirwayAltitudes | None" = None
 
 
 class AlternateLeg(BaseModel):

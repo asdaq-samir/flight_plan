@@ -615,6 +615,25 @@ html [data-sonner-toaster] [data-sonner-toast][data-styled="true"]:is([data-type
   scroll-padding-top: var(--head-room, 0px);
 }
 
+/* The map panel's head frosted with the sheet's own colour, a line under
+   it, while content is scrolled under it (MapPanel's data-under); a card's
+   own head under it -- the Brief's title and pages (PanelTabs) -- frosted
+   with it, the line under that one alone ("local"). Plain glass at rest. */
+[data-head-band], [data-under-band] {
+  transition: background-color 150ms, box-shadow 150ms;
+}
+[data-head-band][data-under],
+[data-head-band][data-under] ~ [data-panel-body] [data-under-band] {
+  background-color: color-mix(in oklab, var(--background) 85%, transparent);
+  box-shadow: 0 1px 0 var(--color-border);
+  &:is(.dark *) {
+    background-color: color-mix(in oklab, var(--popover) 85%, transparent);
+  }
+}
+[data-head-band][data-under="local"] {
+  box-shadow: none;
+}
+
 @utility liquid-glass {
   background-color: color-mix(in oklab, var(--background) var(--glass-fill, 40%), transparent);
   -webkit-backdrop-filter: blur(14px) saturate(1.9) brightness(1.05);
