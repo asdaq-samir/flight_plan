@@ -1,6 +1,5 @@
 import { useContext, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { ChevronDown, Settings, Share, type LucideIcon } from "lucide-react";
-import BackButton from "./BackButton";
 import CloseButton from "./CloseButton";
 import RoundButton from "./RoundButton";
 import { cn } from "cn";
@@ -214,10 +213,13 @@ export default function TabBar<T extends string>({ tabs, tab, over, title, onPic
     else size.to(size.size === "full" ? "half" : size.size === "half" ? "peek" : "half");
   };
   // A card open over the tab -- an airport's, an airplane's, a past
-  // flight's, the Brief -- has its way back here, at the top left on the
-  // tab's line, in place of its own close, at the owner's ask: only while
-  // the tabs are not shown (minimized), as iOS's navigation bar's Back.
+  // flight's, the Brief -- has its Share at the top left on the tab's line,
+  // where it has one, and its way back is the bar's close: no Back, at the
+  // owner's ask ("remove the back buttons, because close button should
+  // behave as the back button", 2026-10-22). Only while the tabs are not
+  // shown (minimized).
   const cards = useOpenCards(s => s.count);
+  const anyOpen = useOpenCards(s => s.total) > 0;
   const back = minimized && !consoleOpen && cards > 0;
   // An airport's card and an airplane's have their Share there instead,
   // and their close goes back one card as Back did, at the owner's ask
@@ -232,9 +234,9 @@ export default function TabBar<T extends string>({ tabs, tab, over, title, onPic
   }, [minimized, consoleOpen]);
   // A swipe across the panel goes back only, at the owner's ask ("let's
   // not support swipe to switch tabs... Swipe should only support going
-  // back"): to the right, as iOS's swipe back goes, a card over the tab
-  // put away, else the panel's own Back taken (a Setup page's, a
-  // procedure's page: BackButton's mark); to the left, nothing, as there
+  // back"): to the right, as iOS's swipe back goes, what the bar's close
+  // takes away -- the card over the tab, a list in full, a Setup page
+  // (lib/openCards) -- one at a time; to the left, nothing, as there
   // is nothing forward. The tabs change by a tap, or the lens slid along
   // them (the glass bubble, as iOS's tab bar's). Listened for on the
   // whole panel -- but not a field, a slider or anything that scrolls
@@ -257,15 +259,8 @@ export default function TabBar<T extends string>({ tabs, tab, over, title, onPic
   useEffect(() => {
     // Whether it went back: a swipe that did nothing leaves the next tap be.
     step.current = by => {
-      if (by > 0) return false;
-      if (back) {
-        closeTopCard();
-        return true;
-      }
-      const panel = bar.current?.closest<HTMLElement>("[data-slot=map-panel]");
-      const backs = [...(panel?.querySelectorAll<HTMLElement>("[data-back-button]") ?? [])].filter(b => b.offsetParent !== null);
-      backs.at(-1)?.click();
-      return backs.length > 0;
+      // The top card, list in full or Setup page closed, as the close does.
+      return by < 0 && closeTopCard();
     };
   });
   useEffect(() => {
@@ -459,21 +454,17 @@ export default function TabBar<T extends string>({ tabs, tab, over, title, onPic
             of its own, which replaced the centring one, and the button
             dropped half its height as it was tapped (seen on the owner's
             phone, 2026-10-13). */}
-        {back && (
+        {back && shareInstead && (
           // In from the panel's side as far as the card's own words are
           // (the line's px-2 and this left-2, the card's 16), so the two
           // read as the card's, not the tabs', at the owner's ask.
           <span className="absolute inset-y-0 left-2 flex items-center">
-            {shareInstead ? (
-              typeof share === "string" ? routeShare?.(share) : (
-                // Drawn as Back and the close are: the glyph in the text's
-                // colour on the round glass button, a thin line.
-                <RoundButton label={title ? `Share ${title}` : "Share"} onClick={() => { if (typeof share === "function") share(); }} data-testid="tab-share">
-                  <Share className="size-5!" strokeWidth={1.9} />
-                </RoundButton>
-              )
-            ) : (
-              <BackButton onClick={() => closeTopCard()} data-testid="tab-back" />
+            {typeof share === "string" ? routeShare?.(share) : (
+              // Drawn as the close is: the glyph in the text's colour on
+              // the round glass button, a thin line.
+              <RoundButton label={title ? `Share ${title}` : "Share"} onClick={() => { if (typeof share === "function") share(); }} data-testid="tab-share">
+                <Share className="size-5!" strokeWidth={1.9} />
+              </RoundButton>
             )}
           </span>
         )}
@@ -504,8 +495,11 @@ export default function TabBar<T extends string>({ tabs, tab, over, title, onPic
           // close does too, one column with them, at the owner's ask.
           <span className="absolute inset-y-0 right-1 flex items-center">
             <CloseButton
+              // Back one: the card on top, a list in full, a Setup page;
+              // with none, the tab put away.
+              label={anyOpen ? "Back" : "Close"}
               onClick={() => {
-                if (shareInstead) return void closeTopCard();
+                if (closeTopCard()) return;
                 if (consoleOpen) setConsoleOpen(false);
                 onClose();
               }}

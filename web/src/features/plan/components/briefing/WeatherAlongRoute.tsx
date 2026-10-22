@@ -8,16 +8,14 @@ import AccordionSection from "../../../../components/AccordionSection";
 import { ListGroup, ListRow } from "../../../../components/GroupedList";
 import type { Briefing, Course, Leg } from "../../../../lib/api/types";
 import { pirepConditions } from "../../../../lib/advisories";
-import { distanceNm } from "../../../../lib/geo";
-import { categoryOf } from "../../../../lib/map/flightCategory";
 import { passTime } from "../../../../lib/passTimes";
 import { altFt, ceilingAndVisibility, clockTime, windLine } from "../../format";
 import CategoryBadge from "./CategoryBadge";
 import Observed from "../../../../components/Observed";
 import { phasesOf, type Phase } from "./sections";
+import { categoryAt, NEAREST_TAF_NM, nearestStation, ownStation, placesOf, type Station } from "./fieldWeather";
 import { FINDING_TONE } from "../../../../lib/status";
 
-type Station = Briefing["forecast"]["stations"][number];
 type Pirep = Briefing["pireps"][number];
 
 /** How far from a field without a TAF of its own a neighbour's is named
@@ -25,39 +23,14 @@ type Pirep = Briefing["pireps"][number];
  *  Aviation Weather Handbook), so a neighbour's is not this field's
  *  forecast, and the row says whose it is and how far; past this, none
  *  is offered. The planner's own choice. */
-const NEAREST_TAF_NM = 25;
 
-interface Place {
-  ident: string;
-  role: string;
-  lat: number;
-  lon: number;
-  alongNm: number;
-}
 
 /** Each airport the flight takes off from or lands at, how far along the
  *  route: the course's points one after another, as the briefing placed
  *  its stations along them. */
-function placesOf(course: Course): Place[] {
-  const points = [course.departure, ...(course.stops ?? []), course.destination];
-  // A local flight, one field to itself, is one place.
-  if (points.length === 2 && points[0]!.ident === points[1]!.ident) {
-    const p = points[0]!;
-    return [{ ident: p.ident, role: "Local", lat: p.lat, lon: p.lon, alongNm: 0 }];
-  }
-  let along = 0;
-  return points.flatMap((p, i) => {
-    if (i > 0) along += distanceNm(points[i - 1]!, p);
-    if (p.kind === "fix") return [];
-    const role = i === 0 ? "Departure" : i === points.length - 1 ? "Destination" : "Stop";
-    return [{ ident: p.ident, role, lat: p.lat, lon: p.lon, alongNm: along }];
-  });
-}
 
 /** A field's own TAF: the station by its ident, or its ICAO one (KDLH
  *  for DLH). */
-const ownStation = (stations: Station[], ident: string) =>
-  stations.find(s => s.icaoId === ident || (ident.length === 3 && s.icaoId === `K${ident}`));
 
 /** A line's first letter capitalised: the figures open a row's line. */
 const sentence = (words: string) => words.charAt(0).toUpperCase() + words.slice(1);
@@ -82,7 +55,8 @@ const atEta = (station: Station) => (station.eta_ceiling_ft == null && station.e
   ? "Nothing forecast for then"
   : sentence(ceilingAndVisibility(station.eta_ceiling_ft, station.eta_visibility_sm)));
 
-const categoryAt = (station: Station) => categoryOf(station.eta_ceiling_ft, station.eta_visibility_sm);
+
+
 
 function PirepRow({ p }: { p: Pirep }) {
   return (
@@ -165,10 +139,7 @@ export default function WeatherAlongRoute({ briefing, course, legs, departIso, u
         {places.map((place, i) => {
           const metar = briefing.metars[place.ident];
           const station = own.get(place.ident);
-          const nearest = station ? null : stations
-            .map(s => ({ s, nm: s.lat != null && s.lon != null ? distanceNm(place, { lat: s.lat, lon: s.lon }) : Infinity }))
-            .filter(x => x.nm <= NEAREST_TAF_NM)
-            .sort((a, b) => a.nm - b.nm)[0];
+          const nearest = station ? null : nearestStation(stations, place);
           const eta = (station ?? nearest?.s)?.eta ? new Date((station ?? nearest!.s).eta!) : at(place.alongNm);
           const next = places[i + 1];
           const stretch = next ? between(place.alongNm, next.alongNm, i === places.length - 2) : [];

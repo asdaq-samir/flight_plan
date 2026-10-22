@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { slow, settle, settled, closeCard, sideDrawer, expectDrawerClosed, expectDrawerOpen, closeSidebarWithTheStockKey, openedDrawerBox, openBrief, openBriefing, openTab, openSection, panelTabs, openSettings, closeConsole, grabberTo, controlsInSight, openNavLog, closeNavLog, navLogSheet } from "./helpers";
+import { slow, settle, settled, closeCard, sideDrawer, expectDrawerClosed, expectDrawerOpen, closeSidebarWithTheStockKey, openedDrawerBox, openBrief, openBriefing, openTab, openSection, panelTabs, openSettings, closeConsole, grabberTo, controlsInSight, openNavLog, closeNavLog, navLogSheet, briefPage } from "./helpers";
 
 /**
  * The flight planning panel: how it opens -- from its grabber, a pasted
@@ -51,6 +51,10 @@ test("plan page: the flight planning drawer opens the way the Model Training dra
   // The route's pages, the Brief's, all the way up.
   await openBrief(page);
   await grabberTo(page, "full");
+  // Opened on its cards, one a part of the flight (the owner's D′), each
+  // opening its page; the pages' tabs over a page.
+  await expect(drawer.getByTestId("brief-glance").locator("button[data-testid^='brief-glance-']")).toHaveCount(4);
+  await briefPage(page, "Preflight");
   await expect(panelTabs(page).getByRole("tab")).toHaveText(["Preflight", "Depart", "En route", "Arrive"]);
   // All four on the panel's line, none past its edge.
   const tabsBox = (await panelTabs(page).boundingBox())!;
@@ -180,10 +184,10 @@ test("plan page: the Brief is a tab after the Nav Log, its narrative from LangGr
   // nothing billed.
   const asked: string[] = [];
   page.on("request", r => { if (r.url().includes("/api/comparison")) asked.push(new URL(r.url()).searchParams.get("framework") ?? ""); });
-  // Preflight up as the Brief opens, and nothing asked for until a tap:
-  // each is billed, and Preflight is up for every route looked at.
+  // The Brief's cards as it opens, and nothing asked for until a tap:
+  // each is billed, and the Brief is opened for every route looked at.
   await openBrief(page);
-  await expect(panelTabs(page).getByRole("tab", { name: "Preflight" })).toHaveAttribute("aria-selected", "true");
+  await expect(sideDrawer(page).getByTestId("brief-glance")).toBeVisible();
   await openTab(page, "Preflight");
   await openSection(page, "Narrative");
   await page.waitForTimeout(500);

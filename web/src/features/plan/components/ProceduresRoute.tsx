@@ -4,7 +4,6 @@ import { useQueries, useQuery } from "@tanstack/react-query";
 import { Check, ChevronLeft, ChevronRight, Fuel, PlaneLanding, PlaneTakeoff, Wind } from "lucide-react";
 import { cn } from "cn";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
-import BackButton from "../../../components/BackButton";
 import CloseButton from "../../../components/CloseButton";
 import { Button } from "../../../components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "../../../components/ui/toggle-group";
@@ -878,8 +877,10 @@ export default function ProceduresRoute({
       <ResponsivePopoverContent
         title={on ? (procedure ? `${on.ident} ${procedure.name}` : listTitle(on.ident, on.kind)) : "Procedures"}
         className="max-h-[70vh] w-80 overflow-y-auto p-3" align="start" side="right"
-        leading={procedure ? <BackButton onClick={() => setPage(null)} data-testid="procedures-back" /> : undefined}
-        action={<CloseButton onClick={close} data-testid="procedures-close" />}
+        // No Back: the close goes back to the list from a procedure's page,
+        // at the owner's ask ("close button should behave as the back
+        // button", 2026-10-22).
+        action={<CloseButton label={procedure ? "Back" : "Close"} onClick={() => (procedure ? setPage(null) : close())} data-testid="procedures-close" />}
         sheetClassName="data-[side=bottom]:h-[55dvh] data-[side=top]:h-[55dvh]"
         sheetOverlayClassName="bg-transparent dark:bg-transparent supports-backdrop-filter:backdrop-blur-none"
       >

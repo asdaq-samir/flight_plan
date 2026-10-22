@@ -26,11 +26,14 @@ const open: OpenCard[] = [];
  *  owner's ask. And whether the bar is minimized now, so drawing it: a
  *  card with a share of its own in its body (FlightCard's) leaves it to
  *  the bar there. */
-export const useOpenCards = create<{ count: number; share: CardShare | null; barMinimized: boolean }>(() => ({ count: 0, share: null, barMinimized: false }));
+export const useOpenCards = create<{ count: number; total: number; share: CardShare | null; barMinimized: boolean }>(
+  () => ({ count: 0, total: 0, share: null, barMinimized: false }));
 
+/** And `total`: every one open, lists and Setup's pages too, for the bar's
+ *  close to say it goes back. */
 function counted() {
   const inBar = open.filter(entry => entry.inBar !== false);
-  return { count: inBar.length, share: inBar.at(-1)?.share ?? null };
+  return { count: inBar.length, total: open.length, share: inBar.at(-1)?.share ?? null };
 }
 
 /** A card's close -- or a list's Back, `inBar` false, its way back drawn

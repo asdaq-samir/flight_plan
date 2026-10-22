@@ -58,7 +58,7 @@ test("Nearest opens as a card half way up, a field over it as a layer, and its c
   await expect(card).toBeVisible();
   // Its Back, as every list in full has one (it had no way out but a
   // tab): Airport's start, the strip again; then the list once more.
-  await card.getByTestId("nearest-page-back").click();
+  await card.getByTestId("nearest-page-close").click();
   await expect(card).toHaveCount(0);
   await expect(page).not.toHaveURL(/[?&]near=/);
   await expect(sideDrawer(page).getByTestId("pill-section-nearest-more")).toBeVisible();

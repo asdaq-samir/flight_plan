@@ -43,15 +43,17 @@ test("the panel follows a finger from anywhere on its body: out to the top, and 
     return { x: box.x + box.width / 2, y: box.y + Math.min(box.height / 2, 120) };
   };
 
-  // Up from half, on the tabs' bar -- all of the body half way up shows
-  // -- the sheet comes all the way out, and the tab under the finger is
-  // not picked by the release.
-  const tabs = panelTabs(page);
-  const picked = await tabs.getByRole("tab", { selected: true }).textContent();
-  await fingerDrag(page, await middleOf(tabs), -400);
+  // Up from half, on the Brief's first card -- all of the body half way
+  // up shows -- the sheet comes all the way out, and the card under the
+  // finger is not opened by the release.
+  const card = panel.getByTestId("brief-glance-preflight");
+  await fingerDrag(page, await middleOf(card), -400);
   await expect(panel).toHaveAttribute("data-panel", "full");
-  await expect(tabs.getByRole("tab", { selected: true })).toHaveText(picked!);
+  await expect(panel.getByTestId("brief-glance")).toBeVisible();
+  await expect(panelTabs(page)).toHaveCount(0);
 
+  // A page of the Brief's, long enough to scroll: Preflight, by its card.
+  await panel.getByTestId("brief-glance-preflight").click();
   const tab = page.getByTestId("brief-scroller");
   await expect(tab).toBeVisible();
   const middle = () => middleOf(tab);

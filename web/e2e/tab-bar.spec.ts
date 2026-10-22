@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { closeCard, closeConsole, closeProfile, grabberTo, openTab, openPanel, panelTabs, settle, settled, showTabs, sideDrawer, slow } from "./helpers";
+import { closeCard, closeConsole, closeProfile, grabberTo, openTab, openPanel, settle, settled, showTabs, sideDrawer, slow } from "./helpers";
 
 /**
  * The planner's tab bar, at the pilot's ask in place of the map's buttons
@@ -184,7 +184,8 @@ test("the Brief is a card over FPL, from the chips' Brief: Preflight, Depart, En
   await expect(card).toBeVisible();
   await expect(card.getByTestId("brief-name")).toHaveText("C81 → KDLH");
   await expect(card.getByTestId("brief-line")).toContainText("Campbell to Duluth");
-  await expect(panelTabs(page).getByRole("tab")).toHaveText(["Preflight", "Depart", "En route", "Arrive"]);
+  // Its cards, a part of the flight each (the owner's D′), its pages a tap away.
+  await expect(card.getByTestId("brief-glance").locator("button[data-testid^='brief-glance-']")).toHaveCount(4);
   await expect(panel.getByTestId("route-box")).toBeHidden();
   await expect(panel.getByTestId("flight-line")).toBeHidden();
   await expect(page).toHaveURL(/[?&]brief=1/);
@@ -192,7 +193,10 @@ test("the Brief is a card over FPL, from the chips' Brief: Preflight, Depart, En
   await openTab(page, "En route");
   await expect(card.locator('[data-tab="enroute"] [data-title="Cruise Altitude"]')).toBeAttached();
   await expect(card.locator('[data-tab="enroute"] [data-title="Legs"]')).toHaveCount(0);
-  // Back: FPL as it was before the Brief, all the way up on its route.
+  // The close: back to the Brief's cards, then FPL as it was before the
+  // Brief, all the way up on its route.
+  await closeCard(page, "brief-close");
+  await expect(card.getByTestId("brief-glance")).toBeVisible();
   await closeCard(page, "brief-close");
   await expect(card).toHaveCount(0);
   await expect(page).not.toHaveURL(/[?&]brief=/);

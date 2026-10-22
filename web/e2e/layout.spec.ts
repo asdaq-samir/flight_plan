@@ -112,7 +112,7 @@ test.describe("/app/plan", () => {
     await settle(page);
     await openBrief(page);
     await grabberTo(page, "full");
-    await page.getByTestId("panel-tab-enroute").click();
+    await page.getByTestId("brief-glance-enroute").click();
     await expect(sideDrawer(page)).toHaveAttribute("data-panel", "full");
     await expect(page.getByTestId("panel-tab-enroute")).toHaveAttribute("aria-selected", "true");
   });

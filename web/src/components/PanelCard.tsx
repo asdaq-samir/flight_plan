@@ -2,7 +2,7 @@ import { useEffect, useRef, type ReactNode } from "react";
 import { cn } from "cn";
 import CloseButton from "./CloseButton";
 import { FitText } from "./FitText";
-import { holdOpenCard, type CardShare } from "../lib/openCards";
+import { closeTopCard, holdOpenCard, type CardShare } from "../lib/openCards";
 import { TEXT } from "../lib/text";
 
 /**
@@ -166,7 +166,9 @@ export function CardClose({ onClose, onShare, testId }: {
   }), [shares]);
   return (
     <span className="sr-only focus-within:not-sr-only">
-      <CloseButton onClick={onClose} data-testid={testId} />
+      {/* Back one: a page opened in the card first (the Brief's), else the
+          card (lib/openCards), as the bar's close goes. */}
+      <CloseButton onClick={() => { if (!closeTopCard()) onClose(); }} data-testid={testId} />
     </span>
   );
 }

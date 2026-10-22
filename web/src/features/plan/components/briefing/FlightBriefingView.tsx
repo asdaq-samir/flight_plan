@@ -20,7 +20,7 @@ import type {
 } from "../../../../lib/api/types";
 import type { FrameworkNarrative } from "../../hooks/useNarratives";
 import type { BriefingState } from "../../hooks/usePlan";
-import { altFt, ceilingAndVisibility, clockTime, PLAN_NAME, windAloft } from "../../format";
+import { altFt, ceilingAndVisibility, clockTime, PLAN_NAME, reportedWind, windAloft } from "../../format";
 import { flightLevel, grouped } from "../../../../lib/units";
 import { identOf, isAirwayToken, withoutAltitude } from "../../../../lib/identSchema";
 import { navLogRows, savedCheckpoints } from "../navlog/rows";
@@ -33,9 +33,10 @@ import { passLine, passTime, suaWhen, tfrWhen, type SuaWhen, type TfrWhen } from
 import { pickedEnd, runwayFlown, runwayNumber } from "../../../../lib/pattern";
 import { useRunwayPicks } from "../../../../lib/useRunwayPicks";
 import { runwayChecks } from "../../../../lib/runwayCheck";
-import { FINDING_TONE, type Finding } from "../../../../lib/status";
+import { FINDING_TONE, worstOf, type Finding } from "../../../../lib/status";
 import { useVerdict, verdictItems, type VerdictItem } from "../../../../lib/verdict";
-import { callSign } from "../../../../lib/radio";
+import { callSign, fieldPhases } from "../../../../lib/radio";
+import { useGlance, type BriefGlance, type FieldGlance } from "../../../../lib/glance";
 import { shortName } from "../../../../lib/aircraftChoice";
 import AirportSections from "./AirportSections";
 import BriefChecks from "./BriefChecks";
@@ -45,6 +46,7 @@ import { usePrinting } from "../../../../lib/usePrinting";
 import PassengerBriefing from "./PassengerBriefing";
 import { passengerMessage } from "../../../../lib/passengers";
 import WeatherAlongRoute from "./WeatherAlongRoute";
+import { fieldCategory } from "./fieldWeather";
 import AlternateSection from "./AlternateSection";
 import FuelSection from "./FuelSection";
 import FlightPlanSection from "./FlightPlanSection";
@@ -653,6 +655,61 @@ export default memo(function FlightBriefingView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [itemsKey, setItems, publish]);
   useEffect(() => () => { if (publish) setItems([]); }, [setItems, publish]);
+
+  // The Brief's glance (lib/glance): each part of the flight in a few
+  // figures, from what the pages say -- the runway checks, the radio's
+  // first call, the forecast at each field and along the way -- published
+  // by the one instance outside the pages, as the findings are.
+  const glance: BriefGlance | null = publish ? (() => {
+    const leaving = new Date(depart || opened);
+    const fieldAt = (ident: string, kind: "departure" | "arrival", at: Date | null): FieldGlance => {
+      const check = checks.find(c => c.field.ident === ident && (kind === "departure" ? c.role === "Departure" : c.role === "Destination"));
+      const distance = check?.distances.find(d => d.kind === (kind === "departure" ? "takeoff" : "landing"));
+      const metar = briefing?.metars[ident];
+      const said = metar ? reportedWind(metar.wind_dir_true_deg ?? null, metar.wind_speed_kt ?? null, metar.wind_gust_kt ?? null) : null;
+      const phase = briefing ? fieldPhases(briefing, landings, legs, ownCallSign, ident, picks).find(p => p.kind === kind) : undefined;
+      const call = phase?.calls.find(c => c.mhz != null);
+      return {
+        ident,
+        category: briefing && course ? fieldCategory(briefing, course, ident) : null,
+        at: at ? at.toISOString() : null,
+        runway: check?.end ? runwayNumber(check.end) : null,
+        runwayFt: check?.runway?.length_ft ?? null,
+        overFiftyFt: distance ? Math.round(distance.totalFt) : null,
+        wind: said === "calm" ? "Calm" : said ? `${said.dir.replace(/T$/, "")}/${said.speed}` : null,
+        radio: call ? { to: call.to, mhz: call.mhz! } : null,
+        finding: !check ? "unknown" : distance?.over ? "stop" : check.crosswindOver ? "caution" : "ok",
+      };
+    };
+    const byKey = (keys: VerdictItem["key"][]) => worstOf(items.filter(i => keys.includes(i.key)).map(i => i.finding));
+    const wind = stretches[0]?.wind;
+    return {
+      before: {
+        risk: assessment ? { score: assessment.score, level: assessment.level } : null,
+        spareGal: margins.length ? Math.min(...margins) : null,
+        balance: loaded ? { within: loaded.problems.length === 0, problem: loaded.problems[0] ?? null } : null,
+        finding: byKey(["risk", "fuel", "balance", "airspace"]),
+      },
+      depart: course ? fieldAt(dep, "departure", leaving) : null,
+      enroute: {
+        ceilingFt: briefing?.forecast.min_ceiling_ft ?? null,
+        visibilitySm: briefing?.forecast.min_visibility_sm ?? null,
+        wind: wind ? `${String(wind.dir).padStart(3, "0")}°/${wind.speed}` : null,
+        eteMin: totals?.ete_min ?? null,
+        line: items.find(i => i.key === "weather")?.detail ?? null,
+        finding: byKey(["weather", "altitude"]),
+      },
+      arrive: course ? fieldAt(dest, "arrival", totals?.ete_min != null ? new Date(leaving.getTime() + totals.ete_min * 60_000) : null) : null,
+    };
+  })() : null;
+  const setGlance = useGlance(g => g.set);
+  const glanceKey = glance ? JSON.stringify(glance) : "";
+  useEffect(() => {
+    if (publish) setGlance(glance);
+    // Keyed on what it says, not the object made each render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [glanceKey, setGlance, publish]);
+  useEffect(() => () => { if (publish) setGlance(null); }, [setGlance, publish]);
 
   // Preflight's sections a tile opens and the paperwork, folded on screen
   // under the checks (BriefChecks), each opened by its tile or a tap on

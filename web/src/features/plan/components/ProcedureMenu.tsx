@@ -1,7 +1,6 @@
 import { useRef, useState } from "react";
 import { ArrowLeftRight, Check, ChevronDown } from "lucide-react";
 import { cn } from "cn";
-import BackButton from "../../../components/BackButton";
 import RoundButton from "../../../components/RoundButton";
 import CloseButton from "../../../components/CloseButton";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
@@ -155,8 +154,10 @@ export default function ProcedureMenu({ ident, kind, list, loading, picked, labe
         // The map above it in sight and clear, no shade or blur over it, as
         // the Procedures sheet keeps it (the owner's screenshot: blurred).
         sheetOverlayClassName="bg-transparent dark:bg-transparent supports-backdrop-filter:backdrop-blur-none"
-        leading={page ? <BackButton onClick={() => setPages(pages.slice(0, -1))} data-testid="procedure-menu-back" /> : undefined}
-        action={<CloseButton onClick={() => toggle(false)} data-testid="procedure-menu-close" />}
+        // No Back: the close goes back a page where one is pushed, at the
+        // owner's ask ("remove the back buttons, because close button should
+        // behave as the back button", 2026-10-22).
+        action={<CloseButton label={page ? "Back" : "Close"} onClick={() => (page ? setPages(pages.slice(0, -1)) : toggle(false))} data-testid="procedure-menu-close" />}
         data-testid="procedure-menu"
         onCloseAutoFocus={event => { if (toSheet.current) event.preventDefault(); toSheet.current = false; }}
       >

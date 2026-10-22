@@ -56,7 +56,7 @@ test("signed out, Personal says once what signing in keeps, its minimums need no
   await expect(sheet.getByTestId("library-section").getByRole("button", { name: "Airplanes" })).toBeDisabled();
   await library(sheet, "Minimums");
   await expect(sheet.getByTestId("minimum-ceilingFt")).toBeVisible();
-  await sheet.getByRole("button", { name: "Account", exact: true }).click();
+  await sheet.getByRole("button", { name: "Back to Account", exact: true }).click();
   // Signed out: Sign in at the Account's heading, no line saying so (the
   // owner's "no need to show Not Signed in").
   await expect(sheet.getByTestId("setup-page").getByRole("button", { name: "Sign in" })).toBeVisible();
