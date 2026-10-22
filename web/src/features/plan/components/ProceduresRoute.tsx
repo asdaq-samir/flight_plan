@@ -657,8 +657,11 @@ export default function ProceduresRoute({
                     // owner's phone only the arrow opened the field ("make
                     // the whole line tapable for unfolding"). Static, where
                     // index.css positions every button on a touch screen:
-                    // its areas reach out to the lines' box, not its own.
-                    className="static -ml-0.5 grid size-4 shrink-0 place-items-center text-tint outline-none before:absolute before:inset-0 before:content-[''] focus-visible:ring-2 focus-visible:ring-ring"
+                    // its areas reach out to the lines' box, not its own; and
+                    // twelve over it, into the room above the field, where the
+                    // arrow's 44 points, round its line, reach (the iOS
+                    // audit's P1).
+                    className="static -ml-0.5 grid size-4 shrink-0 place-items-center text-tint outline-none before:absolute before:inset-x-0 before:-top-3 before:bottom-0 before:content-[''] focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     <ChevronRight className={cn("size-4 transition-transform", opened && "rotate-90")} aria-hidden />
                   </button>
