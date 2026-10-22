@@ -5008,6 +5008,16 @@
       "Leg": {
         "description": "One dead-reckoning leg. `wind` is None when no winds-aloft station\nis near enough, which is not the same as calm: groundspeed then falls\nback to true airspeed. groundspeed/ETE/fuel are None when the wind\nexceeds true airspeed, i.e. the leg cannot be flown.\n\nThe true airspeed and fuel flow are the aeroplane's in the leg's own\nair (vfr.performance): its cruise figures are at a reference\naltitude on a standard day, and the forecast temperature at this\naltitude gives the density altitude they are flown at, at the power\nit allows -- the cruise power, or less where full throttle cannot\nmake it. `oat_c` is None where no forecast temperature was near: a\nstandard day is assumed there.",
         "properties": {
+          "airway": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AirwayAltitudes"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "altitude_ft": {
             "title": "Altitude Ft",
             "type": "number"
@@ -6208,6 +6218,17 @@
       },
       "NavLogLeg": {
         "properties": {
+          "airway": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AirwayAltitudes"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
           "altitude_ft": {
             "title": "Altitude Ft",
             "type": "number"

@@ -809,7 +809,7 @@ def flown_legs(r: Route, runs: list[HopRun], outcome: Flown, own: dict[str, floa
     flights = r.flights
     for k, flight in enumerate(flights):
         hops = len(flight.idents) - 1
-        legs = [leg for legs in outcome.hop_legs[at:at + hops] for leg in legs]
+        legs = [leg for i, legs in enumerate(outcome.hop_legs[at:at + hops], start=at) for leg in on_airway(legs, r.airports[i + 1])]
         fix_list = [fix for k, run in enumerate(runs[at:at + hops]) for fix in (run.fixes if k == 0 else run.fixes[1:])]
         approach = approach_end(flight, drawn or [], legs[-1]["altitude_ft"] if legs else None)
         if approach:
@@ -821,6 +821,14 @@ def flown_legs(r: Route, runs: list[HopRun], outcome: Flown, own: dict[str, floa
             out[-1] = {**out[-1], "ground_min": ground_min_at(ground, flight.dest_ident)}
         at += hops
     return out
+
+
+def on_airway(legs: list[dict], end: dict) -> list[dict]:
+    """A hop's legs, each carrying the airway segment the hop flies, where
+    it is one: the route's point it ends at holds the segment flown into it
+    (common.with_airways), and every leg of the hop is along it."""
+    segment = end.get("airway")
+    return [{**leg, "airway": segment} for leg in legs] if segment else legs
 
 
 def _where(ident: str) -> str | None:

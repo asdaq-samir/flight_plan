@@ -87,6 +87,9 @@ test("under IFR an airway in the route is flown fix by fix, its published MEA th
   const log = page.getByRole("table", { name: /Navigation log from/i });
   await expect(log).toContainText("CORIR", { timeout: slow(90000) });
   await expect(log).toContainText("OSH");
+  // The airway and its published altitudes on the rail where it is
+  // joined, as a paper IFR log's route column has them.
+  await expect(log.getByTestId("navlog-airway").first()).toContainText(/^V191 · (GNSS )?MEA [\d,]+/);
   await closeNavLog(page);
   await controlsInSight(page);
   const why = page.getByTestId("altitude-why");
