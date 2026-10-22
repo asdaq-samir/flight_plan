@@ -606,7 +606,11 @@ export default function TabBar<T extends string>({ tabs, tab, over, title, onPic
       {upAt >= 0 && size?.size !== "peek" && (
         <TabGlass
           at={upAt} count={count} lifted={lens ? { x: lens.x, tab: lens.tab } : null}
-          transition={`left ${dir > 0 ? trail : lead}s ${EASE}, width ${dir < 0 ? trail : lead}s ${EASE}`}
+          // Slid under a finger, it keeps up with the finger: no easing
+          // behind it, which left it a fifth of a second back (the owner's
+          // "Dragging tab bubble is slow"); lifted, set down or moved to
+          // another tab, the bar's own pace.
+          transition={lens?.sliding ? "none" : `left ${dir > 0 ? trail : lead}s ${EASE}, width ${dir < 0 ? trail : lead}s ${EASE}`}
         />
       )}
       {upAt >= 0 && size?.size === "peek" && (
