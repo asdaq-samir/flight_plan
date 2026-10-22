@@ -7,7 +7,7 @@ import { closeTopCard, useOpenCards, type RouteCard } from "../lib/openCards";
 import { prefersReducedMotion } from "../lib/motion";
 import { TEXT } from "../lib/text";
 import TabGlass from "./TabGlass";
-import { GLASS_BUTTON, PanelSize, TabBarMinimized, useConsoleOpen, useTabsShown } from "./mapChrome";
+import { GLASS_CLEAR, PanelSize, TabBarMinimized, useConsoleOpen, useTabsShown } from "./mapChrome";
 
 /** One of a page's places, a tab of its bar: its word and its glyph. */
 export interface BarTab<T extends string> {
@@ -617,12 +617,11 @@ export default function TabBar<T extends string>({ tabs, tab, over, title, onPic
         <span
           aria-hidden="true" data-testid="tab-bubble" data-lifted={lens ? "" : undefined}
           className={cn(
-            // The buttons' glass (GLASS_BUTTON), as the tab up's in the
-            // sheet is (TabGlass) and every button on it, at the owner's
-            // pick of the sketches ("B"): bright at its top, its rim lit,
-            // on a soft shadow. Lifted, on a deeper shadow, as a lens
-            // raised over the bar.
-            "pointer-events-none absolute rounded-full", GLASS_BUTTON,
+            // The clear glass the tab up's is in the sheet (TabGlass,
+            // GLASS_CLEAR): bright at its top, its rim lit, on a soft
+            // shadow. Lifted, on a deeper shadow, as a lens raised over
+            // the bar.
+            "pointer-events-none absolute rounded-full", GLASS_CLEAR,
             lens && "shadow-[inset_0_0_0_1.5px_rgb(255_255_255/0.95),0_0_0_0.5px_rgb(0_0_0/0.06),0_4px_14px_rgb(0_0_0/0.18)] dark:shadow-[inset_0_0_0_1.5px_rgb(255_255_255/0.3),0_0_0_0.5px_rgb(0_0_0/0.5),0_4px_14px_rgb(0_0_0/0.6)]",
           )}
           style={lensStyle}

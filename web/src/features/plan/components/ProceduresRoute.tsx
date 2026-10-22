@@ -629,7 +629,9 @@ export default function ProceduresRoute({
               {/* The symbol is the field's menu, over the lines' tap that
                   opens them (z-10), at the owner's ask ("Use the airport
                   icon as the more button"). */}
-              <div className="relative z-10 flex w-7 shrink-0 justify-center">
+              {/* Centred on the two lines, at the owner's ask ("Center it
+                  on the two lines"): the column as tall as they are. */}
+              <div className="relative z-10 flex w-7 shrink-0 items-center justify-center">
                 {end.menu(
                   <span className="relative">
                     {mark}

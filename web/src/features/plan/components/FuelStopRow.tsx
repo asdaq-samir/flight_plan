@@ -90,7 +90,7 @@ export default function FuelStopRow({ stop, reason = "fuel", time, groundMin, us
               <button
                 type="button" aria-label={`${stop.ident}: other fields ${reason === "break" ? "on the way" : "with fuel"}`} data-testid="fuel-stop-other" data-point-mark=""
                 // The glass button an airport's symbol is (PointMenu).
-                className={cn("relative -mx-0.5 -mt-0.5 grid size-8 place-items-center rounded-full outline-none after:absolute after:-inset-1.5 after:content-[''] focus-visible:ring-2 focus-visible:ring-ring", GLASS_BUTTON)}
+                className={cn("relative -mx-1 grid size-9 place-items-center rounded-full outline-none after:absolute after:-inset-1 after:content-[''] focus-visible:ring-2 focus-visible:ring-ring", GLASS_BUTTON)}
               >
                 {pump}
               </button>
