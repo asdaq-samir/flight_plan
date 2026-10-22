@@ -119,22 +119,34 @@ export function PointMenuItems({ actions: a, kit, later, testId }: {
 }
 
 /**
- * A point's menu, the "⋯" at its row's end, at the owner's ask ("Each stop
- * can have a menu (set altitude, create a fix, hold here, More Info)",
- * "And the menu can include direct to"): shadcn's DropdownMenu, its items
- * the route box's pill's (PointMenuItems), behind the app's own round
- * button (RoundButton, 36 with a 20-point glyph, as every icon button is).
+ * A point's menu, at the owner's ask ("Each stop can have a menu (set
+ * altitude, create a fix, hold here, More Info)", "And the menu can
+ * include direct to"): shadcn's DropdownMenu, its items the route box's
+ * pill's (PointMenuItems). Behind the point's own mark in FPL's list
+ * (`face`), at the owner's ask ("Use the airport icon as the more button
+ * instead of having one to the right", 2026-10-22): the mark a button,
+ * its 44 points a pseudo-element round its 28; else the "⋯" (RoundButton,
+ * 36 with a 20-point glyph, as every icon button is).
  */
-export function PointMenu({ testId = "point-menu", ...actions }: PointActions & { testId?: string }) {
+export function PointMenu({ testId = "point-menu", face, ...actions }: PointActions & { testId?: string; face?: ReactNode }) {
   const { later, onCloseAutoFocus } = useAfterMenu();
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <RoundButton label={`${actions.ident}: more`} className="shrink-0 text-tint" data-testid={testId}>
-          <Ellipsis className="size-5" aria-hidden="true" />
-        </RoundButton>
+        {face ? (
+          <button
+            type="button" aria-label={`${actions.ident}: more`} data-testid={testId} data-point-mark=""
+            className="relative grid size-7 shrink-0 place-items-center rounded-full outline-none after:absolute after:-inset-2 after:content-[''] focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            {face}
+          </button>
+        ) : (
+          <RoundButton label={`${actions.ident}: more`} className="shrink-0 text-tint" data-testid={testId}>
+            <Ellipsis className="size-5" aria-hidden="true" />
+          </RoundButton>
+        )}
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="min-w-56" onCloseAutoFocus={onCloseAutoFocus}>
+      <DropdownMenuContent align={face ? "start" : "end"} className="min-w-56" onCloseAutoFocus={onCloseAutoFocus}>
         <PointMenuItems actions={actions} kit={DROPDOWN} later={later} testId={testId} />
       </DropdownMenuContent>
     </DropdownMenu>

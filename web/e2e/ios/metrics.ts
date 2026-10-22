@@ -130,7 +130,13 @@ export function hitAreaMisses(page: Page, scope = "body", size = 44): Promise<Hi
       const takers: string[] = [];
       const lost = probes.filter(([dx, dy]) => {
         const hit = document.elementFromPoint(cx + dx * half, cy + dy * half);
-        const taken = !own(hit) && !toast(hit) && !pinned(hit) && !over(hit);
+        // A field's disclosure (its arrow, data-disclosure) is tapped
+        // anywhere on the field's lines, its area stretched over them; the
+        // field's symbol beside it is the field's menu, at the owner's ask
+        // ("Use the airport icon as the more button"), so the arrow's left
+        // edge is the symbol's: the arrow is not crowded on the lines.
+        const mark = el.matches("[data-disclosure]") && !!hit?.closest("[data-point-mark]");
+        const taken = !own(hit) && !toast(hit) && !pinned(hit) && !over(hit) && !mark;
         if (taken && hit) takers.push(`${hit.tagName.toLowerCase()}${(hit as HTMLElement).dataset.testid ? `[${(hit as HTMLElement).dataset.testid}]` : ""} "${(hit.getAttribute("aria-label") ?? hit.textContent ?? "").trim().slice(0, 20)}"`);
         return taken;
       }).length;
@@ -315,7 +321,7 @@ export function componentFindings(page: Page): Promise<ComponentFinding[]> {
       // inside the field, which every field with words in it now wears.
       // Nor a list's disclosure (FPL's airport opened by the arrow by its
       // fuel), iOS's small chevron, at the owner's ask.
-      if (!svg || !on(button) || button.closest('header, .leaflet-marker-icon, [data-sonner-toaster], [data-slot="tabs-trigger"], [data-testid="place-runway-sketch"], [data-slot="clear-button"], [data-disclosure]')) continue;
+      if (!svg || !on(button) || button.closest('header, .leaflet-marker-icon, [data-sonner-toaster], [data-slot="tabs-trigger"], [data-testid="place-runway-sketch"], [data-slot="clear-button"], [data-disclosure], [data-point-mark]')) continue;
       const words = [...button.querySelectorAll("*"), button].some(n => [...n.childNodes].some(c => c.nodeType === 3 && c.textContent!.trim() && !(n as Element).closest(".sr-only")));
       // A button named by words laid over it -- a section's title over its
       // row-wide accordion trigger (AccordionSection) -- has words: it is
