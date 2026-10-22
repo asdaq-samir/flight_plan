@@ -727,11 +727,14 @@ export default function MapPanel({ label, top, controls, compact, children, stat
             ref={barRow}
             className={cn(
               // On a phone the tab up's name alone when a card from another
-              // tab is over it (TabBarMinimized), a row a little lower, as
-              // tall as the name's 44-point hit area, and four over what is
-              // under it: Back's and the name's hit areas reach three past
-              // the row, and a card under it took them (the iOS audit's P1).
-              "flex shrink-0 px-2", minimized ? "mb-1 min-h-11 pt-1.5" : "h-12", !barShown && "hidden",
+              // tab is over it (TabBarMinimized), a row as tall as the
+              // name's 44-point hit area, in the middle of the band from the
+              // sheet's edge to the line under it, the grabber's 16 in it,
+              // at the owner's ask ("center the title and the back/close
+              // button vertically in that top space"): sixteen under it over
+              // the line, as the grabber's are over it, the hit areas, three
+              // past the row, kept off a card under it (the iOS audit's P1).
+              "flex shrink-0 px-2", minimized ? "min-h-11 pb-4" : "h-12", !barShown && "hidden",
               // In the pill the pill's whole, round its grabber; out of it
               // the line under the sheet's first row.
               pillShape ? (fromBottom ? "mt-1.5 mb-1" : "mt-1 mb-1.5") : "border-b border-border/60",
