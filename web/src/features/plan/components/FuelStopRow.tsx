@@ -9,6 +9,12 @@ import type { FuelStop } from "../../../lib/api/types";
 import { TEXT } from "../../../lib/text";
 import { grouped } from "../../../lib/units";
 import { StopGlance } from "./StopServices";
+import { COURSE_MAGENTA } from "../../../lib/map/chartColors";
+
+/** The route's magenta line on through a stop suggested and not yet in the
+ *  route, dashed as its chip and its pump are (ProceduresRoute's
+ *  ROUTE_LINE, solid between the route's own points). */
+const SUGGESTED_LINE = { borderColor: COURSE_MAGENTA } as const;
 
 /** A field's place in words: its city, as the FAA spells it, in sentence
  *  case ("Knoxville"), else its name. */
@@ -79,7 +85,7 @@ export default function FuelStopRow({ stop, reason = "fuel", time, groundMin, us
   );
   return (
     <li className="relative flex gap-2.5" data-testid="fuel-stop" data-ident={stop.ident}>
-      {!last && <span aria-hidden="true" className="absolute top-3 bottom-0 left-[calc(0.875rem-1px)] w-0.5 bg-border" />}
+      {!last && <span aria-hidden="true" className="absolute top-3 bottom-0 left-[calc(0.875rem-1px)] w-0 border-l-2 border-dashed" style={SUGGESTED_LINE} />}
       {/* Its pump is its menu of the other fields, as an airport's symbol
           is its menu (the owner's "Use the airport icon as the more
           button instead of having one to the right"). */}
@@ -160,7 +166,7 @@ export default function FuelStopRow({ stop, reason = "fuel", time, groundMin, us
 export function FuelStopsAdd({ count, onAdd, last, reason = "fuel" }: { count: number; onAdd: () => void; last: boolean; reason?: "fuel" | "break" }) {
   return (
     <li className="relative flex gap-2.5">
-      {!last && <span aria-hidden="true" className="absolute top-0 bottom-0 left-[calc(0.875rem-1px)] w-0.5 bg-border" />}
+      {!last && <span aria-hidden="true" className="absolute top-0 bottom-0 left-[calc(0.875rem-1px)] w-0 border-l-2 border-dashed" style={SUGGESTED_LINE} />}
       <div className="w-7 shrink-0" />
       <div className="min-w-0 flex-1 pb-4">
         <button
