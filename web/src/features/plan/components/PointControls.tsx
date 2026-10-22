@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { ArrowUp, Crosshair, Ellipsis, Info, Mountain, MoveUpRight, MoveVertical, Pencil, Repeat2, Trash2 } from "lucide-react";
 import { cn } from "cn";
+import { GLASS_BUTTON } from "../../../components/mapChrome";
 import RoundButton from "../../../components/RoundButton";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "../../../components/ui/dropdown-menu";
 import { DROPDOWN, useAfterMenu, type MenuKit } from "./pointMenu";
@@ -136,7 +137,12 @@ export function PointMenu({ testId = "point-menu", face, ...actions }: PointActi
         {face ? (
           <button
             type="button" aria-label={`${actions.ident}: more`} data-testid={testId} data-point-mark=""
-            className="relative grid size-7 shrink-0 place-items-center rounded-full outline-none after:absolute after:-inset-2 after:content-[''] focus-visible:ring-2 focus-visible:ring-ring"
+            // A round glass button round the symbol, as the app's other
+            // buttons are, so it reads as one, at the owner's pick (option A,
+            // 2026-10-22: "make the airport icons actually look like
+            // selectable buttons"): 32 round its 24, its 44 a pseudo-element,
+            // centred on the route's line as the bare symbol was.
+            className={cn("relative -mx-0.5 -mt-0.5 grid size-8 shrink-0 place-items-center rounded-full outline-none after:absolute after:-inset-1.5 after:content-[''] focus-visible:ring-2 focus-visible:ring-ring", GLASS_BUTTON)}
           >
             {face}
           </button>

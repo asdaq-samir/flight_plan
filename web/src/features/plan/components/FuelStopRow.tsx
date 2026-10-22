@@ -1,5 +1,6 @@
 import { Fuel, Mountain } from "lucide-react";
 import { cn } from "cn";
+import { GLASS_BUTTON } from "../../../components/mapChrome";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "../../../components/ui/dropdown-menu";
@@ -79,7 +80,8 @@ export default function FuelStopRow({ stop, time, groundMin, usableGal, choices,
             <DropdownMenuTrigger asChild>
               <button
                 type="button" aria-label={`${stop.ident}: other fields with fuel`} data-testid="fuel-stop-other" data-point-mark=""
-                className="relative grid size-7 place-items-center rounded-full outline-none after:absolute after:-inset-2 after:content-[''] focus-visible:ring-2 focus-visible:ring-ring"
+                // The glass button an airport's symbol is (PointMenu).
+                className={cn("relative -mx-0.5 -mt-0.5 grid size-8 place-items-center rounded-full outline-none after:absolute after:-inset-1.5 after:content-[''] focus-visible:ring-2 focus-visible:ring-ring", GLASS_BUTTON)}
               >
                 {pump}
               </button>
