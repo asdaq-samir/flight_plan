@@ -201,7 +201,7 @@ test("an approach puts its field's runway on its own, and another is let only wh
     if (url.pathname.endsWith("/KDLH/procedures/SKETC1")) return route.fulfill({ json: ARRIVAL_DRAWN });
     return route.fulfill({ json: { airport: "C81", cycle: "261001", procedures: [] } });
   });
-  await page.goto("/app/plan?dep=C81&dest=KDLH&pattern=KDLH:27");
+  await page.goto("/app/plan?dep=C81&dest=KDLH&pattern=KDLH:27&auto=-");
   await settle(page);
   await openTab(page, "Nav Log");
   const procedures = page.getByTestId("procedures");
@@ -305,7 +305,7 @@ test("the destination's runway into the wind is picked as the route comes in, an
  * scrolled sideways.
  */
 test("a field typed as ORD is KORD, its arrivals offered and its runways one line", async ({ page }) => {
-  await page.goto("/app/plan?dep=C81&dest=ORD&pattern=ORD:9L");
+  await page.goto("/app/plan?dep=C81&dest=ORD&pattern=ORD:9L&auto=-");
   await expect(page).toHaveURL(/[?&]dest=KORD(&|$)/, { timeout: slow(20000) });
   await expect(page).toHaveURL(/[?&]pattern=[^&]*KORD(%3A|:)9L(%2C|,|&|$)/);
   await settle(page);

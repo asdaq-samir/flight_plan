@@ -40,7 +40,8 @@ test("a runway picked into an earlier wind follows the wind, where one the pilot
   // KABQ's 3, picked on a northerly, stood against the 180° the field then
   // reported (the owner's screenshot, 2026-10-21): picked into the wind
   // (`auto`), Duluth's 27 goes to 09 into the easterly; picked by the
-  // pilot, it stays.
+  // pilot, it stays; and an address from before `auto`, its runway
+  // picked again for the wind.
   await easterly(page);
   await page.goto(`/app/plan?dep=C81&dest=KDLH&depart=${depart()}&pattern=KDLH%3A27&auto=land%3AKDLH`);
   await settle(page);
@@ -49,10 +50,19 @@ test("a runway picked into an earlier wind follows the wind, where one the pilot
   await expect(kdlh.getByRole("radio", { name: /^Runway 9, into the wind/ })).toBeChecked({ timeout: slow(60_000) });
   await expect(page).toHaveURL(/[?&]pattern=([^&]*%2C)?KDLH%3A9(%2C|&|$)/);
 
-  await page.goto(`/app/plan?dep=C81&dest=KDLH&depart=${depart()}&pattern=KDLH%3A27`);
+  // Picked by the pilot: an address that says none was picked for the
+  // wind (auto "-"); one from before `auto` has its runways picked again
+  // for the wind (the owner's "repick runways for best winds").
+  await page.goto(`/app/plan?dep=C81&dest=KDLH&depart=${depart()}&pattern=KDLH%3A27&auto=-`);
   await settle(page);
   await openTab(page, "Nav Log");
   await expect(kdlh.getByTestId("field-wind")).toContainText("090° 14 kt", { timeout: slow(60_000) });
   await expect(kdlh.getByRole("radio", { name: /^Runway 27/ })).toBeChecked();
   await expect(page).not.toHaveURL(/land%3AKDLH/);
+
+  await page.goto(`/app/plan?dep=C81&dest=KDLH&depart=${depart()}&pattern=KDLH%3A27`);
+  await settle(page);
+  await openTab(page, "Nav Log");
+  await expect(kdlh.getByRole("radio", { name: /^Runway 9, into the wind/ })).toBeChecked({ timeout: slow(60_000) });
+  await expect(page).toHaveURL(/[?&]auto=[^&]*land%3AKDLH/);
 });
