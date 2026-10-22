@@ -388,13 +388,26 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const pickedPatterns = useMemo(() => patternsOf(patternParam), [patternParam]);
   // The pattern just picked, for the map to go to it.
   const [patternFocus, setPatternFocus] = useState<string | null>(null);
-  const setPattern = useCallback((ident: string, end: string | null) => {
+  // A runway picked at a field, to land on (`pattern`) or to leave from
+  // (`takeoff`): by the pilot, or for them into the wind (ProceduresRoute).
+  // One picked into the wind is named in `auto` ("land:KABQ,takeoff:KEVU")
+  // and follows the wind as it changes, until the pilot picks there: KABQ's
+  // runway 3, picked on an earlier northerly, stood against the 180° 7 kt
+  // the field then reported (the owner's screenshot, 2026-10-21).
+  const autoParam = searchParams.get("auto");
+  const autoPicked = useMemo(() => new Set((autoParam ?? "").split(",").filter(Boolean)), [autoParam]);
+  const pickRunway = useCallback((which: "pattern" | "takeoff", ident: string, end: string | null, byWind: boolean) => {
     setSearchParams(prev => {
-      const picked = patternsOf(prev.get("pattern"));
+      const picked = patternsOf(prev.get(which));
       if (end) picked.set(ident, end); else picked.delete(ident);
-      return patched(prev, { pattern: picked.size ? patternsParam(picked) : null });
+      const auto = new Set((prev.get("auto") ?? "").split(",").filter(Boolean));
+      const key = `${which === "pattern" ? "land" : "takeoff"}:${ident}`;
+      if (byWind && end) auto.add(key); else auto.delete(key);
+      return patched(prev, { [which]: picked.size ? patternsParam(picked) : null, auto: auto.size ? [...auto].join(",") : null });
     }, { replace: true });
   }, [setSearchParams]);
+  const setPattern = useCallback((ident: string, end: string | null) => pickRunway("pattern", ident, end, false), [pickRunway]);
+  const preselectPattern = useCallback((ident: string, end: string) => pickRunway("pattern", ident, end, true), [pickRunway]);
   // Picked by the pilot, the map goes to it; picked for them into the wind
   // as the route comes in (ProceduresRoute), the map stays on the route.
   const pickPattern = useCallback((ident: string, end: string | null) => {
@@ -407,13 +420,8 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // The pattern drawn at a stop stays the landing's.
   const takeoffParam = searchParams.get("takeoff");
   const pickedTakeoffs = useMemo(() => patternsOf(takeoffParam), [takeoffParam]);
-  const setTakeoff = useCallback((ident: string, end: string | null) => {
-    setSearchParams(prev => {
-      const picked = patternsOf(prev.get("takeoff"));
-      if (end) picked.set(ident, end); else picked.delete(ident);
-      return patched(prev, { takeoff: picked.size ? patternsParam(picked) : null });
-    }, { replace: true });
-  }, [setSearchParams]);
+  const setTakeoff = useCallback((ident: string, end: string | null) => pickRunway("takeoff", ident, end, false), [pickRunway]);
+  const preselectTakeoff = useCallback((ident: string, end: string) => pickRunway("takeoff", ident, end, true), [pickRunway]);
   // The instrument procedures picked for the route's fields, kept in the
   // address too: "KBUR:I08-Y:LAX" (lib/procedures).
   const procedureParam = searchParams.get("procs");
@@ -1729,7 +1737,8 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const routeList = useMemo(() => (
     <ProceduresRoute
       airports={procedureAirports} rows={routeRows} depart={depart} weather={metarColour}
-      picked={pickedPatterns} onPick={pickPattern} onPreselect={setPattern} takeoffs={pickedTakeoffs} onTakeoff={setTakeoff} fit={runwayFitInputs}
+      picked={pickedPatterns} onPick={pickPattern} onPreselect={preselectPattern} takeoffs={pickedTakeoffs} onTakeoff={setTakeoff}
+      onPreselectTakeoff={preselectTakeoff} autoPicked={autoPicked} fit={runwayFitInputs}
       procedures={pickedProcedures} inRoute={routeProcedures} onProcedures={pickProcedures} onPreview={previewProcedure}
       at={proceduresAt} onAt={setProceduresShown} crossings={crossings} onFix={showFix} onDepart={changeDepart} ground={ground} onGround={setGround}
       pointAltitude={altitudeAt} onPointAltitude={setPointAltitude} directTo={directParam} onDirectTo={directToPoint}
@@ -1738,7 +1747,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       onCharts={() => { if (planned.dest) { setApproachesOf(planned.dest); selectPlace(planned.dest); } }}
       chartsDisabled={!planned.dest || noApproaches}
     />
-  ), [procedureAirports, routeRows, depart, metarColour, pickedPatterns, pickPattern, setPattern, pickedTakeoffs, setTakeoff, runwayFitInputs, pickedProcedures, routeProcedures, pickProcedures, crossings, showFix,
+  ), [procedureAirports, routeRows, depart, metarColour, pickedPatterns, pickPattern, preselectPattern, pickedTakeoffs, setTakeoff, preselectTakeoff, autoPicked, runwayFitInputs, pickedProcedures, routeProcedures, pickProcedures, crossings, showFix,
     ground, setGround, previewProcedure, proceduresAt, setProceduresShown, planned.dest, selectPlace, noApproaches, changeDepart,
     altitudeAt, setPointAltitude, directParam, directToPoint, removeStop, insertStopAfter, holds, setHold, holdAsk, routePoints, planned.stops.length,
     fuelStops, keepFuelStops, tankFigures]);

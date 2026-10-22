@@ -2,14 +2,15 @@ import type { FlightSummary } from "./api/types";
 
 /** The address's keys for what the pilot picked for a flight beyond its
  *  route: the altitude flown (a pilot's own, the wheel's, or a plan), the
- *  runways, procedures and crossing altitudes, the times on the ground,
+ *  runways (and which were picked into the wind, `auto`, to follow it
+ *  still), procedures and crossing altitudes, the times on the ground,
  *  the holds, the Class B avoided and its detour, the IFR alternate and a
  *  local flight's time aloft. A saved flight (springboot's
  *  SaveFlightRequest.PICK, the same keys) and a recent route keep them, so
  *  one opened again is planned as it was: they kept the route alone, and
  *  its totals differed from the ones filed (the 20 Oct audit). */
 export const PICK_KEYS = [
-  "altitude_ft", "altitude_nearest", "altitude_choice", "pattern", "takeoff", "procs", "cross", "ground", "holds",
+  "altitude_ft", "altitude_nearest", "altitude_choice", "pattern", "takeoff", "auto", "procs", "cross", "ground", "holds",
   "class_b", "class_b_via", "alternate", "local_min",
 ] as const;
 
