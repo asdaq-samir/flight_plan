@@ -39,7 +39,7 @@ export function PanelCard({ testId, children }: { testId: string; children: Reac
   return (
     <div
       ref={card}
-      className="relative min-h-0 flex-1 overflow-y-auto px-4 pt-[var(--corner-inset,0.75rem)] pb-[max(1rem,env(safe-area-inset-bottom))] [scrollbar-width:none] print:hidden"
+      className="under-head relative min-h-0 flex-1 overflow-y-auto px-4 [--under-pad:var(--corner-inset,0.75rem)] pb-[max(1rem,env(safe-area-inset-bottom))] [scrollbar-width:none] print:hidden"
       data-testid={testId}
     >
       {children}

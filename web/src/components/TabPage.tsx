@@ -33,8 +33,9 @@ export default function TabPage({ testId, headless = false, scroll = true, child
       data-tab-page="" data-testid={testId}
       className={cn(
         "flex flex-col px-4 pb-4 [scrollbar-width:none]", TAB_PAGE_GAP,
-        scroll && "min-h-0 flex-1 overflow-y-auto",
-        headless ? "pt-1" : "pt-2",
+        // Scrolling, it runs on up under the panel's head (under-head).
+        scroll ? "under-head min-h-0 flex-1 overflow-y-auto" : headless ? "pt-1" : "pt-2",
+        headless ? "[--under-pad:0.25rem]" : "[--under-pad:0.5rem]",
       )}
     >
       {children}

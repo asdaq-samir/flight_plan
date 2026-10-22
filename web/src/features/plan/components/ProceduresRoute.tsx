@@ -5,6 +5,7 @@ import { Check, ChevronLeft, ChevronRight, Fuel, PlaneLanding, PlaneTakeoff, Win
 import { cn } from "cn";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
 import CloseButton from "../../../components/CloseButton";
+import { GLASS_BUTTON, GLASS_PICKED } from "../../../components/mapChrome";
 import { Button } from "../../../components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "../../../components/ui/toggle-group";
 import { ResponsivePopover, ResponsivePopoverAnchor, ResponsivePopoverContent } from "../../../components/ResponsivePopover";
@@ -1135,9 +1136,10 @@ function fieldsOpenAtFirst(): boolean {
 }
 
 
+// A runway's chip the buttons' glass, the one picked tinted glass, at the
+// owner's pick of the sketches ("B").
 const CHIP = cn(
-  "relative h-8 min-w-11 rounded-full bg-foreground/8 px-3 font-normal text-foreground hover:bg-foreground/12",
-  "data-[state=on]:bg-primary data-[state=on]:font-semibold data-[state=on]:text-primary-foreground hover:data-[state=on]:bg-primary",
+  "relative h-8 min-w-11 rounded-full px-3 font-normal", GLASS_BUTTON, GLASS_PICKED,
   "after:absolute after:-inset-1.5 after:content-['']",
   TEXT.detail,
 );
