@@ -520,25 +520,35 @@ def join_figures(figures_by_hop: list[tuple], lengths: list[float]) -> tuple:
     each hop's: every altitude any hop offers, each hop at it or, where it
     does not offer it, at its own nearest (the lower on a tie), as a pilot
     who picks it flies that hop; times and fuel summed, the wind weighed
-    by each hop's length. One hop's as they are."""
+    by each hop's length. One hop's as they are.
+
+    A hop with no legal altitude to offer (a pilot's own altitude flown
+    on it, legal or not, with its cautions) leaves the others' altitudes
+    on the profile's ruler, which went blank for the whole route (the
+    owner's C81 - KEVU - KGCK - KABQ at 6,000 ft, its last hop with none
+    over the Sangre de Cristos); their times and fuel unknown, as that
+    hop's are, and none of them flown everywhere."""
     if len(figures_by_hop) == 1:
         return figures_by_hop[0]
-    if any(not figures for figures in figures_by_hop):
+    if all(not figures for figures in figures_by_hop):
         return ()
+    gap = any(not figures for figures in figures_by_hop)
+    offered = [figures for figures in figures_by_hop if figures]
+    offered_nm = [n for figures, n in zip(figures_by_hop, lengths) if figures]
     joined = []
-    for target in sorted({f.altitude_ft for figures in figures_by_hop for f in figures}):
-        mine = [min(figures, key=lambda f: (abs(f.altitude_ft - target), f.altitude_ft)) for figures in figures_by_hop]
+    for target in sorted({f.altitude_ft for figures in offered for f in figures}):
+        mine = [min(figures, key=lambda f: (abs(f.altitude_ft - target), f.altitude_ft)) for figures in offered]
 
         def total(attr, mine=mine):
             values = [getattr(f, attr) for f in mine]
-            return None if any(v is None for v in values) else round(sum(values), 1)
+            return None if gap or any(v is None for v in values) else round(sum(values), 1)
 
-        winds = [(f.tailwind_kt, n) for f, n in zip(mine, lengths) if f.tailwind_kt is not None]
+        winds = [(f.tailwind_kt, n) for f, n in zip(mine, offered_nm) if f.tailwind_kt is not None]
         weight = sum(n for _, n in winds)
         joined.append(AltitudeFigure(
             altitude_ft=target, ete_min=total("ete_min"), fuel_gal=total("fuel_gal"),
             tailwind_kt=round(sum(t * n for t, n in winds) / weight, 1) if weight else None,
-            everywhere=all(f.everywhere and f.altitude_ft == target for f in mine),
+            everywhere=not gap and all(f.everywhere and f.altitude_ft == target for f in mine),
         ))
     return tuple(joined)
 
