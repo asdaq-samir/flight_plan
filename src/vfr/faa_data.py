@@ -465,6 +465,49 @@ def airport_contact(ident: str, cache_dir) -> dict:
     return contacts.get(ident.strip().upper(), {"phone": None, "address": None})
 
 
+#: NASR's repair codes a pilot reads as service: "NONE" and blank are none.
+_REPAIRS = {"MAJOR": "major", "MINOR": "minor"}
+NO_SERVICES = {"fuel_types": [], "landing_fee": None, "tie_down": False, "hangar": False,
+               "airframe_repair": None, "powerplant_repair": None, "oxygen": False}
+
+
+@lru_cache(maxsize=2)
+def _services_of(base: str, _mtime: float) -> dict:
+    apt = _read_apt_base_cached(base, _mtime).fillna("")
+    by_id: dict = {}
+    for row in apt.to_dict("records"):
+        flag = row["LNDG_FEE_FLAG"].strip()
+        services = {
+            "fuel_types": [t.strip() for t in row["FUEL_TYPES"].split(",") if t.strip()],
+            "landing_fee": True if flag == "Y" else False if flag == "N" else None,
+            "tie_down": row["TRNS_STRG_TIE_FLAG"].strip() == "Y",
+            "hangar": row["TRNS_STRG_HGR_FLAG"].strip() == "Y",
+            "airframe_repair": _REPAIRS.get(row["AIRFRAME_REPAIR_SER_CODE"].strip()),
+            "powerplant_repair": _REPAIRS.get(row["PWR_PLANT_REPAIR_SER"].strip()),
+            "oxygen": any(row[c].strip() not in ("", "NONE") for c in ("BOTTLED_OXY_TYPE", "BULK_OXY_TYPE")),
+        }
+        by_id[row["ARPT_ID"].strip().upper()] = services
+        if row["ICAO_ID"].strip():
+            by_id.setdefault(row["ICAO_ID"].strip().upper(), services)
+    return by_id
+
+
+def airport_services(ident: str, cache_dir) -> dict:
+    """What a field offers on the ground, as its Chart Supplement entry
+    lists it (NASR's APT_BASE): the fuel it sells, whether it charges a
+    landing fee (None where the FAA does not say), tie-downs and hangars
+    for a transient, airframe and engine repair ("major", "minor" or
+    None) and oxygen, by its FAA or ICAO identifier. Nothing where the
+    file cannot be had: a card without them, not a card that failed."""
+    try:
+        base = ensure_nasr_file("APT_BASE.csv", cache_dir)
+        services = _services_of(str(base), base.stat().st_mtime)
+    except Exception:
+        log.warning("No APT_BASE.csv for airport services; %s gets none", ident, exc_info=True)
+        return dict(NO_SERVICES)
+    return services.get(ident.strip().upper(), dict(NO_SERVICES))
+
+
 # NASR's FREQ_USE for what a VFR pilot calls on, as the card's types
 # (lib/frequencies) name them; the rest -- emergency, military command
 # posts, operations, dispatch, the navaids' own -- are left off.

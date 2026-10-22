@@ -44,6 +44,9 @@ WORDS = {
 KEEP = {
     "CTAF", "UNICOM", "AWOS", "ASOS", "ATIS", "MIRL", "MIRLS", "HIRL", "LIRL", "REIL", "REILS", "PAPI", "PAPIS", "VASI",
     "MALSR", "MALSF", "MALS", "ODALS", "ALSF", "SSALR", "RLLS", "PCL", "FSS", "ATC", "GCO", "AIM", "AGL", "MSL", "VFR", "IFR",
+    # The fuel and who sells it, as the pump and the sign say: 100LL's
+    # letters, the FBO.
+    "LL", "FBO",
 }
 
 # Which of an airport's remarks are about its lights, and which about the
@@ -108,6 +111,41 @@ def airport_notes(faa_id: str, cache_dir=FAA_CACHE_DIR) -> dict:
         "pilot_controlled": any(_ACTIVATED.search(t.upper()) for t in lighting),
         "explicit_clicks": any(_EXPLICIT_CLICKS.search(t.upper()) for t in lighting),
     }
+
+
+# Which remarks are about the fuel -- the FAA's own on a fuel type, and
+# any that names fuel or the FBO that sells it ("FOR FBO HRS OF OPN CTC
+# (785) 628-8881. FOR AFT HRS FUEL CTC FBO.") -- and which about a way
+# into town: a courtesy car, as 49 fields' remarks offer one.
+_FUEL = re.compile(r"\b(FUEL|FUELING|100LL|JET A|SELF[- ]SERVE?|SELF[- ]SVC|FBO)\b")
+_CAR = re.compile(r"\b(COURTESY|CRS|CREW)\s+CARS?\b")
+_SERVICE_WORDS = {
+    "SVC": "service", "SVCS": "service", "OPN": "operation", "PSGR": "passenger", "PROVDD": "provided",
+    "SKED": "scheduled", "UNSKED": "unscheduled", "AMGR": "the airport manager", "ATNDD": "attended",
+    "ATNDT": "attendant", "THRU": "through",
+}
+
+
+def service_notes(faa_id: str, cache_dir=FAA_CACHE_DIR) -> dict:
+    """What an airport's remarks say about its services, in plain English
+    (`plain`): `fuel`, each about its fuel and its FBO's hours; `ground`,
+    each that offers a courtesy car; and `courtesy_car`, whether one does."""
+    remarks = _all_remarks(cache_dir).get(faa_id.strip().upper(), [])
+    fuel, ground = [], []
+    for column, text, _ in remarks:
+        upper = text.upper()
+        if _CAR.search(upper):
+            ground.append(text)
+        elif column == "FUEL_TYPE" or _FUEL.search(upper):
+            fuel.append(text)
+
+    def spoken(text: str) -> str:
+        # "O/R" is on request, as KRPD's "AIRPORT ATNDD OTHER HOURS O/R THRU FBO."
+        text = re.sub(r"\bO/R\b", "ON REQUEST", text.upper())
+        text = re.sub(r"\b[A-Z]+\b", lambda m: _SERVICE_WORDS.get(m.group(0), m.group(0)), text)
+        return re.sub(r"\bcrs car", "courtesy car", plain(text), flags=re.IGNORECASE)
+
+    return {"fuel": [spoken(t) for t in fuel], "ground": [spoken(t) for t in ground], "courtesy_car": bool(ground)}
 
 
 # Which part of a runway is turf, where the remarks say: the Chart

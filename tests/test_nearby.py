@@ -1,0 +1,55 @@
+"""vfr.nearby: places to eat, sleep and hire a car near a field, from
+Overture Maps' places."""
+import json
+
+import pytest
+
+from vfr import nearby
+
+RESTAURANT = {"primary": "american_restaurant", "hierarchy": ["food_and_drink", "restaurant", "american_restaurant"]}
+BAR = {"primary": "bar", "hierarchy": ["food_and_drink", "alcoholic_beverage_venue", "bar"]}
+MOTEL = {"primary": "motel", "hierarchy": ["lodging", "hotel", "motel"]}
+HOLDING = {"primary": "lodging", "hierarchy": ["lodging"]}
+RENTAL = {"primary": "car_rental_service", "hierarchy": ["services_and_business", "rental_service", "car_rental_service"]}
+
+
+@pytest.mark.parametrize("taxonomy, basic, kind", [
+    (RESTAURANT, "restaurant", "food"),
+    # A pilot flying on may not within 8 hours of a drink (14 CFR 91.17).
+    (BAR, "bar", None),
+    (MOTEL, "hotel", "lodging"),
+    # The hotels' holding companies, filed as bare lodging.
+    (HOLDING, "lodging", None),
+    (RENTAL, "rental_service", "cars"),
+    (None, None, None),
+])
+def test_what_a_place_is_for_a_pilot(taxonomy, basic, kind):
+    assert nearby._kind_of(taxonomy, basic) == kind
+
+
+def test_a_category_in_words():
+    assert nearby._words("american_restaurant") == "American restaurant"
+    assert nearby._words("car_rental_service") == "Car rental"
+
+
+def test_a_fields_places_are_read_once_a_release_and_kept(tmp_path, monkeypatch):
+    reads = []
+    monkeypatch.setattr(nearby, "latest_release", lambda: "2026-10-21.0")
+    monkeypatch.setattr(nearby, "_read", lambda lat, lon, release: reads.append(release) or {"food": [], "lodging": [], "cars": []})
+    assert nearby.around("khys", 38.8, -99.3, tmp_path) == {"food": [], "lodging": [], "cars": []}
+    nearby.around("KHYS", 38.8, -99.3, tmp_path)
+    assert reads == ["2026-10-21.0"]
+    assert json.loads((tmp_path / "2026-10-21.0" / "KHYS.json").read_text()) == {"food": [], "lodging": [], "cars": []}
+
+
+def test_an_older_releases_answer_where_overture_cannot_be_read(tmp_path, monkeypatch):
+    (tmp_path / "2026-09-23.0").mkdir()
+    (tmp_path / "2026-09-23.0" / "KHYS.json").write_text('{"food": [], "lodging": [], "cars": []}')
+    monkeypatch.setattr(nearby, "latest_release", lambda: "2026-10-21.0")
+
+    def unreadable(lat, lon, release):
+        raise OSError("S3 is out of reach")
+    monkeypatch.setattr(nearby, "_read", unreadable)
+    assert nearby.around("KHYS", 38.8, -99.3, tmp_path) == {"food": [], "lodging": [], "cars": []}
+    with pytest.raises(nearby.NearbyUnavailable):
+        nearby.around("KGCK", 37.9, -100.7, tmp_path)

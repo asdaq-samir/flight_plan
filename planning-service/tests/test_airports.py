@@ -5,7 +5,7 @@ import gzip
 import json
 
 from fastapi.testclient import TestClient
-from vfr import airports, airspace, faa_data, geocode, glmp, pattern, publications, remarks, weather
+from vfr import airports, airspace, faa_data, geocode, glmp, nearby, pattern, publications, remarks, weather
 
 from app.main import app
 
@@ -544,3 +544,32 @@ def test_a_fields_forecast_wind_for_a_time_is_its_tafs_or_none(monkeypatch):
     monkeypatch.setattr(weather, "forecast_wind", lambda lat, lon, at, ident: None)
     assert client.get("/api/airport/KDLH/forecast-wind", params={"at": "2026-09-20T07:00:00Z"}).json() is None
     assert client.get("/api/airport/KXXX/forecast-wind", params={"at": "2026-09-20T07:00:00Z"}).status_code == 404
+
+
+def test_a_fields_services_are_the_faas_and_the_places_near_it(monkeypatch):
+    stub_place(monkeypatch)
+    monkeypatch.setattr(faa_data, "airport_services", lambda ident, cache_dir: {
+        **faa_data.NO_SERVICES, "fuel_types": ["100LL", "A"], "tie_down": True})
+    monkeypatch.setattr(remarks, "service_notes", lambda faa_id: {
+        "fuel": ["24 hour self serve fuel."], "ground": ["Courtesy car available."], "courtesy_car": True}
+        if faa_id == "DLH" else {"fuel": [], "ground": [], "courtesy_car": False})
+    diner = {"name": "Sky Diner", "kind": "Diner", "distance_m": 300, "walk_min": 4, "phone": None, "lat": 46.84, "lon": -92.19}
+    monkeypatch.setattr(nearby, "around", lambda ident, lat, lon: {"food": [diner], "lodging": [], "cars": []})
+    body = client.get("/api/airport/KDLH/services").json()
+    assert body["fuel_types"] == ["100LL", "A"] and body["tie_down"] is True
+    # The remarks under the FAA's own identifier, DLH for KDLH.
+    assert body["fuel_notes"] == ["24 hour self serve fuel."] and body["courtesy_car"] is True
+    assert body["food"] == [diner] and body["nearby_unavailable"] is False
+
+
+def test_overture_out_of_reach_is_said_not_a_field_with_nothing_near(monkeypatch):
+    stub_place(monkeypatch)
+    monkeypatch.setattr(faa_data, "airport_services", lambda ident, cache_dir: dict(faa_data.NO_SERVICES))
+    monkeypatch.setattr(remarks, "service_notes", lambda faa_id: {"fuel": [], "ground": [], "courtesy_car": False})
+
+    def unreadable(ident, lat, lon):
+        raise nearby.NearbyUnavailable("S3 is out of reach")
+    monkeypatch.setattr(nearby, "around", unreadable)
+    body = client.get("/api/airport/KDLH/services").json()
+    assert body["nearby_unavailable"] is True and body["food"] == []
+    assert client.get("/api/airport/ZZZZ/services").status_code == 404

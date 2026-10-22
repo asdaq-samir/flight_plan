@@ -97,7 +97,7 @@ interface Props {
   onHoldPoint: (point: { lat: number; lon: number }) => void;
   /** The fuel stops the planner suggests (the totals' fuel_stops), pinned
    *  as Tesla pins its chargers on the way, a tap their field's card. */
-  fuelStops?: { ident: string; lat: number; lon: number }[];
+  fuelStops?: StopPin[];
 }
 
 /** A suggested fuel stop's pin: the caution's orange, the pump in white,
@@ -110,17 +110,32 @@ const FUEL_PIN = L.divIcon({
     + '<path d="M3 22h12"/><path d="M4 9h10"/><path d="M14 22V4a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v18"/><path d="M14 13h2a2 2 0 0 1 2 2v2a2 2 0 0 0 2 2a2 2 0 0 0 2-2V9.83a2 2 0 0 0-.59-1.42L18 5"/></g></svg>',
   iconSize: [30, 38], iconAnchor: [15, 37],
 });
+/** And a break's on a long flight the tanks hold (fuelstops.suggest_break):
+ *  the same pin, a cup in it (lucide's Coffee). */
+const BREAK_PIN = L.divIcon({
+  className: "",
+  html: '<svg width="30" height="38" viewBox="0 0 30 38" aria-hidden="true"><path d="M15 37C15 37 2 23.5 2 14a13 13 0 0 1 26 0c0 9.5-13 23-13 23z" fill="#d9480f" stroke="#fff" stroke-width="2"/>'
+    + '<g transform="translate(7.5 6.5) scale(0.62)" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">'
+    + '<path d="M10 2v2"/><path d="M14 2v2"/><path d="M6 2v2"/><path d="M16 8a1 1 0 0 1 1 1v8a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V9a1 1 0 0 1 1-1h14a4 4 0 1 1 0 8h-1"/></g></svg>',
+  iconSize: [30, 38], iconAnchor: [15, 37],
+});
 
-function FuelStopPins({ stops, onSelect }: { stops: { ident: string; lat: number; lon: number }[]; onSelect: (ident: string) => void }) {
+type StopPin = { ident: string; lat: number; lon: number; reason?: "fuel" | "break" };
+
+function FuelStopPins({ stops, onSelect }: { stops: StopPin[]; onSelect: (ident: string) => void }) {
   return stops.map(stop => <FuelStopPin key={stop.ident} stop={stop} onSelect={onSelect} />);
 }
 
-const FuelStopPin = memo(function FuelStopPin({ stop, onSelect }: { stop: { ident: string; lat: number; lon: number }; onSelect: (ident: string) => void }) {
+const FuelStopPin = memo(function FuelStopPin({ stop, onSelect }: { stop: StopPin; onSelect: (ident: string) => void }) {
   // Memoized, not a literal: see AirportsLayer.
   const handlers = useMemo(() => ({ click: () => onSelect(stop.ident) }), [onSelect, stop.ident]);
+  const isBreak = stop.reason === "break";
   return (
-    <Marker position={[stop.lat, stop.lon]} icon={FUEL_PIN} title={`Suggested fuel stop ${stop.ident}`} eventHandlers={handlers} zIndexOffset={500}>
-      <MapTooltip>{`${pointName(stop.ident)} · Fuel stop`}</MapTooltip>
+    <Marker
+      position={[stop.lat, stop.lon]} icon={isBreak ? BREAK_PIN : FUEL_PIN} title={`Suggested ${isBreak ? "stop" : "fuel stop"} ${stop.ident}`}
+      eventHandlers={handlers} zIndexOffset={500}
+    >
+      <MapTooltip>{`${pointName(stop.ident)} · ${isBreak ? "Break" : "Fuel stop"}`}</MapTooltip>
     </Marker>
   );
 });

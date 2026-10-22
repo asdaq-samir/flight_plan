@@ -290,6 +290,14 @@ export const airportQuery = (ident: string) => queryOptions({
   queryKey: ["airport", ident], queryFn: () => api.airport(ident), staleTime: 5 * 60_000, meta: { silent: true },
 });
 
+/** What a field offers on the ground (api.airportServices): the stop's
+ *  card's and a suggested stop's row's. The FAA's cycle and Overture's
+ *  monthly release change it, so it is good for the page's life; quiet,
+ *  the card saying in place what it could not have. */
+export const servicesQuery = (ident: string) => queryOptions({
+  queryKey: ["airport-services", ident], queryFn: () => api.airportServices(ident), staleTime: Infinity, meta: { silent: true },
+});
+
 /** An approach's plate placed on the map, and whether it publishes
  *  circling minimums (vfr.plates): the map's (PlateLayer) and the route's
  *  runway chips' (ProceduresRoute). A plate placed stays good for its

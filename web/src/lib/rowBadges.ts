@@ -13,6 +13,11 @@ export const BADGE = {
   rule: "#64748b",
   hazard: "#b42318",
   lights: "#a16207",
+  // A stop's services (StopServices): the fuel, a car, food, a bed.
+  fuel: "#b45309",
+  car: "#2563eb",
+  food: "#be185d",
+  lodging: "#7e3fb8",
 } as const;
 
 /** The consoles' rows -- the settings, the Personal tab's pages -- each

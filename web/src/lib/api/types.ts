@@ -83,6 +83,11 @@ export type AlternateCheck = Schemas["AlternateCheck"];
 export type ChartInfo = Schemas["ChartInfo"];
 export type AirportSearch = Schemas["AirportSearch"];
 export type AirportPlace = Schemas["AirportPlace"];
+/** What a field offers a pilot who lands there: the FAA's fuel, fees,
+ *  parking and repair, and Overture Maps' places to eat, sleep and hire a
+ *  car near it (vfr.nearby). */
+export type AirportServices = Schemas["AirportServices"];
+export type NearbyPlace = Schemas["NearbyPlace"];
 export type ForecastWind = Schemas["ForecastWind"];
 export type Metar = Schemas["Metar"];
 export type TerminalChart = Schemas["TerminalChart"];
