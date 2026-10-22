@@ -356,7 +356,7 @@ export default function RouteBox({
       // TEXT.row, whose 14 with a mouse would be under it on a narrow
       // window; 17 to a finger, a row's, and 14 from md up.
       className={cn(
-        "h-8 bg-transparent font-mono text-base uppercase outline-none placeholder:font-sans placeholder:normal-case placeholder:text-muted-foreground md:text-sm pointer-coarse:text-[1.0625rem]",
+        "h-7 bg-transparent font-mono text-base uppercase outline-none placeholder:font-sans placeholder:normal-case placeholder:text-muted-foreground md:text-sm pointer-coarse:text-[1.0625rem]",
         // The departure's field wide enough for its word: at a stop's width
         // it read "Departu".
         // After the last point, clear of it, as a field's words are of
@@ -515,7 +515,7 @@ export default function RouteBox({
                 typed, whose own clear is the one to see: two of them read
                 as one too many. */}
             {points.length > 0 && onClear && !typed && (
-              <ClearButton label="Clear the route" testId="route-box-clear" onClear={onClear} className="mt-[0.6875rem]" />
+              <ClearButton label="Clear the route" testId="route-box-clear" onClear={onClear} className="mt-2" />
             )}
             {/* Its own taps, not the box's room (isRoom), which types at the
                 route's end; ten under the lines, the clear's 44-point area
@@ -713,7 +713,10 @@ function Pill({ id, ident, waypoint, index, role, stopNumber, airspaceOf, metarC
     >
       <AirportPicker
         value={pointName(ident)} placeholder={label} ariaLabel={waypoint ? `${label}, a waypoint` : label} look="pill" fixes={role === "stop"}
-        className={cn("h-8 rounded-full px-1.5", look && "text-current", waypoint && "text-[#c0309f] dark:text-[#ec8cc4]")} onChange={onChange}
+        // 28 tall, as a fuel stop's and a procedure's chips are, at the
+        // owner's ask ("make the other airport pills as thin as the fuel
+        // airport pills"); a finger's 44 round it (index.css).
+        className={cn("h-7 rounded-full px-1.5", look && "text-current", waypoint && "text-[#c0309f] dark:text-[#ec8cc4]")} onChange={onChange}
         open={changing} onOpenChange={setChanging} onTap={onOpen}
       />
     </span>
