@@ -639,7 +639,7 @@ export default function TabBar<T extends string>({ tabs, tab, over, title, onPic
             aria-label={mark ? `${label}, ${mark === "stop" ? "warning" : "caution"}` : undefined}
             className={cn(
               // Over the bubble (positioned, so drawn after it), in the
-              // middle of the bar's 52 points.
+              // middle of the bar's 56 points.
               "relative flex min-w-0 flex-1 flex-col items-center justify-center gap-px rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring",
               // The others a darker grey, at the owner's pick of the tabs'
               // sizes ("A, plus D's bolder weight", 2026-10-22): they read

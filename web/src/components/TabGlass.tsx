@@ -5,12 +5,17 @@ import { useId, useLayoutEffect, useRef, useState, type CSSProperties } from "re
  * tab bar's looks (2e, 2026-10-22: "Let's try 2e first"): a stroke of
  * clear glass's lit rim along under the tabs, rising over the tab up --
  * its sides, round shoulders at the top, feet that flare down onto the
- * line -- the tab filled with clear glass, its light at the top. No grey
- * line under the bar: this is it. The tab slides with the tab up, the
+ * line -- the tab a bubble of clear glass, bright at its top and lit
+ * along its rim, standing off the card on a soft shadow. No grey line
+ * under the bar: this is it. Raised, not etched: a dark hairline under
+ * the rim read as a groove cut round the tab (the owner's "Why does the
+ * glass tint look etched than a bubble?"), so the shade is a soft blur
+ * outside it and the glass itself carries the light. The tab slides with the tab up, the
  * line opening under it, at the bar's own pace (`transition`).
  *
  * Its own height past the bar's top (the parent's -top-[3px]) leaves six
- * points of glass over the icon and four clear of the grabber; the feet
+ * points of glass over the icon and four clear of the grabber, in the
+ * sheet's 56-point bar; the feet
  * meet the line at the tab's own edges, so the line runs from the panel's
  * side to the tab and on from it to the other.
  */
@@ -47,29 +52,35 @@ export default function TabGlass({ at, count, transition }: {
     <div aria-hidden="true" data-testid="tab-bubble" className="pointer-events-none absolute inset-x-0 -top-[3px] bottom-0">
       {/* The line either side of the tab up, out to the panel's sides. */}
       <span
-        className="absolute bottom-0 -left-2 h-[1.5px] bg-white/95 shadow-[0_1px_0_rgb(60_60_67/0.16)] dark:bg-white/40 dark:shadow-[0_1px_0_rgb(0_0_0/0.55)]"
+        className="absolute bottom-0 -left-2 h-[1.5px] bg-white/90 shadow-[0_1px_3px_rgb(0_0_0/0.10)] dark:bg-white/30 dark:shadow-[0_1px_3px_rgb(0_0_0/0.5)]"
         style={{ ...moves, width: `calc(${at} * 100% / ${count} + 0.5rem)` }}
       />
       <span
-        className="absolute bottom-0 -right-2 h-[1.5px] bg-white/95 shadow-[0_1px_0_rgb(60_60_67/0.16)] dark:bg-white/40 dark:shadow-[0_1px_0_rgb(0_0_0/0.55)]"
+        className="absolute bottom-0 -right-2 h-[1.5px] bg-white/90 shadow-[0_1px_3px_rgb(0_0_0/0.10)] dark:bg-white/30 dark:shadow-[0_1px_3px_rgb(0_0_0/0.5)]"
         style={{ ...moves, left: `calc(${at + 1} * 100% / ${count})` }}
       />
       <div ref={cell} className="absolute inset-y-0" style={{ ...moves, left: `calc(${at} * 100% / ${count})`, width: `calc(100% / ${count})` }}>
         {w > 0 && (
           <svg
             width={w} height={h} viewBox={`0 0 ${w} ${h}`}
-            className="absolute inset-0 overflow-visible drop-shadow-[0_-1px_6px_rgb(0_0_0/0.10)] dark:drop-shadow-[0_-1px_8px_rgb(0_0_0/0.45)]"
+            className="absolute inset-0 overflow-visible drop-shadow-[0_2px_6px_rgb(0_0_0/0.14)] dark:drop-shadow-[0_2px_8px_rgb(0_0_0/0.55)]"
           >
             <defs>
+              {/* A bubble's light: bright at the top, clearing toward the
+                  feet, and a sheen across its upper half. */}
               <linearGradient id={`${id}-fill`} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0" className="[stop-color:white] [stop-opacity:0.6] dark:[stop-opacity:0.22]" />
-                <stop offset="0.7" className="[stop-color:white] [stop-opacity:0.08] dark:[stop-opacity:0.03]" />
+                <stop offset="0" className="[stop-color:white] [stop-opacity:0.92] dark:[stop-opacity:0.30]" />
+                <stop offset="0.55" className="[stop-color:white] [stop-opacity:0.55] dark:[stop-opacity:0.14]" />
+                <stop offset="1" className="[stop-color:white] [stop-opacity:0.30] dark:[stop-opacity:0.06]" />
               </linearGradient>
+              <radialGradient id={`${id}-sheen`} cx="0.5" cy="0" r="0.75">
+                <stop offset="0" className="[stop-color:white] [stop-opacity:0.7] dark:[stop-opacity:0.18]" />
+                <stop offset="1" className="[stop-color:white] [stop-opacity:0]" />
+              </radialGradient>
             </defs>
             <path d={`${rim} Z`} fill={`url(#${id}-fill)`} />
-            {/* A shade a point under the rim, so it reads on the light card. */}
-            <path d={rim} fill="none" strokeWidth={1} transform="translate(0 1)" className="stroke-[rgb(60_60_67/0.16)] dark:stroke-black/55" />
-            <path d={rim} fill="none" strokeWidth={1.5} className="stroke-white/95 dark:stroke-white/40" />
+            <path d={`${rim} Z`} fill={`url(#${id}-sheen)`} />
+            <path d={rim} fill="none" strokeWidth={1.5} className="stroke-white dark:stroke-white/45" />
           </svg>
         )}
       </div>
