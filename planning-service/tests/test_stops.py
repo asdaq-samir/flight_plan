@@ -443,6 +443,26 @@ def test_a_fix_given_an_altitude_to_cross_is_crossed_at_it_for_the_descent(monke
     assert client.get("/api/plan", params={"dep": "C81", "dest": "KDLH", "crossings": "ANDOE:99999"}).status_code == 422
 
 
+def test_a_departure_is_flown_by_its_transition_for_the_runway_left_from(monkeypatch):
+    """St. Louis's BERYY6 left 30R by its runway 11 transition (the audit of
+    2026-10-21): the runway the pilot picked goes to the path."""
+    from app.routers import plan as plan_router
+
+    field = airport("C81")
+    drawn = {"kind": "departure", "fixes": [], "holds": [],
+             "lines": [{"role": "runway", "name": "RW27", "points": [[field["lat"], field["lon"]], [field["lat"] + 0.05, field["lon"]]]}]}
+    monkeypatch.setattr(plan_router.procedures, "procedure_drawing", lambda ident, procedure, transition=None: drawn)
+    asked = []
+    real = plan_router.procedure_paths.flown
+    monkeypatch.setattr(plan_router.procedure_paths, "flown", lambda *a, **k: asked.append(k.get("runway")) or real(*a, **k))
+    params = {"dep": "C81", "dest": "KDLH", "procedures": "C81:DEP1", "runways": "C81:27,KDLH:9"}
+    assert client.get("/api/plan", params=params).status_code == 200
+    assert asked == ["27"]
+    # By the FAA's ident, as the procedures are (_bare_field).
+    assert plan_router.PlanQuery(dep="C81", dest="KDLH", runways="kstl:30r").departure_runways() == {"STL": "30R"}
+    assert client.get("/api/plan", params={**params, "runways": "C81:west"}).status_code == 422
+
+
 @pytest.mark.parametrize("picks", ["KDLH", "KDLH:", "KDLH:I09:ANDOE:X", "KDLH:I09;KMSN:R18"])
 def test_a_procedure_that_is_not_one_is_refused(picks):
     params = {**VIA_MADISON, "procedures": picks}

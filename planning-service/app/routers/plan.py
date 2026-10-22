@@ -124,6 +124,10 @@ class PlanQuery:
     #: to the altitude of its first fix rather than to the pattern
     #: (approach_end).
     procedures: str = ""
+    #: The runway each field is left from, where the pilot picked one, as
+    #: "KSTL:30R,KMSN:36": a departure picked there flown by its runway
+    #: transition for it (vfr.procedure_paths.procedure_path).
+    runways: str = ""
     #: Altitudes ATC gave the pilot to cross the procedures' fixes at,
     #: feet above sea level: "BXCMB:3000". Each stands for the chart's at
     #: that fix wherever a procedure picked passes it -- the descent planned
@@ -213,6 +217,16 @@ class PlanQuery:
             if not POINT_ALTITUDE.fullmatch(part) or not 0 <= float(minutes) <= 24 * 60:
                 raise HTTPException(422, f"{part!r} is not a stop's time on the ground: an ident and minutes, as KJVL:45.")
             out[point_key(ident)] = float(minutes)
+        return out
+
+    def departure_runways(self) -> dict[str, str]:
+        """The runway each field is left from (`runways`), by its ident."""
+        out = {}
+        for part in filter(None, (p.strip() for p in self.runways.split(","))):
+            ident, _, runway = part.partition(":")
+            if not re.fullmatch(r"[A-Za-z0-9]{2,5}", ident) or not re.fullmatch(r"\d{1,2}[LRC]?", runway.upper()):
+                raise HTTPException(422, f"{part!r} is not a runway left from: an ident and a runway, as KSTL:30R.")
+            out[_bare_field(ident.upper())] = runway.upper()
         return out
 
     def drawn_procedures(self) -> list[tuple[str, dict]]:
@@ -664,12 +678,14 @@ def _picked(drawn: list[tuple[str, dict]], kind: str, field: str) -> dict | None
     return next((d for ident, d in drawn if d.get("kind") == kind and _bare_field(ident) == _bare_field(field.upper())), None)
 
 
-def with_procedures(r: Route, runs: list[HopRun], outcome: Flown, drawn: list[tuple[str, dict]]) -> Flown:
+def with_procedures(r: Route, runs: list[HopRun], outcome: Flown, drawn: list[tuple[str, dict]],
+                    runways: dict[str, str] | None = None) -> Flown:
     """The legs with the procedures picked flown (`drawn`,
     PlanQuery.drawn_procedures): a flight's first leg out of its field by
     the departure picked there, its last into the field it lands at by the
     arrival and the approach picked there, each along their path from the
-    leg's start (vfr.procedure_paths.flown) -- an arrival flown out to its
+    leg's start (vfr.procedure_paths.flown), a departure by its transition
+    for the runway the pilot leaves from (`runways`) -- an arrival flown out to its
     first fix and round to the runway can be a hundred miles more than the
     leg it is flown in place of (C81 to O'Hare by BENKY6, 2026-10-19). The
     miles more are flown at the leg's ground speed and cruise burn, added
@@ -698,7 +714,8 @@ def with_procedures(r: Route, runs: list[HopRun], outcome: Flown, drawn: list[tu
         for (hop, i), picks in by.items():
             leg, fixes_ = hops[hop][i], runs[hop].fixes
             start, end = fixes_[i], fixes_[i + 1]
-            path = procedure_paths.flown((start["lat"], start["lon"]), (end["lat"], end["lon"]), *picks)
+            path = procedure_paths.flown((start["lat"], start["lon"]), (end["lat"], end["lon"]), *picks,
+                                         runway=(runways or {}).get(_bare_field(flight.dep_ident.upper())) if picks[0] else None)
             if path is None or not leg["groundspeed_kt"] or leg["ete_min"] is None:
                 continue
             # Never fewer miles than the leg: a path that cuts a corner of
@@ -1087,7 +1104,7 @@ def plan(q: Annotated[PlanQuery, Depends()]) -> Plan:
     if isinstance(outcome, Unflyable):
         _, ways = unflyable_parts(outcome, runs)
         raise HTTPException(422, no_altitude_detail(outcome.selection, outcome.between, ways[0] if ways else None))
-    outcome = with_holds(r, runs, with_procedures(r, runs, outcome, drawn), q.own_holds())
+    outcome = with_holds(r, runs, with_procedures(r, runs, outcome, drawn, q.departure_runways()), q.own_holds())
     leg_list = flown_legs(r, runs, outcome, own, drawn, q.own_ground())
 
     return Plan(
@@ -1253,7 +1270,7 @@ def navlog_stream(q: Annotated[PlanQuery, Depends()]) -> StreamingResponse:
             class_b_detours=class_b_detours_of(runs, outcome, q),
             altitude_figures=list(outcome.figures),
         ))
-        outcome = with_holds(r, runs, with_procedures(r, runs, outcome, drawn), q.own_holds())
+        outcome = with_holds(r, runs, with_procedures(r, runs, outcome, drawn, q.departure_runways()), q.own_holds())
         for leg in flown_legs(r, runs, outcome, own, drawn, q.own_ground()):
             yield line(NavLogLeg.model_validate(leg))
 

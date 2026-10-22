@@ -97,14 +97,15 @@ function heightOn(line: ProfilePoint[], along: number): number | null {
  *  approach climb gradient). */
 const MISSED_CLIMB_FT_PER_NM = 200;
 
-/** The heights a missed approach is flown at: from the field's at the
- *  missed approach point (`start`, nm along the path; the decision
- *  altitude's couple of hundred feet left out), up at the standard
- *  gradient to `to`, and level there to the path's `end`. */
-function missedHeights(start: number, end: number, field: number, to: number): ProfilePoint[] {
-  const top = start + Math.max(0, to - field) / MISSED_CLIMB_FT_PER_NM;
-  if (top >= end) return [{ along_nm: end, plan_ft: field + (end - start) * MISSED_CLIMB_FT_PER_NM }];
-  return [{ along_nm: top, plan_ft: to }, { along_nm: end, plan_ft: to }];
+/** The heights a missed approach is flown at: from the height the descent
+ *  to the runway reaches at the missed approach point (`start`, nm along
+ *  the path, at `from`; the decision altitude or MDA itself left out), up
+ *  at the standard gradient to `to`, and level there to the path's `end`. */
+function missedHeights(start: number, end: number, from: number, to: number): ProfilePoint[] {
+  const level = Math.max(from, to);
+  const top = start + (level - from) / MISSED_CLIMB_FT_PER_NM;
+  if (top >= end) return [{ along_nm: end, plan_ft: from + (end - start) * MISSED_CLIMB_FT_PER_NM }];
+  return [{ along_nm: top, plan_ft: level }, { along_nm: end, plan_ft: level }];
 }
 
 /** The heights a leg flown into a field by its procedures is flown at,
@@ -250,11 +251,18 @@ export function dryRunOf(rows: NavLogRow[], startS: number, line?: [number, numb
       if (flownBy.missed) missable = true;
       const goMissed = missed && flownBy.missed && i === lastApproach ? flownBy.missed : null;
       if (goMissed) wentMissed = true;
-      const path = goMissed ? [...flownPath, ...pathOf(goMissed.path)] : flownPath;
+      // The missed approach point (`map_at`): the runway's threshold, where
+      // the path ends, or short of it on a VOR's or a LOC's approach -- gone
+      // missed, the path is cut there and the missed approach flown from it.
+      const mapAt = flownBy.map_at ?? flownPath.length - 1;
+      const landed = cumulative(flownPath);
+      const path = goMissed ? [...flownPath.slice(0, mapAt + 1), ...pathOf(goMissed.path)] : flownPath;
       const at = cumulative(path);
-      const atMap = at[flownPath.length - 1]!;
+      const atMap = landed[mapAt]!;
       const nm = at.at(-1)!;
-      const tAt = (s: number) => prev.t + (seconds * s) / Math.max(1e-9, atMap);
+      // The leg's time and fuel are the planner's for the path to the runway.
+      const landedNm = Math.max(1e-9, landed.at(-1)!);
+      const tAt = (s: number) => prev.t + (seconds * s) / landedNm;
       if (flownBy.missed) {
         // Its final from the final approach fix, the last time the path is
         // there (after a course reversal round it), or the last five miles
@@ -265,17 +273,20 @@ export function dryRunOf(rows: NavLogRow[], startS: number, line?: [number, numb
       // top of climb, and its cruise after: not its descent, laid along
       // the route, which the chart's altitudes stand in for.
       const climb = (s: number) => (whole.toc && s < whole.toc.along_nm ? heightOn(plan, prev.route + s) ?? whole.altitude_ft : whole.altitude_ft);
-      const landing = flownBy.landing
-        ? landingHeights(at.slice(0, flownPath.length), flownBy.ft, whole.altitude_ft, ground, climb)
-        : null;
+      const landing = flownBy.landing ? landingHeights(landed, flownBy.ft, whole.altitude_ft, ground, climb) : null;
+      // Gone missed, the descent to the runway is flown to the missed
+      // approach point, and the climb is from the height there.
+      const toMap = landing && goMissed ? landing.filter(p => p.along_nm <= atMap) : null;
+      const mapFt = landing ? heightOn(landing, atMap) ?? ground : ground;
       anchors.push({
         along: prev.along + nm, route: prev.route + whole.distance_nm, ...rowPoint(row),
-        // Gone missed, on past the runway at the leg's pace.
-        t: tAt(nm), fuel: prev.fuel + (fuel * nm) / Math.max(1e-9, atMap), gs, track: whole.true_course_deg,
+        // Gone missed, on past the missed approach point at the leg's pace.
+        t: tAt(nm), fuel: prev.fuel + (fuel * nm) / landedNm, gs, track: whole.true_course_deg,
         flown: {
           path, at,
-          heights: landing && goMissed
-            ? [...landing, ...missedHeights(atMap, nm, ground, goMissed.ft ?? whole.altitude_ft)]
+          heights: toMap && goMissed
+            ? [...toMap, ...(toMap.at(-1)?.along_nm === atMap ? [] : [{ along_nm: atMap, plan_ft: mapFt }]),
+              ...missedHeights(atMap, nm, mapFt, goMissed.ft ?? whole.altitude_ft)]
             : landing,
         },
       });

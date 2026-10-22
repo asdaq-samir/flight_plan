@@ -5295,7 +5295,7 @@
         "type": "object"
       },
       "LegProcedure": {
-        "description": "A leg flown by the procedures picked -- out by a departure, in by an\narrival and an approach (vfr.procedure_paths.flown) -- rather than as\nthe route goes: its path from the leg's start, [lat, lon] pairs; the\naltitude the chart sets at each point (None where it sets none); its\nlength; whether it comes down to a runway; where its final starts, the\nindex in `path` of its final approach fix; and the approach's missed\napproach. The miles it is more than the leg's own, and the time and\nfuel they take at the leg's ground speed and cruise burn, are in the\nleg's `ete_min` and `fuel_gal` (plan.with_procedures).",
+        "description": "A leg flown by the procedures picked -- out by a departure, in by an\narrival and an approach (vfr.procedure_paths.flown) -- rather than as\nthe route goes: its path from the leg's start, [lat, lon] pairs; the\naltitude the chart sets at each point (None where it sets none); its\nlength; whether it comes down to a runway; where its final starts, the\nindex in `path` of its final approach fix; where its missed approach\npoint is, the index in `path` the missed approach is flown from (short\nof the runway's threshold, where the path ends, on a VOR's or a LOC's\napproach); and the approach's missed approach. The miles it is more than the leg's own, and the time and\nfuel they take at the leg's ground speed and cruise burn, are in the\nleg's `ete_min` and `fuel_gal` (plan.with_procedures).",
         "properties": {
           "final_at": {
             "anyOf": [
@@ -5326,6 +5326,18 @@
           "landing": {
             "title": "Landing",
             "type": "boolean"
+          },
+          "map_at": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Map At"
           },
           "missed": {
             "anyOf": [
@@ -12808,6 +12820,16 @@
           },
           {
             "in": "query",
+            "name": "runways",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Runways",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
             "name": "crossings",
             "required": false,
             "schema": {
@@ -13165,6 +13187,16 @@
             "schema": {
               "default": "",
               "title": "Procedures",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "runways",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Runways",
               "type": "string"
             }
           },
@@ -13708,6 +13740,16 @@
             "schema": {
               "default": "",
               "title": "Procedures",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "runways",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Runways",
               "type": "string"
             }
           },

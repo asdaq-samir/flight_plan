@@ -243,10 +243,9 @@ test("an approach puts its field's runway on its own, and another is let only wh
   await plate.click();
   await expect(plate).toHaveAttribute("aria-checked", "true");
   await page.keyboard.press("Escape");
-  // Said in the field's info, by its name.
-  await kdlh.getByTestId("field-info").click();
-  await expect(page.getByTestId("procedure-landing")).toHaveText("Straight in");
-  await page.keyboard.press("Escape");
+  // Said in the runway's chip's name, the info button gone (the owner's
+  // "No need for info button").
+  await expect(kdlh.getByRole("radio", { name: /Straight in/ })).toBeVisible();
   await expect(page.locator("path.traffic-pattern")).toHaveCount(0);
   // Its plate has no circling line: no other runway, and none is no
   // choice either. By its number: the live wind may name 27 into it first.
@@ -265,9 +264,7 @@ test("an approach puts its field's runway on its own, and another is let only wh
   await expect(circle).toBeEnabled({ timeout: slow(20000) });
   await circle.click();
   await expect(page).toHaveURL(/[?&]pattern=[^&]*KDLH(%3A|:)27(%2C|,|&|$)/);
-  await kdlh.getByTestId("field-info").click();
-  await expect(page.getByTestId("procedure-landing")).toHaveText("Circle to land");
-  await page.keyboard.press("Escape");
+  await expect(kdlh.getByRole("radio", { name: /Circle to land/ })).toBeVisible();
   await expect(page.locator("path.traffic-pattern")).toHaveCount(0);
 });
 
@@ -343,7 +340,15 @@ test("a field's departure is picked after its runways, as its arrival and approa
   await expect(menu).toHaveAttribute("data-look", "add");
   const chips = kord.getByTestId("procedure-pattern").locator("visible=true").first();
   await expect(chips).toBeVisible();
-  expect((await menu.boundingBox())!.y).toBeGreaterThan((await chips.boundingBox())!.y);
+  // On the runways' own line after them, at the owner's asks ("Can arrival
+  // and approach pills be next to the runway when runway is collapsed?",
+  // "Same with departure", "Approach doesn't need to go next line just let
+  // it slide with runways"): beside the runway picked, or sliding with them.
+  await expect.poll(async () => {
+    const [m, c] = [await menu.boundingBox(), await chips.boundingBox()];
+    if (!m || !c) return false;
+    return m.x > c.x + c.width - 1 && Math.abs((m.y + m.height / 2) - (c.y + c.height / 2)) < 8;
+  }).toBe(true);
   // And the departure's time on its own step, not in the route's box.
   await expect(kord.getByTestId("depart-date")).toHaveText(/^Now/);
 });

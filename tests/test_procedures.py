@@ -216,3 +216,19 @@ def test_a_procedure_turn_goes_out_on_the_finals_reciprocal_turns_on_the_barb_an
     # The barb is left of the outbound course, the side north of the final.
     out = (inbound + 180) % 360
     assert any(((geo.bearing_deg(*lados, *p) - out + 540) % 360) - 180 < -10 for p in pts[2:-2])
+
+
+def test_a_leg_flown_to_an_altitude_goes_as_far_as_the_standard_climb_takes_the_airplane_there():
+    """KBUR's ILS Y 08's missed approach climbs on runway heading to 1,800
+    (CA) from about the field's 778 ft: 1,022 ft at 200 ft a nm (FAA Order
+    8260.3) is 5.1 nm, where it was drawn two (the audit of 2026-10-21)."""
+    drawn = procedures.procedure_drawing("KBUR", "I08-Y", "LAX")
+    missed = next(line for line in drawn["lines"] if line["role"] == "missed")
+    assert geo.distance_nm(*missed["points"][0], *missed["points"][1]) == pytest.approx(1022 / 200, abs=0.05)
+    # And it lands at its runway's threshold, its missed approach point.
+    assert near(drawn["threshold"], RW08)
+
+
+def test_an_airports_elevation_is_its_airport_records():
+    # KBUR's airport record, columns 57 to 61: 00778.
+    assert procedures._airport("KBUR", CIFP).elevation_ft == 778

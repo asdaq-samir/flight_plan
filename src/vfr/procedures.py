@@ -70,6 +70,14 @@ OPEN = {"CA", "CD", "CI", "CR", "VA", "VD", "VI", "VM", "VR"}
 #: How long a leg with no end is drawn: about a turn's worth at a light
 #: airplane's speed, enough to show which way it goes.
 OPEN_LEG_NM = 2.0
+#: The climb a leg flown to an altitude (CA, VA, FA) is drawn at, ft a nm:
+#: the standard 200 a departure and a missed approach are designed for
+#: (FAA Order 8260.3), so the turn after it comes where an airplane
+#: climbing at that gradient reaches the altitude -- a missed approach's
+#: "climb to 3,000 then turn" turned two miles out, a third of the way
+#: (the audit of 2026-10-21, Duluth's ILS 09). Kept within these.
+CLIMB_FT_PER_NM = 200.0
+CLIMB_LEG_NM = (1.0, 15.0)
 #: A hold drawn at a light airplane's speed: a one-minute leg (AIM 5-3-8,
 #: at or below 14,000 ft MSL) and standard-rate turns (3° a second) at
 #: 120 knots -- two miles on each leg, and turns 0.64 nm round. Charts
@@ -359,6 +367,9 @@ class _Airport:
     waypoints: dict[str, tuple[float, float]]
     runways: dict[str, tuple[float, float]]
     legs: dict[tuple[str, str], list[Leg]]
+    #: Its elevation, feet (ARINC 424-18 5.55, the airport record's
+    #: columns 57 to 61).
+    elevation_ft: float | None = None
 
 
 @lru_cache(maxsize=64)
@@ -373,6 +384,8 @@ def _airport(ident: str, path: Path) -> _Airport | None:
         if sub == "A" and _continuation(rec, 22):
             airport.place = _position(rec)
             airport.variation = _variation(_col(rec, 52, 56)) or 0.0
+            elevation = _col(rec, 57, 61).strip()
+            airport.elevation_ft = float(elevation) if re.fullmatch(r"-?\d+", elevation) else None
         elif sub in ("C", "N") and _continuation(rec, 22) and (place := _position(rec)):
             airport.waypoints[_col(rec, 14, 18).strip()] = place
         elif sub == "G" and _continuation(rec, 22) and (place := _position(rec)):
@@ -601,8 +614,20 @@ def procedure_drawing(ident: str, procedure: str, transition: str | None = None,
 
         # A departure's runway transition leaves from its runway's far end.
         pos = None
+        # The altitude the airplane is known to be at, for a leg flown to an
+        # altitude: the field's leaving it, then each fix's as it is crossed.
+        known_ft = airport.elevation_ft if kind == "departure" and role == "runway" else None
         if kind == "departure" and role == "runway":
             pos = airport.runways.get(_opposite_end(key[1])) or airport.runways.get(key[1]) or airport.place
+
+        def climb_nm(leg: Leg) -> float:
+            """How far a leg flown to its altitude goes: from the altitude
+            known at its start, at CLIMB_FT_PER_NM; OPEN_LEG_NM where either
+            is not known."""
+            if leg.altitude1 is None or known_ft is None or leg.altitude1 <= known_ft:
+                return OPEN_LEG_NM
+            return min(CLIMB_LEG_NM[1], max(CLIMB_LEG_NM[0], (leg.altitude1 - known_ft) / CLIMB_FT_PER_NM))
+
         for leg in runs[key]:
             place = _fix_place(airport, leg.fix, leg.fix_icao, leg.fix_section, index)
             course = _course(leg, airport.variation)
@@ -624,16 +649,18 @@ def procedure_drawing(ident: str, procedure: str, transition: str | None = None,
                     points.append(place)
             elif leg.path in HOLDS and place and course is not None:
                 minutes = leg.minutes if leg.minutes is not None else (None if leg.distance_nm else 1.0)
+                leg_nm = HOLD_SPEED_KT * minutes / 60 if minutes is not None else leg.distance_nm
                 holds.append({
-                    "fix": leg.fix, "turn": leg.turn or "R", "inbound_deg": round(course), "missed": missed,
-                    "points": _hold(place, course, leg.turn, HOLD_SPEED_KT * minutes / 60 if minutes is not None else leg.distance_nm),
+                    "fix": leg.fix, "turn": leg.turn or "R", "inbound_deg": round(course), "missed": missed, "leg_nm": round(leg_nm, 2),
+                    "points": _hold(place, course, leg.turn, leg_nm),
                 })
                 if not points:
                     points = [place]
             elif leg.path in FROM_FIX and place and course is not None:
                 if not points or points[-1] != place:
                     points.append(place)
-                length = leg.distance_nm if leg.path == "FC" and leg.distance_nm else OPEN_LEG_NM
+                length = (leg.distance_nm if leg.path == "FC" and leg.distance_nm
+                          else climb_nm(leg) if leg.path == "FA" else OPEN_LEG_NM)
                 points.append(geo.destination_point(*place, course, length))
             elif leg.path == "PI" and place and course is not None:
                 # A procedure turn at the fix, drawn once the final's course
@@ -643,15 +670,20 @@ def procedure_drawing(ident: str, procedure: str, transition: str | None = None,
                 start = points[-1] if points else pos
                 if not points:
                     points = [start]
-                points.append(geo.destination_point(*start, course, OPEN_LEG_NM))
+                points.append(geo.destination_point(*start, course, climb_nm(leg) if leg.path in ("CA", "VA") else OPEN_LEG_NM))
             pos = points[-1] if points else (place or pos)
             if place and leg.fix:
                 _note_fix(fixes, leg, place, missed)
+            low, high = altitude_limits(leg)
+            if (low is not None or high is not None) and not leg.missed_approach_point:
+                known_ft = low if low is not None else high
             if kind == "approach" and leg.missed_approach_point:
-                # The rest is the missed approach, drawn dashed from here.
+                # The rest is the missed approach, drawn dashed from here,
+                # its climb from about the field's elevation.
                 flush()
                 missed = True
                 points = points[-1:]
+                known_ft = airport.elevation_ft
         flush()
 
     # Each procedure turn, on the side the chart puts its barb, from the
@@ -666,8 +698,14 @@ def procedure_drawing(ident: str, procedure: str, transition: str | None = None,
             holds.append({"fix": ident, "turn": "L" if barb > 0 else "R", "inbound_deg": round(inbound), "missed": was_missed,
                           "kind": "procedure turn", "points": _procedure_turn(place, inbound, pt_course)})
 
+    # Where a straight-in approach lands: its runway's threshold, where its
+    # missed approach point is short of it (a VOR's or a LOC's MAP a mile
+    # out); none for a circling approach.
+    runway = _runway_of(kind, procedure.upper())
+    threshold = airport.runways.get(f"RW{runway}") if runway else None
     return {
         "airport": airport.ident, "kind": kind, "id": procedure.upper(), "name": procedure_name(kind, procedure.upper()),
+        "threshold": None if threshold is None else [round(threshold[0], 6), round(threshold[1], 6)],
         "transition": wanted or None, "cycle": cifp_cycle(path), "stale": cifp_stale(path, on),
         "lines": [{**ln, "points": [[round(p[0], 6), round(p[1], 6)] for p in ln["points"]]} for ln in lines],
         "holds": [{**h, "points": [[round(p[0], 6), round(p[1], 6)] for p in h["points"]]} for h in holds],

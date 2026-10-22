@@ -357,9 +357,24 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const holdsParamText = searchParams.get("holds");
   const holds = useMemo(() => holdsOf(holdsParamText), [holdsParamText]);
   const holdsText = holdsParam(holds);
+  // The runway each departure picked is left from ("KSTL:30R"): the
+  // departure field's runway picked, a stop's to leave from -- flown by its
+  // runway transition for it (vfr.procedure_paths), where St. Louis's
+  // BERYY6 went out by its first, runway 11's, off 30R (the audit of
+  // 2026-10-21). Only where a departure is picked, so a runway picked into
+  // the wind as the route comes in plans nothing again.
+  const patternText = searchParams.get("pattern"), takeoffText = searchParams.get("takeoff");
+  const runwaysText = useMemo(() => {
+    const landing = patternsOf(patternText), takeoff = patternsOf(takeoffText);
+    return drawnPickList.filter(d => d.kind === "departure").flatMap(d => {
+      const ident = routeFields.split(",").find(f => f && sameField(f, d.airport));
+      const end = ident ? takeoff.get(ident) ?? landing.get(ident) : undefined;
+      return ident && end && /^\d/.test(end) ? [`${ident}:${end}`] : [];
+    }).join(",");
+  }, [drawnPickList, patternText, takeoffText, routeFields]);
   const s = usePlan({
     dep: planned.dep, dest: planned.dest, stops: planned.stops, altitudeFt, altitudeNearest, altitudeChoice, depart, aircraft, load, classBClearance,
-    altitudes, procedures, crossings: crossingsText, ground: groundText, holds: holdsText, localMin, rules: flightRules,
+    altitudes, procedures, runways: runwaysText, crossings: crossingsText, ground: groundText, holds: holdsText, localMin, rules: flightRules,
     // Under IFR, the alternate filed in the Weather tab (AlternateSection).
     alternate: searchParams.get("alternate") ?? "",
     // Checkpoints as the map shows them: the settings' Waypoints off, the

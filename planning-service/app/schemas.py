@@ -210,8 +210,10 @@ class LegProcedure(BaseModel):
     the route goes: its path from the leg's start, [lat, lon] pairs; the
     altitude the chart sets at each point (None where it sets none); its
     length; whether it comes down to a runway; where its final starts, the
-    index in `path` of its final approach fix; and the approach's missed
-    approach. The miles it is more than the leg's own, and the time and
+    index in `path` of its final approach fix; where its missed approach
+    point is, the index in `path` the missed approach is flown from (short
+    of the runway's threshold, where the path ends, on a VOR's or a LOC's
+    approach); and the approach's missed approach. The miles it is more than the leg's own, and the time and
     fuel they take at the leg's ground speed and cruise burn, are in the
     leg's `ete_min` and `fuel_gal` (plan.with_procedures)."""
 
@@ -220,6 +222,7 @@ class LegProcedure(BaseModel):
     nm: float
     landing: bool
     final_at: int | None = None
+    map_at: int | None = None
     missed: MissedApproachPath | None = None
     more_nm: float
     more_min: float

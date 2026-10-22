@@ -21,11 +21,12 @@ test("a field reached hours from now picks its runway into the forecast wind, an
   await settle(page);
   await openTab(page, "Nav Log");
   const kdlh = sideDrawer(page).getByRole("region", { name: "KDLH · Arrive" });
-  const info = kdlh.getByTestId("field-info");
-  await expect(info).toHaveAccessibleName(/forecast for \d{4}Z, 90 true at 14 knots/, { timeout: slow(60_000) });
+  // The airport's wind under its ident, the forecast's for when it lands
+  // there, said so to VoiceOver.
+  const wind = kdlh.getByTestId("field-wind");
+  await expect(wind).toContainText(/forecast for \d{4}Z, 90 true at 14 knots/, { timeout: slow(60_000) });
+  await expect(wind).toContainText("090° 14 kt");
   expect(asked).toContain("KDLH");
-  await info.click();
-  await expect(page.getByTestId("field-info-forecast")).toHaveText(/^Forecast for \d{4}Z, the field's TAF$/);
   // Duluth's 09 into the easterly.
-  await expect(page.getByTestId("procedure-wind")).toHaveAccessibleName(/^9 into the wind: headwind 14 kt/);
+  await expect(kdlh.getByRole("radio", { name: /^Runway 9, into the wind/ })).toBeVisible();
 });

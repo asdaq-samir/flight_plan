@@ -1,5 +1,4 @@
-import type { ReactNode } from "react";
-import { Ellipsis, Fuel } from "lucide-react";
+import { Ellipsis, Fuel, Mountain } from "lucide-react";
 import { cn } from "cn";
 import RoundButton from "../../../components/RoundButton";
 import {
@@ -8,6 +7,7 @@ import {
 import { faaWords } from "../../../lib/advisories";
 import type { FuelStop } from "../../../lib/api/types";
 import { TEXT } from "../../../lib/text";
+import { grouped } from "../../../lib/units";
 
 /** A field's place in words: its city, as the FAA spells it, in sentence
  *  case ("Knoxville"), else its name. */
@@ -49,10 +49,8 @@ export function FuelGauge({ gal, usable, tone }: { gal: number; usable: number |
  * stops are added (FuelStopsAdd, after the last); its menu the other
  * fields it could be.
  */
-export default function FuelStopRow({ stop, time, groundMin, usableGal, runway, choices, onChoose, last }: {
+export default function FuelStopRow({ stop, time, groundMin, usableGal, choices, onChoose, last }: {
   stop: FuelStop;
-  /** Its wind and the runway it favours, as the route's fields show them. */
-  runway?: ReactNode;
   /** When it is landed at, by the flight's own minutes to it. */
   time: string;
   /** The minutes on the ground a stop takes (groundMinAt). */
@@ -73,20 +71,35 @@ export default function FuelStopRow({ stop, time, groundMin, usableGal, runway, 
           <Fuel className="size-3.5" strokeWidth={2.4} />
         </span>
       </div>
-      <section aria-label={`Suggested fuel stop, ${stop.ident}, ${place}`} className="min-w-0 flex-1 space-y-3 pb-4">
-        <div className="flex items-center gap-2">
-          <div className="flex min-w-0 flex-1 flex-col">
-            <h3 className={cn("truncate font-semibold", TEXT.row)}>{stop.ident} · {place}</h3>
-            <span className={cn("flex items-center gap-1.5 text-muted-foreground tabular-nums", TEXT.note)}>
-              <FuelGauge gal={stop.lands_with_gal} usable={usableGal} />
-              <span aria-hidden="true">·</span>
-              <Fuel className="size-3.5" aria-hidden="true" />
-              <span><span className="sr-only">Refuelled in </span>{groundMin} min</span>
-              <span aria-hidden="true">·</span>
-              <span className="font-semibold text-foreground"><span className="sr-only">Lands at </span>{time}</span>
-            </span>
-          </div>
-          {choices && choices.length > 0 && onChoose && (
+      {/* Laid out as the route's airports are (ProceduresRoute's block):
+          its ident and the fuel it lands with, its time; its town and the
+          time to refuel, its elevation; no runway, at the owner's ask ("No
+          need to show runway when asking to add fuel stop"). */}
+      <section aria-label={`Suggested fuel stop, ${stop.ident}, ${place}`} className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-x-2 pb-4">
+        <div className="col-start-1 row-start-1 flex min-w-0 items-center gap-1.5">
+          {/* The room an airport's arrow takes before its ident, so the
+              idents of the list line up (the owner's screenshot). */}
+          <span aria-hidden="true" className="-ml-1 w-4 shrink-0" />
+          <h3 className={cn("truncate font-semibold", TEXT.row)}>{stop.ident}</h3>
+          <FuelGauge gal={stop.lands_with_gal} usable={usableGal} tone="fuel" />
+        </div>
+        <span className={cn("col-start-2 row-start-1 justify-self-end font-semibold tabular-nums", TEXT.detail)}><span className="sr-only">Lands at </span>{time}</span>
+        <span className={cn("col-start-1 row-start-2 flex min-w-0 items-center gap-1 text-muted-foreground", TEXT.note)}>
+          <span className="truncate">{place}</span>
+          <span aria-hidden="true">·</span>
+          <Fuel className="size-3.5 shrink-0" aria-hidden="true" />
+          <span className="shrink-0 tabular-nums"><span className="sr-only">Refuelled in </span>{groundMin} min</span>
+        </span>
+        {stop.elevation_ft != null && (
+          <span className={cn("col-start-2 row-start-2 inline-flex items-center gap-0.5 justify-self-end text-muted-foreground tabular-nums", TEXT.detail)}>
+            <Mountain className="size-3.5 shrink-0" aria-hidden="true" />{grouped(Math.round(stop.elevation_ft))} ft
+          </span>
+        )}
+        {/* The menu's room kept where a stop has no other fields, so the
+            times and elevations line up down the list. */}
+        {!(choices && choices.length > 0 && onChoose) && <span aria-hidden="true" className="col-start-3 row-span-2 row-start-1 size-9" />}
+        {choices && choices.length > 0 && onChoose && (
+          <div className="col-start-3 row-span-2 row-start-1 self-center">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <RoundButton label={`${stop.ident}: other fields with fuel`} className="shrink-0 text-tint" data-testid="fuel-stop-other">
@@ -106,9 +119,8 @@ export default function FuelStopRow({ stop, time, groundMin, usableGal, runway, 
                 ))}
               </DropdownMenuContent>
             </DropdownMenu>
-          )}
-        </div>
-        {runway}
+          </div>
+        )}
       </section>
     </li>
   );

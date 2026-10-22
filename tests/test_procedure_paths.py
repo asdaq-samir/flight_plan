@@ -165,3 +165,124 @@ def test_sent_direct_to_a_fix_the_procedure_is_flown_from_it_straight_there():
     assert [tuple(p) for p in both["path"]] == [SOUTH_WEST, ANDOE, RW27]
     # A fix not on the path changes nothing.
     assert flown(SOUTH_WEST, RW27, approach={**ILS27_DLH, "direct": "NOPE"})["path"] == flown(SOUTH_WEST, RW27, approach=ILS27_DLH)["path"]
+
+
+# A final westbound from its IAF to the runway, a hold in lieu of a
+# procedure turn at the IAF on the final's course, right turns, two-mile
+# legs (as vfr.procedures draws a coded HF).
+IAF, FAF, RWY = (43.0, -88.0), (43.0, -88.2), (43.0, -88.4)
+
+
+def hilpt_approach():
+    inbound = geo.bearing_deg(*IAF, *FAF)
+    racetrack = [list(IAF), list(geo.destination_point(*IAF, inbound + 90, 1.3)),
+                 list(geo.destination_point(*IAF, inbound + 180, 2)), list(IAF)]
+    return {
+        "kind": "approach", "transition": "IAF",
+        "holds": [{"missed": False, "points": racetrack, "inbound_deg": round(inbound), "leg_nm": 2.0, "turn": "R"}],
+        "lines": [{"role": "final", "points": [list(IAF), list(FAF), list(RWY)]}],
+        "fixes": [fix("IAF", *IAF, ["IAF"], 3000), fix("FAF", *FAF, ["FAF"], 2500), fix("RW", *RWY, ["MAP"])],
+    }
+
+
+def test_a_hold_in_lieu_of_a_procedure_turn_at_the_first_fix_is_flown_from_the_far_side_by_its_entry():
+    """Rockford's ILS 01 via KENNY and most RNAV approaches checked (the
+    audit of 2026-10-21) put a hold in lieu of a procedure turn at their
+    first fix, which the dry run never flew. Come to from the runway's
+    side, the airplane must reverse course there (AIM 5-4-9): out past the
+    fix, east, and back to it before the final."""
+    leg = flown((43.05, -88.6), RWY, approach=hilpt_approach())
+    path = [tuple(p) for p in leg["path"]]
+    assert path[1] == IAF
+    out = [p for p in path[2:path.index(FAF)]]
+    assert any(p[1] > IAF[1] + 0.02 for p in out)
+    assert near(out[-1], IAF)
+    assert near(path[leg["final_at"]], FAF)
+
+
+def test_from_the_near_side_the_first_fixs_hold_is_not_flown():
+    # From the east, lined up with the final: straight in (AIM 5-4-5, NoPT).
+    leg = flown((43.02, -87.6), RWY, approach=hilpt_approach())
+    assert [tuple(p) for p in leg["path"]] == [(43.02, -87.6), IAF, FAF, RWY]
+
+
+def test_a_hold_is_entered_as_the_aim_says_by_the_course_it_is_come_to_on():
+    from vfr.procedure_paths import _entered
+    hold = hilpt_approach()["holds"][0]
+    inbound = hold["inbound_deg"]
+    # Arriving on the outbound course, 180° off the inbound (right turns):
+    # a teardrop, out 30° to the holding side, north of the inbound course.
+    tear = _entered(hold, IAF, (inbound + 175) % 360)
+    assert geo.bearing_deg(*IAF, *tear[0]) == pytest.approx((inbound + 180 - 30) % 360, abs=1)
+    # From the non-holding side, beyond 180°: parallel, out on the outbound
+    # course, then round to the left, toward the holding side, north, back
+    # to the fix.
+    par = _entered(hold, IAF, (inbound + 200) % 360)
+    assert geo.bearing_deg(*IAF, *par[0]) == pytest.approx((inbound + 180) % 360, abs=1)
+    assert any(p[0] > IAF[0] + 0.005 for p in par)
+    assert par[-1] == IAF and tear[-1] == IAF
+
+
+def test_an_approach_whose_missed_approach_point_is_short_of_the_runway_lands_at_the_threshold():
+    """A VOR's or a LOC's MAP a mile out was where the dry run touched down
+    (the audit of 2026-10-21): on to the threshold, the missed approach
+    flown from the MAP."""
+    map_point, threshold = (43.0, -88.35), (43.0, -88.4)
+    approach = {
+        "kind": "approach", "transition": None, "holds": [], "threshold": list(threshold),
+        "lines": [{"role": "final", "points": [list(FAF), list(map_point)]},
+                  {"role": "missed", "points": [list(map_point), [43.1, -88.5]]}],
+        "fixes": [fix("FAF", *FAF, ["FAF"], 2500), fix("MAP", *map_point, ["MAP"]), fix("HOLD", 43.1, -88.5, ["hold"], 3000, missed=True)],
+    }
+    leg = flown((43.0, -87.8), threshold, approach=approach)
+    path = [tuple(p) for p in leg["path"]]
+    assert path[-1] == threshold
+    # The missed approach goes on from there (the dry run flies it from
+    # path[map_at]), not from the threshold.
+    assert path[leg["map_at"]] == map_point
+    assert leg["missed"]["path"][0] == [43.1, -88.5]
+
+
+def test_an_arrival_alone_goes_on_from_where_it_ends_to_the_field():
+    """Rockford's ALEXS1 ends in vectors 29 miles out, where the dry run
+    came down (the audit of 2026-10-21)."""
+    star = {"kind": "arrival", "holds": [], "fixes": [], "lines": [{"role": "common", "points": [[46.6, -92.4], [46.75, -92.3]]}]}
+    leg = flown(SOUTH_WEST, RW27, arrival=star)
+    assert tuple(leg["path"][-1]) == RW27
+    assert leg["landing"] is True
+
+
+def test_a_departure_is_left_by_the_runway_transition_for_the_runway_left_from():
+    """St. Louis's BERYY6 left 30R by its runway 11 transition, out the
+    wrong way (the audit of 2026-10-21). "RW12B" is both 12s."""
+    lines = [
+        {"role": "runway", "name": "RW11", "points": [[46.0, -92.8], [45.95, -92.9]]},
+        {"role": "runway", "name": "RW30B", "points": [[46.0, -92.8], [46.05, -92.7]]},
+        {"role": "common", "points": [[46.1, -92.6], [46.15, -92.5]]},
+    ]
+    sid = {"kind": "departure", "holds": [], "fixes": [], "lines": lines}
+    assert procedure_path(sid, runway="30R")["points"][1] == (46.05, -92.7)
+    assert procedure_path(sid, runway="11")["points"][1] == (45.95, -92.9)
+    # None picked, or none fits: the first coded.
+    assert procedure_path(sid)["points"][1] == (45.95, -92.9)
+    assert procedure_path(sid, runway="4")["points"][1] == (45.95, -92.9)
+    assert any(near(p, (46.05, -92.7)) for p in flown(SOUTH_WEST, RW27, departure=sid, runway="30L")["path"])
+
+
+def test_a_transition_that_is_its_fix_alone_is_flown_from_that_fix_round_its_procedure_turn():
+    """Duluth's VOR RWY 3 via DLH: a procedure turn at the VOR, on the
+    final, and no line of its own. From the north, to DLH, out round the
+    turn and back -- not to the final's first fix south of it and back in a
+    hairpin (the audit of 2026-10-21)."""
+    mizou, dlh, rw = (46.69, -92.25), (46.80, -92.20), (46.84, -92.19)
+    turn = [list(dlh), [46.75, -92.25], [46.70, -92.27], [46.72, -92.20], [46.76, -92.215], list(dlh)]
+    approach = {
+        "kind": "approach", "transition": "DLH",
+        "holds": [{"missed": False, "kind": "procedure turn", "points": turn, "inbound_deg": 12, "turn": "R"}],
+        "lines": [{"role": "final", "points": [list(mizou), list(dlh), list(rw)]}],
+        "fixes": [fix("MIZOU", *mizou, ["FACF"]), fix("DLH", *dlh, ["IAF", "FAF"], 2800), fix("RW03", *rw, ["MAP"])],
+    }
+    path = [tuple(p) for p in flown((47.5, -92.2), rw, approach=approach)["path"]]
+    assert path[1] == dlh
+    assert not any(near(p, mizou) for p in path)
+    assert any(near(p, (46.70, -92.27)) for p in path)

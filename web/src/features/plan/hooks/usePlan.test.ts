@@ -6,7 +6,7 @@
  * reads a state from and whether a failure reaches the pilot as a system
  * problem (lib/problems), not that the real planner agrees.
  */
-import { act, renderHook, waitFor } from "@testing-library/react";
+import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
@@ -61,6 +61,10 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  // Each test's hook unmounted before the next (no vitest globals, so
+  // Testing Library does not do it itself): one left mounted re-rendered
+  // after the file's jsdom had gone, "window is not defined" (CI, 0a7aa8ee).
+  cleanup();
   queryClient.clear();
   vi.clearAllMocks();
 });
