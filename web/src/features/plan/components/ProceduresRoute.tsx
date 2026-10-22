@@ -472,9 +472,11 @@ export default function ProceduresRoute({
       // line, the elevation on its wind's.
       time: <PointFigures time={at.time} altitude={null} kind={kind} />,
       elevation: <PointFigures time={null} altitude={shown === null ? null : altFt(shown)} kind={kind} testId="point-elevation" />,
-      menu: (
+      // Behind the point's mark (`face`), at the owner's ask ("Use the
+      // airport icon as the more button instead of having one to the right").
+      menu: (face: ReactNode) => (
         <PointMenu
-          ident={ident} direct={direct}
+          face={face} ident={ident} direct={direct}
           onDirect={at.to && typed && !homeward && onDirectTo ? () => onDirectTo(direct ? null : ident) : undefined}
           onAltitude={at.to && altitude && onPointAltitude ? () => setEditing({ ident, waypoint: at.waypoint, altitude, elevationFt: at.elevationFt }) : undefined}
           // An airport's card; a waypoint's is the chart's popup.
@@ -623,28 +625,33 @@ export default function ProceduresRoute({
               {/* A fuel stop's pump on top of its symbol, at the owner's ask
                   ("instead of fuel symbol next to airport id, can we put it
                   on top of the airport symbol?"). */}
-              <div className="flex w-7 shrink-0 justify-center pt-1">
-                <span className="relative">
-                  {mark}
-                  {a.role === "Stop" && isFuelStop(a.ident) && (
-                    <span className="absolute -top-1.5 -right-1.5 grid size-4 place-items-center rounded-full bg-caution text-white ring-2 ring-background">
-                      <Fuel className="size-2.5" strokeWidth={2.6} aria-label="fuel stop" role="img" />
-                    </span>
-                  )}
-                </span>
+              {/* The symbol is the field's menu, over the lines' tap that
+                  opens them (z-10), at the owner's ask ("Use the airport
+                  icon as the more button"). */}
+              <div className="relative z-10 flex w-7 shrink-0 justify-center">
+                {end.menu(
+                  <span className="relative">
+                    {mark}
+                    {a.role === "Stop" && isFuelStop(a.ident) && (
+                      <span className="absolute -top-1.5 -right-1.5 grid size-4 place-items-center rounded-full bg-caution text-white ring-2 ring-background">
+                        <Fuel className="size-2.5" strokeWidth={2.6} aria-label="fuel stop" role="img" />
+                      </span>
+                    )}
+                  </span>,
+                )}
               </div>
               {/* Two lines, as a waypoint's row and the list before had them,
                   at the owner's ask ("line up the time with airport id and
                   elevation with wind like before"): the ident and the time,
-                  then the wind and the elevation; the menu beside both. */}
-              <div className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-x-2">
+                  then the wind and the elevation. */}
+              <div className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2">
                 <div className="col-start-1 row-start-1 flex min-w-0 items-center gap-1.5">
                   {/* The disclosure, iOS's small chevron by the symbol, not
                       an icon button (data-disclosure). */}
                   <button
                     type="button" onClick={() => toggleField(key)} aria-expanded={opened} data-testid="field-toggle" data-ident={a.ident} data-disclosure=""
                     aria-label={`${a.ident}: runways and procedures`}
-                    className="-ml-1 grid size-4 shrink-0 place-items-center text-tint outline-none after:absolute after:inset-0 after:content-[''] focus-visible:ring-2 focus-visible:ring-ring"
+                    className="-ml-0.5 grid size-4 shrink-0 place-items-center text-tint outline-none after:absolute after:inset-0 after:content-[''] focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     <ChevronRight className={cn("size-4 transition-transform", opened && "rotate-90")} aria-hidden />
                   </button>
@@ -654,7 +661,6 @@ export default function ProceduresRoute({
                   {tank && <FuelGauge gal={tank.gal} usable={tank.usable} tone={tank.low ? "low" : a.role === "Stop" && isFuelStop(a.ident) ? "fuel" : undefined} />}
                 </div>
                 <div className="relative z-10 col-start-2 row-start-1 justify-self-end">{end.time}</div>
-                <div className="relative z-10 col-start-3 row-span-2 row-start-1 self-center">{end.menu}</div>
                 <p className={cn("col-start-1 row-start-2 flex min-w-0 items-center gap-1 font-semibold text-tint tabular-nums", TEXT.note)} data-testid="field-wind">
                   {end.direct ? "Direct to" : wind && (
                     <>
@@ -961,6 +967,7 @@ function HoldRow({ hold, flown, last, onOpen }: { hold: Hold; flown: LegHold | n
  * what is flown there (a field's). The line runs on to the next step.
  */
 function Step({ mark, title, sub, figures, menu, last, field = false, testId, icon, children }: {
+  /** Its menu, behind its mark (PointMenu's `face`). */
   mark: ReactNode;
   /** After its name: the fuel in the tanks there (FuelGauge). */
   icon?: ReactNode;
@@ -968,9 +975,9 @@ function Step({ mark, title, sub, figures, menu, last, field = false, testId, ic
    *  under it: what it is, and how far along. */
   title: string;
   sub?: ReactNode;
-  /** Its time over its altitude (PointFigures), and its menu (PointMenu). */
+  /** Its time over its altitude (PointFigures). */
   figures: ReactNode;
-  menu?: ReactNode;
+  menu?: (face: ReactNode) => ReactNode;
   last: boolean;
   field?: boolean;
   testId?: string;
@@ -980,7 +987,7 @@ function Step({ mark, title, sub, figures, menu, last, field = false, testId, ic
   return (
     <li className="relative flex gap-2.5" data-testid={testId}>
       {!last && <span aria-hidden="true" className="absolute top-3 bottom-0 left-[calc(0.875rem-1px)] w-0.5 bg-border" />}
-      <div className="relative flex w-7 shrink-0 justify-center pt-0.5">{mark}</div>
+      <div className="relative flex w-7 shrink-0 justify-center pt-0.5">{menu ? menu(mark) : mark}</div>
       <section aria-label={title} className={cn("min-w-0 flex-1 space-y-3", field ? "pb-5" : "pb-4")}>
         <div className="flex items-center gap-2">
           <div className="flex min-w-0 flex-1 flex-col">
@@ -991,7 +998,6 @@ function Step({ mark, title, sub, figures, menu, last, field = false, testId, ic
             {sub && <span className={cn("truncate text-muted-foreground", TEXT.note)}>{sub}</span>}
           </div>
           {figures}
-          {menu}
         </div>
         {children}
       </section>
