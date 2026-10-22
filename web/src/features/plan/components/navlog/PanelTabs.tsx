@@ -83,6 +83,27 @@ export default function PanelTabs({ rootRef, before, contents, notice, footer, c
   const [opened, setOpened] = useState<PanelTab[]>(Overview ? [] : ["preflight"]);
   if (tab && !opened.includes(tab)) setOpened([...opened, tab]);
   const scroller = useRef<HTMLDivElement>(null);
+  // The card's own head -- what comes before the tabs (its title) and the
+  // tabs -- that the scroller runs on up under as under the map panel's,
+  // at the owner's ask ("look at this for the see-through under the top
+  // bar"): the scroller reaches up by both heads (--head-room on the
+  // tabs' root, the panel's own head --panel-head and this one's foot in
+  // the panel's body), and the head is frosted with the panel's while
+  // anything is under them (index.css, data-under-band).
+  const [localHead, setLocalHead] = useState<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const root = localHead?.parentElement;
+    const body = localHead?.closest<HTMLElement>("[data-panel-body]");
+    if (!localHead || !root || !body) return;
+    const measure = () => {
+      const foot = Math.max(0, Math.round(localHead.getBoundingClientRect().bottom - body.getBoundingClientRect().top));
+      root.style.setProperty("--head-room", `calc(var(--panel-head, 0px) + ${foot}px)`);
+    };
+    measure();
+    const watch = new ResizeObserver(measure);
+    watch.observe(localHead);
+    return () => { watch.disconnect(); root.style.removeProperty("--head-room"); };
+  }, [localHead]);
   // The tab that was up as a finger or a key pressed one, before Radix
   // makes the pressed one the tab up (on its mouse down or key down, ahead
   // of the click): whether the tap was on the tab already up.
@@ -124,7 +145,8 @@ export default function PanelTabs({ rootRef, before, contents, notice, footer, c
     // (content-visibility) and the first move is on their estimates.
     const to = () => {
       const target = box.querySelector(`[data-tab="${tab}"] [data-title="${CSS.escape(section)}"]`);
-      if (target) box.scrollTop += target.getBoundingClientRect().top - box.getBoundingClientRect().top;
+      // Under the heads it runs on up under (its scroll padding), not under them.
+      if (target) box.scrollTop += target.getBoundingClientRect().top - box.getBoundingClientRect().top - (parseFloat(getComputedStyle(box).scrollPaddingTop) || 0);
     };
     to();
     const frame = requestAnimationFrame(to);
@@ -153,7 +175,10 @@ export default function PanelTabs({ rootRef, before, contents, notice, footer, c
     // is no viewport to clip to, and a route long enough to scroll
     // would otherwise print only whatever page's worth happened to be
     // visible.
-    <Tabs ref={rootRef} value={tab ?? ""} onValueChange={choose} className="flex min-h-0 flex-1 flex-col gap-0 overflow-hidden print:h-auto print:overflow-visible">
+    // Not clipped: its scroller runs on up under the heads over it
+    // (under-head), and clips what it holds itself.
+    <Tabs ref={rootRef} value={tab ?? ""} onValueChange={choose} className="flex min-h-0 flex-1 flex-col gap-0 print:h-auto">
+      <div ref={setLocalHead} data-under-band="" className="relative z-10 flex shrink-0 flex-col">
       {before}
       {/* The stock line tabs, as the consoles' (ConsoleTabs), over the
           scroller so they stay as it scrolls: an icon over its word, at a
@@ -192,13 +217,14 @@ export default function PanelTabs({ rootRef, before, contents, notice, footer, c
           </TabsTrigger>
         ))}
       </TabsList>}
+      </div>
       <div
-        ref={scroller}
+        ref={scroller} data-local-head=""
         // The bottom inset clears the home indicator on an installed
         // app, so the last section's content is not under it.
         // `flight-briefing`: index.css's print rules lay every tab out on
         // paper.
-        className="flight-briefing @container min-h-0 flex-1 overflow-auto pr-4 pb-[env(safe-area-inset-bottom)] pl-[max(1rem,env(safe-area-inset-left))] print:h-auto print:overflow-visible print:pb-0"
+        className="flight-briefing @container under-head min-h-0 flex-1 overflow-auto pr-4 pb-[env(safe-area-inset-bottom)] pl-[max(1rem,env(safe-area-inset-left))] print:h-auto print:overflow-visible print:pb-0"
         data-testid="brief-scroller"
       >
         {notice}

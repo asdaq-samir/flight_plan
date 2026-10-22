@@ -562,7 +562,12 @@ export default function MapPanel({ label, top, controls, compact, children, stat
   const [headBand, setHeadBand] = useState<HTMLDivElement | null>(null);
   useEffect(() => {
     if (!headBand || !panel || !under) return;
-    const frost = (scroller: Element | undefined) => headBand.toggleAttribute("data-under", !!scroller && scroller.scrollTop > 0);
+    // "local" where a card's own head (its title, its tabs) is under the
+    // panel's and is frosted with it, the line under that one alone.
+    const frost = (scroller: Element | undefined) => {
+      if (scroller && scroller.scrollTop > 0) headBand.setAttribute("data-under", scroller.hasAttribute("data-local-head") ? "local" : "");
+      else headBand.removeAttribute("data-under");
+    };
     const onScroll = (event: Event) => {
       const at = event.target;
       if (at instanceof HTMLElement && at.classList.contains("under-head") && panel.contains(at)) frost(at);
@@ -738,15 +743,11 @@ export default function MapPanel({ label, top, controls, compact, children, stat
           from the bottom, the top row, any notice, the controls -- or, at
           rest, the capsule, its grabber on its far edge from the top. */}
       <div
-        ref={setHeadBand}
-        className={cn(
-          // Over the body, which runs on up under it (`under`): frosted
-          // with the sheet's own colour while anything is there. Not raised
-          // in the pill, whose grabber lies over its edge.
-          "flex shrink-0 flex-col transition-[background-color,box-shadow] duration-150", under && "z-20",
-          "data-[under]:bg-[color-mix(in_oklab,var(--background)_85%,transparent)] data-[under]:shadow-[0_1px_0_var(--color-border)]",
-          "dark:data-[under]:bg-[color-mix(in_oklab,var(--popover)_85%,transparent)]",
-        )}
+        ref={setHeadBand} data-head-band=""
+        // Over the body, which runs on up under it (`under`): frosted with
+        // the sheet's own colour while anything is there (index.css). Not
+        // raised in the pill, whose grabber lies over its edge.
+        className={cn("flex shrink-0 flex-col", under && "z-20")}
       >
       <div
         ref={setHead} className={cn("flex shrink-0 touch-none flex-col", !fromFoot && "relative")} onPointerDown={startDrag}
@@ -860,7 +861,7 @@ export default function MapPanel({ label, top, controls, compact, children, stat
         )}
         // The foot as it is at half, whatever the height now: a card laid
         // out to it keeps one layout all the way up.
-        style={{ "--half-body": `${halfBody}px`, "--half-foot": `${toEdge && fromBottom ? halfChrome : 0}px`, "--head-room": `${under ? headHeight : 0}px` } as CSSProperties}
+        style={{ "--half-body": `${halfBody}px`, "--half-foot": `${toEdge && fromBottom ? halfChrome : 0}px`, "--head-room": `${under ? headHeight : 0}px`, "--panel-head": `${under ? headHeight : 0}px` } as CSSProperties}
         data-panel-body=""
       >
         {children}
