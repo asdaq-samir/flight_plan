@@ -734,10 +734,13 @@ export default function MapPanel({ label, top, controls, compact, children, stat
               // button vertically in that top space"): sixteen under it over
               // the line, as the grabber's are over it, the hit areas, three
               // past the row, kept off a card under it (the iOS audit's P1).
-              "flex shrink-0 px-2", minimized ? "min-h-11 pb-4" : "h-12", !barShown && "hidden",
-              // In the pill the pill's whole, round its grabber; out of it
-              // the line under the sheet's first row.
-              pillShape ? (fromBottom ? "mt-1.5 mb-1" : "mt-1 mb-1.5") : "border-b border-border/60",
+              // 52 in the sheet, the tabs' icons 28 and words 13 with room
+              // round them (TabBar); the pill's 48, its height fixed.
+              "flex shrink-0 px-2", minimized ? "min-h-11 pb-4" : pillShape ? "h-12" : "h-13", !barShown && "hidden",
+              // In the pill the pill's whole, round its grabber; out of it,
+              // under a card's name, the line under the sheet's first row --
+              // under the tabs, the tabs' own line of glass (TabGlass).
+              pillShape ? (fromBottom ? "mt-1.5 mb-1" : "mt-1 mb-1.5") : minimized ? "border-b border-border/60" : "",
               figuresPill && "hidden",
               !fromBottom && onPhone && "h-auto pt-[env(safe-area-inset-top)]",
             )}

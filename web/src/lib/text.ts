@@ -39,10 +39,11 @@ export const TEXT = {
   /** A chip's category inside a column the width of the star, with
    *  font-bold: iOS's Caption 2, 11 on 13, the same with a mouse. */
   caption: "text-[0.6875rem] leading-[0.8125rem]",
-  /** The tab bar's words: iOS's Caption 1, 12 on 16, a size up from its
-   *  tab bar's Caption 2, at the owner's ask ("make the label font and icon
-   *  size a bit bigger so it fits nicely"). */
-  tab: "text-[0.75rem] leading-4",
+  /** The tab bar's words: iOS's Footnote, 13 on 17, two sizes up from its
+   *  tab bar's Caption 2, at the owner's asks ("make the label font and icon
+   *  size a bit bigger so it fits nicely"; the tabs to "pop out more",
+   *  2026-10-22). */
+  tab: "text-[0.8125rem] leading-[1.0625rem]",
 } as const;
 
 /** A group's heading, as iOS's grouped lists set one: a note's size,
