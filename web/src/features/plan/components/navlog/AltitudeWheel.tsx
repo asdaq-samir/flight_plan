@@ -93,8 +93,10 @@ export default function AltitudeWheel({ altitudes, value, onChange, names = {}, 
       onKeyDown={step} onClick={tap}
       // Narrow over the graph's left edge, at the owner's ask ("put the
       // ruler over the graph but just make it narrow so it's not taking
-      // much space"): a strip of clear glass, the graph showing through.
-      className="relative h-full w-11 shrink-0 rounded-r-lg bg-background/40 outline-none backdrop-blur-[2px] focus-visible:ring-2 focus-visible:ring-ring"
+      // much space"): a strip of clear glass, the graph showing through,
+      // its outer corners the graph's own round ones (rounded-xl), where
+      // they stood square over them (the owner's screenshot).
+      className="relative h-full w-11 shrink-0 rounded-l-xl rounded-r-lg bg-background/40 outline-none backdrop-blur-[2px] focus-visible:ring-2 focus-visible:ring-ring"
       data-testid="altitude-wheel"
     >
       {/* The pointer: a hairline across at the middle in the tint, a notch
