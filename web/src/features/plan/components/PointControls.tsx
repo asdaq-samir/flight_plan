@@ -140,7 +140,7 @@ export function PointMenu({ testId = "point-menu", face, ...actions }: PointActi
             // A round glass button round the symbol, as the app's other
             // buttons are, so it reads as one, at the owner's pick (option A,
             // 2026-10-22: "make the airport icons actually look like
-            // selectable buttons"): 36 round its 24, the icon buttons' own
+            // selectable buttons"): 36 round its 22, the icon buttons' own
             // size, a bit bigger at the owner's ask ("Make the airport button
             // outline a bit bigger", it was 32), its 44 a pseudo-element,
             // centred on the route's line as the bare symbol was, and on the

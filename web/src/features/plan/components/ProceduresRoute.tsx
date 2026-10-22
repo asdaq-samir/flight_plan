@@ -37,6 +37,11 @@ import { holdWords, type Hold } from "../../../lib/holds";
 import type { FuelStopSuggestion, LegHold } from "../../../lib/api/types";
 import { groundMinAt, legOf, rowPoint, type NavLogRow } from "./navlog/rows";
 
+/** The line that joins the route's points down FPL's list, in the course's
+ *  magenta as the map draws the route, at the owner's ask ("draw the
+ *  connection with magenta line"); it was the border's grey. */
+const ROUTE_LINE = { backgroundColor: COURSE_MAGENTA } as const;
+
 // Opened only from a point's menu, so fetched as one first is: in the
 // first load they took it over its 1.10 MB budget (CI, 2026-10-20).
 const FixFromDialog = lazy(() => import("./FixFromDialog"));
@@ -518,7 +523,8 @@ export default function ProceduresRoute({
     );
     const has = (kind: Kind) => hasKind(a.ident, kind) || inRoute.some(p => sameField(p.ident, a.ident) && p.kind === kind);
     const time = row ? etaAt(depart || new Date().toISOString(), row.minutesFlown) : null;
-    const mark = row ? <PointMark row={row} number={undefined} weather={weather} /> : <FieldDot last={last} />;
+    // 22 in the 36 of its glass button, where the map's 26 filled it.
+    const mark = row ? <PointMark row={row} number={undefined} weather={weather} airportSize={22} /> : <FieldDot last={last} />;
     // A step of the field's, at the owner's pick (option C of the
     // procedures canvas): its name and time in its head, its runway chips
     // under with its info at their start ("Info can go on the left side of
@@ -613,7 +619,7 @@ export default function ProceduresRoute({
       const tank = row ? tanks.get(row.key) : a.role === "Departure" ? tanks.get("departure") : undefined;
       return (
         <li key={key} className="relative" data-testid="route-field" data-ident={a.ident}>
-          {!last && <span aria-hidden="true" className="absolute top-3 bottom-0 left-[calc(0.875rem-1px)] w-0.5 bg-border" />}
+          {!last && <span aria-hidden="true" className="absolute top-3 bottom-0 left-[calc(0.875rem-1px)] w-0.5" style={ROUTE_LINE} />}
           <section aria-label={`${a.ident} · ${first.role}`} className={cn(!(opened && parts[1]) && "pb-5")}>
             {/* The airport's lines: a tap anywhere on them -- its symbol, its
                 ident, its fuel, its wind, its time -- opens it, at the
@@ -957,7 +963,7 @@ const DAY_MIN = 24 * 60;
 function HoldRow({ hold, flown, last, onOpen }: { hold: Hold; flown: LegHold | null; last: boolean; onOpen: () => void }) {
   return (
     <li className="relative flex gap-2.5" data-testid="route-hold" data-fix={hold.fix}>
-      {!last && <span aria-hidden="true" className="absolute top-0 bottom-0 left-[calc(0.875rem-1px)] w-0.5 bg-border" />}
+      {!last && <span aria-hidden="true" className="absolute top-0 bottom-0 left-[calc(0.875rem-1px)] w-0.5" style={ROUTE_LINE} />}
       <div className="relative flex w-7 shrink-0 justify-center pt-1.5" aria-hidden="true">
         <svg viewBox="0 0 28 16" className="h-4 w-7 rounded-full bg-background">
           <rect x="2" y="2" width="24" height="12" rx="6" fill="none" stroke={COURSE_MAGENTA} strokeWidth="2.5" strokeDasharray="4 3" />
@@ -1006,7 +1012,7 @@ function Step({ mark, title, sub, figures, menu, last, field = false, testId, ic
   const Name = field ? "h3" : "span";
   return (
     <li className="relative flex gap-2.5" data-testid={testId}>
-      {!last && <span aria-hidden="true" className="absolute top-3 bottom-0 left-[calc(0.875rem-1px)] w-0.5 bg-border" />}
+      {!last && <span aria-hidden="true" className="absolute top-3 bottom-0 left-[calc(0.875rem-1px)] w-0.5" style={ROUTE_LINE} />}
       <div className="relative flex w-7 shrink-0 justify-center pt-0.5">{menu ? menu(mark) : mark}</div>
       <section aria-label={title} className={cn("min-w-0 flex-1 space-y-3", field ? "pb-5" : "pb-4")}>
         <div className="flex items-center gap-2">

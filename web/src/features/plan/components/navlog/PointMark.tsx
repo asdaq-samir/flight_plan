@@ -15,8 +15,12 @@ import type { NavLogRow } from "./rows";
  * through its magenta diamond, and an airport its mark (its airspace's
  * symbol, its weather in the middle), as Nearest's rows lead with it.
  */
-export function PointMark({ row, number, weather }: {
+export function PointMark({ row, number, weather, airportSize = AIRPORT_MARK }: {
   row: NavLogRow;
+  /** An airport's mark smaller than the map's, inside FPL's glass button
+   *  (ProceduresRoute), at the owner's ask ("Make the airport symbol a bit
+   *  smaller inside the button"); the map's size elsewhere. */
+  airportSize?: number;
   /** A checkpoint's number on the map: its place among the chosen. */
   number: number | undefined;
   /** An airport's weather colour, as its chip on the map. */
@@ -56,7 +60,7 @@ export function PointMark({ row, number, weather }: {
   const { airport } = row;
   return (
     <span
-      aria-hidden="true" data-mark="airport" className="block shrink-0" style={{ width: AIRPORT_MARK, height: AIRPORT_MARK }}
+      aria-hidden="true" data-mark="airport" className="block shrink-0 [&>svg]:size-full" style={{ width: airportSize, height: airportSize }}
       dangerouslySetInnerHTML={{ __html: airportMarkSvg(airport.airspace_class ?? null, weather(airport.ident) ?? colourOf(null), null, "overflow-visible") }}
     />
   );
