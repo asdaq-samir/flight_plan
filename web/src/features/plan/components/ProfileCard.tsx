@@ -28,7 +28,11 @@ export default function ProfileCard({ name, line, corner, onClose, children }: {
   return (
     <div className="flex min-h-0 flex-1 flex-col px-4 pt-[var(--corner-inset,0.75rem)] print:hidden" data-testid="profile-card">
       <CardHead name={name} line={line} nameTestId="profile-name" onClose={onClose} onShare="profile" closeTestId="profile-close">{corner}</CardHead>
-      <div className="mt-3 flex min-h-40 flex-1 flex-col [&_[data-testid=mini-profile]]:h-full">{children}</div>
+      {/* As tall as the card has room for over the route's figures, no
+          taller: held at 160, it ran under them where the name took two
+          lines at the owner's larger text, the graph's foot behind the
+          figures (the owner's screenshot); what it holds scrolls. */}
+      <div className="mt-3 flex min-h-0 flex-1 flex-col [&_[data-testid=mini-profile]]:h-full">{children}</div>
     </div>
   );
 }

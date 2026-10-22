@@ -168,6 +168,18 @@ function altitudeChoiceOf(value: string | null): AltitudeChoice {
  */
 /** The procedures drawn so far, for the map: one stable function, so the
  *  list is made again only as one comes in (useQueries' combine). */
+/** The route's stops with `idents` put in after `after` (its departure,
+ *  or one of its stops), as many as the planner's most stops leave room
+ *  for; null with no room. Add fuel stop's, and what is planned ahead of
+ *  it. */
+function withStopsAfter(dep: string, stops: string[], after: string, idents: string[]): { stops: string[]; added: string[] } | null {
+  const room = MAX_STOPS - stops.length;
+  if (room <= 0 || idents.length === 0) return null;
+  const at = sameField(dep, after) ? 0 : stops.findIndex(stop => sameField(stop, after)) + 1 || stops.length;
+  const added = idents.slice(0, room);
+  return { stops: [...stops.slice(0, at), ...added, ...stops.slice(at)], added };
+}
+
 const drawnOnly = (results: { data?: ProcedureDrawing }[]) => results.flatMap(r => (r.data ? [r.data] : []));
 
 /** A procedure picked, drawn as the planner draws it (vfr.procedures):
@@ -372,7 +384,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       return ident && end && /^\d/.test(end) ? [`${ident}:${end}`] : [];
     }).join(",");
   }, [drawnPickList, patternText, takeoffText, routeFields]);
-  const s = usePlan({
+  const planParams = {
     dep: planned.dep, dest: planned.dest, stops: planned.stops, altitudeFt, altitudeNearest, altitudeChoice, depart, aircraft, load, classBClearance,
     altitudes, procedures, runways: runwaysText, crossings: crossingsText, ground: groundText, holds: holdsText, localMin, rules: flightRules,
     // Under IFR, the alternate filed in the Weather tab (AlternateSection).
@@ -380,7 +392,8 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     // Checkpoints as the map shows them: the settings' Waypoints off, the
     // nav log runs from point to point, at the pilot's ask.
     checkpoints: showWaypoints,
-  });
+  };
+  const s = usePlan(planParams);
   // The traffic patterns the pilot picked for the route's fields (the
   // route's Procedures), kept in the address as the rest of the plan is:
   // "KDLH:27,C81:24".
@@ -1071,11 +1084,27 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // Their pins on the map, every flight's.
   const fuelStopPins = useMemo(() => fuelStops.flatMap(f => f.stops.map(({ ident, lat, lon }) => ({ ident, lat, lon }))), [fuelStops]);
   const keepFuelStops = useCallback((after: string, idents: string[]) => {
-    const room = MAX_STOPS - planned.stops.length;
-    if (room <= 0) return;
-    const at = sameField(planned.dep, after) ? 0 : planned.stops.findIndex(stop => sameField(stop, after)) + 1 || planned.stops.length;
-    setStops([...planned.stops.slice(0, at), ...idents.slice(0, room), ...planned.stops.slice(at)], idents.slice(0, room));
+    const next = withStopsAfter(planned.dep, planned.stops, after, idents);
+    if (next) setStops(next.stops, next.added);
   }, [setStops, planned.dep, planned.stops]);
+  // The route through the first flight's suggested stops planned as they
+  // are suggested, as Fly Here's is at its tap: Add fuel stop then draws it
+  // at once from what is in, where the owner watched four and a half
+  // seconds of dashes and "Planning altitudes…" after the tap (the video,
+  // 2026-10-22). The same plan the page asks for once they are stops.
+  const suggestedFirst = fuelStops[0];
+  const nextStops = suggestedFirst && !s.local ? withStopsAfter(planned.dep, planned.stops, suggestedFirst.departure, suggestedFirst.stops.map(f => f.ident))?.stops ?? null : null;
+  const aheadKey = nextStops ? JSON.stringify([nextStops, planParams.altitudeFt, planParams.altitudeChoice, planParams.depart, aircraft.profile, load]) : "";
+  useEffect(() => {
+    if (!nextStops) return;
+    const ahead = { ...planParams, stops: nextStops };
+    void queryClient.prefetchQuery(courseQuery(ahead.dep, ahead.dest, nextStops));
+    if (showWaypoints) void queryClient.prefetchQuery(checkpointsQuery(ahead.dep, ahead.dest, nextStops));
+    void queryClient.prefetchQuery(navlogQuery(ahead, showWaypoints));
+    // Keyed on the route and the plan's own choices, not the object made
+    // each render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [aheadKey]);
   // Add Stop open: from its own button, or from no legal altitude's --
   // "via", its Fly via round a Class B, the ways round suggested.
   const [addingStop, setAddingStop] = useState<false | "stop" | "via">(false);
@@ -2236,7 +2265,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
                 height; its figures counting down at the sheet's foot. */}
             {dryRunning ? (
               <Suspense fallback={null}>
-                <div className="flex min-h-40 flex-1 flex-col" data-testid="profile-dry-run">
+                <div className="flex min-h-0 flex-1 flex-col" data-testid="profile-dry-run">
                   <DryRunControls run={dryRunning} ends={course} onClose={stopDryRun} missed={goMissed} onMissed={goMissedNow} />
                 </div>
               </Suspense>
