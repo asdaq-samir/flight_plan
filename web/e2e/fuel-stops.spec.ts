@@ -20,13 +20,13 @@ const STOP = {
 };
 const CHOICE = { ...STOP, ident: "KEAU", name: "CHIPPEWA VALLEY RGNL", city: "EAU CLAIRE", lat: 44.8658, lon: -91.4843, added_nm: 6.0, lands_with_gal: 21.2 };
 
-async function suggested(page: Page) {
+async function suggested(page: Page, departure = "C81") {
   await page.route(url => url.pathname.endsWith("/navlog") && !url.searchParams.get("stops"), async route => {
     const body = await (await route.fetch()).text();
     const lines = body.split("\n").filter(Boolean).map(line => {
       const message = JSON.parse(line);
       if (message.type !== "done") return line;
-      message.totals.fuel_stops = [{ departure: "C81", destination: "KDLH", usable_gal: 48, stops: [STOP], choices: [CHOICE] }];
+      message.totals.fuel_stops = [{ departure, destination: "KDLH", usable_gal: 48, stops: [STOP], choices: [CHOICE] }];
       return JSON.stringify(message);
     });
     await route.fulfill({ contentType: "application/x-ndjson", body: `${lines.join("\n")}\n` });
@@ -75,4 +75,19 @@ test("another field from the stop's menu goes in in its place", async ({ page })
   await row.getByTestId("fuel-stop-other").click();
   await page.getByTestId("fuel-stop-choice").click();
   await expect(page).toHaveURL(/[?&]stops=KEAU(&|$)/);
+});
+
+test("a stop suggested on a flight from a present position is a row of the route too", async ({ page }) => {
+  // The owner's screenshot (2026-10-22): from a present position, the stop
+  // dashed in the route's box was missing from FPL's list, the departure
+  // there no field to follow.
+  // Named as the route's box names the position, as the planner sends it.
+  await suggested(page, "@42.2333,-87.9883");
+  await page.goto("/app/plan?dep=@42.2333,-87.9883&dest=KDLH");
+  await settle(page);
+  await openPanel(page);
+  await expect(sideDrawer(page).getByTestId("route-fuel-stop")).toHaveText("KRPD", { timeout: slow(60_000) });
+  const row = sideDrawer(page).getByTestId("fuel-stop");
+  await expect(row).toHaveAttribute("data-ident", "KRPD");
+  await expect(sideDrawer(page).getByTestId("fuel-stop-keep")).toBeVisible();
 });

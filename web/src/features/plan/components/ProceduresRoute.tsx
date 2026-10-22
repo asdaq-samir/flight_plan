@@ -777,8 +777,13 @@ export default function ProceduresRoute({
   // the ground), Keep it and Another field on the first. A round trip's
   // field twice: the flight that leaves it, once.
   const suggested = new Set<FuelStopSuggestion>();
-  const fuelStopRows = (ident: string, row: NavLogRow | undefined): ReactNode[] => {
-    const flight = fuelStops.find(f => sameField(f.departure, ident) && !suggested.has(f));
+  const fuelStopRows = (ident: string, row: NavLogRow | undefined, first = false): ReactNode[] => {
+    // By the field it leaves; the route's first flight from a departure
+    // that is no field -- a present position, whose name the planner and
+    // the nav log may spell apart -- where its suggested stops were missing
+    // from the list, dashed in the route's box alone (the owner's
+    // screenshot, 2026-10-22).
+    const flight = fuelStops.find(f => (sameField(f.departure, ident) || (first && f === fuelStops[0])) && !suggested.has(f));
     if (!flight || !flight.stops.length) return [];
     suggested.add(flight);
     const leavesMin = row?.kind === "stop" ? (row.minutesFlown ?? 0) + row.groundMin : 0;
@@ -839,6 +844,7 @@ export default function ProceduresRoute({
       />,
     );
     if (to) steps.push(holdRow(row.airport.ident));
+    else if (row.kind === "departure" && "airport" in row) steps.push(...fuelStopRows(row.airport.ident, row, true));
   });
   const fieldsAlone = rows.length === 0 ? airports.map((a, i) => fieldStep(a, undefined, i === airports.length - 1)) : null;
 
