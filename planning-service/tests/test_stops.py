@@ -622,6 +622,13 @@ def test_a_route_with_stops_figures_at_each_altitude_join_its_hops():
     assert joined[5500.0].ete_min == 50.0
     assert joined[6500.0].tailwind_kt == pytest.approx((20.0 * 100 + -10.0 * 50) / 150, abs=0.05)
     assert join_figures([west], [100.0]) == west
+    # A hop with none to offer: the others' altitudes kept for the ruler,
+    # their times, fuel and "everywhere" unknown; none at all, none.
+    gapped = {j.altitude_ft: j for j in join_figures([west, ()], [100.0, 50.0])}
+    assert sorted(gapped) == [4500.0, 6500.0]
+    assert (gapped[4500.0].ete_min, gapped[4500.0].fuel_gal, gapped[4500.0].everywhere) == (None, None, False)
+    assert gapped[6500.0].tailwind_kt == 20.0
+    assert join_figures([(), ()], [100.0, 50.0]) == ()
 
 
 def test_a_stop_may_be_the_pilots_own_point_off_a_fix(monkeypatch):
