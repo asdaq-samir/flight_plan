@@ -6,6 +6,7 @@ import { cn } from "cn";
 import { closeTopCard, useOpenCards, type RouteCard } from "../lib/openCards";
 import { prefersReducedMotion } from "../lib/motion";
 import { TEXT } from "../lib/text";
+import TabGlass from "./TabGlass";
 import { PanelSize, TabBarMinimized, useConsoleOpen, useTabsShown } from "./mapChrome";
 
 /** One of a page's places, a tab of its bar: its word and its glyph. */
@@ -599,7 +600,20 @@ export default function TabBar<T extends string>({ tabs, tab, over, title, onPic
         if (gesture.current) event.preventDefault();
       }}
     >
-      {upAt >= 0 && (
+      {/* In the sheet, the tab up out of a line of glass (TabGlass, the
+          owner's 2e), lifted under a finger as the same tab; in the pill,
+          the drop of glass as before. */}
+      {upAt >= 0 && size?.size !== "peek" && (
+        <TabGlass
+          at={upAt} count={count} lifted={lens ? { x: lens.x, tab: lens.tab } : null}
+          // Slid under a finger, it keeps up with the finger: no easing
+          // behind it, which left it a fifth of a second back (the owner's
+          // "Dragging tab bubble is slow"); lifted, set down or moved to
+          // another tab, the bar's own pace.
+          transition={lens?.sliding ? "none" : `left ${dir > 0 ? trail : lead}s ${EASE}, width ${dir < 0 ? trail : lead}s ${EASE}`}
+        />
+      )}
+      {upAt >= 0 && size?.size === "peek" && (
         <span
           aria-hidden="true" data-testid="tab-bubble" data-lifted={lens ? "" : undefined}
           className={cn(
@@ -631,21 +645,20 @@ export default function TabBar<T extends string>({ tabs, tab, over, title, onPic
             // Its mark said to a reader, after its name.
             aria-label={mark ? `${label}, ${mark === "stop" ? "warning" : "caution"}` : undefined}
             className={cn(
-              // Over the bubble (positioned, so drawn after it).
-              // A little up in the bar, the owner's "move up the tabs a bit",
-              // in the middle of the bubble that now reaches higher.
-              "relative -translate-y-0.5 flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring",
-              // The others a grey that reads on the glass over any chart
-              // (WCAG's 4.5:1 at the words' 11 points), where the muted
-              // one fell to 4.35 there.
-              at === lit ? "text-tint" : "text-foreground/65 hover:text-foreground",
+              // Over the bubble (positioned, so drawn after it), in the
+              // middle of the bar's 56 points.
+              "relative flex min-w-0 flex-1 flex-col items-center justify-center gap-px rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              // The others a darker grey, at the owner's pick of the tabs'
+              // sizes ("A, plus D's bolder weight", 2026-10-22): they read
+              // from farther, in sun, on the glass over any chart.
+              at === lit ? "text-tint" : "text-foreground/80 hover:text-foreground",
             )}
           >
             <span className="relative">
-              {/* 26 and 12, a size up from iOS's tab bar's 24 and 11, at the
-                  owner's ask ("make the label font and icon size a bit
-                  bigger"), still inside the bar's 48 points. */}
-              <Icon className="size-[1.625rem]" strokeWidth={at === lit ? 2.25 : 1.75} aria-hidden="true" />
+              {/* 28 and 13, bolder lines, at the owner's pick (A with D's
+                  weight, 2026-10-22); the tab up's a touch bigger under its
+                  glass, as a lens magnifies, its room kept (a transform). */}
+              <Icon className={cn("size-7 transition-transform", at === lit && "scale-[1.08]")} strokeWidth={at === lit ? 2.5 : 2.1} aria-hidden="true" />
               {mark && (
                 <span
                   aria-hidden="true" data-testid={`tab-mark-${value}`} data-finding={mark}
@@ -653,7 +666,7 @@ export default function TabBar<T extends string>({ tabs, tab, over, title, onPic
                 />
               )}
             </span>
-            <span className={cn("font-medium", TEXT.tab)}>{label}</span>
+            <span className={cn(at === lit ? "font-bold" : "font-semibold", TEXT.tab)}>{label}</span>
           </button>
         );
       })}

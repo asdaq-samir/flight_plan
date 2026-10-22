@@ -1,4 +1,4 @@
-import { memo, useMemo } from "react";
+import { memo, useId, useMemo, type CSSProperties } from "react";
 import { AIRSPACE, ceilingOverFloor, ceilings, nameFits, namedPieces } from "./profile";
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "cn";
@@ -24,7 +24,7 @@ const miles = (nm: number) => `${Math.round(nm)}`;
  * the nav log full on it (`onOpen`); with nothing to open, all the way up,
  * it is a picture, not a button.
  */
-export default memo(function MiniProfile({ ends, selected, legs, onOpen, preview = null }: {
+export default memo(function MiniProfile({ ends, selected, legs, onOpen, preview = null, scaleTop }: {
   ends: RouteEnds;
   selected: Candidate[];
   legs: Leg[];
@@ -32,7 +32,12 @@ export default memo(function MiniProfile({ ends, selected, legs, onOpen, preview
   /** An altitude on the Profile card's wheel not yet flown (AltitudeProfile):
    *  a dashed line across at it, named, until the plan comes to it. */
   preview?: number | null;
+  /** The chart's top, feet, where the Profile card's drag has zoomed it
+   *  (AltitudeProfile); else just over the highest of what it shows. */
+  scaleTop?: number;
 }) {
+  // An id a url(#…) takes as it is: React's has colons in it.
+  const tintId = `tint${useId().replace(/[^A-Za-z0-9_-]/g, "")}`;
   const dep = ends.departure.ident, dest = ends.destination.ident;
   const stops = (ends.stops ?? []).map(s => s.ident);
   const { data: profile } = useQuery(routeProfileQuery(dep, dest, stops));
@@ -47,7 +52,15 @@ export default memo(function MiniProfile({ ends, selected, legs, onOpen, preview
   // Just over the highest of the ground, the plan and the ceilings, to the
   // next 500 ft: a thousand and a half over it left the top third of the
   // chart empty, at the owner's notice ("y axis has extra white space").
-  const top = Math.ceil((highest + 300) / 500) * 500;
+  const top = scaleTop ?? Math.ceil((highest + 300) / 500) * 500;
+  // The ground tinted against the altitude shown, as ForeFlight's profile
+  // does (the owner's recording): red at and above it, amber within 500 ft
+  // under it -- the least a flight keeps over the ground away from a
+  // congested area (14 CFR 91.119(c)) -- else the ground's own. Offsets in
+  // the chart's own height, moved by the Profile card's drag as it goes
+  // (data-tint), not drawn again.
+  const tintAt = preview ?? cruise;
+  const tintOffset = (ft: number) => Math.max(0, Math.min(1, 1 - ft / top));
   const x = (nm: number) => (profile.length_nm > 0 ? (nm / profile.length_nm) * W : 0);
   const y = (ft: number) => H - (Math.max(0, Math.min(ft, top)) / top) * H;
   const ground = `M0 ${H} ${profile.terrain.map(t => `L${x(t.along_nm).toFixed(1)} ${y(t.ground_ft).toFixed(1)}`).join(" ")} L${W} ${H}Z`;
@@ -64,8 +77,29 @@ export default memo(function MiniProfile({ ends, selected, legs, onOpen, preview
   );
   const chart = (
     <>
-      <span className="relative block min-h-0">
+      <span
+        className="relative block min-h-0" data-plot=""
+        // The drag's zoom: the chart drawn at `top`, scaled about its foot
+        // to the drag's --scale-top as it goes, smoothly, nothing drawn
+        // again till the finger lifts (AltitudeProfile).
+        style={{ "--base-top": top } as CSSProperties}
+      >
       <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="block h-full w-full" aria-hidden="true">
+        <defs>
+          <linearGradient id={tintId} gradientUnits="userSpaceOnUse" x1={0} y1={0} x2={0} y2={H}>
+            <stop offset={tintAt ? tintOffset(tintAt) : 0} stopColor="#d92d20" data-tint="red" />
+            <stop offset={tintAt ? tintOffset(tintAt) : 0} stopColor="#e0a100" data-tint="red-end" />
+            <stop offset={tintAt ? tintOffset(tintAt - 500) : 0} stopColor="#e0a100" data-tint="amber" />
+            <stop offset={tintAt ? tintOffset(tintAt - 500) : 0} stopColor="#8b6f47" data-tint="amber-end" />
+          </linearGradient>
+        </defs>
+        <g
+          data-scale=""
+          style={{
+            transformBox: "view-box", transformOrigin: "0 100%",
+            transform: "scaleY(calc(var(--base-top) / var(--scale-top, var(--base-top))))", transition: "transform 0.18s ease-out",
+          }}
+        >
         {profile.airspace.map((a, i) => {
           const look = AIRSPACE[a.class];
           if (!look) return null;
@@ -78,7 +112,7 @@ export default memo(function MiniProfile({ ends, selected, legs, onOpen, preview
             />
           );
         })}
-        <path d={ground} fill="#8b6f47" fillOpacity={0.45} />
+        <path d={ground} fill={`url(#${tintId})`} fillOpacity={0.55} />
         <path d={line} fill="none" stroke="var(--primary)" strokeWidth={2.5} strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
         {preview !== null && (
           <line
@@ -86,7 +120,21 @@ export default memo(function MiniProfile({ ends, selected, legs, onOpen, preview
             vectorEffect="non-scaling-stroke" data-testid="mini-profile-preview"
           />
         )}
+        </g>
       </svg>
+      {/* The Profile ruler's tick as it rolls, a dashed line moved by the
+          ruler itself (AltitudeProfile's --roll-ft and --roll-on, its words
+          its data-label), not the chart drawn again at each tick, at the
+          owner's ask ("do we need to redraw the whole thing or just move it
+          up or down?"). Held at the chart's top above it, till the ruler
+          rests and the chart is drawn for it. */}
+      <span
+        aria-hidden="true" data-roll=""
+        className="pointer-events-none absolute inset-x-0 border-t-2 border-dashed border-primary opacity-[var(--roll-on,0)]"
+        style={{ top: "calc((1 - min(var(--roll-ft, 0), var(--scale-top, var(--base-top))) / var(--scale-top, var(--base-top))) * 100%)" }}
+      >
+        <span data-roll-label="" className="absolute top-[3px] left-1/2 -translate-x-1/2 rounded bg-background/80 px-1 font-semibold text-foreground after:content-[attr(data-label)]" />
+      </span>
       {/* Each airspace named for its airport, at the owner's ask ("can the
           profile view airspaces have airport ids on them"): over its
           widest piece, in its own colour, under its top edge -- words,
@@ -94,7 +142,9 @@ export default memo(function MiniProfile({ ends, selected, legs, onOpen, preview
       {named.map(a => (
         <span
           key={a.key}
-          className="pointer-events-none absolute -translate-x-1/2 rounded bg-background/80 px-1 font-semibold"
+          // Out of sight while the drag's own line is (data-roll): set at
+          // the chart's own scale, which the drag's zoom moves.
+          className="pointer-events-none absolute -translate-x-1/2 rounded bg-background/80 px-1 font-semibold opacity-[calc(1-var(--roll-on,0))]"
           style={{ left: `${(x((a.from_nm + a.to_nm) / 2) / W) * 100}%`, top: `calc(${(y(Math.min(a.ceiling_ft ?? top, top)) / H) * 100}% + 2px)`, color: AIRSPACE[a.class]!.text }}
           aria-hidden="true" data-testid="mini-profile-airspace"
         >
@@ -109,7 +159,8 @@ export default memo(function MiniProfile({ ends, selected, legs, onOpen, preview
         <span
           // Under the line, over the ground: with the chart's top just
           // over the cruise there is no room above it.
-          className="absolute left-1/2 -translate-x-1/2 rounded bg-background/80 px-1 font-semibold text-foreground"
+          // Out of sight while the ruler's own line is (data-roll).
+          className="absolute left-1/2 -translate-x-1/2 rounded bg-background/80 px-1 font-semibold text-foreground opacity-[calc(1-var(--roll-on,0))]"
           style={{ top: `calc(${(y(preview ?? cruise) / H) * 100}% + 3px)` }} aria-hidden="true" data-testid="mini-profile-cruise"
         >
           {altFt(preview ?? cruise)} ft

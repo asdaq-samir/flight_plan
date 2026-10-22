@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronRight } from "lucide-react";
 import { cn } from "cn";
 import { Button } from "../../../../components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../../../components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../../../../components/ui/collapsible";
 import { PANEL_FIELD_FILL } from "../../../../components/panelField";
 import Segmented from "../../../../components/Segmented";
@@ -11,16 +12,20 @@ import type { AltitudeChoice, Detour, Leg, NavLogAltitude } from "../../../../li
 import type { FlightRules } from "../../../../lib/preferences";
 import { routeProfileQuery } from "../../../../lib/queryClient";
 import { GROUP_HEADING, TEXT } from "../../../../lib/text";
-import { flightLevel, one } from "../../../../lib/units";
+import { altFt, flightLevel, one } from "../../../../lib/units";
 import { hhmm } from "../../format";
 import AltitudeReasoning from "../AltitudeReasoning";
 import type { RouteEnds } from "./rows";
-import AltitudeWheel from "./AltitudeWheel";
 
 const RULES = [{ value: "vfr", label: "VFR" }, { value: "ifr", label: "IFR" }];
 const feet = (ft: number) => ft.toLocaleString("en-US");
 /** An altitude as said: feet under 18,000 ft, a flight level from there
  *  up, where altimeters are set to 29.92 (14 CFR 91.121, AIM 7-2-2). */
+/** The room over the highest ground, or how far under it. */
+const clearanceWords = (ft: number) => (ft >= 0 ? `${feet(ft)} ft` : `${feet(-ft)} ft under`);
+/** Where the route first meets ground at or over the altitude. */
+const strikeWords = (nm: number | null) => (nm === null ? "None" : `${Math.round(nm)} nm`);
+
 /** What the empty field says: an example of what it takes, at the owner's
  *  ask ("I want it to say Alt: 080 as a text filler example"). */
 const PLACEHOLDER = "Alt: 080";
@@ -211,11 +216,12 @@ export default function AltitudeGroup({ nav, legs, commanded = null, problem = f
 
 /**
  * The Profile card's body, at the owner's pick (2026-10-20, option C of
- * the canvas): the route from the side (`chart`, MiniProfile) with a ruler
- * of the legal altitudes down its left side, over it (AltitudeWheel, a
- * glass wheel in the corner before), and the dry run's button in its top-right
- * (`corner`); the ruler put away while a run plays (`wheelHidden`). Under the graph the
- * altitude on the wheel -- its plan's name, its time and fuel (the
+ * the canvas): the route from the side (`chart`, MiniProfile), the graph
+ * itself dragged up and down onto the legal altitudes as ForeFlight's
+ * profile is (a glass wheel in the corner, then a ruler, before), and the
+ * dry run's button in its top-right (`corner`); the drag put away while a
+ * run plays (`wheelHidden`). Under the graph the ground against it, then the
+ * altitude dragged to -- its plan's name, its time and fuel (the
  * planner's altitude_figures) -- whether it enters Class B, with the way
  * to avoid it, the flight rules, a route's problem, a pilot's own
  * altitude's cautions, and how the altitude was chosen, folded. The
@@ -230,7 +236,7 @@ export function AltitudeProfile({ nav: navNow, legs: legsNow, ends, chart, corne
   ends: RouteEnds | null;
   /** The side view, its line at `preview` while the wheel is on another
    *  altitude than the one flown. */
-  chart: (preview: number | null) => ReactNode;
+  chart: (preview: number | null, scaleTop?: number) => ReactNode;
   /** Over the graph's top right: the dry run's button. */
   corner?: ReactNode;
   wheelHidden?: boolean;
@@ -277,23 +283,16 @@ export function AltitudeProfile({ nav: navNow, legs: legsNow, ends, chart, corne
   // route it was on: once another is flown (it, re-planned; a figure
   // typed) or the route changes, the wheel is at the one flown.
   const [picked, setPicked] = useState<{ altitude: number; against: number | null; route: string } | null>(null);
-  // Flown once the ruler has come to rest on it a moment (it hands on its
-  // tick only at rest, AltitudeWheel), not at every tick passed: each is
-  // a new plan. A quarter second more, for taps one after another. Not
-  // once the card is put away.
+  // Flown once the finger lifts off the graph (a step of the keyboard's
+  // at once), not at every altitude passed: each is a new plan. A quarter
+  // second more, for steps one after another. Not once the card is put
+  // away.
   const timer = useRef<number | null>(null);
   useEffect(() => () => { if (timer.current !== null) window.clearTimeout(timer.current); }, []);
   const shownAt = picked && picked.against === cruise && picked.route === route ? picked.altitude
     : cruise !== null && altitudes.includes(cruise) ? cruise : altitudes.at(-1) ?? null;
-  // The graph's line drawn at the tick under the ruler's pointer as it
-  // rolls, at the owner's ask ("the redraw is not smooth with the ruler, it
-  // only redraws when I let my finger go"): only the line, the figures and
-  // the plan waiting for it to rest (`pick`). Taken as `shownAt` is: once
-  // that moves, it is that.
-  const [rolled, setRolledState] = useState<{ altitude: number; against: number | null } | null>(null);
-  const setRolled = (altitude: number) => setRolledState({ altitude, against: shownAt });
-  const drawnAt = rolled && rolled.against === shownAt ? rolled.altitude : shownAt;
   const pick = (altitude: number) => {
+    graph.current?.style.setProperty("--roll-on", "0");
     setPicked({ altitude, against: cruise, route });
     if (timer.current !== null) window.clearTimeout(timer.current);
     timer.current = window.setTimeout(() => {
@@ -314,6 +313,89 @@ export function AltitudeProfile({ nav: navNow, legs: legsNow, ends, chart, corne
     enabled: !!ends,
   });
   const names = own === null ? planNames(nav) : { ...planNames(nav), [own]: "Yours" };
+  // The ground against an altitude: its highest point along the route, the
+  // room over it, and how far along the route first meets it.
+  const check = (altitude: number) => {
+    if (!profile || profile.terrain.length === 0) return null;
+    const highest = Math.max(...profile.terrain.map(t => t.ground_ft));
+    const strike = profile.terrain.find(t => t.ground_ft >= altitude);
+    return { highest, clearance: altitude - highest, strikeNm: strike ? strike.along_nm : null };
+  };
+  // The graph's zoom once dragged, kept for its route: the chart drawn at
+  // it when the finger lifts, so the scale does not jump back.
+  const graph = useRef<HTMLDivElement>(null);
+  const [zoom, setZoom] = useState<{ top: number; route: string } | null>(null);
+  const scaleTop = zoom?.route === route ? zoom.top : undefined;
+  useEffect(() => { if (scaleTop === undefined) graph.current?.style.removeProperty("--scale-top"); }, [scaleTop]);
+  const dragging = useRef<{ top: number; altitude: number } | null>(null);
+  const plotOf = () => graph.current?.querySelector<HTMLElement>("[data-plot]") ?? null;
+  const baseTop = () => Number(getComputedStyle(plotOf() ?? document.body).getPropertyValue("--base-top")) || 10_000;
+  // Shown as the finger goes: the line, its words, the ground's tint and
+  // the strip, by their CSS and text, nothing re-rendered.
+  const live = (altitude: number, top: number) => {
+    const el = graph.current;
+    if (!el) return;
+    el.style.setProperty("--scale-top", String(top));
+    el.style.setProperty("--roll-ft", String(altitude));
+    el.style.setProperty("--roll-on", "1");
+    el.querySelector("[data-roll-label]")?.setAttribute("data-label", `${altFt(altitude)} ft`);
+    const base = baseTop();
+    const at = (ft: number) => String(Math.max(0, Math.min(1, 1 - ft / base)));
+    for (const [tint, ft] of [["red", altitude], ["red-end", altitude], ["amber", altitude - 500], ["amber-end", altitude - 500]] as const) {
+      el.querySelector(`[data-tint="${tint}"]`)?.setAttribute("offset", at(ft));
+    }
+    const ground = check(altitude);
+    const strip = el.parentElement?.querySelector("[data-testid=ground-strip]");
+    if (ground && strip) {
+      strip.querySelector("[data-live=clearance]")!.textContent = clearanceWords(ground.clearance);
+      strip.querySelector("[data-live=strike]")!.textContent = strikeWords(ground.strikeNm);
+    }
+    const slider = el.querySelector<HTMLElement>("[role=slider]");
+    slider?.setAttribute("aria-valuenow", String(altitude));
+    slider?.setAttribute("aria-valuetext", `${feet(altitude)} feet${names[altitude] ? `, ${names[altitude]}` : ""}`);
+  };
+  // The altitude at a point on the graph, the legal one nearest it; the
+  // scale zoomed out past four fifths of the way up, in under a third, to
+  // put it about two thirds up, in whole thousands.
+  const zoomFor = (altitude: number, top: number) =>
+    altitude > top * 0.8 || altitude < top * 0.3 ? Math.max(2000, Math.ceil((altitude * 1.5) / 1000) * 1000) : top;
+  const altitudeAt = (clientY: number, top: number) => {
+    const plot = plotOf()?.getBoundingClientRect();
+    if (!plot) return null;
+    const ft = (1 - (clientY - plot.top) / plot.height) * top;
+    return altitudes.reduce((best, a) => (Math.abs(a - ft) < Math.abs(best - ft) ? a : best), altitudes[0]!);
+  };
+  const grab = (event: PointerEvent<HTMLDivElement>) => {
+    if (shownAt === null) return;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    dragging.current = { top: scaleTop ?? baseTop(), altitude: shownAt };
+    move(event);
+  };
+  const move = (event: PointerEvent<HTMLDivElement>) => {
+    const d = dragging.current;
+    if (!d) return;
+    const altitude = altitudeAt(event.clientY, d.top);
+    if (altitude === null) return;
+    const top = zoomFor(altitude, d.top);
+    if (altitude === d.altitude && top === d.top) return;
+    dragging.current = { top, altitude };
+    live(altitude, top);
+  };
+  const letGo = () => {
+    const d = dragging.current;
+    dragging.current = null;
+    if (!d) return;
+    setZoom({ top: d.top, route });
+    if (d.altitude !== shownAt) pick(d.altitude);
+    else graph.current?.style.setProperty("--roll-on", "0");
+  };
+  const stepKey = (event: KeyboardEvent<HTMLDivElement>) => {
+    const by = event.key === "ArrowUp" ? -1 : event.key === "ArrowDown" ? 1 : 0;
+    if (!by || shownAt === null) return;
+    event.preventDefault();
+    const i = Math.max(0, Math.min(altitudes.length - 1, altitudes.indexOf(shownAt) + by));
+    pick(altitudes[i]!);
+  };
   const figure = figures.find(f => f.altitude_ft === shownAt) ?? null;
   const bravo = profile && shownAt !== null
     ? profile.airspace.find(a => a.class === "B" && a.floor_ft <= shownAt && (a.ceiling_ft ?? 10_000) >= shownAt) ?? null : null;
@@ -329,15 +411,43 @@ export function AltitudeProfile({ nav: navNow, legs: legsNow, ends, chart, corne
           graph, at the owner's asks ("make the wheel to be a ruler on the
           left side? Narrow and elegant"; "put the ruler over the graph but
           just make it narrow so it's not taking much space"). */}
-      <div className="relative h-56 max-h-full min-h-16 shrink-0">
-        {chart(drawnAt !== null && drawnAt !== cruise ? drawnAt : null)}
+      <div ref={graph} className="relative h-56 max-h-full min-h-16 shrink-0">
+        {chart(shownAt !== null && shownAt !== cruise ? shownAt : null, scaleTop)}
+        {/* The graph is the control, as ForeFlight's profile is (the owner's
+            recording, "yes" to building it): a drag up or down on it moves
+            a dashed line and its altitude across the ground, the ground
+            tinted against it, the scale zooming to keep it in sight, onto
+            the legal altitudes alone -- moved by their CSS as the finger
+            goes, nothing drawn again ("notice how smooth theirs is"), the
+            plan asked once it lifts. To VoiceOver and the keyboard a
+            slider, up and down a legal altitude at a time. Its drags its
+            own, not the sheet's (touch-action none). */}
         {!wheelHidden && shownAt !== null && altitudes.length > 0 && (
-          <div className="absolute inset-y-0 left-0">
-            <AltitudeWheel altitudes={altitudes} value={shownAt} onChange={pick} onRoll={setRolled} names={names} />
-          </div>
+          <div
+            role="slider" tabIndex={0} aria-label="Cruise altitude" aria-orientation="vertical"
+            aria-valuemin={altitudes.at(-1)} aria-valuemax={altitudes[0]} aria-valuenow={shownAt}
+            aria-valuetext={`${feet(shownAt)} feet${names[shownAt] ? `, ${names[shownAt]}` : ""}`}
+            onPointerDown={grab} onPointerMove={move} onPointerUp={letGo} onPointerCancel={letGo} onKeyDown={stepKey}
+            className="absolute inset-0 cursor-ns-resize touch-none rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            data-testid="altitude-wheel"
+          />
         )}
         {corner}
       </div>
+      {/* What the ground says of the altitude on the graph, as ForeFlight's
+          strip under its profile does: the highest ground along the route,
+          the room over it, and where the route first meets ground at or
+          over the altitude; live as the graph is dragged (data-live). The
+          planner's ground samples along the route's line (vfr.profile),
+          not a corridor round it, and no obstacles: the planner's legal
+          altitudes keep the 14 CFR 91.119 and 91.177 margins over those. */}
+      {shownAt !== null && check(shownAt) && (
+        <div className={cn("grid grid-cols-3 gap-2 tabular-nums", TEXT.note)} data-testid="ground-strip">
+          <div><div className="text-muted-foreground">Highest ground</div><div className="font-semibold" data-live="highest">{feet(check(shownAt)!.highest)} ft</div></div>
+          <div><div className="text-muted-foreground">Clearance</div><div className="font-semibold" data-live="clearance">{clearanceWords(check(shownAt)!.clearance)}</div></div>
+          <div><div className="text-muted-foreground">First strike</div><div className="font-semibold" data-live="strike">{strikeWords(check(shownAt)!.strikeNm)}</div></div>
+        </div>
+      )}
       {shownAt !== null && altitudes.length > 0 && (
         <div className="space-y-0.5">
           <div className="flex items-baseline justify-between gap-2">
@@ -371,6 +481,23 @@ export function AltitudeProfile({ nav: navNow, legs: legsNow, ends, chart, corne
               Avoid Class B
             </Button>
           )}
+        </div>
+      )}
+      {/* The planner's four plans, one picked from a menu: the ruler's rows
+          named them, and the graph's drag lands on an altitude. */}
+      {nav && nav.options.length > 0 && (
+        <div className="flex items-center justify-between gap-3">
+          <span className={cn("font-semibold", TEXT.row)}>Plan</span>
+          <Select value={PREFERRED.includes(nav.flown as AltitudeChoice) ? nav.flown! : ""} onValueChange={v => onAltitudeChoiceChange(v as AltitudeChoice)}>
+            <SelectTrigger className="w-48" data-testid="altitude-plan" aria-label="Altitude plan"><SelectValue placeholder="Your altitude" /></SelectTrigger>
+            <SelectContent>
+              {[...nav.options].filter(o => o.steps.length).sort((a, b) => PREFERRED.indexOf(a.kind) - PREFERRED.indexOf(b.kind)).map(o => (
+                <SelectItem key={o.kind} value={o.kind} data-testid="altitude-plan-option">
+                  {o.kind[0]!.toUpperCase() + o.kind.slice(1)} · {feet(Math.max(...o.steps.map(st => st.altitude_ft)))} ft
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       )}
       {onRulesChange && (

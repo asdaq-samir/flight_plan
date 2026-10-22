@@ -68,7 +68,9 @@ test("plan page: the nav log's altitude opens the planner's own reasoning, and t
   // without the altitude or the choice.
   await why.click();
   await expect(popover).toBeVisible();
-  await popover.getByTestId("altitude-wheel-row").filter({ hasText: "Fastest" }).first().click();
+  // From the plan's menu, under the graph the altitude is dragged on.
+  await popover.getByTestId("altitude-plan").click();
+  await page.getByTestId("altitude-plan-option").filter({ hasText: "Fastest" }).click();
   await expect(page).not.toHaveURL(/[?&]altitude_ft=/, { timeout: slow(10000) });
   await expect(page).not.toHaveURL(/[?&]altitude_choice=/);
   await closeCard(page, "profile-close");
