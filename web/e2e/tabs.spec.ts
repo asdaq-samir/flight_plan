@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { settle, sideDrawer, slow, openTab, openSection, panelTabs } from "./helpers";
+import { settle, sideDrawer, slow, openTab, openSection, panelTabs, openBrief, closeCard } from "./helpers";
 
 /**
  * The planning panel's tabs, the flight's phases in the order flown (the
@@ -173,4 +173,32 @@ test("a route from the pilot's position has a section for its airports alone, no
   await expect(drawer.locator('[data-tab="arrive"] [data-title="KDLH · Destination"]')).toBeVisible();
   await openTab(page, "Depart");
   await expect(drawer.locator('[data-tab="depart"]').getByTestId("airport-section")).toHaveCount(0);
+});
+
+test("the Brief opens on whether to go and a card for each part of the flight, a card opens its page, and the close goes back to them", async ({ page }) => {
+  // The owner's pick of the redesign (D′): the cards stacked, all four in
+  // one scroll, a tap on one its page; the close goes back (the owner's
+  // "close button should behave as the back button").
+  await briefingAs(page, json => {
+    Object.assign(json, { vfr_not_recommended: ["KDLH currently reporting IFR"], tfrs: [] });
+  });
+  await planned(page);
+  const drawer = sideDrawer(page);
+  await openBrief(page);
+  const glance = drawer.getByTestId("brief-glance");
+  await expect(glance.getByTestId("brief-verdict")).toContainText(/^No-go as planned: Weather/, { timeout: slow(30_000) });
+  await expect(glance.getByTestId("brief-glance-enroute")).toHaveAttribute("data-finding", "stop");
+  await expect(glance.getByTestId("brief-glance-enroute")).toContainText("VFR not recommended: KDLH currently reporting IFR");
+  await expect(glance.getByTestId("brief-glance-depart")).toContainText("C81");
+  await expect(glance.getByTestId("brief-glance-arrive")).toContainText("KDLH");
+  await expect(glance.getByTestId("brief-glance-arrive")).toContainText(/Runway/);
+  await expect(panelTabs(page)).toHaveCount(0);
+
+  await glance.getByTestId("brief-glance-enroute").click();
+  await expect(panelTabs(page).getByRole("tab", { name: "En route", exact: true })).toHaveAttribute("aria-selected", "true");
+  await expect(glance).toHaveCount(0);
+  // Back to the cards, the Brief still open.
+  await closeCard(page, "brief-close");
+  await expect(drawer.getByTestId("brief-glance")).toBeVisible();
+  await expect(drawer.getByTestId("brief-card")).toBeVisible();
 });

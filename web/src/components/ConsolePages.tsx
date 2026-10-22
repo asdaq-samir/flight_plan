@@ -1,11 +1,11 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { PlaceTile } from "./Favorites";
-import { ChevronLeft } from "lucide-react";
 import { cn } from "cn";
 import { TEXT } from "../lib/text";
-import { Button } from "./ui/button";
 import { ListRow } from "./GroupedList";
 import { PagesShown } from "./pagesShown";
+import { holdOpenCard } from "../lib/openCards";
+import CloseButton from "./CloseButton";
 
 /** The way to open one of a tab's pages, and the page back came from. */
 const Pages = createContext<{ open: (page: string) => void; from: string | null } | null>(null);
@@ -13,8 +13,11 @@ const Pages = createContext<{ open: (page: string) => void; from: string | null 
 /**
  * iOS's navigation inside a console tab, as Settings has it: the tab's
  * own page is a few grouped lists, and a row with a chevron (PageRow)
- * pushes a page of its own over it, with a back button named for the
- * tab. What is looked at now and then -- the reference data, the
+ * pushes a page of its own over it, its close at its title's right
+ * going back a page -- no Back on the left, at the owner's ask ("remove
+ * the back buttons, because close button should behave as the back
+ * button", 2026-10-22) -- as a swipe to the right and a device's Back do
+ * (lib/openCards). What is looked at now and then -- the reference data, the
  * charts, the versions before the model serving, the longer reading --
  * is a tap away rather than folded under a title in a long scroll.
  * Back is also where a tab change leaves it: each tab starts on its own
@@ -22,7 +25,8 @@ const Pages = createContext<{ open: (page: string) => void; from: string | null 
  * and back to the row that opened it.
  */
 export function ConsolePages({ back, pages, children }: {
-  /** The tab's name, on the back button. */
+  /** The tab's name: where the page's close goes back to, said to a
+   *  screen reader. */
   back: string;
   pages: Record<string, { title: string; content: ReactNode }>;
   children: ReactNode;
@@ -39,6 +43,12 @@ export function ConsolePages({ back, pages, children }: {
   // A page starts at its top, with its title the place a screen reader
   // reads on from; back is left to the row's focus (PageRow), which
   // brings it into view.
+  // The page open is the top of what the close, a swipe back and a
+  // device's Back take away, one at a time: a page of a page first.
+  useEffect(() => {
+    if (!open) return;
+    return holdOpenCard({ close: () => { setPopped(true); setOpen(null); }, inBar: false });
+  }, [open]);
   useEffect(() => {
     if (!open) return;
     top.current?.closest(".overflow-y-auto")?.scrollTo({ top: 0 });
@@ -58,21 +68,16 @@ export function ConsolePages({ back, pages, children }: {
   return (
     <div ref={top}>
       {page ? (
-        // A page of a page -- Personal's Flights, then a flight -- has
-        // its own way back, to the page under it, as iOS's navigation
-        // does one level at a time: this page's head steps aside while
-        // one is open in it, so there is one back button, not two.
+        // A page of a page -- Personal's Flights, then a flight -- goes
+        // back to the page under it, as iOS's navigation does one level
+        // at a time: this page's head steps aside while one is open in it.
         <div
           key={open} data-slot="console-page" data-testid="console-page"
           className="space-y-4 duration-200 animate-in fade-in slide-in-from-right-4 [&:has([data-slot=console-page])>[data-slot=page-head]]:hidden"
         >
-          <div className="space-y-4" data-slot="page-head">
-            {/* Marked so a swipe to the right takes it (TabBar), as iOS's swipe back. */}
-            <Button type="button" variant="ghost" size="sm" className="-ml-2 gap-0.5 px-1.5" data-back-button="" onClick={() => { setPopped(true); setOpen(null); }}>
-              <ChevronLeft className="size-5" />
-              {back}
-            </Button>
-            <h3 ref={title} tabIndex={-1} className={cn("font-bold tracking-tight outline-none", TEXT.card)}>{page.title}</h3>
+          <div className="flex items-center gap-2" data-slot="page-head">
+            <h3 ref={title} tabIndex={-1} className={cn("flex-1 font-bold tracking-tight outline-none", TEXT.card)}>{page.title}</h3>
+            <CloseButton label={`Back to ${back}`} className="-mr-1" onClick={() => { setPopped(true); setOpen(null); }} data-testid="console-page-close" />
           </div>
           {page.content}
         </div>

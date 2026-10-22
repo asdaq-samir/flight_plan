@@ -1,7 +1,6 @@
 import { createContext, useContext, type ComponentProps, type ReactNode } from "react";
 import { cn } from "cn";
 import { Sheet, SheetClose, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "./ui/sheet";
-import BackButton from "./BackButton";
 import CloseButton from "./CloseButton";
 import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from "./ui/popover";
 import { useIsMobile } from "../hooks/use-mobile";
@@ -70,16 +69,11 @@ type ContentProps = ComponentProps<typeof PopoverContent> & {
    *  title too. */
   action?: ReactNode;
   /** A control at the start of the title's row -- a form's Cancel, as an
-   *  iOS sheet puts it, or a pushed page's Back -- and then the title sits
-   *  between the two. On a phone a Back that puts the sheet away is there
-   *  where none is given (`back`). */
+   *  iOS sheet puts it -- and then the title sits between the two. No
+   *  Back: the close goes back, at the owner's ask ("remove the back
+   *  buttons, because close button should behave as the back button",
+   *  2026-10-22), where a Back stood on the left of every sheet. */
   leading?: ReactNode;
-  /** On a phone, Back at the title row's start on the sheet's first page
-   *  too, putting it away, at the owner's ask ("let's have back button on
-   *  level 1"): everything expanded opens with Back on the left and the
-   *  close on the right. False where the sheet has no page before it to
-   *  go back to in the pilot's eyes. */
-  back?: boolean;
   /** The phone's sheet's own classes: a fixed height, say, where it is
    *  sized to its content otherwise. */
   sheetClassName?: string;
@@ -95,7 +89,7 @@ type ContentProps = ComponentProps<typeof PopoverContent> & {
 };
 
 export function ResponsivePopoverContent({
-  title, description, titleHidden, action, leading: given, back = true, className, sheetClassName, sheetOverlayClassName, closeButton, children, align, side, sideOffset,
+  title, description, titleHidden, action, leading: given, className, sheetClassName, sheetOverlayClassName, closeButton, children, align, side, sideOffset,
   alignOffset, collisionPadding, ...props
 }: ContentProps) {
   const edge = useContext(OnPhone);
@@ -121,7 +115,7 @@ export function ResponsivePopoverContent({
       </PopoverContent>
     );
   }
-  const leading = given ?? (back ? <SheetClose asChild><BackButton data-testid="sheet-back" /></SheetClose> : undefined);
+  const leading = given;
   const end = (closeButton ?? (action === undefined && !given))
     ? <SheetClose asChild><CloseButton data-testid="sheet-close" /></SheetClose>
     : action;

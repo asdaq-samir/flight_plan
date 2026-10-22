@@ -139,11 +139,16 @@ export async function openBrief(page: Page) {
   await expect(card).toBeVisible();
 }
 
-/** The Brief put away, by the minimized tab bar's Back or, wider, its own
- *  close (closeCard): FPL's route and nav log again. */
+/** The Brief put away, by the minimized tab bar's close or, wider, its
+ *  own (closeCard), which go back one at a time: from a page to the
+ *  Brief's cards (BriefGlance), then FPL's route and nav log again. */
 export async function closeBrief(page: Page) {
   const card = sideDrawer(page).getByTestId("brief-card");
   if (!(await card.isVisible().catch(() => false))) return;
+  if (!(await card.getByTestId("brief-glance").isVisible())) {
+    await closeCard(page, "brief-close");
+    await expect(card.getByTestId("brief-glance")).toBeVisible();
+  }
   await closeCard(page, "brief-close");
   await expect(card).toHaveCount(0);
 }
@@ -292,7 +297,7 @@ export const consoleSheet = (page: Page) => page.getByTestId("console-sheet");
 export async function library(scope: Page | Locator, section: "Airplanes" | "Flights" | "Logbook" | "Minimums") {
   await consolePage(scope, "Account");
   const list = scope.getByTestId("library-section");
-  const back = scope.getByRole("button", { name: "Account", exact: true });
+  const back = scope.getByRole("button", { name: "Back to Account", exact: true });
   await expect(list.or(back)).toBeVisible();
   if (!(await list.isVisible())) await back.click();
   await list.getByRole("button", { name: new RegExp(`^${section}`) }).click();
@@ -419,6 +424,8 @@ export async function openTab(page: Page, name: keyof typeof PHASE_OF | PhaseTab
       body: JSON.stringify({ type: "done", briefing: "A test narrative." }) + "\n",
     }));
   }
+  // On the Brief's cards (BriefGlance), the page's card; then its tab.
+  await briefPage(page, phase);
   // Not the tab up already: tapped again all the way up, it lowers the
   // panel to half (PanelTabs).
   const tab = panelTabs(page).getByRole("tab", { name: phase, exact: true });
@@ -476,6 +483,17 @@ export async function closeNavLog(page: Page) {
 /** The planning panel's own tabs. */
 export const panelTabs = (page: Page) => sideDrawer(page).locator('[role="tablist"][data-tip="tabs"]');
 
+const PAGE_OF: Record<PhaseTab, string> = { Preflight: "preflight", Depart: "depart", "En route": "enroute", Arrive: "arrive" };
+
+/** The Brief open on its cards (BriefGlance, the owner's D′), one of its
+ *  pages opened by its card; the tabs are over a page once one is open. */
+export async function briefPage(page: Page, phase: PhaseTab) {
+  const glance = sideDrawer(page).getByTestId("brief-glance");
+  await expect(glance.or(panelTabs(page))).toBeVisible();
+  if (await glance.isVisible()) await glance.getByTestId(`brief-glance-${PAGE_OF[phase]}`).click();
+  await expect(panelTabs(page)).toBeVisible();
+}
+
 const PHASES: PhaseTab[] = ["Preflight", "Depart", "En route", "Arrive"];
 
 /** A section by its title, brought into sight: on the tab up, or on
@@ -492,6 +510,7 @@ export async function openSection(page: Page, title: string) {
   await openBrief(page);
   const here = panel.locator(`[role="tabpanel"][data-state="active"] [data-title="${title}"]`).first();
   if (!(await here.isVisible().catch(() => false))) {
+    await briefPage(page, "Preflight");
     for (const phase of PHASES) {
       const tab = panelTabs(page).getByRole("tab", { name: phase, exact: true });
       if ((await tab.getAttribute("aria-selected")) !== "true") await tab.click();
@@ -571,18 +590,13 @@ export async function tapNear(page: Page, mark: Locator, opens: RegExp) {
 }
 
 /** A card put away by its way back: on a phone with the sheet up, the
- *  minimized tab bar's Back at its top left (TabBar), at the owner's ask,
- *  in place of the card's close -- or, where Share stands there (an
- *  airport's, an airplane's, the Brief, the nav log), the bar's close,
- *  which goes back as Back did; elsewhere the card's own close. */
+ *  minimized tab bar's close (TabBar), which goes back one card -- no Back,
+ *  at the owner's ask ("close button should behave as the back button");
+ *  elsewhere the card's own close. */
 export async function closeCard(page: Page, closeTestId: string) {
-  const back = page.getByTestId("tab-back");
-  if (await back.isVisible()) {
-    await back.click();
-    return;
-  }
-  if (await page.getByTestId("tab-share").isVisible()) {
-    await page.getByTestId("tab-close").click();
+  const bar = page.getByTestId("tab-close");
+  if (await bar.isVisible()) {
+    await bar.click();
     return;
   }
   // Else the card's own close, out of sight but for a keyboard (CardClose).
@@ -609,8 +623,8 @@ export async function consolePage(scope: Page | Locator, name: "Account" | "Sett
     await tab.click();
     return;
   }
-  // Back to the page's list from a page open on it.
-  const back = scope.getByRole("button", { name: "Account", exact: true });
+  // Back to the page's list from a page open on it, by its close.
+  const back = scope.getByRole("button", { name: "Back to Account", exact: true });
   if (await back.isVisible()) await back.click();
   if (name !== "Account") await setup.getByRole("button", { name: new RegExp(`^${name}`) }).click();
 }

@@ -168,7 +168,7 @@ test("each tab's one strip picks its list from the filter at its heading's right
   await expect(panel.getByTestId("airport-recent")).toContainText("KMSN");
   await panel.getByTestId("airport-recents-more").click();
   await expect(panel.getByTestId("airport-recents-page")).toBeVisible();
-  await panel.getByTestId("airport-recents-page-back").click();
+  await panel.getByTestId("airport-recents-page-close").click();
   await expect(panel.getByTestId("airport-recent")).toContainText("KMSN");
 
   // Aircraft: the Favorites, the airplanes opened last, then the questions.
@@ -179,7 +179,7 @@ test("each tab's one strip picks its list from the filter at its heading's right
   await expect(panel.getByTestId("pill-aircraft-recents").getByTestId("aircraft-recent")).toContainText("N200XY");
   await panel.getByTestId("aircraft-recents-more").click();
   await expect(panel.getByTestId("aircraft-recents-page")).toBeVisible();
-  await panel.getByTestId("aircraft-recents-page-back").click();
+  await panel.getByTestId("aircraft-recents-page-close").click();
   await expect(panel.getByTestId("pill-aircraft-recents")).toBeVisible();
 });
 
@@ -357,7 +357,7 @@ test("Aircraft's Favorites' title opens the airplanes kept in full, Edit letting
   await list.getByTestId("aircraft-favorites-edit").click();
   await expect(list.getByTestId("aircraft-favorites-row")).toHaveText([/N400XY/, /N200XY/]);
   // Back: the strip as the list left it.
-  await panel.getByTestId("aircraft-favorites-page-back").click();
+  await panel.getByTestId("aircraft-favorites-page-close").click();
   await expect(panel.getByTestId("pill-aircraft-favorite")).toHaveText([/N400XY/, /N200XY/]);
 });
 
@@ -402,11 +402,11 @@ test("a finger's swipe across the panel switches no tab, and on a Setup page to 
     await expect(up()).toHaveAttribute("data-testid", "tab-fpl");
   }
   // A Setup page open (Minimums, a tile of the account's): to the right,
-  // back to the Account, as its Back takes it.
+  // back to the Account, as its close takes it.
   await page.getByTestId("setup-button").click();
   await grabberTo(page, "full");
   await panel.getByTestId("library-section").getByRole("button", { name: /^Minimums/ }).click();
-  const back = panel.getByRole("button", { name: "Account", exact: true });
+  const back = panel.getByRole("button", { name: "Back to Account", exact: true });
   await expect(back).toBeVisible();
   await swipeAcross(page, 130);
   await expect(back).toHaveCount(0);

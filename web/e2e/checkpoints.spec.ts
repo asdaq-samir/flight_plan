@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { slow, settle, sideDrawer, openBrief, openBriefing, openTab, grabberTo, panelTabs, openNavLog, closeNavLog, navLogScroller, navLogSheet } from "./helpers";
+import { slow, settle, sideDrawer, openBrief, briefPage, openBriefing, openTab, grabberTo, panelTabs, openNavLog, closeNavLog, navLogScroller, navLogSheet } from "./helpers";
 
 /**
  * The nav log's checkpoints: selected by a click, by Enter or by a pick
@@ -58,6 +58,7 @@ test("plan page: a click or Enter selects a nav log checkpoint, with the briefin
   // Arrive, after En route.
   await closeNavLog(page);
   await openBrief(page);
+  await briefPage(page, "En route");
   const tabs = panelTabs(page).getByRole("tab");
   await panelTabs(page).getByRole("tab", { name: "En route" }).focus();
   await page.keyboard.press("ArrowRight");

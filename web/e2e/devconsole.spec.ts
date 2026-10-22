@@ -58,7 +58,7 @@ test("a snapshot that failed reads no answer, and nothing waits for it for ever"
   await expect(row(page, /planning-service/)).toContainText("no answer");
   // The reference data's page says so too, once its row is tapped: back
   // to the tab, a row each that opens its own page.
-  await consoleSheet(page).getByRole("button", { name: "Status", exact: true }).click();
+  await consoleSheet(page).getByRole("button", { name: "Back to Status", exact: true }).click();
   await consoleSheet(page).getByRole("button", { name: /^Reference data/ }).click();
   await expect(consoleSheet(page).getByRole("heading", { name: "Reference data" })).toBeVisible();
   await expect(consoleSheet(page).getByText("The planner did not answer.")).toBeVisible();
@@ -91,7 +91,7 @@ test("the System tab's rows open a page each, as Settings does, and back returns
   await expect(sheet.getByRole("button", { name: /^Services/ })).toHaveCount(0);
   await expect(sheet.getByRole("link", { name: /API docs/ }).first()).toBeVisible();
 
-  await sheet.getByRole("button", { name: "Status", exact: true }).click();
+  await sheet.getByRole("button", { name: "Back to Status", exact: true }).click();
   await expect(sheet.getByRole("button", { name: /^Services/ })).toBeVisible();
   await expect(sheet.getByRole("button", { name: /^Elsewhere in the stack/ })).toBeFocused();
 });

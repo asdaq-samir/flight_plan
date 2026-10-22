@@ -143,7 +143,7 @@ test("the airports' Recents are tiles with their chart's symbols, newest first, 
   await all.click();
   await expect(panel.getByTestId("airport-recents-page")).toBeVisible();
   await expect(panel.getByTestId("swipe-row")).toHaveCount(5);
-  await panel.getByTestId("airport-recents-page-back").click();
+  await panel.getByTestId("airport-recents-page-close").click();
   await expect(tiles).toHaveCount(5);
 });
 
@@ -219,7 +219,7 @@ test("FPL's strip shows Saved or, from its filter, the latest routes planned as 
   await panel.getByTestId("route-recents-clear").click();
   await page.getByRole("button", { name: "Clear", exact: true }).last().click();
   await expect(panel.getByTestId("route-recent")).toHaveCount(0);
-  await panel.getByTestId("route-recents-page-back").click();
+  await panel.getByTestId("route-recents-page-close").click();
   await expect(panel.getByTestId("route-recents")).toContainText("None yet");
   await stripShows(page, "fpl-strip-shows", "fpl-shows-saved");
   await expect(panel.getByTestId("pill-section-saved")).toBeVisible();
@@ -233,7 +233,7 @@ test("Saved's title opens the flights in full with Back to FPL, as the Recents' 
   await panel.getByTestId("pill-section-saved-more").click();
   await expect(page).toHaveURL(/[?&]saved=1/);
   await expect(panel.getByTestId("saved-page")).toContainText("Saved");
-  await panel.getByTestId("saved-page-back").click();
+  await panel.getByTestId("saved-page-close").click();
   await expect(page).not.toHaveURL(/[?&]saved=/);
   await expect(panel.getByTestId("pill-section-saved")).toBeVisible();
 });

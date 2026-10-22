@@ -1,8 +1,9 @@
-import { useCallback, useDeferredValue, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useDeferredValue, useEffect, useLayoutEffect, useRef, useState, type ComponentType, type ReactNode } from "react";
 import { cn } from "cn";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../../../components/ui/tabs";
 import { SectionsOpen } from "../../../../components/sectionLayout";
 import { GoToTab, LEGS, useTabAsk, type PanelTab } from "./panelTab";
+import { holdOpenCard } from "../../../../lib/openCards";
 
 /** The panel's tabs in the order the flight is flown, at the owner's pick
  *  of the redesign ("I like C concept"): Preflight -- the go / no-go and
@@ -37,7 +38,14 @@ const PRINTED: PanelTab[] = TABS.map(t => t.value);
  * for among them -- the Go / No-Go's fuel, under the legs -- is
  * `onLegs`'s.
  */
-export default function PanelTabs({ rootRef, before, contents, notice, footer, children, printing, marks, onTap, onLegs, route }: {
+export default function PanelTabs({ rootRef, before, contents, notice, footer, children, printing, marks, onTap, onLegs, route, overview: Overview }: {
+  /** What shows before any page, its cards each opening one (`open`):
+   *  the Brief's glance (BriefGlance), at the owner's pick of the redesign
+   *  (D′). A page opened from it goes back to it by the close, a swipe to
+   *  the right or a device's Back (lib/openCards); its tabs stay over it
+   *  for going from page to page. Without one, Preflight is up to begin
+   *  with. */
+  overview?: ComponentType<{ onOpen: (tab: PanelTab) => void }>;
   rootRef?: (el: HTMLDivElement | null) => void;
   /** Over the tabs: the printed title. */
   before: ReactNode;
@@ -69,24 +77,31 @@ export default function PanelTabs({ rootRef, before, contents, notice, footer, c
   // 2026-10-08). On paper at once.
   const drawnFor = useDeferredValue(route, "");
   const drawn = printing || drawnFor === route;
-  // Preflight up to begin with: whether to go is what is read first.
-  const [tab, setTab] = useState<PanelTab>("preflight");
-  const [opened, setOpened] = useState<PanelTab[]>(["preflight"]);
-  if (!opened.includes(tab)) setOpened([...opened, tab]);
+  // Preflight up to begin with -- whether to go is what is read first --
+  // or the overview where there is one (null).
+  const [tab, setTab] = useState<PanelTab | null>(Overview ? null : "preflight");
+  const [opened, setOpened] = useState<PanelTab[]>(Overview ? [] : ["preflight"]);
+  if (tab && !opened.includes(tab)) setOpened([...opened, tab]);
   const scroller = useRef<HTMLDivElement>(null);
   // The tab that was up as a finger or a key pressed one, before Radix
   // makes the pressed one the tab up (on its mouse down or key down, ahead
   // of the click): whether the tap was on the tab already up.
   const upWhenPressed = useRef<PanelTab | null>(null);
-  const scrolls = useRef<Partial<Record<PanelTab, number>>>({});
+  const scrolls = useRef<Partial<Record<PanelTab | "overview", number>>>({});
   // The section a row in another tab asked for (GoToTab), scrolled to
   // once its tab is drawn.
   const wanted = useRef<string | null>(null);
   const [asked, setAsked] = useState(0);
-  const choose = useCallback((next: string) => {
-    if (scroller.current) scrolls.current[tab] = scroller.current.scrollTop;
-    setTab(next as PanelTab);
+  const choose = useCallback((next: string | null) => {
+    if (scroller.current) scrolls.current[tab ?? "overview"] = scroller.current.scrollTop;
+    setTab(next as PanelTab | null);
   }, [tab]);
+  // A page opened from the overview is what the close, a swipe back and a
+  // device's Back take away first, back to the overview.
+  const paged = !!Overview && tab !== null;
+  const back = useRef(() => choose(null));
+  useEffect(() => { back.current = () => choose(null); });
+  useEffect(() => (paged ? holdOpenCard({ close: () => back.current(), inBar: false }) : undefined), [paged]);
   const goTo = useCallback((next: PanelTab, section?: string) => {
     if (section === LEGS) {
       onLegs?.();
@@ -100,7 +115,7 @@ export default function PanelTabs({ rootRef, before, contents, notice, footer, c
   useLayoutEffect(() => {
     const box = scroller.current;
     if (!box) return;
-    box.scrollTop = scrolls.current[tab] ?? 0;
+    box.scrollTop = scrolls.current[tab ?? "overview"] ?? 0;
     const section = wanted.current;
     wanted.current = null;
     if (!section) return;
@@ -115,6 +130,11 @@ export default function PanelTabs({ rootRef, before, contents, notice, footer, c
     const frame = requestAnimationFrame(to);
     return () => cancelAnimationFrame(frame);
   }, [tab, asked]);
+  // A page opened from the overview's card, the panel all the way up.
+  const openPage = useCallback((next: PanelTab) => {
+    goTo(next);
+    onTap?.(false);
+  }, [goTo, onTap]);
   // A tab and section asked for from outside the tabs (useTabAsk): heard
   // as it is asked, and once drawn, one asked before the tabs were there.
   useEffect(() => {
@@ -133,7 +153,7 @@ export default function PanelTabs({ rootRef, before, contents, notice, footer, c
     // is no viewport to clip to, and a route long enough to scroll
     // would otherwise print only whatever page's worth happened to be
     // visible.
-    <Tabs ref={rootRef} value={tab} onValueChange={choose} className="flex min-h-0 flex-1 flex-col gap-0 overflow-hidden print:h-auto print:overflow-visible">
+    <Tabs ref={rootRef} value={tab ?? ""} onValueChange={choose} className="flex min-h-0 flex-1 flex-col gap-0 overflow-hidden print:h-auto print:overflow-visible">
       {before}
       {/* The stock line tabs, as the consoles' (ConsoleTabs), over the
           scroller so they stay as it scrolls: an icon over its word, at a
@@ -149,7 +169,7 @@ export default function PanelTabs({ rootRef, before, contents, notice, footer, c
           (CardTabBar), at the owner's pick of the redesign: words, the
           glyphs gone, a page with something to fix or look at marked by a
           dot after its word as before. */}
-      <TabsList
+      {tab !== null && <TabsList
         data-tip="tabs"
         className="mx-4 my-2 w-auto shrink-0 group-data-[orientation=horizontal]/tabs:h-9 pointer-coarse:group-data-[orientation=horizontal]/tabs:h-11 print:hidden"
       >
@@ -171,7 +191,7 @@ export default function PanelTabs({ rootRef, before, contents, notice, footer, c
             )}
           </TabsTrigger>
         ))}
-      </TabsList>
+      </TabsList>}
       <div
         ref={scroller}
         // The bottom inset clears the home indicator on an installed
@@ -182,6 +202,7 @@ export default function PanelTabs({ rootRef, before, contents, notice, footer, c
         data-testid="brief-scroller"
       >
         {notice}
+        {tab === null && !printing && Overview && <Overview onOpen={openPage} />}
         <SectionsOpen.Provider value>
           <GoToTab.Provider value={goTo}>
             {/* Every page's sections one under another, each under its
