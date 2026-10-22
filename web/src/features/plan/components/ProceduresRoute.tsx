@@ -89,6 +89,10 @@ export interface FitInputs {
 /** Where the procedures' sheet is open: one kind of a field's. */
 export type ProceduresAt = { ident: string; kind: Kind } | null;
 
+// No runway picked into the wind, one set for good (a new one at every
+// render would be a new intoWind for the effect).
+const NO_AUTO: ReadonlySet<string> = new Set();
+
 /**
  * The route in FPL, in the order it is flown, at the owner's ask ("I
  * want to replace navlog with procedures", 2026-10-18), the nav log a
@@ -114,7 +118,7 @@ export type ProceduresAt = { ident: string; kind: Kind } | null;
  * head, the close's twin, at the owner's ask.
  */
 export default function ProceduresRoute({
-  airports, rows, depart, weather, picked, onPick, onPreselect, takeoffs, onTakeoff, fit = null, onCharts, chartsDisabled, procedures, inRoute, onProcedures, onPreview, at, onAt,
+  airports, rows, depart, weather, picked, onPick, onPreselect, takeoffs, onTakeoff, onPreselectTakeoff, autoPicked = NO_AUTO, fit = null, onCharts, chartsDisabled, procedures, inRoute, onProcedures, onPreview, at, onAt,
   crossings = NO_CROSSINGS, onFix, onDepart, ground, onGround, pointAltitude, onPointAltitude, directTo = null, onDirectTo, onInfo, onRemove,
   onCreateFix, holds = NO_HOLDS, onHoldSet, askHold = null, routePoints, stopsFull = false, fuelStops = NO_FUEL_STOPS, onKeepFuelStops,
   fuel = null,
@@ -138,6 +142,11 @@ export default function ProceduresRoute({
    *  on ("KMSN:36", the `takeoff` address), and its pick. */
   takeoffs: Map<string, string>;
   onTakeoff: (ident: string, end: string | null) => void;
+  /** A stop's runway to leave from picked for the pilot into the wind. */
+  onPreselectTakeoff: (ident: string, end: string) => void;
+  /** The runways picked into the wind and not since by the pilot
+   *  ("land:KABQ", "takeoff:KEVU"): each follows the wind as it changes. */
+  autoPicked?: ReadonlySet<string>;
   /** The airplane's figures and weights its runways' fit is worked from;
    *  none, no fit marked. */
   fit?: FitInputs | null;
@@ -412,21 +421,27 @@ export default function ProceduresRoute({
     const wind = windOf(a.ident);
     // Calm, the runway in use or the longest (windPick), as the owner asked.
     if (!wind || !wind.ident) return [];
+    // One picked into the wind before, and not by the pilot since, goes to
+    // the runway the wind now favours (`autoPicked`).
+    const free = (which: string, now: string | undefined) => now === undefined || (autoPicked.has(`${which}:${a.ident}`) && now !== wind.ident);
     return [
-      ...(picked.has(a.ident) || landingOf(a.ident) || preselectedLand(a) ? [] : [`land:${a.ident}:${wind.ident}`]),
+      ...(!free("land", picked.get(a.ident)) || landingOf(a.ident) || preselectedLand(a) ? [] : [`land:${a.ident}:${wind.ident}`]),
       // A stop's runway to leave from, into the wind as its landing's.
       ...((a.role !== "Stop" && !(a.role === "Departure" && airports.some(b => b !== a && b.role === "Destination" && sameField(b.ident, a.ident))))
-        || takeoffs.has(a.ident) ? [] : [`takeoff:${a.ident}:${wind.ident}`]),
+        || !free("takeoff", takeoffs.get(a.ident)) ? [] : [`takeoff:${a.ident}:${wind.ident}`]),
     ];
   }).join(",");
   useEffect(() => {
     for (const pick of intoWind ? intoWind.split(",") : []) {
       const [which, ident, end] = pick.split(":") as [string, string, string];
-      if (preselected.current.has(`${which}:${ident}`)) continue;
-      preselected.current.add(`${which}:${ident}`);
-      if (which === "land") onPreselect(ident, end); else onTakeoff(ident, end);
+      // Once a field, and once more each time the wind turns a runway
+      // picked into it: never again where the pilot took one back.
+      const once = autoPicked.has(`${which}:${ident}`) ? `${which}:${ident}:${end}` : `${which}:${ident}`;
+      if (preselected.current.has(once)) continue;
+      preselected.current.add(once);
+      if (which === "land") onPreselect(ident, end); else onPreselectTakeoff(ident, end);
     }
-  }, [intoWind, onPreselect, onTakeoff]);
+  }, [intoWind, autoPicked, onPreselect, onPreselectTakeoff]);
   const destination = airports.find(a => a.role === "Destination");
   // How far along the route each row is, nm: what its line under its name
   // says, as mock A of the owner's rows has it ("Stop · 241 nm").

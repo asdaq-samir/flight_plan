@@ -184,6 +184,10 @@ class PlannerProxyControllerTest {
         assertThat(PlannerProxyController.isForwarded("POST", "/api/dev/services/ml/start")).isTrue();
         assertThat(PlannerProxyController.isForwarded("GET", "/api/chart")).isTrue();
         assertThat(PlannerProxyController.isForwarded("GET", "/api/airport/KBUR/procedures")).isTrue();
+        // The forecast wind a runway is picked into, and an airplane's state
+        // for its alerts: the web app asked for both and had a 404.
+        assertThat(PlannerProxyController.isForwarded("GET", "/api/airport/KABQ/forecast-wind")).isTrue();
+        assertThat(PlannerProxyController.isForwarded("GET", "/api/traffic/flight/a1b2c3/status")).isTrue();
         assertThat(PlannerProxyController.isForwarded("GET", "/api/airspace/ahead")).isTrue();
         assertThat(PlannerProxyController.isForwarded("GET", "/api/alternate")).isTrue();
         assertThat(PlannerProxyController.isForwarded("GET", "/api/traffic")).isTrue();

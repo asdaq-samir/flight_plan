@@ -63,7 +63,7 @@ public record SaveFlightRequest(
 
     /** One pick: a key the planner's address has for a flight (web
      *  lib/flightLink PICK_KEYS), and its value URL-encoded. */
-    static final String PICK = "(?:altitude_ft|altitude_nearest|altitude_choice|pattern|takeoff|procs|cross|ground|holds|class_b|class_b_via"
+    static final String PICK = "(?:altitude_ft|altitude_nearest|altitude_choice|pattern|takeoff|auto|procs|cross|ground|holds|class_b|class_b_via"
             + "|alternate|local_min)=[A-Za-z0-9%._~+-]{0,400}";
 
     /** A point of the route: an airport's or a waypoint's ident, or the
