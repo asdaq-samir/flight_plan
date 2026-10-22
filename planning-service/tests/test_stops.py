@@ -214,14 +214,14 @@ def test_a_stops_search_names_the_navaid_by_the_route_of_an_ident_in_two_places(
                       {**beacon, "name": "Wisconsin", "lat": 44.5, "lon": -90.5, "state": "WI"}]}
     monkeypatch.setattr(fixes, "_TABLE", fixes._Table({}, navaids))
     monkeypatch.setattr(fixes, "find_navaid", REAL_FIND_NAVAID)
-    monkeypatch.setattr(airports, "search_airports", lambda q: [])
+    monkeypatch.setattr(airports, "search_airports", lambda q, near=None: [])
     search = lambda **near: client.get("/api/airports/search", params={"q": "AB", "fixes": True, **near}).json()["airports"]  # noqa: E731
     assert search(near="42.3,-88.1;46.8,-92.2")[0]["name"] == "Wisconsin NDB 350"
     assert search(near="33.6,-84.4;32.1,-81.2")[0]["name"] == "Georgia NDB 350"
 
 
 def test_a_stops_search_puts_the_navaid_typed_whole_first(the_rockford_dme, monkeypatch):
-    monkeypatch.setattr(airports, "search_airports", lambda q: [{**airport("KMSN"), "ident": "KRFD"}])
+    monkeypatch.setattr(airports, "search_airports", lambda q, near=None: [{**airport("KMSN"), "ident": "KRFD"}])
     found = client.get("/api/airports/search", params={"q": "rfd", "fixes": True}).json()["airports"]
     assert [(a["ident"], a.get("kind")) for a in found][:2] == [("RFD", "fix"), ("KRFD", "airport")]
     assert found[0]["name"] == "Rockford DME 110.8"
@@ -311,7 +311,7 @@ def test_neither_an_airport_nor_a_waypoint_is_a_404(a_vfr_waypoint):
 
 
 def test_a_stops_search_finds_the_waypoints_after_the_airports(a_vfr_waypoint, monkeypatch):
-    monkeypatch.setattr(airports, "search_airports", lambda q: [])
+    monkeypatch.setattr(airports, "search_airports", lambda q, near=None: [])
     found = client.get("/api/airports/search", params={"q": "VPB", "fixes": True}).json()["airports"]
     assert found == [{"ident": "VPBNG", "name": "VFR waypoint", "municipality": None, "region": "IL", "kind": "fix"}]
     assert client.get("/api/airports/search", params={"q": "VPB"}).json()["airports"] == []
