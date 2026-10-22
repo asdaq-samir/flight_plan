@@ -312,13 +312,14 @@ export function AltitudeProfile({ nav: navNow, legs: legsNow, ends, chart, corne
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pb-3" data-testid="altitude-profile">
       {/* No taller than the card's room over FPL's figures, half way up on
-          a phone: the graph and its wheel in sight whole, what is under
-          them a scroll away. */}
+          a phone: the graph and its ruler in sight whole, what is under
+          them a scroll away -- down to 64 points, where the route's name
+          and its line take two lines each at the owner's larger text. */}
       {/* The legal altitudes a narrow ruler down its left side, over the
           graph, at the owner's asks ("make the wheel to be a ruler on the
           left side? Narrow and elegant"; "put the ruler over the graph but
           just make it narrow so it's not taking much space"). */}
-      <div className="relative h-56 max-h-full min-h-40 shrink-0">
+      <div className="relative h-56 max-h-full min-h-16 shrink-0">
         {chart(shownAt !== null && shownAt !== cruise ? shownAt : null)}
         {!wheelHidden && shownAt !== null && altitudes.length > 0 && (
           <div className="absolute inset-y-0 left-0">
