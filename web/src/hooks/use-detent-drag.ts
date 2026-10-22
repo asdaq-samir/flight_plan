@@ -184,6 +184,10 @@ export function useDetentDrag<S extends string>({ detents, shown, fromBottom, on
       const { detents: d, shown: now, fromBottom: bottom } = latest.current;
       for (let el: Element | null = target; el && el !== body; el = el.parentElement) {
         if (el.matches("textarea, input[type=range], [contenteditable=true]") || getComputedStyle(el).touchAction === "none") return false;
+        // A box that keeps every drag begun in it -- the Profile's altitude
+        // ruler, which the sheet's drag fought under the finger at its ends
+        // and as it scrolled up (the owner's recording, 2026-10-22).
+        if (el instanceof HTMLElement && el.dataset.keepsDrag !== undefined) return false;
         // A box marked to scroll first -- FPL's route box, at the owner's
         // ask ("when dragging the route it should drag up the card unless
         // there are three lines which should scroll first and then drag")

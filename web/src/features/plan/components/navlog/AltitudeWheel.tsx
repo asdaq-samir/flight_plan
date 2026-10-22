@@ -128,7 +128,8 @@ export default function AltitudeWheel({ altitudes, value, onChange, onRoll, name
       <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-1/2 z-10 h-px -translate-y-1/2 bg-tint/60" />
       <div aria-hidden="true" className="pointer-events-none absolute top-1/2 right-0 z-10 size-0 -translate-y-1/2 border-y-[5px] border-r-[6px] border-y-transparent border-r-tint" />
       <div
-        ref={scroller} onScroll={onScroll} aria-hidden="true"
+        // Its drags its own, never the sheet's (use-detent-drag).
+        ref={scroller} onScroll={onScroll} aria-hidden="true" data-keeps-drag=""
         // Faded to nothing at its ends, as a picker's rows are.
         className="h-full snap-y snap-mandatory overflow-y-auto overscroll-contain [mask-image:linear-gradient(transparent,black_22%,black_78%,transparent)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
