@@ -916,7 +916,7 @@ export default function NavLogView({
           {/* The bottom inset clears the home indicator on an installed
               app, so the last row is not under it. */}
           <div
-            className="@container min-h-0 flex-1 overflow-auto pr-4 pb-[env(safe-area-inset-bottom)] pl-[max(1rem,env(safe-area-inset-left))]"
+            className="@container under-head min-h-0 flex-1 overflow-auto pr-4 pb-[env(safe-area-inset-bottom)] pl-[max(1rem,env(safe-area-inset-left))]"
             data-testid="navlog-scroller"
           >
             {cardHead && <div className="pt-[var(--corner-inset,0.75rem)] pb-2">{cardHead}</div>}

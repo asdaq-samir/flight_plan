@@ -603,6 +603,18 @@ html [data-sonner-toaster] [data-sonner-toast][data-styled="true"]:is([data-type
   inherits: false;
 }
 
+/* A scroller at the top of the map's panel's body, run on up under the
+   panel's head by the head's height (MapPanel's --head-room): its first
+   line starts where it did, and scrolled up its content passes under the
+   head, seen through its frost, as under a sheet's bar on iOS. Its own
+   room over its first line is --under-pad. Out of the panel the room is
+   unset, and this is nothing. */
+@utility under-head {
+  margin-top: calc(-1 * var(--head-room, 0px));
+  padding-top: calc(var(--head-room, 0px) + var(--under-pad, 0px));
+  scroll-padding-top: var(--head-room, 0px);
+}
+
 @utility liquid-glass {
   background-color: color-mix(in oklab, var(--background) var(--glass-fill, 40%), transparent);
   -webkit-backdrop-filter: blur(14px) saturate(1.9) brightness(1.05);
