@@ -138,4 +138,7 @@ test("the pilot's number and home base are set in Setup's Pilot details, and a w
   await details.getByTestId("pilot-home-base").fill("kmsn");
   await details.getByTestId("pilot-phone").focus();
   await expect.poll(() => sent.at(-1)).toEqual({ phone: "608-555-0100", homeBase: "kmsn" });
+  // A save still on its way as the test ends (a field left as the page
+  // closes) reads /api/me with the page gone.
+  await page.unrouteAll({ behavior: "ignoreErrors" });
 });
