@@ -1988,7 +1988,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     <Suspense fallback={<div className="h-56" />}>
       <AltitudeProfile
         nav={s.nav} legs={s.legs} ends={course}
-        chart={(preview, scaleTop) => <MiniProfile ends={course} selected={selected} legs={s.legs} preview={preview} scaleTop={scaleTop} />}
+        chart={(preview, scaleTop) => <MiniProfile ends={course} selected={selected} legs={s.legs} preview={preview} scaleTop={scaleTop} ruler />}
         corner={(
           <RoundButton label="Dry run" onClick={startDryRun} disabled={!dryRunReady} className="absolute top-1.5 right-1.5" data-testid="dry-run-start">
             <Play className="size-5" />
