@@ -321,8 +321,18 @@ test("a field typed as ORD is KORD, its arrivals offered and its runways one lin
   const tops = await chips.evaluateAll(all => all.map(c => Math.round(c.getBoundingClientRect().top)));
   expect(tops.length).toBeGreaterThan(5);
   expect(new Set(tops).size).toBe(1);
-  // The runway picked scrolled into sight.
-  await expect(kord.getByRole("radio", { name: /^Runway 9L/ })).toBeInViewport();
+  // The runway picked scrolled into sight, in the line's middle where it
+  // can be, its neighbours either side (the owner's ask), or as near as
+  // the line's end lets it.
+  const nineLeft = kord.getByRole("radio", { name: /^Runway 9L/ });
+  await expect(nineLeft).toBeInViewport();
+  await expect.poll(() => nineLeft.evaluate(chip => {
+    const line = chip.closest<HTMLElement>("[data-slides]")!;
+    const box = line.getBoundingClientRect(), c = chip.getBoundingClientRect();
+    const off = Math.abs((c.left + c.width / 2) - (box.left + box.width / 2));
+    const atEnd = line.scrollLeft <= 0 || line.scrollLeft >= line.scrollWidth - line.clientWidth - 1;
+    return off <= 2 || atEnd;
+  })).toBe(true);
 });
 
 /**

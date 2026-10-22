@@ -1031,8 +1031,12 @@ function Chips({ label, value, onChange, trailing, trailingRef, enter, flushStar
   children: ReactNode;
 }) {
   const row = useRef<HTMLDivElement>(null);
-  // The chip chosen in sight: one past the row's end (O'Hare's 9L of
-  // eight runways) scrolled in, sideways only -- as it is picked, and again
+  // The chip chosen in the middle of the line, the runways either side of
+  // it in sight, at the owner's ask ("when unfolding runway, make selected
+  // the center one so we can see what's on the left and right"); where the
+  // line does not scroll, as far as it goes. One past the row's end
+  // (O'Hare's 9L of eight runways) came in at the edge before. Sideways
+  // only -- as it is picked, and again
   // whenever the line or its chips change size after it opens: brought in
   // once at its first layout, 9L was out of sight again by the time it was
   // looked for, one run in two (procedures:306). A pilot's own scroll
@@ -1043,9 +1047,13 @@ function Chips({ label, value, onChange, trailing, trailingRef, enter, flushStar
     const show = () => {
       const on = box.querySelector<HTMLElement>("[data-state=on]");
       if (!on) return;
-      const edge = box.getBoundingClientRect(), chip = on.getBoundingClientRect();
-      if (chip.right > edge.right) box.scrollLeft += chip.right - edge.right + CHIP_GAP_PX;
-      else if (chip.left < edge.left) box.scrollLeft -= edge.left - chip.left + CHIP_GAP_PX;
+      // Where it lies in the line's scroll, by layout: the chips slide in
+      // as the line opens (`enter`), and their place on screen then was
+      // 24 points off the middle (procedures:307). The group moves as one,
+      // so the chip's place in it holds.
+      const group = on.closest<HTMLElement>("[data-slot=toggle-group]") ?? on.parentElement!;
+      const chip = on.getBoundingClientRect(), its = group.getBoundingClientRect();
+      box.scrollLeft = group.offsetLeft + (chip.left - its.left) + chip.width / 2 - box.clientWidth / 2;
     };
     show();
     const watch = new ResizeObserver(show);
@@ -1057,7 +1065,7 @@ function Chips({ label, value, onChange, trailing, trailingRef, enter, flushStar
     // One line, scrolled sideways where the chips are more than fit, at
     // the owner's ask; the padding keeps the chips' and the group's tap
     // areas inside what the scroll clips.
-    <div ref={row} data-slides="" className={cn("-my-1.5 min-w-0 flex-1 overflow-x-auto py-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden", flushStart ? "-mr-1.5 pr-1.5" : "-mx-1.5 px-1.5", trailing && "flex items-center gap-3")}>
+    <div ref={row} data-slides="" className={cn("relative -my-1.5 min-w-0 flex-1 overflow-x-auto py-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden", flushStart ? "-mr-1.5 pr-1.5" : "-mx-1.5 px-1.5", trailing && "flex items-center gap-3")}>
       <ToggleGroup
         type="single" value={value} onValueChange={v => { if (v) onChange(v); }}
         aria-label={label} spacing={3}
@@ -1110,8 +1118,6 @@ function fieldsOpenAtFirst(): boolean {
   try { return globalThis.localStorage?.getItem("vfr.fieldsOpen") === "1"; } catch { return false; }
 }
 
-/** The room left past a chip scrolled into sight, in pixels. */
-const CHIP_GAP_PX = 12;
 
 const CHIP = cn(
   "relative h-8 min-w-11 rounded-full bg-foreground/8 px-3 font-normal text-foreground hover:bg-foreground/12",
