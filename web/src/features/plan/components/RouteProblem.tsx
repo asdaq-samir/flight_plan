@@ -15,12 +15,19 @@ import { FINDING_TONE } from "../../../lib/status";
  * mark beside the Nav Log's title, and before that a line under the
  * route. At rest the route's capsule says so in its chip (PlanWorkspace).
  */
-export default function RouteProblem({ problem, onAddStop, onFlyVia, onAcceptClassB }: {
+export default function RouteProblem({ problem, onAddStop, onFlyVia, onAcceptClassB, onGoRound }: {
   problem: Unflyable;
   onAddStop: () => void;
   onFlyVia: () => void;
   onAcceptClassB: () => void;
+  /** The way round high ground the airplane cannot climb over, all its
+   *  points put in at once (the planner's detour with `via`). */
+  onGoRound?: (via: string[], stopIndex: number) => void;
 }) {
+  // At the owner's ask ("Suggest a way around the terrain ... Yes build
+  // it"): where the airplane's ceiling is what stops it over high ground,
+  // the planner's way round, its points named, a tap putting them all in.
+  const round = problem.detours.find(d => d.via && d.via.length > 0);
   return (
     <div className="space-y-3" data-testid="route-problem">
       <p className={cn("font-semibold", FINDING_TONE.stop, TEXT.row)}>{problem.title}</p>
@@ -35,6 +42,20 @@ export default function RouteProblem({ problem, onAddStop, onFlyVia, onAcceptCla
           <Button type="button" size="sm" variant="outline" onClick={onAcceptClassB} data-testid="unflyable-accept-class-b">
             Accept Class B
           </Button>
+        </div>
+      ) : round && onGoRound ? (
+        <div className="space-y-2">
+          <p className={cn("text-muted-foreground", TEXT.detail)} data-testid="unflyable-way-round">
+            By {round.via!.join(", ")} · +{Math.round(round.added_nm)} nm
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="button" size="sm" onClick={() => onGoRound(round.via!, round.stop_index)} data-testid="unflyable-go-round">
+              Go round the high ground
+            </Button>
+            <Button type="button" size="sm" variant="outline" onClick={onAddStop} data-testid="unflyable-add-stop">
+              Add a stop
+            </Button>
+          </div>
         </div>
       ) : (
         <Button type="button" size="sm" variant="outline" onClick={onAddStop} data-testid="unflyable-add-stop">

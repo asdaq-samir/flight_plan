@@ -1,4 +1,5 @@
-import { readdirSync, statSync, unlinkSync } from "node:fs";
+import { readFileSync, readdirSync, statSync, unlinkSync } from "node:fs";
+import { createRequire } from "node:module";
 import { join } from "node:path";
 import { fileURLToPath, URL } from "node:url";
 import { defineConfig, type Plugin } from "vite";
@@ -33,6 +34,26 @@ const thisBuildOnly: Plugin = {
   },
 };
 
+// The page reader's files (lib/readPage), from node_modules into the
+// build's tesseract/ under their own names, where tesseract.js asks for
+// them: its worker, its engine for each kind of WebAssembly a browser has
+// (it picks one), and its English (the integer "best" model, 2.9 MB).
+const require = createRequire(import.meta.url);
+const TESSERACT_FILES: [string, string][] = [
+  ["worker.min.js", "tesseract.js/dist/worker.min.js"],
+  ...["lstm", "simd-lstm", "relaxedsimd-lstm"].map(k => [`tesseract-core-${k}.wasm.js`, `tesseract.js-core/tesseract-core-${k}.wasm.js`] as [string, string]),
+  ["eng.traineddata.gz", "@tesseract.js-data/eng/4.0.0_best_int/eng.traineddata.gz"],
+];
+const tesseractFiles: Plugin = {
+  name: "tesseract-files",
+  apply: "build",
+  generateBundle() {
+    for (const [name, from] of TESSERACT_FILES) {
+      this.emitFile({ type: "asset", fileName: `tesseract/${name}`, source: readFileSync(require.resolve(from)) });
+    }
+  },
+};
+
 // Built into Spring Boot's static resources, which is what makes it the
 // only public surface: the bundle and the API it calls arrive from one
 // origin, so there is one session, one set of access rules, and no second
@@ -40,6 +61,7 @@ const thisBuildOnly: Plugin = {
 export default defineConfig({
   plugins: [
     thisBuildOnly,
+    tesseractFiles,
     react(),
     // The React Compiler, memoising each component and hook as it builds
     // them, at the owner's pick of the audit's recommendation: only its
@@ -99,9 +121,10 @@ export default defineConfig({
         globPatterns: ["**/*.{js,css,html,svg,woff2}"],
         // Not kept ahead for every pilot, at the first load and after each
         // deploy: Inter's non-Latin subsets (170 KB), fetched by the browser
-        // only for a glyph they hold, and the developer's pages (77 KB).
+        // only for a glyph they hold, the developer's pages (77 KB), and the
+        // page reader's 15 MB (tesseract/), kept by tesseract.js itself.
         // Asked for when needed, as any request.
-        globIgnores: ["**/inter-{cyrillic,cyrillic-ext,greek,greek-ext,vietnamese}-*.woff2", "**/{DevPanel,TrainWorkspace}-*.js"],
+        globIgnores: ["**/inter-{cyrillic,cyrillic-ext,greek,greek-ext,vietnamese}-*.woff2", "**/{DevPanel,TrainWorkspace}-*.js", "tesseract/**"],
         // This build's own chunks only, where the old ones are kept
         // (thisBuildOnly).
         manifestTransforms: keepOutDir ? [async entries => ({

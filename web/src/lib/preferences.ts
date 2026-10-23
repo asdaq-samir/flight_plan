@@ -5,6 +5,9 @@ import { DEFAULT_FILTERS, type FilterKey, type Filters } from "../features/train
 import type { AircraftAlert, AircraftAlertKind } from "./aircraftAlerts";
 import type { AircraftChoice } from "./api/types";
 import { NO_MINIMUMS, type Minimums } from "./minimums";
+
+/** What FPL's Routes hold the weather to (Preferences.routeWeather). */
+export type RouteWeather = "personal" | "legal";
 import { sameField } from "./procedures";
 import type { Load } from "./weightBalance";
 import type { OwnShipLook } from "./map/ownShipLook";
@@ -101,6 +104,10 @@ interface Preferences {
   overlayStrength: OverlayStrength;
   /** The pilot's personal minimums (lib/minimums), each off until set. */
   minimums: Minimums;
+  /** The weather FPL's Routes keep to (lib/routeOptions): the pilot's own
+   *  minimums, or 14 CFR 91.155's alone; thunderstorms are kept clear of
+   *  either way. The owner's "This can be a setting" (2026-10-23). */
+  routeWeather: RouteWeather;
   /** Each airplane's load as last set (lib/weightBalance), by its name. */
   loads: Record<string, Load>;
   /** Whether each route loaded keeps its charts for use without a
@@ -108,6 +115,9 @@ interface Preferences {
    *  held by the service worker. Off by default, as it downloads. */
   keepOffline: boolean;
   aircraft: AircraftChoice;
+  /** The figures the pilot set for an N-number (AirplaneFigures), by it:
+   *  flown on whenever the N-number is, over its type's profile. */
+  tailFigures: Record<string, TailFigures>;
   /** The training map's filters: which points are drawn and walked. */
   filters: Filters;
   /** The navigation bar's edge, once one has been picked; until then
@@ -179,9 +189,11 @@ interface Preferences {
   setOverlay: (overlay: MapOverlay) => void;
   setOverlayStrength: (overlayStrength: OverlayStrength) => void;
   setMinimum: (key: keyof Minimums, value: number | null) => void;
+  setRouteWeather: (weather: RouteWeather) => void;
   setLoad: (aircraft: string, load: Load) => void;
   setKeepOffline: (keepOffline: boolean) => void;
   setAircraft: (aircraft: AircraftChoice) => void;
+  setTailFigures: (tail: string, figures: TailFigures) => void;
   setFilter: (key: FilterKey, on: boolean) => void;
   setNavBar: (navBar: NavEdge) => void;
   setRouteColours: (routeColours: RouteColours) => void;
@@ -236,7 +248,8 @@ export const usePreferences = create<Preferences>()(
       overlay: "none",
       overlayStrength: "half",
       minimums: NO_MINIMUMS,
-      loads: {},
+      routeWeather: "personal",
+      loads: {}, tailFigures: {},
       keepOffline: false,
       aircraft: DEFAULT_AIRCRAFT,
       filters: DEFAULT_FILTERS,
@@ -298,9 +311,11 @@ export const usePreferences = create<Preferences>()(
       setOverlay: overlay => set({ overlay }),
       setOverlayStrength: overlayStrength => set({ overlayStrength }),
       setMinimum: (key, value) => set(s => ({ minimums: { ...s.minimums, [key]: value } })),
+      setRouteWeather: routeWeather => set({ routeWeather }),
       setLoad: (aircraft, load) => set(s => ({ loads: { ...s.loads, [aircraft]: load } })),
       setKeepOffline: keepOffline => set({ keepOffline }),
       setAircraft: aircraft => set({ aircraft }),
+      setTailFigures: (tail, figures) => set(s => ({ tailFigures: { ...s.tailFigures, [tail.toUpperCase()]: figures } })),
       setFilter: (key, on) => set(s => ({ filters: { ...s.filters, [key]: on } })),
       setNavBar: navBar => set({ navBar }),
       setRouteColours: routeColours => set({ routeColours }),
@@ -339,7 +354,7 @@ export const usePreferences = create<Preferences>()(
       migrate: (kept, from) => (from < 1 ? { ...(kept as object), waypoints: false } : kept) as Preferences,
       // The functions are not state; only the values are written.
       partialize: s => ({
-        base: s.base, tac: s.tac, waypoints: s.waypoints, classB: s.classB, tfrs: s.tfrs, alerts: s.alerts, speakAlerts: s.speakAlerts, plates: s.plates, traffic: s.traffic, military: s.military, minimums: s.minimums, loads: s.loads, keepOffline: s.keepOffline, aircraft: s.aircraft, filters: s.filters, navBar: s.navBar, routeColours: s.routeColours, ownShipLook: s.ownShipLook, narrative: s.narrative,
+        base: s.base, tac: s.tac, waypoints: s.waypoints, classB: s.classB, tfrs: s.tfrs, alerts: s.alerts, speakAlerts: s.speakAlerts, plates: s.plates, traffic: s.traffic, military: s.military, minimums: s.minimums, routeWeather: s.routeWeather, loads: s.loads, keepOffline: s.keepOffline, aircraft: s.aircraft, tailFigures: s.tailFigures, filters: s.filters, navBar: s.navBar, routeColours: s.routeColours, ownShipLook: s.ownShipLook, narrative: s.narrative,
         flightRules: s.flightRules,
         recentAirports: s.recentAirports, homeAirport: s.homeAirport, favoriteAirports: s.favoriteAirports,
         recentAircraft: s.recentAircraft, favoriteAircraft: s.favoriteAircraft, myAircraft: s.myAircraft,
@@ -350,6 +365,11 @@ export const usePreferences = create<Preferences>()(
     },
   ),
 );
+
+/** An airplane's own figures, set by the pilot for its N-number from its
+ *  handbook (AirplaneFigures): any of them, the type's profile the rest. */
+export type TailFigures = Partial<Pick<AircraftChoice,
+  "cruiseTasKt" | "cruisePowerPct" | "fuelBurnGph" | "usableFuelGal" | "climbTasKt" | "climbFuelBurnGph" | "serviceCeilingFt">>;
 
 /** A route planned, as FPL's Recents keep it: its ends, its stops in
  *  order, and when it was planned. */
@@ -373,7 +393,7 @@ export interface RecentRoute {
  *  How the map is drawn stays, the device's. */
 export function forgetPilot() {
   usePreferences.setState({
-    minimums: NO_MINIMUMS, loads: {}, aircraft: DEFAULT_AIRCRAFT,
+    minimums: NO_MINIMUMS, routeWeather: "personal", loads: {}, aircraft: DEFAULT_AIRCRAFT, tailFigures: {},
     recentAirports: [], homeAirport: null, favoriteAirports: [],
     recentAircraft: [], favoriteAircraft: [], myAircraft: null, aircraftAlerts: [], recentRoutes: [],
   });

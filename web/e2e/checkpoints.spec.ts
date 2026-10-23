@@ -189,6 +189,10 @@ test("plan page: iOS never zooms the page in on a phone's field: the viewport fo
   const small = await page.evaluate(() =>
     [...document.querySelectorAll<HTMLElement>("input, textarea, select")]
       .filter(el => !el.closest('[data-testid="navlog-list"]'))
+      // Only a field in sight can take the focus: one kept out of sight
+      // under another tab or a card (TabKept, MapPanel's kept route box)
+      // is inert, and laid out at no width, its type its narrowest's.
+      .filter(el => el.checkVisibility())
       .map(el => ({
         field: el.getAttribute("aria-label") ?? el.getAttribute("placeholder") ?? el.tagName,
         px: parseFloat(getComputedStyle(el).fontSize),

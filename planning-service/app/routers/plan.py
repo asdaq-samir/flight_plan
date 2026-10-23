@@ -11,6 +11,7 @@ between two landings -- a hop -- is planned as a route of its own, with
 its own chart read, altitude plan, climb from the field and fuel check,
 the hops planned at once, and the nav log runs on through each stop."""
 import logging
+import math
 import re
 import threading
 import time
@@ -20,12 +21,13 @@ from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
+import numpy as np
 from cachetools import TTLCache
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import Response, StreamingResponse
 from vfr import (
     airports, airspace, altitude, chartlabels, charts, elevation, faa_data, fixes, fuelstops, geo, magnetic, navlog, nearby, places,
-    procedure_paths, procedures, sun,
+    procedure_paths, procedures, sun, terrain_detour,
 )
 # As vfr_holds: PlanQuery's own `holds` is the address's.
 from vfr import holds as vfr_holds
@@ -73,6 +75,9 @@ CruiseTas = Annotated[float | None, Query(gt=0, le=1000)]
 # The power a pilot's own cruise figures are at, in percent: from the
 # lowest a handbook's cruise table goes, about 40, to full power.
 CruisePower = Annotated[float | None, Query(ge=40, le=100)]
+#: An airplane's own service ceiling, ft, as the pilot sets it for their
+#: N-number: from a powered glider's to past a piston single's highest.
+ServiceCeiling = Annotated[float | None, Query(ge=1000, le=30000)]
 
 
 @dataclass
@@ -102,6 +107,10 @@ class PlanQuery:
     climb_tas_kt: CruiseTas = None
     climb_fuel_burn_gph: float | None = None
     cruise_power_pct: CruisePower = None
+    #: The airplane's own ceiling over its profile's, where the pilot has
+    #: set one for their N-number (the owner's "give users a way to change
+    #: these specs for their n-number").
+    service_ceiling_ft: ServiceCeiling = None
     depart: datetime | None = None
     #: The pilot will have a Class B clearance: its shelves are no
     #: ceiling, and the route is planned through it (vfr.altitude).
@@ -154,8 +163,14 @@ class PlanQuery:
     def profile(self) -> dict:
         return aircraft_profile(
             self.aircraft, self.cruise_tas_kt, self.fuel_burn_gph, self.usable_fuel_gal,
-            self.climb_tas_kt, self.climb_fuel_burn_gph, self.cruise_power_pct,
+            self.climb_tas_kt, self.climb_fuel_burn_gph, self.cruise_power_pct, self.service_ceiling_ft,
         )
+
+    @property
+    def aircraft_key(self) -> str:
+        """The profile's name, and its own ceiling where one is set: what the
+        altitude selection is cached by, as the ceiling decides it."""
+        return self.aircraft if self.service_ceiling_ft is None else f"{self.aircraft}@{self.service_ceiling_ft:.0f}"
 
     def own_altitudes(self) -> dict[str, float]:
         """`altitudes` by ident; a 422 for one that is not "IDENT:FEET",
@@ -482,7 +497,7 @@ def resolve_run(run: HopRun, profile: dict, q: "PlanQuery") -> "Flown | Unflyabl
     # The hop into a waypoint with an altitude of its own is flown at it.
     own = None if run.hop.lands else q.own_altitudes().get(run.hop.dest_ident)
     return resolve_altitude(
-        run.hop, run.fixes, profile, q.aircraft, q.altitude_ft if own is None else own, q.altitude_choice,
+        run.hop, run.fixes, profile, q.aircraft_key, q.altitude_ft if own is None else own, q.altitude_choice,
         run.fcst_hr, run.window, q.class_b_clearance, q.rules, nearest=q.altitude_nearest and own is None,
     )
 
@@ -593,7 +608,41 @@ def unflyable_parts(outcome: Unflyable, runs: list[HopRun]) -> tuple[dict, list[
     hop = runs[at].hop
     ways = class_b_detours(outcome.selection, hop.start, hop.end)
     why = no_altitude(outcome.selection, outcome.between, ways[0] if ways else None, _stuck_where(outcome.selection, hop))
-    return why, [{**way, "stop_index": at, "description": _where(way["ident"])} for way in ways]
+    out = [{**way, "stop_index": at, "description": _where(way["ident"])} for way in ways]
+    if not ways:
+        round_way = terrain_way(outcome.selection, hop)
+        if round_way:
+            out.append({**round_way, "stop_index": at})
+            why = {**why, "advice": "Go round the high ground by the way suggested, "
+                                    "or set a cruise altitude of your own to plan it anyway."}
+    return why, out
+
+
+def terrain_way(selection: dict, hop: Route) -> dict | None:
+    """Where the airplane's service ceiling is what stops the route over
+    high ground, the way round it (vfr.terrain_detour): the points to fly
+    by, as a detour of its own, with how much longer it makes the hop.
+    None where something else stops it (clouds, Class B) or there is no
+    way round in reach. At the owner's ask ("Suggest a way around the
+    terrain ... Yes build it", 2026-10-23)."""
+    stuck = next((s for s in selection.get("segments", []) if not s.get("candidates_ft")), None)
+    ceiling = (stuck or {}).get("service_ceiling_ft")
+    if not ceiling:
+        return None
+    try:
+        points = terrain_detour.way_round(hop.start, hop.end, ceiling)
+    except Exception:  # noqa: BLE001 -- the tiles out of reach: no suggestion, the problem said as before
+        return None
+    if not points:
+        return None
+    path = [hop.start, *((p["lat"], p["lon"]) for p in points), hop.end]
+    flown = sum(geo.distance_nm(a[0], a[1], b[0], b[1]) for a, b in zip(path, path[1:]))
+    return {
+        "ident": points[0]["ident"], "kind": "Around the high ground",
+        "added_nm": round(float(flown - hop.length_nm), 1),
+        "description": " · ".join(p["ident"] for p in points),
+        "via": [p["ident"] for p in points],
+    }
 
 
 def class_b_detours_of(runs: list[HopRun], outcome: Flown, q: "PlanQuery") -> list[dict]:
@@ -845,10 +894,11 @@ def totals_of(r: Route, runs: list[HopRun], outcome: "Flown", profile: dict, rul
     through any waypoints (Route.flights), with its fuel check, joined
     (app.planning.route_totals). Under IFR with an `alternate` filed, the
     last flight's check carries the leg on to it (alternate_leg)."""
-    per_flight, at = [], 0
+    per_flight, flown, at = [], [], 0
     for i, flight in enumerate(r.flights):
         hops = len(flight.idents) - 1
         legs = [leg for legs in outcome.hop_legs[at:at + hops] for leg in legs]
+        flown.append((legs, runs[at].depart))
         leg_on = None
         if rules == "ifr" and alternate.strip() and i == len(r.flights) - 1 and legs:
             try:
@@ -861,13 +911,47 @@ def totals_of(r: Route, runs: list[HopRun], outcome: "Flown", profile: dict, rul
         per_flight.append(flight_totals(legs, profile, flight, runs[at].depart, rules, leg_on))
         at += hops
     totals = route_totals(per_flight, r.flights)
-    totals["fuel_stops"] = fuel_stops_of(r, per_flight)
+    totals["fuel_stops"] = fuel_stops_of(r, per_flight, flown)
     # The time on the ground at the stops (hop_runs), for the arrival.
     totals["ground_min"] = sum(ground_min_at(ground, f.dest_ident) for f in r.flights[:-1])
     return totals
 
 
-def fuel_stops_of(r: Route, per_flight: list[dict]) -> list[dict]:
+def worst_burn_per_nm(legs: list[dict], over_nm: float) -> float | None:
+    """The most fuel a mile any stretch of `over_nm` of the legs takes:
+    their climb, and their headwinds where those blow hardest. The flight's
+    average hid them, and a stop picked on it fell short where the winds
+    were against it (KMTO-KUCP, 2026-10-23: 0.072 gal/nm on average, 0.078
+    on that leg)."""
+    miles = np.array([leg.get("distance_nm") or 0.0 for leg in legs], dtype=float)
+    fuel = np.array([leg.get("fuel_gal") if leg.get("fuel_gal") is not None else np.nan for leg in legs], dtype=float)
+    if not len(miles) or np.isnan(fuel).any() or miles.sum() <= 0:
+        return None
+    d, f = np.concatenate([[0.0], np.cumsum(miles)]), np.concatenate([[0.0], np.cumsum(fuel)])
+    span = min(over_nm, d[-1])
+    ends = np.minimum(np.searchsorted(d, d + span - 1e-9), len(d) - 1)
+    stretch = d[ends] - d
+    ok = (stretch >= span - 1e-6) & (stretch > 0)
+    return float(((f[ends] - f)[ok] / stretch[ok]).max()) if ok.any() else None
+
+
+def night_on_the_way(start: tuple, end: tuple, depart: datetime | None, minutes: float) -> bool:
+    """Whether any of a trip from `start` to `end` of `minutes`, its stops'
+    time on the ground counted, falls in the night, judged every half hour
+    at where it is by then along the straight line: a stop's flight
+    landing after dark is held to 14 CFR 91.151(a)(2)'s 45 minutes, which
+    the one long flight, day at both its ends, was not."""
+    depart = planning_module.now() if depart is None else depart if depart.tzinfo else depart.replace(tzinfo=timezone.utc)
+    steps = max(1, int(minutes // 30) + 1)
+    for k in range(steps + 1):
+        at = min(k * 30.0, minutes) / minutes if minutes else 0.0
+        lat, lon = start[0] + (end[0] - start[0]) * at, start[1] + (end[1] - start[1]) * at
+        if sun.is_night(lat, lon, depart + timedelta(minutes=at * minutes)):
+            return True
+    return False
+
+
+def fuel_stops_of(r: Route, per_flight: list[dict], flown: list[tuple[list[dict], datetime | None]]) -> list[dict]:
     """Where each flight the tanks do not hold could land for fuel
     (vfr.fuelstops.suggest), at the owner's ask ("suggest fuel stops just
     like Tesla suggests"): the stops that make it, and other fields for the
@@ -878,15 +962,30 @@ def fuel_stops_of(r: Route, per_flight: list[dict]) -> list[dict]:
     or a rest is picked. None where every flight's fuel check passes, or
     where the usable fuel or the flight's figures are not known."""
     out = []
-    for flight, t in zip(r.flights, per_flight):
+    for flight, t, (legs, depart) in zip(r.flights, per_flight, flown):
         margin, usable, distance = t.get("fuel_margin_gal"), t.get("usable_fuel_gal"), t.get("distance_nm")
         if margin is None or margin >= 0 or not usable or not distance or t.get("fuel_gal") is None or t.get("ete_min") is None:
             continue
+        # Each stop's flight as its nav log will fly it, so that a chain
+        # kept never asks for another stop (the owner's "Still asking for
+        # another stop"): at the worst burn a mile over a tankful's
+        # stretch, on the miles the route flies for each straight one,
+        # and held to the night's reserve where any of the trip is in the
+        # dark.
+        taxi, reserve = t.get("taxi_gal") or 0.0, t.get("reserve_gal") or 0.0
+        straight = float(geo.distance_nm(flight.start[0], flight.start[1], flight.end[0], flight.end[1]))
+        detour = max(1.0, distance / straight) if straight else 1.0
+        stops_needed = math.ceil(t["fuel_gal"] / max(usable - taxi - reserve, 1.0))
+        if t.get("rules") != "ifr" and not t.get("night") and night_on_the_way(
+                flight.start, flight.end, depart, t["ete_min"] + stops_needed * TURNAROUND_MIN):
+            reserve = reserve * navlog.NIGHT_RESERVE_MIN / navlog.DAY_RESERVE_MIN
+        per_nm = t["fuel_gal"] / distance
+        worst = worst_burn_per_nm(legs, (usable - taxi - reserve) / per_nm) or per_nm
         try:
             stops, choices = fuelstops.suggest(
-                flight.start, flight.end, fuel_per_nm=t["fuel_gal"] / distance, min_per_nm=t["ete_min"] / distance,
-                usable_gal=usable, taxi_gal=t.get("taxi_gal") or 0.0, reserve_gal=t.get("reserve_gal") or 0.0,
-                skip=set(r.idents),
+                flight.start, flight.end, fuel_per_nm=max(worst, per_nm) * detour,
+                min_per_nm=t["ete_min"] / distance * detour,
+                usable_gal=usable, taxi_gal=taxi, reserve_gal=reserve, skip=set(r.idents),
             )
         except (OSError, ValueError, KeyError):
             # The airport tables missing or unreadable: the fuel check
@@ -933,7 +1032,7 @@ def _running_stages(run: HopRun, q: "PlanQuery") -> list:
 
 def _waiting_on(run: HopRun, q: "PlanQuery") -> str:
     return altitude_waiting_on(
-        run.hop.start, run.hop.end, q.aircraft, _fixes(run.fixes), run.fcst_hr, run.window, q.class_b_clearance,
+        run.hop.start, run.hop.end, q.aircraft_key, _fixes(run.fixes), run.fcst_hr, run.window, q.class_b_clearance,
         q.rules, run.hop.dest_airport.get("airway"))
 
 

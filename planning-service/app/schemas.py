@@ -1623,6 +1623,10 @@ class Detour(BaseModel):
     stop_index: int
     #: Where it is: "in Downers Grove" (vfr.places).
     description: str | None = None
+    #: A way round high ground the airplane cannot climb over
+    #: (vfr.terrain_detour): every point to fly by, in order, the first of
+    #: them `ident`; empty for a Class B's one waypoint.
+    via: list[str] = []
 
 
 class NavLogError(BaseModel):
@@ -2158,6 +2162,52 @@ class RouteStops(BaseModel):
 
     fields: list[RouteStopField]
     pending: int = 0
+
+
+class RouteHazard(BaseModel):
+    """What a way keeps clear of (vfr.route_options): its kind -- storm,
+    weather, marginal, sigmet, tfr, prohibited, terrain -- and its words."""
+
+    kind: str
+    name: str
+
+
+class RouteOption(BaseModel):
+    """One way to fly the route (vfr.route_options): the points between
+    its ends in order, as the address's `stops` takes them -- turns as the
+    pilot's own points off a fix, fuel stops as fields (`fuel`) -- and the
+    kinds of way it is the best of, with its estimate of the flight. The
+    hazards it still crosses and the marginal weather it passes, by their
+    index in RouteOptions.hazards."""
+
+    kind: Literal["fastest", "weather", "stops"]
+    kinds: list[Literal["fastest", "weather", "stops"]]
+    title: str
+    stops: list[str]
+    fuel: list[str]
+    path: list[list[float]]
+    distance_nm: float
+    air_min: float
+    ground_min: float
+    fuel_gal: float
+    landings: int
+    crosses: list[int]
+    marginal: list[int]
+
+
+class RouteOptions(BaseModel):
+    """The ways to fly a route, the fastest first; what the straight line
+    crosses (`direct`), what is at its ends (`ends`) and what the pilot's
+    own route crosses and passes (`current`, `current_marginal`), by index
+    in `hazards`; and the sources that could not be read now (`unchecked`)."""
+
+    options: list[RouteOption]
+    direct: list[int]
+    ends: list[int]
+    current: list[int] = []
+    current_marginal: list[int] = []
+    hazards: list[RouteHazard]
+    unchecked: list[str]
 
 
 class ModelComparisonEntry(BaseModel):

@@ -219,10 +219,8 @@ export default function MapPage({ mode }: { mode: Mode }) {
     </ConsoleInPanelContext.Provider>
   );
 
-  // The panel's top row with it out: the workspace's head, or the route's
-  // box or form and the actions beside it; none over a card alone or the
-  // console's layer.
-  const topRowOf = (pieces: WorkspacePieces) => pieces.alone || consoleLayer ? null : pieces.head ?? (
+  // The route's box or form and the actions beside it.
+  const routeRowOf = (pieces: WorkspacePieces) => (
               <>
                 <div className="min-w-0 flex-1">
                   {pieces.route ?? (
@@ -235,6 +233,9 @@ export default function MapPage({ mode }: { mode: Mode }) {
                 {pieces.actions && <div className="flex shrink-0 items-center">{pieces.actions}</div>}
               </>
             );
+  // The panel's top row with it out: the workspace's head, or the route's
+  // row; none over a card alone or the console's layer.
+  const topRowOf = (pieces: WorkspacePieces, routeRow: ReactNode) => pieces.alone || consoleLayer ? null : pieces.head ?? routeRow;
 
   return (
     // The fallback is the page's own background rather than a spinner:
@@ -243,7 +244,10 @@ export default function MapPage({ mode }: { mode: Mode }) {
     <Suspense fallback={<div className="h-dvh w-full bg-background" />}>
     <Workspace dep={dep} dest={dest} panel={panel} setPanel={setPanel}>
       {pieces => {
-        const topRow = topRowOf(pieces);
+        // The route's row built once a render, the same element as the top
+        // row and as the one MapPanel keeps under the other tabs (`kept`).
+        const routeRow = routeRowOf(pieces);
+        const topRow = topRowOf(pieces, routeRow);
         return (
         <div
           // Pinned to the viewport rather than sized to it (`h-dvh`): a
@@ -310,7 +314,7 @@ export default function MapPage({ mode }: { mode: Mode }) {
             bar={pieces.bar} layer={consoleLayer ? "console" : pieces.alone ? "card" : "tab"}
             foot={consoleLayer ? undefined : pieces.foot}
             cardOver={!!pieces.cardOver}
-            top={topRow}
+            top={topRow} kept={pieces.route != null ? routeRow : undefined}
           >
             {setupDrawn && consoleLayerOf(pieces)}
             {/* Under the console while it is out, kept as it is. */}

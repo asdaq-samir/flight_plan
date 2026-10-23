@@ -7,6 +7,7 @@ import { closeTopCard, useOpenCards, type RouteCard } from "../lib/openCards";
 import { prefersReducedMotion } from "../lib/motion";
 import { TEXT } from "../lib/text";
 import TabGlass from "./TabGlass";
+import { GLASS_EDGE_LIFTED } from "../lib/glass";
 import { GLASS_CLEAR, PanelSize, TabBarMinimized, useConsoleOpen, useTabsShown } from "./mapChrome";
 
 /** One of a page's places, a tab of its bar: its word and its glyph. */
@@ -622,7 +623,7 @@ export default function TabBar<T extends string>({ tabs, tab, over, title, onPic
             // shadow. Lifted, on a deeper shadow, as a lens raised over
             // the bar.
             "pointer-events-none absolute rounded-full", GLASS_CLEAR,
-            lens && "shadow-[inset_0_0_0_1.5px_rgb(255_255_255/0.95),0_0_0_0.5px_rgb(0_0_0/0.06),0_4px_14px_rgb(0_0_0/0.18)] dark:shadow-[inset_0_0_0_1.5px_rgb(255_255_255/0.3),0_0_0_0.5px_rgb(0_0_0/0.5),0_4px_14px_rgb(0_0_0/0.6)]",
+            lens && GLASS_EDGE_LIFTED,
           )}
           style={lensStyle}
         />

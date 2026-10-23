@@ -14,7 +14,10 @@ describe("an airplane picked by its N-number", () => {
     expect(profileOfRegistered({ manufacturer: "Cessna", model: "150G" })).toBe("c150");
     expect(profileOfRegistered({ manufacturer: "Cessna", model: "A152" })).toBe("c152");
     expect(profileOfRegistered({ manufacturer: "Cessna", model: "182T" })).toBe("c182");
-    expect(profileOfRegistered({ manufacturer: "Piper", model: "PA-28-140" })).toBe("pa28140");
+    expect(profileOfRegistered({ manufacturer: "Piper", model: "PA-28-140", year: 1971 })).toBe("pa28140");
+    expect(profileOfRegistered({ manufacturer: "Piper", model: "PA-28-140", year: 1975 })).toBe("pa28140cruiser");
+    // No year: the Cruiser's, the lower ceiling.
+    expect(profileOfRegistered({ manufacturer: "Piper", model: "PA-28-140" })).toBe("pa28140cruiser");
     expect(profileOfRegistered({ manufacturer: "Cirrus Design Corp", model: "SR22" })).toBe("sr22");
     expect(profileOfRegistered({ manufacturer: "Diamond Aircraft IND Inc", model: "DA 40 NG" })).toBe("da40ng");
     expect(profileOfRegistered({ manufacturer: "Piper", model: "PA-28-161" })).toBe("pa28161");

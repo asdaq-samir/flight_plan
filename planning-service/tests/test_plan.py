@@ -608,3 +608,12 @@ def test_under_ifr_the_fuel_on_to_the_alternate_is_flown_before_the_reserve(mess
     # Under VFR an alternate means nothing to the fuel.
     vfr = messages(client.get("/api/navlog", params={"dep": "C81", "dest": "KDLH", "alternate": "KMSN"}))[-1]["totals"]
     assert vfr["alternate"] is None
+
+
+def test_an_airplanes_own_ceiling_is_flown_over_its_profiles():
+    """The pilot's own service ceiling for their N-number (the owner's
+    "give users a way to change these specs"): the profile's otherwise."""
+    from app.planning import aircraft_profile
+
+    assert aircraft_profile("pa28140cruiser")["service_ceiling_ft"] == 10950
+    assert aircraft_profile("pa28140cruiser", service_ceiling_ft=14300)["service_ceiling_ft"] == 14300

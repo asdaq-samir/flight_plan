@@ -314,6 +314,13 @@ export const routeStopsQuery = (dep: string, dest: string, stops: string) => que
   refetchInterval: query => (query.state.data?.pending ? 2000 : false),
 });
 
+/** The ways to fly a route (api.routeOptions), for FPL's Routes: the
+ *  planner's read of the TAFs and METARs is ten minutes old at most, so
+ *  that long; quiet, FPL saying nothing of them where they are not had. */
+export const routeOptionsQuery = (...args: Parameters<typeof api.routeOptions>) => queryOptions({
+  queryKey: ["route-options", ...args], queryFn: () => api.routeOptions(...args), staleTime: 10 * 60_000, meta: { silent: true },
+});
+
 /** An approach's plate placed on the map, and whether it publishes
  *  circling minimums (vfr.plates): the map's (PlateLayer) and the route's
  *  runway chips' (ProceduresRoute). A plate placed stays good for its

@@ -132,7 +132,7 @@ function planKeyOf(
   return [
     dep, dest, stops.join(","), altitudeFt, altitudeChoice, depart, load, classBClearance, altitudes, checkpoints,
     aircraft.profile, aircraft.cruiseTasKt ?? null, aircraft.fuelBurnGph ?? null, aircraft.usableFuelGal ?? null,
-    aircraft.climbTasKt ?? null, aircraft.climbFuelBurnGph ?? null, aircraft.cruisePowerPct ?? null, rules,
+    aircraft.climbTasKt ?? null, aircraft.climbFuelBurnGph ?? null, aircraft.cruisePowerPct ?? null, aircraft.serviceCeilingFt ?? null, rules,
     rules === "ifr" ? alternate : "", procedures, runways, crossings, ground, holds, altitudeNearest,
   ];
 }

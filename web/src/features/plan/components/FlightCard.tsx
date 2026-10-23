@@ -27,6 +27,7 @@ import PastFlights from "./PastFlights";
 import { shortWhen, when } from "./pastFlightFormat";
 import { pastFlightQuery, pastFlightsQuery } from "./pastFlightsQuery";
 import { CardAction } from "./CardAction";
+import { AirplaneFigures } from "./AirplaneFigures";
 import { CardTabBar, CardTabPanel } from "../../../components/CardTabs";
 import { useCardTab } from "../../../lib/cardTab";
 import { useOpenCards } from "../../../lib/openCards";
@@ -289,6 +290,9 @@ export default function FlightCard({ hex, onClose, onOpenPast, onOpenAirport, on
             <ListRow title="ICAO address" value={<span className={cn("font-semibold text-foreground uppercase tabular-nums", TEXT.row)}>{hex}</span>} />
             <ListRow title="Callsign" value={<span className="font-semibold text-foreground">{plane?.callsign ?? "—"}</span>} />
           </ListGroup>
+          {/* The figures the planner flies it on, the pilot's to set, where
+              it is the airplane flown now (AirplaneFigures). */}
+          {(detail?.registration ?? plane?.registration) && <AirplaneFigures tail={(detail?.registration ?? plane?.registration)!} />}
           {route && (
             // Its flight number's scheduled route (Virtual Radar Server's
             // route database), not the flight plan filed, which the FAA does

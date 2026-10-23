@@ -1,12 +1,12 @@
 {
   "type": "Piper PA-28-140 Cherokee",
   "designator": "P28A",
-  "service_ceiling_ft": 10950,
-  "climb_rate_fpm_sea_level": 631,
-  "cruise_tas_kt": 109,
+  "service_ceiling_ft": 14300,
+  "climb_rate_fpm_sea_level": 660,
+  "cruise_tas_kt": 115,
   "fuel_burn_gph": 8.4,
   "cruise_power_pct": 75,
   "cruise_altitude_ft": 7000,
-  "usable_fuel_gal": 48,
-  "source": "Piper Cherokee Cruiser/Flite Liner Pilot's Operating Manual (761 555, 1973), general specifications: service ceiling 10,950 ft, climb 631 fpm, 75% best economy at 7000 ft 126 mph TAS (109 kt), 8.4 GPH, 48 gal usable. No climb speed or burn and no demonstrated crosswind in it: the planner's climb defaults stand"
+  "usable_fuel_gal": 36,
+  "source": "Piper Cherokee 140 'D' Owner's Handbook (700801), section I specifications, at 2,150 lb gross, serials 28-25001 and up: service ceiling 14,300 ft (absolute 16,800); rate of climb 660 fpm at sea level, best rate of climb speed 85 mph; optimum cruising speed, 75% power at 7,000 ft, 132 mph (115 kt) without fenders; fuel 8.4 gal/h at 75%. The page the owner sent (2026-10-23). Usable fuel is not on it: 36 gal, the standard tanks' to the tabs, the less of the two a 140 may have (the 1973 Cruiser manual's 50 gal tanks give 48 usable), so a fuel stop is planned early rather than late; an airplane with the bigger tanks added in Setup with its own. For a PA-28-140 of 1972 and before"
 }

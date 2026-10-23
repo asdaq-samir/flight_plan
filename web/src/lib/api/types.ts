@@ -94,6 +94,9 @@ export type AirportPhotos = Schemas["AirportPhotos"];
 /** The fields along a route to stop at, for the map's Stops (vfr.fuelstops.along). */
 export type RouteStops = Schemas["RouteStops"];
 export type RouteStopField = Schemas["RouteStopField"];
+/** The ways to fly a route, for FPL's Routes (vfr.route_options), and one of them. */
+export type RouteOptions = Schemas["RouteOptions"];
+export type RouteOption = Schemas["RouteOption"];
 export type ForecastWind = Schemas["ForecastWind"];
 export type Metar = Schemas["Metar"];
 export type TerminalChart = Schemas["TerminalChart"];
@@ -177,6 +180,9 @@ export interface AircraftChoice {
   climbTasKt?: number;
   climbFuelBurnGph?: number;
   usableFuelGal?: number;
+  /** The airplane's own service ceiling, ft, over its profile's, where the
+   *  pilot has set one for their N-number. */
+  serviceCeilingFt?: number;
   aircraftId?: number;
   /** An airplane picked by its N-number from the FAA's registry, flown on
    *  its type's stock profile: its N-number, for its own place in the

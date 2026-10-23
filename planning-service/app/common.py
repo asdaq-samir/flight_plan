@@ -19,8 +19,11 @@ log = logging.getLogger(__name__)
 DEFAULT_AIRCRAFT = "c172"
 
 #: How many stops a route may make between its ends: each is a flight of
-#: its own to read the chart along and plan.
-MAX_STOPS = 8
+#: its own to read the chart along and plan. Sixteen, where it was eight:
+#: a way round high ground (vfr.terrain_detour) takes several points and a
+#: long trip its fuel stops besides (Los Angeles to Hartford in a PA-28-140,
+#: eight round the Rockies and the fuel stops after them, 2026-10-23).
+MAX_STOPS = 16
 
 #: Two points of a route closer than this are one place: a tenth of a
 #: mile, inside any airport's own boundary.
