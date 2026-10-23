@@ -1146,9 +1146,12 @@ function fieldsOpenAtFirst(): boolean {
 
 
 // A runway's chip the buttons' glass, the one picked tinted glass, at the
-// owner's pick of the sketches ("B").
+// owner's pick of the sketches ("B"). Its runway in its middle: a one-figure
+// runway ("4") is narrower than the chip's least width, and sat at its left,
+// the room to its right empty (the owner's "Why is there extra space to the
+// right of runway 4").
 const CHIP = cn(
-  "relative h-8 min-w-11 rounded-full px-3 font-normal", GLASS_BUTTON, GLASS_PICKED,
+  "relative h-8 min-w-11 justify-center rounded-full px-3 font-normal", GLASS_BUTTON, GLASS_PICKED,
   "after:absolute after:-inset-1.5 after:content-['']",
   TEXT.detail,
 );
