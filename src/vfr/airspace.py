@@ -460,11 +460,17 @@ def airspace_ceiling_profile(route_start: tuple, route_end: tuple, fixes: list, 
     own = own_class_b(polygons, start_point, end_point)
     shelves = [p for p in polygons if p["class"] in CLEARANCE_CLASSES and p["name"] not in own]
 
-    ceilings = []
-    for (lat1, lon1), (lat2, lon2) in zip(fixes, fixes[1:]):
-        leg_line = LineString([(lon1, lat1), (lon2, lat2)])
-        floors = [p["floor_ft_msl"] for p in shelves if leg_line.intersects(p["geometry"])]
-        ceilings.append(min(floors) if floors else None)
+    # Every leg against the shelves at once, through their index (STRtree):
+    # each leg tried against each shelf by hand was 12.5 s of a cold Seattle
+    # to Miami plan, the corridor's box holding a country's worth of them.
+    ceilings: list = [None] * max(0, len(fixes) - 1)
+    if not shelves or not ceilings:
+        return ceilings
+    legs = [LineString([(lon1, lat1), (lon2, lat2)]) for (lat1, lon1), (lat2, lon2) in zip(fixes, fixes[1:])]
+    leg_at, shelf_at = STRtree([p["geometry"] for p in shelves]).query(legs, predicate="intersects")
+    for i, j in zip(leg_at.tolist(), shelf_at.tolist()):
+        floor = shelves[j]["floor_ft_msl"]
+        ceilings[i] = floor if ceilings[i] is None else min(ceilings[i], floor)
     return ceilings
 
 
@@ -639,9 +645,11 @@ def airspace_transits(route_start: tuple, route_end: tuple, shp_path, fixes: lis
     route_line = LineString([(lon, lat) for lat, lon in path])
 
     transits = []
-    for p in polygons:
-        if not route_line.intersects(p["geometry"]):
-            continue
+    # The polygons the route crosses, through their index (STRtree), rather
+    # than the whole box's tried one by one.
+    crossed = STRtree([p["geometry"] for p in polygons]).query(route_line, predicate="intersects") if polygons else []
+    for k in sorted(int(i) for i in crossed):
+        p = polygons[k]
         centre = p["geometry"].centroid
         transits.append(
             {
