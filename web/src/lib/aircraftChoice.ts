@@ -20,13 +20,16 @@ export const N_NUMBER = /^N[1-9][0-9A-Z]{0,4}$/;
  *  182RG or a turbo 182, a PA-28-151/160/180, an Arrow I, II or IV or a
  *  turbo Arrow, a turbo SR22T, the avgas DA40. A Bonanza A36 is out: its
  *  handbook gives no percent power for its cruise row. */
-const REGISTERED_TYPES: { maker: RegExp; model: RegExp; profile: string }[] = [
+const REGISTERED_TYPES: { maker: RegExp; model: RegExp; profile: string; before?: number }[] = [
   { maker: /CESSNA/, model: /^F?A?150[A-M]?$|^FA150L$/, profile: "c150" },
   { maker: /CESSNA/, model: /^[AF]?152$/, profile: "c152" },
   { maker: /CESSNA/, model: /^172[A-Z]?$/, profile: "c172" },
   { maker: /CESSNA/, model: /^182[ST]$/, profile: "c182" },
   { maker: /PIPER/, model: /^PA28181/, profile: "pa28" },
-  { maker: /PIPER/, model: /^PA28140$/, profile: "pa28140" },
+  // By year: the 1970 'D' handbook's 14,300 ft ceiling to 1972, the 1973
+  // Cruiser manual's 10,950 from 1973 (the owner's page, 2026-10-23).
+  { maker: /PIPER/, model: /^PA28140$/, profile: "pa28140", before: 1973 },
+  { maker: /PIPER/, model: /^PA28140$/, profile: "pa28140cruiser" },
   { maker: /PIPER/, model: /^PA28161$/, profile: "pa28161" },
   { maker: /PIPER/, model: /^PA28R201$/, profile: "pa28r201" },
   { maker: /MOONEY/, model: /^M20J$/, profile: "m20j" },
@@ -35,9 +38,10 @@ const REGISTERED_TYPES: { maker: RegExp; model: RegExp; profile: string }[] = [
   { maker: /DIAMOND/, model: /^DA40NG$/, profile: "da40ng" },
 ];
 
-export function profileOfRegistered(registered: { manufacturer?: string | null; model?: string | null }): string | null {
+export function profileOfRegistered(registered: { manufacturer?: string | null; model?: string | null; year?: number | null }): string | null {
   const maker = (registered.manufacturer ?? "").toUpperCase(), model = (registered.model ?? "").toUpperCase().replace(/[\s-]+/g, "");
-  return REGISTERED_TYPES.find(t => t.maker.test(maker) && t.model.test(model))?.profile ?? null;
+  const year = registered.year ?? null;
+  return REGISTERED_TYPES.find(t => t.maker.test(maker) && t.model.test(model) && (t.before === undefined || (year !== null && year < t.before)))?.profile ?? null;
 }
 
 /** A pilot's own airplane rides on the stock profile whose name
