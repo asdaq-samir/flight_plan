@@ -5,7 +5,7 @@ import { cn } from "cn";
 import { Button } from "../../../../components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../../../components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../../../../components/ui/collapsible";
-import { PANEL_FIELD_FILL } from "../../../../components/panelField";
+import { INLINE_FIELD_BUTTON, InlineField } from "../../../../components/InlineField";
 import { GLASS_BUTTON } from "../../../../components/mapChrome";
 import Segmented from "../../../../components/Segmented";
 import { faaWords } from "../../../../lib/advisories";
@@ -131,56 +131,22 @@ export default function AltitudeGroup({ nav, legs, commanded = null, problem = f
   const why = problem ? "no legal altitude" : flying !== null ? said(flying)
     : nav?.flown === null ? "no altitude: no winds" : "not yet planned";
   return (
-    <div
-      role="group" aria-label="Cruise altitude"
-      // A field as the route box is, at the owner's ask ("make the altitude
-      // input similar to route box style where profile button only shows
-      // with an altitude there"): its fill and its type, not a chip of
-      // glass; with no route its placeholder alone, as the box's.
-      // 32 tall in the route box, as the airplane's button beside it (FlightInputs).
-      // One width whatever is in it, at the owner's ask ("Don't reduce the
-      // width when a new altitude is entered because a profile button will
-      // take the place"): the wider of the example and three figures with
-      // the profile button after them, each measured unseen in the one
-      // cell, and the field taking what the button does not.
-      className={cn("grid h-7 items-center rounded-full", PANEL_FIELD_FILL, TEXT.row)}
-      data-testid="altitude-group"
-    >
-      <span aria-hidden="true" className="invisible col-start-1 row-start-1 flex h-0 overflow-hidden">
-        <span className="whitespace-pre pr-1.5 pl-2.5 font-semibold tabular-nums">000</span>
-        <span className="w-[1.5625rem] shrink-0" />
-      </span>
-      {/* Two points over the field's own padding, for the caret. */}
-      <span aria-hidden="true" className="invisible col-start-1 row-start-1 h-0 overflow-hidden whitespace-pre pr-1.5 pl-2.5 font-normal">
-        {PLACEHOLDER}
-      </span>
-      <div className="col-start-1 row-start-1 flex h-full min-w-0 items-center">
-        {/* Six points after the figure, at the owner's ask ("Does the button
-            need to have that much spacing between text and button in the
-            grouped inputs?"): it was twelve. The field over the button's
-            area where the two meet, so a tap at the figure's end is the
-            field's, to edit or clear it (the owner's "The n number and alt
-            is not letting me clear them": the button had it). */}
-        <label className="relative flex h-full min-w-0 flex-1 items-center pr-1 after:absolute after:-inset-y-2 after:-left-0.5 after:right-0 after:content-['']">
-          <input
-            type="text" inputMode="numeric" enterKeyHint="done" autoComplete="off" size={1}
-            value={shown} placeholder={PLACEHOLDER} aria-label="Cruise altitude, hundreds of feet"
-            onChange={e => setTyped(e.target.value.replace(/\D/g, "").slice(0, 3))}
-            onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); fly(); (e.target as HTMLInputElement).blur(); } if (e.key === "Escape") setTyped(null); }}
-            onBlur={fly}
-            className={cn(
-              "relative z-10 h-full w-0 min-w-0 flex-1 bg-transparent pr-0.5 pl-2.5 font-semibold tabular-nums outline-none placeholder:font-normal",
-              problem ? "text-destructive-ink" : "text-foreground",
-            )}
-            data-testid="altitude-input"
-          />
-        </label>
-        {/* The profile's button once there is an altitude in the field, at the
-            owner's ask ("when altitude is entered ... a profile button shows
-            up"), or why there is none to show. The flight rules are the Profile card's switch alone, at the
-            owner's ask ("no need to mention IFR or VFR"); VoiceOver hears them
-            in the button's name still. */}
-        {(profiled || entered) && <button
+    // A field as the route box is, at the owner's ask ("make the altitude
+    // input similar to route box style where profile button only shows
+    // with an altitude there"), the N-number's own (InlineField): the
+    // profile's button once there is an altitude in the field, at the
+    // owner's ask ("when altitude is entered ... a profile button shows
+    // up"), or why there is none to show.
+    <InlineField
+      label="Cruise altitude" testId="altitude-group" widest="000" tabular placeholder={PLACEHOLDER}
+      input={{
+        inputMode: "numeric", value: shown, "aria-label": "Cruise altitude, hundreds of feet",
+        onChange: e => setTyped(e.target.value.replace(/\D/g, "").slice(0, 3)),
+        onKeyDown: e => { if (e.key === "Enter") { e.preventDefault(); fly(); (e.target as HTMLInputElement).blur(); } if (e.key === "Escape") setTyped(null); },
+        onBlur: fly, "data-testid": "altitude-input",
+      }}
+      inputClassName={problem ? "text-destructive-ink" : "text-foreground"}
+      button={(profiled || entered) && <button
           type="button" onClick={onOpenProfile} disabled={!profiled}
           className={cn(
             // The route box's icon buttons' size, 32 square with an 18-point glyph, the
@@ -189,7 +155,7 @@ export default function AltitudeGroup({ nav, legs, commanded = null, problem = f
             // ask ("The profile button should also get the glass tinted. But
             // the altitude entry should stay as a text box"): the field's
             // end, where a line parted it from the figure before.
-            "relative mr-[3px] flex size-[1.375rem] shrink-0 items-center justify-center rounded-full outline-none after:absolute after:-inset-[11px] after:content-[''] focus-visible:ring-2 focus-visible:ring-ring disabled:text-muted-foreground",
+            INLINE_FIELD_BUTTON, "disabled:text-muted-foreground",
             GLASS_BUTTON,
             problem && "text-destructive-ink",
           )}
@@ -215,8 +181,7 @@ export default function AltitudeGroup({ nav, legs, commanded = null, problem = f
             )}
           </span>
         </button>}
-      </div>
-    </div>
+    />
   );
 }
 
