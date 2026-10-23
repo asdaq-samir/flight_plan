@@ -147,11 +147,11 @@ export default function AltitudeGroup({ nav, legs, commanded = null, problem = f
       data-testid="altitude-group"
     >
       <span aria-hidden="true" className="invisible col-start-1 row-start-1 flex h-0 overflow-hidden">
-        <span className="whitespace-pre pr-3.5 pl-3 font-semibold tabular-nums">000</span>
+        <span className="whitespace-pre pr-3 pl-2.5 font-semibold tabular-nums">000</span>
         <span className="w-8 shrink-0" />
       </span>
       {/* Two points over the field's own padding, for the caret. */}
-      <span aria-hidden="true" className="invisible col-start-1 row-start-1 h-0 overflow-hidden whitespace-pre pr-3.5 pl-3 font-normal">
+      <span aria-hidden="true" className="invisible col-start-1 row-start-1 h-0 overflow-hidden whitespace-pre pr-3 pl-2.5 font-normal">
         {PLACEHOLDER}
       </span>
       <div className="col-start-1 row-start-1 flex h-full min-w-0 items-center">
@@ -167,7 +167,7 @@ export default function AltitudeGroup({ nav, legs, commanded = null, problem = f
             onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); fly(); (e.target as HTMLInputElement).blur(); } if (e.key === "Escape") setTyped(null); }}
             onBlur={fly}
             className={cn(
-              "relative z-10 h-full w-0 min-w-0 flex-1 bg-transparent pr-1.5 pl-3 font-semibold tabular-nums outline-none placeholder:font-normal",
+              "relative z-10 h-full w-0 min-w-0 flex-1 bg-transparent pr-1.5 pl-2.5 font-semibold tabular-nums outline-none placeholder:font-normal",
               problem ? "text-red-700 dark:text-red-300" : "text-foreground",
             )}
             data-testid="altitude-input"

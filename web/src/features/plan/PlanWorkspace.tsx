@@ -2188,7 +2188,11 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       {/* Inside the route's box, a size down from the panel's 36: 32, at
           the owner's ask ("make these buttons a bit smaller inside route
           box"), twelve apart so their 44-point areas meet (index.css). */}
-      <div className="ml-auto flex shrink-0 items-center gap-3">
+      {/* Eight more before them than the row's four: the Profile button's
+          44 points, at the altitude's end, and the Brief's meet, not overlap
+          (the iOS audit's P1, 93c88a64); the airplane and the altitude two
+          narrower in their padding for it, so the row keeps its one line. */}
+      <div className="ml-auto flex shrink-0 items-center gap-3 pl-2">
         {/* The Brief, a card over FPL (BriefCard), in the folder's place,
             at the owner's ask ("we don't need the folder button because we
             have a saved section with tiles instead. So then we can have a

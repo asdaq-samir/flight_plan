@@ -200,7 +200,7 @@ function CheckpointCard({ candidate, number }: { candidate: Candidate; number?: 
           role={number === undefined ? undefined : "img"}
           aria-label={number === undefined ? undefined : `Checkpoint ${number}`}
           aria-hidden={number === undefined ? true : undefined}
-          className="grid size-7 shrink-0 place-items-center rounded-full border-[2.5px] border-background text-[11px] font-bold leading-none shadow-[0_1px_3px_rgba(0,0,0,.35)] outline outline-1 outline-[rgba(10,20,28,.45)]"
+          className="grid size-7 shrink-0 place-items-center rounded-full border-[2.5px] border-background text-[0.6875rem] leading-[0.8125rem] font-bold shadow-[0_1px_3px_rgba(0,0,0,.35)] outline outline-1 outline-[rgba(10,20,28,.45)]"
           style={{ backgroundColor: fill, color: inkOn(fill) }}
         >
           {number ?? ""}
