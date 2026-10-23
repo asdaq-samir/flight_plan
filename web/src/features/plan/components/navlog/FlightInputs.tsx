@@ -80,14 +80,15 @@ export default function FlightInputs({ aircraftValue, aircraftOptions, onAircraf
           look similar to altitude"): typed in, its card's button at its end
           once there is one, the route box's fill and type. */}
       <div role="group" aria-label="Airplane" className={cn("grid h-7 shrink-0 items-center rounded-full", PANEL_FIELD_FILL, TEXT.row)} data-testid="aircraft-select">
-        {/* As wide as what is in it -- the example at a detail's size, as
-            the button it replaced had it, or the N-number and its card's
-            button -- so the route box's row keeps its one line (briefing's
-            spec: Share level with the airplane). */}
+        {/* One size whatever is in it, at the owner's asks ("Keep these
+            inputs fixed size and when user deletes the content, just have
+            the filler text", "When clearing text why is the input group
+            changing its shape size?"): the widest N-number, six, and its
+            card's button, measured unseen in the one cell, as the altitude's
+            is. Emptied, the field keeps it and shows its filler. */}
         <span aria-hidden="true" className="invisible col-start-1 row-start-1 flex h-0 overflow-hidden">
-          {shown ? <span className="whitespace-pre pr-1.5 pl-2.5 font-semibold">{shown}</span>
-            : <span className={cn("whitespace-pre pr-2.5 pl-2.5 font-normal", TEXT.detail)}>N-number</span>}
-          {tailNow && typed === null && onOpenAirplane && <span className="w-[1.5625rem] shrink-0" />}
+          <span className="whitespace-pre pr-1.5 pl-2.5 font-semibold">N888MM</span>
+          <span className="w-[1.5625rem] shrink-0" />
         </span>
         <div className="col-start-1 row-start-1 flex h-full min-w-0 items-center">
           <label className="relative flex h-full min-w-0 flex-1 items-center pr-1 after:absolute after:-inset-y-2 after:-left-0.5 after:right-0 after:content-['']">
@@ -109,7 +110,7 @@ export default function FlightInputs({ aircraftValue, aircraftOptions, onAircraf
               // fit in its input group"); its 44 a pseudo-element round it.
               className={cn("relative z-20 mr-[3px] flex size-[1.375rem] shrink-0 items-center justify-center rounded-full outline-none after:absolute after:-inset-[11px] after:content-[''] focus-visible:ring-2 focus-visible:ring-ring", GLASS_BUTTON)}
             >
-              <Plane className="size-3.5 text-tint" aria-hidden="true" />
+              <Plane className="size-3.5" aria-hidden="true" />
             </button>
           )}
         </div>
