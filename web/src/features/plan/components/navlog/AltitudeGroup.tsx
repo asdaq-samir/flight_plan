@@ -6,6 +6,7 @@ import { Button } from "../../../../components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../../../components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../../../../components/ui/collapsible";
 import { PANEL_FIELD_FILL } from "../../../../components/panelField";
+import { GLASS_BUTTON } from "../../../../components/mapChrome";
 import Segmented from "../../../../components/Segmented";
 import { faaWords } from "../../../../lib/advisories";
 import type { AltitudeChoice, Detour, Leg, NavLogAltitude } from "../../../../lib/api/types";
@@ -147,7 +148,6 @@ export default function AltitudeGroup({ nav, legs, commanded = null, problem = f
     >
       <span aria-hidden="true" className="invisible col-start-1 row-start-1 flex h-0 overflow-hidden">
         <span className="whitespace-pre pr-3.5 pl-3 font-semibold tabular-nums">000</span>
-        <span className="w-px" />
         <span className="w-8 shrink-0" />
       </span>
       {/* Two points over the field's own padding, for the caret. */}
@@ -178,13 +178,17 @@ export default function AltitudeGroup({ nav, legs, commanded = null, problem = f
             up"), or why there is none to show. The flight rules are the Profile card's switch alone, at the
             owner's ask ("no need to mention IFR or VFR"); VoiceOver hears them
             in the button's name still. */}
-        {(profiled || entered) && <span aria-hidden="true" className="h-4 w-px bg-border" />}
         {(profiled || entered) && <button
           type="button" onClick={onOpenProfile} disabled={!profiled}
           className={cn(
             // The route box's icon buttons' size, 32 square with an 18-point glyph, the
-            // group's height; its 44-point area round it.
-            "relative flex size-8 shrink-0 items-center justify-center rounded-full text-tint outline-none after:absolute after:-inset-1.5 after:content-[''] focus-visible:ring-2 focus-visible:ring-ring disabled:text-muted-foreground",
+            // group's height; its 44-point area round it. A button of the
+            // tinted glass every button is (GLASS_BUTTON), at the owner's
+            // ask ("The profile button should also get the glass tinted. But
+            // the altitude entry should stay as a text box"): the field's
+            // end, where a line parted it from the figure before.
+            "relative flex size-8 shrink-0 items-center justify-center rounded-full outline-none after:absolute after:-inset-1.5 after:content-[''] focus-visible:ring-2 focus-visible:ring-ring disabled:text-muted-foreground",
+            GLASS_BUTTON,
             problem && "text-red-700 dark:text-red-300",
           )}
           aria-label={`Cruising altitude${rules === "ifr" ? " under IFR" : ""}, ${why}${!problem && tight ? ", tight" : ""}${!problem && cautions.length ? ", your altitude has a caution" : ""}: set it on the profile`}
