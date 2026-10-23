@@ -295,9 +295,12 @@ export type ComponentFinding = { rule: string; what: string; measured: string };
 export function componentFindings(page: Page): Promise<ComponentFinding[]> {
   return page.evaluate(() => {
     const found: { rule: string; what: string; measured: string }[] = [];
+    // In sight: a tab kept out of sight (TabKept, tab-away) keeps its
+    // last layout's boxes under content-visibility, so its size alone
+    // said nothing (checkVisibility knows).
     const on = (el: Element) => {
       const r = el.getBoundingClientRect();
-      return r.width > 1 && r.height > 1 && getComputedStyle(el).visibility === "visible";
+      return r.width > 1 && r.height > 1 && getComputedStyle(el).visibility === "visible" && el.checkVisibility();
     };
     const name = (el: Element) => (el.getAttribute("aria-label") ?? (el as HTMLElement).dataset?.testid ?? el.getAttribute("data-slot") ?? el.className.toString().split(" ")[0]).slice(0, 40);
     for (const grab of document.querySelectorAll('[data-slot="console-sheet"] [data-grabber], [data-floating] [data-swipe-handle] > span')) {
