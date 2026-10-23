@@ -145,9 +145,8 @@ def _warm_reference_data() -> None:
         faa_data.airport_frequencies("KORD", altitude.DEFAULT_FAA_CACHE_DIR)
     except Exception:  # noqa: BLE001
         log.exception("airport frequencies warm-up failed")
-    # And Overture's places files' footers (vfr.nearby.warm): a plan
-    # choosing a stop by what is there on the ground (fuelstops' appeal)
-    # waits on its first fields' places, 2.5 s cold and 0.3 s after.
+    # And Overture's places files' footers (vfr.nearby.warm): the map's
+    # Stops and a card's Info read a field's places, 2.5 s cold, 0.3 s after.
     try:
         nearby.warm()
     except Exception:  # noqa: BLE001 -- a stop is chosen on time and fuel alone until it is in

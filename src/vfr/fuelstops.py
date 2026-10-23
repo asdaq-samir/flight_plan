@@ -15,7 +15,6 @@ made with the stop put in is the real check: this only chooses where.
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from functools import lru_cache
 from pathlib import Path
@@ -50,20 +49,6 @@ CHOICES = 4
 #: The minutes that count as the same trip when choosing between fields:
 #: a few minutes are not worth landing with less fuel.
 SAME_MINUTES = 5.0
-
-#: The minutes a field is worth over a quicker one where it has food a
-#: walk away or a way into town (vfr.nearby.appeal), at the owner's yes to
-#: picking stops by what is there on the ground (2026-10-22): a meal
-#: within reach is worth ten minutes on a long day. Only among fields
-#: that each keep the reserve.
-APPEAL_MINUTES = 10.0
-
-#: The most fields whose places a plan asks for when choosing a stop.
-APPEAL_MOST = 8
-
-#: A field's appeal by its ident, from (ident, lat, lon) of the fields
-#: asked of (vfr.nearby.appeal_of).
-Appeal = Callable[[list[tuple[str, float, float]]], dict[str, int]]
 
 
 @dataclass(frozen=True)
@@ -163,7 +148,7 @@ def _fits(start: tuple, end: tuple, fuel_per_nm: float, usable_gal: float, taxi_
 
 def suggest(start: tuple, end: tuple, *, fuel_per_nm: float, min_per_nm: float, usable_gal: float,
             taxi_gal: float, reserve_gal: float, ground_min: float = 30.0, skip: set | None = None,
-            fields: pd.DataFrame | None = None, appeal: Appeal | None = None) -> tuple[list[FuelStop], list[FuelStop]]:
+            fields: pd.DataFrame | None = None) -> tuple[list[FuelStop], list[FuelStop]]:
     """The stops that take a flight from `start` to `end` (lat, lon) with
     the reserve left on every landing -- the tanks filled at each -- and
     other fields the first could be: ([], []) where none is needed or no
@@ -174,9 +159,7 @@ def suggest(start: tuple, end: tuple, *, fuel_per_nm: float, min_per_nm: float, 
     every chain of fields the tanks reach between (a shortest path from
     the destination back). Among first stops within SAME_MINUTES of the
     quickest, the one whose landings keep the most fuel, so no leg of it
-    runs close; the others offered, quickest first. With `appeal`, a field
-    within APPEAL_MINUTES of the quickest with more there on the ground --
-    food a walk away, a courtesy car -- goes before those."""
+    runs close; the others offered, quickest first."""
     if _fits(start, end, fuel_per_nm, usable_gal, taxi_gal, reserve_gal):
         return [], []
     fields = fields_with_fuel() if fields is None else fields
@@ -228,12 +211,7 @@ def suggest(start: tuple, end: tuple, *, fuel_per_nm: float, min_per_nm: float, 
     if not first:
         return [], []
     quickest = min(trip(i) for i in first)
-    by_time = sorted(first, key=lambda i: (trip(i) > quickest + SAME_MINUTES, -least_landing(i), trip(i)))
-    near = [i for i in by_time if trip(i) <= quickest + APPEAL_MINUTES][:APPEAL_MOST]
-    at = [(nodes[i - 1]["ident"], float(nodes[i - 1]["lat"]), float(nodes[i - 1]["lon"])) for i in near]
-    liked = appeal(at) if appeal and at else {}
-    ranked = sorted(first, key=lambda i: (trip(i) > quickest + APPEAL_MINUTES, -liked.get(nodes[i - 1]["ident"], 0),
-                                          trip(i) > quickest + SAME_MINUTES, -least_landing(i), trip(i)))
+    ranked = sorted(first, key=lambda i: (trip(i) > quickest + SAME_MINUTES, -least_landing(i), trip(i)))
     direct = float(distance_nm(start[0], start[1], end[0], end[1]))
 
     def stop(i: int, prev: int | None, flown_nm: float) -> FuelStop:
@@ -257,64 +235,6 @@ def suggest(start: tuple, end: tuple, *, fuel_per_nm: float, min_per_nm: float, 
         flown, prev = stops[-1].from_nm, i
     choices = [stop(i, None, 0.0) for i in ranked[1:1 + CHOICES]]
     return stops, choices
-
-
-#: A flight longer than this, minutes in the air, is offered a stop on the
-#: way even where its tanks hold it, at the owner's ask for food and rest
-#: stops on a long cross-country: three hours, a long sit in a light
-#: airplane. Not a rule -- no regulation limits a private flight's
-#: length -- and only offered; the pilot adds it or flies on.
-BREAK_AFTER_MIN = 180.0
-
-#: Where on the way a break is offered: a field this share or more of the
-#: way, by distance, and no more than its complement, so the two legs
-#: are near even.
-BREAK_FROM_SHARE = 0.35
-
-#: Fields this few miles off the line count as on it when choosing the
-#: one nearest the middle; a field further off is offered only where
-#: none is that near.
-BREAK_NEAR_NM = 10.0
-
-
-def suggest_break(start: tuple, end: tuple, *, fuel_per_nm: float, min_per_nm: float, usable_gal: float,
-                  taxi_gal: float, skip: set | None = None, fields: pd.DataFrame | None = None,
-                  appeal: Appeal | None = None) -> tuple[list[FuelStop], list[FuelStop]]:
-    """A field to stop at about half way on a flight longer than
-    BREAK_AFTER_MIN, and others it could be, where the tanks hold the
-    flight (suggest offers the stops where they do not): ([], []) for a
-    shorter flight, or where no field is on the way.
-
-    Among the fields with fuel (a break is a chance to top off) on a
-    long enough paved runway between BREAK_FROM_SHARE and its
-    complement of the way, those within BREAK_NEAR_NM of the line
-    first; among them, with `appeal`, the most there on the ground for a
-    meal or a rest first (vfr.nearby.appeal); then nearest the middle."""
-    direct = float(distance_nm(start[0], start[1], end[0], end[1]))
-    if direct * min_per_nm <= BREAK_AFTER_MIN:
-        return [], []
-    fields = fields_with_fuel() if fields is None else fields
-    ranked = []
-    for n in _corridor(start, end, fields, set(skip or ())):
-        to_it = float(distance_nm(start[0], start[1], n["lat"], n["lon"]))
-        then = float(distance_nm(n["lat"], n["lon"], end[0], end[1]))
-        share = to_it / (to_it + then)
-        if BREAK_FROM_SHARE <= share <= 1 - BREAK_FROM_SHARE:
-            added = to_it + then - direct
-            ranked.append(((added > BREAK_NEAR_NM, abs(share - 0.5), added), n, to_it, added))
-    ranked.sort(key=lambda r: r[0])
-    asked = [n for key, n, _, _ in ranked if not key[0]][:APPEAL_MOST]
-    liked = appeal([(n["ident"], float(n["lat"]), float(n["lon"])) for n in asked]) if appeal and asked else {}
-    ranked.sort(key=lambda r: (r[0][0], -liked.get(r[1]["ident"], 0), *r[0][1:]))
-    stops = [FuelStop(
-        ident=n["ident"], name=n["name"], city=n["city"], lat=float(n["lat"]), lon=float(n["lon"]),
-        from_nm=round(to_it, 1), added_nm=round(added, 1),
-        lands_with_gal=round(usable_gal - taxi_gal - to_it * fuel_per_nm, 1),
-        minutes=round(to_it * min_per_nm, 1),
-        fuel_types=n["fuel_types"], runway_ft=int(n["runway_ft"]),
-        elevation_ft=None if pd.isna(n["elevation_ft"]) else float(n["elevation_ft"]),
-    ) for _, n, to_it, added in ranked[:1 + CHOICES]]
-    return stops[:1], stops[1:]
 
 
 #: The most fields listed along a route (along): the nearest the line
