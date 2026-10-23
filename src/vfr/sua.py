@@ -5,8 +5,8 @@ Class B, C and D come from the NASR shapefile (vfr.airspace). Special use
 airspace is not in that file, and the planner never looked at it: a
 route across P-56 in Washington, or through an active restricted area,
 came back with a nav log and no word about it. It comes from the FAA's
-own published feature service (ADDS), asked for the polygons around the
-route and held a day, since the areas change on the chart cycle.
+own published feature service (ADDS), every area in the country read once
+and held a day, since the areas change on the chart cycle.
 
 TFRs are NOTAMs, which this project has no source for; the briefing
 already says so and links to a real briefing service.
@@ -60,12 +60,20 @@ TIME_ZONES = {
     ("10", "0"): "Pacific/Guam",
 }
 
-# A day per area, and at most 256 areas: the key is a route's bounding
-# box, so every new route adds one, and a plain dict kept them all for
-# as long as the process ran. TTLCache is not thread-safe and the
-# planner asks from its request threads, hence the lock.
-_CACHE: TTLCache = TTLCache(maxsize=256, ttl=24 * 3600)
+# Every area in the country, read once a day: asked for round each route,
+# a new route's areas were a request to the feature service of 0.3 to 2.5
+# s under its altitudes (2026-10-23), where the whole set is 1,542 areas,
+# 22 MB, read in half a minute once (`preload`, at the planner's start).
+# TTLCache is not thread-safe and the planner asks from its request
+# threads, hence the lock.
+_CACHE: TTLCache = TTLCache(maxsize=4, ttl=24 * 3600)
 _CACHE_LOCK = threading.Lock()
+# One download at a time: a second asker waits for it.
+_FETCH_LOCK = threading.Lock()
+#: The service's most features an answer, paged past.
+PAGE = 2000
+_FIELDS = ("NAME,TYPE_CODE,UPPER_VAL,UPPER_UOM,UPPER_CODE,LOWER_VAL,LOWER_UOM,LOWER_CODE,"
+           "TIMESOFUSE,GMTOFFSET,DST_CODE,CONT_AGENT")
 
 
 class SpecialUseUnavailable(RuntimeError):
@@ -84,33 +92,66 @@ def _height_ft(value, uom, code) -> float | None:
     return number * 100 if uom == "FL" else number
 
 
-def _query(bbox: tuple) -> list:
-    """GeoJSON features intersecting bbox (min_lat, min_lon, max_lat,
-    max_lon), cached a day per bbox rounded to a tenth of a degree."""
-    key = tuple(round(v, 1) for v in bbox)
+def _everything() -> list:
+    """Every area's feature with its shape and bounds, [(feature, shape,
+    (min_lon, min_lat, max_lon, max_lat))], held a day."""
     with _CACHE_LOCK:
-        hit = _CACHE.get(key)
+        hit = _CACHE.get("all")
     if hit is not None:
         return hit
-    min_lat, min_lon, max_lat, max_lon = key
-    params = {
-        "where": "1=1",
-        "geometry": f"{min_lon - 0.1},{min_lat - 0.1},{max_lon + 0.1},{max_lat + 0.1}",
-        "geometryType": "esriGeometryEnvelope", "inSR": "4326", "outSR": "4326",
-        "spatialRel": "esriSpatialRelIntersects",
-        "outFields": ("NAME,TYPE_CODE,UPPER_VAL,UPPER_UOM,UPPER_CODE,LOWER_VAL,LOWER_UOM,LOWER_CODE,"
-                      "TIMESOFUSE,GMTOFFSET,DST_CODE,CONT_AGENT"),
-        "returnGeometry": "true", "f": "geojson",
-    }
-    try:
-        resp = requests.get(FEATURE_SERVICE, params=params, timeout=30)
-        resp.raise_for_status()
-        features = resp.json().get("features", [])
-    except (requests.RequestException, ValueError) as err:
-        raise SpecialUseUnavailable(f"the FAA's special-use airspace service did not answer: {err}") from err
-    with _CACHE_LOCK:
-        _CACHE[key] = features
-    return features
+    with _FETCH_LOCK:
+        with _CACHE_LOCK:
+            hit = _CACHE.get("all")
+        if hit is not None:
+            return hit
+        features, offset = [], 0
+        while True:
+            params = {
+                "where": "1=1", "outSR": "4326", "outFields": _FIELDS, "returnGeometry": "true", "f": "geojson",
+                "resultOffset": offset, "resultRecordCount": PAGE,
+            }
+            try:
+                resp = requests.get(FEATURE_SERVICE, params=params, timeout=90)
+                resp.raise_for_status()
+                answer = resp.json()
+            except (requests.RequestException, ValueError) as err:
+                raise SpecialUseUnavailable(f"the FAA's special-use airspace service did not answer: {err}") from err
+            page = answer.get("features", [])
+            features += page
+            more = answer.get("exceededTransferLimit") or (answer.get("properties") or {}).get("exceededTransferLimit")
+            if not more or not page:
+                break
+            offset += len(page)
+        held = []
+        for feature in features:
+            try:
+                geometry = shape(feature["geometry"])
+            except (KeyError, TypeError, ValueError, AttributeError):
+                continue
+            held.append((feature, geometry, geometry.bounds))
+        with _CACHE_LOCK:
+            _CACHE["all"] = held
+        return held
+
+
+def preload() -> None:
+    """Reads every area now, at the planner's start, not under a route."""
+    _everything()
+
+
+def _shapes_in(bbox: tuple) -> list:
+    """The areas whose bounds meet bbox (min_lat, min_lon, max_lat,
+    max_lon), [(feature, shape)]."""
+    min_lat, min_lon, max_lat, max_lon = bbox
+    return [
+        (feature, geometry) for feature, geometry, (w, s, e, n) in _everything()
+        if w <= max_lon and e >= min_lon and s <= max_lat and n >= min_lat
+    ]
+
+
+def _query(bbox: tuple) -> list:
+    """GeoJSON features meeting bbox (min_lat, min_lon, max_lat, max_lon)."""
+    return [feature for feature, _ in _shapes_in(bbox)]
 
 
 def along_route(route_start: tuple, route_end: tuple, fixes: list | None = None) -> list:
@@ -128,12 +169,8 @@ def along_route(route_start: tuple, route_end: tuple, fixes: list | None = None)
     legs = [LineString([(a[1], a[0]), (b[1], b[0])]) for a, b in zip(path, path[1:])]
 
     found = {}
-    for feature in _query(bbox):
+    for feature, geometry in _shapes_in(bbox):
         props = feature.get("properties") or {}
-        try:
-            geometry = shape(feature["geometry"])
-        except (KeyError, TypeError, ValueError):
-            continue
         if not line.intersects(geometry):
             continue
         name = props.get("NAME") or "(unnamed)"
@@ -183,14 +220,7 @@ def areas_in(bbox: tuple) -> list:
     """Every special-use polygon in bbox (min_lat, min_lon, max_lat,
     max_lon) as (area, shapely geometry), an area as at_point's: several
     polygons can share a name."""
-    found = []
-    for feature in _query(bbox):
-        try:
-            geometry = shape(feature["geometry"])
-        except (KeyError, TypeError, ValueError):
-            continue
-        found.append((_area(feature.get("properties") or {}), geometry))
-    return found
+    return [(_area(feature.get("properties") or {}), geometry) for feature, geometry in _shapes_in(bbox)]
 
 
 def at_point(lat: float, lon: float) -> list:
