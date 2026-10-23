@@ -4,49 +4,29 @@ import { BedDouble, CarFront, Fuel, Loader2, Utensils } from "lucide-react";
 import { cn } from "cn";
 import { CardHead } from "../../../components/PanelCard";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
-import Segmented from "../../../components/Segmented";
 import { faaWords } from "../../../lib/advisories";
-import type { RouteStopField, Totals } from "../../../lib/api/types";
+import type { Totals } from "../../../lib/api/types";
 import { routeStopsQuery } from "../../../lib/queryClient";
-import { stopFigures, stopsOfKind, useStopsAlong, type StopsKind } from "../../../lib/stopsAlong";
-import { awayWords, fuelNames } from "../../../lib/stopServices";
+import { alongGlance, stopFigures } from "../../../lib/stopsAlong";
 import { TEXT } from "../../../lib/text";
 import { hhmm } from "../format";
 
-const KINDS: { value: StopsKind; label: string; icon: ReactNode }[] = [
-  { value: "fuel", label: "Fuel", icon: <Fuel /> },
-  { value: "food", label: "Food", icon: <Utensils /> },
-  { value: "rest", label: "Rest", icon: <BedDouble /> },
-];
-
-/** What a field has of the kind picked, in a few words. */
-function whatsThere(field: RouteStopField, kind: StopsKind): string {
-  if (kind === "fuel") return fuelNames(field.fuel_types ?? []);
-  if (kind === "food") return field.food ? `${field.food.name} · ${awayWords(field.food)}` : "";
-  const parts = [
-    field.lodging && `${field.lodging.name} · ${awayWords(field.lodging)}`,
-    field.courtesy_car ? "Courtesy car" : field.car && `${field.car.name} · ${awayWords(field.car)}`,
-  ];
-  return parts.filter(Boolean).join(" · ");
-}
-
-const KIND_ICON: Record<StopsKind, ReactNode> = {
-  fuel: <Fuel className="size-3.5 shrink-0" aria-hidden />,
-  food: <Utensils className="size-3.5 shrink-0" aria-hidden />,
-  rest: <BedDouble className="size-3.5 shrink-0" aria-hidden />,
+const GLANCE_ICONS: Record<ReturnType<typeof alongGlance>[number]["key"], ReactNode> = {
+  fuel: <Fuel />, food: <Utensils />, bed: <BedDouble />, car: <CarFront />,
 };
 
 /**
  * The fields along the route to stop at, a card over FPL as the Brief and
- * the Profile are, opened from the map's Stops button, at the owner's pick
- * (option C of the stops canvas, "Try C", 2026-10-23: "a button to show
- * food, fuel, rest options along the route they can pick from"). Fuel,
- * Food or Rest picks which; each field in route order with how long to it
- * from its flight's departure, the fuel the airplane lands with (in red
- * under the reserve) and the miles it adds, what it has of the kind picked,
- * and Add, which puts it in the route at its place -- a fuel stop from
- * Fuel, the pilot's own stop from Food and Rest. Its name opens its card.
- * The chart pins the same fields (RouteMap's stop pins).
+ * the Profile are, opened from the map's Stops button, at the owner's
+ * pick (option C of the stops canvas, "Try C", 2026-10-23), one list of
+ * them, at the owner's ask ("Don't need three tabs. Just one list of
+ * airports along the route", where Fuel, Food and Rest were three): each
+ * field in route order with how long to it from its flight's departure,
+ * the fuel the airplane lands with (in red under the reserve) and the miles
+ * it adds, then what it has -- 100LL, the nearest food and bed, a car --
+ * and Add, which puts it in the route at its place as the pilot's own
+ * stop. Its name opens its card, whose Info lists the fuel, food, beds and
+ * cars in full (StopServices). The chart pins the same fields.
  */
 export default function StopsCard({ name, line, dep, dest, stops, totals, onClose, onOpenField, onAdd }: {
   name: ReactNode;
@@ -57,29 +37,22 @@ export default function StopsCard({ name, line, dep, dest, stops, totals, onClos
   totals: Totals | null;
   onClose: () => void;
   onOpenField: (ident: string) => void;
-  /** Put in the route after its flight's departure, as a fuel stop or not. */
-  onAdd: (departure: string, ident: string, fuel: boolean) => void;
+  /** Put in the route after its flight's departure. */
+  onAdd: (departure: string, ident: string) => void;
 }) {
-  const kind = useStopsAlong(s => s.kind);
-  const setKind = useStopsAlong(s => s.setKind);
   const { data, isLoading, isError } = useQuery(routeStopsQuery(dep, dest, stops));
-  const fields = data ? stopsOfKind(data.fields, kind) : [];
-  const pending = kind === "fuel" ? 0 : data?.pending ?? 0;
+  const pending = data?.pending ?? 0;
   return (
     <div className="flex min-h-0 flex-1 flex-col px-4 pt-[var(--corner-inset,0.75rem)] print:hidden" data-testid="stops-card">
       <CardHead name={name} line={line} nameTestId="stops-name" onClose={onClose} closeTestId="stops-close" />
-      <Segmented
-        label="Show" value={kind} onChange={v => setKind(v as StopsKind)} options={KINDS} testId="stops-kind"
-        className="mt-3 w-full [&>*]:flex-1"
-      />
       <div className="mt-3 min-h-0 flex-1 overflow-y-auto pb-3">
         {isLoading && <p className={cn("text-muted-foreground", TEXT.prose)}>Looking along the route…</p>}
         {isError && <p className={cn("text-muted-foreground", TEXT.prose)}>The fields along the route could not be looked up</p>}
         {data && (
           <ListGroup>
-            {fields.map(field => {
+            {data.fields.map(field => {
               const at = stopFigures(field, totals);
-              const there = whatsThere(field, kind);
+              const glance = alongGlance(field);
               return (
                 <ListRow
                   key={field.ident} data-testid="stops-field"
@@ -102,17 +75,20 @@ export default function StopsCard({ name, line, dep, dest, stops, totals, onClos
                         )}
                         +{Math.round(field.added_nm)} nm
                       </span>
-                      {there && (
-                        <span className="flex min-w-0 items-center gap-1 text-foreground">
-                          {kind === "rest" && !field.lodging ? <CarFront className="size-3.5 shrink-0" aria-hidden /> : KIND_ICON[kind]}
-                          <span className="truncate">{there}</span>
+                      {glance.length > 0 && (
+                        <span className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-0.5 text-foreground" data-testid="stops-glance">
+                          {glance.map(g => (
+                            <span key={g.key} className="inline-flex items-center gap-1 whitespace-nowrap [&_svg]:size-3.5 [&_svg]:shrink-0">
+                              {GLANCE_ICONS[g.key]}{g.words}
+                            </span>
+                          ))}
                         </span>
                       )}
                     </span>
                   )}
                   value={(
                     <button
-                      type="button" onClick={() => onAdd(field.departure, field.ident, kind === "fuel")} data-testid="stops-add"
+                      type="button" onClick={() => onAdd(field.departure, field.ident)} data-testid="stops-add"
                       aria-label={`Add ${field.ident} to the route`}
                       className={cn("relative h-8 rounded-full bg-tint/12 px-3.5 font-semibold text-tint outline-none after:absolute after:-inset-1.5 after:content-[''] focus-visible:ring-2 focus-visible:ring-ring", TEXT.detail)}
                     >
@@ -122,21 +98,19 @@ export default function StopsCard({ name, line, dep, dest, stops, totals, onClos
                 />
               );
             })}
-            {fields.length === 0 && pending === 0 && (
-              <ListRow title={<span className="text-muted-foreground">
-                {kind === "fuel" ? "No field along the route sells 100LL" : kind === "food" ? "No field along the route has food listed near it" : "No field along the route has a bed or a car listed near it"}
-              </span>} />
+            {data.fields.length === 0 && (
+              <ListRow title={<span className="text-muted-foreground">No public field within 30 nm of the route</span>} />
             )}
             {pending > 0 && (
               <ListRow
                 media={<Loader2 className="size-4 animate-spin text-muted-foreground" aria-hidden />}
-                title={<span className="text-muted-foreground">Looking at {pending} more {pending === 1 ? "field" : "fields"}…</span>}
+                title={<span className="text-muted-foreground">Looking at what is near {pending} more {pending === 1 ? "field" : "fields"}…</span>}
                 data-testid="stops-pending"
               />
             )}
           </ListGroup>
         )}
-        {data && kind !== "fuel" && fields.length > 0 && (
+        {data && data.fields.some(f => f.food || f.lodging || f.car) && (
           <p className={cn("px-1 pt-1.5 text-muted-foreground", TEXT.note)}>Places © Overture Maps Foundation</p>
         )}
       </div>

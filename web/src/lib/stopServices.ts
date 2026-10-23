@@ -7,7 +7,7 @@ export const fuelNames = (types: string[]) => types.map(t => FUEL_NAMES[t] ?? t)
 
 /** How far a place is from the field, as a pilot on foot or in a car reads
  *  it: the minutes' walk where it is a walk, else statute miles. */
-export function awayWords(place: NearbyPlace): string {
+export function awayWords(place: Pick<NearbyPlace, "distance_m" | "walk_min">): string {
   return place.walk_min != null ? `${place.walk_min} min walk` : `${(place.distance_m / 1609.344).toFixed(1)} mi`;
 }
 
