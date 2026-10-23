@@ -931,8 +931,8 @@ def worst_burn_per_nm(legs: list[dict], over_nm: float) -> float | None:
     span = min(over_nm, d[-1])
     ends = np.minimum(np.searchsorted(d, d + span - 1e-9), len(d) - 1)
     stretch = d[ends] - d
-    ok = stretch >= span - 1e-6
-    return float(((f[ends] - f)[ok] / stretch[ok]).max())
+    ok = (stretch >= span - 1e-6) & (stretch > 0)
+    return float(((f[ends] - f)[ok] / stretch[ok]).max()) if ok.any() else None
 
 
 def night_on_the_way(start: tuple, end: tuple, depart: datetime | None, minutes: float) -> bool:
