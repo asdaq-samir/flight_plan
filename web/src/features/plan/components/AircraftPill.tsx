@@ -3,7 +3,7 @@ import { Plane } from "lucide-react";
 import { cn } from "cn";
 import AirportPicker from "../../../components/AirportPicker";
 import { PillStrip, SmallTile, StripNote, StripSection } from "../../../components/Favorites";
-import { Switch } from "../../../components/ui/switch";
+import { DropdownMenuCheckboxItem } from "../../../components/ui/dropdown-menu";
 import type { TrafficAircraft } from "../../../lib/api/types";
 import { inEmergency } from "../../../lib/fbo";
 import { useOwnShip } from "../../../lib/map/ownShip";
@@ -33,10 +33,10 @@ const STRIP_MOST = 12;
  * every tab's strip is (the owner's "apply the filter to other cards too
  * ... favorites and recents in airport/aircraft"). The Favorites' and the
  * Recents' titles are the way to them in full (the owner's "What about
- * aircraft fav?"); after the menu one switch, Map, that leaves only these
- * airplanes on the map, the rest faded ("Map: show only these") -- the
- * owner's "for aircraft we can have the selection and show map controls
- * to the right".
+ * aircraft fav?"). At the menu's top, Show on map, checked, leaves only
+ * these airplanes on the map, the rest faded: it was a Map switch beside
+ * the menu, moved into it at the owner's ask ("Can the aircraft map toggle
+ * be part of the filter, maybe on top?", 2026-10-23).
  */
 export default function AircraftPill({ onOpen, onAddMine, onAddFavorite, onPick, onAllFavorites, onAllRecents }: {
   onOpen: (hex: string) => void;
@@ -101,17 +101,13 @@ export default function AircraftPill({ onOpen, onAddMine, onAddFavorite, onPick,
             className="h-7 rounded-full bg-foreground/8 px-2.5"
           />
         )}
-        right={(
-          <>
-            <label htmlFor="aircraft-map-only" className={cn("text-foreground/65", TEXT.note)}>Map</label>
-            <Switch
-              id="aircraft-map-only" checked={map} data-testid="aircraft-map-only"
-              // iOS's own switch, 51 by 31, to a finger (the iOS audit's
-              // rule); the stock size to a mouse.
-              className="pointer-coarse:h-[31px]! pointer-coarse:w-[51px]! pointer-coarse:[&>span]:size-[27px]! pointer-coarse:[&>span]:data-checked:translate-x-[22px]!"
-              onCheckedChange={on => useTrafficFocus.setState({ on, only: on ? useTrafficFocus.getState().only : null })}
-            />
-          </>
+        menuTop={(
+          <DropdownMenuCheckboxItem
+            checked={map} data-testid="aircraft-map-only"
+            onCheckedChange={on => useTrafficFocus.setState({ on, only: on ? useTrafficFocus.getState().only : null })}
+          >
+            Only these on the map
+          </DropdownMenuCheckboxItem>
         )}
       >
         {shows === "favorites" ? (

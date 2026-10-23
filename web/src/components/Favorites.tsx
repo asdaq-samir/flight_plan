@@ -364,15 +364,19 @@ export function ListPageHead({ title, backLabel, onBack, action, testId }: {
  * and its questions. The title names the list shown and is the way to it
  * in full, as every section's is.
  */
-export function StripSection<V extends string>({ lists, shows, onShow, menuTestId, menuClassName, beside, right, children }: {
+export function StripSection<V extends string>({ lists, shows, onShow, menuTestId, menuClassName, menuTop, beside, right, children }: {
   /** What it can show, in the menu's order, the first the one at first. */
   lists: StripList<V>[];
   shows: V;
   onShow: (value: V) => void;
   menuTestId?: string;
   menuClassName?: string;
+  /** At the menu's top, a line under it: Aircraft's Show on map, at the
+   *  owner's ask ("Can the aircraft map toggle be part of the filter,
+   *  maybe on top?", 2026-10-23). */
+  menuTop?: ReactNode;
   beside?: ReactNode;
-  /** After the menu, at the row's right (Aircraft's Map switch). */
+  /** After the menu, at the row's right. */
   right?: ReactNode;
   children: ReactNode;
 }) {
@@ -383,7 +387,7 @@ export function StripSection<V extends string>({ lists, shows, onShow, menuTestI
       right={(
         <>
           <PillMenu
-            label={`Showing ${list.label}`} value={list.value} onChange={onShow} testId={menuTestId} className={menuClassName}
+            label={`Showing ${list.label}`} value={list.value} onChange={onShow} testId={menuTestId} className={menuClassName} top={menuTop}
             options={lists.map(l => ({ value: l.value, label: l.item ?? l.label, testId: l.testId, apart: l.apart }))}
           />
           {right}
@@ -415,7 +419,7 @@ export interface StripList<V extends string> {
 /** What a strip shows, a menu behind iOS's filter glyph at its heading's
  *  right, as Mail's filter is, a line after any item `apart` says so
  *  (StripSection). */
-export function PillMenu<V extends string>({ label, value, options, onChange, testId, className }: {
+export function PillMenu<V extends string>({ label, value, options, onChange, testId, className, top }: {
   /** Its name, to a screen reader and a long press: what it shows now. */
   label: string;
   value: V;
@@ -423,6 +427,8 @@ export function PillMenu<V extends string>({ label, value, options, onChange, te
   onChange: (value: V) => void;
   testId?: string;
   className?: string;
+  /** Before the choices, a line under it (StripSection's menuTop). */
+  top?: ReactNode;
 }) {
   return (
     <DropdownMenu>
@@ -434,6 +440,12 @@ export function PillMenu<V extends string>({ label, value, options, onChange, te
         </IconButton>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className={cn("min-w-44", className)}>
+        {top && (
+          <>
+            {top}
+            <DropdownMenuSeparator />
+          </>
+        )}
         <DropdownMenuRadioGroup value={value} onValueChange={v => onChange(v as V)}>
           {options.map(o => (
             <Fragment key={o.value}>
