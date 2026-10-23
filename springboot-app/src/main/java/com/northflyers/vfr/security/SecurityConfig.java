@@ -309,7 +309,10 @@ public class SecurityConfig {
                                 "default-src 'self'; "
                                         + "img-src 'self' data:" + chartTilesOrigin + " " + OVERLAY_IMAGES + " " + PHOTO_IMAGES + "; "
                                         + "style-src 'self' 'unsafe-inline'; "
-                                        + "script-src 'self'; "
+                                        // 'wasm-unsafe-eval': WebAssembly compiled from
+                                        // this origin's own files, the page reader's
+                                        // engine (web lib/readPage); no script eval.
+                                        + "script-src 'self' 'wasm-unsafe-eval'; "
                                         + "connect-src 'self' " + OVERLAY_CONNECT + " " + PHOTO_CONNECT + "; "
                                         + "object-src 'none'; "
                                         + "base-uri 'self'; "

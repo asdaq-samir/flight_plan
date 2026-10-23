@@ -2630,36 +2630,3 @@ class AircraftBases(BaseModel):
 
     based: dict[str, PastFlightField | None]
     pending: list[str]
-
-
-# --- a handbook page read (app.handbook) -------------------------------
-
-
-class HandbookPage(BaseModel):
-    """A photo of a handbook's specifications or performance page."""
-
-    image_base64: str
-    media_type: Literal["image/jpeg", "image/png", "image/webp"] = "image/jpeg"
-
-
-class HandbookFigure(BaseModel):
-    """One figure the page gives, in the planner's units, and the page's own
-    words for it, to be found on the page."""
-
-    value: float
-    page_words: str
-
-
-class HandbookFigures(BaseModel):
-    """The planning figures the photographed page gives; none it does not."""
-
-    model: str | None = None
-    cruise_tas_kt: HandbookFigure | None = None
-    cruise_power_pct: HandbookFigure | None = None
-    cruise_altitude_ft: HandbookFigure | None = None
-    fuel_burn_gph: HandbookFigure | None = None
-    usable_fuel_gal: HandbookFigure | None = None
-    climb_tas_kt: HandbookFigure | None = None
-    climb_rate_fpm: HandbookFigure | None = None
-    service_ceiling_ft: HandbookFigure | None = None
-    not_a_handbook_page: bool = False

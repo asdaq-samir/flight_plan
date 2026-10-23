@@ -5,10 +5,11 @@ import { ListGroup, ListRow } from "../../../components/GroupedList";
 import { Button } from "../../../components/ui/button";
 import { Input } from "../../../components/ui/input";
 import { shortName } from "../../../lib/aircraftChoice";
-import { api, describeError } from "../../../lib/api/client";
-import type { AircraftChoice, HandbookFigures } from "../../../lib/api/types";
+import type { AircraftChoice } from "../../../lib/api/types";
+import { figuresOfPage } from "../../../lib/handbookText";
 import { usePreferences, type TailFigures } from "../../../lib/preferences";
 import { aircraftProfilesQuery } from "../../../lib/queryClient";
+import { readPage } from "../../../lib/readPage";
 import { TEXT } from "../../../lib/text";
 
 /** The figures a pilot may set for their N-number, in the order a
@@ -24,24 +25,17 @@ const FIELDS: { key: keyof TailFigures; label: string; unit: string; min: number
   { key: "serviceCeilingFt", label: "Service ceiling", unit: "ft", min: 1000, max: 30000 },
 ];
 
-/** Each figure the handbook reading gives, by the field it fills. */
-const READ: { from: keyof HandbookFigures; key: keyof TailFigures }[] = [
-  { from: "cruise_tas_kt", key: "cruiseTasKt" }, { from: "cruise_power_pct", key: "cruisePowerPct" },
-  { from: "fuel_burn_gph", key: "fuelBurnGph" }, { from: "usable_fuel_gal", key: "usableFuelGal" },
-  { from: "climb_tas_kt", key: "climbTasKt" }, { from: "service_ceiling_ft", key: "serviceCeilingFt" },
-];
-
-/** A phone's photo as a JPEG at most 1,600 points on its longer side, in
- *  base64: as much as a page's small print needs, a few hundred kilobytes
- *  to send rather than several megabytes. */
-async function smaller(file: File): Promise<string> {
+/** A phone's photo at most 2,000 points on its longer side: as much as a
+ *  page's small print needs, and a 12-megapixel photo read in a few
+ *  seconds rather than many. */
+async function smaller(file: File): Promise<Blob> {
   const bitmap = await createImageBitmap(file);
-  const scale = Math.min(1, 1600 / Math.max(bitmap.width, bitmap.height));
+  const scale = Math.min(1, 2000 / Math.max(bitmap.width, bitmap.height));
   const canvas = document.createElement("canvas");
   canvas.width = Math.round(bitmap.width * scale);
   canvas.height = Math.round(bitmap.height * scale);
   canvas.getContext("2d")!.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-  return canvas.toDataURL("image/jpeg", 0.85).split(",")[1]!;
+  return new Promise((resolve, reject) => canvas.toBlob(b => (b ? resolve(b) : reject(new Error("no image"))), "image/png"));
 }
 
 /**
@@ -68,22 +62,15 @@ export function AirplaneFigures({ tail }: { tail: string }) {
   const readPhoto = async (file: File) => {
     setReading({ busy: true, words: [], problem: null });
     try {
-      const read = await api.readHandbook(await smaller(file), "image/jpeg");
-      if (read.not_a_handbook_page) {
-        setReading({ busy: false, words: [], problem: "That photo is not a handbook's figures: take the specifications or cruise performance page." });
-        return;
-      }
-      const found = READ.flatMap(r => {
-        const figure = read[r.from] as { value: number; page_words: string } | null | undefined;
-        return figure ? [{ key: r.key, value: Math.round(figure.value * 10) / 10, words: figure.page_words }] : [];
-      });
+      const read = figuresOfPage(await readPage(await smaller(file)));
+      const found = Object.entries(read).map(([key, f]) => ({ key, value: f.value, words: f.words }));
       setEditing(e => ({ ...(e ?? {}), ...Object.fromEntries(found.map(f => [f.key, String(f.value)])) }));
       setReading({
-        busy: false, words: found.map(f => f.words),
-        problem: found.length ? null : "No planning figures were read off that page.",
+        busy: false, words: [...new Set(found.map(f => f.words))],
+        problem: found.length ? null : "No figures were read off that page: take the specifications page, flat and in good light.",
       });
     } catch (err) {
-      setReading({ busy: false, words: [], problem: describeError(err, "The page could not be read") });
+      setReading({ busy: false, words: [], problem: err instanceof Error ? `The page could not be read: ${err.message}` : "The page could not be read" });
     }
   };
   if (shortName(aircraft.label) !== tail.toUpperCase()) return null;

@@ -42,9 +42,7 @@ from vfr import airports as airport_table
 from . import chart_model, chart_refresh, errors, swim, tracing
 from .common import PROCESSED_DIR
 from .planning import StillComputing
-from .routers import (
-    airports, airspace as airspace_router, basemaps, briefing, chart, classb, devml, devservices, handbook, notes, oral, plan,
-)
+from .routers import airports, airspace as airspace_router, basemaps, briefing, chart, classb, devml, devservices, notes, oral, plan
 from .routers import system, traffic
 from .schemas import STREAM_MESSAGES, Index
 
@@ -289,8 +287,7 @@ def index() -> Index:
     return Index(service="planner", ui="served by the gateway at /app", warm=WARM.is_set())
 
 
-for module in (plan, chart, briefing, notes, devml, system, classb, devservices, airports, airspace_router, oral, handbook, traffic,
-               basemaps):
+for module in (plan, chart, briefing, notes, devml, system, classb, devservices, airports, airspace_router, oral, traffic, basemaps):
     app.include_router(module.router)
 
 

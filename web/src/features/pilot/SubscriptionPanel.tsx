@@ -13,7 +13,6 @@ const COUNTED: Record<PaidFeature, string> = {
   CHECKPOINT_NOTES: "Checkpoint descriptions",
   ORAL: "Mock-oral questions and grades",
   DEBRIEF: "Debriefs",
-  HANDBOOK: "Handbook pages read",
 };
 
 const PLANS = { MONTHLY: "Monthly", YEARLY: "Yearly" } as const;
