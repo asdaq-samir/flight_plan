@@ -1,0 +1,19 @@
+{
+  "type": "Cessna 150",
+  "designator": "C150",
+  "service_ceiling_ft": 12650,
+  "climb_rate_fpm_sea_level": 670,
+  "cruise_tas_kt": 104,
+  "fuel_burn_gph": 5.4,
+  "cruise_power_pct": 73,
+  "cruise_altitude_ft": 6000,
+  "climb_tas_kt": 71,
+  "climb_fuel_burn_gph": 8.7,
+  "usable_fuel_gal": 22.5,
+  "taxi_fuel_gal": 0.8,
+  "crosswind": {
+    "demonstrated_kt": 13,
+    "source": "Cessna 150M POH (1977, D1080-13), section 4: maximum demonstrated crosswind velocity"
+  },
+  "source": "Cessna 150M POH (1977, D1080-13): figure 5-7 cruise, 6000 ft standard day, 2700 RPM: 73%, 104 KTAS, 5.4 GPH; figure 5-6 climb (start, taxi and takeoff 0.8 gal; 1.6 gal and 11 min sea level to 6000 ft, the climb's TAS and burn derived from it); 22.5 gal usable standard tanks. Service ceiling the 1969 Model 150 (150J) Owner's Manual's 12,650 ft, the lower of the family's (the 150M's is 14,000), as the 150G to L's own handbooks were not read"
+}

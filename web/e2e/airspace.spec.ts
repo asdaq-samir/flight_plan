@@ -36,7 +36,7 @@ test("a right-click on the chart asks what is there, and Close puts the card awa
 
 test("a point held on the chart goes into the route as the pilot's own point off the nearest fix: added, flown to direct, or held at", async ({ page }) => {
   // The owner's pick (mock 2 of the canvas's points, 2026-10-20): the
-  // dropped point's card with Add to route, Direct to and Hold here. Its
+  // dropped point's card with Add to Route, Direct To and Hold Here. Its
   // name is the planner's (vfr.fixes.frd_near), stubbed here.
   await page.route(url => url.pathname.endsWith("/airspace/at"), async route => {
     const real = await (await route.fetch()).json();

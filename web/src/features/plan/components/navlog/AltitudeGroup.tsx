@@ -143,23 +143,25 @@ export default function AltitudeGroup({ nav, legs, commanded = null, problem = f
       // take the place"): the wider of the example and three figures with
       // the profile button after them, each measured unseen in the one
       // cell, and the field taking what the button does not.
-      className={cn("grid h-8 items-center rounded-full", PANEL_FIELD_FILL, TEXT.row)}
+      className={cn("grid h-7 items-center rounded-full", PANEL_FIELD_FILL, TEXT.row)}
       data-testid="altitude-group"
     >
       <span aria-hidden="true" className="invisible col-start-1 row-start-1 flex h-0 overflow-hidden">
-        <span className="whitespace-pre pr-3 pl-2.5 font-semibold tabular-nums">000</span>
-        <span className="w-8 shrink-0" />
+        <span className="whitespace-pre pr-1.5 pl-2.5 font-semibold tabular-nums">000</span>
+        <span className="w-[1.5625rem] shrink-0" />
       </span>
       {/* Two points over the field's own padding, for the caret. */}
-      <span aria-hidden="true" className="invisible col-start-1 row-start-1 h-0 overflow-hidden whitespace-pre pr-3 pl-2.5 font-normal">
+      <span aria-hidden="true" className="invisible col-start-1 row-start-1 h-0 overflow-hidden whitespace-pre pr-1.5 pl-2.5 font-normal">
         {PLACEHOLDER}
       </span>
       <div className="col-start-1 row-start-1 flex h-full min-w-0 items-center">
-        {/* Six points after the figure, the label's, as "ft" stood there:
-            the profile button's area reaches four into the gap, and with
-            less the two areas met over each other (the iOS audit's P1). Its
-            44-point area a pseudo-element round it, nothing grown. */}
-        <label className="relative flex h-full min-w-0 flex-1 items-center pr-1.5 after:absolute after:-inset-y-1.5 after:-left-0.5 after:right-0 after:content-['']">
+        {/* Six points after the figure, at the owner's ask ("Does the button
+            need to have that much spacing between text and button in the
+            grouped inputs?"): it was twelve. The field over the button's
+            area where the two meet, so a tap at the figure's end is the
+            field's, to edit or clear it (the owner's "The n number and alt
+            is not letting me clear them": the button had it). */}
+        <label className="relative flex h-full min-w-0 flex-1 items-center pr-1 after:absolute after:-inset-y-2 after:-left-0.5 after:right-0 after:content-['']">
           <input
             type="text" inputMode="numeric" enterKeyHint="done" autoComplete="off" size={1}
             value={shown} placeholder={PLACEHOLDER} aria-label="Cruise altitude, hundreds of feet"
@@ -167,8 +169,8 @@ export default function AltitudeGroup({ nav, legs, commanded = null, problem = f
             onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); fly(); (e.target as HTMLInputElement).blur(); } if (e.key === "Escape") setTyped(null); }}
             onBlur={fly}
             className={cn(
-              "relative z-10 h-full w-0 min-w-0 flex-1 bg-transparent pr-1.5 pl-2.5 font-semibold tabular-nums outline-none placeholder:font-normal",
-              problem ? "text-red-700 dark:text-red-300" : "text-foreground",
+              "relative z-10 h-full w-0 min-w-0 flex-1 bg-transparent pr-0.5 pl-2.5 font-semibold tabular-nums outline-none placeholder:font-normal",
+              problem ? "text-destructive-ink" : "text-foreground",
             )}
             data-testid="altitude-input"
           />
@@ -187,9 +189,9 @@ export default function AltitudeGroup({ nav, legs, commanded = null, problem = f
             // ask ("The profile button should also get the glass tinted. But
             // the altitude entry should stay as a text box"): the field's
             // end, where a line parted it from the figure before.
-            "relative flex size-8 shrink-0 items-center justify-center rounded-full outline-none after:absolute after:-inset-1.5 after:content-[''] focus-visible:ring-2 focus-visible:ring-ring disabled:text-muted-foreground",
+            "relative mr-[3px] flex size-[1.375rem] shrink-0 items-center justify-center rounded-full outline-none after:absolute after:-inset-[11px] after:content-[''] focus-visible:ring-2 focus-visible:ring-ring disabled:text-muted-foreground",
             GLASS_BUTTON,
-            problem && "text-red-700 dark:text-red-300",
+            problem && "text-destructive-ink",
           )}
           aria-label={`Cruising altitude${rules === "ifr" ? " under IFR" : ""}, ${why}${!problem && tight ? ", tight" : ""}${!problem && cautions.length ? ", your altitude has a caution" : ""}: set it on the profile`}
           data-testid="altitude-why" data-tip="altitude"
@@ -202,7 +204,7 @@ export default function AltitudeGroup({ nav, legs, commanded = null, problem = f
               the button's name. The route from the side, the profile's own
               mark. */}
           <span className="relative">
-            <svg viewBox="0 0 24 24" className="size-[1.125rem]" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <svg viewBox="0 0 24 24" className="size-3.5" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d="M3 19h18" /><path d="M3 16l4-5 3 2 4-6 3 3 4-3" />
             </svg>
             {profiled && !problem && (cautions.length > 0 || tight) && (
@@ -457,7 +459,7 @@ export function AltitudeProfile({ nav: navNow, legs: legsNow, ends, chart, corne
           <div className="flex items-baseline justify-between gap-2">
             <div className="flex min-w-0 items-baseline gap-2">
               <span className={cn("font-bold tabular-nums", TEXT.heading)} data-testid="altitude-picked">{flightLevel(shownAt)}</span>
-              {names[shownAt] && <span className={cn("truncate font-semibold text-tint", TEXT.detail)}>{names[shownAt]}</span>}
+              {names[shownAt] && <span className={cn("truncate font-semibold text-muted-foreground", TEXT.detail)}>{names[shownAt]}</span>}
             </div>
             <span className={cn("shrink-0 tabular-nums", TEXT.detail)} data-testid="altitude-figures">
               {figure?.ete_min != null ? hhmm(figure.ete_min) : "—"} · {figure?.fuel_gal != null ? `${one(figure.fuel_gal)} gal` : "—"}

@@ -1,6 +1,8 @@
+import { cn } from "cn";
+import { CAPSULE_SEPARATOR, IN_CAPSULE } from "../../../components/mapChrome";
 import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { toast } from "sonner";
-import { FileArchive, FileDown, FileText, Link2, MapPinned, Printer, Send, Share, Trash2 } from "lucide-react";
+import { Ellipsis, FileArchive, FileDown, FileText, Link2, MapPinned, Printer, RotateCw, Send, Share, Trash2 } from "lucide-react";
 import RoundButton from "../../../components/RoundButton";
 import { ResponsivePopover, ResponsivePopoverAnchor } from "../../../components/ResponsivePopover";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "../../../components/ui/dropdown-menu";
@@ -14,7 +16,10 @@ import { cancelled, shareOrCopy } from "../../../lib/share";
 import { navLogRows } from "./navlog/rows";
 
 const SHARE_LABEL: Record<"route" | RouteCard, string> = {
-  route: "Share this route", brief: "Share the briefing", navlog: "Share the nav log", profile: "Share the profile",
+  // The route box's is More, a "…", at the owner's ask ("Don't call it
+  // share, call it more with the … as the text"): it holds the route's
+  // other actions (save, file, plan again, clear), not sharing alone.
+  route: "More", brief: "Share the briefing", navlog: "Share the nav log", profile: "Share the profile",
 };
 
 /** The route as typed: its departure, stops and destination. */
@@ -46,7 +51,7 @@ interface Planned {
  * menu goes.
  */
 export default function ShareMenu({
-  align, testId = "share-route", card = "route", planned, course, selected, altitudeFt, routed, hasPoints, local, fileable, onFile, onClear, saving, reviewSheet,
+  align, testId = "share-route", card = "route", planned, course, selected, altitudeFt, routed, hasPoints, local, fileable, onFile, onClear, saving, reviewSheet, planAgain,
 }: {
   align: "start" | "end";
   /** Its button's: the route box's, or the tab bar's over the Brief and
@@ -70,6 +75,10 @@ export default function ShareMenu({
   saving: (askReview: () => void) => ReactNode;
   /** The review's sheet, given the way to put it away. */
   reviewSheet: (done: () => void) => ReactNode;
+  /** Plan again -- fresh winds, weather and fuel -- in the route's menu,
+   *  at the owner's pick ("A": the route box's row on one line), and what
+   *  is out of date, marked on Share as it was on its own button. */
+  planAgain?: { stale: string[]; onPlan: () => void };
 }) {
   const [askingReview, setAskingReview] = useState(false);
 
@@ -137,8 +146,16 @@ export default function ShareMenu({
         <ResponsivePopoverAnchor asChild>
           <DropdownMenuTrigger asChild>
             {/* The route box's a size down, as the box's other buttons are. */}
-            <RoundButton label={SHARE_LABEL[card]} className={card === "route" ? "size-8" : undefined} data-testid={testId}>
-              <Share className={card === "route" ? "size-[1.125rem]" : "size-5"} strokeWidth={2} />
+            <RoundButton
+              label={planAgain?.stale.length ? `${SHARE_LABEL[card]}: ${planAgain.stale.join(", ")}` : SHARE_LABEL[card]}
+              className={card === "route" ? cn("size-8", IN_CAPSULE, CAPSULE_SEPARATOR) : undefined} data-testid={testId}
+            >
+              <span className="relative">
+                {card === "route" ? <Ellipsis className="size-[1.125rem]" strokeWidth={2.4} /> : <Share className="size-5" strokeWidth={2} />}
+                {!!planAgain?.stale.length && (
+                  <span aria-hidden="true" data-testid="plan-again-mark" className="absolute -top-0.5 -right-1 size-2 rounded-full bg-amber-500" />
+                )}
+              </span>
             </RoundButton>
           </DropdownMenuTrigger>
         </ResponsivePopoverAnchor>
@@ -179,6 +196,12 @@ export default function ShareMenu({
               )}
               {saving(() => setTimeout(() => setAskingReview(true), 150))}
               <DropdownMenuItem disabled={!fileable} onSelect={onFile} data-testid="file-flight-plan"><FileText />File flight plan</DropdownMenuItem>
+              {planAgain && (
+                <DropdownMenuItem onSelect={planAgain.onPlan} data-testid="plan-again" data-stale={planAgain.stale.length ? "" : undefined}>
+                  <RotateCw />Plan again
+                  {planAgain.stale.length > 0 && <span aria-hidden="true" className="ml-auto size-2 rounded-full bg-amber-500" />}
+                </DropdownMenuItem>
+              )}
               {hasPoints && (
                 <>
                   <DropdownMenuSeparator />

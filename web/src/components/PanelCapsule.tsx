@@ -117,7 +117,7 @@ export function SearchResults({ query, onPick, places, onAllRecents }: {
   return (
     <PillSection title="Airports" testId="airport-results">
       <ListGroup className={cn(!answered && "opacity-60")}>
-        {rows.length === 0 && answered && <ListRow title={<span className="text-muted-foreground">No airport matches; Enter keeps what you typed.</span>} />}
+        {rows.length === 0 && answered && <ListRow muted title="No airport matches; Enter keeps what you typed." />}
         {rows.map(a => (
           <ListRow
             key={a.ident} media={<Search className="size-5 text-muted-foreground" />}

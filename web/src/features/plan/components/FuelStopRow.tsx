@@ -1,6 +1,6 @@
 import { Coffee, Fuel, Mountain } from "lucide-react";
 import { cn } from "cn";
-import { GLASS_BUTTON } from "../../../components/mapChrome";
+import { ADD_CAPSULE, GLASS_BUTTON } from "../../../components/mapChrome";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "../../../components/ui/dropdown-menu";
@@ -160,8 +160,9 @@ export default function FuelStopRow({ stop, reason = "fuel", time, groundMin, us
 
 /**
  * The suggested stops put in the route, one tap after the last of them,
- * as Tesla's trip is sent to the car: "Add fuel stop", or "Add 2 fuel
- * stops", in the tint.
+ * as Tesla's trip is sent to the car: "Add Fuel Stop", or "Add 2 Fuel
+ * Stops", in the tint -- an action's words in Title Case, as iOS sets a
+ * button's (the owner's D2, 2026-10-23).
  */
 export function FuelStopsAdd({ count, onAdd, last, reason = "fuel" }: { count: number; onAdd: () => void; last: boolean; reason?: "fuel" | "break" }) {
   return (
@@ -171,12 +172,9 @@ export function FuelStopsAdd({ count, onAdd, last, reason = "fuel" }: { count: n
       <div className="min-w-0 flex-1 pb-4">
         <button
           type="button" onClick={onAdd} data-testid="fuel-stop-keep"
-          className={cn(
-            "relative h-9 rounded-full bg-tint/12 px-4 font-semibold text-tint outline-none after:absolute after:-inset-1 after:content-[''] focus-visible:ring-2 focus-visible:ring-ring",
-            TEXT.detail,
-          )}
+          className={ADD_CAPSULE}
         >
-          {reason === "break" ? "Add stop" : count === 1 ? "Add fuel stop" : `Add ${count} fuel stops`}
+          {reason === "break" ? "Add Stop" : count === 1 ? "Add Fuel Stop" : `Add ${count} Fuel Stops`}
         </button>
       </div>
     </li>

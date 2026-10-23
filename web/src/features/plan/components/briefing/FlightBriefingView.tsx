@@ -123,14 +123,14 @@ function BriefingNarrativePrintBlock({ langgraph, crewai }: { langgraph: string 
     <div className="hidden break-inside-avoid-page border-b border-border px-4 py-3 print:block print:break-inside-avoid">
       {langgraph && (
         <>
-          <h2 className={GROUP_HEADING}>LangGraph Narrative</h2>
+          <h2 className={GROUP_HEADING}>Narrative</h2>
           <p className="mt-2 text-sm text-muted-foreground">{langgraph}</p>
         </>
       )}
       {crewai && (
         <>
           <h2 className={cn(GROUP_HEADING, langgraph && "mt-3")}>
-            CrewAI Narrative
+            Second narrative
           </h2>
           <p className="mt-2 text-sm text-muted-foreground">{crewai}</p>
         </>
@@ -753,7 +753,7 @@ export default memo(function FlightBriefingView({
       {briefingState.state === "ready" && briefingState.refreshError && (
         // The last briefing stays up after a refresh that failed -- say
         // so, and how old it is, as the map's airport chips do.
-        <p className={cn("border-b py-2 text-amber-700 dark:text-amber-400 print:hidden", TEXT.prose)}>
+        <p className={cn("border-b py-2 text-caution-ink print:hidden", TEXT.prose)}>
           Could not refresh the briefing ({briefingState.refreshError}); showing the one fetched at{" "}
           {clockTime(new Date(briefingState.fetchedAt))}.
         </p>
@@ -985,7 +985,7 @@ export default memo(function FlightBriefingView({
             )}
             {!briefing ? <Pending>{briefingPendingMessage}</Pending>
               : unchecked("hazards") && unchecked("gairmets") ? (
-                <p className="text-amber-700 dark:text-amber-300">
+                <p className="text-caution-ink">
                   SIGMET and G-AIRMET data could not be checked — aviationweather.gov didn’t respond. Verify separately before flight.
                 </p>
               ) : (
@@ -1018,7 +1018,7 @@ export default memo(function FlightBriefingView({
                 </ListGroup>
               )}
             {briefing && unchecked("hazards") !== unchecked("gairmets") && (
-              <p className={cn("pt-2 text-amber-700 dark:text-amber-300", TEXT.detail)}>
+              <p className={cn("pt-2 text-caution-ink", TEXT.detail)}>
                 {unchecked("hazards") ? "SIGMETs" : "G-AIRMETs"} could not be checked — verify separately before flight.
               </p>
             )}

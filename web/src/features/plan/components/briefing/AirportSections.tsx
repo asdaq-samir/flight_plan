@@ -69,11 +69,11 @@ export default function AirportSections({ briefing, landings, legs, callSign, ph
                   ? otherFrequencies.map((f, k) => (
                     <FrequencyRow key={k} type={f.type} description={f.description} mhz={f.frequency_mhz} testId="airport-frequency" />
                   ))
-                  : <ListRow title={<span className="text-muted-foreground">{info?.frequencies.length ? "None but those on the calls" : "No published frequencies"}</span>} />}
+                  : <ListRow muted title={<>{info?.frequencies.length ? "None but those on the calls" : "No published frequencies"}</>} />}
               </ListGroup>
               <ListGroup title={flown.size ? "Other runways" : "Runways"}>
                 {otherRunways.map((r, k) => <RunwayRow key={k} runway={r} />)}
-                {!info?.runways.length && <ListRow title={<span className="text-muted-foreground">No published runway data</span>} />}
+                {!info?.runways.length && <ListRow muted title="No published runway data" />}
                 <PublicationRows
                   ident={ident} diagram={info?.airport_diagram_url}
                   diagramCycle={info?.airport_diagram_cycle} supplement={info?.chart_supplement_url}

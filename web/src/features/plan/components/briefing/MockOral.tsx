@@ -88,7 +88,7 @@ export default function MockOral({ plan }: { plan: string }) {
             />
           </ListGroup>
           {q.unsupported && (
-            <p className={cn("flex gap-1.5 text-amber-700 dark:text-amber-400", TEXT.note)}>
+            <p className={cn("flex gap-1.5 text-caution-ink", TEXT.note)}>
               <TriangleAlert className="mt-0.5 size-3.5 shrink-0" aria-hidden />
               None of its answer’s quotes could be found in the sources: take it with care.
             </p>

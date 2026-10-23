@@ -1,5 +1,6 @@
 import { createContext, type ReactNode } from "react";
 import { create } from "zustand";
+import { TEXT } from "../lib/text";
 
 /**
  * What the map's chrome shares -- the panel over it (MapPanel), its
@@ -214,11 +215,35 @@ export const GLASS_PICKED =
   "dark:data-[state=on]:bg-primary dark:hover:data-[state=on]:bg-primary dark:data-[state=on]:bg-[linear-gradient(180deg,rgb(255_255_255/0.22),transparent)] " +
   "dark:data-[state=on]:shadow-[inset_0_1px_0_rgb(255_255_255/0.3),0_2px_8px_rgb(0_0_0/0.55)]";
 
+/** A button inside a capsule of the glass (CAPSULE): no glass of its own,
+ *  the capsule's round it, a tint of the text's colour when pressed. */
+export const IN_CAPSULE = "bg-transparent bg-none shadow-none dark:bg-transparent dark:bg-none dark:shadow-none hover:bg-foreground/8 dark:hover:bg-foreground/12";
+
+/** A row of buttons in one capsule of the glass, as iOS 26 groups a
+ *  toolbar's, at the owner's ask ("Let's try it and if not then go back
+ *  to round"): the buttons inside it IN_CAPSULE, their centres 44 apart
+ *  as the round ones' were, so each keeps its 44-point tap area. */
+export const CAPSULE = `rounded-full ${GLASS_BUTTON}`;
+
+/** A hairline before a button in a capsule but the first, at the owner's
+ *  ask ("No separater in the capsule?"): in the middle of the 12 between
+ *  the two, so their centres stay 44 apart. */
+export const CAPSULE_SEPARATOR = "before:pointer-events-none before:absolute before:top-1/2 before:-left-[6.5px] before:h-4 before:w-px before:-translate-y-1/2 before:bg-foreground/15 before:content-['']";
+
 /** A chip's words on the panel's row (the airplane, the cruising altitude,
  *  the time): a note's 13 to a finger, as Maps' route options are, growing
  *  with the reader's text size only to 14, so the row stays one line at
  *  the pilot's, a step up from iOS's default. */
 export const CHIP_TEXT = "text-xs pointer-coarse:text-[min(0.8125rem,14px)]";
+
+/** A tinted capsule that adds a field to the route -- the Stops card's Add
+ *  (StopsCard), a suggested stop's Add Fuel Stop (FuelStopsAdd) -- one
+ *  height, padding and hit area for both, where each had its own (the
+ *  consistency audit, 2026-10-23): 32 points with a 44-point area round
+ *  it as a pseudo-element, so the capsule is not grown to make it. */
+export const ADD_CAPSULE =
+  "relative h-8 shrink-0 rounded-full bg-tint/12 px-3.5 font-semibold text-tint outline-none " +
+  `after:absolute after:-inset-1.5 after:content-[''] focus-visible:ring-2 focus-visible:ring-ring ${TEXT.detail}`;
 
 /** A round button on the panel -- the console's, the route's close -- as
  *  Maps' are on iOS 26: a circle of that glass, its glyph bold in the

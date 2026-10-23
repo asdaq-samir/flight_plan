@@ -31,7 +31,7 @@ export default function AlternateSection(where: AlternateWhere) {
         {!where.eta ? (
           <p className="text-muted-foreground">Checked once the nav log has an ETA.</p>
         ) : isPending ? (
-          <p className="text-muted-foreground" role="status">Reading the destination&apos;s forecast…</p>
+          <p className="text-muted-foreground" role="status">Fetching the destination&apos;s forecast…</p>
         ) : error ? (
           <p className="text-destructive" role="alert">The alternate could not be checked: {describeError(error)}</p>
         ) : data && (

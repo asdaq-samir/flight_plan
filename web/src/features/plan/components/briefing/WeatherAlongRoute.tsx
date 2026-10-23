@@ -158,7 +158,7 @@ export default function WeatherAlongRoute({ briefing, course, legs, departIso, u
                   owner's pick of the redesign). */}
               {placeShown && <ListGroup title={phase === "depart" || phase === "arrive" ? place.ident : `${place.ident} · ${place.role}`}>
                 {unchecked("metars") ? (
-                  <ListRow title="Now" description={<span className="text-amber-700 dark:text-amber-300">Not checked: aviationweather.gov did not answer</span>} />
+                  <ListRow title="Now" description={<span className="text-caution-ink">Not checked: aviationweather.gov did not answer</span>} />
                 ) : (
                   // The report in words first, at the owner's pick of the
                   // redesign: the wind, then the rest; as sent, a tap away
@@ -181,7 +181,7 @@ export default function WeatherAlongRoute({ briefing, course, legs, departIso, u
                   </ListRow>
                 )}
                 {unchecked("forecast") ? (
-                  <ListRow title="Forecast" description={<span className="text-amber-700 dark:text-amber-300">Not checked: aviationweather.gov did not answer</span>} />
+                  <ListRow title="Forecast" description={<span className="text-caution-ink">Not checked: aviationweather.gov did not answer</span>} />
                 ) : station ?? nearest ? (
                   // The figures first, a line to themselves, then whose TAF
                   // it is and the TAF as issued, the whole row's width: with
@@ -219,7 +219,7 @@ export default function WeatherAlongRoute({ briefing, course, legs, departIso, u
               {next && stretchShown && (
                 <ListGroup title={places.length > 2 ? `${place.ident} to ${next.ident}` : "En route"}>
                   {stretch.length === 0 ? (
-                    <ListRow title={<span className="text-muted-foreground">No TAFs or pilot reports near this stretch</span>} />
+                    <ListRow muted title="No TAFs or pilot reports near this stretch" />
                   ) : runs(stretch).map(run => run.kind === "pirep" ? (
                     <PirepRow key={`p${run.along}${run.pirep.raw}`} p={run.pirep} />
                   ) : run.stations.length > 1 ? (

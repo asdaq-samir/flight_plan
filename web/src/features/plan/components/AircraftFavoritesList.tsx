@@ -55,7 +55,7 @@ export default function AircraftFavoritesList({ onBack, onOpen, onChangeMine, on
         )}
       </ListGroup>
       <ListGroup title="Airplanes">
-        {favorites.length === 0 && <ListRow title={<span className="text-muted-foreground">A star on an airplane's card adds it here</span>} />}
+        {favorites.length === 0 && <ListRow muted title="A star on an airplane's card adds it here" />}
         {favorites.map((a, index) => (
           <SwipeToDelete key={a.hex} label={`Remove ${a.name} from Favorites`} onDelete={() => remove(a)}>
             {editing ? (

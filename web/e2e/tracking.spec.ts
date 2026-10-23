@@ -621,7 +621,8 @@ test("an airplane's photo is a swipe across its sketch, the photographer named o
   await expect(card.getByTestId("flight-photo-credit")).toHaveText("© Jane Spotter · Planespotters");
   // The sketch first; the photo a page across.
   await expect(card.getByTestId("flight-trail")).toBeInViewport({ ratio: 0.9 });
-  await photo.evaluate(el => el.parentElement!.scrollTo({ left: el.parentElement!.clientWidth }));
+  // The stock carousel's own next page (PictureSlides), as a swipe is.
+  await card.locator('[data-slot="carousel"]').evaluate(el => el.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true })));
   await expect(photo).toBeInViewport({ ratio: 0.9 });
 });
 

@@ -1,0 +1,18 @@
+{
+  "type": "Piper PA-28R-201 Arrow III",
+  "designator": "P28R",
+  "service_ceiling_ft": 16200,
+  "climb_rate_fpm_sea_level": 830,
+  "cruise_tas_kt": 134,
+  "fuel_burn_gph": 10.4,
+  "cruise_power_pct": 65,
+  "cruise_altitude_ft": 6000,
+  "climb_tas_kt": 102,
+  "climb_fuel_burn_gph": 18.5,
+  "usable_fuel_gal": 72,
+  "crosswind": {
+    "demonstrated_kt": 17,
+    "source": "Piper PA-28R-201 Arrow III POH (VB-870, 1976), placard"
+  },
+  "source": "Piper PA-28R-201 Arrow III POH (VB-870, 1976): figure 5-21 performance cruise, 65% at 6000 ft: 134 KTAS, 10.4 GPH; figure 5-13 climb, about 830 fpm at sea level read off the chart; the climb's TAS and burn derived from figure 5-17's example; 72 gal usable. Service ceiling Piper's 2008 Arrow spec sheet (PN 766-869): 16,200 ft at 100 fpm, the same engine and weight. The POH prints none"
+}

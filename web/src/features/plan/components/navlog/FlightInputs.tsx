@@ -79,34 +79,38 @@ export default function FlightInputs({ aircraftValue, aircraftOptions, onAircraf
       {/* A field as the altitude's is, at the owner's ask ("N-number should
           look similar to altitude"): typed in, its card's button at its end
           once there is one, the route box's fill and type. */}
-      <div role="group" aria-label="Airplane" className={cn("grid h-8 shrink-0 items-center rounded-full", PANEL_FIELD_FILL, TEXT.row)} data-testid="aircraft-select">
-        {/* As wide as what is in it -- the example at a detail's size, as
-            the button it replaced had it, or the N-number and its card's
-            button -- so the route box's row keeps its one line (briefing's
-            spec: Share level with the airplane). */}
+      <div role="group" aria-label="Airplane" className={cn("grid h-7 shrink-0 items-center rounded-full", PANEL_FIELD_FILL, TEXT.row)} data-testid="aircraft-select">
+        {/* One size whatever is in it, at the owner's asks ("Keep these
+            inputs fixed size and when user deletes the content, just have
+            the filler text", "When clearing text why is the input group
+            changing its shape size?"): the widest N-number, six, and its
+            card's button, measured unseen in the one cell, as the altitude's
+            is. Emptied, the field keeps it and shows its filler. */}
         <span aria-hidden="true" className="invisible col-start-1 row-start-1 flex h-0 overflow-hidden">
-          {shown ? <span className="whitespace-pre pr-3 pl-2.5 font-semibold">{shown}</span>
-            : <span className={cn("whitespace-pre pr-2.5 pl-2.5 font-normal", TEXT.detail)}>N-number</span>}
-          {tailNow && typed === null && onOpenAirplane && <span className="w-8 shrink-0" />}
+          <span className="whitespace-pre pr-1.5 pl-2.5 font-semibold">N888MM</span>
+          <span className="w-[1.5625rem] shrink-0" />
         </span>
         <div className="col-start-1 row-start-1 flex h-full min-w-0 items-center">
-          <label className="relative flex h-full min-w-0 flex-1 items-center pr-1.5 after:absolute after:-inset-y-1.5 after:-left-0.5 after:right-0 after:content-['']">
+          <label className="relative flex h-full min-w-0 flex-1 items-center pr-1 after:absolute after:-inset-y-2 after:-left-0.5 after:right-0 after:content-['']">
             <input
               type="text" autoCapitalize="characters" autoCorrect="off" spellCheck={false} enterKeyHint="done" autoComplete="off" size={1}
               value={shown} placeholder="N-number" aria-label="Airplane, N-number"
               onChange={e => setTyped(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6))}
               onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); commit(); (e.target as HTMLInputElement).blur(); } if (e.key === "Escape") setTyped(null); }}
               onBlur={commit}
-              className={cn("relative z-10 h-full w-0 min-w-0 flex-1 bg-transparent pr-1.5 pl-2.5 font-semibold text-foreground outline-none placeholder:font-normal", !shown && TEXT.detail)}
+              className={cn("relative z-10 h-full w-0 min-w-0 flex-1 bg-transparent pr-0.5 pl-2.5 font-semibold text-foreground outline-none placeholder:font-normal", !shown && TEXT.detail)}
               data-testid="aircraft-input"
             />
           </label>
           {tailNow && typed === null && onOpenAirplane && (
             <button
               type="button" onClick={openCard} aria-label={`${tailNow}: its card`} data-testid="aircraft-card-button"
-              className={cn("relative flex size-8 shrink-0 items-center justify-center rounded-full outline-none after:absolute after:-inset-1.5 after:content-[''] focus-visible:ring-2 focus-visible:ring-ring", GLASS_BUTTON)}
+              // 22 inside the field's 28, three in from its end, at the owner's
+              // ask ("buttons for n number and altitude should be smaller to
+              // fit in its input group"); its 44 a pseudo-element round it.
+              className={cn("relative mr-[3px] flex size-[1.375rem] shrink-0 items-center justify-center rounded-full outline-none after:absolute after:-inset-[11px] after:content-[''] focus-visible:ring-2 focus-visible:ring-ring", GLASS_BUTTON)}
             >
-              <Plane className="size-[18px] text-tint" aria-hidden="true" />
+              <Plane className="size-3.5" aria-hidden="true" />
             </button>
           )}
         </div>

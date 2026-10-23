@@ -1,7 +1,7 @@
-import { useState } from "react";
 import { cn } from "cn";
 import type { PlanePhoto } from "../../../lib/planePhoto";
 import { TEXT } from "../../../lib/text";
+import { PhotoSlide, PictureSlides } from "../../../components/PictureSlides";
 import TrailSketch, { type SketchField } from "./TrailSketch";
 
 /** The state on the sketch's corner: climbing, level or descending in the
@@ -40,10 +40,9 @@ export default function AirplaneSketch({ name, points, now, trackDeg, from, to, 
   chip: string | null;
   photo: PlanePhoto | null;
 }) {
-  const [page, setPage] = useState(0);
   const drawn = points.length + (now ? 1 : 0) >= 2;
   const sketch = (
-    <div className="relative size-full shrink-0 snap-start" data-testid="flight-trail">
+    <div className="relative size-full" data-testid="flight-trail">
       {drawn ? (
         // Drawn between the corner's state and the foot's line, so neither
         // covers any of it.
@@ -69,43 +68,22 @@ export default function AirplaneSketch({ name, points, now, trackDeg, from, to, 
       )}
     </div>
   );
+  // A page at a time, across, as the airport card's pictures go
+  // (PictureSlides): the sketch, then the photo.
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-1">
-      <div
-        // A page at a time, across, as iOS's page views go: the sketch, then
-        // the photo. Its own sideways scroll, which the tabs' swipe leaves
-        // to it (TabBar) and the audit knows is meant (data-slides).
-        className={cn(
-          "flex min-h-0 flex-1 snap-x snap-mandatory overflow-hidden rounded-xl bg-background/70 [scrollbar-width:none]",
-          photo && "overflow-x-auto",
-        )}
-        data-slides={photo ? "" : undefined}
-        onScroll={event => {
-          const box = event.currentTarget;
-          setPage(Math.round(box.scrollLeft / Math.max(1, box.clientWidth)));
-        }}
-      >
-        {sketch}
-        {photo && (
-          <a
-            href={photo.link} target="_blank" rel="noopener"
-            className="relative block size-full shrink-0 snap-start overflow-hidden" data-testid="flight-photo"
-          >
-            <img src={photo.src} alt={name} width={photo.width} height={photo.height} loading="lazy" className="size-full object-cover" />
-            {/* Planespotters' terms: the photographer named beside it. */}
-            <span className={cn("absolute inset-x-0 bottom-0 line-clamp-2 bg-black/60 px-1.5 py-0.5 break-words text-white", TEXT.caption)} data-testid="flight-photo-credit">
-              © {photo.photographer} · Planespotters
-            </span>
-          </a>
-        )}
-      </div>
-      {photo && (
-        <div className="flex justify-center gap-1.5" aria-hidden="true">
-          {[0, 1].map(i => (
-            <span key={i} className={cn("size-1.5 rounded-full", i === page ? "bg-foreground" : "bg-muted-foreground/40")} />
-          ))}
-        </div>
-      )}
-    </div>
+    <PictureSlides
+      label={`${name}: where it has flown${photo ? ", and its photo" : ""}`}
+      className="min-w-0 flex-1 bg-background/70"
+      slides={[
+        sketch,
+        photo && (
+          <PhotoSlide
+            key="photo" src={photo.src} alt={name} href={photo.link} label={`${name}'s photo on Planespotters`}
+            // Planespotters' terms: the photographer named beside it.
+            credit={`© ${photo.photographer} · Planespotters`} testId="flight-photo" creditTestId="flight-photo-credit"
+          />
+        ),
+      ]}
+    />
   );
 }

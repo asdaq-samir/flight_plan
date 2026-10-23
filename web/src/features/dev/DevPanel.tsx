@@ -185,7 +185,7 @@ function RoutesGroup({ status, failed }: { status: Status | undefined; failed: b
   return (
     <ListGroup title="Routes" footer="A route's name brings it onto the map to rate.">
         {corridors.length === 0 && (
-          <ListRow title={<span className="text-muted-foreground">{status ? "No route has been collected yet." : waiting(failed)}</span>} />
+          <ListRow muted title={<>{status ? "No route has been collected yet." : waiting(failed)}</>} />
         )}
         {corridors.map(c => {
           const route = new URLSearchParams({ dep: c.departure_ident, dest: c.destination_ident }).toString();
@@ -598,7 +598,7 @@ function ChartsSection({ charts, onRefresh, refreshing }: {
               newer ? ` · cycle ${charts.current_cycle}: ${progress(charts.building?.[k])}` : ""}`}
           />
         ))}
-        {kinds.length === 0 && <ListRow title={<span className="text-muted-foreground">No chart prepared yet.</span>} />}
+        {kinds.length === 0 && <ListRow muted title="No chart prepared yet." />}
       </ListGroup>
     </div>
   );
@@ -739,7 +739,7 @@ function SystemTab({ status, failed, onRefresh, refreshing }: {
                 />
               ))}
               {datasets.length === 0 && (
-                <ListRow title={<span className="text-muted-foreground">{status ? "Nothing on disk yet." : waiting(failed)}</span>} />
+                <ListRow muted title={<>{status ? "Nothing on disk yet." : waiting(failed)}</>} />
               )}
             </ListGroup>
           ),
@@ -748,7 +748,7 @@ function SystemTab({ status, failed, onRefresh, refreshing }: {
           title: "Charts",
           content: status?.charts
             ? <ChartsSection charts={status.charts} onRefresh={() => refreshCharts.mutate()} refreshing={refreshCharts.isPending} />
-            : <ListGroup><ListRow title={<span className="text-muted-foreground">{waiting(failed)}</span>} /></ListGroup>,
+            : <ListGroup><ListRow muted title={<>{waiting(failed)}</>} /></ListGroup>,
         },
         errors: {
           title: "Recent errors",
@@ -766,7 +766,7 @@ function SystemTab({ status, failed, onRefresh, refreshing }: {
                 />
               ))}
               {(status?.recent_errors ?? []).length === 0 && (
-                <ListRow title={<span className="text-muted-foreground">{status ? "None since the planner started." : waiting(failed)}</span>} />
+                <ListRow muted title={<>{status ? "None since the planner started." : waiting(failed)}</>} />
               )}
             </ListGroup>
           ),
@@ -796,7 +796,7 @@ function SystemTab({ status, failed, onRefresh, refreshing }: {
           // answer; its own clock gives it away. Said here, and the
           // rows dimmed, rather than "up" in green for services that
           // may be anything by now.
-          <p className={cn("px-1 text-amber-700 dark:text-amber-400", TEXT.note)} data-testid="stale-snapshot">
+          <p className={cn("px-1 text-caution-ink", TEXT.note)} data-testid="stale-snapshot">
             The planner has not answered since this snapshot, {ago(status.checked_at)}: what follows is what was true then.
           </p>
         )}

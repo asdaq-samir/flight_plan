@@ -1,5 +1,5 @@
 import type { FlightPlanFilingRequest, Leg, Totals } from "./api/types";
-import { utcFigures } from "./clock";
+import { hoursMinutes, utcFigures } from "./clock";
 import { grouped } from "./units";
 
 /**
@@ -97,9 +97,14 @@ export function cruisingLevel(altitudeFt: number): string {
   return `${altitudeFt >= 18_000 ? "F" : "A"}${pad(Math.round(altitudeFt / 100), 3)}`;
 }
 
-/** Hours and minutes in four figures, HHMM (items 16 and 19). */
-export function hoursMinutes(minutes: number): string {
-  return `${pad(Math.floor(minutes / 60), 2)}${pad(minutes % 60, 2)}`;
+/** Hours and minutes in four figures, HHMM (items 16 and 19), counted as
+ *  every duration in the app is (clock's hoursMinutes, which rounds the
+ *  minutes first, so 119.6 is "0200", not "0160"). Its callers round up
+ *  the time en route and down the endurance before, to err on the safe
+ *  side of each. */
+export function hhmmForm(minutes: number): string {
+  const t = hoursMinutes(minutes);
+  return `${pad(t.hours, 2)}${pad(t.minutes, 2)}`;
 }
 
 /** Item 15's route between the departure and the destination: airways
@@ -214,7 +219,7 @@ export function flightPlanForms(input: FormInput): FlightPlanForm[] {
     ].filter(Boolean).join(" ") || undefined);
 
     add("16", "destination", "Destination", hop.destination, zzzz(hop.destination, "DEST"));
-    add("16", "eet", "Total EET", totals?.ete_min != null ? hoursMinutes(Math.ceil(totals.ete_min)) : null);
+    add("16", "eet", "Total EET", totals?.ete_min != null ? hhmmForm(Math.ceil(totals.ete_min)) : null);
     const alternate = ifr && last ? input.alternate : null;
     if (alternate) add("16", "alternate", "Alternate", alternate, zzzz(alternate, "ALTN"));
 
@@ -228,7 +233,7 @@ export function flightPlanForms(input: FormInput): FlightPlanForm[] {
     // minute below.
     const fuel = i === 0 ? input.fuelGal ?? totals?.usable_fuel_gal ?? null : totals?.usable_fuel_gal ?? null;
     const burn = first?.fuel_burn_gph;
-    add("19", "endurance", "Endurance", fuel != null && burn ? hoursMinutes(Math.floor((fuel / burn) * 60)) : null,
+    add("19", "endurance", "Endurance", fuel != null && burn ? hhmmForm(Math.floor((fuel / burn) * 60)) : null,
       fuel != null && burn ? `${Math.round(fuel * 10) / 10} gal at ${Math.round(burn * 10) / 10} gph.` : undefined);
 
     // Item 19's persons on board (P/), the pilot's to type in the Brief

@@ -133,11 +133,9 @@ export function relationTo(plane: TrafficAircraft, field: FilterField): { around
   return { around, inbound, departing };
 }
 
-/** An airport ident as the planner's fields name it: "KLWM" and "LWM" one. */
-export const sameField = (a: string, b: string) => {
-  const bare = (s: string) => s.trim().toUpperCase().replace(/^K(?=[A-Z0-9]{3}$)/, "");
-  return bare(a) === bare(b);
-};
+/** An airport ident as the planner's fields name it: "KLWM" and "LWM"
+ *  one -- the procedures' test, kept here for the traffic's callers. */
+export { sameField } from "./procedures";
 
 /** The airplanes this filter keeps, of those the place's question gave:
  *  the place's own test done by its caller (round the field, near the

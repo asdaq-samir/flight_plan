@@ -277,7 +277,7 @@ export default function ProceduresRoute({
       queryKey: ["procedures", a.ident],
       queryFn: () => api.procedures(a.ident),
       staleTime: PROCEDURE_STALE_MS,
-      enabled: at?.ident === a.ident || asked.has(a.ident),
+      enabled: (at != null && sameField(at.ident, a.ident)) || asked.has(a.ident),
     })),
   });
   // Each field's card (its weather), for the wind a field with no report
@@ -328,7 +328,7 @@ export default function ProceduresRoute({
     return i < 0 ? null : { runway: approachesIn[i]!.runway, circling: plates[i]?.data?.circling, name: approachesIn[i]!.label };
   };
   const windOf = (ident: string): WindPick | null => {
-    const i = airports.findIndex(a => a.ident === ident);
+    const i = airports.findIndex(a => sameField(a.ident, ident));
     const runways = airports[i]?.runways;
     if (!runways) return null;
     const forecast = forecastFor[i] != null ? forecasts[i]?.data : null;
@@ -356,7 +356,7 @@ export default function ProceduresRoute({
   // runways' magnetic numbers, where a tower's and an ATIS's winds are
   // magnetic (AIM 4-1-13) -- the audit's finding.
   const reportedOf = (ident: string): Reported | null => {
-    const i = airports.findIndex(a => a.ident === ident);
+    const i = airports.findIndex(a => sameField(a.ident, ident));
     // The forecast's, where the runway is picked into it (windOf).
     const forecast = forecastFor[i] != null ? forecasts[i]?.data : null;
     if (forecast) {
@@ -367,14 +367,14 @@ export default function ProceduresRoute({
     const m = card?.metar ?? card?.nearby_metar?.metar;
     return m ? reportedWind(m.wind_dir_true_deg, m.wind_speed_kt, m.wind_gust_kt) : null;
   };
-  const listOf = (ident: string): ProcedureList | undefined => lists[airports.findIndex(a => a.ident === ident)]?.data;
+  const listOf = (ident: string): ProcedureList | undefined => lists[airports.findIndex(a => sameField(a.ident, ident))]?.data;
   // Whether a field has procedures of a kind: by its procedures once they
   // are in (its kind's sheet opened), else by the FAA's charts its card
   // lists (d-TPP), which come with the route -- the CIFP's 53 MB is not
   // fetched for that. Not yet known, not offered: no room taken for a
   // kind a field does not have (the owner's cleanup).
   const hasKind = (ident: string, kind: Kind): boolean => {
-    const i = airports.findIndex(a => a.ident === ident);
+    const i = airports.findIndex(a => sameField(a.ident, ident));
     // Either says so: the list coming in as a menu opens takes no menu
     // away from under the finger where the CIFP has none the FAA charts.
     return !!lists[i]?.data?.procedures.some(p => p.kind === kind)
@@ -512,7 +512,7 @@ export default function ProceduresRoute({
   const fieldStep = (a: ProcedureAirport, row: NavLogRow | undefined, last: boolean) => {
     // A kind's pull-down: the one in the route said on it (ProcedureMenu).
     const wind = windOf(a.ident);
-    const i = airports.findIndex(f => f.ident === a.ident);
+    const i = airports.findIndex(f => sameField(f.ident, a.ident));
     const kindMenu = (kind: Kind, look: "button" | "add") => (
       <ProcedureMenu
         key={kind} ident={a.ident} kind={kind} list={lists[i]?.data} loading={!!lists[i]?.isFetching} look={look}
@@ -867,7 +867,9 @@ export default function ProceduresRoute({
         icon={tanks.has(row.key) ? <FuelGauge gal={tanks.get(row.key)!.gal} usable={tanks.get(row.key)!.usable} tone={tanks.get(row.key)!.low ? "low" : undefined} /> : undefined}
         // A present position, POS0, by its coordinates under it, where its
         // role was ("Instead of Departure under POS0, say the coordinates").
-        sub={end?.direct ? <span className="font-semibold text-tint">Direct to</span> : `${row.kind === "stop" ? (to && frdOf(row.airport.ident) ? row.airport.name : "Fly over") : row.kind === "destination" ? "Destination" : "airport" in row && isPosition(row.airport.ident) ? placeOfPoint(row.airport.ident) : "Departure"}${along(row)}`}
+        // Direct to in the line's own colour: it says how the leg is
+        // flown, and only what is tapped is in the tint.
+        sub={end?.direct ? <span className="font-semibold">Direct to</span> : `${row.kind === "stop" ? (to && frdOf(row.airport.ident) ? row.airport.name : "Fly over") : row.kind === "destination" ? "Destination" : "airport" in row && isPosition(row.airport.ident) ? placeOfPoint(row.airport.ident) : "Departure"}${along(row)}`}
         figures={end?.figures ?? <PointFigures time={time} altitude={null} kind="cruise" />} menu={end?.menu}
       />,
     );
@@ -876,7 +878,7 @@ export default function ProceduresRoute({
   });
   const fieldsAlone = rows.length === 0 ? airports.map((a, i) => fieldStep(a, undefined, i === airports.length - 1)) : null;
 
-  const field = on ? airports.find(a => a.ident === on.ident) : undefined;
+  const field = on ? airports.find(a => sameField(a.ident, on.ident)) : undefined;
   const list = on ? listOf(on.ident) : undefined;
   const chosen = on ? pickOf(on.ident, on.kind) : null;
   const stale = list?.stale ? `Out of date: the ${cycleDate(list.cycle)} cycle, as the current one could not be had` : null;
@@ -936,7 +938,7 @@ export default function ProceduresRoute({
         ) : (
           <ProcedurePicker
             key={`${on.ident}:${on.kind}`} kind={on.kind} list={list} chosen={chosen} stale={stale}
-            failed={lists[airports.findIndex(a => a.ident === on.ident)]?.isError ?? false}
+            failed={lists[airports.findIndex(a => sameField(a.ident, on.ident))]?.isError ?? false}
             wind={windOf(on.ident)} onOpen={p => setPage({ at: on, procedure: p })}
           />
         ))}
@@ -1312,7 +1314,7 @@ function PatternChips({ airport: a, wind, chosen, landing, note, label, fitOf, o
     <div ref={line} className="flex items-center gap-2" data-testid="procedure-patterns">
       {a.runways === null ? (
         <>
-          <p role="status" className={cn("px-1 text-muted-foreground", TEXT.detail)}>Looking the runways up…</p>
+          <p role="status" className={cn("px-1 text-muted-foreground", TEXT.detail)}>Fetching the runways…</p>
           {trailing}
         </>
       ) : (
@@ -1387,7 +1389,7 @@ function ProcedurePicker({ kind, list, failed, chosen, stale, wind, onOpen }: {
   onOpen: (procedure: ProcedureSummary) => void;
 }) {
   if (failed) return <p role="alert" className="px-1 text-muted-foreground">The FAA's procedures could not be had</p>;
-  if (!list) return <p role="status" className="px-1 text-muted-foreground">Looking the procedures up…</p>;
+  if (!list) return <p role="status" className="px-1 text-muted-foreground">Fetching the procedures…</p>;
   const of = list.procedures.filter(p => p.kind === kind);
   if (of.length === 0) return <p className="px-1 text-muted-foreground" data-testid="procedures-none">{`No ${KIND_TITLE[kind].toLowerCase()} published`}</p>;
   const runways = (p: ProcedureSummary) => p.runway_transitions.length

@@ -1,0 +1,19 @@
+{
+  "type": "Cessna 152",
+  "designator": "C152",
+  "service_ceiling_ft": 14700,
+  "climb_rate_fpm_sea_level": 715,
+  "cruise_tas_kt": 107,
+  "fuel_burn_gph": 6.1,
+  "cruise_power_pct": 75,
+  "cruise_altitude_ft": 8000,
+  "climb_tas_kt": 70,
+  "climb_fuel_burn_gph": 7.0,
+  "usable_fuel_gal": 24.5,
+  "taxi_fuel_gal": 0.8,
+  "crosswind": {
+    "demonstrated_kt": 12,
+    "source": "Cessna 1980 Model 152 Information Manual (D1170-13), section 4"
+  },
+  "source": "Cessna 1980 Model 152 Information Manual (D1170-13): performance specifications; figure 5-7 cruise, 8000 ft standard day, 2550 RPM: 75%, 107 KTAS (wheel fairings), 6.1 GPH; figure 5-6 climb (start, taxi and takeoff 0.8 gal; the climb's TAS and burn derived from it); 24.5 gal usable standard tanks"
+}

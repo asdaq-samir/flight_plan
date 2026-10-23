@@ -26,7 +26,7 @@ export default function StopsAlongButton() {
   return (
     <IconButton
       label={open ? "Hide the stops along the route" : "Stops along the route"} onClick={() => (open ? setOpen(false) : (opener ?? (() => setOpen(true)))())}
-      aria-pressed={open} data-testid="stops-along-button" className="text-tint"
+      aria-pressed={open} data-testid="stops-along-button"
     >
       <StopsGlyph />
     </IconButton>

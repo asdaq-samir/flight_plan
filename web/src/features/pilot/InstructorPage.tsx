@@ -186,7 +186,7 @@ function StudentPage({ row, instructor }: { row: StudentRow; instructor: Instruc
         // Each signed in AC 61-65K's words, which name the student as on
         // their certificate: none until they have given it.
         <ListGroup title="Endorsements">
-          {!training.fullName && <ListRow title={<span className="text-muted-foreground">Waiting for their name as on their certificate</span>} />}
+          {!training.fullName && <ListRow muted title="Waiting for their name as on their certificate" />}
           {training.kinds.map(kind => {
             const e = signed.get(kind.code);
             if (e) return <SignedRow key={kind.code} kind={kind} e={e} />;
@@ -259,7 +259,7 @@ export default function InstructorPage() {
 
         <ListGroup title="Students">
           {instructor.students.length === 0 ? (
-            <ListRow title={<span className="text-muted-foreground">None yet</span>} />
+            <ListRow muted title="None yet" />
           ) : instructor.students.map(s => (
             <PageRow
               key={s.linkId} page={`student-${s.studentId}`} title={s.name}

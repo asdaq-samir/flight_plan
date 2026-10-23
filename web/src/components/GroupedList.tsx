@@ -81,8 +81,11 @@ const LABEL = cn("font-normal", TEXT.row);
 const DESCRIPTION = cn("line-clamp-none", TEXT.detail);
 const VALUE = cn("text-muted-foreground tabular-nums", TEXT.row);
 
-export function ListRow({ id, media, title, description, value, href, to, chevron, checkbox, radio, wide, children, ...buttonProps }: {
+export function ListRow({ id, media, title, description, value, href, to, chevron, checkbox, radio, wide, muted, children, ...buttonProps }: {
   id?: string;
+  /** A note in place of a row -- none yet, could not be had -- its words in
+   *  the secondary grey, where 32 rows wrote that grey round their title. */
+  muted?: boolean;
   /** The title the row's whole width, for a row laid out in columns of
    *  its own (a flight's two ends, FlightEnds): the stock title is as wide
    *  as its words. */
@@ -125,7 +128,7 @@ export function ListRow({ id, media, title, description, value, href, to, chevro
       ) : mark && <ItemMedia className={cn(action && "text-tint")}>{mark}</ItemMedia>}
       <ItemContent className="min-w-0 gap-0.5">
         <ItemTitle className={cn(action ? TITLE_ACTION : TITLE, wide && "w-full")}>
-          {id ? <Label htmlFor={id} className={LABEL}>{title}</Label> : title}
+          {id ? <Label htmlFor={id} className={LABEL}>{title}</Label> : muted ? <span className="text-muted-foreground">{title}</span> : title}
         </ItemTitle>
         {description && <ItemDescription className={DESCRIPTION}>{description}</ItemDescription>}
       </ItemContent>

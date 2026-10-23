@@ -1,19 +1,18 @@
 import type { ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { BedDouble, CarFront, Fuel, Loader2, Utensils } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { cn } from "cn";
 import { CardHead } from "../../../components/PanelCard";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
+import { ADD_CAPSULE } from "../../../components/mapChrome";
+import QueryState from "../../../components/QueryState";
 import { faaWords } from "../../../lib/advisories";
 import type { Totals } from "../../../lib/api/types";
 import { routeStopsQuery } from "../../../lib/queryClient";
-import { alongGlance, stopFigures } from "../../../lib/stopsAlong";
+import { stopFigures } from "../../../lib/stopsAlong";
 import { TEXT } from "../../../lib/text";
 import { hhmm } from "../format";
-
-const GLANCE_ICONS: Record<ReturnType<typeof alongGlance>[number]["key"], ReactNode> = {
-  fuel: <Fuel />, food: <Utensils />, bed: <BedDouble />, car: <CarFront />,
-};
+import { Glance } from "./StopServices";
 
 /**
  * The fields along the route to stop at, a card over FPL as the Brief and
@@ -40,26 +39,28 @@ export default function StopsCard({ name, line, dep, dest, stops, totals, onClos
   /** Put in the route after its flight's departure. */
   onAdd: (departure: string, ident: string) => void;
 }) {
-  const { data, isLoading, isError } = useQuery(routeStopsQuery(dep, dest, stops));
+  const asked = useQuery(routeStopsQuery(dep, dest, stops));
+  const { data } = asked;
   const pending = data?.pending ?? 0;
   return (
     <div className="flex min-h-0 flex-1 flex-col px-4 pt-[var(--corner-inset,0.75rem)] print:hidden" data-testid="stops-card">
       <CardHead name={name} line={line} nameTestId="stops-name" onClose={onClose} closeTestId="stops-close" />
       <div className="mt-3 min-h-0 flex-1 overflow-y-auto pb-3">
-        {isLoading && <p className={cn("text-muted-foreground", TEXT.prose)}>Looking along the route…</p>}
-        {isError && <p className={cn("text-muted-foreground", TEXT.prose)}>The fields along the route could not be looked up</p>}
+        {/* A line while they are fetched, and Try again where they could not
+            be, as every list says it (QueryState). */}
+        {!data && <QueryState query={asked} fetching="Fetching the stops along the route…" failed="The fields along the route could not be fetched." />}
         {data && (
           <ListGroup>
             {data.fields.map(field => {
               const at = stopFigures(field, totals);
-              const glance = alongGlance(field);
               return (
                 <ListRow
                   key={field.ident} data-testid="stops-field"
                   title={(
                     <button
                       type="button" onClick={() => onOpenField(field.ident)} data-testid="stops-field-open"
-                      className="text-left font-semibold text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      // In the tint, as a name that opens something is.
+                      className="text-left font-semibold text-tint outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     >
                       {field.ident} · {faaWords(field.city || field.name)}
                     </button>
@@ -75,22 +76,14 @@ export default function StopsCard({ name, line, dep, dest, stops, totals, onClos
                         )}
                         +{Math.round(field.added_nm)} nm
                       </span>
-                      {glance.length > 0 && (
-                        <span className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-0.5 text-foreground" data-testid="stops-glance">
-                          {glance.map(g => (
-                            <span key={g.key} className="inline-flex items-center gap-1 whitespace-nowrap [&_svg]:size-3.5 [&_svg]:shrink-0">
-                              {GLANCE_ICONS[g.key]}{g.words}
-                            </span>
-                          ))}
-                        </span>
-                      )}
+                      <Glance of={field} testId="stops-glance" />
                     </span>
                   )}
                   value={(
                     <button
                       type="button" onClick={() => onAdd(field.departure, field.ident)} data-testid="stops-add"
                       aria-label={`Add ${field.ident} to the route`}
-                      className={cn("relative h-8 rounded-full bg-tint/12 px-3.5 font-semibold text-tint outline-none after:absolute after:-inset-1.5 after:content-[''] focus-visible:ring-2 focus-visible:ring-ring", TEXT.detail)}
+                      className={ADD_CAPSULE}
                     >
                       Add
                     </button>
@@ -99,12 +92,12 @@ export default function StopsCard({ name, line, dep, dest, stops, totals, onClos
               );
             })}
             {data.fields.length === 0 && (
-              <ListRow title={<span className="text-muted-foreground">No public field within 30 nm of the route</span>} />
+              <ListRow muted title="No public field within 30 nm of the route" />
             )}
             {pending > 0 && (
               <ListRow
                 media={<Loader2 className="size-4 animate-spin text-muted-foreground" aria-hidden />}
-                title={<span className="text-muted-foreground">Looking at what is near {pending} more {pending === 1 ? "field" : "fields"}…</span>}
+                muted title={<>Fetching what is near {pending} more {pending === 1 ? "field" : "fields"}…</>}
                 data-testid="stops-pending"
               />
             )}

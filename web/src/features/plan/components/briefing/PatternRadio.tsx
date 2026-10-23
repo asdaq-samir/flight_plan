@@ -146,7 +146,7 @@ function PatternRows({ phase, facilities, courseDeg }: { phase: RadioPhase; faci
       {end ? (
         <ListRow title={`Runway ${runwayNumber(end.ident)} · ${end.traffic} traffic`} data-testid="pattern-runway" />
       ) : (
-        <ListRow title={<span className="text-muted-foreground">No runway with a heading to draw</span>} />
+        <ListRow muted title="No runway with a heading to draw" />
       )}
       {rightEnds.length > 0 && (
         <ListRow title="Right traffic too" value={rightEnds.map(e => runwayNumber(e.ident)).join(", ")} description="The other runway ends the FAA flies right; the rest left" />

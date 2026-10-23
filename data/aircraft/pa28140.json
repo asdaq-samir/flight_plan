@@ -1,0 +1,12 @@
+{
+  "type": "Piper PA-28-140 Cherokee",
+  "designator": "P28A",
+  "service_ceiling_ft": 10950,
+  "climb_rate_fpm_sea_level": 631,
+  "cruise_tas_kt": 109,
+  "fuel_burn_gph": 8.4,
+  "cruise_power_pct": 75,
+  "cruise_altitude_ft": 7000,
+  "usable_fuel_gal": 48,
+  "source": "Piper Cherokee Cruiser/Flite Liner Pilot's Operating Manual (761 555, 1973), general specifications: service ceiling 10,950 ft, climb 631 fpm, 75% best economy at 7000 ft 126 mph TAS (109 kt), 8.4 GPH, 48 gal usable. No climb speed or burn and no demonstrated crosswind in it: the planner's climb defaults stand"
+}

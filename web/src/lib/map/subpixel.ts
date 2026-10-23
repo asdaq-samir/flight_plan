@@ -28,3 +28,31 @@ L.Polyline.include({
   },
 });
 L.Polyline.mergeOptions({ smoothFactor: 0.25 });
+
+/**
+ * Leaflet's own cursor rules while the map is dragged
+ * (`.leaflet-dragging .leaflet-grab .leaflet-interactive` and its two
+ * siblings, leaflet.css) taken out: Leaflet sets `leaflet-dragging` on
+ * <body> at a drag's start and end, and with those rules every mark and
+ * interactive line on the map -- some 1,800 elements with a route's and
+ * the airports' -- was restyled twice a pan, 0.3 to 0.75 s of a phone's
+ * each time (a trace of three pans at a quarter of a laptop's speed,
+ * 2026-10-23: 1,405 marks invalidated by that one selector). They set a
+ * mouse's "move" cursor, which a finger has none of; the map's own grab
+ * cursor (.leaflet-grab) stands.
+ */
+export function dropDraggingCursorRules(): void {
+  for (const sheet of Array.from(document.styleSheets)) {
+    let rules: CSSRuleList;
+    try {
+      rules = sheet.cssRules;
+    } catch {
+      continue; // another origin's: none of Leaflet's
+    }
+    for (let i = rules.length - 1; i >= 0; i--) {
+      const rule = rules[i];
+      if (rule instanceof CSSStyleRule && rule.selectorText.includes(".leaflet-dragging")) sheet.deleteRule(i);
+    }
+  }
+}
+dropDraggingCursorRules();

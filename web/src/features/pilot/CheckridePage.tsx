@@ -32,7 +32,7 @@ export function KnowledgeCodes({ codes }: { codes: string[] }) {
     // each one again, and the instructor endorses their review (61.39(a)(6)(iii)).
     <ListGroup title="Knowledge test">
       {codes.length === 0 ? (
-        <ListRow title={<span className="text-muted-foreground">No codes yet</span>} />
+        <ListRow muted title="No codes yet" />
       ) : codes.map(code => {
         const found = table ? lookUp(table, code) : null;
         return (

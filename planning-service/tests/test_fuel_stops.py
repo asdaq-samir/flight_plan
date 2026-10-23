@@ -58,3 +58,22 @@ def test_the_fields_along_the_route_with_their_places_once_read(monkeypatch):
     kiow, kvti = body["fields"]
     assert kiow["food"] == diner and kiow["nearby_known"] is True and kiow["lodging"] is None
     assert kvti["nearby_known"] is False and kvti["courtesy_car"] is True
+
+
+def test_a_routes_stops_once_complete_are_kept(monkeypatch):
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+    plan._STOPS_KEPT.clear()
+    route = Route(("C81", "KOMA"), ({"lat": 42.3, "lon": -88.1}, {"lat": 41.3, "lon": -95.9}))
+    monkeypatch.setattr(plan, "load_route", lambda dep, dest, stops="": route)
+    asked = []
+    monkeypatch.setattr(plan.fuelstops, "along", lambda flights, skip: asked.append(1) or [
+        {"ident": "KIOW", "name": "IOWA CITY MUNI", "city": "IOWA CITY", "lat": 41.64, "lon": -91.55, "flight": 0, "departure": "C81",
+         "from_nm": 152.0, "added_nm": 1.8, "fuel_types": ["100LL"], "runway_ft": 4355, "elevation_ft": 668.0}])
+    monkeypatch.setattr(plan.nearby, "kept", lambda ident: {"food": [], "lodging": [], "cars": []})
+    monkeypatch.setattr(plan.nearby, "courtesy_car", lambda ident: False)
+    client = TestClient(app)
+    first = client.get("/api/route-stops?dep=C81&dest=KOMA").json()
+    assert client.get("/api/route-stops?dep=c81&dest=koma").json() == first and asked == [1]
+    plan._STOPS_KEPT.clear()

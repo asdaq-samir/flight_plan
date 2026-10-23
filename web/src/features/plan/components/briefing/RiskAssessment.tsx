@@ -26,7 +26,7 @@ export default function RiskAssessment({ assessment }: { assessment: Assessment 
       </div>
       <ListGroup title="From the briefing and your logbook">
         {raised.length === 0 ? (
-          <ListRow title={<span className="text-muted-foreground">Nothing raised</span>} />
+          <ListRow muted title="Nothing raised" />
         ) : raised.map(f => (
           <ListRow
             key={f.key}

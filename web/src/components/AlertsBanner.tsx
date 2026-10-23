@@ -12,7 +12,7 @@ import { useSpokenAlerts } from "../lib/map/speak";
 /** A warning's red and a caution's amber, as a cockpit's are. */
 const INK = {
   warning: "text-destructive-ink",
-  caution: "text-amber-700 dark:text-amber-300",
+  caution: "text-caution-ink",
 } as const;
 
 /**

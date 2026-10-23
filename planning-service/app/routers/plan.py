@@ -12,6 +12,7 @@ its own chart read, altitude plan, climb from the field and fuel check,
 the hops planned at once, and the nav log runs on through each stop."""
 import logging
 import re
+import threading
 import time
 from concurrent.futures import Future, ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FuturesTimeoutError
@@ -19,6 +20,7 @@ from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
+from cachetools import TTLCache
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import Response, StreamingResponse
 from vfr import (
@@ -965,6 +967,11 @@ def route_profile(dep: str, dest: str, stops: str = "") -> RouteProfile:
     return side_view([(a["lat"], a["lon"]) for a in r.airports], shp_path)
 
 
+#: The map's Stops answered for a route, kept an hour once complete.
+_STOPS_KEPT: TTLCache = TTLCache(maxsize=256, ttl=3600)
+_STOPS_LOCK = threading.Lock()
+
+
 @router.get("/api/route-stops")
 def route_stops(dep: str, dest: str, stops: str = "") -> RouteStops:
     """The fields along the route to stop at, for the map's Stops, at the
@@ -976,6 +983,11 @@ def route_stops(dep: str, dest: str, stops: str = "") -> RouteStops:
     on the planner's pool and counted in `pending`; the page asks again
     until none is. The times and the fuel at each are the page's, from
     the plan's own figures per mile."""
+    key = (dep.strip().upper(), dest.strip().upper(), stops.strip().upper())
+    with _STOPS_LOCK:
+        kept = _STOPS_KEPT.get(key)
+    if kept is not None:
+        return kept
     r = load_route(dep, dest, stops)
     found = fuelstops.along([(f.dep_ident, f.start, f.end) for f in r.flights], skip=set(r.idents))
     out, pending = [], 0
@@ -988,7 +1000,14 @@ def route_stops(dep: str, dest: str, stops: str = "") -> RouteStops:
             for kind, one in (("food", "food"), ("lodging", "lodging"), ("cars", "car")):
                 field[one] = (places.get(kind) or [None])[0]
         out.append({**field, "nearby_known": places is not None, "courtesy_car": nearby.courtesy_car(field["ident"])})
-    return RouteStops(fields=out, pending=pending)
+    answer = RouteStops(fields=out, pending=pending)
+    # Kept once every field's places are in: asked again, the route's
+    # stops were 1 to 3.4 s each time, warm (the 23 Oct audit), the
+    # corridor and 40 fields' remarks and places read afresh.
+    if not pending:
+        with _STOPS_LOCK:
+            _STOPS_KEPT[key] = answer
+    return answer
 
 
 @router.get("/api/course")

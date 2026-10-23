@@ -4,24 +4,28 @@ import type { ReactNode } from "react";
 import { cn } from "cn";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
 import { PillSection } from "../../../components/Favorites";
+import QueryState from "../../../components/QueryState";
 import { RowBadge } from "../../../components/RowBadge";
 import type { NearbyPlace } from "../../../lib/api/types";
-import { awayWords, fuelNames, glanceOf } from "../../../lib/stopServices";
+import { awayWords, fuelNames, glanceOf, type GlanceItem, type Glanceable } from "../../../lib/stopServices";
 import { servicesQuery } from "../../../lib/queryClient";
 import { BADGE } from "../../../lib/rowBadges";
 import { TEXT } from "../../../lib/text";
 import { hhmm } from "../format";
 
-const GLANCE_ICONS = { food: <Utensils />, car: <CarFront />, bed: <BedDouble /> };
+const GLANCE_ICONS: Record<GlanceItem["key"], ReactNode> = {
+  fuel: <Fuel />, food: <Utensils />, bed: <BedDouble />, car: <CarFront />,
+};
 
-/** A suggested stop's glance, from the field's services once they are in;
- *  nothing until then, or where none is near. */
-export function StopGlance({ ident, className }: { ident: string; className?: string }) {
-  const { data } = useQuery(servicesQuery(ident));
-  const items = data ? glanceOf(data) : [];
+/** What a field has on the ground in a line of a few words (glanceOf), one
+ *  look under a Stops card's field (StopsCard) and a suggested stop's row
+ *  (StopGlance), where the two had their own sizes and colours: a note's
+ *  size, in the muted grey, as the line under a row is. */
+export function Glance({ of, className, testId }: { of: Glanceable; className?: string; testId: string }) {
+  const items = glanceOf(of);
   if (!items.length) return null;
   return (
-    <span className={cn("flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-0.5 text-muted-foreground", TEXT.note, className)} data-testid="stop-glance">
+    <span className={cn("flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-0.5 text-muted-foreground", TEXT.note, className)} data-testid={testId}>
       {items.map(item => (
         <span key={item.key} className="inline-flex items-center gap-1 whitespace-nowrap [&_svg]:size-3.5 [&_svg]:shrink-0">
           {GLANCE_ICONS[item.key]}{item.words}
@@ -29,6 +33,13 @@ export function StopGlance({ ident, className }: { ident: string; className?: st
       ))}
     </span>
   );
+}
+
+/** A suggested stop's glance, from the field's services once they are in;
+ *  nothing until then, or where none is near. */
+export function StopGlance({ ident, className }: { ident: string; className?: string }) {
+  const { data } = useQuery(servicesQuery(ident));
+  return data ? <Glance of={data} className={className} testId="stop-glance" /> : null;
 }
 
 /** A section of the Info tab, titled as its frequencies and lights are
@@ -63,11 +74,17 @@ const placeRows = (places: NearbyPlace[], media: ReactNode, testId: string) => p
  * a tap that calls it.
  */
 export function StopServices({ ident }: { ident: string }) {
-  const { data: s, isError } = useQuery(servicesQuery(ident));
+  const asked = useQuery(servicesQuery(ident));
+  const s = asked.data;
+  // A line while they are fetched, and where they could not be, that they
+  // could not with Try again, as every list says it (QueryState), where
+  // the wait was blank and the failure had no way to ask again.
   if (!s) {
-    return isError ? (
-      <Section title="Services"><ListRow title={<span className="text-muted-foreground">Could not be looked up</span>} /></Section>
-    ) : null;
+    return (
+      <Section title="Services">
+        <QueryState row query={asked} fetching="Fetching the services…" failed="The services could not be fetched." />
+      </Section>
+    );
   }
   const repair = [s.airframe_repair && `airframe ${s.airframe_repair}`, s.powerplant_repair && `engine ${s.powerplant_repair}`].filter(Boolean).join(", ");
   const field = [
@@ -106,7 +123,7 @@ export function StopServices({ ident }: { ident: string }) {
       {s.cars.length > 0 && <Section title="Car rental">{placeRows(s.cars, <RowBadge colour={BADGE.car}><CarFront /></RowBadge>, "services-cars")}</Section>}
       {near && <p className={cn("px-1 pt-1.5 text-muted-foreground", TEXT.note)}>Places © Overture Maps Foundation</p>}
       {s.nearby_unavailable && (
-        <Section title="Nearby"><ListRow title={<span className="text-muted-foreground">Places near the field could not be looked up</span>} /></Section>
+        <Section title="Nearby"><ListRow muted title="Places near the field could not be looked up" /></Section>
       )}
     </div>
   );

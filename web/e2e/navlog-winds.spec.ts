@@ -64,14 +64,15 @@ test("a plan whose winds are past their forecast's period marks the route box's 
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   await openPanel(page);
-  // The refresh before the airplane, its dot on and its name saying why,
-  // at the owner's ask: the nav log's message and its Plan again before.
-  const again = page.getByTestId("plan-again");
+  // Plan again in the route's Share menu, at the owner's pick ("A"),
+  // Share marked with the dot and its name saying why.
+  const share = page.getByTestId("share-route");
   await expect(page.getByTestId("plan-again-mark")).toBeVisible({ timeout: slow(60_000) });
-  await expect(again).toHaveAccessibleName(/winds are out of date/);
+  await expect(share).toHaveAccessibleName(/winds are out of date/);
   await expect(page.getByTestId("navlog-winds-old")).toHaveCount(0);
   const before = asked;
-  await again.click();
+  await share.click();
+  await page.getByRole("menu").getByTestId("plan-again").click();
   await expect.poll(() => asked).toBeGreaterThan(before);
   // The plan asked again is still streaming as the test ends.
   await page.unrouteAll({ behavior: "ignoreErrors" });

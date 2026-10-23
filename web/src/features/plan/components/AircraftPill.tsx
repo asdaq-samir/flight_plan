@@ -132,7 +132,7 @@ export default function AircraftPill({ onOpen, onAddMine, onAddFavorite, onPick,
                   key={plane.hex} onClick={() => onPick(plane)} testId="aircraft-strip-plane" title={name} detail={detail}
                   label={`${name}${detail ? `, ${detail}` : ""}`}
                   mark={(
-                    <span className={cn("grid size-14 place-items-center rounded-full bg-foreground/8", inEmergency(plane) ? "text-red-600" : "text-sky-600")} aria-hidden="true">
+                    <span className={cn("grid size-14 place-items-center rounded-full bg-foreground/8", inEmergency(plane) ? "text-destructive-ink" : "text-sky-600")} aria-hidden="true">
                       {/* lucide's airplane points north-east: turned to its track. */}
                       <Plane className="size-6" fill="currentColor" style={{ transform: `rotate(${(plane.track_deg ?? 45) - 45}deg)` }} />
                     </span>

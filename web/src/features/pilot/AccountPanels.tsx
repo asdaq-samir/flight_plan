@@ -398,7 +398,7 @@ export function AircraftPanel() {
             {/* Which the nav log flies where it is none of these, said in its
                 place as a row: the one ticked otherwise. */}
             {!!list?.length && flying.aircraftId == null && (
-              <ListRow title={<span className="text-muted-foreground">Flying the stock {flying.label}</span>} data-testid="aircraft-stock" />
+              <ListRow muted title={<>Flying the stock {flying.label}</>} data-testid="aircraft-stock" />
             )}
             {(list ?? []).map(a => {
               const chosen = aircraftKey(flying) === `mine:${a.id}`;
