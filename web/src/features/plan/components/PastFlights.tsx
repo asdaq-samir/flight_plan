@@ -80,7 +80,7 @@ export default function PastFlights({ hex, onOpen, nowShown = false, type = null
         // footnotes for pilots experience"): the rows say it.
         title={from ? `On and before ${dayOf(new Date(`${from}T12:00:00Z`))}` : nowShown ? "Earlier" : "Last flights"}
       >
-        {(!data || looking) && !isError && <ListRow title={<span role="status" className="text-muted-foreground">{data ? "Looking further back…" : "Looking…"}</span>} />}
+        {(!data || looking) && !isError && <ListRow title={<span role="status" className="text-muted-foreground">{data ? "Fetching earlier flights…" : "Fetching its flights…"}</span>} />}
         {isError && !data && <ListRow title={<span className={cn("text-destructive", TEXT.detail)}>Its past flights could not be had. Try again in a moment.</span>} />}
         {data && !flights.length && !hasNextPage && !unread && (
           // The owner's words, where it read "None heard in adsb.lol's archive".
@@ -108,7 +108,7 @@ export default function PastFlights({ hex, onOpen, nowShown = false, type = null
         {/* Ten more, before the last listed, as far back as the archive goes. */}
         {hasNextPage && !looking && (
           <ListRow
-            title={isFetchingNextPage ? "Looking further back…" : "Show earlier flights"}
+            title={isFetchingNextPage ? "Fetching earlier flights…" : "Show earlier flights"}
             onClick={() => void fetchNextPage()} disabled={isFetchingNextPage} data-testid="past-flights-more"
           />
         )}

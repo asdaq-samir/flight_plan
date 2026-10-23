@@ -92,22 +92,22 @@ export function PointMenuItems({ actions: a, kit, later, testId }: {
       {a.onChange && <Item onSelect={later(a.onChange, true)} data-testid={`${testId}-change`}><Pencil aria-hidden="true" />Change</Item>}
       {a.onDirect && (
         <Item onSelect={a.onDirect} data-testid={`${testId}-direct`}>
-          <MoveUpRight aria-hidden="true" />{a.direct ? "Fly as planned" : "Direct to"}
+          <MoveUpRight aria-hidden="true" />{a.direct ? "Fly as Planned" : "Direct To"}
         </Item>
       )}
       {a.onAltitude && (
         <Item onSelect={later(a.onAltitude)} data-testid={`${testId}-altitude`}>
-          <MoveVertical aria-hidden="true" />Set altitude…
+          <MoveVertical aria-hidden="true" />Set Altitude…
           {a.altitude != null && <Shortcut className="flex items-center gap-1 tracking-normal tabular-nums">{a.altitude}</Shortcut>}
         </Item>
       )}
-      {a.onFix && <Item onSelect={later(a.onFix)} data-testid={`${testId}-fix`}><Crosshair aria-hidden="true" />Create a fix from here…</Item>}
+      {a.onFix && <Item onSelect={later(a.onFix)} data-testid={`${testId}-fix`}><Crosshair aria-hidden="true" />Create a Fix from Here…</Item>}
       {a.onHold && (
         <Item onSelect={later(a.onHold)} data-testid={`${testId}-hold`}>
-          <Repeat2 aria-hidden="true" />{a.held ? "Change hold…" : "Hold here…"}
+          <Repeat2 aria-hidden="true" />{a.held ? "Change Hold…" : "Hold Here…"}
         </Item>
       )}
-      {a.onInfo && <Item onSelect={later(a.onInfo)} data-testid={`${testId}-info`}><Info aria-hidden="true" />More info</Item>}
+      {a.onInfo && <Item onSelect={later(a.onInfo)} data-testid={`${testId}-info`}><Info aria-hidden="true" />More Info</Item>}
       {a.onRemove && (
         <>
           <Separator />
@@ -151,7 +151,7 @@ export function PointMenu({ testId = "point-menu", face, ...actions }: PointActi
             {face}
           </button>
         ) : (
-          <RoundButton label={`${actions.ident}: more`} className="shrink-0 text-tint" data-testid={testId}>
+          <RoundButton label={`${actions.ident}: more`} className="shrink-0" data-testid={testId}>
             <Ellipsis className="size-5" aria-hidden="true" />
           </RoundButton>
         )}

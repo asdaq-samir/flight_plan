@@ -548,5 +548,5 @@ test("a procedure's fixes branch off the route, each sent direct to or given an 
   // the sheet here, as the map's marks are tapped in the other specs.
   await page.locator('[data-procedure-fix="FAKER"]').dispatchEvent("click");
   await expect(page.getByTestId("fix-card")).toBeVisible();
-  await expect(page.getByTestId("fix-card-direct")).toContainText("as charted");
+  await expect(page.getByTestId("fix-card-direct")).toContainText("as Charted");
 });

@@ -81,7 +81,7 @@ function Findings({ d }: { d: Debrief }) {
   return (
     <div className="space-y-4">
       {d.notes.length > 0 && (
-        <ul className={cn("list-disc space-y-0.5 pl-5 text-amber-700 dark:text-amber-400", TEXT.prose)} data-testid="debrief-notes">
+        <ul className={cn("list-disc space-y-0.5 pl-5 text-caution-ink", TEXT.prose)} data-testid="debrief-notes">
           {d.notes.map(note => <li key={note}>{note}</li>)}
         </ul>
       )}

@@ -1,9 +1,11 @@
 import { TrendingDown, TrendingUp } from "lucide-react";
+import { cn } from "cn";
 import { COURSE_MAGENTA, WAYPOINT_MAGENTA } from "../../../../lib/map/chartColors";
 import { colourOf } from "../../../../lib/map/flightCategory";
 import { AIRPORT_MARK, airportMarkSvg } from "../../../../lib/map/airportMark";
 import type { AirspaceClass } from "../../../../lib/preferences";
 import { inkOn } from "../../../../lib/scoreScale";
+import { TEXT } from "../../../../lib/text";
 import { scoreColor } from "../../format";
 import type { NavLogRow } from "./rows";
 
@@ -32,7 +34,7 @@ export function PointMark({ row, number, weather, airportSize = AIRPORT_MARK }: 
     return (
       <span
         aria-hidden="true" data-mark="checkpoint"
-        className="grid size-6 shrink-0 place-items-center rounded-full border-2 border-background text-[11px] leading-[13px] font-bold tracking-tight shadow-[0_1px_3px_rgba(0,0,0,.35)] outline outline-1 outline-[rgba(10,20,28,.45)]"
+        className={cn("grid size-6 shrink-0 place-items-center rounded-full border-2 border-background font-bold tracking-tight shadow-[0_1px_3px_rgba(0,0,0,.35)] outline outline-1 outline-[rgba(10,20,28,.45)]", TEXT.caption)}
         style={{ backgroundColor: fill, color: inkOn(fill) }}
       >
         {number}

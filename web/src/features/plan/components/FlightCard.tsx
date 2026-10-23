@@ -226,14 +226,14 @@ export default function FlightCard({ hex, onClose, onOpenPast, onOpenAirport, on
             {/* Nothing to follow where it is not heard now: greyed, not pressed. */}
             <RoundButton
               label={following ? `Stop following ${name}` : `Follow ${name} on the map`} aria-pressed={following} disabled={!plane}
-              className={cn(following ? "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground dark:bg-primary dark:hover:bg-primary" : "text-tint hover:text-tint")}
+              className={cn(following && "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground dark:bg-primary dark:hover:bg-primary")}
               onClick={() => useTracking.setState({ follow: !follow })} data-testid="flight-follow"
             >
               <Crosshair className="size-5" strokeWidth={2.2} />
             </RoundButton>
             {!barShares && (
-              <RoundButton label={`Share ${name}`} className="text-tint hover:text-tint" onClick={() => void shareFlight(name, hex)} data-testid="flight-share">
-                <Share className="size-5" strokeWidth={2.2} />
+              <RoundButton label={`Share ${name}`} onClick={() => void shareFlight(name, hex)} data-testid="flight-share">
+                <Share className="size-5" strokeWidth={2} />
               </RoundButton>
             )}
           </>

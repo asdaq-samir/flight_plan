@@ -118,7 +118,8 @@ export default function ProcedureMenu({ ident, kind, list, loading, picked, labe
       <ResponsivePopoverTrigger asChild>
         {/* One line, at the owner's ask: the kind's name ("Approach") until
             one is picked ("Just remove the word select"), then the one
-            picked, in the tint as what is tapped. A chip's size beside the
+            picked, its words black as every glass button's are (the owner's
+            D1, 2026-10-23: no tint on the glass). A chip's size beside the
             field's ident in its head, its 44-point area a pseudo-element
             round it (the owner's compact head). Opened by a tap -- its
             lift, as a button's click is -- not a touch. */}
@@ -126,7 +127,7 @@ export default function ProcedureMenu({ ident, kind, list, loading, picked, labe
           // The one picked's name kept in it for a reader, unseen: the
           // branch's head shows it.
           <RoundButton
-            label={`${ident} ${TITLE[kind].toLowerCase()}: ${label ?? "none picked"}, pick another`} className="text-tint"
+            label={`${ident} ${TITLE[kind].toLowerCase()}: ${label ?? "none picked"}, pick another`}
             data-testid="procedure-kind" data-kind={kind} data-look={look}
           >
             <ArrowLeftRight className="size-5" strokeWidth={2} />
@@ -136,11 +137,11 @@ export default function ProcedureMenu({ ident, kind, list, loading, picked, labe
           <button
             type="button" data-testid="procedure-kind" data-kind={kind} data-look={look}
             className={cn(
-              "relative flex min-w-0 shrink items-center gap-0.5 text-left font-semibold text-tint outline-none",
+              "relative flex min-w-0 shrink items-center gap-0.5 text-left font-semibold outline-none",
               "after:absolute after:-inset-1.5 after:content-[''] focus-visible:ring-2 focus-visible:ring-ring",
               // The buttons' glass, a kind to add as one picked, at the
               // owner's pick of the sketches ("B"): it was a dashed outline.
-              GLASS_BUTTON, "text-tint hover:text-tint",
+              GLASS_BUTTON,
               look === "add" ? cn("h-8 rounded-full px-3", TEXT.detail)
                 : cn("h-8 max-w-[10rem] rounded-full px-2.5", TEXT.detail),
             )}
@@ -197,7 +198,7 @@ export default function ProcedureMenu({ ident, kind, list, loading, picked, labe
         ) : (
           <>
             {all.length === 0 && (
-              <p role="status" className={cn("px-1 text-muted-foreground", TEXT.detail)}>{loading ? "Looking them up…" : "None published"}</p>
+              <p role="status" className={cn("px-1 text-muted-foreground", TEXT.detail)}>{loading ? "Fetching them…" : "None published"}</p>
             )}
             {kind === "approach" && first !== null && (
               <>

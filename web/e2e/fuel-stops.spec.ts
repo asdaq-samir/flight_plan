@@ -113,7 +113,7 @@ test("a suggested stop's row says what is there on the ground, and a tap opens i
   await openPanel(page);
   const row = sideDrawer(page).getByTestId("fuel-stop");
   await expect(row).toBeVisible({ timeout: slow(60_000) });
-  await expect(row.getByTestId("stop-glance")).toHaveText(/Food 4 min walk.*Courtesy car.*Hotel 2\.1 mi/);
+  await expect(row.getByTestId("stop-glance")).toHaveText(/100LL.*Food 4 min walk.*Hotel 2\.1 mi.*Courtesy car/);
 
   await row.getByTestId("fuel-stop-open").click();
   const card = page.getByTestId("place-card");
@@ -156,7 +156,7 @@ test("a long flight the tanks hold is offered a break about half way, kept as th
   await expect(row.getByRole("region", { name: /Suggested stop for a break, KRPD/ })).toBeVisible();
   await expect(sideDrawer(page).getByTestId("route-fuel-stop")).toHaveAccessibleName("Suggested stop KRPD: add it to the route");
   const keep = sideDrawer(page).getByTestId("fuel-stop-keep");
-  await expect(keep).toHaveText("Add stop");
+  await expect(keep).toHaveText("Add Stop");
   await keep.click();
   await expect(page).toHaveURL(/[?&]stops=KRPD(&|$)/);
   await expect(page).not.toHaveURL(/[?&]fuel=/);

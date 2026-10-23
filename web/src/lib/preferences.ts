@@ -5,6 +5,7 @@ import { DEFAULT_FILTERS, type FilterKey, type Filters } from "../features/train
 import type { AircraftAlert, AircraftAlertKind } from "./aircraftAlerts";
 import type { AircraftChoice } from "./api/types";
 import { NO_MINIMUMS, type Minimums } from "./minimums";
+import { sameField } from "./procedures";
 import type { Load } from "./weightBalance";
 import type { OwnShipLook } from "./map/ownShipLook";
 
@@ -323,8 +324,10 @@ export const usePreferences = create<Preferences>()(
         favoriteAirports: s.favoriteAirports.map(a => (a.ident === ident ? { ...a, airspace } : a)),
       })),
       toggleFavoriteAirport: airport => set(s => ({
-        favoriteAirports: s.favoriteAirports.some(a => a.ident === airport.ident)
-          ? s.favoriteAirports.filter(a => a.ident !== airport.ident)
+        // One field by either of its idents (KLWM, LWM), as the card's star
+        // reads it (PlaceCard), so a star shown filled is taken off.
+        favoriteAirports: s.favoriteAirports.some(a => sameField(a.ident, airport.ident))
+          ? s.favoriteAirports.filter(a => !sameField(a.ident, airport.ident))
           : [...s.favoriteAirports, airport],
       })),
     }),

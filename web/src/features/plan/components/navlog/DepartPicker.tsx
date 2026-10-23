@@ -157,7 +157,7 @@ export default function DepartPicker({
             <Button type="button" size="sm" onClick={() => setOpen(false)} data-testid="depart-done">Done</Button>
           </div>
           {held && earliest != null && latest != null && (
-            <p className={cn("px-3 text-amber-700 dark:text-amber-300", TEXT.note)} role="status" data-testid="depart-range">
+            <p className={cn("px-3 text-caution-ink", TEXT.note)} role="status" data-testid="depart-range">
               From landing, {format(new Date(earliest), "HH:mm")}, to a day after.
             </p>
           )}

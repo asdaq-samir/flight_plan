@@ -169,7 +169,7 @@ export default function AltitudeGroup({ nav, legs, commanded = null, problem = f
             onBlur={fly}
             className={cn(
               "relative z-10 h-full w-0 min-w-0 flex-1 bg-transparent pr-0.5 pl-2.5 font-semibold tabular-nums outline-none placeholder:font-normal",
-              problem ? "text-red-700 dark:text-red-300" : "text-foreground",
+              problem ? "text-destructive-ink" : "text-foreground",
             )}
             data-testid="altitude-input"
           />
@@ -190,7 +190,7 @@ export default function AltitudeGroup({ nav, legs, commanded = null, problem = f
             // end, where a line parted it from the figure before.
             "relative z-20 mr-[3px] flex size-[1.375rem] shrink-0 items-center justify-center rounded-full outline-none after:absolute after:-inset-[11px] after:content-[''] focus-visible:ring-2 focus-visible:ring-ring disabled:text-muted-foreground",
             GLASS_BUTTON,
-            problem && "text-red-700 dark:text-red-300",
+            problem && "text-destructive-ink",
           )}
           aria-label={`Cruising altitude${rules === "ifr" ? " under IFR" : ""}, ${why}${!problem && tight ? ", tight" : ""}${!problem && cautions.length ? ", your altitude has a caution" : ""}: set it on the profile`}
           data-testid="altitude-why" data-tip="altitude"
@@ -458,7 +458,7 @@ export function AltitudeProfile({ nav: navNow, legs: legsNow, ends, chart, corne
           <div className="flex items-baseline justify-between gap-2">
             <div className="flex min-w-0 items-baseline gap-2">
               <span className={cn("font-bold tabular-nums", TEXT.heading)} data-testid="altitude-picked">{flightLevel(shownAt)}</span>
-              {names[shownAt] && <span className={cn("truncate font-semibold text-tint", TEXT.detail)}>{names[shownAt]}</span>}
+              {names[shownAt] && <span className={cn("truncate font-semibold text-muted-foreground", TEXT.detail)}>{names[shownAt]}</span>}
             </div>
             <span className={cn("shrink-0 tabular-nums", TEXT.detail)} data-testid="altitude-figures">
               {figure?.ete_min != null ? hhmm(figure.ete_min) : "—"} · {figure?.fuel_gal != null ? `${one(figure.fuel_gal)} gal` : "—"}
