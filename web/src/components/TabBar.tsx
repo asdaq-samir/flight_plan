@@ -622,7 +622,7 @@ export default function TabBar<T extends string>({ tabs, tab, over, title, onPic
             // shadow. Lifted, on a deeper shadow, as a lens raised over
             // the bar.
             "pointer-events-none absolute rounded-full", GLASS_CLEAR,
-            lens && "shadow-[inset_0_0_0_1.5px_rgb(255_255_255/0.95),0_0_0_0.5px_rgb(0_0_0/0.06),0_4px_14px_rgb(0_0_0/0.18)] dark:shadow-[inset_0_0_0_1.5px_rgb(255_255_255/0.3),0_0_0_0.5px_rgb(0_0_0/0.5),0_4px_14px_rgb(0_0_0/0.6)]",
+            lens && "shadow-[inset_0_1px_0_rgb(255_255_255/0.95),0_0_0_0.5px_rgb(0_0_0/0.08),0_4px_14px_rgb(0_0_0/0.16)] dark:shadow-[inset_0_1px_0_rgb(255_255_255/0.24),0_0_0_0.5px_rgb(0_0_0/0.5),0_4px_14px_rgb(0_0_0/0.6)]",
           )}
           style={lensStyle}
         />

@@ -176,7 +176,7 @@ export const SHEET_MARGIN = 8;
  *  which read as etched. The tab up's capsule in the pill (TabBar). */
 export const GLASS_CLEAR =
   "border-0 bg-white/25 bg-linear-to-b from-white/75 via-white/35 via-55% to-white/5 text-foreground " +
-  "shadow-[inset_0_0_0_1.5px_rgb(255_255_255/0.95),0_0_0_0.5px_rgb(0_0_0/0.06),0_2px_6px_rgb(0_0_0/0.14)] " +
+  "shadow-[inset_0_1px_0_rgb(255_255_255/0.95),0_0_0_0.5px_rgb(0_0_0/0.08),0_2px_8px_rgb(0_0_0/0.10)] " +
   "dark:bg-white/6 dark:from-white/22 dark:via-white/8 dark:to-white/0 " +
   "dark:shadow-[inset_0_1px_0_rgb(255_255_255/0.24),0_0_0_0.5px_rgb(0_0_0/0.5),0_2px_8px_rgb(0_0_0/0.55)]";
 
@@ -187,9 +187,11 @@ export const GLASS_CLEAR =
  *  the tab does -- a sheen at its top, bright there and clearing to almost
  *  nothing at its foot, a white rim, a hairline and a soft shade round it.
  *  The first clear glass (GLASS_CLEAR) was whiter all the way down and
- *  read as white chips on the near-white sheet. In the dark it is lit
- *  along its top edge alone, as iOS's dark glass is: a light ring round
- *  every button outlined the screen (the owner's "Yes", 2026-10-22). The
+ *  read as white chips on the near-white sheet. Lit along its top edge
+ *  alone, as iOS's glass is, in the dark (the owner's "Yes", 2026-10-22:
+ *  a light ring round every button outlined the screen) and in the light
+ *  as in the dark (the owner's "make it light one similar to dark",
+ *  2026-10-23: the ring and a harder shadow made raised white chips). The
  *  words and glyph in
  *  the text's colour. Theme utilities rather than one of index.css's own,
  *  so `cn` drops a variant's fill, border and shadow for these (the
@@ -197,7 +199,7 @@ export const GLASS_CLEAR =
 export const GLASS_BUTTON =
   "border-0 bg-transparent text-foreground " +
   "bg-[radial-gradient(80%_60%_at_50%_0%,rgb(255_255_255/0.75),transparent_70%),linear-gradient(180deg,rgb(255_255_255/0.6),rgb(255_255_255/0.12))] " +
-  "shadow-[inset_0_0_0_1.5px_rgb(255_255_255/0.95),0_0_0_0.5px_rgb(0_0_0/0.10),0_2px_6px_rgb(0_0_0/0.14)] " +
+  "shadow-[inset_0_1px_0_rgb(255_255_255/0.95),0_0_0_0.5px_rgb(0_0_0/0.08),0_2px_8px_rgb(0_0_0/0.10)] " +
   "hover:bg-white/30 hover:text-foreground aria-expanded:bg-white/40 " +
   "dark:bg-[radial-gradient(80%_60%_at_50%_0%,rgb(255_255_255/0.2),transparent_70%),linear-gradient(180deg,rgb(255_255_255/0.16),rgb(255_255_255/0.02))] " +
   "dark:shadow-[inset_0_1px_0_rgb(255_255_255/0.24),0_0_0_0.5px_rgb(0_0_0/0.5),0_2px_8px_rgb(0_0_0/0.55)] dark:hover:bg-white/8 dark:aria-expanded:bg-white/10";
@@ -211,7 +213,7 @@ export const GLASS_BUTTON =
 export const GLASS_PICKED =
   "data-[state=on]:bg-primary data-[state=on]:bg-[linear-gradient(180deg,rgb(255_255_255/0.35),rgb(255_255_255/0.08)_55%,transparent)] " +
   "data-[state=on]:font-semibold data-[state=on]:text-primary-foreground hover:data-[state=on]:bg-primary hover:data-[state=on]:text-primary-foreground " +
-  "data-[state=on]:shadow-[inset_0_0_0_1.5px_rgb(255_255_255/0.45),0_2px_6px_rgb(0_80_190/0.3)] " +
+  "data-[state=on]:shadow-[inset_0_1px_0_rgb(255_255_255/0.5),0_2px_8px_rgb(0_80_190/0.25)] " +
   "dark:data-[state=on]:bg-primary dark:hover:data-[state=on]:bg-primary dark:data-[state=on]:bg-[linear-gradient(180deg,rgb(255_255_255/0.22),transparent)] " +
   "dark:data-[state=on]:shadow-[inset_0_1px_0_rgb(255_255_255/0.3),0_2px_8px_rgb(0_0_0/0.55)]";
 
