@@ -24,6 +24,7 @@ const NO_POINTS_AT: { ident: string; lat: number; lon: number }[] = [];
 const NO_PROCEDURES: ProcedureDrawing[] = [];
 import { chipColourOf } from "../../../lib/map/flightCategory";
 import { CourseLine } from "../../../lib/map/CourseLine";
+import { RouteWaysLayer, type RouteWay } from "../../../lib/map/RouteWaysLayer";
 import { COURSE_MAGENTA, MAP_BLUE } from "../../../lib/map/chartColors";
 import { FlownTrackLayer } from "../../../lib/map/FlownTrackLayer";
 import { Halo } from "../../../lib/map/Halo";
@@ -101,6 +102,9 @@ interface Props {
   /** The fuel stops the planner suggests (the totals' fuel_stops), pinned
    *  as Tesla pins its chargers on the way, a tap their field's card. */
   fuelStops?: StopPin[];
+  /** The ways FPL's Routes offer beside the route (RouteWaysLayer), a tap one's pick. */
+  ways?: RouteWay[];
+  onPickWay?: (key: string) => void;
 }
 
 /** A suggested fuel stop's pin: the caution's orange, the pump in white,
@@ -506,6 +510,7 @@ export default memo(function RouteMap({
   course, candidates, selected, focus, onSelectCandidate, onSelectPoint,
   airportWeather, place, start = null, onSelectPlace, onAddStop, legs, heldPoint, onHoldPoint, nearest = null, patterns = NO_PATTERNS, patternFocus = null,
   procedures = NO_PROCEDURES, procedureFocus = null, procedureCover, crossings, directs = "", onProcedureFix, fuelStops = NO_POINTS_AT,
+  ways, onPickWay,
 }: Props) {
   const focusZoom = course?.max_zoom ?? 12;
   const dryRunning = usePastFlight(p => p.hex === DRY_RUN);
@@ -574,6 +579,8 @@ export default memo(function RouteMap({
       <HeldPoint point={heldPoint} onHold={onHoldPoint} />
       {course && (
         <>
+          {/* Under the course line, as Maps draws the routes not picked. */}
+          {onPickWay && <RouteWaysLayer ways={ways} onPick={onPickWay} />}
           <CourseLine
             line={course.course_line as [number, number][]}
             tooltip={`${routeAirports(course, true).map(a => pointName(a.ident)).join(" → ")} · ${nm(course.distance_nm)}`}

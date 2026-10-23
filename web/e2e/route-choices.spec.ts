@@ -55,8 +55,15 @@ test("FPL's Routes say what the route meets and put a way round it in the route,
   await expect(best).toContainText("3 h 40 min · 1 fuel stop · 371 nm");
   await expect(best).toContainText("Passes KRHI forecast marginal");
 
+  // Both on the chart beside the route, each its chip.
+  const chips = page.locator("[data-route-way]");
+  await expect(chips).toHaveCount(2);
+  await expect(chips.filter({ hasText: "Best Weather · 3 h 40 min" })).toHaveCount(1);
+
   await best.click();
   await expect(page).toHaveURL(/[?&]stops=KEAU(&|$)/);
+  // The one picked is the route now, the other still beside it.
+  await expect(chips).toHaveCount(1);
   await expect(page).toHaveURL(/[?&]fuel=KEAU(&|$)/);
 
   // The straight line one tap back, with what it crosses.

@@ -56,6 +56,11 @@ import AircraftPill from "./components/AircraftPill";
 import AircraftFavoritesList from "./components/AircraftFavoritesList";
 import TabKept from "../../components/TabKept";
 import RouteChoices from "./components/RouteChoices";
+import type { RouteWay } from "../../lib/map/RouteWaysLayer";
+import { isRoute, wayTime, wayTitle } from "../../lib/routeWays";
+
+/** No ways on the chart: one array for good, so the map's memo holds. */
+const NO_WAYS: RouteWay[] = [];
 import TabPage from "../../components/TabPage";
 import { useStripShows } from "./hooks/useStripShows";
 import AirportPill from "./components/AirportPill";
@@ -1961,6 +1966,16 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   });
   const pickRoute = useCallback((option: RouteOption) => setStops(option.stops, option.fuel), [setStops]);
   const flyDirect = useCallback(() => setStops([]), [setStops]);
+  // The same ways on the chart beside the route, in the pale tint (RouteWaysLayer).
+  const wayLines = useMemo((): RouteWay[] => (routeWays && routed && !s.local && flightRules === "vfr"
+    ? routeWays.options.filter(o => !isRoute(o, planned.stops)).map(o => ({
+      key: o.kind, path: o.path as [number, number][], label: `${wayTitle(o)} · ${wayTime(o)}`,
+    }))
+    : NO_WAYS), [routeWays, routed, s.local, flightRules, planned.stops]);
+  const pickWay = useCallback((key: string) => {
+    const option = routeWays?.options.find(o => o.kind === key);
+    if (option) pickRoute(option);
+  }, [routeWays, pickRoute]);
   const routeChoices = useMemo(() => (routed && !s.local && flightRules === "vfr"
     ? <RouteChoices found={routeWays} stops={planned.stops} onPick={pickRoute} onDirect={flyDirect} /> : null),
   [routed, s.local, flightRules, routeWays, planned.stops, pickRoute, flyDirect]);
@@ -2343,6 +2358,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           directs={mapDirects}
           onProcedureFix={showFix}
           fuelStops={alongPins ?? fuelStopPins}
+          ways={wayLines} onPickWay={pickWay}
         />
         </Suspense>
         <FixCard open={openFix} onClose={() => setOpenFixAt(null)} onDirect={directTo} onCross={setCrossing} />
