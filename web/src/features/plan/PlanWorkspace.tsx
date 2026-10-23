@@ -1656,7 +1656,8 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     selectFlight(hex);
   }, [setTabPick, selectFlight]);
     const pickTail = useCallback((tail: string, profile: string) => {
-    setAircraft({ profile, label: `${tail} · ${profile.toUpperCase()}`, tail });
+    // With the figures the pilot set for it, where they have (AirplaneFigures).
+    setAircraft({ profile, label: `${tail} · ${profile.toUpperCase()}`, tail, ...usePreferences.getState().tailFigures[tail] });
   }, [setAircraft]);
 
   // A different departure time may mean a different winds forecast:

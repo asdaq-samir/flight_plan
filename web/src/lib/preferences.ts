@@ -108,6 +108,9 @@ interface Preferences {
    *  held by the service worker. Off by default, as it downloads. */
   keepOffline: boolean;
   aircraft: AircraftChoice;
+  /** The figures the pilot set for an N-number (AirplaneFigures), by it:
+   *  flown on whenever the N-number is, over its type's profile. */
+  tailFigures: Record<string, TailFigures>;
   /** The training map's filters: which points are drawn and walked. */
   filters: Filters;
   /** The navigation bar's edge, once one has been picked; until then
@@ -182,6 +185,7 @@ interface Preferences {
   setLoad: (aircraft: string, load: Load) => void;
   setKeepOffline: (keepOffline: boolean) => void;
   setAircraft: (aircraft: AircraftChoice) => void;
+  setTailFigures: (tail: string, figures: TailFigures) => void;
   setFilter: (key: FilterKey, on: boolean) => void;
   setNavBar: (navBar: NavEdge) => void;
   setRouteColours: (routeColours: RouteColours) => void;
@@ -236,7 +240,7 @@ export const usePreferences = create<Preferences>()(
       overlay: "none",
       overlayStrength: "half",
       minimums: NO_MINIMUMS,
-      loads: {},
+      loads: {}, tailFigures: {},
       keepOffline: false,
       aircraft: DEFAULT_AIRCRAFT,
       filters: DEFAULT_FILTERS,
@@ -301,6 +305,7 @@ export const usePreferences = create<Preferences>()(
       setLoad: (aircraft, load) => set(s => ({ loads: { ...s.loads, [aircraft]: load } })),
       setKeepOffline: keepOffline => set({ keepOffline }),
       setAircraft: aircraft => set({ aircraft }),
+      setTailFigures: (tail, figures) => set(s => ({ tailFigures: { ...s.tailFigures, [tail.toUpperCase()]: figures } })),
       setFilter: (key, on) => set(s => ({ filters: { ...s.filters, [key]: on } })),
       setNavBar: navBar => set({ navBar }),
       setRouteColours: routeColours => set({ routeColours }),
@@ -339,7 +344,7 @@ export const usePreferences = create<Preferences>()(
       migrate: (kept, from) => (from < 1 ? { ...(kept as object), waypoints: false } : kept) as Preferences,
       // The functions are not state; only the values are written.
       partialize: s => ({
-        base: s.base, tac: s.tac, waypoints: s.waypoints, classB: s.classB, tfrs: s.tfrs, alerts: s.alerts, speakAlerts: s.speakAlerts, plates: s.plates, traffic: s.traffic, military: s.military, minimums: s.minimums, loads: s.loads, keepOffline: s.keepOffline, aircraft: s.aircraft, filters: s.filters, navBar: s.navBar, routeColours: s.routeColours, ownShipLook: s.ownShipLook, narrative: s.narrative,
+        base: s.base, tac: s.tac, waypoints: s.waypoints, classB: s.classB, tfrs: s.tfrs, alerts: s.alerts, speakAlerts: s.speakAlerts, plates: s.plates, traffic: s.traffic, military: s.military, minimums: s.minimums, loads: s.loads, keepOffline: s.keepOffline, aircraft: s.aircraft, tailFigures: s.tailFigures, filters: s.filters, navBar: s.navBar, routeColours: s.routeColours, ownShipLook: s.ownShipLook, narrative: s.narrative,
         flightRules: s.flightRules,
         recentAirports: s.recentAirports, homeAirport: s.homeAirport, favoriteAirports: s.favoriteAirports,
         recentAircraft: s.recentAircraft, favoriteAircraft: s.favoriteAircraft, myAircraft: s.myAircraft,
@@ -350,6 +355,11 @@ export const usePreferences = create<Preferences>()(
     },
   ),
 );
+
+/** An airplane's own figures, set by the pilot for its N-number from its
+ *  handbook (AirplaneFigures): any of them, the type's profile the rest. */
+export type TailFigures = Partial<Pick<AircraftChoice,
+  "cruiseTasKt" | "cruisePowerPct" | "fuelBurnGph" | "usableFuelGal" | "climbTasKt" | "climbFuelBurnGph" | "serviceCeilingFt">>;
 
 /** A route planned, as FPL's Recents keep it: its ends, its stops in
  *  order, and when it was planned. */
@@ -373,7 +383,7 @@ export interface RecentRoute {
  *  How the map is drawn stays, the device's. */
 export function forgetPilot() {
   usePreferences.setState({
-    minimums: NO_MINIMUMS, loads: {}, aircraft: DEFAULT_AIRCRAFT,
+    minimums: NO_MINIMUMS, loads: {}, aircraft: DEFAULT_AIRCRAFT, tailFigures: {},
     recentAirports: [], homeAirport: null, favoriteAirports: [],
     recentAircraft: [], favoriteAircraft: [], myAircraft: null, aircraftAlerts: [], recentRoutes: [],
   });
