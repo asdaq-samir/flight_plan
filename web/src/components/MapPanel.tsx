@@ -146,6 +146,10 @@ const RANK: Record<PanelState, number> = { peek: 0, half: 1, full: 2 };
  * the keyboard's focus inside itself and hide the map, and any dialog
  * opened before it, from a screen reader.
  */
+/** Under the head, the body and the foot a shade darker than the glass
+ *  over them: black at 4% on the light sheet, 18% on the dark. */
+const SHEET_BELOW = "bg-black/[0.04] dark:bg-black/[0.18] print:bg-transparent";
+
 export default function MapPanel({ label, top, controls, compact, children, state, onStateChange, onInsetsChange, toEdge: edgeAsked = false, bar, layer = "tab", cardOver: overAsked = false, foot }: Props) {
   // A tab's options for a tab, a card's for a card: what each layer takes.
   const cardInPill = layer === "card";
@@ -793,7 +797,10 @@ export default function MapPanel({ label, top, controls, compact, children, stat
             <TabBarMinimized.Provider value={minimized}><PanelSize.Provider value={panelSize}>{bar}</PanelSize.Provider></TabBarMinimized.Provider>
           </div>
         )}
-        <div className="relative flex flex-col">
+        {/* Under the tab bar, the route's box and its buttons a shade
+            darker too (SHEET_BELOW), for the clear glass to stand off it
+            (the owner's "So clear buttons can pop out more"). */}
+        <div className={cn("relative flex flex-col", bar && barShown && !pillShape && SHEET_BELOW)}>
         {crossFade && (
           <div aria-hidden="true" inert className="pointer-events-none absolute inset-x-0 top-0 z-10 p-[9px]" style={{ opacity: 1 - morph }}>
             {compact}
@@ -853,6 +860,11 @@ export default function MapPanel({ label, top, controls, compact, children, stat
         ref={dragBody}
         className={cn(
           "flex min-h-0 flex-1 flex-col border-border/60", expanded && shown > detents.half + 1 && cn("border-t", !fromBottom && "pb-4"),
+          // A shade darker than the head over it, at the owner's ask ("Can
+          // we try a bit darker color for sheet below the top frosty
+          // bar?"), as iOS's grouped lists sit a shade under their bar:
+          // the head and its glass buttons stand off what scrolls (SHEET_BELOW).
+          !pillShape && SHEET_BELOW,
           // At rest the pill is its one row: the body, squeezed to nothing
           // there, kept but out of sight and of the
           // keyboard's reach -- unclipped, a card open in it (an airplane's,
@@ -881,7 +893,7 @@ export default function MapPanel({ label, top, controls, compact, children, stat
             // buttons").
             // Giving way where the half is short of it, after the body: FPL's
             // side view shrinks first (PlanWorkspace), its figures kept whole.
-            "flex min-h-0 shrink flex-col print:hidden", cardInPill ? "px-0" : "px-4",
+            "flex min-h-0 shrink flex-col print:hidden", cardInPill ? "px-0" : "px-4", !pillShape && SHEET_BELOW,
             // In the pill under the tabs, the figures alone: what the foot
             // keeps for half way and up (FPL's side view, data-pill-hides)
             // put away.
