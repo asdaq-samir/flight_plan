@@ -190,6 +190,7 @@ class PlannerProxyControllerTest {
         // A stop's services (food, fuel and rest stops, 2026-10-22).
         assertThat(PlannerProxyController.isForwarded("GET", "/api/airport/KHYS/services")).isTrue();
         assertThat(PlannerProxyController.isForwarded("GET", "/api/route-stops")).isTrue();
+        assertThat(PlannerProxyController.isForwarded("GET", "/api/route-options")).isTrue();
         assertThat(PlannerProxyController.isForwarded("GET", "/api/airport/KIOW/photos")).isTrue();
         assertThat(PlannerProxyController.isForwarded("GET", "/api/airport-aerial/KIOW.jpg")).isTrue();
         assertThat(PlannerProxyController.isForwarded("GET", "/api/airport-photo/KSCD.jpg")).isTrue();

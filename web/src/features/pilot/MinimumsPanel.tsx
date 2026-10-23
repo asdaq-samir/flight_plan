@@ -1,7 +1,7 @@
 import { ListGroup, ListRow } from "../../components/GroupedList";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
 import { MINIMUM_CHOICES, type Minimums } from "../../lib/minimums";
-import { usePreferences } from "../../lib/preferences";
+import { usePreferences, type RouteWeather } from "../../lib/preferences";
 import { grouped } from "../../lib/units";
 
 /** How each minimum reads in its menu. */
@@ -21,6 +21,8 @@ const MINIMUM_ROWS: { key: keyof Minimums; title: string; unit: (n: number) => s
 export default function MinimumsPanel() {
   const minimums = usePreferences(s => s.minimums);
   const setMinimum = usePreferences(s => s.setMinimum);
+  const routeWeather = usePreferences(s => s.routeWeather);
+  const setRouteWeather = usePreferences(s => s.setRouteWeather);
   return (
     // The briefing says where the weather is under them.
     <ListGroup title="Personal minimums">
@@ -37,6 +39,20 @@ export default function MinimumsPanel() {
           </Select>
         </ListRow>
       ))}
+      {/* What FPL's Routes go round: these, or 14 CFR 91.155's alone --
+          thunderstorms either way (lib/routeOptions), at the owner's "This
+          can be a setting. But also avoid thunderstorms etc". */}
+      <ListRow title="Routes keep to">
+        <Select value={routeWeather} onValueChange={v => setRouteWeather(v as RouteWeather)}>
+          <SelectTrigger size="sm" aria-label="Routes keep to" data-testid="route-weather">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent align="end">
+            <SelectItem value="personal">These minimums</SelectItem>
+            <SelectItem value="legal">VFR minimums</SelectItem>
+          </SelectContent>
+        </Select>
+      </ListRow>
     </ListGroup>
   );
 }

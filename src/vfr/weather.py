@@ -354,10 +354,29 @@ def wind_at_altitude(lat: float, lon: float, altitude_ft: float, fcst_hr: str = 
     station_id = _nearest_station(lat, lon, set(stations.keys()), airports_df)
     if station_id is None:
         return None
+    return wind_in_levels(stations[station_id], altitude_ft)
 
+
+def wind_stations(fcst_hr: str = "06") -> tuple:
+    """Every FD station's levels and where it is: (ids, lats, lons in
+    degrees, [levels]) -- for reading the winds over a whole grid at once
+    (vfr.route_options), where wind_at_altitude finds the nearest station
+    for one point."""
+    from . import airports
+
+    stations = _fd_stations(fcst_hr)
+    codes, lats, lons = _station_rows(set(stations.keys()), airports.load_airports())
+    return codes, np.degrees(lats), np.degrees(lons), [stations[str(c)] for c in codes]
+
+
+def wind_in_levels(levels: dict, altitude_ft: float) -> dict | None:
+    """One FD station's wind at altitude_ft from its levels ({altitude:
+    {"wind_dir_true_deg", "wind_speed_kt", ...}}), as wind_at_altitude
+    reads it: interpolated between the levels either side, clamped at the
+    ends, light and variable left out; None with no usable level."""
     profile = sorted(
         (alt, v["wind_dir_true_deg"], v["wind_speed_kt"])
-        for alt, v in stations[station_id].items()
+        for alt, v in levels.items()
         if v["wind_dir_true_deg"] is not None
     )
     if not profile:
@@ -651,6 +670,10 @@ def _parse_metars(xml_bytes: bytes) -> dict:
             # fails, and a colour alone says nothing about its age.
             "observed_at": observed or None,
             "flight_category": el.findtext("flight_category"),
+            # The weather itself, "-TSRA BR", as reported: a thunderstorm
+            # at or near the field (TS, VCTS) is one to keep away from
+            # (vfr.route_options).
+            "wx": el.findtext("wx_string") or "",
             "ceiling_ft": _ceiling_ft(period),
             "visibility_sm": _visibility_sm(period),
             # "VRB" is a direction the arithmetic can't use.
@@ -807,6 +830,9 @@ def _parse_tafs(xml_bytes: bytes) -> list:
                 "timeFrom": start, "timeTo": end,
                 "change": forecast.findtext("change_indicator") or "",
                 **_period(forecast),
+                # The weather forecast, "TSRA", "VCTS": thunderstorms in a
+                # period are one to keep away from (vfr.route_options).
+                "wx": forecast.findtext("wx_string") or "",
                 # Its wind, from true north as a TAF gives it (AC 00-45H,
                 # the TAF; a METAR's too), for the runway a flight will
                 # find in use when it gets there. VRB has no direction.

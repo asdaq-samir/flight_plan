@@ -147,8 +147,9 @@ def test_metar_for_idents_reads_the_newest_report_per_station_from_the_cache_fil
     assert result["KDLH"]["wind_speed_kt"] == 3.0
     assert result["KORD"] == {
         "raw": "KORD 200151Z 09008KT 2SM BR OVC006 14/13 A2998", "observed_at": "2026-09-20T01:51:00.000Z",
-        "flight_category": "IFR", "ceiling_ft": 600, "visibility_sm": 2.0, "wind_dir_true_deg": None, "wind_speed_kt": None,
-        "wind_gust_kt": None, "altimeter_in_hg": None, "temp_c": None, "dewpoint_c": None, "lat": None, "lon": None,
+        "flight_category": "IFR", "wx": "", "ceiling_ft": 600, "visibility_sm": 2.0, "wind_dir_true_deg": None,
+        "wind_speed_kt": None, "wind_gust_kt": None, "altimeter_in_hg": None, "temp_c": None, "dewpoint_c": None,
+        "lat": None, "lon": None,
     }
     assert result["C81"] is None
 

@@ -9038,6 +9038,195 @@
         "title": "RouteAirport",
         "type": "object"
       },
+      "RouteHazard": {
+        "description": "What a way keeps clear of (vfr.route_options): its kind -- storm,\nweather, marginal, sigmet, tfr, prohibited, terrain -- and its words.",
+        "properties": {
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "name"
+        ],
+        "title": "RouteHazard",
+        "type": "object"
+      },
+      "RouteOption": {
+        "description": "One way to fly the route (vfr.route_options): the points between\nits ends in order, as the address's `stops` takes them -- turns as the\npilot's own points off a fix, fuel stops as fields (`fuel`) -- and the\nkinds of way it is the best of, with its estimate of the flight. The\nhazards it still crosses and the marginal weather it passes, by their\nindex in RouteOptions.hazards.",
+        "properties": {
+          "air_min": {
+            "title": "Air Min",
+            "type": "number"
+          },
+          "crosses": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Crosses",
+            "type": "array"
+          },
+          "distance_nm": {
+            "title": "Distance Nm",
+            "type": "number"
+          },
+          "fuel": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Fuel",
+            "type": "array"
+          },
+          "fuel_gal": {
+            "title": "Fuel Gal",
+            "type": "number"
+          },
+          "ground_min": {
+            "title": "Ground Min",
+            "type": "number"
+          },
+          "kind": {
+            "enum": [
+              "fastest",
+              "weather",
+              "stops"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "kinds": {
+            "items": {
+              "enum": [
+                "fastest",
+                "weather",
+                "stops"
+              ],
+              "type": "string"
+            },
+            "title": "Kinds",
+            "type": "array"
+          },
+          "landings": {
+            "title": "Landings",
+            "type": "integer"
+          },
+          "marginal": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Marginal",
+            "type": "array"
+          },
+          "path": {
+            "items": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "title": "Path",
+            "type": "array"
+          },
+          "stops": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Stops",
+            "type": "array"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "kinds",
+          "title",
+          "stops",
+          "fuel",
+          "path",
+          "distance_nm",
+          "air_min",
+          "ground_min",
+          "fuel_gal",
+          "landings",
+          "crosses",
+          "marginal"
+        ],
+        "title": "RouteOption",
+        "type": "object"
+      },
+      "RouteOptions": {
+        "description": "The ways to fly a route, the fastest first; what the straight line\ncrosses (`direct`), what is at its ends (`ends`) and what the pilot's\nown route crosses and passes (`current`, `current_marginal`), by index\nin `hazards`; and the sources that could not be read now (`unchecked`).",
+        "properties": {
+          "current": {
+            "default": [],
+            "items": {
+              "type": "integer"
+            },
+            "title": "Current",
+            "type": "array"
+          },
+          "current_marginal": {
+            "default": [],
+            "items": {
+              "type": "integer"
+            },
+            "title": "Current Marginal",
+            "type": "array"
+          },
+          "direct": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Direct",
+            "type": "array"
+          },
+          "ends": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Ends",
+            "type": "array"
+          },
+          "hazards": {
+            "items": {
+              "$ref": "#/components/schemas/RouteHazard"
+            },
+            "title": "Hazards",
+            "type": "array"
+          },
+          "options": {
+            "items": {
+              "$ref": "#/components/schemas/RouteOption"
+            },
+            "title": "Options",
+            "type": "array"
+          },
+          "unchecked": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Unchecked",
+            "type": "array"
+          }
+        },
+        "required": [
+          "options",
+          "direct",
+          "ends",
+          "hazards",
+          "unchecked"
+        ],
+        "title": "RouteOptions",
+        "type": "object"
+      },
       "RouteProfile": {
         "description": "The route's side view (vfr.profile): its length, the ground under\nit, and the controlled airspace it passes through.",
         "properties": {
@@ -14518,6 +14707,200 @@
           }
         },
         "summary": "Retrain"
+      }
+    },
+    "/api/route-options": {
+      "get": {
+        "description": "The ways to fly from `dep` to `dest` in the airplane, at the owner's\nask (\"smart to reroute for fastest time along safe weather, over\nterrain, best tailwinds, refueling\", 2026-10-23): each its points in\norder for the address's `stops`, its fuel stops, and its distance,\nminutes and fuel, from a coarse read the plan then checks leg by leg.\nIt only suggests.",
+        "operationId": "route_options_api_route_options_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "dep",
+            "required": true,
+            "schema": {
+              "title": "Dep",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "dest",
+            "required": true,
+            "schema": {
+              "title": "Dest",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "stops",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Stops",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "aircraft",
+            "required": false,
+            "schema": {
+              "default": "c172",
+              "title": "Aircraft",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cruise_tas_kt",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "maximum": 1000,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cruise Tas Kt"
+            }
+          },
+          {
+            "in": "query",
+            "name": "fuel_burn_gph",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "maximum": 200,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Fuel Burn Gph"
+            }
+          },
+          {
+            "in": "query",
+            "name": "usable_fuel_gal",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "maximum": 2000,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Usable Fuel Gal"
+            }
+          },
+          {
+            "in": "query",
+            "name": "service_ceiling_ft",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 30000,
+                  "minimum": 1000,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Service Ceiling Ft"
+            }
+          },
+          {
+            "in": "query",
+            "name": "depart",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Depart"
+            }
+          },
+          {
+            "in": "query",
+            "name": "min_ceiling_ft",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 20000,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Min Ceiling Ft"
+            }
+          },
+          {
+            "in": "query",
+            "name": "min_visibility_sm",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 50,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Min Visibility Sm"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RouteOptions"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Route Options"
       }
     },
     "/api/route-profile": {
