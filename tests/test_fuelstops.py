@@ -77,3 +77,11 @@ def test_the_fields_along_each_flight_in_route_order_the_routes_own_left_out():
     assert [(f["ident"], f["flight"], f["departure"]) for f in found] == [
         ("EARLY", 0, "A"), ("LATE", 0, "A"), ("SECOND", 1, "MID")]
     assert found[0]["from_nm"] == pytest.approx(60, abs=1) and found[0]["fuel_types"] == ["100LL"]
+
+
+def test_a_long_trip_is_given_every_stop_it_needs_at_once():
+    # 1,500 nm at 340 nm a tank: four stops, where three were the most
+    # put in, and the fourth asked for only once the three were kept.
+    end = (0.0, 25.0)
+    stops, _ = fuelstops.suggest(START, end, fields=fields(*[(f"S{k}", 0.0, 5.0 * k) for k in range(1, 5)]), **FIGURES)
+    assert [s.ident for s in stops] == ["S1", "S2", "S3", "S4"]
