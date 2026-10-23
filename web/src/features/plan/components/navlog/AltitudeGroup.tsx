@@ -147,19 +147,20 @@ export default function AltitudeGroup({ nav, legs, commanded = null, problem = f
       data-testid="altitude-group"
     >
       <span aria-hidden="true" className="invisible col-start-1 row-start-1 flex h-0 overflow-hidden">
-        <span className="whitespace-pre pr-3 pl-2.5 font-semibold tabular-nums">000</span>
+        <span className="whitespace-pre pr-1.5 pl-2.5 font-semibold tabular-nums">000</span>
         <span className="w-[1.5625rem] shrink-0" />
       </span>
       {/* Two points over the field's own padding, for the caret. */}
-      <span aria-hidden="true" className="invisible col-start-1 row-start-1 h-0 overflow-hidden whitespace-pre pr-3 pl-2.5 font-normal">
+      <span aria-hidden="true" className="invisible col-start-1 row-start-1 h-0 overflow-hidden whitespace-pre pr-1.5 pl-2.5 font-normal">
         {PLACEHOLDER}
       </span>
       <div className="col-start-1 row-start-1 flex h-full min-w-0 items-center">
-        {/* Six points after the figure, the label's, as "ft" stood there:
-            the profile button's area reaches four into the gap, and with
-            less the two areas met over each other (the iOS audit's P1). Its
-            44-point area a pseudo-element round it, nothing grown. */}
-        <label className="relative flex h-full min-w-0 flex-1 items-center pr-1.5 after:absolute after:-inset-y-2 after:-left-0.5 after:right-0 after:content-['']">
+        {/* Six points after the figure, at the owner's ask ("Does the button
+            need to have that much spacing between text and button in the
+            grouped inputs?"): it was twelve. The button over the field
+            (z-20), so its 44-point area, a pseudo-element round it, is its
+            own where it reaches into the figure's room. */}
+        <label className="relative flex h-full min-w-0 flex-1 items-center pr-1 after:absolute after:-inset-y-2 after:-left-0.5 after:right-0 after:content-['']">
           <input
             type="text" inputMode="numeric" enterKeyHint="done" autoComplete="off" size={1}
             value={shown} placeholder={PLACEHOLDER} aria-label="Cruise altitude, hundreds of feet"
@@ -167,7 +168,7 @@ export default function AltitudeGroup({ nav, legs, commanded = null, problem = f
             onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); fly(); (e.target as HTMLInputElement).blur(); } if (e.key === "Escape") setTyped(null); }}
             onBlur={fly}
             className={cn(
-              "relative z-10 h-full w-0 min-w-0 flex-1 bg-transparent pr-1.5 pl-2.5 font-semibold tabular-nums outline-none placeholder:font-normal",
+              "relative z-10 h-full w-0 min-w-0 flex-1 bg-transparent pr-0.5 pl-2.5 font-semibold tabular-nums outline-none placeholder:font-normal",
               problem ? "text-red-700 dark:text-red-300" : "text-foreground",
             )}
             data-testid="altitude-input"
@@ -187,7 +188,7 @@ export default function AltitudeGroup({ nav, legs, commanded = null, problem = f
             // ask ("The profile button should also get the glass tinted. But
             // the altitude entry should stay as a text box"): the field's
             // end, where a line parted it from the figure before.
-            "relative mr-[3px] flex size-[1.375rem] shrink-0 items-center justify-center rounded-full outline-none after:absolute after:-inset-[11px] after:content-[''] focus-visible:ring-2 focus-visible:ring-ring disabled:text-muted-foreground",
+            "relative z-20 mr-[3px] flex size-[1.375rem] shrink-0 items-center justify-center rounded-full outline-none after:absolute after:-inset-[11px] after:content-[''] focus-visible:ring-2 focus-visible:ring-ring disabled:text-muted-foreground",
             GLASS_BUTTON,
             problem && "text-red-700 dark:text-red-300",
           )}

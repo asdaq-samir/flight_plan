@@ -85,19 +85,19 @@ export default function FlightInputs({ aircraftValue, aircraftOptions, onAircraf
             button -- so the route box's row keeps its one line (briefing's
             spec: Share level with the airplane). */}
         <span aria-hidden="true" className="invisible col-start-1 row-start-1 flex h-0 overflow-hidden">
-          {shown ? <span className="whitespace-pre pr-3 pl-2.5 font-semibold">{shown}</span>
+          {shown ? <span className="whitespace-pre pr-1.5 pl-2.5 font-semibold">{shown}</span>
             : <span className={cn("whitespace-pre pr-2.5 pl-2.5 font-normal", TEXT.detail)}>N-number</span>}
           {tailNow && typed === null && onOpenAirplane && <span className="w-[1.5625rem] shrink-0" />}
         </span>
         <div className="col-start-1 row-start-1 flex h-full min-w-0 items-center">
-          <label className="relative flex h-full min-w-0 flex-1 items-center pr-1.5 after:absolute after:-inset-y-2 after:-left-0.5 after:right-0 after:content-['']">
+          <label className="relative flex h-full min-w-0 flex-1 items-center pr-1 after:absolute after:-inset-y-2 after:-left-0.5 after:right-0 after:content-['']">
             <input
               type="text" autoCapitalize="characters" autoCorrect="off" spellCheck={false} enterKeyHint="done" autoComplete="off" size={1}
               value={shown} placeholder="N-number" aria-label="Airplane, N-number"
               onChange={e => setTyped(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6))}
               onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); commit(); (e.target as HTMLInputElement).blur(); } if (e.key === "Escape") setTyped(null); }}
               onBlur={commit}
-              className={cn("relative z-10 h-full w-0 min-w-0 flex-1 bg-transparent pr-1.5 pl-2.5 font-semibold text-foreground outline-none placeholder:font-normal", !shown && TEXT.detail)}
+              className={cn("relative z-10 h-full w-0 min-w-0 flex-1 bg-transparent pr-0.5 pl-2.5 font-semibold text-foreground outline-none placeholder:font-normal", !shown && TEXT.detail)}
               data-testid="aircraft-input"
             />
           </label>
@@ -107,7 +107,7 @@ export default function FlightInputs({ aircraftValue, aircraftOptions, onAircraf
               // 22 inside the field's 28, three in from its end, at the owner's
               // ask ("buttons for n number and altitude should be smaller to
               // fit in its input group"); its 44 a pseudo-element round it.
-              className={cn("relative mr-[3px] flex size-[1.375rem] shrink-0 items-center justify-center rounded-full outline-none after:absolute after:-inset-[11px] after:content-[''] focus-visible:ring-2 focus-visible:ring-ring", GLASS_BUTTON)}
+              className={cn("relative z-20 mr-[3px] flex size-[1.375rem] shrink-0 items-center justify-center rounded-full outline-none after:absolute after:-inset-[11px] after:content-[''] focus-visible:ring-2 focus-visible:ring-ring", GLASS_BUTTON)}
             >
               <Plane className="size-3.5 text-tint" aria-hidden="true" />
             </button>
