@@ -11,6 +11,7 @@ between two landings -- a hop -- is planned as a route of its own, with
 its own chart read, altitude plan, climb from the field and fuel check,
 the hops planned at once, and the nav log runs on through each stop."""
 import logging
+import math
 import re
 import threading
 import time
@@ -20,6 +21,7 @@ from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
+import numpy as np
 from cachetools import TTLCache
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import Response, StreamingResponse
@@ -892,10 +894,11 @@ def totals_of(r: Route, runs: list[HopRun], outcome: "Flown", profile: dict, rul
     through any waypoints (Route.flights), with its fuel check, joined
     (app.planning.route_totals). Under IFR with an `alternate` filed, the
     last flight's check carries the leg on to it (alternate_leg)."""
-    per_flight, at = [], 0
+    per_flight, flown, at = [], [], 0
     for i, flight in enumerate(r.flights):
         hops = len(flight.idents) - 1
         legs = [leg for legs in outcome.hop_legs[at:at + hops] for leg in legs]
+        flown.append((legs, runs[at].depart))
         leg_on = None
         if rules == "ifr" and alternate.strip() and i == len(r.flights) - 1 and legs:
             try:
@@ -908,13 +911,47 @@ def totals_of(r: Route, runs: list[HopRun], outcome: "Flown", profile: dict, rul
         per_flight.append(flight_totals(legs, profile, flight, runs[at].depart, rules, leg_on))
         at += hops
     totals = route_totals(per_flight, r.flights)
-    totals["fuel_stops"] = fuel_stops_of(r, per_flight)
+    totals["fuel_stops"] = fuel_stops_of(r, per_flight, flown)
     # The time on the ground at the stops (hop_runs), for the arrival.
     totals["ground_min"] = sum(ground_min_at(ground, f.dest_ident) for f in r.flights[:-1])
     return totals
 
 
-def fuel_stops_of(r: Route, per_flight: list[dict]) -> list[dict]:
+def worst_burn_per_nm(legs: list[dict], over_nm: float) -> float | None:
+    """The most fuel a mile any stretch of `over_nm` of the legs takes:
+    their climb, and their headwinds where those blow hardest. The flight's
+    average hid them, and a stop picked on it fell short where the winds
+    were against it (KMTO-KUCP, 2026-10-23: 0.072 gal/nm on average, 0.078
+    on that leg)."""
+    miles = np.array([leg.get("distance_nm") or 0.0 for leg in legs], dtype=float)
+    fuel = np.array([leg.get("fuel_gal") if leg.get("fuel_gal") is not None else np.nan for leg in legs], dtype=float)
+    if not len(miles) or np.isnan(fuel).any() or miles.sum() <= 0:
+        return None
+    d, f = np.concatenate([[0.0], np.cumsum(miles)]), np.concatenate([[0.0], np.cumsum(fuel)])
+    span = min(over_nm, d[-1])
+    ends = np.minimum(np.searchsorted(d, d + span - 1e-9), len(d) - 1)
+    stretch = d[ends] - d
+    ok = stretch >= span - 1e-6
+    return float(((f[ends] - f)[ok] / stretch[ok]).max())
+
+
+def night_on_the_way(start: tuple, end: tuple, depart: datetime | None, minutes: float) -> bool:
+    """Whether any of a trip from `start` to `end` of `minutes`, its stops'
+    time on the ground counted, falls in the night, judged every half hour
+    at where it is by then along the straight line: a stop's flight
+    landing after dark is held to 14 CFR 91.151(a)(2)'s 45 minutes, which
+    the one long flight, day at both its ends, was not."""
+    depart = planning_module.now() if depart is None else depart if depart.tzinfo else depart.replace(tzinfo=timezone.utc)
+    steps = max(1, int(minutes // 30) + 1)
+    for k in range(steps + 1):
+        at = min(k * 30.0, minutes) / minutes if minutes else 0.0
+        lat, lon = start[0] + (end[0] - start[0]) * at, start[1] + (end[1] - start[1]) * at
+        if sun.is_night(lat, lon, depart + timedelta(minutes=at * minutes)):
+            return True
+    return False
+
+
+def fuel_stops_of(r: Route, per_flight: list[dict], flown: list[tuple[list[dict], datetime | None]]) -> list[dict]:
     """Where each flight the tanks do not hold could land for fuel
     (vfr.fuelstops.suggest), at the owner's ask ("suggest fuel stops just
     like Tesla suggests"): the stops that make it, and other fields for the
@@ -925,15 +962,30 @@ def fuel_stops_of(r: Route, per_flight: list[dict]) -> list[dict]:
     or a rest is picked. None where every flight's fuel check passes, or
     where the usable fuel or the flight's figures are not known."""
     out = []
-    for flight, t in zip(r.flights, per_flight):
+    for flight, t, (legs, depart) in zip(r.flights, per_flight, flown):
         margin, usable, distance = t.get("fuel_margin_gal"), t.get("usable_fuel_gal"), t.get("distance_nm")
         if margin is None or margin >= 0 or not usable or not distance or t.get("fuel_gal") is None or t.get("ete_min") is None:
             continue
+        # Each stop's flight as its nav log will fly it, so that a chain
+        # kept never asks for another stop (the owner's "Still asking for
+        # another stop"): at the worst burn a mile over a tankful's
+        # stretch, on the miles the route flies for each straight one,
+        # and held to the night's reserve where any of the trip is in the
+        # dark.
+        taxi, reserve = t.get("taxi_gal") or 0.0, t.get("reserve_gal") or 0.0
+        straight = float(geo.distance_nm(flight.start[0], flight.start[1], flight.end[0], flight.end[1]))
+        detour = max(1.0, distance / straight) if straight else 1.0
+        stops_needed = math.ceil(t["fuel_gal"] / max(usable - taxi - reserve, 1.0))
+        if t.get("rules") != "ifr" and not t.get("night") and night_on_the_way(
+                flight.start, flight.end, depart, t["ete_min"] + stops_needed * TURNAROUND_MIN):
+            reserve = reserve * navlog.NIGHT_RESERVE_MIN / navlog.DAY_RESERVE_MIN
+        per_nm = t["fuel_gal"] / distance
+        worst = worst_burn_per_nm(legs, (usable - taxi - reserve) / per_nm) or per_nm
         try:
             stops, choices = fuelstops.suggest(
-                flight.start, flight.end, fuel_per_nm=t["fuel_gal"] / distance, min_per_nm=t["ete_min"] / distance,
-                usable_gal=usable, taxi_gal=t.get("taxi_gal") or 0.0, reserve_gal=t.get("reserve_gal") or 0.0,
-                skip=set(r.idents),
+                flight.start, flight.end, fuel_per_nm=max(worst, per_nm) * detour,
+                min_per_nm=t["ete_min"] / distance * detour,
+                usable_gal=usable, taxi_gal=taxi, reserve_gal=reserve, skip=set(r.idents),
             )
         except (OSError, ValueError, KeyError):
             # The airport tables missing or unreadable: the fuel check
