@@ -5082,6 +5082,152 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "HandbookFigure": {
+        "description": "One figure the page gives, in the planner's units, and the page's own\nwords for it, to be found on the page.",
+        "properties": {
+          "page_words": {
+            "title": "Page Words",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "number"
+          }
+        },
+        "required": [
+          "value",
+          "page_words"
+        ],
+        "title": "HandbookFigure",
+        "type": "object"
+      },
+      "HandbookFigures": {
+        "description": "The planning figures the photographed page gives; none it does not.",
+        "properties": {
+          "climb_rate_fpm": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HandbookFigure"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "climb_tas_kt": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HandbookFigure"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cruise_altitude_ft": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HandbookFigure"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cruise_power_pct": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HandbookFigure"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cruise_tas_kt": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HandbookFigure"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "fuel_burn_gph": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HandbookFigure"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "not_a_handbook_page": {
+            "default": false,
+            "title": "Not A Handbook Page",
+            "type": "boolean"
+          },
+          "service_ceiling_ft": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HandbookFigure"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "usable_fuel_gal": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HandbookFigure"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "HandbookFigures",
+        "type": "object"
+      },
+      "HandbookPage": {
+        "description": "A photo of a handbook's specifications or performance page.",
+        "properties": {
+          "image_base64": {
+            "title": "Image Base64",
+            "type": "string"
+          },
+          "media_type": {
+            "default": "image/jpeg",
+            "enum": [
+              "image/jpeg",
+              "image/png",
+              "image/webp"
+            ],
+            "title": "Media Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "image_base64"
+        ],
+        "title": "HandbookPage",
+        "type": "object"
+      },
       "Hazard": {
         "description": "A SIGMET/AIRMET whose polygon the route line crosses.",
         "properties": {
@@ -13174,6 +13320,44 @@
           }
         },
         "summary": "Foreflight Pack"
+      }
+    },
+    "/api/handbook/read": {
+      "post": {
+        "operationId": "read_handbook_api_handbook_read_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HandbookPage"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HandbookFigures"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Handbook"
       }
     },
     "/api/local-flight": {

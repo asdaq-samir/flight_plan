@@ -14,7 +14,10 @@ public enum PaidFeature {
     NARRATIVE("The written briefing comes", "written briefings", true),
     CHECKPOINT_NOTES("Checkpoint descriptions come", "checkpoint descriptions", true),
     ORAL("The mock oral comes", "mock-oral questions and grades", true),
-    DEBRIEF("The debrief comes", "debriefs", false);
+    DEBRIEF("The debrief comes", "debriefs", false),
+    /** An airplane's figures read off a photo of its handbook page, each a
+     *  Claude call (the planner's app.handbook). */
+    HANDBOOK("Reading a handbook page comes", "handbook pages read", true);
 
     private final String comes;
     private final String counted;

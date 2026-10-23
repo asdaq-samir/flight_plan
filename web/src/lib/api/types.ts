@@ -146,6 +146,7 @@ export type Traffic = Schemas["Traffic"];
 export type AircraftBases = Schemas["AircraftBases"];
 export type TrafficAircraft = Schemas["TrafficAircraft"];
 export type TrafficFound = Schemas["TrafficFound"];
+export type HandbookFigures = Schemas["HandbookFigures"];
 /** A tracked flight: its airplane, where it took off, its path today. */
 export type FlightDetail = Schemas["FlightDetail"];
 /** An airplane's state now, for the alerts a pilot sets on it (vfr.traffic.status). */

@@ -160,6 +160,8 @@ public class PlannerProxyController {
             // The developer's.
             route("POST", "/api/oral/question"),
             route("POST", "/api/oral/grade"),
+            // An airplane's figures off a photo of its handbook's page.
+            route("POST", "/api/handbook/read"),
             route("GET", "/api/detect/stream"),
             route("GET", "/api/classify"),
             route("POST", "/api/picks"),
@@ -197,7 +199,8 @@ public class PlannerProxyController {
     static final Map<String, PaidFeature> PAID_PATHS = Map.of(
             "/api/checkpoint-notes/generate", PaidFeature.CHECKPOINT_NOTES,
             "/api/oral/question", PaidFeature.ORAL,
-            "/api/oral/grade", PaidFeature.ORAL);
+            "/api/oral/grade", PaidFeature.ORAL,
+            "/api/handbook/read", PaidFeature.HANDBOOK);
 
     public PlannerProxyController(
             StreamingProxy proxy,

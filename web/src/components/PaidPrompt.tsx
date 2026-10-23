@@ -1,6 +1,6 @@
 import { Suspense, lazy, type ReactNode } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { BookOpenCheck, Gauge, MessageSquareText, Sparkles } from "lucide-react";
+import { BookOpenCheck, Camera, Gauge, MessageSquareText, Sparkles } from "lucide-react";
 import { cn } from "cn";
 import EmptyState from "./EmptyState";
 import { Button } from "./ui/button";
@@ -19,6 +19,7 @@ const TITLES: Record<PaidFeature, string> = {
   CHECKPOINT_NOTES: "Checkpoint Descriptions",
   ORAL: "Mock Oral",
   DEBRIEF: "Debrief",
+  HANDBOOK: "Handbook Reading",
 };
 
 const ICONS: Record<PaidFeature, ReactNode> = {
@@ -26,6 +27,7 @@ const ICONS: Record<PaidFeature, ReactNode> = {
   CHECKPOINT_NOTES: <Sparkles />,
   ORAL: <BookOpenCheck />,
   DEBRIEF: <Gauge />,
+  HANDBOOK: <Camera />,
 };
 
 /**

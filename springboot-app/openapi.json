@@ -605,7 +605,7 @@
             "type" : "integer"
           },
           "feature" : {
-            "enum" : [ "NARRATIVE", "CHECKPOINT_NOTES", "ORAL", "DEBRIEF" ],
+            "enum" : [ "NARRATIVE", "CHECKPOINT_NOTES", "ORAL", "DEBRIEF", "HANDBOOK" ],
             "example" : "NARRATIVE",
             "type" : "string"
           },

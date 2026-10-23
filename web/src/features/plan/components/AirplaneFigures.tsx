@@ -1,11 +1,12 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "cn";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
 import { Button } from "../../../components/ui/button";
 import { Input } from "../../../components/ui/input";
 import { shortName } from "../../../lib/aircraftChoice";
-import type { AircraftChoice } from "../../../lib/api/types";
+import { api, describeError } from "../../../lib/api/client";
+import type { AircraftChoice, HandbookFigures } from "../../../lib/api/types";
 import { usePreferences, type TailFigures } from "../../../lib/preferences";
 import { aircraftProfilesQuery } from "../../../lib/queryClient";
 import { TEXT } from "../../../lib/text";
@@ -23,6 +24,26 @@ const FIELDS: { key: keyof TailFigures; label: string; unit: string; min: number
   { key: "serviceCeilingFt", label: "Service ceiling", unit: "ft", min: 1000, max: 30000 },
 ];
 
+/** Each figure the handbook reading gives, by the field it fills. */
+const READ: { from: keyof HandbookFigures; key: keyof TailFigures }[] = [
+  { from: "cruise_tas_kt", key: "cruiseTasKt" }, { from: "cruise_power_pct", key: "cruisePowerPct" },
+  { from: "fuel_burn_gph", key: "fuelBurnGph" }, { from: "usable_fuel_gal", key: "usableFuelGal" },
+  { from: "climb_tas_kt", key: "climbTasKt" }, { from: "service_ceiling_ft", key: "serviceCeilingFt" },
+];
+
+/** A phone's photo as a JPEG at most 1,600 points on its longer side, in
+ *  base64: as much as a page's small print needs, a few hundred kilobytes
+ *  to send rather than several megabytes. */
+async function smaller(file: File): Promise<string> {
+  const bitmap = await createImageBitmap(file);
+  const scale = Math.min(1, 1600 / Math.max(bitmap.width, bitmap.height));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(bitmap.width * scale);
+  canvas.height = Math.round(bitmap.height * scale);
+  canvas.getContext("2d")!.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  return canvas.toDataURL("image/jpeg", 0.85).split(",")[1]!;
+}
+
 /**
  * The figures the planner flies the airplane on, for the pilot's own
  * N-number, at the owner's ask ("give users a way to change these specs
@@ -38,6 +59,33 @@ export function AirplaneFigures({ tail }: { tail: string }) {
   const setTailFigures = usePreferences(p => p.setTailFigures);
   const { data: profiles } = useQuery(aircraftProfilesQuery);
   const [editing, setEditing] = useState<Record<string, string> | null>(null);
+  // A photo of the handbook's page read for the figures, at the owner's ask
+  // ("add a way to upload a pic or add a photo of their manual"): what it
+  // read filled in for the pilot to check against the page, and the page's
+  // own words for each, before anything is saved.
+  const photo = useRef<HTMLInputElement>(null);
+  const [reading, setReading] = useState<{ busy: boolean; words: string[]; problem: string | null }>({ busy: false, words: [], problem: null });
+  const readPhoto = async (file: File) => {
+    setReading({ busy: true, words: [], problem: null });
+    try {
+      const read = await api.readHandbook(await smaller(file), "image/jpeg");
+      if (read.not_a_handbook_page) {
+        setReading({ busy: false, words: [], problem: "That photo is not a handbook's figures: take the specifications or cruise performance page." });
+        return;
+      }
+      const found = READ.flatMap(r => {
+        const figure = read[r.from] as { value: number; page_words: string } | null | undefined;
+        return figure ? [{ key: r.key, value: Math.round(figure.value * 10) / 10, words: figure.page_words }] : [];
+      });
+      setEditing(e => ({ ...(e ?? {}), ...Object.fromEntries(found.map(f => [f.key, String(f.value)])) }));
+      setReading({
+        busy: false, words: found.map(f => f.words),
+        problem: found.length ? null : "No planning figures were read off that page.",
+      });
+    } catch (err) {
+      setReading({ busy: false, words: [], problem: describeError(err, "The page could not be read") });
+    }
+  };
   if (shortName(aircraft.label) !== tail.toUpperCase()) return null;
   const stock = profiles?.find(p => p.name === aircraft.profile);
   const shown: Partial<Record<keyof TailFigures, number | undefined>> = {
@@ -90,9 +138,26 @@ export function AirplaneFigures({ tail }: { tail: string }) {
         />
       ))}
       {editing && (
-        <div className="flex justify-end gap-2 px-4 py-2">
-          <Button type="button" variant="outline" size="sm" onClick={() => setEditing(null)}>Cancel</Button>
-          <Button type="button" size="sm" onClick={save} data-testid="figures-save">Save</Button>
+        <div className="space-y-2 px-4 py-2">
+          {(reading.words.length > 0 || reading.problem) && (
+            <div className={cn("space-y-0.5", TEXT.detail)} role="status" data-testid="figures-read">
+              {reading.problem && <p className="text-destructive">{reading.problem}</p>}
+              {reading.words.length > 0 && <p className="font-semibold">Read from the page: check each against it before saving.</p>}
+              {reading.words.map(w => <p key={w} className="text-muted-foreground">{w}</p>)}
+            </div>
+          )}
+          <div className="flex items-center gap-2">
+            <input
+              ref={photo} type="file" accept="image/*" capture="environment" className="hidden" data-testid="figures-photo-input"
+              onChange={e => { const file = e.target.files?.[0]; e.target.value = ""; if (file) void readPhoto(file); }}
+            />
+            <Button type="button" variant="outline" size="sm" disabled={reading.busy} onClick={() => photo.current?.click()} data-testid="figures-photo">
+              {reading.busy ? "Reading the page…" : "Read from a photo"}
+            </Button>
+            <span className="flex-1" />
+            <Button type="button" variant="outline" size="sm" onClick={() => { setEditing(null); setReading({ busy: false, words: [], problem: null }); }}>Cancel</Button>
+            <Button type="button" size="sm" onClick={save} data-testid="figures-save">Save</Button>
+          </div>
         </div>
       )}
     </ListGroup>
