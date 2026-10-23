@@ -2,8 +2,9 @@ import L from "leaflet";
 // With the map, not the page's first script: its stylesheet has Leaflet's
 // chunk preloaded for everyone (issue #87).
 import "leaflet/dist/leaflet.css";
-// Its lines and shapes drawn to the fraction of a point (subpixel).
-import "./subpixel";
+// Its lines and shapes drawn to the fraction of a point, and no restyle of
+// every mark at a drag's start and end (subpixel).
+import { dropDraggingCursorRules } from "./subpixel";
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { MapContainer, ZoomControl } from "react-leaflet";
@@ -62,6 +63,9 @@ const COUNTRY: [number, number] = [39.5, -98.35];
 const MIN_FIT_M = 18_520;
 
 export function MapShell({ course, onReady, children, onSelectPlace, held = false }: Props) {
+  // Leaflet's stylesheet may come in after the module ran: once more as the
+  // map first draws.
+  useEffect(() => dropDraggingCursorRules(), []);
   // Once: a page is on a TV or not for its whole visit.
   const [onTv] = useState(() => tvPlatform() !== null);
   // With no route, where the pilot's position last was, at the zoom the
