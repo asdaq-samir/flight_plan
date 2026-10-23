@@ -80,9 +80,14 @@ export default function FlightInputs({ aircraftValue, aircraftOptions, onAircraf
           look similar to altitude"): typed in, its card's button at its end
           once there is one, the route box's fill and type. */}
       <div role="group" aria-label="Airplane" className={cn("grid h-8 shrink-0 items-center rounded-full", PANEL_FIELD_FILL, TEXT.row)} data-testid="aircraft-select">
+        {/* As wide as what is in it -- the example at a detail's size, as
+            the button it replaced had it, or the N-number and its card's
+            button -- so the route box's row keeps its one line (briefing's
+            spec: Share level with the airplane). */}
         <span aria-hidden="true" className="invisible col-start-1 row-start-1 flex h-0 overflow-hidden">
-          <span className="whitespace-pre pr-3 pl-2.5 font-semibold">N0000X</span>
-          <span className="w-8 shrink-0" />
+          {shown ? <span className="whitespace-pre pr-3 pl-2.5 font-semibold">{shown}</span>
+            : <span className={cn("whitespace-pre pr-2.5 pl-2.5 font-normal", TEXT.detail)}>N-number</span>}
+          {tailNow && typed === null && onOpenAirplane && <span className="w-8 shrink-0" />}
         </span>
         <div className="col-start-1 row-start-1 flex h-full min-w-0 items-center">
           <label className="relative flex h-full min-w-0 flex-1 items-center pr-1.5 after:absolute after:-inset-y-1.5 after:-left-0.5 after:right-0 after:content-['']">
@@ -92,7 +97,7 @@ export default function FlightInputs({ aircraftValue, aircraftOptions, onAircraf
               onChange={e => setTyped(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6))}
               onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); commit(); (e.target as HTMLInputElement).blur(); } if (e.key === "Escape") setTyped(null); }}
               onBlur={commit}
-              className="relative z-10 h-full w-0 min-w-0 flex-1 bg-transparent pr-1.5 pl-2.5 font-semibold text-foreground outline-none placeholder:font-normal"
+              className={cn("relative z-10 h-full w-0 min-w-0 flex-1 bg-transparent pr-1.5 pl-2.5 font-semibold text-foreground outline-none placeholder:font-normal", !shown && TEXT.detail)}
               data-testid="aircraft-input"
             />
           </label>
