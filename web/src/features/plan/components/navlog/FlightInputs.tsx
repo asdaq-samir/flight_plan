@@ -54,12 +54,15 @@ export default function FlightInputs({ aircraftValue, aircraftOptions, onAircraf
         <PopoverTrigger asChild>
           <button
             type="button" aria-label="Airplane" data-testid="aircraft-select"
-            className={cn("inline-flex h-8 shrink-0 items-center rounded-full px-3 font-semibold whitespace-nowrap outline-none focus-visible:ring-2 focus-visible:ring-ring", GLASS_BUTTON, TEXT.row)}
+            className={cn("inline-flex h-8 shrink-0 items-center rounded-full px-2.5 font-semibold whitespace-nowrap outline-none focus-visible:ring-2 focus-visible:ring-ring", GLASS_BUTTON, TEXT.row)}
           >
             {/* Its N-number, at the owner's ask ("And should show the n-number
                 instead of airplane model"); with none picked yet -- a plan on
                 the stock profile it starts with -- the field's ask for one. */}
-            {N_NUMBER.test(current) ? current : <span className="font-normal text-muted-foreground">N-number</span>}
+            {/* The ask in a detail's size and the pill ten in from its sides, so
+                the row keeps its line with the brief, the nav log, Share and
+                the refresh on a computer's 24-rem panel, as with "C172". */}
+            {N_NUMBER.test(current) ? current : <span className={cn("font-normal text-muted-foreground", TEXT.detail)}>N-number</span>}
           </button>
         </PopoverTrigger>
         <PopoverContent align="start" className="w-72 p-0">

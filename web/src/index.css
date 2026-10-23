@@ -79,6 +79,19 @@ input, select, textarea {
   background: var(--popover);
   color: var(--popover-foreground);
 }
+/* And its tooltips -- a checkpoint's card on hover (MapCard) -- whose
+   notes are the dark theme's light grey: on Leaflet's white they read
+   2.58:1 (the iOS audit's P15, landscape, CI 55671f43). Their arrow the
+   same, by the side it points from. */
+.dark .leaflet-tooltip {
+  background: var(--popover);
+  color: var(--popover-foreground);
+  border-color: var(--border);
+}
+.dark .leaflet-tooltip-top::before { border-top-color: var(--popover); }
+.dark .leaflet-tooltip-bottom::before { border-bottom-color: var(--popover); }
+.dark .leaflet-tooltip-left::before { border-left-color: var(--popover); }
+.dark .leaflet-tooltip-right::before { border-right-color: var(--popover); }
 
 /* The map's words in the app's own typeface. Leaflet's stylesheet sets
    its container to Helvetica Neue, so every popup, chip and marker number
