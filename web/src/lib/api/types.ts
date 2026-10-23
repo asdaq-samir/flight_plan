@@ -177,6 +177,9 @@ export interface AircraftChoice {
   climbTasKt?: number;
   climbFuelBurnGph?: number;
   usableFuelGal?: number;
+  /** The airplane's own service ceiling, ft, over its profile's, where the
+   *  pilot has set one for their N-number. */
+  serviceCeilingFt?: number;
   aircraftId?: number;
   /** An airplane picked by its N-number from the FAA's registry, flown on
    *  its type's stock profile: its N-number, for its own place in the

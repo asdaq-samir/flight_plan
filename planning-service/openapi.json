@@ -13377,6 +13377,24 @@
           },
           {
             "in": "query",
+            "name": "service_ceiling_ft",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 30000,
+                  "minimum": 1000,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Service Ceiling Ft"
+            }
+          },
+          {
+            "in": "query",
             "name": "depart",
             "required": false,
             "schema": {
@@ -13745,6 +13763,24 @@
                 }
               ],
               "title": "Cruise Power Pct"
+            }
+          },
+          {
+            "in": "query",
+            "name": "service_ceiling_ft",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 30000,
+                  "minimum": 1000,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Service Ceiling Ft"
             }
           },
           {
@@ -14298,6 +14334,24 @@
                 }
               ],
               "title": "Cruise Power Pct"
+            }
+          },
+          {
+            "in": "query",
+            "name": "service_ceiling_ft",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 30000,
+                  "minimum": 1000,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Service Ceiling Ft"
             }
           },
           {

@@ -73,6 +73,9 @@ CruiseTas = Annotated[float | None, Query(gt=0, le=1000)]
 # The power a pilot's own cruise figures are at, in percent: from the
 # lowest a handbook's cruise table goes, about 40, to full power.
 CruisePower = Annotated[float | None, Query(ge=40, le=100)]
+#: An airplane's own service ceiling, ft, as the pilot sets it for their
+#: N-number: from a powered glider's to past a piston single's highest.
+ServiceCeiling = Annotated[float | None, Query(ge=1000, le=30000)]
 
 
 @dataclass
@@ -102,6 +105,10 @@ class PlanQuery:
     climb_tas_kt: CruiseTas = None
     climb_fuel_burn_gph: float | None = None
     cruise_power_pct: CruisePower = None
+    #: The airplane's own ceiling over its profile's, where the pilot has
+    #: set one for their N-number (the owner's "give users a way to change
+    #: these specs for their n-number").
+    service_ceiling_ft: ServiceCeiling = None
     depart: datetime | None = None
     #: The pilot will have a Class B clearance: its shelves are no
     #: ceiling, and the route is planned through it (vfr.altitude).
@@ -154,8 +161,14 @@ class PlanQuery:
     def profile(self) -> dict:
         return aircraft_profile(
             self.aircraft, self.cruise_tas_kt, self.fuel_burn_gph, self.usable_fuel_gal,
-            self.climb_tas_kt, self.climb_fuel_burn_gph, self.cruise_power_pct,
+            self.climb_tas_kt, self.climb_fuel_burn_gph, self.cruise_power_pct, self.service_ceiling_ft,
         )
+
+    @property
+    def aircraft_key(self) -> str:
+        """The profile's name, and its own ceiling where one is set: what the
+        altitude selection is cached by, as the ceiling decides it."""
+        return self.aircraft if self.service_ceiling_ft is None else f"{self.aircraft}@{self.service_ceiling_ft:.0f}"
 
     def own_altitudes(self) -> dict[str, float]:
         """`altitudes` by ident; a 422 for one that is not "IDENT:FEET",
@@ -482,7 +495,7 @@ def resolve_run(run: HopRun, profile: dict, q: "PlanQuery") -> "Flown | Unflyabl
     # The hop into a waypoint with an altitude of its own is flown at it.
     own = None if run.hop.lands else q.own_altitudes().get(run.hop.dest_ident)
     return resolve_altitude(
-        run.hop, run.fixes, profile, q.aircraft, q.altitude_ft if own is None else own, q.altitude_choice,
+        run.hop, run.fixes, profile, q.aircraft_key, q.altitude_ft if own is None else own, q.altitude_choice,
         run.fcst_hr, run.window, q.class_b_clearance, q.rules, nearest=q.altitude_nearest and own is None,
     )
 
@@ -967,7 +980,7 @@ def _running_stages(run: HopRun, q: "PlanQuery") -> list:
 
 def _waiting_on(run: HopRun, q: "PlanQuery") -> str:
     return altitude_waiting_on(
-        run.hop.start, run.hop.end, q.aircraft, _fixes(run.fixes), run.fcst_hr, run.window, q.class_b_clearance,
+        run.hop.start, run.hop.end, q.aircraft_key, _fixes(run.fixes), run.fcst_hr, run.window, q.class_b_clearance,
         q.rules, run.hop.dest_airport.get("airway"))
 
 
