@@ -4854,7 +4854,7 @@
         "type": "object"
       },
       "FuelStopSuggestion": {
-        "description": "The stops that take one flight short of fuel to its destination with\nthe reserve left at every landing, the tanks filled at each, and other\nfields the first could be -- or, `reason` \"break\", a field about half\nway on a flight its tanks hold that is long enough to want a meal or\na rest (vfr.fuelstops.suggest_break).",
+        "description": "The stops that take one flight short of fuel to its destination with\nthe reserve left at every landing, the tanks filled at each, and other\nfields the first could be. `reason` is \"fuel\": breaks for a meal or a\nrest are the pilot's to pick from the map's Stops.",
         "properties": {
           "choices": {
             "default": [],
