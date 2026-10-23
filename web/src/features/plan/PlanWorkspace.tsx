@@ -7,8 +7,8 @@ import { fromChunk } from "../../lib/fromChunk";
 import { cn } from "cn";
 import { api } from "../../lib/api/client";
 import { showError } from "../../lib/problems";
-import { aircraftListQuery, aircraftProfilesQuery, airportQuery, checkpointsQuery, courseQuery, nearestQuery, pilotQuery, queryClient, routeStopsQuery } from "../../lib/queryClient";
-import type { AircraftChoice, AirportPlace, AltitudeChoice, Candidate, Detour, FuelStopSuggestion, ProcedureDrawing } from "../../lib/api/types";
+import { aircraftListQuery, aircraftProfilesQuery, airportQuery, checkpointsQuery, courseQuery, nearestQuery, pilotQuery, queryClient, routeOptionsQuery, routeStopsQuery } from "../../lib/queryClient";
+import type { AircraftChoice, AirportPlace, AltitudeChoice, Candidate, Detour, FuelStopSuggestion, ProcedureDrawing, RouteOption } from "../../lib/api/types";
 import { aircraftKey, choiceOf, shortName } from "../../lib/aircraftChoice";
 import { clockTime, useMinuteClock } from "../../lib/clock";
 import { legsWithoutWind, windsOutOfDate } from "./format";
@@ -55,6 +55,7 @@ import AircraftCard, { AircraftRecentsPage } from "./components/AircraftCard";
 import AircraftPill from "./components/AircraftPill";
 import AircraftFavoritesList from "./components/AircraftFavoritesList";
 import TabKept from "../../components/TabKept";
+import RouteChoices from "./components/RouteChoices";
 import TabPage from "../../components/TabPage";
 import { useStripShows } from "./hooks/useStripShows";
 import AirportPill from "./components/AirportPill";
@@ -1946,7 +1947,26 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     return { feet: ownAltitudes[ident] ?? planned ?? null, own: ident in ownAltitudes, caution };
   }, [altitudes, s.legs, s.nav, routeAirport]);
 
+  // FPL's Routes: the ways round storms, weather under the minimums the
+  // settings name, prohibited areas, TFRs and high ground (lib/routeOptions
+  // in the planner), for a VFR route with both ends; one picked is the
+  // route, its fuel stops named as such, and the pilot's to change.
+  const minimums = usePreferences(p => p.minimums);
+  const routeWeather = usePreferences(p => p.routeWeather);
+  const routeMinimums = routeWeather === "personal"
+    ? { ceilingFt: minimums.ceilingFt, visibilitySm: minimums.visibilitySm } : { ceilingFt: null, visibilitySm: null };
+  const { data: routeWays } = useQuery({
+    ...routeOptionsQuery(planned.dep, `${planned.dest ?? ""}`, planned.stops.join(","), aircraft, depart || undefined, routeMinimums),
+    enabled: routed && !!planned.dep && !!planned.dest && !s.local && flightRules === "vfr",
+  });
+  const pickRoute = useCallback((option: RouteOption) => setStops(option.stops, option.fuel), [setStops]);
+  const routeChoices = useMemo(() => (routed && !s.local && flightRules === "vfr"
+    ? <RouteChoices found={routeWays} stops={planned.stops} onPick={pickRoute} /> : null),
+  [routed, s.local, flightRules, routeWays, planned.stops, pickRoute]);
   const routeList = useMemo(() => (
+    <>
+    {/* The ways to fly it, over its points (RouteChoices). */}
+    {routeChoices}
     <ProceduresRoute
       airports={procedureAirports} rows={routeRows} depart={depart} weather={metarColour}
       picked={pickedPatterns} onPick={pickPattern} onPreselect={preselectPattern} takeoffs={pickedTakeoffs} onTakeoff={setTakeoff}
@@ -1959,7 +1979,8 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       onCharts={() => { if (planned.dest) { setApproachesOf(planned.dest); selectPlace(planned.dest); } }}
       chartsDisabled={!planned.dest || noApproaches}
     />
-  ), [procedureAirports, routeRows, depart, metarColour, pickedPatterns, pickPattern, preselectPattern, pickedTakeoffs, setTakeoff, preselectTakeoff, autoPicked, runwayFitInputs, pickedProcedures, routeProcedures, pickProcedures, crossings, showFix,
+    </>
+  ), [routeChoices, procedureAirports, routeRows, depart, metarColour, pickedPatterns, pickPattern, preselectPattern, pickedTakeoffs, setTakeoff, preselectTakeoff, autoPicked, runwayFitInputs, pickedProcedures, routeProcedures, pickProcedures, crossings, showFix,
     ground, setGround, previewProcedure, proceduresAt, setProceduresShown, planned.dest, selectPlace, noApproaches, changeDepart,
     altitudeAt, setPointAltitude, directParam, directToPoint, removeStop, insertStopAfter, holds, setHold, holdAsk, routePoints, planned.stops.length,
     fuelStops, keepFuelStops, tankFigures]);
