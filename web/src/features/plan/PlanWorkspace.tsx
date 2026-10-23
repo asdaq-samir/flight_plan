@@ -36,7 +36,7 @@ import RoundButton from "../../components/RoundButton";
 import ShareMenu from "./components/ShareMenu";
 import type { RouteCard } from "../../lib/openCards";
 import TipHost from "../../components/TipHost";
-import { useCardTitle, usePanelDragging } from "../../components/mapChrome";
+import { useCardTitle, usePanelDragging, CAPSULE, IN_CAPSULE } from "../../components/mapChrome";
 import { CardHead } from "../../components/PanelCard";
 import { AirportRecentsPage, RecentAirportTiles, SearchField, SearchResults } from "../../components/PanelCapsule";
 import { chipColourOf } from "../../lib/map/flightCategory";
@@ -2201,7 +2201,9 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           44 points, at the altitude's end, and the Brief's meet, not overlap
           (the iOS audit's P1, 93c88a64); the airplane and the altitude two
           narrower in their padding for it, so the row keeps its one line. */}
-      <div className="ml-auto flex shrink-0 items-center gap-3 pl-2">
+      {/* One capsule of the glass round the three (CAPSULE), at the owner's
+          ask, the buttons in it plain (IN_CAPSULE), 12 apart as before. */}
+      <div className={cn("ml-auto flex shrink-0 items-center gap-3", CAPSULE)} data-testid="route-actions">
         {/* The Brief, a card over FPL (BriefCard), in the folder's place,
             at the owner's ask ("we don't need the folder button because we
             have a saved section with tiles instead. So then we can have a
@@ -2209,7 +2211,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
             worst of its pages is. */}
         {routed && (
           <RoundButton
-            label={briefMark ? `Brief, ${briefMark === "stop" ? "warning" : "caution"}` : "Brief"} onClick={openBrief} className="size-8"
+            label={briefMark ? `Brief, ${briefMark === "stop" ? "warning" : "caution"}` : "Brief"} onClick={openBrief} className={cn("size-8", IN_CAPSULE)}
             data-testid="route-brief" data-finding={briefMark ?? undefined}
           >
             <span className="relative">
@@ -2228,7 +2230,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
             approaches button with the navlog button"): FPL lists the route
             in order instead, its procedures with it (ProceduresRoute). */}
         {routed && (
-          <RoundButton label="Nav log" onClick={openNavLogCard} disabled={!course} className="size-8" data-testid="route-navlog">
+          <RoundButton label="Nav log" onClick={openNavLogCard} disabled={!course} className={cn("size-8", IN_CAPSULE)} data-testid="route-navlog">
             <ListOrdered className="size-[1.125rem]" strokeWidth={2} />
           </RoundButton>
         )}

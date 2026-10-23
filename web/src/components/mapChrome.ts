@@ -214,6 +214,16 @@ export const GLASS_PICKED =
   "dark:data-[state=on]:bg-primary dark:hover:data-[state=on]:bg-primary dark:data-[state=on]:bg-[linear-gradient(180deg,rgb(255_255_255/0.22),transparent)] " +
   "dark:data-[state=on]:shadow-[inset_0_1px_0_rgb(255_255_255/0.3),0_2px_8px_rgb(0_0_0/0.55)]";
 
+/** A button inside a capsule of the glass (CAPSULE): no glass of its own,
+ *  the capsule's round it, a tint of the text's colour when pressed. */
+export const IN_CAPSULE = "bg-transparent bg-none shadow-none dark:bg-transparent dark:bg-none dark:shadow-none hover:bg-foreground/8 dark:hover:bg-foreground/12";
+
+/** A row of buttons in one capsule of the glass, as iOS 26 groups a
+ *  toolbar's, at the owner's ask ("Let's try it and if not then go back
+ *  to round"): the buttons inside it IN_CAPSULE, their centres 44 apart
+ *  as the round ones' were, so each keeps its 44-point tap area. */
+export const CAPSULE = `rounded-full ${GLASS_BUTTON}`;
+
 /** A chip's words on the panel's row (the airplane, the cruising altitude,
  *  the time): a note's 13 to a finger, as Maps' route options are, growing
  *  with the reader's text size only to 14, so the row stays one line at
