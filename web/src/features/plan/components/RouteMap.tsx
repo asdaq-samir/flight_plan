@@ -83,6 +83,9 @@ interface Props {
   /** The airport whose card is open, and the way to open one from the
    *  chart (AirportsLayer) -- or, with null, to put it away. */
   place: { ident: string; lat: number; lon: number } | null;
+  /** The route's departure while it is all there is (no destination yet):
+   *  the map brought to it (FitTo), at the owner's screenshot. */
+  start?: { ident: string; lat: number; lon: number } | null;
   /** The fields Nearest lists and own ship, with its card up: the map
    *  fitted to them over the half panel (FitTo). */
   nearest?: { ident: string; lat: number; lon: number }[] | null;
@@ -493,12 +496,15 @@ const HoldTracks = memo(function HoldTracks({ legs }: { legs: Leg[] }) {
 /** How close in an airport's card brings the map: its field and its
  *  neighbours on the sectional. */
 const PLACE_ZOOM = 9;
+// A lone departure's: the field and the country round it, a sectional's
+// scale, where a destination is picked.
+const START_ZOOM = 9;
 
 // Drawn again only when its own props change (memo): the workspace
 // renders at each answer that streams in, and the whole map went with it.
 export default memo(function RouteMap({
   course, candidates, selected, focus, onSelectCandidate, onSelectPoint,
-  airportWeather, place, onSelectPlace, onAddStop, legs, heldPoint, onHoldPoint, nearest = null, patterns = NO_PATTERNS, patternFocus = null,
+  airportWeather, place, start = null, onSelectPlace, onAddStop, legs, heldPoint, onHoldPoint, nearest = null, patterns = NO_PATTERNS, patternFocus = null,
   procedures = NO_PROCEDURES, procedureFocus = null, procedureCover, crossings, directs = "", onProcedureFix, fuelStops = NO_POINTS_AT,
 }: Props) {
   const focusZoom = course?.max_zoom ?? 12;
@@ -561,6 +567,7 @@ export default memo(function RouteMap({
           picked in Maps does: from the search bar it was wherever the
           map happened to be, a ring over half the country. */}
       <FocusOn point={place} zoom={PLACE_ZOOM} />
+      {!place && <FitTo points={start ? [start] : NO_POINTS_AT} fitKey={start?.ident ?? null} maxZoom={START_ZOOM} />}
       {/* Nearest's fields, all in sight above its card. Not while one of
           them has its own card up, which brings that one in. */}
       {!place && <FitTo points={nearest ?? []} fitKey={nearest?.length ? nearest.map(a => a.ident).join(",") : null} />}

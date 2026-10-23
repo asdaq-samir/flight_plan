@@ -2,6 +2,7 @@ import { TrendingDown, TrendingUp } from "lucide-react";
 import { COURSE_MAGENTA, WAYPOINT_MAGENTA } from "../../../../lib/map/chartColors";
 import { colourOf } from "../../../../lib/map/flightCategory";
 import { AIRPORT_MARK, airportMarkSvg } from "../../../../lib/map/airportMark";
+import type { AirspaceClass } from "../../../../lib/preferences";
 import { inkOn } from "../../../../lib/scoreScale";
 import { scoreColor } from "../../format";
 import type { NavLogRow } from "./rows";
@@ -58,10 +59,18 @@ export function PointMark({ row, number, weather, airportSize = AIRPORT_MARK }: 
     );
   }
   const { airport } = row;
+  return <AirportMark airspaceClass={airport.airspace_class ?? null} colour={weather(airport.ident) ?? colourOf(null)} size={airportSize} />;
+}
+
+/** An airport's mark -- its airspace's symbol, its weather in the middle --
+ *  as the map draws it, for a nav log row's and for a field in FPL's route
+ *  before there is a plan (its card's airspace and weather): a departure
+ *  typed alone was a plain dot (the owner's screenshot, 2026-10-23). */
+export function AirportMark({ airspaceClass, colour, size = AIRPORT_MARK }: { airspaceClass: AirspaceClass | null; colour: string; size?: number }) {
   return (
     <span
-      aria-hidden="true" data-mark="airport" className="block shrink-0 [&>svg]:size-full" style={{ width: airportSize, height: airportSize }}
-      dangerouslySetInnerHTML={{ __html: airportMarkSvg(airport.airspace_class ?? null, weather(airport.ident) ?? colourOf(null), null, "overflow-visible") }}
+      aria-hidden="true" data-mark="airport" className="block shrink-0 [&>svg]:size-full" style={{ width: size, height: size }}
+      dangerouslySetInnerHTML={{ __html: airportMarkSvg(airspaceClass, colour, null, "overflow-visible") }}
     />
   );
 }
