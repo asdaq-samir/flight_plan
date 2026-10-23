@@ -143,12 +143,12 @@ export default function AltitudeGroup({ nav, legs, commanded = null, problem = f
       // take the place"): the wider of the example and three figures with
       // the profile button after them, each measured unseen in the one
       // cell, and the field taking what the button does not.
-      className={cn("grid h-8 items-center rounded-full", PANEL_FIELD_FILL, TEXT.row)}
+      className={cn("grid h-7 items-center rounded-full", PANEL_FIELD_FILL, TEXT.row)}
       data-testid="altitude-group"
     >
       <span aria-hidden="true" className="invisible col-start-1 row-start-1 flex h-0 overflow-hidden">
         <span className="whitespace-pre pr-3 pl-2.5 font-semibold tabular-nums">000</span>
-        <span className="w-[1.8125rem] shrink-0" />
+        <span className="w-[1.5625rem] shrink-0" />
       </span>
       {/* Two points over the field's own padding, for the caret. */}
       <span aria-hidden="true" className="invisible col-start-1 row-start-1 h-0 overflow-hidden whitespace-pre pr-3 pl-2.5 font-normal">
@@ -159,7 +159,7 @@ export default function AltitudeGroup({ nav, legs, commanded = null, problem = f
             the profile button's area reaches four into the gap, and with
             less the two areas met over each other (the iOS audit's P1). Its
             44-point area a pseudo-element round it, nothing grown. */}
-        <label className="relative flex h-full min-w-0 flex-1 items-center pr-1.5 after:absolute after:-inset-y-1.5 after:-left-0.5 after:right-0 after:content-['']">
+        <label className="relative flex h-full min-w-0 flex-1 items-center pr-1.5 after:absolute after:-inset-y-2 after:-left-0.5 after:right-0 after:content-['']">
           <input
             type="text" inputMode="numeric" enterKeyHint="done" autoComplete="off" size={1}
             value={shown} placeholder={PLACEHOLDER} aria-label="Cruise altitude, hundreds of feet"
@@ -187,7 +187,7 @@ export default function AltitudeGroup({ nav, legs, commanded = null, problem = f
             // ask ("The profile button should also get the glass tinted. But
             // the altitude entry should stay as a text box"): the field's
             // end, where a line parted it from the figure before.
-            "relative mr-[3px] flex size-[1.625rem] shrink-0 items-center justify-center rounded-full outline-none after:absolute after:-inset-[9px] after:content-[''] focus-visible:ring-2 focus-visible:ring-ring disabled:text-muted-foreground",
+            "relative mr-[3px] flex size-[1.375rem] shrink-0 items-center justify-center rounded-full outline-none after:absolute after:-inset-[11px] after:content-[''] focus-visible:ring-2 focus-visible:ring-ring disabled:text-muted-foreground",
             GLASS_BUTTON,
             problem && "text-red-700 dark:text-red-300",
           )}
@@ -202,7 +202,7 @@ export default function AltitudeGroup({ nav, legs, commanded = null, problem = f
               the button's name. The route from the side, the profile's own
               mark. */}
           <span className="relative">
-            <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <svg viewBox="0 0 24 24" className="size-3.5" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d="M3 19h18" /><path d="M3 16l4-5 3 2 4-6 3 3 4-3" />
             </svg>
             {profiled && !problem && (cautions.length > 0 || tight) && (
