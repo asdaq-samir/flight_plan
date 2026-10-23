@@ -210,7 +210,7 @@ export default function PanelTabs({ rootRef, before, contents, notice, footer, c
             {marks?.[t.value] && (
               <span
                 aria-hidden="true"
-                className={cn("size-2 shrink-0 rounded-full", marks[t.value] === "stop" ? "bg-destructive" : "bg-amber-500")}
+                className={cn("size-2 shrink-0 rounded-full", marks[t.value] === "stop" ? "bg-destructive" : "bg-caution")}
                 data-testid={`panel-tab-mark-${t.value}`} data-finding={marks[t.value]}
               />
             )}

@@ -175,7 +175,7 @@ export default function AltitudeGroup({ nav, legs, commanded = null, problem = f
             </svg>
             {profiled && !problem && (cautions.length > 0 || tight) && (
               <span
-                className="absolute -top-0.5 -right-1 size-2 rounded-full bg-amber-500" aria-hidden="true"
+                className="absolute -top-0.5 -right-1 size-2 rounded-full bg-caution" aria-hidden="true"
                 data-testid={cautions.length > 0 ? "own-altitude-flag" : "tight-altitude-flag"}
               />
             )}

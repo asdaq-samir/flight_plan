@@ -321,7 +321,7 @@ function Versions({ model }: { model: NonNullable<Status["model"]> }) {
             description={<>
               {v.model_type ?? "—"}
               {delta !== null && (
-                <> · <span className={cn(delta < -0.00005 ? "text-emerald-700 dark:text-emerald-400" : delta > 0.00005 && "text-destructive-ink")}>
+                <> · <span className={cn(delta < -0.00005 ? "text-go-ink" : delta > 0.00005 && "text-destructive-ink")}>
                   {Math.abs(delta) <= 0.00005 ? "no change" : `${mae(Math.abs(delta))} ${delta < 0 ? "lower" : "higher"}`}
                 </span></>
               )}

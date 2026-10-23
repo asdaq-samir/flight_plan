@@ -239,6 +239,8 @@ body[data-map-sheet][data-map-panel="full"] [data-map-controls] {
   --color-tint: var(--tint);
   --color-procedure: var(--procedure);
   --color-caution: var(--caution);
+  --color-go: var(--go);
+  --color-go-ink: var(--go-ink);
   --color-caution-ink: var(--caution-ink);
   --color-caution-wash: var(--caution-wash);
   --color-popover-foreground: var(--popover-foreground);
@@ -292,6 +294,10 @@ body[data-map-sheet][data-map-panel="full"] [data-map-controls] {
   --caution: oklch(0.555 0.163 48.998);
   --caution-ink: oklch(0.473 0.137 46.201);
   --caution-wash: oklch(0.769 0.188 70.08 / 12%);
+  /* Go, the one green: a check passed, a flight landed or in the air.
+     Tailwind's green-600 for marks and -700 for words (4.5:1 and more). */
+  --go: oklch(0.627 0.194 149.214);
+  --go-ink: oklch(0.527 0.154 150.069);
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
   --muted: oklch(0.97 0 0);
@@ -351,6 +357,9 @@ body[data-map-sheet][data-map-panel="full"] [data-map-controls] {
   /* Tailwind's amber-400 and -300 on the dark surfaces. */
   --caution: oklch(0.828 0.189 84.429);
   --caution-ink: oklch(0.879 0.169 91.605);
+  /* Tailwind's green-500 and -400 on the dark surfaces. */
+  --go: oklch(0.723 0.219 149.579);
+  --go-ink: oklch(0.792 0.209 151.711);
   --secondary: oklch(0.269 0 0);
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.269 0 0);

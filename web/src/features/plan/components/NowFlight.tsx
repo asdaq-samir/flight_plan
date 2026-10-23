@@ -64,8 +64,8 @@ export default function NowFlight({ plane, type, departed, departedPlace, route,
         title={
           <span className="flex w-full flex-col gap-1.5 py-1">
             <span className={cn("flex items-center gap-2 font-semibold", TEXT.detail)}>
-              <span className="size-2 shrink-0 rounded-full bg-emerald-600" aria-hidden />
-              <span className="text-emerald-700 dark:text-emerald-400">{flown ? `In the air · ${flown}` : "In the air"}</span>
+              <span className="size-2 shrink-0 rounded-full bg-go" aria-hidden />
+              <span className="text-go-ink">{flown ? `In the air · ${flown}` : "In the air"}</span>
               {type && <span className="ml-auto text-muted-foreground">{type}</span>}
             </span>
             <FlightEnds

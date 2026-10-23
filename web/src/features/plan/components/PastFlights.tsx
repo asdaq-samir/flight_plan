@@ -209,7 +209,7 @@ const PastFlightRow = memo(function PastFlightRow({ flight, type, onPick }: { fl
       title={
         <span className="flex w-full flex-col gap-1.5 py-1">
           <span className={cn("flex items-center gap-2 font-semibold", TEXT.detail)}>
-            <span className={flight.landed || flight.in_air ? "text-emerald-700 dark:text-emerald-400" : "text-muted-foreground"}>
+            <span className={flight.landed || flight.in_air ? "text-go-ink" : "text-muted-foreground"}>
               {endedOf(flight)}
             </span>
             {type && <span className="ml-auto text-muted-foreground">{type}</span>}

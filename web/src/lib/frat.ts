@@ -135,9 +135,9 @@ export function assess(input: FratInput): Assessment {
 }
 
 export const LEVEL_TONE: Record<RiskLevel, string> = {
-  low: "text-green-700 dark:text-green-400",
-  caution: "text-amber-700 dark:text-amber-400",
-  high: "text-red-700 dark:text-red-400",
+  low: "text-go-ink",
+  caution: "text-caution-ink",
+  high: "text-destructive-ink",
 };
 
 const LEVEL_NAME: Record<RiskLevel, string> = { low: "Low", caution: "Raised", high: "High" };

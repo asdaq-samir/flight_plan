@@ -2273,7 +2273,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
               {briefMark && (
                 <span
                   aria-hidden="true" data-testid="route-brief-mark"
-                  className={cn("absolute -top-0.5 -right-1 size-2 rounded-full", briefMark === "stop" ? "bg-destructive" : "bg-amber-500")}
+                  className={cn("absolute -top-0.5 -right-1 size-2 rounded-full", briefMark === "stop" ? "bg-destructive" : "bg-caution")}
                 />
               )}
             </span>
