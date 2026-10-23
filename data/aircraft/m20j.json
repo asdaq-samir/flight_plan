@@ -1,0 +1,15 @@
+{
+  "type": "Mooney M20J 201",
+  "designator": "M20P",
+  "service_ceiling_ft": 18600,
+  "climb_rate_fpm_sea_level": 1030,
+  "cruise_tas_kt": 168.5,
+  "fuel_burn_gph": 10.4,
+  "cruise_power_pct": 75,
+  "cruise_altitude_ft": 6000,
+  "climb_tas_kt": 98,
+  "climb_fuel_burn_gph": 18.5,
+  "usable_fuel_gal": 64,
+  "taxi_fuel_gal": 1.5,
+  "source": "Mooney M20J POH/AFM (Manual 1233, 1986 rev B 1987): page 5-23, 75% at 6000 ft, 10\u00b0C, 2740 lb: 168.5 KTAS; page 5-21, 75% best economy 10.3 to 10.8 GPH (10.4 here); pages 5-18/19 climb (start, taxi and takeoff about 1.5 gal); 64 gal usable. Service ceiling 18,600 ft and climb 1,030 fpm at sea level from Mooney's Allegro (M20J) specifications (mooney.com, 1998), the late 2900 lb M20J's. No demonstrated crosswind published"
+}

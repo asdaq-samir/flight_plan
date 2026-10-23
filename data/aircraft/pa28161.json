@@ -1,0 +1,18 @@
+{
+  "type": "Piper PA-28-161 Warrior II",
+  "designator": "P28A",
+  "service_ceiling_ft": 10000,
+  "climb_rate_fpm_sea_level": 620,
+  "cruise_tas_kt": 118,
+  "fuel_burn_gph": 8.5,
+  "cruise_power_pct": 75,
+  "cruise_altitude_ft": 5000,
+  "climb_tas_kt": 80,
+  "climb_fuel_burn_gph": 12.0,
+  "usable_fuel_gal": 48,
+  "crosswind": {
+    "demonstrated_kt": 17,
+    "source": "Piper PA-28-161 Warrior II POH (VB-880, 1976), section 4.1"
+  },
+  "source": "Piper PA-28-161 Warrior II POH (VB-880, 1976): figure 5-18, 75% best economy at 5000 ft: 118 KTAS, 8.5 GPH; figure 5-11 climb, about 620 fpm at sea level read off the chart (with wheel fairings); the climb's TAS and burn derived from the POH's example; 48 gal usable. Service ceiling Piper's own published, the lower of the two it has given: 10,000 ft ('Warrior Specs & Performance', piper.com, 2016), where its 2009 spec sheet (PN 766-8881) says 11,000. The POH prints none"
+}

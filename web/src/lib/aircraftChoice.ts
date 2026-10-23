@@ -17,8 +17,9 @@ export const N_NUMBER = /^N[1-9][0-9A-Z]{0,4}$/;
  *  type's handbook (data/aircraft, each file's `source`): any other none,
  *  its speed and burn the pilot's to give (Setup's Airplanes) rather than
  *  a guess. Kept out where a model shares a name but not the figures: a
- *  182RG or a turbo 182, a PA-28-151/160/180 (the -181 is the Archer's),
- *  an Arrow, a turbo SR22T, the avgas DA40. */
+ *  182RG or a turbo 182, a PA-28-151/160/180, an Arrow I, II or IV or a
+ *  turbo Arrow, a turbo SR22T, the avgas DA40. A Bonanza A36 is out: its
+ *  handbook gives no percent power for its cruise row. */
 const REGISTERED_TYPES: { maker: RegExp; model: RegExp; profile: string }[] = [
   { maker: /CESSNA/, model: /^F?A?150[A-M]?$|^FA150L$/, profile: "c150" },
   { maker: /CESSNA/, model: /^[AF]?152$/, profile: "c152" },
@@ -26,6 +27,9 @@ const REGISTERED_TYPES: { maker: RegExp; model: RegExp; profile: string }[] = [
   { maker: /CESSNA/, model: /^182[ST]$/, profile: "c182" },
   { maker: /PIPER/, model: /^PA28181/, profile: "pa28" },
   { maker: /PIPER/, model: /^PA28140$/, profile: "pa28140" },
+  { maker: /PIPER/, model: /^PA28161$/, profile: "pa28161" },
+  { maker: /PIPER/, model: /^PA28R201$/, profile: "pa28r201" },
+  { maker: /MOONEY/, model: /^M20J$/, profile: "m20j" },
   { maker: /CIRRUS/, model: /^SR20$/, profile: "sr20" },
   { maker: /CIRRUS/, model: /^SR22$/, profile: "sr22" },
   { maker: /DIAMOND/, model: /^DA40NG$/, profile: "da40ng" },
