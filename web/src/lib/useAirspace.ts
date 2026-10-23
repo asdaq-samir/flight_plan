@@ -1,3 +1,4 @@
+import { GLASS_EDGE } from "./glass";
 import { useEffect, type CSSProperties } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { usePreferences, type AirspaceClass, type RecentAirport } from "./preferences";
@@ -54,8 +55,7 @@ const AIRSPACE: Record<Space, { name: string; style: CSSProperties }> = {
  *  the soft shadow, at the owner's pick of the sketches ("B"). */
 export const AIRSPACE_PILL =
   "inline-flex shrink-0 items-center rounded-full bg-background/80 dark:bg-background/50 " +
-  "shadow-[inset_0_1px_0_rgb(255_255_255/0.95),0_0_0_0.5px_rgb(0_0_0/0.08),0_2px_8px_rgb(0_0_0/0.10)] " +
-  "dark:shadow-[inset_0_1px_0_rgb(255_255_255/0.24),0_0_0_0.5px_rgb(0_0_0/0.5),0_2px_8px_rgb(0_0_0/0.55)]";
+  GLASS_EDGE;
 
 /** The pill's look for a field's airspace: Class B and C solid, D and E
  *  dashed; Class G's, and one not known yet, the plain pill. */

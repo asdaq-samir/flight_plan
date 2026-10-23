@@ -1,3 +1,4 @@
+import { GLASS_EDGE } from "../lib/glass";
 import { createContext, type ReactNode } from "react";
 import { create } from "zustand";
 import { TEXT } from "../lib/text";
@@ -175,10 +176,7 @@ export const SHEET_MARGIN = 8;
  *  the sheet on a soft shadow -- raised, never a dark line inside the rim,
  *  which read as etched. The tab up's capsule in the pill (TabBar). */
 export const GLASS_CLEAR =
-  "border-0 bg-white/25 bg-linear-to-b from-white/75 via-white/35 via-55% to-white/5 text-foreground " +
-  "shadow-[inset_0_1px_0_rgb(255_255_255/0.95),0_0_0_0.5px_rgb(0_0_0/0.08),0_2px_8px_rgb(0_0_0/0.10)] " +
-  "dark:bg-white/6 dark:from-white/22 dark:via-white/8 dark:to-white/0 " +
-  "dark:shadow-[inset_0_1px_0_rgb(255_255_255/0.24),0_0_0_0.5px_rgb(0_0_0/0.5),0_2px_8px_rgb(0_0_0/0.55)]";
+  "border-0 bg-transparent bg-linear-to-b from-[var(--glass-top-fill)] to-[var(--glass-foot-fill)] text-foreground " + GLASS_EDGE;
 
 /** A control's own pane of glass, as iOS 26 draws its buttons over
  *  content, clear as the tab up's is (TabGlass), at the owner's ask ("Can
@@ -198,11 +196,8 @@ export const GLASS_CLEAR =
  *  Select's outline, a Button's). */
 export const GLASS_BUTTON =
   "border-0 bg-transparent text-foreground " +
-  "bg-[radial-gradient(80%_60%_at_50%_0%,rgb(255_255_255/0.75),transparent_70%),linear-gradient(180deg,rgb(255_255_255/0.6),rgb(255_255_255/0.12))] " +
-  "shadow-[inset_0_1px_0_rgb(255_255_255/0.95),0_0_0_0.5px_rgb(0_0_0/0.08),0_2px_8px_rgb(0_0_0/0.10)] " +
-  "hover:bg-white/30 hover:text-foreground aria-expanded:bg-white/40 " +
-  "dark:bg-[radial-gradient(80%_60%_at_50%_0%,rgb(255_255_255/0.2),transparent_70%),linear-gradient(180deg,rgb(255_255_255/0.16),rgb(255_255_255/0.02))] " +
-  "dark:shadow-[inset_0_1px_0_rgb(255_255_255/0.24),0_0_0_0.5px_rgb(0_0_0/0.5),0_2px_8px_rgb(0_0_0/0.55)] dark:hover:bg-white/8 dark:aria-expanded:bg-white/10";
+  "bg-[radial-gradient(80%_60%_at_50%_0%,var(--glass-sheen),transparent_70%),linear-gradient(180deg,var(--glass-top-fill),var(--glass-foot-fill))] " +
+  GLASS_EDGE + " hover:bg-[var(--glass-pressed)] hover:text-foreground aria-expanded:bg-[var(--glass-pressed)]";
 
 /** The same glass tinted the blue on a toggle's chip once it is picked
  *  (data-state "on") -- a field's runway (ProceduresRoute) -- as iOS 26's
@@ -211,15 +206,13 @@ export const GLASS_BUTTON =
  *  glass's. Written out per state, as Tailwind finds its classes by their
  *  whole names. */
 export const GLASS_PICKED =
-  "data-[state=on]:bg-primary data-[state=on]:bg-[linear-gradient(180deg,rgb(255_255_255/0.35),rgb(255_255_255/0.08)_55%,transparent)] " +
+  "data-[state=on]:bg-primary data-[state=on]:bg-[linear-gradient(180deg,rgb(255_255_255/0.3),rgb(255_255_255/0.06)_55%,transparent)] " +
   "data-[state=on]:font-semibold data-[state=on]:text-primary-foreground hover:data-[state=on]:bg-primary hover:data-[state=on]:text-primary-foreground " +
-  "data-[state=on]:shadow-[inset_0_1px_0_rgb(255_255_255/0.5),0_2px_8px_rgb(0_80_190/0.25)] " +
-  "dark:data-[state=on]:bg-primary dark:hover:data-[state=on]:bg-primary dark:data-[state=on]:bg-[linear-gradient(180deg,rgb(255_255_255/0.22),transparent)] " +
-  "dark:data-[state=on]:shadow-[inset_0_1px_0_rgb(255_255_255/0.3),0_2px_8px_rgb(0_0_0/0.55)]";
+  "data-[state=on]:shadow-[inset_0_1px_0_var(--glass-light),0_2px_8px_var(--glass-shade)]";
 
 /** A button inside a capsule of the glass (CAPSULE): no glass of its own,
  *  the capsule's round it, a tint of the text's colour when pressed. */
-export const IN_CAPSULE = "bg-transparent bg-none shadow-none dark:bg-transparent dark:bg-none dark:shadow-none hover:bg-foreground/8 dark:hover:bg-foreground/12";
+export const IN_CAPSULE = "bg-transparent bg-none shadow-none hover:bg-[var(--glass-pressed)]";
 
 /** A row of buttons in one capsule of the glass, as iOS 26 groups a
  *  toolbar's, at the owner's ask ("Let's try it and if not then go back
