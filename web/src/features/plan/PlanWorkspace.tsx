@@ -64,7 +64,7 @@ import ProfileCard from "./components/ProfileCard";
 import { dryRunOf, type DryRun } from "./components/navlog/dryRun";
 import FixCard, { type OpenFix } from "./components/FixCard";
 import type { SuggestedStop } from "./components/StopServices";
-import { stopsOfKind, useStopsAlong, type StopsKind } from "../../lib/stopsAlong";
+import { useStopsAlong } from "../../lib/stopsAlong";
 import DirectStrip from "./components/DirectStrip";
 import { loadFlightChart } from "./components/loadFlightChart";
 import { DRY_RUN, clearPastFlight, usePastFlight } from "../../lib/map/pastFlight";
@@ -201,9 +201,6 @@ function suggestedStopAt(ident: string | null, suggestions: FuelStopSuggestion[]
   }
   return null;
 }
-
-/** A Stops pin's name, by the kind picked. */
-const STOPS_KIND_WORD: Record<StopsKind, string> = { fuel: "Fuel", food: "Food", rest: "Rest" };
 
 const drawnOnly = (results: { data?: ProcedureDrawing }[]) => results.flatMap(r => (r.data ? [r.data] : []));
 
@@ -1168,11 +1165,10 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     if (next) setStops(next.stops, isBreak ? [] : next.added);
   }, [setStops, planned.dep, planned.stops, fuelStops]);
   // A field from the map's Stops (StopsCard) put in the route after its
-  // flight's departure: a fuel stop from Fuel, the pilot's own from Food
-  // and Rest.
-  const addStopAlong = useCallback((departure: string, ident: string, fuel: boolean) => {
+  // flight's departure, the pilot's own stop.
+  const addStopAlong = useCallback((departure: string, ident: string) => {
     const next = withStopsAfter(planned.dep, planned.stops, departure, [ident]);
-    if (next) setStops(next.stops, fuel ? next.added : []);
+    if (next) setStops(next.stops);
   }, [setStops, planned.dep, planned.stops]);
   // The suggested stop the airport's card is open on, where it is one: its
   // figures at the card's top, and Add Stop keeps it at its place
@@ -1347,13 +1343,12 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const stopsOpen = useStopsAlong(st => st.open);
   const setStopsOpen = useStopsAlong(st => st.setOpen);
   const stopsShown = stopsOpen && tab === "fpl" && routed && !s.local && !briefShown && !navLogShown && !profileShown;
-  // While the map's Stops is open, its fields of the kind picked pinned in
-  // the suggestions' place (the same query as the card's).
-  const stopsKind = useStopsAlong(st => st.kind);
+  // While the map's Stops is open, its fields pinned in the suggestions'
+  // place (the same query as the card's).
   const { data: along } = useQuery({ ...routeStopsQuery(planned.dep, `${planned.dest ?? ""}`, planned.stops.join(",")), enabled: stopsShown });
-  const alongPins = useMemo(() => (stopsShown && along ? stopsOfKind(along.fields, stopsKind).map(f => ({
-    ident: f.ident, lat: f.lat, lon: f.lon, reason: stopsKind, title: `${STOPS_KIND_WORD[stopsKind]} at ${f.ident}`,
-  })) : null), [stopsShown, along, stopsKind]);
+  const alongPins = useMemo(() => (stopsShown && along ? along.fields.map(f => ({
+    ident: f.ident, lat: f.lat, lon: f.lon, reason: "along" as const, title: `${f.ident}, a stop along the route`,
+  })) : null), [stopsShown, along]);
   // Airport's pill's NEAREST strip: the list's own question, shared, asked
   // while the strip is in sight.
   // Airport's strip in sight, at the pill or all the way up.

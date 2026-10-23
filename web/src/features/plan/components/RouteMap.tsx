@@ -120,18 +120,19 @@ const BREAK_PIN = L.divIcon({
   iconSize: [30, 38], iconAnchor: [15, 37],
 });
 
-/** And a bed in it, for the map's Stops' Rest (StopsCard). */
-const REST_PIN = L.divIcon({
+/** And a fork beside a pump in it, for a field of the map's Stops
+ *  (StopsCard), as its button wears (StopsAlongButton). */
+const ALONG_PIN = L.divIcon({
   className: "",
   html: '<svg width="30" height="38" viewBox="0 0 30 38" aria-hidden="true"><path d="M15 37C15 37 2 23.5 2 14a13 13 0 0 1 26 0c0 9.5-13 23-13 23z" fill="#d9480f" stroke="#fff" stroke-width="2"/>'
     + '<g transform="translate(7.5 6.5) scale(0.62)" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">'
-    + '<path d="M2 20v-8a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v8"/><path d="M4 10V6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v4"/><path d="M12 4v6"/><path d="M2 18h20"/></g></svg>',
+    + '<path d="M3 2v7a3 3 0 0 0 6 0V2M6 2v20M15 22V4a2 2 0 0 1 2-2h1a2 2 0 0 1 2 2v18M15 10h5"/></g></svg>',
   iconSize: [30, 38], iconAnchor: [15, 37],
 });
 
 /** A stop pinned on the chart: a suggestion's (the totals' fuel_stops), or
- *  a field of the map's Stops (`food`, `rest`, or `fuel` with its `title`). */
-type StopPin = { ident: string; lat: number; lon: number; reason?: "fuel" | "break" | "food" | "rest"; title?: string };
+ *  a field of the map's Stops (`along`, with its `title`). */
+type StopPin = { ident: string; lat: number; lon: number; reason?: "fuel" | "break" | "along"; title?: string };
 
 function FuelStopPins({ stops, onSelect }: { stops: StopPin[]; onSelect: (ident: string) => void }) {
   return stops.map(stop => <FuelStopPin key={stop.ident} stop={stop} onSelect={onSelect} />);
@@ -141,7 +142,7 @@ const FuelStopPin = memo(function FuelStopPin({ stop, onSelect }: { stop: StopPi
   // Memoized, not a literal: see AirportsLayer.
   const handlers = useMemo(() => ({ click: () => onSelect(stop.ident) }), [onSelect, stop.ident]);
   const isBreak = stop.reason === "break";
-  const icon = stop.reason === "rest" ? REST_PIN : isBreak || stop.reason === "food" ? BREAK_PIN : FUEL_PIN;
+  const icon = stop.reason === "along" ? ALONG_PIN : isBreak ? BREAK_PIN : FUEL_PIN;
   return (
     <Marker
       position={[stop.lat, stop.lon]} icon={icon} title={stop.title ?? `Suggested ${isBreak ? "stop" : "fuel stop"} ${stop.ident}`}

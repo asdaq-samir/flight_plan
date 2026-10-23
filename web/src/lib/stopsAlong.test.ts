@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { stopFigures, stopsOfKind } from "./stopsAlong";
+import { alongGlance, stopFigures } from "./stopsAlong";
 
 describe("the stops along the route", () => {
   const totals = { distance_nm: 358, ete_min: 205.4, fuel_gal: 30, usable_fuel_gal: 53, taxi_gal: 1.4, reserve_gal: 4.75 };
@@ -16,14 +16,12 @@ describe("the stops along the route", () => {
   it("has no figures before the plan does", () => {
     expect(stopFigures({ flight: 0, from_nm: 10 }, null)).toEqual({ minutes: null, landsWithGal: null, underReserve: false });
   });
-  it("keeps the fields of the kind picked", () => {
-    const fields = [
-      { id: "A", fuel_types: ["100LL"], food: null },
-      { id: "B", fuel_types: ["A"], food: { name: "Diner" } },
-      { id: "C", fuel_types: [], courtesy_car: true },
-    ];
-    expect(stopsOfKind(fields, "fuel").map(f => f.id)).toEqual(["A"]);
-    expect(stopsOfKind(fields, "food").map(f => f.id)).toEqual(["B"]);
-    expect(stopsOfKind(fields, "rest").map(f => f.id)).toEqual(["C"]);
+  it("says what each field has: its avgas, the nearest food and bed, a courtesy car before a rental", () => {
+    const near = { distance_m: 300, walk_min: 4 }, far = { distance_m: 3300, walk_min: null };
+    expect(alongGlance({ fuel_types: ["100LL", "A"], food: near, lodging: far, courtesy_car: true, car: near })).toEqual([
+      { key: "fuel", words: "100LL" }, { key: "food", words: "Food 4 min walk" }, { key: "bed", words: "Hotel 2.1 mi" },
+      { key: "car", words: "Courtesy car" },
+    ]);
+    expect(alongGlance({ fuel_types: ["A"], car: far })).toEqual([{ key: "car", words: "Car rental 2.1 mi" }]);
   });
 });
