@@ -27,7 +27,7 @@ from typing import NamedTuple
 
 import numpy as np
 
-from . import elevation, faa_data, geo
+from . import elevation, faa_data, geo, ground_grid
 
 M_TO_FT = 3.28084
 
@@ -143,12 +143,23 @@ def floor_profile(
     """
     from itertools import pairwise
 
-    total_nm = geo.distance_nm(*route_start, *route_end)
-    sample_points = _route_sample_points(route_start, route_end, sample_interval_nm)
-    spacing_nm = total_nm / (len(sample_points) - 1)
-    elevations_m = _elevations_m(sample_points)
-    sample_along = np.arange(len(sample_points)) * spacing_nm
-    terrain_ft = np.array([elevations_m[p] for p in sample_points]) * M_TO_FT
+    # The ground from the built grid where it covers the route (vfr.
+    # ground_grid): every cell the line crosses, its highest ground for the
+    # floor and its lowest for the lowest ground under it, in a few array
+    # reads; else points along the line read off the tiles, as before.
+    lats, lons, along = ground_grid.line_points(route_start, route_end)
+    read = ground_grid.ground_ft(lats, lons)
+    if read is not None:
+        terrain_ft, terrain_low_ft = read
+        sample_along = along
+        spacing_nm = float(along[1] - along[0]) if len(along) > 1 else 0.0
+    else:
+        total_nm = geo.distance_nm(*route_start, *route_end)
+        sample_points = _route_sample_points(route_start, route_end, sample_interval_nm)
+        spacing_nm = total_nm / (len(sample_points) - 1)
+        elevations_m = _elevations_m(sample_points)
+        sample_along = np.arange(len(sample_points)) * spacing_nm
+        terrain_ft = terrain_low_ft = np.array([elevations_m[p] for p in sample_points]) * M_TO_FT
 
     # Every obstacle in the box placed on the route in one call -- the
     # corridor's thousands of them were two scalar geodesic solutions
@@ -167,11 +178,12 @@ def floor_profile(
 
     floors = []
     for a, b in pairwise(breaks_nm):
-        terrain_here = terrain_ft[(sample_along >= a - spacing_nm) & (sample_along <= b + spacing_nm)]
+        here = (sample_along >= a - spacing_nm) & (sample_along <= b + spacing_nm)
+        terrain_here = terrain_ft[here]
         obstacles_here = obstacle_ft[
             (obstacle_along >= a - corridor_half_width_nm) & (obstacle_along <= b + corridor_half_width_nm)
         ]
         terrain_mef = terrain_here.max() + TERRAIN_MARGIN_FT
         obstacle_mef = obstacles_here.max() + OBSTACLE_MARGIN_FT if obstacles_here.size else 0
-        floors.append(SegmentFloor(_round_up_100(max(terrain_mef, obstacle_mef)), float(terrain_here.min())))
+        floors.append(SegmentFloor(_round_up_100(max(terrain_mef, obstacle_mef)), float(terrain_low_ft[here].min())))
     return floors

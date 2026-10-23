@@ -499,20 +499,23 @@ def test_a_refresh_tries_every_source_and_raises_the_first_failure(mock_get, moc
     with pytest.raises(WeatherServiceError, match="metars down"):
         weather.refresh()
     fetched = {name for name, at in weather.dataset_status().items() if at is not None}
-    assert fetched == {"tafs", "airsigmets", "pireps", "gairmets", "winds-06"}
+    assert fetched == {"tafs", "airsigmets", "pireps", "gairmets", "winds-06", "winds-12", "winds-24"}
 
 
 @patch("vfr.weather.requests.get")
-def test_preload_fetches_the_current_winds_and_refresh_only_the_periods_held(mock_get):
+def test_preload_and_refresh_hold_every_winds_period(mock_get):
+    # A plan for later in the day reads the 12- or 24-hour winds: held
+    # from the start and refreshed with the rest, never fetched under it.
     mock_get.side_effect = lambda url, params=None, headers=None, timeout=None: (
         FD if url == weather.WINDTEMP_URL else METARS if "metars" in url else TAFS if "tafs" in url else AIRSIGMETS)
     weather.preload()
-    weather._fd_stations("12")
+    winds = sorted(c.kwargs["params"]["fcst"] for c in mock_get.call_args_list if c.args[0] == weather.WINDTEMP_URL)
+    assert winds == ["06", "12", "24"]
     mock_get.reset_mock()
 
     weather.refresh()
     winds = sorted(c.kwargs["params"]["fcst"] for c in mock_get.call_args_list if c.args[0] == weather.WINDTEMP_URL)
-    assert winds == ["06", "12"]
+    assert winds == ["06", "12", "24"]
 
 
 # --- PIREPs and G-AIRMETs ---

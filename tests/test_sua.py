@@ -42,7 +42,9 @@ def test_areas_the_route_crosses_are_listed_in_order_with_their_limits():
     with patch("vfr.sua.requests.get", return_value=_service(features)) as get:
         areas = sua.along_route((45.0, -90.0), (46.0, -90.0))
 
-    assert get.call_args.kwargs["params"]["geometryType"] == "esriGeometryEnvelope"
+    # The whole country asked for once, paged, not the route's box.
+    assert get.call_args.kwargs["params"]["where"] == "1=1"
+    assert "geometry" not in get.call_args.kwargs["params"]
     (moa,) = areas
     assert moa["name"] == "MOA NORTH" and moa["kind"] == "military operations area"
     assert moa["floor_ft"] == 500.0 and moa["floor_ref"] == "AGL"
@@ -124,3 +126,13 @@ def test_the_areas_over_a_point_are_those_that_hold_it_lowest_first():
         ("R-4501", "restricted area", 0.0, "SFC"), ("MOA NORTH", "military operations area", 500.0, "AGL"),
     ]
     assert "along_track_nm" not in here[0]
+
+
+def test_the_whole_set_is_read_page_by_page():
+    first = _service([_feature("R-1", "R", BOX_ON_ROUTE)])
+    first.json.return_value["properties"] = {"exceededTransferLimit": True}
+    second = _service([_feature("R-2", "R", BOX_OFF_ROUTE)])
+    with patch("vfr.sua.requests.get", side_effect=[first, second]) as get:
+        names = sorted(area["name"] for area, _ in sua.areas_in((44.0, -91.0, 47.0, -87.0)))
+    assert names == ["R-1", "R-2"]
+    assert [c.kwargs["params"]["resultOffset"] for c in get.call_args_list] == [0, 1]

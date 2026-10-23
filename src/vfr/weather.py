@@ -1301,23 +1301,29 @@ def _fetch_each(names, force: bool = False) -> None:
         raise first
 
 
+#: Every winds forecast period, held and refreshed whether asked for yet or
+#: not: a plan for later in the day reads the 12- or 24-hour product, and
+#: the first such plan after a restart waited on its download (5.9 s of a
+#: route's altitudes, 2026-10-23). Three small text files.
+WIND_PERIODS = ("winds-06", "winds-12", "winds-24")
+
+
 def preload() -> None:
     """Fetches the cache files and the current winds now -- a
     briefing's worth of data for every route -- so a service's first
     pilot after a restart doesn't wait on the downloads."""
-    _fetch_each(("metars", "tafs", "airsigmets", "pireps", "gairmets", "winds-06"))
+    _fetch_each(("metars", "tafs", "airsigmets", "pireps", "gairmets", *WIND_PERIODS))
 
 
 def refresh() -> None:
     """The same fetched again now, whatever their age -- the winds for
-    each forecast period already held -- for the server's own periodic
+    every forecast period -- for the server's own periodic
     refresh, so the held copies never expire on a pilot's request: the
     first plan after an expiry used to pay for the downloads, on a slow
     aviationweather.gov day close to a minute. A fetch that fails leaves
     the held copy in place, to be served stale as before; the winds used
     to be written here by hand, and had no such fallback."""
-    winds = [name for name in _DATASETS if name.startswith("winds-")] or ["winds-06"]
-    _fetch_each(("metars", "tafs", "airsigmets", "pireps", "gairmets", *winds), force=True)
+    _fetch_each(("metars", "tafs", "airsigmets", "pireps", "gairmets", *WIND_PERIODS), force=True)
 
 
 def forecast_hour(hours_ahead: float | None) -> str:
