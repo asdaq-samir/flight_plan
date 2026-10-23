@@ -11392,6 +11392,48 @@
         "summary": "Airport Diagram"
       }
     },
+    "/api/airport-photo/{ident}.jpg": {
+      "get": {
+        "description": "The field's photo from the ground (`airport_photos_of`), fetched from\nWikimedia Commons once and kept, a week in the browser.",
+        "operationId": "airport_photo_api_airport_photo__ident__jpg_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ident",
+            "required": true,
+            "schema": {
+              "title": "Ident",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "image/jpeg": {}
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "No such field, or no free photo of it"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "503": {
+            "description": "Wikimedia could not be reached"
+          }
+        },
+        "summary": "Airport Photo"
+      }
+    },
     "/api/airport/{ident}": {
       "get": {
         "description": "One US airport's card, by any ident it goes by (C81, KC81, KDLH).\n\n`airspace_class` is the class of the airspace at the surface at the\nfield: B, C or D, E in a Class E surface area, G where the ground is\nuncontrolled (vfr.airspace.surface_class_at).\n`towered` is whether it lists a tower frequency. A field with no\nreporting station has no `metar`; `weather_unavailable` is set only\nwhen the weather service could not be asked.",

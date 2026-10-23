@@ -132,6 +132,28 @@ def _ask_ground_photo(wikipedia_link: str) -> dict | None:
     return None
 
 
+def ground_photo_file(ident: str, url: str, cache_dir: Path = PHOTO_DIR) -> Path:
+    """The ground photo as a JPEG on disk, fetched from Commons once and
+    kept: served from the planner, as the aerial is, so the page shows it
+    under its own image policy and a route kept for the air has it.
+    Raises PhotoUnavailable where it cannot be had."""
+    path = Path(cache_dir) / f"{ident.strip().upper()}.jpg"
+    if path.exists() and path.stat().st_size > 0:
+        return path
+    try:
+        response = requests.get(url, headers=HEADERS, timeout=20)
+        response.raise_for_status()
+    except requests.RequestException as err:
+        raise PhotoUnavailable(f"Commons' photo could not be had for {ident}: {err}") from err
+    if not response.headers.get("content-type", "").startswith("image/"):
+        raise PhotoUnavailable(f"Commons answered {ident}'s photo with {response.headers.get('content-type')!r}")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    partial = path.with_suffix(".part")
+    partial.write_bytes(response.content)
+    partial.replace(path)
+    return path
+
+
 def ground_photo(ident: str, wikipedia_link: str | None, cache_dir: Path = PHOTO_DIR) -> dict | None:
     """The field's photo from the ground, where its Wikipedia article has a
     free one: {url, credit, license, source_url}, else None. Each field's

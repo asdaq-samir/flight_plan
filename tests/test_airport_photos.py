@@ -36,3 +36,20 @@ def test_a_ground_photo_is_asked_once_and_kept(tmp_path, monkeypatch):
 
 def test_commons_credit_is_its_words():
     assert airport_photos._plain('<a href="//x">Jane Doe</a>\n (talk)') == "Jane Doe (talk)"
+
+
+def test_the_ground_photo_is_fetched_once_and_kept(tmp_path, monkeypatch):
+    fetched = []
+
+    class Answer:
+        headers = {"content-type": "image/jpeg"}
+        content = b"\xff\xd8jpeg"
+
+        def raise_for_status(self):
+            pass
+
+    monkeypatch.setattr(airport_photos.requests, "get", lambda url, **kw: fetched.append(url) or Answer())
+    path = airport_photos.ground_photo_file("KSCD", "https://upload.wikimedia.org/x.jpg", tmp_path)
+    assert path.read_bytes() == b"\xff\xd8jpeg"
+    airport_photos.ground_photo_file("KSCD", "https://upload.wikimedia.org/x.jpg", tmp_path)
+    assert fetched == ["https://upload.wikimedia.org/x.jpg"]

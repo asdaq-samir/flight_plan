@@ -344,8 +344,35 @@ def airport_photos_of(ident: str) -> dict:
         link = airports.wikipedia_link(place["source_ident"])
     except (OSError, ValueError):
         link = None
+    photo = airport_photos.ground_photo(place["ident"], link)
+    # Served from here, as the aerial is (/api/airport-photo): the page's
+    # image policy does not reach Wikimedia, and a route kept for the air
+    # keeps it.
     return {"aerial_url": f"/api/planner/airport-aerial/{place['ident']}.jpg",
-            "photo": airport_photos.ground_photo(place["ident"], link)}
+            "photo": photo and {**photo, "url": f"/api/planner/airport-photo/{place['ident']}.jpg"}}
+
+
+@router.get("/api/airport-photo/{ident}.jpg", response_class=FileResponse,
+            responses={200: {"content": {"image/jpeg": {}}}, 404: {"description": "No such field, or no free photo of it"},
+                       503: {"description": "Wikimedia could not be reached"}})
+def airport_photo(ident: str) -> FileResponse:
+    """The field's photo from the ground (`airport_photos_of`), fetched from
+    Wikimedia Commons once and kept, a week in the browser."""
+    place = airports.find_place(ident)
+    if place is None:
+        raise HTTPException(404, f"No US airport goes by {ident.strip().upper()!r}.")
+    try:
+        link = airports.wikipedia_link(place["source_ident"])
+    except (OSError, ValueError):
+        link = None
+    photo = airport_photos.ground_photo(place["ident"], link)
+    if photo is None:
+        raise HTTPException(404, f"No free photo of {place['ident']}.")
+    try:
+        path = airport_photos.ground_photo_file(place["ident"], photo["url"])
+    except airport_photos.PhotoUnavailable as err:
+        raise HTTPException(503, str(err)) from err
+    return FileResponse(path, media_type="image/jpeg", headers={"Cache-Control": "public, max-age=604800"})
 
 
 @router.get("/api/airport-aerial/{ident}.jpg", response_class=FileResponse,

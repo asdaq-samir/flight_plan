@@ -583,7 +583,9 @@ def test_an_airports_photos_are_its_aerial_and_its_wikipedia_photo(monkeypatch):
              "source_url": None}
     monkeypatch.setattr(airport_photos, "ground_photo", lambda ident, link: photo if link else None)
     body = client.get("/api/airport/KDLH/photos").json()
-    assert body == {"aerial_url": "/api/planner/airport-aerial/KDLH.jpg", "photo": photo}
+    # The photo served from the planner, as the aerial is.
+    assert body == {"aerial_url": "/api/planner/airport-aerial/KDLH.jpg",
+                    "photo": {**photo, "url": "/api/planner/airport-photo/KDLH.jpg"}}
 
 
 def test_the_aerial_is_a_picture_and_a_usgs_outage_a_503(monkeypatch, tmp_path):
