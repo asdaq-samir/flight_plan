@@ -142,7 +142,10 @@ export function hitAreaMisses(page: Page, scope = "body", size = 44): Promise<Hi
         // ("Use the airport icon as the more button"), so the arrow's left
         // edge is the symbol's: the arrow is not crowded on the lines.
         const mark = el.matches("[data-disclosure]") && !!hit?.closest("[data-point-mark]");
-        const taken = !own(hit) && !toast(hit) && !pinned(hit) && !over(hit) && !mark;
+        // A field's own button at its end (the N-number's, the altitude's):
+        // where its area meets the field's text, the field's, to edit it.
+        const field = !!hit && hit.matches("input, label") && !!el.closest('[role="group"]') && hit.closest('[role="group"]') === el.closest('[role="group"]');
+        const taken = !own(hit) && !toast(hit) && !pinned(hit) && !over(hit) && !mark && !field;
         if (taken && hit) takers.push(`${hit.tagName.toLowerCase()}${(hit as HTMLElement).dataset.testid ? `[${(hit as HTMLElement).dataset.testid}]` : ""} "${(hit.getAttribute("aria-label") ?? hit.textContent ?? "").trim().slice(0, 20)}"`);
         return taken;
       }).length;

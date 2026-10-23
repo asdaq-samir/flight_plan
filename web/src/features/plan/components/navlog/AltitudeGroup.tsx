@@ -157,9 +157,10 @@ export default function AltitudeGroup({ nav, legs, commanded = null, problem = f
       <div className="col-start-1 row-start-1 flex h-full min-w-0 items-center">
         {/* Six points after the figure, at the owner's ask ("Does the button
             need to have that much spacing between text and button in the
-            grouped inputs?"): it was twelve. The button over the field
-            (z-20), so its 44-point area, a pseudo-element round it, is its
-            own where it reaches into the figure's room. */}
+            grouped inputs?"): it was twelve. The field over the button's
+            area where the two meet, so a tap at the figure's end is the
+            field's, to edit or clear it (the owner's "The n number and alt
+            is not letting me clear them": the button had it). */}
         <label className="relative flex h-full min-w-0 flex-1 items-center pr-1 after:absolute after:-inset-y-2 after:-left-0.5 after:right-0 after:content-['']">
           <input
             type="text" inputMode="numeric" enterKeyHint="done" autoComplete="off" size={1}
@@ -188,7 +189,7 @@ export default function AltitudeGroup({ nav, legs, commanded = null, problem = f
             // ask ("The profile button should also get the glass tinted. But
             // the altitude entry should stay as a text box"): the field's
             // end, where a line parted it from the figure before.
-            "relative z-20 mr-[3px] flex size-[1.375rem] shrink-0 items-center justify-center rounded-full outline-none after:absolute after:-inset-[11px] after:content-[''] focus-visible:ring-2 focus-visible:ring-ring disabled:text-muted-foreground",
+            "relative mr-[3px] flex size-[1.375rem] shrink-0 items-center justify-center rounded-full outline-none after:absolute after:-inset-[11px] after:content-[''] focus-visible:ring-2 focus-visible:ring-ring disabled:text-muted-foreground",
             GLASS_BUTTON,
             problem && "text-red-700 dark:text-red-300",
           )}

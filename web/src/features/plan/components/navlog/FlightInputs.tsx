@@ -108,7 +108,7 @@ export default function FlightInputs({ aircraftValue, aircraftOptions, onAircraf
               // 22 inside the field's 28, three in from its end, at the owner's
               // ask ("buttons for n number and altitude should be smaller to
               // fit in its input group"); its 44 a pseudo-element round it.
-              className={cn("relative z-20 mr-[3px] flex size-[1.375rem] shrink-0 items-center justify-center rounded-full outline-none after:absolute after:-inset-[11px] after:content-[''] focus-visible:ring-2 focus-visible:ring-ring", GLASS_BUTTON)}
+              className={cn("relative mr-[3px] flex size-[1.375rem] shrink-0 items-center justify-center rounded-full outline-none after:absolute after:-inset-[11px] after:content-[''] focus-visible:ring-2 focus-visible:ring-ring", GLASS_BUTTON)}
             >
               <Plane className="size-3.5" aria-hidden="true" />
             </button>
