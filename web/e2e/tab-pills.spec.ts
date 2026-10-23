@@ -107,11 +107,16 @@ test("each tab half way shows its own: Airport its Favorites and Nearest, Aircra
   // One strip, the owner's "one row, it can have the favorites with the
   // filter": its title the Favorites' way to them in full, what it shows a
   // menu at the row's right -- the Favorites first, the questions after
-  // them -- and the Map switch after it.
+  // them -- and Only these on the map at its top, at the owner's ask ("Can
+  // the aircraft map toggle be part of the filter, maybe on top?").
   const question = panel.getByTestId("pill-section-question");
   await expect(question.getByTestId("pill-section-question-more")).toHaveText("Favorites");
-  await expect(panel.getByTestId("aircraft-map-only")).toHaveAttribute("aria-checked", "false");
   await panel.getByTestId("aircraft-question").click();
+  const onMap = page.getByTestId("aircraft-map-only");
+  await expect(onMap).toHaveAttribute("aria-checked", "false");
+  await onMap.click();
+  await panel.getByTestId("aircraft-question").click();
+  await expect(page.getByTestId("aircraft-map-only")).toHaveAttribute("aria-checked", "true");
   await page.getByTestId("question-near").click();
   // A question's title names it, with no list in full to open.
   await expect(question.getByRole("heading", { name: "Nearest" })).toBeVisible();
@@ -333,15 +338,13 @@ test("Aircraft's Favorites' title opens the airplanes kept in full, Edit letting
   await grabberTo(page, "full");
   const panel = sideDrawer(page);
   // The title at the heading's left; at its right what the strip shows,
-  // then the Map switch (the owner's "for aircraft we can have the
-  // selection and show map controls to the right").
+  // the map's choice inside that menu now.
   const all = panel.getByTestId("pill-section-question-more");
   await expect(all).toHaveText("Favorites");
   const title = (await all.boundingBox())!;
   const menu = (await panel.getByTestId("aircraft-question").boundingBox())!;
-  const map = (await panel.getByTestId("aircraft-map-only").boundingBox())!;
   expect(title.x + title.width).toBeLessThan(menu.x);
-  expect(menu.x + menu.width).toBeLessThanOrEqual(map.x);
+  await expect(panel.getByTestId("aircraft-map-only")).toHaveCount(0);
   await all.click();
   const list = panel.getByTestId("aircraft-favorites-list");
   await expect(list.getByTestId("aircraft-favorites-mine")).toContainText("N14511");
