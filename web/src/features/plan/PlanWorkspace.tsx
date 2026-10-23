@@ -2440,7 +2440,20 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
             stops={planned.stops.join(",")} totals={s.totals ?? null} onClose={closeStops} onOpenField={selectPlace} onAdd={addStopAlong}
           />
         )}
-        <div className={cn("flex min-h-0 flex-col print:flex", depAlone ? "flex-none" : "flex-1", (tab !== "fpl" || place || heldPoint || savedOpen || briefShown || profileShown || stopsShown || !hasPoints) && "hidden")}>{navLog}</div>
+        {/* On another tab, laid out still but not drawn, out of the way
+            (tab-away: content-visibility hidden, inert), so the way back to
+            FPL draws it from its kept layout, where display: none laid the
+            whole route list out again at every return (a profile of two
+            switches, 2026-10-23: 1.25 s of layout at a quarter of a laptop's
+            speed). Under a card over FPL it goes as before. */}
+        <div
+          inert={tab !== "fpl" || undefined}
+          className={cn(
+            "flex min-h-0 flex-col print:flex", depAlone ? "flex-none" : "flex-1",
+            tab !== "fpl" ? (hasPoints ? "tab-away pointer-events-none absolute inset-0 overflow-hidden" : "hidden")
+              : (place || heldPoint || savedOpen || briefShown || profileShown || stopsShown || !hasPoints) && "hidden",
+          )}
+        >{navLog}</div>
         {/* A departure alone: under it the flights saved and the routes
             planned last, to pick from, where the sheet stood empty under
             the one field (the owner's screenshot, 2026-10-23). */}
