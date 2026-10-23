@@ -83,6 +83,9 @@ interface Props {
   /** The airport whose card is open, and the way to open one from the
    *  chart (AirportsLayer) -- or, with null, to put it away. */
   place: { ident: string; lat: number; lon: number } | null;
+  /** The route's departure while it is all there is (no destination yet):
+   *  the map brought to it (FitTo), at the owner's screenshot. */
+  start?: { ident: string; lat: number; lon: number } | null;
   /** The fields Nearest lists and own ship, with its card up: the map
    *  fitted to them over the half panel (FitTo). */
   nearest?: { ident: string; lat: number; lon: number }[] | null;
@@ -120,7 +123,19 @@ const BREAK_PIN = L.divIcon({
   iconSize: [30, 38], iconAnchor: [15, 37],
 });
 
-type StopPin = { ident: string; lat: number; lon: number; reason?: "fuel" | "break" };
+/** And a fork beside a pump in it, for a field of the map's Stops
+ *  (StopsCard), as its button wears (StopsAlongButton). */
+const ALONG_PIN = L.divIcon({
+  className: "",
+  html: '<svg width="30" height="38" viewBox="0 0 30 38" aria-hidden="true"><path d="M15 37C15 37 2 23.5 2 14a13 13 0 0 1 26 0c0 9.5-13 23-13 23z" fill="#d9480f" stroke="#fff" stroke-width="2"/>'
+    + '<g transform="translate(7.5 6.5) scale(0.62)" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">'
+    + '<path d="M3 2v7a3 3 0 0 0 6 0V2M6 2v20M15 22V4a2 2 0 0 1 2-2h1a2 2 0 0 1 2 2v18M15 10h5"/></g></svg>',
+  iconSize: [30, 38], iconAnchor: [15, 37],
+});
+
+/** A stop pinned on the chart: a suggestion's (the totals' fuel_stops), or
+ *  a field of the map's Stops (`along`, with its `title`). */
+type StopPin = { ident: string; lat: number; lon: number; reason?: "fuel" | "break" | "along"; title?: string };
 
 function FuelStopPins({ stops, onSelect }: { stops: StopPin[]; onSelect: (ident: string) => void }) {
   return stops.map(stop => <FuelStopPin key={stop.ident} stop={stop} onSelect={onSelect} />);
@@ -130,12 +145,13 @@ const FuelStopPin = memo(function FuelStopPin({ stop, onSelect }: { stop: StopPi
   // Memoized, not a literal: see AirportsLayer.
   const handlers = useMemo(() => ({ click: () => onSelect(stop.ident) }), [onSelect, stop.ident]);
   const isBreak = stop.reason === "break";
+  const icon = stop.reason === "along" ? ALONG_PIN : isBreak ? BREAK_PIN : FUEL_PIN;
   return (
     <Marker
-      position={[stop.lat, stop.lon]} icon={isBreak ? BREAK_PIN : FUEL_PIN} title={`Suggested ${isBreak ? "stop" : "fuel stop"} ${stop.ident}`}
+      position={[stop.lat, stop.lon]} icon={icon} title={stop.title ?? `Suggested ${isBreak ? "stop" : "fuel stop"} ${stop.ident}`}
       eventHandlers={handlers} zIndexOffset={500}
     >
-      <MapTooltip>{`${pointName(stop.ident)} · ${isBreak ? "Break" : "Fuel stop"}`}</MapTooltip>
+      <MapTooltip>{stop.title ? pointName(stop.ident) : `${pointName(stop.ident)} · ${isBreak ? "Break" : "Fuel stop"}`}</MapTooltip>
     </Marker>
   );
 });
@@ -184,7 +200,7 @@ function CheckpointCard({ candidate, number }: { candidate: Candidate; number?: 
           role={number === undefined ? undefined : "img"}
           aria-label={number === undefined ? undefined : `Checkpoint ${number}`}
           aria-hidden={number === undefined ? true : undefined}
-          className="grid size-7 shrink-0 place-items-center rounded-full border-[2.5px] border-background text-[11px] font-bold leading-none shadow-[0_1px_3px_rgba(0,0,0,.35)] outline outline-1 outline-[rgba(10,20,28,.45)]"
+          className="grid size-7 shrink-0 place-items-center rounded-full border-[2.5px] border-background text-[0.6875rem] leading-[0.8125rem] font-bold shadow-[0_1px_3px_rgba(0,0,0,.35)] outline outline-1 outline-[rgba(10,20,28,.45)]"
           style={{ backgroundColor: fill, color: inkOn(fill) }}
         >
           {number ?? ""}
@@ -480,12 +496,15 @@ const HoldTracks = memo(function HoldTracks({ legs }: { legs: Leg[] }) {
 /** How close in an airport's card brings the map: its field and its
  *  neighbours on the sectional. */
 const PLACE_ZOOM = 9;
+// A lone departure's: the field and the country round it, a sectional's
+// scale, where a destination is picked.
+const START_ZOOM = 9;
 
 // Drawn again only when its own props change (memo): the workspace
 // renders at each answer that streams in, and the whole map went with it.
 export default memo(function RouteMap({
   course, candidates, selected, focus, onSelectCandidate, onSelectPoint,
-  airportWeather, place, onSelectPlace, onAddStop, legs, heldPoint, onHoldPoint, nearest = null, patterns = NO_PATTERNS, patternFocus = null,
+  airportWeather, place, start = null, onSelectPlace, onAddStop, legs, heldPoint, onHoldPoint, nearest = null, patterns = NO_PATTERNS, patternFocus = null,
   procedures = NO_PROCEDURES, procedureFocus = null, procedureCover, crossings, directs = "", onProcedureFix, fuelStops = NO_POINTS_AT,
 }: Props) {
   const focusZoom = course?.max_zoom ?? 12;
@@ -548,6 +567,7 @@ export default memo(function RouteMap({
           picked in Maps does: from the search bar it was wherever the
           map happened to be, a ring over half the country. */}
       <FocusOn point={place} zoom={PLACE_ZOOM} />
+      {!place && <FitTo points={start ? [start] : NO_POINTS_AT} fitKey={start?.ident ?? null} maxZoom={START_ZOOM} />}
       {/* Nearest's fields, all in sight above its card. Not while one of
           them has its own card up, which brings that one in. */}
       {!place && <FitTo points={nearest ?? []} fitKey={nearest?.length ? nearest.map(a => a.ident).join(",") : null} />}

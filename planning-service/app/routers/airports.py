@@ -17,13 +17,13 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Query, Response
 from fastapi.responses import FileResponse
 from vfr import (
-    airports, airspace, altitude, faa_data, fixes, geocode, glmp, nearby, pattern, places, plates, procedures, publications, remarks,
-    runway_wind, weather,
+    airport_photos, airports, airspace, altitude, faa_data, fixes, geocode, glmp, nearby, pattern, places, plates, procedures,
+    publications, remarks, runway_wind, weather,
 )
 
 from ..common import DIAGRAM_CACHE
 from ..schemas import (
-    AirportPlace, AirportServices, ForecastWind, AirportsInView, ChartPages, NearestAirports, PlacesFound, PlateOverlay,
+    AirportPhotos, AirportPlace, AirportServices, ForecastWind, AirportsInView, ChartPages, NearestAirports, PlacesFound, PlateOverlay,
     ProcedureDrawing, ProcedureList, WaypointsInView,
 )
 
@@ -324,6 +324,72 @@ def airport_services(ident: str) -> dict:
         "fuel_notes": notes["fuel"], "courtesy_car": notes["courtesy_car"], "ground_notes": notes["ground"],
         **near, "nearby_unavailable": unavailable,
     }
+
+
+def _runway_ends(source: str) -> list[tuple[float, float]]:
+    return [pos for r in airports.get_runways(source) if not r["closed"] for pos in (r.get("end_positions") or {}).values() if pos]
+
+
+@router.get("/api/airport/{ident}/photos", response_model=AirportPhotos)
+def airport_photos_of(ident: str) -> dict:
+    """The pictures an airport's card swipes through behind its diagram, at
+    the owner's ask ("airport photos swipe behind the airport diagram
+    thumbnail", 2026-10-23): its aerial (/api/airport-aerial, every US
+    field's, from the USGS) and its Wikipedia article's photo where there
+    is a free one (vfr.airport_photos)."""
+    place = airports.find_place(ident)
+    if place is None:
+        raise HTTPException(404, f"No US airport goes by {ident.strip().upper()!r}.")
+    try:
+        link = airports.wikipedia_link(place["source_ident"])
+    except (OSError, ValueError):
+        link = None
+    photo = airport_photos.ground_photo(place["ident"], link)
+    # Served from here, as the aerial is (/api/airport-photo): the page's
+    # image policy does not reach Wikimedia, and a route kept for the air
+    # keeps it.
+    return {"aerial_url": f"/api/planner/airport-aerial/{place['ident']}.jpg",
+            "photo": photo and {**photo, "url": f"/api/planner/airport-photo/{place['ident']}.jpg"}}
+
+
+@router.get("/api/airport-photo/{ident}.jpg", response_class=FileResponse,
+            responses={200: {"content": {"image/jpeg": {}}}, 404: {"description": "No such field, or no free photo of it"},
+                       503: {"description": "Wikimedia could not be reached"}})
+def airport_photo(ident: str) -> FileResponse:
+    """The field's photo from the ground (`airport_photos_of`), fetched from
+    Wikimedia Commons once and kept, a week in the browser."""
+    place = airports.find_place(ident)
+    if place is None:
+        raise HTTPException(404, f"No US airport goes by {ident.strip().upper()!r}.")
+    try:
+        link = airports.wikipedia_link(place["source_ident"])
+    except (OSError, ValueError):
+        link = None
+    photo = airport_photos.ground_photo(place["ident"], link)
+    if photo is None:
+        raise HTTPException(404, f"No free photo of {place['ident']}.")
+    try:
+        path = airport_photos.ground_photo_file(place["ident"], photo["url"])
+    except airport_photos.PhotoUnavailable as err:
+        raise HTTPException(503, str(err)) from err
+    return FileResponse(path, media_type="image/jpeg", headers={"Cache-Control": "public, max-age=604800"})
+
+
+@router.get("/api/airport-aerial/{ident}.jpg", response_class=FileResponse,
+            responses={200: {"content": {"image/jpeg": {}}}, 404: {"description": "No such field"},
+                       503: {"description": "The USGS imagery could not be had"}})
+def airport_aerial(ident: str) -> FileResponse:
+    """The field's aerial photo from the USGS National Map's imagery
+    (public domain), framed on its runways (vfr.airport_photos.aerial):
+    asked of the USGS once and kept, a week in the browser."""
+    place = airports.find_place(ident)
+    if place is None:
+        raise HTTPException(404, f"No US airport goes by {ident.strip().upper()!r}.")
+    try:
+        path = airport_photos.aerial(place["ident"], place["lat"], place["lon"], _runway_ends(place["source_ident"]))
+    except airport_photos.PhotoUnavailable as err:
+        raise HTTPException(503, str(err)) from err
+    return FileResponse(path, media_type="image/jpeg", headers={"Cache-Control": "public, max-age=604800"})
 
 
 @router.get("/api/airport/{ident}/forecast-wind", response_model=ForecastWind | None)

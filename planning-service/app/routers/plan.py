@@ -57,6 +57,7 @@ from ..schemas import (
     NavLogStage,
     Plan,
     RouteProfile,
+    RouteStops,
     Totals,
 )
 from ..scoring import route_checkpoints
@@ -869,29 +870,22 @@ def fuel_stops_of(r: Route, per_flight: list[dict]) -> list[dict]:
     (vfr.fuelstops.suggest), at the owner's ask ("suggest fuel stops just
     like Tesla suggests"): the stops that make it, and other fields for the
     first, by the flight's own burn and minutes per mile and the reserve it
-    is held to (`reason` "fuel"). And where the tanks hold a flight longer
-    than fuelstops.BREAK_AFTER_MIN, a field about half way to stop at for a
-    meal or a rest (fuelstops.suggest_break, `reason` "break"), at the
-    owner's ask for food and rest stops on a long cross-country. None where
-    neither is called for, or where the usable fuel or the flight's
-    figures are not known."""
+    is held to. Fuel alone, at the owner's ask ("only suggest fuel stops in
+    the plan, not food etc. That can be done by the pilot by tapping the
+    button along the route", 2026-10-23): the map's Stops is where a meal
+    or a rest is picked. None where every flight's fuel check passes, or
+    where the usable fuel or the flight's figures are not known."""
     out = []
     for flight, t in zip(r.flights, per_flight):
         margin, usable, distance = t.get("fuel_margin_gal"), t.get("usable_fuel_gal"), t.get("distance_nm")
-        if margin is None or not usable or not distance or t.get("fuel_gal") is None or t.get("ete_min") is None:
+        if margin is None or margin >= 0 or not usable or not distance or t.get("fuel_gal") is None or t.get("ete_min") is None:
             continue
-        # What is there on the ground counts too (vfr.nearby.appeal_of):
-        # among fields about as quick, one with food a walk away first.
-        per_nm = {"fuel_per_nm": t["fuel_gal"] / distance, "min_per_nm": t["ete_min"] / distance,
-                  "usable_gal": usable, "taxi_gal": t.get("taxi_gal") or 0.0, "appeal": nearby.appeal_of}
         try:
-            if margin < 0:
-                reason = "fuel"
-                stops, choices = fuelstops.suggest(flight.start, flight.end, **per_nm,
-                                                   reserve_gal=t.get("reserve_gal") or 0.0, skip=set(r.idents))
-            else:
-                reason = "break"
-                stops, choices = fuelstops.suggest_break(flight.start, flight.end, **per_nm, skip=set(r.idents))
+            stops, choices = fuelstops.suggest(
+                flight.start, flight.end, fuel_per_nm=t["fuel_gal"] / distance, min_per_nm=t["ete_min"] / distance,
+                usable_gal=usable, taxi_gal=t.get("taxi_gal") or 0.0, reserve_gal=t.get("reserve_gal") or 0.0,
+                skip=set(r.idents),
+            )
         except (OSError, ValueError, KeyError):
             # The airport tables missing or unreadable: the fuel check
             # still says the flight is short, with no stop offered.
@@ -899,7 +893,7 @@ def fuel_stops_of(r: Route, per_flight: list[dict]) -> list[dict]:
             continue
         if stops:
             out.append({"departure": flight.dep_ident, "destination": flight.dest_ident, "usable_gal": usable,
-                        "reason": reason, "stops": [s.as_dict() for s in stops], "choices": [c.as_dict() for c in choices]})
+                        "reason": "fuel", "stops": [s.as_dict() for s in stops], "choices": [c.as_dict() for c in choices]})
     return out
 
 
@@ -969,6 +963,32 @@ def route_profile(dep: str, dest: str, stops: str = "") -> RouteProfile:
     r = load_route(dep, dest, stops)
     shp_path = airspace.ensure_class_airspace_shapefile(altitude.DEFAULT_FAA_CACHE_DIR)
     return side_view([(a["lat"], a["lon"]) for a in r.airports], shp_path)
+
+
+@router.get("/api/route-stops")
+def route_stops(dep: str, dest: str, stops: str = "") -> RouteStops:
+    """The fields along the route to stop at, for the map's Stops, at the
+    owner's ask ("a button to show food, fuel, rest options along the
+    route they can pick from", 2026-10-23): every public field near each
+    flight's line (vfr.fuelstops.along), each with its courtesy car (the
+    FAA's remarks) and the nearest food, bed and car to hire where its
+    places have been read (vfr.nearby.kept). Those not yet read are read
+    on the planner's pool and counted in `pending`; the page asks again
+    until none is. The times and the fuel at each are the page's, from
+    the plan's own figures per mile."""
+    r = load_route(dep, dest, stops)
+    found = fuelstops.along([(f.dep_ident, f.start, f.end) for f in r.flights], skip=set(r.idents))
+    out, pending = [], 0
+    for field in found:
+        places = nearby.kept(field["ident"])
+        if places is None:
+            pending += 1
+            nearby.read_later(field["ident"], field["lat"], field["lon"])
+        else:
+            for kind, one in (("food", "food"), ("lodging", "lodging"), ("cars", "car")):
+                field[one] = (places.get(kind) or [None])[0]
+        out.append({**field, "nearby_known": places is not None, "courtesy_car": nearby.courtesy_car(field["ident"])})
+    return RouteStops(fields=out, pending=pending)
 
 
 @router.get("/api/course")

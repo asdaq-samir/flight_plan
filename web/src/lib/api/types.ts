@@ -88,6 +88,12 @@ export type AirportPlace = Schemas["AirportPlace"];
  *  car near it (vfr.nearby). */
 export type AirportServices = Schemas["AirportServices"];
 export type NearbyPlace = Schemas["NearbyPlace"];
+/** The pictures an airport's card swipes through behind its diagram: its
+ *  aerial from the USGS and a photo from the ground from Wikipedia. */
+export type AirportPhotos = Schemas["AirportPhotos"];
+/** The fields along a route to stop at, for the map's Stops (vfr.fuelstops.along). */
+export type RouteStops = Schemas["RouteStops"];
+export type RouteStopField = Schemas["RouteStopField"];
 export type ForecastWind = Schemas["ForecastWind"];
 export type Metar = Schemas["Metar"];
 export type TerminalChart = Schemas["TerminalChart"];
@@ -172,6 +178,10 @@ export interface AircraftChoice {
   climbFuelBurnGph?: number;
   usableFuelGal?: number;
   aircraftId?: number;
+  /** An airplane picked by its N-number from the FAA's registry, flown on
+   *  its type's stock profile: its N-number, for its own place in the
+   *  picker (aircraftKey). */
+  tail?: string;
 }
 /** One line of the per-checkpoint description stream. */
 export type CheckpointDescriptionMessage = Schemas["CheckpointNoteMessage"];

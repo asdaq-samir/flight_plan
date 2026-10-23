@@ -412,9 +412,8 @@ class FuelStop(BaseModel):
 class FuelStopSuggestion(BaseModel):
     """The stops that take one flight short of fuel to its destination with
     the reserve left at every landing, the tanks filled at each, and other
-    fields the first could be -- or, `reason` "break", a field about half
-    way on a flight its tanks hold that is long enough to want a meal or
-    a rest (vfr.fuelstops.suggest_break)."""
+    fields the first could be. `reason` is "fuel": breaks for a meal or a
+    rest are the pilot's to pick from the map's Stops."""
 
     departure: str
     destination: str
@@ -2069,8 +2068,32 @@ class NearbyPlace(BaseModel):
     #: The minutes' walk where it is near enough to walk to, else None.
     walk_min: int | None = None
     phone: str | None = None
+    #: Its own website, where Overture lists one: the card's link to it.
+    website: str | None = None
     lat: float
     lon: float
+
+
+class GroundPhoto(BaseModel):
+    """A field's photo from the ground, from its Wikipedia article's lead
+    image on Wikimedia Commons (vfr.airport_photos), with its credit."""
+
+    url: str
+    #: Its size, pixels, for the full-screen viewer to fit it.
+    width: int = 900
+    height: int = 600
+    credit: str
+    license: str = ""
+    source_url: str | None = None
+
+
+class AirportPhotos(BaseModel):
+    """The pictures an airport's card swipes through behind its diagram:
+    its aerial from the USGS, every field's, and a photo from the ground
+    where there is a free one."""
+
+    aerial_url: str
+    photo: GroundPhoto | None = None
 
 
 class AirportServices(BaseModel):
@@ -2098,6 +2121,43 @@ class AirportServices(BaseModel):
     lodging: list[NearbyPlace] = []
     cars: list[NearbyPlace] = []
     nearby_unavailable: bool = False
+
+
+class RouteStopField(BaseModel):
+    """A field along the route to stop at, for the map's Stops (vfr.fuelstops.along):
+    which flight it is on, how far along it and off the line, its fuel,
+    and the nearest food, bed and car to hire from Overture (vfr.nearby),
+    once read (`nearby_known`)."""
+
+    ident: str
+    name: str
+    city: str
+    lat: float
+    lon: float
+    #: The flight it is on, by its index among the route's flights, and that
+    #: flight's departure.
+    flight: int
+    departure: str
+    #: Miles from that flight's departure, straight, and the miles it adds.
+    from_nm: float
+    added_nm: float
+    fuel_types: list[str] = []
+    runway_ft: int
+    elevation_ft: float | None = None
+    courtesy_car: bool = False
+    nearby_known: bool = False
+    food: NearbyPlace | None = None
+    lodging: NearbyPlace | None = None
+    car: NearbyPlace | None = None
+
+
+class RouteStops(BaseModel):
+    """The fields along a route to stop at, in route order, and how many
+    of them still have their places to be read (`pending`): asked again
+    until none."""
+
+    fields: list[RouteStopField]
+    pending: int = 0
 
 
 class ModelComparisonEntry(BaseModel):

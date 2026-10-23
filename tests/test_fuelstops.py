@@ -65,51 +65,15 @@ def test_a_short_runway_and_the_routes_own_fields_are_never_offered():
     assert [s.ident for s in stops] + [c.ident for c in choices] == ["OK"]
 
 
-def test_a_break_about_half_way_on_a_long_flight_the_tanks_hold():
-    # 400 nm at 0.6 min a mile is four hours; 40 gal at 0.1 a mile hold it.
-    end = (0.0, 6.6667)
-    stops, choices = fuelstops.suggest_break(
-        START, end, fields=fields(("EARLY", 0.0, 1.0), ("NEARMID", 0.0, 3.0), ("MIDOFF", 1.0, 3.3), ("LATE", 0.0, 4.2)),
-        fuel_per_nm=0.1, min_per_nm=0.6, usable_gal=40.0, taxi_gal=1.0)
-    # On the line and nearest the middle first; one 18 nm off the line
-    # after a field on it; one a sixth of the way not at all.
-    assert [s.ident for s in stops] == ["NEARMID"]
-    assert [c.ident for c in choices] == ["LATE", "MIDOFF"]
-    # 180 nm flown from 40 gal less the taxi allowance.
-    assert stops[0].lands_with_gal == pytest.approx(40 - 1 - 18, abs=0.3)
-    assert stops[0].minutes == pytest.approx(108, abs=1)
-
-
-def test_no_break_on_a_flight_of_three_hours_or_less():
-    # 294 nm at 0.6 min a mile: under three hours.
-    assert fuelstops.suggest_break(START, (0.0, 4.9), fields=fields(("MID", 0.0, 2.45)),
-                                   fuel_per_nm=0.1, min_per_nm=0.6, usable_gal=40.0, taxi_gal=1.0) == ([], [])
-
-
-def test_a_field_with_food_a_walk_away_goes_before_a_quicker_one_with_nothing():
-    # Both reach and keep the reserve; FOOD's 6 nm off the line cost under
-    # APPEAL_MINUTES, so its diner a walk away wins it.
-    asked = []
-
-    def appeal(fields):
-        asked.extend(ident for ident, _, _ in fields)
-        return {"FOOD": 3}
-
-    stops, choices = fuelstops.suggest(START, END, fields=fields(("PLAIN", 0.0, 5.0), ("FOOD", 0.1, 5.0)), appeal=appeal, **FIGURES)
-    assert [s.ident for s in stops] == ["FOOD"] and [c.ident for c in choices] == ["PLAIN"]
-    assert sorted(asked) == ["FOOD", "PLAIN"]
-
-
-def test_food_is_not_worth_more_than_appeal_minutes():
-    # FAR adds 26 nm, 16 minutes: more than a meal is worth.
-    stops, _ = fuelstops.suggest(START, END, fields=fields(("PLAIN", 0.0, 5.0), ("FAR", 1.5, 5.0)),
-                                 appeal=lambda f: {"FAR": 4}, **FIGURES)
-    assert [s.ident for s in stops] == ["PLAIN"]
-
-
-def test_a_break_at_the_field_with_the_most_on_the_ground():
-    end = (0.0, 6.6667)
-    stops, choices = fuelstops.suggest_break(
-        START, end, fields=fields(("NEARMID", 0.0, 3.0), ("LATE", 0.0, 4.2)), appeal=lambda f: {"LATE": 2},
-        fuel_per_nm=0.1, min_per_nm=0.6, usable_gal=40.0, taxi_gal=1.0)
-    assert [s.ident for s in stops] == ["LATE"] and [c.ident for c in choices] == ["NEARMID"]
+def test_the_fields_along_each_flight_in_route_order_the_routes_own_left_out():
+    found = fuelstops.along(
+        [("A", START, (0.0, 5.0)), ("MID", (0.0, 5.0), END)],
+        skip={"A", "MID", "B"},
+        fields=fields(("LATE", 0.0, 4.0), ("EARLY", 0.0, 1.0), ("SECOND", 0.1, 7.0), ("OFF", 3.0, 2.0), ("MID", 0.0, 5.0),
+                      ("SHORT", 0.0, 3.0)),
+    )
+    # On the first flight in order, then the second's; one far off the line,
+    # a short runway and the route's own fields not at all.
+    assert [(f["ident"], f["flight"], f["departure"]) for f in found] == [
+        ("EARLY", 0, "A"), ("LATE", 0, "A"), ("SECOND", 1, "MID")]
+    assert found[0]["from_nm"] == pytest.approx(60, abs=1) and found[0]["fuel_types"] == ["100LL"]

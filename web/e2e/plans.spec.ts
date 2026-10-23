@@ -176,10 +176,19 @@ test("plan page: the nav log is computed for an airplane the pilot picks in its 
   await controlsInSight(page);
   const picker = page.getByTestId("aircraft-select");
   await expect(picker).toBeVisible();
-  await expect(picker).toContainText("C172");
+  await expect(picker).toContainText("N-number");
+  // Picked by N-number alone, at the owner's ask: no stock profile is a
+  // choice, and one typed is looked up in the FAA's registry -- here a
+  // made-up Archer -- and flown on its type's profile.
+  await page.route(url => url.pathname.endsWith("/traffic/find"), route => route.fulfill({ json: {
+    aircraft: [], checked: true, source: "adsb.lol", license: "ODbL 1.0",
+    registered: { n_number: "N181PA", manufacturer: "Piper", model: "PA-28-181", year: 1999 },
+  } }));
   await picker.click();
-  await page.getByRole("option", { name: /PA28/ }).click();
-  await expect(picker).toContainText("PA28");
+  await expect(page.getByRole("option", { name: /PA28/ })).toHaveCount(0);
+  await page.getByTestId("aircraft-search").fill("N181PA");
+  await page.getByTestId("registry-pick").click();
+  await expect(picker).toContainText("N181PA");
   // Remembered per browser: the same airplane with the plan opened
   // again from its address -- on which the drawer is already open, since
   // the address kept it all the way up. (A reload forgets the route:
@@ -189,7 +198,7 @@ test("plan page: the nav log is computed for an airplane the pilot picks in its 
   await settle(page);
   await expectDrawerOpen(page);
   await controlsInSight(page);
-  await expect(page.getByTestId("aircraft-select")).toContainText("PA28");
+  await expect(page.getByTestId("aircraft-select")).toContainText("N181PA");
 });
 
 test("plan page: no legal altitude is the route's own problem: its chip says so at rest, and a mark beside the Nav Log opens to why and the two ways on", async ({ page }) => {

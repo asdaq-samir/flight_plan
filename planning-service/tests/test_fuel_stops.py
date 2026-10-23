@@ -29,23 +29,32 @@ def test_a_flight_the_tanks_do_not_hold_gets_its_stops(monkeypatch):
     assert asked["reserve_gal"] == 4.75 and asked["skip"] == {"C81", "KJAX"}
 
 
-def test_a_long_flight_the_tanks_hold_gets_a_break_about_half_way(monkeypatch):
-    asked = {}
-
-    def suggest_break(start, end, **figures):
-        asked.update(figures)
-        return [STOP], []
-
-    monkeypatch.setattr(plan.fuelstops, "suggest", lambda *a, **k: (_ for _ in ()).throw(AssertionError("asked")))
-    monkeypatch.setattr(plan.fuelstops, "suggest_break", suggest_break)
-    out = plan.fuel_stops_of(ROUTE, [{**SHORT, "fuel_margin_gal": 2.0}])
-    assert [(o["reason"], [s["ident"] for s in o["stops"]]) for o in out] == [("break", ["KSCX"])]
-    assert "reserve_gal" not in asked and asked["skip"] == {"C81", "KJAX"}
-
-
 def test_none_where_the_fuel_check_passes_or_cannot_be_made(monkeypatch):
     monkeypatch.setattr(plan.fuelstops, "suggest", lambda *a, **k: (_ for _ in ()).throw(AssertionError("asked")))
-    monkeypatch.setattr(plan.fuelstops, "suggest_break", lambda *a, **k: ([], []))
     assert plan.fuel_stops_of(ROUTE, [{**SHORT, "fuel_margin_gal": 2.0}]) == []
     assert plan.fuel_stops_of(ROUTE, [{**SHORT, "usable_fuel_gal": None}]) == []
     assert plan.fuel_stops_of(ROUTE, [{**SHORT, "fuel_gal": None}]) == []
+
+
+def test_the_fields_along_the_route_with_their_places_once_read(monkeypatch):
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+    route = Route(("C81", "KOMA"), ({"lat": 42.3, "lon": -88.1}, {"lat": 41.3, "lon": -95.9}))
+    monkeypatch.setattr(plan, "load_route", lambda dep, dest, stops="": route)
+    monkeypatch.setattr(plan.fuelstops, "along", lambda flights, skip: [
+        {"ident": "KIOW", "name": "IOWA CITY MUNI", "city": "IOWA CITY", "lat": 41.64, "lon": -91.55, "flight": 0, "departure": "C81",
+         "from_nm": 152.0, "added_nm": 1.8, "fuel_types": ["100LL"], "runway_ft": 4355, "elevation_ft": 668.0},
+        {"ident": "KVTI", "name": "VINTON VETERANS MEML", "city": "VINTON", "lat": 42.22, "lon": -92.03, "flight": 0, "departure": "C81",
+         "from_nm": 175.0, "added_nm": 2.0, "fuel_types": ["100LL"], "runway_ft": 4200, "elevation_ft": 842.0}])
+    diner = {"name": "Dairy Queen", "kind": "Fast food restaurant", "distance_m": 700, "walk_min": 9, "phone": None,
+             "website": None, "lat": 41.6, "lon": -91.5}
+    monkeypatch.setattr(plan.nearby, "kept", lambda ident: {"food": [diner], "lodging": [], "cars": []} if ident == "KIOW" else None)
+    later = []
+    monkeypatch.setattr(plan.nearby, "read_later", lambda ident, lat, lon: later.append(ident))
+    monkeypatch.setattr(plan.nearby, "courtesy_car", lambda ident: ident == "KVTI")
+    body = TestClient(app).get("/api/route-stops?dep=C81&dest=KOMA").json()
+    assert body["pending"] == 1 and later == ["KVTI"]
+    kiow, kvti = body["fields"]
+    assert kiow["food"] == diner and kiow["nearby_known"] is True and kiow["lodging"] is None
+    assert kvti["nearby_known"] is False and kvti["courtesy_car"] is True

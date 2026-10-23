@@ -20,11 +20,12 @@ import { trafficPattern } from "../../../lib/trafficPattern";
 import { TEXT } from "../../../lib/text";
 import { altFt } from "../../../lib/units";
 import { endFit, type EndFit } from "../../../lib/runwayFit";
-import { frdOf, isPosition } from "../../../lib/identSchema";
+import { frdOf, isPosition, placeOfPoint, pointName } from "../../../lib/identSchema";
 import { COURSE_MAGENTA } from "../../../lib/map/chartColors";
 import { useOwnShip } from "../../../lib/map/ownShip";
 import { etaAt, reportedWind, type ReportedWind } from "../format";
-import { PointMark } from "./navlog/PointMark";
+import { AirportMark, PointMark } from "./navlog/PointMark";
+import { colourOf } from "../../../lib/map/flightCategory";
 import FixBranch from "./FixBranch";
 import DepartPicker from "./navlog/DepartPicker";
 import ProcedureMenu from "./ProcedureMenu";
@@ -524,7 +525,12 @@ export default function ProceduresRoute({
     const has = (kind: Kind) => hasKind(a.ident, kind) || inRoute.some(p => sameField(p.ident, a.ident) && p.kind === kind);
     const time = row ? etaAt(depart || new Date().toISOString(), row.minutesFlown) : null;
     // 22 in the 36 of its glass button, where the map's 26 filled it.
-    const mark = row ? <PointMark row={row} number={undefined} weather={weather} airportSize={22} /> : <FieldDot last={last} />;
+    // Before the plan, the field's own mark from its card (its airspace,
+    // its weather), not a dot, at the owner's screenshot (a departure alone).
+    const placed = cards[i]?.data;
+    const mark = row ? <PointMark row={row} number={undefined} weather={weather} airportSize={22} />
+      : placed ? <AirportMark airspaceClass={placed.airspace_class ?? null} colour={weather(a.ident) ?? colourOf(placed.metar?.flight_category ?? null)} size={22} />
+        : <FieldDot last={last} />;
     // A step of the field's, at the owner's pick (option C of the
     // procedures canvas): its name and time in its head, its runway chips
     // under with its info at their start ("Info can go on the left side of
@@ -608,7 +614,7 @@ export default function ProceduresRoute({
     const block = (parts: Part[], headTime: ReactNode) => {
       const first = parts[0]!;
       const end = pointEnd(a.ident, {
-        time: headTime, waypoint: false, elevationFt: a.elevationFt, to: a.role !== "Departure", stop: a.role === "Stop",
+        time: headTime, waypoint: false, elevationFt: a.elevationFt ?? cards[i]?.data?.elevation_ft ?? null, to: a.role !== "Departure", stop: a.role === "Stop",
         holdable: a.role === "Destination", row,
       });
       const reported = reportedOf(a.ident);
@@ -859,7 +865,9 @@ export default function ProceduresRoute({
         key={row.key} last={last} mark={<PointMark row={row} number={undefined} weather={weather} />}
         title={rowPoint(row).name} testId={`route-${row.kind}`}
         icon={tanks.has(row.key) ? <FuelGauge gal={tanks.get(row.key)!.gal} usable={tanks.get(row.key)!.usable} tone={tanks.get(row.key)!.low ? "low" : undefined} /> : undefined}
-        sub={end?.direct ? <span className="font-semibold text-tint">Direct to</span> : `${row.kind === "stop" ? (to && frdOf(row.airport.ident) ? row.airport.name : "Fly over") : row.kind === "destination" ? "Destination" : "Departure"}${along(row)}`}
+        // A present position, POS0, by its coordinates under it, where its
+        // role was ("Instead of Departure under POS0, say the coordinates").
+        sub={end?.direct ? <span className="font-semibold text-tint">Direct to</span> : `${row.kind === "stop" ? (to && frdOf(row.airport.ident) ? row.airport.name : "Fly over") : row.kind === "destination" ? "Destination" : "airport" in row && isPosition(row.airport.ident) ? placeOfPoint(row.airport.ident) : "Departure"}${along(row)}`}
         figures={end?.figures ?? <PointFigures time={time} altitude={null} kind="cruise" />} menu={end?.menu}
       />,
     );
@@ -971,7 +979,7 @@ function HoldRow({ hold, flown, last, onOpen }: { hold: Hold; flown: LegHold | n
       </div>
       <button
         type="button" onClick={onOpen}
-        aria-label={`Hold at ${hold.fix}: ${holdWords(hold)}${flown ? `, ${flown.entry} entry, ${Math.round(flown.minutes)} minutes more` : ""}: change`}
+        aria-label={`Hold at ${pointName(hold.fix)}: ${holdWords(hold)}${flown ? `, ${flown.entry} entry, ${Math.round(flown.minutes)} minutes more` : ""}: change`}
         className="mb-4 flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-xl bg-tint/8 px-2.5 py-1.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <span className="flex min-w-0 flex-1 flex-col">

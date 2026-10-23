@@ -67,10 +67,38 @@ export function departureOf(value: string | null | undefined): string {
   return identOf(value) || positionOf(value);
 }
 
-/** A point's name as the route shows it: a present position by its
- *  coordinates, as a GPS writes them ("N42°19.5′ W088°04.4′"), at the
- *  pilot's ask -- it read "Here". */
+/** A present position's name in the route, at the owner's ask ("Let's
+ *  call current position as POS0"): short as an ident is, where its
+ *  coordinates filled the route's box and FPL's line. */
+export const POSITION_NAME = "POS0";
+
+/** The pilot's own points in the route now -- one off a fix (frdOf), made
+ *  by a long press on the map or Create a fix -- by the name each goes by,
+ *  POS1 on in the order they are flown, after the present position's POS0,
+ *  at the owner's ask ("use POS incremented terminology when creating a
+ *  fix or hold or even a user point by long tap on the map"). Set as the
+ *  route is drawn (nameOwnPoints); its own words (VPBNG/090/30, "30 nm
+ *  east of VPBNG") stay the line under it. */
+let ownPointNames = new Map<string, string>();
+
+/** The route's stops, in order: its own points named POS1, POS2… */
+export function nameOwnPoints(stops: readonly string[]) {
+  const own = [...new Set(stops.filter(stop => frdOf(stop) !== null))];
+  if (own.length === ownPointNames.size && own.every((stop, i) => ownPointNames.get(stop) === `POS${i + 1}`)) return;
+  ownPointNames = new Map(own.map((stop, i) => [stop, `POS${i + 1}`]));
+}
+
+/** A point's name as the route shows it: a present position as POS0, the
+ *  pilot's own points POS1 on (nameOwnPoints), the rest by their idents. */
 export function pointName(ident: string): string {
+  return isPosition(ident) ? POSITION_NAME : ownPointNames.get(ident) ?? ident;
+}
+
+/** A point's name where it is told after the flight -- a saved or recent
+ *  flight, a passenger's briefing -- where POS0 says nowhere: a present
+ *  position by its coordinates, as a GPS writes them ("N42°19.5′
+ *  W088°04.4′"). */
+export function placeOfPoint(ident: string): string {
   if (!isPosition(ident)) return ident;
   const [lat, lon] = ident.slice(1).split(",").map(Number);
   return degreesMinutes({ lat: lat!, lon: lon! });

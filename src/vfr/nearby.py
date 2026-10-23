@@ -22,7 +22,7 @@ import math
 import re
 import threading
 import time
-from concurrent.futures import ThreadPoolExecutor, wait
+from concurrent.futures import ThreadPoolExecutor
 from functools import lru_cache
 from pathlib import Path
 
@@ -66,16 +66,15 @@ LODGING = {"hotel", "bed_and_breakfast", "resort", "inn", "motel"}
 #: A car to hire.
 CARS = {"car_rental_service"}
 
-#: How long a plan waits on the places near the fields it is choosing a
-#: stop among (appeal_of), seconds: a field's first read is about 0.3 s once
-#: the files' footers are in (warm), four at a time. Those not in by then
-#: count as nothing known, and are read on and kept for the next plan.
-APPEAL_BUDGET_S = 1.5
+#: Each field's answer's file name after its ident: ".2.json" since
+#: places carry their websites, so those kept before are read again.
+KEPT_SUFFIX = ".2.json"
 
-_COLUMNS = ["id", "names", "taxonomy", "basic_category", "confidence", "bbox", "operating_status", "phones"]
+_COLUMNS = ["id", "names", "taxonomy", "basic_category", "confidence", "bbox", "operating_status", "phones", "websites"]
 _LOCK = threading.Lock()
 _releases: dict[str, tuple[float, str]] = {}
 _POOL = ThreadPoolExecutor(max_workers=4, thread_name_prefix="nearby")
+_READING: set[str] = set()
 
 
 class NearbyUnavailable(RuntimeError):
@@ -167,7 +166,8 @@ def _read(lat: float, lon: float, release: str) -> dict:
         found[kind].append({
             "name": name, "kind": _words((row.get("taxonomy") or {}).get("primary") or row.get("basic_category")),
             "distance_m": round(metres), "walk_min": math.ceil(metres / WALK_M_PER_MIN) if metres <= WALK_M else None,
-            "phone": (row.get("phones") or [None])[0], "lat": round(plat, 6), "lon": round(plon, 6),
+            "phone": (row.get("phones") or [None])[0], "website": (row.get("websites") or [None])[0],
+            "lat": round(plat, 6), "lon": round(plon, 6),
         })
     out = {}
     for kind, places in found.items():
@@ -190,7 +190,7 @@ def around(ident: str, lat: float, lon: float, cache_dir: Path = CACHE_DIR) -> d
     NearbyUnavailable where Overture cannot be read and the field's
     answer was never kept."""
     release = latest_release()
-    path = Path(cache_dir) / release / f"{ident.strip().upper()}.json"
+    path = Path(cache_dir) / release / f"{ident.strip().upper()}{KEPT_SUFFIX}"
     try:
         return json.loads(path.read_text())
     except (OSError, ValueError):
@@ -198,7 +198,7 @@ def around(ident: str, lat: float, lon: float, cache_dir: Path = CACHE_DIR) -> d
     try:
         found = _read(lat, lon, release)
     except Exception as err:  # pyarrow's own errors are OSError and ArrowException, among others
-        kept = sorted(Path(cache_dir).glob(f"*/{ident.strip().upper()}.json"))
+        kept = sorted(Path(cache_dir).glob(f"*/{ident.strip().upper()}{KEPT_SUFFIX}"))
         if kept:
             return json.loads(kept[-1].read_text())
         raise NearbyUnavailable(f"Overture's places could not be read for {ident}: {err}") from err
@@ -217,7 +217,8 @@ def warm() -> None:
     _read(0.0, 0.0, latest_release())
 
 
-def _courtesy_car(ident: str) -> bool:
+def courtesy_car(ident: str) -> bool:
+    """Whether the FAA's remarks offer a courtesy car at the field."""
     ident = ident.strip().upper()
     faa_ids = [ident[1:], ident] if len(ident) == 4 and ident[0] in "KP" else [ident]
     try:
@@ -226,30 +227,32 @@ def _courtesy_car(ident: str) -> bool:
         return False
 
 
-def appeal(found: dict | None, courtesy_car: bool) -> int:
-    """How good a field is to stop at for a meal or a rest, 0 to 4: food
-    near it (1), and a walk away (2 more), and a way into town -- a
-    courtesy car, or a car to hire a walk away (1)."""
-    food, cars = (found or {}).get("food") or [], (found or {}).get("cars") or []
-    score = 1 if food else 0
-    if any(p.get("walk_min") is not None for p in food):
-        score += 2
-    if courtesy_car or any(p.get("walk_min") is not None for p in cars):
-        score += 1
-    return score
+def kept(ident: str, cache_dir: Path = CACHE_DIR) -> dict | None:
+    """A field's places where they have been read for the newest release,
+    without asking Overture: None where they have not (read_later)."""
+    try:
+        return json.loads((Path(cache_dir) / latest_release() / f"{ident.strip().upper()}{KEPT_SUFFIX}").read_text())
+    except (OSError, ValueError, NearbyUnavailable):
+        return None
 
 
-def appeal_of(fields: list[tuple[str, float, float]], budget_s: float = APPEAL_BUDGET_S) -> dict[str, int]:
-    """Each field's appeal (ident, lat, lon), for a plan choosing among
-    stops: its places read four at a time for at most `budget_s`, a field's
-    not in by then counted on its courtesy car alone, and read on and kept
-    for the next plan."""
-    asked = {ident: _POOL.submit(around, ident, lat, lon) for ident, lat, lon in fields}
-    wait(list(asked.values()), timeout=budget_s)
-    out = {}
-    for ident, future in asked.items():
-        found = None
-        if future.done() and not future.exception():
-            found = future.result()
-        out[ident] = appeal(found, _courtesy_car(ident))
-    return out
+def read_later(ident: str, lat: float, lon: float) -> None:
+    """A field's places read on the pool and kept, once however often it
+    is asked while it is read: the map's Stops (along) asks for the
+    fields not yet read and is asked again until they are."""
+    key = ident.strip().upper()
+    with _LOCK:
+        if key in _READING:
+            return
+        _READING.add(key)
+
+    def read() -> None:
+        try:
+            around(key, lat, lon)
+        except NearbyUnavailable:
+            log.warning("nearby places at %s could not be read", key)
+        finally:
+            with _LOCK:
+                _READING.discard(key)
+
+    _POOL.submit(read)

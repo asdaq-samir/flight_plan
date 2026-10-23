@@ -3,6 +3,8 @@ import FlownTrackButton from "./FlownTrackButton";
 import FullscreenButton from "./FullscreenButton";
 import MyPositionButton from "./MyPositionButton";
 import MapSettingsButton from "./MapSettingsButton";
+import StopsAlongButton from "./StopsAlongButton";
+import { useStopsAlong } from "../lib/stopsAlong";
 import { GLASS } from "./mapChrome";
 
 /**
@@ -20,6 +22,7 @@ import { GLASS } from "./mapChrome";
  * is; the others' glyphs in the text's colour.
  */
 export default function MapControls() {
+  const stops = useStopsAlong(s => s.available);
   return (
     // z-[1000]: over Leaflet's own panes, the level Leaflet gives its
     // controls; still inside the map's own stacking context, under the
@@ -48,6 +51,14 @@ export default function MapControls() {
             browser and an iPad, never an iPhone. */}
         <FullscreenButton />
       </div>
+      {/* The Stops in a glass circle of their own under the group, while
+          there is a route to look along, at the owner's pick (option C of
+          the stops canvas). */}
+      {stops && (
+        <div className={cn("mt-2 flex flex-col rounded-full p-1 [&_button]:rounded-full", GLASS)}>
+          <StopsAlongButton />
+        </div>
+      )}
     </div>
   );
 }

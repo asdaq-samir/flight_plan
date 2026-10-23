@@ -364,15 +364,19 @@ export function ListPageHead({ title, backLabel, onBack, action, testId }: {
  * and its questions. The title names the list shown and is the way to it
  * in full, as every section's is.
  */
-export function StripSection<V extends string>({ lists, shows, onShow, menuTestId, menuClassName, beside, right, children }: {
+export function StripSection<V extends string>({ lists, shows, onShow, menuTestId, menuClassName, menuTop, beside, right, children }: {
   /** What it can show, in the menu's order, the first the one at first. */
   lists: StripList<V>[];
   shows: V;
   onShow: (value: V) => void;
   menuTestId?: string;
   menuClassName?: string;
+  /** At the menu's top, a line under it: Aircraft's Show on map, at the
+   *  owner's ask ("Can the aircraft map toggle be part of the filter,
+   *  maybe on top?", 2026-10-23). */
+  menuTop?: ReactNode;
   beside?: ReactNode;
-  /** After the menu, at the row's right (Aircraft's Map switch). */
+  /** After the menu, at the row's right. */
   right?: ReactNode;
   children: ReactNode;
 }) {
@@ -383,7 +387,7 @@ export function StripSection<V extends string>({ lists, shows, onShow, menuTestI
       right={(
         <>
           <PillMenu
-            label={`Showing ${list.label}`} value={list.value} onChange={onShow} testId={menuTestId} className={menuClassName}
+            label={`Showing ${list.label}`} value={list.value} onChange={onShow} testId={menuTestId} className={menuClassName} top={menuTop}
             options={lists.map(l => ({ value: l.value, label: l.item ?? l.label, testId: l.testId, apart: l.apart }))}
           />
           {right}
@@ -415,7 +419,7 @@ export interface StripList<V extends string> {
 /** What a strip shows, a menu behind iOS's filter glyph at its heading's
  *  right, as Mail's filter is, a line after any item `apart` says so
  *  (StripSection). */
-export function PillMenu<V extends string>({ label, value, options, onChange, testId, className }: {
+export function PillMenu<V extends string>({ label, value, options, onChange, testId, className, top }: {
   /** Its name, to a screen reader and a long press: what it shows now. */
   label: string;
   value: V;
@@ -423,6 +427,8 @@ export function PillMenu<V extends string>({ label, value, options, onChange, te
   onChange: (value: V) => void;
   testId?: string;
   className?: string;
+  /** Before the choices, a line under it (StripSection's menuTop). */
+  top?: ReactNode;
 }) {
   return (
     <DropdownMenu>
@@ -434,6 +440,12 @@ export function PillMenu<V extends string>({ label, value, options, onChange, te
         </IconButton>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className={cn("min-w-44", className)}>
+        {top && (
+          <>
+            {top}
+            <DropdownMenuSeparator />
+          </>
+        )}
         <DropdownMenuRadioGroup value={value} onValueChange={v => onChange(v as V)}>
           {options.map(o => (
             <Fragment key={o.value}>
@@ -492,7 +504,11 @@ export function ChartMark({ space, category, use, size = 22 }: {
 function KeptChartMark({ airport, size }: { airport: RecentAirport; size?: number }) {
   const { data } = useQuery(airportQuery(airport.ident));
   const use = data?.military === "military" ? "military" : data?.private ? "private" : null;
-  return <ChartMark space={data?.airspace_class ?? airport.airspace ?? null} category={data?.metar?.flight_category} use={use} size={size} />;
+  // With no report of its own, the weather modelled at it, else a station's
+  // within ten miles, as its card's chip and FPL's symbols have it.
+  const category = data?.metar?.flight_category ?? data?.modelled_weather?.flight_category
+    ?? (data?.nearby_metar?.near ? data.nearby_metar.metar.flight_category : null);
+  return <ChartMark space={data?.airspace_class ?? airport.airspace ?? null} category={category} use={use} size={size} />;
 }
 
 /** A kept airport -- a Favorite, a Recent -- as a pill's small tile: its
@@ -506,9 +522,12 @@ export function SmallAirportTile({ airport, detail, onClick, testId = "pill-favo
   const space = useAirspace(airport);
   return (
     <SmallTile
-      // The chart's mark the whole tile, no grey round it, at the owner's
-      // ask ("make fav airport icons fill the grey space around it").
-      mark={<SmallMark icon={<KeptChartMark airport={airport} size={56} />} className="[&_svg]:size-14" />}
+      // The chart's mark on its own, no grey round it, at the owner's ask
+      // ("make fav airport icons fill the grey space around it"), at 44 in
+      // the tile's 56, as wide as Home's disc reads: at 56 its ticks ran
+      // past the tile and it stood larger than Home and Add beside it (the
+      // owner's "Airport icons too big").
+      mark={<SmallMark icon={<KeptChartMark airport={airport} size={44} />} className="[&_svg]:size-11" />}
       title={airport.ident} detail={detail} label={`${airport.ident}, ${space.name}`} onClick={onClick} testId={testId}
     />
   );

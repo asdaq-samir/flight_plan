@@ -117,6 +117,18 @@ def preload_lookup(cache_path: Path = DEFAULT_CACHE_PATH) -> None:
     _airport_rows(str(path), path.stat().st_mtime)
 
 
+def wikipedia_link(ident: str, cache_path: Path = DEFAULT_CACHE_PATH) -> str | None:
+    """The field's Wikipedia article, as OurAirports links it, or None: its
+    ground photo's source (vfr.airport_photos)."""
+    path = _ensure_cached(OURAIRPORTS_URL, cache_path)
+    mtime = path.stat().st_mtime
+    at = _airport_rows(str(path), mtime).get(ident.strip().upper())
+    if at is None:
+        return None
+    link = _read_table(str(path), mtime).iloc[at].get("wikipedia_link")
+    return link.strip() if isinstance(link, str) and link.strip() else None
+
+
 def get_airport(ident: str, cache_path: Path = DEFAULT_CACHE_PATH) -> dict:
     """Look up one airport by FAA local identifier or ICAO ident.
 

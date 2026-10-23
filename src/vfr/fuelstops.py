@@ -15,7 +15,6 @@ made with the stop put in is the real check: this only chooses where.
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from functools import lru_cache
 from pathlib import Path
@@ -51,20 +50,6 @@ CHOICES = 4
 #: a few minutes are not worth landing with less fuel.
 SAME_MINUTES = 5.0
 
-#: The minutes a field is worth over a quicker one where it has food a
-#: walk away or a way into town (vfr.nearby.appeal), at the owner's yes to
-#: picking stops by what is there on the ground (2026-10-22): a meal
-#: within reach is worth ten minutes on a long day. Only among fields
-#: that each keep the reserve.
-APPEAL_MINUTES = 10.0
-
-#: The most fields whose places a plan asks for when choosing a stop.
-APPEAL_MOST = 8
-
-#: A field's appeal by its ident, from (ident, lat, lon) of the fields
-#: asked of (vfr.nearby.appeal_of).
-Appeal = Callable[[list[tuple[str, float, float]]], dict[str, int]]
-
 
 @dataclass(frozen=True)
 class FuelStop:
@@ -89,15 +74,16 @@ class FuelStop:
         return asdict(self)
 
 
-@lru_cache(maxsize=2)
-def _fields_of(path: str, _mtime: float) -> pd.DataFrame:
-    """The public airports that sell FUEL, from APT_BASE: ident (the ICAO
-    one where there is one, as the route spells it), name, city, where,
-    elevation and what fuel."""
+@lru_cache(maxsize=4)
+def _fields_of(path: str, _mtime: float, fuel_only: bool = True) -> pd.DataFrame:
+    """The public airports that sell FUEL, from APT_BASE -- or, not
+    `fuel_only`, every public airport: ident (the ICAO one where there is
+    one, as the route spells it), name, city, where, elevation and what
+    fuel."""
     df = faa_data._read_apt_base_cached(path, _mtime)
     sells = df["FUEL_TYPES"].fillna("").str.split(",").apply(lambda types: FUEL in [t.strip() for t in types])
     open_public = (df["FACILITY_USE_CODE"] == "PU") & (df["SITE_TYPE_CODE"] == "A") & (df["ARPT_STATUS"].fillna("O") == "O")
-    df = df[sells & open_public]
+    df = df[(sells | (not fuel_only)) & open_public]
     icao = df["ICAO_ID"].fillna("").str.strip()
     return pd.DataFrame({
         "ident": np.where(icao != "", icao, df["ARPT_ID"].str.strip()),
@@ -114,6 +100,12 @@ def _fields_of(path: str, _mtime: float) -> pd.DataFrame:
 def fields_with_fuel(cache_dir=DEFAULT_FAA_CACHE_DIR) -> pd.DataFrame:
     path = faa_data.ensure_nasr_file("APT_BASE.csv", cache_dir)
     return _fields_of(str(path), Path(path).stat().st_mtime)
+
+
+def public_fields(cache_dir=DEFAULT_FAA_CACHE_DIR) -> pd.DataFrame:
+    """Every open public airport, fuel or not: a meal or a bed needs none."""
+    path = faa_data.ensure_nasr_file("APT_BASE.csv", cache_dir)
+    return _fields_of(str(path), Path(path).stat().st_mtime, False)
 
 
 @lru_cache(maxsize=2)
@@ -156,7 +148,7 @@ def _fits(start: tuple, end: tuple, fuel_per_nm: float, usable_gal: float, taxi_
 
 def suggest(start: tuple, end: tuple, *, fuel_per_nm: float, min_per_nm: float, usable_gal: float,
             taxi_gal: float, reserve_gal: float, ground_min: float = 30.0, skip: set | None = None,
-            fields: pd.DataFrame | None = None, appeal: Appeal | None = None) -> tuple[list[FuelStop], list[FuelStop]]:
+            fields: pd.DataFrame | None = None) -> tuple[list[FuelStop], list[FuelStop]]:
     """The stops that take a flight from `start` to `end` (lat, lon) with
     the reserve left on every landing -- the tanks filled at each -- and
     other fields the first could be: ([], []) where none is needed or no
@@ -167,9 +159,7 @@ def suggest(start: tuple, end: tuple, *, fuel_per_nm: float, min_per_nm: float, 
     every chain of fields the tanks reach between (a shortest path from
     the destination back). Among first stops within SAME_MINUTES of the
     quickest, the one whose landings keep the most fuel, so no leg of it
-    runs close; the others offered, quickest first. With `appeal`, a field
-    within APPEAL_MINUTES of the quickest with more there on the ground --
-    food a walk away, a courtesy car -- goes before those."""
+    runs close; the others offered, quickest first."""
     if _fits(start, end, fuel_per_nm, usable_gal, taxi_gal, reserve_gal):
         return [], []
     fields = fields_with_fuel() if fields is None else fields
@@ -221,12 +211,7 @@ def suggest(start: tuple, end: tuple, *, fuel_per_nm: float, min_per_nm: float, 
     if not first:
         return [], []
     quickest = min(trip(i) for i in first)
-    by_time = sorted(first, key=lambda i: (trip(i) > quickest + SAME_MINUTES, -least_landing(i), trip(i)))
-    near = [i for i in by_time if trip(i) <= quickest + APPEAL_MINUTES][:APPEAL_MOST]
-    at = [(nodes[i - 1]["ident"], float(nodes[i - 1]["lat"]), float(nodes[i - 1]["lon"])) for i in near]
-    liked = appeal(at) if appeal and at else {}
-    ranked = sorted(first, key=lambda i: (trip(i) > quickest + APPEAL_MINUTES, -liked.get(nodes[i - 1]["ident"], 0),
-                                          trip(i) > quickest + SAME_MINUTES, -least_landing(i), trip(i)))
+    ranked = sorted(first, key=lambda i: (trip(i) > quickest + SAME_MINUTES, -least_landing(i), trip(i)))
     direct = float(distance_nm(start[0], start[1], end[0], end[1]))
 
     def stop(i: int, prev: int | None, flown_nm: float) -> FuelStop:
@@ -252,59 +237,38 @@ def suggest(start: tuple, end: tuple, *, fuel_per_nm: float, min_per_nm: float, 
     return stops, choices
 
 
-#: A flight longer than this, minutes in the air, is offered a stop on the
-#: way even where its tanks hold it, at the owner's ask for food and rest
-#: stops on a long cross-country: three hours, a long sit in a light
-#: airplane. Not a rule -- no regulation limits a private flight's
-#: length -- and only offered; the pilot adds it or flies on.
-BREAK_AFTER_MIN = 180.0
-
-#: Where on the way a break is offered: a field this share or more of the
-#: way, by distance, and no more than its complement, so the two legs
-#: are near even.
-BREAK_FROM_SHARE = 0.35
-
-#: Fields this few miles off the line count as on it when choosing the
-#: one nearest the middle; a field further off is offered only where
-#: none is that near.
-BREAK_NEAR_NM = 10.0
+#: The most fields listed along a route (along): the nearest the line
+#: first, so a long flight's list stays one a pilot reads, and its
+#: places are read in seconds, not a minute.
+ALONG_MOST = 40
 
 
-def suggest_break(start: tuple, end: tuple, *, fuel_per_nm: float, min_per_nm: float, usable_gal: float,
-                  taxi_gal: float, skip: set | None = None, fields: pd.DataFrame | None = None,
-                  appeal: Appeal | None = None) -> tuple[list[FuelStop], list[FuelStop]]:
-    """A field to stop at about half way on a flight longer than
-    BREAK_AFTER_MIN, and others it could be, where the tanks hold the
-    flight (suggest offers the stops where they do not): ([], []) for a
-    shorter flight, or where no field is on the way.
-
-    Among the fields with fuel (a break is a chance to top off) on a
-    long enough paved runway between BREAK_FROM_SHARE and its
-    complement of the way, those within BREAK_NEAR_NM of the line
-    first; among them, with `appeal`, the most there on the ground for a
-    meal or a rest first (vfr.nearby.appeal); then nearest the middle."""
-    direct = float(distance_nm(start[0], start[1], end[0], end[1]))
-    if direct * min_per_nm <= BREAK_AFTER_MIN:
-        return [], []
-    fields = fields_with_fuel() if fields is None else fields
-    ranked = []
-    for n in _corridor(start, end, fields, set(skip or ())):
-        to_it = float(distance_nm(start[0], start[1], n["lat"], n["lon"]))
-        then = float(distance_nm(n["lat"], n["lon"], end[0], end[1]))
-        share = to_it / (to_it + then)
-        if BREAK_FROM_SHARE <= share <= 1 - BREAK_FROM_SHARE:
-            added = to_it + then - direct
-            ranked.append(((added > BREAK_NEAR_NM, abs(share - 0.5), added), n, to_it, added))
-    ranked.sort(key=lambda r: r[0])
-    asked = [n for key, n, _, _ in ranked if not key[0]][:APPEAL_MOST]
-    liked = appeal([(n["ident"], float(n["lat"]), float(n["lon"])) for n in asked]) if appeal and asked else {}
-    ranked.sort(key=lambda r: (r[0][0], -liked.get(r[1]["ident"], 0), *r[0][1:]))
-    stops = [FuelStop(
-        ident=n["ident"], name=n["name"], city=n["city"], lat=float(n["lat"]), lon=float(n["lon"]),
-        from_nm=round(to_it, 1), added_nm=round(added, 1),
-        lands_with_gal=round(usable_gal - taxi_gal - to_it * fuel_per_nm, 1),
-        minutes=round(to_it * min_per_nm, 1),
-        fuel_types=n["fuel_types"], runway_ft=int(n["runway_ft"]),
-        elevation_ft=None if pd.isna(n["elevation_ft"]) else float(n["elevation_ft"]),
-    ) for _, n, to_it, added in ranked[:1 + CHOICES]]
-    return stops[:1], stops[1:]
+def along(flights: list[tuple[str, tuple, tuple]], skip: set | None = None,
+          fields: pd.DataFrame | None = None) -> list[dict]:
+    """The public fields on a long enough paved runway no more than
+    MAX_ADDED_NM off each flight's straight line ((departure ident, start,
+    end) for each), at the owner's ask for the food, fuel and rest stops
+    along the route to pick from (2026-10-23, the map's Stops): each
+    with the flight it is on (`flight`, its index, and `departure`), its
+    miles from that flight's departure and the miles it adds, in route
+    order. A field near two flights is listed on the first; the ALONG_MOST
+    nearest the line kept."""
+    fields = public_fields() if fields is None else fields
+    seen, out = set(skip or ()), []
+    for k, (departure, start, end) in enumerate(flights):
+        for n in _corridor(start, end, fields, seen):
+            if n["ident"] in seen:
+                continue
+            seen.add(n["ident"])
+            to_it = float(distance_nm(start[0], start[1], n["lat"], n["lon"]))
+            then = float(distance_nm(n["lat"], n["lon"], end[0], end[1]))
+            out.append({
+                "ident": n["ident"], "name": n["name"], "city": n["city"], "lat": float(n["lat"]), "lon": float(n["lon"]),
+                "flight": k, "departure": departure, "from_nm": round(to_it, 1),
+                "added_nm": round(to_it + then - float(distance_nm(start[0], start[1], end[0], end[1])), 1),
+                "fuel_types": [t.strip() for t in str(n["fuel_types"]).split(",") if t.strip()],
+                "runway_ft": int(n["runway_ft"]),
+                "elevation_ft": None if pd.isna(n["elevation_ft"]) else float(n["elevation_ft"]),
+            })
+    kept = sorted(out, key=lambda f: f["added_nm"])[:ALONG_MOST]
+    return sorted(kept, key=lambda f: (f["flight"], f["from_nm"]))

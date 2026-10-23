@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { altitudesOf, altitudesParam, departureOf, frdIdent, frdOf, groundOf, identOf, positionIdent, routeOf, stopOf, stopsOf, withoutAltitude } from "./identSchema";
+import { altitudesOf, altitudesParam, departureOf, frdIdent, frdOf, groundOf, identOf, nameOwnPoints, placeOfPoint, pointName, positionIdent, routeOf, stopOf, stopsOf, withoutAltitude } from "./identSchema";
 
 describe("identOf and stopsOf", () => {
   test("an airport's ident trimmed and uppercased, else empty", () => {
@@ -76,5 +76,24 @@ describe("the pilot's own point off a fix", () => {
     expect(frdOf("DLH090030")).toEqual({ base: "DLH", course: 90, distanceNm: 30 });
     expect(frdOf("VPBNG")).toBeNull();
     expect(frdIdent("vpbng", 360, 12.25)).toBe("VPBNG/000/12.3");
+  });
+});
+
+describe("the route's points as named", () => {
+  test("a present position is POS0, the pilot's own points POS1 on in the route's order, the rest by their idents", () => {
+    nameOwnPoints(["KJVL", "DLH/090/30", "VPBNG/180/5", "DLH/090/30"]);
+    expect(pointName("@42.2333,-87.9883")).toBe("POS0");
+    expect(pointName("DLH/090/30")).toBe("POS1");
+    expect(pointName("VPBNG/180/5")).toBe("POS2");
+    expect(pointName("KJVL")).toBe("KJVL");
+    // Taken out of the route: named by itself again, the next one up.
+    nameOwnPoints(["VPBNG/180/5"]);
+    expect(pointName("VPBNG/180/5")).toBe("POS1");
+    expect(pointName("DLH/090/30")).toBe("DLH/090/30");
+  });
+
+  test("told after the flight, a present position by its coordinates", () => {
+    expect(placeOfPoint("@42.2333,-87.9883")).toMatch(/^N42°14\.0′ W087°59\.3′$/);
+    expect(placeOfPoint("KDLH")).toBe("KDLH");
   });
 });

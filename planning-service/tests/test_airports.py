@@ -5,7 +5,7 @@ import gzip
 import json
 
 from fastapi.testclient import TestClient
-from vfr import airports, airspace, faa_data, geocode, glmp, nearby, pattern, publications, remarks, weather
+from vfr import airport_photos, airports, airspace, faa_data, geocode, glmp, nearby, pattern, publications, remarks, weather
 
 from app.main import app
 
@@ -553,7 +553,8 @@ def test_a_fields_services_are_the_faas_and_the_places_near_it(monkeypatch):
     monkeypatch.setattr(remarks, "service_notes", lambda faa_id: {
         "fuel": ["24 hour self serve fuel."], "ground": ["Courtesy car available."], "courtesy_car": True}
         if faa_id == "DLH" else {"fuel": [], "ground": [], "courtesy_car": False})
-    diner = {"name": "Sky Diner", "kind": "Diner", "distance_m": 300, "walk_min": 4, "phone": None, "lat": 46.84, "lon": -92.19}
+    diner = {"name": "Sky Diner", "kind": "Diner", "distance_m": 300, "walk_min": 4, "phone": None, "website": None,
+             "lat": 46.84, "lon": -92.19}
     monkeypatch.setattr(nearby, "around", lambda ident, lat, lon: {"food": [diner], "lodging": [], "cars": []})
     body = client.get("/api/airport/KDLH/services").json()
     assert body["fuel_types"] == ["100LL", "A"] and body["tie_down"] is True
@@ -573,3 +574,29 @@ def test_overture_out_of_reach_is_said_not_a_field_with_nothing_near(monkeypatch
     body = client.get("/api/airport/KDLH/services").json()
     assert body["nearby_unavailable"] is True and body["food"] == []
     assert client.get("/api/airport/ZZZZ/services").status_code == 404
+
+
+def test_an_airports_photos_are_its_aerial_and_its_wikipedia_photo(monkeypatch):
+    stub_place(monkeypatch)
+    monkeypatch.setattr(airports, "wikipedia_link", lambda ident: "https://en.wikipedia.org/wiki/Duluth_International_Airport")
+    photo = {"url": "https://upload.wikimedia.org/d.jpg", "width": 900, "height": 675, "credit": "A. Pilot", "license": "CC BY 2.0",
+             "source_url": None}
+    monkeypatch.setattr(airport_photos, "ground_photo", lambda ident, link: photo if link else None)
+    body = client.get("/api/airport/KDLH/photos").json()
+    # The photo served from the planner, as the aerial is.
+    assert body == {"aerial_url": "/api/planner/airport-aerial/KDLH.jpg",
+                    "photo": {**photo, "url": "/api/planner/airport-photo/KDLH.jpg"}}
+
+
+def test_the_aerial_is_a_picture_and_a_usgs_outage_a_503(monkeypatch, tmp_path):
+    stub_place(monkeypatch)
+    picture = tmp_path / "KDLH.jpg"
+    picture.write_bytes(b"\xff\xd8jpeg")
+    monkeypatch.setattr(airport_photos, "aerial", lambda ident, lat, lon, ends: picture)
+    response = client.get("/api/airport-aerial/KDLH.jpg")
+    assert response.status_code == 200 and response.headers["content-type"] == "image/jpeg"
+
+    def down(ident, lat, lon, ends):
+        raise airport_photos.PhotoUnavailable("the USGS is down")
+    monkeypatch.setattr(airport_photos, "aerial", down)
+    assert client.get("/api/airport-aerial/KDLH.jpg").status_code == 503
