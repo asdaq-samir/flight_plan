@@ -14,6 +14,8 @@ A grid of cells round the route is read once:
   METAR for a flight leaving soon, under the pilot's minimums -- never
   under 91.155's basic ones -- closes the cells round its field, and one
   in MVFR marks them marginal;
+- the G-AIRMETs between the fields: IFR and mountains obscured closed,
+  low-level turbulence, icing and wind shear marginal;
 - thunderstorms, by AIM 7-1-29's "avoid by at least 20 miles": a TAF or a
   METAR with TS or VCTS, and a convective SIGMET's area, close the cells
   within 20 nm; any other SIGMET under 18,000 ft (severe turbulence or
@@ -84,8 +86,18 @@ SIGMET_BELOW_FT = 18000.0
 MARGINAL_COST = 1.0
 SPECIAL_USE_COST = 0.5
 #: A straight line taken over the grid's way when it is no more than this
-#: many minutes slower.
+#: many minutes slower; more, a step at a time, for a way of more than
+#: MAX_TURNS turns, which a pilot would not fly.
 STRAIGHTEN_MIN = 1.0
+STRAIGHTEN_STEPS_MIN = (1.0, 3.0, 6.0, 12.0, 24.0)
+MAX_TURNS = 8
+#: Where no way keeps clear of everything -- the Rockies in an airplane
+#: that cannot top them, a field under a G-AIRMET -- the way that crosses
+#: least of it, a closed cell costing this many times its minutes more:
+#: offered with what it crosses said, the owner's rule ("I don't want to
+#: put hard limits on anything. A warning tick or a label is enough",
+#: 2026-10-23).
+CLOSED_COST = 20.0
 #: The fields with fuel looked at for a stop, nm off the way.
 STOP_FIELD_NM = 15.0
 #: Minutes on the ground at each stop: the owner's 30-minute turnaround
@@ -277,6 +289,47 @@ def _sigmets(grid: _Grid, window: tuple) -> None:
             grid.close(mask, "sigmet", f"SIGMET for {hazard.lower() or 'a hazard'} {raw}".strip())
 
 
+#: The G-AIRMETs that close cells -- IFR and mountains obscured, where VFR
+#: is not to be had (AIM 7-1-6, the G-AIRMET) -- and those that mark them
+#: marginal.
+GAIRMET_CLOSES = {"IFR conditions", "Mountains obscured"}
+GAIRMET_MARKS = {"Turbulence", "Icing", "Low-level wind shear"}
+
+
+def _gairmets(grid: _Grid, window: tuple, top_ft: float) -> None:
+    """The G-AIRMETs valid over the flight (each a snapshot, three hours
+    apart, taken within GAIRMET_SNAPSHOT_S of it): the weather between the
+    fields that report, which their TAFs and METARs alone left open. IFR
+    and mountain obscuration close their areas; low-level turbulence,
+    icing reaching under the airplane's top and wind shear mark theirs."""
+    import shapely
+    from shapely.geometry import Polygon
+
+    start, end = window
+    for advisory in weather._dataset("gairmets"):
+        valid = advisory.get("valid")
+        if valid is None or valid < start - weather.GAIRMET_SNAPSHOT_S or valid > end + weather.GAIRMET_SNAPSHOT_S:
+            continue
+        coords = advisory.get("coords") or []
+        hazard = advisory.get("hazard")
+        if len(coords) < 3 or hazard not in GAIRMET_CLOSES | GAIRMET_MARKS:
+            continue
+        low = advisory.get("altitude_low_ft")
+        if hazard == "Icing" and low is not None and low >= top_ft:
+            continue
+        area = Polygon([(lon, lat) for lat, lon in coords])
+        if not area.is_valid:
+            area = area.buffer(0)
+        mask = shapely.contains_xy(area, grid.lon_grid, grid.lat_grid)
+        # "IFR conditions" as it is, "Mountains obscured" in the line.
+        words = hazard if hazard[:2].isupper() else hazard[0].lower() + hazard[1:]
+        name = f"G-AIRMET for {words}"
+        if hazard in GAIRMET_CLOSES:
+            grid.close(mask, "weather", name)
+        else:
+            grid.mark(mask, "marginal", name)
+
+
 def _airspace(grid: _Grid, window: tuple) -> list[str]:
     """Prohibited areas and the TFRs in force over the flight closed;
     restricted, MOA, warning and alert areas dearer. What could not be
@@ -375,13 +428,17 @@ def _step_index(dr: int, dc: int) -> int:
     return _STEPS.index((dr, dc))
 
 
-def _way(grid: _Grid, gs: np.ndarray, start: tuple, end: tuple, marginal_cost: float) -> list[tuple[int, int]] | None:
+def _way(grid: _Grid, gs: np.ndarray, start: tuple, end: tuple, marginal_cost: float,
+         closed_cost: float | None = None) -> list[tuple[int, int]] | None:
     """The quickest way over open cells from start's cell to end's (A*,
     minutes), marginal cells costing `marginal_cost` more of theirs and
-    special-use airspace its own."""
+    special-use airspace its own; with `closed_cost`, over closed cells
+    too, each that much the dearer."""
     s, e = grid.cell(start), grid.cell(end)
     fastest = float(gs.max())
     weight = 1.0 + grid.dear + np.where(grid.marginal >= 0, marginal_cost, 0.0)
+    if closed_cost is not None:
+        weight = weight + np.where(grid.closed >= 0, closed_cost, 0.0)
 
     def minutes(a, b) -> float:
         la, lb = grid.centre(a), grid.centre(b)
@@ -405,7 +462,9 @@ def _way(grid: _Grid, gs: np.ndarray, start: tuple, end: tuple, marginal_cost: f
             return path[::-1]
         for dr, dc in _STEPS:
             nxt = (here[0] + dr, here[1] + dc)
-            if not (0 <= nxt[0] < grid.rows and 0 <= nxt[1] < grid.cols) or not grid.open(nxt):
+            if not (0 <= nxt[0] < grid.rows and 0 <= nxt[1] < grid.cols):
+                continue
+            if closed_cost is None and not grid.open(nxt):
                 continue
             g = spent[here] + minutes(here, nxt)
             if g < spent.get(nxt, math.inf):
@@ -429,14 +488,23 @@ def _line_minutes(grid: _Grid, gs: np.ndarray, a: tuple, b: tuple, marginal_cost
     return nm * float(np.mean(rate)) * 60.0
 
 
-def _straightened(grid: _Grid, gs: np.ndarray, points: list[tuple], marginal_cost: float) -> list[tuple]:
+def _straightened(grid: _Grid, gs: np.ndarray, points: list[tuple], marginal_cost: float,
+                  slower_min: float = STRAIGHTEN_MIN) -> list[tuple]:
     """The way's turns: from each point the farthest on along it a straight
-    line reaches over open cells, no more than STRAIGHTEN_MIN slower."""
+    line reaches over open cells -- over no more closed ones than the way
+    itself crossed, where it had to -- no more than `slower_min` slower."""
     out, i = [points[0]], 0
     legs = [_line_minutes(grid, gs, points[k], points[k + 1], marginal_cost) for k in range(len(points) - 1)]
 
     def marginal_cells(a, b) -> int:
         return sum(1 for c in grid.line_cells(a, b) if grid.marginal[c] >= 0)
+
+    def closed_cells(a, b) -> int:
+        return sum(1 for c in grid.line_cells(a, b) if not grid.open(c))
+
+    def clear_enough(i: int, j: int) -> bool:
+        return grid.line_open(points[i], points[j]) or \
+            closed_cells(points[i], points[j]) <= sum(closed_cells(points[k], points[k + 1]) for k in range(i, j))
 
     while i < len(points) - 1:
         j = len(points) - 1
@@ -444,8 +512,8 @@ def _straightened(grid: _Grid, gs: np.ndarray, points: list[tuple], marginal_cos
             # The best weather's way kept off marginal cells its own way
             # kept off: a short cut across the corner of one is the
             # weather it was drawn round.
-            if grid.line_open(points[i], points[j]) and \
-                    _line_minutes(grid, gs, points[i], points[j], marginal_cost) <= sum(legs[i:j]) + STRAIGHTEN_MIN and \
+            if clear_enough(i, j) and \
+                    _line_minutes(grid, gs, points[i], points[j], marginal_cost) <= sum(legs[i:j]) + slower_min and \
                     (not marginal_cost or marginal_cells(points[i], points[j])
                      <= sum(marginal_cells(points[k], points[k + 1]) for k in range(i, j))):
                 break
@@ -581,6 +649,10 @@ def options(dep: dict, dest: dict, profile: dict, *, depart: datetime | None = N
         _sigmets(grid, window)
     except weather.WeatherServiceError:
         unchecked.append("SIGMETs")
+    try:
+        _gairmets(grid, window, top)
+    except weather.WeatherServiceError:
+        unchecked.append("G-AIRMETs")
     unchecked += _airspace(grid, window)
     gs = _groundspeeds(grid, floor, top, tas, fcst_hr)
 
@@ -595,11 +667,15 @@ def options(dep: dict, dest: dict, profile: dict, *, depart: datetime | None = N
     found: list[dict] = []
     for kind in KINDS:
         marginal_cost = MARGINAL_COST if kind == "weather" else 0.0
-        cells = _way(grid, gs, start, end, marginal_cost)
+        # Clear of everything where there is a way, else crossing least.
+        cells = _way(grid, gs, start, end, marginal_cost) or _way(grid, gs, start, end, marginal_cost, CLOSED_COST)
         if cells is None:
             continue
         points = [start] + [grid.centre(c) for c in cells[1:-1]] + [end]
-        turns = _straightened(grid, gs, points, marginal_cost)
+        for slower in STRAIGHTEN_STEPS_MIN:
+            turns = _straightened(grid, gs, points, marginal_cost, slower)
+            if len(turns) - 2 <= MAX_TURNS:
+                break
         stops = _stops(grid, gs, turns, profile, table, reserve_gal, fewest=kind == "stops")
         if stops is None:
             continue

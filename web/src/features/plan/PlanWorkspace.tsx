@@ -56,6 +56,11 @@ import AircraftPill from "./components/AircraftPill";
 import AircraftFavoritesList from "./components/AircraftFavoritesList";
 import TabKept from "../../components/TabKept";
 import RouteChoices from "./components/RouteChoices";
+import type { RouteWay } from "../../lib/map/RouteWaysLayer";
+import { isRoute, wayTime, wayTitle } from "../../lib/routeWays";
+
+/** No ways on the chart: one array for good, so the map's memo holds. */
+const NO_WAYS: RouteWay[] = [];
 import TabPage from "../../components/TabPage";
 import { useStripShows } from "./hooks/useStripShows";
 import AirportPill from "./components/AirportPill";
@@ -1957,12 +1962,28 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     ? { ceilingFt: minimums.ceilingFt, visibilitySm: minimums.visibilitySm } : { ceilingFt: null, visibilitySm: null };
   const { data: routeWays } = useQuery({
     ...routeOptionsQuery(planned.dep, `${planned.dest ?? ""}`, planned.stops.join(","), aircraft, depart || undefined, routeMinimums),
-    enabled: routed && !!planned.dep && !!planned.dest && !s.local && flightRules === "vfr",
+    // Once the nav log is in, not beside it: the ways are worked out in
+    // the planner's own process, and asked for with the plan they held a
+    // long route's altitudes up (a 3,000 nm route of eleven stops took
+    // 86 s cold, 2026-10-23).
+    enabled: routed && !!planned.dep && !!planned.dest && !s.local && flightRules === "vfr"
+      && !!s.totals && !s.navStage && s.stage !== "navlog",
   });
   const pickRoute = useCallback((option: RouteOption) => setStops(option.stops, option.fuel), [setStops]);
+  const flyDirect = useCallback(() => setStops([]), [setStops]);
+  // The same ways on the chart beside the route, in the pale tint (RouteWaysLayer).
+  const wayLines = useMemo((): RouteWay[] => (routeWays && routed && !s.local && flightRules === "vfr"
+    ? routeWays.options.filter(o => !isRoute(o, planned.stops)).map(o => ({
+      key: o.kind, path: o.path as [number, number][], label: `${wayTitle(o)} · ${wayTime(o)}`,
+    }))
+    : NO_WAYS), [routeWays, routed, s.local, flightRules, planned.stops]);
+  const pickWay = useCallback((key: string) => {
+    const option = routeWays?.options.find(o => o.kind === key);
+    if (option) pickRoute(option);
+  }, [routeWays, pickRoute]);
   const routeChoices = useMemo(() => (routed && !s.local && flightRules === "vfr"
-    ? <RouteChoices found={routeWays} stops={planned.stops} onPick={pickRoute} /> : null),
-  [routed, s.local, flightRules, routeWays, planned.stops, pickRoute]);
+    ? <RouteChoices found={routeWays} stops={planned.stops} onPick={pickRoute} onDirect={flyDirect} /> : null),
+  [routed, s.local, flightRules, routeWays, planned.stops, pickRoute, flyDirect]);
   const routeList = useMemo(() => (
     <>
     {/* The ways to fly it, over its points (RouteChoices). */}
@@ -2205,6 +2226,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
         ) : undefined}
         tight={unflyable ? null : tightLeg}
         classBAvoided={!classBClearance} onAvoidClassB={avoidClassB} onAllowClassB={() => acceptClassB(true)}
+        onGoRound={(via, at) => { closeProfileCard(); setStops([...planned.stops.slice(0, at), ...via, ...planned.stops.slice(at)]); }}
         onAltitudeChoiceChange={changeAltitudeChoice} onFlyAltitude={flyWheelAltitude}
         // The rules' switch at the card's top right (ProfileCard's corner).
         rules={flightRules}
@@ -2256,7 +2278,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
               {briefMark && (
                 <span
                   aria-hidden="true" data-testid="route-brief-mark"
-                  className={cn("absolute -top-0.5 -right-1 size-2 rounded-full", briefMark === "stop" ? "bg-destructive" : "bg-amber-500")}
+                  className={cn("absolute -top-0.5 -right-1 size-2 rounded-full", briefMark === "stop" ? "bg-destructive" : "bg-caution")}
                 />
               )}
             </span>
@@ -2341,6 +2363,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           directs={mapDirects}
           onProcedureFix={showFix}
           fuelStops={alongPins ?? fuelStopPins}
+          ways={wayLines} onPickWay={pickWay}
         />
         </Suspense>
         <FixCard open={openFix} onClose={() => setOpenFixAt(null)} onDirect={directTo} onCross={setCrossing} />

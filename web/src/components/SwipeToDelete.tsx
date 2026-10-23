@@ -66,7 +66,7 @@ export function SwipeToDelete({ label, onDelete, children }: {
             // lighter one gave the white word 2.9:1 (the iOS audit's P15),
             // this one 4.8.
             className={cn(
-              "w-20 shrink-0 snap-end bg-red-600 font-medium text-white outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
+              "w-20 shrink-0 snap-end bg-destructive font-medium text-white outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
               TEXT.row,
             )}
           >

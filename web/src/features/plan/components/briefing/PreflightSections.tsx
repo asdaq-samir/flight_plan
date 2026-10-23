@@ -117,8 +117,8 @@ function RunwayBar({ distance, lengthFt }: { distance: RunwayDistance; lengthFt:
   const share = (ft: number) => `${Math.min(100, (ft / lengthFt) * 100)}%`;
   return (
     <span className="mt-1.5 mb-0.5 block h-1.5 overflow-hidden rounded-full bg-muted" aria-hidden>
-      <span className={cn("relative block h-full rounded-full", distance.over ? "bg-red-600/40 dark:bg-red-400/40" : "bg-primary/35")} style={{ width: share(distance.totalFt) }}>
-        <span className={cn("absolute inset-y-0 left-0 rounded-full", distance.over ? "bg-red-600 dark:bg-red-400" : "bg-primary")} style={{ width: `${Math.min(100, (distance.groundRollFt / Math.max(distance.totalFt, 1)) * 100)}%` }} />
+      <span className={cn("relative block h-full rounded-full", distance.over ? "bg-destructive/40" : "bg-primary/35")} style={{ width: share(distance.totalFt) }}>
+        <span className={cn("absolute inset-y-0 left-0 rounded-full", distance.over ? "bg-destructive" : "bg-primary")} style={{ width: `${Math.min(100, (distance.groundRollFt / Math.max(distance.totalFt, 1)) * 100)}%` }} />
       </span>
     </span>
   );

@@ -134,7 +134,7 @@ def test_the_stream_runs_through_the_stop_and_ends_on_the_hops_totals(messages):
     assert len(lines[-1]["totals"]["hops"]) == 2
 
 
-def test_a_hop_with_no_legal_altitude_is_named(monkeypatch, altitude, messages):
+def test_a_hop_with_no_legal_altitude_is_flown_anyway(monkeypatch, altitude, messages):
     madison = airport("KMSN")
     flyable = select_cruise_altitude_stub(altitude)
     stuck = select_cruise_altitude_stub({**altitude, "recommended_ft": None})
@@ -146,9 +146,9 @@ def test_a_hop_with_no_legal_altitude_is_named(monkeypatch, altitude, messages):
     monkeypatch.setattr(altitude_module, "select_cruise_altitude", select)
     last = messages(client.get("/api/navlog", params=VIA_MADISON))[-1]
 
-    assert last["type"] == "error" and last["retry"] is False
-    assert "KMSN to KDLH" in last["detail"] or "out of KMSN toward KDLH" in last["detail"]
-    assert client.get("/api/plan", params=VIA_MADISON).status_code == 422
+    assert last["type"] == "done"
+    legs = client.get("/api/plan", params=VIA_MADISON).json()["legs"]
+    assert legs[0]["from"] == "C81" and legs[-1]["to"] == "KDLH"
 
 
 def test_a_route_without_stops_is_planned_as_it_always_was():

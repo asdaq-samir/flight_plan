@@ -28,7 +28,7 @@ const DASH = "—";
 const radioLabel = (to: string) => (/traffic$/i.test(to) ? "CTAF" : to.split(" ").at(-1) ?? to);
 const ft = (n: number | null) => (n == null ? DASH : `${grouped(n)}`);
 const time = (iso: string | null) => (iso ? clockTime(new Date(iso)) : null);
-const MARK_TINT: Partial<Record<Finding, string>> = { stop: "bg-destructive/10", caution: "bg-amber-500/10" };
+const MARK_TINT: Partial<Record<Finding, string>> = { stop: "bg-destructive/10", caution: "bg-caution-wash" };
 
 /** A card: its part's name, the field and its category, its time at the
  *  right with the way in, its figures under, a line of note. The whole

@@ -950,7 +950,7 @@ export default memo(function FlightBriefingView({
                 way a live briefer states it before the detail that
                 justifies it. Red on pale red at 7:1, in both themes. */}
             {vnrReasons.length > 0 && (
-              <Alert className={cn("mb-2 border-red-200 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200", TEXT.prose)}>
+              <Alert className={cn("mb-2 border-destructive/30 bg-destructive/10 text-destructive-ink", TEXT.prose)}>
                 <OctagonAlert />
                 <AlertTitle>VFR flight not recommended</AlertTitle>
                 <ul className="col-start-2 list-disc space-y-0.5 pl-4 [&>li]:first-letter:uppercase">
@@ -959,7 +959,7 @@ export default memo(function FlightBriefingView({
               </Alert>
             )}
             {underMine.length > 0 && (
-              <Alert className={cn("mb-2 border-red-200 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200", TEXT.prose)} data-testid="minimums-alert">
+              <Alert className={cn("mb-2 border-destructive/30 bg-destructive/10 text-destructive-ink", TEXT.prose)} data-testid="minimums-alert">
                 <OctagonAlert />
                 <AlertTitle>Under your personal minimums</AlertTitle>
                 <ul className="col-start-2 list-disc space-y-0.5 pl-4 [&>li]:first-letter:uppercase">
@@ -969,10 +969,10 @@ export default memo(function FlightBriefingView({
             )}
             {icing && (
               // Under IFR, in cloud at or above the freezing level.
-              <Alert className={cn("mb-2 border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200", TEXT.prose)} data-testid="icing-alert">
+              <Alert className={cn("mb-2 border-caution/30 bg-caution-wash text-caution-ink", TEXT.prose)} data-testid="icing-alert">
                 <TriangleAlert />
                 <AlertTitle>Icing possible at {altFt(icing.altitudeFt)} ft</AlertTitle>
-                <AlertDescription className={cn("text-amber-900 dark:text-amber-200", TEXT.prose)}>
+                <AlertDescription className={cn("text-caution-ink", TEXT.prose)}>
                   <p>
                     The freezing level is {icing.atOrBelow ? "at or below" : "at"} {altFt(icing.freezingLevelFt)} ft, with cloud
                     or an icing AIRMET forecast along the route{icing.reports
@@ -1102,10 +1102,10 @@ export function BriefingNotices({ briefing: state }: { briefing: BriefingState }
   if (gaps.length === 0) return null;
   return (
     <div className="pt-3" data-testid="briefing-notices">
-      <Alert className={cn("border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200", TEXT.prose)}>
+      <Alert className={cn("border-caution/30 bg-caution-wash text-caution-ink", TEXT.prose)}>
         <CloudOff />
         <AlertTitle>Could not check {gaps.join(", ")}</AlertTitle>
-        <AlertDescription className={cn("text-amber-900 dark:text-amber-200", TEXT.prose)}>
+        <AlertDescription className={cn("text-caution-ink", TEXT.prose)}>
           aviationweather.gov didn’t respond. Verify separately before flight.
         </AlertDescription>
       </Alert>

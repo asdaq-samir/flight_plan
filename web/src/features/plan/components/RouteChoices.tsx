@@ -1,28 +1,13 @@
 import { Check } from "lucide-react";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
 import type { RouteOption, RouteOptions } from "../../../lib/api/types";
-import { hoursMinutes } from "../../../lib/clock";
-import { sameField } from "../../../lib/procedures";
+import { isRoute, wayTime, wayTitle } from "../../../lib/routeWays";
 import { grouped } from "../../../lib/units";
-
-/** A way's names, the kinds it is the best of. */
-const KIND_TITLES: Record<RouteOption["kind"], string> = { fastest: "Fastest", weather: "Best Weather", stops: "Fewest Stops" };
-
-/** "3 h 10 min", "45 min": a way's whole time, its stops' too. */
-function duration(minutes: number): string {
-  const t = hoursMinutes(minutes);
-  return t.hours ? `${t.hours} h ${t.minutes} min` : `${t.minutes} min`;
-}
 
 /** A hazard's words inside a line: "Thunderstorms forecast" as
  *  "thunderstorms forecast", an ident (KDLH, P-56) as it is. */
 function inLine(words: string[]): string {
   return words.join("; ").replace(/^[A-Z](?=[a-z])/, c => c.toLowerCase());
-}
-
-/** Whether a way is the route as it is now: the same points in order. */
-function isRoute(option: RouteOption, stops: string[]): boolean {
-  return option.stops.length === stops.length && option.stops.every((s, i) => sameField(s, stops[i]!));
 }
 
 /**
@@ -38,11 +23,13 @@ function isRoute(option: RouteOption, stops: string[]): boolean {
  * own row ("Keep yours, flag issues"). Nothing at all where the route is
  * already the best of every kind and meets nothing.
  */
-export default function RouteChoices({ found, stops, onPick }: {
+export default function RouteChoices({ found, stops, onPick, onDirect }: {
   found: RouteOptions | undefined;
   /** The route's points between its ends, as the address has them. */
   stops: string[];
   onPick: (option: RouteOption) => void;
+  /** The straight line put back, its stops taken out. */
+  onDirect: () => void;
 }) {
   if (!found) return null;
   const name = (i: number) => found.hazards[i]?.name ?? "";
@@ -62,6 +49,17 @@ export default function RouteChoices({ found, stops, onPick }: {
           description={<span className="text-destructive-ink">Crosses {inLine(meets.map(name))}</span>}
         />
       )}
+      {/* The straight line, one tap away from a route of the pilot's own,
+          with what it crosses: a warning, never a refusal (the owner's "a
+          warning tick or a label is enough"). */}
+      {stops.length > 0 && !found.options.some(o => o.stops.length === 0) && (
+        <ListRow
+          title="Direct" data-testid="route-choice-direct" onClick={onDirect}
+          description={found.direct.length
+            ? <span className="text-destructive-ink">Crosses {inLine(found.direct.map(name))}</span>
+            : "The straight line, clear"}
+        />
+      )}
       {found.options.map(option => {
         const used = isRoute(option, stops);
         const round = meets.filter(h => !option.crosses.includes(h)).map(name);
@@ -69,17 +67,22 @@ export default function RouteChoices({ found, stops, onPick }: {
         return (
           <ListRow
             key={option.kinds.join("-")} data-testid={`route-choice-${option.kind}`}
-            title={option.kinds.map(k => KIND_TITLES[k]).join(" · ")}
+            title={wayTitle(option)}
             description={(
               <>
-                <span className="block tabular-nums">{duration(option.air_min + option.ground_min)} · {stopsWords} · {grouped(Math.round(option.distance_nm))} nm</span>
+                <span className="block tabular-nums">{wayTime(option)} · {stopsWords} · {grouped(Math.round(option.distance_nm))} nm</span>
                 {round.length > 0 && <span className="block">Round {inLine(round)}</span>}
+                {/* Where no way keeps clear: the one crossing least, with
+                    what it crosses, a warning (the owner's "a warning tick
+                    or a label is enough"). */}
+                {option.crosses.length > 0 && <span className="block text-destructive-ink">Crosses {inLine(option.crosses.map(name))}</span>}
                 {option.marginal.length > 0 && <span className="block text-caution-ink">Passes {inLine(option.marginal.map(name))}</span>}
               </>
             )}
-            {...(used
-              ? { media: <Check className="size-4 text-tint" aria-label="In use" /> }
-              : { onClick: () => onPick(option) })}
+            // A choice, as iOS lists a route's: the one in use checked, the
+            // words in the text's colour (a choice's, not an action's tint).
+            aria-pressed={used} onClick={() => { if (!used) onPick(option); }}
+            media={used ? <Check className="size-4 text-tint" aria-label="In use" /> : <span className="size-4" aria-hidden="true" />}
           />
         );
       })}

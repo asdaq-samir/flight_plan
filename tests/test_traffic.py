@@ -47,6 +47,7 @@ def clock(monkeypatch, tmp_path):
     monkeypatch.setattr(traffic, "_WATCH_ASKED", {})
     monkeypatch.setattr(traffic, "_WATCH_SOURCE", {})
     monkeypatch.setattr(traffic, "_ADSBFI", {"last": -1e9, "blocked_until": -1e9})
+    monkeypatch.setattr(traffic, "_GLOBE", {"blocked_until": -1e9})
     # adsb.fi not asked over the network here: its own test turns it on.
     monkeypatch.setenv("ADSBFI_OPEN_DATA", "0")
     monkeypatch.setattr(traffic, "_RECORDED", {})
@@ -428,10 +429,12 @@ def test_a_trace_that_could_not_be_had_is_asked_again_not_kept(clock, monkeypatc
         assert traffic.flight("a0b7d8")["trail"] == []
         assert traffic.flight("a0b7d8")["trail"] == []
     assert get.call_count == 2
+    # A refusal is not kept either, but the globe is let be a while after
+    # one (GLOBE_BACKOFF_S): the card shows what it has without asking.
     with patch("vfr.traffic.requests.get", return_value=Mock(status_code=429)) as get:
         traffic.flight("a0b7d8")
         traffic.flight("a0b7d8")
-    assert get.call_count == 2
+    assert get.call_count == 1
 
 
 def test_a_trace_that_is_not_an_object_or_has_short_points_is_drawn_without_its_past(clock, monkeypatch):
@@ -1180,3 +1183,17 @@ def test_pressure_altitudes_are_set_on_the_nearest_altimeter(clock, monkeypatch)
     # None near: as sent, still marked.
     monkeypatch.setattr(traffic.weather, "nearest_report", lambda lat, lon, **kw: None)
     assert traffic.on_altimeter([baro], 42.3, -88.1) == [baro]
+
+
+def test_the_globe_turning_the_planner_away_is_not_asked_again_for_a_while(clock, monkeypatch):
+    # adsb.lol's verification wall (2026-10-23): a 403 page for every file.
+    monkeypatch.setattr(traffic, "_TRACES", {})
+    wall = Mock(status_code=403, headers={"content-type": "text/html"})
+    with patch("vfr.traffic.requests.get", return_value=wall) as get:
+        assert traffic._trace("a0b7d8") is None
+        assert traffic._recent_trace("a0b7d8") is traffic.UNREAD
+        assert traffic._day_trace("a0b7d8", __import__("datetime").date(2026, 10, 22)) is traffic.UNREAD
+        assert get.call_count == 1
+        clock.now += traffic.GLOBE_BACKOFF_S + 1
+        traffic._trace("a0b7d8")
+        assert get.call_count == 2

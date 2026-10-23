@@ -496,6 +496,44 @@ def _own_ifr_altitude_caution(selection: dict, legs: list, between: tuple[str, s
     return {"from_ident": between[0], "to_ident": between[1], "altitude_ft": altitude, "reasons": reasons}
 
 
+def altitude_anyway(selection: dict) -> float | None:
+    """The altitude a route with no legal one is flown at anyway, at the
+    owner's "I don't want to put hard limits on anything. A warning tick or
+    a label is enough" (2026-10-23): the lowest that keeps the terrain and
+    obstacles' floor everywhere along it (14 CFR 91.119, with the planner's
+    margin) on the course's own altitudes (91.159's thousands plus 500
+    under VFR, 91.179's thousands under IFR), whatever stops it there --
+    the airplane's ceiling, the clouds, Class B -- for own_altitude_caution
+    to say. None where no floor is known."""
+    segments = [s for s in selection.get("segments", []) if s.get("floor_ft") is not None] or (
+        [selection] if selection.get("floor_ft") is not None else [])
+    if not segments:
+        return None
+    course = selection.get("course_magnetic_deg")
+    if course is None:
+        course = segments[0].get("course_magnetic_deg") or 0.0
+    floor = max(float(s["floor_ft"]) for s in segments)
+    if selection.get("rules") == "ifr":
+        thousands = math.ceil(floor / 1000)
+        if thousands % 2 != (1 if altitude_module.is_eastbound(course) else 0):
+            thousands += 1
+        return float(thousands * 1000)
+    rule_from = min((s.get("hemispheric_rule_from_ft") for s in segments if s.get("hemispheric_rule_from_ft") is not None),
+                    default=None)
+    if rule_from is not None and floor < rule_from:
+        # Under 3,000 ft above the ground any 500 ft is a cruising altitude.
+        return float(math.ceil(floor / 500) * 500)
+    return altitude_module.lowest_vfr_cruising_altitude(floor, course)
+
+
+def prohibited_caution(selection: dict) -> list[str]:
+    """Prohibited airspace on the way, as a warning: nobody flies in it
+    without its using agency's authorization (14 CFR 73.83), which an ATC
+    clearance is not."""
+    return [f"Through {a['name']}, prohibited airspace (14 CFR 73.83)"
+            for a in selection.get("special_use", []) if a.get("type") == "P"]
+
+
 def no_altitude(
     selection: dict, between: tuple[str, str] | None = None, via: dict | None = None, where: str | None = None,
 ) -> dict:

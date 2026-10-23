@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
-import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
+import { usePrefetchQuery, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { Cloud, CloudSun, Eye, Gauge, Lightbulb, MapPin, MapPinPlus, Phone, PlaneLanding, PlaneTakeoff, Radio, Repeat, Route, Star, Thermometer, Wind } from "lucide-react";
 import DirectToIcon from "../../../components/DirectToIcon";
 import { cn } from "cn";
@@ -37,7 +37,7 @@ import { diagramRunwaysPicture } from "../../../lib/diagram";
 import { useHeardMetar } from "../../../lib/map/receiver";
 import { zuluTime } from "../../../lib/clock";
 import { sameField } from "../../../lib/procedures";
-import { airportQuery, photosQuery } from "../../../lib/queryClient";
+import { airportQuery, photosQuery, servicesQuery } from "../../../lib/queryClient";
 import { StopServices, StopStrip, type SuggestedStop } from "./StopServices";
 import { PhotoSlide, PictureSlides } from "../../../components/PictureSlides";
 
@@ -299,7 +299,10 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
   // field from the air, the USGS's, and from the ground where Wikipedia has
   // a free photo (vfr.airport_photos). Which is in sight, for its dots, and
   // which is open full screen.
-  const { data: photos } = useQuery({ ...photosQuery(ident), enabled: !!place });
+  // Asked for with the field itself, not after it: they waited for the
+  // card's first answer and went 0.6 s after the tap (the 23 Oct timings).
+  const { data: photos } = useQuery(photosQuery(ident));
+  usePrefetchQuery(servicesQuery(ident));
   const [picture, setPicture] = useState<"aerial" | "photo" | null>(null);
   const [noRunwaysPicture, setNoRunwaysPicture] = useState(false);
   const [elevationPane, setElevationPane] = useState<HTMLElement | null>(null);

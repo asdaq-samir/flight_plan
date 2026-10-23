@@ -660,7 +660,7 @@ export default function TabBar<T extends string>({ tabs, tab, over, title, onPic
               {mark && (
                 <span
                   aria-hidden="true" data-testid={`tab-mark-${value}`} data-finding={mark}
-                  className={cn("absolute -top-0.5 -right-1 size-2 rounded-full", mark === "stop" ? "bg-destructive" : "bg-amber-500")}
+                  className={cn("absolute -top-0.5 -right-1 size-2 rounded-full", mark === "stop" ? "bg-destructive" : "bg-caution")}
                 />
               )}
             </span>

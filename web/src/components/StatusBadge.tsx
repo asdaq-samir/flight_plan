@@ -7,10 +7,10 @@ import { Badge } from "./ui/badge";
 export type Tone = "up" | "down" | "checking" | "running";
 
 const TONES: Record<Tone, string> = {
-  up: "bg-emerald-500",
+  up: "bg-go",
   down: "bg-destructive",
   checking: "bg-muted-foreground/40",
-  running: "animate-pulse bg-amber-500",
+  running: "animate-pulse bg-caution",
 };
 
 /**
