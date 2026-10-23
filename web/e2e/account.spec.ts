@@ -167,5 +167,5 @@ test("the airplane the nav log flies is ticked, and a tap on another flies that 
   await closeConsole(page);
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await controlsInSight(page);
-  await expect(page.getByTestId("aircraft-select")).toContainText("N2");
+  await expect(page.getByTestId("aircraft-input")).toHaveValue(/^N2/);
 });

@@ -123,7 +123,6 @@ test("the nightly speed lab", async ({ page }, info) => {
     await page.waitForTimeout(3000);
     for (const [name, open, shown] of [
       ["share_menu", () => page.getByTestId("share-route").first().click(), "[role=menu]"],
-      ["aircraft_menu", () => page.getByTestId("aircraft-select").click(), "[role=listbox]"],
     ] as const) {
       from = await now(page);
       await open();

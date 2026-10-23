@@ -174,21 +174,25 @@ test("plan page: the nav log is computed for an airplane the pilot picks in its 
   // All the way up, which the address keeps (`view`), for the reload below.
   await grabberTo(page, "full");
   await controlsInSight(page);
-  const picker = page.getByTestId("aircraft-select");
+  // A field as the altitude's is (the owner's "N-number should look
+  // similar to altitude"), empty with no airplane picked: no stock profile
+  // is a choice (the owner's "Why is it showing C172?").
+  const picker = page.getByTestId("aircraft-input");
   await expect(picker).toBeVisible();
-  await expect(picker).toContainText("N-number");
-  // Picked by N-number alone, at the owner's ask: no stock profile is a
-  // choice, and one typed is looked up in the FAA's registry -- here a
-  // made-up Archer -- and flown on its type's profile.
+  await expect(picker).toHaveAttribute("placeholder", "N-number");
+  await expect(picker).toHaveValue("");
+  // An N-number typed is added at once, its type looked up behind it (the
+  // owner's "You can do the lookup in the background") -- here a made-up
+  // Archer, flown on its type's profile once the registry answers -- and
+  // the field's end a button to its card.
   await page.route(url => url.pathname.endsWith("/traffic/find"), route => route.fulfill({ json: {
     aircraft: [], checked: true, source: "adsb.lol", license: "ODbL 1.0",
-    registered: { n_number: "N181PA", manufacturer: "Piper", model: "PA-28-181", year: 1999 },
+    registered: { n_number: "N181PA", mode_s_hex: "A1B2C3", manufacturer: "Piper", model: "PA-28-181", year: 1999 },
   } }));
-  await picker.click();
-  await expect(page.getByRole("option", { name: /PA28/ })).toHaveCount(0);
-  await page.getByTestId("aircraft-search").fill("N181PA");
-  await page.getByTestId("registry-pick").click();
-  await expect(picker).toContainText("N181PA");
+  await picker.fill("N181PA");
+  await picker.press("Enter");
+  await expect(picker).toHaveValue("N181PA");
+  await expect(page.getByTestId("aircraft-card-button")).toBeVisible();
   // Remembered per browser: the same airplane with the plan opened
   // again from its address -- on which the drawer is already open, since
   // the address kept it all the way up. (A reload forgets the route:
@@ -198,7 +202,7 @@ test("plan page: the nav log is computed for an airplane the pilot picks in its 
   await settle(page);
   await expectDrawerOpen(page);
   await controlsInSight(page);
-  await expect(page.getByTestId("aircraft-select")).toContainText("N181PA");
+  await expect(page.getByTestId("aircraft-input")).toHaveValue("N181PA");
 });
 
 test("plan page: no legal altitude is the route's own problem: its chip says so at rest, and a mark beside the Nav Log opens to why and the two ways on", async ({ page }) => {
