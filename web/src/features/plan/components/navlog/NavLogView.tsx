@@ -310,8 +310,11 @@ function LegLine({ leg, at }: { leg: Leg; at: { name: string; lat: number; lon: 
         ))}
       </dl>
       {/* The same figures worked out, for a student to follow or try;
-          and a diversion from the row's point, against the clock. */}
-      <div className="flex flex-wrap gap-x-4 gap-y-1">
+          and a diversion from the row's point, against the clock. Where
+          the two wrap (a 320 pt slide-over) each link's 44 pt hit area
+          reaches 11 pt past its 22 pt line, so the lines sit 22 pt apart
+          for the areas to meet rather than overlap. */}
+      <div className="flex flex-wrap gap-x-4 gap-y-5.5">
         <LegWorkings leg={leg} />
         <DiversionDrill leg={leg} at={at} />
       </div>
