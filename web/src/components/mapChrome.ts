@@ -177,7 +177,7 @@ export const GLASS_CLEAR =
   "border-0 bg-white/25 bg-linear-to-b from-white/75 via-white/35 via-55% to-white/5 text-foreground " +
   "shadow-[inset_0_0_0_1.5px_rgb(255_255_255/0.95),0_0_0_0.5px_rgb(0_0_0/0.06),0_2px_6px_rgb(0_0_0/0.14)] " +
   "dark:bg-white/6 dark:from-white/22 dark:via-white/8 dark:to-white/0 " +
-  "dark:shadow-[inset_0_0_0_1.5px_rgb(255_255_255/0.3),0_0_0_0.5px_rgb(0_0_0/0.5),0_2px_8px_rgb(0_0_0/0.55)]";
+  "dark:shadow-[inset_0_1px_0_rgb(255_255_255/0.24),0_0_0_0.5px_rgb(0_0_0/0.5),0_2px_8px_rgb(0_0_0/0.55)]";
 
 /** A control's own pane of glass, as iOS 26 draws its buttons over
  *  content, tinted: the tab up's glass -- a sheen at its top, a white rim,
@@ -189,13 +189,16 @@ export const GLASS_CLEAR =
  *  colour. Theme utilities rather than one of index.css's own, so `cn`
  *  drops a variant's fill, border and shadow for these (the Select's
  *  outline, a Button's). */
+// In the dark each is lit along its top edge alone, as iOS's dark glass
+// is, at the owner's yes ("Yes", 2026-10-22, to the screen of rings): a
+// full light ring round every button outlined the screen.
 export const GLASS_BUTTON =
   "border-0 bg-transparent text-foreground " +
   "bg-[radial-gradient(80%_60%_at_50%_0%,rgb(255_255_255/0.7),transparent_70%),linear-gradient(180deg,color-mix(in_oklab,var(--primary)_7%,transparent),color-mix(in_oklab,var(--primary)_14%,transparent))] " +
   "shadow-[inset_0_0_0_1.5px_rgb(255_255_255/0.95),0_0_0_0.5px_rgb(0_90_200/0.14),0_2px_6px_rgb(0_60_140/0.14)] " +
   "hover:bg-primary/8 hover:text-foreground aria-expanded:bg-primary/10 " +
   "dark:bg-[radial-gradient(80%_60%_at_50%_0%,rgb(255_255_255/0.16),transparent_70%),linear-gradient(180deg,color-mix(in_oklab,var(--primary)_16%,transparent),color-mix(in_oklab,var(--primary)_26%,transparent))] " +
-  "dark:shadow-[inset_0_0_0_1.5px_rgb(255_255_255/0.3),0_2px_8px_rgb(0_0_0/0.55)] dark:hover:bg-primary/14 dark:aria-expanded:bg-primary/14";
+  "dark:shadow-[inset_0_1px_0_rgb(255_255_255/0.24),0_0_0_0.5px_rgb(0_0_0/0.5),0_2px_8px_rgb(0_0_0/0.55)] dark:hover:bg-primary/14 dark:aria-expanded:bg-primary/14";
 
 /** The same glass tinted the blue on a toggle's chip once it is picked
  *  (data-state "on") -- a field's runway (ProceduresRoute) -- as iOS 26's
@@ -208,7 +211,7 @@ export const GLASS_PICKED =
   "data-[state=on]:font-semibold data-[state=on]:text-primary-foreground hover:data-[state=on]:bg-primary hover:data-[state=on]:text-primary-foreground " +
   "data-[state=on]:shadow-[inset_0_0_0_1.5px_rgb(255_255_255/0.45),0_2px_6px_rgb(0_80_190/0.3)] " +
   "dark:data-[state=on]:bg-primary dark:hover:data-[state=on]:bg-primary dark:data-[state=on]:bg-[linear-gradient(180deg,rgb(255_255_255/0.22),transparent)] " +
-  "dark:data-[state=on]:shadow-[inset_0_0_0_1.5px_rgb(255_255_255/0.28),0_2px_8px_rgb(0_0_0/0.55)]";
+  "dark:data-[state=on]:shadow-[inset_0_1px_0_rgb(255_255_255/0.3),0_2px_8px_rgb(0_0_0/0.55)]";
 
 /** A chip's words on the panel's row (the airplane, the cruising altitude,
  *  the time): a note's 13 to a finger, as Maps' route options are, growing
