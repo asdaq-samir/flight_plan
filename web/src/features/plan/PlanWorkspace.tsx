@@ -361,9 +361,12 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const { data: pilot } = useQuery(pilotQuery);
   const { data: myAircraft } = useQuery({ ...aircraftListQuery, enabled: !!pilot });
   const aircraftOptions = useMemo<AircraftChoice[]>(() => {
+    // The pilot's own airplanes first, by their N-numbers, at the owner's
+    // ask ("The airplane picker should pick an airplane by N number"), then
+    // the stock profiles.
     const options: AircraftChoice[] = [
-      ...(profiles ?? []).map(p => ({ profile: p.name, label: `${p.name.toUpperCase()} · ${p.type}` })),
       ...(myAircraft ?? []).map(a => choiceOf(a, profiles ?? [])),
+      ...(profiles ?? []).map(p => ({ profile: p.name, label: `${p.name.toUpperCase()} · ${p.type}` })),
     ];
     // The remembered choice stays selectable while the lists load, and
     // an airplane deleted since is still what this plan was flown in.
@@ -1621,6 +1624,11 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     const next = aircraftOptions.find(o => aircraftKey(o) === value);
     if (next) setAircraft(next);
   }, [aircraftOptions, setAircraft]);
+  // An airplane the FAA's registry has, typed by its N-number in the
+  // picker: flown on its type's stock profile, named by its N-number.
+  const pickTail = useCallback((tail: string, profile: string) => {
+    setAircraft({ profile, label: `${tail} · ${profile.toUpperCase()}`, tail });
+  }, [setAircraft]);
 
   // A different departure time may mean a different winds forecast:
   // kept in the address like the rest, which is what re-plans.
@@ -2009,7 +2017,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const flightInputs = useMemo(() => (
     <FlightInputs
       aircraftValue={aircraftValue}
-      aircraftOptions={aircraftChoices}
+      aircraftOptions={aircraftChoices} onTailPick={pickTail}
       onAircraftChange={changeAircraft}
       altitude={!s.local && (
         <AltitudeGroup
@@ -2033,7 +2041,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       // step and no altitude, beside its time aloft.
       depart={depart} onDepartChange={s.local ? changeDepart : undefined}
     />
-  ), [aircraftValue, aircraftChoices, changeAircraft, s.local, s.nav, s.legs, flyAltitude, openProfileCard, unflyable, tightLeg,
+  ), [aircraftValue, aircraftChoices, changeAircraft, pickTail, s.local, s.nav, s.legs, flyAltitude, openProfileCard, unflyable, tightLeg,
     routed, depart, changeDepart, flightRules, s.replanning, altitudeFt]);
 
   // Saving the flight, the narrative and Print.

@@ -178,6 +178,10 @@ export interface AircraftChoice {
   climbFuelBurnGph?: number;
   usableFuelGal?: number;
   aircraftId?: number;
+  /** An airplane picked by its N-number from the FAA's registry, flown on
+   *  its type's stock profile: its N-number, for its own place in the
+   *  picker (aircraftKey). */
+  tail?: string;
 }
 /** One line of the per-checkpoint description stream. */
 export type CheckpointDescriptionMessage = Schemas["CheckpointNoteMessage"];
