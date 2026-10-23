@@ -66,13 +66,17 @@ LODGING = {"hotel", "bed_and_breakfast", "resort", "inn", "motel"}
 #: A car to hire.
 CARS = {"car_rental_service"}
 
+#: Each field's answer's file name after its ident: ".2.json" since
+#: places carry their websites, so those kept before are read again.
+KEPT_SUFFIX = ".2.json"
+
 #: How long a plan waits on the places near the fields it is choosing a
 #: stop among (appeal_of), seconds: a field's first read is about 0.3 s once
 #: the files' footers are in (warm), four at a time. Those not in by then
 #: count as nothing known, and are read on and kept for the next plan.
 APPEAL_BUDGET_S = 1.5
 
-_COLUMNS = ["id", "names", "taxonomy", "basic_category", "confidence", "bbox", "operating_status", "phones"]
+_COLUMNS = ["id", "names", "taxonomy", "basic_category", "confidence", "bbox", "operating_status", "phones", "websites"]
 _LOCK = threading.Lock()
 _releases: dict[str, tuple[float, str]] = {}
 _POOL = ThreadPoolExecutor(max_workers=4, thread_name_prefix="nearby")
@@ -168,7 +172,8 @@ def _read(lat: float, lon: float, release: str) -> dict:
         found[kind].append({
             "name": name, "kind": _words((row.get("taxonomy") or {}).get("primary") or row.get("basic_category")),
             "distance_m": round(metres), "walk_min": math.ceil(metres / WALK_M_PER_MIN) if metres <= WALK_M else None,
-            "phone": (row.get("phones") or [None])[0], "lat": round(plat, 6), "lon": round(plon, 6),
+            "phone": (row.get("phones") or [None])[0], "website": (row.get("websites") or [None])[0],
+            "lat": round(plat, 6), "lon": round(plon, 6),
         })
     out = {}
     for kind, places in found.items():
@@ -191,7 +196,7 @@ def around(ident: str, lat: float, lon: float, cache_dir: Path = CACHE_DIR) -> d
     NearbyUnavailable where Overture cannot be read and the field's
     answer was never kept."""
     release = latest_release()
-    path = Path(cache_dir) / release / f"{ident.strip().upper()}.json"
+    path = Path(cache_dir) / release / f"{ident.strip().upper()}{KEPT_SUFFIX}"
     try:
         return json.loads(path.read_text())
     except (OSError, ValueError):
@@ -199,7 +204,7 @@ def around(ident: str, lat: float, lon: float, cache_dir: Path = CACHE_DIR) -> d
     try:
         found = _read(lat, lon, release)
     except Exception as err:  # pyarrow's own errors are OSError and ArrowException, among others
-        kept = sorted(Path(cache_dir).glob(f"*/{ident.strip().upper()}.json"))
+        kept = sorted(Path(cache_dir).glob(f"*/{ident.strip().upper()}{KEPT_SUFFIX}"))
         if kept:
             return json.loads(kept[-1].read_text())
         raise NearbyUnavailable(f"Overture's places could not be read for {ident}: {err}") from err
@@ -261,7 +266,7 @@ def kept(ident: str, cache_dir: Path = CACHE_DIR) -> dict | None:
     """A field's places where they have been read for the newest release,
     without asking Overture: None where they have not (read_later)."""
     try:
-        return json.loads((Path(cache_dir) / latest_release() / f"{ident.strip().upper()}.json").read_text())
+        return json.loads((Path(cache_dir) / latest_release() / f"{ident.strip().upper()}{KEPT_SUFFIX}").read_text())
     except (OSError, ValueError, NearbyUnavailable):
         return None
 

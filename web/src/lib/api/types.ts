@@ -88,6 +88,9 @@ export type AirportPlace = Schemas["AirportPlace"];
  *  car near it (vfr.nearby). */
 export type AirportServices = Schemas["AirportServices"];
 export type NearbyPlace = Schemas["NearbyPlace"];
+/** The pictures an airport's card swipes through behind its diagram: its
+ *  aerial from the USGS and a photo from the ground from Wikipedia. */
+export type AirportPhotos = Schemas["AirportPhotos"];
 /** The fields along a route to stop at, for the map's Stops (vfr.fuelstops.along). */
 export type RouteStops = Schemas["RouteStops"];
 export type RouteStopField = Schemas["RouteStopField"];
