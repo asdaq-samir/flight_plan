@@ -19,7 +19,12 @@ import { tileUrl } from "./tiles";
  *
  * The route's airports' diagrams come with them (airport-diagrams in
  * the worker), a third of a megabyte each, so a card opened on the
- * ground at the other end shows its field's with no network.
+ * ground at the other end shows its field's with no network. And the
+ * stops along it, at the owner's yes to keeping them for the air
+ * (2026-10-23): the map's Stops list, and for each of its fields and the
+ * route's own their services, their pictures' list and their aerial and
+ * photo from the ground (routeStopsKept), so the list and a field's Info
+ * and pictures open over a field with no signal.
  */
 export const CORRIDOR_NM = 10;
 const CONCURRENCY = 6;
@@ -126,9 +131,28 @@ async function routeDiagrams(course: Course): Promise<string[]> {
        diagramRunwaysPicture(card.value.ident, card.value.airport_diagram_cycle)] : []));
 }
 
+/** The route's Stops (api.routeStops) and, for each of its fields and the
+ *  route's own airports, the field's services, its pictures' list and the
+ *  pictures themselves: what the Stops card and a field's Info and
+ *  pictures ask for, so the worker has them (airport-extras,
+ *  airport-pictures). Its own fetches, the lists'; the rest as URLs to
+ *  fetch with the tiles. None where the planner cannot be asked. */
+export async function routeStopsKept(course: Course): Promise<string[]> {
+  const own = [course.departure, ...(course.stops ?? []), course.destination].filter(a => a.kind !== "fix").map(a => a.ident);
+  const stops = await api.routeStops(course.departure.ident, course.destination.ident, (course.stops ?? []).map(s => s.ident).join(","))
+    .catch(() => null);
+  const idents = [...new Set([...own, ...(stops?.fields ?? []).map(f => f.ident)])];
+  const pictures = await Promise.allSettled(idents.map(ident => api.airportPhotos(ident)));
+  return idents.flatMap((ident, i) => {
+    const found = pictures[i];
+    const shown = found?.status === "fulfilled" ? [found.value.aerial_url, ...(found.value.photo ? [found.value.photo.url] : [])] : [];
+    return [`/api/planner/airport/${encodeURIComponent(ident)}/services`, ...shown];
+  });
+}
+
 /**
- * Fetches every corridor tile of `kind` at `zooms`, and the route's
- * airports' diagrams, reporting progress; resolves with the final
+ * Fetches every corridor tile of `kind` at `zooms`, the route's
+ * airports' diagrams and its stops' services and pictures, reporting progress; resolves with the final
  * count. A tile that fails (a 404 where the kind has no sheet, a
  * dropped connection) is counted and skipped.
  */
@@ -138,6 +162,7 @@ async function keepRouteCharts(
   if (!(await workerReady())) throw new NoServiceWorker();
   const urls = [
     ...await routeDiagrams(course),
+    ...await routeStopsKept(course),
     ...corridorTiles(course.course_line as [number, number][], zooms).map(t => tileUrl(course, kind, t.z, t.x, t.y)),
   ];
   const progress: KeepProgress = { done: 0, total: urls.length, failed: 0 };
