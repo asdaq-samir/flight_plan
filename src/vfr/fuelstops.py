@@ -89,15 +89,16 @@ class FuelStop:
         return asdict(self)
 
 
-@lru_cache(maxsize=2)
-def _fields_of(path: str, _mtime: float) -> pd.DataFrame:
-    """The public airports that sell FUEL, from APT_BASE: ident (the ICAO
-    one where there is one, as the route spells it), name, city, where,
-    elevation and what fuel."""
+@lru_cache(maxsize=4)
+def _fields_of(path: str, _mtime: float, fuel_only: bool = True) -> pd.DataFrame:
+    """The public airports that sell FUEL, from APT_BASE -- or, not
+    `fuel_only`, every public airport: ident (the ICAO one where there is
+    one, as the route spells it), name, city, where, elevation and what
+    fuel."""
     df = faa_data._read_apt_base_cached(path, _mtime)
     sells = df["FUEL_TYPES"].fillna("").str.split(",").apply(lambda types: FUEL in [t.strip() for t in types])
     open_public = (df["FACILITY_USE_CODE"] == "PU") & (df["SITE_TYPE_CODE"] == "A") & (df["ARPT_STATUS"].fillna("O") == "O")
-    df = df[sells & open_public]
+    df = df[(sells | (not fuel_only)) & open_public]
     icao = df["ICAO_ID"].fillna("").str.strip()
     return pd.DataFrame({
         "ident": np.where(icao != "", icao, df["ARPT_ID"].str.strip()),
@@ -114,6 +115,12 @@ def _fields_of(path: str, _mtime: float) -> pd.DataFrame:
 def fields_with_fuel(cache_dir=DEFAULT_FAA_CACHE_DIR) -> pd.DataFrame:
     path = faa_data.ensure_nasr_file("APT_BASE.csv", cache_dir)
     return _fields_of(str(path), Path(path).stat().st_mtime)
+
+
+def public_fields(cache_dir=DEFAULT_FAA_CACHE_DIR) -> pd.DataFrame:
+    """Every open public airport, fuel or not: a meal or a bed needs none."""
+    path = faa_data.ensure_nasr_file("APT_BASE.csv", cache_dir)
+    return _fields_of(str(path), Path(path).stat().st_mtime, False)
 
 
 @lru_cache(maxsize=2)
@@ -308,3 +315,40 @@ def suggest_break(start: tuple, end: tuple, *, fuel_per_nm: float, min_per_nm: f
         elevation_ft=None if pd.isna(n["elevation_ft"]) else float(n["elevation_ft"]),
     ) for _, n, to_it, added in ranked[:1 + CHOICES]]
     return stops[:1], stops[1:]
+
+
+#: The most fields listed along a route (along): the nearest the line
+#: first, so a long flight's list stays one a pilot reads, and its
+#: places are read in seconds, not a minute.
+ALONG_MOST = 40
+
+
+def along(flights: list[tuple[str, tuple, tuple]], skip: set | None = None,
+          fields: pd.DataFrame | None = None) -> list[dict]:
+    """The public fields on a long enough paved runway no more than
+    MAX_ADDED_NM off each flight's straight line ((departure ident, start,
+    end) for each), at the owner's ask for the food, fuel and rest stops
+    along the route to pick from (2026-10-23, the map's Stops): each
+    with the flight it is on (`flight`, its index, and `departure`), its
+    miles from that flight's departure and the miles it adds, in route
+    order. A field near two flights is listed on the first; the ALONG_MOST
+    nearest the line kept."""
+    fields = public_fields() if fields is None else fields
+    seen, out = set(skip or ()), []
+    for k, (departure, start, end) in enumerate(flights):
+        for n in _corridor(start, end, fields, seen):
+            if n["ident"] in seen:
+                continue
+            seen.add(n["ident"])
+            to_it = float(distance_nm(start[0], start[1], n["lat"], n["lon"]))
+            then = float(distance_nm(n["lat"], n["lon"], end[0], end[1]))
+            out.append({
+                "ident": n["ident"], "name": n["name"], "city": n["city"], "lat": float(n["lat"]), "lon": float(n["lon"]),
+                "flight": k, "departure": departure, "from_nm": round(to_it, 1),
+                "added_nm": round(to_it + then - float(distance_nm(start[0], start[1], end[0], end[1])), 1),
+                "fuel_types": [t.strip() for t in str(n["fuel_types"]).split(",") if t.strip()],
+                "runway_ft": int(n["runway_ft"]),
+                "elevation_ft": None if pd.isna(n["elevation_ft"]) else float(n["elevation_ft"]),
+            })
+    kept = sorted(out, key=lambda f: f["added_nm"])[:ALONG_MOST]
+    return sorted(kept, key=lambda f: (f["flight"], f["from_nm"]))

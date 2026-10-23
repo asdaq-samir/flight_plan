@@ -71,6 +71,31 @@ def test_a_field_not_read_in_time_counts_its_courtesy_car_alone(monkeypatch):
     import threading
     gate = threading.Event()
     monkeypatch.setattr(nearby, "around", lambda ident, lat, lon: gate.wait(5) and {"food": [place(4)], "cars": []})
-    monkeypatch.setattr(nearby, "_courtesy_car", lambda ident: ident == "K78")
+    monkeypatch.setattr(nearby, "courtesy_car", lambda ident: ident == "K78")
     assert nearby.appeal_of([("K78", 38.9, -97.2), ("KHYS", 38.8, -99.3)], budget_s=0.05) == {"K78": 1, "KHYS": 0}
     gate.set()
+
+
+def test_a_field_not_yet_read_is_none_and_read_once_however_often_asked(tmp_path, monkeypatch):
+    import threading
+    monkeypatch.setattr(nearby, "latest_release", lambda: "2026-10-21.0")
+    monkeypatch.setattr(nearby, "CACHE_DIR", tmp_path)
+    assert nearby.kept("KHYS", tmp_path) is None
+    gate, reads = threading.Event(), []
+
+    def around(ident, lat, lon, cache_dir=tmp_path):
+        reads.append(ident)
+        gate.wait(5)
+        (tmp_path / "2026-10-21.0").mkdir(exist_ok=True)
+        (tmp_path / "2026-10-21.0" / f"{ident}.json").write_text('{"food": [], "lodging": [], "cars": []}')
+    monkeypatch.setattr(nearby, "around", around)
+    nearby.read_later("khys", 38.8, -99.3)
+    nearby.read_later("KHYS", 38.8, -99.3)
+    gate.set()
+    nearby._POOL.submit(lambda: None).result(5)
+    import time
+    for _ in range(50):
+        if nearby.kept("KHYS", tmp_path) is not None:
+            break
+        time.sleep(0.05)
+    assert reads == ["KHYS"] and nearby.kept("KHYS", tmp_path) == {"food": [], "lodging": [], "cars": []}

@@ -298,6 +298,15 @@ export const servicesQuery = (ident: string) => queryOptions({
   queryKey: ["airport-services", ident], queryFn: () => api.airportServices(ident), staleTime: Infinity, meta: { silent: true },
 });
 
+/** The fields along the route to stop at (api.routeStops), for the map's
+ *  Stops: asked again every two seconds while the planner is still reading
+ *  some fields' places (`pending`), then kept for the route. */
+export const routeStopsQuery = (dep: string, dest: string, stops: string) => queryOptions({
+  queryKey: ["route-stops", dep, dest, stops], queryFn: () => api.routeStops(dep, dest, stops),
+  staleTime: 60 * 60_000, meta: { silent: true },
+  refetchInterval: query => (query.state.data?.pending ? 2000 : false),
+});
+
 /** An approach's plate placed on the map, and whether it publishes
  *  circling minimums (vfr.plates): the map's (PlateLayer) and the route's
  *  runway chips' (ProceduresRoute). A plate placed stays good for its

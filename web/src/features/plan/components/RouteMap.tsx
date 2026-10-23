@@ -120,7 +120,18 @@ const BREAK_PIN = L.divIcon({
   iconSize: [30, 38], iconAnchor: [15, 37],
 });
 
-type StopPin = { ident: string; lat: number; lon: number; reason?: "fuel" | "break" };
+/** And a bed in it, for the map's Stops' Rest (StopsCard). */
+const REST_PIN = L.divIcon({
+  className: "",
+  html: '<svg width="30" height="38" viewBox="0 0 30 38" aria-hidden="true"><path d="M15 37C15 37 2 23.5 2 14a13 13 0 0 1 26 0c0 9.5-13 23-13 23z" fill="#d9480f" stroke="#fff" stroke-width="2"/>'
+    + '<g transform="translate(7.5 6.5) scale(0.62)" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">'
+    + '<path d="M2 20v-8a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v8"/><path d="M4 10V6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v4"/><path d="M12 4v6"/><path d="M2 18h20"/></g></svg>',
+  iconSize: [30, 38], iconAnchor: [15, 37],
+});
+
+/** A stop pinned on the chart: a suggestion's (the totals' fuel_stops), or
+ *  a field of the map's Stops (`food`, `rest`, or `fuel` with its `title`). */
+type StopPin = { ident: string; lat: number; lon: number; reason?: "fuel" | "break" | "food" | "rest"; title?: string };
 
 function FuelStopPins({ stops, onSelect }: { stops: StopPin[]; onSelect: (ident: string) => void }) {
   return stops.map(stop => <FuelStopPin key={stop.ident} stop={stop} onSelect={onSelect} />);
@@ -130,12 +141,13 @@ const FuelStopPin = memo(function FuelStopPin({ stop, onSelect }: { stop: StopPi
   // Memoized, not a literal: see AirportsLayer.
   const handlers = useMemo(() => ({ click: () => onSelect(stop.ident) }), [onSelect, stop.ident]);
   const isBreak = stop.reason === "break";
+  const icon = stop.reason === "rest" ? REST_PIN : isBreak || stop.reason === "food" ? BREAK_PIN : FUEL_PIN;
   return (
     <Marker
-      position={[stop.lat, stop.lon]} icon={isBreak ? BREAK_PIN : FUEL_PIN} title={`Suggested ${isBreak ? "stop" : "fuel stop"} ${stop.ident}`}
+      position={[stop.lat, stop.lon]} icon={icon} title={stop.title ?? `Suggested ${isBreak ? "stop" : "fuel stop"} ${stop.ident}`}
       eventHandlers={handlers} zIndexOffset={500}
     >
-      <MapTooltip>{`${pointName(stop.ident)} · ${isBreak ? "Break" : "Fuel stop"}`}</MapTooltip>
+      <MapTooltip>{stop.title ? pointName(stop.ident) : `${pointName(stop.ident)} · ${isBreak ? "Break" : "Fuel stop"}`}</MapTooltip>
     </Marker>
   );
 });

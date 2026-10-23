@@ -7,7 +7,7 @@ import { fromChunk } from "../../lib/fromChunk";
 import { cn } from "cn";
 import { api } from "../../lib/api/client";
 import { showError } from "../../lib/problems";
-import { aircraftListQuery, aircraftProfilesQuery, airportQuery, checkpointsQuery, courseQuery, nearestQuery, pilotQuery, queryClient } from "../../lib/queryClient";
+import { aircraftListQuery, aircraftProfilesQuery, airportQuery, checkpointsQuery, courseQuery, nearestQuery, pilotQuery, queryClient, routeStopsQuery } from "../../lib/queryClient";
 import type { AircraftChoice, AirportPlace, AltitudeChoice, Candidate, Detour, FuelStopSuggestion, ProcedureDrawing } from "../../lib/api/types";
 import { aircraftKey, choiceOf, shortName } from "../../lib/aircraftChoice";
 import { clockTime, useMinuteClock } from "../../lib/clock";
@@ -64,6 +64,7 @@ import ProfileCard from "./components/ProfileCard";
 import { dryRunOf, type DryRun } from "./components/navlog/dryRun";
 import FixCard, { type OpenFix } from "./components/FixCard";
 import type { SuggestedStop } from "./components/StopServices";
+import { stopsOfKind, useStopsAlong, type StopsKind } from "../../lib/stopsAlong";
 import DirectStrip from "./components/DirectStrip";
 import { loadFlightChart } from "./components/loadFlightChart";
 import { DRY_RUN, clearPastFlight, usePastFlight } from "../../lib/map/pastFlight";
@@ -147,6 +148,8 @@ const PastFlightCard = fromRoutePanel("PastFlightCard");
 // An airport's card and the dry run's panel too, each drawn at a tap: with
 // the React Compiler on, the first load was 11 KB past CI's 1.10 MB.
 const PlaceCard = fromRoutePanel("PlaceCard");
+// The map's Stops (StopsCard), drawn at its button's tap.
+const StopsCard = fromRoutePanel("StopsCard");
 const DryRunControls = fromRoutePanel("DryRunControls");
 const DryRunFigures = fromRoutePanel("DryRunFigures");
 /** A round button's room while its code comes (routePanel). */
@@ -198,6 +201,9 @@ function suggestedStopAt(ident: string | null, suggestions: FuelStopSuggestion[]
   }
   return null;
 }
+
+/** A Stops pin's name, by the kind picked. */
+const STOPS_KIND_WORD: Record<StopsKind, string> = { fuel: "Fuel", food: "Food", rest: "Rest" };
 
 const drawnOnly = (results: { data?: ProcedureDrawing }[]) => results.flatMap(r => (r.data ? [r.data] : []));
 
@@ -1161,6 +1167,13 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     const isBreak = fuelStops.some(f => f.reason === "break" && [...f.stops, ...(f.choices ?? [])].some(c => idents.includes(c.ident)));
     if (next) setStops(next.stops, isBreak ? [] : next.added);
   }, [setStops, planned.dep, planned.stops, fuelStops]);
+  // A field from the map's Stops (StopsCard) put in the route after its
+  // flight's departure: a fuel stop from Fuel, the pilot's own from Food
+  // and Rest.
+  const addStopAlong = useCallback((departure: string, ident: string, fuel: boolean) => {
+    const next = withStopsAfter(planned.dep, planned.stops, departure, [ident]);
+    if (next) setStops(next.stops, fuel ? next.added : []);
+  }, [setStops, planned.dep, planned.stops]);
   // The suggested stop the airport's card is open on, where it is one: its
   // figures at the card's top, and Add Stop keeps it at its place
   // (PlaceCard's `stop`).
@@ -1329,6 +1342,18 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const navLogShown = navLogOpen && tab === "fpl" && routed && !briefShown;
   // The side view, a card over FPL as the nav log is (ProfileCard).
   const profileShown = profileOpen && tab === "fpl" && routed && !briefShown && !navLogShown;
+  // The map's Stops (StopsCard), a card over FPL as the Profile is, opened
+  // from its button among the map's (StopsAlongButton).
+  const stopsOpen = useStopsAlong(st => st.open);
+  const setStopsOpen = useStopsAlong(st => st.setOpen);
+  const stopsShown = stopsOpen && tab === "fpl" && routed && !s.local && !briefShown && !navLogShown && !profileShown;
+  // While the map's Stops is open, its fields of the kind picked pinned in
+  // the suggestions' place (the same query as the card's).
+  const stopsKind = useStopsAlong(st => st.kind);
+  const { data: along } = useQuery({ ...routeStopsQuery(planned.dep, `${planned.dest ?? ""}`, planned.stops.join(",")), enabled: stopsShown });
+  const alongPins = useMemo(() => (stopsShown && along ? stopsOfKind(along.fields, stopsKind).map(f => ({
+    ident: f.ident, lat: f.lat, lon: f.lon, reason: stopsKind, title: `${STOPS_KIND_WORD[stopsKind]} at ${f.ident}`,
+  })) : null), [stopsShown, along, stopsKind]);
   // Airport's pill's NEAREST strip: the list's own question, shared, asked
   // while the strip is in sight.
   // Airport's strip in sight, at the pill or all the way up.
@@ -1358,11 +1383,12 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // At the height FPL is at, all the way up staying so, at the owner's ask
   // ("Brief opens in half card when clicked on full fpl tab").
   const openBrief = useCallback(() => {
+    setStopsOpen(false);
     setSearchParams(prev => {
       return patched(prev, { brief: "1" });
     }, { replace: true });
     if (panel !== "full") setPanel("half");
-  }, [setSearchParams, setPanel, panel]);
+  }, [setSearchParams, setPanel, panel, setStopsOpen]);
   const closeBrief = useCallback(() => {
     closeCard(() => setSearchParams(prev => {
       return patched(prev, { brief: null });
@@ -1372,20 +1398,47 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // is, at the height FPL is at (half from the pill), put away to the
   // height it had (closeCard).
   const openNavLogCard = useCallback(() => {
+    setStopsOpen(false);
     setNavLogOpen(true);
     setProfileOpen(false);
     if (panel !== "full") setPanel("half");
-  }, [panel, setPanel]);
+  }, [panel, setPanel, setStopsOpen]);
   const closeNavLogCard = useCallback(() => closeCard(() => setNavLogOpen(false)), [closeCard]);
   // The side view the same way, from its button beside the nav log's, at
   // the owner's ask ("profile view can move next to the navlog button and
   // open like brief and navlog opens instead of the swipe").
   const openProfileCard = useCallback(() => {
+    setStopsOpen(false);
     setProfileOpen(true);
     setNavLogOpen(false);
     if (panel !== "full") setPanel("half");
-  }, [panel, setPanel]);
+  }, [panel, setPanel, setStopsOpen]);
   const closeProfileCard = useCallback(() => closeCard(() => setProfileOpen(false)), [closeCard]);
+  // The map's Stops, put away to the height FPL had (closeCard).
+  const closeStops = useCallback(() => closeCard(() => setStopsOpen(false)), [closeCard, setStopsOpen]);
+  // Opened from the map's button: FPL in sight with it, the other cards
+  // over FPL and an airport's put away, half way up from the pill, as the
+  // Profile opens from its button.
+  const openStops = useCallback(() => {
+    setStopsOpen(true);
+    setTabPick("fpl");
+    setNavLogOpen(false);
+    setProfileOpen(false);
+    setSearchParams(prev => (prev.get("brief") || prev.get("place") ? patched(prev, { brief: null, place: null }) : prev), { replace: true });
+    if (panel !== "full") setPanel("half");
+  }, [setStopsOpen, setTabPick, setSearchParams, panel, setPanel]);
+  const setStopsOpener = useStopsAlong(st => st.setOpener);
+  useEffect(() => {
+    setStopsOpener(openStops);
+    return () => setStopsOpener(null);
+  }, [openStops, setStopsOpener]);
+  // The button there while there is a route to look along.
+  const setStopsAvailable = useStopsAlong(st => st.setAvailable);
+  const canStop = routed && !s.local && !!planned.dest;
+  useEffect(() => {
+    setStopsAvailable(canStop);
+    return () => setStopsAvailable(false);
+  }, [canStop, setStopsAvailable]);
   // The legs asked for from the Brief: FPL all the way up in its place.
   const showLegs = useCallback(() => {
     setSearchParams(prev => {
@@ -2029,7 +2082,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // The open card's name for the bar over it: an airport's ident, the
   // airspace at a point, an airplane's callsign (its card's, useCardTitle).
   const flightTitle = useCardTitle(t => t.title);
-  const cardTitle = place ?? (heldPoint ? "Airspace" : flight ? flightTitle ?? undefined : briefShown ? "Brief" : navLogShown ? "Nav log" : profileShown ? "Profile" : undefined);
+  const cardTitle = place ?? (heldPoint ? "Airspace" : flight ? flightTitle ?? undefined : briefShown ? "Brief" : navLogShown ? "Nav log" : profileShown ? "Profile" : stopsShown ? "Stops" : undefined);
   // The airport's card: all the way up in the panel's body; at the pill's
   // size its summary, the pill's own (`summary`), as a tap on the map opens
   // it, at the owner's pick of the redesign.
@@ -2237,7 +2290,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           crossings={crossings}
           directs={mapDirects}
           onProcedureFix={showFix}
-          fuelStops={fuelStopPins}
+          fuelStops={alongPins ?? fuelStopPins}
         />
         </Suspense>
         <FixCard open={openFix} onClose={() => setOpenFixAt(null)} onDirect={directTo} onCross={setCrossing} />
@@ -2368,7 +2421,13 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
             ) : sideView}
           </ProfileCard>
         )}
-        <div className={cn("flex min-h-0 flex-1 flex-col print:flex", (tab !== "fpl" || place || heldPoint || savedOpen || briefShown || profileShown || !hasPoints) && "hidden")}>{navLog}</div>
+        {stopsShown && !savedOpen && !place && !heldPoint && (
+          <StopsCard
+            name={routeName(planned.dep, planned.dest, planned.stops)} line={briefLine} dep={planned.dep} dest={planned.dest}
+            stops={planned.stops.join(",")} totals={s.totals ?? null} onClose={closeStops} onOpenField={selectPlace} onAdd={addStopAlong}
+          />
+        )}
+        <div className={cn("flex min-h-0 flex-1 flex-col print:flex", (tab !== "fpl" || place || heldPoint || savedOpen || briefShown || profileShown || stopsShown || !hasPoints) && "hidden")}>{navLog}</div>
       </>
     ),
     // The tab's head: FPL's the route's box (`route`, below); the others'
@@ -2376,7 +2435,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     head: tab === "fpl" ? undefined : tab === "aircraft" ? aircraftField : nearOpen ? nearField : searchField,
     // A card over the tab: its card alone, the tab's head gone while it is
     // open, at the pilot's ask.
-    alone: cardOpen || briefShown || navLogShown || profileShown,
+    alone: cardOpen || briefShown || navLogShown || profileShown || stopsShown,
     // An airport's or a point's card over another tab -- a field tapped on
     // the route from FPL -- its bar the card's kind and Back to the tab, at
     // the owner's ask ("unless going from another tab ... the back button
@@ -2384,7 +2443,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     // Any card, an airplane's too, its bar its name with Back and the close,
     // at the owner's ask ("For the airport card it should replace tabs with
     // a back close button and title as the airport id").
-    cardOver: cardOpen || briefShown || navLogShown || profileShown,
+    cardOver: cardOpen || briefShown || navLogShown || profileShown || stopsShown,
     toEdge: !!place,
     // The planner's tabs, the panel's first row, and at rest the pill
     // itself, at the pilot's ask: no search bar or route under them

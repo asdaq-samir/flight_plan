@@ -57,6 +57,7 @@ from ..schemas import (
     NavLogStage,
     Plan,
     RouteProfile,
+    RouteStops,
     Totals,
 )
 from ..scoring import route_checkpoints
@@ -969,6 +970,32 @@ def route_profile(dep: str, dest: str, stops: str = "") -> RouteProfile:
     r = load_route(dep, dest, stops)
     shp_path = airspace.ensure_class_airspace_shapefile(altitude.DEFAULT_FAA_CACHE_DIR)
     return side_view([(a["lat"], a["lon"]) for a in r.airports], shp_path)
+
+
+@router.get("/api/route-stops")
+def route_stops(dep: str, dest: str, stops: str = "") -> RouteStops:
+    """The fields along the route to stop at, for the map's Stops, at the
+    owner's ask ("a button to show food, fuel, rest options along the
+    route they can pick from", 2026-10-23): every public field near each
+    flight's line (vfr.fuelstops.along), each with its courtesy car (the
+    FAA's remarks) and the nearest food, bed and car to hire where its
+    places have been read (vfr.nearby.kept). Those not yet read are read
+    on the planner's pool and counted in `pending`; the page asks again
+    until none is. The times and the fuel at each are the page's, from
+    the plan's own figures per mile."""
+    r = load_route(dep, dest, stops)
+    found = fuelstops.along([(f.dep_ident, f.start, f.end) for f in r.flights], skip=set(r.idents))
+    out, pending = [], 0
+    for field in found:
+        places = nearby.kept(field["ident"])
+        if places is None:
+            pending += 1
+            nearby.read_later(field["ident"], field["lat"], field["lon"])
+        else:
+            for kind, one in (("food", "food"), ("lodging", "lodging"), ("cars", "car")):
+                field[one] = (places.get(kind) or [None])[0]
+        out.append({**field, "nearby_known": places is not None, "courtesy_car": nearby.courtesy_car(field["ident"])})
+    return RouteStops(fields=out, pending=pending)
 
 
 @router.get("/api/course")

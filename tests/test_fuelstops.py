@@ -113,3 +113,17 @@ def test_a_break_at_the_field_with_the_most_on_the_ground():
         START, end, fields=fields(("NEARMID", 0.0, 3.0), ("LATE", 0.0, 4.2)), appeal=lambda f: {"LATE": 2},
         fuel_per_nm=0.1, min_per_nm=0.6, usable_gal=40.0, taxi_gal=1.0)
     assert [s.ident for s in stops] == ["LATE"] and [c.ident for c in choices] == ["NEARMID"]
+
+
+def test_the_fields_along_each_flight_in_route_order_the_routes_own_left_out():
+    found = fuelstops.along(
+        [("A", START, (0.0, 5.0)), ("MID", (0.0, 5.0), END)],
+        skip={"A", "MID", "B"},
+        fields=fields(("LATE", 0.0, 4.0), ("EARLY", 0.0, 1.0), ("SECOND", 0.1, 7.0), ("OFF", 3.0, 2.0), ("MID", 0.0, 5.0),
+                      ("SHORT", 0.0, 3.0)),
+    )
+    # On the first flight in order, then the second's; one far off the line,
+    # a short runway and the route's own fields not at all.
+    assert [(f["ident"], f["flight"], f["departure"]) for f in found] == [
+        ("EARLY", 0, "A"), ("LATE", 0, "A"), ("SECOND", 1, "MID")]
+    assert found[0]["from_nm"] == pytest.approx(60, abs=1) and found[0]["fuel_types"] == ["100LL"]

@@ -8980,6 +8980,146 @@
         "title": "RouteProfile",
         "type": "object"
       },
+      "RouteStopField": {
+        "description": "A field along the route to stop at, for the map's Stops (vfr.fuelstops.along):\nwhich flight it is on, how far along it and off the line, its fuel,\nand the nearest food, bed and car to hire from Overture (vfr.nearby),\nonce read (`nearby_known`).",
+        "properties": {
+          "added_nm": {
+            "title": "Added Nm",
+            "type": "number"
+          },
+          "car": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NearbyPlace"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "city": {
+            "title": "City",
+            "type": "string"
+          },
+          "courtesy_car": {
+            "default": false,
+            "title": "Courtesy Car",
+            "type": "boolean"
+          },
+          "departure": {
+            "title": "Departure",
+            "type": "string"
+          },
+          "elevation_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Elevation Ft"
+          },
+          "flight": {
+            "title": "Flight",
+            "type": "integer"
+          },
+          "food": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NearbyPlace"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "from_nm": {
+            "title": "From Nm",
+            "type": "number"
+          },
+          "fuel_types": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Fuel Types",
+            "type": "array"
+          },
+          "ident": {
+            "title": "Ident",
+            "type": "string"
+          },
+          "lat": {
+            "title": "Lat",
+            "type": "number"
+          },
+          "lodging": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NearbyPlace"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lon": {
+            "title": "Lon",
+            "type": "number"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "nearby_known": {
+            "default": false,
+            "title": "Nearby Known",
+            "type": "boolean"
+          },
+          "runway_ft": {
+            "title": "Runway Ft",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "ident",
+          "name",
+          "city",
+          "lat",
+          "lon",
+          "flight",
+          "departure",
+          "from_nm",
+          "added_nm",
+          "runway_ft"
+        ],
+        "title": "RouteStopField",
+        "type": "object"
+      },
+      "RouteStops": {
+        "description": "The fields along a route to stop at, in route order, and how many\nof them still have their places to be read (`pending`): asked again\nuntil none.",
+        "properties": {
+          "fields": {
+            "items": {
+              "$ref": "#/components/schemas/RouteStopField"
+            },
+            "title": "Fields",
+            "type": "array"
+          },
+          "pending": {
+            "default": 0,
+            "title": "Pending",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "fields"
+        ],
+        "title": "RouteStops",
+        "type": "object"
+      },
       "RouteTfr": {
         "description": "A TFR within a few miles of the route and in force at some time\nduring the flight: how far along the route it is, whether the route\ngoes through it, and whether it is in force now.",
         "properties": {
@@ -14171,6 +14311,65 @@
           }
         },
         "summary": "Route Profile"
+      }
+    },
+    "/api/route-stops": {
+      "get": {
+        "description": "The fields along the route to stop at, for the map's Stops, at the\nowner's ask (\"a button to show food, fuel, rest options along the\nroute they can pick from\", 2026-10-23): every public field near each\nflight's line (vfr.fuelstops.along), each with its courtesy car (the\nFAA's remarks) and the nearest food, bed and car to hire where its\nplaces have been read (vfr.nearby.kept). Those not yet read are read\non the planner's pool and counted in `pending`; the page asks again\nuntil none is. The times and the fuel at each are the page's, from\nthe plan's own figures per mile.",
+        "operationId": "route_stops_api_route_stops_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "dep",
+            "required": true,
+            "schema": {
+              "title": "Dep",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "dest",
+            "required": true,
+            "schema": {
+              "title": "Dest",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "stops",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Stops",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RouteStops"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Route Stops"
       }
     },
     "/api/status": {

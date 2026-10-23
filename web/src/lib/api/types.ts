@@ -88,6 +88,9 @@ export type AirportPlace = Schemas["AirportPlace"];
  *  car near it (vfr.nearby). */
 export type AirportServices = Schemas["AirportServices"];
 export type NearbyPlace = Schemas["NearbyPlace"];
+/** The fields along a route to stop at, for the map's Stops (vfr.fuelstops.along). */
+export type RouteStops = Schemas["RouteStops"];
+export type RouteStopField = Schemas["RouteStopField"];
 export type ForecastWind = Schemas["ForecastWind"];
 export type Metar = Schemas["Metar"];
 export type TerminalChart = Schemas["TerminalChart"];

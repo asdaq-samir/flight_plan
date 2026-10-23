@@ -21,4 +21,5 @@ export { default as AirspaceCard } from "./components/AirspaceCard";
 export { default as FlightCard } from "./components/FlightCard";
 export { default as PastFlightCard } from "./components/PastFlightCard";
 export { default as PlaceCard } from "./components/PlaceCard";
+export { default as StopsCard } from "./components/StopsCard";
 export { DryRunControls, DryRunFigures } from "./components/DryRunPanel";

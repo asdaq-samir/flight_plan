@@ -76,6 +76,7 @@ _COLUMNS = ["id", "names", "taxonomy", "basic_category", "confidence", "bbox", "
 _LOCK = threading.Lock()
 _releases: dict[str, tuple[float, str]] = {}
 _POOL = ThreadPoolExecutor(max_workers=4, thread_name_prefix="nearby")
+_READING: set[str] = set()
 
 
 class NearbyUnavailable(RuntimeError):
@@ -217,7 +218,8 @@ def warm() -> None:
     _read(0.0, 0.0, latest_release())
 
 
-def _courtesy_car(ident: str) -> bool:
+def courtesy_car(ident: str) -> bool:
+    """Whether the FAA's remarks offer a courtesy car at the field."""
     ident = ident.strip().upper()
     faa_ids = [ident[1:], ident] if len(ident) == 4 and ident[0] in "KP" else [ident]
     try:
@@ -251,5 +253,36 @@ def appeal_of(fields: list[tuple[str, float, float]], budget_s: float = APPEAL_B
         found = None
         if future.done() and not future.exception():
             found = future.result()
-        out[ident] = appeal(found, _courtesy_car(ident))
+        out[ident] = appeal(found, courtesy_car(ident))
     return out
+
+
+def kept(ident: str, cache_dir: Path = CACHE_DIR) -> dict | None:
+    """A field's places where they have been read for the newest release,
+    without asking Overture: None where they have not (read_later)."""
+    try:
+        return json.loads((Path(cache_dir) / latest_release() / f"{ident.strip().upper()}.json").read_text())
+    except (OSError, ValueError, NearbyUnavailable):
+        return None
+
+
+def read_later(ident: str, lat: float, lon: float) -> None:
+    """A field's places read on the pool and kept, once however often it
+    is asked while it is read: the map's Stops (along) asks for the
+    fields not yet read and is asked again until they are."""
+    key = ident.strip().upper()
+    with _LOCK:
+        if key in _READING:
+            return
+        _READING.add(key)
+
+    def read() -> None:
+        try:
+            around(key, lat, lon)
+        except NearbyUnavailable:
+            log.warning("nearby places at %s could not be read", key)
+        finally:
+            with _LOCK:
+                _READING.discard(key)
+
+    _POOL.submit(read)

@@ -2100,6 +2100,43 @@ class AirportServices(BaseModel):
     nearby_unavailable: bool = False
 
 
+class RouteStopField(BaseModel):
+    """A field along the route to stop at, for the map's Stops (vfr.fuelstops.along):
+    which flight it is on, how far along it and off the line, its fuel,
+    and the nearest food, bed and car to hire from Overture (vfr.nearby),
+    once read (`nearby_known`)."""
+
+    ident: str
+    name: str
+    city: str
+    lat: float
+    lon: float
+    #: The flight it is on, by its index among the route's flights, and that
+    #: flight's departure.
+    flight: int
+    departure: str
+    #: Miles from that flight's departure, straight, and the miles it adds.
+    from_nm: float
+    added_nm: float
+    fuel_types: list[str] = []
+    runway_ft: int
+    elevation_ft: float | None = None
+    courtesy_car: bool = False
+    nearby_known: bool = False
+    food: NearbyPlace | None = None
+    lodging: NearbyPlace | None = None
+    car: NearbyPlace | None = None
+
+
+class RouteStops(BaseModel):
+    """The fields along a route to stop at, in route order, and how many
+    of them still have their places to be read (`pending`): asked again
+    until none."""
+
+    fields: list[RouteStopField]
+    pending: int = 0
+
+
 class ModelComparisonEntry(BaseModel):
     """`metric` names which number `score` is: cv_mae for the sklearn
     family and Spark, held_out_mae for PyTorch/TensorFlow. Lower is
