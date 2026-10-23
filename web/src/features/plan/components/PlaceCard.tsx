@@ -376,7 +376,9 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
   const diagramBox = (className: string) => (
     <div className={cn("relative min-h-0 overflow-hidden rounded-xl text-foreground", GLASS_BUTTON, className)}>
       <div
-        data-testid="place-pictures"
+        // Slides meant to be swiped sideways, as the tiles' strips are
+        // (the iOS audit's data-slides, not a sideways scroll in error).
+        data-testid="place-pictures" data-slides=""
         onScroll={e => setSlide(Math.round(e.currentTarget.scrollLeft / Math.max(1, e.currentTarget.clientWidth)))}
         className="absolute inset-0 flex snap-x snap-mandatory overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >

@@ -922,6 +922,16 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     () => (pinIdent && pinLat != null && pinLon != null ? { ident: pinIdent, lat: pinLat, lon: pinLon } : null),
     [pinIdent, pinLat, pinLon],
   );
+  // A departure typed with no destination yet: the map brought to it, at
+  // the owner's screenshot (KBDL in, the map left on the whole country).
+  // Not a present position, where the map is already.
+  const depAlone = !!planned.dep && !planned.dest && !planned.dep.startsWith("@");
+  const { data: depData } = useQuery({ ...airportQuery(`${planned.dep}`), enabled: depAlone });
+  const depIdent = depAlone ? depData?.ident ?? null : null, depLat = depData?.lat, depLon = depData?.lon;
+  const startPin = useMemo(
+    () => (depIdent && depLat != null && depLon != null ? { ident: depIdent, lat: depLat, lon: depLon } : null),
+    [depIdent, depLat, depLon],
+  );
   // Own ship, near enough to fit the map to Nearest's fields with it.
   const fix = useOwnShipNear();
   // Nearest's fields and own ship, for the map to fit with its card up
@@ -2284,6 +2294,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           procedureFocus={procedureFocus}
           procedureCover={procedureCover}
           place={placePin}
+          start={startPin}
           nearest={nearOpen ? nearestPoints : null}
           onSelectPlace={selectPlaceOnChart}
           // A VFR waypoint's "Add as a Stop" only while there is room for one,
@@ -2432,7 +2443,15 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
             stops={planned.stops.join(",")} totals={s.totals ?? null} onClose={closeStops} onOpenField={selectPlace} onAdd={addStopAlong}
           />
         )}
-        <div className={cn("flex min-h-0 flex-1 flex-col print:flex", (tab !== "fpl" || place || heldPoint || savedOpen || briefShown || profileShown || stopsShown || !hasPoints) && "hidden")}>{navLog}</div>
+        <div className={cn("flex min-h-0 flex-col print:flex", depAlone ? "flex-none" : "flex-1", (tab !== "fpl" || place || heldPoint || savedOpen || briefShown || profileShown || stopsShown || !hasPoints) && "hidden")}>{navLog}</div>
+        {/* A departure alone: under it the flights saved and the routes
+            planned last, to pick from, where the sheet stood empty under
+            the one field (the owner's screenshot, 2026-10-23). */}
+        {tab === "fpl" && depAlone && hasPoints && !savedOpen && !place && !heldPoint && !briefShown && !profileShown && !stopsShown && (
+          <div className="px-4 pt-2" data-testid="fpl-departure-strip">
+            <FplStrip onAllSaved={openSaved} onAllRecents={() => openList("routes")} />
+          </div>
+        )}
       </>
     ),
     // The tab's head: FPL's the route's box (`route`, below); the others'

@@ -8,6 +8,14 @@ import { LIVE_TILES, chartPair, tileTemplate } from "./tiles";
 /** The level of the chart kept under it (below): a region a tile, some
  *  eleven degrees of longitude, so a route's whole way is one or two. */
 const UNDERLAY_ZOOM = 5;
+/** The USGS's topographic map (The National Map, a public-domain work),
+ *  under the charts zoomed out: the country and its neighbours where no
+ *  chart reaches -- Canada, Mexico, the sea, a sheet's ragged edge -- in
+ *  a chart's own greens and blues, where the map's bare grey showed
+ *  through (the owner's screenshot, 2026-10-23). Not past FILL_MAX_ZOOM,
+ *  where the charts cover all a view holds but their far edges. */
+const USGS_TOPO = "https://basemap.nationalmap.gov/arcgis/rest/services/USGSTopo/MapServer/tile/{z}/{y}/{x}";
+const FILL_MAX_ZOOM = 8;
 /** The ring tiles remembered as asked for: about a flight's worth of
  *  views, the browser's cache holding the tiles themselves. */
 const PREFETCH_KEPT = 2000;
@@ -100,6 +108,10 @@ export function ChartTiles({ chart, previewing }: Props) {
   const underlay = Math.max(baseLayer.min_zoom, UNDERLAY_ZOOM);
   return (
     <>
+      <TileLayer
+        key="usgs-fill" url={USGS_TOPO} maxNativeZoom={FILL_MAX_ZOOM} maxZoom={FILL_MAX_ZOOM}
+        keepBuffer={1} zIndex={-1} updateWhenZooming={false}
+      />
       {underlay < baseLayer.max_zoom && (
         <TileLayer
           key={`${baseLayer.kind}-under`}
