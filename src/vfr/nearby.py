@@ -217,8 +217,10 @@ def warm() -> None:
     _read(0.0, 0.0, latest_release())
 
 
+@lru_cache(maxsize=8192)
 def courtesy_car(ident: str) -> bool:
-    """Whether the FAA's remarks offer a courtesy car at the field."""
+    """Whether the FAA's remarks offer a courtesy car at the field: kept, as
+    the remarks change by the cycle (40 fields' were 0.8 s a Stops list)."""
     ident = ident.strip().upper()
     faa_ids = [ident[1:], ident] if len(ident) == 4 and ident[0] in "KP" else [ident]
     try:
