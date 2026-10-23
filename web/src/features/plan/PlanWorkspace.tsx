@@ -1962,7 +1962,12 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     ? { ceilingFt: minimums.ceilingFt, visibilitySm: minimums.visibilitySm } : { ceilingFt: null, visibilitySm: null };
   const { data: routeWays } = useQuery({
     ...routeOptionsQuery(planned.dep, `${planned.dest ?? ""}`, planned.stops.join(","), aircraft, depart || undefined, routeMinimums),
-    enabled: routed && !!planned.dep && !!planned.dest && !s.local && flightRules === "vfr",
+    // Once the nav log is in, not beside it: the ways are worked out in
+    // the planner's own process, and asked for with the plan they held a
+    // long route's altitudes up (a 3,000 nm route of eleven stops took
+    // 86 s cold, 2026-10-23).
+    enabled: routed && !!planned.dep && !!planned.dest && !s.local && flightRules === "vfr"
+      && !!s.totals && !s.navStage && s.stage !== "navlog",
   });
   const pickRoute = useCallback((option: RouteOption) => setStops(option.stops, option.fuel), [setStops]);
   const flyDirect = useCallback(() => setStops([]), [setStops]);

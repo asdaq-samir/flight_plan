@@ -79,9 +79,10 @@ export default function RouteChoices({ found, stops, onPick, onDirect }: {
                 {option.marginal.length > 0 && <span className="block text-caution-ink">Passes {inLine(option.marginal.map(name))}</span>}
               </>
             )}
-            {...(used
-              ? { media: <Check className="size-4 text-tint" aria-label="In use" /> }
-              : { onClick: () => onPick(option) })}
+            // A choice, as iOS lists a route's: the one in use checked, the
+            // words in the text's colour (a choice's, not an action's tint).
+            aria-pressed={used} onClick={() => { if (!used) onPick(option); }}
+            media={used ? <Check className="size-4 text-tint" aria-label="In use" /> : <span className="size-4" aria-hidden="true" />}
           />
         );
       })}
