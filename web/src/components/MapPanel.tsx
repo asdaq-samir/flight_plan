@@ -150,8 +150,11 @@ const RANK: Record<PanelState, number> = { peek: 0, half: 1, full: 2 };
  *  over them: black at 4% on the light sheet, 18% on the dark. The grey of
  *  notes a step darker on it in the light (oklch 0.5, from 0.556): on the
  *  shade it read 4.35:1, under WCAG's 4.5 (the iOS audit's P15 in CI,
- *  f08a6d3c); the dark's as it was, set again here as the light's is set. */
-const SHEET_BELOW = "bg-black/[0.04] [--muted-foreground:oklch(0.5_0_0)] dark:bg-black/[0.18] dark:[--muted-foreground:oklch(0.708_0_0)] print:bg-transparent";
+ *  f08a6d3c); the blue of tappable words a step darker too (oklch 0.48,
+ *  from 0.522): a nav log's "Show the work" on its selected row read
+ *  4.33:1 (8465f5a8). The dark's as they were, set again here as the
+ *  light's are set. */
+const SHEET_BELOW = "bg-black/[0.04] [--muted-foreground:oklch(0.5_0_0)] [--tint:oklch(0.48_0.18_256)] dark:bg-black/[0.18] dark:[--muted-foreground:oklch(0.708_0_0)] dark:[--tint:oklch(0.7_0.165_253)] print:bg-transparent";
 
 export default function MapPanel({ label, top, controls, compact, children, state, onStateChange, onInsetsChange, toEdge: edgeAsked = false, bar, layer = "tab", cardOver: overAsked = false, foot }: Props) {
   // A tab's options for a tab, a card's for a card: what each layer takes.
