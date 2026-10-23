@@ -203,15 +203,13 @@ export default function MapPanel({ label, top, controls, compact, children, stat
       setMeasured(true);
     }
   }, []);
-  // The foot's height, added to every detent: its observer's (below), whose
-  // first answer comes before the frame is painted. Read in the ref's
-  // callback, as the head's is, it laid the whole page out in the middle
-  // of every commit that put a foot in -- each switch back to FPL, 0.5 s of
-  // a phone's at a quarter of a laptop's speed (a profile of two switches,
-  // 2026-10-23: 1,051 ms in that one read).
+  // The foot's height, measured as the head's is, added to every detent.
   const [footNode, setFootNode] = useState<HTMLDivElement | null>(null);
   const [footMeasured, setFootMeasured] = useState(0);
-  const setFoot = setFootNode;
+  const setFoot = useCallback((node: HTMLDivElement | null) => {
+    setFootNode(node);
+    if (node) setFootMeasured(node.offsetHeight);
+  }, []);
   // How tall it can be: a phone's sheet stops eight points short of the
   // far edge's inset (the status bar, the home indicator), as Maps' does;
   // a card keeps a margin at both ends.
