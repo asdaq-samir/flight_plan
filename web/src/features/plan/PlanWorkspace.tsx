@@ -21,7 +21,7 @@ import { pickKeptAircraft, useTabSearch } from "../../lib/tabSearch";
 import TabBar, { type BarTab } from "../../components/TabBar";
 import { useTabAsk } from "./components/navlog/panelTab";
 import { useAddressCards, usePanelTabs, type PanelTab, type TabList } from "./hooks/useTabCards";
-import { MAX_STOPS, altitudesOf, altitudesParam, departureOf, groundOf, identOf, isAirwayToken, positionIdent, routeName, routeOf, stopsOf } from "../../lib/identSchema";
+import { MAX_STOPS, altitudesOf, altitudesParam, departureOf, groundOf, identOf, isAirwayToken, nameOwnPoints, positionIdent, routeName, routeOf, stopsOf } from "../../lib/identSchema";
 import { useKeptAirport, usePreferences, type FlightRules, type RecentAirport } from "../../lib/preferences";
 import Segmented from "../../components/Segmented";
 import { SearchNear, useAirportSearch } from "../../lib/useAirportSearch";
@@ -308,6 +308,9 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const stopsParam = searchParams.get("stops");
   const stops = useMemo(() => stopsOf(stopsParam), [stopsParam]);
   const planned = { dep: departureOf(searchParams.get("dep")), dest: identOf(searchParams.get("dest")), stops };
+  // The pilot's own points named POS1 on, in the route's order, before
+  // anything draws their names (pointName).
+  nameOwnPoints(stops);
   // The route's points as typed, the departure first: what FPL's menus act
   // on (ProceduresRoute's routePoints).
   const routePoints = useMemo(() => [planned.dep, ...stops, planned.dest].filter(Boolean), [planned.dep, stops, planned.dest]);

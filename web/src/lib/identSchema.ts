@@ -72,9 +72,26 @@ export function departureOf(value: string | null | undefined): string {
  *  coordinates filled the route's box and FPL's line. */
 export const POSITION_NAME = "POS0";
 
-/** A point's name as the route shows it: a present position as POS0. */
+/** The pilot's own points in the route now -- one off a fix (frdOf), made
+ *  by a long press on the map or Create a fix -- by the name each goes by,
+ *  POS1 on in the order they are flown, after the present position's POS0,
+ *  at the owner's ask ("use POS incremented terminology when creating a
+ *  fix or hold or even a user point by long tap on the map"). Set as the
+ *  route is drawn (nameOwnPoints); its own words (VPBNG/090/30, "30 nm
+ *  east of VPBNG") stay the line under it. */
+let ownPointNames = new Map<string, string>();
+
+/** The route's stops, in order: its own points named POS1, POS2… */
+export function nameOwnPoints(stops: readonly string[]) {
+  const own = [...new Set(stops.filter(stop => frdOf(stop) !== null))];
+  if (own.length === ownPointNames.size && own.every((stop, i) => ownPointNames.get(stop) === `POS${i + 1}`)) return;
+  ownPointNames = new Map(own.map((stop, i) => [stop, `POS${i + 1}`]));
+}
+
+/** A point's name as the route shows it: a present position as POS0, the
+ *  pilot's own points POS1 on (nameOwnPoints), the rest by their idents. */
 export function pointName(ident: string): string {
-  return isPosition(ident) ? POSITION_NAME : ident;
+  return isPosition(ident) ? POSITION_NAME : ownPointNames.get(ident) ?? ident;
 }
 
 /** A point's name where it is told after the flight -- a saved or recent
