@@ -41,11 +41,15 @@ function Section({ title, children, testId }: { title: string; children: ReactNo
   );
 }
 
+// A tap opens the place's own website, its photos and menu there, at the
+// owner's word ("links are fine for now for the places", where Google's
+// photos wait on its key, #210); a place with none calls it, where it has
+// a phone.
 const placeRows = (places: NearbyPlace[], media: ReactNode, testId: string) => places.map(p => (
   <ListRow
     key={`${p.name}-${p.lat}`} media={media} title={p.name} description={p.kind}
     value={<span className="tabular-nums">{awayWords(p)}</span>}
-    href={p.phone ? `tel:${p.phone}` : undefined} data-testid={testId}
+    href={p.website ?? (p.phone ? `tel:${p.phone}` : undefined)} data-testid={testId}
   />
 ));
 

@@ -298,6 +298,13 @@ export const servicesQuery = (ident: string) => queryOptions({
   queryKey: ["airport-services", ident], queryFn: () => api.airportServices(ident), staleTime: Infinity, meta: { silent: true },
 });
 
+/** An airport's pictures (api.airportPhotos), behind its card's diagram:
+ *  the imagery and the article change in years, so good for the page's
+ *  life; quiet, the card showing the diagram alone without them. */
+export const photosQuery = (ident: string) => queryOptions({
+  queryKey: ["airport-photos", ident], queryFn: () => api.airportPhotos(ident), staleTime: Infinity, meta: { silent: true },
+});
+
 /** The fields along the route to stop at (api.routeStops), for the map's
  *  Stops: asked again every two seconds while the planner is still reading
  *  some fields' places (`pending`), then kept for the route. */

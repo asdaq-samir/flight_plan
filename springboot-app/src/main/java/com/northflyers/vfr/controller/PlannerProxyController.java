@@ -75,6 +75,8 @@ public class PlannerProxyController {
      *  same for every pilot for the cycle, so its upstream's Cache-Control
      *  is carried too. */
     private static final String DIAGRAM_PATH = "/api/airport-diagram/";
+    // An airport's aerial photo, kept a week by the browser as the planner says.
+    private static final String AERIAL_PATH = "/api/airport-aerial/";
     /** An approach's plate placed on the map (the planner's vfr.plates),
      *  its d-TPP cycle in its address: carried as the diagram's. */
     private static final String PLATE_PATH = "/api/approach-plate/";
@@ -138,6 +140,9 @@ public class PlannerProxyController {
             route("GET", "/api/airport/{ident}/forecast-wind"),
             // What a field offers a pilot who lands there: a stop's card.
             route("GET", "/api/airport/{ident}/services"),
+            // The pictures behind the card's diagram, and its aerial.
+            route("GET", "/api/airport/{ident}/photos"),
+            route("GET", AERIAL_PATH + "{ident}.jpg"),
             route("GET", "/api/airport/{ident}/procedures"),
             route("GET", "/api/airport/{ident}/procedures/{procedure}"),
             route("GET", "/api/airport/{ident}/procedures/{procedure}/plate"),
@@ -287,6 +292,7 @@ public class PlannerProxyController {
             // is added beside it, and the two read as no-store. Its Pragma
             // and Expires are emptied, as Spring's static resources do.
             if (path.startsWith(TILE_PATH) || path.startsWith(DIAGRAM_PATH) || path.startsWith(PLATE_PATH) || path.startsWith(FAA_CHART_PATH)
+                    || path.startsWith(AERIAL_PATH)
                     || SHARED_PATHS.contains(path)) {
                 response.headers().firstValue(HttpHeaders.CACHE_CONTROL).ifPresent(value -> {
                     servletResponse.setHeader(HttpHeaders.CACHE_CONTROL, value);

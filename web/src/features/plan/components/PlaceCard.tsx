@@ -36,10 +36,12 @@ import { TEXT } from "../../../lib/text";
 import { diagramRunwaysPicture } from "../../../lib/diagram";
 import { useHeardMetar } from "../../../lib/map/receiver";
 import { zuluTime } from "../../../lib/clock";
-import { airportQuery } from "../../../lib/queryClient";
+import { airportQuery, photosQuery } from "../../../lib/queryClient";
 import { StopServices, StopStrip, type SuggestedStop } from "./StopServices";
 
 const SketchViewer = lazy(() => import("./SketchViewer"));
+// The pictures behind the diagram, full screen to pinch in on, as a chart is.
+const PictureViewer = lazy(() => import("./AirportDiagramViewer"));
 
 /** "18 nm NE", from wherever the card is measured from. */
 function away(from: LatLon, to: LatLon): string {
@@ -290,6 +292,15 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
   }, [place]);
   const sketched = sketchedRunways.length > 0;
   const [diagramOpen, setDiagramOpen] = useState<"faa" | "sketch" | null>(null);
+  // Behind the diagram, a swipe to the side, at the owner's ask ("airport
+  // photos swipe behind the airport diagram thumbnail", 2026-10-23): the
+  // field from the air, the USGS's, and from the ground where Wikipedia has
+  // a free photo (vfr.airport_photos). Which is in sight, for its dots, and
+  // which is open full screen.
+  const { data: photos } = useQuery({ ...photosQuery(ident), enabled: !!place });
+  const [slide, setSlide] = useState(0);
+  const [picture, setPicture] = useState<"aerial" | "photo" | null>(null);
+  const slides = photos ? (photos.photo ? 3 : 2) : 1;
   const [noRunwaysPicture, setNoRunwaysPicture] = useState(false);
   const [elevationPane, setElevationPane] = useState<HTMLElement | null>(null);
   // The ident is in the name's head (NameWithIdent), so not here again;
@@ -364,6 +375,12 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
   // The runways' picture, its own button (above), where the card puts it.
   const diagramBox = (className: string) => (
     <div className={cn("relative min-h-0 overflow-hidden rounded-xl text-foreground", GLASS_BUTTON, className)}>
+      <div
+        data-testid="place-pictures"
+        onScroll={e => setSlide(Math.round(e.currentTarget.scrollLeft / Math.max(1, e.currentTarget.clientWidth)))}
+        className="absolute inset-0 flex snap-x snap-mandatory overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      >
+      <div className="relative h-full w-full shrink-0 snap-center">
       {/* A button only where the Runways tab has something to show
           (rows for runways whose ends are unsurveyed, a pattern
           altitude); otherwise the tap would open an empty tab. */}
@@ -420,6 +437,42 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
           <span aria-hidden="true" className="font-normal">Elev </span>
           <span className="sr-only">Elevation </span>{feet(place.elevation_ft)}
         </span>
+      )}
+      </div>
+      {photos && (
+        <div className="relative h-full w-full shrink-0 snap-center">
+          <button
+            type="button" onClick={() => setPicture("aerial")} data-testid="place-aerial"
+            aria-label={`${place?.ident ?? ident} from the air, full screen`}
+            className="absolute inset-0 block rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+          >
+            <img src={photos.aerial_url} alt="" loading="lazy" className="size-full rounded-xl object-cover" />
+          </button>
+        </div>
+      )}
+      {photos?.photo && (
+        <div className="relative h-full w-full shrink-0 snap-center">
+          <button
+            type="button" onClick={() => setPicture("photo")} data-testid="place-photo"
+            aria-label={`${place?.ident ?? ident} from the ground, full screen`}
+            className="absolute inset-0 block rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+          >
+            <img src={photos.photo.url} alt="" loading="lazy" className="size-full rounded-xl object-cover" />
+          </button>
+          {/* Its photographer and licence, as Commons' licences ask. */}
+          <span className={cn("pointer-events-none absolute right-1 bottom-1 max-w-[90%] truncate rounded bg-black/55 px-1 text-white", TEXT.caption)} data-testid="place-photo-credit">
+            {photos.photo.credit}{photos.photo.license ? ` · ${photos.photo.license}` : ""}
+          </span>
+        </div>
+      )}
+      </div>
+      {/* Which picture is in sight, as iOS's page dots say. */}
+      {slides > 1 && (
+        <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-1 flex justify-center gap-1">
+          {Array.from({ length: slides }, (_, i) => (
+            <span key={i} className={cn("size-1.5 rounded-full shadow-[0_0_2px_rgba(0,0,0,.6)]", i === slide ? "bg-white" : "bg-white/45")} />
+          ))}
+        </div>
       )}
     </div>
   );
@@ -504,6 +557,17 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
               title={`${place.ident} airport diagram`} url={place.airport_diagram_url} airport={place.ident}
               onClose={() => setDiagramOpen(null)}
             />
+          )}
+          {picture && photos && (
+            <Suspense fallback={null}>
+              <PictureViewer
+                title={`${place?.ident ?? ident} ${picture === "aerial" ? "from the air" : "from the ground"}`}
+                pages={[picture === "aerial" || !photos.photo
+                  ? { src: photos.aerial_url, width: 900, height: 600 }
+                  : { src: photos.photo.url, width: photos.photo.width ?? 900, height: photos.photo.height ?? 600 }]}
+                onClose={() => setPicture(null)}
+              />
+            </Suspense>
           )}
           {diagramOpen === "sketch" && place && (
             <Suspense fallback={null}>

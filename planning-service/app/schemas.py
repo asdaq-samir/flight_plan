@@ -2069,8 +2069,32 @@ class NearbyPlace(BaseModel):
     #: The minutes' walk where it is near enough to walk to, else None.
     walk_min: int | None = None
     phone: str | None = None
+    #: Its own website, where Overture lists one: the card's link to it.
+    website: str | None = None
     lat: float
     lon: float
+
+
+class GroundPhoto(BaseModel):
+    """A field's photo from the ground, from its Wikipedia article's lead
+    image on Wikimedia Commons (vfr.airport_photos), with its credit."""
+
+    url: str
+    #: Its size, pixels, for the full-screen viewer to fit it.
+    width: int = 900
+    height: int = 600
+    credit: str
+    license: str = ""
+    source_url: str | None = None
+
+
+class AirportPhotos(BaseModel):
+    """The pictures an airport's card swipes through behind its diagram:
+    its aerial from the USGS, every field's, and a photo from the ground
+    where there is a free one."""
+
+    aerial_url: str
+    photo: GroundPhoto | None = None
 
 
 class AirportServices(BaseModel):
