@@ -167,7 +167,7 @@ export default function AircraftCard({ onPick, onPickHex, strip }: {
               <ListRow title={<span className={cn("text-destructive", TEXT.detail)}>Couldn't search. Try again in a moment.</span>} />
             )}
             {searching && !answer && !(isError && asked === wanted) && !listed.length && (
-              <ListRow title={<span className={cn("text-muted-foreground", TEXT.detail)}>Looking…</span>} />
+              <ListRow title={<span className={cn("text-muted-foreground", TEXT.detail)}>Fetching {wanted}…</span>} />
             )}
           </ListGroup>
         </PillSection>

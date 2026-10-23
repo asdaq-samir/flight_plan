@@ -74,7 +74,7 @@ function FixCardBody({ open, onDirect, onCross }: {
         type="button" size="lg" variant={direct ? "secondary" : "default"} onClick={() => onDirect(open, !direct)}
         className={cn("w-full", TEXT.row)} data-testid="fix-card-direct"
       >
-        {direct ? `Fly ${open.procedure} as charted` : <><MoveUpRight className="size-5" aria-hidden /> Direct to {fix.ident}</>}
+        {direct ? `Fly ${open.procedure} as Charted` : <><MoveUpRight className="size-5" aria-hidden /> Direct To {fix.ident}</>}
       </Button>
       <form onSubmit={e => { e.preventDefault(); if (valid) onCross(fix.ident, feet); }}>
         <ListGroup>

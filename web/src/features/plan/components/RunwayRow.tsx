@@ -50,7 +50,7 @@ export function RunwayRow({ runway }: { runway: Runway }) {
         <>
           {detail && <span className="block">{detail}</span>}
           {wind && (
-            <span className={cn("block", over && "font-medium text-amber-700 dark:text-amber-400")} data-testid="runway-wind">
+            <span className={cn("block", over && "font-medium text-caution-ink")} data-testid="runway-wind">
               {runwayWind(wind)}{over && `, over your ${most} kt`}
             </span>
           )}

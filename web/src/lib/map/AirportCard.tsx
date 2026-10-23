@@ -110,7 +110,7 @@ export function AirportCard({
         </div>
       )}
       {reported && weather?.observedAt && <p className="pt-1"><Observed at={weather.observedAt} /></p>}
-      {reported && weather?.stale && <p className="text-amber-700 dark:text-amber-400">Could not refresh; this is the last report.</p>}
+      {reported && weather?.stale && <p className="text-caution-ink">Could not refresh; this is the last report.</p>}
       {reported && weather?.raw && <p className="pt-1 font-mono break-words">{weather.raw}</p>}
       {forecast?.raw && <p className="font-mono break-words text-muted-foreground">{forecast.raw}</p>}
       {children}

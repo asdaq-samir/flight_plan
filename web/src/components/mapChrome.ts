@@ -1,5 +1,6 @@
 import { createContext, type ReactNode } from "react";
 import { create } from "zustand";
+import { TEXT } from "../lib/text";
 
 /**
  * What the map's chrome shares -- the panel over it (MapPanel), its
@@ -229,6 +230,15 @@ export const CAPSULE = `rounded-full ${GLASS_BUTTON}`;
  *  with the reader's text size only to 14, so the row stays one line at
  *  the pilot's, a step up from iOS's default. */
 export const CHIP_TEXT = "text-xs pointer-coarse:text-[min(0.8125rem,14px)]";
+
+/** A tinted capsule that adds a field to the route -- the Stops card's Add
+ *  (StopsCard), a suggested stop's Add Fuel Stop (FuelStopsAdd) -- one
+ *  height, padding and hit area for both, where each had its own (the
+ *  consistency audit, 2026-10-23): 32 points with a 44-point area round
+ *  it as a pseudo-element, so the capsule is not grown to make it. */
+export const ADD_CAPSULE =
+  "relative h-8 shrink-0 rounded-full bg-tint/12 px-3.5 font-semibold text-tint outline-none " +
+  `after:absolute after:-inset-1.5 after:content-[''] focus-visible:ring-2 focus-visible:ring-ring ${TEXT.detail}`;
 
 /** A round button on the panel -- the console's, the route's close -- as
  *  Maps' are on iOS 26: a circle of that glass, its glyph bold in the

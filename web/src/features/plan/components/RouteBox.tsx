@@ -580,12 +580,6 @@ export default function RouteBox({
   );
 }
 
-/** One point of the route: its ident in its airspace's look, a tap to
- *  change it (the picker), and a drag to move it. Taken out from its own
- *  menu, as iOS takes things out -- a press and hold on a phone, a
- *  right-click with a mouse -- or Delete with it focused: a cross on every
- *  pill was a row of targets crowded between them, at the pilot's ask. Any
- *  of them, the ends too (RouteBox's `remove`). */
 const NO_PROCEDURES: RouteProcedure[] = [];
 const NO_FUEL_STOPS: FuelStopSuggestion[] = [];
 
@@ -595,9 +589,6 @@ function frdWords(ident: string): string {
   return frd ? `${frd.distanceNm} nm on ${bearing(frd.course)} from ${frd.base}` : ident;
 }
 
-/** A procedure picked at a point, after its pill: its kind's glyph and its
- *  short title in the approaches' indigo, as the map draws it
- *  (ProcedureLayer). */
 /** A fuel stop suggested and not yet in the route (FuelStopRow's), in the
  *  box: dashed in the caution's colour with the pump, a tap adding it. */
 function FuelStopChip({ ident, reason = "fuel", onAdd }: { ident: string; reason?: "fuel" | "break"; onAdd?: () => void }) {
@@ -618,6 +609,9 @@ function FuelStopChip({ ident, reason = "fuel", onAdd }: { ident: string; reason
   );
 }
 
+/** A procedure picked at a point, after its pill: its kind's glyph and its
+ *  short title in the approaches' indigo, as the map draws it
+ *  (ProcedureLayer). */
 function ProcedureChip({ procedure, before = false, onOpen }: {
   procedure: RouteProcedure;
   /** Before its field's pill (an arrival, an approach), not after it. */
@@ -640,6 +634,12 @@ function ProcedureChip({ procedure, before = false, onOpen }: {
   );
 }
 
+/** One point of the route: its ident in its airspace's look, a tap to
+ *  change it (the picker), and a drag to move it. Taken out from its own
+ *  menu, as iOS takes things out -- a press and hold on a phone, a
+ *  right-click with a mouse -- or Delete with it focused: a cross on every
+ *  pill was a row of targets crowded between them, at the pilot's ask. Any
+ *  of them, the ends too (RouteBox's `remove`). */
 function Pill({ id, ident, waypoint, index, role, stopNumber, airspaceOf, metarColourOf, altitude, onChange, onEditAltitude, onRemove, onOpen, direct, onDirect }: {
   id: string; ident: string; waypoint: boolean; index: number; role: "dep" | "stop" | "dest"; stopNumber: number;
   airspaceOf: (ident: string) => AirspaceClass | undefined;
@@ -754,7 +754,7 @@ function Pill({ id, ident, waypoint, index, role, stopNumber, airspaceOf, metarC
             ident: pointName(ident), onChange: onOpen ? () => setChanging(true) : undefined,
             direct, onDirect, onAltitude: onEditAltitude, onInfo: onOpen, onRemove,
             altitude: (
-              <span className={cn("flex items-center gap-1", altitude.caution?.length && "text-amber-600 dark:text-amber-400")}>
+              <span className={cn("flex items-center gap-1", altitude.caution?.length && "text-caution-ink")}>
                 {altitude.caution?.length ? <TriangleAlert className="size-3.5" aria-label="With a caution" /> : null}
                 {waypoint ? flightLevel(altitude.feet) : altitude.feet === null ? "—" : `${altFt(altitude.feet)} ft`}
               </span>

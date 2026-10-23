@@ -17,7 +17,7 @@ export default function Observed({ at, className }: { at: string; className?: st
   const ago = minutes < 60 ? `${minutes} min ago` : `${Math.floor(minutes / 60)} h ${minutes % 60} min ago`;
   const old = minutes > OLD_REPORT_MIN;
   return (
-    <span className={cn(old ? "font-semibold text-amber-700 dark:text-amber-300" : "text-muted-foreground", className)} data-testid="observed">
+    <span className={cn(old ? "font-semibold text-caution-ink" : "text-muted-foreground", className)} data-testid="observed">
       Observed {zuluTime(observed)}, {ago}{old ? " — an old report" : ""}
     </span>
   );

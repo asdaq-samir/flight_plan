@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Leg, Totals } from "./api/types";
 import {
-  cruisingLevel, cruisingSpeed, flightPlanForms, formText, hoursMinutes, personsOnBoard, routeItem, withPersonsOnBoard, type FormInput,
+  cruisingLevel, cruisingSpeed, flightPlanForms, formText, hhmmForm, personsOnBoard, routeItem, withPersonsOnBoard, type FormInput,
 } from "./flightPlanForm";
 
 const airway = (stop: string) => /^[VTJQ]\d{1,4}$/.test(stop);
@@ -35,8 +35,9 @@ describe("the FAA flight plan form, filled in from a plan", () => {
     // Flight levels from 18,000 ft (14 CFR 91.121(a)(2)).
     expect(cruisingLevel(17_999)).toBe("A180");
     expect(cruisingLevel(18_000)).toBe("F180");
-    expect(hoursMinutes(65)).toBe("0105");
-    expect(hoursMinutes(600)).toBe("1000");
+    expect(hhmmForm(65)).toBe("0105");
+    expect(hhmmForm(600)).toBe("1000");
+    expect(hhmmForm(119.6)).toBe("0200");
   });
 
   it("an airway between the fixes it is joined and left at, DCT between fixes flown direct", () => {

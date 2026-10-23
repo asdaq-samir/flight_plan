@@ -464,7 +464,7 @@ export default function TabBar<T extends string>({ tabs, tab, over, title, onPic
               // Drawn as the close is: the glyph in the text's colour on
               // the round glass button, a thin line.
               <RoundButton label={title ? `Share ${title}` : "Share"} onClick={() => { if (typeof share === "function") share(); }} data-testid="tab-share">
-                <Share className="size-5!" strokeWidth={1.9} />
+                <Share className="size-5!" strokeWidth={2} />
               </RoundButton>
             )}
           </span>

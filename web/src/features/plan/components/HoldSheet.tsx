@@ -122,7 +122,7 @@ function HoldForm({ at, onSet }: { at: HoldAt; onSet: (fix: string, hold: Hold |
         </ListRow>
       </ListGroup>
       <Button type="submit" size="lg" disabled={!valid} className={cn("w-full", TEXT.row)} data-testid="hold-set">
-        {was ? "Change hold" : "Add hold"}
+        {was ? "Change Hold" : "Add Hold"}
       </Button>
       {was && (
         <Button type="button" size="lg" variant="ghost" onClick={() => onSet(at.fix, null)} className={cn("w-full text-destructive", TEXT.row)} data-testid="hold-remove">

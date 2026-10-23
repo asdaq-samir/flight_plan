@@ -89,7 +89,7 @@ function NearAnswers({ from, onFrom }: { from: NearFrom | null; onFrom: (from: N
         {current && isError && (
           <ListRow title={<span className={cn("text-destructive", TEXT.detail)}>Couldn't search. Try again.</span>} />
         )}
-        {!found && !(current && isError) && <ListRow title={<span className={cn("text-muted-foreground", TEXT.detail)}>Looking…</span>} />}
+        {!found && !(current && isError) && <ListRow title={<span className={cn("text-muted-foreground", TEXT.detail)}>Fetching {typed.trim()}…</span>} />}
         {from && (
           <ListRow
             media={<LocateFixed className="size-5 text-tint" />} title="Current position"
@@ -208,7 +208,7 @@ export function NearestStrip({ fields, located, onOpen }: {
       </button>
     );
   }
-  if (!fields) return <p className={cn("py-1 text-center text-foreground/65", TEXT.note)} role="status">Looking…</p>;
+  if (!fields) return <p className={cn("py-1 text-center text-foreground/65", TEXT.note)} role="status">Fetching the nearest fields…</p>;
   return (
     <PillStrip testId="nearest-strip">
       {fields.slice(0, STRIP_FIELDS).map(field => {
@@ -291,7 +291,7 @@ export default function NearestCard({ onOpen, from, onFrom, onBack }: {
             ))}
             {/* Where they could not be found, said with Try again, where the
                 list stayed on "Looking…" (QueryState). */}
-            {!data && <QueryState row query={nearestAsked} fetching="Looking…" failed="The nearest fields could not be found." />}
+            {!data && <QueryState row query={nearestAsked} fetching="Fetching the nearest fields…" failed="The nearest fields could not be found." />}
           </ListGroup>
         )}
       </div>

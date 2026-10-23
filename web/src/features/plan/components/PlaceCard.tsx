@@ -36,8 +36,10 @@ import { TEXT } from "../../../lib/text";
 import { diagramRunwaysPicture } from "../../../lib/diagram";
 import { useHeardMetar } from "../../../lib/map/receiver";
 import { zuluTime } from "../../../lib/clock";
+import { sameField } from "../../../lib/procedures";
 import { airportQuery, photosQuery } from "../../../lib/queryClient";
 import { StopServices, StopStrip, type SuggestedStop } from "./StopServices";
+import { PhotoSlide, PictureSlides } from "../../../components/PictureSlides";
 
 const SketchViewer = lazy(() => import("./SketchViewer"));
 // The pictures behind the diagram, full screen to pinch in on, as a chart is.
@@ -298,9 +300,7 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
   // a free photo (vfr.airport_photos). Which is in sight, for its dots, and
   // which is open full screen.
   const { data: photos } = useQuery({ ...photosQuery(ident), enabled: !!place });
-  const [slide, setSlide] = useState(0);
   const [picture, setPicture] = useState<"aerial" | "photo" | null>(null);
-  const slides = photos ? (photos.photo ? 3 : 2) : 1;
   const [noRunwaysPicture, setNoRunwaysPicture] = useState(false);
   const [elevationPane, setElevationPane] = useState<HTMLElement | null>(null);
   // The ident is in the name's head (NameWithIdent), so not here again;
@@ -373,16 +373,15 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
     </span>
   );
   // The runways' picture, its own button (above), where the card puts it.
+  // The diagram, then the field from the air and from the ground, a swipe
+  // across (PictureSlides, as the airplane card's sketch and photo are).
+  const ident4 = place?.ident ?? ident;
   const diagramBox = (className: string) => (
-    <div className={cn("relative min-h-0 overflow-hidden rounded-xl text-foreground", GLASS_BUTTON, className)}>
-      <div
-        // Slides meant to be swiped sideways, as the tiles' strips are
-        // (the iOS audit's data-slides, not a sideways scroll in error).
-        data-testid="place-pictures" data-slides=""
-        onScroll={e => setSlide(Math.round(e.currentTarget.scrollLeft / Math.max(1, e.currentTarget.clientWidth)))}
-        className="absolute inset-0 flex snap-x snap-mandatory overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-      >
-      <div className="relative h-full w-full shrink-0 snap-center">
+    <PictureSlides
+      label={`${ident4}: runways${photos ? ", from the air" : ""}${photos?.photo ? ", and from the ground" : ""}`}
+      className={cn("text-foreground", GLASS_BUTTON, className)} testId="place-pictures"
+      slides={[
+        <div key="diagram" className="relative size-full">
       {/* A button only where the Runways tab has something to show
           (rows for runways whose ends are unsurveyed, a pattern
           altitude); otherwise the tap would open an empty tab. */}
@@ -440,43 +439,23 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
           <span className="sr-only">Elevation </span>{feet(place.elevation_ft)}
         </span>
       )}
-      </div>
-      {photos && (
-        <div className="relative h-full w-full shrink-0 snap-center">
-          <button
-            type="button" onClick={() => setPicture("aerial")} data-testid="place-aerial"
-            aria-label={`${place?.ident ?? ident} from the air, full screen`}
-            className="absolute inset-0 block rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
-          >
-            <img src={photos.aerial_url} alt="" loading="lazy" className="size-full rounded-xl object-cover" />
-          </button>
-        </div>
-      )}
-      {photos?.photo && (
-        <div className="relative h-full w-full shrink-0 snap-center">
-          <button
-            type="button" onClick={() => setPicture("photo")} data-testid="place-photo"
-            aria-label={`${place?.ident ?? ident} from the ground, full screen`}
-            className="absolute inset-0 block rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
-          >
-            <img src={photos.photo.url} alt="" loading="lazy" className="size-full rounded-xl object-cover" />
-          </button>
-          {/* Its photographer and licence, as Commons' licences ask. */}
-          <span className={cn("pointer-events-none absolute right-1 bottom-1 max-w-[90%] truncate rounded bg-black/55 px-1 text-white", TEXT.caption)} data-testid="place-photo-credit">
-            {photos.photo.credit}{photos.photo.license ? ` · ${photos.photo.license}` : ""}
-          </span>
-        </div>
-      )}
-      </div>
-      {/* Which picture is in sight, as iOS's page dots say. */}
-      {slides > 1 && (
-        <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-1 flex justify-center gap-1">
-          {Array.from({ length: slides }, (_, i) => (
-            <span key={i} className={cn("size-1.5 rounded-full shadow-[0_0_2px_rgba(0,0,0,.6)]", i === slide ? "bg-white" : "bg-white/45")} />
-          ))}
-        </div>
-      )}
-    </div>
+        </div>,
+        photos && (
+          <PhotoSlide
+            key="aerial" src={photos.aerial_url} alt="" onOpen={() => setPicture("aerial")}
+            label={`${ident4} from the air, full screen`} testId="place-aerial"
+          />
+        ),
+        photos?.photo && (
+          <PhotoSlide
+            key="photo" src={photos.photo.url} alt="" onOpen={() => setPicture("photo")}
+            label={`${ident4} from the ground, full screen`} testId="place-photo" creditTestId="place-photo-credit"
+            // Its photographer and licence, as Commons' licences ask.
+            credit={`${photos.photo.credit}${photos.photo.license ? ` · ${photos.photo.license}` : ""}`}
+          />
+        ),
+      ]}
+    />
   );
   return (
     <PanelCard testId="place-card">
@@ -799,7 +778,7 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
         </>
       )}
       </Tabs>
-      {isLoading && !known && <p className={cn("pt-4 text-muted-foreground", TEXT.prose)}>Looking the airport up…</p>}
+      {isLoading && !known && <p className={cn("pt-4 text-muted-foreground", TEXT.prose)}>Fetching the airport…</p>}
       {/* Where the planner could not be reached, the way to ask again, in
           the card that could not be had (lib/problems: errors where they
           happen); an airport not found has nothing to ask again. */}
@@ -822,8 +801,8 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
  *  frame, as a Favorite or not by the ident asked for, and a tap is kept
  *  for when the card's answer has the field's name and place to keep. */
 function FavoriteButton({ ident, place }: { ident: string; place: AirportPlace | null }) {
-  const mine = (place?.ident ?? ident).toUpperCase();
-  const kept = usePreferences(s => s.favoriteAirports.some(a => a.ident.toUpperCase() === mine));
+  const mine = place?.ident ?? ident;
+  const kept = usePreferences(s => s.favoriteAirports.some(a => sameField(a.ident, mine)));
   const toggle = usePreferences(s => s.toggleFavoriteAirport);
   return (
     // A round pane of glass, as the gear is.

@@ -110,9 +110,9 @@ export default function AirspaceCard({ point, onClose, summary = false, onExpand
   const ground = data?.ground_ft ?? null;
   const named = data?.point ?? null;
   const actions = named ? [
-    { go: onAdd, label: "Add to route", icon: <Plus />, testId: "point-add" },
-    { go: onDirect, label: "Direct to", icon: <MoveUpRight />, testId: "point-direct" },
-    { go: onHold, label: "Hold here", icon: <Repeat2 />, testId: "point-hold" },
+    { go: onAdd, label: "Add to Route", icon: <Plus />, testId: "point-add" },
+    { go: onDirect, label: "Direct To", icon: <MoveUpRight />, testId: "point-direct" },
+    { go: onHold, label: "Hold Here", icon: <Repeat2 />, testId: "point-hold" },
   ].filter(a => a.go) : [];
   return (
     <PanelCard testId="airspace-card">
@@ -155,7 +155,7 @@ export default function AirspaceCard({ point, onClose, summary = false, onExpand
         </div>
       )}
       {!summary && <div className="space-y-5 pt-4">
-        {isLoading && <p className={cn("text-muted-foreground", TEXT.prose)}>Reading the airspace here…</p>}
+        {isLoading && <p className={cn("text-muted-foreground", TEXT.prose)}>Fetching the airspace here…</p>}
         {isError && <p className={cn("text-destructive", TEXT.prose)}>The planner could not read the airspace here. Try again in a moment.</p>}
         {data && (
           <>
@@ -171,7 +171,7 @@ export default function AirspaceCard({ point, onClose, summary = false, onExpand
             )}
             <ListGroup title="Special use">
               {data.special_use_unavailable
-                ? <ListRow title={<span className="text-amber-700 dark:text-amber-300">The FAA's special-use airspace did not answer. Check the chart.</span>} />
+                ? <ListRow title={<span className="text-caution-ink">The FAA's special-use airspace did not answer. Check the chart.</span>} />
                 : data.special_use.length === 0
                   ? <ListRow title={<span className="text-muted-foreground">None here</span>} />
                   : data.special_use.map(area => (
@@ -188,7 +188,7 @@ export default function AirspaceCard({ point, onClose, summary = false, onExpand
             </ListGroup>
             <ListGroup title="TFRs">
               {data.tfrs_unavailable
-                ? <ListRow title={<span className="text-amber-700 dark:text-amber-300">tfr.faa.gov did not answer. Check it before flight.</span>} href="https://tfr.faa.gov" />
+                ? <ListRow title={<span className="text-caution-ink">tfr.faa.gov did not answer. Check it before flight.</span>} href="https://tfr.faa.gov" />
                 : data.tfrs.length === 0
                   ? <ListRow title={<span className="text-muted-foreground">None here now or to come</span>} />
                   : data.tfrs.map(t => (

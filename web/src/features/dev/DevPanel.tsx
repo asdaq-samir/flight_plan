@@ -796,7 +796,7 @@ function SystemTab({ status, failed, onRefresh, refreshing }: {
           // answer; its own clock gives it away. Said here, and the
           // rows dimmed, rather than "up" in green for services that
           // may be anything by now.
-          <p className={cn("px-1 text-amber-700 dark:text-amber-400", TEXT.note)} data-testid="stale-snapshot">
+          <p className={cn("px-1 text-caution-ink", TEXT.note)} data-testid="stale-snapshot">
             The planner has not answered since this snapshot, {ago(status.checked_at)}: what follows is what was true then.
           </p>
         )}

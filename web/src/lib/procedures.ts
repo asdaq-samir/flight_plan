@@ -93,10 +93,12 @@ export async function typedProcedure(
 }
 
 /** Whether two idents name one field: the CIFP names it by its ICAO ident
- *  (KBUR) where the route may have the FAA's (BUR). */
+ *  (KBUR) where the route may have the FAA's (BUR), and a typed one may
+ *  come with a space round it. The one test for the app, which the
+ *  traffic's (fbo) had a second of. */
 export function sameField(a: string, b: string): boolean {
-  const bare = (ident: string) => (ident.length === 4 && ident.startsWith("K") ? ident.slice(1) : ident);
-  return bare(a.toUpperCase()) === bare(b.toUpperCase());
+  const bare = (ident: string) => ident.trim().toUpperCase().replace(/^K(?=[A-Z0-9]{3}$)/, "");
+  return bare(a) === bare(b);
 }
 
 /** The procedures picked, for the address. */
