@@ -278,7 +278,7 @@ export function LogbookPanel({ aircraft }: { aircraft?: string }) {
           flight already here (the same day, airplane, route and time) is
           not added twice. What an import brought in, said in a row. */}
       <ListGroup title="File">
-        {imported && <ListRow title={<span className="text-muted-foreground">{imported}</span>} data-testid="logbook-imported" />}
+        {imported && <ListRow muted title={<>{imported}</>} data-testid="logbook-imported" />}
         <ListRow
           title="Import a logbook" media={<FileUp className="size-5" />}
           onClick={() => fileInput.current?.click()} disabled={bringIn.isPending} data-testid="logbook-import"
@@ -311,7 +311,7 @@ export function LogbookPanel({ aircraft }: { aircraft?: string }) {
               )}
             >
               {!entries ? <QueryState row query={entriesAsked} fetching="Fetching your logbook…" failed="Your logbook could not be fetched." />
-                : !entries.length ? <ListRow title={<span className="text-muted-foreground">No flights logged yet: the plus logs one.</span>} />
+                : !entries.length ? <ListRow muted title="No flights logged yet: the plus logs one." />
                   : entries.map(e => (
                     // Taken off as every kept list's rows are -- a swipe to
                     // the left, or Edit's minus bringing out the Delete --

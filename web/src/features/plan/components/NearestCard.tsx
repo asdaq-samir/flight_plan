@@ -84,7 +84,7 @@ function NearAnswers({ from, onFrom }: { from: NearFrom | null; onFrom: (from: N
           />
         ))}
         {found && !found.length && !isFetching && (
-          <ListRow title={<span className="text-muted-foreground">Nothing by that name</span>} />
+          <ListRow muted title="Nothing by that name" />
         )}
         {current && isError && (
           <ListRow title={<span className={cn("text-destructive", TEXT.detail)}>Couldn't search. Try again.</span>} />
@@ -271,7 +271,7 @@ export default function NearestCard({ onOpen, from, onFrom, onBack }: {
         {!origin ? (
           <ListGroup>
             {enabled
-              ? <ListRow title={<span className="text-muted-foreground">Finding your position…</span>} />
+              ? <ListRow muted title="Finding your position…" />
               : <ListRow title="Show my position" onClick={() => setEnabled(true)} data-testid="nearest-show-position" />}
           </ListGroup>
         ) : (

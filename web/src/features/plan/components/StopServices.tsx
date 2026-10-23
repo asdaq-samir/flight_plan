@@ -123,7 +123,7 @@ export function StopServices({ ident }: { ident: string }) {
       {s.cars.length > 0 && <Section title="Car rental">{placeRows(s.cars, <RowBadge colour={BADGE.car}><CarFront /></RowBadge>, "services-cars")}</Section>}
       {near && <p className={cn("px-1 pt-1.5 text-muted-foreground", TEXT.note)}>Places © Overture Maps Foundation</p>}
       {s.nearby_unavailable && (
-        <Section title="Nearby"><ListRow title={<span className="text-muted-foreground">Places near the field could not be looked up</span>} /></Section>
+        <Section title="Nearby"><ListRow muted title="Places near the field could not be looked up" /></Section>
       )}
     </div>
   );

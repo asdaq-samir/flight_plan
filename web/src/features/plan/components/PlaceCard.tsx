@@ -649,7 +649,7 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
               {!place.airport_diagram_url && !place.airport_diagram_cycle && !sketched && (
                 // Drawn by the FAA for the fields with a tower or a busy
                 // ramp; most small fields have none, and are sketched.
-                <ListRow title={<span className="text-muted-foreground">The FAA publishes no airport diagram for this field</span>} />
+                <ListRow muted title="The FAA publishes no airport diagram for this field" />
               )}
               <PublicationRows
                 ident={place.ident} diagram={place.airport_diagram_url} diagramCycle={place.airport_diagram_cycle}

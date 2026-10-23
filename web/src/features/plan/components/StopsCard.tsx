@@ -92,12 +92,12 @@ export default function StopsCard({ name, line, dep, dest, stops, totals, onClos
               );
             })}
             {data.fields.length === 0 && (
-              <ListRow title={<span className="text-muted-foreground">No public field within 30 nm of the route</span>} />
+              <ListRow muted title="No public field within 30 nm of the route" />
             )}
             {pending > 0 && (
               <ListRow
                 media={<Loader2 className="size-4 animate-spin text-muted-foreground" aria-hidden />}
-                title={<span className="text-muted-foreground">Fetching what is near {pending} more {pending === 1 ? "field" : "fields"}…</span>}
+                muted title={<>Fetching what is near {pending} more {pending === 1 ? "field" : "fields"}…</>}
                 data-testid="stops-pending"
               />
             )}

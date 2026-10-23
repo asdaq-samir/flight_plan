@@ -312,7 +312,7 @@ function InstructorReview({ summary }: { summary: FlightSummary }) {
           <ListRow key={r.id} title={r.instructorName ?? "Your instructor"} description={`${said(r.flightOn)} · ${reviewState(r)}`}
             data-testid="flight-review" />
         ))}
-        {theirs.length === 0 && <ListRow title={<span className="text-muted-foreground">Ask your instructor in first, from Logbook, then Checkride</span>} />}
+        {theirs.length === 0 && <ListRow muted title="Ask your instructor in first, from Logbook, then Checkride" />}
       </ListGroup>
       {!waiting && theirs.length > 0 && (
         <ReviewAskForm

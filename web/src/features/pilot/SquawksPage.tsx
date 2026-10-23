@@ -65,7 +65,7 @@ export default function SquawksPage({ aircraft }: { aircraft: Aircraft }) {
   return (
     <div className="space-y-4" data-testid="squawks">
       <ListGroup title="Open">
-        {open.length === 0 ? <ListRow title={<span className="text-muted-foreground">None open</span>} />
+        {open.length === 0 ? <ListRow muted title="None open" />
           : open.map(s => (
             <ListRow
               key={s.id} title={s.text}

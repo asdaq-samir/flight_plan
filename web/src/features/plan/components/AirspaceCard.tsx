@@ -173,7 +173,7 @@ export default function AirspaceCard({ point, onClose, summary = false, onExpand
               {data.special_use_unavailable
                 ? <ListRow title={<span className="text-caution-ink">The FAA's special-use airspace did not answer. Check the chart.</span>} />
                 : data.special_use.length === 0
-                  ? <ListRow title={<span className="text-muted-foreground">None here</span>} />
+                  ? <ListRow muted title="None here" />
                   : data.special_use.map(area => (
                     <ListRow
                       key={area.name} media={<RowBadge colour={BADGE.hazard}><ShieldAlert /></RowBadge>}
@@ -190,7 +190,7 @@ export default function AirspaceCard({ point, onClose, summary = false, onExpand
               {data.tfrs_unavailable
                 ? <ListRow title={<span className="text-caution-ink">tfr.faa.gov did not answer. Check it before flight.</span>} href="https://tfr.faa.gov" />
                 : data.tfrs.length === 0
-                  ? <ListRow title={<span className="text-muted-foreground">None here now or to come</span>} />
+                  ? <ListRow muted title="None here now or to come" />
                   : data.tfrs.map(t => (
                     <ListRow
                       key={t.notam_id}

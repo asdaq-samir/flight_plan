@@ -156,7 +156,7 @@ export default function AircraftCard({ onPick, onPickHex, strip }: {
               />
             )}
             {searching && answer && !unchecked && !listed.length && !registered && (
-              <ListRow title={<span className="text-muted-foreground">None in the air by that name is heard now</span>} />
+              <ListRow muted title="None in the air by that name is heard now" />
             )}
             {searching && unchecked && (
               <ListRow title={<span className={cn("text-muted-foreground", TEXT.detail)} data-testid="aircraft-unchecked">

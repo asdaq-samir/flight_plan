@@ -219,7 +219,7 @@ export default function WeatherAlongRoute({ briefing, course, legs, departIso, u
               {next && stretchShown && (
                 <ListGroup title={places.length > 2 ? `${place.ident} to ${next.ident}` : "En route"}>
                   {stretch.length === 0 ? (
-                    <ListRow title={<span className="text-muted-foreground">No TAFs or pilot reports near this stretch</span>} />
+                    <ListRow muted title="No TAFs or pilot reports near this stretch" />
                   ) : runs(stretch).map(run => run.kind === "pirep" ? (
                     <PirepRow key={`p${run.along}${run.pirep.raw}`} p={run.pirep} />
                   ) : run.stations.length > 1 ? (

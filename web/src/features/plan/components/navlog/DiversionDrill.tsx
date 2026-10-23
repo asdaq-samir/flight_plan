@@ -119,9 +119,9 @@ export default function DiversionDrill({ leg, at }: { leg: Leg; at: { name: stri
                   weather: how far and which way are the chart's to read. */}
               <ListGroup title="Divert to">
                 {nearest.isPending ? (
-                  <ListRow title={<span className="text-muted-foreground">Finding the nearest fields…</span>} />
+                  <ListRow muted title="Finding the nearest fields…" />
                 ) : fields.length === 0 ? (
-                  <ListRow title={<span className="text-muted-foreground">No fields near here</span>} />
+                  <ListRow muted title="No fields near here" />
                 ) : fields.map(f => (
                   <ListRow
                     key={f.ident} radio={f.ident} disabled={checked}

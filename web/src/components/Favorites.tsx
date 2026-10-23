@@ -222,7 +222,7 @@ export function FavoritesList({ home, favorites, onBack, onOpen, onChangeHome, o
         )}
       </ListGroup>
       <ListGroup title="Airports">
-        {favorites.length === 0 && <ListRow title={<span className="text-muted-foreground">A star on an airport's card adds it here</span>} />}
+        {favorites.length === 0 && <ListRow muted title="A star on an airport's card adds it here" />}
         {favorites.map((a, index) => (
           <SwipeToDelete key={a.ident} label={`Remove ${a.ident} from Favorites`} onDelete={() => onRemove(a)}>
             {editing ? (
