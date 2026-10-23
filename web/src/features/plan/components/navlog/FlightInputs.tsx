@@ -35,6 +35,7 @@ export default function FlightInputs({ aircraftValue, aircraftOptions, onAircraf
   onDepartChange?: (iso: string) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const current = shortName(aircraftOptions.find(o => o.value === aircraftValue)?.label ?? "");
   const [typed, setTyped] = useState("");
   const pick = (value: string) => {
     onAircraftChange(value);
@@ -55,7 +56,10 @@ export default function FlightInputs({ aircraftValue, aircraftOptions, onAircraf
             type="button" aria-label="Airplane" data-testid="aircraft-select"
             className={cn("inline-flex h-8 shrink-0 items-center rounded-full px-3 font-semibold whitespace-nowrap outline-none focus-visible:ring-2 focus-visible:ring-ring", GLASS_BUTTON, TEXT.row)}
           >
-            {shortName(aircraftOptions.find(o => o.value === aircraftValue)?.label ?? "")}
+            {/* Its N-number, at the owner's ask ("And should show the n-number
+                instead of airplane model"); with none picked yet -- a plan on
+                the stock profile it starts with -- the field's ask for one. */}
+            {N_NUMBER.test(current) ? current : <span className="font-normal text-muted-foreground">N-number</span>}
           </button>
         </PopoverTrigger>
         <PopoverContent align="start" className="w-72 p-0">

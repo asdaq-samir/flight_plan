@@ -176,7 +176,7 @@ test("plan page: the nav log is computed for an airplane the pilot picks in its 
   await controlsInSight(page);
   const picker = page.getByTestId("aircraft-select");
   await expect(picker).toBeVisible();
-  await expect(picker).toContainText("C172");
+  await expect(picker).toContainText("N-number");
   // Picked by N-number alone, at the owner's ask: no stock profile is a
   // choice, and one typed is looked up in the FAA's registry -- here a
   // made-up Archer -- and flown on its type's profile.
