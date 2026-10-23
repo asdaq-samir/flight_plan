@@ -1,0 +1,19 @@
+{
+  "type": "Cirrus SR22",
+  "designator": "SR22",
+  "service_ceiling_ft": 17500,
+  "climb_rate_fpm_sea_level": 1398,
+  "cruise_tas_kt": 180,
+  "fuel_burn_gph": 17.8,
+  "cruise_power_pct": 75,
+  "cruise_altitude_ft": 8000,
+  "climb_tas_kt": 103,
+  "climb_fuel_burn_gph": 23.1,
+  "usable_fuel_gal": 81,
+  "taxi_fuel_gal": 1.5,
+  "crosswind": {
+    "demonstrated_kt": 20,
+    "source": "Cirrus SR22 Airplane Information Manual (20880-001, 2011; POH 13772-001 rev A10), section 4"
+  },
+  "source": "Cirrus SR22 Airplane Information Manual (20880-001, 2011; POH 13772-001 rev A10), serials to about 3027, 3400 lb: section 2, 81 gal usable and the maximum operating altitude, 17,500 ft, the ceiling here; figure 5-16 cruise, 8000 ft ISA, 2600 RPM 21.7 in, best power: 75%, 180 KTAS, 17.8 GPH; figure 5-15 climb (taxi 1.5 gal). A later SR22's 92 gal is not counted: the 81 is the less"
+}

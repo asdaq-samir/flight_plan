@@ -1,0 +1,18 @@
+{
+  "type": "Diamond DA40 NG",
+  "designator": "DA40",
+  "service_ceiling_ft": 16400,
+  "climb_rate_fpm_sea_level": 629,
+  "cruise_tas_kt": 131,
+  "fuel_burn_gph": 6.6,
+  "cruise_power_pct": 75,
+  "cruise_altitude_ft": 8000,
+  "climb_tas_kt": 99,
+  "climb_fuel_burn_gph": 8.3,
+  "usable_fuel_gal": 28,
+  "crosswind": {
+    "demonstrated_kt": 25,
+    "source": "Diamond DA 40 NG AFM (6.01.15-E rev 3, 2014), 5.3.6"
+  },
+  "source": "Diamond DA 40 NG AFM (6.01.15-E rev 3, 2014): section 2, 28 gal usable (standard tanks) and the maximum operating altitude, 16,400 ft, the ceiling here; 5.3.2 fuel flow (75% 6.6 GPH, Jet-A); 5.3.11 cruise, 8000 ft ISA, 75%: 131 KTAS; 5.3.8 climb, 629 fpm ISA sea level. Not the avgas DA40 180"
+}

@@ -1,0 +1,19 @@
+{
+  "type": "Cessna 182T",
+  "designator": "C182",
+  "service_ceiling_ft": 18100,
+  "climb_rate_fpm_sea_level": 924,
+  "cruise_tas_kt": 139,
+  "fuel_burn_gph": 12.5,
+  "cruise_power_pct": 72,
+  "cruise_altitude_ft": 8000,
+  "climb_tas_kt": 99,
+  "climb_fuel_burn_gph": 15.0,
+  "usable_fuel_gal": 87,
+  "taxi_fuel_gal": 1.7,
+  "crosswind": {
+    "demonstrated_kt": 15,
+    "source": "Cessna 182T NAV III POH/AFM (182TPHAUS-04 rev 4, 2005), section 4"
+  },
+  "source": "Cessna 182T NAV III POH/AFM (182TPHAUS-04 rev 4, 2005): performance specifications; figure 5-9 cruise, 8000 ft standard day, 2400 RPM 21 in: 72%, 139 KTAS, 12.5 GPH; figure 5-8 normal climb at 90 KIAS, 15 GPH (start, taxi and takeoff 1.7 gal); 87 gal usable. For the 182S and 182T alone"
+}

@@ -87,3 +87,13 @@ def test_the_service_ceiling_comes_down_on_a_warm_day_and_up_on_a_cold_one():
     warm = performance.altitude_at_density_altitude(13500.0, _isa_plus(15))
     cold = performance.altitude_at_density_altitude(13500.0, _isa_plus(-10))
     assert 11500 < warm < 12000 and 14500 < cold < 15000
+
+
+def test_a_profiles_cruise_is_at_the_altitude_its_handbook_quotes():
+    """A C152's 75% is quoted at 8000 ft (its handbook's figure 5-7): flown
+    there on a standard day, the profile's own TAS and burn; at 6000 ft
+    the same power flies slower in the thicker air."""
+    c152 = {"cruise_tas_kt": 107, "fuel_burn_gph": 6.1, "cruise_power_pct": 75, "cruise_altitude_ft": 8000, "service_ceiling_ft": 14700}
+    at_8000 = performance.cruise(c152, 8000)
+    assert abs(at_8000.tas_kt - 107) < 0.5 and abs(at_8000.fuel_burn_gph - 6.1) < 0.05
+    assert performance.cruise(c152, 6000).tas_kt < 107

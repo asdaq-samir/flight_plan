@@ -6,8 +6,9 @@ aloft gives (vfr.weather.temperature_at_altitude).
 A profile's cruise TAS and fuel burn -- a stock one's, or a pilot's own
 aeroplane's laid over it -- are taken as the aeroplane's at its cruise
 power (`cruise_power_pct`, DEFAULT_CRUISE_POWER_PCT where it names none)
-at REFERENCE_ALTITUDE_FT on a standard day: a row of a handbook's cruise
-table. From there, at any altitude in any air:
+at REFERENCE_ALTITUDE_FT on a standard day, or at the profile's own
+`cruise_altitude_ft` where it names the row's: a row of a handbook's
+cruise table. From there, at any altitude in any air:
 
 - Power is the cruise power, or what full throttle makes where the air
   is too thin for it: a normally aspirated engine's fraction of its
@@ -118,7 +119,10 @@ def cruise(aircraft_profile: dict, altitude_ft: float, oat_c: float | None = Non
     the reference altitude."""
     altitude_ft = min(max(altitude_ft, _LOWEST_FT), _HIGHEST_FT)
     setting = cruise_power_pct(aircraft_profile) / 100
-    sigma_ref = density_ratio(REFERENCE_ALTITUDE_FT, isa_temp_c(REFERENCE_ALTITUDE_FT))
+    # The handbook row's own altitude where the profile names it (a
+    # C152's 75% is quoted at 8000 ft), else the reference altitude.
+    reference_ft = aircraft_profile.get("cruise_altitude_ft") or REFERENCE_ALTITUDE_FT
+    sigma_ref = density_ratio(reference_ft, isa_temp_c(reference_ft))
     # The figures are at the cruise power, or at full throttle where a
     # setting above what the engine makes up there was given.
     power_ref = min(setting, full_throttle_power(sigma_ref))

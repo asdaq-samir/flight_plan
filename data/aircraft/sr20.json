@@ -1,0 +1,19 @@
+{
+  "type": "Cirrus SR20",
+  "designator": "SR20",
+  "service_ceiling_ft": 17500,
+  "climb_rate_fpm_sea_level": 880,
+  "cruise_tas_kt": 152,
+  "fuel_burn_gph": 11.5,
+  "cruise_power_pct": 74,
+  "cruise_altitude_ft": 6000,
+  "climb_tas_kt": 100,
+  "climb_fuel_burn_gph": 14.3,
+  "usable_fuel_gal": 56,
+  "taxi_fuel_gal": 1.0,
+  "crosswind": {
+    "demonstrated_kt": 21,
+    "source": "Cirrus SR20 Airplane Information Manual (13999-003, 2010; POH 11934-003 rev A9), section 4"
+  },
+  "source": "Cirrus SR20 Airplane Information Manual (13999-003, 2010; POH 11934-003 rev A9): section 2, 56 gal usable and the maximum operating altitude, 17,500 ft, the ceiling here (no service ceiling is published); figure 5-16 cruise, 6000 ft ISA, 2500 RPM 24.0 in, best power: 74%, 152 KTAS, 11.5 GPH; figure 5-15 climb (taxi 1 gal; 880 fpm sea level at 3000 lb)"
+}
