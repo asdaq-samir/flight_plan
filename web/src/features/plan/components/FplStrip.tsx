@@ -3,7 +3,7 @@ import { Route } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { PillStrip, SmallMark, SmallTile, StripNote, StripSection } from "../../../components/Favorites";
 import { planHrefOf } from "../../../lib/flightLink";
-import { pointName } from "../../../lib/identSchema";
+import { placeOfPoint } from "../../../lib/identSchema";
 import { flightsQuery, pilotQuery } from "../../../lib/queryClient";
 import QueryState from "../../../components/QueryState";
 import { useStripShows } from "../hooks/useStripShows";
@@ -63,7 +63,7 @@ function SavedTiles({ signedIn }: { signedIn: boolean }) {
         // A flight from a position by its coordinates as a GPS writes
         // them (pointName), cut short on the tile and whole to a screen
         // reader, at the owner's pick ("Coordinates, cut short").
-        const dep = pointName(f.departureIdent), dest = pointName(f.destinationIdent);
+        const dep = placeOfPoint(f.departureIdent), dest = placeOfPoint(f.destinationIdent);
         const name = `${dep}→${dest}`;
         return (
           <SmallTile

@@ -1,6 +1,6 @@
 import type { Where } from "./verdict";
 import { clockTime, zuluTime } from "./clock";
-import { pointName } from "./identSchema";
+import { placeOfPoint } from "./identSchema";
 
 /**
  * The passengers' briefing on the Brief, ticked off before engine start:
@@ -42,7 +42,7 @@ export function passengerMessage(f: {
   // is (etaAt): from the rounded ones it said 10:00 where they said 09:59.
   const lands = f.depart && f.eteMin != null ? new Date(f.depart.getTime() + f.eteMin * 60_000) : null;
   return [
-    `${pointName(f.dep)} to ${f.destName ? `${f.destName} (${f.dest})` : f.dest}`,
+    `${placeOfPoint(f.dep)} to ${f.destName ? `${f.destName} (${f.dest})` : f.dest}`,
     f.depart
       ? `Leaving ${clockTime(f.depart)} (${zuluTime(f.depart)})${flying ? `, about ${flying} in the air` : ""}${lands ? `, landing about ${clockTime(lands)}` : ""}.`
       : flying ? `About ${flying} in the air.` : null,

@@ -4,7 +4,7 @@ import { cn } from "cn";
 import { ListPageHead, PillStrip, SmallMark, SmallTile, StripNote } from "../../../components/Favorites";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
 import { ClearList, SwipeToDelete } from "../../../components/SwipeToDelete";
-import { pointName } from "../../../lib/identSchema";
+import { placeOfPoint } from "../../../lib/identSchema";
 import { recentRouteKey, usePreferences, type RecentRoute } from "../../../lib/preferences";
 import { TEXT } from "../../../lib/text";
 
@@ -35,12 +35,12 @@ export function RecentRouteTiles() {
   return (
     <PillStrip testId="route-recents-strip">
       {routes.slice(0, STRIP_MOST).map(route => {
-        const dep = pointName(route.dep), dest = pointName(route.dest);
+        const dep = placeOfPoint(route.dep), dest = placeOfPoint(route.dest);
         const day = new Date(route.at).toLocaleDateString(undefined, { month: "short", day: "numeric" });
         return (
           <SmallTile
             key={recentRouteKey(route)} onClick={() => navigate(hrefOf(route))} testId="route-recent" title={`${dep}→${dest}`} detail={day} wide
-            label={`${dep} to ${dest}${route.stops.length ? ` by ${route.stops.map(pointName).join(", ")}` : ""}, planned ${day}`}
+            label={`${dep} to ${dest}${route.stops.length ? ` by ${route.stops.map(placeOfPoint).join(", ")}` : ""}, planned ${day}`}
             mark={<SmallMark icon={<History />} className="bg-foreground/8 text-tint" />}
           />
         );
@@ -78,14 +78,14 @@ function RecentRouteRows({ routes, onPick }: { routes: RecentRoute[]; onPick?: (
         const key = recentRouteKey(route);
         // A route from a position by its coordinates as a GPS writes them
         // (pointName), as Saved's tiles name it.
-        const dep = pointName(route.dep), dest = pointName(route.dest);
+        const dep = placeOfPoint(route.dep), dest = placeOfPoint(route.dest);
         const day = new Date(route.at).toLocaleDateString(undefined, { month: "short", day: "numeric" });
         return (
           <SwipeToDelete key={key} label={`Remove ${dep} to ${dest} from Recents`} onDelete={() => remove(key)}>
             <ListRow
               media={<History className="size-5 text-muted-foreground" />}
               title={<span className="font-mono font-semibold">{dep} → {dest}</span>}
-              description={[route.stops.length ? `By ${route.stops.map(pointName).join(", ")}` : null, day].filter(Boolean).join(" · ")}
+              description={[route.stops.length ? `By ${route.stops.map(placeOfPoint).join(", ")}` : null, day].filter(Boolean).join(" · ")}
               onClick={() => { onPick?.(); navigate(hrefOf(route)); }} data-testid="route-recent"
             />
           </SwipeToDelete>

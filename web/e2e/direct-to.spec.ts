@@ -26,5 +26,5 @@ test("Fly Here goes direct from the present position, not from Home", async ({ p
   await expect(page).toHaveURL(/[?&]dep=%4042\.3246%2C-88\.0741/);
   // Half way, where the card was, the route's box from the present
   // position: put away, the pill is the route's figures alone.
-  await expect(page.getByTestId("route-dep")).toContainText("N42°19.5′ W088°04.4′");
+  await expect(page.getByTestId("route-dep")).toContainText("POS0");
 });

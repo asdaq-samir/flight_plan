@@ -67,10 +67,21 @@ export function departureOf(value: string | null | undefined): string {
   return identOf(value) || positionOf(value);
 }
 
-/** A point's name as the route shows it: a present position by its
- *  coordinates, as a GPS writes them ("N42°19.5′ W088°04.4′"), at the
- *  pilot's ask -- it read "Here". */
+/** A present position's name in the route, at the owner's ask ("Let's
+ *  call current position as POS0"): short as an ident is, where its
+ *  coordinates filled the route's box and FPL's line. */
+export const POSITION_NAME = "POS0";
+
+/** A point's name as the route shows it: a present position as POS0. */
 export function pointName(ident: string): string {
+  return isPosition(ident) ? POSITION_NAME : ident;
+}
+
+/** A point's name where it is told after the flight -- a saved or recent
+ *  flight, a passenger's briefing -- where POS0 says nowhere: a present
+ *  position by its coordinates, as a GPS writes them ("N42°19.5′
+ *  W088°04.4′"). */
+export function placeOfPoint(ident: string): string {
   if (!isPosition(ident)) return ident;
   const [lat, lon] = ident.slice(1).split(",").map(Number);
   return degreesMinutes({ lat: lat!, lon: lon! });
