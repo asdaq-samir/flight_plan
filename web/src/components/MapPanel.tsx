@@ -147,8 +147,11 @@ const RANK: Record<PanelState, number> = { peek: 0, half: 1, full: 2 };
  * opened before it, from a screen reader.
  */
 /** Under the head, the body and the foot a shade darker than the glass
- *  over them: black at 4% on the light sheet, 18% on the dark. */
-const SHEET_BELOW = "bg-black/[0.04] dark:bg-black/[0.18] print:bg-transparent";
+ *  over them: black at 4% on the light sheet, 18% on the dark. The grey of
+ *  notes a step darker on it in the light (oklch 0.5, from 0.556): on the
+ *  shade it read 4.35:1, under WCAG's 4.5 (the iOS audit's P15 in CI,
+ *  f08a6d3c); the dark's as it was, set again here as the light's is set. */
+const SHEET_BELOW = "bg-black/[0.04] [--muted-foreground:oklch(0.5_0_0)] dark:bg-black/[0.18] dark:[--muted-foreground:oklch(0.708_0_0)] print:bg-transparent";
 
 export default function MapPanel({ label, top, controls, compact, children, state, onStateChange, onInsetsChange, toEdge: edgeAsked = false, bar, layer = "tab", cardOver: overAsked = false, foot }: Props) {
   // A tab's options for a tab, a card's for a card: what each layer takes.
@@ -781,7 +784,12 @@ export default function MapPanel({ label, top, controls, compact, children, stat
               // round them: six of the tab's glass over the icon, five from
               // the word to the line (TabBar, TabGlass); the pill's 48, its
               // height fixed.
-              "flex shrink-0 px-2", minimized ? "min-h-11 pb-4" : pillShape ? "h-12" : "h-14", !barShown && "hidden",
+              // In the pill the pill's row whatever it holds, a card's name and its
+              // buttons too: the minimized bar's sixteen under it, for the line
+              // under a sheet's first row, set them high in the pill, the room
+              // under them twice that over (the owner's "Not centered in the
+              // bottom pill").
+              "flex shrink-0 px-2", pillShape ? "h-12" : minimized ? "min-h-11 pb-4" : "h-14", !barShown && "hidden",
               // In the pill the pill's whole, round its grabber; out of it,
               // under a card's name, the line under the sheet's first row --
               // under the tabs, the tabs' own line of glass (TabGlass).
