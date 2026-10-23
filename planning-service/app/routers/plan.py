@@ -22,7 +22,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import Response, StreamingResponse
 from vfr import (
-    airports, airspace, altitude, chartlabels, charts, elevation, faa_data, fixes, fuelstops, geo, magnetic, navlog, places,
+    airports, airspace, altitude, chartlabels, charts, elevation, faa_data, fixes, fuelstops, geo, magnetic, navlog, nearby, places,
     procedure_paths, procedures, sun,
 )
 # As vfr_holds: PlanQuery's own `holds` is the address's.
@@ -880,8 +880,10 @@ def fuel_stops_of(r: Route, per_flight: list[dict]) -> list[dict]:
         margin, usable, distance = t.get("fuel_margin_gal"), t.get("usable_fuel_gal"), t.get("distance_nm")
         if margin is None or not usable or not distance or t.get("fuel_gal") is None or t.get("ete_min") is None:
             continue
+        # What is there on the ground counts too (vfr.nearby.appeal_of):
+        # among fields about as quick, one with food a walk away first.
         per_nm = {"fuel_per_nm": t["fuel_gal"] / distance, "min_per_nm": t["ete_min"] / distance,
-                  "usable_gal": usable, "taxi_gal": t.get("taxi_gal") or 0.0}
+                  "usable_gal": usable, "taxi_gal": t.get("taxi_gal") or 0.0, "appeal": nearby.appeal_of}
         try:
             if margin < 0:
                 reason = "fuel"

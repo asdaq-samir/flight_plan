@@ -35,7 +35,7 @@ from fastapi import FastAPI, Request
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
 from pydantic import TypeAdapter
-from vfr import airspace, altitude, charts, faa_data, fixes, geocode, places, publications, registry, remarks, weather
+from vfr import airspace, altitude, charts, faa_data, fixes, geocode, nearby, places, publications, registry, remarks, weather
 from vfr import traffic as traffic_data
 from vfr import airports as airport_table
 
@@ -145,6 +145,13 @@ def _warm_reference_data() -> None:
         faa_data.airport_frequencies("KORD", altitude.DEFAULT_FAA_CACHE_DIR)
     except Exception:  # noqa: BLE001
         log.exception("airport frequencies warm-up failed")
+    # And Overture's places files' footers (vfr.nearby.warm): a plan
+    # choosing a stop by what is there on the ground (fuelstops' appeal)
+    # waits on its first fields' places, 2.5 s cold and 0.3 s after.
+    try:
+        nearby.warm()
+    except Exception:  # noqa: BLE001 -- a stop is chosen on time and fuel alone until it is in
+        log.exception("nearby places warm-up failed")
 
     # After warm, not before it: the first start downloads the USGS's
     # place names (vfr.places), and nothing waits on them -- a waypoint
