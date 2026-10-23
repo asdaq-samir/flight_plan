@@ -295,7 +295,7 @@ def airport_place(ident: str) -> AirportPlace:
 
 
 @router.get("/api/airport/{ident}/services", response_model=AirportServices)
-def airport_services(ident: str) -> dict:
+def airport_services(ident: str, response: Response) -> dict:
     """What a field offers a pilot who lands there, for a stop's card: its
     fuel, fees, parking, repair and oxygen and its courtesy car from the
     FAA's airport file and remarks (vfr.faa_data.airport_services,
@@ -318,6 +318,12 @@ def airport_services(ident: str) -> dict:
     except nearby.NearbyUnavailable as err:
         log.warning("nearby places at %s: %s", place["ident"], err)
         near, unavailable = {}, True
+    # Kept six hours by the browser: the airport file changes by the FAA's
+    # 28-day cycle and the places near a field by the month, and the card
+    # asked for them afresh on every opening (0.3 to 0.8 s, the 23 Oct
+    # timings). Not where the places could not be had: asked again.
+    if not unavailable:
+        response.headers["Cache-Control"] = "public, max-age=21600"
     return {
         "ident": place["ident"],
         **faa_data.airport_services(place["ident"], altitude.DEFAULT_FAA_CACHE_DIR),
@@ -331,7 +337,7 @@ def _runway_ends(source: str) -> list[tuple[float, float]]:
 
 
 @router.get("/api/airport/{ident}/photos", response_model=AirportPhotos)
-def airport_photos_of(ident: str) -> dict:
+def airport_photos_of(ident: str, response: Response) -> dict:
     """The pictures an airport's card swipes through behind its diagram, at
     the owner's ask ("airport photos swipe behind the airport diagram
     thumbnail", 2026-10-23): its aerial (/api/airport-aerial, every US
@@ -345,6 +351,8 @@ def airport_photos_of(ident: str) -> dict:
     except (OSError, ValueError):
         link = None
     photo = airport_photos.ground_photo(place["ident"], link)
+    # A day in the browser: the article's photo changes in years.
+    response.headers["Cache-Control"] = "public, max-age=86400"
     # Served from here, as the aerial is (/api/airport-photo): the page's
     # image policy does not reach Wikimedia, and a route kept for the air
     # keeps it.

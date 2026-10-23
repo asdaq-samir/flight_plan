@@ -1960,9 +1960,10 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     enabled: routed && !!planned.dep && !!planned.dest && !s.local && flightRules === "vfr",
   });
   const pickRoute = useCallback((option: RouteOption) => setStops(option.stops, option.fuel), [setStops]);
+  const flyDirect = useCallback(() => setStops([]), [setStops]);
   const routeChoices = useMemo(() => (routed && !s.local && flightRules === "vfr"
-    ? <RouteChoices found={routeWays} stops={planned.stops} onPick={pickRoute} /> : null),
-  [routed, s.local, flightRules, routeWays, planned.stops, pickRoute]);
+    ? <RouteChoices found={routeWays} stops={planned.stops} onPick={pickRoute} onDirect={flyDirect} /> : null),
+  [routed, s.local, flightRules, routeWays, planned.stops, pickRoute, flyDirect]);
   const routeList = useMemo(() => (
     <>
     {/* The ways to fly it, over its points (RouteChoices). */}

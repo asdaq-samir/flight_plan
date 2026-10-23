@@ -38,11 +38,13 @@ function isRoute(option: RouteOption, stops: string[]): boolean {
  * own row ("Keep yours, flag issues"). Nothing at all where the route is
  * already the best of every kind and meets nothing.
  */
-export default function RouteChoices({ found, stops, onPick }: {
+export default function RouteChoices({ found, stops, onPick, onDirect }: {
   found: RouteOptions | undefined;
   /** The route's points between its ends, as the address has them. */
   stops: string[];
   onPick: (option: RouteOption) => void;
+  /** The straight line put back, its stops taken out. */
+  onDirect: () => void;
 }) {
   if (!found) return null;
   const name = (i: number) => found.hazards[i]?.name ?? "";
@@ -60,6 +62,17 @@ export default function RouteChoices({ found, stops, onPick }: {
         <ListRow
           title="Your Route" data-testid="route-choice-current"
           description={<span className="text-destructive-ink">Crosses {inLine(meets.map(name))}</span>}
+        />
+      )}
+      {/* The straight line, one tap away from a route of the pilot's own,
+          with what it crosses: a warning, never a refusal (the owner's "a
+          warning tick or a label is enough"). */}
+      {stops.length > 0 && !found.options.some(o => o.stops.length === 0) && (
+        <ListRow
+          title="Direct" data-testid="route-choice-direct" onClick={onDirect}
+          description={found.direct.length
+            ? <span className="text-destructive-ink">Crosses {inLine(found.direct.map(name))}</span>
+            : "The straight line, clear"}
         />
       )}
       {found.options.map(option => {

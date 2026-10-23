@@ -58,4 +58,10 @@ test("FPL's Routes say what the route meets and put a way round it in the route,
   await best.click();
   await expect(page).toHaveURL(/[?&]stops=KEAU(&|$)/);
   await expect(page).toHaveURL(/[?&]fuel=KEAU(&|$)/);
+
+  // The straight line one tap back, with what it crosses.
+  const direct = sideDrawer(page).getByTestId("route-choice-direct");
+  await expect(direct).toContainText("Crosses thunderstorms forecast at KCWA");
+  await direct.click();
+  await expect(page).not.toHaveURL(/[?&]stops=/);
 });

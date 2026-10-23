@@ -78,6 +78,15 @@ public class PlannerProxyController {
     // An airport's aerial photo, kept a week by the browser as the planner says.
     private static final String AERIAL_PATH = "/api/airport-aerial/";
     private static final String PHOTO_PATH = "/api/airport-photo/";
+
+    /** An airport's services and its pictures' list (/api/airport/{ident}/services,
+     *  /photos): from the FAA's airport file, the places near it and its
+     *  article, the same for every pilot and no weather in them, so their
+     *  upstream's Cache-Control is carried -- the card asked for them afresh
+     *  on every opening. */
+    static boolean isAirportExtra(String path) {
+        return path.startsWith("/api/airport/") && (path.endsWith("/services") || path.endsWith("/photos"));
+    }
     /** An approach's plate placed on the map (the planner's vfr.plates),
      *  its d-TPP cycle in its address: carried as the diagram's. */
     private static final String PLATE_PATH = "/api/approach-plate/";
@@ -297,6 +306,7 @@ public class PlannerProxyController {
             // and Expires are emptied, as Spring's static resources do.
             if (path.startsWith(TILE_PATH) || path.startsWith(DIAGRAM_PATH) || path.startsWith(PLATE_PATH) || path.startsWith(FAA_CHART_PATH)
                     || path.startsWith(AERIAL_PATH) || path.startsWith(PHOTO_PATH)
+                    || isAirportExtra(path)
                     || SHARED_PATHS.contains(path)) {
                 response.headers().firstValue(HttpHeaders.CACHE_CONTROL).ifPresent(value -> {
                     servletResponse.setHeader(HttpHeaders.CACHE_CONTROL, value);
