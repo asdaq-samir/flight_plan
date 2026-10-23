@@ -361,13 +361,12 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const { data: pilot } = useQuery(pilotQuery);
   const { data: myAircraft } = useQuery({ ...aircraftListQuery, enabled: !!pilot });
   const aircraftOptions = useMemo<AircraftChoice[]>(() => {
-    // The pilot's own airplanes first, by their N-numbers, at the owner's
-    // ask ("The airplane picker should pick an airplane by N number"), then
-    // the stock profiles.
-    const options: AircraftChoice[] = [
-      ...(myAircraft ?? []).map(a => choiceOf(a, profiles ?? [])),
-      ...(profiles ?? []).map(p => ({ profile: p.name, label: `${p.name.toUpperCase()} · ${p.type}` })),
-    ];
+    // The pilot's own airplanes alone, by their N-numbers, at the owner's
+    // asks ("The airplane picker should pick an airplane by N number", "No
+    // airplane should only be picked by n-number"): any other is typed by
+    // its N-number (FlightInputs' registry lookup). The stock profiles are
+    // what those fly on, not choices of their own.
+    const options: AircraftChoice[] = (myAircraft ?? []).map(a => choiceOf(a, profiles ?? []));
     // The remembered choice stays selectable while the lists load, and
     // an airplane deleted since is still what this plan was flown in.
     return options.some(o => aircraftKey(o) === aircraftKey(remembered)) ? options : [remembered, ...options];

@@ -59,14 +59,15 @@ export default function FlightInputs({ aircraftValue, aircraftOptions, onAircraf
           </button>
         </PopoverTrigger>
         <PopoverContent align="start" className="w-72 p-0">
-          {/* A list to type in, at the owner's ask ("The airplane picker
-              should pick an airplane by N number"): the pilot's own by their
-              N-numbers first, then the stock profiles, and an N-number that is
-              none of them looked up in the FAA's registry. */}
+          {/* A list to type in, at the owner's asks ("The airplane picker
+              should pick an airplane by N number", "No airplane should only
+              be picked by n-number"): the pilot's own by their N-numbers, and
+              any other N-number looked up in the FAA's registry; no stock
+              profile is a choice, only what an airplane flies on. */}
           <Command>
-            <CommandInput placeholder="Airplane or N-number" value={typed} onValueChange={setTyped} data-testid="aircraft-search" />
+            <CommandInput placeholder="N-number" value={typed} onValueChange={setTyped} data-testid="aircraft-search" />
             <CommandList>
-              <CommandEmpty>{N_NUMBER.test(typed.trim().toUpperCase()) ? null : "No airplane by that name"}</CommandEmpty>
+              <CommandEmpty>{N_NUMBER.test(typed.trim().toUpperCase()) ? null : "Type an airplane's N-number"}</CommandEmpty>
               <CommandGroup>
                 {aircraftOptions.map(o => (
                   <CommandItem key={o.value} value={o.label} onSelect={() => pick(o.value)}>
