@@ -412,9 +412,8 @@ class FuelStop(BaseModel):
 class FuelStopSuggestion(BaseModel):
     """The stops that take one flight short of fuel to its destination with
     the reserve left at every landing, the tanks filled at each, and other
-    fields the first could be -- or, `reason` "break", a field about half
-    way on a flight its tanks hold that is long enough to want a meal or
-    a rest (vfr.fuelstops.suggest_break)."""
+    fields the first could be. `reason` is "fuel": breaks for a meal or a
+    rest are the pilot's to pick from the map's Stops."""
 
     departure: str
     destination: str
