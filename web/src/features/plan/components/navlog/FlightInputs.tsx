@@ -1,32 +1,33 @@
 import { useState, type ReactNode } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { Check } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { Plane } from "lucide-react";
 import { cn } from "cn";
-import { Popover, PopoverContent, PopoverTrigger } from "../../../../components/ui/popover";
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "../../../../components/ui/command";
 import { N_NUMBER, profileOfRegistered, shortName } from "../../../../lib/aircraftChoice";
 import { api } from "../../../../lib/api/client";
 import { GLASS_BUTTON } from "../../../../components/mapChrome";
+import { PANEL_FIELD_FILL } from "../../../../components/panelField";
 import { TEXT } from "../../../../lib/text";
 import DepartPicker from "./DepartPicker";
 
 /**
  * The two inputs the nav log is computed from, in the planning panel's
  * second row, in sight with the panel down: the airplane (one of the
- * pilot's own, by its N-number, first; a stock profile; or any airplane
- * the FAA's registry has, typed by its N-number; its TAS and burn are
+ * pilot's own, by its N-number, or any other N-number typed and added,
+ * looked up in the FAA's registry behind it; its TAS and burn are
  * what the legs' times and fuel come from) and when the flight leaves,
  * which gives every row an ETA, is what a saved flight is planned for,
  * and picks the winds forecast period -- shadcn's date picker with a time
  * box (DepartPicker), empty for about now. Changing either re-plans.
  */
-export default function FlightInputs({ aircraftValue, aircraftOptions, onAircraftChange, onTailPick, altitude, depart, onDepartChange }: {
+export default function FlightInputs({ aircraftValue, aircraftOptions, onAircraftChange, onTailPick, onOpenAirplane, altitude, depart, onDepartChange }: {
   aircraftValue: string;
   aircraftOptions: { value: string; label: string }[];
   onAircraftChange: (value: string) => void;
-  /** An airplane found in the FAA's registry by its N-number, flown on
-   *  its type's stock profile. */
+  /** An N-number typed that is none of the pilot's own: flown on its type's
+   *  stock profile once the FAA's registry says it. */
   onTailPick?: (tail: string, profile: string) => void;
+  /** The airplane's card, by its Mode S hex (the FAA's registry's). */
+  onOpenAirplane?: (hex: string) => void;
   /** Beside the airplane: the altitude it flies (AltitudeGroup). */
   altitude?: ReactNode;
   /** An ISO instant, or "" for about now; with no handler, no picker here
@@ -34,107 +35,84 @@ export default function FlightInputs({ aircraftValue, aircraftOptions, onAircraf
   depart: string;
   onDepartChange?: (iso: string) => void;
 }) {
-  const [open, setOpen] = useState(false);
   const current = shortName(aircraftOptions.find(o => o.value === aircraftValue)?.label ?? "");
-  const [typed, setTyped] = useState("");
-  const pick = (value: string) => {
-    onAircraftChange(value);
-    setOpen(false);
-    setTyped("");
+  const tailNow = N_NUMBER.test(current) ? current : "";
+  const [typed, setTyped] = useState<string | null>(null);
+  const shown = typed ?? tailNow;
+  const queryClient = useQueryClient();
+  const registered = (tail: string) => queryClient.fetchQuery({
+    queryKey: ["registered", tail], queryFn: () => api.trafficFind(tail), staleTime: 24 * 60 * 60_000, meta: { silent: true },
+  });
+  // An N-number typed: one of the pilot's own picked, any other added at
+  // once, at the owner's ask ("Just show a button to add N number from
+  // here. You can do the lookup in the background"): flown on the profile
+  // in use until the FAA's registry answers, then on its type's where it
+  // has one (profileOfRegistered). No stock profile is a choice (the
+  // owner's "Why is it showing C172?").
+  const commit = () => {
+    const tail = (typed ?? "").trim().toUpperCase();
+    setTyped(null);
+    if (!N_NUMBER.test(tail) || tail === tailNow) return;
+    const mine = aircraftOptions.find(o => shortName(o.label) === tail);
+    if (mine) {
+      onAircraftChange(mine.value);
+      return;
+    }
+    const now = /^[a-z0-9]+$/.test(aircraftValue) ? aircraftValue : "c172";
+    onTailPick?.(tail, now);
+    void registered(tail).then(found => {
+      const profile = found?.registered ? profileOfRegistered(found.registered) : null;
+      if (profile && profile !== now) onTailPick?.(tail, profile);
+    }).catch(() => { /* the profile in use stands */ });
+  };
+  // Its card, at the owner's ask ("should have a button show up to go to
+  // its card"): the airplane by its Mode S hex, from the registry.
+  const openCard = () => {
+    if (!tailNow || !onOpenAirplane) return;
+    void registered(tailNow).then(found => {
+      const hex = found?.registered?.mode_s_hex;
+      if (hex) onOpenAirplane(hex.toLowerCase());
+    }).catch(() => { /* no card to open */ });
   };
   return (
     <>
-      <Popover open={open} onOpenChange={next => { setOpen(next); if (!next) setTyped(""); }}>
-        {/* A button as the Brief's is, a pill of the glass round buttons are
-            made of (GLASS_BUTTON), 32 tall in the route box, at the owner's pick ("pa28 should
-            be a selection button style like the brief button"); in the row's
-            type, at the owner's ask ("why is the font for PA28 so small").
-            Its short name -- C172, N12345 -- so a departure time picked
-            beside it stays on the same line; the list has them whole. */}
-        <PopoverTrigger asChild>
-          <button
-            type="button" aria-label="Airplane" data-testid="aircraft-select"
-            className={cn("inline-flex h-8 shrink-0 items-center rounded-full px-2 font-semibold whitespace-nowrap outline-none focus-visible:ring-2 focus-visible:ring-ring", GLASS_BUTTON, TEXT.row)}
-          >
-            {/* Its N-number, at the owner's ask ("And should show the n-number
-                instead of airplane model"); with none picked yet -- a plan on
-                the stock profile it starts with -- the field's ask for one. */}
-            {/* The ask in a detail's size and the pill eight in from its sides, so
-                the row keeps its line with the brief, the nav log, Share and
-                the refresh on a computer's 24-rem panel, as with "C172". */}
-            {N_NUMBER.test(current) ? current : <span className={cn("font-normal text-muted-foreground", TEXT.detail)}>N-number</span>}
-          </button>
-        </PopoverTrigger>
-        <PopoverContent align="start" className="w-72 p-0">
-          {/* A list to type in, at the owner's asks ("The airplane picker
-              should pick an airplane by N number", "No airplane should only
-              be picked by n-number"): the pilot's own by their N-numbers, and
-              any other N-number looked up in the FAA's registry; no stock
-              profile is a choice, only what an airplane flies on. */}
-          <Command>
-            <CommandInput placeholder="N-number" value={typed} onValueChange={setTyped} data-testid="aircraft-search" />
-            <CommandList>
-              <CommandEmpty>{N_NUMBER.test(typed.trim().toUpperCase()) ? null : "Type an airplane's N-number"}</CommandEmpty>
-              <CommandGroup>
-                {aircraftOptions.map(o => (
-                  <CommandItem key={o.value} value={o.label} onSelect={() => pick(o.value)}>
-                    <span className="min-w-0 flex-1 truncate">{o.label}</span>
-                    {o.value === aircraftValue && <Check className="size-4 text-tint" aria-hidden="true" />}
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-              {onTailPick && (
-                <Registered
-                  typed={typed} known={aircraftOptions.map(o => shortName(o.label))}
-                  onPick={(tail, profile) => { onTailPick(tail, profile); setOpen(false); setTyped(""); }}
-                />
-              )}
-            </CommandList>
-          </Command>
-        </PopoverContent>
-      </Popover>
+      {/* A field as the altitude's is, at the owner's ask ("N-number should
+          look similar to altitude"): typed in, its card's button at its end
+          once there is one, the route box's fill and type. */}
+      <div role="group" aria-label="Airplane" className={cn("grid h-8 shrink-0 items-center rounded-full", PANEL_FIELD_FILL, TEXT.row)} data-testid="aircraft-select">
+        {/* As wide as what is in it -- the example at a detail's size, as
+            the button it replaced had it, or the N-number and its card's
+            button -- so the route box's row keeps its one line (briefing's
+            spec: Share level with the airplane). */}
+        <span aria-hidden="true" className="invisible col-start-1 row-start-1 flex h-0 overflow-hidden">
+          {shown ? <span className="whitespace-pre pr-3 pl-2.5 font-semibold">{shown}</span>
+            : <span className={cn("whitespace-pre pr-2.5 pl-2.5 font-normal", TEXT.detail)}>N-number</span>}
+          {tailNow && typed === null && onOpenAirplane && <span className="w-8 shrink-0" />}
+        </span>
+        <div className="col-start-1 row-start-1 flex h-full min-w-0 items-center">
+          <label className="relative flex h-full min-w-0 flex-1 items-center pr-1.5 after:absolute after:-inset-y-1.5 after:-left-0.5 after:right-0 after:content-['']">
+            <input
+              type="text" autoCapitalize="characters" autoCorrect="off" spellCheck={false} enterKeyHint="done" autoComplete="off" size={1}
+              value={shown} placeholder="N-number" aria-label="Airplane, N-number"
+              onChange={e => setTyped(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6))}
+              onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); commit(); (e.target as HTMLInputElement).blur(); } if (e.key === "Escape") setTyped(null); }}
+              onBlur={commit}
+              className={cn("relative z-10 h-full w-0 min-w-0 flex-1 bg-transparent pr-1.5 pl-2.5 font-semibold text-foreground outline-none placeholder:font-normal", !shown && TEXT.detail)}
+              data-testid="aircraft-input"
+            />
+          </label>
+          {tailNow && typed === null && onOpenAirplane && (
+            <button
+              type="button" onClick={openCard} aria-label={`${tailNow}: its card`} data-testid="aircraft-card-button"
+              className={cn("relative flex size-8 shrink-0 items-center justify-center rounded-full outline-none after:absolute after:-inset-1.5 after:content-[''] focus-visible:ring-2 focus-visible:ring-ring", GLASS_BUTTON)}
+            >
+              <Plane className="size-[18px] text-tint" aria-hidden="true" />
+            </button>
+          )}
+        </div>
+      </div>
       {altitude}
       {onDepartChange && <DepartPicker value={depart} onChange={onDepartChange} />}
     </>
-  );
-}
-
-/**
- * An N-number typed that is none of the list's, looked up in the FAA's
- * registry (the planner's airplane search, its `registered`): its maker,
- * model and year, flown on its type's stock profile where there is one
- * (profileOfRegistered); where there is none, said so, its speed and burn
- * the pilot's to give in Setup's Airplanes.
- */
-function Registered({ typed, known, onPick }: { typed: string; known: string[]; onPick: (tail: string, profile: string) => void }) {
-  const tail = typed.trim().toUpperCase();
-  const asked = N_NUMBER.test(tail) && !known.includes(tail);
-  const { data, isFetching, isError } = useQuery({
-    queryKey: ["registered", tail], queryFn: () => api.trafficFind(tail), enabled: asked, staleTime: 24 * 60 * 60_000,
-    meta: { silent: true },
-  });
-  if (!asked) return null;
-  const registered = data?.registered ?? null;
-  const profile = registered ? profileOfRegistered(registered) : null;
-  const what = registered ? [registered.manufacturer, registered.model, registered.year].filter(Boolean).join(" ") : "";
-  return (
-    <CommandGroup heading="FAA registry" forceMount>
-      {isFetching && !data ? (
-        <p className={cn("px-2 py-2 text-muted-foreground", TEXT.detail)} role="status">Looking up {tail}…</p>
-      ) : !registered ? (
-        <p className={cn("px-2 py-2 text-muted-foreground", TEXT.detail)} role="status" data-testid="registry-none">
-          {isError ? `${tail} could not be looked up just now` : `No airplane ${tail} in the FAA's registry`}
-        </p>
-      ) : profile ? (
-        <CommandItem value={`${tail} ${what}`} forceMount onSelect={() => onPick(tail, profile)} data-testid="registry-pick">
-          <span className="min-w-0 flex-1 truncate">{tail} · {what}</span>
-          <span className="text-muted-foreground">{profile.toUpperCase()}</span>
-        </CommandItem>
-      ) : (
-        <p className={cn("px-2 py-2 text-muted-foreground", TEXT.detail)} role="status" data-testid="registry-no-profile">
-          {tail} · {what}: no performance profile for it. Add it in Setup › Airplanes with its speed and fuel burn.
-        </p>
-      )}
-    </CommandGroup>
   );
 }

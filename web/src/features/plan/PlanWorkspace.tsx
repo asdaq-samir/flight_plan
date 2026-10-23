@@ -1635,7 +1635,13 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   }, [aircraftOptions, setAircraft]);
   // An airplane the FAA's registry has, typed by its N-number in the
   // picker: flown on its type's stock profile, named by its N-number.
-  const pickTail = useCallback((tail: string, profile: string) => {
+  // The airplane's card from the route box's N-number (FlightInputs):
+  // Aircraft's tab, its card over it.
+  const openAirplaneCard = useCallback((hex: string) => {
+    setTabPick("aircraft");
+    selectFlight(hex);
+  }, [setTabPick, selectFlight]);
+    const pickTail = useCallback((tail: string, profile: string) => {
     setAircraft({ profile, label: `${tail} · ${profile.toUpperCase()}`, tail });
   }, [setAircraft]);
 
@@ -2026,7 +2032,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const flightInputs = useMemo(() => (
     <FlightInputs
       aircraftValue={aircraftValue}
-      aircraftOptions={aircraftChoices} onTailPick={pickTail}
+      aircraftOptions={aircraftChoices} onTailPick={pickTail} onOpenAirplane={openAirplaneCard}
       onAircraftChange={changeAircraft}
       altitude={!s.local && (
         <AltitudeGroup
@@ -2050,7 +2056,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       // step and no altitude, beside its time aloft.
       depart={depart} onDepartChange={s.local ? changeDepart : undefined}
     />
-  ), [aircraftValue, aircraftChoices, changeAircraft, pickTail, s.local, s.nav, s.legs, flyAltitude, openProfileCard, unflyable, tightLeg,
+  ), [aircraftValue, aircraftChoices, changeAircraft, pickTail, openAirplaneCard, s.local, s.nav, s.legs, flyAltitude, openProfileCard, unflyable, tightLeg,
     routed, depart, changeDepart, flightRules, s.replanning, altitudeFt]);
 
   // Saving the flight, the narrative and Print.
