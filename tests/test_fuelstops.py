@@ -84,3 +84,32 @@ def test_no_break_on_a_flight_of_three_hours_or_less():
     # 294 nm at 0.6 min a mile: under three hours.
     assert fuelstops.suggest_break(START, (0.0, 4.9), fields=fields(("MID", 0.0, 2.45)),
                                    fuel_per_nm=0.1, min_per_nm=0.6, usable_gal=40.0, taxi_gal=1.0) == ([], [])
+
+
+def test_a_field_with_food_a_walk_away_goes_before_a_quicker_one_with_nothing():
+    # Both reach and keep the reserve; FOOD's 6 nm off the line cost under
+    # APPEAL_MINUTES, so its diner a walk away wins it.
+    asked = []
+
+    def appeal(fields):
+        asked.extend(ident for ident, _, _ in fields)
+        return {"FOOD": 3}
+
+    stops, choices = fuelstops.suggest(START, END, fields=fields(("PLAIN", 0.0, 5.0), ("FOOD", 0.1, 5.0)), appeal=appeal, **FIGURES)
+    assert [s.ident for s in stops] == ["FOOD"] and [c.ident for c in choices] == ["PLAIN"]
+    assert sorted(asked) == ["FOOD", "PLAIN"]
+
+
+def test_food_is_not_worth_more_than_appeal_minutes():
+    # FAR adds 26 nm, 16 minutes: more than a meal is worth.
+    stops, _ = fuelstops.suggest(START, END, fields=fields(("PLAIN", 0.0, 5.0), ("FAR", 1.5, 5.0)),
+                                 appeal=lambda f: {"FAR": 4}, **FIGURES)
+    assert [s.ident for s in stops] == ["PLAIN"]
+
+
+def test_a_break_at_the_field_with_the_most_on_the_ground():
+    end = (0.0, 6.6667)
+    stops, choices = fuelstops.suggest_break(
+        START, end, fields=fields(("NEARMID", 0.0, 3.0), ("LATE", 0.0, 4.2)), appeal=lambda f: {"LATE": 2},
+        fuel_per_nm=0.1, min_per_nm=0.6, usable_gal=40.0, taxi_gal=1.0)
+    assert [s.ident for s in stops] == ["LATE"] and [c.ident for c in choices] == ["NEARMID"]

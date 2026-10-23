@@ -22,11 +22,13 @@ import math
 import re
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor, wait
 from functools import lru_cache
 from pathlib import Path
 
 import requests
 
+from . import remarks
 from .config import DATA_DIR
 from .geo import distance_nm
 
@@ -64,9 +66,16 @@ LODGING = {"hotel", "bed_and_breakfast", "resort", "inn", "motel"}
 #: A car to hire.
 CARS = {"car_rental_service"}
 
+#: How long a plan waits on the places near the fields it is choosing a
+#: stop among (appeal_of), seconds: a field's first read is about 0.3 s once
+#: the files' footers are in (warm), four at a time. Those not in by then
+#: count as nothing known, and are read on and kept for the next plan.
+APPEAL_BUDGET_S = 1.5
+
 _COLUMNS = ["id", "names", "taxonomy", "basic_category", "confidence", "bbox", "operating_status", "phones"]
 _LOCK = threading.Lock()
 _releases: dict[str, tuple[float, str]] = {}
+_POOL = ThreadPoolExecutor(max_workers=4, thread_name_prefix="nearby")
 
 
 class NearbyUnavailable(RuntimeError):
@@ -199,3 +208,48 @@ def around(ident: str, lat: float, lon: float, cache_dir: Path = CACHE_DIR) -> d
     except OSError:
         log.warning("Could not keep %s's nearby places", ident, exc_info=True)
     return found
+
+
+def warm() -> None:
+    """Every release file's footer read once, at the planner's start: the
+    first field's places were 2.5 s, the next 0.3 s. A box of open ocean
+    (0, 0), so nothing is kept."""
+    _read(0.0, 0.0, latest_release())
+
+
+def _courtesy_car(ident: str) -> bool:
+    ident = ident.strip().upper()
+    faa_ids = [ident[1:], ident] if len(ident) == 4 and ident[0] in "KP" else [ident]
+    try:
+        return any(remarks.service_notes(faa_id)["courtesy_car"] for faa_id in faa_ids)
+    except (OSError, RuntimeError):
+        return False
+
+
+def appeal(found: dict | None, courtesy_car: bool) -> int:
+    """How good a field is to stop at for a meal or a rest, 0 to 4: food
+    near it (1), and a walk away (2 more), and a way into town -- a
+    courtesy car, or a car to hire a walk away (1)."""
+    food, cars = (found or {}).get("food") or [], (found or {}).get("cars") or []
+    score = 1 if food else 0
+    if any(p.get("walk_min") is not None for p in food):
+        score += 2
+    if courtesy_car or any(p.get("walk_min") is not None for p in cars):
+        score += 1
+    return score
+
+
+def appeal_of(fields: list[tuple[str, float, float]], budget_s: float = APPEAL_BUDGET_S) -> dict[str, int]:
+    """Each field's appeal (ident, lat, lon), for a plan choosing among
+    stops: its places read four at a time for at most `budget_s`, a field's
+    not in by then counted on its courtesy car alone, and read on and kept
+    for the next plan."""
+    asked = {ident: _POOL.submit(around, ident, lat, lon) for ident, lat, lon in fields}
+    wait(list(asked.values()), timeout=budget_s)
+    out = {}
+    for ident, future in asked.items():
+        found = None
+        if future.done() and not future.exception():
+            found = future.result()
+        out[ident] = appeal(found, _courtesy_car(ident))
+    return out

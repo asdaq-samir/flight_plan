@@ -53,3 +53,24 @@ def test_an_older_releases_answer_where_overture_cannot_be_read(tmp_path, monkey
     assert nearby.around("KHYS", 38.8, -99.3, tmp_path) == {"food": [], "lodging": [], "cars": []}
     with pytest.raises(nearby.NearbyUnavailable):
         nearby.around("KGCK", 37.9, -100.7, tmp_path)
+
+
+def place(walk_min):
+    return {"name": "X", "kind": "Diner", "distance_m": 300, "walk_min": walk_min, "phone": None, "lat": 0, "lon": 0}
+
+
+def test_a_fields_appeal_is_its_food_how_near_and_a_way_into_town():
+    assert nearby.appeal(None, False) == 0
+    assert nearby.appeal({"food": [place(None)], "cars": []}, False) == 1
+    assert nearby.appeal({"food": [place(4)], "cars": []}, False) == 3
+    assert nearby.appeal({"food": [place(4)], "cars": []}, True) == 4
+    assert nearby.appeal({"food": [], "cars": [place(6)]}, False) == 1
+
+
+def test_a_field_not_read_in_time_counts_its_courtesy_car_alone(monkeypatch):
+    import threading
+    gate = threading.Event()
+    monkeypatch.setattr(nearby, "around", lambda ident, lat, lon: gate.wait(5) and {"food": [place(4)], "cars": []})
+    monkeypatch.setattr(nearby, "_courtesy_car", lambda ident: ident == "K78")
+    assert nearby.appeal_of([("K78", 38.9, -97.2), ("KHYS", 38.8, -99.3)], budget_s=0.05) == {"K78": 1, "KHYS": 0}
+    gate.set()

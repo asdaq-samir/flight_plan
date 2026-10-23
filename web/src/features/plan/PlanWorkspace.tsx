@@ -278,6 +278,14 @@ function autoOf(auto: string | null, pattern: string | null, takeoff: string | n
   return new Set([...[...patternsOf(pattern).keys()].map(ident => `land:${ident}`), ...[...patternsOf(takeoff).keys()].map(ident => `takeoff:${ident}`)]);
 }
 
+/** A route field's modelled or nearby category from its key
+ *  ("C81:MVFR,KFAM:"), a string so the colours' callback changes only when
+ *  a category does. */
+function approximateOf(key: string, ident: string): string | null {
+  const found = key.split(",").find(part => part.startsWith(`${ident}:`));
+  return found ? found.slice(ident.length + 1) || null : null;
+}
+
 export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: WorkspaceProps) {
   useEffect(() => {
     const later = window.setTimeout(prefetchPilotPanel, 2000);
@@ -1721,10 +1729,26 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // once the briefing has it, grey until then (the route's pills, coloured
   // by the weather in the settings).
   const metars = s.briefing.state === "ready" ? s.briefing.data.metars : null;
+  // A field with no report of its own colours as its card's chip does, at
+  // the owner's ask ("why is there grey color for airport button metar? We
+  // should get the modeled one in like the airport card has"): the weather
+  // the National Weather Service's Gridded LAMP models at it for the hour
+  // (vfr.glmp), else the nearest station's report within ten miles
+  // (PlaceCard's "≈"); grey only where neither is had. The route's fields'
+  // cards, asked once and shared with their rows (airportQuery).
+  const weatherFields = [planned.dep, ...planned.stops.filter(stop => !waypointStops.has(stop)), planned.dest].filter(ident => !!identOf(ident));
+  const fieldCards = useQueries({ queries: weatherFields.map(ident => ({ ...airportQuery(`${ident}`), staleTime: 10 * 60_000 })) });
+  const approximate = new Map(weatherFields.map((ident, i) => {
+    const card = fieldCards[i]?.data;
+    const near = card?.nearby_metar?.near ? card.nearby_metar.metar.flight_category ?? null : null;
+    return [ident, card?.modelled_weather?.flight_category ?? near] as const;
+  }));
+  const approximateKey = [...approximate].map(([ident, category]) => `${ident}:${category ?? ""}`).join(",");
   const metarColour = useCallback((ident: string) => {
     const metar = metars?.[ident];
-    return chipColourOf({ status: metar ? "reported" : "no-report", category: metar?.flight_category ?? null });
-  }, [metars]);
+    const category = metar?.flight_category ?? approximateOf(approximateKey, ident);
+    return chipColourOf({ status: category ? "reported" : "no-report", category });
+  }, [metars, approximateKey]);
   // Made again only when the plan does, so the nav log and its tabs are
   // drawn again only then (fromRoutePanel's memo), not at each render of
   // the page as the route's answers stream in.
