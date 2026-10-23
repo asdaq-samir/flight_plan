@@ -229,7 +229,8 @@ def way_round(start: tuple, end: tuple, ceiling_ft: float, fields=None) -> list[
     for node in reversed(chain):
         if node < fields_end:
             i = int(picked[node - 1])
-            out.append({"ident": str(table.iloc[i]["ident"]), "name": str(table.iloc[i]["name"]), "lat": float(lats[i]), "lon": float(lons[i])})
+            row = table.iloc[i]
+            out.append({"ident": str(row["ident"]), "name": str(row["name"]), "lat": float(lats[i]), "lon": float(lons[i])})
             continue
         lat, lon = nodes[node]
         own = fixes.frd_near(lat, lon)
