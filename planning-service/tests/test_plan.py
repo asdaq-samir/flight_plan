@@ -92,13 +92,19 @@ def test_plan_with_a_pilots_own_altitude_flies_it_and_still_offers_the_plans():
     assert body["altitude_selection"]["floor_ft"] == 2200.0
 
 
-def test_plan_refuses_a_route_with_no_legal_altitude(monkeypatch, altitude):
+def test_plan_flies_a_route_with_no_legal_altitude_anyway(monkeypatch, altitude):
+    # The owner's "I don't want to put hard limits on anything": the lowest
+    # altitude over the 2,200 ft floor on the westbound course, 2,500 ft,
+    # flown as an altitude of the planner's own, no plan picked.
     monkeypatch.setattr(altitude_module, "select_cruise_altitude",
                         select_cruise_altitude_stub({**altitude, "recommended_ft": None}))
 
     resp = client.get("/api/plan", params={"dep": "C81", "dest": "KDLH"})
 
-    assert resp.status_code == 422
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["altitude_ft"] == 2500.0 and body["altitude_choice"] is None
+    assert all(leg["altitude_ft"] == 2500.0 for leg in body["legs"] if not leg.get("toc") and not leg.get("tod"))
 
 
 def test_navlog_streams_altitude_then_legs_then_done(messages):
@@ -264,19 +270,14 @@ def test_navlog_flies_the_economical_plan_when_asked(messages):
     assert altitude["flown"] == "economical"
 
 
-def test_navlog_reports_an_unflyable_route_as_an_error_line(monkeypatch, altitude, messages):
+def test_navlog_flies_a_route_with_no_legal_altitude_anyway(monkeypatch, altitude, messages):
     monkeypatch.setattr(altitude_module, "select_cruise_altitude",
                         select_cruise_altitude_stub({**altitude, "recommended_ft": None}))
 
-    resp = client.get("/api/navlog", params={"dep": "C81", "dest": "KDLH"})
+    lines = messages(client.get("/api/navlog", params={"dep": "C81", "dest": "KDLH"}))
 
-    last = messages(resp)[-1]
-    assert last["type"] == "error"
-    assert "No legal VFR cruising altitude" in last["detail"]
-    # Why, and what to do, apart from the headline: the page lists them.
-    assert last["advice"]
-    # Asking again gets the same answer: no Try again on the page.
-    assert last["retry"] is False
+    assert lines[-1]["type"] == "done"
+    assert next(m for m in lines if m["type"] == "altitude")["altitude_ft"] == 2500.0
 
 
 # --- the altitude outcome, decided once ---
@@ -324,7 +325,7 @@ def test_plan_without_winds_is_a_502(monkeypatch):
 def test_each_outcome_of_the_altitude_resolver(monkeypatch, altitude):
     from app.planning import aircraft_profile
     from app.common import load_route
-    from app.routers.plan import Flown, NoWinds, Unflyable, resolve_altitude
+    from app.routers.plan import Flown, NoWinds, resolve_altitude
 
     r = load_route("C81", "KDLH")
     fix_list = navlog.fixes(r.dep_ident, r.dest_ident, r.start, r.end, [])
@@ -341,7 +342,8 @@ def test_each_outcome_of_the_altitude_resolver(monkeypatch, altitude):
     from app import planning
     planning._ALTITUDE_CACHE.clear()
     planning._PLANS_CACHE.clear()
-    assert isinstance(resolve_altitude(r, fix_list, profile, "c172", None, "lowest"), Unflyable)
+    anyway = resolve_altitude(r, fix_list, profile, "c172", None, "lowest")
+    assert isinstance(anyway, Flown) and anyway.choice is None and anyway.altitude_ft == 2500.0
 
     monkeypatch.setattr(altitude_module, "select_cruise_altitude", select_cruise_altitude_stub(altitude))
     planning._ALTITUDE_CACHE.clear()

@@ -39,10 +39,10 @@ from vfr.weather import WeatherServiceError
 from .. import chart_model, foreflight, prefetch
 from ..common import CHART_CACHE, DEFAULT_AIRCRAFT, Route, line, load_route, ndjson
 from ..planning import (
-    alternate_leg,
+    alternate_leg, altitude_anyway,
     COMPUTE_LIMIT_S, StillComputing, aircraft_profile, altitude_plans, altitude_waiting_on, class_b_detours, class_b_ways,
     cruise_altitude, flight_totals, flight_window, forecast_hour_for, join_selections, no_altitude, no_altitude_detail,
-    own_altitude_caution, route_line, route_totals,
+    own_altitude_caution, prohibited_caution, route_line, route_totals,
 )
 from .. import planning as planning_module
 from ..schemas import (
@@ -416,7 +416,23 @@ def resolve_altitude(
     if failure is not None:
         return NoWinds(selection, options, failure, figures)
     if not plans:
-        return Unflyable(selection)
+        # No legal altitude: flown anyway, at the lowest over the terrain,
+        # with what it breaks said beside it, at the owner's "I don't want
+        # to put hard limits on anything" (2026-10-23). Unflyable only where
+        # the floor itself is not known.
+        anyway = altitude_anyway(selection)
+        if anyway is None:
+            return Unflyable(selection)
+        try:
+            legs = navlog.with_climbs(navlog.legs(fix_list, anyway, profile, fcst_hr), departure_elevation(r), profile)
+        except WeatherServiceError as err:
+            return NoWinds(selection, options, err, figures)
+        between = (r.dep_ident, r.dest_ident)
+        caution = own_altitude_caution(selection, legs, between) or {
+            "from_ident": between[0], "to_ident": between[1], "altitude_ft": anyway, "reasons": []}
+        caution = {**caution, "reasons": [*prohibited_caution(selection), *caution["reasons"]]}
+        return Flown(selection, options, None, anyway, legs, cautions=(caution,) if caution["reasons"] else (),
+                     figures=figures)
     legs = plans[choice]["legs"]
     return Flown(selection, options, choice, legs[0]["altitude_ft"], legs, figures=figures)
 
@@ -645,15 +661,34 @@ def terrain_way(selection: dict, hop: Route) -> dict | None:
     }
 
 
+def ways_round_of(runs: list[HopRun], outcome: Flown) -> list[dict]:
+    """For each hop flown at no legal altitude (altitude_anyway), the ways
+    round what stops it that the problem offered when it refused (the
+    Class B's waypoints, the way round the high ground), for the pilot to
+    take or not."""
+    if not any("candidates_ft" in seg and not seg["candidates_ft"] for seg in outcome.selection.get("segments", [])):
+        return []
+    out, start = [], 0.0
+    for at, run in enumerate(runs):
+        end = start + run.hop.length_nm
+        mine = [seg for seg in outcome.selection.get("segments", []) if start - 0.05 <= seg.get("from_nm", -1) < end - 0.05]
+        start = end
+        if not any("candidates_ft" in seg and not seg["candidates_ft"] for seg in mine):
+            continue
+        _, ways = unflyable_parts(Unflyable({**outcome.selection, "segments": mine}, (run.hop.dep_ident, run.hop.dest_ident)), runs)
+        out.extend(ways)
+    return out
+
+
 def class_b_detours_of(runs: list[HopRun], outcome: Flown, q: "PlanQuery") -> list[dict]:
     """With the Class B clearance, the waypoints that keep each hop out of
     the Class B it enters at its highest cruise altitude (class_b_ways),
     each with its place in the stops as unflyable_parts gives them: what
     "Avoid Class B" adds. None without the clearance -- the route is then
     planned under or round it already -- or with no Class B on the way."""
+    out = [] if getattr(q, "altitude_ft", None) is not None else ways_round_of(runs, outcome)
     if not q.class_b_clearance or not any(t.get("class") == "B" for t in outcome.selection.get("airspace_transits", [])):
-        return []
-    out = []
+        return out
     for at, (run, legs) in enumerate(zip(runs, outcome.hop_legs)):
         heights = [leg["altitude_ft"] for leg in legs if leg.get("altitude_ft") is not None]
         if not heights:

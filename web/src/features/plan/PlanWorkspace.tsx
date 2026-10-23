@@ -2205,6 +2205,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
         ) : undefined}
         tight={unflyable ? null : tightLeg}
         classBAvoided={!classBClearance} onAvoidClassB={avoidClassB} onAllowClassB={() => acceptClassB(true)}
+        onGoRound={(via, at) => { closeProfileCard(); setStops([...planned.stops.slice(0, at), ...via, ...planned.stops.slice(at)]); }}
         onAltitudeChoiceChange={changeAltitudeChoice} onFlyAltitude={flyWheelAltitude}
         // The rules' switch at the card's top right (ProfileCard's corner).
         rules={flightRules}

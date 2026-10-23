@@ -200,7 +200,7 @@ export default function AltitudeGroup({ nav, legs, commanded = null, problem = f
  * and flown once it rests a moment: its plan where it is one's, else as
  * the pilot's own.
  */
-export function AltitudeProfile({ nav: navNow, legs: legsNow, ends, chart, corner, wheelHidden = false, problem, tight = null, classBAvoided = false, onAvoidClassB, onAllowClassB, onAltitudeChoiceChange, onFlyAltitude, rules = "vfr", onRulesChange }: {
+export function AltitudeProfile({ nav: navNow, legs: legsNow, ends, chart, corner, wheelHidden = false, problem, tight = null, classBAvoided = false, onAvoidClassB, onAllowClassB, onGoRound, onAltitudeChoiceChange, onFlyAltitude, rules = "vfr", onRulesChange }: {
   nav: NavLogAltitude | null;
   legs: Leg[];
   /** The route, for its Class B on the side view (routeProfileQuery). */
@@ -220,6 +220,9 @@ export function AltitudeProfile({ nav: navNow, legs: legsNow, ends, chart, corne
   classBAvoided?: boolean;
   onAvoidClassB?: (detour: Detour | null) => void;
   onAllowClassB?: () => void;
+  /** Puts in the way round the high ground the planner found, where the
+   *  route is flown over it anyway (Detour.via). */
+  onGoRound?: (via: string[], stopIndex: number) => void;
   /** Picks one of the four plans, which re-plans. */
   onAltitudeChoiceChange: (choice: AltitudeChoice) => void;
   /** Flies the whole route at an altitude of the pilot's own, feet. */
@@ -448,7 +451,7 @@ export function AltitudeProfile({ nav: navNow, legs: legsNow, ends, chart, corne
         <div className="flex items-center justify-between gap-2 rounded-xl bg-card py-1.5 pr-1.5 pl-3" data-testid="class-b-accepted">
           <span className={TEXT.detail}>Through {faaWords(bravo.name)}: clearance needed</span>
           {onAvoidClassB && (
-            <Button type="button" size="sm" variant="secondary" className="shrink-0 text-tint" onClick={() => onAvoidClassB(detours[0] ?? null)} data-testid="avoid-class-b">
+            <Button type="button" size="sm" variant="secondary" className="shrink-0 text-tint" onClick={() => onAvoidClassB(detours.find(d => !d.via?.length) ?? null)} data-testid="avoid-class-b">
               Avoid Class B
             </Button>
           )}
@@ -483,6 +486,17 @@ export function AltitudeProfile({ nav: navNow, legs: legsNow, ends, chart, corne
             <div key={`${c.from_ident}-${c.to_ident}`}>
               <p className="font-semibold">{feet(c.altitude_ft)} ft {c.from_ident} → {c.to_ident}</p>
               <ul className="list-disc pl-4">{c.reasons.map(r => <li key={r}>{r}</li>)}</ul>
+            </div>
+          ))}
+          {/* Flown over the high ground anyway, at the owner's "no hard
+              limits": the way round it the planner found, for the pilot
+              to take or not. */}
+          {onGoRound && detours.filter(d => d.via?.length).map(d => (
+            <div key={d.via!.join(" ")} className="flex items-center justify-between gap-2 pt-1">
+              <span>By {d.via!.join(", ")} · +{Math.round(d.added_nm)} nm</span>
+              <Button type="button" size="sm" variant="secondary" className="shrink-0 text-tint" onClick={() => onGoRound(d.via!, d.stop_index)} data-testid="caution-go-round">
+                Go Round
+              </Button>
             </div>
           ))}
         </div>
