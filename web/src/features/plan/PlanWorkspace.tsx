@@ -54,6 +54,7 @@ import NearestCard, { NearestStrip } from "./components/NearestCard";
 import AircraftCard, { AircraftRecentsPage } from "./components/AircraftCard";
 import AircraftPill from "./components/AircraftPill";
 import AircraftFavoritesList from "./components/AircraftFavoritesList";
+import TabKept from "../../components/TabKept";
 import TabPage from "../../components/TabPage";
 import { useStripShows } from "./hooks/useStripShows";
 import AirportPill from "./components/AirportPill";
@@ -1315,6 +1316,15 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     hasRoute: routed || !!planned.dep || !!planned.dest || planned.stops.length > 0,
     panel, setPanel, searchParams, setSearchParams,
   });
+  // The tabs opened so far, each kept under the others once it has been
+  // (TabKept), as iOS keeps a tab's screen: back to one, it is as it was
+  // left, a list scrolled where it was. Built again from nothing at every
+  // switch, a switch to FPL was mostly its pills and pickers being made
+  // (50 to 80 ms at a phone's speed, the 23 Oct profile).
+  const [opened, setOpened] = useState(() => [tab]);
+  if (!opened.includes(tab)) setOpened([...opened, tab]);
+  // A field's or a point's card over the tab, the tab's own out of sight.
+  const cardUp = !!place || !!heldPoint;
   // A point dropped on the map (AirspaceCard) into the route as the
   // pilot's own point off the nearest fix, at the owner's pick (mock 2 of
   // the canvas's points): where it bends the route least (bestStopIndex),
@@ -1358,6 +1368,10 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const stopsOpen = useStopsAlong(st => st.open);
   const setStopsOpen = useStopsAlong(st => st.setOpen);
   const stopsShown = stopsOpen && tab === "fpl" && routed && !s.local && !briefShown && !navLogShown && !profileShown;
+  // The same whatever the tab: what FPL keeps under the others (TabKept).
+  const briefHere = briefOpen && routed;
+  const profileHere = profileOpen && routed && !briefHere && !(navLogOpen && routed);
+  const stopsHere = stopsOpen && routed && !s.local && !briefHere && !(navLogOpen && routed) && !profileHere;
   // While the map's Stops is open, its fields pinned in the suggestions'
   // place (the same query as the card's).
   const { data: along } = useQuery({ ...routeStopsQuery(planned.dep, `${planned.dest ?? ""}`, planned.stops.join(",")), enabled: stopsShown });
@@ -2177,7 +2191,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   );
   // The route's chips: the airplane, the altitude, the time, Saved,
   // Approaches and Share (`controls`), and with no route the pill's too.
-  const routeControls = started && (
+  const routeControls = (
     <div className="flex w-full min-w-0 flex-wrap items-center gap-x-1 gap-y-3">
       {/* The chips' room while their code comes (routePanel). */}
       <Suspense fallback={<span className="h-9 w-48" aria-hidden="true" />}>
@@ -2334,8 +2348,11 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
               } : {})}
             />
           </Suspense>
-        ) : tab === "aircraft" ? (
-          flightCard ?? (aircraftOpen && (aircraftFavoritesOpen && !aircraftTyped ? (
+        ) : null}
+        {/* Each tab once opened kept under the others, as iOS keeps a
+            tab's screen (TabKept): back to it, as it was left. */}
+        {opened.includes("aircraft") && (
+          <TabKept away={cardUp || tab !== "aircraft"}>{flightCard ?? (aircraftOpen && (aircraftFavoritesOpen && !aircraftTyped ? (
             <TabPage testId="aircraft-favorites">
               <AircraftFavoritesList
                 onBack={closeList} onOpen={hex => selectFlight(hex)}
@@ -2351,11 +2368,13 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
             // The strip once, in the pill or here: at the pill's size the
             // body is out of sight but for a finger taking it up.
             <AircraftCard onPick={plane => selectFlight(plane.hex, plane)} onPickHex={hex => selectFlight(hex)} strip={panel !== "peek" || dragging ? aircraftStrip : null} />
-          )))
-        ) : nearOpen ? (
+          )))}</TabKept>
+        )}
+        {!cardUp && tab !== "aircraft" && nearOpen && (
           <NearestCard onOpen={selectPlace} from={nearFrom} onFrom={setNearFrom} onBack={closeNearest} />
-        ) : tab === "airport" ? (
-          favoritesOpen ? (
+        )}
+        {opened.includes("airport") && (
+          <TabKept away={cardUp || tab !== "airport" || nearOpen}>{favoritesOpen ? (
             <TabPage testId="favorites-page">
               <FavoritesList
                 home={home} favorites={favorites}
@@ -2380,12 +2399,14 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
                 onAllRecents={() => openList("recents")}
               />
             </TabPage>
-          )
-        ) : null}
+          )}</TabKept>
+        )}
+        {opened.includes("fpl") && (
+        <TabKept away={cardUp || tab !== "fpl"}>
         {/* And while a finger takes it up: the pill's own are out of
             sight then (the owner's notice, "Fpl hides Saved while dragging
             up"). */}
-        {tab === "fpl" && !savedOpen && !hasPoints && !place && !heldPoint && (panel !== "peek" || dragging) && (
+        {!savedOpen && !hasPoints && (panel !== "peek" || dragging) && (
           routeRecentsOpen ? (
             <TabPage testId="route-recents-list">
               <RecentRoutesPage onBack={closeList} />
@@ -2398,7 +2419,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
             </TabPage>
           )
         )}
-        {tab === "fpl" && savedOpen && !place && !heldPoint && (
+        {savedOpen && (
           <TabPage testId="saved-flights">
             <Suspense fallback={null}><SavedFlights onBack={closeSaved} /></Suspense>
           </TabPage>
@@ -2406,7 +2427,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
         {/* The Brief over FPL, a card of its own: the route's head and its
             figures out of sight while it is open, as an airport's card has
             them. */}
-        {briefShown && !savedOpen && !place && !heldPoint && (
+        {briefHere && !savedOpen && (
           <BriefCard
             name={routeName(planned.dep, planned.dest, planned.stops)} line={briefLine} contents={briefContents} notice={briefNotice}
             marks={marks} onClose={closeBrief} onTap={tabTap} onLegs={showLegs} route={routeKey}
@@ -2414,7 +2435,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
         )}
         {/* FPL's nav log once there is a route, at the pilot's ask: the
             empty box alone before. */}
-        {profileShown && !savedOpen && !place && !heldPoint && (
+        {profileHere && !savedOpen && (
           <ProfileCard
             name={routeName(planned.dep, planned.dest, planned.stops)} line={briefLine} onClose={closeProfileCard}
             corner={!s.local && (
@@ -2435,20 +2456,22 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
             ) : sideView}
           </ProfileCard>
         )}
-        {stopsShown && !savedOpen && !place && !heldPoint && (
+        {stopsHere && !savedOpen && (
           <StopsCard
             name={routeName(planned.dep, planned.dest, planned.stops)} line={briefLine} dep={planned.dep} dest={planned.dest}
             stops={planned.stops.join(",")} totals={s.totals ?? null} onClose={closeStops} onOpenField={selectPlace} onAdd={addStopAlong}
           />
         )}
-        <div className={cn("flex min-h-0 flex-col print:flex", depAlone ? "flex-none" : "flex-1", (tab !== "fpl" || place || heldPoint || savedOpen || briefShown || profileShown || stopsShown || !hasPoints) && "hidden")}>{navLog}</div>
+        <div className={cn("flex min-h-0 flex-col print:flex", depAlone ? "flex-none" : "flex-1", (savedOpen || briefHere || profileHere || stopsHere || !hasPoints) && "hidden")}>{navLog}</div>
         {/* A departure alone: under it the flights saved and the routes
             planned last, to pick from, where the sheet stood empty under
             the one field (the owner's screenshot, 2026-10-23). */}
-        {tab === "fpl" && depAlone && hasPoints && !savedOpen && !place && !heldPoint && !briefShown && !profileShown && !stopsShown && (
+        {depAlone && hasPoints && !savedOpen && !briefHere && !profileHere && !stopsHere && (
           <div className="px-4 pt-2" data-testid="fpl-departure-strip">
             <FplStrip onAllSaved={openSaved} onAllRecents={() => openList("routes")} />
           </div>
+        )}
+        </TabKept>
         )}
       </>
     ),
@@ -2518,7 +2541,8 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     // Procedures beside it went to the chips' row (Approaches) and the
     // Share menu (Clear the route). An airport twice (a round trip with its
     // stop taken out) keeps the box, its notice saying what to change.
-    route: started ? (
+    // Whatever the tab: MapPanel keeps it under the others' heads (`kept`).
+    route: (
       <div className="min-w-0 flex-1">
         {/* Its room while its code comes: the box's own line. */}
         <Suspense fallback={<div className="h-10 rounded-[20.5px] bg-foreground/8" />}>
@@ -2540,7 +2564,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
         </SearchNear.Provider>
         </Suspense>
       </div>
-    ) : undefined,
+    ),
     // The airplane and the departure time, under the route with the
     // panel out, and beside them saving the flight, the narrative and
     // Print: the route's box has the top row to itself.

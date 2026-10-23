@@ -16,6 +16,12 @@ interface Props {
   /** The row over everything, always in sight: the route and the
    *  workspace's actions. */
   top: ReactNode;
+  /** A top row kept while out of sight (the planner's route box): under
+   *  another tab's head, a card alone or the pill it stays built, hidden,
+   *  and is `top` again as it was left, as iOS keeps a tab's screen. Built
+   *  again from nothing at every switch to FPL it was the most of a
+   *  switch's time (the route's pills and pickers, the 23 Oct profile). */
+  kept?: ReactNode;
   /** The row under it, in sight at rest too: the airplane and the
    *  departure time, the rating's progress. */
   controls?: ReactNode;
@@ -156,7 +162,7 @@ const RANK: Record<PanelState, number> = { peek: 0, half: 1, full: 2 };
  *  light's are set. */
 const SHEET_BELOW = "bg-black/[0.04] [--muted-foreground:oklch(0.5_0_0)] [--tint:oklch(0.48_0.18_256)] dark:bg-black/[0.18] dark:[--muted-foreground:oklch(0.708_0_0)] dark:[--tint:oklch(0.7_0.165_253)] print:bg-transparent";
 
-export default function MapPanel({ label, top, controls, compact, children, state, onStateChange, onInsetsChange, toEdge: edgeAsked = false, bar, layer = "tab", cardOver: overAsked = false, foot }: Props) {
+export default function MapPanel({ label, top, kept, controls, compact, children, state, onStateChange, onInsetsChange, toEdge: edgeAsked = false, bar, layer = "tab", cardOver: overAsked = false, foot }: Props) {
   // A tab's options for a tab, a card's for a card: what each layer takes.
   const cardInPill = layer === "card";
   const cardOver = layer !== "console" && overAsked;
@@ -443,6 +449,12 @@ export default function MapPanel({ label, top, controls, compact, children, stat
   // The pill with a route: its figures in the tabs' place, at the tabs'
   // height (3.625rem: their row and its margins).
   const figuresPill = pillShape && !!bar && footShown;
+  // The head's row: in the pill only without a tab bar (whose pill is the
+  // bar), out of it wherever there is a top row or no bar shown.
+  const headerShown = pillShape ? !bar : top != null || !barShown;
+  const headContent = capsule ? compact : top;
+  // The kept row is the one in sight now.
+  const keptHere = kept != null && headerShown && headContent === kept;
   // With a route's figures at its foot, the sheet is laid out from the foot
   // up, the head giving way at the top where there is not room for both
   // and the figures never less than their row (footRow), as the owner
@@ -823,9 +835,9 @@ export default function MapPanel({ label, top, controls, compact, children, stat
             one turns into the other, focus and keyboard and all. From
             the top of a phone's screen the sheet's starts under the
             status bar or the island. */}
-        {(pillShape ? !bar : top != null || !barShown) && (
+        {(headerShown || kept != null) && (
           <header
-            className={cn(
+            className={!headerShown ? "contents" : cn(
               "@container flex items-center gap-2 print:hidden",
               // The same glass all round from either edge, and the same size,
               // at the pilot's ask: from the top it was twelve points taller.
@@ -843,7 +855,13 @@ export default function MapPanel({ label, top, controls, compact, children, stat
                   : cn("px-3 pb-1", barShown ? "pt-1" : fromBottom ? "pt-1" : onPhone ? "pt-[max(0.5rem,env(safe-area-inset-top))]" : "pt-2"),
             )}
           >
-            {capsule ? compact : top}
+            {/* The kept row first, in the one place whatever is shown, so
+                it is never built again; out of sight out of the row's
+                flow, inert, and not laid out (tab-away). */}
+            {kept != null && (
+              <div className={keptHere ? "contents" : "tab-away pointer-events-none absolute"} inert={!keptHere}>{kept}</div>
+            )}
+            {headerShown && !keptHere && headContent}
           </header>
         )}
         {!pillShape && controls && (
