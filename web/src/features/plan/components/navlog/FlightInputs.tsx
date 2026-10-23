@@ -87,7 +87,7 @@ export default function FlightInputs({ aircraftValue, aircraftOptions, onAircraf
         <span aria-hidden="true" className="invisible col-start-1 row-start-1 flex h-0 overflow-hidden">
           {shown ? <span className="whitespace-pre pr-3 pl-2.5 font-semibold">{shown}</span>
             : <span className={cn("whitespace-pre pr-2.5 pl-2.5 font-normal", TEXT.detail)}>N-number</span>}
-          {tailNow && typed === null && onOpenAirplane && <span className="w-8 shrink-0" />}
+          {tailNow && typed === null && onOpenAirplane && <span className="w-[1.8125rem] shrink-0" />}
         </span>
         <div className="col-start-1 row-start-1 flex h-full min-w-0 items-center">
           <label className="relative flex h-full min-w-0 flex-1 items-center pr-1.5 after:absolute after:-inset-y-1.5 after:-left-0.5 after:right-0 after:content-['']">
@@ -104,9 +104,12 @@ export default function FlightInputs({ aircraftValue, aircraftOptions, onAircraf
           {tailNow && typed === null && onOpenAirplane && (
             <button
               type="button" onClick={openCard} aria-label={`${tailNow}: its card`} data-testid="aircraft-card-button"
-              className={cn("relative flex size-8 shrink-0 items-center justify-center rounded-full outline-none after:absolute after:-inset-1.5 after:content-[''] focus-visible:ring-2 focus-visible:ring-ring", GLASS_BUTTON)}
+              // 26 inside the field's 32, three in from its end, at the owner's
+              // ask ("buttons for n number and altitude should be smaller to
+              // fit in its input group"); its 44 a pseudo-element round it.
+              className={cn("relative mr-[3px] flex size-[1.625rem] shrink-0 items-center justify-center rounded-full outline-none after:absolute after:-inset-[9px] after:content-[''] focus-visible:ring-2 focus-visible:ring-ring", GLASS_BUTTON)}
             >
-              <Plane className="size-[18px] text-tint" aria-hidden="true" />
+              <Plane className="size-4 text-tint" aria-hidden="true" />
             </button>
           )}
         </div>

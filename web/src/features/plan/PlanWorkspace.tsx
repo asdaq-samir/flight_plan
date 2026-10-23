@@ -1,7 +1,7 @@
 import { Suspense, lazy, memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type ComponentType } from "react";
 import { flushSync } from "react-dom";
 import { useQueries, useQuery } from "@tanstack/react-query";
-import { Play, ClipboardList, ListOrdered, MapPin, Plane, RotateCw, Route, TowerControl } from "lucide-react";
+import { Play, ClipboardList, ListOrdered, MapPin, Plane, Route, TowerControl } from "lucide-react";
 import { legOf, navLogRows, TURNAROUND_MIN } from "./components/navlog/rows";
 import { fromChunk } from "../../lib/fromChunk";
 import { cn } from "cn";
@@ -2084,6 +2084,15 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     aircraftId: aircraft.aircraftId ?? null, depart, altitudes, picks: picksOf(searchParams),
   };
   // Share and everything else the route's row had (ShareMenu).
+  // What planning again would bring in fresh, said by the refresh's dot:
+  // winds past the forecast's period the legs were flown on, legs flown
+  // with none, and the briefing's weather that could not be fetched again.
+  const minute = useMinuteClock();
+  const stale = [
+    windsOutOfDate(s.totals, minute, depart) && "the winds are out of date",
+    s.totals && legsWithoutWind(s.totals) && "some legs have no winds",
+    (s.briefing.state === "failed" || (s.briefing.state === "ready" && s.briefing.refreshError)) && "the weather could not be fetched",
+  ].filter((why): why is string => !!why);
   const shareMenu = (align: "start" | "end", testId?: string, card?: RouteCard) => (
     <ShareMenu
       align={align} testId={testId} card={card} planned={planned} course={course} selected={selected} altitudeFt={s.nav?.altitude_ft ?? undefined}
@@ -2095,6 +2104,9 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
         </Suspense>
       )}
       reviewSheet={done => <Suspense fallback={null}><ReviewAskSheet flight={flightToSave} onDone={done} /></Suspense>}
+      // Plan again in the route's own menu, at the owner's pick ("A") to
+      // keep the route box's row on one line; Share marked where it is due.
+      planAgain={card === undefined && routed && !s.local ? { stale, onPlan: () => setLoad(n => n + 1) } : undefined}
     />
   );
 
@@ -2162,15 +2174,6 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       />
     </Suspense>
   );
-  // What planning again would bring in fresh, said by the refresh's dot:
-  // winds past the forecast's period the legs were flown on, legs flown
-  // with none, and the briefing's weather that could not be fetched again.
-  const minute = useMinuteClock();
-  const stale = [
-    windsOutOfDate(s.totals, minute, depart) && "the winds are out of date",
-    s.totals && legsWithoutWind(s.totals) && "some legs have no winds",
-    (s.briefing.state === "failed" || (s.briefing.state === "ready" && s.briefing.refreshError)) && "the weather could not be fetched",
-  ].filter((why): why is string => !!why);
   // The route's chips: the airplane, the altitude, the time, Saved,
   // Approaches and Share (`controls`), and with no route the pill's too.
   const routeControls = started && (
@@ -2237,24 +2240,6 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
             button should not appear before a route is entered"): the box
             clears itself (its own clear). */}
         {routed && shareMenu("end")}
-        {/* Planned again -- fresh winds, weather and fuel -- at the row's
-            end after Share, a dot on it when something is out of date, at
-            the owner's asks ("show a refresh button ... that has a dot";
-            "move the refresh button on the right side of share"): the nav
-            log's "Winds out of date" and its Plan again row before. */}
-        {routed && !s.local && (
-          <RoundButton
-            label={stale.length ? `Plan again: ${stale.join(", ")}` : "Plan again"} onClick={() => setLoad(n => n + 1)}
-            className="size-8" data-testid="plan-again" data-stale={stale.length ? "" : undefined}
-          >
-            <span className="relative">
-              <RotateCw className="size-[1.125rem]" strokeWidth={2} />
-              {stale.length > 0 && (
-                <span aria-hidden="true" data-testid="plan-again-mark" className="absolute -top-0.5 -right-1 size-2 rounded-full bg-amber-500" />
-              )}
-            </span>
-          </RoundButton>
-        )}
       </div>
     </div>
   );

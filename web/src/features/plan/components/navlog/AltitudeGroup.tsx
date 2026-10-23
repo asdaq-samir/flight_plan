@@ -148,7 +148,7 @@ export default function AltitudeGroup({ nav, legs, commanded = null, problem = f
     >
       <span aria-hidden="true" className="invisible col-start-1 row-start-1 flex h-0 overflow-hidden">
         <span className="whitespace-pre pr-3 pl-2.5 font-semibold tabular-nums">000</span>
-        <span className="w-8 shrink-0" />
+        <span className="w-[1.8125rem] shrink-0" />
       </span>
       {/* Two points over the field's own padding, for the caret. */}
       <span aria-hidden="true" className="invisible col-start-1 row-start-1 h-0 overflow-hidden whitespace-pre pr-3 pl-2.5 font-normal">
@@ -187,7 +187,7 @@ export default function AltitudeGroup({ nav, legs, commanded = null, problem = f
             // ask ("The profile button should also get the glass tinted. But
             // the altitude entry should stay as a text box"): the field's
             // end, where a line parted it from the figure before.
-            "relative flex size-8 shrink-0 items-center justify-center rounded-full outline-none after:absolute after:-inset-1.5 after:content-[''] focus-visible:ring-2 focus-visible:ring-ring disabled:text-muted-foreground",
+            "relative mr-[3px] flex size-[1.625rem] shrink-0 items-center justify-center rounded-full outline-none after:absolute after:-inset-[9px] after:content-[''] focus-visible:ring-2 focus-visible:ring-ring disabled:text-muted-foreground",
             GLASS_BUTTON,
             problem && "text-red-700 dark:text-red-300",
           )}
@@ -202,7 +202,7 @@ export default function AltitudeGroup({ nav, legs, commanded = null, problem = f
               the button's name. The route from the side, the profile's own
               mark. */}
           <span className="relative">
-            <svg viewBox="0 0 24 24" className="size-[1.125rem]" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d="M3 19h18" /><path d="M3 16l4-5 3 2 4-6 3 3 4-3" />
             </svg>
             {profiled && !problem && (cautions.length > 0 || tight) && (
