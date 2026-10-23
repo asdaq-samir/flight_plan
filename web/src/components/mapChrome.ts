@@ -180,25 +180,26 @@ export const GLASS_CLEAR =
   "dark:shadow-[inset_0_1px_0_rgb(255_255_255/0.24),0_0_0_0.5px_rgb(0_0_0/0.5),0_2px_8px_rgb(0_0_0/0.55)]";
 
 /** A control's own pane of glass, as iOS 26 draws its buttons over
- *  content, tinted: the tab up's glass -- a sheen at its top, a white rim,
- *  a soft shade -- with the app's blue faintly through it, at the owner's
- *  pick ("2", 2026-10-22). Clear white glass on the near-white sheet read
- *  as white chips ("Doesn't look like the glass tint like on the
- *  redesigned tabs"); the blue makes it glass, and says it is tapped, as
- *  everything tappable is the tint. The words and glyph in the text's
- *  colour. Theme utilities rather than one of index.css's own, so `cn`
- *  drops a variant's fill, border and shadow for these (the Select's
- *  outline, a Button's). */
-// In the dark each is lit along its top edge alone, as iOS's dark glass
-// is, at the owner's yes ("Yes", 2026-10-22, to the screen of rings): a
-// full light ring round every button outlined the screen.
+ *  content, clear as the tab up's is (TabGlass), at the owner's ask ("Can
+ *  we try clear instead of tint", 2026-10-23, after the tinted "2"):
+ *  nearly the sheet's own tone, so it reads by its light and its edge as
+ *  the tab does -- a sheen at its top, bright there and clearing to almost
+ *  nothing at its foot, a white rim, a hairline and a soft shade round it.
+ *  The first clear glass (GLASS_CLEAR) was whiter all the way down and
+ *  read as white chips on the near-white sheet. In the dark it is lit
+ *  along its top edge alone, as iOS's dark glass is: a light ring round
+ *  every button outlined the screen (the owner's "Yes", 2026-10-22). The
+ *  words and glyph in
+ *  the text's colour. Theme utilities rather than one of index.css's own,
+ *  so `cn` drops a variant's fill, border and shadow for these (the
+ *  Select's outline, a Button's). */
 export const GLASS_BUTTON =
   "border-0 bg-transparent text-foreground " +
-  "bg-[radial-gradient(80%_60%_at_50%_0%,rgb(255_255_255/0.7),transparent_70%),linear-gradient(180deg,color-mix(in_oklab,var(--primary)_7%,transparent),color-mix(in_oklab,var(--primary)_14%,transparent))] " +
-  "shadow-[inset_0_0_0_1.5px_rgb(255_255_255/0.95),0_0_0_0.5px_rgb(0_90_200/0.14),0_2px_6px_rgb(0_60_140/0.14)] " +
-  "hover:bg-primary/8 hover:text-foreground aria-expanded:bg-primary/10 " +
-  "dark:bg-[radial-gradient(80%_60%_at_50%_0%,rgb(255_255_255/0.16),transparent_70%),linear-gradient(180deg,color-mix(in_oklab,var(--primary)_16%,transparent),color-mix(in_oklab,var(--primary)_26%,transparent))] " +
-  "dark:shadow-[inset_0_1px_0_rgb(255_255_255/0.24),0_0_0_0.5px_rgb(0_0_0/0.5),0_2px_8px_rgb(0_0_0/0.55)] dark:hover:bg-primary/14 dark:aria-expanded:bg-primary/14";
+  "bg-[radial-gradient(80%_60%_at_50%_0%,rgb(255_255_255/0.75),transparent_70%),linear-gradient(180deg,rgb(255_255_255/0.6),rgb(255_255_255/0.12))] " +
+  "shadow-[inset_0_0_0_1.5px_rgb(255_255_255/0.95),0_0_0_0.5px_rgb(0_0_0/0.10),0_2px_6px_rgb(0_0_0/0.14)] " +
+  "hover:bg-white/30 hover:text-foreground aria-expanded:bg-white/40 " +
+  "dark:bg-[radial-gradient(80%_60%_at_50%_0%,rgb(255_255_255/0.2),transparent_70%),linear-gradient(180deg,rgb(255_255_255/0.16),rgb(255_255_255/0.02))] " +
+  "dark:shadow-[inset_0_1px_0_rgb(255_255_255/0.24),0_0_0_0.5px_rgb(0_0_0/0.5),0_2px_8px_rgb(0_0_0/0.55)] dark:hover:bg-white/8 dark:aria-expanded:bg-white/10";
 
 /** The same glass tinted the blue on a toggle's chip once it is picked
  *  (data-state "on") -- a field's runway (ProceduresRoute) -- as iOS 26's
