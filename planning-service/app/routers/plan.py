@@ -25,7 +25,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import Response, StreamingResponse
 from vfr import (
     airports, airspace, altitude, chartlabels, charts, elevation, faa_data, fixes, fuelstops, geo, magnetic, navlog, nearby, places,
-    procedure_paths, procedures, sun,
+    procedure_paths, procedures, sun, terrain_detour,
 )
 # As vfr_holds: PlanQuery's own `holds` is the address's.
 from vfr import holds as vfr_holds
@@ -593,7 +593,41 @@ def unflyable_parts(outcome: Unflyable, runs: list[HopRun]) -> tuple[dict, list[
     hop = runs[at].hop
     ways = class_b_detours(outcome.selection, hop.start, hop.end)
     why = no_altitude(outcome.selection, outcome.between, ways[0] if ways else None, _stuck_where(outcome.selection, hop))
-    return why, [{**way, "stop_index": at, "description": _where(way["ident"])} for way in ways]
+    out = [{**way, "stop_index": at, "description": _where(way["ident"])} for way in ways]
+    if not ways:
+        round_way = terrain_way(outcome.selection, hop)
+        if round_way:
+            out.append({**round_way, "stop_index": at})
+            why = {**why, "advice": "Go round the high ground by the way suggested, "
+                                    "or set a cruise altitude of your own to plan it anyway."}
+    return why, out
+
+
+def terrain_way(selection: dict, hop: Route) -> dict | None:
+    """Where the airplane's service ceiling is what stops the route over
+    high ground, the way round it (vfr.terrain_detour): the points to fly
+    by, as a detour of its own, with how much longer it makes the hop.
+    None where something else stops it (clouds, Class B) or there is no
+    way round in reach. At the owner's ask ("Suggest a way around the
+    terrain ... Yes build it", 2026-10-23)."""
+    stuck = next((s for s in selection.get("segments", []) if not s.get("candidates_ft")), None)
+    ceiling = (stuck or {}).get("service_ceiling_ft")
+    if not ceiling:
+        return None
+    try:
+        points = terrain_detour.way_round(hop.start, hop.end, ceiling)
+    except Exception:  # noqa: BLE001 -- the tiles out of reach: no suggestion, the problem said as before
+        return None
+    if not points:
+        return None
+    path = [hop.start, *((p["lat"], p["lon"]) for p in points), hop.end]
+    flown = sum(geo.distance_nm(a[0], a[1], b[0], b[1]) for a, b in zip(path, path[1:]))
+    return {
+        "ident": points[0]["ident"], "kind": "Around the high ground",
+        "added_nm": round(float(flown - hop.length_nm), 1),
+        "description": " · ".join(p["ident"] for p in points),
+        "via": [p["ident"] for p in points],
+    }
 
 
 def class_b_detours_of(runs: list[HopRun], outcome: Flown, q: "PlanQuery") -> list[dict]:

@@ -250,7 +250,9 @@ def test_a_round_trip_lands_where_it_left():
 
 
 def test_too_many_stops_are_refused():
-    many = ",".join(["KMSN", "KDLH"] * 5)
+    from app.common import MAX_STOPS
+
+    many = ",".join(["KMSN", "KDLH"] * (MAX_STOPS // 2 + 1))
     assert client.get("/api/course", params={"dep": "C81", "dest": "KMSN", "stops": many}).status_code == 422
 
 
@@ -739,3 +741,25 @@ def test_a_hold_makes_the_flights_after_it_leave_later(monkeypatch):
     starts.clear()
     client.get("/api/plan", params={**VIA_MADISON, "depart": depart, "holds": "C81:180:L:1M:2T"})
     assert starts[1] - plain == timedelta(minutes=8)
+
+
+def test_where_the_ceiling_stops_it_over_high_ground_the_way_round_is_offered(monkeypatch):
+    """No legal altitude because the ground needs more than the airplane's
+    service ceiling: the points round it (vfr.terrain_detour), in order, as
+    one detour, with the miles it adds."""
+    from vfr import terrain_detour
+
+    from app.common import load_hop
+    from app.routers.plan import terrain_way
+
+    hop = load_hop("C81", "KDLH")
+    selection = {"segments": [{"candidates_ft": [], "service_ceiling_ft": 10950.0}]}
+    monkeypatch.setattr(terrain_detour, "way_round", lambda start, end, ceiling: [
+        {"ident": "KMSN", "name": "MADISON", "lat": 43.14, "lon": -89.34},
+        {"ident": "KEAU", "name": "EAU CLAIRE", "lat": 44.87, "lon": -91.48},
+    ])
+    way = terrain_way(selection, hop)
+    assert way["via"] == ["KMSN", "KEAU"] and way["ident"] == "KMSN"
+    assert way["added_nm"] > 0
+    # Clouds, not the ceiling, stopping it: no way round offered.
+    assert terrain_way({"segments": [{"candidates_ft": []}]}, hop) is None

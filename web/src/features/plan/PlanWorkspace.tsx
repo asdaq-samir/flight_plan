@@ -2164,6 +2164,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           <RouteProblem
             problem={unflyable} onAddStop={() => { closeProfileCard(); setAddingStop("stop"); }}
             onFlyVia={() => { closeProfileCard(); setAddingStop("via"); }} onAcceptClassB={() => acceptClassB(true)}
+            onGoRound={(via, at) => { closeProfileCard(); setStops([...planned.stops.slice(0, at), ...via, ...planned.stops.slice(at)]); }}
           />
         ) : undefined}
         tight={unflyable ? null : tightLeg}

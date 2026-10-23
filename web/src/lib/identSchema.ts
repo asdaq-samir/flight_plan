@@ -116,7 +116,7 @@ export function stopsOf(value: string | null | undefined): string[] {
 }
 
 /** The most stops a route makes: the planner's own limit (MAX_STOPS). */
-export const MAX_STOPS = 8;
+export const MAX_STOPS = 16;
 
 /** A route the planner can plan, or null: both ends valid idents, and no
  *  airport straight after itself -- a route from an airport to itself is

@@ -39,8 +39,8 @@ MIN_RUNWAY_FT = 2500
 #: adds: beyond that, a field nearer the line is always the better stop.
 MAX_ADDED_NM = 30.0
 
-#: Stops put in for one flight at most: the planner's own most for a route
-#: (app.common.MAX_STOPS), so a long trip is planned whole at once. At 3, a
+#: Stops put in for one flight at most: eight, half the planner's own most
+#: for a route (app.common.MAX_STOPS), so a long trip is planned whole at once. At 3, a
 #: Los Angeles to Hartford in a 48-gallon airplane was given three and,
 #: once they were kept, asked for a fourth (the owner's "After it added 3
 #: stops, it asked for another fuel stop").

@@ -1623,6 +1623,10 @@ class Detour(BaseModel):
     stop_index: int
     #: Where it is: "in Downers Grove" (vfr.places).
     description: str | None = None
+    #: A way round high ground the airplane cannot climb over
+    #: (vfr.terrain_detour): every point to fly by, in order, the first of
+    #: them `ident`; empty for a Class B's one waypoint.
+    via: list[str] = []
 
 
 class NavLogError(BaseModel):
