@@ -492,7 +492,11 @@ export function ChartMark({ space, category, use, size = 22 }: {
 function KeptChartMark({ airport, size }: { airport: RecentAirport; size?: number }) {
   const { data } = useQuery(airportQuery(airport.ident));
   const use = data?.military === "military" ? "military" : data?.private ? "private" : null;
-  return <ChartMark space={data?.airspace_class ?? airport.airspace ?? null} category={data?.metar?.flight_category} use={use} size={size} />;
+  // With no report of its own, the weather modelled at it, else a station's
+  // within ten miles, as its card's chip and FPL's symbols have it.
+  const category = data?.metar?.flight_category ?? data?.modelled_weather?.flight_category
+    ?? (data?.nearby_metar?.near ? data.nearby_metar.metar.flight_category : null);
+  return <ChartMark space={data?.airspace_class ?? airport.airspace ?? null} category={category} use={use} size={size} />;
 }
 
 /** A kept airport -- a Favorite, a Recent -- as a pill's small tile: its
@@ -506,9 +510,12 @@ export function SmallAirportTile({ airport, detail, onClick, testId = "pill-favo
   const space = useAirspace(airport);
   return (
     <SmallTile
-      // The chart's mark the whole tile, no grey round it, at the owner's
-      // ask ("make fav airport icons fill the grey space around it").
-      mark={<SmallMark icon={<KeptChartMark airport={airport} size={56} />} className="[&_svg]:size-14" />}
+      // The chart's mark on its own, no grey round it, at the owner's ask
+      // ("make fav airport icons fill the grey space around it"), at 44 in
+      // the tile's 56, as wide as Home's disc reads: at 56 its ticks ran
+      // past the tile and it stood larger than Home and Add beside it (the
+      // owner's "Airport icons too big").
+      mark={<SmallMark icon={<KeptChartMark airport={airport} size={44} />} className="[&_svg]:size-11" />}
       title={airport.ident} detail={detail} label={`${airport.ident}, ${space.name}`} onClick={onClick} testId={testId}
     />
   );
