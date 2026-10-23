@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { IN_CAPSULE } from "../../../components/mapChrome";
+import { CAPSULE_SEPARATOR, IN_CAPSULE } from "../../../components/mapChrome";
 import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { Ellipsis, FileArchive, FileDown, FileText, Link2, MapPinned, Printer, RotateCw, Send, Share, Trash2 } from "lucide-react";
@@ -148,7 +148,7 @@ export default function ShareMenu({
             {/* The route box's a size down, as the box's other buttons are. */}
             <RoundButton
               label={planAgain?.stale.length ? `${SHARE_LABEL[card]}: ${planAgain.stale.join(", ")}` : SHARE_LABEL[card]}
-              className={card === "route" ? cn("size-8", IN_CAPSULE) : undefined} data-testid={testId}
+              className={card === "route" ? cn("size-8", IN_CAPSULE, CAPSULE_SEPARATOR) : undefined} data-testid={testId}
             >
               <span className="relative">
                 {card === "route" ? <Ellipsis className="size-[1.125rem]" strokeWidth={2.4} /> : <Share className="size-5" strokeWidth={2} />}

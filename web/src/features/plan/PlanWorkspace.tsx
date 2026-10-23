@@ -36,7 +36,7 @@ import RoundButton from "../../components/RoundButton";
 import ShareMenu from "./components/ShareMenu";
 import type { RouteCard } from "../../lib/openCards";
 import TipHost from "../../components/TipHost";
-import { useCardTitle, usePanelDragging, CAPSULE, IN_CAPSULE } from "../../components/mapChrome";
+import { useCardTitle, usePanelDragging, CAPSULE, CAPSULE_SEPARATOR, IN_CAPSULE } from "../../components/mapChrome";
 import { CardHead } from "../../components/PanelCard";
 import { AirportRecentsPage, RecentAirportTiles, SearchField, SearchResults } from "../../components/PanelCapsule";
 import { chipColourOf } from "../../lib/map/flightCategory";
@@ -2230,7 +2230,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
             approaches button with the navlog button"): FPL lists the route
             in order instead, its procedures with it (ProceduresRoute). */}
         {routed && (
-          <RoundButton label="Nav log" onClick={openNavLogCard} disabled={!course} className={cn("size-8", IN_CAPSULE)} data-testid="route-navlog">
+          <RoundButton label="Nav log" onClick={openNavLogCard} disabled={!course} className={cn("size-8", IN_CAPSULE, routed && CAPSULE_SEPARATOR)} data-testid="route-navlog">
             <ListOrdered className="size-[1.125rem]" strokeWidth={2} />
           </RoundButton>
         )}

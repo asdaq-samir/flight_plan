@@ -225,6 +225,11 @@ export const IN_CAPSULE = "bg-transparent bg-none shadow-none dark:bg-transparen
  *  as the round ones' were, so each keeps its 44-point tap area. */
 export const CAPSULE = `rounded-full ${GLASS_BUTTON}`;
 
+/** A hairline before a button in a capsule but the first, at the owner's
+ *  ask ("No separater in the capsule?"): in the middle of the 12 between
+ *  the two, so their centres stay 44 apart. */
+export const CAPSULE_SEPARATOR = "before:pointer-events-none before:absolute before:top-1/2 before:-left-[6.5px] before:h-4 before:w-px before:-translate-y-1/2 before:bg-foreground/15 before:content-['']";
+
 /** A chip's words on the panel's row (the airplane, the cruising altitude,
  *  the time): a note's 13 to a finger, as Maps' route options are, growing
  *  with the reader's text size only to 14, so the row stays one line at
